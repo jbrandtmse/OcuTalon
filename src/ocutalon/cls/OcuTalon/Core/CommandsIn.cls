@@ -8,7 +8,7 @@
 ///     Ownership.Incident returns for the command's SessionRef, which inside a bridge context must be the context's OwnerRef;
 ///     any other origin must be one the table names for the verb (a refusal of a settings verb says "admin only" unless the verb's
 ///     origins include web_user or tool, as the persona and heartbeat verbs' do; SetHeartbeat and RunHeartbeat are web_user only, and neither is
-///     a tool verb). SendDigest, the one step 2 verb a tool may also send, takes no
+///     a tool verb; the precedent verbs MarkNoise and ForgetPrecedent are web_user only and no tool verb either). SendDigest, the one step 2 verb a tool may also send, takes no
 ///     recipient: it reaches only the session's own digest.channels, and inside a bridge context its SessionRef must be the context's
 ///     OwnerRef, so a tool cannot name another session. ProposePersona, the one settings verb a tool may send, is held to the same rule:
 ///     inside a bridge context its SessionRef must be the context's OwnerRef (DW-570), so a tool proposes only the persona of the
@@ -179,9 +179,10 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// The verbs, one entry each: the owner item that carries the verb out, and the origins that may send it (Msg.Enum ORIGIN).
 /// A verb that is not here is not routed. Every settings verb goes to SettingsOps with the origins system and web_admin,
 /// except the persona verbs (AD-1): SetPersona from web_user only, the person's own page, and ProposePersona from tool only, and the
-/// heartbeat verbs (Epic 39): SetHeartbeat to SettingsOps and RunHeartbeat to Checks, each from web_user only.
+/// heartbeat verbs (Epic 39): SetHeartbeat to SettingsOps and RunHeartbeat to Checks, each from web_user only, and the precedent verbs (Epic 41,
+/// AD-21): MarkNoise and ForgetPrecedent to PrecedentOps, each from web_user only; neither is a tool verb.
 /// A settings verb whose origins include web_user or tool is refused with the plain not-allowed text, not the admin-only one.
-/// SendDigest goes to Digest, and GotIt to SessionOps.
+/// SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.
 XData Routes [ MimeType = application/json ]
 {
 [
@@ -199,13 +200,16 @@ XData Routes [ MimeType = application/json ]
  {"verb": "EndSession", "owner": "SessionOps", "origins": "web_user,web_admin,telegram,timer,system"},
  {"verb": "SendDigest", "owner": "Digest", "origins": "tool,web_admin"},
  {"verb": "SaveSettings", "owner": "SettingsOps", "origins": "web_admin,system"},
+ {"verb": "TestModel", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "GotIt", "owner": "SessionOps", "origins": "web_user,web_admin,telegram"},
  {"verb": "SaveMemory", "owner": "MemoryOps", "origins": "tool"},
  {"verb": "ForgetMemory", "owner": "MemoryOps", "origins": "tool"},
  {"verb": "AddDocument", "owner": "DocumentOps", "origins": "web_user"},
  {"verb": "RemoveDocument", "owner": "DocumentOps", "origins": "web_user"},
  {"verb": "SetHeartbeat", "owner": "SettingsOps", "origins": "web_user"},
- {"verb": "RunHeartbeat", "owner": "Checks", "origins": "web_user"}
+ {"verb": "RunHeartbeat", "owner": "Checks", "origins": "web_user"},
+ {"verb": "MarkNoise", "owner": "PrecedentOps", "origins": "web_user"},
+ {"verb": "ForgetPrecedent", "owner": "PrecedentOps", "origins": "web_user"}
 ]
 }
 

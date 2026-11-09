@@ -1,0 +1,16 @@
+{
+  "name": "memory-notes",
+  "match": {
+    "marker": "memory-notes"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock answers the user now.\"],\"confidence\":0.9}"
+    },
+    {
+      "status": 200,
+      "text": "Noted."
+    }
+  ]
+}

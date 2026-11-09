@@ -116,6 +116,12 @@ export interface DismissBody {
   result: 'done';
 }
 
+/** POST /ocutalon/api/v1/decisions/:ref/got-it: the body of the 200 answer. `handledAt` is when the notice was marked, UTC to the second (the first press's, also for a repeat). The request body is {} (the web chat's press) or {"channel":"phone"} (the simulated phone's) and the session is the caller's. */
+export interface GotItBody {
+  result: 'done';
+  handledAt: string;
+}
+
 /** POST /ocutalon/api/v1/pairing/code: the 200 answer. The code is 22 characters, shown once and valid until `expiresAt` (UTC); the server stores only its hash. */
 export interface PairingCode {
   code: string;
@@ -167,10 +173,55 @@ export interface PublicStatus {
 /** GET /ocutalon/api/v1/settings: the values of the settings page (admins only; a 403 `not_admin` for anyone else). */
 export interface SettingsBody {
   sections: SettingsSections;
-  /** The bridge values (Budgets); empty until the bridge builds them. */
-  bridge: Record<string, string | number>;
-  providers: unknown[];
+  /** The bridge values: the budgets and the zone as strings, and `agents`, the model of each of the three agents. */
+  bridge: { agents?: Record<string, AgentModels>; [name: string]: unknown };
+  /** The provider table's rows, in their fixed order. No key value is ever in it (Story 18.3). */
+  providers: ProviderRow[];
   instanceZone: string;
+  /** The prices of each model of each supported provider that has a Price row, in US dollars per million tokens. */
+  prices?: Prices;
+}
+
+/** A row of the provider table: `keySet` says that the key variable is set; `supported` says that an agent can run on it. */
+export interface ProviderRow {
+  provider: string;
+  defaultModel: string;
+  models: string[];
+  keyVariable: string;
+  keySet: boolean;
+  supported: boolean;
+}
+
+/** The model of one agent and its second model; the second pair is empty when the agent has none. */
+export interface AgentModels {
+  provider: string;
+  model: string;
+  secondProvider: string;
+  secondModel: string;
+}
+
+/** The prices of one model that the Models section edits. */
+export interface ModelPrices {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+/** The prices by model. */
+export type Prices = Record<string, ModelPrices>;
+
+/** The body of a Models save: the three agents and the prices of every listed model, the prices as typed. */
+export interface ModelsBody {
+  agents: Record<string, AgentModels>;
+  prices: Record<string, Record<keyof ModelPrices, string>>;
+}
+
+/** The 200 answer to POST /v1/settings/models/test: `answered`, the seconds with one decimal, and the fallback reason ("" when answered). */
+export interface ModelTestAnswer {
+  answered: boolean;
+  seconds: number;
+  reason: string;
 }
 
 /** The values of the sections that hold some. */
@@ -184,6 +235,16 @@ export interface SettingsSections {
   };
   'daily-digest': { time: string; channels: string };
   'demo-mode': { demoMode: boolean };
+}
+
+/** The body of a Time zone save: the IANA zone name, or "" for the server's own zone. The zone is a bridge value, so the 200 answer's sections do not hold it. */
+export interface TimeZoneBody {
+  InstanceZone: string;
+}
+
+/** The 202 answer to POST /ocutalon/api/v1/settings/daily-digest/send: the digest is being sent. */
+export interface DigestSending {
+  result: 'sending';
 }
 
 /** The 200 answer to a save: `{result: 'done', sections}`. */

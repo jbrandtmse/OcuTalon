@@ -538,7 +538,7 @@ describe('the fallback and no-fix notices (Story 6.4)', () => {
 
   it('shows the fallback sentence with the reason\'s text, the failure group lines, no fix and no cause', () => {
     const card = view(fallback());
-    assert.equal(card.notice, "I couldn't work out the cause (the model didn't answer within 60 seconds), so I'm not proposing a fix. Nothing was changed.");
+    assert.equal(card.notice, "I couldn't work out the cause (the model didn't answer within the time allowed), so I'm not proposing a fix. Nothing was changed.");
     assert.deepEqual(card.groups, ["Order transform: 50, 'date could not be read', first at 14:12"]);
     assert.equal(card.fixSentence, '');
     assert.equal(card.causeSentence, '');

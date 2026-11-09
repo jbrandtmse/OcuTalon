@@ -398,6 +398,7 @@ XData Contracts [ MimeType = application/json ]
    "TraceItemIndex": "%Integer",
    "TraceItemIndexNoEvents": "%Integer",
    "Tainted": "%Boolean",
+   "SessionRotated": "%Boolean",
    "Attempt": "%Integer",
    "CheckKey": "%String(MAXLEN=128)",
    "CheckRows": "%String(MAXLEN=)"
@@ -422,7 +423,8 @@ XData Contracts [ MimeType = application/json ]
    "Sender": "%String(MAXLEN=1000)",
    "Subject": "%String(MAXLEN=1000)",
    "ApprovalRef": "%String(MAXLEN=22)",
-   "Answer": "%String(MAXLEN=1000)"
+   "Answer": "%String(MAXLEN=1000)",
+   "DecisionRef": "%String(MAXLEN=22)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -442,7 +444,8 @@ XData Contracts [ MimeType = application/json ]
    "Text": "%String(MAXLEN=)",
    "DecisionRef": "%String(MAXLEN=22)",
    "DueAt": "%String(MAXLEN=20)",
-   "FallbackReason": "%String(MAXLEN=32)"
+   "FallbackReason": "%String(MAXLEN=32)",
+   "CheckRows": "%String(MAXLEN=)"
   },
   "indexes": {
    "ApprovalRefChannelOwnerRefIndex": "ApprovalRef,Channel,OwnerRef",
@@ -459,6 +462,28 @@ XData Contracts [ MimeType = application/json ]
   },
   "indexes": {
    "RefIndex": "Ref unique"
+  }
+ },
+ "OcuTalon.Data.Precedent": {
+  "super": "%Persistent",
+  "props": {
+   "Ref": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "OwnerRef": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "MatchKey": "%String(COLLATION=EXACT,MAXLEN=512)",
+   "SourceRef": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "EvalRunRef": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "Channel": "%String(MAXLEN=32)",
+   "Summary": "%String(MAXLEN=80)",
+   "Outcome": "%String(MAXLEN=32)",
+   "Answer": "%String(MAXLEN=32)",
+   "AnsweredAt": "%String(MAXLEN=20)",
+   "AnsweredChannel": "%String(MAXLEN=32)"
+  },
+  "indexes": {
+   "RefIndex": "Ref unique",
+   "SourceRefIndex": "SourceRef unique",
+   "OwnerRefIndex": "OwnerRef",
+   "OwnerKeyIndex": "OwnerRef,Channel,MatchKey"
   }
  },
  "OcuTalon.Data.Reminder": {
@@ -737,6 +762,11 @@ XData Registry [ MimeType = application/json ]
   "short": "Upload",
   "global": "^OcuTalonP.Upload",
   "class": "OcuTalon.Data.Upload"
+ },
+ {
+  "short": "Precedent",
+  "global": "^OcuTalonP.Precedent",
+  "class": "OcuTalon.Data.Precedent"
  },
  {
   "short": "Reminder",

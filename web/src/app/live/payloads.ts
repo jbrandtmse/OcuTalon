@@ -140,6 +140,8 @@ export interface NotificationPayload {
   createdAt?: string;
   decision?: DecisionPayload;
   fallbackReason?: string;
+  checks?: CheckRow[];
+  handledAt?: string;
 }
 
 export interface PhonePayload {
@@ -148,7 +150,9 @@ export interface PhonePayload {
   text?: string;
   approvalRef?: string;
   answer?: string;
+  decisionRef?: string;
   createdAt?: string;
+  noiseRef?: string;
 }
 
 export interface MailboxPayload {

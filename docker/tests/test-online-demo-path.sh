@@ -11,7 +11,7 @@
 #       which the web run's 02 to 05 call too: the guide's own Send for the watch and for the reminder, Break the feed and the incident awaiting
 #       approval, and Approve on the simulated phone to the result), step 6 (the trace link opens Visual Trace at the turn, signed in, with its
 #       agent steps and the cost), step 7 (Story 17.10: the same visitor's "Send my digest now." in the composer
-#       shows one digest card in that visitor's chat, and the simulated phone gets none), and "second visitor" (A and B each watch Orders through the guide's Send and A presses Break the feed:
+#       shows one digest card in that visitor's chat, and the simulated phone gets exactly one digest note, from the greeting to the cost), and "second visitor" (A and B each watch Orders through the guide's Send and A presses Break the feed:
 #       A's incident, notice and approval request reach only A, B's page, /state and /events get nothing, B's answer to A's request is
 #       refused, and A answers on its simulated phone),
 #       and "the paired chat under load" (Story 31.4; the demo is full): six proxied visitors fill the visitor cap (the proxy address is set to

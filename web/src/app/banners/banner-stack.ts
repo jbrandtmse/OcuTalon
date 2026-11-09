@@ -64,7 +64,8 @@ const FOCUS_RULE: FocusRule = {
  * The stack of status banners that sits under the header, in `.banner-slot` (Story 2.10; UX-DR34, UX-DR97 to UX-DR100, UX-DR116):
  * the banners of banner-view.ts for the live store, in the catalog's order. A banner is full width, at least 44px tall, with the
  * background and text colour of its variant, a 4px accent on its left edge and its icon in the accent colour. It has at most one
- * action, an underlined link that opens a new tab and says so for assistive technology, and only Reset soon and Reconnecting have
+ * action, an underlined link that opens a new tab and says so for assistive technology (the cost-cap banner's Budgets action, for an admin, opens the page's own
+ * Budgets section in the same tab, with no icon and no new-tab words), and only Reset soon and Reconnecting have
  * a Close button, an icon-only ghost button named for its action and its banner ("Close reset notice", "Close reconnecting notice"; Story 2.14).
  *   The texts are the catalog's and are bound by interpolation.
  * - No banner is a live region. Once the first snapshot has loaded, each banner that appears is announced once through the
@@ -93,9 +94,13 @@ const FOCUS_RULE: FocusRule = {
         <app-icon class="mark" [name]="banner.icon" [size]="20" />
         <span class="text">{{ banner.text }}</span>
         @if (banner.action; as action) {
-          <a class="action" [href]="action.href" target="_blank" rel="noopener noreferrer"
-            >{{ action.text }}<app-icon name="external-link" [size]="12" /><span class="visually-hidden"> {{ opensInNewTab }}</span></a
-          >
+          @if (action.sameTab) {
+            <a class="action" [href]="action.href">{{ action.text }}</a>
+          } @else {
+            <a class="action" [href]="action.href" target="_blank" rel="noopener noreferrer"
+              >{{ action.text }}<app-icon name="external-link" [size]="12" /><span class="visually-hidden"> {{ opensInNewTab }}</span></a
+            >
+          }
         }
         @if (banner.closable) {
           <button type="button" class="button button-ghost close" [attr.aria-label]="closeName(banner.id)" (click)="close(banner)">
@@ -197,7 +202,7 @@ export class BannerStack {
     if (this.demoBusy.busy()) {
       own.push('demoBusy');
     }
-    return { status: this.withAllowance(store.status), own, onlineDemo: this.live.snapshot()?.onlineDemo === true, telegram: telegramOn(store.telegram) } satisfies Omit<BannerInput, 'closed'>;
+    return { status: this.withAllowance(store.status), own, onlineDemo: this.live.snapshot()?.onlineDemo === true, telegram: telegramOn(store.telegram), admin: this.live.snapshot()?.admin === true } satisfies Omit<BannerInput, 'closed'>;
   });
 
   /** Every banner whose condition holds, closed or not. */

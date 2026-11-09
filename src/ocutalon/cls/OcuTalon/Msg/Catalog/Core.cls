@@ -179,7 +179,7 @@ XData Entries [ MimeType = application/json ]
   "source": "EXPERIENCE Message Catalog / Conversation / Demo allowance used up: session"
  },
  "fallbackReason.timeout": {
-  "text": "the model didn't answer within 60 seconds",
+  "text": "the model didn't answer within the time allowed",
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Conversation / Fallback reasons / timeout"
  },
@@ -204,7 +204,7 @@ XData Entries [ MimeType = application/json ]
   "source": "EXPERIENCE Message Catalog / Conversation / Fallback reasons / error"
  },
  "fallbackReason.rateLimited": {
-  "text": "the model was busy and retries ran out",
+  "text": "the model was too busy to answer",
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Conversation / Fallback reasons / rateLimited"
  },
@@ -293,7 +293,7 @@ XData Entries [ MimeType = application/json ]
   "source": "EXPERIENCE Message Catalog / Status banners (web) / Unreachable"
  },
  "banner.noModelKey": {
-  "text": "OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.",
+  "text": "OcuTalon has no model key, so every decision uses fixed rules. Add a key for a supported provider (for example, ANTHROPIC_API_KEY) to the .env file and restart OcuTalon.",
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Status banners (web) / No model key (step 1)"
  },

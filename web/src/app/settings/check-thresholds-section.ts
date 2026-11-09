@@ -1,12 +1,12 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { afterNextRender, ChangeDetectionStrategy, Component, ElementRef, inject, Injector, input, output, signal, computed, effect } from '@angular/core';
 import { type Observable, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
-import type { SettingsError, SettingsSaved, SettingsSections } from '../api/api-types';
+import type { SettingsSaved, SettingsSections } from '../api/api-types';
 import { Icon } from '../icon/icon';
 import { Announcer } from '../shared/announcer';
 import { ServerButton } from '../shared/server-button';
+import { refusalOf } from './refusal';
 import {
   bodyOf,
   firstInError,
@@ -218,19 +218,18 @@ export class CheckThresholdsSection {
   }
 
   private refused(error: unknown): void {
-    if (error instanceof HttpErrorResponse && error.status === 403) {
+    const known = THRESHOLD_FIELDS.map((field) => field.name as string);
+    const refusal = refusalOf(error, known);
+    if (refusal.kind === 'denied') {
       this.denied.emit();
       return;
     }
-    const body = (error instanceof HttpErrorResponse ? error.error : undefined) as SettingsError | undefined;
-    const named = error instanceof HttpErrorResponse && error.status === 400 && Array.isArray(body?.fields) ? body.fields : [];
-    const known = THRESHOLD_FIELDS.map((field) => field.name as string);
-    const names = named.filter((name) => known.includes(name)) as ThresholdName[];
-    if (names.length === 0) {
+    if (refusal.kind === 'form') {
       this.formError.set(true);
       this.announcer.announce(SETTINGS_TEXTS.failed);
       return;
     }
+    const names = refusal.fields as ThresholdName[];
     this.errors.set(Object.fromEntries(names.map((name) => [name, true])));
     const first = firstInError(names, known);
     afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(`#threshold-${first}`)?.focus(), { injector: this.injector });

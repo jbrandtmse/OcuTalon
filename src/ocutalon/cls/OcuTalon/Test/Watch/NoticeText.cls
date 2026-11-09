@@ -267,7 +267,7 @@ Method TestUnknown()
 
 Method TestFallback()
 {
-	Set reasons = $ListBuild($ListBuild("timeout", "timeout", "the model didn't answer within 60 seconds"), $ListBuild("error", "error", "the model returned an error"), $ListBuild("refusal", "refusal", "the model declined to answer"), $ListBuild("invalid", "invalid", "the model's reply couldn't be used"), $ListBuild("", "unusable", "the model's reply couldn't be used"), $ListBuild("zz", "unusable", "the model's reply couldn't be used"))
+	Set reasons = $ListBuild($ListBuild("timeout", "timeout", "the model didn't answer within the time allowed"), $ListBuild("error", "error", "the model returned an error"), $ListBuild("refusal", "refusal", "the model declined to answer"), $ListBuild("invalid", "invalid", "the model's reply couldn't be used"), $ListBuild("", "unusable", "the model's reply couldn't be used"), $ListBuild("zz", "unusable", "the model's reply couldn't be used"))
 	Set position = 0
 	While $ListNext(reasons, position, each) {
 		Set row = ..Row("", 1, $List(each, 1))

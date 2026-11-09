@@ -83,7 +83,7 @@ const inSignIn2Dir = (name) => SIGN_IN_2_DIRS.some((dir) => name.startsWith(`${d
  * outside OWN_PROJECT_DIRS, each in exactly one of them.
  */
 const SIGN_IN_3_DIRS = ['guide', 'heartbeat'];
-const SIGN_IN_3_FILES = ['heartbeat-card.spec.ts'];
+const SIGN_IN_3_FILES = ['heartbeat-card.spec.ts', 'memory-noise.spec.ts', 'memory-card.spec.ts'];
 const inSignIn3 = (name) => SIGN_IN_3_DIRS.some((dir) => name.startsWith(`${dir}/`)) || SIGN_IN_3_FILES.includes(name);
 
 describe('the projects, listed with no OCUTALON_ variable set', () => {
@@ -116,7 +116,7 @@ describe('the projects, listed with no OCUTALON_ variable set', () => {
     assert.equal(script, 'playwright test --project=sign-in-2');
   });
 
-  it('sign-in-3 (the e2e:sign-in-3 script) lists exactly the spec files inside guide/ and heartbeat/ and the file heartbeat-card.spec.ts', () => {
+  it('sign-in-3 (the e2e:sign-in-3 script) lists exactly the spec files inside guide/ and heartbeat/ and the files heartbeat-card.spec.ts, memory-noise.spec.ts and memory-card.spec.ts', () => {
     assert.deepEqual(
       filesOf('e2e:sign-in-3'),
       onDisk.filter((name) => inSignIn3(name)),

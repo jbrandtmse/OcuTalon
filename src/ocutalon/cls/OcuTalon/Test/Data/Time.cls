@@ -1,35 +1,46 @@
 /// Tests of OcuTalon.Data.Time (Story 0.4, AD-18; ForMessage from Story 0.9) in a process whose TZ is unset and in ones set
-/// to America/New_York and Asia/Kolkata. The process time zone is restored after every test.
-Class OcuTalon.Test.Data.Time Extends %UnitTest.TestCase
+/// to America/New_York and Asia/Kolkata, with no InstanceZone row. The base class (Test.Bridge.ZoneCase) puts the process zone and the
+/// row back after every test. The tests that need the running production's InstanceZone are in Test.Data.TimeSource.
+Class OcuTalon.Test.Data.Time Extends OcuTalon.Test.Bridge.ZoneCase
 {
 
-/// The TZ of the process before the tests: -1 when it was undefined.
-Property SavedZone As %String;
-
-Method OnBeforeAllTests() As %Status
-{
-	Set ..SavedZone = $SYSTEM.Process.TimeZone()
-	Quit $$$OK
-}
-
-Method OnAfterOneTest(testname As %String) As %Status
-{
-	Do ..RestoreZone()
-	Quit $$$OK
-}
-
-Method OnAfterAllTests() As %Status
-{
-	Do ..RestoreZone()
-	Quit $$$OK
-}
-
-/// With TZ unset the instance zone is UTC and a local time equals the UTC time.
+/// With no InstanceZone and TZ unset, Zone() is the operating system's zone (OsZone) or UTC when that is empty; the conversion itself is
+/// in the inherited zone, which is UTC for a process with no zone, so a local time equals the UTC time.
 Method TestUnsetZone()
 {
 	Do $SYSTEM.Process.TimeZone("")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Time).Zone(), "UTC", "the zone is UTC")
+	Set os = ##class(OcuTalon.Data.Time).OsZone()
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).Zone(), $Select(os = "": "UTC", 1: os), "the zone is the operating system's, or UTC")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2026-11-01T06:30:00Z"), "2026-11-01T06:30:00", "a local time equals the UTC time")
+}
+
+/// OsZone reads the zone name from a link into the zone folder, reports the UTC aliases as UTC, and gives "" for a link that does not resolve
+/// or does not point into the zone folder.
+Method TestOsZone()
+{
+	Set time = "OcuTalon.Data.Time"
+	Do $$$AssertEquals($ClassMethod(time, "OsZone", "/usr/share/zoneinfo/Europe/Berlin"), "Europe/Berlin", "a zone file gives its name")
+	Do $$$AssertEquals($ClassMethod(time, "OsZone", "/usr/share/zoneinfo/America/New_York"), "America/New_York", "a zone file with an underscore")
+	Set aliases = $ListBuild("Etc/UTC", "Etc/UCT", "Etc/Universal", "Etc/Zulu", "UTC", "UCT", "Universal", "Zulu")
+	Set position = 0
+	While $ListNext(aliases, position, alias) {
+		If ##class(%File).Exists("/usr/share/zoneinfo/" _ alias) {
+			Do $$$AssertEquals($ClassMethod(time, "OsZone", "/usr/share/zoneinfo/" _ alias), "UTC", alias _ " is reported as UTC")
+		}
+	}
+	Do $$$AssertEquals($ClassMethod(time, "OsZone", "/usr/share/zoneinfo/Zz/NoSuchZone"), "", "an unresolvable link gives an empty name")
+	Do $$$AssertEquals($ClassMethod(time, "OsZone", "/etc/hostname"), "", "a file outside the zone folder gives an empty name")
+	Do $$$AssertEquals($ClassMethod(time, "OsZone", ""), "", "an empty link gives an empty name")
+}
+
+/// With TZ unset and no InstanceZone, Zone() takes the operating system's zone before UTC.
+Method TestZoneFromOs()
+{
+	Do $SYSTEM.Process.TimeZone("")
+	Set os = ##class(OcuTalon.Data.Time).OsZone()
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).Zone(), $Select(os = "": "UTC", 1: os), "Zone() is OsZone() when TZ is unset")
+	Do $SYSTEM.Process.TimeZone("Asia/Kolkata")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).Zone(), "Asia/Kolkata", "a TZ comes before the operating system's zone")
 }
 
 /// In America/New_York both UTC times of the repeated hour on 2026-11-01 give 01:30, and the spring-forward gap
@@ -164,12 +175,6 @@ Method TestNowUtc()
 	Set after = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertTrue($Match(now, "^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"), "NowUtc matches YYYY-MM-DDThh:mm:ssZ")
 	Do $$$AssertTrue((before ']] now) && (now ']] after), "NowUtc is UTC in America/New_York too: "_before_" <= "_now_" <= "_after)
-}
-
-/// Restores the TZ that the process had before the tests.
-Method RestoreZone() [ Private ]
-{
-	Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
 }
 
 }

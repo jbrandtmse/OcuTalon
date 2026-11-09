@@ -8,8 +8,8 @@
 ///   - TestUploadsDropped: End calls the uploads drop once, with the session's SessionRef, and the real Upload.DropSession deletes the session's
 ///     upload rows and no other session's; an uploads drop that answers an error or throws makes End answer failed, keeps the resume hash and
 ///     still runs the other drops and the later steps (here a pending approval request's cancel);
-///   - TestRealStubsEnd: the real SessionOps with Lane A's DropSession stubs answers ended and clears the resume hash (Story 34.1's stubs
-///     return OK and change nothing).
+///   - TestRealStubsEnd: SessionOps (through Test.Core.SessionOpsProbe, which sends no drop to PrecedentOps for a session with no rows) with Lane A's DropSession
+///     stubs answers ended and clears the resume hash (Story 34.1's stubs return OK and change nothing).
 Class OcuTalon.Test.Core.SessionOpsDocuments Extends %UnitTest.TestCase
 {
 
@@ -111,13 +111,13 @@ Method TestUploadsDropped()
 	Do ##class(OcuTalon.Data.Upload).DropSession(other)
 }
 
-/// The real SessionOps with the real DropSession stubs ends the session.
+/// SessionOps with the real DropSession stubs ends the session. The probe leaves the documents, memories and uploads drops as they are and sends nothing to PrecedentOps.
 Method TestRealStubsEnd()
 {
 	Set session = ..Session("real")
 	Do ..SetResumeHash(session, "real")
-	Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Core.SessionOps", .sc)
-	Do $$$AssertStatusOK(sc, "the real SessionOps is made")
+	Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.SessionOpsProbe", .sc)
+	Do $$$AssertStatusOK(sc, "SessionOps is made")
 	Set result = ..End(probe, "web_user", session)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|ended", "Ok 1, ended")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session).ResumeHash, "", "the resume hash is cleared")

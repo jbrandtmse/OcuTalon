@@ -52,10 +52,10 @@ describe('the scan', () => {
 });
 
 describe('the phone', () => {
-  it('draws a message with an approvalRef by app-phone-request, inside the same notification, and every other message as before', () => {
+  it('draws a message with an approvalRef by app-phone-request, inside the same notification, and every other message as before (a tell-now message adds Got it or its answer line between its text and its time, Story 18.4)', () => {
     assert.match(screenTemplate, /<div class="notification" tabindex="-1" \[attr\.data-key\]="one\.ref">\s*@if \(one\.approvalRef\) \{\s*<app-phone-request\s/);
     assert.match(screenTemplate, /\[message\]="one"\s+\[approval\]="approvalOf\(one\)"\s+\[caption\]="timeOf\(one\)"\s+\[instanceZone\]="instanceZone\(\)"\s+\[onlineDemo\]="onlineDemo\(\)"\s+\[user\]="user\(\)"/);
-    assert.match(screenTemplate, /\} @else \{\s*<p class="text">\{\{ one\.text \}\}<\/p>\s*<span class="time">\{\{ timeOf\(one\) \}\}<\/span>\s*\}/);
+    assert.match(screenTemplate, /\} @else \{\s*<p class="text">\{\{ one\.text \}\}<\/p>\s*@if \(gotItShown\(one\)\) \{[\s\S]*?\}\s*<span class="time">\{\{ timeOf\(one\) \}\}<\/span>\s*@if \(phoneNoiseRef\(one\); as ref\) \{\s*<app-noise-control \[decisionRef\]="ref" channel="phone" \[instanceZone\]="instanceZone\(\)" \/>\s*\}\s*\}/);
   });
 
   it('reads the request from the store by the message\'s approvalRef, and looks for the New messages target among the notifications only', () => {

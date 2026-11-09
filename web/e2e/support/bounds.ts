@@ -12,7 +12,8 @@ import { test } from '@playwright/test';
  * (waitsFor), and their fixtures keep the 240 s they wait on purpose, within the test's deadline (capToDeadline). Every number lives here only.
  * Story 32.6 (DW-550, DW-774) adds the one logged retry of a live page's snapshot wait: RETRY_MIN_ATTEMPT_MS and firstAttemptMs split the
  * snapshot bound, retryLine and reportRetry print `RETRY <spec>:<line> <step>` and append it to the file that OCUTALON_E2E_RETRY_LOG names
- * (ci/iris.sh counts those lines per unit and per group), and diagnosedAtBound runs a diagnosis when a bounded step passes its bound.
+ * (ci/iris.sh counts those lines per unit and per group, and prints the retry-time `DIAG` lines that reportRetry appends after it, DW-911),
+ * and diagnosedAtBound runs a diagnosis when a bounded step passes its bound.
  * Erasable TypeScript only: web/scripts/bounded-waits.test.mjs imports this file as it is.
  */
 
@@ -170,15 +171,23 @@ export function retryLocation(): string {
   }
 }
 
-/** Prints the `RETRY` line of a step that is tried a second time, and appends it to the file that RETRY_LOG_VARIABLE names when it is set. It never throws. */
-export function reportRetry(step: string): void {
+/** A diagnosis line that may follow a RETRY line in the retries file: printable ASCII, at most 300 characters after `DIAG ` (ci/iris.sh prints only these). */
+const RETRY_DIAG_LINE = /^DIAG [ -~]{1,300}$/;
+
+/**
+ * Prints the `RETRY` line of a step that is tried a second time, and appends it to the file that RETRY_LOG_VARIABLE names when it is set,
+ * followed by each of lines that has the shape `DIAG <printable ASCII, 1 to 300 characters>` (the retry-time diagnosis, already redacted by
+ * the caller); stdout holds the RETRY line only. It never throws.
+ */
+export function reportRetry(step: string, lines: readonly string[] = []): void {
   const line = retryLine(retryLocation(), step);
   console.log(line);
   try {
     const file = process.env[RETRY_LOG_VARIABLE];
     if (file) {
       mkdirSync(dirname(file), { recursive: true });
-      appendFileSync(file, `${line}\n`);
+      const diag = lines.filter((text) => RETRY_DIAG_LINE.test(text));
+      appendFileSync(file, `${[line, ...diag].join('\n')}\n`);
     }
   } catch {
     // Best effort: the printed line stays; only the count of ci/iris.sh misses it.

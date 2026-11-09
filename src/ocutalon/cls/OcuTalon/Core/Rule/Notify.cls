@@ -6,6 +6,9 @@
 ///   - OcuTalon.Msg.Notification of Kind pairing: TelegramOut alone when ChatRef is set and Telegram is included, otherwise
 ///     nothing;
 ///   - Kind allowance: WebChatOut, and TelegramOut as well when the session is paired;
+///   - Kind digest: the session's own channels that digest.channels also names (Functions.DigestNamed): WebChatOut when web is named,
+///     SimPhoneOut when phone is named and demo mode is on, TelegramOut when telegram is named and the session is paired; nothing
+///     when none holds. A digest never takes the generic route below;
 ///   - any other Kind: WebChatOut, SimPhoneOut as well when demo mode is on, and TelegramOut as well when the session is paired.
 /// A session is paired only while Telegram is included, so a release without Telegram never sends to TelegramOut.
 Class OcuTalon.Core.Rule.Notify Extends Ens.Rule.Definition [ CompileAfter = OcuTalon.Core.Rule.Functions ]
@@ -38,6 +41,29 @@ XData RuleDefinition [ XMLNamespace = "http://www.intersystems.com/rule" ]
 </when>
 <when condition="Document.Kind=&quot;allowance&quot;">
 <send transform="" target="WebChatOut"></send>
+</when>
+<when condition="Document.Kind=&quot;digest&quot; &amp;&amp; (DigestNamed(&quot;web&quot;)) &amp;&amp; (DemoOn() &amp;&amp; DigestNamed(&quot;phone&quot;)) &amp;&amp; (TelegramPaired(Document.SessionRef) &amp;&amp; DigestNamed(&quot;telegram&quot;))">
+<send transform="" target="WebChatOut,SimPhoneOut,TelegramOut"></send>
+</when>
+<when condition="Document.Kind=&quot;digest&quot; &amp;&amp; (DigestNamed(&quot;web&quot;)) &amp;&amp; (DemoOn() &amp;&amp; DigestNamed(&quot;phone&quot;))">
+<send transform="" target="WebChatOut,SimPhoneOut"></send>
+</when>
+<when condition="Document.Kind=&quot;digest&quot; &amp;&amp; (DigestNamed(&quot;web&quot;)) &amp;&amp; (TelegramPaired(Document.SessionRef) &amp;&amp; DigestNamed(&quot;telegram&quot;))">
+<send transform="" target="WebChatOut,TelegramOut"></send>
+</when>
+<when condition="Document.Kind=&quot;digest&quot; &amp;&amp; (DigestNamed(&quot;web&quot;))">
+<send transform="" target="WebChatOut"></send>
+</when>
+<when condition="Document.Kind=&quot;digest&quot; &amp;&amp; (DemoOn() &amp;&amp; DigestNamed(&quot;phone&quot;)) &amp;&amp; (TelegramPaired(Document.SessionRef) &amp;&amp; DigestNamed(&quot;telegram&quot;))">
+<send transform="" target="SimPhoneOut,TelegramOut"></send>
+</when>
+<when condition="Document.Kind=&quot;digest&quot; &amp;&amp; (DemoOn() &amp;&amp; DigestNamed(&quot;phone&quot;))">
+<send transform="" target="SimPhoneOut"></send>
+</when>
+<when condition="Document.Kind=&quot;digest&quot; &amp;&amp; (TelegramPaired(Document.SessionRef) &amp;&amp; DigestNamed(&quot;telegram&quot;))">
+<send transform="" target="TelegramOut"></send>
+</when>
+<when condition="Document.Kind=&quot;digest&quot;">
 </when>
 <when condition="DemoOn() &amp;&amp; TelegramPaired(Document.SessionRef)">
 <send transform="" target="WebChatOut,SimPhoneOut,TelegramOut"></send>

@@ -18,7 +18,8 @@
 #   cases         eval/ holds a case.json, and every one is a JSON object that has a name equal to its folder's, a kind of the case kinds, a boolean
 #                 heldOut, a description, a recordedBy and an expectation with the fields of its kind, and its kind's record; and every
 #                 folder below eval/ that holds a file holds a case.json:
-#                   item                expectation.outcome of the outcomes; an item record with an itemId that is the case's name
+#                   item                expectation.outcome of the outcomes, or a non-empty array of distinct outcomes (Story 41.7: any one is
+#                                       right); an item record with an itemId that is the case's name
 #                                       (a test-only case below eval/mock-wrong/ is exempt) and a provenance that is
 #                                       absent or untrusted, and either the channel mailbox with no catalogKey, or the channel system
 #                                       (a finding) with a catalogKey of the finding keys, a slots object, an empty sender and subject
@@ -331,7 +332,8 @@ try {
     }
     if (c.kind === 'item' || c.kind === 'injection') {
       if (c.kind === 'item') {
-        if (!OUTCOMES.includes(x.outcome)) bad(file, 'expectation.outcome is not one of the outcomes');
+        const choice = Array.isArray(x.outcome) && x.outcome.length > 0 && x.outcome.every((o) => OUTCOMES.includes(o)) && new Set(x.outcome).size === x.outcome.length;
+        if (!OUTCOMES.includes(x.outcome) && !choice) bad(file, 'expectation.outcome is not one of the outcomes');
       } else {
         if (x.keyPhrases === undefined && x.outcome === undefined) bad(file, 'expectation has neither keyPhrases nor an outcome');
         if (x.keyPhrases !== undefined && !phrases(x.keyPhrases)) bad(file, 'expectation.keyPhrases is not a non-empty array of phrases (a string, or an array of alternatives)');
@@ -544,7 +546,7 @@ try {
     if (c.kind !== 'item') continue;
     items += 1;
     const outcome = c.expectation && c.expectation.outcome;
-    if (byOutcome.has(outcome)) byOutcome.set(outcome, byOutcome.get(outcome) + 1);
+    if (typeof outcome === 'string' && byOutcome.has(outcome)) byOutcome.set(outcome, byOutcome.get(outcome) + 1);
     if (c.item && typeof c.item.channel === 'string') channels.add(c.item.channel);
   }
   if (items < MIN_ITEMS) bad(`the set holds fewer than ${MIN_ITEMS} item cases`);
@@ -1000,6 +1002,10 @@ variant('record-guard', 'good', '', (f) => { f['docker/tests/record-eval.sh'] = 
 variant('cases', 'bad-no-expectation', 'has no expectation', (f) => { delete f[ITEM].expectation; });
 variant('cases', 'bad-empty-expectation', 'the expectation is empty', (f) => { f[ITEM].expectation = {}; });
 variant('cases', 'bad-outcome', 'expectation.outcome is not one of the outcomes', (f) => { f[ITEM].expectation.outcome = 'maybe'; });
+variant('cases', 'good-item-outcome-choice', '', (f) => { f[ITEM].expectation.outcome = ['digest', 'ignore']; });
+variant('cases', 'bad-item-outcome-choice-empty', 'expectation.outcome is not one of the outcomes', (f) => { f[ITEM].expectation.outcome = []; });
+variant('cases', 'bad-item-outcome-choice-duplicate', 'expectation.outcome is not one of the outcomes', (f) => { f[ITEM].expectation.outcome = ['digest', 'digest']; });
+variant('cases', 'bad-item-outcome-choice-unknown', 'expectation.outcome is not one of the outcomes', (f) => { f[ITEM].expectation.outcome = ['digest', 'maybe']; });
 variant('cases', 'bad-injection-outcome', 'expectation.outcome is not one of the outcomes', (f) => { f[INJECTION].expectation.outcome = 'maybe'; });
 variant('cases', 'good-injection-both', '', (f) => { f[INJECTION].expectation.outcome = 'digest'; });
 variant('cases', 'good-injection-outcome-only', '', (f) => { f[INJECTION].expectation = { outcome: 'tellnow' }; });

@@ -739,6 +739,9 @@ chk_commands() {
 KEY_FACTS='ANTHROPIC_API_KEY=<your key>
 .env.example
 Claude Haiku 5.5
+Anthropic is the supported model provider: in Settings, an admin can choose Claude Haiku 5.5 or Claude Sonnet 5.5 for each agent.
+Each supported provider'"'"'s key comes from its own environment variable, which `.env.example` lists without a value; Anthropic'"'"'s is `ANTHROPIC_API_KEY`.
+A key is never entered on the settings page, and the page never shows one.
 Sign in to Visual Trace'
 ACCOUNT_FACTS='User name: `ocutalon`
 Password: `ocutalon`'
@@ -1217,7 +1220,7 @@ chk_product_links() {
 }
 
 # readme-links (Design Notes 8 and 9)
-ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com'
+ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com community.intersystems.com openexchange.intersystems.com'
 URL_RE='https?://[^][:space:])>"<`]+'
 url_allowed() {
   local rest=${1#*://} host entry
@@ -1342,7 +1345,7 @@ rule_measured() {
   st 'a row label not in the first cell' 1 "$README" '{ sub(/^\| Cost of one attention decision \| /, "| Cost | Cost of one attention decision | ") } { print }' chk_measured
   st 'a row label extended in its cell' 1 "$README" '{ sub(/^\| Routine attention decisions right \|/, "| Routine attention decisions right today |") } { print }' chk_measured
   # A changed number, intro line or result is not flagged: the rule pins the heading and the row labels, not the numbers or wording.
-  mutate "$README" '/^\| Routine attention decisions right \|/ { n += sub(/19 of 22/, "18 of 22") } /^From the real-model release evaluations/ { $0 = "From the evaluations."; n++ } /^\| Prompt-injection attempts/ { n += sub(/ 0 /, " 1 ") } { print } END { exit (n != 3) }' || st_note 'an edit of the numbers or the intro did not apply'
+  mutate "$README" '/^\| Routine attention decisions right \|/ { n += sub(/21 of 24/, "20 of 24") } /^From the real-model evaluation of release/ { $0 = "From the evaluations."; n++ } /^\| Prompt-injection attempts/ { n += sub(/ 0 /, " 1 ") } { print } END { exit (n != 3) }' || st_note 'an edit of the numbers or the intro did not apply'
   if [ -n "$(chk_measured "$tmp/m")" ]; then st_note 'a changed number, result or intro line is flagged'; fi
   finish measured 'Measured has a table row for each of its eight row labels, word for word' chk_measured
 }

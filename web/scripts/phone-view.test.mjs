@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { PHONE_TEXTS, REQUEST_NAMES, pendingApproval, pendingRef, phoneOf, requestView } = await import(app('phone', 'phone-view.ts'));
+const { PHONE_TEXTS, REQUEST_NAMES, gotItShown, pendingApproval, pendingRef, phoneOf, requestView } = await import(app('phone', 'phone-view.ts'));
 const { approvalView } = await import(app('approvals', 'approval-view.ts'));
 const { messageTime } = await import(app('chat', 'page-time.ts'));
 const { renderMessageText } = await import(app('msg', 'catalog.ts'));
@@ -221,5 +221,21 @@ describe('requestView (Story 6.3)', () => {
     assert.deepEqual(requestView(request({ answer: line }), approval(), undefined, context).answer, { text: line, tone: 'neutral', icon: undefined }, 'a request that is still pending in the store');
     assert.deepEqual(requestView(request({ answer: line }), undefined, undefined, context).answer, { text: line, tone: 'neutral', icon: undefined }, 'and one the store does not hold');
     assert.equal(requestView(request({ answer: '  ' }), approval(), undefined, context).buttons, true, 'a blank answer is no answer');
+  });
+});
+
+describe('gotItShown (Story 18.4)', () => {
+  it('is true for a message that names a notice and has no answer line, and no approval request', () => {
+    assert.equal(gotItShown(message('T1', 'zz notice', { decisionRef: 'DR1' })), true);
+  });
+
+  it('is false once the server put the handled line in the answer', () => {
+    assert.equal(gotItShown(message('T1', 'zz notice', { decisionRef: 'DR1', answer: 'Marked as handled at 14:12' })), false);
+  });
+
+  it('is false for a message with no decisionRef, and for one that asks for an approval request (U-313: an older row has no decisionRef)', () => {
+    assert.equal(gotItShown(message('T2')), false);
+    assert.equal(gotItShown(message('T3', 'zz request', { decisionRef: 'DR3', approvalRef: 'A3' })), false);
+    assert.equal(gotItShown({ ref: 'T4', text: 'zz older row' }), false);
   });
 });

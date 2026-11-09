@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '../support/fixtures';
+import { expect, test, type Locator, type Page, type Route } from '../support/fixtures';
 
 import { envelope, signIn } from '../sign-in/helpers';
 import { loadedAfter, signInReadmeLoaded } from '../support/floor';
@@ -7,7 +7,8 @@ import { fixtureUser } from '../support/iris';
 
 /**
  * Story 33.2, the settings page for an admin (S1 to S8, with S1t, S1f, S3b, S4b, S5b, S6b, S6c, S7b and S7c), in a real browser against a real stack: the README account holds OcuTalonAdmin, and the live
- * fixture user (OCUTALON_LIVE_USER, test-sign-in.sh) holds OcuTalonUser only. The cases that save restore the five thresholds they change.
+ * fixture user (OCUTALON_LIVE_USER, test-sign-in.sh) holds OcuTalonUser only. The cases that save restore the five thresholds they change. Story 18.3 adds S13 (Models)
+ * and S14 (Budgets): every case puts back the prices, budgets or models it changes.
  */
 const SETTINGS = '/ocutalon/api/v1/settings';
 const SECTIONS = ['check-thresholds', 'budgets', 'models', 'channels', 'daily-digest', 'time-zone', 'demo-mode'] as const;
@@ -78,12 +79,12 @@ test('S1: an admin sees Chat and Settings in the header, and Settings opens the 
   await expect(page.getByRole('heading', { level: 1 }), 'one h1').toHaveText('Settings');
   await expect(sectionsNav(page).getByRole('link'), 'the sections, in the UX order').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode']);
   await expect(page.getByRole('heading', { level: 2 }), '#/settings opens Models').toHaveText('Models');
-  await expect(page.getByText("This part of OcuTalon isn't built yet.")).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save changes' }), 'a section that is not built has no button').toHaveCount(0);
+  await expect(page.getByText("This part of OcuTalon isn't built yet."), 'Models is built').toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save changes' }), 'Models has its Save changes button').toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Skip to chat', exact: true }), 'the skip links belong to the main page').toHaveCount(0);
   await expect(guide, 'and so does the demo guide').toHaveCount(0);
 
-  for (const [slug, label] of [['budgets', 'Budgets'], ['daily-digest', 'Daily digest'], ['time-zone', 'Time zone']] as const) {
+  for (const [slug, label] of [['budgets', 'Budgets'], ['channels', 'Channels'], ['daily-digest', 'Daily digest'], ['time-zone', 'Time zone'], ['check-thresholds', 'Check thresholds'], ['demo-mode', 'Demo mode'], ['models', 'Models']] as const) {
     const link = sectionsNav(page).getByRole('link', { name: label, exact: true });
     await link.focus();
     await page.keyboard.press('Enter');
@@ -91,7 +92,7 @@ test('S1: an admin sees Chat and Settings in the header, and Settings opens the 
     expect(new URL(page.url()).hash, `${label} has its own address`).toBe(`#/settings/${slug}`);
     await expect(link).toHaveAttribute('aria-current', 'true');
     await expect(link, `the ${label} link keeps the keyboard focus: the page is not built again`).toBeFocused();
-    await expect(page.getByText("This part of OcuTalon isn't built yet.")).toBeVisible();
+    await expect(page.getByText("This part of OcuTalon isn't built yet."), `${label} is built: no section shows the not-built text`).toHaveCount(0);
   }
   expect(loads, 'a section change keeps the page: GET /v1/settings was asked once').toBe(1);
   await page.evaluate(() => {
@@ -489,7 +490,7 @@ test('S7c: a Demo mode save shows and announces its own confirmation with the re
   }
 });
 
-/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on all eight settings calls. */
+/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on all nine settings calls. */
 test('S8: a user without OcuTalonAdmin is denied', async ({ page }) => {
   const { user, password } = fixtureUser('LIVE');
   await loadedAfter(page, () => signIn(page, user, password));
@@ -517,7 +518,442 @@ test('S8: a user without OcuTalonAdmin is denied', async ({ page }) => {
     expect(answer.status(), `POST /v1/settings/${slug} is 403`).toBe(403);
     expect(await answer.json(), `${slug}: not_admin`).toEqual(wanted);
   }
+  const sendNow = await page.request.post(`${SETTINGS}/daily-digest/send`, { headers: envelope(), data: {} });
+  expect(sendNow.status(), 'POST /v1/settings/daily-digest/send is 403').toBe(403);
+  expect(await sendNow.json(), 'send: not_admin').toEqual(wanted);
   const noEnvelope = await page.request.post(`${SETTINGS}/check-thresholds`, { data: {} });
   expect(noEnvelope.status(), 'the admin check comes before the envelope check').toBe(403);
   expect(((await noEnvelope.json()) as { error: { code: string } }).error.code).toBe('not_admin');
+});
+
+/** The state of the instance as the settings page's session sees it: the stored zone, the digest values, and whether demo mode is on. */
+async function instanceValues(page: Page): Promise<{ zone: string; time: string; channels: string; demo: boolean }> {
+  const response = await page.request.get(SETTINGS);
+  expect(response.status(), 'GET /v1/settings as an admin').toBe(200);
+  const body = (await response.json()) as {
+    sections: { 'daily-digest': { time: string; channels: string }; 'demo-mode': { demoMode: boolean } };
+    bridge: Record<string, string | number>;
+  };
+  const zone = body.bridge['InstanceZone'];
+  return { zone: typeof zone === 'string' ? zone : '', time: body.sections['daily-digest'].time, channels: body.sections['daily-digest'].channels, demo: body.sections['demo-mode'].demoMode };
+}
+
+/** Opens a section of the settings page for the README admin. */
+async function openSection(page: Page, label: string): Promise<void> {
+  await signInReadmeLoaded(page);
+  await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
+  await sectionsNav(page).getByRole('link', { name: label, exact: true }).click();
+  await expect(page.getByRole('heading', { level: 2, name: label })).toBeVisible();
+}
+
+/** S9: the Time zone section saves a zone, shows the saved text, and GET /v1/settings returns the zone; the test puts the zone back. */
+test('S9: saving a time zone shows the saved text, and GET /v1/settings returns the zone', async ({ page }) => {
+  await recordAnnouncements(page);
+  await openSection(page, 'Time zone');
+  const before = await instanceValues(page);
+  // The role keeps the locator on the select: the section region carries the same name.
+  const select = page.getByRole('combobox', { name: 'Time zone', exact: true });
+  await expect(select, 'the select is preselected from the stored zone').toHaveValue(before.zone);
+  await expect(select.locator('option').first(), 'the first choice is the Server default').toHaveText('Server default');
+  await expect(page.getByText("Message times, reminders, the daily digest and the current time that OcuTalon gives the model use this zone. Times on this page stay in your browser's zone.")).toBeVisible();
+  const zone = before.zone === 'Asia/Tokyo' ? 'Europe/Berlin' : 'Asia/Tokyo';
+  try {
+    await select.selectOption(zone);
+    await saveButton(page).click();
+    await expect(savedText(page), 'the saved text shows').toBeVisible();
+    await expect.poll(() => announcements(page, SAVED), 'and is announced').toBe(1);
+    expect((await instanceValues(page)).zone, 'GET shows the new zone at once').toBe(zone);
+    await page.reload();
+    await sectionsNav(page).getByRole('link', { name: 'Time zone', exact: true }).click();
+    await expect(page.getByRole('combobox', { name: 'Time zone', exact: true }), 'a reload shows the saved zone').toHaveValue(zone);
+  } finally {
+    const put = await page.request.post(`${SETTINGS}/time-zone`, { headers: envelope(), data: { InstanceZone: before.zone } });
+    expect(put.status(), 'the zone is put back').toBe(200);
+  }
+  expect((await instanceValues(page)).zone, 'and GET shows it').toBe(before.zone);
+});
+
+/** S10: the Daily digest section shows the channel boxes that the stack's demo mode allows, saves the time and the channels, and keeps a hidden channel as stored. */
+test('S10: the Daily digest section saves the time and the channels, and keeps a hidden channel', async ({ page }) => {
+  await recordAnnouncements(page);
+  await openSection(page, 'Daily digest');
+  const before = await instanceValues(page);
+  const time = page.getByLabel('Send at', { exact: true });
+  const web = page.getByRole('checkbox', { name: 'The web chat', exact: true });
+  const phone = page.getByRole('checkbox', { name: 'The simulated phone', exact: true });
+  await expect(time, 'the time shows the stored value').toHaveValue(before.time);
+  await expect(page.getByText("In the instance's time zone. Applies from the next digest.")).toBeVisible();
+  await expect(web, 'the web chat box always shows').toBeVisible();
+  await expect(phone, 'the simulated phone box shows only while demo mode is on').toHaveCount(before.demo ? 1 : 0);
+  const stored = before.channels.split(',').map((name) => name.trim().toLowerCase());
+  await expect(web, 'and is checked as stored').toBeChecked({ checked: stored.includes('web') });
+  const newTime = before.time === '06:45' ? '06:46' : '06:45';
+  try {
+    await time.fill(newTime);
+    await web.check();
+    await saveButton(page).click();
+    await expect(savedText(page), 'the saved text shows').toBeVisible();
+    await expect.poll(() => announcements(page, SAVED), 'and is announced').toBe(1);
+    const after = await instanceValues(page);
+    expect(after.time, 'GET shows the new time').toBe(newTime);
+    const saved = after.channels.split(',');
+    expect(saved.includes('web'), 'web is saved').toBe(true);
+    expect(saved.includes('phone'), 'the phone channel is as it was whether or not its box shows').toBe(stored.includes('phone'));
+    expect(after.channels, 'the channels are in the order web, phone, telegram').toBe(['web', 'phone', 'telegram'].filter((name) => saved.includes(name)).join(','));
+  } finally {
+    const put = await page.request.post(`${SETTINGS}/daily-digest`, { headers: envelope(), data: { time: before.time, channels: before.channels } });
+    expect(put.status(), 'the digest values are put back').toBe(200);
+  }
+  const restored = await instanceValues(page);
+  expect(restored.time, 'the time is back').toBe(before.time);
+  expect(restored.channels, 'and so are the channels').toBe(before.channels);
+});
+
+/** S11: Send my digest now follows the busy pattern and then shows the confirmation (the answer is stubbed, so no digest is made); a failed send shows the failure text. */
+test('S11: Send my digest now is busy, then shows the confirmation, and a failed send shows the failure', async ({ page }) => {
+  await recordAnnouncements(page);
+  await openSection(page, 'Daily digest');
+  const send = page.getByRole('button', { name: 'Send my digest now', exact: true });
+  await expect(send).toBeVisible();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const posts: string[] = [];
+  await page.route('**/api/v1/settings/daily-digest/send', async (route) => {
+    posts.push(route.request().method());
+    await gate;
+    await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ result: 'sending' }) });
+  });
+  try {
+    await send.click();
+    await expect(send, 'the button is busy').toHaveAttribute('aria-busy', 'true');
+    await expect(send, 'and aria-disabled, never disabled').toHaveAttribute('aria-disabled', 'true');
+    await send.click({ force: true });
+    release();
+    await expect(page.getByText('Sending your digest now.', { exact: true }).first(), 'the confirmation shows').toBeVisible();
+    await expect(send, 'and the button is restored').not.toHaveAttribute('aria-busy', 'true');
+    await expect.poll(() => announcements(page, 'Sending your digest now.'), 'the confirmation is announced').toBe(1);
+    expect(posts, 'one POST was made while the button was busy').toEqual(['POST']);
+  } finally {
+    release();
+    await page.unroute('**/api/v1/settings/daily-digest/send');
+  }
+  await page.route('**/api/v1/settings/daily-digest/send', (route) =>
+    route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'x' } }) }),
+  );
+  try {
+    await send.click();
+    await expect(page.locator('#digest-send-result'), 'a failed send shows the failure text').toHaveText("Couldn't send your digest. Try again.");
+    await expect(send, 'and the button is restored').not.toHaveAttribute('aria-busy', 'true');
+  } finally {
+    await page.unroute('**/api/v1/settings/daily-digest/send');
+  }
+});
+
+/** S12: the Channels section shows the Telegram state that /v1/state holds and nothing to edit: no Save button, no field, no token. */
+test('S12: the Channels section shows the state of Telegram, read only', async ({ page }) => {
+  await openSection(page, 'Channels');
+  const state = (await (await page.request.get('/ocutalon/api/v1/state')).json()) as { telegram: { included: boolean; state: string }; status: { condition?: string; active?: boolean }[] };
+  const telegram = state.telegram;
+  const pausedNow = state.status.some((one) => one.condition === 'telegramPaused' && one.active === true);
+  await expect(page.getByText("This part of OcuTalon isn't built yet."), 'the section is built').toHaveCount(0);
+  await expect(saveButton(page), 'it has no Save button').toHaveCount(0);
+  await expect(page.getByRole('textbox'), 'and no field, so no token can be entered').toHaveCount(0);
+  const notSetUp = page.getByText('Telegram not set up', { exact: true });
+  const paused = page.getByText('Telegram paused', { exact: true });
+  const on = page.getByText('Telegram on', { exact: true });
+  if (!telegram.included) {
+    await expect(notSetUp.or(paused).or(on), 'a release without Telegram shows no Telegram block').toHaveCount(0);
+  } else if (pausedNow) {
+    await expect(paused, 'a paused bot shows the paused text').toBeVisible();
+    await expect(page.getByText(/^Trying again at /), 'and when it tries again').toBeVisible();
+  } else if (telegram.state === 'off' || telegram.state === 'rejected') {
+    await expect(notSetUp, 'a bot that is not set up shows that').toBeVisible();
+    const link = page.getByRole('link', { name: 'How to set it up' });
+    await expect(link, 'with the README link').toHaveAttribute('href', /#telegram$/);
+    await expect(link, 'that opens in a new tab').toHaveAttribute('target', '_blank');
+  } else {
+    await expect(on, 'a bot that is on shows that').toBeVisible();
+  }
+});
+
+const MODEL_ROUTE = `${SETTINGS}/models`;
+const MODELS_URL = '**/api/v1/settings/models';
+const MODEL_AGENTS = [
+  ['Triage agent', 'TriageAgent'],
+  ['Diagnosis agent', 'DiagnosisAgent'],
+  ['Chat agent', 'ChatAgent'],
+] as const;
+
+interface ProviderRowBody {
+  provider: string;
+  keyVariable: string;
+  keySet: boolean;
+  supported: boolean;
+}
+interface ModelsBody {
+  providers: ProviderRowBody[];
+  bridge: { agents: Record<string, { provider: string; model: string; secondProvider: string; secondModel: string }>; DecisionTokenBudget: string; DailyCostCapUSD: string };
+  prices: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }>;
+}
+
+/** The whole GET /v1/settings body, as the models and budgets sections read it. */
+async function modelValues(page: Page): Promise<ModelsBody> {
+  const response = await page.request.get(SETTINGS);
+  expect(response.status(), 'GET /v1/settings as an admin').toBe(200);
+  return (await response.json()) as ModelsBody;
+}
+
+/** Puts the agents and prices of the body back through the API, with the envelope of a state-changing call. */
+async function restoreModels(page: Page, before: ModelsBody): Promise<void> {
+  const response = await page.request.post(MODEL_ROUTE, { headers: envelope(), data: { agents: before.bridge.agents, prices: before.prices } });
+  expect(response.status(), 'the models and prices are restored').toBe(200);
+}
+
+/** An agent's group on the Models section, named by its legend. */
+const agentGroup = (page: Page, label: string): Locator => page.getByRole('group', { name: label, exact: true });
+/** The prices of one model: the group of the model inside the Prices group. */
+const priceGroup = (page: Page, model: string): Locator => page.getByRole('group', { name: 'Prices', exact: true }).getByRole('group', { name: model, exact: true });
+
+/**
+ * S13 (Story 18.3; AC 1, AC 2): the Models section lists each agent with its provider, model and second model. Only the supported provider is listed; a provider whose key is
+ * not set is aria-disabled, described by "No key set. Add {variable} to .env.", and its models cannot be chosen. The page holds no key-shaped text. Test on a stack with no
+ * key shows "Didn't answer: no model key is set"; a stubbed answer shows "Answered in 1.2 s"; a price save shows the saved text, GET returns the price and the test puts it back.
+ */
+test('S13: the Models section lists the supported provider, tests a model and saves a price', async ({ page }) => {
+  await recordAnnouncements(page);
+  await openSection(page, 'Models');
+  const before = await modelValues(page);
+  const supported = before.providers.filter((row) => row.supported);
+  expect(supported.length, 'control: the stack has a supported provider').toBeGreaterThan(0);
+  const anthropic = supported.find((row) => row.provider === 'anthropic');
+  expect(anthropic, 'and it is Anthropic').toBeDefined();
+  expect(anthropic?.keySet, 'control: a CI stack holds no model key').toBe(false);
+  expect(JSON.stringify(before), 'GET /v1/settings holds no key value').not.toMatch(/sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{10,}/);
+
+  for (const [label, name] of MODEL_AGENTS) {
+    const group = agentGroup(page, label);
+    await expect(group, `${label} has its group`).toHaveCount(1);
+    await expect(group.getByRole('radio'), `${label} lists the supported provider only`).toHaveCount(supported.length);
+    const radio = group.getByRole('radio', { name: 'Anthropic', exact: true });
+    await expect(radio, `${label}: Anthropic is the agent's provider`).toBeChecked({ checked: before.bridge.agents[name]?.provider === 'anthropic' });
+    await expect(radio, `${label}: a provider without a key is aria-disabled`).toHaveAttribute('aria-disabled', 'true');
+    await expect(radio, `${label}: described by the reason`).toHaveAccessibleDescription('No key set. Add ANTHROPIC_API_KEY to .env.');
+    await radio.focus();
+    await expect(radio, `${label}: and focusable`).toBeFocused();
+    await expect(group.getByLabel('Model', { exact: true }).getByRole('option', { name: 'claude-sonnet-5-5', exact: true }), `${label}: its models cannot be chosen`).toBeDisabled();
+    await expect(group.getByLabel('Second model', { exact: true }), `${label} has the Second model select`).toBeVisible();
+    await expect(group.getByRole('button', { name: 'Test', exact: true }), `${label} has its Test button`).toBeVisible();
+  }
+  await expect(page.getByRole('radio', { name: /^(?!Anthropic$)/ }), 'no other provider is listed').toHaveCount(0);
+  await expect(page.getByText("A change applies from the agent's next model request.")).toBeVisible();
+  await expect(page.getByText("Test sends one short request to the agent's saved model.").first()).toBeVisible();
+  const page_text = (await page.locator('main').innerText()) ?? '';
+  expect(page_text, 'the page holds no key-shaped text').not.toMatch(/sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{10,}/);
+
+  // A real Test on a stack with no model key.
+  const triage = agentGroup(page, 'Triage agent');
+  await triage.getByRole('button', { name: 'Test', exact: true }).click();
+  await expect(triage.getByText("Didn't answer: no model key is set", { exact: true }), 'a stack with no key says so').toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => announcements(page, "Didn't answer: no model key is set"), 'and the announcer reads it').toBe(1);
+
+  // A stubbed answer: the busy pattern while the call is out, then the seconds with one decimal.
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/api/v1/settings/models/test', async (route) => {
+    await gate;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ answered: true, seconds: 1.2, reason: '' }) });
+  });
+  try {
+    const diagnosis = agentGroup(page, 'Diagnosis agent');
+    const test = diagnosis.getByRole('button', { name: 'Test', exact: true });
+    await test.click();
+    await expect(test, 'the button is busy').toHaveAttribute('aria-busy', 'true');
+    release();
+    await expect(diagnosis.getByText('Answered in 1.2 s', { exact: true }), 'and the line reads the seconds').toBeVisible();
+    await expect(test, 'then the button is restored').not.toHaveAttribute('aria-busy', 'true');
+  } finally {
+    release();
+    await page.unroute('**/api/v1/settings/models/test');
+  }
+
+  // A price save, read back by GET and put back.
+  const model = Object.keys(before.prices)[0];
+  expect(model, 'control: the stack has a priced model').toBeDefined();
+  if (model === undefined) return;
+  const input = priceGroup(page, model).getByLabel('Input', { exact: true });
+  await expect(input, 'the price shows the stored value').toHaveValue(String(before.prices[model]!.input));
+  const next = before.prices[model]!.input + 1;
+  try {
+    await input.fill(String(next));
+    await saveButton(page).click();
+    await expect(savedText(page), 'the saved text shows').toBeVisible();
+    await expect.poll(() => announcements(page, SAVED), 'and is announced').toBe(1);
+    expect((await modelValues(page)).prices[model]!.input, 'GET shows the new price').toBe(next);
+    await page.reload();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
+    await expect(priceGroup(page, model).getByLabel('Input', { exact: true }), 'a reload shows the saved price').toHaveValue(String(next));
+  } finally {
+    await restoreModels(page, before);
+  }
+  expect((await modelValues(page)).prices[model]!.input, 'the price is back').toBe(before.prices[model]!.input);
+});
+
+/**
+ * S13c (Story 18.3; AC 1, AC 3, DW-948): on a page whose GET /v1/settings reports a key for Anthropic, choosing Triage's model and a second model posts exactly those
+ * changes and leaves the other agents as loaded; a save that changes the model clears the Test line that described the old one; a refusal that names TriageAgent marks the
+ * Model select, and one that names TriageAgent.second marks the Second model select, each focused. The server answers are stubs: nothing is written.
+ */
+test('S13c: choosing a model and a second model posts them, a save clears the Test line, and a refusal marks the named select', async ({ page }) => {
+  await page.route('**/api/v1/settings', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    const body = (await response.json()) as ModelsBody;
+    for (const row of body.providers) {
+      if (row.provider === 'anthropic') row.keySet = true;
+    }
+    await route.fulfill({ status: response.status(), contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await page.route('**/api/v1/settings/models/test', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ answered: true, seconds: 1.2, reason: '' }) }),
+  );
+  const posted: { agents: Record<string, { provider: string; model: string; secondProvider: string; secondModel: string }> }[] = [];
+  let refusal: string[] = [];
+  await page.route(MODELS_URL, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    posted.push(route.request().postDataJSON());
+    if (refusal.length > 0) {
+      await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: { code: 'bad_settings', message: FAILED }, fields: refusal }) });
+    } else {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ outcome: 'done' }) });
+    }
+  });
+  try {
+    await openSection(page, 'Models');
+    const before = await modelValues(page);
+    const triage = agentGroup(page, 'Triage agent');
+    const model = triage.getByLabel('Model', { exact: true });
+    const second = triage.getByLabel('Second model', { exact: true });
+    await expect(triage.getByRole('radio', { name: 'Anthropic', exact: true }), 'a provider with a key can be chosen').not.toHaveAttribute('aria-disabled', 'true');
+    await triage.getByRole('button', { name: 'Test', exact: true }).click();
+    await expect(triage.getByText('Answered in 1.2 s', { exact: true }), 'the Test line shows').toBeVisible();
+
+    await model.selectOption('claude-sonnet-5-5');
+    await second.selectOption('anthropic/claude-sonnet-5-5');
+    await saveButton(page).click();
+    await expect(savedText(page), 'the saved text shows').toBeVisible();
+    expect(posted.length, 'one save was posted').toBe(1);
+    expect(posted[0]!.agents['TriageAgent'], 'the chosen model and second model are posted').toEqual({
+      provider: 'anthropic',
+      model: 'claude-sonnet-5-5',
+      secondProvider: 'anthropic',
+      secondModel: 'claude-sonnet-5-5',
+    });
+    expect(posted[0]!.agents['DiagnosisAgent']?.model, 'the other agents are as loaded').toBe(before.bridge.agents['DiagnosisAgent']?.model);
+    await expect(triage.getByText('Answered in 1.2 s', { exact: true }), 'a save that changes the model clears the Test line').toHaveCount(0);
+
+    refusal = ['TriageAgent'];
+    await model.selectOption('claude-haiku-5-5');
+    await saveButton(page).click();
+    await expect(model, 'a refusal that names TriageAgent marks the Model select').toHaveAttribute('aria-invalid', 'true');
+    await expect(model, 'which is focused').toBeFocused();
+    await expect(second, 'and not the Second model select').not.toHaveAttribute('aria-invalid', 'true');
+
+    refusal = ['TriageAgent.second'];
+    await second.selectOption('');
+    await saveButton(page).click();
+    await expect(second, 'a refusal that names TriageAgent.second marks the Second model select').toHaveAttribute('aria-invalid', 'true');
+    await expect(second, 'which is focused').toBeFocused();
+    await expect(model, 'and not the Model select').not.toHaveAttribute('aria-invalid', 'true');
+  } finally {
+    await page.unroute(MODELS_URL);
+    await page.unroute('**/api/v1/settings/models/test');
+    await page.unroute('**/api/v1/settings');
+  }
+});
+
+/** S13b (Story 18.3; DW-948): a refusal that names a price group shows the field error on that group; a refusal that names nothing the page knows shows the form error. */
+test('S13b: a refused save shows the field error on the named price, and a refusal that names nothing shows the form error', async ({ page }) => {
+  await openSection(page, 'Models');
+  const before = await modelValues(page);
+  const model = Object.keys(before.prices)[0];
+  expect(model, 'control: the stack has a priced model').toBeDefined();
+  if (model === undefined) return;
+  const stub = (fields: string[]) => (route: Route) =>
+    route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: { code: 'bad_settings', message: FAILED }, fields }) });
+  const group = priceGroup(page, model);
+  const input = group.getByLabel('Input', { exact: true });
+  try {
+    await page.route(`${MODELS_URL}`, stub([`prices.${model}`]));
+    await input.fill(String(before.prices[model]!.input + 1));
+    await saveButton(page).click();
+    await expect(group.getByText(FAILED, { exact: true }), 'the named price group shows the field error').toBeVisible();
+    await expect(input, 'its fields are marked invalid').toHaveAttribute('aria-invalid', 'true');
+    await expect(input, 'the first field of the group takes focus').toBeFocused();
+    await input.fill(String(before.prices[model]!.input + 2));
+    await expect(group.getByText(FAILED, { exact: true }), 'typing clears the error').toHaveCount(0);
+    await page.unroute(`${MODELS_URL}`);
+    await page.route(`${MODELS_URL}`, stub(['zz-unknown']));
+    await saveButton(page).click();
+    await expect(page.locator('p.field-error').filter({ hasText: FAILED }), 'a refusal that names nothing the page knows shows the form error once').toHaveCount(1);
+    await expect(group.getByText(FAILED, { exact: true }), 'not under a price group').toHaveCount(0);
+  } finally {
+    await page.unroute(`${MODELS_URL}`);
+  }
+  expect((await modelValues(page)).prices[model]!.input, 'nothing was written').toBe(before.prices[model]!.input);
+});
+
+/**
+ * S14 (Story 18.3; AC 4): the Budgets section shows the two stored values with their help lines, saves a token budget and a daily cap, shows the saved text, and GET returns
+ * them; a refused value shows the field error on that field, focused; the test puts the values back.
+ */
+test('S14: the Budgets section saves a token budget and a cap, and a refused value shows the field error', async ({ page }) => {
+  await recordAnnouncements(page);
+  await openSection(page, 'Budgets');
+  const before = await modelValues(page);
+  const tokens = page.getByLabel('Token budget per decision', { exact: true });
+  const cap = page.getByLabel('Daily cost cap (US dollars)', { exact: true });
+  await expect(tokens, 'the token budget shows the stored value').toHaveValue(String(before.bridge.DecisionTokenBudget));
+  await expect(cap, 'and so does the cap').toHaveValue(String(before.bridge.DailyCostCapUSD));
+  await expect(tokens, 'the token budget is described by its help line').toHaveAccessibleDescription('A decision that would use more tokens than this uses fixed rules instead. 0 is off.');
+  await expect(cap, 'and so is the cap').toHaveAccessibleDescription("When today's model cost reaches the cap, decisions use fixed rules until midnight in the instance's time zone. 0 is off.");
+  const restoreBudgets = async (): Promise<void> => {
+    const put = await page.request.post(`${SETTINGS}/budgets`, { headers: envelope(), data: { DecisionTokenBudget: before.bridge.DecisionTokenBudget, DailyCostCapUSD: before.bridge.DailyCostCapUSD } });
+    expect(put.status(), 'the budgets are put back').toBe(200);
+  };
+  const newTokens = before.bridge.DecisionTokenBudget === '9000' ? '9100' : '9000';
+  const newCap = before.bridge.DailyCostCapUSD === '7.5' ? '7.6' : '7.5';
+  try {
+    await tokens.fill(newTokens);
+    await cap.fill(newCap);
+    await saveButton(page).click();
+    await expect(savedText(page), 'the saved text shows').toBeVisible();
+    await expect.poll(() => announcements(page, SAVED), 'and is announced').toBe(1);
+    const after = await modelValues(page);
+    expect(after.bridge.DecisionTokenBudget, 'GET shows the new token budget').toBe(newTokens);
+    expect(after.bridge.DailyCostCapUSD, 'and the new cap').toBe(newCap);
+
+    await cap.fill('7.555');
+    await saveButton(page).click();
+    await expect(page.locator('#budget-cap-error'), 'a cap of three decimals shows the field error').toHaveText(FAILED);
+    await expect(cap, 'the field is marked invalid').toHaveAttribute('aria-invalid', 'true');
+    await expect(cap, 'and focused').toBeFocused();
+    await expect(page.locator('#budget-tokens-error'), 'the other field has none').toHaveCount(0);
+    expect((await modelValues(page)).bridge.DailyCostCapUSD, 'nothing was written').toBe(newCap);
+    await tokens.fill('abc');
+    await cap.fill(newCap);
+    await saveButton(page).click();
+    await expect(page.locator('#budget-tokens-error'), 'a token budget that is not a number shows the field error').toHaveText(FAILED);
+    await expect(tokens, 'focused').toBeFocused();
+  } finally {
+    await restoreBudgets();
+  }
+  const restored = await modelValues(page);
+  expect(restored.bridge.DecisionTokenBudget, 'the token budget is back').toBe(before.bridge.DecisionTokenBudget);
+  expect(restored.bridge.DailyCostCapUSD, 'and so is the cap').toBe(before.bridge.DailyCostCapUSD);
 });

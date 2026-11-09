@@ -870,6 +870,31 @@ Method TestNotificationFromRow()
 	Set payload = ##class(OcuTalon.Live.Payload.Notification).FromRow(row)
 	Do $$$AssertEquals(payload.Text_"|"_payload.WhyNow, "Reminder: stretch."_$Char(10)_"second|", "a reminder's text stays whole, with an empty whyNow")
 
+	Do $$$AssertEquals(payload.Checks.Count()_"|"_payload.HandledAt, "0|", "a row with no CheckRows has no checks, and a reminder has no handledAt")
+	Set row.Kind = "digest"
+	Set row.CheckRows = "[{""result"":""failed"",""entry"":""zz entry"",""finding"":""zz finding"",""checkedAt"":""2026-10-22T02:10:00Z""},{""result"":""passed"",""entry"":""zz two"",""finding"":"""",""checkedAt"":""2026-10-22T02:11:00Z""}]"
+	Set payload = ##class(OcuTalon.Live.Payload.Notification).FromRow(row)
+	Do $$$AssertEquals(payload.Checks.Count(), 2, "a digest row's CheckRows are the payload's checks")
+	Do $$$AssertEquals(payload.Checks.GetAt(1).Result_"|"_payload.Checks.GetAt(1).Entry_"|"_payload.Checks.GetAt(1).Finding_"|"_payload.Checks.GetAt(1).CheckedAt, "failed|zz entry|zz finding|2026-10-22T02:10:00Z", "each with its result, entry, finding and time")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the digest payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.checks.%Size()_"|"_exported.checks.%Get(0).result, "2|failed", "and the JSON names the rows under checks")
+	Set row.CheckRows = "not json"
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Notification).FromRow(row).Checks.Count(), 0, "CheckRows that are not a JSON array give no rows")
+	Set row.CheckRows = ""
+	Set row.Kind = "tellnow"
+	Set row.DecisionRef = mine
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Notification).FromRow(row).HandledAt, "", "a tell-now card that is not marked has no handledAt")
+	Set handled = ##class(OcuTalon.Data.Handled).%New()
+	Set handled.Ref = mine
+	Set handled.SessionRef = owner
+	Set handled.Channel = "web"
+	Set handled.HandledAt = "2026-10-22T09:30:00Z"
+	Do $$$AssertStatusOK(handled.%Save(), "the notice is marked handled")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Notification).FromRow(row).HandledAt, "2026-10-22T09:30:00Z", "a marked tell-now card has handledAt")
+	Set row.Kind = "digest"
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Notification).FromRow(row).HandledAt, "", "a digest row with the same Ref has none: handledAt is for a tell-now card only")
+	Do ##class(OcuTalon.Data.Handled).%DeleteId(handled.%Id())
 	Set row.Kind = "tellnow"
 	Set row.DecisionRef = theirs
 	Set payload = ##class(OcuTalon.Live.Payload.Notification).FromRow(row)
@@ -883,6 +908,61 @@ Method TestNotificationFromRow()
 	Set row.OwnerRef = ""
 	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Notification).FromRow(row).Decision, "", "a row with no owner reads no decision, and the payload is still made")
 	Do $ClassMethod(fixture, "Clean", owner_","_other_","_mine_","_theirs)
+}
+
+/// The phone payload's FromRow (Story 18.4): a tell-now message's DecisionRef is the payload's decisionRef, and the JSON names it; a message written before
+/// DecisionRef existed (the column empty) gives an empty decisionRef and still exports. The rows are not saved.
+Method TestPhoneFromRow()
+{
+	Set row = ##class(OcuTalon.Data.SimMessage).%New()
+	Set row.Ref = "ZzPhoneRef"_..Number
+	Set row.Direction = "out"
+	Set row.Text = "zz notice"
+	Set row.Answer = "zz answer"
+	Set row.CreatedAt = "2026-10-22T09:00:00Z"
+	Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(row)
+	Do $$$AssertEquals(payload.DecisionRef_"|"_payload.Ref_"|"_payload.Answer, "|ZzPhoneRef"_..Number_"|zz answer", "an older row gives an empty decisionRef")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "and exports")
+	Set row.DecisionRef = "ZzDecisionRef"_..Number
+	Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(row)
+	Do $$$AssertEquals(payload.DecisionRef, "ZzDecisionRef"_..Number, "a tell-now message's DecisionRef is the payload's")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Do $$$AssertEquals(##class(%DynamicObject).%FromJSON(json).decisionRef, "ZzDecisionRef"_..Number, "and the JSON names it decisionRef")
+}
+
+/// The phone payload's noiseRef (Story 41.5 with Story 18.4, the orchestrator's integrate-forward ruling, two members): a message that asks for no
+/// approval takes its noiseRef from the session's own phone tell-now Delivery row (Ownership.PhoneDecision), whatever its DecisionRef column holds, so an
+/// act notice (DecisionRef left empty by Story 18.4, so no Got it) and a row written before DecisionRef existed both get it; decisionRef is the column
+/// alone, never the Delivery row; a message with an ApprovalRef gets no noiseRef. The SimMessage row is not saved; the session and the Delivery row are
+/// removed by Ref.
+Method TestPhoneFromRowNoiseRef()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set session = $ClassMethod(fixture, "Session", "zzphonenr"_..Number)
+	Set row = ##class(OcuTalon.Data.SimMessage).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.SessionRef = session
+	Set row.Direction = "out"
+	Set row.Text = "zz notice"
+	Set row.CreatedAt = "2026-10-22T09:00:00Z"
+	Set delivery = $ClassMethod(fixture, "Delivery", session, {"ChannelMessageId": (row.Ref), "Channel": "phone", "Kind": "tellnow", "DecisionRef": ("ZzNoise"_..Number)})
+	Try {
+		Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(row)
+		Do $$$AssertEquals(payload.NoiseRef_"|"_payload.DecisionRef, "ZzNoise"_..Number_"|", "an act notice or an older row (no DecisionRef) gets its noiseRef from the phone Delivery row, and decisionRef stays empty")
+		Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "and exports")
+		Set object = ##class(%DynamicObject).%FromJSON(json)
+		Do $$$AssertEquals(object.noiseRef_"|"_object.decisionRef, "ZzNoise"_..Number_"|", "the JSON names noiseRef, and decisionRef is empty")
+		Set row.DecisionRef = "ZzStored"_..Number
+		Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(row)
+		Do $$$AssertEquals(payload.DecisionRef_"|"_payload.NoiseRef, "ZzStored"_..Number_"|ZzNoise"_..Number, "a tell-now message keeps its stored decisionRef for Got it, and its noiseRef from the Delivery row")
+		Set row.DecisionRef = ""
+		Set row.ApprovalRef = "ZzApproval"_..Number
+		Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(row)
+		Do $$$AssertEquals(payload.NoiseRef_"|"_payload.DecisionRef, "|", "a message that asks for an approval gets neither")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the noiseRef cases run: "_ex.DisplayString())
+	}
+	Do $ClassMethod(fixture, "Clean", session_","_delivery)
 }
 
 /// The approval payload's either-way fields (Story 7.8; DW-645; U-249, U-250): FromRow asks the notice's rule, Watch.Notice Reading, over the row's stored dry run and
@@ -1176,7 +1256,9 @@ XData Contracts [ MimeType = application/json ]
    "DueAt": "%String(%JSONFIELDNAME=dueAt,MAXLEN=20)",
    "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)",
    "Decision": "OcuTalon.Live.Payload.Decision(%JSONFIELDNAME=decision)",
-   "FallbackReason": "%String(%JSONFIELDNAME=fallbackReason,MAXLEN=32)"
+   "FallbackReason": "%String(%JSONFIELDNAME=fallbackReason,MAXLEN=32)",
+   "Checks": "list Of OcuTalon.Live.Payload.Part.CheckRow(%JSONFIELDNAME=checks)",
+   "HandledAt": "%String(%JSONFIELDNAME=handledAt,MAXLEN=20)"
   }
  },
  "OcuTalon.Live.Payload.Pairing": {
@@ -1194,7 +1276,9 @@ XData Contracts [ MimeType = application/json ]
    "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)",
    "ApprovalRef": "%String(%JSONFIELDNAME=approvalRef,MAXLEN=22)",
    "Answer": "%String(%JSONFIELDNAME=answer,MAXLEN=1000)",
-   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)"
+   "DecisionRef": "%String(%JSONFIELDNAME=decisionRef,MAXLEN=22)",
+   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)",
+   "NoiseRef": "%String(%JSONFIELDNAME=noiseRef,MAXLEN=22)"
   }
  },
  "OcuTalon.Live.Payload.Document": {

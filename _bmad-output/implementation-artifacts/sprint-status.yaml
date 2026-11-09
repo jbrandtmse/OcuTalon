@@ -29,13 +29,13 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-08-2026 18:05
+last_updated: 11-09-2026 08:06
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-0: done
+  epic-0: in-progress
   0-1-the-image-builds-and-starts-ocutalon-in-its-own-namespace: done
   0-2-the-package-installs-and-upgrades-itself-at-every-start: done
   0-3-sign-in-to-an-empty-ocutalon-page: done
@@ -50,7 +50,10 @@ development_status:
   0-12-epic-0-burn-down: done
   0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce: done
   0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv: done
+  0-15-the-dockerfile-sits-at-the-repository-root: ready-for-dev
   0-16-the-embedded-python-callback-crash-s11-is-re-verified-with-a: done
+  0-17-the-readme-s-evaluation-table-shows-release-1-0-4-s-numbers: done
+  0-18-the-readme-shows-judges-where-to-look: done
   epic-0-retrospective: optional
 
   epic-1: done
@@ -99,7 +102,7 @@ development_status:
   3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a: done
   epic-3-retrospective: optional
 
-  epic-4: in-progress
+  epic-4: done
   4-1-switch-demo-mode-from-the-terminal: done
   4-2-derive-the-guide-state-and-break-the-feed-availability-on-th: done
   4-3-break-the-feed-with-a-real-batch-of-50-orders: done
@@ -129,6 +132,7 @@ development_status:
   5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden: done
   5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its: done
   5-14-several-incidents-at-once-are-each-diagnosed-inside-their-ti: done
+  5-15-after-an-incident-resolves-the-status-answer-and-the-rail-sa: done
   epic-5-retrospective: optional
 
   epic-6: done
@@ -272,12 +276,14 @@ development_status:
   17-9-epic-17-burn-down: done
   17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges: done
   17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path: done
+  17-12-needs-you-never-counts-the-person-s-own-chat-messages: done
+  17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta: done
   epic-17-retrospective: optional
 
-  epic-18: backlog
-  18-2-set-the-time-zone-and-the-daily-digest-at-run-time: backlog
-  18-3-choose-models-and-set-budgets-in-settings: backlog
-  18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled: backlog
+  epic-18: done
+  18-2-set-the-time-zone-and-the-daily-digest-at-run-time: done
+  18-3-choose-models-and-set-budgets-in-settings: done
+  18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled: done
   epic-18-retrospective: optional
 
   epic-19: done
@@ -360,14 +366,14 @@ development_status:
   29-9-epic-29-burn-down: done
   epic-29-retrospective: optional
 
-  epic-30: in-progress
+  epic-30: done
   30-1-long-conversations-are-compacted-under-the-limit: done
   30-2-old-messages-and-records-are-purged-on-schedule: done
   30-3-an-approved-tool-call-runs-exactly-once-with-no-model: done
   30-4-a-stopped-production-or-a-disabled-item-is-reported-once: done
   30-5-mixed-and-unfinished-resends-say-how-far-they-got: done
   30-6-the-invalid-reply-warning-names-what-failed-never-the-reply: done
-  30-7-epic-30-burn-down: backlog
+  30-7-epic-30-burn-down: done
   30-8-the-redactor-and-the-key-proof-catch-every-key-shape: done
   30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio: done
   epic-30-retrospective: optional
@@ -389,6 +395,7 @@ development_status:
   32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane: done
   32-5-live-sign-in-splits-again-after-4-11-s-tests: done
   32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus: done
+  32-7-the-remaining-ci-flakes-either-find-their-cause-or-are-conta: done
   epic-32-retrospective: optional
 
   epic-33: done
@@ -436,6 +443,7 @@ development_status:
   39-8-run-now-and-a-saved-heartbeat-read-what-is-stored: done
   39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t: done
   39-10-the-heartbeat-production-test-is-stable-dw-639: done
+  39-11-the-install-s-production-check-doesn-t-name-an-item-that-is: done
   epic-39-retrospective: optional
 
   epic-40: done
@@ -449,14 +457,14 @@ development_status:
   40-8-the-persona-s-web-routes: done
   epic-40-retrospective: optional
 
-  epic-41: backlog
-  41-1-fix-the-names-and-contracts-of-memory-s-first-part: backlog
-  41-2-the-precedent-table-its-one-writer-and-the-routes: backlog
-  41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t: backlog
-  41-4-the-notes-and-your-answers-reach-the-model: backlog
-  41-5-this-was-noise-and-your-approval-answers-become-precedents: backlog
-  41-6-the-memory-card-your-notes-and-your-answers: backlog
-  41-7-evaluation-and-tests-for-memory-s-first-part: backlog
+  epic-41: in-progress
+  41-1-fix-the-names-and-contracts-of-memory-s-first-part: done
+  41-2-the-precedent-table-its-one-writer-and-the-routes: done
+  41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t: done
+  41-4-the-notes-and-your-answers-reach-the-model: done
+  41-5-this-was-noise-and-your-approval-answers-become-precedents: done
+  41-6-the-memory-card-your-notes-and-your-answers: done
+  41-7-evaluation-and-tests-for-memory-s-first-part: done
   41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns: backlog
   41-9-pins-and-learned-saves-get-their-verbs-and-routes: backlog
   41-10-facts-learned-at-compaction-optional-needs-ad-31-s-amendment: backlog
@@ -540,6 +548,20 @@ action_items:
       release-candidate eval (the injection set and one persona) before its cut, because
       Story 19.3 changes the Chat agent INSTRUCTIONS (memory bullets). Never run by
       a runner (no real model key); Contest Planner ruling 2026-11-06."
+    owner: "owner"
+    status: open
+    ref: ""
+  - id: "ep18-ai-ad18"
+    epic: 18
+    action: "Attended bmad-architecture Update: add the AD-18 clarifying sentence
+      (with InstanceZone empty and TZ unset, Data.Time.Zone() reports the OS zone)"
+    owner: "owner"
+    status: open
+    ref: ""
+  - id: "ep18-ai-ad19"
+    epic: 18
+    action: "Attended bmad-architecture Update: AD-19 note that the models section
+      nested body is not field-to-value"
     owner: "owner"
     status: open
     ref: ""

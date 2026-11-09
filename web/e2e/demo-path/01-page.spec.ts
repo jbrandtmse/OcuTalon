@@ -66,7 +66,7 @@ test('shows the empty chat panel and the composer', { tag: '@floor' }, async ({ 
   await expect(empty.locator('app-outcome-chip')).toHaveText(['Ignore', 'Digest', 'Tell now', 'Act']);
   await expect(empty.locator('.meaning')).toHaveText([
     'Recorded; nobody notified',
-    'Saved for later; nobody notified now',
+    'Saved for the daily digest',
     'Needs you now',
     'OcuTalon took or requested an action',
   ]);
@@ -100,13 +100,14 @@ test('shows the status rail with its sections, counts and empty states', { tag: 
   const rail = page.getByRole('region', { name: 'Status', exact: true });
   await expect(rail, 'the rail is the region Status').toHaveCount(1);
   const headings = rail.getByRole('heading', { level: 3 });
-  await expect(headings, 'seven sections in order, Telegram first and Persona last').toHaveCount(7);
+  await expect(headings, 'eight sections in order, Telegram first and Persona last').toHaveCount(8);
   await expect(headings.first(), 'the first section is Telegram, with no count').toHaveAccessibleName('Telegram');
   const names = ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions'];
   for (const [i, label] of names.entries()) {
     await expect(headings.nth(i + 1), `heading ${i + 2} is named with its count`).toHaveAccessibleName(`${label}, 0`);
   }
   await expect(headings.nth(names.length + 1), 'the Heartbeat checklist heading comes before Persona, with no count').toHaveAccessibleName('Heartbeat checklist');
+  await expect(headings.nth(names.length + 2), 'the Memory heading comes before Persona, with no count').toHaveAccessibleName('Memory');
   await expect(headings.last(), 'the last section is Persona, with no count').toHaveAccessibleName('Persona');
   await expect(rail.locator('h3 > [aria-hidden="true"]'), 'and shows it').toHaveText(names.map((label) => `${label} (0)`));
   await expect(rail.locator('.empty'), 'each list shows its empty text').toHaveText([

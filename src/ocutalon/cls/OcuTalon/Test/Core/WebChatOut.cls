@@ -24,6 +24,13 @@
 ///     kind digest, a new message id, the DecisionRef as sent, no due time and no reason, published as one notification event with the whole text and
 ///     an empty whyNow, and listed in RecentNotices; Slots with no parts or no lines, and a part or line with an unknown key, are an error with no row and
 ///     no event;
+///   - TestDigestCard also (Story 18.4): the Slots' rows are kept on the row as CheckRows (the rows JSON, "[]" for an empty rows) and the payload
+///     carries them as checks;
+///   - TestHandledRepublishesTheCard (Story 18.4): a handled Notification publishes the tell-now card again, with its own ref and handledAt, and
+///     records the bare Delivery row; a second one (the newest row is then the handled row) records the row only;
+///   - TestHandledWithNoCardRecordsOnly: with no tell-now card for the DecisionRef (none at all, or a digest) it records the bare row and no event;
+///   - TestReloadShowsHandled: Notification.FromRow of the card's row carries handledAt once the notice is marked (tell-now only), and the checks;
+///   - TestOlderDigestRowRenders (U-313): a digest row written without CheckRows reads as a card with no check rows, in RecentNotices and in the payload;
 ///   - TestOtherKindsRecordOnly: any other kind records its Delivery row, with no text and no event;
 ///   - TestReplyRecordsItsDeliveryOnly: a reply records its Delivery row for the web, with its DecisionRef and no event;
 ///   - TestRenderErrorRecordsNothing: a text that cannot be rendered is an error with no row and no event;
@@ -55,6 +62,7 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterAllTests() As %Status
 {
+	For i = 1:1:$Length(..Refs, ",") Do ##class(OcuTalon.Data.Handled).DropSession($Piece(..Refs, ",", i))
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Quit $SYSTEM.Status.OK()
@@ -310,7 +318,7 @@ Method TestOtherKindsRecordOnly()
 Method TestDigestCard()
 {
 	Set session = ..Session("digest")
-	Set slots = {"parts": [{"key": "digest.greetingMorning", "slots": {}}, {"key": "digest.checked", "slots": {"checked": "the Chat agent and the Orders service"}}, {"key": "checks.notEverythingRestPassed", "slots": {"whatFailed": "the Orders service"}}, {"key": "digest.saved", "slots": {"count": 1, "summary": "One alert was handled."}}, {"key": "digest.cost", "slots": {"cost": 0.042}}], "lines": [{"key": "digest.notCheckedSizeLimit", "slots": {"entry": "the Billing database"}}, {"key": "digest.notCheckedSizeLimit", "slots": {"entry": "the Orders database"}}], "rows": []}
+	Set slots = {"parts": [{"key": "digest.greetingMorning", "slots": {}}, {"key": "digest.checked", "slots": {"checked": "the Chat agent and the Orders service"}}, {"key": "checks.notEverythingRestPassed", "slots": {"whatFailed": "the Orders service"}}, {"key": "digest.saved", "slots": {"count": 1, "summary": "One alert was handled."}}, {"key": "digest.cost", "slots": {"cost": 0.042}}], "lines": [{"key": "digest.notCheckedSizeLimit", "slots": {"entry": "the Billing database"}}, {"key": "digest.notCheckedSizeLimit", "slots": {"entry": "the Orders database"}}], "rows": [{"result": "passed", "entry": "the Chat agent", "finding": "", "checkedAt": "2030-01-01T02:10:00Z"}, {"result": "failed", "entry": "the Orders service", "finding": "It has not answered since 02:10.", "checkedAt": "2030-01-01T02:11:00Z"}]}
 	Set expected = "Good morning."
 		_$Char(10)_"I checked the Chat agent and the Orders service."
 		_$Char(10)_"Not everything: the Orders service. Everything else I checked passed."
@@ -329,6 +337,7 @@ Method TestDigestCard()
 		Do $$$AssertTrue(row.ChannelMessageId ? 22(1AN,1"-",1"_"), "a new message id")
 		Do $$$AssertEquals(row.Text, expected, "the text is the pieces in order, one on each line")
 		Do $$$AssertEquals(row.Text, ##class(OcuTalon.Channel.DigestText).Text(slots.%ToJSON(), "web"), "and the text of the shared helper for the web")
+		Do $$$AssertEquals(row.CheckRows, slots.rows.%ToJSON(), "the row keeps the Slots' rows as CheckRows")
 	}
 	Set events = ..Notifications(session)
 	Do $$$AssertEquals(events.%Size(), 1, "one notification event")
@@ -337,6 +346,8 @@ Method TestDigestCard()
 		Do $$$AssertEquals(payload.kind_"|"_payload.whyNow_"|"_payload.dueAt_"|"_payload.fallbackReason, "digest|||", "the payload: kind digest, no whyNow, no due time and no reason")
 		Do $$$AssertEquals(payload.text, expected, "and the whole text")
 		Do $$$AssertEquals(payload.%ToJSON() [ """kind"":""digest""", 1, "and its JSON names the kind")
+		Do $$$AssertEquals(payload.checks.%Size(), 2, "the payload carries the two check rows")
+		Do $$$AssertEquals(payload.checks.%Get(1).result_"|"_payload.checks.%Get(1).entry_"|"_payload.checks.%Get(1).finding, "failed|the Orders service|It has not answered since 02:10.", "the second is the failed one")
 	}
 
 	Set quiet = ..Session("digestlast")
@@ -345,6 +356,10 @@ Method TestDigestCard()
 	Set row = ..Newest(quiet)
 	Do $$$AssertTrue($IsObject(row), "the digest with no after-lines part is a card in RecentNotices")
 	If $IsObject(row) Do $$$AssertEquals(row.Text, "Good evening."_$Char(10)_"I checked the Chat agent (all running, no errors, no backlog)."_$Char(10)_"Everything I checked passed."_$Char(10)_"Not checked: the Billing database (OcuTalon can't read this database's size limit).", "the lines come last")
+	If $IsObject(row) Do $$$AssertEquals(row.CheckRows, "[]", "an empty rows is kept as []")
+	Set events = ..Notifications(quiet)
+	Do $$$AssertEquals(events.%Size(), 1, "one notification event for the digest with no rows")
+	If events.%Size() = 1 Do $$$AssertEquals($Select(events.%Get(0).payload.%IsDefined("checks"): events.%Get(0).payload.checks.%Size(), 1: 0), 0, "and the payload has no check rows")
 
 	Set broken = ..Session("digestbad")
 	Set unknownPart = {"parts": [{"key": "digest.noSuchKey", "slots": {}}], "lines": [], "rows": []}
@@ -356,6 +371,105 @@ Method TestDigestCard()
 	}
 	Do $$$AssertEquals(..Rows(broken), 0, "and records no row")
 	Do $$$AssertEquals(..Notifications(broken).%Size(), 0, "and publishes no event")
+}
+
+/// A handled Notification (Story 18.4) for a notice whose tell-now card is the newest web row of its DecisionRef publishes that card again: one more
+/// notification event of the card's own ref, now with handledAt, and then the bare Delivery row of kind handled (no text, no message id). The card stays
+/// the only entry of RecentNotices. A second handled Notification finds the handled row as the newest and records its row only, with no event.
+Method TestHandledRepublishesTheCard()
+{
+	Set session = ..Session("handled")
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", , {"Outcome": "tellnow", "Reasons": "zz first.", "Confidence": 0.9, "CostUSD": 0.0003})
+	Set ..Refs = ..Refs_","_decision
+	Set card = ..Notification(session, "tellnow", "notice.tellNow", {"whatHappened": "zz Dana: Invoice", "reason": "zz first."})
+	Set card.DecisionRef = decision
+	Do $$$AssertStatusOK(..Out().OnNotification(card, .response), "the tell-now card is delivered")
+	Set row = ..Newest(session)
+	Do $$$AssertTrue($IsObject(row), "the card exists")
+	If '$IsObject(row) Quit
+	Set ref = row.ChannelMessageId
+	Do $$$AssertEquals(..Notifications(session).%Size(), 1, "one notification event so far")
+	Do $$$AssertEquals(..Notifications(session).%Get(0).payload.handledAt, "", "the card is not handled yet")
+	Set marked = ..Mark(session, decision, "web")
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(session, decision), .response), "the handled Notification is delivered")
+	Set events = ..Notifications(session)
+	Do $$$AssertEquals(events.%Size(), 2, "one more notification event")
+	If events.%Size() = 2 {
+		Set payload = events.%Get(1).payload
+		Do $$$AssertEquals(payload.ref_"|"_payload.kind_"|"_payload.decisionRef_"|"_payload.handledAt, ref_"|tellnow|"_decision_"|"_marked, "the card's own ref, with handledAt")
+		Do $$$AssertEquals(payload.text, "zz Dana: Invoice", "and its text as it was")
+	}
+	Do $$$AssertEquals(..Rows(session), 2, "the card and the bare handled row")
+	Set last = ..LastRow(session)
+	Do $$$AssertEquals(last.Channel_"|"_last.Kind_"|"_last.DecisionRef_"|"_last.Text_"|"_last.ChannelMessageId, "web|handled|"_decision_"||", "the bare row: no text, no message id")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "the card is still the only entry of RecentNotices")
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(session, decision), .response), "a second handled Notification is delivered")
+	Do $$$AssertEquals(..Notifications(session).%Size(), 2, "no event for the second")
+	Do $$$AssertEquals(..Rows(session), 3, "only its row")
+}
+
+/// A handled Notification with no tell-now card for its DecisionRef records the bare Delivery row only, with no event: none at all, and a digest card
+/// that carries the Ref (a digest has no Got it).
+Method TestHandledWithNoCardRecordsOnly()
+{
+	Set session = ..Session("handlednocard")
+	Set decision = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Mark(session, decision, "web")
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(session, decision), .response), "the handled Notification is delivered")
+	Do $$$AssertEquals(..Rows(session)_"|"_..Notifications(session).%Size(), "1|0", "one row and no event")
+	Set last = ..LastRow(session)
+	Do $$$AssertEquals(last.Channel_"|"_last.Kind_"|"_last.DecisionRef_"|"_last.Text_"|"_last.ChannelMessageId, "web|handled|"_decision_"||", "the bare row")
+	Set other = ..Session("handleddigest")
+	Set digest = ..Notification(other, "digest", "checks.allPassed", {"parts": [{"key": "digest.greetingMorning", "slots": {}}], "lines": [], "rows": []})
+	Set digestRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set digest.DecisionRef = digestRef
+	Do $$$AssertStatusOK(..Out().OnNotification(digest, .response), "a digest card with the Ref is delivered")
+	Do ..Mark(other, digestRef, "web")
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(other, digestRef), .response), "and its handled Notification")
+	Do $$$AssertEquals(..Notifications(other).%Size(), 1, "publishes nothing more: the digest is no tell-now card")
+	Do $$$AssertEquals(..Rows(other), 2, "and records its row")
+}
+
+/// A reload shows the handled card: Notification.FromRow of the card's row (the snapshot's payload) carries handledAt as soon as the notice is marked,
+/// for a tell-now card only, and the check rows of a digest row.
+Method TestReloadShowsHandled()
+{
+	Set session = ..Session("reload")
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", , {"Outcome": "tellnow", "Reasons": "zz first.", "Confidence": 0.9, "CostUSD": 0.0003})
+	Set ..Refs = ..Refs_","_decision
+	Set card = ..Notification(session, "tellnow", "notice.tellNow", {"whatHappened": "zz Dana: Invoice", "reason": "zz first."})
+	Set card.DecisionRef = decision
+	Do $$$AssertStatusOK(..Out().OnNotification(card, .response), "the tell-now card is delivered")
+	Set row = ..Newest(session)
+	If '$IsObject(row) Do $$$AssertTrue(0, "the card exists") Quit
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Notification).FromRow(row).HandledAt, "", "before the mark: no handledAt")
+	Set marked = ..Mark(session, decision, "web")
+	Set payload = ##class(OcuTalon.Live.Payload.Notification).FromRow(##class(OcuTalon.Data.Ownership).RecentNotices(session, 1).GetAt(1))
+	Do $$$AssertEquals(payload.HandledAt, marked, "after the mark: the reloaded payload has handledAt")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "and exports")
+	Do $$$AssertTrue(json [ ("""handledAt"":"""_marked_""""), "its JSON names handledAt")
+	Do ##class(OcuTalon.Data.Delivery).Record(session, "web", ##class(OcuTalon.Bridge.Ids).NewRef(), "", "digest", "zz digest", decision, "", "", .digestRow, "[{""result"":""not_checked"",""entry"":""zz entry"",""finding"":""zz why"",""checkedAt"":""2030-01-01T02:10:00Z""}]")
+	Set digestPayload = ##class(OcuTalon.Live.Payload.Notification).FromRow(digestRow)
+	Do $$$AssertEquals(digestPayload.HandledAt, "", "a digest row with the marked Ref has no handledAt")
+	Do $$$AssertEquals(digestPayload.Checks.Count(), 1, "and its check row is read from CheckRows")
+	Do $$$AssertEquals(digestPayload.Checks.GetAt(1).Result_"|"_digestPayload.Checks.GetAt(1).Entry, "not_checked|zz entry", "with its result and entry")
+}
+
+/// U-313: a digest row written before CheckRows existed (the column empty) is a card in RecentNotices and a payload with no check rows, and its JSON
+/// and the page's reading of it have no error.
+Method TestOlderDigestRowRenders()
+{
+	Set session = ..Session("older")
+	Set sc = ##class(OcuTalon.Data.Delivery).Record(session, "web", ##class(OcuTalon.Bridge.Ids).NewRef(), "", "digest", "Good morning."_$Char(10)_"Yesterday's cost: $0.04.", "", "", "", .row)
+	Do $$$AssertStatusOK(sc, "an older digest row is recorded without CheckRows")
+	Do $$$AssertEquals(row.CheckRows, "", "its CheckRows is empty")
+	Set card = ..Newest(session)
+	Do $$$AssertTrue($IsObject(card), "it is a card in RecentNotices")
+	If '$IsObject(card) Quit
+	Set payload = ##class(OcuTalon.Live.Payload.Notification).FromRow(card)
+	Do $$$AssertEquals(payload.Checks.Count()_"|"_payload.HandledAt, "0|", "a payload with no check rows and no handledAt")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "and it exports")
+	Do $$$AssertEquals(##class(%DynamicAbstractObject).%FromJSON(json).text, row.Text, "with the stored text")
 }
 
 /// The kind allowance (Story 16.9) is a card, as tellnow and reminder are: the session allowance notice and the daily-cap message
@@ -514,6 +628,26 @@ Method Session(name As %String) As %String [ Private ]
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzweb"_..Number_name)
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
+}
+
+/// The Notification that GotIt sends: kind handled for the session, with the Decision's Ref, no catalog key and no slots.
+Method HandledNotification(session As %String, decisionRef As %String) As OcuTalon.Msg.Notification [ Private ]
+{
+	Set notification = ..Notification(session, "handled", "", {})
+	Set notification.DecisionRef = decisionRef
+	Quit notification
+}
+
+/// Marks the notice as handled, as SessionOps does: one Handled row {the Ref, the session, now, the channel}. Returns when.
+Method Mark(session As %String, decisionRef As %String, channel As %String) As %String [ Private ]
+{
+	Set handled = ##class(OcuTalon.Data.Handled).%New()
+	Set handled.Ref = decisionRef
+	Set handled.SessionRef = session
+	Set handled.Channel = channel
+	Set handled.HandledAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(handled.%Save(), "the notice is marked handled")
+	Quit handled.HandledAt
 }
 
 /// A shadow instance of the operation.

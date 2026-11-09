@@ -1,0 +1,41 @@
+{
+  "name": "memory-noise-three",
+  "kind": "item",
+  "heldOut": false,
+  "description": "The same email as memory-noise-none, after the person marked three earlier notices from the same sender as noise: the earlier answers are examples that may turn the decision to digest or ignore, never rules.",
+  "expectation": {
+    "outcome": [
+      "digest",
+      "ignore"
+    ]
+  },
+  "recordedBy": "written for the evaluation set (Story 41.7)",
+  "item": {
+    "itemId": "memory-noise-three",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Test Desk <testdesk@results-partner.example>",
+    "subject": "Test environment restarts today at 15:00 UTC",
+    "text": "Hello, our test environment restarts today at 15:00 UTC for about 20 minutes. Test results you send in that window will be lost, so please hold your test traffic until we confirm it is back. Thanks, Results Partner Test Desk"
+  },
+  "precedents": [
+    {
+      "summary": "Test Desk <testdesk@results-partner.example>: Test restart at 14:00 UTC",
+      "outcome": "tellnow",
+      "answer": "noise",
+      "daysAgo": 2
+    },
+    {
+      "summary": "Test Desk <testdesk@results-partner.example>: Test certificate renewed today",
+      "outcome": "tellnow",
+      "answer": "noise",
+      "daysAgo": 6
+    },
+    {
+      "summary": "Test Desk <testdesk@results-partner.example>: Test feed paused for one hour",
+      "outcome": "tellnow",
+      "answer": "noise",
+      "daysAgo": 13
+    }
+  ]
+}
