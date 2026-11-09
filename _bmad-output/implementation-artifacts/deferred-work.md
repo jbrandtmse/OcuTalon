@@ -6013,3 +6013,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-11-the-install-s-production-check-doesn-t-name-an-item-that-is.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: TestNotRunningFollowsTheRow and TestNotRunningFollowsABroaderRow share about 10 setup lines; TelegramParked OnBeforeOneTest/OnAfterOneTest L56-78 hold the same flag save/restore; RunnerFixture (the shared home) is off-limits to this story
 - 2026-11-09T00:31:48Z status=wontfix-accepted owner=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=cr note=reopen_if=a_third_test_writes_TelegramIn's_row_and_runtime_flag_with_the_same_preamble_or_RunnerFixture_gains_a_flag_snapshot_helper
+
+### DW-1004: test-release-sequence.sh's docker shim discards the -f value, so the release image step's Dockerfile path is pinned only by a source-text check (test-compose-file.sh)
+- source: _bmad-output/implementation-artifacts/spec-0-15-the-dockerfile-sits-at-the-repository-root.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docker/tests/test-release-sequence.sh:197 shim arm '-f | --build-arg) shift 2'; predates 0.15 (docker/Dockerfile was equally unchecked); contended file (Epic 11 part 2)
+- 2026-11-09T06:18:47Z status=wontfix-accepted owner=0-15-the-dockerfile-sits-at-the-repository-root by=harvest note=reopen_if=a release build uses a wrong -f path while test-release-sequence.sh passes, or the shim is next edited for another reason (then fail when the -f file is absent from the context)
