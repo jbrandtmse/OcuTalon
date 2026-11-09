@@ -817,3 +817,4 @@
 2026-11-09T04:40:24Z	Epic 11	planner_ruling	subject=part2_timing answer=target_1.0.6;11.14_merge_held_until_after_1.0.5_cut;RELEASE_TOOL_round_per_story_when_green;then_11.15,11.16,11.18_on_lane_D via=orchestrator
 2026-11-09T04:40:24Z	Epic 11	owner_decision_applied	id=U-315 at=2026-11-09T04:32:07Z#964 answer=keep_going;re-plan_each_part-2_story_against_delivered_code_and_hand-cut_records via=orchestrator
 2026-11-09T04:40:24Z	Epic 11	contended_note	epic0_0.15_edits=release/release.sh:575,release/upgrade-harness.sh,ci/warm.sh;11.18_stand-in_must_build_ROOT_Dockerfile_after_0.15 via=orchestrator
+2026-11-09T04:40:38Z	Story 11.14	stage_spawned	stage=implement spawn_at=2026-11-09T04:40:38Z model=sonnet agent_name=11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate-implement-2 cycle_iteration=2 story_base=6ff5bf0c
