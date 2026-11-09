@@ -1535,14 +1535,14 @@ So that I see what OcuTalon is and whether it is healthy before I read a word of
 **Given** README.md
 **When** this story merges
 **Then** it opens with a centred header that replaces the bare "# OcuTalon" presentation: the logo, the title OcuTalon, one tagline line reading exactly "An AI assistant that runs inside InterSystems IRIS Interoperability, with every decision in Visual Trace.", then a badge row, then the existing link bar
-**And** the badge row holds, each an image inside a link: CI (`https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml/badge.svg?branch=main`, linking to the ci.yml runs page); version (`https://img.shields.io/github/v/release/jbrandtmse/OcuTalon`, linking to Releases); and static shields "online demo | live" (to https://demo.ocutalon.com), "docker | install.sh" (to #start-it-with-the-install-script), "IPM | ocutalon" (to #install-it-with-ipm), "IRIS | AI Hub" (to #whats-interesting) and "license | MIT" (to LICENSE), in plain colours
+**And** the badge row holds, each an image inside a link: CI (`https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml/badge.svg?branch=main`, linking to the ci.yml runs page); version (`https://img.shields.io/github/v/release/jbrandtmse/OcuTalon`, linking to Releases); online demo (shields' live website check `https://img.shields.io/website?url=https%3A%2F%2Fdemo.ocutalon.com&label=online%20demo&up_message=live&down_message=down`, alt "Online demo status", to https://demo.ocutalon.com) [AMENDED 2026-11-09, Contest Planner ruling: was the static shield "online demo | live", which stays green while the demo is down]; and static shields "docker | install.sh" (to #start-it-with-the-install-script), "IPM | ocutalon" (to #install-it-with-ipm), "IRIS | AI Hub" (to #whats-interesting) and "license | MIT" (to LICENSE), in plain colours
 **And** the header's exact markup (alt texts, badge labels and link targets) is the text the Contest Planner approved at the spec gate
 
 **Given** `docker/tests/test-readme.sh`
 **When** this story merges
 **Then** it allows this one header block only: image hosts img.shields.io and github.com/jbrandtmse/OcuTalon (the badge.svg path), images inside links within the block, the centred HTML wrapper if needed, and the logo PNG
 **And** every other rule stays as strict as before: the existing top rule (opening paragraph, teaser, hero image) applies from the first line after the header, and no existing rule is weakened beyond the header block
-**And** new self-tests show that a badge outside the header is flagged, a badge from another host is flagged, and an image inside a link outside the header is flagged
+**And** new self-tests show that a badge outside the header is flagged, a badge from another host is flagged, and an image inside a link outside the header is flagged, and a header logo with a different src is flagged [AMENDED 2026-11-09, Contest Planner ruling: self-test added]
 **And** any new or changed rule message is the text the Contest Planner approved at the spec gate
 
 **Given** the change

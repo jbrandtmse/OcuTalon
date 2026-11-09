@@ -82,7 +82,7 @@ deferred: []
   4. `chk_teaser`: the `<img` part of the media-tag grep skips lines up to `header_end`. `iframe`, `video`, `embed`, `object`, `picture` and `[![` are checked on every line, as now.
   5. Extend `url_allowed <url> [extra hosts]` (Rule 2: extend the sibling, no copy). `chk_readme_links` checks URLs on lines up to `header_end` with `HEADER_IMAGE_HOSTS` added, and every other line exactly as now. It also takes `href="..."` and `src="..."` values (whole file) through the same target `case` as Markdown `](...)` targets.
   6. `chk_images`: the size loop also reads the `docs/images/` `src` values on lines up to `header_end`.
-  7. Self-tests, exactly the labels in the PUBLIC TEXT list. Derive the header's lines and paths from `HEADER` and the README, as the images self-tests do, so no image file is named in a self-test.
+  7. Self-tests, exactly the labels in the PUBLIC TEXT list, including the ruling's `top` self-test `a header logo with a different src` [AMENDED 2026-11-09, Contest Planner ruling]. Derive the header's lines and paths from `HEADER` and the README, as the images self-tests do, so no image file is named in a self-test.
   8. Update the header comments: line 2 (add Story 0.21), plus `top`, `teaser`, `images` and `readme-links`.
 
 **Acceptance Criteria:**
@@ -92,6 +92,8 @@ deferred: []
 - Given the pushed branch, when its README page is opened on github.com in the light and the dark theme, then the logo (about 160 px), title, tagline and seven badges show centred, each badge image loads, and each badge links to its stated target.
 
 ## Spec Change Log
+
+- 2026-11-09 [AMENDED 2026-11-09, Contest Planner ruling] (spec gate, owner delegation, verbatim in the orchestrator's rulings file): header approved except the online-demo badge, now shields' live website check (`https://img.shields.io/website?url=https%3A%2F%2Fdemo.ocutalon.com&label=online%20demo&up_message=live&down_message=down`, alt "Online demo status"); link bar stays where 0.18 put it; rule messages, PASS lines and self-test labels approved, plus self-test `top`: `a header logo with a different src`.
 
 ## Review Triage Log
 
@@ -107,7 +109,7 @@ These are README.md lines 1 to 11. Line 12 is empty, and line 13 is the opening 
 <p align="center">
   <a href="https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml?query=branch%3Amain"><img src="https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status of the main branch"></a>
   <a href="https://github.com/jbrandtmse/OcuTalon/releases"><img src="https://img.shields.io/github/v/release/jbrandtmse/OcuTalon" alt="Latest release"></a>
-  <a href="https://demo.ocutalon.com"><img src="https://img.shields.io/badge/online%20demo-live-brightgreen" alt="Online demo: live"></a>
+  <a href="https://demo.ocutalon.com"><img src="https://img.shields.io/website?url=https%3A%2F%2Fdemo.ocutalon.com&label=online%20demo&up_message=live&down_message=down" alt="Online demo status"></a>
   <a href="#start-it-with-the-install-script"><img src="https://img.shields.io/badge/docker-install.sh-blue" alt="Docker: install.sh"></a>
   <a href="#install-it-with-ipm"><img src="https://img.shields.io/badge/IPM-ocutalon-blue" alt="IPM: ocutalon"></a>
   <a href="#whats-interesting"><img src="https://img.shields.io/badge/IRIS-AI%20Hub-blue" alt="IRIS: AI Hub"></a>
@@ -115,7 +117,9 @@ These are README.md lines 1 to 11. Line 12 is empty, and line 13 is the opening 
 </p>
 ```
 
-What the badges show (measured 2026-11-09 against the live services): the CI badge shows "ci - passing". The version badge shows "release: v1.0.5" (the latest release). The static shields show "online demo: live", "docker: install.sh", "IPM: ocutalon", "IRIS: AI Hub" and "license: MIT". The repository is public. The header has no link bar. It stays under `## Try it in two minutes` (line 21 after the change), unchanged (see Decided in-stage).
+[AMENDED 2026-11-09, Contest Planner ruling] The header block above is APPROVED as PUBLIC TEXT (owner delegation, ~23:35Z), with one change: the online-demo badge is shields' live website check (the line above, verbatim from the ruling; it renders "online demo: live" while the demo answers and "online demo: down" otherwise), replacing the static `https://img.shields.io/badge/online%20demo-live-brightgreen` badge with alt text "Online demo: live", because a static "live" badge stays green while the demo is down. Same position, same link, still on img.shields.io inside lines 1-11; no allow-list change. If the `HEADER` constant in test-readme.sh embeds the URL, it carries this exact line.
+
+What the badges show (measured 2026-11-09 against the live services): the CI badge shows "ci - passing". The version badge shows "release: v1.0.5" (the latest release). The static shields show "docker: install.sh", "IPM: ocutalon", "IRIS: AI Hub" and "license: MIT". The repository is public. The header has no link bar. It stays under `## Try it in two minutes` (line 21 after the change), unchanged (see Decided in-stage).
 
 ### README-check rule messages (PUBLIC TEXT, for approval)
 
@@ -140,6 +144,8 @@ Unchanged wording, now also printed for the header's HTML or for img.shields.io 
 - `<f>:<n>: an HTML media tag (the teaser is a plain link)`
 - `<f>:<n>: an image inside a link (the teaser is a plain link)`
 
+[AMENDED 2026-11-09, Contest Planner ruling] The changed `top`/`teaser`/`readme-links` messages, the PASS lines and the self-test labels below are APPROVED as written, plus one more self-test the ruling adds: `top`: `a header logo with a different src` (the logo must be the local `docs/images/ocutalon-logo.png`; a header whose `<h1>` `<img src>` names any other file or host is flagged).
+
 New self-test labels. Each prints only as `  self-test: <label>: not flagged` (or `: the edit changed nothing`) when the check fails. No new rule names.
 - `top`: `the bare title back as the first line` (it replaces `a first line that is not the title`), `the header replaced by the bare title`, `a stray line between the header and the opening paragraph`, `a header badge from another host` and `the tagline changed`.
 - `teaser`: `a header badge line below the header` and `an image inside a link right after the hero image`.
@@ -154,7 +160,7 @@ New self-test labels. Each prints only as `  self-test: <label>: not flagged` (o
   - `product-links` and `readme-links` read only Markdown headings;
   - the title stays on line 1, so `release/checklist.sh`'s product-name check still reads the product name there;
   - the `top` rule now pins the header block in place of `# OcuTalon`.
-- **Link bar:** it stays where it is (today line 11, line 21 after the change, under `## Try it in two minutes`), so the header ends with the badge row. Reasons:
+- [AMENDED 2026-11-09, Contest Planner ruling: link bar placement confirmed; it stays where Story 0.18 put it.] **Link bar:** it stays where it is (today line 11, line 21 after the change, under `## Try it in two minutes`), so the header ends with the badge row. Reasons:
   - the epic context says "the existing link bar follows the new header unchanged" and that "Try it in two minutes" stays at the top of the body with the online demo link;
   - the top rule keeps "opening paragraph, teaser, hero" right after the header;
   - moving the bar would remove a line from the body and change Story 0.18's approved placement.
