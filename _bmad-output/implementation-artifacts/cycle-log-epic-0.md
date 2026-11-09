@@ -507,3 +507,6 @@
 2026-11-09T05:07:14Z	Story 0.18	committed	sha=fdd191e8 submodules= ci=pending runs=42565378346,42565378445 amendments=none note=code_commit=6118b053;head_carries_0.17(7e4a668d)+0.15_spec_bookkeeping;pushed_without_waiting_on_0.17_ci(orchestrator,queue_over_60min)
 2026-11-09T05:07:14Z	Story 0.18	story_cycle	plan_to_commit_min=13 implement_passes=1 reviews=1(runner_diff_review) rework=0 first_ci=pending models=plan:sonnet,implement:sonnet,qa:none,cr:runner(opus)
 2026-11-09T05:07:14Z	Story 0.17	ci_progress	sha=7e4a668d lane-a=42560945643:success ci=42560945591:in_progress note=not_cancelled_by_0.18_push
+2026-11-09T05:08:51Z	Story 0.15	ci_outage_rule	applied=0.15_local prev_head=fdd191e8(pending) authorized_by=orchestrator reason=queue_over_60min note=implement_locally;push_nothing_until_orchestrator_says
+2026-11-09T05:08:51Z	Story 0.15	contention_check	feature=2e7791d5 epic11=none epic17=none epic32=no_branch epic41=ci/units.sh(hunks_108-128,209-218_vs_0.15_line_200),ARCHITECTURE-SPINE.md(hunks_288,738,995,1383_vs_0.15_~1491) result=plain_union_expected(prove_with_git_merge-file_before_finalize)
+2026-11-09T05:08:51Z	Story 0.15	stage_spawned	stage=implement spawn_at=2026-11-09T05:08:51Z model=sonnet effort=high agent_name=0-15-implement-1 cycle_iteration=1 story_base=6e5e2ab6
