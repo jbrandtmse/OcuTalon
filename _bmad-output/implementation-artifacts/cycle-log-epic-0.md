@@ -624,3 +624,4 @@
 2026-11-09T23:04:52Z	Story 0.19	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0 note=DW-1020_resolved-by_0.19
 2026-11-09T23:07:29Z	Story 0.19	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=test-readme.sh_all_rules_passed;test-boundaries.sh_all_rules_passed;README.md:376_grep_-c=1 model=claude-opus-5-5
 2026-11-09T23:07:29Z	Story 0.19	fresh_check	env=clean-checkout(git_archive_HEAD,add_-f) tests=1(docker/tests/test-readme.sh) result=pass order=forward,reverse(single_script,run_twice)
+2026-11-09T23:08:03Z	Epic 0	ruling	question=integrate_onto_feature_1d3cc767_whose_ci.yml_run_was_cancelled choice=integrate(green_by_identity:diff_vs_green_OCT-epic35_1c9c90b5=bookkeeping_only,5_files;ci_42704381983+lane-a_42704382011_success) rejected=wait_for_rerun why=morning_ruling_11:01Z(code_unchanged_or_green) category=decide policy=5086036
