@@ -30,7 +30,7 @@
 2026-11-09T22:39:05Z	Story 20.2	fresh_check	env=recipe(new_lane-B_warm_stack_e20s2fw_on_merged_tree_f16010a6,ready_261s) tests=7(Core.ConversationTurns,Data.Tables,Demo.Features,Live.Payloads,Msg.Contracts,Web.Api,Web.DocumentsApi)+sources.spec_on_fresh_e20s2s(smoke)+web_unit_1744 result=pass order=forward,reverse story_base=e52f7e75 torn_down=e20s2fw
 2026-11-09T22:39:05Z	Epic 20	integrated_forward	feature=52cf70f6 head=f16010a6 conflicts_resolved=sprint-status.yaml(regenerated;feature_statuses_reapplied) note=pre_first_push_merge_of_post-0.20_feature
 2026-11-09T22:40:02Z	Story 20.2	committed	sha=6c6f00a7 submodules= ci=pending runs=42713809099,42713808884 amendments=_bmad-output/planning-artifacts/epics.md:Story_20.2_DW_bullets,EXPERIENCE.md:More_to_try_count_item6_item8(Planner-ruled) note=first_push_after_merging_post-0.20_feature_52cf70f6
-2026-11-09T22:40:02Z	Story 20.2	story_cycle	plan_to_commit_min=298 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-09T22:40:02Z	Story 20.2	story_cycle	plan_to_commit_min=280 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-09T22:40:22Z	Epic 20	ruling	question=insert_story_20.3_sample_runbook choice=inserted_as_20.3_rule5_tier1 marker=[ADDED_2026-11-09,owner_re-plan,Contest_Planner_ruling] category=decide by=planner_via_orchestrator policy=5086036
 2026-11-09T22:42:22Z	Epic 20	epic_context_compiled	reason=planning_artifact_newer(story_20.3_inserted) model=opus
 2026-11-09T22:42:38Z	Story 20.3	stage_spawned	stage=plan spawn_at=2026-11-09T22:42:38Z model=opus agent_name=20-3-add-a-sample-runbook-in-one-press-plan-1 cycle_iteration=1
