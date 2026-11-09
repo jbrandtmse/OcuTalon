@@ -642,3 +642,6 @@
 2026-11-09T23:43:33Z	Story 0.21	stage_spawned	stage=qa spawn_at=2026-11-09T23:43:33Z model=sonnet effort=high agent_name=0-21-qa-1 cycle_iteration=1
 2026-11-09T23:56:46Z	Story 0.21	qa_complete	spawn_at=2026-11-09T23:43:33Z model=sonnet effort=high tests_added=0 mutations_demonstrated=10 first_run_failures=0 clarifications=0 closing_sections_present=true note=framework=test-readme.sh_self-tests;2_surviving_mutants(HEADER_IMAGE_HOSTS_value,header_end_strictness)_covered_by_top;no_new_labels(PUBLIC_TEXT)
 2026-11-09T23:56:46Z	Story 0.19	ci_resolved	story=0.19 sha=b43e7bce runs=42718157592,42718157873 result=success failed=none via=none resolved_at=next_plan
+2026-11-09T23:58:17Z	Story 0.21	ruling	question=two_surviving_QA_mutants(HEADER_IMAGE_HOSTS_value,header_end_strictness) choice=accepted(top_covers_verdict;no_new_labels) by=orchestrator category=decide policy=5086036 note=recorded_in_spec_Verification
+2026-11-09T23:58:17Z	Epic 0	orchestrator_report	event=0.19_merged feature=61b40bba(merge_of_b43e7bce;green_by_identity) DW-1052=to_Planner(human-only)
+2026-11-09T23:58:17Z	Story 0.21	stage_spawned	stage=code-review spawn_at=2026-11-09T23:58:17Z model=opus effort=high agent_name=0-21-code-review-1 cycle_iteration=1
