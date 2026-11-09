@@ -4195,6 +4195,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T22:12:29Z status=routed owner=burndown by=lead note=attempt 3 rerun decides; DW-321 reopen_if not met (578 s)
 - 2026-11-04T22:35:23Z occurrence=39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built note=attempt_3_of_run_41909512271_green_on_unchanged_rerun_flake_confirmed
 - 2026-11-08T22:41:17Z occurrence=OCT-epic41-ef38622e by=orchestrator note=run 42525785483: iris(production) live:reminder-restart restart 2 took 176 s under load, R_future already due; 4 checks
+- 2026-11-09T17:17:58Z occurrence=0-15-the-dockerfile-sits-at-the-repository-root by=lead note=OCT-epic0 a3086148 run 42634825529: iris(production) live:reminder-restart restart 2 R_future already due (186 s restart); rerun attempt 3 job 129284507449 green 16:16:51-16:56:23Z (39m32s, near the 40-min limit)
 ### DW-664: Under Another language or a custom persona, a model-worded all-clear can pass ReplyGuard's English closed lists (AD-7 vs AD-28 Prevents)
 - source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: RESERVED and BANNED in Checks.ReplyGuard are English; AD-7 keeps the guard to that list; under Spanish only Chat's instruction stands between the model and a false all-clear (FR-37, AD-28 Prevents). The catalog all-clear itself stays code-only.
@@ -6196,6 +6197,21 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: TestNotRunningFollowsTheRow and TestNotRunningFollowsABroaderRow share about 10 setup lines; TelegramParked OnBeforeOneTest/OnAfterOneTest L56-78 hold the same flag save/restore; RunnerFixture (the shared home) is off-limits to this story
 - 2026-11-09T00:31:48Z status=wontfix-accepted owner=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=cr note=reopen_if=a_third_test_writes_TelegramIn's_row_and_runtime_flag_with_the_same_preamble_or_RunnerFixture_gains_a_flag_snapshot_helper
 
+### DW-1004: test-release-sequence.sh's docker shim discards the -f value, so the release image step's Dockerfile path is pinned only by a source-text check (test-compose-file.sh)
+- source: _bmad-output/implementation-artifacts/spec-0-15-the-dockerfile-sits-at-the-repository-root.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docker/tests/test-release-sequence.sh:197 shim arm '-f | --build-arg) shift 2'; predates 0.15 (docker/Dockerfile was equally unchecked); contended file (Epic 11 part 2)
+- 2026-11-09T06:18:47Z status=wontfix-accepted owner=0-15-the-dockerfile-sits-at-the-repository-root by=harvest note=reopen_if=a release build uses a wrong -f path while test-release-sequence.sh passes, or the shim is next edited for another reason (then fail when the -f file is absent from the context)
+- 2026-11-09T06:39:10Z occurrence=0-15-the-dockerfile-sits-at-the-repository-root
+
+### DW-1005: Story 0.15 exists so the Open Exchange listing reads Docker True, but nothing in the pipeline checks the listing after the root Dockerfile reaches the branch Open Exchange reads
+- source: spec-0-15-the-dockerfile-sits-at-the-repository-root.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the spec's field data has 1 of 18 root-Dockerfile entries still reading False; the flag can only be read on Open Exchange after merge/release (outward, owner/Planner)
+- 2026-11-09T06:39:10Z status=wontfix-accepted owner=0-15-the-dockerfile-sits-at-the-repository-root by=cr note=reopen_if=the Open Exchange listing still reads Docker False after the release that carries the root Dockerfile
+
+### DW-1006: README Repository layout says docker holds the image's files and names no root Dockerfile, now that the recipe sits at the repository root
+- source: spec-0-15-the-dockerfile-sits-at-the-repository-root.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: README.md:366 '- docker: the image's files and the checks and live tests in docker/tests'; the spec's Never forbids public text changes and the sentence names no path
+- 2026-11-09T06:39:10Z status=by-design owner=0-15-the-dockerfile-sits-at-the-repository-root by=cr note=spec Never: no change to public text; reopens via a spec or docs-story amendment that adds a root Dockerfile layout bullet
 ### DW-999: flake candidate (host load): live:storage-roundtrip 'the first start did not end ready within 400 s' (test aborted) in CI image under a saturated queue
 - source: CI run 42558521402 attempt 1 (OCT-epic17 87eb681a) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(image) 04:17:13Z; a stack-start bound, no product line involved
@@ -6206,6 +6222,37 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code
 - 2026-11-09T07:39:44Z status=routed owner=burndown by=orchestrator note=first sighting; rerun of the failed job 07:40Z
 
+### DW-1026: flake: demo-path web/e2e/demo-path/06-trace.spec.ts:36 (Story 11.1 step 5, Open the trace): the guide's .finish-done line was not found within 10 s because the page had navigated to /ocutalon/?signedOut=1 after the trace opened; green on the unchanged rerun
+- source: cycle-log-epic-0.md (OCT-epic0 a3086148, ci.yml run 42634825529) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: iris (browser) job 129220092453 attempt 1 red (DEMO-PATH step 6 trace failed, 27 passed); attempt 2 job 129260909530 green 15:39-16:15Z; same code as green feature 2a45f8bc plus the Dockerfile move
+- 2026-11-09T16:27:08Z status=routed owner=burndown by=lead note=flake class; possibly kin to DW-690 (sign-out after the trace) and DW-388; rerun once per occurrence
+
+### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
+- source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: single-area units over 900 s on runs 42634825529/42633085173/42603815732/42583599821: Bridge 981-1,167 s, Fix about 1,012-1,123 s, Docs about 814-1,006 s
+- 2026-11-09T16:41:53Z status=routed owner=burndown by=owner note=after voting, Contest Planner ruling 2026-11-09; trigger early only if any single area's measured unit time passes 1,400 s, and then report it with PLANNER REPORT and do not split
+- 2026-11-09T18:00:26Z occurrence=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un
+
+### DW-1033: after voting: the 278-423 s stack start and teardown each shard unit pays is a large share of the ~25,700 s of IRIS unit time; could units share a stack without losing isolation?
+- source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: READY 259-404 s per unit on runs 42634825529, 42633085173, 42603815732, 42583599821; 16 groups needed at about 29 min each
+- 2026-11-09T16:41:53Z status=routed owner=burndown by=owner note=after voting, Contest Planner ruling 2026-11-09
+
+### DW-1047: AD-22's CI-as-built paragraph lists lane-a's areas without Memory and Docs, though ci/units.sh shard_areas lane-a has both and the Story 0.20 amendment names a Docs piece and Memory in rest
+- source: spec-0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: ARCHITECTURE-SPINE.md L800 reads lane-a: Agent, Bridge, Checks, Fix, Install, Tools, Digest, Watch, Eval and Channel; ci/units.sh shard_areas lane-a adds Memory and Docs (stale since before base; the 0.20 amendment now depends on it)
+- 2026-11-09T18:00:26Z status=decision-pending owner=burndown by=cr note=human=lead or Planner ratifies the as-built list correction (add Memory and Docs) at the merge-gate AD-22 refresh
+- 2026-11-09T18:01:36Z status=resolved-by:0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un owner=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un by=adjudication note=factual as-built list correction applied in AD-22 (Rule 5 tier-1, same class as the 2026-10-24 correction; no rule change); reported under amendments for the orchestrator's merge-gate check
+
+### DW-1048: epic-32-context.md still says there are ten IRIS groups and lists lane-a without Memory and Docs
+- source: spec-0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: _bmad-output/implementation-artifacts/epic-32-context.md L54-56 describe the pre-0.20 layout; Epic 32 is done, so nothing loads it
+- 2026-11-09T18:00:26Z status=wontfix-theoretical owner=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un by=cr note=real only if an Epic 32 story reopens and plans from that context file
+
+### DW-1049: AC1 group-row placement and the AC2/AC4 unit, area and class tallies are derived and printed, not compared to fixed numbers
+- source: spec-0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: test-ci-config.sh units/shard pieces PASS lines echo unit_total/piece_tally; groups rule pins names only; the dropped-unit, area-once and class-once checks fail with recorded mutations
+- 2026-11-09T18:00:26Z status=by-design owner=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un by=cr note=spec Tasks: an added script, area or class is counted, not pinned; a rebalance needs no pin edit
 ### DW-1018: heartbeat %SYS.Task 'OcuTalon heartbeat' comes back Suspended=1 after a stop/start (capture or restore mid-run); nothing resumes it, so no ticks, the 'Background checks have paused' banner, digest 'Not checked: Orders production', watches never fire; also release/demo-host-check.sh must FAIL on a tick older than 3 min or a Suspended task
 - source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: low | footprint: out-of-footprint
 - evidence: 1.0.5 demo after update: Suspended=1, SuspendOnError=0, Error Success, last ran OK; Install.Step.Schedule leaves an existing task alone; host-side patch on the demo already resumes it

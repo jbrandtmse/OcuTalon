@@ -23,14 +23,14 @@ shard_areas() {
   esac
 }
 
-# The IRIS groups, in the order of the matrix of .github/workflows/ci.yml (eight since Epic 30's CI step, nine since Epic 12's close, ten since Story 19.8's CI split).
-IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5"
+# The IRIS groups, in the order of the matrix of .github/workflows/ci.yml (eight since Epic 30's CI step, nine since Epic 12's close, ten since Story 19.8's CI split, sixteen since Story 0.20's rebalance).
+IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5 shards-6 shards-7 shards-8 shards-9 shards-10 shards-11"
 
 # group_units <group>: the units of a group in the order they run. live:<name> is docker/tests/test-<name>.sh and
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
 # A shard too long for one job runs in pieces, shard:<name>@<piece> (shard_unit_areas): every area of the shard is in exactly
-# one piece, so every test class runs once. lane-a runs in two pieces (DW-337): Checks, Install and Watch in
-# shards, and the rest of its areas in shards-2, which also takes any area added to lane-a later. The CI rebalance of 2026-10-30
+# one piece, so every test class runs once. lane-a runs in eight pieces and lane-b in two (Story 0.20); shard:lane-a@rest in shards-2
+# takes any area added to lane-a later, and shard:lane-b@rest in shards-6 any area added to lane-b. The CI rebalance of 2026-10-30
 # (an owner decision, taken by the Contest Planner under the owner's delegation, carried by Story 9.6) moved live:cards out of
 # install-fresh and live:audit out of install-upgrade, the two longest groups. Each unit runs in its own project and needs no state
 # of its group's install, so a unit can sit in any group whose job builds what it reads. At Epic 29's integrate-forward of Epic 9
@@ -114,18 +114,35 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # class time Bridge 673 s and Agent 309 s; live:sign-in-3 776 s) and production job 26 min (its four units 1,546 s). Projection: production about
 # 1,546 + 309 + a stack start (about 250) = 2,105 s, shards-5 about 2,070 - 309 = 1,761 s plus Epic 41's specs in live:sign-in-3 (inference until a run
 # measures them). No group is added, renamed or given a longer deadline.
+# Story 0.20 (2026-11-09; the Contest Planner's rulings on DW-1025, relayed by the orchestrator: 16 groups, each planned to about 29 minutes; every
+# shard: unit of two or more areas at 900 s or less, a single-area unit whole; no longer timeout) added shards-6 to shards-11 and cut lane-a into
+# eight pieces and lane-b into two. On ci runs 42634825529, 42633085173, 42603815732 and 42583599821 every iris job took 31 to 41 minutes, and
+# install-upgrade, shards-2, image, shards-3 and shards-4 met the 40-minute timeout with no failing test. Planned from the largest unit seconds of
+# those runs; a new piece is its areas' largest class seconds plus 423 s, the largest stack start and teardown measured; a job adds 53 s. Pieces:
+# Agent 633, Bridge 1,167, Channel 841, Docs 1,056, Fix 1,192 and Watch 937 s, one area each; Install, Digest and Eval 890 s; lane-a's rest (Checks,
+# Tools and Memory) 866 s, 896 s with Epic 35's Mcp area; lane-b's Contract, Core, Data and Live 899 s and its rest (Demo, Msg, Schedule and Web)
+# 898 s. Groups, in seconds of units: install-fresh 1,659, install-upgrade 1,657, production 1,620, browser 1,632, shards 1,464, shards-2 1,636, image
+# 1,615, shards-3 1,559, shards-4 1,644, shards-5 1,641, shards-6 1,660, shards-7 1,643, shards-8 1,570, shards-9 1,665, shards-10 1,544 and shards-11
+# 1,673, so at most 1,726 s (28.8 minutes) a job (inference until a run measures them). live:memory-offline stays in shards-4: with live:documents
+# beside it in shards-6, no packing keeps every group at or under 1,687 s of units (the best is 1,749 s, 30.0 minutes).
 group_units() {
   case $1 in
-    install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
-    install-upgrade) echo "live:install-upgrade live:online-allowance live:online-visitors live:compose-start" ;;
-    production) echo "live:production live:production-restart live:reminder-restart live:security-overview shard:lane-a@Agent" ;;
-    browser) echo "live:demo-path live:sign-in live:answers" ;;
-    shards) echo "shard:lane-a@Checks,Install,Watch,Eval live:online-session live:cards" ;;
-    shards-2) echo "shard:lane-a@rest live:session-data" ;;
-    image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
-    shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit live:documents" ;;
-    shards-4) echo "shard:lane-a@Channel live:sign-in-2 live:memory-offline" ;;
-    shards-5) echo "shard:lane-a@Bridge live:sign-in-3" ;;
+    install-fresh) echo "live:install-start live:online-demo-path" ;;
+    install-upgrade) echo "live:install-upgrade live:online-visitors" ;;
+    production) echo "live:production live:production-restart shard:lane-a@Channel" ;;
+    browser) echo "live:demo-path live:online-demo" ;;
+    shards) echo "shard:lane-a@Install,Digest,Eval live:online-allowance" ;;
+    shards-2) echo "shard:lane-a@rest live:session-data live:install-script-live" ;;
+    image) echo "live:storage-roundtrip live:build-inputs shard:lane-b@Contract,Core,Data,Live live:compose-start" ;;
+    shards-3) echo "live:floor live:demo-switch" ;;
+    shards-4) echo "live:sign-in-2 live:memory-offline" ;;
+    shards-5) echo "live:sign-in-3 live:security-overview live:audit" ;;
+    shards-6) echo "live:documents shard:lane-b@rest live:bundle-folder" ;;
+    shards-7) echo "shard:lane-a@Docs live:answers" ;;
+    shards-8) echo "shard:lane-a@Watch shard:lane-a@Agent" ;;
+    shards-9) echo "shard:lane-a@Bridge live:online-session" ;;
+    shards-10) echo "live:sign-in live:reminder-restart" ;;
+    shards-11) echo "shard:lane-a@Fix live:cards" ;;
     *) return 1 ;;
   esac
 }
@@ -198,12 +215,12 @@ BOOKKEEPING_PATTERN='^(_bmad/|_bmad-output/)'
 NOT_BOOKKEEPING_PATTERN='^_bmad-output/planning-artifacts/ux-designs/'
 
 # The inputs of the IRIS groups (ci/changes.sh --group): a group runs only when a changed path matches its pattern. Every unit builds
-# its stack from the whole product, so IRIS_INPUT holds what every unit builds from or runs: the sources, the image and compose
-# files (.dockerignore and docker/ipm/ among them), the throwaway helpers and compose overrides, release/demo-load.sh (which the load phase
-# of live:online-demo-path runs), the eval folder, the CI recipe,
+# its stack from the whole product, so IRIS_INPUT holds what every unit builds from or runs: the sources, the image (the Dockerfile
+# at the repository root) and compose files (.dockerignore and docker/ipm/ among them), the throwaway helpers and compose
+# overrides, release/demo-load.sh (which the load phase of live:online-demo-path runs), the eval folder, the CI recipe,
 # .github/workflows/ci.yml, and the root .gitattributes and .gitignore. These are unanchored ERE alternatives, joined by
 # group_input_pattern.
-IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|release/demo-load\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
+IRIS_INPUT='src/|Dockerfile$|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|release/demo-load\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
 # The generated overview is read by live:security-overview, which compares it with a fresh generation (Story 14.1); this claim outranks docs/ in NOT_IRIS_INPUT_PATTERN.
 IRIS_INPUT="$IRIS_INPUT|docs/security-overview\.md\$"
 # live:documents reads the line of docs/bridge-guide.md that states the Filter(text, hostData) contract (Story 19.4), so a change of that guide runs the IRIS groups too.
