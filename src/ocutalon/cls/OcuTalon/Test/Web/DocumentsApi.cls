@@ -409,6 +409,35 @@ Method TestSweepOnEveryRoute()
 	Do ##class(OcuTalon.Data.Upload).DropSession(owner)
 }
 
+/// The text route sweeps stale uploads as the list, add and remove routes do (Story 20.2, QA): an upload of another session over an
+/// hour old is gone after a read of a document's text, the ones exactly an hour old and fresh stay, and the read is answered as before.
+Method TestTextSweeps()
+{
+	Set a = ..Session("a")
+	Set owner = "ZzSweepText"_..Number
+	Set ..Sessions = ..Sessions_","_owner
+	Set ^OcuTalonTest("DocumentsProbe", "now") = "2001-01-01T01:00:01Z"
+	Set fresh = ..PlantUpload(owner, "")
+	Set boundary = ..PlantUpload(owner, "2001-01-01T00:00:01Z")
+	Set old = ..PlantUpload(owner, "2001-01-01T00:00:00Z")
+	Do $$$AssertTrue((fresh '= "") && (boundary '= "") && (old '= ""), "three uploads of another session are stored")
+	Set doc = ..TextDocument(a, "zz sweep text.md", "zz sweep text")
+	Set body = ..Call("Text", a, , .response, doc)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).text, "200 OK|zz sweep text", "the text is answered as before")
+	Do ..AssertSwept(owner, old, boundary, fresh, "a read of a document's text")
+	// An answered 404 sweeps too, and a sweep that throws changes nothing and does not fail the read.
+	Set old = ..PlantUpload(owner, "2001-01-01T00:00:00Z")
+	Set body = ..Call("Text", a, , .response, "zzNoSuchRef")
+	Do $$$AssertEquals(response.Status, "404 Not Found", "an unknown ref is 404 as before")
+	Do ..AssertSwept(owner, old, boundary, fresh, "a read that finds nothing")
+	Set old = ..PlantUpload(owner, "2001-01-01T00:00:00Z")
+	Set ^OcuTalonTest("DocumentsProbe", "now") = "throw"
+	Set body = ..Call("Text", a, , .response, doc)
+	Do $$$AssertEquals(response.Status_"|"_##class(OcuTalon.Data.Upload).RefIndexExists(old), "200 OK|1", "a failed sweep leaves the rows and the text is still answered")
+	Kill ^OcuTalonTest("DocumentsProbe")
+	Do ##class(OcuTalon.Data.Upload).DropSession(owner)
+}
+
 /// A body of BODYMAX bytes is read; one byte more is refused 413 before parsing.
 Method TestBodyBound()
 {
@@ -635,7 +664,7 @@ Method TestText()
 	Set ^OcuTalonTest("DocumentsProbe", "textfail") = 1
 	Set body = ..Call("Text", a, , .response, own)
 	Do $$$AssertEquals(+response.Status_"|"_{}.%FromJSON(body).error.code, "500|server_error", "a text that can't be read is 500 server_error")
-	Do $$$AssertTrue(body '[ "<b>", "and the body holds no text")
+	Do $$$AssertTrue((body '[ "<b>") && (body '[ "zz own.md"), "and the body holds neither its text nor its name")
 	Kill ^OcuTalonTest("DocumentsProbe", "textfail")
 	Do $$$AssertEquals(..Submits(), 0, "nothing was submitted")
 }

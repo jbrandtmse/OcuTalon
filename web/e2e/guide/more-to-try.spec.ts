@@ -467,7 +467,7 @@ test('K8: item 4 turns the Demo view switch off with focus on it, hides the demo
   expect(writes, 'the press sent nothing to the server').toEqual([]);
 });
 
-/** K9 (item 5, routed seven ids): one POST /messages with the prompt, from the user; none while the allowance is used up. */
+/** K9 (item 5, routed every id of the registry): one POST /messages with the prompt, from the user; none while the allowance is used up. */
 test('K9: item 5 sends its prompt once as the user\'s own message, and sends nothing while the allowance is used up', async ({ page, context }) => {
   const bodies: Array<{ clientId: string; text: string; fromGuide: boolean }> = [];
   const accept = async (route: Route): Promise<void> => {

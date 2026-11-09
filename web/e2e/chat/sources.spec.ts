@@ -8,7 +8,7 @@ import { chk, cleanFixtureRows, fixtureUser, irisScript, quoted, seedTurns, turn
 import { clock, plain, tokenColor } from '../support/page';
 
 /**
- * Story 20.2, the sources under an answer and the document text they open (S0 to S7), in a real browser against a real stack. The seeded
+ * Story 20.2, the sources under an answer and the document text they open (S0 to S9), in a real browser against a real stack. The seeded
  * cases sign in as the decision fixture user (OCUTALON_DECISION_USER), seed turns that carry citations and memories as Lane A's HostData
  * carries them into its own session, and read what the page draws; S5 asks GET /v1/documents/:ref over real HTTP as the decision user and
  * the chat user, who hold nothing but OcuTalonUser (S0 reads their roles); S7 drives a real turn through the composer and the CI mock as
@@ -16,9 +16,9 @@ import { clock, plain, tokenColor } from '../support/page';
  *   - S0: both fixture users hold exactly OcuTalonUser;
  *   - S1: a cited answer ends with a group "Sources" of one chip for each document section after the reply text and the check rows; the
  *     chip is a button named "{document}, section {section}" (no section sign) that reads "{document} \u00A7 {section}", draws the
- *     citation-chip tokens with the file-text icon, and opens a dialog named by its heading with every passage of the section, each
- *     clamped to six lines and shown as plain text; Enter or a press opens it with focus on Open document, Esc, a press outside and Shift+Tab
- *     out of it close it and return focus to the chip, and a second press closes it;
+ *     citation-chip tokens with the file-text icon, is underlined while open, and opens a dialog named by its heading with every passage
+ *     of the section, each clamped to six lines and shown as plain text; Enter or a press opens it with focus on Open document, Esc, a
+ *     press outside and Shift+Tab out of it close it and return focus to the chip, and a second press closes it;
  *   - S2: a section-less passage is the document alone; a memory is a "From memory" chip named with its text cut to 80 characters,
  *     after the citation chips, whose dialog holds the text, focused, and "Saved {when}";
  *   - S3 (DW-721, U-280): a reply that says the none-line with no citations shows it and no chip, and a reply with citations has chips
@@ -29,7 +29,8 @@ import { clock, plain, tokenColor } from '../support/page';
  *   - S5: GET /v1/documents/:ref over real HTTP: an own document and an instance document are 200 with their text; another session's
  *     document and an unknown ref are 404 not_found with no text;
  *   - S6: the markup in a document is text on the Documents page and in a passage popover;
- *   - S7: a memory saved and recalled through the composer and the CI mock shows the "From memory" chip under the recall.
+ *   - S7: a memory saved and recalled through the composer and the CI mock shows the "From memory" chip under the recall;
+ *   - S8, S9 (QA): the memory chip's Enter, outside press, Shift+Tab and Esc rules and its plain text; a second chip swaps the popover.
  */
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-US' });
 
@@ -153,6 +154,7 @@ test('S1: a cited answer ends with one chip for each document section, and a chi
   const dialog = dialogOf(page, 'Results runbook \u00A7 Rotating the certificate');
   await expect(dialog, 'the popover is a dialog named by its heading').toBeVisible();
   await expect(first).toHaveAttribute('aria-expanded', 'true');
+  await expect(first, 'the open chip is underlined, not marked by colour alone').toHaveCSS('text-decoration-line', 'underline');
   await expect(dialog.getByRole('heading', { level: 2 })).toHaveText('Results runbook \u00A7 Rotating the certificate');
   const passages = dialog.locator('[data-part="passage"]');
   await expect(passages, 'both passages of the section, in order').toHaveCount(2);
@@ -174,6 +176,7 @@ test('S1: a cited answer ends with one chip for each document section, and a chi
   await expect(dialog).toHaveCount(0);
   await expect(first).toBeFocused();
   await expect(first).toHaveAttribute('aria-expanded', 'false');
+  await expect(first, 'and no longer underlined').toHaveCSS('text-decoration-line', 'none');
 
   // A press outside closes it, and focus is on the chip again.
   await first.click();
@@ -410,6 +413,73 @@ test('S6: markup in a document shows as characters on the Documents page', async
   expect(await body.evaluate((el) => el.children.length), 'it has no child element').toBe(0);
   await expect(region.locator('b, script, h1'), 'no b, script or h1 was made').toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as { __x?: number }).__x), 'window.__x is undefined').toBeUndefined();
+});
+
+/**
+ * S8 (QA, the memory chip's keyboard and pointer rules and plain text): Enter opens the popover with focus on the remembered text, which
+ * is plain text whatever it holds; an outside press, Shift+Tab and Esc close it, and focus is on the chip that opened it
+ * (the citation chip's rules are S1; the memory chip is a second trigger with a text block of its own to focus).
+ */
+test('S8: the From memory chip opens with Enter, shows its text as characters, and an outside press, Shift+Tab and Esc close it onto the chip', async ({ page }) => {
+  const saved: SeedMemory = { memoryRef: 'zzMemS8', text: RAW, savedAt: '2025-03-01T10:00:00Z' };
+  const [ref] = await seed([turn('S8', { citations: [cite('zzDocS8', 'Steps', 'Do the steps.', 1)], memories: [saved] })]);
+  await open(page, 'DECISION');
+  const memory = chipOf(page, ref!, `From memory: ${RAW}`);
+  await expect(memory, 'the chip is named with the whole text, which is under 80 characters').toHaveCount(1);
+  const dialog = dialogOf(page, 'From memory');
+
+  await memory.focus();
+  await page.keyboard.press('Enter');
+  await expect(dialog).toBeVisible();
+  await expect(memory).toHaveAttribute('aria-expanded', 'true');
+  const text = dialog.locator('[data-part="memory"]');
+  await expect(text, 'Enter puts focus inside the popover, on the text').toBeFocused();
+  expect(await text.evaluate((el) => el.textContent), 'the memory is its raw text').toBe(RAW);
+  expect(await text.evaluate((el) => el.children.length), 'with no child element').toBe(0);
+  await expect(dialog.locator('b, script, h1, strong, em'), 'markup and Markdown make no element').toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as { __x?: number }).__x), 'no script ran').toBeUndefined();
+
+  // A press outside closes it, and focus is on the chip.
+  await page.getByRole('banner').click({ position: { x: 2, y: 2 } });
+  await expect(dialog).toHaveCount(0);
+  await expect(memory).toBeFocused();
+  await expect(memory).toHaveAttribute('aria-expanded', 'false');
+
+  // Shift+Tab out of it closes it, and focus is on the chip.
+  await page.keyboard.press('Enter');
+  await expect(text).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog).toHaveCount(0);
+  await expect(memory).toBeFocused();
+
+  // Esc closes it too (S2 reads the same on a memory chip with a citation chip before it), and a second Enter on the chip opens it again.
+  await page.keyboard.press('Enter');
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(memory).toBeFocused();
+});
+
+/** S9 (QA): a press of another chip leaves one popover, the other chip's, with focus inside it. */
+test('S9: pressing another chip swaps the popover, and only one is open', async ({ page }) => {
+  const saved: SeedMemory = { memoryRef: 'zzMemS9', text: 'Lee is the Results contact.', savedAt: '2025-03-01T10:00:00Z' };
+  const [ref] = await seed([turn('S9', { citations: [cite('zzDocS9', 'Steps', 'Do the steps.', 1)], memories: [saved] })]);
+  await open(page, 'DECISION');
+  const citation = chipOf(page, ref!, 'Results runbook, section Steps');
+  const memory = chipOf(page, ref!, 'From memory: Lee is the Results contact.');
+  const cited = dialogOf(page, 'Results runbook \u00A7 Steps');
+  const remembered = dialogOf(page, 'From memory');
+
+  await citation.focus();
+  await page.keyboard.press('Enter');
+  await expect(cited.getByRole('link', { name: 'Open document', exact: true })).toBeFocused();
+  await memory.click();
+  await expect(remembered, 'the other chip opens its own popover').toBeVisible();
+  await expect(cited, 'and the first one is gone').toHaveCount(0);
+  await expect(page.getByRole('dialog'), 'only one popover is open').toHaveCount(1);
+  await expect(citation).toHaveAttribute('aria-expanded', 'false');
+  await expect(memory).toHaveAttribute('aria-expanded', 'true');
+  await expect(remembered.locator('[data-part="memory"]'), 'focus is inside the new popover').toBeFocused();
 });
 
 /** S7: a memory saved and recalled through the real composer and the CI mock shows its chip. */

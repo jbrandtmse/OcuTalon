@@ -128,6 +128,41 @@ deferred: []
 - Given the demo guide on an instance with documents or memory, when the visitor opens More to try, then the last item "See where an answer came from" links to the Documents page, item 6's look-for names the chip, every count (README L30, EXPERIENCE.md, the registry comment) says eight, and every count-pinning test reads the registry.
 - Given README.md, when read, then "New since 1.0.0" ends with the Planner-ruled line about citation and memory chips.
 
+### Review Findings
+
+Code review 2026-11-09 (four layers, full mode, no model override: no `model-overrides.yaml`). 30 rows: 6 entries patched (high 1, medium 2, low 3), 0 decision-needed, 0 deferred, 23 rows rejected.
+
+- [x] [Review][Patch] (high, fix-risk low: an escape of the same character) A literal U+00A7 in S9 fails `docker/tests/test-boundaries.sh` (Rule 14) [web/e2e/chat/sources.spec.ts:470] -- written as `'§'`; boundaries pass
+- [x] [Review][Patch] (medium, fix-risk low: one added test) The More to try order is no longer pinned: every order check read the registry, so swapping two items stayed green, and "the last item" was unpinned [web/scripts/sources-docs.test.mjs] -- EXPERIENCE.md Item n must be the registry's entry n, with no Item past them (independent oracle; counts still read the registry)
+- [x] [Review][Patch] (medium, fix-risk low: probe-only change) `TestText`'s read-failure case never ran the route's real `TextBody` Catch, and its "no text" assertion could not fail [src/ocutalon/cls/OcuTalon/Test/Web/DocumentsProbe.cls:58] -- the probe now hands the real `TextBody` a stand-in whose text is no stream; the assertion also checks the name is absent
+- [x] [Review][Patch] (low, fix-risk low) `TestSourcesNotOnFallbacks` had no `mutation:` line; its busy and broken sub-cases pin the persisted outcome, not where `Sourced` runs [src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls:1808] -- the fallback mutation was applied, seen red and recorded under `## Verification`
+- [x] [Review][Patch] (low, fix-risk low) AC6 "never colour alone": no executed test checked the open chip's underline, and the "Saved {when}" line had no mutation [web/e2e/chat/sources.spec.ts:157] -- S1 asserts `text-decoration-line` underline when open and none when closed; both mutations recorded
+- [x] [Review][Patch] (low, fix-risk low) Stale header comments: "(S0 to S7)" in sources.spec.ts and K9 "routed seven ids" [web/e2e/chat/sources.spec.ts:11, web/e2e/guide/more-to-try.spec.ts:470]
+
+Rejected:
+- Blind: README L37 "it used" and EXPERIENCE.md "uses a memory" break U-280. `false`: the Planner ruled README L37 KEEP (Design Notes, ruling A), and U-280 binds chip labels.
+- Blind: `Sources` and `Close` are filed under `ux` through incidental EXPERIENCE.md matches. `false`: the test's convention puts any string EXPERIENCE.md holds under `ux` (`names the UX first`, and the 39.5 entry states it).
+- Blind: item 8's control goes to the Documents page, and it is listed when only memory is built. Spec-bound: the Task fixes `action: 'documents'` and the gate (already adjudicated as Blind 2 / Intent 2).
+- Blind: snapshots outlive document removal and memory forgetting. By design: the Planner ruled veto 1 ACCEPTED, "no scrub on forget".
+- Blind / Edge: `Kept` accepts an empty `documentRef`/`document`/`text`/`passage`, or whitespace-only memory text. `wontfix-theoretical`: Lane A's `Citations.Collect` and `MemoryTools` write non-empty fields. Reopen if a HostData entry with an empty field is ever seen.
+- Blind: Auto Run Result counts are stale (21 lows rejected, 12 tests). Rejected because the fix edits the spec's build record; `## Verification` already says 12 tests.
+- Edge: a fractional `chunkIndex` exports invalid JSON. `wontfix-theoretical`: Lane A's store writes an integer chunk_index (Intent 1 earlier). Reopen if a non-integer chunkIndex reaches a Turn.
+- Edge: a document removed from another tab leaves its text panel open. Low and rare (two tabs, or another local user); the fix adds an effect. `reopen_if` a visitor sees a removed document's text stay open.
+- Edge: an indexing or failed document opens with an empty text. Low: reachable only through a hand-typed `?doc=`, since chips cite ready documents.
+- Edge: a slow GET moves focus after the user has moved on. Low and rare; the fix adds a guard.
+- Edge: `Kept` throws for memories after citations were kept. `wontfix-theoretical`: at most 5 short entries cannot reach MAXSTRING.
+- Edge: grapheme split at 80 characters in the memory accessible name. Low and cosmetic; rare.
+- Gap: the view-side DW-721 test duplicates the empty-input test. Low: e2e S3 and the source-text test (with its mutation) are the pins.
+- Gap: `TestNeverBoth`'s none-line half is stripped by the double. Spec-bound: the Task says the double runs the real `ReplyGuard.Filter`.
+- Gap: S5 depends on onlineDemo being off. Already adjudicated (Gap 7, with `reopen_if`).
+- Gap: `seedDocument` creates the chat user's session row. Low, with no observable effect; S5 and S7 sign that user in anyway.
+- Auditor: part of the subject is uncommitted. `false`: the lead commits after the smoke gate.
+- Auditor: forward Tab out of the last popover control does not close the popover. Low: focus leaves the document for the browser's chrome, and the shared `Popovers` waits by design (Story 2.x, out of footprint); Shift+Tab and in-page focus moves close it. `wontfix-accepted`, `reopen_if` a popover stays open after in-page forward Tab.
+- Auditor: only bad JSON logs a warning, not every wrong shape. Spec-bound: the Task says "Try/Catch -> `$$$LOGWARNING`", and `TestSourcesShape` pins it.
+- Auditor: the matrix's "error" case is untested. Already adjudicated (Gap 3): the double gives no Reply.
+- Auditor: `Sourced` and `Kept` sit after `RenderChecks` rather than at the class end. Low: the change is purely additive, which is what the contended-file rule requires.
+- Auditor: the spine row says `Ownership.Document` first, but `Sweep` and `SessionRef` run before it. `false`: `SessionRef` is that check's input, the sweep is the spec's Task, and no document data is read before the check.
+
 ## Spec Change Log
 
 - 2026-11-09 (lead, spec gate): Planner rulings applied: `## Public Text` marked ruled (14 edited, 1a added); Tasks gain the two Planner conditions (accessible name without §; plain escaped document text with a markup test); Design Notes record the rulings and the spine rows.
@@ -264,6 +299,17 @@ Lane variables on every `ci/iris.sh` / `ci/warm.sh` call (written here as on the
   - mutation: `Web.Documents.Text` reads `RefIndexOpen(ref)` with no `Ownership.Document` -> `sources.spec.ts` S5 (another session's document is 404) red, as well as `TestText`;
   - mutation: `ChatMessage.FromRow` skips the memories -> `sources.spec.ts` S7 (the From memory chip on the real turn) and S2 red; `<app-answer-sources>` and its group drawn for every reply -> S3 ("a reply with no sources has no group") red;
   - the error status and the non-Reply answer of the double give `Conversation` no Reply and so no HostData to read; `TestSourcesNotOnFallbacks` pins the busy, broken and fallback Replies, whose HostData does reach it;
+- QA additions (2026-11-09, Rule 19; each mutation applied alone, observed red, reverted byte-identical by tree hash):
+  - (QA) `web/scripts/sources-docs.test.mjs` (new; README, EXPERIENCE.md and the registry comments say the registry's count; README holds the ruled bullet word for word; EXPERIENCE.md items 6 and 8 equal the registry's texts): mutation: README "eight more things to try" -> "seven" -> "README says how many more things to try there are" red (AC count); README bullet "carries" -> "uses" -> "holds the ruled line about the chips, word for word, once" red (AC README);
+  - (QA) `Test.Web.DocumentsApi.TestTextSweeps` (new method; `GET /v1/documents/:ref` sweeps stale uploads as the other routes do, also on a 404 and when the sweep throws): mutation: `Do ..Sweep()` removed from `Web.Documents.Text` -> `TestTextSweeps` red on both sweep assertions (warm stack); the class passes after the revert;
+  - (QA) `web/e2e/chat/sources.spec.ts` S8 (memory chip: Enter opens with focus on the text, markup memory text is characters, outside press / Shift+Tab / Esc close it onto the chip) and S9 (a second chip swaps the popover, one dialog): mutation: the memory text bound with `[innerHTML]` -> S8 red alone (S2 stayed green: it seeds plain text); the memory chip's popover trigger set to its parent element -> S8 and S2 red (focus not returned to the chip); the memory chip's `aria-expanded` fixed to false -> S8 and S9 red. `live sign-in --part 10/20` (12 tests, S0 to S9) passes on a fresh stack;
+  - Observed, not changed: Tab (forward) out of the last control of a popover leaves the page, the window loses focus, and `Popovers` (shared, Story 2.x) keeps the popover open by design ("not while the browser window itself has lost focus"); Shift+Tab out of it closes it onto the chip. The Tab-away rule is pinned with Shift+Tab (S1, S8).
+- Code review additions (2026-11-09, Rule 19; each mutation applied alone, observed red, reverted byte-identical by `git hash-object`; IRIS on the lane-B warm stack `e20s2cw`, e2e on the fresh stack `e20s2c`, both torn down):
+  - (CR) mutation: `Sourced` moved above `If answer.Fallback` in `Replied` -> `TestSourcesNotOnFallbacks` red on the fallback case only (Turn, Outbound, done chat.message). The busy and broken cases stayed green: those paths do not save the turn, so they pin the persisted outcome, not where `Sourced` runs;
+  - (CR) `DocumentsProbe.TextBody` hands the route's real `TextBody` a stand-in whose text is no stream; mutation: the Try/Catch removed from `Web.Documents.TextBody` -> `TestText` red (`<INVALID OREF>` escapes `Text`); the class passes after the revert;
+  - (CR) `sources-docs.test.mjs` "lists the registry's items in the order of its entries" (EXPERIENCE.md Item n is registry entry n, and there is no Item past them); mutation: `memory` and `documents` swapped in `MORE_TO_TRY_ITEMS` -> that test red (`more-to-try-view.test.mjs` stayed green, which is the gap it closes);
+  - (CR) mutation: `savedLine` returns '' -> `answer-sources-view.test.mjs` "writes the saved line ..." red (AC5, the "Saved {when}" line);
+  - (CR) S1 asserts `text-decoration-line` is underline on the open chip and none once it closes (AC6, never colour alone); mutation: `.chip[aria-expanded='true']` `text-decoration-line: none` -> S1 red, 11 others green; unmutated, `live sign-in --part 10/20` passed 12 of 12.
 - Plan for the mutations, kept for the record: drop the `Sourced` call -> `TestSourcesCarried` red; drop the `Tell` copy -> its Outbound assertion red; `FromRow` skips memories -> `Test.Live.Payloads` red; route skips `Ownership.Document` (reads by ref) -> `TestText` other-session case and the e2e isolation check red; chip label without section -> view test red; popover without focus return -> e2e red; reading the none-line in the view -> both-directions test red; registry item removed -> registry-derived count tests red.
 
 **Shared surfaces:** `chat.message` and `/v1/state` chat item keys (`payloads.ts`, `Test.Live.Payloads`, `Test.Web.Api`); `Data.Turn` columns (`Test.Data.Tables`); `Msg.Outbound` properties (`Test.Msg.Contracts`); the Documents URL map (`Test.Web.DocumentsApi` `TestDispatch`); `Demo.Features` ids and `guide.features` (`Test.Demo.Features`, `more-to-try.spec.ts`); the More to try registry and its count (`more-to-try-view.test.mjs`, `more-to-try.spec.ts`, README L30, EXPERIENCE.md); `ux-strings.test.mjs` `IMPORTED`/`SOURCES`/allowed characters; `IconName`; `TurnView` (`chat-view.test.mjs`); `SeedTurn`. Standing criterion: every test added or changed passes on a fresh environment, in either order.
