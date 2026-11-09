@@ -114,6 +114,24 @@ Multi-area shard units: `lane-a@Install,Digest,Eval` 157+44+266 = 467 + 423 = 89
 - AC6. Given Epic 35's `shard_areas lane-a` with `Mcp`, when `shard_unit_areas lane-a@rest` is evaluated against the new `group_units`, then it answers `Checks Tools Memory Mcp`.
 - AC7 (lead's done-criterion, not implement's). Given two clean `ci` runs of the same head, when the lead reads them, then every `iris (<group>)` job is at most 32 minutes, and every multi-area `shard:` unit (`lane-a@Install,Digest,Eval`, `lane-a@rest`, `lane-b@Contract,Core,Data,Live`, `lane-b@rest`) is at most 900 s.
 
+### Review Findings
+
+Code review 2026-11-09 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; tier full-opus). The acceptance-auditor's findings were discarded: it reported briefly creating and deleting an untracked `ci/units.sh.u` (a protocol violation). The tree was verified unchanged against HEAD, and the reviewer re-checked the binding constraints itself: `ci.yml` differs from base by exactly the Release-tool hunk, there is no `timeout-minutes` change, `ci/iris.sh` and `release/**` are unchanged, `test-release-sequence.sh` changes only its four lines, and `group_units` matches the table. Every planned sum, piece figure and class count re-adds to the stated totals.
+
+- [x] [Review][Patch] The QA edit merged two bad-piece cases (`'lane-a@Nope''lane-a@'` became one word), so the empty-piece refusal no longer ran, while `shard pieces` stayed green [docker/tests/test-ci-config.sh:1929]. Medium, in-story, fix-risk low (a one-character restore). Fixed: the space is restored. Mutation observed (see Verification).
+- [x] [Review][Patch] The AC6 check gave a misleading message when no group holds `shard:lane-a@rest` (or `rest` answers no area): "answers '' ... wanted ' Zz0NewArea'". This would also mislead a future layout that runs lane-a whole [docker/tests/test-ci-config.sh:1919]. Low, a mechanical two-way door, fix-risk low. Fixed: that case now has its own message.
+- [x] [Review][Defer] The AD-22 as-built paragraph lists lane-a's areas without Memory and Docs, which `shard_areas lane-a` has. The 0.20 amendment now names a Docs piece and Memory in `rest` [ARCHITECTURE-SPINE.md:800]. Deferred: pre-existing, and the spine is the lead's to amend. Ledgered as DW-1047, `decision-pending`, `human=` lead or Planner ratifies at the merge-gate refresh.
+- [x] [Review][Defer] `epic-32-context.md` still says "ten IRIS groups" [_bmad-output/implementation-artifacts/epic-32-context.md:54]. Deferred: a context file of a done epic, so nothing loads it. Ledgered as DW-1049 `wontfix-theoretical`, real only if an Epic 32 story reopens.
+- [x] [Review][Defer] AC1's row placement and the AC2/AC4 tallies are derived and printed, not compared to fixed numbers (Rule 19, verification-gap) [docker/tests/test-ci-config.sh units / shard pieces PASS lines]. Deferred, `by-design`: the spec says "counted, not pinned", and the dropped-unit, area-once and class-once checks carry mutations. Ledgered as DW-1048.
+- [x] [Review][Defer] The `rest` pieces are planned at 896 s (lane-a with Mcp) and 898 s (lane-b), 2 to 4 s under the 900 s cap, so the next area added to a shard may cross it unnoticed until a CI run. Deferred, `by-design`: Design Notes make a measured unit over 900 s a red done-criterion and route finer cuts to DW-1032. An occurrence was appended to DW-1032.
+
+Rejected:
+- low: the AC6 check covers lane-a only, not lane-b's `rest` absorption. `shard_unit_areas` computes `rest` with the same shard-generic code for both shards, and the `units` rule already fails when an area is in no piece and no piece is `rest`.
+- low: the Auto Run Result, Triage Log and Residual risks predate QA's AC6 pin. They are dated stage records, the QA block below supersedes them, and the fix would edit the spec under review.
+- low: the frontmatter carries both `baseline_revision` and `baseline_commit`. This is build-auto's machine state, and the fix would edit the spec under review.
+- low: mutations are recorded two or three times per AC (planned, dev, QA). These are layered stage records, and the fix would edit the spec under review.
+- false: AC7 has no pinning test. By design it is the lead's done-criterion on two CI runs.
+
 ## Release-tool hunk (for the Planner)
 
 The exact change to `.github/workflows/ci.yml` (blob `80afa70` to `0acfe6e`); implement produces it byte for byte:
@@ -253,6 +271,21 @@ The exact change to `.github/workflows/ci.yml` (blob `80afa70` to `0acfe6e`); im
 - AC7: none in-stage. CI's two clean runs are the lead's done-criterion.
 
 Shared surfaces: `IRIS_GROUPS`; the `ci.yml` matrix and the `iris (<group>)` check names; `group_units` and the output of `ci/iris.sh list` and `groups`; the `groups`, `recipe`, `inputs` (L1299), `units` and `shard pieces` pins in `docker/tests/test-ci-config.sh`; `web_groups` and "all ten" in `docker/tests/test-ci-changes.sh`; the overview placement pin in `docker/tests/test-release-sequence.sh`. `NO_WEB_BUNDLE_UNITS` is unchanged.
+
+**QA (2026-11-09; every mutation applied to the committed tree, observed red, reverted; `git status --short` and `git diff --stat` identical before and after each):**
+- Discoverable: `docker/tests/test-ci-config.sh` (`ci-config`) and `test-ci-changes.sh` (`ci-changes`) are in `CHECK_SCRIPTS`; `test-release-sequence.sh` (`release-sequence`) too. No tag or ignore file opts them out.
+- AC6 had no pin (only the spec's one-off command). `shard pieces` now also checks, with a stub `shard_areas` that names one more lane-a area, that `shard:lane-a@rest` answers its areas now plus the new one and that no other lane-a piece changes. Hermetic: the stub lives in a subshell, `ci/iris.sh` is untouched.
+- mutation (QA, AC1): `shards-11` dropped from `IRIS_GROUPS` in `ci/units.sh` -> `test-ci-config.sh` `matrix`, `units`, `demo-path`, `groups` and `recipe` red.
+- mutation (QA, AC2): `live:documents` dropped from `shards-6` in `group_units` -> `test-ci-config.sh` `units` red ("docker/tests/test-documents.sh: the script is in 0 of CHECK_SCRIPTS, WEB_SCRIPTS and the groups, wanted 1").
+- mutation (QA, AC3): `shards-11` dropped from the `ci.yml` matrix only -> `test-ci-config.sh` `matrix` red.
+- mutation (QA, AC4): `shard:lane-a@Watch` added to `NO_WEB_BUNDLE_UNITS` -> `test-ci-changes.sh` red on "classifier: web/** runs web and every group but production" (and four more classifier checks).
+- mutation (QA, AC5): `live:security-overview` moved from shards-5 to shards-10 in `group_units` -> `test-release-sequence.sh overviewdoc` red ("shards-5 LACKS live:security-overview").
+- mutation (QA, AC6): `shard:lane-a@Checks,Tools,Memory` named in place of `shard:lane-a@rest` -> `test-ci-config.sh` `shard pieces` red ("shard:lane-a@rest answers '' with a new area, wanted ' Zz0NewArea'").
+  - mutation (review, AC6, re-observed after the message patch 2026-11-09): the same mutation -> `test-ci-config.sh` `shard pieces` red ("no group holds shard:lane-a@rest (or it answers no area), so a new area of lane-a runs in no piece"). Reverted; `ci/units.sh` is byte-identical, and `git status --short` and `git diff --stat` are unchanged.
+- mutation (review, the bad-piece refusal in `shard pieces`): `[ -n "$out" ] || return 1` in `shard_unit_areas` (`ci/units.sh` L192) replaced by `:` -> `test-ci-config.sh` `shard pieces` red ("lane-a@: exit 1, wanted 2 with unknown shard"), and no other rule red. Reverted; `ci/units.sh` is byte-identical, and `git status --short` and `git diff --stat` are unchanged. QA's merged `'lane-a@Nope''lane-a@'` never ran `lane-a@` (the verification-gap layer's demonstration), so this mutation could not go red there.
+- Review re-run on the patched tree (2026-11-09): `test-ci-config.sh` 40 PASS, all rules passed.
+- Unmutated on the final tree: `test-ci-config.sh` 40 PASS, all rules passed; `test-ci-changes.sh` 274 PASS; `test-release-sequence.sh overviewdoc static` PASS; `test-boundaries.sh` passed.
+- Files changed (QA): `docker/tests/test-ci-config.sh` (the `shard pieces` rule and its header bullet).
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 

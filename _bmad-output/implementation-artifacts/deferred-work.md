@@ -6231,8 +6231,25 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: single-area units over 900 s on runs 42634825529/42633085173/42603815732/42583599821: Bridge 981-1,167 s, Fix about 1,012-1,123 s, Docs about 814-1,006 s
 - 2026-11-09T16:41:53Z status=routed owner=burndown by=owner note=after voting, Contest Planner ruling 2026-11-09; trigger early only if any single area's measured unit time passes 1,400 s, and then report it with PLANNER REPORT and do not split
+- 2026-11-09T18:00:26Z occurrence=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un
 
 ### DW-1033: after voting: the 278-423 s stack start and teardown each shard unit pays is a large share of the ~25,700 s of IRIS unit time; could units share a stack without losing isolation?
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: READY 259-404 s per unit on runs 42634825529, 42633085173, 42603815732, 42583599821; 16 groups needed at about 29 min each
 - 2026-11-09T16:41:53Z status=routed owner=burndown by=owner note=after voting, Contest Planner ruling 2026-11-09
+
+### DW-1047: AD-22's CI-as-built paragraph lists lane-a's areas without Memory and Docs, though ci/units.sh shard_areas lane-a has both and the Story 0.20 amendment names a Docs piece and Memory in rest
+- source: spec-0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: ARCHITECTURE-SPINE.md L800 reads lane-a: Agent, Bridge, Checks, Fix, Install, Tools, Digest, Watch, Eval and Channel; ci/units.sh shard_areas lane-a adds Memory and Docs (stale since before base; the 0.20 amendment now depends on it)
+- 2026-11-09T18:00:26Z status=decision-pending owner=burndown by=cr note=human=lead or Planner ratifies the as-built list correction (add Memory and Docs) at the merge-gate AD-22 refresh
+- 2026-11-09T18:01:36Z status=resolved-by:0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un owner=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un by=adjudication note=factual as-built list correction applied in AD-22 (Rule 5 tier-1, same class as the 2026-10-24 correction; no rule change); reported under amendments for the orchestrator's merge-gate check
+
+### DW-1048: epic-32-context.md still says there are ten IRIS groups and lists lane-a without Memory and Docs
+- source: spec-0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: _bmad-output/implementation-artifacts/epic-32-context.md L54-56 describe the pre-0.20 layout; Epic 32 is done, so nothing loads it
+- 2026-11-09T18:00:26Z status=wontfix-theoretical owner=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un by=cr note=real only if an Epic 32 story reopens and plans from that context file
+
+### DW-1049: AC1 group-row placement and the AC2/AC4 unit, area and class tallies are derived and printed, not compared to fixed numbers
+- source: spec-0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: test-ci-config.sh units/shard pieces PASS lines echo unit_total/piece_tally; groups rule pins names only; the dropped-unit, area-once and class-once checks fail with recorded mutations
+- 2026-11-09T18:00:26Z status=by-design owner=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un by=cr note=spec Tasks: an added script, area or class is counted, not pinned; a rebalance needs no pin edit

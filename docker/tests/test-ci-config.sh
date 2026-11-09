@@ -75,7 +75,8 @@
 #     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
 #     classes in name order and reversed with --reverse, the shard units of the groups run every test class of every shard once (a
 #     piece keeps only its areas, a bad piece is refused with exit 2) and every area of each shard once, through shard_unit_areas (the
-#     PASS line states the areas, units and classes of each shard, counted from the tree), and teardown removes what carries its tag and nothing else, the lane's
+#     PASS line states the areas, units and classes of each shard, counted from the tree), a new area of lane-a (a stub shard_areas names
+#     one more) is run by lane-a@rest and by no other piece (Story 0.20, AC6), and teardown removes what carries its tag and nothing else, the lane's
 #     warm-iris.lock and the warm state folder included: the warm stack of the tag (an orphan of a killed stage) goes and its lock
 #     and folder are released, and the stack, lock or folder of another tag, of a tag that extends this one, and of the tag with a
 #     w after it (the warm tag of a stage whose fresh tag this is) are kept (ci/iris.sh is sourced with a stub for dc, docker and
@@ -1895,6 +1896,36 @@ done <<EOROWS
 $piece_rows
 EOROWS
 if [ -z "$piece_tally" ]; then piece_fail="$piece_fail [no shard unit was read from ci/units.sh]"; fi
+# A new area of lane-a (Epic 35's Mcp is the first) lands in the piece rest and in no other piece: with a stub shard_areas that names
+# one more area, shard:lane-a@rest answers its areas now plus the new one, and every other lane-a piece answers what it answered before.
+piece_absorb() { # the answers of every lane-a shard unit of the groups, one line each: first with the real shard_areas, then with one more area
+  . ./ci/units.sh
+  local g u real_areas
+  real_areas=$(shard_areas lane-a)
+  for pass in real extra; do
+    if [ "$pass" = extra ]; then
+      shard_areas() { case $1 in lane-a) echo "$real_areas Zz0NewArea" ;; *) return 1 ;; esac; }
+    fi
+    for g in $IRIS_GROUPS; do
+      for u in $(group_units "$g"); do
+        case $u in "shard:lane-a@"*) printf '%s|%s|%s\n' "$pass" "$u" "$(shard_unit_areas "${u#shard:}")" ;; esac
+      done
+    done
+  done
+}
+piece_absorbed=$(piece_absorb)
+piece_rest_real=$(printf '%s\n' "$piece_absorbed" | sed -n 's/^real|shard:lane-a@rest|//p')
+piece_rest_extra=$(printf '%s\n' "$piece_absorbed" | sed -n 's/^extra|shard:lane-a@rest|//p')
+if [ -z "$piece_rest_real" ]; then
+  piece_fail="$piece_fail [no group holds shard:lane-a@rest (or it answers no area), so a new area of lane-a runs in no piece]"
+elif [ "$piece_rest_extra" != "$piece_rest_real Zz0NewArea" ]; then
+  piece_fail="$piece_fail [shard:lane-a@rest answers '$piece_rest_extra' with a new area, wanted '$piece_rest_real Zz0NewArea']"
+fi
+piece_others_real=$(printf '%s\n' "$piece_absorbed" | grep -v '|shard:lane-a@rest|' | sed -n 's/^real|//p')
+piece_others_extra=$(printf '%s\n' "$piece_absorbed" | grep -v '|shard:lane-a@rest|' | sed -n 's/^extra|//p')
+if [ -z "$piece_others_real" ] || [ "$piece_others_real" != "$piece_others_extra" ]; then
+  piece_fail="$piece_fail [a new area of lane-a changes a piece other than rest]"
+fi
 for piece_bad in 'lane-a@Nope' 'lane-a@' 'lane-a@Checks,Checks' 'lane-a@Contract' 'nope@rest'; do
   piece_status=0
   piece_msg=$(shard_piece_run "$piece_bad" 2>&1) || piece_status=$?
