@@ -12,7 +12,9 @@
 ///   - TestToolVerbs: the real TOOLVERBS holds SendEmail and no MCP verb, and the real Routes send the five MCP verbs to McpOps from web_admin
 ///     only and SendEmail to EmailOut from tool and system;
 ///   - TestRestartRunnersWithoutProduction: RestartRunners' work answers OK and restarts nothing for no running production or another one;
-///   - TestMcpEntryStubs: SaveMcpEntry and RemoveMcpEntry answer code 5003 and leave no Config Store entry.
+///   - TestMcpEntryStubs: SaveMcpEntry and RemoveMcpEntry answer code 5003 and leave no Config Store entry and the IRIS wallet (its
+///     collections and secrets) as found;
+///   - TestNoMcpSettingsRoute: Web.Api's XData UrlMap holds no route under /v1/settings/mcp until Story 21.4 adds them.
 /// The run's calls are kept under ^OcuTalonTest("CommandsRouting", "step4<n>") and deleted after the tests; email.owner and email.address are
 /// put back as found; the context of the test process is ended before and after the tests.
 Class OcuTalon.Test.Core.CommandsStep4 Extends OcuTalon.Test.Contract
@@ -27,6 +29,9 @@ Property Run As %String;
 /// The settings as found: $ListBuild(owner row exists, owner value, address row exists, address value).
 Property Found As %List;
 
+/// The wallet collection the stub test made (its secret is <collection>.Key), "" when none is left.
+Property WalletFixture As %String;
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
@@ -38,6 +43,7 @@ Method OnBeforeAllTests() As %Status
 Method OnAfterAllTests() As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
+	Do ..DropWalletFixture()
 	Kill ^OcuTalonTest("CommandsRouting", ..Run)
 	Do ..PutBack("email.owner", $List(..Found, 1), $List(..Found, 2))
 	Do ..PutBack("email.address", $List(..Found, 3), $List(..Found, 4))
@@ -211,18 +217,47 @@ Method TestToolVerbs()
 	Do $$$AssertEquals(other, 0, "no step 4 verb goes to another owner")
 }
 
-/// Both MCP entry stubs answer code 5003, and write no Config Store entry (AD-19, AD-21: built in Story 21.4).
+/// Both MCP entry stubs answer code 5003, and write no Config Store entry and nothing to the IRIS wallet: its collections and secrets, those
+/// of a collection and secret the test makes under the server's name included, are the same before and after (AD-19, AD-21: built in Story 21.4).
 Method TestMcpEntryStubs()
 {
 	Set server = "zzstub"_$Increment(^OcuTalonTest("CommandsStep4", "stub"))
 	Set name = "AI.MCP.OcuTalon_"_server
+	Set ..WalletFixture = server
+	Do $$$AssertStatusOK(##class(%Wallet.Collection).Create(server, {"EditResource": "%DB_%DEFAULT", "UseResource": "%DB_%DEFAULT"}), "the test's wallet collection is made")
+	Do $$$AssertStatusOK(##class(%Wallet.KeyValue).Create(server_".Key", {"Secret": {"token": "zz"}, "RequireTLS": 0, "Usage": "CUSTOM"}), "the test's wallet secret is made")
+	Set wallet = ..WalletIds()
+	Do $$$AssertTrue($Extract(wallet, 1, 7) '= "SQLCODE", "the wallet is readable ("_wallet_")")
+	Do $$$AssertTrue(wallet [ ("Secret:"_server_".Key"), "the wallet read lists the test's secret")
 	Do $$$AssertEquals(##class(%ConfigStore.Configuration).Exists(name), 0, "the entry is absent before")
 	Set sc = ##class(OcuTalon.Core.SettingsOps).SaveMcpEntry(server, "http://127.0.0.1:1/mcp", "secret://zz")
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "SaveMcpEntry answers the not-built code")
 	Do $$$AssertEquals(##class(%ConfigStore.Configuration).Exists(name), 0, "and writes no entry")
+	Do $$$AssertEquals(..WalletIds(), wallet, "and leaves the wallet as it was")
 	Set sc = ##class(OcuTalon.Core.SettingsOps).RemoveMcpEntry(server)
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "RemoveMcpEntry answers the not-built code")
 	Do $$$AssertEquals(##class(%ConfigStore.Configuration).Exists(name), 0, "and leaves no entry")
+	Do $$$AssertEquals(..WalletIds(), wallet, "and leaves the wallet as it was")
+	Do ..DropWalletFixture()
+}
+
+/// The MCP settings routes belong to Story 21.4, which moves the wallet and Config Store write into McpOps: until then Web.Api's XData UrlMap
+/// holds no route (Url or Map Prefix) under /v1/settings/mcp.
+Method TestNoMcpSettingsRoute()
+{
+	Set compiled = ##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Web.Api||UrlMap")
+	Do $$$AssertTrue($IsObject(compiled), "the UrlMap XData is compiled")
+	If '$IsObject(compiled) Quit
+	Set stream = compiled.Data
+	Set text = ""
+	While 'stream.AtEnd { Set text = text_stream.Read(32000) }
+	Set text = $Replace($Replace(text, "'", """"), " ", "")
+	Do $$$AssertTrue(text [ "Url=""/v1/state""", "the UrlMap was read")
+	Set found = 0
+	For attribute = "Url", "Prefix" {
+		Set found = found + $Length(text, attribute_"=""/v1/settings/mcp") - 1
+	}
+	Do $$$AssertEquals(found, 0, "no route of the UrlMap starts with /v1/settings/mcp")
 }
 
 /// RestartRunners with no OcuTalon production running answers OK and restarts nothing (AD-21), through its work for the running production's
@@ -246,6 +281,29 @@ Method NewProbe(mode As %String = "ok") As OcuTalon.Test.Core.CommandsInProbe [ 
 	Set probe.RunNumber = ..Run
 	Set probe.AnswerMode = mode
 	Quit probe
+}
+
+/// The wallet's collections and secrets in the namespace as one text, or "SQLCODE <code>" when the extents cannot be read.
+Method WalletIds() As %String [ Private ]
+{
+	Set ids = ""
+	For table = "Collection", "Secret" {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT %ID FROM %Wallet."_table_" ORDER BY 1")
+		If rs.%SQLCODE < 0 Quit
+		While rs.%Next() { Set ids = ids_$ListBuild(table_":"_rs.%GetData(1)) }
+	}
+	If rs.%SQLCODE < 0 Quit "SQLCODE "_rs.%SQLCODE
+	Quit $ListToString(ids, ";")
+}
+
+/// Removes the wallet collection and secret the stub test made, when they are still there.
+Method DropWalletFixture() [ Private ]
+{
+	Set collection = ..WalletFixture
+	If collection = "" Quit
+	If ##class(%Wallet.Secret).Exists(collection_".Key") Do ##class(%Wallet.KeyValue).Delete(collection_".Key")
+	If ##class(%Wallet.Collection).Exists(collection) Do ##class(%Wallet.Collection).Delete(collection)
+	Set ..WalletFixture = ""
 }
 
 /// A command of the verb with the origin and session.
