@@ -201,6 +201,12 @@ deferred: []
 
 ## Spec Change Log
 
+- **planner-2026-11-09-11.14** (the Contest Planner's rulings, relayed by the orchestrator, 2026-11-09):
+  1. PUBLIC TEXT approved as written (`### Public text`), with one change, applied: the STOPPED hands-on line and the hands-on record row say "the author's hands-on pass (REL-7)" instead of "the Contest Planner's hands-on pass (REL-7)", matching the file's existing "the author" wording. The existing ipmcheck WARN line is left alone.
+  2. The `release/*` push trigger on `ci.yml` and `lane-a.yml`: yes. `release/*` only, never `rehearsal/*` (U-203); the `test-ci-config.sh` descriptions exactly as in `### Public text`.
+  3. Timing: Epic 11 part 2 targets 1.0.6. This story's merge is held until after the 1.0.5 cut; every release/** hunk and the two workflow hunks go to the Planner verbatim once the head is green.
+  4. Contended: Epic 0's Story 0.15 edits `release/release.sh` around line 575, `release/upgrade-harness.sh` and `ci/warm.sh`; the gate functions stay off those lines (as planned).
+
 ## Review Triage Log
 
 ## Design Notes
@@ -337,8 +343,8 @@ New or changed strings, verbatim; `<...>` are values. File: `release/release.sh`
 - `FAIL checklist Result: <fail|not confirmed>: <first FAIL line, or "<k> author rows not confirmed">`
 - `FAIL checklist release/checklist.sh refused: <its line>`
 - `LOG <gate> <absolute log path>`
-- `STOPPED hands-on every automated gate passed; install release/<v>-rc<n> (<short sha>) for the Contest Planner's hands-on pass (REL-7); this sequence does not record that pass`
-- Record row: `| hands-on | waiting | the Contest Planner's hands-on pass (REL-7) on release/<v>-rc<n> is not recorded |`
+- `STOPPED hands-on every automated gate passed; install release/<v>-rc<n> (<short sha>) for the author's hands-on pass (REL-7); this sequence does not record that pass`
+- Record row: `| hands-on | waiting | the author's hands-on pass (REL-7) on release/<v>-rc<n> is not recorded |`
 - Record `Result:` (hands-on): `stopped at hands-on: every automated gate passed; no hands-on pass is recorded (not a release)`
 - Record `Result:` (end, changed): `stopped after <last>: no step after the gates has run (not a release)`
 - Rows (`| <step> | pass\|fail | <detail> |`): each detail is its PASS or FAIL text without the leading `PASS <step> ` or `FAIL <step> `.
