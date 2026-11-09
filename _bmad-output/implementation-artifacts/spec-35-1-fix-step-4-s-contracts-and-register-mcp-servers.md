@@ -1,0 +1,188 @@
+---
+title: 'Story 35.1: Fix step 4 contracts and register MCP servers'
+type: 'feature'
+created: '2026-11-09'
+status: 'blocked'
+review_loop_iteration: 0
+followup_review_recommended: false
+context:
+  - '{project-root}/_bmad-output/implementation-artifacts/epic-35-context.md'
+  - '{project-root}/_bmad-output/implementation-artifacts/spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md'
+warnings: ['oversized']
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** Step 4's feature epics (21, Lane B; 22, Lane A) need names fixed in the spine and in code before they can run in parallel, and no registered MCP server reaches OcuTalon's agents today: the adapter attaches nothing, and the bridge has no way to learn the host's servers or to report an attach back.
+
+**Approach:** Add Lane A's step 4 names to the spine as plain unions (Story 35.2 adds Lane B's). In code: a fifth bridge extension class (`McpServersClass`) through which the runner learns the registered servers and reports each attach; the `OcuTalon.Mcp.Server` table and `OcuTalon.Mcp.Ops` with the `Tools(server)` stub; the attach in `OnAfterAgentInit` through `Attach`; and a loopback mock MCP server in `OcuTalon.Test.Mcp` that Epic 22 reuses. Propose the step 4 notice wording for the author.
+
+## Boundaries & Constraints
+
+**Always:** Lane A files only (U-177): `src/bridge/**`, `Mcp/**`, `Test/Mcp/**`, `Test/Bridge/**`, `Production.cls` Lane A region, the spine, EXPERIENCE.md additions; one-name appends to `ci/units.sh` and `src/short-names.tsv` (contended with Epic 41: report them). The bridge names no other OcuTalon package (AD-2, rule `bridge-refs`). Attach order in `OnAfterAgentInit`: `##super`, then `Govern`, then each server through `Attach` (AD-6, AD-21, Story 19.5). A failed or unavailable server never fails the runner's build; a missing or wrong extension class does (AD-31, no silent fallback). No secret value in a log, the trace, an audit entry, a toolref, `Attached`, a stored reason or a committed file; the test secret is random per run and removed after. The mock listens on 127.0.0.1 only, only while its test runs. Spine edits: own rows and blocks, each marked `[ADDED 2026-11-09, Story 35.1]` or `[AMENDED 2026-11-09, Story 35.1, ...]`; no new `AD-n`; no `{...}` tokens in new spine text (lint `placeholder`). Ship only author-accepted wording (UX-DR117, UX-DR145). ASCII only in source and this spec (Rule 14).
+
+**Never:** a Lane B file (`Core/**`, `Web/**`, `Msg/Command/**`, `Test/{Core,Web,Data,Msg,Contract}/**`; any need is an intent gap); add/remove/classify commands, `ToolClassification` rows, the fingerprint map, `call_mcp_tool`, the per-server IRIS resource, source-poll code, `BackgroundCheck` columns, the email fix kind's code (Stories 22.2 to 22.7, 21.x); a web application, role, resource, privilege grant or route; a real MCP server or network host; editing `release/**`; changing an existing AD Rule, Binds or Prevents sentence or an existing convention row.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Registered server attaches | Fixture `Mcp.Server` row `zzmcp<n>`, Config Store entry `AI.MCP.OcuTalon_zzmcp<n>` (url = mock, auth header = `secret://` ref to a random per-run wallet secret), mock up | Runner build OK; the agent's manager lists the agent's own tools and the mock's `zz_lookup` and `zz_delete_ticket`; `Attached` holds `mcp:remote:@{config:AI.MCP.OcuTalon_zzmcp<n>}`; row `AttachStatus` `attached`, `AttachedAt` set; mock saw the header value | No error expected |
+| Per-turn manager (Integration AC, consumer `BuildTurnManager`, Story 19.5) | As above; one request composes its turn manager | The composed manager also lists both mock tools, so no MCP tool drops out of a turn | No error expected |
+| Every new tool unclassified | Both mock tools; `zz_lookup` declares `readOnlyHint: true` | The gate classifies both as unclassified (risky) by their `mcp:` toolref; annotations ignored | Held for approval in a user turn; denied in an untrusted turn |
+| Unavailable server | Row and entry present, mock stopped | Runner build OK, own tools present, no mock tools; row `AttachStatus` `unavailable`; `OnAttach` gets `unavailable` | Reported, never thrown |
+| Shadowing tool | Mock also lists a tool with the exact name of one of the agent's own tools | The MCP copy never runs (as Task 0 measures: hidden and denied by the gate); the built-in still runs; row `RefusedTools` holds the name | Refused and reported |
+| Bridge alone | `McpServersClass` unset (base class) | No server attached, no `OnAttach`, build OK (FR-5) | No error expected |
+| Wrong class named | `McpServersClass` names a missing class or one not extending the base | Runner build fails with the accessor's error | Error status, no silent fallback |
+| Bad config name from the host | `Servers()` returns a config not matching `^AI\.MCP\.[A-Za-z0-9_]+$` | Not attached; reported `unavailable` (reason `invalid`) | No `AddTool` call |
+| `Tools(server)` stub | Any server name | `$$$OK`, empty `%DynamicArray` | No error expected |
+
+</intent-contract>
+
+## Code Map
+
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls` -- `BuildAgent` 237-258 clears `Attached`; `OnAfterAgentInit` 263-268 (`##super`, `Govern`; insert the MCP attach after `Govern`); `Attach` 272-277 (`ToolManager.AddTool(spec)`, records spec on OK; the one way to add a tool); `BuildTurnManager` 369-407 re-adds every `Attached` spec per request (388-393); `Inventory` 1172-1194 reads `GetToolStatuses()` fields `name`, `source`, `provider`, `status`, `reason`. Class comment line 90: names no other OcuTalon package.
+- `src/bridge/cls/OcuTalon/Bridge/Ext/TurnTools.cls`, `Ext/Classification.cls`, `Ext/HostSink.cls` -- sibling bases to mirror (do-nothing default, contract doc comment); `HostSink` OnEvent error wrapping is the model for `OnAttach` (log, never fail the caller).
+- `src/bridge/cls/OcuTalon/Bridge/Ext/Accessor.cls:10` -- `Parameter BASES` (add `McpServersClass=OcuTalon.Bridge.Ext.McpServers`); `ClassFor(setting, production, item="Decide", .sc)` 62-75.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:139,223-232` -- `SETTINGS` category Extensions and the four extension properties; add `McpServersClass`, initial value the base.
+- `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls` -- `MCPPREFIX` 98, `IsMcp` 526-529, `Source()` 223-229, `ClassificationOf` 311-333 sends MCP to `FromExtension` 406-415 (unclassified when the extension says nothing: already delivered). Edit only if Task 0 shows the gate must deny refused shadowing names.
+- `irislib/%AI/ToolMgr.cls` -- `AddTool` 279, `%Discover` 460, `GetToolStatuses` 492 (unavailable/failed + reason), `SetDiscoveryPolicy` 231 with `irislib/%AI/Policy/Discovery.cls` `%Resolve(catalog)` (EXPERIMENTAL; can filter what the model sees). `irislib/%AI/Utils/ConfigStore.cls:45-55` resolves `@{config:}`; `irislib/%AI/ConfigStore/MCPDescriptor.cls:21-79` entry shape (`transport`, `url`, `auth` required for remote: `bearer`/`basic`/`header`; no extra keys). `irissys/%SYS/ConfigStore/Configuration.cls:1372-1470` resolves `secret://`. The MCP client is native (`$ZF(-6)`, `irislib/%AI.inc:82-86`): wire behaviour is Task 0's.
+- `src/bridge/cls/OcuTalon/Bridge/ConfigStore.cls` -- existing Config Store wrapper (`FullName` passes three-part names through); use it for the fixture entry. Pattern for `secret://` fixtures: `src/ocutalon/cls/OcuTalon/Test/Bridge/ConfigStore.cls:226,345`.
+- `src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls:268-282` -- `ServerOf` already parses `mcp:remote:@{config:AI.MCP.OcuTalon_<name>}` (Lane B, read only).
+- `src/ocutalon/cls/OcuTalon/Production.cls:15-67` -- Lane A region; `Decide` item 20-24 gets `<Setting Target="Host" Name="McpServersClass">OcuTalon.Mcp.Attach</Setting>`.
+- `src/ocutalon/cls/OcuTalon/Data/WatchMark.cls:1-10` -- table header style (lane, sole writer, AD) and `DEFAULTGLOBAL` from `src/short-names.tsv` (columns `short global class lane`; enforced by `docker/tests/test-storage.sh`).
+- `src/ocutalon/cls/OcuTalon/Tools/Names.cls:6-52` -- built-in names (no single list; the bridge cannot read it). Shadow detection uses the manager's own `%Discover()` names before the first MCP attach.
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls:11-14` -- `XData Entries` JSON (`text`, `slots` typed, `source`, `gap`, `one`); keys `<prefix>.<camelCase>`; prefix `mcp.` is free (Core owns `toolCall.*`).
+- `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls:79-85` -- Lane B test pinning exactly 58 Watch keys with per-key fixtures (Q2).
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/TurnTools.cls`, `ZzTurnAdapter.cls`, `ZzTurnAgent.cls`, `ZzTurnRunner.cls`, `ZzTurnToolset.cls`; `Test/Bridge/Runner.cls:1723` `NewRunner(...)`; `Test/Agent/RunnerFixture.cls:111-114` `GuardReason()` (needs the model mock: throwaway or CI only); `UseItemSetting`/`RestoreItemSetting` -- fixtures to reuse for runner builds.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Ext.cls:3,57,151` -- pins the four extension settings (shared surface: update to five).
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramSettings.cls:211-223` -- precedent for a loopback listener started from a test (throwaway/CI only).
+- `ci/units.sh:20` -- `lane-a` areas; append `Mcp` (taken by `shard:lane-a@rest` in `shards-2`). `docker/tests/test-ci-config.sh:821-833` checks every `Test/<Area>` is in exactly one shard.
+- Spine `ARCHITECTURE-SPINE.md` (lines at HEAD): AD-2 124-136, AD-6 L210, AD-10 350-371 (L356 MCP classification and fingerprint, L357 per-server resource, L361 risky built-ins through a fix kind), AD-11 L397 (`ResultTarget`), AD-16 525-540, AD-18 L557, AD-21 L762-768, AD-31 1046-1064 (L1052 BridgeSink note), AD-32 L1071, AD-33 1079-1093, production items table 1300-1330, tables paragraph L1332, cross-area table 1336-1380 (L1374 `RestartRunners`, L1375 `Tools(server)`), ERD L1442. Lint baseline: 10 low `placeholder` findings (474, 997 x2, 1059, 1072 x2, 1138 x3, 1148).
+- UX `EXPERIENCE.md`: voice L156-159, quoted values L190, notice card L291, Message Catalog L741-940 (`| Case | Text |` tables, one `###` per area; last area "Personality notices" L931; insert the new block before "## Visual Trace Links" L942), Step 4 L984-993.
+
+## Tasks & Acceptance
+
+**Execution:**
+- `_bmad-output/implementation-artifacts/evidence/35-1-task0-mcp-attach.md` -- Task 0 (first, on a lane-B warm throwaway, tag `e35s1iw`; read-only on slot B): measure and record (1) the mock wire contract: a minimal JSON-RPC listener on `127.0.0.1:<free port>` (IRIS TCP device bound to loopback; `/BINDTO` is inference) logs method, headers and body of each request from `AddTool("mcp:remote:<url>")`: `initialize`, `notifications/initialized`, `tools/list`, `tools/call`, `Accept`, `Mcp-Session-Id`, and whether a plain `application/json` reply is accepted (else SSE framing); (2) `AddTool("mcp:remote:@{config:AI.MCP.OcuTalon_zz}")` with an `MCPDescriptor` entry `{transport, url, auth:{type:"header", name, value:"secret://..."}}` (after `RebuildRegistry()`): status, `%Discover()` names and fields, and whether the mock gets the resolved header; (3) mock down: `AddTool` status, `GetToolStatuses()` entries, elapsed time; (4) shadowing: the mock lists a tool named like a toolset tool; which one `%Discover()` shows and `ExecuteTool` runs, and whether a Discovery policy `%Resolve` can hide the MCP copy; (5) the gate's `toolref` and `metadata.origin_class` for an MCP call and for the shadowing call (expected: the unexpanded placeholder, no secret); (6) the cost of `BuildTurnManager` re-adding one MCP spec per request. Every claim not measured stays labelled (inference). If (2) cannot attach through `@{config:}` on build 154, HALT `intent gap` (AC wording impossible) with the measured alternative. If (4) shows the platform cannot refuse one tool while keeping the server's others, HALT `intent gap` -- rationale: AD-21's attach is unmeasured platform behaviour (S9 measured listing only).
+- `src/bridge/cls/OcuTalon/Bridge/Ext/McpServers.cls` -- new base: `ClassMethod Servers(Output servers As %DynamicArray) As %Status` (each `{"server", "config"}`; default empty) and `ClassMethod OnAttach(server As %String, report As %DynamicObject) As %Status` (report `{"status": "attached"|"unavailable", "reason": "unreachable"|"failed"|"invalid"|"", "tools": [names attached], "refused": [names]}`; no AI Hub reason text, so no URL or header can leak; default does nothing) -- the attach channel (AD-31 extension).
+- `src/bridge/cls/OcuTalon/Bridge/Ext/Accessor.cls`, `Process/Decide.cls` -- add the `McpServersClass` pair to `BASES` and the Decide property and setting (category Extensions, initial value the base) -- as TurnToolsClass was added.
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls` -- in `OnAfterAgentInit`, after `Govern`: resolve `McpServersClass` (error ends the build); take the names of `ToolManager.%Discover()` as the built-in set; for each server from `Servers()`: refuse a config not matching `^AI\.MCP\.[A-Za-z0-9_]+$`; else `Attach(agent, "mcp:remote:@{config:"_config_"}")`; read `AddTool`'s status and this server's `GetToolStatuses()` entries; refuse each new tool whose name is in the built-in set by the mechanism Task 0 measured (Discovery policy and, at the gate, a refused `(toolref, name)` set in the adapter that `%CanExecute` denies, if Task 0 shows the copy can still be called); call `OnAttach` in a wrapper that logs and never fails the build; continue with the next server. Doc comments state the contract only.
+- `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls` -- only if Task 0 needs it: deny a call whose `mcp:` toolref and name are in the runner's refused set, with a plain sentence, before classification.
+- `src/ocutalon/cls/OcuTalon/Mcp/Server.cls` -- new `%Persistent` table (header: Lane A, sole writer `OcuTalon.Mcp.Ops`, AD-21, AD-33): `Name` (unique index; `^[A-Za-z][A-Za-z0-9_]{0,39}$`, the `<server>` of `AI.MCP.OcuTalon_<server>`), `CreatedAt` (UTC), `AttachStatus` (`attached`, `unavailable`, or empty before the first build), `AttachReason` (code-written word), `AttachedAt` (UTC), `RefusedTools` (`%List`); `DEFAULTGLOBAL "^OcuTalonP.McpServer"`. No url and no secret (the Config Store holds them, AD-19, AD-21).
+- `src/short-names.tsv` -- append `McpServer	^OcuTalonP.McpServer	OcuTalon.Mcp.Server	A` (contended: one-row append).
+- `src/ocutalon/cls/OcuTalon/Mcp/Ops.cls` -- new class extending `Ens.BusinessOperation` (not yet a production item; Story 22.2 adds `McpOps`): `ClassMethod Tools(server As %String, Output tools As %DynamicArray) As %Status` stub returning `$$$OK` and an empty array (AD-29); `ClassMethod RecordAttach(server As %String, report As %DynamicObject) As %Status` writing the row's attach fields (unknown server: error, nothing written).
+- `src/ocutalon/cls/OcuTalon/Mcp/Attach.cls` -- extends `OcuTalon.Bridge.Ext.McpServers`: `Servers()` from `Mcp.Server` rows by `Name` (embedded SQL or object access), config `AI.MCP.OcuTalon_<Name>`; `OnAttach()` calls `OcuTalon.Mcp.Ops.RecordAttach`. Admin notices: per Q1.
+- `src/ocutalon/cls/OcuTalon/Production.cls` -- Lane A region, `Decide`: `McpServersClass` = `OcuTalon.Mcp.Attach`.
+- `src/ocutalon/cls/OcuTalon/Test/Mcp/Mock.cls` -- reusable loopback mock MCP server (AD-22): `Start(.port, .tools)` (job bound to 127.0.0.1, free port, Task 0's wire contract, header check against a value it is given), `Stop()`, `Requests()`; default tools `zz_lookup` (read-only, `readOnlyHint: true`) and `zz_delete_ticket` (risky, `destructiveHint: true`); an option for extra tools (shadowing). Stops in every test's teardown; leaves no job.
+- `src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls` -- runner-build tests for every matrix row (fixture row + Config Store entry + random wallet secret, created and removed by the test; guard `RunnerFixture.GuardReason()`), including the secret-leak check: the secret value appears in no Ens event log text, `OcuTalon` audit entry, message body of the build's trace, `Attached` spec or stored row.
+- `src/ocutalon/cls/OcuTalon/Test/Mcp/Tools.cls` -- `Tools(server)` stub contract; `RecordAttach` on an unknown server.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Ext.cls` -- extend the pins from four to five extension settings.
+- `ci/units.sh` -- append `Mcp` to the `lane-a` areas (contended: one-name append).
+- `ARCHITECTURE-SPINE.md` -- spine edits S1-S9 (Design Notes), then `uv run --no-cache _bmad/scripts/memlog.py append --workspace <spine-dir> --type decision --text "<one line: McpServersClass, McpOps names, source-poll row type, email fix kind path; Story 35.1>"`, refresh `updated:`, lint.
+- `EXPERIENCE.md` (Message Catalog) and `Msg/Catalog/Watch.cls` -- only the accepted rows of PUBLIC TEXT (proposed), verbatim; Watch keys only under Q2's ruling.
+
+**Acceptance Criteria:**
+- Given the spine at the story base, when the spine edits land, then S1-S9 are present in their own rows and blocks with 35.1 markers, `git diff` of the spine shows no changed or removed sentence of an existing AD Rule, Binds or Prevents line or convention row, and the lint reports no finding beyond the baseline's ten.
+- Given any server name, when Lane B calls `##class(OcuTalon.Mcp.Ops).Tools(server, .tools)`, then it returns `$$$OK` and an empty `%DynamicArray` (the stub Story 21.4 calls until Story 22.2).
+- Given every row of the I/O matrix, when a runner builds its agent (or composes a turn), then the behaviour in that row holds, observed on the agent's tool manager, the composed turn manager, the gate's decision and the `Mcp.Server` row.
+- Given a fresh install with no `Mcp.Server` row, when the production starts, then every runner builds as before and attaches nothing.
+- Given the PUBLIC TEXT table after the author's ruling, when the implement stage ships text, then EXPERIENCE.md (and, per Q2, `Catalog.Watch`) holds exactly the accepted wording and keys, and nothing unaccepted.
+- Given `ci/units.sh`, when `docker/tests/test-ci-config.sh` runs, then `Test/Mcp` is in exactly one shard (`lane-a`) and the check passes.
+
+## Spec Change Log
+
+## Review Triage Log
+
+## Design Notes
+
+**Governing ADs (Rule 6):** AD-2 (bridge names no host package), AD-6 (`OnAfterAgentInit`: gate, then MCP attach), AD-10 (MCP classified by toolref first, unclassified counts as risky, annotations ignored), AD-16 and AD-11 (email fix kind path), AD-18 (`BackgroundCheck`), AD-19 (Config Store and `secret://`), AD-21 (MCP listing, transport, changes, `Tools(server)`), AD-22 (mock on loopback), AD-25 (demo allow-list: Planner's release check), AD-29 (lanes, stubs), AD-31 (extension classes, BridgeSink note), AD-32 (notifications), AD-33 (one owner per item and table).
+
+**Already met (not re-done):**
+- AD-31's BridgeSink note for a fix request with no incident -- spine L1052 ("from step 4 for a fix request with no incident (step 4's email fix, Story 22.7; this part built in Story 21.5)... `IncidentManager` does this for kind `fix` requests of an incident") and AD-32 L1071. No edit.
+- `RestartRunners()` called by McpOps -- spine L766 and cross-area row L1374 (part of S7's record).
+- `Tools(server)` named, Lane A, stub in 35.1, built in 22.2 -- L62, L103, L767, L1375 (S5 adds only the contract).
+- `McpOps` named in AD-21 L766; `Mcp.Server`, `Mcp.ToolClassification` in Lane A's tables L1332; ERD L1442 (S1, S2 add the item row and the writer).
+- Per-turn re-add of attached tools -- `Agent.cls:388-393` (Story 19.5); MCP rides it by attaching through `Attach`.
+- New MCP tools count as unclassified -- `Gate.cls:311-333,406-415` (base `Classification` returns ""); this story only proves it with the mock.
+
+**Spine edits (all plain unions; class: new name / extension):**
+
+| # | Section | Edit | Class |
+| --- | --- | --- | --- |
+| S1 | Production items table, after the `MemoryOps, DocumentOps` row | `McpOps` (from step 4; not in the production until Story 22.2) / `OcuTalon.Mcp.Ops` / A | new name |
+| S2 | Tables paragraph L1332, appended sentence | `McpOps` is the only writer of `Mcp.Server` and `Mcp.ToolClassification`; a runner's attach report reaches it through `McpServersClass` (`OcuTalon.Mcp.Attach`) | new name |
+| S3 | AD-21 MCP bullet, new sub-bullet "Names (Story 35.1)" | verbs `AddMcpServer`, `RemoveMcpServer`, `ClassifyTool`, `SetSourcePoll`, `RemoveSourcePoll` (classes in `OcuTalon.Msg.Command`, Story 35.2), origin `web_admin` only, refused from `tool`, routed by `CommandsIn` to `McpOps`; a command never carries a secret value, only a `secret://` reference (AD-19); `Mcp.Server` columns (Name, CreatedAt, AttachStatus, AttachReason, AttachedAt, RefusedTools); the runner learns the servers and reports each attach through `McpServersClass` | new name |
+| S4 | AD-18 L557, new sub-bullet | source-poll row type: `Kind` `source`, owned by the admin's session, with server, tool, arguments (JSON) and interval, `DisplayName` the source's name; created and removed through `OcuTalon.Watch.Ops`'s row methods, which `McpOps` calls after refusing a tool that is not read-only (so the table keeps one creator class and `Checks` as run-field writer, AD-33); `McpOps` sends `CheckChanged` after it sets or removes a poll; columns appended by Story 22.5; readers that filter `Kind` `production` are unchanged | extension |
+| S5 | AD-21, new sub-bullet after L767 | `Tools(server As %String, Output tools As %DynamicArray) As %Status`; each element `name`, `classification` (`unclassified`, `read-only`, `risky`), `status` (`available`, `unavailable`, `refused`); built version: an unknown server is an error; stub (35.1): `$$$OK` and an empty array | extension |
+| S6 | AD-16, new bullet after L536; cross-area row | email fix kind `OcuTalon.Fix.Kind.Email` (Story 22.7): parameters recipients, subject, text; `DryRun` keys `to` (every recipient), `subject`, `text` (exact); its fixed target operation is `EmailOut` and, with no failure group, its recipients and text are the kind's validated parameters stored in the row, which the approval covers exactly; kind `fix`, no `IncidentRef`, `ResultTarget` `FixExecutor`; on approval `ApprovalHold` sends `ApprovalOutcome` to `FixExecutor`, which loads the row, runs only if approved, not expired and not executing (`StartExecution`), submits `SendEmail` once through `Commands.Submit` with origin `system` holding exactly the row's recipients and text, and closes the row with `FinishExecution` (`done`, or `failed` with a plain reason); no `FixResult` to `IncidentManager`; notices from `BridgeSink` (AD-31 L1052); a rejected or expired outcome sends nothing; the gate raises it for a risky email call in a user turn (Story 22.7 extends AD-10 item 4) | extension (see Q3) |
+| S7 | Cross-area table, after L1375 | "Lane B contracts fixed by Story 35.2 and recorded by Story 35.1": the five MCP verbs routed by `CommandsIn` to `McpOps` (refused from `tool`); `OcuTalon.Msg.Command.SendEmail` routed to `EmailOut`, from `tool` only when every recipient is the session user's own address (AD-1's list gains it in Story 35.2) and from `system` for `FixExecutor`'s approved email fix; the record where `EmailIn` keeps each poll's outcome (read by Story 22.5); `RestartRunners()` (row L1374) | new name |
+| S8 | AD-31 Rule, new sub-bullet after `TurnToolsClass`; cross-area row | `McpServersClass` (step 4, Story 35.1): base `OcuTalon.Bridge.Ext.McpServers` (`Servers`, `OnAttach` as above), setting on `Decide` (Extensions), read through `Ext.Accessor.ClassFor`; the base attaches nothing (FR-5); `OnAttach` errors are logged and never fail the build; OcuTalon names `OcuTalon.Mcp.Attach` | extension |
+| S9 | AD-21 Listing, new sub-bullet | Task 0's measured attach facts with `[AMENDED 2026-11-09, Story 35.1, Task 0, evidence 35-1-task0-mcp-attach.md]` | extension |
+
+**SECURITY (veto item):**
+- MCP server credentials: a Config Store entry `AI.MCP.OcuTalon_<server>` whose secret is a `secret://` wallet reference (AD-19 L613, AD-21 L762); AI Hub resolves it in the runner (`@{config:}`); OcuTalon code never reads the value. The test fixture's secret is random per run, written to the wallet and removed by the test, never committed, logged or traced; the test proves it leaks nowhere. Settled.
+- Who may add or remove a server: admin-checked endpoints only, origin `web_admin`, refused from `tool` (AD-1 L117, AD-13 L466, AD-21 L762); never at run time on the online demo. 35.1 adds no add/remove path. Settled.
+- Mock exposure: listener bound to 127.0.0.1, free port, alive only during its test, no web application, no security object (AD-22 L778 Prevents mocks leaking into the judges' install; the class ships dormant in `OcuTalon.PKG` like every test class). Settled by the AC ("on loopback") and AD-22.
+- 35.1 adds no role, resource, privilege grant, web application or route. The per-server resource (AD-10 L357) and who writes the wallet and the Config Store entry at run time belong to Stories 22.2 and 35.2 (Q4).
+
+**PUBLIC TEXT (proposed):** none of these strings exists in EXPERIENCE.md or epics.md (checked: Step 4 L984-993, Stories 21.4, 21.5, 22.2-22.7). Voice: first person, plain English, no codes, quoted values in single quotes, "Nothing was changed." in refusals (L156-159, L190). Notice cards have no title (L291). Shown on the admin's web chat as a notice card and as the same plain text on the simulated phone and Telegram. Target for every row: EXPERIENCE.md > Message Catalog, new block "### MCP servers and tools (step 4)" before "## Visual Trace Links", and `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`.
+
+| Catalog key (slots) | Verbatim wording | Where it shows | Producer story |
+| --- | --- | --- | --- |
+| `mcp.serverUnavailable` (server text, time time) | "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools." | admins' chat notice | 35.1 or 22.2 (Q1) |
+| `mcp.toolShadowsBuiltIn` (server text, tool text) | "The MCP server {server} offers a tool called '{tool}', the same name as one of my built-in tools, so I won't use it. Nothing was changed." | admins' chat notice | 35.1 or 22.2 (Q1) |
+| `mcp.toolChanged` (tool text, server text) | "{tool} on {server} changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval." | admins' chat notice (beside 35.2's Settings banner) | 22.2 |
+| `mcp.replayToolChanged` (tool text, server text) | "{tool} on {server} didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed." | result of the approved tool-call request, every channel | 22.4 |
+| `mcp.sourceStopped` (source text, tool text, server text, time time) | "The source {source} stopped polling at {time}, because its tool {tool} on {server} is no longer Read-only. Your digest lists it as not checked." | admins' chat notice | 22.5 |
+| `digest.notCheckedStopped` (entry text, time time) | "Not checked: {entry} (stopped polling at {time}: its tool is no longer Read-only)." | digest coverage line (22.5's "not checked with that reason"); proposed now so step 4's texts are accepted together | 22.5 |
+
+The implement stage takes each text from this table only after the lead records the author's acceptance here; a rejected or reworded row ships as accepted, never as proposed.
+
+**Integration ACs (Rule 1):** consumer `BuildTurnManager` (Story 19.5) reads `Attached` and the composed turn manager lists the mock's tools (matrix row 2). `Tools(server)`: no consumer in this story; the first consumer is Story 21.4.
+
+**Consumed-by:** 35.2 (verb names, S3, S7), 21.4 (`Tools(server)` stub), 21.5 (S6's notices, already in AD-31), 22.2 (`Mcp.Server`, `Mcp.Ops`, `RecordAttach`, `McpServersClass`, the mock, admin notices per Q1), 22.3 and 22.4 (the mock's risky tool, `mcp.replayToolChanged`), 22.5 (S4, the mock, `mcp.sourceStopped`), 22.7 (S6), 36.1 (extends `BackgroundCheck` row types).
+**Consumes:** Story 19.5's `Attach`/`Attached`/`BuildTurnManager`; `Ext.Accessor.ClassFor`; the gate's MCP path; `OcuTalon.Bridge.ConfigStore`; `RunnerFixture`, `Test.Bridge.Runner.NewRunner` -- all against real instances in tests.
+
+**Extend, don't copy (Rule 2):** `Ext/McpServers` mirrors `Ext/TurnTools` (base, `BASES` pair, Decide property); its `OnAttach` wrapper reuses the HostSink call wrapper's pattern; `Mcp.Server` follows `Data/WatchMark`'s table conventions; the fixture runner reuses `ZzTurnAgent`/`ZzTurnRunner` and `RunnerFixture`. `Test/Mcp/Mock` is new (no IRIS-served HTTP mock exists; the node mock under `ci/mock` is unreachable from IRIS outside throwaways and has no MCP route).
+
+**CI (`ci/units.sh`):** `Test/Mcp` is a new Lane A area: append `Mcp` to `shard_areas lane-a`; `shard:lane-a@rest` in group `shards-2` takes it with no other change (about 1,996 s of 2,100 s now; the area adds well under a minute, (inference)). No group or job changes. New unit names: none (classes only).
+
+**Decided in-stage:** (1) the attach channel is a fifth extension class, `McpServersClass` (the bridge cannot name `OcuTalon.Mcp`, AD-2; reading Config Store names directly would ignore the `Mcp.Server` row the AC names and gives no report path); (2) the host returns `{server, config}` and the bridge builds the `mcp:remote:@{config:...}` spec and validates the config name; (3) `AttachReason` is a code-written word, never AI Hub's reason text (no URL or header in storage); (4) built-in set = the manager's tool names before the first MCP attach; a clash between two MCP servers is left to AI Hub and recorded by Task 0; (5) no event-log line for an unavailable server (the report goes to the host; the system-log vital sign stays quiet); (6) `Tools(server)` vocabulary per S5; (7) `Mcp.Ops` extends `Ens.BusinessOperation` but joins the production only in Story 22.2; (8) source-poll rows go through `Watch.Ops` row methods (S4) so AD-33's Prevents "three writers of one table" holds; (9) every runner attaches (AD-21 "the runner"), as the spine says; (10) the email kind's send uses origin `system` (AD-1's enumeration; no bridge context in `FixExecutor`).
+
+**For Story 22.7 (not this story):** AD-10 L356 calls email to others risky and L361 sends risky built-ins through a fix kind; Story 22.7's AC has the gate raise kind `fix` for it, which extends AD-10 item 4 (kind `tool_call`). S6 records the path after approval only.
+
+## Clarification Needed
+
+- **Q1 (blocking; veto 7, cross-lane): how are "admins" told?** AC3 says the attach "reports an unavailable server, refuses a tool whose name shadows a built-in and tells admins". Notices are `Msg.Notification`s to a `SessionRef`, and nothing maps the holders of `OcuTalonAdmin` to sessions: `Data.Session.Recipients` is owner and watchers; `Session.ForUser(irisUser)` exists, but listing the role's holders needs `%SYS` (AD-3 lets only `Install.*` switch; a run-time privilege is a veto item); the spine names no sink or kind for admin notices (AD-21 L763, L766; AD-32 L1070). Options: (a, recommended) Story 35.2 (Lane B) adds a read API returning the sessions whose user held `OcuTalonAdmin` (by whole name, never `%All`) at their latest sign-in (an appended `Session` property: a stored-data veto item), and the admin notices for an unavailable server and a refused tool move to Story 22.2, which also needs them for a changed tool; 35.1 records the report on the `Mcp.Server` row (Settings shows it, UX L987) -- this moves part of AC3 to a not-yet-planned story; (b) keep the notices in 35.1 with Lane A reading the role's holders in `%SYS` (a new run-time privilege for the service user and an AD-3 exception); (c) another recipient rule the owner names.
+- **Q2 (blocking; U-177): may 35.1 edit Lane B's `Test/Msg/Catalog.cls`?** Adding any `Catalog.Watch` key breaks its exact count (58) and needs a fixture per key, as Stories 17.5 and 17.6 needed one-time exceptions. Options: (a, recommended) a one-time exception for 35.1 to add the accepted `mcp.*` keys and `digest.notCheckedStopped` with fixtures (one change instead of three in Epic 22); (b) 35.1 ships the EXPERIENCE.md rows only, and each producer story adds its keys with its own exception.
+- **Q3 (confirm; AD-16): is S6 an extension?** AD-16 Prevents "a fix sent to a target the model chose" and its Rule says "The target operation and the message list come from the failure group". S6 reads the target as the operation (`EmailOut`, fixed) and the recipients as validated parameters the approval covers exactly; a standalone fix has no failure group, so the sentence does not cover it. If the lead reads recipients as targets, S6 conflicts with AD-16 and needs an AD amendment.
+- **Q4 (not blocking 35.1; security, for Stories 35.2 and 22.2):** who writes the wallet secret and the `AI.MCP.OcuTalon_<server>` entry at run time is unsettled: AD-19 L657 makes `SettingsOps` the only settings writer, while McpOps owns the server; S3 only fixes that no command carries a secret value.
+
+## Verification
+
+Lane variables for every `ci/` call below (`LANE`): `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=35 stage=implement'`. Start once with `LANE OCUTALON_RUN_TAG=e35s1iw ci/warm.sh up`; end with `LANE OCUTALON_RUN_TAG=e35s1iw ci/warm.sh down`, also after a failure. One call per line, each under about 150 s, `timeout: 600000`, never in the background.
+
+**Commands:**
+- (loop) `LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s1iw ci/iris.sh class OcuTalon.Test.Mcp.Attach` -- expected: `CLASS ... passed`
+- (loop) `LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s1iw ci/iris.sh class OcuTalon.Test.Mcp.Tools` -- expected: passed
+- (loop) `LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s1iw ci/iris.sh class OcuTalon.Test.Bridge.Ext` -- expected: passed (five settings)
+- (loop) `LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s1iw ci/iris.sh class OcuTalon.Test.Bridge.TurnTools` -- expected: passed
+- (loop) `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` -- expected: only the baseline's ten `placeholder` findings (line numbers may shift)
+- (once) `LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s1iw ci/iris.sh class OcuTalon.Test.Bridge.Gate` -- expected: passed (also when Gate is unchanged)
+- (once) `LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s1iw ci/iris.sh class OcuTalon.Test.Bridge.Decide` and `... class OcuTalon.Test.Bridge.Contracts` -- expected: passed (Decide's settings list)
+- (once, under Q2 (a)) `LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s1iw ci/iris.sh class OcuTalon.Test.Msg.Catalog` -- expected: passed
+- (once) `bash docker/tests/test-class-rules.sh`, `bash docker/tests/test-storage.sh`, `bash docker/tests/test-ci-config.sh`, `bash docker/tests/test-boundaries.sh` -- one per call; expected: each passes
+- The full `lane-a` shard, the fresh-environment check (Rule 19, the lead) and every CI group are left to CI and the lead.
+
+**Shared surfaces:** the Decide extension settings and `Ext.Accessor.BASES` (pinned by `Test.Bridge.Ext`; search `Test/` for other pins of the four names); `OcuTalon.Production`'s Lane A region; `ci/units.sh` lane-a areas (`test-ci-config.sh`); `src/short-names.tsv` (`test-storage.sh`); `Catalog.Watch`'s key list (Lane B's `Test.Msg.Catalog`, Q2); the spine (lint). Standing criterion: every test added or changed passes on a fresh environment, in either order.
+
+**Pinning mutations (to record as `mutation:` lines when the tests exist):** remove the attach loop from `OnAfterAgentInit` -> `Test.Mcp.Attach` attach test red; skip `Attach` and call `AddTool` directly -> per-turn test red; let an `OnAttach` error return from the build -> unavailable test red; drop the shadow refusal -> shadow test red; store AI Hub's reason text -> secret-leak test red; return a fixture tool from the stub -> `Test.Mcp.Tools` red.
+
+## Auto Run Result
+
+Status: blocked
+Blocking condition: intent gap -- Q1 (who are "admins" for the attach notices, and whether those notices move to Story 22.2 with a Lane B admin-session API in Story 35.2) and Q2 (a U-177 exception for Lane B's `Test/Msg/Catalog.cls` to add the `Catalog.Watch` keys) need the lead's or owner's ruling; Q3 asks the lead to confirm that the email fix kind (S6) extends AD-16 rather than conflicting with its Prevents line. See `## Clarification Needed`.

@@ -12,3 +12,4 @@
 2026-11-09T05:59:55Z	Epic 35	slot_loaded	server=ocutalon-slot-b ns=OCUTALON head=ddd7d5c1 bridge=61 ocutalon=810 preload=1 compiled=clean server_classes=872 files=872 stale=0
 2026-11-09T05:59:55Z	Epic 35	epic_context_compiled	sha=e6ef0e3f reason=initial model=opus lines=99
 2026-11-09T06:00:06Z	Story 35.1	stage_spawned	stage=plan spawn_at=2026-11-09T06:00:06Z model=opus agent_name=35-1-plan-1 cycle_iteration=1
+2026-11-09T06:28:31Z	Story 35.1	plan_clarification_requested	spawn_at=2026-11-09T06:00:06Z model=opus path=_bmad-output/implementation-artifacts/spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md build_status=blocked questions=Q1,Q2,Q3,Q4 public_text_rows=6 security_items=4 to=orchestrator round=1
