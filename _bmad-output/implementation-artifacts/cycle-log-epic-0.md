@@ -531,3 +531,9 @@
 2026-11-09T09:36:24Z	Epic 0	hold_ordered	reason=orchestrator(overnight_hold_11:00Z;nothing_more_on_lane_C_tonight)
 2026-11-09T09:36:24Z	Epic 0	hold_saved	story=0.15 stage=none patch=none tree=clean
 2026-11-09T09:36:24Z	Epic 0	hold_complete	shas=origin:729ec359;local_unpushed:bookkeeping_only(per_orchestrator) throwaways=none lane-c_locks=none
+2026-11-09T14:16:21Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=morning_redispatch_20261109 lane=C slot=ocutalon-slot-c
+2026-11-09T14:16:21Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-09T14:16:21Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-09T14:16:21Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-09T14:16:21Z	Story 0.15	ci_resolved	story=0.15 sha=729ec359 runs=42583740643,42583740709 result=failure failed=.github/workflows/ci.yml via=none resolved_at=resume note=unchanged_from_hold;inherited(DW-973,DW-774);no_rerun(orchestrator_ruling)
+2026-11-09T14:16:21Z	Epic 0	integrate_forward_base	feature=03f65af2 ci=cancelled(green_by_identity:2a45f8bc=42583599821,42583599730;orchestrator_ruling_11:01Z) diff_above_2a45f8bc=module.xml,src/module.xml,epic-dependencies.yaml,release/records/1.0.5/rc1.md
