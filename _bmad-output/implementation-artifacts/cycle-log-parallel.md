@@ -3042,3 +3042,7 @@
 2026-11-09T05:48:13Z	Epic 35	worktree_provisioned	branch=OCT-epic35 base=4bf9dffe(bookkeeping_over_19a4bae6) reason=lane_plan(35.1_waits_17,19_merged) ci_runs_on_bookkeeping_head_cancelled=42569251633,42569251732
 2026-11-09T05:48:13Z	Epic 35	worktree_bootstrapped	epic=35 result=ok
 2026-11-09T05:48:13Z	Epic 35	runner_dispatched	runner=a91262ba8d8041b73 model=opus effort=high lane=B slot=ocutalon-slot-b stories=35.1,35.2 hold_at=10:00Z prompt=prompts/dispatch-epic-35.md
+2026-11-09T05:57:18Z	Run	planner_ruling	subject=hold_moved answer=OWNER_CALL:no_new_dispatch_from_10:30Z;HOLD_at_11:00Z;merge_already-green_1.0.5_items_until_11:30Z;then_morning_note;account_switch_~13:00Z;1.0.5_cut_right_after (replaces_09:30/10:00/10:30Z) via=Contest_Planner_1(delegation)
+2026-11-09T05:57:18Z	Epic 41	runner_clarification	kind=merge_behaviour_choice agent=a70c5c6c3ec305303 files=notice-card.ts,simulated-phone.ts,Live/Payload/Phone.cls local=5726179d ci_split=fa0a5f87
+2026-11-09T05:57:18Z	Epic 41	ruling	question=Got_it_vs_This_was_noise_order_and_DecisionRef_source category=veto choice=as_runner_proposed(strip>Got_it/handled>This_was_noise;phone_text>Got_it>time>noise;one_DecisionRef_Epic_18_column_with_PhoneDecision_fallback) reversal=reorder_controls_or_drop_fallback inbox=U-316 policy=5086036
+2026-11-09T05:57:29Z	Epic 41	runner_resumed	agent=a70c5c6c3ec305303 with=veto_ruling(as_proposed);redo_merge;hold_11:00Z
