@@ -1366,7 +1366,15 @@ Method TestModel(command As OcuTalon.Msg.Command.TestModel) As OcuTalon.Msg.Comm
 /// restarts nothing: the next start builds every agent with the servers registered then.
 ClassMethod RestartRunners() As %Status
 {
-	If '##class(Ens.Director).IsProductionRunning(.name) || (name '= "OcuTalon.Production") Quit $$$OK
+	If '##class(Ens.Director).IsProductionRunning(.name) Set name = ""
+	Quit ..RestartIn(name)
+}
+
+/// RestartRunners' work for the running production name ("" when none runs): only OcuTalon.Production's runner items restart, and any
+/// other name answers OK and restarts nothing.
+ClassMethod RestartIn(name As %String) As %Status [ Internal ]
+{
+	If name '= "OcuTalon.Production" Quit $$$OK
 	Set sc = ##class(OcuTalon.Install.Step.Production).Runners(name, .runners)
 	If $$$ISERR(sc) Quit sc
 	Set list = ""

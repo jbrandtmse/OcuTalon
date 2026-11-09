@@ -11,7 +11,7 @@
 ///     bridge context, another SessionRef are refused with nothing sent;
 ///   - TestToolVerbs: the real TOOLVERBS holds SendEmail and no MCP verb, and the real Routes send the five MCP verbs to McpOps from web_admin
 ///     only and SendEmail to EmailOut from tool and system;
-///   - TestRestartRunnersWithoutProduction: RestartRunners answers OK where no OcuTalon production runs;
+///   - TestRestartRunnersWithoutProduction: RestartRunners' work answers OK and restarts nothing for no running production or another one;
 ///   - TestMcpEntryStubs: SaveMcpEntry and RemoveMcpEntry answer code 5003 and leave no Config Store entry.
 /// The run's calls are kept under ^OcuTalonTest("CommandsRouting", "step4<n>") and deleted after the tests; email.owner and email.address are
 /// put back as found; the context of the test process is ended before and after the tests.
@@ -225,14 +225,14 @@ Method TestMcpEntryStubs()
 	Do $$$AssertEquals(##class(%ConfigStore.Configuration).Exists(name), 0, "and leaves no entry")
 }
 
-/// RestartRunners with no OcuTalon production running answers OK and restarts nothing (AD-21). Where the production runs, the call would
-/// restart its runners, so this case is covered by Test.Core.RestartRunners and the test passes without calling it.
+/// RestartRunners with no OcuTalon production running answers OK and restarts nothing (AD-21), through its work for the running production's
+/// name (RestartIn): "" (none runs) and another production's name answer OK without a restart, wherever the test runs. Where no OcuTalon
+/// production runs, RestartRunners itself answers OK too; where it runs, Test.Core.RestartRunners covers the restart.
 Method TestRestartRunnersWithoutProduction()
 {
-	If ##class(Ens.Director).IsProductionRunning(.name) && (name = "OcuTalon.Production") {
-		Do $$$LogMessage("the OcuTalon production runs here: the running case is Test.Core.RestartRunners")
-		Quit
-	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.SettingsOps).RestartIn(""), "no production running: OK, nothing restarted")
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.SettingsOps).RestartIn("ZzOther.Production"), "another production running: OK, nothing restarted")
+	If ##class(Ens.Director).IsProductionRunning(.name) && (name = "OcuTalon.Production") Quit
 	Do $$$AssertStatusOK(##class(OcuTalon.Core.SettingsOps).RestartRunners(), "RestartRunners answers OK with no OcuTalon production running")
 }
 

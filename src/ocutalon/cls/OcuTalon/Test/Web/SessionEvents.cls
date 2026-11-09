@@ -48,9 +48,11 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// Puts the settings back, and removes the session rows and the counter rows of the test.
+/// Puts back the admin flag of a session row the test found (a sign-in while the settings are still the test's, so off the online demo),
+/// then the settings, and removes the session rows and the counter rows of the test.
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	If $Data(^||SessionEventsAdminWas) Do ..SignIn("", "ZzAdminRestore", "", "", , , 1, ^||SessionEventsAdminWas)
 	Set settings = "OcuTalon.Data.Public.Settings"
 	Set key = ""
 	For {
@@ -66,7 +68,6 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Quit:address=""
 		Do ..DropCounter(address)
 	}
-	If $Data(^||SessionEventsAdminWas) Do ..SignIn("", "ZzAdminRestore", "", "", , , 1, ^||SessionEventsAdminWas)
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
 	Kill ^||SessionEventsSaved, ^||SessionEventsAddresses, ^||SessionEventsAdminWas
 	Quit $SYSTEM.Status.OK()

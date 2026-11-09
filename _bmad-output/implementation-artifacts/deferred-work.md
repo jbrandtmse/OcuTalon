@@ -6246,6 +6246,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: OnLogin is one line; slot tests reach AttachFor(1,1) only; a slot has no OcuTalon roles to put in $Roles
 - 2026-11-09T17:09:30Z status=open owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=harvest note=QA: a live sign-in check as an admin and as the README user on a throwaway
+- 2026-11-09T17:38:55Z occurrence=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th
+- 2026-11-09T17:41:04Z status=resolved-by:35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=adjudication note=web/e2e/settings/settings.spec.ts_S15_real_HTTP_sign-in(README_flag_1_and_listed;LIVE_0_and_absent;flags_pre-seeded_opposite);mutation_OnLogin_passes_""->S15_red(QA);residual_Held_vs_%All_pinned_by_Test.Core.Admin_TestHeldByWholeName
 
 ### DW-1037: Session.AdminAtSignIn stays 1 after a user loses OcuTalonAdmin until their next sign-in, and a sign-in without the OcuTalon user role does not clear it
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: low | footprint: in-story
@@ -6256,3 +6258,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42633085173 attempt 4 (OCT-epic35 cd13b1ae) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: run 42633085173 attempt 4 job shards-2 17:00Z, lane-a@rest 2065s, 1 of 79 classes; attempts 2 and 3 lane-a@rest passed on the same sha
 - 2026-11-09T17:10:28Z status=routed owner=burndown by=runner note=Story 35.1's test (Lane A file); burn-down priority; a red on a quiet host makes it real
+
+### DW-1041: AD-1 lets REST code write only the Session row, counters, pairing hashes and UI markers, but the step 4 contract has the MCP settings routes call SettingsOps.SaveMcpEntry/RemoveMcpEntry in the REST process to write the wallet secret and Config Store entry (ruling Q4), with no AD-1 exception recorded
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: Spine AD-1 REST write list (line ~122) vs AD-21 Names (Story 35.1, ruling Q4) and Story 35.2's B4/B8 rows (POST/DELETE /api/v1/settings/mcp/servers); code today is stubs that write nothing
+- 2026-11-09T17:38:55Z status=escalated owner=burndown by=cr note=decide: amend AD-1's REST write list for the admin-checked MCP routes (keeps secrets out of messages), or move the write into an operation
+
+### DW-1042: CommandsIn.OwnAddressOnly reads email.owner and email.address through Data.Setting.Get's per-key 60 s process cache, so for up to a minute after the mailbox moves to another session a tool SendEmail can pair a stale owner with a fresh address
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Core/CommandsIn.cls OwnAddressOnly: two Data.Setting.Get calls, each cached per process with its own timestamp (Data/Setting.cls Get)
+- 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=Story 21.2 lets an install reconnect the mailbox to a different session, or a test shows a tool email reaching another session's address
+
+### DW-1043: RestartRunners passes Bridge.Timeouts.Restart's error status through untested: matrix row 9's error cell (an item that does not restart) has no test
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Core/SettingsOps.cls RestartIn ends Quit Timeouts.Restart(...); Test.Core.RestartRunners covers only the success path; inducing a failed restart needs a live failing runner
+- 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=RestartRunners gains logic between Restart's status and its answer, or McpOps (Story 22.2) reports success after a failed restart
+
+### DW-1044: Ownership.Attach's failed AdminAtSignIn save (the Ref stays attached, the failed save is the answer, AttachFor logs it as a failed attach) has no test: matrix row 11's error cell
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Data/Ownership.cls Attach sets %session.Data before row.%Save(); no test makes that save fail; the log line says 'could not be attached' though the user is attached
+- 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=a sign-in log shows 'could not be attached' for a user whose CSP session holds the Ref, or Attach gains more writes after the Ref
+
+### DW-1045: No automated check ties EXPERIENCE.md's 'Settings and requests (step 4)' block to Catalog.Core's 30 settings/answered.canceled texts (Story 35.1's block has docker/tests/test-mcp-notices.sh for Catalog.Watch)
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Code review compared all 30 texts by hand on 2026-11-09: identical; Test.Msg.Catalog pins Core to its own fixtures only; test-mcp-notices.sh is Lane A's (Story 35.1)
+- 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=a later story edits a step 4 text in EXPERIENCE.md or Catalog.Core without the other
