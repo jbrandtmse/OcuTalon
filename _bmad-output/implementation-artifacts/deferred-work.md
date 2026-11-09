@@ -233,6 +233,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T09:44:00Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry note=Watch.Reader.SevereLines reads messages.log stamps in the reader's zone; kernel lines are stamped in the OS zone when InstanceZone differs
 - 2026-11-08T10:49:01Z occurrence=18-2-set-the-time-zone-and-the-daily-digest-at-run-time note=18.2 cr: Apply puts an inherited unset TZ back as TZ="" (UTC) while Zone() names the OS zone (Lane A Apply)
 - 2026-11-08T10:51:48Z status=routed owner=burndown by=adjudication note=Lane_B_half_resolved_by_18.2(a4770526+cr:Data.Time.Zone_calls_Bridge.Time.Apply_then_TZ_then_OsZone(osLink);Test.Data.TimeSource_TestOsZone,TestZoneCleared);residual_Lane_A:Bridge.Time.Apply_puts_an_inherited_unset_TZ_back_as_TZ=''(UTC)_while_Zone()_names_the_OS_zone(17.4_Edge_8),and_Watch.Reader_stamps(17.5_occurrence);for_a_Lane_A_story
+- 2026-11-09T00:38:50Z by=burndown note=Epic_18_burn-down:Lane_A_residual(U-177),no_Lane_B_story_can_close_it;kept_owner=burndown_for_the_orchestrator's_routing_to_a_Lane_A_story(no_next-epic_Lane_A_key_in_this_branch's_tracker)
 
 ### DW-35: A failed Orders header has Status 8 (Error), IsError 0 and an empty ErrorStatus; its error text is only the event-log row inside the Terminating BP wrapper, so a reader that keys on IsError or GetErrorText finds no failure
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
@@ -4776,6 +4777,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T19:07:35Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=owner note=Planner_ruling_2026-11-06:option_2_now(Telegram_splits_at_line_boundaries,in_order;Q4_b_amended);residual=option_1(fold_coverage_lines_past_a_limit_into_a_count;new_catalog_line=public_text;AD-18/AD-32_one_line_per_row)->Story_18.2_or_the_Epic_17_follow-up
 - 2026-11-06T20:22:27Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
 - 2026-11-08T09:18:38Z status=routed owner=burndown by=spec_gate note=declined_by_18.2(U-177):the_coverage-line_fold_lives_in_Lane_A's_Checks.Coverage/Digest.Process_and_Msg.Catalog.Watch,and_its_count_line_is_public_text;for_a_Lane_A_story_(Epic_17_follow-up)
+- 2026-11-09T00:38:50Z by=burndown note=Epic_18_burn-down:Lane_A_residual(U-177),no_Lane_B_story_can_close_it;kept_owner=burndown_for_the_orchestrator's_routing_to_a_Lane_A_story(no_next-epic_Lane_A_key_in_this_branch's_tracker)
 
 ### DW-816: With Digest enabled, the installed heartbeat's tick at digest.time sends a scheduled digest to every alive session created before it, so a test that spans that minute and counts its session's notices or unscoped mock requests can go red
 - source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4806,6 +4808,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T19:07:35Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=Rule 2 forced copy (Planner ruling 2026-11-06, AD-14 option a): Story 18.2 makes Notify honour digest.channels for kind digest and deletes Digest.Process.Own and the direct sends
 - 2026-11-06T20:22:27Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
 - 2026-11-08T10:51:48Z status=routed owner=burndown by=adjudication note=Notify_half_resolved_by_18.2(a4770526:Core/Rule/Notify_digest_branch+Functions.DigestNamed;Test.Core.Routing_TestNotifyDigestTargets,SettingsRunTime);residual_Lane_A:remove_Digest.Process.Own,SendDigest_direct_sends,ROUTEREASON,Test.Digest.Compose_NotifyChannels/TestOwnMatchesNotify_and_route_Resent_through_Notify;for_a_Lane_A_story
+- 2026-11-09T00:38:50Z by=burndown note=Epic_18_burn-down:Lane_A_residual(U-177),no_Lane_B_story_can_close_it;kept_owner=burndown_for_the_orchestrator's_routing_to_a_Lane_A_story(no_next-epic_Lane_A_key_in_this_branch's_tracker)
 ### DW-748: Story 11.22's docs read stale beside 34.2's BodyBounds: Test.Web.BodyLimit says Test.Web.ApiProbe has no declaration (it now inherits Web.Api's POST /v1/documents entry), POSTROUTES is called every POST route but omits /v1/documents, and Web.BodyLimit's header example names /v1/documents at 14680064 bytes (the real bound is 13,985,112)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 11.22's assertions still hold (POSTROUTES omits /v1/documents; the declared-bound case uses /v1/messages); only the comments mislead; the files are Story 11.22's and outside 34.2's lane (34.2 re-review, Blind and Acceptance Auditor)
@@ -5905,8 +5908,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ARCHITECTURE-SPINE.md AD-27 lists the purges; Handled.Purge exists since 1cfbca57
 - 2026-11-08T23:16:40Z status=routed owner=burndown by=lead note=orchestrator ruling 2026-11-08: add the AD-27 Handled-purge bullet once no in-flight epic cites AD-27 (41.2, 30.7, 32.7 at 18.4 close)
+- 2026-11-09T00:38:50Z by=burndown note=Epic_18_burn-down:waits_until_no_in-flight_epic_cites_AD-27(41.2,32.7;orchestrator_ruling);kept_owner=burndown
 
 ### DW-987: flake: live:online-demo-path L2 (Story 29.8 load phase): visitor 2 read 2/2 at sign-in (expected the 1/1 baseline) while visitor 1's trace pages were open; passed on an unchanged rerun
 - source: spec-18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: lane-D smoke 2026-11-08 23:20Z: L2 visitor readings 1/1,3/2 2/2,5/2 1/1,7/2; rerun 23:28Z 1/1 for all three
 - 2026-11-08T23:29:15Z status=routed owner=burndown by=lead note=flake, priority; the three load visitors overlap at sign-in (inference)
+- 2026-11-09T00:38:50Z by=burndown note=Epic_18_burn-down:flake_with_priority(Story_29.8's_load_check);kept_owner=burndown
