@@ -326,3 +326,4 @@
 2026-11-09T18:43:19Z	Story 41.12	amendment	file=epics.md:10238,10244 what=cap_on_rendered_core-memory_block(heading_and_quotes_included)_4000_chars;every_pin_in_the_block tier=planner_ruled marker=[AMENDED_2026-11-09,_Contest_Planner_ruling]
 2026-11-09T18:43:19Z	Story 41.12	plan_clarification_requested	question=cap_vs_block_boundary answer=planner_alternative(cap_on_rendered_block) action=re-plan(status_draft,intent_block_amended)
 2026-11-09T18:43:19Z	Story 41.12	stage_spawned	stage=plan spawn_at=2026-11-09T18:43:19Z model=opus effort=high agent_name=41-12-plan-2 cycle_iteration=2 reason=re-plan(cap_ruling)
+2026-11-09T18:44:50Z	Epic 41	epic_context_compiled	model=opus effort=high words=1561 cycle_iteration=5 reason=planning_artifact_newer(41.12_cap_amendment,DW-1040_conditions)
