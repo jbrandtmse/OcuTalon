@@ -9,7 +9,7 @@ followup_review_recommended: false
 context: []
 warnings: ['oversized']
 deferred: []
-baseline_commit: 'cccbd78eec0497bdc08103ba82421fd3bb055dbc'
+baseline_commit: 'e30aa25dd1e6210ce557f4ba5a457d2ee9e8c91b'
 ---
 
 <intent-contract>
