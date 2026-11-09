@@ -1452,6 +1452,26 @@ So that every number on the page is the current one, with a link to where the mo
 **When** this story merges
 **Then** README.md is the only product file changed, apart from any README pin in `docker/tests/test-readme.sh` that pinned an old number or intro line, which moves to the new one; `git grep` finds none of "9 of 10 (target", "19 of 22", "0.0005 to", "9 to 10 cents" in README.md; `docker/tests/test-boundaries.sh` and `docker/tests/test-readme.sh` pass; and CI is green
 
+### Story 0.18: The README shows judges where to look
+
+[ADDED 2026-11-09, SC-5 re-open of Epic 0, at the orchestrator's dispatch for release 1.0.5 (it must merge before the 10:00Z hold); public text the Contest Planner has already approved under the owner's delegation ("go ahead and approve whatever README.md you draft after reviewing it"), committed verbatim from the Planner's final edit file (readme-judges-1.0.5-FINAL.md, section (b), Edits 1 to 6). Built on Story 0.17. Pipeline (orchestrator ruling, as for 0.17): one `bmad-build-auto` stage that plans and implements, then the runner's own byte-for-byte diff review in place of separate QA and code-review stages.]
+
+As a judge scoring the entry,
+I want a link bar, a "where to look" table per criterion, what is new since 1.0.0, what changes without the agent, and a contest checklist with proof,
+So that I find every claim and its evidence from the top of the README.
+
+**Acceptance Criteria:**
+
+**Given** README.md
+**When** this story merges
+**Then** the Planner's Edits 1 to 5 are in it verbatim at their anchors: the link bar as the first paragraph of "Try it in two minutes"; the H3 sections "For judges: where to look" and "New since 1.0.0" after step 4 of the local path; the "What changes without the agent?" paragraph above the "With a model, and without one." paragraph; and the H2 "Contest checklist" directly before "Credits and licences"
+**And** nothing else in README.md changes, and no line is removed
+
+**Given** `docker/tests/test-readme.sh`'s link allow-list
+**When** this story merges
+**Then** it is exactly the Planner's Edit 6 line: `community.intersystems.com` and `openexchange.intersystems.com` appear exactly once each, nothing else is added, and no AI Hub bug-report repository is allowed; Story 0.17's narrower post-path entry and its two self-tests that only that narrower entry could pass give way to the host entry
+**And** `bash docker/tests/test-readme.sh` passes every rule, `docker/tests/test-boundaries.sh` passes, and CI is green; if a rule fails on the verbatim text, the text is not reworded
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
