@@ -373,7 +373,7 @@ Leave `CSPSystem`, the web gateway's account, and the accounts marked for intern
 
 ## Contest checklist
 
-What OcuTalon uses, and where to check each one:
+OcuTalon is an entry in the [InterSystems Programming Contest: AI Agents in Interoperability Workflows](https://community.intersystems.com/post/intersystems-programming-contest-ai-agents-interoperability-workflows). What it uses, and where to check each one:
 
 | Item | Where to check it |
 | --- | --- |
