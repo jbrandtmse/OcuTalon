@@ -10235,13 +10235,13 @@ So that it never forgets the few things that matter most.
 
 **Given** a `PinMemory` for one of the owner's memories
 **When** the memory operation handles it
-**Then** it sums the pinned memories' text lengths, plus this one's, at 4 characters a token. Up to 1,000 tokens it sets `Pinned` and `PinnedAt`; above that it refuses with `over_cap`, and nothing changes (FR-74, AD-21)
+**Then** the core memory block, heading and quotes included, is capped at 4,000 chars (1,000 tokens at 4 chars/token): if the rendered block with this pin stays within it, it sets `Pinned` and `PinnedAt`; above that it refuses with `over_cap`, and nothing changes; a pinned fact is never left out of the input while it shows as pinned (FR-74, AD-21) [AMENDED 2026-11-09, Contest Planner ruling: it read "it sums the pinned memories' text lengths, plus this one's, at 4 characters a token. Up to 1,000 tokens it sets `Pinned` and `PinnedAt`; above that it refuses with `over_cap`, and nothing changes"; the heading, quotes and line breaks did not fit in 4,000 characters once pins neared the cap]
 **And** `UnpinMemory` clears the pin, and forgetting a pinned memory deletes it
 **And** only a `PinMemory` from the person sets a pin: no save, tool or compaction path pins a memory (FR-74)
 
 **Given** a user item rendered with `sessionStart`
 **When** `Agent.Input.Render` runs
-**Then** before the daily notes it adds the core-memory block: "Your core memory (facts you pinned):", then the pinned memories newest pin first, quoted, never over the cap (FR-74, AD-7, NFR-27)
+**Then** before the daily notes it adds the core-memory block: "Your core memory (facts you pinned):", then the pinned memories newest pin first, quoted, never over the cap, with every pinned memory in it (FR-74, AD-7, NFR-27) [AMENDED 2026-11-09, Contest Planner ruling: "with every pinned memory in it" added with the cap on the rendered block]
 - DW-967: a first turn of the day that ends in a fallback (`no_key`, `daily_cap`, `budget`, `too_large`, failed Chat) still counts as the session start, so that day's notes never reach a model; count only turns whose request reached a model (ledger; routed by burndown 2026-11-09)
 - DW-977: today's note at a session start quotes the current message's own opening, so the model sees the person's words twice; leave the current and later turns out of the note (and update `Test.Bridge.SecondModel:TestIntegrationWebChat`) (ledger; routed by burndown 2026-11-09)
 - DW-1014: rows saved before Story 41.8 hold no stored `Pinned` value, so SQL such as `Pinned = 0` skips them; the pinned read and the cap sum use `COALESCE(Pinned, 0)` or read through `Memory.Row` (ledger; routed by harvest 2026-11-09)
@@ -10271,7 +10271,7 @@ So that I decide what OcuTalon keeps.
 - DW-996: unify the Memory card's `ForgetDialog` (`web/src/app/rail/memory-card/forget-dialog.ts`) with `documents/remove-dialog.ts` into one shared confirm dialog (ledger; routed by burndown 2026-11-09)
 - DW-1030: `GET /v1/memory/items` lists only the newest 20 (or a search's best 5), with no pinned filter, paging or used-token figure, so it cannot back the Pinned tab; the card needs the pinned rows and the {used} of 1,000 tokens (ledger; routed by cr 2026-11-09)
 - DW-1031: the card's memory search runs only on submit, never per keystroke, and on the online demo each search counts against the existing message allowance (no new number), so searches cannot fill the shared embedder queue (ledger; routed by owner 2026-11-09, Contest Planner ruling under the owner's delegation)
-- DW-1040: the memory search's 503 `search_busy` must not raise the online demo's whole-page busy state (`DemoBusyState`, the chat outbox): the card shows a local "search is busy" message for a 503 whose code is `search_busy` (ledger; routed by harvest 2026-11-09)
+- DW-1040: the memory search's 503 `search_busy` must not raise the online demo's whole-page busy state (`DemoBusyState`, the chat outbox): the card shows a local "search is busy" message for a 503 whose code is `search_busy`; Contest Planner ruling 2026-11-09: keep 503 + `search_busy` and add a `Retry-After` header (in this story); the client's whole-page demo-busy handling changes in ONE place to skip responses whose code is `search_busy`; an e2e test proves a `search_busy` answer shows the card's message and does not put the page into demo-busy; check whether the demo's message allowance already answers 429 and, if so, record that 429 is taken (ledger; routed by harvest 2026-11-09)
 
 ### Story 41.14: Evaluation and tests for memory's second part
 

@@ -6265,6 +6265,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T17:30:18Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=harvest note=41.13: the client treats a 503 whose code is search_busy as a local message (or the status changes; a Planner call if so)
 - 2026-11-09T17:46:42Z occurrence=41-9-pins-and-learned-saves-get-their-verbs-and-routes
 - 2026-11-09T17:46:42Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=cr note=the fix also amends AD-25 (client shows demo-busy for any API 503) or changes the status; spine line with it
+- 2026-11-09T18:43:19Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=owner note=planner_ruling_2026-11-09:_keep_503+search_busy;add_Retry-After_header;client_demo-busy_handling_skips_code_search_busy_in_ONE_place;e2e_proves_card_message_and_no_demo-busy;check_whether_the_message_allowance_already_answers_429_and_record_it;Retry-After_goes_in_41.13_with_the_interceptor(lead's_call:41.9_stays_as_reviewed)
 
 ### DW-1046: A memory search copies up to five memory texts into CommandResult.Data and its query into the SearchMemory body; both stay in the messages (data database) for 90 days and survive a later Forget
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: low | fix-risk: med | footprint: in-story

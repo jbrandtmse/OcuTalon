@@ -2,7 +2,7 @@
 title: "Story 41.12: Core memory: pins under a hard cap, read at every session start"
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -21,14 +21,14 @@ deferred: []
 ## Boundaries & Constraints
 
 **Always:**
-- **The cap (FR-74, NFR-27).** It is the sum of `$Length(Text)` over the session's pinned memories plus the new one, at 4 characters a token. A sum up to 4,000 characters (1,000 tokens) is pinned. A larger sum is refused with Outcome `over_cap`, Ok 0, and nothing changes. Nothing is ever unpinned to make room.
+- **The cap (FR-74, NFR-27; Contest Planner ruling 2026-11-09).** The core-memory block, heading and quotes included, is capped at 4,000 characters (1,000 tokens at 4 characters a token). A pin is refused with Outcome `over_cap`, Ok 0 (the existing full answer; no new message), and nothing changes, when the rendered core-memory block (heading, quotes and line breaks included) with the new pin would pass 4,000 characters. One computation renders the block for both the cap check and `Agent.Input.Render` (and the card's remaining-space figure, 41.13, uses the same one). Nothing is ever unpinned to make room, and a pinned fact is NEVER left out of the input while it shows as pinned. A test pins the pin that would cross the line by one character.
   - Use the epics' numbers as given: 1,000 tokens, 4 characters a token, 4,000 characters for the block.
   - The constants `PINCAPTOKENS = 1000` and `CHARSPERTOKEN = 4` are defined once, in `OcuTalon.Memory`.
 - **Lock and scope.** The cap sum and the pin write happen under `MemoryOps`' lock `^OcuTalon.Memory(sessionRef)`. The ref must be the command's own session's row: an unknown ref and another session's ref both answer `not_found`, the same way (DW-740).
 - **DW-1014.** The pinned read and the cap sum use `COALESCE(Pinned, 0) = 1`. A row saved before Story 41.8 (stored `Pinned` empty) is not pinned, and it can be pinned.
 - **The core-memory block.** It is only for an item with provenance `user` whose context has `sessionStart` 1, and whose owner is a session, never `eval`, `instance` or empty.
   - It opens with `"Your core memory (facts you pinned):"` on its own line (EXPERIENCE.md:1070), then each pin through `Quoted`, newest pin first (`PinnedAt DESC`, then row `ID DESC`), then a blank line.
-  - Each pin is whole or left out, together with every older pin. The block, the closing blank line included, is at most 4,000 characters (`COREMAX`).
+  - Every pinned memory is in the block, whole. Because the cap is checked on the rendered block, the block, the closing blank line included, is never over 4,000 characters (`COREMAX`), and no pin is left out.
   - A read that throws leaves the block out and logs one warning (redacted). Render never throws because of it.
 - **Lanes and shared files.** `Ownership` gets added lines only. `Conversation` and `DailyNote` are this epic's own Lane B files, and the lead found no contention on them. The spine gets additive lines only, marked `[ADDED 2026-11-09, Story 41.12]`.
 - **Tests.** Every test added or changed passes on a fresh environment, in either order, and creates and removes its own rows.
@@ -46,9 +46,9 @@ deferred: []
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |---|---|---|---|
-| Pin within cap | own unpinned memory; pinned sum + its length ≤ 4,000 | `Pinned` 1, `PinnedAt` now (UTC to the second); Ok 1, Outcome `pinned`; route 200 `{"result":"done"}` | none |
-| Exactly at cap | pinned sum + new = 4,000 | pinned | none |
-| Over cap | pinned sum + new > 4,000 | Ok 0, `over_cap`; no row changes; route 409 with the approved over_cap text | none |
+| Pin within cap | own unpinned memory; the rendered block with it ≤ 4,000 characters | `Pinned` 1, `PinnedAt` now (UTC to the second); Ok 1, Outcome `pinned`; route 200 `{"result":"done"}` | none |
+| Exactly at cap | the rendered block with it = 4,000 characters | pinned | none |
+| Over cap | the rendered block with it = 4,001 characters or more (the test: exactly one character over) | Ok 0, `over_cap`; no row changes; route 409 with the approved over_cap text | none |
 | Already pinned | own pinned memory | Ok 1, `pinned`; `PinnedAt` unchanged; no cap re-check | none |
 | Pre-41.8 row | own row whose stored `Pinned` is empty | treated as unpinned; the pin follows the cap rule; not counted in the sum before it is pinned | none |
 | Unpin | own memory, pinned or not | `Pinned` 0, `PinnedAt` ""; Ok 1, Outcome `unpinned`; route 200 | none |
@@ -57,7 +57,7 @@ deferred: []
 | Lock or save fails | lock not free in 5 s; `%Save` error; exception | `failed` (shared `Failed`), one Type 3 warning | route 500 |
 | Forget a pinned memory | own pinned row | deleted (existing `OnForget`); gone from `Memory.Pinned` and from the next session-start block | none |
 | Session start with pins | user item, `sessionStart` 1, session has pins | preamble, persona block, core block, notes block, then text | a failed pinned read: no core block, one warning, the rest rendered |
-| Block at the bound | pins whose whole quoted block would exceed 4,000 | newest pins whole up to the bound; the first pin that doesn't fit is left out, with every older one; no marker line | none |
+| Block at the bound | pins whose rendered block is exactly 4,000 characters | every pin, whole; the block is 4,000 characters; nothing is left out | none |
 | Not a session start | no `sessionStart`, untrusted item, owner eval/instance/"" | no core block, and no read | none |
 | DW-967 | earlier same-day turn ended in a fallback whose reply decision has no Usage row (no_key, daily_cap, budget, too_large, a thrown Chat) | it does not count, so the next turn is a session start | a failed read: counts as a start, with one warning (as today) |
 | DW-967 reached | earlier same-day fallback turn whose reply decision has a Usage row (e.g. refusal, cut_off) | counts, so the next turn is not a start | none |
@@ -192,6 +192,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
 - AC 6 (DW-977): Given a session start, when today's note is built for the turn's item, then the note holds neither the current message's opening nor any later turn's. The Memory card's Notes route still lists the whole day.
 
 ## Spec Change Log
+
+- 2026-11-09 (Contest Planner rulings on the spec-gate items, relayed by the orchestrator): (1) CAP: the alternative is ruled. The core-memory block, heading and quotes included, is capped at 4,000 characters (1,000 tokens at 4 characters a token); a pin is refused with the existing `over_cap` answer when the rendered block would pass 4,000; a pinned fact is never left out of the input while it shows as pinned; 41.14's "never over 4,000 characters" holds exactly; 41.13's remaining-space figure uses the same computation; a test pins the pin that crosses the line by one character. Applied to the intent block (Always: the cap; the core-memory block; the matrix rows) and to epics.md Story 41.12 as a Rule 5 amendment `[AMENDED 2026-11-09, Contest Planner ruling]`. Re-planned (status draft). (2) The operator log line "The core memory of the session could not be read, so it was left out of the input: " is APPROVED. The heading stays "Your core memory (facts you pinned):" (EXPERIENCE.md:1070). (3) The two additive AD-21 spine lines, marked `[ADDED 2026-11-09, Story 41.12]`, are APPROVED.
 
 ## Review Triage Log
 
