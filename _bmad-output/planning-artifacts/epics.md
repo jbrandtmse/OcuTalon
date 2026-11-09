@@ -10246,6 +10246,7 @@ So that it never forgets the few things that matter most.
 - DW-977: today's note at a session start quotes the current message's own opening, so the model sees the person's words twice; leave the current and later turns out of the note (and update `Test.Bridge.SecondModel:TestIntegrationWebChat`) (ledger; routed by burndown 2026-11-09)
 - DW-1014: rows saved before Story 41.8 hold no stored `Pinned` value, so SQL such as `Pinned = 0` skips them; the pinned read and the cap sum use `COALESCE(Pinned, 0)` or read through `Memory.Row` (ledger; routed by harvest 2026-11-09)
 - DW-1029: the pin tests stop at a probe (`CommandsStep3Probe` answers any pin with error 5001, `MemoryApi:TestPin` real mode pins that 500), so once `MemoryOps` handles `PinMemory`/`UnpinMemory` they stay green past the real handler; re-pin them on the real outcomes, and fix `Memory/Ops.cls:19`'s origin comment (ledger; routed by cr 2026-11-09)
+- DW-1039: the real-HTTP test of the pin routes (`web/e2e/api/memory.spec.ts`) asserts today's 500 because `MemoryOps` has no pin handler; once this story handles `PinMemory`/`UnpinMemory`, assert 200 `{"result":"done"}`, 409 `over_cap` and a second-session 404 (ledger; routed by harvest 2026-11-09)
 
 ### Story 41.13: The Memory card: pinned and learned memories
 
@@ -10270,6 +10271,7 @@ So that I decide what OcuTalon keeps.
 - DW-996: unify the Memory card's `ForgetDialog` (`web/src/app/rail/memory-card/forget-dialog.ts`) with `documents/remove-dialog.ts` into one shared confirm dialog (ledger; routed by burndown 2026-11-09)
 - DW-1030: `GET /v1/memory/items` lists only the newest 20 (or a search's best 5), with no pinned filter, paging or used-token figure, so it cannot back the Pinned tab; the card needs the pinned rows and the {used} of 1,000 tokens (ledger; routed by cr 2026-11-09)
 - DW-1031: the card's memory search runs only on submit, never per keystroke, and on the online demo each search counts against the existing message allowance (no new number), so searches cannot fill the shared embedder queue (ledger; routed by owner 2026-11-09, Contest Planner ruling under the owner's delegation)
+- DW-1040: the memory search's 503 `search_busy` must not raise the online demo's whole-page busy state (`DemoBusyState`, the chat outbox): the card shows a local "search is busy" message for a 503 whose code is `search_busy` (ledger; routed by harvest 2026-11-09)
 
 ### Story 41.14: Evaluation and tests for memory's second part
 

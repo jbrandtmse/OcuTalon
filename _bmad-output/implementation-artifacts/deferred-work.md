@@ -6251,3 +6251,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Web/Api.cls ReadMemories -> Memory.Search -> Embedding.Embed (WorkMgr category, MAXACTIVEWORKERS 2, TIMEOUT 120 s); no 429 on the route; unreachable today because the route fails before embedding (41.9 review HIGH)
 - 2026-11-09T16:35:22Z status=decision-pending owner=burndown by=cr note=decide with the 41.9 search-path ruling: an allowance on item search, or search on submit only in 41.13
 - 2026-11-09T16:41:26Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=owner note=planner-2026-11-09-41.9-readpath_DW-1031:_the_Memory_card_searches_only_on_submit,never_per_keystroke;on_the_demo_each_search_counts_against_the_existing_message_allowance;no_new_number
+
+### DW-1039: The real-HTTP test of the pin routes (web/e2e/api/memory.spec.ts) asserts today's 500 server_error because MemoryOps has no pin handler before 41.12; replace it with 200 {result:done}, 409 over_cap and a second-session 404 when 41.12 handles PinMemory/UnpinMemory (standing real-HTTP rule)
+- source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Task 0: a pin gives Outcome failed; memory.spec.ts pin step pins the 500
+- 2026-11-09T17:30:18Z status=routed owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=harvest note=goes red when 41.12 lands; fix in 41.12
+
+### DW-1040: The search's 503 search_busy reaches the Angular client as an API 503, which the online demo reads as its whole-page busy state (DemoBusyState, chat outbox) rather than a local search-is-busy message; the card must not raise the demo-busy banner on a busy search
+- source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: web/src/app/live/demo-busy.ts holds the API cause from any 503 until the next 2xx; chat-outbox.ts offers the message back on a 503; no client calls the route before 41.13
+- 2026-11-09T17:30:18Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=harvest note=41.13: the client treats a 503 whose code is search_busy as a local message (or the status changes; a Planner call if so)
