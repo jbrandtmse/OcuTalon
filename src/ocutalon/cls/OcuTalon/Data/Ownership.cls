@@ -46,6 +46,9 @@
 ///     first: Conversation's code-written note to the next turn reads it (AD-30). It is a Rows kind like the others.
 ///   - Precedents and Precedent (Story 41.2) are the session's own precedents (Data.Precedent), newest answer first, and one by its Ref; Rows kinds too. A row of
 ///     another session or of owner eval, and a row that has an EvalRunRef, answers like a missing one.
+///   - Memories, Memory and MemoryTotal (Story 41.9) are the session's own memories (Data.Memory), newest SavedAt first and then newest ID first, one by its Ref, and the session's
+///     count of them; Rows kinds too, so that the Memory card's list is read as the signed-in user, who has no SQL privilege (and no search service). A row of another session answers
+///     like a missing one, and the count is the session's own. The search is not here: it is the SearchMemory verb's, which MemoryOps answers.
 ///   - PhoneDecision (Story 41.5) is the DecisionRef of the session's own phone tell-now Delivery row for a simulated phone message's Ref; a Rows kind too.
 ///   - The daily note's reads (Story 41.3) are Rows kinds too, each owner-scoped and each in a window [from, to) of UTC times: NoteTurns (the session's turns that are not
 ///     refused, by CreatedAt), NoteDecisions (its decide decisions, by RecordedAt), NoteIncidents (the incidents it sees, as Incidents does, by NoticedAt), NoteApprovals (the
@@ -706,6 +709,31 @@ ClassMethod Precedent(ref As %String, sessionRef As %String, Output sc As %Statu
 	Quit rows.GetAt(1)
 }
 
+/// The session's own memories (Data.Memory), newest SavedAt first and then newest ID first, at most max. sc is an error status when the read failed.
+ClassMethod Memories(sessionRef As %String, max As %Integer = 20, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("memories", sessionRef, .sc, +max)
+}
+
+/// The number of memories (Data.Memory) the session has; 0, with an error status in sc, when the read failed.
+ClassMethod MemoryTotal(sessionRef As %String, Output sc As %Status) As %Integer
+{
+	Set rows = ..Rows("memoryTotal", sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) || (rows.Count() = 0) Quit 0
+	Quit rows.GetAt(1).total
+}
+
+/// The memory with this Ref when it is the session's own, otherwise "": a row of another session answers like a missing one. ref may come from request input; it is only
+/// ever a bound value.
+ClassMethod Memory(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Memory
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ref = "" Quit ""
+	Set rows = ..Rows("memory", sessionRef, .sc, ref)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
 /// The session's turns that are not refused and were created in the window [from, to) (UTC strings, as CreatedAt is), by CreatedAt and then ID. An empty bound gives an empty
 /// list and an error status in sc, and so does a failed read.
 ClassMethod NoteTurns(sessionRef As %String, from As %String, to As %String, Output sc As %Status) As %ListOfObjects
@@ -904,6 +932,10 @@ ClassMethod Rows(kind As %String, ownerRef As %String, Output sc As %Status, arg
 				Set sc = $SYSTEM.Status.Error(5001, "The read of '"_kind_"' failed: "_result.%Message)
 			} Else {
 				While result.%Next() {
+					If class = "" {
+						Do list.Insert({"total": (+result.%GetData(1))})
+						Continue
+					}
 					Set row = $ClassMethod(class, "%OpenId", result.%Get("ID"))
 					If $IsObject(row) Do list.Insert(row)
 				}
@@ -915,7 +947,7 @@ ClassMethod Rows(kind As %String, ownerRef As %String, Output sc As %Status, arg
 	Quit list
 }
 
-/// The fixed statement of a row kind, with the class of its rows and its bind pattern: one letter per ? of the text,
+/// The fixed statement of a row kind, with the class of its rows (empty for a count, whose rows are not opened) and its bind pattern: one letter per ? of the text,
 /// in order, o for the owner's Ref and a for the next further argument of Rows. An unknown kind gives "". The texts
 /// are constants of this class; nothing is built from an argument. Every one has the owner check in its WHERE clause.
 ClassMethod Statement(kind As %String, Output class As %String, Output binds As %String) As %String [ Final, Private ]
@@ -1092,6 +1124,19 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "precedent" {
 		Set class = "OcuTalon.Data.Precedent", binds = "ao"
 		Quit "SELECT p.ID FROM OcuTalon_Data.Precedent p WHERE p.Ref = ? AND p.OwnerRef = ? AND p.EvalRunRef IS NULL"
+	}
+	If kind = "memories" {
+		Set class = "OcuTalon.Data.Memory", binds = "ao"
+		Quit "SELECT TOP ? m.ID FROM OcuTalon_Data.Memory m WHERE m.SessionRef = ? ORDER BY m.SavedAt DESC, m.ID DESC"
+	}
+	If kind = "memory" {
+		Set class = "OcuTalon.Data.Memory", binds = "ao"
+		Quit "SELECT m.ID FROM OcuTalon_Data.Memory m WHERE m.Ref = ? AND m.SessionRef = ?"
+	}
+	If kind = "memoryTotal" {
+		// A count: no row is opened (class is empty), and each result row is {"total": the first column}.
+		Set binds = "o"
+		Quit "SELECT COUNT(*) FROM OcuTalon_Data.Memory WHERE SessionRef = ?"
 	}
 	If kind = "noteTurns" {
 		Set class = "OcuTalon.Data.Turn", binds = "oaa"

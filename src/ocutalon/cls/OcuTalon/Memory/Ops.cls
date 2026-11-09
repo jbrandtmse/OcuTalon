@@ -13,6 +13,9 @@
 ///   - ForgetMemory: the row is found by its Ref, and it is the command's session's own row or nothing: a Ref that no row has and a Ref of another
 ///     session's memory answer the same not_found (Ok 0) and delete nothing (DW-740). Otherwise the row is deleted, with its vector and keyword
 ///     entries, and the answer is forgotten (Ok 1).
+///   - SearchMemory (Story 41.9; a read, from origin web_user): OcuTalon.Memory.Search runs for the command's own SessionRef, never another, with the query and at most
+///     OcuTalon.Memory MAXLIMIT items, and the answer is Ok 1, Outcome done, with the items as the JSON array [{ref, text, savedAt, source, pinned}] (pinned a
+///     boolean, no origin) in Data. It changes no row and takes no lock. A search that fails (an empty query or session, a query that cannot be embedded) answers failed.
 ///   - A lock on the session that cannot be taken within 5 seconds, a save or delete that fails and any exception answer failed.
 ///   - After a new row is saved, Tuned is called with its id, which has the SQL statistics of the table gathered at every STATSEVERY-th id
 ///     (OcuTalon.Memory.Tune), so that the recall query keeps using the HNSW index as the table grows.
@@ -46,6 +49,9 @@ XData MessageMap
 </MapItem>
 <MapItem MessageType="OcuTalon.Msg.Command.ForgetMemory">
 <Method>OnForget</Method>
+</MapItem>
+<MapItem MessageType="OcuTalon.Msg.Command.SearchMemory">
+<Method>OnSearch</Method>
 </MapItem>
 </MapItems>
 }
@@ -151,6 +157,28 @@ Method OnForget(request As OcuTalon.Msg.Command.ForgetMemory, Output response As
 		Set sc = ..Failed(.response, exception.AsStatus())
 	}
 	Lock -^OcuTalon.Memory(request.SessionRef)
+	Quit sc
+}
+
+/// Searches the command's session's memories for its query and answers the items in Data (see the class description).
+Method OnSearch(request As OcuTalon.Msg.Command.SearchMemory, Output response As OcuTalon.Msg.CommandResult) As %Status
+{
+	Set response = ""
+	Set sc = ##class(OcuTalon.Memory).Search(request.SessionRef, request.Query, ##class(OcuTalon.Memory).#MAXLIMIT, .rows)
+	If $$$ISERR(sc) Quit ..Failed(.response, sc)
+	Set items = []
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		Set item = {}
+		Set item.ref = row.memoryRef
+		Set item.text = row.text
+		Set item.savedAt = row.savedAt
+		Set item.source = row.source
+		Do item.%Set("pinned", (row.pinned = 1), "boolean")
+		Do items.%Push(item)
+	}
+	Set sc = ..Answer(.response, 1, "done", "")
+	Set response.Data = items.%ToJSON()
 	Quit sc
 }
 

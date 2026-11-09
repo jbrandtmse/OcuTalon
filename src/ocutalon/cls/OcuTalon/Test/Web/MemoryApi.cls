@@ -2,9 +2,10 @@
 /// DELETE /v1/memory/precedents/:ref, GET /v1/memory/notes, GET /v1/memory/items, POST and DELETE /v1/memory/:ref/pin and DELETE /v1/memory/items/:ref, called with
 /// stand-in request and response objects and a CSP session whose OcuTalon.SessionRef is a fixture session. Safe on a slot: the writes go through the SubmitMemory seam
 /// of Test.Web.MemoryApiProbe, which records what the route submitted and answers what the test scripts, or in its real mode lets the real gate and the real MemoryOps
-/// answer through shadow instances; the precedent reads (Ownership) are the real ones, and the memory item reads go through the probe's ReadMemories seam, which records,
-/// fails, or makes the real read. The signed-out 401 comes from the superclass ApiBase and is tested over real HTTP (web/e2e/api/memory.spec.ts). The expected texts
-/// are written out here, never read from Web.Api. The fixture sessions, Decisions and Precedent rows, and the fixture sessions' memory rows, are removed by Ref.
+/// answer through shadow instances (a SearchMemory too, and in its timeout mode the real gate gets no answer in time); the precedent reads and the memory list (Ownership) are the real
+/// ones, and the memory item reads go through the probe's ReadMemories seam, which records, fails, or makes the real read (the list through Ownership, the search through SearchMemory). The signed-out 401 comes from the superclass ApiBase and is tested over real HTTP (web/e2e/api/memory.spec.ts). The expected texts
+/// are written out here, never read from Web.Api. None of these tests reads a memory through Memory.List or Memory.Search from the route: the list is Ownership's, and the search is
+/// the SearchMemory verb that the real MemoryOps answers. The fixture sessions, Decisions and Precedent rows, and the fixture sessions' memory rows, are removed by Ref.
 ///   - TestListPrecedents: the session's own rows, newest first, at most 100, each with the seven members of the view, and no seeded row and no other session's;
 ///   - TestForgetPrecedent: a ref the session can't see is 404 before anything is submitted; its own row submits a ForgetPrecedent for the session and answers
 ///     200 {"result":"done"}; the owner's other answers are mapped;
@@ -15,8 +16,12 @@
 ///   - TestNoteLines: the note text is split on line feeds into non-empty strings, the builder gets the session and the local date, and a throw is 500 server_error;
 ///   - TestNoSessionIs500: with no CSP session every route is 500 server_error and nothing is submitted;
 ///   - TestItems (Story 41.9): GET /v1/memory/items lists the session's own memories newest first as {ref, text, savedAt, source, pinned} with the session's total, never
-///     another session's, at most 20; q is trimmed and cut at 2,000 characters, a blank q lists, and a failed read is 500 server_error;
-///   - TestItemsSearch: a search answers the session's own best memories only (on OcuTalon's image; a named skip elsewhere);
+///     another session's, at most 20, through Ownership with no command submitted; q is trimmed and cut at 2,000 characters, a blank q lists, and a failed read is 500 server_error;
+///   - TestItemsSearch: a search is a SearchMemory that the real MemoryOps answers with the session's own best memories only (on OcuTalon's image; a named skip elsewhere);
+///   - TestSearchSubmitsTheVerb: a search submits one SearchMemory for the session and the trimmed q, relays the owner's items with their count, and maps the other answers: failed, not
+///     allowed, an error status, no result and an answer whose Data is not an array of items are 500 server_error (the failed-search row); busy is 503 search_busy;
+///   - TestSearchBusy: a search whose owner gives no answer in time (the real gate, with a send that times out) is 503 search_busy with the approved sentence, after a wait of 20 seconds, and logs no error;
+///   - TestSearchHandler: the real MemoryOps.OnSearch answers failed for an empty query, and searches only the command's own SessionRef (on OcuTalon's image; a named skip elsewhere);
 ///   - TestPin: POST and DELETE /v1/memory/:ref/pin submit PinMemory and UnpinMemory for the session with origin web_user; the owner's answers are mapped (done 200,
 ///     not_found 404, over_cap 409, not_built 501, the rest 500), and a ref that names no memory is 404 before anything is submitted;
 ///   - TestOverCapText: the approved sentence of the 409, pinned by a copy held here;
@@ -39,6 +44,9 @@ Parameter TOOOLD = "This notice is too old to mark as noise. Nothing was changed
 
 /// The approved text of the pin route's 409 over_cap (public text), held here word for word.
 Parameter OVERCAP = "That would go over the 1,000-token limit. Unpin something first.";
+
+/// The approved text of the search's 503 search_busy (public text), held here word for word.
+Parameter SEARCHBUSY = "Search is busy right now. Try again in a moment.";
 
 /// The run's number.
 Property Number As %Integer;
@@ -252,6 +260,7 @@ Method TestItems()
 	Set none = ..Items(.response, , 0)
 	Set blank = ..Items(.response, "   ")
 	Do $$$AssertEquals(blank, none, "a blank q is the same list")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("MemoryApiProbe", "submitted")), 0, "and a list submits no SearchMemory")
 	Set answer = {}.%FromJSON(none)
 	Set refs = ""
 	For i = 0:1:answer.items.%Size() - 1 {
@@ -279,9 +288,13 @@ Method TestItems()
 	Set body = ..Items(.response, , 0)
 	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_..ErrorBody("server_error", "Something went wrong inside OcuTalon. Try again."), "a failed read is 500 server_error")
 	Do $$$AssertTrue($Get(^OcuTalonTest("MemoryApiProbe", "logged")) [ "zz the memories could not be read", "and the cause is logged")
+	Set ^OcuTalonTest("MemoryApiProbe", "readMode") = "ownershipFails"
+	Set body = ..Items(.response, , 0)
+	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_..ErrorBody("server_error", "Something went wrong inside OcuTalon. Try again."), "a list that Ownership refuses (the real list branch fails) is 500 server_error, not an empty list")
 }
 
-/// With q the route searches (Memory.Search, the best 5) and answers only the session's own memories, total their number. Needs the embedder of OcuTalon's image.
+/// With q the route searches (a SearchMemory that the real MemoryOps answers with the best 5) and answers only the session's own memories, total their number. Needs the embedder
+/// of OcuTalon's image.
 Method TestItemsSearch()
 {
 	If '##class(OcuTalon.Test.Memory.Fixture).OnImage() {
@@ -294,9 +307,11 @@ Method TestItemsSearch()
 		Set mine = ##class(OcuTalon.Bridge.Ids).NewRef(), theirs = ##class(OcuTalon.Bridge.Ids).NewRef()
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(session, mine, "the VPN gateway is vpn.example.test", "2030-01-01T10:00:00Z"), "the session's memory is stored")
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(other, theirs, "the VPN gateway of the other team is vpn.other.test", "2030-01-02T10:00:00Z"), "another session's memory is stored")
+		Set ^OcuTalonTest("MemoryApiProbe", "submit") = "real"
 		Set body = ..Items(.response, "vpn gateway")
 		Set answer = {}.%FromJSON(body)
 		Do $$$AssertEquals(response.Status, "200 OK", "200")
+		Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "class")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "session"), "1|OcuTalon.Msg.Command.SearchMemory|"_session, "one SearchMemory was submitted, for the session")
 		Do $$$AssertEquals(answer.items.%Size()_"|"_answer.total, "1|1", "one item, and total is the item count")
 		Do $$$AssertEquals(answer.items.%Get(0).%ToJSON(), "{""ref"":"""_mine_""",""text"":""the VPN gateway is vpn.example.test"",""savedAt"":""2030-01-01T10:00:00Z"",""source"":""told"",""pinned"":false}", "it is the session's own memory, and not the other session's")
 		Set mineRefs = mine
@@ -311,6 +326,103 @@ Method TestItemsSearch()
 		}
 		Do $$$AssertEquals(answer.items.%Size()_"|"_answer.total, "5|5", "seven memories of the session match: the best 5 come back, and total is the item count")
 		Do $$$AssertTrue(found, "and every one of them is the session's own, never the other session's")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the search threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Test.Memory.Fixture).Restore(.state)
+}
+
+/// A search submits one SearchMemory with the session's own Ref and the trimmed q (origin web_user, through the SubmitMemory seam), relays the items of the owner's answer with total
+/// their number, and maps every other answer: not Ok (failed, not_allowed, any outcome), an error status, no result and Data that is not an array of items are 500 server_error
+/// with the cause logged; Outcome busy is 503 search_busy with the approved sentence. This is the real search branch of the route (the probe's ReadMemories seam is not used).
+Method TestSearchSubmitsTheVerb()
+{
+	Set session = ..Session()
+	Set serverError = ..ErrorBody("server_error", "Something went wrong inside OcuTalon. Try again.")
+	Set items = [{"ref": "zzmemone", "text": "zz one", "savedAt": "2030-01-01T10:00:00Z", "source": "told", "pinned": false}, {"ref": "zzmemtwo", "text": "zz two", "savedAt": "2030-01-02T10:00:00Z", "source": "learned", "pinned": true}]
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(1, "done", items.%ToJSON())
+	Set body = ..Items(.response, "  vpn gateway  ")
+	Do $$$AssertEquals(response.Status_"|"_response.ContentType, "200 OK|application/json", "200 JSON")
+	Do $$$AssertEquals(body, {"items": (items), "total": 2}.%ToJSON(), "the owner's items, as they are, with total their number")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted"), 1, "one command was submitted")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted", 1, "class")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "session")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "ref"), "OcuTalon.Msg.Command.SearchMemory|"_session_"|vpn gateway", "a SearchMemory for the session and the trimmed q")
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(1, "done", "[]")
+	Set body = ..Items(.response, "vpn")
+	Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""items"":[],""total"":0}", "no hit: an empty list")
+	Set cases = $ListBuild($ListBuild("failed", ..Spec(0, "failed")), $ListBuild("not_allowed", ..Spec(0, "not_allowed")), $ListBuild("an unknown outcome", ..Spec(0, "zz")), $ListBuild("a failed answer that carries items", ..Spec(0, "failed", "[]")), $ListBuild("an error status", "fail"), $ListBuild("no result", "none"), $ListBuild("Data that is not JSON", ..Spec(1, "done", "not json")), $ListBuild("Data that is an object", ..Spec(1, "done", "{}")), $ListBuild("no Data", ..Spec(1, "done")))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Kill ^OcuTalonTest("MemoryApiProbe", "logged")
+		Set ^OcuTalonTest("MemoryApiProbe", "submit") = $List(case, 2)
+		Set body = ..Items(.response, "vpn")
+		Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_serverError, "a search answered with "_$List(case, 1)_" is 500 server_error")
+		Do $$$AssertTrue($Get(^OcuTalonTest("MemoryApiProbe", "logged")) '= "", "and the cause is logged")
+	}
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(0, "busy")
+	Set body = ..Items(.response, "vpn")
+	Do $$$AssertEquals(response.Status_"|"_response.ContentType_"|"_body, "503 Service Unavailable|application/json|"_..ErrorBody("search_busy", ..#SEARCHBUSY), "Outcome busy is 503 search_busy with the approved sentence")
+}
+
+/// A search whose owner gives no answer in time: the real gate (CommandsIn on a send that times out, as the framework does) answers Outcome busy after the 20-second wait for a SearchMemory,
+/// and the route answers 503 search_busy with the approved sentence, never a hang or a 500, and logs no error. The approved sentence is held here word for word.
+Method TestSearchBusy()
+{
+	Set session = ..Session()
+	Do $$$AssertEquals($Parameter(..#PROBE, "MESSAGESEARCHBUSY"), "Search is busy right now. Try again in a moment.", "the parameter is the approved sentence")
+	Do $$$AssertEquals($Parameter(..#PROBE, "MESSAGESEARCHBUSY"), ..#SEARCHBUSY, "and equals the test's copy")
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = "timeout"
+	Set body = ..Items(.response, "vpn gateway")
+	Do $$$AssertEquals(response.Status_"|"_response.ContentType_"|"_body, "503 Service Unavailable|application/json|"_..ErrorBody("search_busy", ..#SEARCHBUSY), "503 search_busy")
+	Do $$$AssertEquals($Get(^OcuTalonTest("MemoryApiProbe", "waited")), 20, "after the wait of 20 seconds that the gate asked for")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted", 1, "class")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "session"), "OcuTalon.Msg.Command.SearchMemory|"_session, "for a SearchMemory of the session")
+	Do $$$AssertEquals($Get(^OcuTalonTest("MemoryApiProbe", "logged")), "", "and no error was logged: a busy search is not a server error")
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = "timeout"
+	Set body = ..Call("ForgetMemory", .response, "zzmemref")
+	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_..ErrorBody("server_error", "Something went wrong inside OcuTalon. Try again."), "control: a forget whose owner gives no answer is a failed command, 500, not busy")
+	Do $$$AssertEquals($Get(^OcuTalonTest("MemoryApiProbe", "waited")), 120, "after the wait of 120 seconds")
+}
+
+/// The real MemoryOps.OnSearch (on a shadow instance, as the production runs it): an empty or blank query answers failed (Ok 0) and throws nothing; with the embedder of OcuTalon's image it
+/// answers Ok 1, done, with the items [{ref, text, savedAt, source, pinned}] of the command's own SessionRef only, so that another session's search for a phrase only the first session's memory
+/// holds returns none of the first session's memories (a boolean pinned, no origin). The route sets that SessionRef (TestSessionNeverFromClient).
+Method TestSearchHandler()
+{
+	Set owner = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Memory.Ops", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of MemoryOps is made")
+	Set session = ..Session(), other = ..OtherSession()
+	For query = "", "   " {
+		Set command = ##class(OcuTalon.Msg.Command.SearchMemory).%New()
+		Set command.SessionRef = session
+		Set command.Query = query
+		Set sc = owner.OnSearch(command, .response)
+		Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Data, "0|failed|", "a search for '"_query_"' answers failed, with no items")
+	}
+	If '##class(OcuTalon.Test.Memory.Fixture).OnImage() {
+		Do $$$AssertSkipped("Not OcuTalon's image: "_##class(OcuTalon.Test.Memory.Fixture).#VERSIONFILE_" does not exist on this instance (a slot or a developer instance)")
+		Quit
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Prepare(.state), "the embedder is prepared")
+	Try {
+		Set mine = ##class(OcuTalon.Bridge.Ids).NewRef(), lunch = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(session, mine, "the zzquokka gateway is quokka.example.test", "2030-01-01T10:00:00Z", "tool", "zzmemoryapi", "learned"), "the session's memory is stored")
+		Set row = ##class(OcuTalon.Data.Memory).RefIndexOpen(mine)
+		Set row.Pinned = 1
+		Do $$$AssertStatusOK(row.%Save(), "and pinned")
+		Set command = ##class(OcuTalon.Msg.Command.SearchMemory).%New()
+		Set command.SessionRef = session
+		Set command.Query = "zzquokka gateway"
+		Set sc = owner.OnSearch(command, .response)
+		Do $$$AssertStatusOK(sc, "the handler answers OK")
+		Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "1|done", "Ok 1, done")
+		Do $$$AssertEquals(response.Data, "[{""ref"":"""_mine_""",""text"":""the zzquokka gateway is quokka.example.test"",""savedAt"":""2030-01-01T10:00:00Z"",""source"":""learned"",""pinned"":true}]", "the session's own memory, in the five members, pinned a boolean, with no origin")
+		Set command.SessionRef = other
+		Set sc = owner.OnSearch(command, .response)
+		Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Data, "1|done|[]", "another session's search for the same phrase finds none of the first session's memories")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(other, lunch, "an unrelated note about lunch", "2030-01-02T10:00:00Z"), "another session's own, unrelated memory is stored")
+		Set sc = owner.OnSearch(command, .response)
+		Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "1|done", "the other session's search is answered")
+		Do $$$AssertTrue(response.Data '[ mine, "and holds none of the first session's memories")
+		Do $$$AssertTrue(response.Data [ lunch, "only its own")
 	} Catch exception {
 		Do $$$AssertTrue(0, "the search threw: "_exception.DisplayString())
 	}
@@ -472,6 +584,10 @@ Method TestSessionNeverFromClient()
 	Set ^OcuTalonTest("MemoryApiProbe", "readMode") = "record"
 	Set body = ..ClientCall("MemoryItems", .response, "", other, "vpn")
 	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "read", "session")_"|"_^OcuTalonTest("MemoryApiProbe", "read", "query"), session_"|vpn", "the search reads for the session's Ref")
+	Kill ^OcuTalonTest("MemoryApiProbe")
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(1, "done", "[]")
+	Set body = ..ClientCall("MemoryItems", .response, "", other, "vpn")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted", 1, "class")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "session"), "OcuTalon.Msg.Command.SearchMemory|"_session, "the SearchMemory carries the session's Ref, not the client's")
 	For verb = "PinMemory", "UnpinMemory", "ForgetMemory" {
 		Kill ^OcuTalonTest("MemoryApiProbe", "submitted")
 		Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(1, "done")
@@ -518,6 +634,8 @@ Method TestNoSessionIs500()
 	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, "the notes are 500")
 	Set body = ..Items(.response, , 0, 1)
 	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, "the memory items are 500")
+	Set body = ..Items(.response, "vpn", 1, 1)
+	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, "a memory search is 500")
 	For method = "PinMemory", "UnpinMemory", "ForgetMemory" {
 		Set body = ..Call(method, .response, "zzref", 1)
 		Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, method_" is 500")

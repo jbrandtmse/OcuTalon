@@ -356,6 +356,14 @@ Method TestInjectionActions()
 	Do ..Command("zz-session", ..Utc())
 	Set report = ##class(OcuTalon.Eval.Report).Build(now, ..Folder)
 	Do $$$AssertEquals(report.actions.commands, 1, "a command of another session is not counted")
+	Set search = ##class(OcuTalon.Msg.Command.SearchMemory).%New()
+	Set search.SessionRef = "eval"
+	Set search.Query = "zz search"
+	Do $$$AssertStatusOK(search.%Save(), "a SearchMemory body of session eval is saved")
+	Do ..Keep(search)
+	Do ..Header($ClassName(search), search.%Id(), ..Utc())
+	Set report = ##class(OcuTalon.Eval.Report).Build(now, ..Folder)
+	Do $$$AssertEquals(report.actions.commands, 1, "a SearchMemory, a read, of session eval is no command: the count stays at the one StopWatch")
 
 	Set early = ..NewRun(), late = ..NewRun()
 	Set before = "2090-05-31T23:59:59Z", after = "2090-06-01T00:00:01Z"

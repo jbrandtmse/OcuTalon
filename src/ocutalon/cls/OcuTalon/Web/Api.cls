@@ -75,8 +75,10 @@
 ///     404 not_found first for a row the session can't see, 501 and 500 as above. GET /v1/memory/notes?day=today|yesterday (today when the day is
 ///     missing) answers 200 {"day","date","lines"}, with date the instance-zone date YYYY-MM-DD and lines the daily note's lines; any other day is 404 not_found.
 ///   - The memory item routes (Epic 41, second part; AD-1, AD-4, AD-13, AD-21), for the CSP session's session only: GET /v1/memory/items answers 200
-///     {"items":[{ref, text, savedAt, source, pinned}],"total"}, from Memory.List (the newest 20, total the session's count) when q is blank, else from
-///     Memory.Search(session, q, 5) (q trimmed and cut at 2,000 characters, total the number of items); a failed read or search is 500 server_error.
+///     {"items":[{ref, text, savedAt, source, pinned}],"total"}. A blank q reads the session's newest 20 memories and their count through Ownership (the signed-in
+///     user has no SQL privilege and no search service, AD-13); otherwise q (trimmed and cut at 2,000 characters) is searched by a SearchMemory (a read verb,
+///     origin web_user, through SubmitMemory) that MemoryOps answers with the best 5 of the session's own memories, total the number of items. A failed read or search
+///     is 500 server_error; a search that has no answer in time is 503 search_busy.
 ///     POST and DELETE /v1/memory/:ref/pin submit PinMemory and UnpinMemory, and DELETE /v1/memory/items/:ref submits ForgetMemory, each with
 ///     origin web_user through SubmitMemory: Ok is 200 {"result":"done"}; not_found 404; over_cap 409 (a pin or an unpin; 500 for a forget); not_built 501; anything else 500
 ///     server_error. MemoryOps matches the ref to the session's own rows, so another session's ref is 404 not_found and the row is kept.
@@ -178,8 +180,14 @@ Parameter MESSAGEOVERCAP = "That would go over the 1,000-token limit. Unpin some
 /// The most characters of the search text of GET /v1/memory/items: the length of Data.Memory's Text.
 Parameter MEMORYQUERYMAX = 2000;
 
-/// The most memories that a search of GET /v1/memory/items returns.
-Parameter MEMORYSEARCHMAX = 5;
+/// The most memories that a list of GET /v1/memory/items returns.
+Parameter MEMORYLISTMAX = 20;
+
+/// The message of the 503 search_busy of the memory search: the search has no answer in time.
+Parameter MESSAGESEARCHBUSY = "Search is busy right now. Try again in a moment.";
+
+/// The status line of a 503 answer.
+Parameter HTTP503SERVICEUNAVAILABLE = "503 Service Unavailable";
 
 /// The longest Ref of a memory (Data.Memory); a longer one names no memory.
 Parameter MEMORYREFMAX = 22;
@@ -1339,6 +1347,7 @@ ClassMethod Fail(status As %Integer, code As %String, message As %String, approv
 		405: ..#HTTP405METHODNOTALLOWED,
 		409: ..#HTTP409CONFLICT,
 		429: ..#HTTP429TOOMANYREQUESTS,
+		503: ..#HTTP503SERVICEUNAVAILABLE,
 		500: ..#HTTP500INTERNALSERVERERROR,
 		501: ..#HTTP501NOTIMPLEMENTED,
 		: status)
@@ -1796,39 +1805,80 @@ ClassMethod NoteText(sessionRef As %String, date As %String) As %String [ Privat
 	Quit ##class(OcuTalon.Data.DailyNote).Build(sessionRef, date)
 }
 
-/// GET /v1/memory/items?q= (AD-4, AD-21; Epic 41, second part): the session's memories as 200 {"items":[{ref, text, savedAt, source, pinned}],"total"}, each
-/// item a Memory row without its origin, pinned a boolean. A blank q lists the newest 20 and total is the session's count; otherwise q (trimmed, at most
-/// MEMORYQUERYMAX characters) is searched, the best MEMORYSEARCHMAX come back, and total is their number. A session that can't be read, a failed read and
-/// a failed search or embedding are 500 server_error.
+/// GET /v1/memory/items?q= (AD-4, AD-13, AD-21; Epic 41, second part): the session's memories as 200 {"items":[{ref, text, savedAt, source, pinned}],"total"}, each
+/// item a memory without its origin, pinned a boolean. A blank q lists the newest MEMORYLISTMAX and total is the session's count; otherwise q (trimmed, at most
+/// MEMORYQUERYMAX characters) is searched, the best come back, and total is their number. Neither read touches Data.Memory or Memory.List/Search here (ReadMemories).
+/// A session that can't be read and a failed read or search are 500 server_error; a search that has no answer in time is 503 search_busy.
 ClassMethod MemoryItems() As %Status
 {
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set query = $ZStrip($Extract($ZStrip(%request.Get("q"), "<>WC"), 1, ..#MEMORYQUERYMAX), "<>WC")
-	Set sc = ..ReadMemories(sessionRef, query, .rows, .total)
+	Set sc = ..ReadMemories(sessionRef, query, .items, .total, .busy)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
-	Set items = []
-	For i = 0:1:rows.%Size() - 1 {
-		Set row = rows.%Get(i)
-		Set item = {}
-		Set item.ref = row.memoryRef
-		Set item.text = row.text
-		Set item.savedAt = row.savedAt
-		Set item.source = row.source
-		Do item.%Set("pinned", (row.pinned = 1), "boolean")
-		Do items.%Push(item)
-	}
+	If busy Quit ..Fail(503, "search_busy", ..#MESSAGESEARCHBUSY)
 	Set %response.ContentType = ..#CONTENTTYPE
 	Write {"items": (items), "total": (+total)}.%ToJSON()
 	Quit $SYSTEM.Status.OK()
 }
 
-/// The rows of the session for the query, and their total: Memory.List when the query is empty, else Memory.Search with MEMORYSEARCHMAX; a seam for the tests.
-ClassMethod ReadMemories(sessionRef As %String, query As %String, Output rows As %DynamicArray, Output total As %Integer) As %Status [ Private ]
+/// The items of the session for the query, as the array [{ref, text, savedAt, source, pinned}], and their total; busy is 1 (and the status OK) when a search has no
+/// answer in time. A blank query is the session's newest memories through Ownership (ListMemories), anything else a search (SearchMemories). A seam for the tests.
+ClassMethod ReadMemories(sessionRef As %String, query As %String, Output items As %DynamicArray, Output total As %Integer, Output busy As %Boolean) As %Status [ Private ]
 {
-	If query = "" Quit ##class(OcuTalon.Memory).List(sessionRef, .rows, .total)
-	Set sc = ##class(OcuTalon.Memory).Search(sessionRef, query, ..#MEMORYSEARCHMAX, .rows)
-	Set total = $Select($IsObject($Get(rows)): rows.%Size(), 1: 0)
+	Set items = [], total = 0, busy = 0
+	If query = "" Quit ..ListMemories(sessionRef, .items, .total)
+	Quit ..SearchMemories(sessionRef, query, .items, .total, .busy)
+}
+
+/// The session's newest MEMORYLISTMAX memories and its count of them, read through Ownership.Memories and MemoryTotal.
+ClassMethod ListMemories(sessionRef As %String, Output items As %DynamicArray, Output total As %Integer) As %Status [ Private ]
+{
+	Set items = [], total = 0
+	Set rows = ##class(OcuTalon.Data.Ownership).Memories(sessionRef, ..#MEMORYLISTMAX, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Set count = ##class(OcuTalon.Data.Ownership).MemoryTotal(sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		Set item = {}
+		Set item.ref = row.Ref
+		Set item.text = row.Text
+		Set item.savedAt = row.SavedAt
+		Set item.source = $Select(row.Source = "learned": "learned", 1: "told")
+		Do item.%Set("pinned", (+row.Pinned = 1), "boolean")
+		Do items.%Push(item)
+	}
+	Set total = count
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The best memories of the session for the query: a SearchMemory with the session's SessionRef, submitted with origin web_user through SubmitMemory, which MemoryOps answers
+/// with the items in Data (the web user can't embed a query itself). An error status, no result and an answer that is not Ok with items are errors; an answer with Outcome
+/// busy (the gate got no answer in time) is busy 1 with an OK status.
+ClassMethod SearchMemories(sessionRef As %String, query As %String, Output items As %DynamicArray, Output total As %Integer, Output busy As %Boolean) As %Status [ Private ]
+{
+	Set items = [], total = 0, busy = 0
+	Set command = ##class(OcuTalon.Msg.Command.SearchMemory).%New()
+	Set command.Query = query
+	Set command.SessionRef = sessionRef
+	Set sc = ..SubmitMemory(command, .result)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	If '$IsObject(result) Quit $SYSTEM.Status.Error(5001, "CommandsIn answered no result")
+	If result.Outcome = "busy" {
+		Set busy = 1
+		Quit $SYSTEM.Status.OK()
+	}
+	If 'result.Ok Quit $SYSTEM.Status.Error(5001, "The SearchMemory was answered "_result.Outcome)
+	Try {
+		Set found = ##class(%DynamicAbstractObject).%FromJSON(result.Data)
+		If $ClassName(found) '= "%Library.DynamicArray" Throw ##class(%Exception.General).%New("SearchMemories", 5001, , "The SearchMemory answered no items")
+		Set items = found
+		Set total = found.%Size()
+	} Catch exception {
+		Set items = [], total = 0
+		Set sc = exception.AsStatus()
+	}
 	Quit sc
 }
 
@@ -1878,7 +1928,7 @@ ClassMethod MemoryItemCommand(verb As %String, ref As %String) As %Status [ Priv
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "The "_verb_" was answered "_outcome))
 }
 
-/// Submits the MarkNoise, ForgetPrecedent, PinMemory, UnpinMemory or ForgetMemory with origin web_user; result is the CommandResult. An error status means the command never reached CommandsIn.
+/// Submits the MarkNoise, ForgetPrecedent, PinMemory, UnpinMemory, ForgetMemory or SearchMemory with origin web_user; result is the CommandResult. An error status means the command never reached CommandsIn.
 ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)

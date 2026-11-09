@@ -1,7 +1,7 @@
 import { chk, irisScript, quoted } from './iris';
 
 /**
- * Fixtures of the memory specs (Story 41.2 api/memory.spec.ts, Story 41.6 memory-card.spec.ts): the Precedent rows and the note rows that a
+ * Fixtures of the memory specs (Story 41.2 api/memory.spec.ts, Story 41.6 memory-card.spec.ts, Story 41.9 api/memory.spec.ts): the Precedent rows, the memory rows and the note rows that a
  * case seeds directly through irisScript, and the reads that check them. Product code writes a precedent only through PrecedentOps; a
  * fixture may save and delete rows itself. Each case removes the rows it seeded by Ref in `finally`.
  */
@@ -54,6 +54,45 @@ export async function removePrecedent(ref: string): Promise<void> {
 /** 1 when the precedent row with the Ref is there, else 0. */
 export async function precedentExists(ref: string): Promise<number> {
   const lines = await irisScript([`Write !,"CHK|exists|",##class(OcuTalon.Data.Precedent).RefIndexExists(${quoted(ref)})`].join('\n'));
+  return Number(chk(lines, 'exists') ?? Number.NaN);
+}
+
+/** The Ref of the durable session of an IRIS user (Session.ForUser, which makes it on the first call). */
+export async function sessionRefOfUser(user: string): Promise<string> {
+  const lines = await irisScript(`Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)\nWrite !,"CHK|ref|",$Select($IsObject(s):s.Ref,1:"")`);
+  const ref = chk(lines, 'ref');
+  if (!ref) throw new Error(`the session of ${user} could not be found (${lines.join(' ')})`);
+  return ref;
+}
+
+/**
+ * Saves a memory of the session, saved now, through the memory area's own test fixture (Test.Memory.Fixture.Store: the row with the vector that the product's endpoint gives for
+ * the text, so that both the list and the search find it) and answers its Ref. Product code writes a memory only through MemoryOps; a fixture may save and delete rows itself.
+ */
+export async function seedMemory(session: string, text: string): Promise<string> {
+  const lines = await irisScript(
+    [
+      'Set ref=##class(OcuTalon.Bridge.Ids).NewRef()',
+      `Set sc=##class(OcuTalon.Test.Memory.Fixture).Store(${quoted(session)},ref,${quoted(text)},##class(OcuTalon.Data.Time).NowUtc())`,
+      'Write !,"CHK|ref|",$Select($SYSTEM.Status.IsOK(sc):ref,1:"")',
+      'Write !,"CHK|error|",$Select($SYSTEM.Status.IsOK(sc):"",1:$SYSTEM.Status.GetErrorText(sc))',
+    ].join('\n'),
+  );
+  const ref = chk(lines, 'ref');
+  if (!ref) throw new Error(`a memory could not be seeded (${chk(lines, 'error') ?? lines.join(' ')})`);
+  return ref;
+}
+
+/** Deletes the memory with the Ref, with its vector and keyword entries, if it is there. */
+export async function removeMemory(ref: string): Promise<void> {
+  await irisScript(
+    [`Set m=##class(OcuTalon.Data.Memory).RefIndexOpen(${quoted(ref)})`, 'If $IsObject(m) Do ##class(OcuTalon.Data.Memory).%DeleteId(m.%Id())', 'Write !,"CHK|removed|1"'].join('\n'),
+  );
+}
+
+/** 1 when the memory with the Ref is there, else 0. */
+export async function memoryExists(ref: string): Promise<number> {
+  const lines = await irisScript(`Write !,"CHK|exists|",##class(OcuTalon.Data.Memory).RefIndexExists(${quoted(ref)})`);
   return Number(chk(lines, 'exists') ?? Number.NaN);
 }
 

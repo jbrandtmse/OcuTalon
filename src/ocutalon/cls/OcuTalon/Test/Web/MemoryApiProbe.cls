@@ -5,9 +5,11 @@
 ///     PrecedentRef or the MemoryRef) and "channel" (a MarkNoise's), and answers from ^OcuTalonTest("MemoryApiProbe", "submit"): "fail" is an error status,
 ///     "none" is an OK status with no result, "real" sets the origin web_user as Commands.Submit does and has a shadow Test.Core.CommandsStep3Probe answer, so
 ///     that the real gate and the real MemoryOps answer (a memory verb only), and any other text is the JSON {"ok", "outcome", "message", "data"} of the
-///     CommandResult to answer;
+///     CommandResult to answer; "timeout" has a shadow Test.Core.CommandsTimeoutProbe answer, so that the real gate gets no answer from its owner in time (the wait it asked for
+///     is recorded under ("waited")); a SearchMemory records its Query as "ref";
 ///   - ReadMemories records its session and query under ^OcuTalonTest("MemoryApiProbe", "read", "session") and ("query"), and answers from
-///     ^OcuTalonTest("MemoryApiProbe", "readMode"): "fail" is an error status, "record" is OK with no rows (no search is made), and anything else is the real read;
+///     ^OcuTalonTest("MemoryApiProbe", "readMode"): "fail" is an error status, "record" is OK with no items (no read is made), "ownershipFails" runs the real read for an empty SessionRef, which Ownership refuses, and anything else is the real read (the list through
+///     Ownership, the search through SubmitMemory);
 ///   - NoteText records its arguments under ^OcuTalonTest("MemoryApiProbe", "note", "session") and ("date"), throws when ^OcuTalonTest("MemoryApiProbe", "noteText") is
 ///     "throw", and otherwise answers that text;
 ///   - HasUserRole (Story 41.9, QA) answers 1, so that a test can run OnPreDispatch past the role check to the AD-13 envelope that follows it (the test process holds
@@ -22,7 +24,7 @@ ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTa
 	Set n = $Increment(^OcuTalonTest("MemoryApiProbe", "submitted"))
 	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "class") = $ClassName(command)
 	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "session") = command.SessionRef
-	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "ref") = $Case($ClassName(command), "OcuTalon.Msg.Command.MarkNoise": command.DecisionRef, "OcuTalon.Msg.Command.ForgetPrecedent": command.PrecedentRef, : command.MemoryRef)
+	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "ref") = $Case($ClassName(command), "OcuTalon.Msg.Command.MarkNoise": command.DecisionRef, "OcuTalon.Msg.Command.ForgetPrecedent": command.PrecedentRef, "OcuTalon.Msg.Command.SearchMemory": command.Query, : command.MemoryRef)
 	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "channel") = $Select(command.%IsA("OcuTalon.Msg.Command.MarkNoise"): command.Channel, 1: "")
 	Set answer = $Get(^OcuTalonTest("MemoryApiProbe", "submit"))
 	If answer = "fail" Quit $SYSTEM.Status.Error(5001, "zz CommandsIn is not running")
@@ -33,6 +35,14 @@ ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTa
 		If '$IsObject(probe) Quit sc
 		Quit probe.OnProcessInput(command, .result)
 	}
+	If answer = "timeout" {
+		Set command.Origin = "web_user"
+		Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.CommandsTimeoutProbe", .sc)
+		If '$IsObject(probe) Quit sc
+		Set sc = probe.OnProcessInput(command, .result)
+		Set ^OcuTalonTest("MemoryApiProbe", "waited") = probe.SeenTimeout
+		Quit sc
+	}
 	Set spec = {}.%FromJSON(answer)
 	Set result = ##class(OcuTalon.Msg.CommandResult).%New()
 	Set result.Ok = spec.ok
@@ -42,15 +52,16 @@ ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTa
 	Quit $SYSTEM.Status.OK()
 }
 
-ClassMethod ReadMemories(sessionRef As %String, query As %String, Output rows As %DynamicArray, Output total As %Integer) As %Status [ Private ]
+ClassMethod ReadMemories(sessionRef As %String, query As %String, Output items As %DynamicArray, Output total As %Integer, Output busy As %Boolean) As %Status [ Private ]
 {
 	Set ^OcuTalonTest("MemoryApiProbe", "read", "session") = sessionRef
 	Set ^OcuTalonTest("MemoryApiProbe", "read", "query") = query
 	Set mode = $Get(^OcuTalonTest("MemoryApiProbe", "readMode"))
-	Set rows = [], total = 0
+	Set items = [], total = 0, busy = 0
 	If mode = "fail" Quit $SYSTEM.Status.Error(5001, "zz the memories could not be read")
 	If mode = "record" Quit $SYSTEM.Status.OK()
-	Quit ##super(sessionRef, query, .rows, .total)
+	If mode = "ownershipFails" Quit ##super("", query, .items, .total, .busy)
+	Quit ##super(sessionRef, query, .items, .total, .busy)
 }
 
 ClassMethod NoteText(sessionRef As %String, date As %String) As %String [ Private ]
