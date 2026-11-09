@@ -5853,3 +5853,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner live demo walk of v1.0.4, 2026-11-08 ~21:30Z | severity: high | fix-risk: low | footprint: in-epic
 - evidence: demo host v1.0.4 (host check 109/0/1); Watch/Reader.cls messages.log severity count (Story 17.5)
 - 2026-11-08T21:35:08Z status=routed owner=burndown by=orchestrator note=planner_ruling: HIGH for 1.0.5 after D3's slot; Task 0 measures which lines a fresh Docker install logs at start on builds 154 and 109; then report the narrowest fix before implementing: (a) ignore those exact start-up signatures or (b) count only errors after the instance start sequence ends; tests: start-up noise passes, a real later error still fails; any string change to the Planner
+
+### DW-989: Two other flag-only copies of NotRunning()'s enabled loop (Install/Step/Demo.cls start wait ~L571, Test/Eval/Feed/Fixture.cls wait) ignore an Enabled row of 0
+- source: _bmad-output/implementation-artifacts/spec-39-11-the-install-s-production-check-doesn-t-name-an-item-that-is.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 39.11 implement self-review: both repeat If '$Get($$$ConfigIsEnabled(item)) Continue; the Demo production has no row-0 item by default, so no failing path is shown
+- 2026-11-09T00:10:03Z status=wontfix-accepted owner=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=harvest note=reopen_if=a_Demo-production_item_gets_an_Enabled_row_of_0_or_the_Demo_start_wait/Eval_feed_wait_names_an_item_whose_row_is_0

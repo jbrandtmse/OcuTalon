@@ -4,6 +4,7 @@ type: 'bugfix'
 created: '2026-11-08'
 status: 'done'
 baseline_revision: '0408ba7b21c7748f25615ff2dc93867417654e11'
+baseline_commit: '0408ba7b21c7748f25615ff2dc93867417654e11'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
