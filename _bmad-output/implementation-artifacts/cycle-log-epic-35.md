@@ -8,3 +8,5 @@
 2026-11-09T05:51:12Z	Epic 35	ledger_load	total=979 open=0 routed=107 escalated=2 decision_pending=4 terminal=866 owner_unknown=0 burndown=91 reowned_none=0
 2026-11-09T05:51:12Z	Epic 35	retro_review_skipped	reason=no_x0_input_in_authority sources=ledger_owned_epic35:0,burndown:91(none_in_epic35_authority:DW-968_decided_at_Epic_18_merge_gate_as_a_separate_follow-up,DW-606_bridge_setting_Lane_A),to_x0:0,action_items:7_user_or_owner_owned,retro:none(gates.retrospective=skip) dispatch=first_dispatch
 2026-11-09T05:51:44Z	Epic 35	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_U8
+2026-11-09T05:59:55Z	Epic 35	hold_at_changed	from=2026-11-09T10:00Z to=2026-11-09T11:00Z by=orchestrator note=owner_call_no_new_stage_after_10:45Z_unless_boundary_by_11:15Z
+2026-11-09T05:59:55Z	Epic 35	slot_loaded	server=ocutalon-slot-b ns=OCUTALON head=ddd7d5c1 bridge=61 ocutalon=810 preload=1 compiled=clean server_classes=872 files=872 stale=0
