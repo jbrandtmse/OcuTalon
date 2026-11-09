@@ -147,3 +147,29 @@ test('the memory item routes: signed out, the list, an unknown forget, and the e
   await expectError(await request.fetch(`${MEMORY}/items/zzunknownref`, { method: 'DELETE', headers: envelope() }), 404, 'not_found', NOT_FOUND);
   await expectError(await request.fetch(`${MEMORY}/items/zzunknownref`, { method: 'DELETE', headers: envelope({ 'x-ocutalon-request': undefined }) }), 403, 'no_request_header', NO_REQUEST_HEADER);
 });
+
+/*
+ * Story 41.9 (QA): the other two write routes are behind the envelope as well, and a ref longer than the 22 characters of a memory Ref names no memory on any of the three,
+ * whatever MemoryOps does with a pin (so the test holds after Story 41.12).
+ */
+test('the memory item writes: the envelope on the pin routes, and an over-long ref', async ({ request }) => {
+  await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
+  const writes = [
+    { method: 'POST', url: (ref: string): string => `${MEMORY}/${ref}/pin` },
+    { method: 'DELETE', url: (ref: string): string => `${MEMORY}/${ref}/pin` },
+    { method: 'DELETE', url: (ref: string): string => `${MEMORY}/items/${ref}` },
+  ] as const;
+  const tooLong = 'z'.repeat(23);
+  for (const write of writes) {
+    const label = `${write.method} ${write.url('<ref>')}`;
+    const noHeader = await request.fetch(write.url('zzunknownref'), { method: write.method, headers: envelope({ 'x-ocutalon-request': undefined }) });
+    await expectError(noHeader, 403, 'no_request_header', NO_REQUEST_HEADER);
+    const notJson = await request.fetch(write.url('zzunknownref'), { method: write.method, headers: envelope({ 'content-type': 'text/plain' }) });
+    expect(notJson.status(), `${label} with text/plain is refused`).toBe(403);
+    expect(((await notJson.json()) as { error: { code: string } }).error.code).toBe('not_json');
+    const elsewhere = await request.fetch(write.url('zzunknownref'), { method: write.method, headers: envelope({ origin: 'http://evil.example' }) });
+    expect(elsewhere.status(), `${label} from another site is refused`).toBe(403);
+    expect(((await elsewhere.json()) as { error: { code: string } }).error.code).toBe('wrong_origin');
+    await expectError(await request.fetch(write.url(tooLong), { method: write.method, headers: envelope() }), 404, 'not_found', NOT_FOUND);
+  }
+});

@@ -6225,3 +6225,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: ARCHITECTURE-SPINE.md AD-29 Epic 41 second-part names line; Tools/MemorySource.cls Of; Memory/Ops.cls TurnOf (code review patch)
 - 2026-11-09T10:35:54Z status=wontfix-accepted owner=41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns by=cr note=reopen_if=a later story derives Source from the spine line alone (then amend the line under U7 with the Planner)
+
+### DW-1027: Web.Api MemoryItemCommand's submit-and-map tail (SubmitMemory, no-result 500, Ok done, not_found 404, not_built 501, else 500) near-copies ForgetPrecedent's and MarkNoise's; unify them on one private mapper
+- source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Web/Api.cls MemoryItemCommand vs ForgetPrecedent (about 12 lines alike); the Epic 35 contention ruling forbade in-place edits to shared Web/Api.cls lines in Story 41.9, so the copy was forced
+- 2026-11-09T16:35:13Z status=routed owner=burndown by=cr note=Rule 2 copy forced by the 41.9/35.2 plain-union ruling; unify after Epic 35's merge
+
+### DW-1028: Test.Web DocumentsApi.PreDispatch and SettingsApi.PreDispatch still copy the OnPreDispatch runner; move them to Test.Web.Api.PreDispatchOf (added by Story 41.9 for MemoryApi)
+- source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Web/DocumentsApi.cls:691 and Test/Web/SettingsApi.cls:593 repeat the stand-in request, Capture, OnPreDispatch and Collect lines that PreDispatchOf now holds
+- 2026-11-09T16:35:13Z status=routed owner=burndown by=cr note=Rule 2; MemoryApi's copy was replaced in 41.9's review
+
+### DW-1029: Pin tests stop at a probe: CommandsStep3Probe answers any pin with error 5001 and MemoryApi:TestPin real mode pins that 500, so once MemoryOps handles PinMemory/UnpinMemory both stay green past the real handler; Memory/Ops.cls:19 still says origin tool only
+- source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Test/Core/CommandsStep3Probe.cls $Case (else 5001) and Test/Web/MemoryApi.cls TestPin real branch assert 500; 41.12 must dispatch pins to its handlers in the probe and assert done/over_cap through the real MemoryOps
+- 2026-11-09T16:35:22Z status=routed owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=cr note=update the probe's $Case, TestPin's real branch and the Ops class comment with the pin handler
+
+### DW-1030: GET /v1/memory/items cannot back 41.13's Pinned tab: it lists only the newest 20 (or the best 5 of a search), with no pinned filter, paging or used-token figure, so an older pinned memory and the {used} of 1,000 tokens are out of reach
+- source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Web/Api.cls MemoryItems uses Memory.List (LISTLIMIT 20); epics Story 41.13 asks for a Pinned tab with '{used} of 1,000 tokens (estimated)'
+- 2026-11-09T16:35:22Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=cr note=41.13's plan names the pinned read (a pinned view of the route, or a field) and who computes used
+
+### DW-1031: Memory item search embeds on every GET with no allowance: a signed-in visitor (or a per-keystroke search box) can fill the shared Embedder queue (2 workers) that the agent's save_memory and search_memories also use
+- source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Web/Api.cls ReadMemories -> Memory.Search -> Embedding.Embed (WorkMgr category, MAXACTIVEWORKERS 2, TIMEOUT 120 s); no 429 on the route; unreachable today because the route fails before embedding (41.9 review HIGH)
+- 2026-11-09T16:35:22Z status=decision-pending owner=burndown by=cr note=decide with the 41.9 search-path ruling: an allowance on item search, or search on submit only in 41.13

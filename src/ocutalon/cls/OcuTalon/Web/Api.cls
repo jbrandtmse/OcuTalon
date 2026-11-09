@@ -78,7 +78,7 @@
 ///     {"items":[{ref, text, savedAt, source, pinned}],"total"}, from Memory.List (the newest 20, total the session's count) when q is blank, else from
 ///     Memory.Search(session, q, 5) (q trimmed and cut at 2,000 characters, total the number of items); a failed read or search is 500 server_error.
 ///     POST and DELETE /v1/memory/:ref/pin submit PinMemory and UnpinMemory, and DELETE /v1/memory/items/:ref submits ForgetMemory, each with
-///     origin web_user through SubmitMemory: Ok is 200 {"result":"done"}; not_found 404; over_cap 409 (a pin only); not_built 501; anything else 500
+///     origin web_user through SubmitMemory: Ok is 200 {"result":"done"}; not_found 404; over_cap 409 (a pin or an unpin; 500 for a forget); not_built 501; anything else 500
 ///     server_error. MemoryOps matches the ref to the session's own rows, so another session's ref is 404 not_found and the row is kept.
 ///   - The documents routes (Story 34.2; GET and POST /v1/documents, DELETE /v1/documents/:ref) are OcuTalon.Web.Documents', forwarded by
 ///     the map at the end of the URL map.

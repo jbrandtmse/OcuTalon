@@ -1,6 +1,6 @@
-/// A subclass of OcuTalon.Web.Api for the tests of the memory routes (Story 41.2), which overrides the private seam SubmitMemory so that a test can reach every
-/// answer of the owner without a running production, and records the cause of each 500. The reads (Ownership) are the real ones. It has no Test methods and the
-/// product never refers to it.
+/// A subclass of OcuTalon.Web.Api for the tests of the memory routes (Stories 41.2 and 41.9), which overrides the private seams SubmitMemory, ReadMemories and NoteText
+/// so that a test can reach every answer of the owner without a running production, and records the cause of each 500. The precedent reads (Ownership) are the real
+/// ones. It has no Test methods and the product never refers to it.
 ///   - SubmitMemory records each command under ^OcuTalonTest("MemoryApiProbe", "submitted", n) as "class", "session", "ref" (the DecisionRef, the
 ///     PrecedentRef or the MemoryRef) and "channel" (a MarkNoise's), and answers from ^OcuTalonTest("MemoryApiProbe", "submit"): "fail" is an error status,
 ///     "none" is an OK status with no result, "real" sets the origin web_user as Commands.Submit does and has a shadow Test.Core.CommandsStep3Probe answer, so
@@ -10,6 +10,8 @@
 ///     ^OcuTalonTest("MemoryApiProbe", "readMode"): "fail" is an error status, "record" is OK with no rows (no search is made), and anything else is the real read;
 ///   - NoteText records its arguments under ^OcuTalonTest("MemoryApiProbe", "note", "session") and ("date"), throws when ^OcuTalonTest("MemoryApiProbe", "noteText") is
 ///     "throw", and otherwise answers that text;
+///   - HasUserRole (Story 41.9, QA) answers 1, so that a test can run OnPreDispatch past the role check to the AD-13 envelope that follows it (the test process holds
+///     no OcuTalon role);
 ///   - ServerError records the text of the status it is given under ^OcuTalonTest("MemoryApiProbe", "logged") and answers as the route's own.
 Class OcuTalon.Test.Web.MemoryApiProbe Extends OcuTalon.Web.Api
 {
@@ -58,6 +60,11 @@ ClassMethod NoteText(sessionRef As %String, date As %String) As %String [ Privat
 	Set text = $Get(^OcuTalonTest("MemoryApiProbe", "noteText"))
 	If text = "throw" Throw ##class(%Exception.General).%New("NoteText", 5001, , "zz the note could not be built")
 	Quit text
+}
+
+ClassMethod HasUserRole() As %Boolean [ Private ]
+{
+	Quit 1
 }
 
 ClassMethod ServerError(sc As %Status = {$SYSTEM.Status.OK()}) As %Status [ Private ]

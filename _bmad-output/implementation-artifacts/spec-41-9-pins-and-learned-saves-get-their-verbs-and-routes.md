@@ -2,7 +2,7 @@
 title: "Story 41.9: Pins and learned saves get their verbs and routes"
 type: 'feature'
 created: '2026-11-09'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'adb697c77de7cd479f63d237e4a0586c4851562f'
 baseline_commit: 'adb697c77de7cd479f63d237e4a0586c4851562f'
 review_loop_iteration: 0
@@ -102,6 +102,28 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
 - AC 2 (AD-21, moved): Given the save-memory AC for origin `system`, when this story is implemented, then this story leaves `SaveMemory` and its origins unchanged: the Planner moved that AC to Story 41.11 (planner-2026-11-09-41.9 item (d); epics.md Story 41.11, `[MOVED 2026-11-09 from Story 41.9]`), and 41.8's rule that code decides the source stands.
 - AC 3 (AD-4): Given a CSP session, when `GET /v1/memory/items` is called with and without `q`, then it answers only that session's rows with `source` and `pinned`, and never another session's. When the pin routes are called, they submit `PinMemory`/`UnpinMemory` with the session's `SessionRef` and map every outcome (`MemoryApi:TestItems`, `TestPin`, and the e2e spec).
 - AC 4 (AD-1, AD-4, AD-13): Given `DELETE /v1/memory/items/:ref`, then it submits `ForgetMemory` with origin web_user for the session, and maps forgotten 200, not_found 404, not_built 501 and the rest 500. Another session's real row answers 404 not_found through the real `MemoryOps` and is still stored. Without the envelope, it is refused before anything is submitted (`MemoryApi:TestForgetMemory`, `TestForgetOtherSessionReal`, and the e2e spec). The spine holds the AD-1 note, and `lint_spine.py` stays at its baseline (`"ok": false`, exactly 10 low `placeholder` findings, nothing new).
+
+### Review Findings
+
+Code review 2026-11-09 (full mode; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 23 rows, 15 entries). Verdict: `in-progress`.
+
+- [ ] [Review][Decision] HIGH: `GET /v1/memory/items` is 500 for every real signed-in user — measured on the warm stack over HTTP as the README account (`/state` and `/memory/precedents` 200; `/memory/items` and `?q=vpn` 500). The console log gives the causes: the list's `Memory.List` prepares with the SQL privilege check ("The memories could not be counted: User ocutalon is not privileged for the operation"), and the search's embedding needs `%Service_EmbeddedPython:U` ("<OBJECT DISPATCH>Embed+5^OcuTalon.Memory.Embedder.1 *Resource %Service_EmbeddedPython:U is required"). AD-13 allows unchecked prepares only in `Session.ForUser`, `Live.Event.Since` and `Ownership.Rows`, and the spine (L107, AD-4) lets the web layer read `Data.Memory` only through the ownership API. So the spec's read path (`Memory.List`/`Search` called from `Web.Api`) cannot work in the CSP process. The unit tests passed because they run as a privileged user. The e2e list test (left to CI) would go red. [Web/Api.cls ReadMemories] — fix-risk high (a privilege or AD choice); in-story; escalated as `## Clarification Needed` (Rule 4).
+- [ ] [Review][Patch] MED: no real-HTTP test lists a seeded memory row (the five-member item, `pinned` a JSON boolean) or forgets one with 200 through the running production. The e2e spec checks only top-level keys and a 404. [web/e2e/api/memory.spec.ts] — fix-risk low; in-story; left for the rework iteration together with the HIGH (Rule 3).
+- [ ] [Review][Patch] MED: the "a failed search or embed gives 500" matrix row has no pinning test. The product's `ReadMemories` search branch never runs failing: the probe's `fail` mode replaces the method. [Web/Api.cls ReadMemories; Test/Web/MemoryApi.cls] — fix-risk low; in-story; left for the rework iteration, because the search path depends on the HIGH's ruling (Rule 19).
+- [x] [Review][Patch] MED: `TestWriteRoutesBehindEnvelope`'s "and nothing was submitted" could not fail, because only `OnPreDispatch` runs and nothing reaches `SubmitMemory`. Removed, and the doc comment now names the `continue` flag that is the real evidence (Rule 19). [Test/Web/MemoryApi.cls]
+- [x] [Review][Patch] MED: `MemoryApi.PreDispatch` was the fourth copy of the OnPreDispatch runner (`DocumentsApi`, `SettingsApi`). Rule 2: it now calls the new shared `Test.Web.Api.PreDispatchOf` beside `Capture`/`Collect`. The remaining two copies are out of this story's footprint and routed (DW-1028, owner burndown). [Test/Web/MemoryApi.cls, Test/Web/Api.cls]
+- [x] [Review][Defer] MED: `MemoryItemCommand`'s submit-and-map tail near-copies `ForgetPrecedent`'s and `MarkNoise`'s. Unifying them would edit shared `Web/Api.cls` lines, which the Epic 35 contention ruling forbids in this story. [Web/Api.cls] — deferred: routed DW-1027, owner burndown (a Rule 2 copy forced by the ruling).
+- [x] [Review][Defer] MED: the pin tests stop at a probe. `CommandsStep3Probe` answers a pin with 5001, and `TestPin`'s real mode pins 500, so both stay green after 41.12 adds the handler. `Memory/Ops.cls:19` still says tool only. — deferred: routed DW-1029, owner 41-12.
+- [x] [Review][Defer] MED: the items route cannot back 41.13's Pinned tab: newest 20 only, with no pinned filter, paging or used-token figure. — deferred: routed DW-1030, owner 41-13.
+- [x] [Review][Defer] MED: item search embeds on every GET with no allowance, so it can fill the shared Embedder queue. It is unreachable today (see the HIGH). — deferred: decision-pending DW-1031, owner burndown.
+- [x] [Review][Patch] LOW: the `Web.Api` class header said over_cap 409 was for "a pin only". It now says a pin or an unpin, and 500 for a forget, as the code does. [Web/Api.cls header]
+- [x] [Review][Patch] LOW: stale test headers corrected: the `MemoryApi` intro (the 41.9 routes, the `ReadMemories` seam, real mode, memory-row clean-up), `MemoryApiProbe`'s first sentence (three seams), and `TestContextOwnSessionOnly`'s comment (the pin refusals). [Test/Web/MemoryApi.cls, MemoryApiProbe.cls, Test/Core/CommandsStep3.cls]
+- [x] [Review][Patch] LOW: `TestItemsSearch` and `TestForgetOtherSessionReal` ignored `Fixture.Prepare`'s status. Both now assert it. [Test/Web/MemoryApi.cls]
+- [x] [Review][Patch] LOW: AC 2 and AC 3's pin half had pinning tests with no `mutation:` line. Both mutations were applied, observed red and reverted; the lines are under Verification. The e2e spec's mutation cannot be shown locally (CI only).
+
+Rejected / closed at emission:
+- `[low]` `wontfix-theoretical`: `/v1/memory/:ref/pin` also matches `/v1/memory/items/pin`, `/precedents/pin` and `/notes/pin`. The earlier triage line said these answer 404; until 41.12 they reach the pin verbs with refs `items`, `precedents` or `notes` and answer 500 (failed), and after 41.12 they answer not_found. reopen_if: a memory ref can be user-chosen, or a fixed segment under `/v1/memory/` is named `pin`.
+- `[low]` reject (edge): a 2,000-character cut of `q` can split a surrogate pair. That needs a query of over 2,000 characters with an emoji exactly at the boundary, and the fix adds a guard.
 
 ## Spec Change Log
 
@@ -242,13 +264,26 @@ Run from the worktree root, one command per call, with `timeout: 600000`, each s
   - mutation: PinMemory origins "web_user,telegram" -> CommandsStep3:TestOrigins red ("PinMemory from 'telegram' sends nothing / is not_allowed / says why").
   - mutation: PinMemory origins "web_user,tool" alone -> stays green: the gate refuses a tool for any verb outside TOOLVERBS before it reads the origins, so the table entry alone is not a way in. With `PinMemory` also added to TOOLVERBS -> CommandsStep3:TestOrigins red (PinMemory from 'tool') and TestContextOwnSessionOnly red (a pin for the context's own session is routed instead of refused).
 - AC 2: none (moved to 41.11).
+  - mutation (code review): SaveMemory origins "tool" -> "tool,system" -> CommandsStep3:TestOrigins red ("SaveMemory from 'system' sends nothing / is not_allowed / says why"); reverted, cmp identical.
 - AC 3: `MemoryItems` passes `""` as the session makes `MemoryApi:TestItems` go red.
   - mutation: MemoryItems reads with session "" -> MemoryApi:TestItems red (the empty list answers 500 instead of 200; `Memory.List` refuses an empty session).
   - mutation: ReadMemories always lists (the search branch dropped) -> MemoryApi:TestItemsSearch red (seven memories match: 7 items and total 7 instead of 5 and 5). `MEMORYSEARCHMAX` 5 -> 50 stays green: `Memory.MAXLIMIT` (5) clamps the search, so the route's constant is not the limit.
+  - mutation (code review): MemoryItemCommand's over_cap -> 409 line dropped -> MemoryApi:TestPin and TestOverCapText red (the pin's and unpin's over_cap answer 500); reverted, cmp identical.
 - AC 4: drop `web_user` from ForgetMemory's origins, which makes `TestForgetOtherSessionReal` go red: the own row is refused not_allowed instead of forgotten. Also, `MemoryOps`' check is reached only through the real mode, so a route that answers 200 without submitting makes the same test go red, because the other session's row is expected to be kept and the route to give 404.
   - mutation: ForgetMemory origins "tool,web_user" -> "tool" -> MemoryApi:TestForgetOtherSessionReal red (another session's row is not answered 404 by MemoryOps, the own row is not forgotten and still stored) and TestForgetMemory red (the real-mode unknown ref is not 404).
   - mutation: the route answers 200 done for ForgetMemory without submitting -> MemoryApi:TestForgetOtherSessionReal red (another session's row is expected 404 and the own row gone, and the route answers 200 for both) and TestForgetMemory red (no command was submitted).
   - Each mutation was applied in the warm throwaway, observed red, and reverted; the files are byte-identical to the pre-mutation copies (cmp).
+
+**QA additions (QA, warm stack e41s9qw, 2026-11-09):**
+- `src/ocutalon/cls/OcuTalon/Test/Web/MemoryApi.cls` (QA): `TestRefLength`, `TestItemsQuery`, `TestSessionNeverFromClient`, `TestWriteRoutesBehindEnvelope`.
+- `src/ocutalon/cls/OcuTalon/Test/Web/MemoryApiProbe.cls` (QA): `HasUserRole` answers 1, so that `OnPreDispatch` can be run past the role check to the AD-13 envelope.
+- `web/e2e/api/memory.spec.ts` (QA): a third test, the envelope on the two pin routes and a 23-character ref (404) on all three writes. Type-checked locally (`tsc -p tsconfig.e2e.json`, listed by Playwright); the run is left to CI (`live:sign-in`).
+- mutation (QA): `MEMORYREFMAX` 22 -> 21 -> MemoryApi:TestRefLength red (a 22-character ref is 404 instead of submitted), and TestForgetOtherSessionReal red too. Before this, a 22-character ref (the boundary of the matrix row) had no pinning test: only 23 and empty were pinned.
+- mutation (QA): the outer `$ZStrip` of `q` after the 2,000-character cut dropped -> MemoryApi:TestItemsQuery red (a cut that ends in whitespace keeps 2,000 characters).
+- mutation (QA): `MemoryItems` and `MemoryItemCommand` take the session from `%request.Get("SessionRef")` when it is given -> MemoryApi:TestSessionNeverFromClient red (the list answers the other session's row, the search and the three writes carry the client's Ref). This pins "no route takes a SessionRef from the client".
+- mutation (QA): `OnPreDispatch` skips the envelope for URLs under `/v1/memory/` -> MemoryApi:TestWriteRoutesBehindEnvelope red (nine refusals: no header, text/plain, another Origin, on all three write routes). Before this the envelope on the new routes was pinned only by the e2e spec (CI) and for the forget route alone.
+- Each mutation was applied in the warm throwaway, observed red, and reverted; `Web/Api.cls` is byte-identical to the pre-mutation copy (cmp) and `git status --short` / `git diff --stat` show only the QA files. Not demonstrated: the e2e additions (left to CI); the unit mutations above cover the same behaviours.
+- Matrix rows that already had a pinning test and were not duplicated: the empty and 23-character refs (`TestPin`, `TestForgetMemory`), the q cap (`TestItems`), the unpin outcomes (`TestPin`), no CSP session (`TestNoSessionIs500`), over_cap 409 and its text (`TestPin`, `TestOverCapText`), not_built 501 (`TestPin`, `TestForgetMemory`), the gate (`CommandsStep3`).
 
 **Task 0 (measured on the warm stack e41s9iw, 2026-11-09):** a `PinMemory` (origin web_user, a fixture session, MemoryRef `zzunknownref`) through `Commands.Submit` to the running production gave status OK and a CommandResult with Ok 0, Outcome `failed` and Message "Something went wrong inside OcuTalon, so the command may not have finished." That is the predicted outcome, so the matrix row and Design Notes stand. The same session's `ForgetMemory` from web_user gave Ok 0, Outcome `not_found` (the real gate and the real `MemoryOps`).
 

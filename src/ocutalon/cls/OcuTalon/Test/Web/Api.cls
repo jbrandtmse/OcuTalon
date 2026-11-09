@@ -1404,6 +1404,30 @@ ClassMethod Collect(ByRef capture) As %String
 	Quit written
 }
 
+/// Runs OnPreDispatch of the dispatch class probe for the URL and method with a stand-in request made of the Content-Type, the X-OcuTalon-Request value,
+/// the Origin and the Host, and a CSP session of that id; returns what it wrote. response is the response it left, continue the dispatch flag it left,
+/// and sc its status (an error when the output could not be captured or OnPreDispatch threw).
+ClassMethod PreDispatchOf(probe As %String, sessionId As %String, url As %String, method As %String, contentType As %String, header As %String, origin As %String, host As %String, Output response, Output continue, Output sc As %Status) As %String
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeCall("/ocutalon/api/", method, contentType, header, origin, host)
+	Set %response = ##class(%CSP.Response).%New()
+	Set %response.ContentType = ""
+	Set %session = ##class(%CSP.Session).%New(sessionId, 0)
+	Set continue = 1
+	Set sc = ..Capture(.capture)
+	If $SYSTEM.Status.IsOK(sc) {
+		Try {
+			Set sc = $ClassMethod(probe, "OnPreDispatch", url, method, .continue)
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+	}
+	Set body = ..Collect(.capture)
+	Set response = %response
+	Quit body
+}
+
 /// Calls Events with the given cursors and a stand-in request, and returns the body that it wrote.
 Method Poll(after As %String, afterInstance As %String, Output response) As %String [ Private ]
 {

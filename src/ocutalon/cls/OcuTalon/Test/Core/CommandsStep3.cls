@@ -80,7 +80,8 @@ Method TestOrigins()
 }
 
 /// Inside a bridge context a tool may save or forget a memory only for the context's own session (AD-1): a SessionRef that is not the
-/// context's OwnerRef, an empty one included, is not_allowed with nothing sent, whatever origin the command says.
+/// context's OwnerRef, an empty one included, is not_allowed with nothing sent, whatever origin the command says. A PinMemory or UnpinMemory
+/// inside a context is not_allowed and nothing is sent, even for the context's own session, because neither is a tool verb.
 Method TestContextOwnSessionOnly()
 {
 	Set probe = ..NewProbe()

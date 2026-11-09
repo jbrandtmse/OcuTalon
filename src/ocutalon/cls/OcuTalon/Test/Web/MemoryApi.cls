@@ -1,9 +1,10 @@
-/// Tests of the memory routes of OcuTalon.Web.Api (Story 41.2; AD-1, AD-4, AD-13, AD-21; FR-72): POST /v1/decisions/:ref/noise, GET /v1/memory/precedents,
-/// DELETE /v1/memory/precedents/:ref and GET /v1/memory/notes, called with stand-in request and response objects and a CSP session whose OcuTalon.SessionRef is a
-/// fixture session. Safe on a slot: the writes go through the SubmitMemory seam of Test.Web.MemoryApiProbe, which answers what the test scripts and records
-/// what the route submitted; the reads (Ownership) are the real ones. The signed-out 401 comes from the superclass ApiBase and is tested over real HTTP
-/// (web/e2e/api/memory.spec.ts). The expected texts are written out here, never read from Web.Api. The fixture sessions, Decisions and Precedent rows are
-/// removed by Ref.
+/// Tests of the memory routes of OcuTalon.Web.Api (Stories 41.2 and 41.9; AD-1, AD-4, AD-13, AD-21; FR-72): POST /v1/decisions/:ref/noise, GET /v1/memory/precedents,
+/// DELETE /v1/memory/precedents/:ref, GET /v1/memory/notes, GET /v1/memory/items, POST and DELETE /v1/memory/:ref/pin and DELETE /v1/memory/items/:ref, called with
+/// stand-in request and response objects and a CSP session whose OcuTalon.SessionRef is a fixture session. Safe on a slot: the writes go through the SubmitMemory seam
+/// of Test.Web.MemoryApiProbe, which records what the route submitted and answers what the test scripts, or in its real mode lets the real gate and the real MemoryOps
+/// answer through shadow instances; the precedent reads (Ownership) are the real ones, and the memory item reads go through the probe's ReadMemories seam, which records,
+/// fails, or makes the real read. The signed-out 401 comes from the superclass ApiBase and is tested over real HTTP (web/e2e/api/memory.spec.ts). The expected texts
+/// are written out here, never read from Web.Api. The fixture sessions, Decisions and Precedent rows, and the fixture sessions' memory rows, are removed by Ref.
 ///   - TestListPrecedents: the session's own rows, newest first, at most 100, each with the seven members of the view, and no seeded row and no other session's;
 ///   - TestForgetPrecedent: a ref the session can't see is 404 before anything is submitted; its own row submits a ForgetPrecedent for the session and answers
 ///     200 {"result":"done"}; the owner's other answers are mapped;
@@ -21,7 +22,12 @@
 ///   - TestOverCapText: the approved sentence of the 409, pinned by a copy held here;
 ///   - TestForgetMemory: DELETE /v1/memory/items/:ref submits a ForgetMemory for the session; the owner's answers are mapped (an over_cap is not a 409 here); the real gate
 ///     and the real MemoryOps answer 404 for an unknown ref;
-///   - TestForgetOtherSessionReal: through the real gate and the real MemoryOps, another session's real memory is 404 not_found and is kept, and the session's own is forgotten.
+///   - TestForgetOtherSessionReal: through the real gate and the real MemoryOps, another session's real memory is 404 not_found and is kept, and the session's own is forgotten;
+///   - TestRefLength (Story 41.9, QA): a ref of exactly 22 characters is submitted by all three write routes with the ref unchanged, and one of 23 is 404 before anything is submitted;
+///   - TestItemsQuery: q is trimmed after the cut at 2,000 characters, a q of exactly 2,000 characters is kept whole, and a q of whitespace and control characters is blank;
+///   - TestSessionNeverFromClient: a SessionRef, sessionRef, session or OwnerRef in the query or in a JSON body is ignored by the list, the search and the three writes;
+///   - TestWriteRoutesBehindEnvelope: OnPreDispatch (past the role check) refuses the three write routes without the AD-13 envelope (not JSON, no X-OcuTalon-Request, wrong Origin) with
+///     403, and lets the full envelope and the GET list through.
 Class OcuTalon.Test.Web.MemoryApi Extends %UnitTest.TestCase
 {
 
@@ -283,7 +289,7 @@ Method TestItemsSearch()
 		Quit
 	}
 	Set session = ..Session(), other = ..OtherSession()
-	Do ##class(OcuTalon.Test.Memory.Fixture).Prepare(.state)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Prepare(.state), "the embedder is prepared")
 	Try {
 		Set mine = ##class(OcuTalon.Bridge.Ids).NewRef(), theirs = ##class(OcuTalon.Bridge.Ids).NewRef()
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(session, mine, "the VPN gateway is vpn.example.test", "2030-01-01T10:00:00Z"), "the session's memory is stored")
@@ -397,7 +403,7 @@ Method TestForgetOtherSessionReal()
 		Quit
 	}
 	Set session = ..Session(), other = ..OtherSession()
-	Do ##class(OcuTalon.Test.Memory.Fixture).Prepare(.state)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Prepare(.state), "the embedder is prepared")
 	Try {
 		Set mine = ##class(OcuTalon.Bridge.Ids).NewRef(), theirs = ##class(OcuTalon.Bridge.Ids).NewRef()
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(session, mine, "zz the session's own memory", "2030-01-01T10:00:00Z"), "the session's memory is stored")
@@ -413,6 +419,89 @@ Method TestForgetOtherSessionReal()
 		Do $$$AssertTrue(0, "the real forget threw: "_exception.DisplayString())
 	}
 	Do ##class(OcuTalon.Test.Memory.Fixture).Restore(.state)
+}
+
+/// A ref of exactly MEMORYREFMAX (22) characters is a ref: all three write routes submit it unchanged. One of 23 characters names no memory and is 404 not_found before anything is submitted.
+Method TestRefLength()
+{
+	Set session = ..Session()
+	Set exact = $Translate($Justify("", 22), " ", "x"), over = exact_"x"
+	Do $$$AssertEquals($Length(exact), 22, "the boundary ref is 22 characters")
+	For verb = "PinMemory", "UnpinMemory", "ForgetMemory" {
+		Kill ^OcuTalonTest("MemoryApiProbe")
+		Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(1, "done")
+		Set body = ..Call(verb, .response, exact)
+		Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""result"":""done""}", verb_": a 22-character ref is submitted and answered")
+		Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted"), 1, verb_": one command was submitted")
+		Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted", 1, "ref")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "session"), exact_"|"_session, verb_": with the ref unchanged, for the session")
+		Set body = ..Call(verb, .response, over)
+		Do $$$AssertEquals(response.Status_"|"_body, "404 Not Found|"_..ErrorBody("not_found", "OcuTalon has nothing at this address."), verb_": a 23-character ref is 404")
+		Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted"), 1, verb_": and nothing more was submitted")
+	}
+}
+
+/// The q of the list route: cut at 2,000 characters and then trimmed (so a cut that ends in whitespace is trimmed too), kept whole at exactly 2,000, and blank when it holds
+/// only whitespace and control characters (the list, not a search). Inner whitespace stays.
+Method TestItemsQuery()
+{
+	Set session = ..Session()
+	Set ^OcuTalonTest("MemoryApiProbe", "readMode") = "record"
+	Set body = ..Items(.response, $Translate($Justify("", 2000), " ", "x"))
+	Do $$$AssertEquals($Length(^OcuTalonTest("MemoryApiProbe", "read", "query")), 2000, "a q of exactly 2,000 characters is kept whole")
+	Set body = ..Items(.response, $Translate($Justify("", 1999), " ", "x")_"     y")
+	Do $$$AssertEquals($Length(^OcuTalonTest("MemoryApiProbe", "read", "query")), 1999, "a cut that ends in whitespace is trimmed: 1,999 characters")
+	Do $$$AssertEquals($Extract(^OcuTalonTest("MemoryApiProbe", "read", "query"), 1999), "x", "and ends in the last letter")
+	Set body = ..Items(.response, $Char(9, 10, 13)_"  ")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "read", "query"), "", "a q of tabs, line feeds and spaces is blank")
+	Set body = ..Items(.response, "vpn   gateway")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "read", "query"), "vpn   gateway", "inner whitespace is kept")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "read", "session"), session, "and the read is for the session")
+}
+
+/// No route takes a session from the client (AD-4): a SessionRef, sessionRef, session or OwnerRef in the query string or in a JSON body is ignored. The list answers only the
+/// session's own memories, the search reads for the session's Ref, and the three writes submit the session's Ref.
+Method TestSessionNeverFromClient()
+{
+	Set session = ..Session(), other = ..OtherSession()
+	Set mine = ..Memory(session, "zz mine", "2030-01-01T10:00:00Z")
+	Set theirs = ..Memory(other, "zz theirs", "2030-01-02T10:00:00Z")
+	Set body = ..ClientCall("MemoryItems", .response, "", other)
+	Set answer = {}.%FromJSON(body)
+	Do $$$AssertEquals(response.Status_"|"_answer.items.%Size()_"|"_answer.total, "200 OK|1|1", "the list with another session's Ref in the query: one item")
+	Do $$$AssertEquals(answer.items.%Get(0).ref, mine, "and it is the session's own memory, not "_theirs)
+	Set ^OcuTalonTest("MemoryApiProbe", "readMode") = "record"
+	Set body = ..ClientCall("MemoryItems", .response, "", other, "vpn")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "read", "session")_"|"_^OcuTalonTest("MemoryApiProbe", "read", "query"), session_"|vpn", "the search reads for the session's Ref")
+	For verb = "PinMemory", "UnpinMemory", "ForgetMemory" {
+		Kill ^OcuTalonTest("MemoryApiProbe", "submitted")
+		Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(1, "done")
+		Set body = ..ClientCall(verb, .response, "zzmemref", other)
+		Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""result"":""done""}", verb_" is answered")
+		Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted"), 1, verb_": one command was submitted")
+		Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted", 1, "session")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "ref"), session_"|zzmemref", verb_" is for the session's Ref, not the client's")
+	}
+}
+
+/// OnPreDispatch (with the role check passed, as the probe does) applies the AD-13 envelope to the three write routes of the memory items: a call without a JSON Content-Type,
+/// without X-OcuTalon-Request: 1 or with another site's Origin is 403 and the dispatch stops (continue 0); the whole envelope goes through; and the GET list is exempt.
+Method TestWriteRoutesBehindEnvelope()
+{
+	Set message = "OcuTalon refused this request because it didn't come from the OcuTalon page."
+	Set urls = $ListBuild($ListBuild("POST", "/v1/memory/zzmemref/pin"), $ListBuild("DELETE", "/v1/memory/zzmemref/pin"), $ListBuild("DELETE", "/v1/memory/items/zzmemref"))
+	Set position = 0
+	While $ListNext(urls, position, route) {
+		Set method = $List(route, 1), url = $List(route, 2), label = method_" "_url
+		Set body = ..PreDispatch(url, method, "application/json", "", "http://h:1", "h:1", .response, .continue)
+		Do $$$AssertEquals(response.Status_"|"_continue_"|"_body, "403 Forbidden|0|"_..ErrorBody("no_request_header", message), label_" without X-OcuTalon-Request is refused and the dispatch stops")
+		Set body = ..PreDispatch(url, method, "text/plain", "1", "http://h:1", "h:1", .response, .continue)
+		Do $$$AssertEquals(response.Status_"|"_continue_"|"_..Code(body), "403 Forbidden|0|not_json", label_" with text/plain is refused")
+		Set body = ..PreDispatch(url, method, "application/json", "1", "http://evil.example", "h:1", .response, .continue)
+		Do $$$AssertEquals(response.Status_"|"_continue_"|"_..Code(body), "403 Forbidden|0|wrong_origin", label_" from another site is refused")
+		Set body = ..PreDispatch(url, method, "application/json", "1", "http://h:1", "h:1", .response, .continue)
+		Do $$$AssertEquals(continue_"|"_body, "1|", label_" with the whole envelope goes through")
+	}
+	Set body = ..PreDispatch("/v1/memory/items", "GET", "", "", "", "", .response, .continue)
+	Do $$$AssertEquals(continue_"|"_body, "1|", "the GET list needs no envelope")
 }
 
 /// With no CSP session every route is 500 server_error, nothing is submitted, and the cause is logged.
@@ -527,6 +616,37 @@ Method Items(Output response, q As %String = "", hasQ As %Boolean = 1, noSession
 	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeCall("/ocutalon/api/", "GET")
 	If hasQ && (q '= "") Do %request.Set("q", q)
 	Quit ..Run("MemoryItems", .response, noSession)
+}
+
+/// The error code of an error body, or "(no error)" when the body is not one.
+Method Code(body As %String) As %String [ Private ]
+{
+	If body = "" Quit "(no error)"
+	Set json = {}.%FromJSON(body)
+	Quit $Select($IsObject(json.error): json.error.code, 1: "(no error)")
+}
+
+/// Calls the route method of the probe with the stand-in request that carries another session's Ref the way a client might send it: in the query (SessionRef, sessionRef,
+/// session and OwnerRef) and in a JSON body. q is the search text of MemoryItems (none when empty).
+Method ClientCall(method As %String, Output response, ref As %String = "", other As %String, q As %String = "") As %String [ Private ]
+{
+	New %request, %response, %session
+	Set json = {"SessionRef": (other), "sessionRef": (other), "session": (other), "OwnerRef": (other)}.%ToJSON()
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeBody("/ocutalon/api/", json)
+	For name = "SessionRef", "sessionRef", "session", "OwnerRef" {
+		Do %request.Set(name, other)
+	}
+	If q '= "" Do %request.Set("q", q)
+	Quit ..Run(method, .response, 0, ref)
+}
+
+/// Runs OnPreDispatch of the probe (its HasUserRole answers 1) for the URL and method with a stand-in request made of the Content-Type, the X-OcuTalon-Request value, the Origin and
+/// the Host (Test.Web.Api's PreDispatchOf); returns what it wrote. continue is the dispatch flag that it left.
+Method PreDispatch(url As %String, method As %String, contentType As %String, header As %String, origin As %String, host As %String, Output response, Output continue) As %String [ Private ]
+{
+	Set body = ##class(OcuTalon.Test.Web.Api).PreDispatchOf(..#PROBE, "ZzMemoryApi"_..Number, url, method, contentType, header, origin, host, .response, .continue, .sc)
+	Do $$$AssertStatusOK(sc, "OnPreDispatch returns OK")
+	Quit body
 }
 
 /// Calls MarkNoise with a request whose body is json (no body at all with hasBody 0).
