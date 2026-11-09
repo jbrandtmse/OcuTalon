@@ -7403,6 +7403,8 @@ As a production developer,
 I want OcuTalon to draft a delay notice for the partners an incident affects and send it only after I approve the exact text,
 So that partners hear about a delay early without anything leaving the instance unchecked.
 
+[AMENDED 2026-11-09, owner re-plan, Contest Planner ruling (iii)] For the voting-week re-plan this story sends the approved notice through the existing SimMailbox channel (`Channel/SimMailbox/Out`), not `EmailOut`: read "an email channel connected", "through `EmailOut`" and "a mock mail server" below as the SimMailbox channel and its tests. Real email through `EmailOut` moves to a 23.5 follow-up under Epic 21, parked until after voting. Conditions: (1) no public text says or implies that a real email was sent; the texts say the notice went to the Simulated mailbox; (2) on an install with demo mode off (no SimMailbox), an approved notice is kept as an approved draft with a plain line saying email delivery isn't set up yet, never silently dropped, and a test pins this; (3) the approval covers the exact text and the recipients shown (the partner contacts). The last Given below ("as always on the online demo") is superseded on the demo by this note. The partner-contact source while Stories 36.2 and 24.2 are parked is pending a ruling (see the graph's epic-23 note).
+
 **Acceptance Criteria:**
 
 **Given** an incident in a production with partner contacts configured for it (Lane B's partner-contact table, fixed by Story 36.2 (was 24.1) and filled by Story 24.2, or a test fixture with its fields until Story 24.2 merges) and an email channel connected (step 4)

@@ -6215,3 +6215,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: med | footprint: out-of-footprint
 - evidence: 1.0.5 real-model evaluation (overridden): 0 approvals, commands, setting changes or fix runs; label Act 2/3
 - 2026-11-09T14:16:01Z status=routed owner=burndown by=owner note=1.0.6 HIGH ahead of tier 3 (Contest Planner [3dd56e], delegated authority); instructions fix, eval-measured (3/3 Tell now); story to charter at the next free lane; may touch Lane A instructions contended with Epic 41 part 2
+
+### DW-1020: README: name the contest under '## Contest checklist' (replace 'What OcuTalon uses, and where to check each one:' with the approved sentence linking the InterSystems Programming Contest: AI Agents in Interoperability Workflows post, then 'What it uses, and where to check each one:')
+- source: planner-2026-11-09-readme-contest | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: owner's request via the Planner; PUBLIC TEXT approved verbatim; community.intersystems.com already on the README check allow-list
+- 2026-11-09T14:41:04Z status=routed owner=burndown by=owner note=1.0.6; Epic 0 re-open Story 0.19 (README) on lane C right after 0.15 merges (not now: a push would cancel a3086148's CI); done when test-readme.sh passes all rules and lane-a is green; a refusing rule goes back to the Planner, never reworded
+
+### DW-1021: PARKED until after voting (owner re-plan 2026-11-09): 41.10, 41.11; Epic 11 part 2 after 11.15 (11.16, 11.18, 11.29, approved texts kept in their specs); DW-446/DW-485 release-tool story (except DW-1018's host-check add-on); Epic 35 after 35.2 (35.3); Epics 21, 22 (step 4) incl. the 23.5 EmailOut follow-up; Epics 24, 26, 27, 28; Stories 25.3-25.5, 36.2 (and 36.1/23.3 unless the Planner brings them back); Epic 38 CLOSED (1.0.0 hands-on pass obsolete). Nothing deleted; tracker statuses unchanged.
+- source: planner-2026-11-09-replan | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: owner-approved voting-week re-plan relayed by the Contest Planner [3dd56e] 2026-11-09 ~15Z
+- 2026-11-09T14:58:00Z status=decision-pending owner=burndown by=owner note=parked:owner_re-plan_2026-11-09; revisit after voting (Nov 15); sprint-status action item mirrors it
