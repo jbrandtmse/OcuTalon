@@ -10189,6 +10189,7 @@ So that pins come only from the person, and learned saves only from code.
 **Then** `PinMemory` and `UnpinMemory` exist, and `CommandsIn` routes them to the memory operation from origin `web_user` only. The governance test refuses each from `tool` (AD-1)
 **And** `CommandsIn` accepts the save-memory verb from origin `system` too, only when it carries `Source` `learned` (for Story 41.11, if it is built) (AD-21)
 **And** `GET /api/v1/memory/items` (list and search, with source and pinned) and the pin routes exist, session-checked and owner-scoped (AD-4)
+**And** a web forget route exists for the Memory card's Forget (Story 41.13): it submits `ForgetMemory` from origin `web_user`, session-checked and owner-scoped through `Memory.Ops` as save and list are; another session's ref answers `not_found`, with a test; it has the same CSRF and same-origin protection as the existing `web_user` write routes; and AD-1 gains the note that `ForgetMemory` is accepted from origin `web_user` as well as `tool` (AD-1, AD-4) [ADDED 2026-11-09, Story 41.8 spec gate, veto-recorded amendment approved by the Contest Planner under the owner's delegation (planner-2026-11-09-41.8): `CommandsIn` accepted `ForgetMemory` from origin `tool` only, and this story's routes had no forget route for 41.13's Forget]
 
 ### Story 41.10: Facts learned at compaction (optional: needs AD-31's amendment, decided at the re-open)
 
