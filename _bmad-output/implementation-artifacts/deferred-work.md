@@ -6202,3 +6202,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42574755205 attempt 1 (feature 0ab2eef0) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code
 - 2026-11-09T07:39:44Z status=routed owner=burndown by=orchestrator note=first sighting; rerun of the failed job 07:40Z
+
+### DW-1014: Rows saved before Story 41.8 hold no stored Pinned value, so SQL such as Pinned = 0 skips them; Memory.Search and .List read an empty Pinned as 0 only through Memory.Row
+- source: spec-41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Data/Memory.cls Pinned InitialExpression 0 applies to new objects only and AD-5 forbids a back-fill; 41.12's pinned read must use COALESCE(Pinned,0) or read through Memory.Row
+- 2026-11-09T10:11:19Z status=routed owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=harvest note=for 41.12's pinned read and the cap sum

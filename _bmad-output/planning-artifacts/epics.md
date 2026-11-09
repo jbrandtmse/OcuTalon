@@ -10243,6 +10243,7 @@ So that it never forgets the few things that matter most.
 **Then** before the daily notes it adds the core-memory block: "Your core memory (facts you pinned):", then the pinned memories newest pin first, quoted, never over the cap (FR-74, AD-7, NFR-27)
 - DW-967: a first turn of the day that ends in a fallback (`no_key`, `daily_cap`, `budget`, `too_large`, failed Chat) still counts as the session start, so that day's notes never reach a model; count only turns whose request reached a model (ledger; routed by burndown 2026-11-09)
 - DW-977: today's note at a session start quotes the current message's own opening, so the model sees the person's words twice; leave the current and later turns out of the note (and update `Test.Bridge.SecondModel:TestIntegrationWebChat`) (ledger; routed by burndown 2026-11-09)
+- DW-1014: rows saved before Story 41.8 hold no stored `Pinned` value, so SQL such as `Pinned = 0` skips them; the pinned read and the cap sum use `COALESCE(Pinned, 0)` or read through `Memory.Row` (ledger; routed by harvest 2026-11-09)
 
 ### Story 41.13: The Memory card: pinned and learned memories
 
