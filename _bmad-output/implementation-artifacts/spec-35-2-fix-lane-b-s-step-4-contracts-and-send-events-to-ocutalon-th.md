@@ -2,7 +2,7 @@
 title: 'Story 35.2: Fix Lane B step 4 contracts'
 type: 'feature'
 created: '2026-11-09'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '2959ffbc2b1e02c99787eae343a119826ef04e15'
 baseline_commit: '2959ffbc2b1e02c99787eae343a119826ef04e15'
 review_loop_iteration: 0
@@ -119,6 +119,8 @@ Line numbers marked (F) are from `origin/feature/OCT_OcuTalon_MVP` (Epic 41 merg
 - `src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls` -- add `TestAdminAtSignIn` (matrix rows 11-13 with the class's in-process sign-in fixtures): `AttachFor(1, 1)` -> flag 1 and Ref in `AdminSessions`; `Ownership.Attach($Username)` (admin "") keeps 1; `AttachFor(1, 0)` -> 0 and Ref absent; the row's other stored properties unchanged by the flag write. Class header gains one line naming it.
 - `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` -- Session contract: add `AdminAtSignIn`. `Test/Msg/Contracts.cls` -- the six verbs in the verb list and their `XData Contracts` entries. `Test/Contract/Ac.cls` -- `XData Signatures` entries: `SettingsOps.RestartRunners` (args "", `%Status`), `.SaveMcpEntry` (`server,url,secret`, `%Status`), `.RemoveMcpEntry` (`server`, `%Status`), `Ownership.AdminSessions` (`*sc`, `%List`). `Test/Msg/Catalog.cls` -- after acceptance: Core count 105 -> 105 + accepted keys (header :3, :80, :84), the keys in `XData Keys` `"core"`, one fixture each (plain slot values; text written from the accepted wording, then confirmed by the test). No narrating comment.
 
+- [ ] [Review] Planner condition for DW-1041 (merge gate 2026-11-09: the MCP settings routes' wallet and Config Store write moves into McpOps in Story 21.4; AD-1 unchanged; the routes stay stubs meanwhile) -- `src/ocutalon/cls/OcuTalon/Test/Core/CommandsStep4.cls` `TestMcpEntryStubs` (and the spec's matrix row 14) -- pin that nothing on the MCP settings path writes to the wallet or the Config Store: (a) `SettingsOps.SaveMcpEntry` and `RemoveMcpEntry` leave the IRIS wallet unchanged (no secret or collection created or removed: compare the wallet's secrets and collections before and after, by whatever read IRIS offers in the namespace -- measure it first on the slot and record the measured read under Design Notes, (inference) if unmeasured) as well as the `AI.MCP.OcuTalon_<server>` Config Store entry (already asserted); (b) `OcuTalon.Web.Api`'s `XData UrlMap` has no route under `/v1/settings/mcp` yet (Story 21.4 adds them, and moves the write into `McpOps`). Write the `mutation:` line for each (for example: `SaveMcpEntry` creates a wallet secret -> red; a `/v1/settings/mcp/servers` route added to the UrlMap -> red), demonstrated and reverted.
+
 **Acceptance Criteria:**
 - Given the spine at the story base, when the edits land, then B1-B10 are present in their own sub-bullets, rows and ERD line with Story 35.2 markers, `git diff` of the spine shows no changed or removed existing sentence, and the lint reports no finding beyond the baseline's ten.
 - Given every row of the I/O matrix, when the command, the restart, the sign-in or the stub call runs, then the behaviour in that row holds, observed on `CommandsIn`'s answer and the owner stand-in's record, the runner items' jobs, the `Session` row and `Ownership.AdminSessions()`.
@@ -171,6 +173,8 @@ Code review 2026-11-09 (bmad-code-review, full mode; layers blind-hunter, edge-c
 
 - 2026-11-09 (lead, spec gate): the proposed split is accepted as a decide (doctrine U5, within split_children): `epics.md` now holds Story 35.3 "Send events to OcuTalon through a webhook" (Lane B, follows 35.2) with the three webhook criteria and the release check moved verbatim, and an `[AMENDED 2026-11-09, Story 35.2 plan, split ...]` note under each story; tracker key `35-3-send-events-to-ocutalon-through-a-webhook` added. Status set to `ready-for-dev`. The implement stage waits on: the orchestrator's rulings on the PUBLIC TEXT table, the SECURITY and STORED DATA veto items; the integrate-forward of this branch onto feature (Epic 41 merged); and Story 35.1's CI.
 - 2026-11-09 (lead, morning re-dispatch): rulings applied. Contest Planner 10:30Z (via the orchestrator): the split into 35.2/35.3 agreed; SECURITY approved, no veto; STORED DATA `Session.AdminAtSignIn` approved; 35.3 carries the roles-heading and public-path test items. Ruling planner-2026-11-09-35.2-text: PUBLIC TEXT accepted, the 30 keys verbatim with two edits -- `settings.emailAddressHelp` drops "Email to anyone else waits for your approval." (Story 22.7 adds it back in its own round; EXPERIENCE.md gets the one-sentence row only), and `settings.refusedExpansion` reads "This can't contain @{, which IRIS would read as a reference to a setting. Nothing was changed." The table now holds the accepted wording. Waits cleared: 35.1 CI green (cca91ec2); the integrate-forward (feature 09a47f3b) is pushed and its CI resolves before the implement spawn.
+
+- 2026-11-09 (lead, rework iteration 1, trigger fix_pack: Planner merge-gate condition for DW-1041): the story re-opened for one [Review] item (the wallet/Config Store no-write pin and the no-MCP-route pin); scope is that item only. The branch integrated forward onto feature 52cf70f6 (Epic 0 Story 0.20) before this pass; runtime targets move to lane C (slot `ocutalon-slot-c`, port 52803) because slot B serves Epic 20.
 
 ## Review Triage Log
 
