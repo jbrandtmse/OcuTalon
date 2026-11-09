@@ -408,8 +408,8 @@ development_status:
   34-4-the-keyboard-add-documents-test-is-stable-dw-825: done
   epic-34-retrospective: optional
 
-  epic-35: backlog
-  35-1-fix-step-4-s-contracts-and-register-mcp-servers: ready-for-dev
+  epic-35: in-progress
+  35-1-fix-step-4-s-contracts-and-register-mcp-servers: in-progress
   35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th: backlog
   epic-35-retrospective: optional
 
