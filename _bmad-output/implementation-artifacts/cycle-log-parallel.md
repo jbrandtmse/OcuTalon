@@ -3057,3 +3057,4 @@
 2026-11-09T06:42:21Z	Epic 35	runner_resumed	agent=a91262ba8d8041b73 with=35.1_rulings(planner-2026-11-09-35.1)
 2026-11-09T06:43:11Z	Epic 0	epic_merged_to_feature	merge=0ab2eef0 head=fdd191e8 part_merge=0.17,0.18 verified_on_origin=yes conflicts=sprint-status.yaml(bookkeeping) code_conflicts=none method=planner_rule_a readme=identical_to_epic_head;old_strings_absent ledger_union=lost0,dup0(979) feature_ci=lane-a:42574755208,ci:42574755205, release=1.0.5 worktree=kept(0.15)
 2026-11-09T06:43:11Z	Run	deps_hash_rerecorded	reason=fix_forward stories=0.17,0.18 hash=121b217ed5af
+2026-11-09T07:03:02Z	Epic 0	runner_clarification	kind=RELEASE_TOOL agent=ac22014504312b3ec story=0.15_done_local(code_9c32e85c;head_e1c068df;unpushed) hunks=release.sh(path_only:45,575)+upgrade-harness.sh(previous_dockerfile_helper;either_location;5_tests) image_size=unchanged(5667082326) orchestrator_edits=epic-dependencies.yaml:296,176 new=DW-1004,DW-1005,DW-1006
