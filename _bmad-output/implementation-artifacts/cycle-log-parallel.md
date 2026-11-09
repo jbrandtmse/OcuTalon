@@ -2966,3 +2966,6 @@
 2026-11-09T00:58:53Z	Epic 17	ci_observed	sha=215bbfee(17.12) result=success note=runner_live_on_17.13
 2026-11-09T01:39:21Z	Epic 32	ci_red_classified	sha=c21f64fd run=42541161624 job=iris(shards-4) unit=live:sign-in-2 test=e2e/live/state-retry.spec.ts:41(the_file_holds_that_line;expected_only_the_RETRY_line,got_RETRY+4_DIAG_lines) class=STORY_RED(32.7_DW-911_change_writes_DIAG_after_RETRY_into_the_retry_file;32.6_pin_not_updated) lane-a=success action=resume_runner_rework
 2026-11-09T01:39:36Z	Epic 32	runner_resumed	agent=a9f9e85b541d9b31f with=c21f64fd_story_red_rework(state-retry.spec.ts:41_vs_DW-911_DIAG_lines)
+2026-11-09T02:00:20Z	Epic 39	ci_red_classified	sha=c7c6e5fb run=42541696724 job=iris(shards) test=Test.Watch.Reader_TestDisabledItemsInStoredOrderAcrossAStopAndAStart(suspended_vs_stopped) ledger=DW-626 class=flake lane-a=success action=rerun_failed(orchestrator;runner_in_CI_WAIT)
+2026-11-09T02:08:07Z	Epic 17	runner_clarification	kind=CI_WAIT agent=ac394a16089ac2b79 sha=c716df48(17.13_done;code_137e21f6) runs=42548087678,42548087634 17.12=215bbfee_green ledger=DW-979,DW-980_resolved;DW-988,DW-994,DW-995_terminal local=ba0e1290
+2026-11-09T02:08:07Z	Epic 32	runner_clarification	kind=CI_WAIT agent=a9f9e85b541d9b31f sha=4a9db21d(rework_2/3;option_ii_pin_reads_RETRY_lines_only) runs=42548872295,42548872302

@@ -3950,6 +3950,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T09:09:40Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry by=qa note=local_warm_e17s5qw_long_run:failed_once,passed_on_4_reruns(incl._the_same_preceding_sequence)
 - 2026-11-08T19:33:23Z occurrence=30-7-epic-30-burn-down by=runner note=local_warm_e30s7mw_on_the_30.7_merged_tree_1ad5d6be(after_Approval,Retention,Reminders,Gate_on_the_same_stack);same_message(stopped->suspended);30.7_changes_Watch.Reader.Productions_only(not_Failures/Current);rerun_on_a_new_warm_stack
 - 2026-11-08T19:36:16Z occurrence=30-7-epic-30-burn-down by=runner note=second_local_red_on_a_new_warm_stack_e30s7nw(first_class_run,3.3s);both_local_reds_on_the_merged_tree_1ad5d6be;CI_on_94a7dcca_and_feature_cb7a2215_green;CI_on_the_merged_head_decides(flake_rule)
+- 2026-11-09T02:00:20Z occurrence=OCT-epic39-c7c6e5fb by=orchestrator note=run 42541696724 iris(shards) lane-a@Checks,Install,Watch,Eval Test.Watch.Reader TestDisabledItemsInStoredOrderAcrossAStopAndAStart 'suspended' (not stopped); rerun of failed jobs 02:01Z
 
 ### DW-628: The IPM artifact may ship the OcuTalon.Test.* classes: check whether module.xml's OcuTalon.PKG resource (ocutalon/cls) includes them and, if so, leave them out, so the artifact is smaller (4,940,685 bytes at 15.4, 98.8% of the release's soft 5,000,000-byte warning) and no test code reaches users' instances
 - source: Epic 15 merge gate (Contest Planner, 2026-11-03) | severity: low | fix-risk: low | footprint: small
