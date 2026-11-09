@@ -10055,6 +10055,8 @@ So that it never forgets the few things that matter most.
 **Given** a user item rendered with `sessionStart`
 **When** `Agent.Input.Render` runs
 **Then** before the daily notes it adds the core-memory block: "Your core memory (facts you pinned):", then the pinned memories newest pin first, quoted, never over the cap (FR-74, AD-7, NFR-27)
+- DW-967: a first turn of the day that ends in a fallback (`no_key`, `daily_cap`, `budget`, `too_large`, failed Chat) still counts as the session start, so that day's notes never reach a model; count only turns whose request reached a model (ledger; routed by burndown 2026-11-09)
+- DW-977: today's note at a session start quotes the current message's own opening, so the model sees the person's words twice; leave the current and later turns out of the note (and update `Test.Bridge.SecondModel:TestIntegrationWebChat`) (ledger; routed by burndown 2026-11-09)
 
 ### Story 41.13: The Memory card: pinned and learned memories
 
@@ -10076,6 +10078,7 @@ So that I decide what OcuTalon keeps.
 **Given** the README's memory section
 **When** this story updates it
 **Then** it says what forgetting removes (the memory, its search entries, any pin, and every later session start) and that the current conversation's earlier messages aren't rewritten (FR-73)
+- DW-996: unify the Memory card's `ForgetDialog` (`web/src/app/rail/memory-card/forget-dialog.ts`) with `documents/remove-dialog.ts` into one shared confirm dialog (ledger; routed by burndown 2026-11-09)
 
 ### Story 41.14: Evaluation and tests for memory's second part
 
