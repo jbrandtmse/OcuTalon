@@ -169,6 +169,8 @@ Code review 2026-11-09 (full mode; layers: blind-hunter, edge-case-hunter, verif
 
 ## Spec Change Log
 
+- 2026-11-09 (runner, integrate-forward): test-readme rule telegram-demo rejected the README bullet's Telegram sentence; the Contest Planner ruled the replacement "It arrives in the chat and on the Simulated phone (and in Telegram when it is paired on your own install), and you can ask for it again in the chat." [RULED 2026-11-09, Contest Planner], applied as a text-only edit with no rework iteration; test-readme passes.
+
 - 2026-11-09 (runner, after QA): Contest Planner Part A rulings recorded (Lane B extras allowed; mailbox name approved; email dropped, patched at code review).
 
 - 2026-11-09 (runner, spec gate): Contest Planner rulings applied: six keys reworded, rendering conditions (a)-(c), More to try fallback, README order, veto conditions, spine additions written (AD-32, AD-15), AD-33 exception scope, registry-driven count; AC13-AC18 added.
@@ -301,7 +303,7 @@ More to try item, `web/src/app/guide/more-to-try-view.ts` (~line 25, first item)
 
 README, `README.md`:
 - line 30 (changed): "its More to try panel has eight more things to try"
-- new bullet after line 41: "- **Incident summaries.** When an incident closes, OcuTalon writes a summary from its own records, with no extra model request: the timeline, the cause and evidence, each approval with its channel and time, the messages affected and the incident's model cost. It arrives in the chat, on the Simulated phone and in Telegram when it is paired, and you can ask for it again in the chat. Try it: after the guide's incident, More to try, *Read the incident summary*."
+- new bullet after line 41: "- **Incident summaries.** When an incident closes, OcuTalon writes a summary from its own records, with no extra model request: the timeline, the cause and evidence, each approval with its channel and time, the messages affected and the incident's model cost. It arrives in the chat and on the Simulated phone (and in Telegram when it is paired on your own install), and you can ask for it again in the chat. [RULED 2026-11-09, Contest Planner: README rule telegram-demo, U-228 condition 2] Try it: after the guide's incident, More to try, *Read the incident summary*."
 
 ## Veto-window items
 
