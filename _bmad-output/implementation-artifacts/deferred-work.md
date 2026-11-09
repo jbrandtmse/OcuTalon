@@ -5324,6 +5324,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Msg/Catalog/Watch.cls incident.noFix (L179-180) is shown for the GOODCHANGED refusal; the reason is log-only (PT-b ruling)
 - 2026-11-06T19:44:07Z status=routed owner=burndown by=spec_gate note=Planner 2026-11-06: later wording, not now: 'The fix I would use would also change {noun} that went through, so I'm not proposing it.'
+- 2026-11-09T17:07:25Z status=routed owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=x0 note=Epic23_start:23.2_adds_fix_kinds_and_refusal_lines_in_Msg/Catalog/Watch.cls;Planner_wording_2026-11-06:'The_fix_I_would_use_would_also_change_{noun}_that_went_through,_so_I'm_not_proposing_it.'(PUBLIC_TEXT_at_23.2_spec_gate)
 
 ### DW-836: Story 7.9 adds Test.Watch.GoodMessages (about 108-116 s locally) to CI group shards (shard:lane-a@Checks,Install,Watch) with no group re-measure; ci/units.sh's comments put shards near its about 1,940 s target, so the group may pass 33 minutes (unverified)
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -5436,6 +5437,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 31.4 implement pass 1: TraceHits returned -1 until Failure gained %XML.Adaptor (one line, no storage change); AD-33 keeps the class Lane A's, so 31.4 reads such bodies through a Lane B fallback instead (ruling R2); also check whether anything else that XML-exports message bodies (the key proof of 9.10 and 30.8, the Visual Trace contents) meets the same error
 - 2026-11-07T17:31:07Z status=routed owner=burndown by=harvest note=AD-33_request_to_Lane_A:add_%XML.Adaptor_to_OcuTalon.Watch.Msg.Failure(Extends_(%SerialObject,%XML.Adaptor)),then_31.4's_fallback_can_go
 - 2026-11-08T02:32:04Z status=routed owner=burndown by=burndown note=epic-31_burn-down(31.4_scope):overflow;AD-33:only_Lane_A_edits_Watch.Msg.Failure(add_%XML.Adaptor);no_open_Lane_A_story_owns_it;31.4's_Lane_B_second-reader_fallback_covers_the_search_until_then(then_the_fallback_can_go)
+- 2026-11-09T17:07:25Z status=routed owner=23-6-write-an-incident-summary-when-an-incident-closes by=x0 note=Epic23_start:one-line_%XML.Adaptor_on_Watch.Msg.Failure(Lane_A,Epic23_footprint_Watch/**);23.6_is_the_first_Lane_A_Watch_story_in_voting_week;no_X.0_chartered(dispatch:never_delay_23.6)
 
 ### DW-888: 31.4 code-review patches mirror two Lane A private helpers: Test.Eval.KeyProof.ListHas as Test.Web.SessionEvents.Names (about 7 lines) and the inline-keyboard flattening of Test.Channel.TelegramPageFixture.Buttons in web/e2e-online/telegram.ts sentCalls (about 4 lines of ObjectScript), forced by AD-33 (Lane A classes are called, never edited) and by ListHas being private
 - source: spec-31-4-the-paired-chat-stays-isolated-under-load-too.md | severity: low | fix-risk: low | footprint: in-story
