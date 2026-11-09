@@ -55,7 +55,8 @@ import { irisScript } from './iris';
  * URL, query, body, header, cookie, session id, PID, address or host name is read into a line.
  * The same five lines (closeLines) are the retry-time diagnosis of a close that has not ended by half of its bound (fixtures.ts, one logged
  * re-close): they follow the `RETRY` line in the retries file and are not printed. closeTargetAgain then sends `Target.closeTarget` for the
- * page's own target through a browser CDP session; a refusal prints `DIAG page.close re-close failed: <class>` (the class checked as above).
+ * page's own target through a browser CDP session; a re-close that is not sent prints `DIAG page.close re-close failed: <class>` (a refusal or
+ * `TimeoutError`, the class checked as above) or `DIAG page.close re-close not measured (not Chromium)`.
  */
 
 /** The longest the read may take, in ms (the test's own deadline may shorten it, bounds.ts capToDeadline). */
@@ -486,11 +487,19 @@ export type Reclose = { kind: 'sent' } | { kind: 'unmeasured' } | { kind: 'faile
 /**
  * Asks the browser to close the page's target once more: the page's own CDP session gives its Target.getTargetInfo, and Target.closeTarget goes
  * through a browser CDP session (the page's session is not used for it, so that a page that does not answer cannot hold the request). Both sessions
- * that were opened are detached when the call ends, answered or not. It waits no longer than ms for the send to be answered and never throws; a
- * browser that is not Chromium is unmeasured.
+ * that were opened are detached when the call ends, answered or not, and a session that opens after the end is detached at once. It waits no
+ * longer than ms for the send to be answered and never throws; once the call has ended, Target.closeTarget is no longer sent, so a re-close
+ * reported as failed was not sent later. A browser that is not Chromium is unmeasured.
  */
 export async function closeTargetAgain(page: Page, ms: number = PROBE_BOUND_MS): Promise<Reclose> {
   const sessions: Array<{ detach: () => Promise<void> }> = [];
+  let over = false;
+  const kept = (session: { detach: () => Promise<void> }): boolean => {
+    if (over) session.detach().catch(() => undefined);
+    else sessions.push(session);
+    return !over;
+  };
+  const late: Reclose = { kind: 'failed', error: 'TimeoutError' };
   try {
     const context = page.context();
     const browser = context.browser();
@@ -498,20 +507,22 @@ export async function closeTargetAgain(page: Page, ms: number = PROBE_BOUND_MS):
     const asked = (async (): Promise<Reclose> => {
       try {
         const own = await context.newCDPSession(page);
-        sessions.push(own);
+        if (!kept(own)) return late;
         const info = await own.send('Target.getTargetInfo');
+        if (over) return late;
         const session = await browser.newBrowserCDPSession();
-        sessions.push(session);
+        if (!kept(session)) return late;
         await session.send('Target.closeTarget', { targetId: info.targetInfo.targetId });
         return { kind: 'sent' };
       } catch (error) {
         return { kind: 'failed', error: errorClass(error instanceof Error ? error.name : undefined) };
       }
     })();
-    return await within<Reclose>(asked, ms, { kind: 'failed', error: 'TimeoutError' });
+    return await within<Reclose>(asked, ms, late);
   } catch {
     return { kind: 'failed', error: 'another error' };
   } finally {
+    over = true;
     for (const session of sessions) session.detach().catch(() => undefined);
   }
 }

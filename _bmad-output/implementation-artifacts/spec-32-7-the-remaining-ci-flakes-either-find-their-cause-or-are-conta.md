@@ -4,7 +4,7 @@ type: 'chore'
 created: '2026-11-08'
 status: 'done'
 baseline_revision: 'e1b344b860ea89c6b866feb6572582536de27339'
-baseline_commit: '7d0a57f20076de86a25aaa68d9a9e14e1d92f950'
+baseline_commit: 'e1b344b8'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -340,6 +340,32 @@ _(code review, 2026-11-08, first review; layers blind-hunter, edge-case-hunter, 
 - false: `Restore`'s `NotRunningNow` hides Enabled-0 items (edge). That is A2, approved by the Planner: an item whose Enabled row is 0 is not meant to run.
 - false: `src/**` lines go beyond AC7's line kinds (acceptance). The `$$$AssertTrue` wraps the new end-node wait, which is a wait line; without it A4's split would be vacuous. The comment lines document the changed waits (Rule 14).
 
+### Review Findings (rework 1)
+
+_(code review, 2026-11-08, re-review of rework 1 (B3), diff `e1b344b8` plus the working tree; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all at the session's model (`full-opus`); 28 rows, 17 entries after grouping: 4 patch (1 medium, 3 low), 0 decision-needed, 0 defer, 13 rejected; no high. Each entry: severity, fix-risk, footprint, disposition.)_
+
+Checklist `[Smoke] G3 fallback`: confirmed fixed. B3 is built as "Branch B per group" specifies: one logged re-close at `floor(B/2)` (`firstAttemptMs`, Chromium only, B of 20 s or more) through `closeTargetAgain`, at most one per close; a second miss rejects `page.close: no answer within <B> s` with the close diagnosis once (R2); the outer `boundedStep(..., waitMs(), 'page.close')` and `diagnosedAtBound` keep B; no bound changed; the retry-time lines go through `lines.map(redactLine)` and `reportRetry`'s DIAG filter, the re-close line through `printDiagnosis`; the `bounded-waits.test.mjs` pin pins the new `boundedClose` line in full; R1 to R3 present (plus R4, R5); A3's `closeSettled` kept at leave.spec L5 and L6. No product file, no Never-list file, no absolute local path.
+
+- [x] [Review][Patch] `closeTargetAgain` used a session or a target that answered after its bound: a page or browser session that opened after the timeout was never detached, and `Target.closeTarget` could still be sent after `DIAG page.close re-close failed: TimeoutError` was printed, so the containment's only evidence could say "failed" for a re-close that went out (blind+edge+verification-gap+acceptance; medium, fix-risk low: an `over` flag set in `finally`, checked after each await, a late session detached at once; in-story). New R4 case `a session or a target that answers after the bound is not used`; mutation line under `## Verification` [web/e2e/support/diagnose.ts:494]
+- [x] [Review][Patch] R5 set no test timeout of its own, so its path through `closeWithOneMore` (and its `reject(error)` mutation) held only while the project timeout left 20 s after the clean-up reserve (verification-gap; low, fix-risk low: `test.setTimeout(60_000)` as R1 to R4; in-story) [web/e2e/live/helper-waits.spec.ts:927]
+- [x] [Review][Patch] Two comments overstated or misdescribed: `diagnose.ts`'s header named only "a refusal" as printing the re-close line (it also prints `TimeoutError` and `not measured (not Chromium)`), and the new describe's comment said every page's close never settles (only R1 and R2; R3, R4 and R5 differ) (blind; low, fix-risk low, comment-only; in-story) [web/e2e/support/diagnose.ts:56]
+- [x] [Review][Patch] Matrix row "Close, no retry" for a page that closes before `floor(B/2)` had no `mutation:` line, and the verification-gap layer held R3's quick half unable to fail (verification-gap; low, Rule 19 missing mutation line, closed in-pass): the clause is falsifiable through R3 as a whole (the stray timer's `RETRY` lands in its 19 s half); mutation applied, observed red, restored byte-identical, line written under `## Verification` [web/e2e/live/helper-waits.spec.ts:863]
+
+**Rejected** (with the Rule 15 disposition each takes):
+- low, wontfix-accepted (fix-risk low): R3 (not Chromium) settles its stub close at 11 s, 1 s after the retry timer, so the gate mutation is caught only while the retry path ends inside 1 s (blind+verification-gap). With a Firefox-named type the browser probe is unmeasured and the renderer probe is a millisecond read, and the gate mutation was observed red. reopen_if=a rerun of the gate mutation (`!== 'nothing'`) that leaves R3 (not Chromium) green.
+- low, wontfix-accepted (fix-risk low): the fixture's print of a refused or timed-out re-close is pinned by a source regex, not by a run through `boundedClose` (verification-gap; the self-review's Blind 2). The regex has a mutation line and R4 runs `describeReclose` and `closeTargetAgain`; a run-through case costs about 20 s of `live:sign-in-2`. reopen_if=a CI log with `RETRY ... page.close`, the bound's failure and no `DIAG page.close re-close` line while R4 is green.
+- low, wontfix-accepted (fix-risk low): B3's cases add about 70 s to `live:sign-in-2`, above the plan's 45 s inference (blind+acceptance). An inference, not a target; the cases are the spec's R1 to R3 with their 20 s bounds. reopen_if=`live:sign-in-2` reaches its split threshold or a CI run passes REL-4's 35 minutes with these cases in the margin.
+- low, by-design: R1 stubs the first close, so Playwright's own close is never in flight when the re-close is sent (verification-gap). That is the spec's R1 ("the first close never settles"); the real stall was not reproduced (L-G3 0 of 120), and AC5 and AC6 are the lead's runs.
+- low, by-design: two concurrent `page.close()` calls on one page give two `RETRY` lines (edge). Each close is its own wait, and the Boundaries allow one retry per wait; no caller closes a page twice at once.
+- low, wontfix-theoretical: a page that closes while `closeTargetAgain` runs can print `re-close failed: TargetClosedError` (edge). The line reports the re-close attempt truly; it would become real if a CI log showed that line for a page that the first close had closed.
+- low, wontfix-theoretical: the page's `close` event is listened to from the start, so a first close that rejected after the event would resolve (acceptance). Playwright resolves a close whose target is gone; it would become real if a Playwright upgrade made `page.close` reject after `close` fired.
+- low, wontfix-accepted (fix-risk low): `ci/iris.sh` and `bounds.ts` headers name only 32.6's snapshot retry (blind). They state what 32.6 added and stay true; the close retry's contract is fixtures.ts's fourth contract, and `ci/iris.sh` counts every `RETRY` line. reopen_if=a later story reads the iris.sh header as the list of retried steps.
+- low, wontfix-accepted (fix-risk low): the test restores leave own-property copies (`newBrowserCDPSession`, `browserType`) on the worker's browser (verification-gap; the self-review's Edge 7). They behave as the originals, and each test wraps the copy again. reopen_if=a later test in the same worker that asserts on the browser object's own properties.
+- low, wontfix-accepted (fix-risk low): the triage log's "Review pass (rework 1, B3; follow-up pass)" heading reads as an independent review (blind). It is build-auto's own review section, and the fix edits the spec under review. reopen_if=a gate reads the build-auto triage log as the code-review record.
+- false: the spec says `done` while the story is in review, and `baseline_commit` is short (blind+edge+acceptance). The same as the first review: the frontmatter `status:` is build-auto's machine state, the story's state is sprint-status, and the short sha resolves.
+- false: `closeTargetAgain`'s comment says a page that does not answer cannot hold the request, though the target id comes from the page's session (blind). `Target.getTargetInfo` on a page session is answered by the browser's Target domain, not by the renderer, and the close itself goes through the browser session (R4 pins the split).
+- false: the retry decision reads `capToDeadline(boundMs)` and not `waitMs()` (acceptance; the self-review's Intent 5). The outer `boundedStep` caps the same bound the same way, so the retry fires at half of the bound in force.
+
 ## Spec Change Log
 
 - 2026-11-08 (lead, rework iteration 1, trigger smoke/proof): G3's cause was not confirmed by its proof; B3 (the single logged re-close) is built per the Planner's fallback, A3 kept. G1, G2, G4 confirmed.
@@ -613,6 +639,8 @@ The setup for every command:
   - mutation (code review): B3, `reject(error)` of the first close's rejection in `closeWithOneMore` changed to `resolve()` → `helper-waits.spec.ts` R5 red (the failure is `undefined`, not the close's own error).
   - mutation (code review): B3, the gate `browserType().name() === 'chromium'` in `closeWithOneMore` changed to `!== 'nothing'` → `helper-waits.spec.ts` R3 (not Chromium) red (a `RETRY` line is logged).
   - mutation (code review): B3, the `finally` that detaches the sessions in `closeTargetAgain` removed → `helper-waits.spec.ts` R4 red (both R4 cases: the detaches are missing, on the answered and on the timed-out path).
+  - mutation (code review, rework 1): B3, `closeTargetAgain`'s late-answer guards removed (`if (!kept(own)) return late;` and `if (!kept(session)) return late;` put back to `sessions.push(...)`, `if (over) return late;` deleted) → `helper-waits.spec.ts` R4 red (`a session or a target that answers after the bound is not used`: the late page session is not detached, and the late target gets a browser session and a `Target.closeTarget`); restored, `cmp` identical, `git status --short` and `git diff --stat` unchanged.
+  - mutation (code review, rework 1): B3, matrix row "Close, no retry" (a page that closes before `floor(B/2)`): `clearTimeout(timer);` removed from `end` and the guard `if (ended || page.isClosed()) return;` removed in `closeWithOneMore` → `helper-waits.spec.ts` R3 (`a bound under 20 s, or a close that ends before half of the bound`) red (`no RETRY line`: the quick close's timer logs `RETRY e2e/live/helper-waits.spec.ts:863 page.close` at 10 s); either one alone stays green, because the other (and the page's `close` event) still stops the retry; restored, `cmp` identical, `git status --short` and `git diff --stat` unchanged.
 - (QA) Not pinned without a stack: A1's two-polls-in-a-row logic and the `Ens.Job` Starting/Alive read, and A2's `NotRunningNow` against a flag-1/row-0 item, rest on the source pins and the lead's proofs (L-G1, L-G2).
 
 **Lead-side (`(lead)`; after implement, unless stated).**
@@ -686,6 +714,12 @@ Standing criterion: every test added or changed passes on a fresh environment, i
   - `npm --prefix web test`: P1's put-back stayed in the tree for more than 35 min, so the test ran in 2 halves on the same copy: 915 of 915 and 701 of 702. The one red is `retired-demo-path-names` (it needs git); it passed 6 of 6 in the tree. Rerun in the tree after P1 restores.
 
 **Lead decision after the proofs:** G1, G2 and G4 confirm their causes (A1, A2, A4 stand). G3's injected stall gave 0 reds, so its cause is not confirmed: by `planner-2026-11-08-32.7` G3 falls back to its single logged retry (B3), built in rework iteration 1; A3's splash wait stays (it matches the traces and costs nothing).
+
+**L-G3, B3 (the fallback), the lead, 2026-11-09 about 00:24Z to 00:32Z, after the rework's re-review.** Load: 4 concurrent Playwright processes (sign-in-2 project, stand-in pages, no stack) with 4 CPU burners on the host; `--grep 'R1: the real Target.closeTarget closes the page'` (the injected stall: the first close never settles).
+- **old: 8 of 8 red** (`fixtures.ts` put back from `e1b344b8`, i.e. A3 without B3; each red `page.close: no answer within 20 s`); restored byte-identical (`cmp` against the lead's backup; `git status --short` unchanged).
+- **fix: 20 of 20 passed** (4 processes x `--repeat-each 5`; each test counts its one `RETRY` line in its own `retries.txt`).
+- Fresh check after the rework (no stack, `env | grep ^OCUTALON_` empty, e32s7 result folders removed): node `state-wait`, `flake-fixes-sources`, `flake-fixes-behaviour`, `bounded-waits`, `e2e-part`, `ci-results` 160 of 160 forward and reversed; Playwright `close-settled.spec.ts` 3 of 3 and helper-waits `one more close of the page|the close diagnosis` 16 of 16, both orders (20 of 20 together forward).
+- Real L5/L6 (`live:online-session`, 439 to 530 s a unit) and the ObjectScript classes' fresh-stack runs are left to CI's fresh instances (a stack start alone took 176 s on this host).
 
 ## Auto Run Result
 

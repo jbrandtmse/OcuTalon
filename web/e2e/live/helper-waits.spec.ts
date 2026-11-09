@@ -739,9 +739,10 @@ test.describe('page.close: the close diagnosis', () => {
 /**
  * DW-774 (the page.close half): a close of a Chromium page that is still open and unsettled at half of a bound of 20 s or more gets one logged
  * re-close inside the same bound (fixtures.ts closeWithOneMore): the `RETRY` line and the close-diagnosis lines go to the retries file, and the
- * browser is asked to close the page's target again. The pages come from browser.newContext() with their close replaced by a promise that
- * never settles, and boundedClose(page, () => 20_000). R1 lets the real Target.closeTarget close the page; R2 stubs it, so that the page
- * stays open to the bound; R3 gives no retry (a bound under 20 s, a quick close, a browser that is not Chromium); R4 reads closeTargetAgain on stand-in pages; R5 lets the first close reject.
+ * browser is asked to close the page's target again. R1 and R2 use pages of their own browser.newContext() whose close is replaced by a promise
+ * that never settles, with boundedClose(page, () => 20_000): R1 lets the real Target.closeTarget close the page; R2 stubs it, so that the page
+ * stays open to the bound. R3 gives no retry (a real quick close, a bound of 19 s, a close that ends at 11 s in a browser that is not
+ * Chromium); R4 reads closeTargetAgain on stand-in pages with no context; R5 lets the first close reject.
  */
 test.describe('page.close: one more close of the page', () => {
   let retryFileBefore: string | undefined;
@@ -924,6 +925,7 @@ test.describe('page.close: one more close of the page', () => {
   });
 
   test('R5: a first close that rejects rejects with its own error: no RETRY, no second close', async ({ browser }) => {
+    test.setTimeout(60_000);
     const context = await browser.newContext();
     let failure: unknown;
     try {
@@ -947,12 +949,13 @@ test.describe('page.close: one more close of the page', () => {
   });
 
   /** A page whose context gives the page's own CDP session and a browser of the given kind, with every send and detach recorded. */
-  const targetPage = (options: { browserName?: string; ownFails?: Error; closeFails?: Error; hang?: boolean; noBrowser?: boolean }): { page: Page; calls: string[] } => {
+  const targetPage = (options: { browserName?: string; ownFails?: Error; closeFails?: Error; hang?: boolean; noBrowser?: boolean; late?: 'session' | 'info' }): { page: Page; calls: string[] } => {
     const calls: string[] = [];
     const session = (name: string, fails?: Error) => ({
       send: (method: string, params?: { targetId?: string }) => {
         calls.push(`${name} ${method}${params?.targetId === undefined ? '' : ` ${params.targetId}`}`);
         if (options.hang === true && name === 'browser') return never();
+        if (options.late === 'info' && name === 'page') return after(300).then(() => ({ targetInfo: { targetId: 'T1' } }));
         return fails === undefined ? Promise.resolve({ targetInfo: { targetId: 'T1' } }) : Promise.reject(fails);
       },
       detach: () => (calls.push(`${name} detach`), Promise.resolve()),
@@ -962,7 +965,7 @@ test.describe('page.close: one more close of the page', () => {
       newBrowserCDPSession: () => Promise.resolve(session('browser', options.closeFails)),
     };
     const page = {
-      context: () => ({ browser: () => (options.noBrowser === true ? null : browser), newCDPSession: () => Promise.resolve(session('page', options.ownFails)) }),
+      context: () => ({ browser: () => (options.noBrowser === true ? null : browser), newCDPSession: () => (options.late === 'session' ? after(300) : Promise.resolve()).then(() => session('page', options.ownFails)) }),
     } as unknown as Page;
     return { page, calls };
   };
@@ -995,6 +998,17 @@ test.describe('page.close: one more close of the page', () => {
     expect(describeReclose(result)).toBe('DIAG page.close re-close failed: TimeoutError');
     expect(Date.now() - began, 'the bound, not the test timeout').toBeLessThan(2_000);
     expect(hung.calls.slice(-2).sort(), 'both sessions are detached when the bound ends the call').toEqual(['browser detach', 'page detach']);
+  });
+
+  test('R4: a session or a target that answers after the bound is not used: the late session is detached and no Target.closeTarget is sent', async () => {
+    const lateSession = targetPage({ late: 'session' });
+    expect(describeReclose(await closeTargetAgain(lateSession.page, 100))).toBe('DIAG page.close re-close failed: TimeoutError');
+    await after(500);
+    expect(lateSession.calls, 'the late page session is detached at once, and nothing is asked').toEqual(['page detach']);
+    const lateInfo = targetPage({ late: 'info' });
+    expect(describeReclose(await closeTargetAgain(lateInfo.page, 100))).toBe('DIAG page.close re-close failed: TimeoutError');
+    await after(500);
+    expect(lateInfo.calls, 'no browser session and no Target.closeTarget after the bound').toEqual(['page Target.getTargetInfo', 'page detach']);
   });
 });
 
@@ -1302,6 +1316,7 @@ function stubBrowser(session?: { send: () => Promise<unknown> }, connected = tru
 
 const quietWatch = { records: () => [], host: () => ({ load1: 0.5, cpus: 4 }), stop: () => undefined } as RequestWatch;
 const never = (): Promise<never> => new Promise<never>(() => undefined);
+const after = (ms: number): Promise<void> => new Promise<void>((done) => setTimeout(done, ms));
 const named = (name: string): Error => Object.assign(new Error('refused'), { name });
 
 /** Runs the step with console.log captured, and returns what it printed. */
