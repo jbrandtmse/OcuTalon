@@ -8,8 +8,9 @@ Include (Ensemble, EnsConstants, EnsErrors)
 ///     started there, or the one set to start automatically when none had started), so that a cleanly stopped production can still be watched and a
 ///     watch on it stopped (DW-222). A namespace that never started a production has no entry, and no
 ///     other Ens.Config.Production row is ever an entry (DW-38). An entry is
-///     {"namespace", "production" (the class name), "displayName"}. The display name is the Description of the production's definition, or the
-///     class name when the description is empty. A namespace is readable when the user of the ServiceUser setting of Decide holds Read on the
+///     {"namespace", "production" (the class name), "displayName", "state"}. The display name is the Description of the production's definition, or the
+///     class name when the description is empty. The state is the running state that Ens.Director.GetProductionStatus gives for the namespace (running,
+///     stopped, suspended, troubled, network_stopped, timeout or unknown), as Failures reads it, and no other field says it. A namespace is readable when the user of the ServiceUser setting of Decide holds Read on the
 ///     resource of the namespace's default global database ($SYSTEM.Security.CheckUserPermission). An unreadable namespace, and one that
 ///     cannot be entered, are left out. On the online demo (the public flag onlineDemo) the list holds only the Orders demo production, when
 ///     it is readable.
@@ -110,11 +111,11 @@ ClassMethod Productions() As %DynamicArray
 		If onlyOrders && (namespace '= orders) Continue
 		If '##class(%Library.EnsembleMgr).IsEnsembleNamespace(namespace) Continue
 		If '..Readable(user, namespace) Continue
-		Set production = ..Current(namespace, .description)
+		Set production = ..Current(namespace, .description, , , , , , , , , , .state)
 		If production = "" Continue
 		If onlyOrders && (production '= ordersProduction) Continue
 		Set label = ..Label(description)
-		Do list.%Push({"namespace": (namespace), "production": (production), "displayName": ($Select(label '= "": label, 1: production))})
+		Do list.%Push({"namespace": (namespace), "production": (production), "displayName": ($Select(label '= "": label, 1: production)), "state": (state)})
 	}
 	Quit list
 }

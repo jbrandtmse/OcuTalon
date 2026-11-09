@@ -119,8 +119,8 @@ ClassMethod StopWatch(name As %String(DESCRIPTION = "The name of the production,
 	Quit ..Return(##class(OcuTalon.Tools.WatchAnswers).Submitted(result, match))
 }
 
-/// Lists the productions that can be watched: each one's name and namespace. Use it to answer which productions OcuTalon can watch. It starts
-/// nothing.
+/// Lists the productions that can be watched: each one's name and namespace, and its running state (running, stopped and so on). Use it to answer which
+/// productions OcuTalon can watch, and whether each is running. It starts nothing.
 ClassMethod ListProductions() As %DynamicObject
 {
 	Quit ..Return(##class(OcuTalon.Tools.WatchAnswers).Listed(##class(OcuTalon.Watch.Reader).Productions()))
