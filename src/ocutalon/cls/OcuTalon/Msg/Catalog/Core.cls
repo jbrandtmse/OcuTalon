@@ -1,6 +1,6 @@
 /// The catalog of the texts that OcuTalon sends or shows and that Lane B produces (AD-29, AD-32): the pairing replies and
 /// press alerts of Telegram, the answered statuses, the conversation and allowance texts, the fallback reasons, tell now and
-/// reminders, the status banners and their actions, the sign-in page's and the splash screen's texts, the audit line and the persona notices (approval.persona, persona.applied, persona.stale). The XData block Entries holds
+/// reminders, the status banners and their actions, the sign-in page's and the splash screen's texts, the audit line and the persona notices (approval.persona, persona.applied, persona.stale). The step 4 settings and request texts (settings.* and answered.canceled, Story 35.2) are shown on the settings page and on every channel; no code sends them yet. The XData block Entries holds
 /// one JSON object whose names are the catalog keys, <prefix>.<name>, and whose values are
 ///   {"text": fixed text with {camelCase} placeholders, "web": the page wording when it differs from text,
 ///    "slots": {"<placeholder>": "<type>"}, "source": the UX section, "gap": the form the UX does not fix,
@@ -624,6 +624,170 @@ XData Entries [ MimeType = application/json ]
    "reason": "text"
   },
   "source": "EXPERIENCE Incidents and Approvals / Results / A tool call that could not run"
+ },
+ "settings.emailHeading": {
+  "text": "Email",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Email heading"
+ },
+ "settings.emailHelp": {
+  "text": "Connect your mailbox. OcuTalon decides on each email that arrives after you connect it, and leaves your mail on the server.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Email help"
+ },
+ "settings.emailAddress": {
+  "text": "Your email address",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Email address label"
+ },
+ "settings.emailAddressHelp": {
+  "text": "OcuTalon emails this address without asking.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Email address help"
+ },
+ "settings.emailIncoming": {
+  "text": "Incoming mail server (POP3)",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Incoming mail server label"
+ },
+ "settings.emailOutgoing": {
+  "text": "Outgoing mail server (SMTP)",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Outgoing mail server label"
+ },
+ "settings.emailUser": {
+  "text": "User name",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Mail user name label"
+ },
+ "settings.emailPassword": {
+  "text": "Password",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Mail password label"
+ },
+ "settings.emailSignIn": {
+  "text": "Sign in with {provider}",
+  "slots": {
+   "provider": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Sign in with a provider"
+ },
+ "settings.emailClientId": {
+  "text": "Client ID",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Client ID label"
+ },
+ "settings.emailClientSecret": {
+  "text": "Client secret",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Client secret label"
+ },
+ "settings.webhooksHeading": {
+  "text": "Webhooks",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Webhooks heading"
+ },
+ "settings.webhooksHelp": {
+  "text": "Other systems can send OcuTalon any JSON event. Each webhook has its own secret, which the sender puts in the X-OcuTalon-Webhook-Secret header.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Webhooks help"
+ },
+ "settings.webhookName": {
+  "text": "Name",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Webhook name label"
+ },
+ "settings.webhookSecret": {
+  "text": "Secret",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Webhook secret label"
+ },
+ "settings.webhookCreate": {
+  "text": "Create webhook",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Create webhook button"
+ },
+ "settings.webhookAddress": {
+  "text": "Send events with POST to {address}.",
+  "slots": {
+   "address": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Webhook address"
+ },
+ "settings.webhookNameTaken": {
+  "text": "A webhook called '{name}' already exists. Nothing was changed.",
+  "slots": {
+   "name": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Webhook name taken"
+ },
+ "settings.secretSet": {
+  "text": "Saved, and never shown again. Type a new value to replace it.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Write-only field holding a value"
+ },
+ "settings.secretNotSet": {
+  "text": "Not set.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Write-only field without a value"
+ },
+ "settings.refusedExpansion": {
+  "text": "This can't contain {marker}, which IRIS would read as a reference to a setting. Nothing was changed.",
+  "slots": {
+   "marker": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Value holding a setting reference"
+ },
+ "settings.toolChangedBanner": {
+  "text": "{tool} on {server} changed its description or inputs, so it is Unclassified again. It counts as risky until it is classified below.",
+  "slots": {
+   "tool": "text",
+   "server": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Changed tool banner"
+ },
+ "settings.sourceHeading": {
+  "text": "Use as a source",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Source form heading"
+ },
+ "settings.sourceHelp": {
+  "text": "OcuTalon calls this tool on a schedule and decides on each new result. The source joins your digest's coverage list.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Source form help"
+ },
+ "settings.sourceName": {
+  "text": "Source name",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Source name label"
+ },
+ "settings.sourceArguments": {
+  "text": "Arguments (JSON)",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Source arguments label"
+ },
+ "settings.sourceInterval": {
+  "text": "Check every",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Source interval label"
+ },
+ "settings.sourceNotReadOnly": {
+  "text": "Only a Read-only tool can be a source.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Tool that can't be a source"
+ },
+ "settings.sourceBadArguments": {
+  "text": "Enter the arguments as a JSON object. Nothing was changed.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Source arguments not JSON"
+ },
+ "answered.canceled": {
+  "text": "Canceled at {time}: the MCP server {server} was removed. Nothing was changed.",
+  "slots": {
+   "time": "time",
+   "server": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Canceled"
  }
 }
 }

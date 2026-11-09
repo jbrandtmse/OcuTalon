@@ -12,6 +12,7 @@
 ///   - TestArgumentBeforeRole: a bad argument is invalid whoever types it, and a good one from a caller without the role is refused;
 ///   - TestInvalidArgument: only 0 and 1 (a number or a string) are arguments; any other prints the invalid text, submits
 ///     nothing (an OcuTalonAdmin holder's included) and leaves the demo.mode row as it was;
+///   - TestHeldByWholeName: Held is 1 for OcuTalonAdmin alone or in a list and 0 for %All, an empty list and names that only contain it (Story 35.2);
 ///   - TestErrorText: the error text of a line drops the status's code prefix and its closing full stop.
 /// The demo.mode row is saved before the tests and put back after them (Test.Demo.Step).
 Class OcuTalon.Test.Core.Admin Extends %UnitTest.TestCase
@@ -52,6 +53,17 @@ Method TestAllowed()
 	}
 	For roles = "OcuTalonUser,OcuTalonTraceViewer", "", "OcuTalonAdmins", "xOcuTalonAdmin", "%Alls", "x%All", "%Developer,%DB_OCUTALON_DATA" {
 		Do $$$AssertEquals(##class(OcuTalon.Core.Admin).Allowed(roles), 0, "'"_roles_"' is not allowed")
+	}
+}
+
+/// Held counts OcuTalonAdmin by its whole name only; %All and look-alike names do not count (AD-19, AD-21).
+Method TestHeldByWholeName()
+{
+	For roles = "OcuTalonAdmin", "OcuTalonUser,OcuTalonAdmin,%Developer", "%All,OcuTalonAdmin" {
+		Do $$$AssertEquals(##class(OcuTalon.Core.Admin).Held(roles), 1, "'"_roles_"' holds the role")
+	}
+	For roles = "%All", "", "OcuTalonAdminX", "XOcuTalonAdmin", "OcuTalonUser", "OcuTalonAdmins,%All" {
+		Do $$$AssertEquals(##class(OcuTalon.Core.Admin).Held(roles), 0, "'"_roles_"' does not hold the role")
 	}
 }
 

@@ -288,7 +288,8 @@ XData Contracts [ MimeType = application/json ]
    "CspSessionId": "%String(MAXLEN=64)",
    "AllowanceTimes": "%List",
    "AllowanceUntil": "%String(MAXLEN=20)",
-   "DailyCapDay": "%String(MAXLEN=10)"
+   "DailyCapDay": "%String(MAXLEN=10)",
+   "AdminAtSignIn": "%Boolean"
   },
   "indexes": {
    "RefIndex": "Ref unique",

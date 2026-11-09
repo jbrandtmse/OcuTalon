@@ -13,6 +13,12 @@
 ///     OwnerRef, so a tool cannot name another session. ProposePersona, the one settings verb a tool may send, is held to the same rule:
 ///     inside a bridge context its SessionRef must be the context's OwnerRef (DW-570), so a tool proposes only the persona of the
 ///     session whose turn it is in, and the refusal is not_allowed and nothing reaches SettingsOps;
+///   - step 4 (AD-1, AD-21): the five MCP verbs AddMcpServer, RemoveMcpServer, ClassifyTool, SetSourcePoll and RemoveSourcePoll go to
+///     McpOps from web_admin only; none is a tool verb, and a refusal from any other origin than tool says "admin only", as for
+///     SettingsOps. SendEmail goes to EmailOut from system (FixExecutor's approved email fix) and from tool; from tool it is accepted
+///     only for the session user's own mailbox: inside a bridge context its SessionRef must be the context's OwnerRef, the product key
+///     email.owner must be the SessionRef, and the product key email.address must be set and equal, ignoring case and surrounding
+///     spaces, every comma-separated recipient (an empty list is refused). Otherwise the refusal is not_allowed and nothing is sent;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
 ///     not_found or unknown_command) and a plain-English Message;
 ///   - an accepted command is sent synchronously to its owner in the right trace session (AD-26): inside a turn the session
@@ -34,8 +40,9 @@ Class OcuTalon.Core.CommandsIn Extends Ens.BusinessService
 Parameter VERBPACKAGE = "OcuTalon.Msg.Command.";
 
 /// The verbs that origin tool may send (AD-1, FR-24, NFR-14). Dismiss is further limited to an incident the session can see.
-/// ProposePersona is the one settings verb among them, and a tool is the only origin that may send it.
-Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest,SaveMemory,ForgetMemory,ProposePersona";
+/// ProposePersona is the one settings verb among them, and a tool is the only origin that may send it. SendEmail is limited to the
+/// session user's own mailbox address (Carry). No MCP verb is among them.
+Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest,SaveMemory,ForgetMemory,ProposePersona,SendEmail";
 
 /// How long the gate waits for the owner's answer, in seconds.
 Parameter TIMEOUT = 120;
@@ -77,7 +84,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	Set origin = $Select(##class(OcuTalon.Bridge.Context).Active(): "tool", 1: command.Origin)
 	If (origin = "tool") && '$ListFind($ListFromString(..#TOOLVERBS), verb) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	If '$ListFind($ListFromString(origins), origin) {
-		Quit ..Result("not_allowed", $Select((owner = "SettingsOps") && '$ListFind($ListFromString(origins), "web_user") && '$ListFind($ListFromString(origins), "tool"): ..#MESSAGEADMINONLY, verb = "Pair": ..#MESSAGETELEGRAMONLY, 1: ..#MESSAGENOTALLOWED))
+		Quit ..Result("not_allowed", $Select(((owner = "SettingsOps") || (owner = "McpOps")) && '$ListFind($ListFromString(origins), "web_user") && '$ListFind($ListFromString(origins), "tool"): ..#MESSAGEADMINONLY, verb = "Pair": ..#MESSAGETELEGRAMONLY, 1: ..#MESSAGENOTALLOWED))
 	}
 	If (origin = "tool") && (verb = "ProposePersona") && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	If (origin = "tool") && (verb = "Dismiss") {
@@ -86,6 +93,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 		If '$IsObject(incident) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 	}
 	If (origin = "tool") && ((verb = "SendDigest") || (verb = "SaveMemory") || (verb = "ForgetMemory")) && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
+	If (origin = "tool") && (verb = "SendEmail") && '..OwnAddressOnly(command) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	Do ..Join(command)
 	Set request = $Select(verb = "Dismiss": ..Dismissal(command), verb = "RunHeartbeat": ..BeatRequest(command), 1: command)
 	Set sc = ..Send(owner, request, .response)
@@ -95,6 +103,23 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	}
 	If '$IsObject($Get(response)) || 'response.%IsA("OcuTalon.Msg.CommandResult") Quit ..Result("failed", ..#MESSAGEFAILED)
 	Quit response
+}
+
+/// 1 when a SendEmail from a tool is for the session user's own mailbox: inside a bridge context the command's SessionRef is the
+/// context's OwnerRef, the product key email.owner is the SessionRef, email.address is set, and every comma-separated recipient,
+/// trimmed and lower-cased, equals it lower-cased. An empty list, an empty recipient or no mailbox gives 0.
+ClassMethod OwnAddressOnly(command As OcuTalon.Msg.Command.SendEmail) As %Boolean [ Private ]
+{
+	If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit 0
+	Set address = $ZConvert($ZStrip(##class(OcuTalon.Data.Setting).Get("email.address"), "<>W"), "L")
+	If (address = "") || (command.SessionRef = "") || (##class(OcuTalon.Data.Setting).Get("email.owner") '= command.SessionRef) Quit 0
+	Set recipients = command.Recipients
+	If $ZStrip(recipients, "<>W") = "" Quit 0
+	Set own = 1
+	For i = 1:1:$Length(recipients, ",") {
+		If $ZConvert($ZStrip($Piece(recipients, ",", i), "<>W"), "L") '= address Set own = 0
+	}
+	Quit own
 }
 
 /// The one send of the class: the command to the owner item, synchronously. Private, so that only Carry sends through it,
@@ -182,7 +207,8 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// heartbeat verbs (Epic 39): SetHeartbeat to SettingsOps and RunHeartbeat to Checks, each from web_user only, and the precedent verbs (Epic 41,
 /// AD-21): MarkNoise and ForgetPrecedent to PrecedentOps, each from web_user only; neither is a tool verb.
 /// A settings verb whose origins include web_user or tool is refused with the plain not-allowed text, not the admin-only one.
-/// SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.
+/// Step 4 (Story 35.2, AD-1, AD-21): the MCP verbs go to McpOps from web_admin only, and SendEmail to EmailOut from tool (own address only,
+/// Carry) and system. SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.
 XData Routes [ MimeType = application/json ]
 {
 [
@@ -209,7 +235,13 @@ XData Routes [ MimeType = application/json ]
  {"verb": "SetHeartbeat", "owner": "SettingsOps", "origins": "web_user"},
  {"verb": "RunHeartbeat", "owner": "Checks", "origins": "web_user"},
  {"verb": "MarkNoise", "owner": "PrecedentOps", "origins": "web_user"},
- {"verb": "ForgetPrecedent", "owner": "PrecedentOps", "origins": "web_user"}
+ {"verb": "ForgetPrecedent", "owner": "PrecedentOps", "origins": "web_user"},
+ {"verb": "AddMcpServer", "owner": "McpOps", "origins": "web_admin"},
+ {"verb": "RemoveMcpServer", "owner": "McpOps", "origins": "web_admin"},
+ {"verb": "ClassifyTool", "owner": "McpOps", "origins": "web_admin"},
+ {"verb": "SetSourcePoll", "owner": "McpOps", "origins": "web_admin"},
+ {"verb": "RemoveSourcePoll", "owner": "McpOps", "origins": "web_admin"},
+ {"verb": "SendEmail", "owner": "EmailOut", "origins": "tool,system"}
 ]
 }
 

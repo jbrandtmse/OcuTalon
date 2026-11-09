@@ -9,7 +9,7 @@ CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file 
 WEB_SCRIPTS="web-build mock"
 
 # Hosted `checks` scripts appended to CHECK_SCRIPTS above.
-CHECK_SCRIPTS="$CHECK_SCRIPTS eval-personas heartbeat-overview"
+CHECK_SCRIPTS="$CHECK_SCRIPTS eval-personas heartbeat-overview mcp-notices"
 
 # The %UnitTest shards, each a union of whole areas (OcuTalon.Test.<Area>), aligned with the lanes of AD-29.
 SHARDS="lane-a lane-b"
@@ -17,7 +17,7 @@ SHARDS="lane-a lane-b"
 # shard_areas <shard>: the areas of a shard.
 shard_areas() {
   case $1 in
-    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel Memory Docs" ;;
+    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel Memory Docs Mcp" ;;
     lane-b) echo "Contract Core Data Demo Live Msg Schedule Web" ;;
     *) return 1 ;;
   esac
