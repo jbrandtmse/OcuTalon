@@ -6231,6 +6231,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 42633085173 attempts 2 and 3: shards-2/3/4 cancelled at 15:39Z and 16:22:05Z (job timeout), lane-a@rest 2017s and 2147s; attempt 1 shards-2/3 at 41.5 min; ci.yml timeout-minutes 40
 - 2026-11-09T16:25:24Z status=escalated owner=burndown by=runner note=needs a ci/units.sh group split (contended: Epic 0, Epic 11) or more capacity; reported to the orchestrator at once
 - 2026-11-09T16:26:19Z status=routed owner=burndown by=orchestrator note=resolves_by_Epic_0_Story_0.20(group_split_widened:split_unit_shard:lane-a@rest,rebalance_shards-2,-3,-4);orchestrator_ruling_2026-11-09;not_for_decisions_for_user
+- 2026-11-09T17:51:03Z note=Epic_35_burn-down:kept_owner=burndown_by_orchestrator_ruling(Story_0.20_key_not_yet_in_the_tracker);not_for_decisions_for_user by=burndown
 
 ### DW-1034: settings.refusedExpansion is stored in Catalog.Core with a {marker} slot for the two characters that open a setting reference, because Msg.Catalog.Fill rejects an unbalanced brace; producers must pass '@{' as the slot value
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: low | footprint: in-story
@@ -6258,6 +6259,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42633085173 attempt 4 (OCT-epic35 cd13b1ae) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: run 42633085173 attempt 4 job shards-2 17:00Z, lane-a@rest 2065s, 1 of 79 classes; attempts 2 and 3 lane-a@rest passed on the same sha
 - 2026-11-09T17:10:28Z status=routed owner=burndown by=runner note=Story 35.1's test (Lane A file); burn-down priority; a red on a quiet host makes it real
+- 2026-11-09T17:51:03Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=burndown note=Epic_35_part_merge_burn-down_overflow:Test.Mcp.Attach_(Lane_A)_is_extended_by_22.2's_McpOps_work;make_TestShadow's_bare-manager_AddTool_wait_for_the_mock_or_retry_once_under_load;a_red_on_a_quiet_host_makes_it_real
 
 ### DW-1041: AD-1 lets REST code write only the Session row, counters, pairing hashes and UI markers, but the step 4 contract has the MCP settings routes call SettingsOps.SaveMcpEntry/RemoveMcpEntry in the REST process to write the wallet secret and Config Store entry (ruling Q4), with no AD-1 exception recorded
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: med | fix-risk: high | footprint: out-of-footprint
