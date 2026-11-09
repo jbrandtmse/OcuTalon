@@ -2991,3 +2991,4 @@
 2026-11-09T03:19:19Z	Epic 32	runner_complete	agent=a9f9e85b541d9b31f stories=1(32.7) head=4a9db21d ci=success(42548872295,42548872302) applied=planner-2026-11-08-32.7,option_ii decisions_for_user=none
 2026-11-09T03:19:19Z	Epic 32	amendments_verified	amendments=0 extensions=8(web/scripts+web/e2e/live) ok=true
 2026-11-09T03:19:19Z	Epic 32	merge_enqueued	policy=when_green+planner_rule_a waits_for=Epic_39_merge_head_lane-a(one_at_a_time)
+2026-11-09T03:36:34Z	Run	orchestrator_error	fault=orchestrator note=polled_run_42550818274(ci)_as_lane-a;the_real_lane-a_42550818343_was_already_green;Epic_39_merge_delayed_~30min;corrected_now
