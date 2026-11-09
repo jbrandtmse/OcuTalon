@@ -6018,3 +6018,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-0-15-the-dockerfile-sits-at-the-repository-root.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: docker/tests/test-release-sequence.sh:197 shim arm '-f | --build-arg) shift 2'; predates 0.15 (docker/Dockerfile was equally unchecked); contended file (Epic 11 part 2)
 - 2026-11-09T06:18:47Z status=wontfix-accepted owner=0-15-the-dockerfile-sits-at-the-repository-root by=harvest note=reopen_if=a release build uses a wrong -f path while test-release-sequence.sh passes, or the shim is next edited for another reason (then fail when the -f file is absent from the context)
+- 2026-11-09T06:39:10Z occurrence=0-15-the-dockerfile-sits-at-the-repository-root
+
+### DW-1005: Story 0.15 exists so the Open Exchange listing reads Docker True, but nothing in the pipeline checks the listing after the root Dockerfile reaches the branch Open Exchange reads
+- source: spec-0-15-the-dockerfile-sits-at-the-repository-root.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the spec's field data has 1 of 18 root-Dockerfile entries still reading False; the flag can only be read on Open Exchange after merge/release (outward, owner/Planner)
+- 2026-11-09T06:39:10Z status=wontfix-accepted owner=0-15-the-dockerfile-sits-at-the-repository-root by=cr note=reopen_if=the Open Exchange listing still reads Docker False after the release that carries the root Dockerfile
+
+### DW-1006: README Repository layout says docker holds the image's files and names no root Dockerfile, now that the recipe sits at the repository root
+- source: spec-0-15-the-dockerfile-sits-at-the-repository-root.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: README.md:366 '- docker: the image's files and the checks and live tests in docker/tests'; the spec's Never forbids public text changes and the sentence names no path
+- 2026-11-09T06:39:10Z status=by-design owner=0-15-the-dockerfile-sits-at-the-repository-root by=cr note=spec Never: no change to public text; reopens via a spec or docs-story amendment that adds a root Dockerfile layout bullet

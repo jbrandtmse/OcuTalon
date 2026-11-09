@@ -194,8 +194,7 @@ NOT_BOOKKEEPING_PATTERN='^_bmad-output/planning-artifacts/ux-designs/'
 # The inputs of the IRIS groups (ci/changes.sh --group): a group runs only when a changed path matches its pattern. Every unit builds
 # its stack from the whole product, so IRIS_INPUT holds what every unit builds from or runs: the sources, the image (the Dockerfile
 # at the repository root) and compose files (.dockerignore and docker/ipm/ among them), the throwaway helpers and compose
-# overrides, release/demo-load.sh (which the load phase
-# of live:online-demo-path runs), the eval folder, the CI recipe,
+# overrides, release/demo-load.sh (which the load phase of live:online-demo-path runs), the eval folder, the CI recipe,
 # .github/workflows/ci.yml, and the root .gitattributes and .gitignore. These are unanchored ERE alternatives, joined by
 # group_input_pattern.
 IRIS_INPUT='src/|Dockerfile$|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|release/demo-load\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
