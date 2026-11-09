@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-09-2026 00:59
+last_updated: 11-09-2026 01:22
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -274,8 +274,7 @@ development_status:
   17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges: done
   17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path: done
   17-12-needs-you-never-counts-the-person-s-own-chat-messages: done
-  17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta: 
-    in-progress
+  17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta: review
   epic-17-retrospective: optional
 
   epic-18: backlog
