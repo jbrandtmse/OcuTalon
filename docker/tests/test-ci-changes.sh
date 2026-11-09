@@ -230,7 +230,7 @@ claimed_case "the root .gitattributes" true .gitattributes
 claimed_case "src/bridge" false src/bridge/cls/OcuTalon/Bridge/Other.cls
 claimed_case "src/cpf" false src/cpf/x.cpf
 claimed_case "src/module.xml" false src/module.xml
-claimed_case "docker/Dockerfile" false docker/Dockerfile
+claimed_case "the root Dockerfile" false Dockerfile
 claimed_case "docker/merge.cpf" false docker/merge.cpf
 claimed_case "docker/after-start.cos" false docker/after-start.cos
 claimed_case "docker/ipm/**" false docker/ipm/x.xml
@@ -281,13 +281,13 @@ unclassified_case "an unclassified path next to a claimed one" false newdir/x.tx
 # folder is unclassified, so that no group is skipped for a path that a unit may read.
 for near in newdir/docs/x.md newdir/release/x.sh newdir/.claude/x.json newdir/README.md newdir/x.md newdir/LICENSE newdir/NOTICE \
   newdir/_bmad/x.yaml newdir/_bmad-output/x.md docker/other/test-x.sh docker/tests/sub/test-x.sh docker/tests/sub/record-eval.sh \
-  .github/workflows/other.yml .github/workflows/lane-a.yml.bak; do
+  .github/workflows/other.yml .github/workflows/lane-a.yml.bak newdir/Dockerfile docker/other/Dockerfile; do
   unclassified_case "a declared path's name in another place ($near)" false "$near" "$near"
 done
 
 # --- row 10: the base ---
 
-commit "c1 code" docker/Dockerfile
+commit "c1 code" Dockerfile
 c1=$sha
 commit "c2 code" src/module.xml
 c2=$sha
@@ -661,11 +661,11 @@ fi
 main_repo=$repo
 repo="$tmp/repo-diff"
 git init -q "$repo"
-commit "d0 dockerfile" docker/Dockerfile README.md
+commit "d0 dockerfile" Dockerfile README.md
 d0=$sha
 runs "$tmp/green-d0.json" "success:$d0"
 mkdir -p "$repo/docs"
-g mv docker/Dockerfile docs/old-Dockerfile.txt
+g mv Dockerfile docs/old-Dockerfile.txt
 g commit -q -m "d1 the Dockerfile moves into docs"
 classify "$tmp/green-d0.json" push
 expect "diff: a claimed file renamed into docs still runs every group (git's rename detection would list only the new path)" "$d0" false all

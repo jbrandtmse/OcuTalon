@@ -1488,11 +1488,12 @@ OcuTalon/
       python/               # .py resources
   web/                      # Angular app; e2e/ holds the Playwright demo-path test
   eval/                     # recorded items and reader snapshots, expected outcomes
-  docker/                   # Dockerfile, merge.cpf (Lane A's), after-start script, health check, maintenance and busy pages, probe
+  docker/                   # merge.cpf (Lane A's), after-start script, health check, maintenance and busy pages, probe [AMENDED 2026-11-09, Story 0.15, owner decision via the Contest Planner: the Dockerfile moved to the repository root; it read "Dockerfile, merge.cpf (Lane A's), ..."]
   ci/                       # compose override, mock service, mock scenarios by lane
   docs/                     # README sections, bridge developer guide, security overview (generated parts)
   release/                  # the scripted release sequence, the upgrade-in-place harness and the release records (release/records/<version>/) (Lane A)
   install.sh                # finds, checks and retags the image, then runs docker compose up
+  Dockerfile                # the image's one recipe (AD-23), at the repository root; Lane B's, as under docker/ [AMENDED 2026-11-09, Story 0.15, owner decision via the Contest Planner]
   docker-compose.yml        # the judges' compose file: no mocks
   .env.example
 ```

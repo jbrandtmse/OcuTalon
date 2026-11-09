@@ -197,7 +197,7 @@ case "$1" in
         *) ctx=$1; shift ;;
       esac
     done
-    [ -f "$SHIMFLAGS/build-fail" ] && { echo "planted build failure in $ctx/docker/Dockerfile" >&2; exit 1; }
+    [ -f "$SHIMFLAGS/build-fail" ] && { echo "planted build failure in $ctx/Dockerfile" >&2; exit 1; }
     if [ ! -f "$ctx/src/ocutalon/csp/index.html" ]; then
       echo "web bundle missing: run npm --prefix web run build" >&2
       exit 1
@@ -508,7 +508,7 @@ mkseed() {
     git -C "$root" archive HEAD | tar -x -C "$s" || exit 1
   else
     # Only what the sequence, the notes script and the harness read: the whole tree adds time and no case.
-    git -C "$root" archive HEAD release ci docker/tests docker/Dockerfile docker/ipm .gitignore .dockerignore module.xml src/module.xml README.md \
+    git -C "$root" archive HEAD release ci docker/tests Dockerfile docker/ipm .gitignore .dockerignore module.xml src/module.xml README.md \
       web/package.json web/package-lock.json _bmad-output/implementation-artifacts/sprint-status.yaml \
       _bmad-output/planning-artifacts/epics.md | tar -x -C "$s" || exit 1
   fi
@@ -1029,7 +1029,7 @@ t_image() {
   unflag no-base
   flag build-fail
   rs "$N" next
-  has "a failed build" "$out" "FAIL image docker build failed: planted build failure in <state>/context/docker/Dockerfile"
+  has "a failed build" "$out" "FAIL image docker build failed: planted build failure in <state>/context/Dockerfile"
   lacks "a failed build: no local path in the record" "$(cat "$(rec_file)")" "$tmp"
   unflag build-fail
   flag no-bundle
@@ -2905,7 +2905,7 @@ t_static() {
   eq "(U-294) requirements.txt has 36 pin lines and no line that is not a pin or a comment" "$(grep -v '^#' "$root/requirements.txt" | grep -c '^[A-Za-z0-9_.-]*==[A-Za-z0-9_.-]*$')/$(grep -v '^#' "$root/requirements.txt" | grep -c .)" "36/36"
   eq "(U-294) the root requirements.txt opens with a comment that names its source" "$(sed -n 1p "$root/requirements.txt" | cut -c1-2)" "# "
   eq "(QA) requirements.txt is tracked" "$(git -C "$root" ls-files requirements.txt)" "requirements.txt"
-  pip_pins=$(grep -F 'pip install' "$root/docker/Dockerfile" | tr ' ' '\n' | grep '==')
+  pip_pins=$(grep -F 'pip install' "$root/Dockerfile" | tr ' ' '\n' | grep '==')
   eq "(U-294) the image's pip line has three pins" "$(printf '%s\n' "$pip_pins" | grep -c .)" 3
   for pin in $pip_pins; do
     eq "(U-294) requirements.txt has the image's pin $pin" "$(grep -cx -e "$pin" "$root/requirements.txt")" 1

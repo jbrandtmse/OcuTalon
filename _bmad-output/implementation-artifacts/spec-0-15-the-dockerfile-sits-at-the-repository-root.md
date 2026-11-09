@@ -2,12 +2,23 @@
 title: 'Story 0.15: The Dockerfile sits at the repository root'
 type: 'chore'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '52849f666c11edd547f2ef8a5a1d53a49f3ea3b6'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The release image step's `-f` path is pinned only by a source-text check (compose-file check (c)); the docker shim of
+      `test-release-sequence.sh` discards the `-f` value, so no behavioural test fails if `step_image` builds from a wrong path.
+    evidence: |-
+      The shim's `-f | --build-arg) shift 2` arm ignores the value and its planted-failure message is derived from the context
+      directory. This predates Story 0.15 (the old `docker/Dockerfile` path was equally unchecked); the story kept the contended
+      file to path-only edits. A fix is a few lines in the shim (fail when the `-f` file is absent from the context).
+    location: >-
+      docker/tests/test-release-sequence.sh:197
+    severity: low
 ---
 
 <intent-contract>
@@ -146,6 +157,36 @@ The old path has 15 tracked files outside `_bmad-output` (one, `epic-dependencie
 
 ## Review Triage Log
 
+### 2026-11-08 - Review pass
+- verdicts: 26 findings - high 0, medium 1, low 19, false 6, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: `add_previous_context` die text says "no src/module.xml" though it checks only the Dockerfile - matrix row 4 prescribes this exact text and the rule pins it; the manifest is checked by `phase_build` before.
+  - `[low]` `[reject]` Blind: no run evidence for `test-compose-start` and `test-install-upgrade` - the spec marks both CI-covered (a throwaway start does not fit one call); their edits are one path each.
+  - `[low]` `[reject]` Blind: check (d) exempts the harness and its test whole - the spec prescribes exactly this exemption; the harness's current-tree build is covered by `previous-dockerfile` and the release rows.
+  - `[low]` `[defer]` Blind: release `-f` path pinned by a text grep only - pre-existing shim gap (see `deferred:`).
+  - `[low]` `[patch]` Blind: overlong comment line in `ci/units.sh` - reflowed.
+  - `[false]` `[reject]` Blind: marker date 2026-11-09 is later than today - the spec's Design Notes prescribe that marker.
+  - `[false]` `[reject]` Blind: stale Auto Run Result block - rewritten at finalize.
+  - `[low]` `[reject]` Blind: equal `.Size` is weak proof of identical content - the spec decided the measure; `.Size` counts layer content, the Dockerfile is in no layer, and the ids differ as expected.
+  - `[low]` `[reject]` Edge: optional root `Dockerfile.dockerignore` not claimed by `IRIS_INPUT` - the file does not exist and the spec forbids creating it.
+  - `[low]` `[reject]` Edge: same file has no LF attribute - same reason.
+  - `[medium]` `[patch]` Edge: matrix row 9 (a manifest stored before the move) had no test, only a changed-hash root entry - added a `test-ci-warm` check whose stored manifest names the old path; mutation line written.
+  - `[low]` `[reject]` Edge: compose check (b) matches lines anywhere in the file - compose has one service and one build block; a stricter parse is more complexity than the risk.
+  - `[low]` `[reject]` Edge: `mkseed` fails until the move is committed - transitional by construction; both batches pass on a single-commit copy of this tree.
+  - `[low]` `[reject]` Edge: the `epic-dependencies.yaml` footprint - owner-only; already listed as `orchestrator_edits` in the spec.
+  - `[low]` `[defer]` Gap: release `-f` pin is source text only - same entry as above.
+  - `[low]` `[patch]` Gap: moved pins, check (a) and the harness wiring had no `mutation:` lines - ran each mutation to red, restored, wrote the lines.
+  - `[false]` `[reject]` Gap: the equal-size AC has no test - the spec says it is a measurement whose falsifier is the equality.
+  - `[low]` `[reject]` Gap: the name-only diff and unchanged-files ACs fail against `git merge-base` because of an earlier README change on the branch - an AC wording issue (the fix edits the spec); against the baseline revision they pass (20 paths, README untouched).
+  - `[low]` `[reject]` Gap: `mkseed` reads `git archive HEAD` - same as the Edge row.
+  - `[low]` `[reject]` Gap: check (d) uses `--untracked`, so a stray file can turn it red - that is its purpose (an unignored file naming the old path); it fails loudly.
+  - `[low]` `[reject]` Gap: the `Dockerfile.dockerignore` branch of `test-build-inputs` never executes - pre-existing for the old path; no such file may exist.
+  - `[false]` `[reject]` Gap: stale Auto Run Result block - same as above.
+  - `[false]` `[reject]` Gap: marker date - same as above.
+  - `[low]` `[reject]` Intent: nothing asserts the file is tracked at the root - the change is a staged rename committed by this run; a tracked-file assertion adds a git dependency to a static test.
+  - `[false]` `[reject]` Intent: `IRIS_INPUT`'s `Dockerfile$` is unanchored - the group patterns are wrapped as `^(...)`, so it claims only the root file; pinned by the `newdir/Dockerfile` and `docker/other/Dockerfile` cases (mutation line written).
+  - `[low]` `[reject]` Intent: `copy_build_context` goes beyond a path swap (`mkdir -p "$dir"`) - required, because the context directory no longer exists before the copy.
+
 ## Design Notes
 
 **Governing ADs and rows (Rule 6).**
@@ -249,7 +290,41 @@ No criterion contradicts an AD.
 
 Every test added or changed passes on a fresh environment, in either order.
 
+**Implementation record (Story 0.15, implement stage):**
+- Task 0 base image `ocutalon-iris-base:2026.3.0AI.154.0`: id `sha256:4e3907db20043abb15774aaa50b00f1a1bdb72f7cf37efaeb9ec48e7c329dba9`.
+- Task 0 `before` (`-f docker/Dockerfile`): `sha256:1f01e86e2adbed9537efa660f06558159577b96828713bf852822d4fd66b9015` `.Size` 5667082326.
+- Task 0 `after` (`-f Dockerfile`, after the `git mv`): `sha256:9656f9010d85aaafc0ec81533421a09d26a1ccac6ae75d5fcedb8e587e490862` `.Size` 5667082326. The sizes are equal; the ids differ (layer metadata). Both tags were removed afterwards.
+- mutation: a comment line added to `Dockerfile` -> `git diff -M --name-status` reads `R099`, not `R100` (red); restored to `R100`.
+- mutation: `dockerfile: docker/Dockerfile` back in `docker-compose.yml` -> `test-compose-file` checks (b) and (d) red; restored.
+- mutation: `release.sh` `step_image` back to `-f "$ctx/docker/Dockerfile"` -> checks (c) and (d) red; restored.
+- mutation: `!Dockerfile` appended to `.dockerignore` -> `ci/iris.sh live build-inputs` "dockerignore: the build context differs from the files the Dockerfile copies" red (the context held `Dockerfile` too); restored, `e0s15i` torn down.
+- mutation: `|Dockerfile$` dropped from `IRIS_INPUT` -> `claimed_case "the root Dockerfile"` red (no group claims it); restored.
+- mutation: `IRIS_INPUT`'s `Dockerfile$` widened to `.*Dockerfile$` -> the `newdir/Dockerfile` and `docker/other/Dockerfile` cases of `test-ci-changes` (unclassified, never claimed by a non-root Dockerfile) red; restored. (`web/Dockerfile` and `release/ipm/Dockerfile` are already claimed or declared by other patterns, so they pin nothing.)
+- mutation: the `docker/Dockerfile` fallback removed from `previous_dockerfile` -> the v1.0.4 layout cases of rule `previous-dockerfile` red; restored. The rule's own break (`previous_dockerfile() { echo docker/Dockerfile; }`) is red on the root layout (the rule runs it on every execution).
+- mutation: `docker/Dockerfile` recreated beside the root file -> check (a) of `test-compose-file` red; removed again (the index keeps the rename).
+- mutation: `add_previous_context` back on the old path, `phase_build`'s check back on `-f docker/Dockerfile`, and, separately, the order of the root file and the fallback swapped in `previous_dockerfile` -> rule `previous-dockerfile` red each time; restored.
+- mutation: `ci/warm.sh` `warm_manifest` left on `docker/Dockerfile` -> the stale-warm, non-class-input and real-tree manifest checks of `test-ci-warm`, and the new check for a stack made before the move (matrix row 9), red; restored.
+- mutation: `expected_files` of `test-lib-live` back on the old path, and, separately, `copy_build_context` copying to `$dir/docker/Dockerfile` -> `build context: the copied files differ from the files the Dockerfile names` red both times; restored.
+- mutation: `DOCKERFILE=docker/Dockerfile` in `test-readme` -> rule `licence` red; restored.
+- mutation: the `pip_pins` source in `t_static` of `test-release-sequence` back on the old path -> rule `static` red; restored.
+- mutation: `/Dockerfile` dropped from `.gitattributes` -> `files_keep_lf` red; restored.
+- mutation: `Dockerfile` dropped from the `test-boundaries` scan scope -> `not scanned: Dockerfile` red; restored.
+- mutation: a comment line added to `ci/iris.sh` -> the name-only diff lists 21 paths, not 20; restored.
+- Runs, all green: `test-compose-file`, `test-ci-changes`, `test-upgrade-harness` (`all rules passed`), `test-ci-warm`, `test-lib-live`, `test-readme`, `test-boundaries`, `test-ci-config`, `test-rehearsal`, `live build-inputs` (three PASS lines). `test-release-sequence.sh` (both batches) passes only when `HEAD` holds the move, because its seed is `git archive HEAD ... Dockerfile`: it was run from a scratch repository holding this tree as a single commit (`PASS all rules` each); re-run it on the committed tree.
+- `lint_spine.py`: `"ok": false` with 10 low "placeholder" findings, identical on the unmodified spine at `HEAD` (pre-existing); the amendment adds none.
+- The AC name-only diff against `git merge-base HEAD feature/OCT_OcuTalon_MVP` lists 21 paths because that base predates a `README.md` change committed earlier on this branch; against the baseline revision the list is the 20 paths.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `git mv docker/Dockerfile Dockerfile` (R100). Every reference points at the root: compose, `ci/warm.sh`, `release/release.sh`, `lib-live.sh` and the tests. The guards that covered the old path now cover the root file (`/Dockerfile text eol=lf`, the boundary scan, `IRIS_INPUT` `Dockerfile$`, the warm manifest). The upgrade harness takes the root Dockerfile of the previous tree, else `docker/Dockerfile`. The image `.Size` is equal before and after (5667082326); the ids differ (layer metadata).
+
+**Files changed (20 outside `_bmad-output`, plus the spec and the spine):** `Dockerfile` (renamed from `docker/Dockerfile`), `docker-compose.yml`, `.gitattributes`, `ci/units.sh`, `ci/warm.sh`, `release/release.sh`, `release/upgrade-harness.sh`, and in `docker/tests/`: `lib-live.sh`, `test-boundaries.sh`, `test-build-inputs.sh`, `test-ci-changes.sh`, `test-ci-warm.sh`, `test-compose-file.sh`, `test-compose-start.sh`, `test-install-upgrade.sh`, `test-lib-live.sh`, `test-readme.sh`, `test-release-sequence.sh`, `test-upgrade-harness.sh`. The spine's repository layout (`ARCHITECTURE-SPINE.md`) carries the amendment.
+
+**Review.** 26 findings: high 0, medium 1, low 19, false 6. Patches applied: 3 (one medium: the row 9 warm-manifest test; two low: the comment reflow and the mutation lines). Deferred: 1 (the release `-f` shim gap, low). Every rejected finding and its reason is in the Review Triage Log. Follow-up review recommended: false.
+
+**Verification.** Green: `test-compose-file`, `test-ci-changes`, `test-upgrade-harness`, `test-ci-warm`, `test-lib-live`, `test-readme`, `test-boundaries`, `test-ci-config`, `test-rehearsal`, `ci/iris.sh live build-inputs` (three PASS, torn down), and `test-release-sequence.sh` in both batches (each `PASS all rules`) on a single-commit copy of this tree. `lint_spine.py` reports `"ok": false` with the same 10 low placeholder findings as the unmodified spine at HEAD. The name-only diff is the 20 paths against the baseline revision; the R100 and unchanged-files checks pass.
+
+**Residual risks.** `live:compose-start` and `live:install-upgrade` are CI-covered only. `test-release-sequence.sh` must be re-run on the committed tree. The `epic-dependencies.yaml` `orchestrator_edits` and the online demo host's own configuration are the owner's. The AC base `git merge-base HEAD feature/OCT_OcuTalon_MVP` also includes an earlier README change on the branch (21 paths).

@@ -2,6 +2,7 @@ _bmad-output/implementation-artifacts/deferred-work.md merge=union
 _bmad-output/planning-artifacts/architecture/**/.memlog.md merge=union
 src/short-names.tsv merge=union
 docker/** text=auto eol=lf
+/Dockerfile text eol=lf
 ci/** text=auto eol=lf
 src/module.xml text eol=lf
 module.xml text eol=lf

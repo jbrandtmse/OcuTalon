@@ -275,7 +275,7 @@ fi
 ctx="$tmp/context"
 copy_build_context "$ctx"
 awk '{ print } /<Version>/ && !done { print "    <Version>9.9.9</Version>"; done = 1 }' src/module.xml > "$ctx/src/module.xml"
-if docker build -q -f "$ctx/docker/Dockerfile" --build-arg "IRIS_IMAGE=$base_image" -t "$P-version-ok" "$ctx" >/dev/null 2>&1; then
+if docker build -q -f "$ctx/Dockerfile" --build-arg "IRIS_IMAGE=$base_image" -t "$P-version-ok" "$ctx" >/dev/null 2>&1; then
   got=$(docker run --rm --entrypoint cat "$P-version-ok" /opt/ocutalon/version 2>/dev/null | tr -d '\r\n')
   if [ -n "$want" ] && [ "$got" = "$want" ]; then
     pass "row 8 the first <Version> wins over a later one"
@@ -283,7 +283,7 @@ if docker build -q -f "$ctx/docker/Dockerfile" --build-arg "IRIS_IMAGE=$base_ima
     fail "row 8 with a later <Version> the image holds '$got', wanted '$want'"
   fi
   grep -v '<Version>' src/module.xml > "$ctx/src/module.xml"
-  if docker build -q -f "$ctx/docker/Dockerfile" --build-arg "IRIS_IMAGE=$base_image" -t "$P-version-bad" "$ctx" >/dev/null 2>&1; then
+  if docker build -q -f "$ctx/Dockerfile" --build-arg "IRIS_IMAGE=$base_image" -t "$P-version-bad" "$ctx" >/dev/null 2>&1; then
     fail "row 8 a manifest without a version built an image"
   else
     pass "row 8 a manifest without a version fails the build"

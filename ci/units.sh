@@ -192,12 +192,13 @@ BOOKKEEPING_PATTERN='^(_bmad/|_bmad-output/)'
 NOT_BOOKKEEPING_PATTERN='^_bmad-output/planning-artifacts/ux-designs/'
 
 # The inputs of the IRIS groups (ci/changes.sh --group): a group runs only when a changed path matches its pattern. Every unit builds
-# its stack from the whole product, so IRIS_INPUT holds what every unit builds from or runs: the sources, the image and compose
-# files (.dockerignore and docker/ipm/ among them), the throwaway helpers and compose overrides, release/demo-load.sh (which the load phase
+# its stack from the whole product, so IRIS_INPUT holds what every unit builds from or runs: the sources, the image (the Dockerfile
+# at the repository root) and compose files (.dockerignore and docker/ipm/ among them), the throwaway helpers and compose
+# overrides, release/demo-load.sh (which the load phase
 # of live:online-demo-path runs), the eval folder, the CI recipe,
 # .github/workflows/ci.yml, and the root .gitattributes and .gitignore. These are unanchored ERE alternatives, joined by
 # group_input_pattern.
-IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|release/demo-load\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
+IRIS_INPUT='src/|Dockerfile$|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|release/demo-load\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
 # The generated overview is read by live:security-overview, which compares it with a fresh generation (Story 14.1); this claim outranks docs/ in NOT_IRIS_INPUT_PATTERN.
 IRIS_INPUT="$IRIS_INPUT|docs/security-overview\.md\$"
 # live:documents reads the line of docs/bridge-guide.md that states the Filter(text, hostData) contract (Story 19.4), so a change of that guide runs the IRIS groups too.
