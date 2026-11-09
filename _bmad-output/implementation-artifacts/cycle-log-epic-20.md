@@ -34,3 +34,5 @@
 2026-11-09T22:40:22Z	Epic 20	ruling	question=insert_story_20.3_sample_runbook choice=inserted_as_20.3_rule5_tier1 marker=[ADDED_2026-11-09,owner_re-plan,Contest_Planner_ruling] category=decide by=planner_via_orchestrator policy=5086036
 2026-11-09T22:42:22Z	Epic 20	epic_context_compiled	reason=planning_artifact_newer(story_20.3_inserted) model=opus
 2026-11-09T22:42:38Z	Story 20.3	stage_spawned	stage=plan spawn_at=2026-11-09T22:42:38Z model=opus agent_name=20-3-add-a-sample-runbook-in-one-press-plan-1 cycle_iteration=1
+2026-11-09T23:00:33Z	Story 20.3	story_created	spawn_at=2026-11-09T22:42:38Z model=opus path=_bmad-output/implementation-artifacts/spec-20-3-add-a-sample-runbook-in-one-press.md build_status=ready-for-dev epic_context=reused
+2026-11-09T23:00:33Z	Story 20.3	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=see_spec_design_notes decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false pending=public_text(9) model=claude-opus-5-5
