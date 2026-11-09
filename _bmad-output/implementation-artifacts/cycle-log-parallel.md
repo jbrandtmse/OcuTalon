@@ -3065,3 +3065,7 @@
 2026-11-09T07:18:06Z	Run	planner_ruling	subject=CI_split_revert answer=CONFIRMED_revert_tonight;production_34-36min_accepted;row_21_DW-306_normal_flake_rules;re-decide_after_1.0.5_cut:shards-5_destination+overviewdoc_pin_in_same_commit+two_clean_runs;Epic_41_merges_before_11:00Z_only_if_green;0ab2eef0_fallback_cut_head via=Contest_Planner_1(delegation)
 2026-11-09T07:27:57Z	Epic 41	runner_clarification	kind=CI_WAIT agent=a70c5c6c3ec305303 sha=ce5f0cc3(revert_ca53b4e8) runs=42578728952,42578728893 note=runner_bookkeeping_commits_missed_Co-Authored-By(pushed;not_rewritten)
 2026-11-09T07:39:44Z	Run	ci_red_classified	sha=0ab2eef0(feature;fallback_cut_head) run=42574755205 job=iris(install-fresh) unit=live:online-demo row_4(HTTP_connections_0->1) class=flake_candidate(DW-1007;DW-987_family) lane-a=success action=rerun_failed
+2026-11-09T08:00:23Z	Epic 41	ci_green_verified	head=ce5f0cc3 result=success runs=42578728952,42578728893
+2026-11-09T08:06:21Z	Epic 41	runner_complete	agent=a70c5c6c3ec305303 part_merge=41.1-41.7 stories=7 head=ce5f0cc3 ci=success(42578728952,42578728893) applied=U-309,U-310,U-314 decisions_for_user=DW-941,DW-997(agreed)
+2026-11-09T08:06:21Z	Epic 41	amendments_verified	amendments=AD-21,AD-7,AD-29_names,epics.md:9788+DW_bullets extensions=as_contract(Lane_B_by_exception:Core/Intake.cls:83,Test/Core/ConversationTurns.cls) ok=true
+2026-11-09T08:06:21Z	Epic 41	merge_enqueued	policy=when_green+planner_rule_a(since_2e7791d5;no_shared_code) prev_merge_head_lane-a=0ab2eef0_success
