@@ -2997,3 +2997,8 @@
 2026-11-09T03:37:01Z	Run	deps_hash_rerecorded	reason=fix_forward stories=39.11 hash=8003e3626658
 2026-11-09T03:37:01Z	Epic 39	worktree_removed	
 2026-11-09T03:37:01Z	Epic 39	epic_branches_deleted	local+remote(ancestor_verified)
+2026-11-09T03:37:20Z	Epic 17	ci_green_verified	head=c716df48 result=success runs=42548087678(attempt2_DW-639_rerun),42548087634
+2026-11-09T03:37:20Z	Epic 17	runner_resumed	agent=ac394a16089ac2b79 with=close+push_bookkeeping_no_integrate(planner_rule_a)+contract
+2026-11-09T03:43:46Z	Epic 17	runner_complete	agent=ac394a16089ac2b79 stories=2(17.12,17.13) head=e290a66c(bookkeeping_over_green_c716df48) ci=success(42548087678_attempt2_DW-639,42548087634) applied=DW-979,DW-980,planner-2026-11-08-17.13 duplicate_runs_cancelled=42557489497,42557489425
+2026-11-09T03:43:46Z	Epic 17	merge_gate_blocked	reason=code_conflict file=web/e2e-online/demo-path/demo-path.spec.ts(2_hunks_vs_Epic_18_step_7:comment_line_87_and_the_phone-note_block) planner_rule_a=not_applicable(code_conflict) action=resume_runner_for_integrate_forward_onto_360306f4(plain_union:exactly_one_phone_note+own_messages_not_named)
+2026-11-09T03:43:58Z	Epic 17	runner_resumed	agent=ac394a16089ac2b79 with=integrate_onto_360306f4;demo-path.spec.ts_plain_union
