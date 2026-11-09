@@ -6019,8 +6019,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: candidate_clone CLONE_WHY texts and 'the result could not be kept for the notes' reach console and record rows unapproved; a near-miss eval sha prints two equal shorts; build exit 1 says refused
 - 2026-11-09T07:59:46Z status=decision-pending owner=burndown by=cr note=Planner rules on the texts; proposed exact text is in the spec's Review Findings (11.14 code review)
+- 2026-11-09T08:47:35Z status=routed owner=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=spec_gate note=Planner_approved_the_texts(planner-2026-11-09-11.15);worked_as_[Review]_items_in_11.15's_implement
 
 ### DW-1009: The eval gate's RUN line omits the lane's throwaway lock folder, so the author's evaluation in the state-folder clone runs without throwaway-iris.lock
 - source: spec-11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: gate_script exports OCUTALON_LOCK_DIR for the other gates; the eval clone sits outside the repository, so live_lock_dir finds no .coordination/locks
 - 2026-11-09T07:59:51Z status=decision-pending owner=burndown by=cr note=new public text; proposed RUN line is in the spec's Review Findings (11.14 code review)
+- 2026-11-09T08:47:36Z status=routed owner=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=spec_gate note=Planner_approved_the_texts(planner-2026-11-09-11.15);worked_as_[Review]_items_in_11.15's_implement

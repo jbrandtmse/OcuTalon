@@ -150,6 +150,13 @@ The REFUSED, NOTE, PASS and FAIL texts are under Design Notes, Public text, tagg
   - **Header rule list:** reword `handson` and add `carryover` (Public text). Add `rule carryover t_carryover` after `rule handson t_handson`.
 - After the edits, run the Verification commands, then `bash docker/tests/test-boundaries.sh` once.
 
+**Approved 11.14 text items (DW-1008, DW-1009; the Planner's ruling `planner-2026-11-09-11.15` item 4), worked in this implement:**
+- [ ] [Review] DW-1008: keep as written (now approved): `FAIL <gate> the clone of release/<v>-rc<n> failed`, `FAIL <gate> the tags could not be copied into the clone`, `FAIL <gate> the clone's HEAD is not the cut commit`, `FAIL <gate> the web dependencies cannot be installed here`, `FAIL eval the result could not be kept for the notes`, and the `-` placeholder for an empty value (`Result: -, Mode: -`). No code change; no test change beyond what pins them today.
+- [ ] [Review] DW-1008 — `release/release.sh` `step_upgrade` (the remote-tags read) — when the remote's tags cannot be read, print exactly `FAIL upgrade the tags of <remote> could not be read; run git fetch --tags <remote>, then release.sh next` instead of the `missing: unreadable` value; update the self-test case that pins `missing: unreadable`.
+- [ ] [Review] DW-1008 — `release/release.sh` `step_eval` (the commit check) — print exactly `FAIL eval the result is of commit <the result's commit as written, or ->, not of the candidate <full sha>` (the full 40-character cut sha), so a near-miss never prints two equal shorts; update the `eval` rule's assertion.
+- [ ] [Review] DW-1008 — `release/release.sh` `step_upgrade` — when the harness's `build` phase exits 1, print exactly `FAIL upgrade the harness's build failed: <its line>` (exit 2 from a phase keeps `the harness refused <phase>: <its line>`); pin it in the `upgrade` rule.
+- [ ] [Review] DW-1009 — `release/release.sh` `step_eval` (the RUN line) — when the author's repository has a lane lock folder (`live_lock_dir` of the author's checkout resolves), print exactly `RUN cd <absolute clone path> && OCUTALON_LOCK_DIR=<lock folder> bash eval/run.sh --release-candidate`; otherwise keep today's line; pin both forms in the `eval` rule.
+
 **Acceptance Criteria:**
 - **AC1 (stop and name the candidate; REL-7).** Given every automated gate passed, when `next` first reaches `hands-on`, then it prints the STOPPED line and the NOTE line naming `release/1.0.0-rc1` and its full sha, exits 4, and commits the record with the `waiting` row. No `## Hands-on pass` is written, even when the record question is answered `pass`. With a valid section already written, the first arrival still stops.
 - **AC2 (the resume command refuses).** Given the stop, when `resume` runs with each refusal input of the Matrix, then it prints that row's REFUSED line and exits 2, and the state files, the record, the checkout's commits and the remote's refs are unchanged.
@@ -163,6 +170,12 @@ The REFUSED, NOTE, PASS and FAIL texts are under Design Notes, Public text, tagg
 - **Standing.** Every test added or changed passes on a fresh environment, in either order.
 
 ## Spec Change Log
+
+- **planner-2026-11-09-11.15** (the Contest Planner's ruling, relayed by the orchestrator, 2026-11-09): APPROVED as written:
+  1. the console text: the NOTE line, R1-R9, P1-P3 and F1 (`### Public text`);
+  2. the `## Hands-on pass` record form, which only the Contest Planner writes;
+  3. Decided 2: `x.y.0` needs a fresh pass, or a carry-over only to a `--from` re-cut whose picks equal the recorded fixes; `x.y.z` with z above 0 accepts a carry-over with the Planner's note; a rehearsal record never carries a pass;
+  4. Story 11.14's DW-1008 and DW-1009 texts ride in this story's implement as `[Review]` items (below, under Tasks & Acceptance).
 
 ## Review Triage Log
 
