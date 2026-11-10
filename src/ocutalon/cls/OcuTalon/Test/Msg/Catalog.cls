@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 135 keys of OcuTalon.Msg.Catalog.Core and the 64 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 135 keys of OcuTalon.Msg.Catalog.Core and the 90 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 15 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -80,9 +80,10 @@ Method TestEntries()
 	Do $$$AssertEquals(keys.core.%Size(), 135, "the expected Core list has 135 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
-	Do $$$AssertEquals(keys.watch.%Size(), 64, "the expected Watch list has 64 keys")
+	// Story 23.6 (Contest Planner ruling 2026-11-09, AD-33 exception): the 26 summary.* keys, with Epic 35's mcp.* keys (plain union at the integrate-forward), take the count to 90 here.
+	Do $$$AssertEquals(keys.watch.%Size(), 90, "the expected Watch list has 90 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 135 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 64 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 90 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -120,7 +121,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 163 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 189 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system,heartbeat", "five Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -546,7 +547,7 @@ Method TestNounForms()
 			Do $$$AssertTrue((text [ picked) && (text '[ other), key_" with the count "_count_" shows only the form '"_picked_"'")
 		}
 	}
-	Do $$$AssertEquals(keys, 20, "the keys with a noun are swept")
+	Do $$$AssertEquals(keys, 22, "the keys with a noun are swept")
 }
 
 /// Rows 1 to 9: the count-of-one forms. Exactly the 9 entries of the OneForms block carry a one form. With the form's slot at 1 each
@@ -1165,6 +1166,32 @@ XData Keys [ MimeType = application/json ]
   "digest.savedNoSummary",
   "digest.savedNone",
   "digest.cost",
+  "summary.title",
+  "summary.firstFailure",
+  "summary.noticed",
+  "summary.requested",
+  "summary.approved",
+  "summary.approvedBy",
+  "summary.rejected",
+  "summary.rejectedBy",
+  "summary.expired",
+  "summary.fixStarted",
+  "summary.fixEnded",
+  "summary.fixInterrupted",
+  "summary.closedDismiss",
+  "summary.closedReplay",
+  "summary.closedQuiet",
+  "summary.cause",
+  "summary.element",
+  "summary.noCause",
+  "summary.evidence",
+  "summary.sampleError",
+  "summary.fix",
+  "summary.noFixRan",
+  "summary.groups",
+  "summary.messages",
+  "summary.cost",
+  "summary.costUnknown",
   "mcp.serverUnavailable",
   "mcp.toolShadowsBuiltIn",
   "mcp.toolChanged",
@@ -1505,6 +1532,32 @@ XData Fixtures [ MimeType = application/json ]
  "digest.savedNoSummary": {"slots": {"count": 3, "fallbackReason": "timeout"}, "text": "Saved for later (3): I couldn't summarize them this time (the model didn't answer within the time allowed). The most recent are under Recent decisions on your OcuTalon page."},
  "digest.savedNone": {"slots": {}, "text": "Nothing was saved for later."},
  "digest.cost": {"slots": {"cost": 0.042}, "text": "Yesterday's cost: $0.04."},
+ "summary.title": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders"}, "text": "Incident summary: 50 orders failed in Orders."},
+ "summary.firstFailure": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: first failure."},
+ "summary.noticed": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: OcuTalon told you."},
+ "summary.requested": {"slots": {"time": "2026-10-16T18:12:00Z", "count": 50, "itemNoun": {"one": "order", "other": "orders"}}, "text": "14:12 ET: OcuTalon asked for approval to repair and resend 50 orders."},
+ "summary.approved": {"slots": {"time": "2026-10-16T18:12:00Z", "channel": "the web chat"}, "text": "14:12 ET: approved from the web chat."},
+ "summary.approvedBy": {"slots": {"time": "2026-10-16T18:12:00Z", "user": "alice", "channel": "Telegram"}, "text": "14:12 ET: approved by alice from Telegram."},
+ "summary.rejected": {"slots": {"time": "2026-10-16T18:12:00Z", "channel": "the Simulated phone"}, "text": "14:12 ET: rejected from the Simulated phone."},
+ "summary.rejectedBy": {"slots": {"time": "2026-10-16T18:12:00Z", "user": "alice", "channel": "the web chat"}, "text": "14:12 ET: rejected by alice from the web chat."},
+ "summary.expired": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: the approval request expired."},
+ "summary.fixStarted": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: the fix started."},
+ "summary.fixEnded": {"slots": {"time": "2026-10-16T18:12:00Z", "resent": 50, "completed": 48, "failedAgain": 2, "skipped": 0}, "text": "14:12 ET: the fix ended: 50 resent, 48 completed, 2 failed again, 0 skipped."},
+ "summary.fixInterrupted": {"slots": {"time": "2026-10-16T18:12:00Z", "resent": 20}, "text": "14:12 ET: the fix was interrupted after resending 20."},
+ "summary.closedDismiss": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: closed with Dismiss."},
+ "summary.closedReplay": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: closed when Break the feed was pressed again."},
+ "summary.closedQuiet": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: closed after 15 minutes with no new failures."},
+ "summary.cause": {"slots": {"cause": "The partner changed the date format."}, "text": "Cause: The partner changed the date format."},
+ "summary.element": {"slots": {"element": "OrderDate"}, "text": "Where it failed: OrderDate."},
+ "summary.noCause": {"slots": {"fallbackReason": "timeout"}, "text": "No cause was found: the model didn't answer within the time allowed."},
+ "summary.evidence": {"slots": {"evidence": "OrderDate 16/10/2026 in the sample"}, "text": "Evidence: OrderDate 16/10/2026 in the sample"},
+ "summary.sampleError": {"slots": {"error": "Field OrderDate was not a date."}, "text": "Sample error: Field OrderDate was not a date."},
+ "summary.fix": {"slots": {"fix": "repair the date and resend the orders"}, "text": "Fix: repair the date and resend the orders"},
+ "summary.noFixRan": {"slots": {}, "text": "No fix ran, so nothing was changed."},
+ "summary.groups": {"slots": {"groups": [{"itemName": "OrdersFromPartner", "count": 50, "errorSummary": "The order date was not in the expected format", "firstAt": "2026-10-16T18:12:00Z"}]}, "text": "Failure groups:\nOrdersFromPartner: 50, 'The order date was not in the expected format', first at 14:12 ET"},
+ "summary.messages": {"slots": {"failed": 50, "resent": 48, "completed": 48, "failedAgain": 2, "skipped": 0}, "text": "Messages: 50 failed, 48 resent, 48 completed, 2 failed again, 0 skipped."},
+ "summary.cost": {"slots": {"cost": 0.042}, "text": "Model cost of this incident: $0.042."},
+ "summary.costUnknown": {"slots": {}, "text": "Model cost of this incident: not known."},
  "mcp.serverUnavailable": {"slots": {"server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "I couldn't connect to the MCP server Tickets at 14:15 ET, so I can't use its tools."},
  "mcp.toolShadowsBuiltIn": {"slots": {"server": "Tickets", "tool": "lookup"}, "text": "The MCP server Tickets offers a tool called 'lookup', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed."},
  "mcp.toolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval."},

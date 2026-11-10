@@ -51,7 +51,8 @@ describe('every written count follows the registry', () => {
 
   it('the registry\'s comments say how many items there are', () => {
     assert.match(REGISTRY, new RegExp(`the registry of\\s+\\*\\s+its ${count} items`));
-    assert.match(REGISTRY, new RegExp(`/\\*\\* The ${count} items, in the order the panel shows them\\. \\*/`));
+    // the comment above the array carries no number (Story 23.6): it says that the registry's length is the count the documents give
+    assert.match(REGISTRY, /\/\*\* The items, in the order the panel shows them: the registry's length is the count that the README and EXPERIENCE give\. \*\//);
   });
 });
 

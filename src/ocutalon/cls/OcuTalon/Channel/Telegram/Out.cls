@@ -29,6 +29,9 @@
 ///     added. The pieces go in this order, each on its own line, with no Markdown: the parts up to and including the checked part and its
 ///     reserved sentence, one coverage line for each row of lines, and then the needs-you parts, the saved-for-later part and the cost. It
 ///     records one Delivery row of the kind digest, whose message is the last one sent. A piece that cannot be rendered is an error and nothing is sent;
+///   - a summary (Story 23.6): a Notification of the kind summary is a plain-text message like a digest, with the text of OcuTalon.Watch.Summary.Text(IncidentRef,
+///     "telegram", .sc): the incident's stored summary, one catalog line per part, sent exactly as written with no parse mode and no buttons, as one message when it
+///     fits and otherwise cut at line breaks (Api.Split). A summary that cannot be read or rendered is an error and nothing is sent;
 ///   - the Got it button (Story 17.6): a Notification of the kind tellnow that has a DecisionRef is sent with one inline button, the
 ///     catalog key button.gotIt, whose callback data is "gotit:<DecisionRef>", in the reply_markup of its last part only. It is split like a
 ///     message with the Approve and Reject buttons, and its Delivery row keeps the last part's text (redacted) and its DecisionRef, which
@@ -94,7 +97,7 @@ Parameter LOGEDIT = "TelegramOut could not edit a message: ";
 Parameter LOGNOHANDLED = "TelegramOut did not edit a handled notice's message: no stored message with its text, or no handled marker, was found.";
 
 /// The notification kinds that the chat gets as a new message (answered and handled edit a message instead).
-Parameter KINDS = "tellnow,incident,approval,result,reminder,allowance,pairing,digest";
+Parameter KINDS = "tellnow,incident,approval,result,reminder,allowance,pairing,digest,summary";
 
 /// The notification kinds whose message carries the Approve and Reject buttons when it has an approval Ref.
 Parameter BUTTONKINDS = "incident,approval";
@@ -172,6 +175,8 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 	If (chatId = "") || $SYSTEM.Status.IsError(sc) Quit sc
 	If request.Kind = "digest" {
 		Set text = ##class(OcuTalon.Channel.DigestText).Text(request.Slots, ..#TEXTCHANNEL, .sc)
+	} ElseIf request.Kind = "summary" {
+		Set text = ##class(OcuTalon.Watch.Summary).Text(request.IncidentRef, ..#TEXTCHANNEL, .sc)
 	} Else {
 		Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
 	}

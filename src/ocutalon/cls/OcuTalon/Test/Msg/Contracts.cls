@@ -69,7 +69,7 @@ Method TestEnumerations()
 	Set expected("INCIDENTOPENVARIANT") = "fallback,no_fix,rejected,expired"
 	Set expected("APPROVALSTATE") = "pending,approved,rejected,expired,cancelled,executing,done,failed"
 	Set expected("APPROVALKIND") = "fix,tool_call,setting"
-	Set expected("NOTIFICATIONKIND") = "tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest,handled"
+	Set expected("NOTIFICATIONKIND") = "tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest,handled,summary"
 	Set expected("CHECKRESULT") = "passed,failed,not_checked"
 	Set expected("CHANNEL") = "web,phone,mailbox,telegram,email,webhook,slack,system,heartbeat"
 	Set expected("ORIGIN") = "web_user,web_admin,telegram,tool,timer,system"

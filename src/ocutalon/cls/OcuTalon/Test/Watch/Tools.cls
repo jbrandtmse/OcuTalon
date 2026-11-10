@@ -4,8 +4,8 @@
 /// Watch.Reader and submit to Test.Tools.CommandsDouble, which sits behind the CommandsIn item and records every command. The tests call the tool
 /// methods in this process, with a bridge context begun for the turn, as Test.Tools.Reminders does.
 ///   - TestDeclarations: Chat's TOOLSETS names both toolsets; Watching offers exactly start_watch, stop_watch, list_productions, dismiss_incident and
-///     check_status of Tools.Names, each once, from WatchTools, (Story 5.13) recent_activity from RecentActivity and (Story 17.6) send_digest from DigestTools; each has its own step label and the flags of the spec (all safe and trusted output, only
-///     list_productions, check_status and recent_activity read-only); the inputs are name (required) and namespace for start and stop, none for list, check_status and recent_activity, and incident
+///     check_status of Tools.Names, each once, from WatchTools, (Story 5.13) recent_activity from RecentActivity and (Story 17.6) send_digest from DigestTools and (Story 23.6) incident_summary from RecentActivity; each has its own step label and the flags of the spec (all safe and trusted output but incident_summary, which is not trusted, and only
+///     list_productions, check_status, recent_activity and incident_summary read-only); the inputs are name (required) and namespace for start and stop, none for list, check_status and recent_activity, and incident
 ///     and production (none required) for dismiss, and none names a session, an owner or an origin;
 ///   - TestCheckStatus, TestCheckStatusHostData and TestCheckStatusNotRead (Story 5.7; matrix "check_status", "HostData kept", "Refused"): check_status gives the
 ///     session's own production rows by ID with the time in the instance zone, copies them to HostData with the UTC time, keeps the other members of a JSON
@@ -67,18 +67,19 @@ Method TestDeclarations()
 	Set want("check_status") = $ListBuild("safe", 1, 1, "Reading the check results", "", "")
 	Set want("recent_activity") = $ListBuild("safe", 1, 1, "Reading recent activity", "", "")
 	Set want("send_digest") = $ListBuild("safe", 0, 1, "Sending your digest", "", "")
-	Set expected = $ListBuild($Parameter(names, "STARTWATCH"), $Parameter(names, "STOPWATCH"), $Parameter(names, "LISTPRODUCTIONS"), $Parameter(names, "DISMISSINCIDENT"), $Parameter(names, "CHECKSTATUS"), $Parameter(names, "RECENTACTIVITY"), $Parameter(names, "DIGESTTOOLS"))
+	Set want("incident_summary") = $ListBuild("safe", 1, 0, "Reading the incident summary", "", "")
+	Set expected = $ListBuild($Parameter(names, "STARTWATCH"), $Parameter(names, "STOPWATCH"), $Parameter(names, "LISTPRODUCTIONS"), $Parameter(names, "DISMISSINCIDENT"), $Parameter(names, "CHECKSTATUS"), $Parameter(names, "RECENTACTIVITY"), $Parameter(names, "DIGESTTOOLS"), $Parameter(names, "INCIDENTSUMMARY"))
 	Set tools = $ClassMethod(..#TOOLSET, "%New").%Discover().tools
-	Do $$$AssertEquals(tools.%Size(), 7, "the toolset offers seven tools")
+	Do $$$AssertEquals(tools.%Size(), 8, "the toolset offers eight tools")
 	Set found = ""
 	Set iterator = tools.%GetIterator()
 	While iterator.%GetNext(, .tool) {
 		Set found = found _ $ListBuild(tool.name)
 		Set name = tool.name
-		Set provider = $Select(name = $Parameter(names, "RECENTACTIVITY"): "OcuTalon.Tools.RecentActivity", name = $Parameter(names, "DIGESTTOOLS"): "OcuTalon.Tools.DigestTools", 1: ..#TOOLS)
+		Set provider = $Select((name = $Parameter(names, "RECENTACTIVITY")) || (name = $Parameter(names, "INCIDENTSUMMARY")): "OcuTalon.Tools.RecentActivity", name = $Parameter(names, "DIGESTTOOLS"): "OcuTalon.Tools.DigestTools", 1: ..#TOOLS)
 		Do $$$AssertEquals(tool.provider, provider, name_" is a method of "_provider)
 		If '$Data(want(name)) {
-			Do $$$AssertTrue(0, name_" is not one of the seven tools")
+			Do $$$AssertTrue(0, name_" is not one of the eight tools")
 			Continue
 		}
 		Set upper = $ZConvert($Translate(name, "_-"), "U")

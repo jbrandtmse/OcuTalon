@@ -27,6 +27,8 @@ const ALLOWANCE_TEXT = "You've used this session's 50 messages for the hour. You
 const allowance = (ref, over = {}) => notice(ref, { kind: 'allowance', text: ALLOWANCE_TEXT, ...over });
 const DIGEST_TEXT = 'Good morning.\nI checked the Chat agent (all running, no errors, no backlog).\nYesterday\'s cost: $0.04.';
 const digest = (ref, over = {}) => notice(ref, { kind: 'digest', text: DIGEST_TEXT, ...over });
+const SUMMARY_TEXT = 'Incident summary: 50 orders failed in Orders.\nCause: The partner sent <b>x</b> and *y* in the date.\nMessages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped.';
+const summary = (ref, over = {}) => notice(ref, { kind: 'summary', text: SUMMARY_TEXT, ...over });
 /** A message of the page's outbox. */
 const local = (clientId, status, over = {}) => ({ clientId, text: `local ${clientId}`, fromGuide: false, sentAt: '2026-10-22T14:12:00Z', status, ...over });
 
@@ -415,6 +417,14 @@ describe('the notice cards', () => {
     const card = view(digest('A', { createdAt: '2026-10-22T14:11:09Z' }));
     assert.deepEqual([card.entry, card.kind, card.key, card.text, card.whyNow, card.time, card.dueAt, card.strip], ['notice', 'digest', 'notification:A', DIGEST_TEXT, '', '2026-10-22T14:11:09Z', '', false]);
     assert.equal(view(digest('B', { decision: decision(), fallbackReason: 'refusal' })).strip, false, 'whatever the payload carries, a digest card has no strip');
+  });
+
+  it('shows an incident summary notice (Story 23.6) with its whole text and its line breaks, as plain text, and no strip, no Why now line and no due time', () => {
+    const card = view(summary('S', { createdAt: '2026-10-22T14:11:09Z' }));
+    assert.deepEqual([card.entry, card.kind, card.key, card.text, card.whyNow, card.time, card.dueAt, card.strip], ['notice', 'summary', 'notification:S', SUMMARY_TEXT, '', '2026-10-22T14:11:09Z', '', false]);
+    assert.ok(card.text.includes('<b>x</b>') && card.text.includes('*y*'), 'the markup characters of the text are kept as they are: the card binds them as text');
+    assert.equal(view(summary('T', { decision: decision(), fallbackReason: 'refusal' })).strip, false, 'whatever the payload carries, a summary card has no strip');
+    assert.deepEqual(keys(chatView([turn('T1'), summary('S'), tellNow('N')], [], NO_RUNNING, NOW)).filter((key) => key.startsWith('notification:')), ['notification:S', 'notification:N'], 'it stands among the other entries as a card');
   });
 
   it('carries the text, the Why now line, the times and the decision of its payload', () => {

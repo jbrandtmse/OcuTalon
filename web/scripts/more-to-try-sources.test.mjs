@@ -34,12 +34,23 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.doesNotMatch(code, /postMailboxSample|postBreakFeed|\bDemoView\b|\.set\(false\)|\.set\(true\)/);
   });
 
-  it('moves focus in one place, and sends once through the outbox with the text alone', () => {
+  it('moves focus in one place, and sends only the two prompts through the outbox, with the text alone', () => {
     assert.equal(count(code, /\.focus\(/g), 1);
     const sends = [...code.matchAll(/\boutbox\.send\(([^)]*)\)/g)];
-    assert.equal(sends.length, 1);
-    assert.equal(sends[0][1].trim(), 'MORE_TO_TRY_TEXTS.rememberPrompt');
+    assert.deepEqual(
+      sends.map((one) => one[1].trim()),
+      ['MORE_TO_TRY_TEXTS.rememberPrompt', 'MORE_TO_TRY_TEXTS.summaryPrompt'],
+      'the memory item sends its own, the incident summary item falls back to its prompt',
+    );
     assert.doesNotMatch(code, /fromGuide/);
+  });
+
+  it('presses the Dismiss of the newest resolved incident card through the page\'s own control (Story 23.6)', () => {
+    assert.match(code, /document\.querySelectorAll<HTMLElement>\(INCIDENT_CARD\)/);
+    assert.match(code, /querySelector\(RESOLVED_CHIP\)/);
+    assert.match(code, /resolved\[resolved\.length - 1\]\.querySelector<HTMLElement>\(DISMISS_BUTTON\)/);
+    assert.match(code, /case 'incidentSummary':\s+this\.closeIncident\(\);/);
+    assert.doesNotMatch(code, /dismiss\(|postDismiss|\/dismiss/i, 'it calls no Dismiss route of its own');
   });
 
   it('has native controls only: every button has type="button", and every action is in a (click)', () => {

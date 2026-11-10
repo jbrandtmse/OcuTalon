@@ -1,4 +1,4 @@
-import { expect, test } from '../support/fixtures';
+import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { README_ACCOUNT } from '../sign-in/helpers';
 import { ON_MOCK, actionsSince, approvalCount, approvalRows, breakFeedLeft, expectDecision, phoneNotes, readmeSession, stackNow } from '../support/demo-path';
@@ -18,6 +18,12 @@ const NEWSLETTER_REASON = 'The CI mock ignores the newsletter: nothing in it nee
 const SUSPICIOUS_REASON = "an email can't approve requests or change a production.";
 /** The pause that MB4 waits before it asserts that nothing followed a decision. */
 const QUIET_MS = 1_500;
+
+/**
+ * The phone's notes that a quiet decision could add: all but an incident summary (Story 23.6). The summary of an earlier case's resolved incident may arrive on the
+ * phone while this case waits, when the quiet rule closes that incident, and it is not a note of this case's decision.
+ */
+const quietNotes = (page: Page): Locator => phoneNotes(page).filter({ hasNotText: 'Incident summary:' });
 
 /**
  * UJ-1's coda (REL-2, Story 11.10; UX-DR105, NFR-14), after 07 on the same stack, which 07 left with the replay's request pending. The
@@ -41,7 +47,7 @@ test.describe('Story 11.10: the sample emails of the coda are decided quietly', 
     test.setTimeout(240_000);
     await signInReadmeLoaded(page);
     const mailbox = await mailboxOf(page);
-    const notes = await phoneNotes(page).count();
+    const notes = await quietNotes(page).count();
 
     await sampleChipOf(mailbox, 'Sample: newsletter').click();
     const row = mailRowsOf(mailbox, NEWSLETTER_SUBJECT);
@@ -66,7 +72,7 @@ test.describe('Story 11.10: the sample emails of the coda are decided quietly', 
       await page.waitForTimeout(QUIET_MS);
       const outcome = await mailOutcome(README_ACCOUNT.user, NEWSLETTER_SENDER);
       expect([outcome.found, outcome.outcome, outcome.deliveries], 'the server decided Ignore and delivered nothing').toEqual([true, 'ignore', 0]);
-      await expect(phoneNotes(page), 'nothing came to the phone').toHaveCount(notes);
+      await expect(quietNotes(page), 'nothing came to the phone').toHaveCount(notes);
     }
   });
 

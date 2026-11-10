@@ -115,8 +115,9 @@ ClassMethod Release() As %Status
 	Quit $SYSTEM.Status.AppendStatus(sc, ..Tick())
 }
 
-/// 1 when the clock second (UTC) is between 5 and 45, so that a run that the Task Manager dispatched at the minute boundary is over.
-ClassMethod SecondInWindow() As %Boolean [ Private ]
+/// 1 when the clock second (UTC) is between 5 and 45, so that a run that the Task Manager dispatched at the minute boundary is over. Also
+/// the clock window of Test.Schedule.TaskResume's real-task tests.
+ClassMethod SecondInWindow() As %Boolean
 {
 	Set second = +$Extract(##class(OcuTalon.Data.Time).NowUtc(), 18, 19)
 	Quit (second >= 5) && (second <= 45)
