@@ -2,8 +2,8 @@
 title: 'Story 0.22: The More to try panel shows its items under three group headings'
 type: 'feature'
 created: '2026-11-09'
-status: 'in-progress'
-baseline_revision: 'e16fc917873c0352c8ed70a776b9c0f5b201f915'
+status: 'done'
+baseline_revision: '9ad2d7a492e0fc4648c832bcc8623bdfd891b6db'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -133,11 +133,11 @@ deferred: []
 - `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- replace lines 246-255 with the text under `### EXPERIENCE renumbering` verbatim (byte for byte, as approved at the gate), then insert the approved marked line verbatim right after it.
 
 **Open items (infra re-dispatch, 2026-11-10 08:2xZ; the code and tests are written and uncommitted in the tree):**
-- [ ] [Infra] Run e2e part 2/9 of `sign-in-3` locally (holds `e2e/guide/more-to-try.spec.ts`: K1-K4, K16/K17, K25) on a fresh lane-C throwaway (`n` is 9) -- passes. Post-crash (2026-11-10 ~15Z, orchestrator): the host hold and stack cap are lifted and lane C is first in the stagger, so the local e2e tier is tried first; if the start fails (400 s timeout or a stuck bake), fallback (a) under `## Verification` applies (CI carries this item).
-- [ ] [Infra] Run e2e part 1/9 of `sign-in-3` locally (holds `guide.spec.ts` and `more-to-try-sample.spec.ts`) -- passes (same fallback).
-- [ ] [Infra] Demonstrate the e2e-level mutations (K25, K2, K4, K16) on the lane-C throwaway, each red and reverted byte-identical, with their `mutation:` lines. If no stack can start, they move to QA (fallback (a), condition 2), never skipped.
-- [ ] [Infra] `bash ci/checks.sh` (in batches of its `CHECK_SCRIPTS`) -- every block passes.
-- [ ] [Infra] Then the skill's review layers and the finalize commit.
+- [x] [Infra] Run e2e part 2/9 of `sign-in-3` locally (holds `e2e/guide/more-to-try.spec.ts`: K1-K4, K16/K17, K25) on a fresh lane-C throwaway (`n` is 9) -- passes. Post-crash (2026-11-10 ~15Z, orchestrator): the host hold and stack cap are lifted and lane C is first in the stagger, so the local e2e tier is tried first; if the start fails (400 s timeout or a stuck bake), fallback (a) under `## Verification` applies (CI carries this item).
+- [x] [Infra] Run e2e part 1/9 of `sign-in-3` locally (holds `guide.spec.ts` and `more-to-try-sample.spec.ts`) -- passes (same fallback).
+- [x] [Infra] Demonstrate the e2e-level mutations (K25, K2, K4, K16) on the lane-C throwaway, each red and reverted byte-identical, with their `mutation:` lines. If no stack can start, they move to QA (fallback (a), condition 2), never skipped.
+- [x] [Infra] `bash ci/checks.sh` (in batches of its `CHECK_SCRIPTS`) -- every block passes.
+- [x] [Infra] Then the skill's review layers and the finalize commit.
 
 **Acceptance Criteria:**
 - Given the registry, when this story merges:
@@ -170,6 +170,30 @@ deferred: []
 - 2026-11-10 ~07:45Z (lead): Contest Planner ruling (owner's delegated authority, `prompts/epic-0-rulings-022.md` in the coordination folder): PUBLIC TEXT OK, implement may start. (1) The marked line is approved verbatim. (2) The renumbering is approved as proposed (old 1->5, 2->6, 3->1, 4->7, 5->2, 6->3, 7->8, 8->4; every number in the renumbered lines 254/255 checked). (3) No other strings, headings as `h4`, no `tabindex`: OK. Clarification: the ruled group lists fix membership only; within each group the panel keeps REGISTRY order ("Safety and settings" shows persona, suspiciousEmail, demoView, heartbeat, then 37.2's usage). Registry rows are never reordered. Merge instruction (orchestrator): if 23.6's `incidentSummary` (or 23.2's `reroute`) is on feature without a `group:` at this story's integrate-forward, the lead adds `group: 'Incidents and fixes'` to it (ruled text, not new).
 
 ## Review Triage Log
+
+### 2026-11-10 — Review pass (implement pass 5)
+- verdicts: 25 findings reported, logged in 20 rows (duplicates across layers share a row) — rows: high 0, medium 1, low 14, false 5, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1 and Edge 4: the registry caption and header say "in the order the panel shows them" while panel order is by group -- decided in-stage (Design Notes: line 94 and header lines 1-12 stay byte-identical for union merges; the new contract is in the new comments).
+  - `[low]` `[reject]` Blind 2, Edge 5: item numbers in code comments and e2e titles count in registry order -- lead decision at the spec gate (Design Notes), not public text; only EXPERIENCE follows the groups.
+  - `[low]` `[reject]` Blind 3: EXPERIENCE line 244 still says "with a list inside" -- the spec's Boundaries allow exactly the marked line and the renumbering and no other EXPERIENCE text change (approved public text); closed by-design.
+  - `[false]` `[reject]` Blind 4: DESIGN.md not updated for `.set-heading` -- the heading reuses the existing tokens (Design Notes: memory-card recipe); the spec scopes no DESIGN change.
+  - `[false]` `[reject]` Blind 5, Intent 3: room logic ignores heading height -- the room measures `.group`'s whole height (content-agnostic) and K16, K17 and K23 passed at 1280x650, 1280x600 and the drawer sizes with two headings; a taller first control row scrolls inside the panel's own window and Tab brings each control in view (K16/K17 green).
+  - `[false]` `[reject]` Blind 6: `h4` level is arbitrary -- ruled in Design Notes (outline h1/h2/h3, then h4 as in the Memory card) and pinned by K25, K2 and the source pin.
+  - `[low]` `[reject]` Blind 7: lists not tied to headings by aria-labelledby -- the spec's Never list forbids any other assistive string and the headings are not asked to label lists.
+  - `[low]` `[reject]` Blind 8: group names written twice, no type-level link -- the typo-guard unit test fails on any registry group missing from `MORE_TO_TRY_GROUPS`; a type change is not worth its complexity.
+  - `[medium]` `[patch]` Blind 9 and Gap 1: the `@if (set.heading)` guard, which keeps an ungrouped set from rendering an empty h4, was pinned by no test -- patched: one `assert.match` for the guarded h4 in `more-to-try-sources.test.mjs`, with its mutation line.
+  - `[false]` `[reject]` Blind 10: sources-docs test fragile (four-space indent) -- the indent is the document's own list format; the old extra-item guard is replaced by the label-list comparison, which catches extras.
+  - `[low]` `[reject]` Edge 1: K25's `RULED_GROUPS` membership omits a later story's item -- spec-bound: K25's oracle is the ruled strings written out; a later story's merge adds its id (the same as ITEMS in K3).
+  - `[low]` `[reject]` Edge 2: framed `.items { padding-block-end }` repeats for each list -- the rule is pinned by the existing test and the spec; the gutter only adds a small space between groups, K16/K17 are green; not a two-way door worth the change.
+  - `[low]` `[reject]` Edge 3: a group name differing by surrounding whitespace becomes a second heading -- theoretical: registry data is authored, the typo guard compares exact strings.
+  - `[low]` `[patch]` Edge 6, Intent 1: the module-header bullet was inserted after old line 10, inside the 1-12 block the spec keeps untouched -- patched: moved to after the itemsFor bullet (after old line 12); no pin reads it.
+  - `[false]` `[reject]` Edge 7, Intent 2: K2's `toHaveCount(2)` pins a literal group count -- the spec prescribes K2's two headings for `FOUR` (Tasks); it is the heading count of one routed input, not a group count of the registry.
+  - `[low]` `[reject]` Gap other 1: AC2 and AC3 e2e mutations were applied together -- each red is attributable (K25/K2 only by h3, K16 only by overflow); unit-level single mutations exist.
+  - `[low]` `[reject]` Gap other 2: AC1 mutations are red at the unit tier only -- K25, K2, K4, K16 each shown red at e2e level as the fallback ruling names; closed.
+  - `[low]` `[reject]` Gap other 3: K1, K3, K4 expected values derive from `groupsOf` -- K25 (ruled strings) and the unit tests are the independent oracles.
+  - `[low]` `[reject]` Gap other 4: AMENDED wording and the CI-browser-group condition are untested -- process item, not code; the e2e tier ran locally.
+  - `[low]` `[reject]` Blind 9 residual, Intent 4: the ungrouped path has no e2e rendering -- no registry item is ungrouped; unit test plus the new source pin cover it.
 
 ## Design Notes
 
@@ -305,9 +329,30 @@ mutation: AC4 (two groups swapped in the EXPERIENCE line): `"Incidents and fixes
 mutation: AC4 (a heading missing from EXPERIENCE): every `Memory and documents` in EXPERIENCE.md renamed, observed red in `ux-strings.test.mjs`: `finds each ux and design string in its document` (`"Memory and documents" is not in EXPERIENCE.md`); restored, byte-identical.
 mutation: AC4 (renumbered list out of order): the `Heading "Memory and documents"` entry moved below Item 2 in EXPERIENCE.md, observed red in `sources-docs.test.mjs`: `lists the headings of the panel, each followed by exactly its group's items`; with a heading entry removed instead, the same test is red; with an item entry's label changed, `lists the registry's items in the panel's order, and no item past them` is red too; restored, byte-identical.
 
+e2e tier (pass 5, 2026-11-10, lane-C throwaway, run tag e0s22i; the first start succeeded, so fallback (a) was not used and these results are binding): `ci/iris.sh live sign-in-3 --part 2/9` 97 passed (K1-K4, K16/K17, K22-K25 included), 15:05:49Z-15:09:05Z; `--part 1/9` 26 passed (guide.spec.ts, more-to-try-sample.spec.ts), 15:09:10Z-15:13:14Z. `bash ci/checks.sh`: all 32 CHECK_SCRIPTS blocks passed, `checks: all scripts passed`. Each stack was torn down; the lane-C lock folder was empty afterwards.
+
+mutation: AC2 (`h4` to `h3`) and AC3 (framed `.group { overflow-y: hidden }`) applied together in `more-to-try.ts`, `ci/iris.sh live sign-in-3 --part 2/9` observed red (38 failed, 59 passed): K25, K2 and K16 at 1280x650 and 1280x600 (and every other framed K16/K16b size); restored from the scratch copy, `shasum` and `git diff --stat` identical.
+mutation: AC2/AC3 (the template iterating the flat `items()` as one headed-less set in place of `groups()`): observed red in the same part: K1, K2, K3, K4, K25 and K16/K17 sizes; restored from the scratch copy, `shasum` and `git diff --stat` identical.
+mutation: AC2 (the `@if (set.heading)` guard of the heading): in `more-to-try.ts`, `@if (set.heading) {` replaced by `@if (true) {`, observed red in `more-to-try-sources.test.mjs` (`names no aria-label and no icon, and its only heading is the group heading, which takes no focus`); restored from the scratch copy, `shasum` identical.
+
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: TOOLING (host): the first lane-C throwaway start for e2e part 2/9 of sign-in-3 never became ready; no test ran (pass 3, quiet window, no retry by order). Command (from the epic-0 worktree, with the lane-C env and run tag e0s22i): `ci/iris.sh live sign-in-3 --part 2/9`, started 2026-11-10 09:28:58Z (the `ci/iris.sh build` before it took about 7 minutes under load, finishing 09:28Z). The `docker buildx bake` inside its `compose up --build` (started about 09:30Z) made no progress for about 19 minutes (until the halt at about 09:50Z): the Docker daemon no longer answered simple `docker system df` and `docker images` calls (they hung past 60 s), load average 170-260, and other lanes had started new bakes and warm stacks after the quiet-window marker was created (an epic-41 warm start at 01:34 local, epic-23 and epic-41 bakes from 01:12 and 01:14 local still running, epic-37 and sign-in stacks up). Last output lines: `PART 2/9: 1 of 9 spec files, 97 of 164 tests: guide/more-to-try.spec.ts` then `LOCK acquired throwaway-iris project=ocutalon-t03c-e0s22i-1794302951-14577`; the 400 s first-start check was never reached. `ci/iris.sh teardown` for tag e0s22i ran at 09:49Z (0 containers, volumes, networks or images of the tag existed). I stopped my own `ci/iris.sh live` wrapper (SIGTERM, pid 14435); the underlying `docker buildx bake` (pid 15078) and its `test-sign-in.sh` parent (pid 14577) were left running as ordered, so `throwaway-iris.lock` in the lane-C lock folder is still present until that start ends (its owner is alive). Nothing of mine was killed beyond that wrapper.
+Status: done
+Blocking condition: none
 
-Nothing in the code or tests is known to be wrong: the written implementation and tests stay uncommitted in the working tree (pass 1: 82 unit tests, `npm --prefix web test` 1780, lint, build, `test-boundaries.sh` and the unit-level mutations passed). Still open, all `[Infra]` items under Tasks & Acceptance: e2e parts 2/9 and 1/9 of sign-in-3, the e2e-level mutations (K25, K2, K4, K16) with their `mutation:` lines, `bash ci/checks.sh`, the review layers and the finalize commit. `followup_pass`: not evaluated (no patch made in this pass). Recommended next step: re-dispatch on this spec path only when no other lane's bake or stack start is running (the host quiet window was not respected: bakes of epics 23 and 41 and a warm stack were still starting), or give lane C a stack that already exists.
+Pass 5 (post-crash re-dispatch, covers this pass only). Summary: the written implementation is unchanged except two review patches. Registry rows carry their ruled `group:`; `MORE_TO_TRY_GROUPS` and `groupsOf` give the sets; the panel renders each group as an `h4` heading with its own `ul.items`; EXPERIENCE.md carries the approved renumbering and the marked line.
+
+Files changed:
+- `web/src/app/guide/more-to-try-view.ts`: `group:` per row, `MORE_TO_TRY_GROUPS`, `MoreToTryGroup`, `groupsOf`, one header bullet.
+- `web/src/app/guide/more-to-try.ts`: `groups` computed, `h4.set-heading` per group, one list per set, one comment sentence.
+- `web/scripts/more-to-try-view.test.mjs`, `more-to-try-sources.test.mjs`, `ux-strings.test.mjs`, `sources-docs.test.mjs`: pins moved and added (including the `@if (set.heading)` pin from this pass).
+- `web/e2e/guide/more-to-try.spec.ts`: K1-K4, room helpers and Tab order follow the shown order; new K25.
+- `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md`: renumbering by group and the marked line (approved text).
+
+Review: 4 layers, 25 findings. Patches applied: 2 (medium: the `@if (set.heading)` guard pin with its mutation line; low: the header bullet moved after old line 12). Deferred: none. Every rejected finding and its reason is in `## Review Triage Log`.
+
+followup_pass: true (evaluated as a follow-up pass): this pass patched no `high`, so `followup_review_recommended` is false. Patched counts: high 0, medium 1, low 1.
+
+Verification (pass 5, lane-C throwaway, tag e0s22i; the first start succeeded, so fallback (a) was not used and the e2e results are binding): e2e `sign-in-3` part 2/9 97 passed, part 1/9 26 passed; the e2e-level mutations (K25, K2, K4, K16) each red and reverted byte-identical; `bash ci/checks.sh` all 32 blocks passed; after the patches: the four unit files 82 passed, `npm --prefix web test` 1780 passed, lint, build and `test-boundaries.sh` pass. Stacks torn down; the lane-C lock folder was empty afterwards.
+
+Residual risks: CI's `browser` group must still be green on the code head before the part merges (fallback condition 3); at integrate-forward, K25's `RULED_GROUPS` and the `ITEMS` oracle need one line per item that 23.6, 23.2, 23.5, 41.13 and 37.2 add (with `group:` per the rulings). The implementation-handoff subagent was not spawned this pass: the lead's re-dispatch ordered only the `[Infra]` items on the existing tree.

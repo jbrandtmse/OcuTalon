@@ -15,7 +15,7 @@ import { PERSONA_HEADING_ID } from '../rail/persona-card/persona-card-view';
 import { Layout, RAIL_REGION } from '../shared/layout';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { keepRoom } from './more-to-try-room';
-import { BREAK_FEED_BUTTON, MORE_TO_TRY_TEXTS, type MoreToTryItem } from './more-to-try-view';
+import { BREAK_FEED_BUTTON, groupsOf, MORE_TO_TRY_TEXTS, type MoreToTryItem } from './more-to-try-view';
 
 /** The Persona card's Change button. */
 const PERSONA_CHANGE = 'app-persona-card button.change';
@@ -53,6 +53,8 @@ let panels = 0;
  * keeps its floor, so the page scrolls vertically, never sideways (the Planner, 2026-11-07; more-to-try-room.ts). Before the first measurement a fixed reserve
  * stands in. The items lay out in as many columns as fit, and the list ends in a gutter that holds the last control's ring. The group
  * carries the focus rule's `moreItem` key like the controls, so a focused group hands focus on when the finish leaves.
+ * The items sit in the sets that groupsOf gives, each group with an item under its own h4 heading, in a list of its own; the items with no
+ * group come first with no heading, and a heading never takes focus.
  * In the stacked column the page scrolls and the group grows with its items.
  *
  * Item 5 is aria-disabled, never disabled, while a turn is in flight or the message allowance is used up, and a press then sends nothing.
@@ -64,26 +66,31 @@ let panels = 0;
   template: `
     <div class="group ring-inside" role="group" tabindex="0" data-guide-focus="moreItem" [attr.aria-labelledby]="labelId">
       <p class="group-label" [id]="labelId">{{ texts.label }}</p>
-      <ul class="items">
-        @for (item of items(); track item.id) {
-          <li class="item">
-            <p class="item-label">{{ item.label }}</p>
-            <p class="look-for">{{ item.lookFor }}</p>
-            @if (item.action === 'documents' && !sampleFirst()) {
-              <a class="button button-secondary" routerLink="/documents" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
-            } @else {
-              <button
-                type="button"
-                class="button button-secondary"
-                data-guide-focus="moreItem"
-                [attr.aria-disabled]="item.action === 'memory' && blocked() ? 'true' : null"
-                [attr.aria-describedby]="item.action === 'memory' ? describedBy() : null"
-                (click)="press(item)"
-              >{{ sampleFirst() && item.action === 'documents' ? documentsTexts.sample : item.button }}</button>
-            }
-          </li>
+      @for (set of groups(); track set.heading) {
+        @if (set.heading) {
+          <h4 class="set-heading">{{ set.heading }}</h4>
         }
-      </ul>
+        <ul class="items">
+          @for (item of set.items; track item.id) {
+            <li class="item">
+              <p class="item-label">{{ item.label }}</p>
+              <p class="look-for">{{ item.lookFor }}</p>
+              @if (item.action === 'documents' && !sampleFirst()) {
+                <a class="button button-secondary" routerLink="/documents" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
+              } @else {
+                <button
+                  type="button"
+                  class="button button-secondary"
+                  data-guide-focus="moreItem"
+                  [attr.aria-disabled]="item.action === 'memory' && blocked() ? 'true' : null"
+                  [attr.aria-describedby]="item.action === 'memory' ? describedBy() : null"
+                  (click)="press(item)"
+                >{{ sampleFirst() && item.action === 'documents' ? documentsTexts.sample : item.button }}</button>
+              }
+            </li>
+          }
+        </ul>
+      }
     </div>
   `,
   styles: `
@@ -109,6 +116,13 @@ let panels = 0;
       font-size: var(--type-body-sm-font-size);
       font-weight: var(--type-body-sm-font-weight);
       line-height: var(--type-body-sm-line-height);
+    }
+    .set-heading {
+      margin: var(--space-2) 0 0;
+      color: var(--ink-muted);
+      font-size: var(--type-caption-font-size);
+      font-weight: var(--type-body-strong-font-weight);
+      line-height: var(--type-caption-line-height);
     }
     .items {
       display: grid;
@@ -202,6 +216,9 @@ export class MoreToTry {
 
   /** True while the session's message allowance is used up. */
   private readonly used = computed(() => this.allowance.active() !== undefined);
+
+  /** The items in their sets, each with its heading (groupsOf). */
+  protected readonly groups = computed(() => groupsOf(this.items()));
 
   /** True while the visitor has no documents and the instance has them: items 6 and 8 offer the sample runbook in place of the link. */
   protected readonly sampleFirst = computed(() => this.sample.none() && this.items().some((item) => item.id === 'documents'));
