@@ -477,6 +477,7 @@ const SOURCES = {
     'Incidents and fixes',
     'Memory and documents',
     'Safety and settings',
+    'Usage and history',
     'Run again',
     'Try it yourself',
     'Which productions are running?',

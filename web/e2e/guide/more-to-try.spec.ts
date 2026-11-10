@@ -66,6 +66,8 @@ const SAMPLE = '**/ocutalon/api/v1/mailbox/samples/suspicious-request';
 const DEMO_VIEW_KEY = 'ocutalon.demoView.off';
 
 const FOUR = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView'];
+// The ids of the band cases (K16, K16b, K17): all four groups of the panel show, so the room is measured with the fourth heading.
+const BAND_IDS = [...FOUR, 'memory', 'usage'];
 // Every id of the registry, in its order, so that an item another story adds joins the K3 and K9 cases; ITEMS below is the independent text oracle.
 const ALL = MORE_TO_TRY_ITEMS.map((item) => item.id);
 /** The ids the panel shows for a feature list, in the order it shows them: the sets of groupsOf, flattened. */
@@ -749,7 +751,7 @@ const RUN_TOTAL = 'This run: 2 decisions \u00B7 9,850 tokens \u00B7 $0.0041 on C
 
 /** Opens the routed real finish (the four ids, Break the feed active, the run total) and checks that the run total is on the page. */
 async function openRealFinish(page: Page, banner = false): Promise<void> {
-  await openWith(page, finished(FOUR, { breakFeed: { active: true }, run: RUN }), undefined, false, banner);
+  await openWith(page, finished(BAND_IDS, { breakFeed: { active: true }, run: RUN }), undefined, false, banner);
   await expect(page.locator('app-demo-guide .finish .run-total'), 'the finish carries the run total').toHaveText(RUN_TOTAL);
 }
 
@@ -947,7 +949,7 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
     expect(room.holds <= 1 || room.chat < size.chat + 4, `${at}: its window takes all the room above the chat's floor, unless it shows everything`).toBe(true);
     const fit = Math.max(1, Math.floor((room.width - 8 + 16) / (320 + 16)));
     expect(room.columns, `${at}: the items of each list are in as many columns as fit, each at least 20rem wide`).toEqual(
-      groupsOf(itemsFor(FOUR)).map((set) => Math.min(set.items.length, fit)),
+      groupsOf(itemsFor(BAND_IDS)).map((set) => Math.min(set.items.length, fit)),
     );
   } else {
     expect(room.overflowY, `${at}: the stacked panel is no scroller of its own`).toBe('visible');
@@ -959,13 +961,13 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
 }
 
 /**
- * Tab from the panel's own stop through the four controls, in the order shown: each one that takes focus is wholly in view in the panel's window with its
+ * Tab from the panel's own stop through the controls, in the order shown: each one that takes focus is wholly in view in the panel's window with its
  * focus ring (the control's box grown by the ring's offset and width, 4px), and the window has scrolled by the time the last one is reached.
  */
 async function expectTabInView(page: Page, at: string): Promise<void> {
   await panelOf(page).focus();
   const scrolls = await panelOf(page).evaluate((node) => node.scrollHeight - node.clientHeight > 1);
-  for (const id of shown(FOUR)) {
+  for (const id of shown(BAND_IDS)) {
     await page.keyboard.press('Tab');
     await expect(controlOf(page, id), `${at}: Tab reaches ${id}`).toBeFocused();
     const inView = await page.evaluate(() => {
@@ -992,7 +994,7 @@ async function expectTabInView(page: Page, at: string): Promise<void> {
 for (const size of [...ROOM, ...FINISH_ROOM]) {
   const { band, width, height, chat } = size;
   /**
-   * K16 (the panel's room): the routed finish with the four ids and no banner. The panel is open by default from 680px tall and starts
+   * K16 (the panel's room): the routed finish with the band ids and no banner. The panel is open by default from 680px tall and starts
    * closed under it (the compact band), where the link opens it. The measurements are recorded as an annotation and one log line. The
    * panel is a Tab stop named "Other things to try" where it scrolls.
    */
@@ -1060,7 +1062,7 @@ for (const size of ROOM.filter((one) => one.framed)) {
   const { width, height, chat } = size;
   test(`K17: with the link opening the panel before the finish (${width}x${height}) the chat keeps at least ${chat}px and the page does not scroll`, async ({ page }) => {
     await page.setViewportSize({ width, height });
-    await openWith(page, guide(FOUR, { run: RUN }));
+    await openWith(page, guide(BAND_IDS, { run: RUN }));
     await linkOf(page).click();
     await expect(panelOf(page), 'the link opens the panel').toBeVisible();
     const room = await settledRoom(page);
@@ -1568,11 +1570,12 @@ test('K27: the panel shows its items under the ruled group headings, each follow
   await openWith(page, finished(ALL));
   const panel = panelOf(page);
   await expect(panel).toBeVisible();
-  const RULED_HEADINGS = ['Incidents and fixes', 'Memory and documents', 'Safety and settings'];
+  const RULED_HEADINGS = ['Incidents and fixes', 'Memory and documents', 'Safety and settings', 'Usage and history'];
   const groupOf = (id: string): string | undefined => MORE_TO_TRY_ITEMS.find((item) => item.id === id)!.group;
   expect(ALL.filter((id) => !RULED_HEADINGS.includes(groupOf(id) ?? '')), 'every item declares a ruled group').toEqual([]);
   const expected = RULED_HEADINGS.map((group): [string, string[]] => [group, ALL.filter((id) => groupOf(id) === group)]).filter(([, ids]) => ids.length > 0);
   expect(MORE_TO_TRY_GROUPS, 'the page\'s constant is the ruled order').toEqual(RULED_HEADINGS);
+  expect(groupOf('usage'), 'the usage item is in the fourth group').toBe(RULED_HEADINGS[3]);
 
   const headings = panel.getByRole('heading', { level: 4 });
   await expect(headings, 'the groups that have items, in order').toHaveText(expected.map(([group]) => group));
@@ -1585,5 +1588,6 @@ test('K27: the panel shows its items under the ruled group headings, each follow
     await expect(heading, `${group}: no tabindex`).not.toHaveAttribute('tabindex', /.*/);
     await expect(heading.locator('xpath=following-sibling::ul[1]').locator('.item-label'), `${group}: its labels, in registry order`).toHaveText(ids.map((id) => ITEMS[id]!.label));
   }
+  await expect(headings.last().locator('xpath=following-sibling::ul[1]'), 'the fourth heading holds the usage item').toContainText(ITEMS['usage']!.label);
   await expect(panel.locator('.item-label'), 'every item once').toHaveCount(ALL.length);
 });

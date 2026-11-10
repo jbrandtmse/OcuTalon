@@ -125,7 +125,7 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents', group: 'Memory and documents' },
   { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat', group: 'Safety and settings' },
   { id: 'sources', ...MORE_TO_TRY_TEXTS.items.sources, action: 'documents', group: 'Memory and documents' },
-  { id: 'usage', ...MORE_TO_TRY_TEXTS.items.usage, action: 'usage', group: 'Safety and settings' },
+  { id: 'usage', ...MORE_TO_TRY_TEXTS.items.usage, action: 'usage', group: 'Usage and history' },
 ];
 
 /** The registry entries whose id the server's list holds, in registry order. Unknown ids are ignored, and no list gives none. */
@@ -137,7 +137,7 @@ export function itemsFor(features: readonly string[] | undefined): readonly More
 }
 
 /** The panel's group headings, in the order the panel shows them. */
-export const MORE_TO_TRY_GROUPS: readonly string[] = ['Incidents and fixes', 'Memory and documents', 'Safety and settings'];
+export const MORE_TO_TRY_GROUPS: readonly string[] = ['Incidents and fixes', 'Memory and documents', 'Safety and settings', 'Usage and history'];
 
 /** One set of the panel: its heading (none for the items that declare no group) and its items, in order. */
 export interface MoreToTryGroup {

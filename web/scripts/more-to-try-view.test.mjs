@@ -115,7 +115,7 @@ const GROUP_OF = {
   heartbeat: 'Safety and settings',
   persona: 'Safety and settings',
   demoView: 'Safety and settings',
-  usage: 'Safety and settings',
+  usage: 'Usage and history',
 };
 const idsOf = (items) => items.map((item) => item.id);
 
@@ -138,9 +138,9 @@ describe('(a) the fixed strings', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS.map((id) => ACTION_OF[id] ?? id));
   });
 
-  it('give every entry its ruled group, with usage the last item of Safety and settings and of the registry', () => {
+  it('give every entry its ruled group, with usage the last item of Usage and history and the last registry entry', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => [item.id, item.group]), IDS.map((id) => [id, GROUP_OF[id]]));
-    assert.equal(MORE_TO_TRY_ITEMS.filter((item) => item.group === 'Safety and settings').at(-1)?.id, 'usage', 'usage is the last item of Safety and settings');
+    assert.equal(MORE_TO_TRY_ITEMS.filter((item) => item.group === 'Usage and history').at(-1)?.id, 'usage', 'usage is the last item of Usage and history');
     assert.equal(MORE_TO_TRY_ITEMS.at(-1)?.id, 'usage', 'and the last registry entry');
   });
 
@@ -185,7 +185,7 @@ describe('(b2) groupsOf', () => {
   const flat = (sets) => sets.flatMap((set) => idsOf(set.items));
 
   it('holds the ruled headings, in the ruled order', () => {
-    assert.deepEqual(MORE_TO_TRY_GROUPS, ['Incidents and fixes', 'Memory and documents', 'Safety and settings']);
+    assert.deepEqual(MORE_TO_TRY_GROUPS, ['Incidents and fixes', 'Memory and documents', 'Safety and settings', 'Usage and history']);
   });
 
   it('knows every group that the registry declares', () => {

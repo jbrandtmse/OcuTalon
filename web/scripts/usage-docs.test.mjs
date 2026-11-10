@@ -1,6 +1,6 @@
 // Tests that the written texts of Story 37.2 follow the More to try registry (src/app/guide/more-to-try-view.ts): the README's Usage bullet in "New since 1.0.0"
 // (the Planner-ruled text, word for word, once, after the sources bullet), and EXPERIENCE.md's item 9 line (label, look-for and control as the registry has
-// them, the marker) and its sentence that item 9's control is a link to the Usage page. The counts follow the registry and are pinned by sources-docs.test.mjs. The README
+// them, the marker, under its own heading) and its sentence that item 9's control is a link to the Usage page. The counts follow the registry and are pinned by sources-docs.test.mjs. The README
 // bullet is not pinned as the very last one, so that a story that merges later and appends its own line does not fail this test.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -61,6 +61,18 @@ describe('EXPERIENCE.md, More to try item 9', () => {
     assert.ok(!EXPERIENCE.includes('    - Item 10. '), 'Item 9 is the last numbered item');
     assert.ok(line.includes(`Label "${usage.label}". Look for: "${usage.lookFor}"`), 'Item 9 label and look-for');
     assert.ok(line.includes(`Control: "${usage.button}".`), 'Item 9 control');
+  });
+
+  it('sits under its own heading, the registry\'s usage group, with the ruling\'s marker', () => {
+    const lines = EXPERIENCE.split('\n');
+    const at = lines.findIndex((one) => one.startsWith('    - Item 9. Label '));
+    assert.ok(at > 0, 'EXPERIENCE.md has the Item 9 line');
+    assert.equal(usage.group, 'Usage and history', 'the registry\'s usage group');
+    assert.equal(
+      lines[at - 1],
+      `    - Heading "${usage.group}". [AMENDED 2026-11-10, Contest Planner ruling: a fourth group for the step-6 pages]`,
+      'the heading line comes right before Item 9',
+    );
   });
 
   it('carries the story marker', () => {

@@ -2,11 +2,11 @@
 title: 'Story 37.2: See tokens and cost over time on the Usage page'
 type: 'feature'
 created: '2026-11-09'
-status: 'in-progress'
-baseline_revision: 'e6dbfcc48e465b46d88ee6593d80d80e045cd4e7'
-baseline_commit: 'e6dbfcc48e465b46d88ee6593d80d80e045cd4e7'
+status: 'done'
+baseline_revision: 'ad602cfbb9c784c495e12d71cc79d08ecfc38f28'
+baseline_commit: 'ad602cfbb9c784c495e12d71cc79d08ecfc38f28'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-37-context.md'
   - '{project-root}/_bmad/custom/skill-rules.md'
@@ -18,6 +18,13 @@ deferred:
       `formatCost(0)` returns the shipped "<$0.0001" and the Usage tables render it for every zero-cost row, including the zero-fill days of the Day grouping and a row whose model has no price. The AC says costs follow `formatCost`, so the page is as specified, but the PUBLIC TEXT table has no string for an exact zero (for example "$0"), and a new public string needs the Planner's ruling.
     location: >-
       web/src/app/usage/usage-page.ts cost(); web/src/app/chat/decision-view.ts formatCost
+    severity: medium
+  - summary: >-
+      Story 0.22's block in epics.md (:1564-1565 and :1584) and the derived epic-0-context.md still say three More to try headings and that usage joins "Safety and settings" with no fourth heading.
+    evidence: |-
+      The Planner's ruling of 2026-11-10 ~19:10Z (prompts/epic-25-rulings-252.md section 3) adds the fourth group "Usage and history". The code, EXPERIENCE.md, the registry and the tests now say four; the planning text of another epic's story block was not in this story's scope (Rule 5, ask first), and epic-0-context.md is recompiled from epics.md.
+    location: >-
+      _bmad-output/planning-artifacts/epics.md:1564-1565 and :1584; _bmad-output/implementation-artifacts/epic-0-context.md
     severity: medium
 ---
 
@@ -174,11 +181,11 @@ deferred:
 
 
 **Rework iteration 1 (trigger: a Planner ruling after code review; scope: these items only) [RULED 2026-11-10 ~19:10Z, Contest Planner under the owner's delegation, prompts/epic-25-rulings-252.md section 3; SUPERSEDES the "Safety and settings" group ruling]:**
-- [ ] [Ruling] R1: the usage registry row's group becomes `'Usage and history'` (`web/src/app/guide/more-to-try-view.ts`); usage stays the last registry entry.
-- [ ] [Ruling] R2: append `'Usage and history'` as the LAST entry of `MORE_TO_TRY_GROUPS` (0.22's constant). The heading text is ruled; no other text changes. Story 25.2 will later add its history item to the same group.
-- [ ] [Ruling] R3: tests follow it: the `GROUP_OF` line for usage in `web/scripts/more-to-try-view.test.mjs` (and its "usage is the last item of Safety and settings" assertion becomes "usage is the last item of Usage and history and the last registry entry"); any unit test that pins `MORE_TO_TRY_GROUPS` or `groupsOf`; and K27's written oracle in `web/e2e/guide/more-to-try.spec.ts` (the four headings in order, usage under the fourth). Add NO new e2e case numbers K25-K28 (K28 is reserved for Story 25.2).
-- [ ] [Ruling] R4: EXPERIENCE.md: after the Safety and settings items, a new entry `    - Heading "Usage and history". [AMENDED 2026-11-10, Contest Planner ruling: a fourth group for the step-6 pages]`, with the usage entry (Item 9) under it, numbered by panel order; the sentence that names the panel's headings ("three headings ...") names the four, with the same marker. `web/scripts/usage-docs.test.mjs` and any test reading EXPERIENCE's headings follow.
-- [ ] [Ruling] R5 (condition): the compact-band tests K16 and K17 (1280x650 and 1280x600) stay green with the fourth heading; run the `live sign-in-3` part(s) holding `guide/more-to-try.spec.ts`. If they cannot stay green without changing the band logic, do NOT change the band logic: revert R1-R4 to the previous ruling (usage last in "Safety and settings") and HALT with an intent gap that reports the measurement.
+- [x] [Ruling] R1: the usage registry row's group becomes `'Usage and history'` (`web/src/app/guide/more-to-try-view.ts`); usage stays the last registry entry.
+- [x] [Ruling] R2: append `'Usage and history'` as the LAST entry of `MORE_TO_TRY_GROUPS` (0.22's constant). The heading text is ruled; no other text changes. Story 25.2 will later add its history item to the same group.
+- [x] [Ruling] R3: tests follow it: the `GROUP_OF` line for usage in `web/scripts/more-to-try-view.test.mjs` (and its "usage is the last item of Safety and settings" assertion becomes "usage is the last item of Usage and history and the last registry entry"); any unit test that pins `MORE_TO_TRY_GROUPS` or `groupsOf`; and K27's written oracle in `web/e2e/guide/more-to-try.spec.ts` (the four headings in order, usage under the fourth). Add NO new e2e case numbers K25-K28 (K28 is reserved for Story 25.2).
+- [x] [Ruling] R4: EXPERIENCE.md: after the Safety and settings items, a new entry `    - Heading "Usage and history". [AMENDED 2026-11-10, Contest Planner ruling: a fourth group for the step-6 pages]`, with the usage entry (Item 9) under it, numbered by panel order; the sentence that names the panel's headings ("three headings ...") names the four, with the same marker. `web/scripts/usage-docs.test.mjs` and any test reading EXPERIENCE's headings follow.
+- [x] [Ruling] R5 (condition): the compact-band tests K16 and K17 (1280x650 and 1280x600) stay green with the fourth heading; run the `live sign-in-3` part(s) holding `guide/more-to-try.spec.ts`. If they cannot stay green without changing the band logic, do NOT change the band logic: revert R1-R4 to the previous ruling (usage last in "Safety and settings") and HALT with an intent gap that reports the measurement. Measured: green with the fourth heading shown (see `## Verification`); the band logic is unchanged; no revert.
 
 **Acceptance Criteria:**
 - Given this story's change, when the spine is read, then the REST table has the `GET /api/v1/usage` row and the cross-area table has the `Ownership.Usage` and header-navigation Usage rows, each marked `[ADDED 2026-11-10, Story 37.2]`. It has no History, file upload, private file table or Roles row. `lint_spine.py` reports the same 10 low `placeholder` findings at lines 478, 1017 (x2), 1086, 1099 (x2), 1165 (x3) and 1176 as before.
@@ -276,6 +283,26 @@ Rejected:
   - `[false]` `[reject]` Intent: the server tests use stand-ins, not HTTP — `api/usage.spec.ts` is real HTTP (401, 403, 404, 200 with exact sums, the key allow-list, the second session).
   - `[medium]` `[patch]` Intent: the chart is checked at its data attributes, not its drawn geometry — the same root cause as the chart-marks finding; patched with U12.
   - `[low]` `[reject]` Intent: `TestDispatch` is edited in place, the Features id is added, the header wraps — each is listed in the spec (shared-surface updates, the Features ruling) or recorded in the Spec Change Log.
+
+### 2026-11-10 — Review pass (rework iteration 1, R1-R5)
+- verdicts: 17 findings — high 0, medium 2, low 14, false 0, maybe-false 1
+- findings:
+  - `[medium]` `[defer]` Blind and Edge: `epics.md` (Story 0.22's AC at :1584 and the group list at :1564-1565) and `epic-0-context.md` still say three headings and usage "with no fourth heading" — another epic's story block and a derived cache, so the amendment is the lead's (Rule 5 ask-first); deferred with the lead's action named.
+  - `[low]` `[reject]` Blind: `epic-0-context.md` still says "three group headings" (and the Intent auditor's note on the 0.22 spec title) — derived from `epics.md`; follows its amendment, same entry as above.
+  - `[low]` `[reject]` Blind and Edge: the spec body's Tasks lines (:135, :150) still say `Safety and settings` — a fix edits this build's spec; the Rework header carries "SUPERSEDES the group ruling" and the Design Notes mark it.
+  - `[low]` `[patch]` Blind and Edge: R5 left unticked although measured — ticked with the measurement (`followup_review_recommended` follows the computation below).
+  - `[low]` `[patch]` Blind and Edge: the new `usage-docs.test.mjs` heading test fails confusingly when Item 9 is missing — patched: `assert.ok(at > 0, ...)`. The pin on the exact marker text is deliberate (the ruled text); the other asks (position after Item 8, count of the heading) are theoretical hardening: rejected.
+  - `[low]` `[reject]` Blind: Story 25.2 will have to relax "usage is the last registry entry" — its own story's edit, forecast only.
+  - `[low]` `[reject]` Edge: `more-to-try.spec.ts:278` still pins two headings — that case's own list (`FOUR`) holds no usage item; K27 holds the four headings, and no new case number is allowed.
+  - `[medium]` `[patch]` Verification gap: K16 and K17 never rendered the fourth heading (their id list had no `usage`), so R5 was met vacuously — patched: the three cases use `BAND_IDS` (all four groups); measured green in every band; mutation recorded.
+  - `[medium]` `[patch]` Verification gap: K27 derived the usage group from the registry and did not pin "usage under the fourth" — patched: a literal `groupOf('usage') === RULED_HEADINGS[3]` and the fourth heading's list holds the usage label; mutation recorded (K27 red).
+  - `[low]` `[patch]` Verification gap: the `[AMENDED ...]` marker on the headings sentence was pinned by nothing — patched: `sources-docs.test.mjs` asserts it; mutation recorded.
+  - `[low]` `[reject]` Verification gap, other findings: no mutation for "usage is the last registry entry" (set by the 0.22/37.2 registry order, pinned by two node tests and mutation-covered by the group-revert line) and for the heading line's position (covered by the heading-line removal mutation): rejected as covered.
+  - `[low]` `[reject]` Intent auditor (descriptive): readings A to E enumerated; the diff implements B and C and reaches A through the registry; no divergence to fix beyond the stale planning text above and the K16/K17 and K27 gaps patched above.
+  - `[low]` `[reject]` Edge: the heading line is pinned only as the line before Item 9 — the ruled placement; a misplaced Safety item would fail `sources-docs` order tests.
+  - `[low]` `[reject]` Blind: `followup_review_recommended` stays `true` and `review_loop_iteration` 0 after a rework — the computation below sets it; the counter counts bad_spec loopbacks only.
+  - `[low]` `[reject]` Edge: the spec's `## Verification` text still names the old group — superseded by the rework lines.
+  - `[maybe-false]` `[reject]` Intent auditor: the surface of the intent is the rendered panel while most tests pin constants — K27 and K16/K17 render it on a real stack; nothing further would be low-risk.
 
 ## Design Notes
 
@@ -500,6 +527,18 @@ mutation (CR): `Web.Usage.Read` no longer answers an error status from `Ownershi
 mutation (CR): `load()` clears `failed` before the read again (the old behaviour) -> `usage.spec.ts` U14 red ("Retry keeps focus through a read that fails again": inactive); reverted byte-identical (`cmp`).
 mutation (CR): the `next` handler keeps every answer (`ask === this.asked` -> `ask > 0`) -> `usage.spec.ts` U15 red ("the late 7-day answer (limit 50,000) was dropped"); reverted byte-identical (`cmp`). Run together with the U14 mutation and `flex-wrap` removed from `header-nav.ts`: exactly U14 and U15 red, 56 passed (U8's 305px check stayed green for LIVE's three links, so it is not a mutation pin of the wrap).
 mutation (CR): the README Usage bullet's "per decision" followed by "per step" -> `usage-docs.test.mjs` red, among them "the README bullet never says per step"; reverted byte-identical (`cmp`).
+**Rework iteration 1 (R1-R5):** `node --test` of `more-to-try-view`, `ux-strings`, `sources-docs`, `more-to-try-sources` and `usage-docs` pass, as do `npm --prefix web test` (1821) and `run lint`; on a fresh lane-B stack (tag `e37s2r`, after `ci/iris.sh build`) `live sign-in-3 --part 1/2` (guide/ with `more-to-try.spec.ts`: K16, K17 and K27 among its 126) passes 126 of 126, and `live sign-in --part 4/4` (usage.spec.ts) passes 58 of 58; `test-boundaries.sh` passes. The band logic is unchanged.
+
+mutation (rework): `'Usage and history'` dropped from `MORE_TO_TRY_GROUPS` -> `more-to-try-view.test.mjs` red (4 tests), `ux-strings.test.mjs` red (1) and `sources-docs.test.mjs` red (1); reverted byte-identical (`cmp`).
+mutation (rework): the usage registry row's group set back to `'Safety and settings'` -> `more-to-try-view.test.mjs` red (2 tests), `sources-docs.test.mjs` red (1) and `usage-docs.test.mjs` red (1, the heading before Item 9); reverted byte-identical (`cmp`).
+mutation (rework): EXPERIENCE.md's `Heading "Usage and history"` line removed -> `sources-docs.test.mjs` red ("lists the headings of the panel") and `usage-docs.test.mjs` red ("sits under its own heading"); reverted byte-identical (`cmp`).
+mutation (rework): EXPERIENCE.md's sentence "under four headings" changed to "under three headings", and separately "Usage and history" dropped from its list -> `sources-docs.test.mjs` red each time ("has exactly one line for the headings ... with its count word"); reverted byte-identical (`cmp`).
+mutation (rework): `'Usage and history'` dropped from `MORE_TO_TRY_GROUPS` (the bundle still shows the heading) -> `more-to-try.spec.ts` K27 red ("the page's constant is the ruled order"; 125 passed, 1 failed in sign-in-3 part 1/2); reverted byte-identical (`git diff --stat` unchanged).
+mutation (rework): the usage registry row's group set back to `'Safety and settings'` (the bundle rebuilt from it) -> `more-to-try.spec.ts` K27 red ("the usage item is in the fourth group"; 125 passed, 1 failed); reverted byte-identical (`git diff --stat` unchanged).
+mutation (rework): the fourth-group `[AMENDED ...]` marker removed from EXPERIENCE.md's "under four headings" sentence -> `sources-docs.test.mjs` red ("the fourth-group ruling's marker"); reverted byte-identical (`cmp`, `git diff --stat` unchanged).
+mutation (rework): `.set-heading` given `height: 4px; overflow: hidden` -> `more-to-try.spec.ts` K16 (24 cases), K16b (5) and K17 (6) red (the headings cut short; 91 passed, 35 failed); reverted byte-identical (`git diff --stat` unchanged). A heading margin of 6rem alone stays green: the panel's window absorbs it.
+R5 measurement: K16, K16b and K17 now open with `BAND_IDS` (the four ids plus `memory` and `usage`), so all four headings show in every band; sign-in-3 part 1/2 passes 126 of 126 (K16 1280x650 and 1280x600 among them). Before the change, three probes with a wider id list in the same cases (usage added: 124 of 126; memory and usage added, four headings: 124 of 126, K16 in every band, K16b and K17 green) failed only K2 and K4, which count four items.
+
 
 ## Auto Run Result
 
@@ -522,3 +561,17 @@ Follow-up review recommended: true. Unverified risk: this pass patched 5 medium 
 Verification performed: warm class runs `OwnershipUsage`, `UsageApi`, `Demo.Features`, `OwnershipMemories`, `DocumentsApi` and `Web.Api` passed; node tests 144/144 (listed set) and `npm --prefix web test` 1798/1798; `npm --prefix web run lint` and `run build` pass; five e2e parts green on fresh stacks (chromium 1/4, 3/4, 4/4; sign-in-2 2/2; sign-in-3 1/2); spine lint equals the baseline (10 low); all 32 `ci/checks.sh` scripts passed; 20 mutations demonstrated red and reverted byte-identical (the `mutation:` lines above). 1024px header: 56px high, Usage ends at x=559.7, account ends at x=1012 of 1024, one line, no spacing change.
 
 Residual risks: (1) zero-cost display, deferred above; (2) the Usage rows are read as the CSP session's own rows, so on a local install an admin sees their own session's use, not instance-owned rows (as the spec says); (3) the e2e specs rely on `workers: 1` and clearing the LIVE session's rows, as the heartbeat card spec does; (4) the wrapped header was exercised at 305 and 320px by `more-to-try.spec.ts` K22/K23 only.
+
+**Rework iteration 1 (R1-R5) -- this pass only.**
+
+Summary: the Usage item of the More to try panel moved from "Safety and settings" into a new fourth group "Usage and history" (the registry row, `MORE_TO_TRY_GROUPS`, the node tests, K27's written oracle, EXPERIENCE.md's heading entry and its headings sentence, each carrying the ruled marker). The band logic is unchanged; `Demo.Features` is untouched (Story 25.2's change).
+
+Files changed: `web/src/app/guide/more-to-try-view.ts`; `web/scripts/more-to-try-view.test.mjs`, `ux-strings.test.mjs`, `usage-docs.test.mjs`, `sources-docs.test.mjs`; `web/e2e/guide/more-to-try.spec.ts` (K27's oracle and two literal pins; K16, K16b and K17 open with `BAND_IDS`, so all four headings show); `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md`; this spec.
+
+Review findings (17 from four layers: high 0, medium 2, low 14, maybe-false 1): patched 2 medium (K16 and K17 never rendered the fourth heading; K27 did not pin usage under the fourth) and 3 low (R5 ticked, the Item 9 guard, the headings sentence's marker pin); deferred 1 medium (the stale three-heading text in `epics.md` and `epic-0-context.md`, the lead's); the rest rejected with reasons in the triage log.
+
+Follow-up review recommended: false (this pass patched no high).
+
+Verification performed: `node --test` of the touched node tests and `npm --prefix web test` (1821) pass; `npm --prefix web run lint` passes; on fresh lane-B stacks (tag `e37s2r`, `ci/iris.sh build` first) `live sign-in-3 --part 1/2` passes 126 of 126 (K16, K16b, K17 with all four headings, and K27) and `live sign-in --part 4/4` (usage.spec.ts) passes 58 of 58; `test-boundaries.sh` passes; mutations demonstrated and recorded under `## Verification`. All stacks torn down.
+
+Residual risks: none new; the planning text of Story 0.22 (deferred above) still says three headings until the lead amends it.

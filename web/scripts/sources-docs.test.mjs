@@ -176,5 +176,6 @@ describe('EXPERIENCE.md, More to try', () => {
     assert.ok(at.every((one) => one >= 0), 'every heading is quoted');
     assert.deepEqual([...at].sort((x, y) => x - y), at, 'in the panel\'s order');
     assert.ok(lines[0].includes(`under ${WORDS[MORE_TO_TRY_GROUPS.length]} headings`), 'the count word');
+    assert.ok(lines[0].includes('[AMENDED 2026-11-10, Contest Planner ruling: a fourth group for the step-6 pages]'), 'the fourth-group ruling\'s marker');
   });
 });
