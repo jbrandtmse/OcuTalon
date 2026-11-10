@@ -737,3 +737,5 @@
 2026-11-10T19:49:05Z	Epic 0	retro_review_skipped	reason=skipped(policy) note=reopen_for_one_story(0.23);X.0_and_retro_review_skipped_per_dispatch
 2026-11-10T19:50:16Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.23_added) model=claude-opus-5-5 effort=high lines=67
 2026-11-10T19:50:16Z	Story 0.23	stage_spawned	stage=plan spawn_at=2026-11-10T19:50:16Z model=opus effort=high agent_name=0-23-plan-1 cycle_iteration=1
+2026-11-10T19:57:51Z	Story 0.23	story_created	spawn_at=2026-11-10T19:50:16Z model=opus effort=high path=_bmad-output/implementation-artifacts/spec-0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute.md build_status=ready-for-dev epic_context=reused warnings=oversized
+2026-11-10T19:57:51Z	Story 0.23	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-29,AD-22 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false public_text_pending=self-test_label("the_header_logo_address_below_the_header") model=claude-opus-5-5 note=DW-1052_context_only(Planner-owned)
