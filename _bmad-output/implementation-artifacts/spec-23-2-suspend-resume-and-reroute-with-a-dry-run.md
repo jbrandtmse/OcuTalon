@@ -2,7 +2,7 @@
 title: 'Story 23.2: Suspend, resume and reroute with a dry run'
 type: 'feature'
 created: '2026-11-09'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '5e32f719812a14399dd42277661ce34ec818978e'
 baseline_commit: '5e32f719812a14399dd42277661ce34ec818978e'
 review_loop_iteration: 0
@@ -217,7 +217,15 @@ Rejected (rework re-review 1):
 - reject (spec edit) -- (blind 4, edge 5, verification-gap other 1, acceptance 2) frontmatter `status: done` and the Auto Run Result say DW-1068 is on hold: the fix edits the spec under review; the patches above apply DW-1068's texts, and the frontmatter is the lead's.
 - low (lead, Rule 20) -- (blind 7, acceptance note) AD-12's `incident` payload paragraph does not list `Production` (this rework) or each request's `FixKind`, `Item` and `Count` (round 1): the spine is the lead's to update.
 
+**CI rework (iteration 2; CI on e6eb901d, run 42844253322):**
+- [ ] [CI] iris (production) shard:lane-a@Channel: `Test.Channel.TelegramChat:TestNotices` pins "there are 19 Watch notice keys" and "there are 25 of them"; this story added nine `incident.`/`result.` keys. Update the pins to the counts the catalog now holds (Rule 19 shared surface), every new key sending as the others do; a demonstrated mutation line.
+- [ ] [CI] iris (shards-11) live:cards: A12 in `web/e2e/cards/approval-card.spec.ts:383` times out at `signIn(page, …)` waiting for "User name", because the earlier `signInOverHttp(page.request, …)` shares the page's cookies, so the page is already signed in. Fix the test (no product change) and run A12 locally (`ci/iris.sh live cards`, or its spec alone) so its bands are observed, with a mutation line.
+- [ ] [CI] iris (shards-2) shard:lane-a@rest: `Test.Mcp.Attach:TestAttach` — the mock MCP server's tools never attach on this story's tree (it passed on b99d6529). Reproduce on a stack; find the cause (for example a tool-count or name check that this story's added chat tool changes, or a classification change); fix it inside this story's files if the story caused it, else report it as not this story's with evidence.
+- [ ] [CI] check: `live:reminder-restart` "Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled" (DW-1083): confirm whether any change of this story (item enable/disable, `Checks.Process` `ours`, `Fix.Run.Suspended`) can delay a disabled item's Ens.Job exit; report the finding. No change if it is unrelated (it is then a flake, rerun with the push).
+
 ## Spec Change Log
+
+- 2026-11-10 (runner): CI on e6eb901d red; spec re-opened for rework iteration 2 with the [CI] items (two story-class pins/tests, the Mcp.Attach investigation, the reminder-restart check).
 
 - 2026-11-10 (runner): DW-1068 re-ruled (c) [RULED 2026-11-10 ~07:20Z, Contest Planner, DW-1068 re-ruling]: ruled texts for result.itemSuspended and the README sentence; resume after close parked as Story 23.9; AD-15's 06:27Z line reverted.
 

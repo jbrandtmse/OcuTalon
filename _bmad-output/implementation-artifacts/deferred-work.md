@@ -6240,6 +6240,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42558521402 attempt 1 (OCT-epic17 87eb681a) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(image) 04:17:13Z; a stack-start bound, no product line involved
 - 2026-11-09T04:52:37Z status=routed owner=burndown by=orchestrator note=first sighting; infra class (stack start under load); next flake story
+- 2026-11-10T16:15:42Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run note=e6eb901d_shards-10_live:reminder-restart_first_start_400s
 
 ### DW-1010: Test.Mcp.Attach TestShadow proves the agent's tool runs and the mock's shadowing copy never does on a bare tool manager, not on the agent's own manager
 - source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: low | fix-risk: low | footprint: in-story
@@ -6605,3 +6606,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Web/Api.cls not_allowed text for suspend_item/resume_item; page override in approval-view (Story 23.2); new wording needs a Planner ruling
 - 2026-11-10T06:27:52Z status=wontfix-accepted owner=burndown by=merge_gate note=reopen_if=a_story_edits_Web/Api.cls_approval_answer_403_text;Planner_ruling_2026-11-10
+
+### DW-1082: flake candidate (host load): live:install-upgrade row 7 'the next good image did not end ready within 200 s' in CI install-upgrade
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340066; rows before passed; readiness timeout under a full queue (DW-686/DW-999 family)
+- 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:install-upgrade_row7;one_rerun_with_the_next_push
+
+### DW-1083: flake candidate: live:reminder-restart 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then the first start did not end ready within 400 s
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340184 shards-10; first-start timeout is DW-999's; the park step is a new signature; the 23.2 rework checks it for a story cause
+- 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:reminder-restart_telegram_park;one_rerun_with_the_next_push

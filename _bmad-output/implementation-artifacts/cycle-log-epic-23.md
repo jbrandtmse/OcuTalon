@@ -94,3 +94,11 @@
 2026-11-10T15:26:40Z	Story 23.2	committed	sha=e6eb901d story_commit=91cddfa2 build_sha=73d44553 rework_sha=6a4eb1f1 integrated_feature=b896ef39 ci=pending runs=42844253322(ci),42844253444(lane-a) missing=none amendments=epics.md:Story_23.9_parked(Planner),spine_AD-3/15/16/24/29(23.2)
 2026-11-10T15:26:40Z	Story 23.2	story_cycle	plan_to_commit_min=1912(incl_rulings_and_crash) implement_passes=3 reviews=2 rework=1 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-10T15:26:40Z	Epic 23	spine_updated	ad=AD-14,AD-15,AD-16,AD-20,AD-32 reason=decision_sheet(Contest_Planner_ruling_on_23.5) by=runner story=23-5 marker=ADDED_2026-11-10_Story_23.5_Contest_Planner_ruling lint=unchanged
+2026-11-10T16:15:42Z	Story 23.2	ci_resolved	story=23.2 sha=e6eb901d runs=42844253322,42844253444 result=failure failed=.github/workflows/ci.yml via=none resolved_at=next_plan
+2026-11-10T16:15:42Z	Story 23.2	ci_red_classified	run=42844253322 job=iris(production) class=story test=Test.Channel.TelegramChat:TestNotices(Watch_notice-key_count_19_and_rows_25_pins;23.2_added_9_incident./result._keys)
+2026-11-10T16:15:42Z	Story 23.2	ci_red_classified	run=42844253322 job=iris(shards-2) class=story_pending test=Test.Mcp.Attach:TestAttach(mock_tools_not_attached;passed_on_b99d6529;reproduce_on_23.2_tree)
+2026-11-10T16:15:42Z	Story 23.2	ci_red_classified	run=42844253322 job=iris(install-upgrade) class=flake test=live:install-upgrade_row7_next_image_not_ready_200s(DW-1082_new)
+2026-11-10T16:15:42Z	Story 23.2	ci_red_classified	run=42844253322 job=iris(shards-10) class=flake test=live:reminder-restart(telegram_park_DW-1083_new;first_start_DW-999)
+2026-11-10T16:15:42Z	Story 23.2	ci_red_classified	run=42844253322 job=iris(shards-11) class=story test=web/e2e/cards/approval-card.spec.ts:383_A12(signInOverHttp_on_page.request_shares_cookies;later_signIn_waits_for_a_form_that_never_shows)
+2026-11-10T16:15:58Z	Story 23.2	rework_opened	cycle_iteration=4 iteration=2 trigger=ci items=TelegramChat_pins,A12_sign-in,Mcp.Attach,reminder-restart_check scope_baseline=pending
+2026-11-10T16:15:58Z	Story 23.2	stage_spawned	stage=implement spawn_at=2026-11-10T16:15:58Z model=sonnet effort=high agent_name=23-2-suspend-resume-reroute-implement-4 cycle_iteration=4 rework=2
