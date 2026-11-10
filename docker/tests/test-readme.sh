@@ -303,7 +303,7 @@ header_end() {
 
 # header_images <file>: the docs/images/ src values of the header lines (those up to header_end), one per line.
 header_images() {
-  head -n "$(header_end "$1")" "$1" | grep -oE 'src="docs/images/[^"]*"' | sed 's/^src="//; s/"$//'
+  awk -v n="$(header_end "$1")" 'NR > n { exit } { print }' "$1" | grep -oE 'src="docs/images/[^"]*"' | sed 's/^src="//; s/"$//'
 }
 
 # section <file> <H2 title>: the lines of that H2 section, subsections included, without its heading.
@@ -1476,14 +1476,11 @@ rule_images() {
   head -c 300000 /dev/zero > "$tmp/size/$first"
   if [ -z "$(chk_images "$README" "$tmp/files.list" "$tmp/size")" ]; then st_note 'a linked file of exactly 300,000 bytes is not flagged'; fi
   # The header's logo is read too: at exactly 300,000 bytes it is flagged (the first image goes back to 10 bytes, so that it is the only one).
+  # A header that names no docs/images logo gives the check nothing to flag, so it counts as not flagged.
   head -c 10 /dev/zero > "$tmp/size/$first"
   logo=$(header_images "$README" | head -n 1)
-  if [ -z "$logo" ]; then
-    st_note 'the header names no docs/images logo'
-  else
-    head -c 300000 /dev/zero > "$tmp/size/$logo"
-    if [ -z "$(chk_images "$README" "$tmp/files.list" "$tmp/size")" ]; then st_note 'the header logo of exactly 300,000 bytes is not flagged'; fi
-  fi
+  if [ -n "$logo" ]; then head -c 300000 /dev/zero > "$tmp/size/$logo"; fi
+  if [ -z "$logo" ] || [ -z "$(chk_images "$README" "$tmp/files.list" "$tmp/size")" ]; then st_note 'the header logo of exactly 300,000 bytes is not flagged'; fi
   # A newly listed and linked docs/images file is not flagged: the rule names no file.
   mkdir -p "$tmp/imgs"
   { cat "$tmp/files.list"; echo docs/images/zz-extra.png; } > "$tmp/imgs/extra.list"
@@ -1527,8 +1524,9 @@ rule_teaser() {
   st_append 'an image tag in capitals' '<IMG src=teaser.png>' chk_teaser
   st_append 'a picture tag' '<picture><source srcset=teaser.png></picture>' chk_teaser
   st_append 'the teaser line twice' "$TEASER" chk_teaser
-  # The header's CI badge line copied to the end is no longer exempt; neither is a linked image right after the hero image.
-  st 'a header badge line below the header' 1 "$README" 'NR <= '"$HEADER_LINES"' && /<img/ { b = $0 } { print } END { print ""; print b }' chk_teaser
+  # The header's first badge line (the CI badge, whose host is allowed on every line) copied to the end is no longer exempt; neither is a
+  # linked image right after the hero image.
+  st 'a header badge line below the header' 1 "$README" 'NR <= '"$HEADER_LINES"' && b == "" && /<img/ && !/src="docs\/images\// { b = $0 } { print } END { print ""; print b }' chk_teaser
   st 'an image inside a link right after the hero image' 1 "$README" '{ print } index($0, "]('"$first"')") > 0 && !done { print ""; print "[![x]('"$first"')](LICENSE)"; done = 1 }' chk_teaser
   finish teaser 'the teaser is a plain link, word for word, two lines below the opening paragraph, with no media tag and only inline docs/images PNG images below the header block' chk_teaser
 }
