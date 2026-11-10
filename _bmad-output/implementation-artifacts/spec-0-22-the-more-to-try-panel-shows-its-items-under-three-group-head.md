@@ -133,9 +133,9 @@ deferred: []
 - `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- replace lines 246-255 with the text under `### EXPERIENCE renumbering` verbatim (byte for byte, as approved at the gate), then insert the approved marked line verbatim right after it.
 
 **Open items (infra re-dispatch, 2026-11-10 08:2xZ; the code and tests are written and uncommitted in the tree):**
-- [x] [Infra] ~~e2e part 2/9 locally~~ -- carried by CI's `browser` group on the code head (Planner fallback ruling (a), 2026-11-10; see the marked amendment under `## Verification`).
-- [x] [Infra] ~~e2e part 1/9 locally~~ -- carried by CI's `browser` group on the code head (same ruling).
-- [x] [Infra] e2e-level mutations (K25, K2, K4, K16) -- moved to the QA stage, on a lane-C throwaway (same ruling, condition 2: at QA at the latest, before PART READY; if the host still cannot start a stack, reported, never skipped).
+- [ ] [Infra] Run e2e part 2/9 of `sign-in-3` locally (holds `e2e/guide/more-to-try.spec.ts`: K1-K4, K16/K17, K25) on a fresh lane-C throwaway (`n` is 9) -- passes. Post-crash (2026-11-10 ~15Z, orchestrator): the host hold and stack cap are lifted and lane C is first in the stagger, so the local e2e tier is tried first; if the start fails (400 s timeout or a stuck bake), fallback (a) under `## Verification` applies (CI carries this item).
+- [ ] [Infra] Run e2e part 1/9 of `sign-in-3` locally (holds `guide.spec.ts` and `more-to-try-sample.spec.ts`) -- passes (same fallback).
+- [ ] [Infra] Demonstrate the e2e-level mutations (K25, K2, K4, K16) on the lane-C throwaway, each red and reverted byte-identical, with their `mutation:` lines. If no stack can start, they move to QA (fallback (a), condition 2), never skipped.
 - [ ] [Infra] `bash ci/checks.sh` (in batches of its `CHECK_SCRIPTS`) -- every block passes.
 - [ ] [Infra] Then the skill's review layers and the finalize commit.
 
@@ -157,6 +157,8 @@ deferred: []
   - lane-a and ci are green.
 
 ## Spec Change Log
+
+- 2026-11-10 ~15:05Z (lead): the host crashed at ~11:29Z with implement pass 4 being spawned; it left no edit (worktree byte-identical to the orchestrator's snapshot `refs/recovery/crash-20261110-epic-0`). The lead re-read the uncommitted diff against this spec and both rulings, and re-ran the unit level on the preserved tree (82 unit tests, 1780 web tests, lint, build, test-boundaries: all pass). Orchestrator: host hold and stack cap lifted, lane C first in the stagger: the local e2e tier is tried first (the three e2e `[Infra]` items re-opened); fallback (a) still applies if a start fails. Re-dispatched (pass 5).
 
 - 2026-11-10 ~09:52Z (lead): implement pass 3 (quiet window) blocked again on the host (bake stalled ~19 min, Docker daemon unresponsive, load 170-260; no test ran). The Planner's pre-ruled fallback (a) applies: the e2e tier is carried by CI's `browser` group (marked amendment under `## Verification`); the e2e-level mutations move to QA on a lane-C throwaway; implement finalizes on unit green. Re-dispatched (pass 4): `ci/checks.sh`, the review layers and the finalize commit only.
 
