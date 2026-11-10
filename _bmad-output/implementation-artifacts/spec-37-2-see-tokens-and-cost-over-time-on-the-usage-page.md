@@ -2,7 +2,7 @@
 title: 'Story 37.2: See tokens and cost over time on the Usage page'
 type: 'feature'
 created: '2026-11-09'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '2a04c65a3377f847ab8c99b68b436f37419591aa'
 baseline_commit: '2a04c65a3377f847ab8c99b68b436f37419591aa'
 review_loop_iteration: 0
@@ -192,6 +192,10 @@ deferred:
 - [x] [Ruling] R6 (DW-1089): on the Usage page an exact-zero cost shows `$0`; a non-zero amount under $0.0001 keeps `<$0.0001`; every other amount keeps `formatCost`. Apply it in the Usage page's own cost formatting (`web/src/app/usage/**`), never by changing the shared `formatCost` in `chat/decision-view.ts` (its other callers keep their shipped behaviour). Add a unit case for each (exact zero → `$0`; e.g. 0.00004 → `<$0.0001`), with a mutation line, and update any Usage e2e assertion that expected `<$0.0001` for a zero-cost row or day.
 - [x] [Ruling] R7 (DW-1090): the More to try usage look-for's SECOND sentence becomes, verbatim: `The tokens and cost come from your chat turns and from the agents' decisions on your messages.` The first and last sentences are unchanged. Update `MORE_TO_TRY_TEXTS.items.usage.lookFor` (straight ASCII apostrophe, escaped as the module does), every test oracle that writes the text out (the RULED copy in `web/scripts/more-to-try-view.test.mjs`, `usage-docs.test.mjs`, `ux-strings.test.mjs` if it holds it), and EXPERIENCE.md's Item 9 entry, with the marker `[AMENDED 2026-11-10, Contest Planner ruling on DW-1090: the look-for counts only the session's own decisions]`. The README bullet stays as ruled.
 
+
+**Rework iteration 3 (trigger: a CI red on this story's head 9848c3ec, ci run 42907226080, job `iris (shards-3)`, unit `live:floor`; the LAST iteration the cap allows; scope: this item only):**
+- [ ] [CI] live:floor `web/e2e/floor/layout.spec.ts` at "200%: 640x360 at device scale 2": G4 (:572, "after scrolling to the bottom the header is still at the top": received 2909) and G5 (:647, "the header writes its measured block size to the root (0px against 121)") are red. Cause (lead's reading, to confirm by measurement): the fourth header link (Usage) wraps the compact header's navigation to a taller header (121px) at 640x360, over the quarter-of-the-window line, so the header stops sticking and writes 0. Fix it inside `web/src/app/header/**` so that at 640x360 (and every window the floor's layout cases cover) the header with all four links stays within the size it must keep to stay sticky, as with three links before this story: e.g. tighter navigation spacing or item padding below 1024px, as the drawer band already does. Never hide or drop a link, never add sideways scroll, never change the quarter-of-the-window rule or the floor tests, and keep the 1024px one-line header (frame F3) and the 305px case (more-to-try K22/K23). Run `live:floor` locally (the whole unit, or the floor project's layout cases if the unit splits) on a fresh lane-B stack, plus `frame.spec.ts`'s part and `sign-in-3 --part 1/2`; the floor unit takes ~12 minutes, so start it writing to a file and poll it in bounded calls. If no spacing change keeps the header under the line without hiding a link, HALT with an intent gap naming the measurement.
+
 **Acceptance Criteria:**
 - Given this story's change, when the spine is read, then the REST table has the `GET /api/v1/usage` row and the cross-area table has the `Ownership.Usage` and header-navigation Usage rows, each marked `[ADDED 2026-11-10, Story 37.2]`. It has no History, file upload, private file table or Roles row. `lint_spine.py` reports the same 10 low `placeholder` findings at lines 478, 1017 (x2), 1086, 1099 (x2), 1165 (x3) and 1176 as before.
 - Given the LIVE fixture user (OcuTalonUser only) signed in, when they press Usage in the header navigation, then `#/usage` opens, titled "Usage · OcuTalon", with `aria-current="page"` on the Usage item and no History item. It shows the Range control, the Group by control, the chart with token bars and a cost line (each labelled directly and in the legend), and beneath the chart a table with one row for every bar and point.
@@ -275,6 +279,8 @@ Rejected:
 - (low) Acceptance (observation): a row with no price (NULL cost) now shows "$0", which may read as free -- by-design: the spec counts NULL as 0 and the ruling shows an exact zero as "$0".
 
 ## Spec Change Log
+
+- 2026-11-10 ~23:25Z, lead: CI red on 9848c3ec (ci 42907226080, iris (shards-3), live:floor layout.spec G4/G5 at 640x360 @200%), classified `story`: the fourth header link wraps the compact header past the quarter-of-the-window line. Rework iteration 3 (the cap's last) opened with one [CI] item.
 
 - 2026-11-10 ~21:35Z, lead (integrate round): [RULED 2026-11-10 ~21:30Z, Contest Planner, prompts/epic-37-rulings-372.md "Look-for correction": REINSTATE]: the look-for's second sentence reads, verbatim, "The tokens and cost come from your chat turns and from the agents' decisions on your messages, and each day shows its largest model request against the 100,000-token limit." (dropping the clause was the ruling's error); first and third sentences unchanged; applied in the registry, every test copy and EXPERIENCE (the usage item, with a correction marker). Integrated onto feature d35efc22 (41.13 Memory card item, 0.23 README URLs): the registry holds eleven items (twelve once 23.2 lands), usage last under "Usage and history"; EXPERIENCE numbers the usage item 10; usage-docs.test.mjs now reads the usage item's number from EXPERIENCE (mutation: the correction marker removed -> usage-docs red; the clause removed from the registry -> more-to-try-view and usage-docs red; both reverted byte-identical).
 
