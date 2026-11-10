@@ -87,9 +87,10 @@
 #   no-telegram    no "Telegram" while Included() has its test-only body
 #   product-links  every README anchor the page or the server text can show reaches a heading (#readme while README.md exists)
 #   readme-links   every link of the README, Markdown or HTML (href and src values), reaches a heading, a file or folder of the
-#                  repository, or an allow-listed host; img.shields.io, and this repository's raw.githubusercontent.com main/docs/images/
-#                  path, are allowed only on the header block's lines; no two
-#                  headings share a slug
+#                  repository, or an allow-listed host, and the header block's logo (by its docs/images/ path or its
+#                  raw.githubusercontent.com address) is a file the tree lists; img.shields.io, and this repository's
+#                  raw.githubusercontent.com main/docs/images/ path, are allowed only on the header block's lines; no two headings
+#                  share a slug
 #   must-scan      docker/tests/test-boundaries.sh's must-scan list for paths and keys names README.md, so the most public file can
 #                  never drop out of that scan
 #
@@ -212,8 +213,8 @@ $T_ROW3"
 FIXED_SENTENCE='Without a key, OcuTalon still starts. Every decision uses fixed rules, and the page shows a notice that says so.'
 TEASER='Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU'
 # The approved header block (Story 0.21): README.md lines 1 to HEADER_LINES, word for word, as a quoted heredoc, because the lines
-# hold quotes, with its trailing newline stripped. HEADER_IMAGE_HOSTS are the image hosts, and HEADER_RAW_DIR is the path of this
-# repository's images on its main branch (the logo's address), that only those lines may use.
+# hold quotes, with its trailing newline stripped. HEADER_IMAGE_HOSTS are the image hosts and paths that only those lines may use;
+# one of its entries, HEADER_RAW_DIR, is the path of this repository's images on its main branch (the logo's address).
 IFS= read -r -d '' HEADER <<'HDR' || true
 <h1 align="center"><img src="https://raw.githubusercontent.com/jbrandtmse/OcuTalon/main/docs/images/ocutalon-logo.png" alt="OcuTalon logo" width="160" height="160"><br>OcuTalon</h1>
 <p align="center">An AI assistant that runs inside InterSystems IRIS Interoperability, with every decision in Visual Trace.</p>
@@ -1302,6 +1303,7 @@ chk_readme_links() {
   slugs=$(headings "$1" | cut -f2)
   dup=$(printf '%s\n' "$slugs" | sort | uniq -d)
   if [ -n "$dup" ]; then printf '%s\n' "$dup" | sed 's|^|readme-links: two headings have the slug |'; fi
+  # The targets include header_images, so the header logo, whichever form its src takes, must be a file the tree lists.
   { grep -oE '\]\([^)]*\)' "$1" | sed 's/^](//; s/)$//'; grep -oE '(href|src)="[^"]*"' "$1" | sed 's/^[a-z]*="//; s/"$//'; header_images "$1"; } | while IFS= read -r target; do
     case $target in
       '#'*)
