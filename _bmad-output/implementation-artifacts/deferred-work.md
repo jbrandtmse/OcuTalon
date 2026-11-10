@@ -6557,3 +6557,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-22-the-more-to-try-panel-shows-its-items-under-three-group-head.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web has no component test host and every registry row declares a ruled group (the typo-guard unit test fails otherwise), so no e2e can render an ungrouped set; a template rewrite that keeps the @if regex green could misrender it
 - 2026-11-10T16:33:14Z status=wontfix-accepted owner=0-22-the-more-to-try-panel-shows-its-items-under-three-group-head by=cr note=reopen_if=a registry item ships with no group, or web gains a component test host
+
+### DW-1096: Story 0.22's block in epics.md (:1564-1565, :1584) and epic-0-context.md still say three More to try headings and no fourth heading; the Planner's ruling of 2026-11-10 ~19:10Z added the fourth, Usage and history
+- source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: low | footprint: _bmad-output/planning-artifacts/epics.md
+- evidence: prompts/epic-25-rulings-252.md s3; code, EXPERIENCE and tests say four
+- 2026-11-10T19:57:51Z status=routed owner=burndown by=harvest note=cross-epic_story_block(Epic_0):_orchestrator_amends_per_Rule_11;reported_in_37.2_PART_READY
