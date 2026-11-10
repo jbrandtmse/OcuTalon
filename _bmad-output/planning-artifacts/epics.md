@@ -1549,6 +1549,41 @@ So that I see what OcuTalon is and whether it is healthy before I read a word of
 **When** this story merges
 **Then** `bash docker/tests/test-readme.sh` passes every rule and every self-test, `docker/tests/test-boundaries.sh` passes, lane-a is green, and the header renders on GitHub (checked on the pushed branch's README page)
 
+### Story 0.22: The More to try panel shows its items under three group headings
+
+[ADDED 2026-11-10, More to try capacity ruling option (a), Contest Planner under the owner's delegation] SC-5 re-open of Epic 0 (lane C, after Story 8.8). The ruling (2026-11-10 ~01:30Z, with its ~01:40Z correction) fixes the three group headings verbatim and their order; any other new public string (an accessible name, the EXPERIENCE line, a fallback label) goes to the Contest Planner as PUBLIC TEXT at the spec gate, before the implement stage. In-flight items (incidentSummary from 23.6, reroute from 23.2, warnPartner from 23.5, memoryCard = pinMemory from 41.13, and 37.2's item) declare their own `group:` in their own stories, a plain union at their merges. Files: web/src/app/guide/more-to-try.ts, web/src/app/guide/more-to-try-view.ts, their unit tests under web/scripts/, web/e2e/guide/, and EXPERIENCE.md (one marked line).
+
+As a visitor opening the demo guide's More to try panel,
+I want its items shown under a few short headings,
+So that I can find the kind of thing I want to try without reading a long flat list.
+
+**Acceptance Criteria:**
+
+**Given** `MORE_TO_TRY_ITEMS` and its optional `group` field (added by Story 20.3)
+**When** this story merges
+**Then** every existing item declares its group, exactly as ruled: "Incidents and fixes" (rejectFix), "Memory and documents" (memory, documents, sources), "Safety and settings" (suspiciousEmail, heartbeat, persona, demoView)
+**And** the order of the groups is ruled ("Incidents and fixes", then "Memory and documents", then "Safety and settings") and kept in one exported constant; within a group, items keep their registry order; an item placed first in the registry by a later story (23.6's incidentSummary) stays first overall
+**And** no item's text changes, and no row of the registry changes except for its `group:` field
+
+**Given** the open More to try panel
+**When** it renders the items `itemsFor` returns
+**Then** each group with at least one present item shows its heading as a real heading inside the panel, at the level below the panel's label, followed by its items; the headings come from the registry data and the ordering constant, never from a hard-coded list of three, so a fourth group needs only data
+**And** a group with no present item (`itemsFor` filters by features) shows no heading
+**And** an item with no `group` (a later story that forgets it) still renders, in a place the spec decides and a unit test pins
+**And** keyboard focus still moves item by item (headings take no focus), and every item stays reachable in the compact band, where the panel scrolls
+
+**Given** the tests
+**When** this story merges
+**Then** unit tests cover the grouping, the group order, the empty-group suppression, the ungrouped fallback and the focus order, and read the registry, never a literal count
+**And** an e2e shows each group heading with its items in the open panel
+
+**Given** README.md and EXPERIENCE.md
+**When** this story merges
+**Then** both keep the TOTAL item count (the registry rule) and README.md is otherwise unchanged; EXPERIENCE.md gets one line, carrying this story's marker, that lists the three groups in order; no other text changes
+**And** EXPERIENCE.md's More to try entries are listed and renumbered by group: the three ruled headings, with the order inside each group, and the item numbers it cites elsewhere follow; the wording of the renumbering goes to the Contest Planner at the spec gate [AMENDED 2026-11-10, Contest Planner ruling]
+**And** no test pins a group's size or the number of groups as a literal (Story 37.2's `usage` item joins "Safety and settings" as its last item, with no fourth heading) [AMENDED 2026-11-10, Contest Planner ruling for Story 37.2]
+**And** `docker/tests/test-boundaries.sh` passes, and lane-a and ci are green
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.

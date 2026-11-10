@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { BREAK_FEED_BUTTON, CHAT_FLOOR, COMPACT_BAND_HEIGHT, DISMISS_BUTTON, INCIDENT_CARD, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, RESOLVED_CHIP, chatFloor, inCompactBand, itemsFor, windowBound } = await import(app('guide', 'more-to-try-view.ts'));
+const { BREAK_FEED_BUTTON, CHAT_FLOOR, COMPACT_BAND_HEIGHT, DISMISS_BUTTON, INCIDENT_CARD, MORE_TO_TRY_GROUPS, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, RESOLVED_CHIP, chatFloor, groupsOf, inCompactBand, itemsFor, windowBound } = await import(app('guide', 'more-to-try-view.ts'));
 const { HEIGHT_QUERIES } = await import(app('shared', 'layout-view.ts'));
 const { RAIL_TEXTS } = await import(app('rail', 'rail-view.ts'));
 const { HEARTBEAT_HEADING_ID, HEARTBEAT_TEXTS } = await import(app('rail', 'heartbeat-card', 'heartbeat-card-view.ts'));
@@ -105,8 +105,19 @@ const IDS = MORE_TO_TRY_ITEMS.map((item) => item.id);
 const BEFORE_MEMORY = IDS.slice(0, IDS.indexOf('memory'));
 // The item whose control hands off to another item's control (Story 20.2: See where an answer came from opens the Documents page).
 const ACTION_OF = { sources: 'documents' };
-// The panel's group of each item that declares one (the Contest Planner's More to try groups ruling, 2026-11-10); the other items declare none yet.
-const GROUP_OF = { incidentSummary: 'Incidents and fixes', reroute: 'Incidents and fixes', sources: 'Memory and documents' };
+// The panel's group of each item (the Contest Planner's More to try groups ruling, 2026-11-10).
+const GROUP_OF = {
+  incidentSummary: 'Incidents and fixes',
+  rejectFix: 'Incidents and fixes',
+  reroute: 'Incidents and fixes',
+  memory: 'Memory and documents',
+  documents: 'Memory and documents',
+  sources: 'Memory and documents',
+  suspiciousEmail: 'Safety and settings',
+  heartbeat: 'Safety and settings',
+  persona: 'Safety and settings',
+  demoView: 'Safety and settings',
+};
 const idsOf = (items) => items.map((item) => item.id);
 
 describe('(a) the fixed strings', () => {
@@ -128,13 +139,7 @@ describe('(a) the fixed strings', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS.map((id) => ACTION_OF[id] ?? id));
   });
 
-  it('declare the group of the incident summary and reroute items, Incidents and fixes (Contest Planner ruling, 2026-11-10)', () => {
-    const byId = Object.fromEntries(MORE_TO_TRY_ITEMS.map((item) => [item.id, item]));
-    assert.equal(byId.incidentSummary.group, 'Incidents and fixes');
-    assert.equal(byId.reroute.group, 'Incidents and fixes');
-  });
-
-  it('give the sources entry its ruled group, Memory and documents, and the incident items theirs (Incidents and fixes, Stories 23.6 and 23.2), and no other entry a group yet', () => {
+  it('give every entry its ruled group', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => [item.id, item.group]), IDS.map((id) => [id, GROUP_OF[id]]));
   });
 
@@ -170,6 +175,70 @@ describe('(b) itemsFor', () => {
   it('follows the registry order, not the input order', () => {
     assert.deepEqual(idsOf(itemsFor([...IDS].reverse())), IDS);
     assert.deepEqual(idsOf(itemsFor(['demoView', 'persona'])), ['persona', 'demoView']);
+  });
+});
+
+describe('(b2) groupsOf', () => {
+  const item = (id, group) => ({ id, label: id, lookFor: id, button: id, action: 'persona', group });
+  const headings = (sets) => sets.map((set) => set.heading);
+  const flat = (sets) => sets.flatMap((set) => idsOf(set.items));
+
+  it('holds the ruled headings, in the ruled order', () => {
+    assert.deepEqual(MORE_TO_TRY_GROUPS, ['Incidents and fixes', 'Memory and documents', 'Safety and settings']);
+  });
+
+  it('knows every group that the registry declares', () => {
+    for (const entry of MORE_TO_TRY_ITEMS) {
+      assert.ok(MORE_TO_TRY_GROUPS.includes(entry.group), `${entry.id} declares ${JSON.stringify(entry.group)}`);
+    }
+  });
+
+  it('gives the whole registry under the headings in order, and each group in registry order', () => {
+    const sets = groupsOf(itemsFor(IDS));
+    assert.deepEqual(headings(sets), MORE_TO_TRY_GROUPS.filter((group) => IDS.some((id) => GROUP_OF[id] === group)));
+    for (const set of sets) {
+      assert.deepEqual(idsOf(set.items), IDS.filter((id) => GROUP_OF[id] === set.heading), set.heading);
+    }
+    assert.deepEqual(flat(sets).sort(), [...IDS].sort(), 'every item once');
+  });
+
+  it('leaves out a group with no item, and gives nothing for no items', () => {
+    const sets = groupsOf(itemsFor(BEFORE_MEMORY));
+    assert.deepEqual(headings(sets), MORE_TO_TRY_GROUPS.filter((group) => BEFORE_MEMORY.some((id) => GROUP_OF[id] === group)));
+    assert.ok(!headings(sets).includes('Memory and documents'));
+    assert.deepEqual(groupsOf([]), []);
+    assert.deepEqual(groupsOf(itemsFor(undefined)), []);
+  });
+
+  it('puts the items with no group, or a blank one, first and with no heading', () => {
+    const items = [item('a', 'Safety and settings'), item('b', undefined), item('c', '  '), item('d', ''), item('e', 'Incidents and fixes')];
+    const sets = groupsOf(items);
+    assert.equal(sets[0].heading, undefined);
+    assert.deepEqual(idsOf(sets[0].items), ['b', 'c', 'd']);
+    assert.deepEqual(headings(sets), [undefined, 'Incidents and fixes', 'Safety and settings']);
+    assert.ok(sets.every((set, i) => i === 0 || (typeof set.heading === 'string' && set.heading.trim() !== '')), 'no empty heading');
+  });
+
+  it('puts a group the constant does not hold after the ordered groups, in order of first appearance', () => {
+    const items = [item('a', 'Zed'), item('b', 'Safety and settings'), item('c', 'Alpha'), item('d', 'Zed'), item('e', 'Incidents and fixes')];
+    const sets = groupsOf(items);
+    assert.deepEqual(headings(sets), ['Incidents and fixes', 'Safety and settings', 'Zed', 'Alpha']);
+    assert.deepEqual(idsOf(sets[2].items), ['a', 'd']);
+  });
+
+  it('keeps an Incidents and fixes item that comes first in the input first overall', () => {
+    const sets = groupsOf([item('first', 'Incidents and fixes'), ...itemsFor(IDS)]);
+    assert.equal(flat(sets)[0], 'first');
+  });
+
+  it('gives every input item once, and the flattened sets are the focus order', () => {
+    for (const id of IDS) {
+      const input = itemsFor([...BEFORE_MEMORY, id]);
+      const sets = groupsOf(input);
+      assert.deepEqual(flat(sets).sort(), idsOf(input).sort(), id);
+      assert.equal(new Set(flat(sets)).size, input.length, id);
+      assert.deepEqual(flat(sets), MORE_TO_TRY_GROUPS.flatMap((group) => idsOf(input).filter((one) => GROUP_OF[one] === group)), `${id}: the order shown`);
+    }
   });
 });
 
