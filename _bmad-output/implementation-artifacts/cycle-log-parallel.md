@@ -3270,3 +3270,10 @@
 - 2026-11-10T05:54Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=20.3 insert via merge
 - 2026-11-10T05:54Z orchestrator ci_cancelled_record_only head=de6b7d13 runs=42765029796,42765029630 reason=green_by_identity(code = f59cab73, green on 42759214463,42759214446)
 - 2026-11-10T05:55Z orchestrator lane_assignment story=0.22 lane=C (kept; Planner order 8.8 then 0.22) lane_B_free=yes next_lane_B=epic-37 story=37.2 (replan-20261109 order: 20.2 -> 37.2 -> 25.2)
+- 2026-11-10T05:57:15Z orchestrator runner_dispatched epic=37 story=37.2 lane=B slot=ocutalon-slot-b port=52802 model=opus effort=high base=abed4ec6 agent=aff2e6012f8cb52c6 prompt=prompts/dispatch-epic-37.md worktree_bootstrapped=ok first_push_ci_cancelled=42765158297,42765158248 feature_record_ci_cancelled=42765152714,42765152697
+- 2026-11-10T05:58Z orchestrator owner_decision via=contest_planner epic=37 story=37.2 item=scope ruling=own_step6_rows_only conditions=epics_marker,spine_lint_baseline,no_History_header_until_25.2 ref=prompts/epic-37-rulings-372-scope.md; planner_ack 20.3 floor=abed4ec6
+- 2026-11-10T06:17Z orchestrator ci_green_verified branch=OCT-epic8 head=87c0223e runs=42760526320,42760526277 missing=none
+- 2026-11-10T06:17Z orchestrator ci_cancelled_record_only branch=OCT-epic8 head=91e3b604 runs=42767344022,42767344048 reason=code identical to 87c0223e
+- 2026-11-10T06:17Z orchestrator merge_gate epic=8 part=8.8 head=91e3b604 code=87c0223e ci=success release_tool=approved(Planner ~05:20Z) conflicts=sprint-status.yaml(ours+regenerate+set epic-8=done,8-8=done) spine_lint=baseline(10 low) test_ci_config=pass test_boundaries=pass new_units=live:heartbeat-restart ci_groups=shards
+- 2026-11-10T06:17Z orchestrator epic_merged_to_feature epic=8 part=8.8 base=abed4ec6 note=feature CI runs (code = 87c0223e + 20.3)
+- 2026-11-10T06:17Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=8.8 insert via merge

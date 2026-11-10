@@ -125,13 +125,21 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # 1,615, shards-3 1,559, shards-4 1,644, shards-5 1,641, shards-6 1,660, shards-7 1,643, shards-8 1,570, shards-9 1,665, shards-10 1,544 and shards-11
 # 1,673, so at most 1,726 s (28.8 minutes) a job (inference until a run measures them). live:memory-offline stays in shards-4: with live:documents
 # beside it in shards-6, no packing keeps every group at or under 1,687 s of units (the best is 1,749 s, 30.0 minutes).
+# Story 8.8 (2026-11-10; DW-1018) added live:heartbeat-restart (docker/tests/test-heartbeat-restart.sh: one first start, two plain restarts and a wait of at
+# most 120 s for the first tick after a restart with the heartbeat task suspended) to shards, the group with the most headroom on the two newest full green
+# runs (shards 1,233 s of units in run 42730214385 and 1,346 s in run 42718893543; shards-7 1,341 and 1,288; image 1,287 and 1,353; shards-3 1,266 and 1,386;
+# shards-10 1,451 holds the contended live:reminder-restart). The unit is estimated at 350 to 450 s (inference: live:compose-start is 173 to 191 s for a start,
+# and a plain restart took 23 s in live:reminder-restart), so shards becomes about 1,580 to 1,800 s of units, about 27 to 30 minutes a job: inside REL-4's 35
+# minutes and the 40-minute timeout, and possibly above Story 0.20's 1,687 s a group (inference until a run measures it). Locally, on a loaded ARM developer machine, the unit did 521 s of work (a first start of 276 s, restart 1 26 s to
+# ready, the first tick 62 s after ready, restart 2 44 s), so the CI figure is the one to confirm. The unit reads no web bundle, but it is not added to NO_WEB_BUNDLE_UNITS: shards holds units that read
+# it, so listing it would change no skip (list it if it ever moves to a group whose other units read no bundle). No group is added, renamed or given a longer deadline.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo-path" ;;
     install-upgrade) echo "live:install-upgrade live:online-visitors" ;;
     production) echo "live:production live:production-restart shard:lane-a@Channel" ;;
     browser) echo "live:demo-path live:online-demo" ;;
-    shards) echo "shard:lane-a@Install,Digest,Eval live:online-allowance" ;;
+    shards) echo "shard:lane-a@Install,Digest,Eval live:online-allowance live:heartbeat-restart" ;;
     shards-2) echo "shard:lane-a@rest live:session-data live:install-script-live" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b@Contract,Core,Data,Live live:compose-start" ;;
     shards-3) echo "live:floor live:demo-switch" ;;

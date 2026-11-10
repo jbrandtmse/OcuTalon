@@ -6,6 +6,9 @@
 ///     the whole day.
 ///   - RescheduleOnStart 1 drops the runs that an IRIS stop missed instead of replaying them at the start, so a restart leaves one
 ///     gap and the next run sends the one catch-up Tick.
+///   - Reconcile resumes the task when it comes back Suspended (DW-1018), so every start path (the after-start script, an IPM
+///     install, and ReconcileIn on a production start no installer made) leaves it ticking. Tasks() creates the task once; the
+///     resume touches only its Suspended flag.
 Class OcuTalon.Install.Step.Schedule Extends OcuTalon.Install.Step
 {
 
@@ -13,7 +16,8 @@ Class OcuTalon.Install.Step.Schedule Extends OcuTalon.Install.Step
 Parameter HEARTBEATTASK = "OcuTalon heartbeat";
 
 /// Re-arms the reminders after a start (OcuTalon.Schedule.Reminder.Reconcile), and warns, without failing the step, for each pending
-/// reminder whose session is gone. It starts nothing for a reminder whose waiter is still waiting.
+/// reminder whose session is gone. It starts nothing for a reminder whose waiter is still waiting. It then resumes the heartbeat task
+/// when it is Suspended (ResumeTask, DW-1018). The status of both is returned.
 ClassMethod Reconcile() As %Status
 {
 	Set sc = ##class(OcuTalon.Schedule.Reminder).Reconcile("", .skipped)
@@ -21,6 +25,20 @@ ClassMethod Reconcile() As %Status
 	While $ListNext(skipped, position, ref) {
 		Do ..Warn("the reminder " _ ref _ " has no session, so no waiter was started for it")
 	}
+	Quit $SYSTEM.Status.AppendStatus(sc, ..ResumeTask(..#HEARTBEATTASK))
+}
+
+/// Resumes the Task Manager task of this name when it is Suspended (1 or 2), and warns once that it did. A task that is not Suspended,
+/// or that does not exist, is left alone with no line and an OK status. Only the Suspended flag changes: the task is not created,
+/// saved or rescheduled. The flag is read from storage (SuspendedGetStored), because an open object may hold a stale value. A failed
+/// Resume returns its status; nothing is swallowed.
+ClassMethod ResumeTask(name As %String) As %Status
+{
+	Set id = ##class(%SYS.Task).FindId(name)
+	If id = "" Quit $$$OK
+	If '##class(%SYS.Task).SuspendedGetStored(id) Quit $$$OK
+	Set sc = ##class(%SYS.Task).Resume(id)
+	If $$$ISOK(sc) Do ..Warn("the task """ _ name _ """ was suspended, so it was resumed")
 	Quit sc
 }
 

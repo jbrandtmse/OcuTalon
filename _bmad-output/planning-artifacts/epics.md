@@ -4122,6 +4122,39 @@ So that later stories can add sign-in tests without a run outgrowing the 10-minu
 - DW-314: `live sign-in` runs as two parts of the same script (part 1/2 and 2/2, split by spec file, as `ci/iris.sh shard --part k/n` splits classes), each about 4 to 5 minutes on the developer machine, together running every spec the whole unit runs, exactly once; CI's `browser` group still runs the whole unit; Rule 21's recipe says how to run the two parts (owner via Contest Planner: split live sign-in into two ~4-5 min runs) (ledger; chartered by burndown 2026-10-27)
 - DW-204: `web/e2e/api/api.spec.ts` reads the instance stream's status events against a baseline it takes itself, so it passes whether or not `heartbeat.spec.ts` ran before it, in either part and in the whole unit (ledger; chartered by burndown 2026-10-27)
 
+### Story 8.8: The heartbeat task resumes itself when it comes back Suspended
+
+[ADDED 2026-11-10, DW-1018, owner via Contest Planner (1.0.6 HIGH)] SC-5 re-open of Epic 8 for release 1.0.6, a Rule 5 tier-1 re-open story: it restores FR-32's promise (the heartbeat ticks every minute and catches up once after a restart, Story 8.1) on a start that leaves the task Suspended, and changes no product target. Scope owner-approved (Contest Planner [3dd56e], delegated authority, 2026-11-09). The resume's log line and any `release/demo-host-check.sh` output line go to the Contest Planner as PUBLIC TEXT at the spec gate, before the implement stage; the `release/demo-host-check.sh` hunk is a RELEASE TOOL hunk, ruled by the Planner before this story merges. Any new privilege, role, grant or resource the resume needs is named at the spec gate (veto window); the user role `OcuTalonUser` is never widened. Files: `src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls` (the Schedule area, Lane B), `OcuTalon.Schedule.*`, their tests under `OcuTalon.Test.Schedule`, one new live script under `docker/tests/`, Lane B's entries in `ci/units.sh`, `release/demo-host-check.sh` and `release/demo-host-checks.md`, and that script's existing checks under `docker/tests/`.
+
+As the operator of an OcuTalon instance, the online demo's included,
+I want the heartbeat task to resume itself when a stop and start leaves it Suspended,
+So that ticks, background checks, watches and the digest's coverage come back after every restart, with no hand fix on the host.
+
+**Acceptance Criteria:**
+
+**Given** the Task Manager task "OcuTalon heartbeat" exists and is Suspended, as after a stop or start that cut a run short (seen on the 1.0.5 online demo after an update: Suspended 1, SuspendOnError 0, its last run OK)
+**When** OcuTalon starts: the after-start script's installer steps, an IPM install's steps, or a production start that `ReconcileIn` reconciles (AD-23)
+**Then** the task is resumed and one log line names it, through `Install.Step.Warn` or the equivalent line the path already writes (FR-32, AD-18, AD-23)
+**And** no second task is created, and the task's schedule and every other property stay as they were: it is still the one task Story 8.1 declared (AD-19's seed rule, AD-23)
+
+**Given** the heartbeat task exists and is not Suspended
+**When** OcuTalon starts
+**Then** the task is left exactly as it was and no line is logged
+
+**Given** no heartbeat task exists
+**When** OcuTalon starts
+**Then** the outcome is what the installer does today: the Tasks step creates the task, and the resume path finds nothing to resume
+
+**Given** the heartbeat task has been suspended on a running instance
+**When** the instance is restarted
+**Then** within 2 minutes of the restart the task runs and the heartbeat ticks (a new tick in `OcuTalon.Data.StatusMark`), which a live unit checks; the unit runs in the CI group with the most headroom, never in `production`, `browser`, `install-fresh` or `install-upgrade` (FR-32, AD-22)
+**And** unit tests in `OcuTalon.Test.Schedule` cover the three cases above: not Suspended (unchanged, no line), Suspended (resumed, one line), missing (as today)
+
+**Given** `release/demo-host-check.sh` runs against the online demo host
+**When** the heartbeat's last tick is more than 3 minutes old, or the heartbeat task is Suspended
+**Then** the run reports a FAIL line for it and exits 1, the way the script reports every other failed check (AD-25)
+**And** the script stays read-only and opens no new public read on the host: the evidence comes the way `--zone` and `--demo-status` already bring theirs, unless the spec gate rules otherwise (veto window)
+
 ## Epic 9: Quality is measured: the evaluation set
 
 A recorded evaluation set (at least 20 items across all four outcomes, injection cases including the suspicious-request email, the all-clear cases and at least 10 recorded incidents including the demo's) scores decisions and causes, records cost and the largest request, runs against the mock on every push and on Claude Haiku 5.5 for each release candidate, and gates the release with the 10-run demo-incident check.
