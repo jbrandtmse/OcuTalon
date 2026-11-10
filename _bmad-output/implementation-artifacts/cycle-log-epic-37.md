@@ -14,3 +14,5 @@
 2026-11-10T06:03:14Z	Epic 37	epic_context_compiled	reason=initial model=opus words=1225
 2026-11-10T06:07:27Z	Epic 37	slot_loaded	slot=ocutalon-slot-b ns=OCUTALON bridge=62 ocutalon=868 preload=1 compile=ok stale_deleted=0 source_classes=931_match identity=build154_port1991
 2026-11-10T06:07:27Z	Story 37.2	stage_spawned	stage=plan spawn_at=2026-11-10T06:07:27Z model=opus agent_name=37-2-see-tokens-and-cost-over-time-on-the-usage-page-plan-1 cycle_iteration=1
+2026-11-10T06:27:40Z	Story 37.2	story_created	spawn_at=2026-11-10T06:07:27Z model=opus path=_bmad-output/implementation-artifacts/spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md build_status=ready-for-dev epic_context=reused
+2026-11-10T06:27:40Z	Story 37.2	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-4,AD-13,AD-18,AD-20,AD-27,AD-29,AD-31,AD-33 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false pending=public_text,security,more_to_try_group contended=Demo/Features(epic23,plain_union) model=claude-opus-5-5
