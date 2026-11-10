@@ -434,7 +434,7 @@ Method TestSearchHandler()
 /// POST and DELETE /v1/memory/:ref/pin submit a PinMemory and an UnpinMemory with the ref and the session's own Ref (origin web_user); Ok is 200 {"result":"done"}, and
 /// the owner's other answers are mapped. A ref that is empty or too long names no memory: 404 before anything is submitted. In real mode the real gate lets web_user
 /// through and the real MemoryOps (a shadow instance, as the production runs it) handles the pin: an own memory is pinned (200, Pinned 1) and unpinned (200, Pinned 0); with a pinned
-/// 2,000-character memory, the pin of a 1,957-character one is 409 over_cap and the row is unchanged; another session's ref and an unknown ref are 404 and nothing changes.
+/// 2,000-character memory, the pin of a 1,957-character one is 409 over_cap and the row is unchanged; another session's ref (an unpinned one for the pin, a pinned one for the unpin) and an unknown ref are 404 and nothing changes.
 Method TestPin()
 {
 	Set session = ..Session()
@@ -465,6 +465,7 @@ Method TestPin()
 	Set other = ..OtherSession()
 	Set own = ..Memory(session, "zz own memory", "2030-01-01T10:00:00Z")
 	Set theirs = ..Memory(other, "zz another session's memory", "2030-01-02T10:00:00Z")
+	Set theirsPinned = ..Memory(other, "zz another session's pinned memory", "2030-01-02T11:00:00Z", "", 1)
 	Set body = ..Call("PinMemory", .response, own)
 	Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""result"":""done""}", "real: the session's own memory is pinned, 200 done")
 	Do $$$AssertEquals(..PinnedOf(own), 1, "and its Pinned is 1")
@@ -477,12 +478,12 @@ Method TestPin()
 	Do $$$AssertEquals(response.Status_"|"_body, "409 Conflict|"_overCap, "real: with a pinned 2,000-character memory, the pin of a 1,957-character one is 409 over_cap")
 	Do $$$AssertEquals(..PinnedOf(over)_"|"_..PinnedOf(big), "0|1", "and nothing changed")
 	For verb = "PinMemory", "UnpinMemory" {
-		Set body = ..Call(verb, .response, theirs)
+		Set body = ..Call(verb, .response, $Select(verb = "PinMemory": theirs, 1: theirsPinned))
 		Do $$$AssertEquals(response.Status_"|"_body, "404 Not Found|"_..ErrorBody("not_found", "OcuTalon has nothing at this address."), "real: "_verb_" of another session's ref is 404 not_found")
 		Set body = ..Call(verb, .response, "zzMemoryPin0000000001")
 		Do $$$AssertEquals(response.Status_"|"_body, "404 Not Found|"_..ErrorBody("not_found", "OcuTalon has nothing at this address."), "real: "_verb_" of an unknown ref is 404 not_found")
 	}
-	Do $$$AssertEquals(..PinnedOf(theirs), 0, "and the other session's memory is unchanged")
+	Do $$$AssertEquals(..PinnedOf(theirs)_"|"_..PinnedOf(theirsPinned), "0|1", "and the other session's memories are unchanged (one unpinned, one pinned)")
 }
 
 /// The stored Pinned of the memory with the Ref (0 for an empty one), read fresh.

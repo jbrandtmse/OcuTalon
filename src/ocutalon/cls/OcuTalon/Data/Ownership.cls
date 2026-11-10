@@ -53,7 +53,8 @@
 ///   - The daily note's reads (Story 41.3) are Rows kinds too, each owner-scoped and each in a window [from, to) of UTC times: NoteTurns (the session's turns that are not
 ///     refused, by CreatedAt), NoteDecisions (its decide decisions, by RecordedAt), NoteIncidents (the incidents it sees, as Incidents does, by NoticedAt), NoteApprovals (the
 ///     requests it sees, as Approvals does, placed by AnsweredAt, else RaisedAt) and NoteReminders (its reminders of every state, by DueAt). DecisionChannel is the Channel of a
-///     decision's own usage rows, and DecisionServed is whether it has any (Story 41.12). A window with an empty bound gives an empty list and an error status in sc.
+///     decision's own usage rows. A window with an empty bound gives an empty list and an error status in sc.
+///   - DecisionServed (Story 41.12) is whether a decision has any usage row of the session.
 Class OcuTalon.Data.Ownership
 {
 

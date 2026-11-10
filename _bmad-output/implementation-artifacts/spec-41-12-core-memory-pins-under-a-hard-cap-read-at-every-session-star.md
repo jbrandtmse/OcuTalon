@@ -166,6 +166,29 @@ Files:
 - AC 5 (DW-967, AD-21, AD-20): Given an earlier turn of the same local day whose reply decision has no Usage row, when the next turn is sent, then it is a session start; with a Usage row, it is not.
 - AC 6 (DW-977): Given a session start, when today's note is built for the turn's item, then it holds neither the current message's opening nor any later turn's, and the Notes route still lists the whole day.
 
+### Review Findings
+
+Code review 2026-11-09 (stage code-review, full mode, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 0 decision-needed, 9 patch (all applied), 5 dispositioned in the ledger, 2 rejected. No HIGH. AD-21 (one block computation, `>` against COREMAX), AD-7 (format only in `Agent.Input.CoreBlock`), AD-13 (no new web-layer read) and AD-4 (own-session scope, same not_found) checked: compliant. Rule 3: `ci/iris.sh live sign-in --part 2/19` (body-limit + memory.spec.ts, 7 tests) passed on a fresh stack with the patches.
+
+- [x] [Review][Patch] (med) `TestFailedWarned`'s "the pinned memory is unchanged" followed an unpin of an unknown Ref, so it could not fail, and the busy-lock pin and unpin had no state check: moved to after the busy-lock unpin of the pinned memory, and a state check added after the busy-lock pin [src/ocutalon/cls/OcuTalon/Test/Memory/Pins.cls]
+- [x] [Review][Patch] (low) `Ownership`'s class comment rewrote an existing line ("added lines only"): line restored, `DecisionServed` named on an added line [src/ocutalon/cls/OcuTalon/Data/Ownership.cls:56]
+- [x] [Review][Patch] (low) `Agent.Input` comments still said "no notes block and no precedent block renders as without a context" and "sessionStart 1 asks for the notes block": both name the core-memory block now [src/ocutalon/cls/OcuTalon/Agent/Input.cls:35,43]
+- [x] [Review][Patch] (low) `OnPin`/`OnUnpin` answered not_found with `MESSAGENOTFOUND` ("so nothing was forgotten") against the Design Notes' empty pin Message: now `""` (Web.Api answers its own 404 text); the class comment says so, and the QA test labels that called `MESSAGEFAILED` "the web layer's words" are corrected [src/ocutalon/cls/OcuTalon/Memory/Ops.cls:189,227]
+- [x] [Review][Patch] (low) `Memory.Pinned` added two new status texts outside the approved strings: it reuses `List`'s existing "A list needs a session" and "The memories could not be read: " [src/ocutalon/cls/OcuTalon/Memory.cls:171,175]
+- [x] [Review][Patch] (low) the real `CoreOf`'s error-status-to-throw was never run (the probe threw in its place): `InputProbe` `failCore = "status"` runs `Agent.Input`'s own `CoreOf` on an empty session, and `TestCoreReadFailure` asserts the same left-out block and one more `LOGCORE` warning [src/ocutalon/cls/OcuTalon/Test/Agent/InputProbe.cls, src/ocutalon/cls/OcuTalon/Test/Agent/RenderMemory.cls]
+- [x] [Review][Patch] (low) `TestCoreMemoryAtStart`'s after-unpin check did not prove the third turn was rendered as a session start: it now also asserts the notes opening in that Input [src/ocutalon/cls/OcuTalon/Test/Core/ConversationSessionStart.cls]
+- [x] [Review][Patch] (low) `MemoryApi:TestPin`'s "other session's memory unchanged" was vacuous for the unpin (the row was unpinned): the unpin now targets a pinned row of the other session, which must stay pinned [src/ocutalon/cls/OcuTalon/Test/Web/MemoryApi.cls]
+- [x] [Review][Patch] (low) `Pins:TestMessageMap` was a text match only, and `MemoryApi:TestPin` real mode had no `mutation:` line: `TestMessageMap` also delivers a PinMemory and an UnpinMemory through the generated `MessageHandler` the production dispatches by; mutations recorded in Verification [src/ocutalon/cls/OcuTalon/Test/Memory/Pins.cls]
+- [x] [Review][Defer] A pin, unpin or forget made after the day's session start reaches the model only at the next session start [Agent/Input.cls CorePart] — by-design (DW-1053): UX "Pinned facts are read at the start of each conversation" (EXPERIENCE.md:1106), AD-21.
+- [x] [Review][Defer] A single memory whose block alone passes 4,000 characters can never be pinned, and the 409 says "Unpin something first" [Memory/Ops.cls OnPin] — by-design (DW-1054): Design Notes "A refused single pin"; the card's wording is 41.13's.
+- [x] [Review][Defer] A broken-session retry that falls back before a model call leaves the turn "not reached" [Core/Conversation.cls StartsSession] — wontfix-theoretical (DW-1055): the retry is fresh, so no model kept the first attempt's blocks; a repeat adds, never loses.
+- [x] [Review][Defer] The pin handlers are not transactional [Memory/Ops.cls] — wontfix-theoretical (DW-1056): only `Answer` follows `%Save`.
+- [x] [Review][Defer] `TestCoreMemoryAtStart`'s same-day branch is skipped across local midnight [Test/Core/ConversationSessionStart.cls] — wontfix-accepted (DW-1057), reopen_if recorded.
+
+Rejected:
+- (blind-hunter) the Auto Run Result's "5 low patched" vs four `[patch]` rows in the earlier triage log — the fix edits the spec's own run record; not a code defect.
+- (verification-gap) `the pin cap as the LIVE user` relies on LIVE state it did not create — false in effect: every other LIVE pin in the spec removes its rows in `finally`, each `live:sign-in` part runs on a fresh stack, and a stray pin fails the precondition loudly (no false green); the part ran green.
+
 ## Spec Change Log
 
 - 2026-11-09 (Contest Planner rulings on the spec-gate items, relayed by the orchestrator): (1) CAP: the alternative is ruled. The core-memory block, heading and quotes included, is capped at 4,000 characters (1,000 tokens at 4 characters a token); a pin is refused with the existing `over_cap` answer when the rendered block would pass 4,000; a pinned fact is never left out of the input while it shows as pinned; 41.14's "never over 4,000 characters" holds exactly; 41.13's remaining-space figure uses the same computation; a test pins the pin that crosses the line by one character. Applied to the intent block (Always: the cap; the core-memory block; the matrix rows) and to epics.md Story 41.12 as a Rule 5 amendment `[AMENDED 2026-11-09, Contest Planner ruling]`. Re-planned (status draft). (2) The operator log line "The core memory of the session could not be read, so it was left out of the input: " is APPROVED. The heading stays "Your core memory (facts you pinned):" (EXPERIENCE.md:1070). (3) The two additive AD-21 spine lines, marked `[ADDED 2026-11-09, Story 41.12]`, are APPROVED.
@@ -340,6 +363,30 @@ Every test added or changed passes on a fresh environment, in either order, and 
 - mutation: `DecisionServed` answers 1 for any decision (`Quit rows.Count() > 0` -> `Quit 1`) -> `OwnershipNotes:TestDecisionServed` red.
 - mutation: `DailyNote.Build` ignores `itemId` (`If $Get(itemId) '= "" {` -> `If 0 {`) -> `DailyNote:TestLeavesOutCurrentTurn` red, and on a fresh stack (tag `e41s12i`, torn down afterwards) `SecondModel:TestIntegrationWebChat` red ("on one local day no request holds a notes block that quotes the first message").
 - Unmutated: `SecondModel:TestIntegrationWebChat` passed on the fresh stack (READY 278 s, test 17.6 s, run 296 s: over the 150 s guide because of the stack build). `web/e2e/api/memory.spec.ts` (tsc exit 0, 5 tests listed) is left to `live:sign-in` in CI.
+
+**QA stage (warm stack `e41s12qw`; torn down afterwards). Tests added to existing classes, marked (QA):**
+- (QA) `Test/Memory/Pins.cls` `TestFailedWarned`: an exception inside the pin's or unpin's Try (the probe throws at the over_cap or not_found answer, before any write) and a busy lock answer `failed` (Ok 0, no Ref, the web layer's Message) with the memory unchanged, one Type 3 warning each, status text redacted, no secret and no memory text in the event log (matrix row "Lock or save fails"; before, only the lock-busy answer was asserted, not the warning).
+- (QA) `Test/Memory/Pins.cls` `TestLockReleased`: the session's lock (found in `^$LOCK`; the check is proven against a lock the test takes itself) is free after pinned, over_cap, already pinned, not_found (pin and unpin), unpinned and failed through an exception, for pin and unpin.
+- (QA) `Test/Memory/PinsProbe.cls`: `Answer` throws for the outcome named by `^||PinsProbe("throw")` (reaches the handlers' Catch).
+- (QA) `Test/Agent/RenderMemory.cls` `TestNotesLeaveOutCurrentTurn` (DW-977 at the renderer, AC 6): Render at a session start passes the item's ItemId to the notes, so the notes quote the earlier turn and neither the current nor a later turn; an item with no ItemId gets the whole day. Before, only `Build` itself (DailyNote) and the fresh-stack integration test pinned it.
+- Route rule (LIVE as the unprivileged OcuTalonUser fixture, PANEL as the second session): already pinned by `web/e2e/api/memory.spec.ts` (pin 200 and list shows pinned, unpin 200, over_cap 409 with the approved text, PANEL's pin and unpin of LIVE's ref 404 with the row still pinned); nothing to add; `live:sign-in` stays with CI. No `web/` file changed in QA.
+- Not tested, and why: the `%Save`-error branch of `OnPin`/`OnUnpin` (`Failed` is the same shared method the exception and lock branches reach). `%Save` validates only modified properties (a stored `Source` of 40 characters saved fine) and the properties the handlers change (`Pinned`, `PinnedAt`) cannot be made invalid, so the branch can't be made to fail without a second process holding the row lock; left as a residual risk.
+
+**QA mutations (each applied on the warm stack, observed red, reverted, file `cmp`-identical to the saved original, `git status --short` showing only the QA test files):**
+- mutation: `OnPin` never releases the session's lock (its `Lock -^OcuTalon.Memory(...)` removed, Memory/Ops.cls) -> `Pins:TestLockReleased` red ("after a pin" and every later check).
+- mutation: `OnUnpin` never releases the session's lock -> `Pins:TestLockReleased` red ("after an unpin of another session's memory", "after an unpin").
+- mutation: `Failed` logs no warning (the `$$$LOGWARNING` line removed) -> `Pins:TestFailedWarned` red ("one warning (type 3)", "one more warning", "each logs one warning that says the memories are busy").
+- mutation: `Failed` logs the raw status text (the `Redact.Text` call removed) -> `Pins:TestFailedWarned` red (the secret is in the event log, "[redacted]" missing).
+- mutation: `Agent.Input.NotesPart` passes `""` instead of `item.ItemId` to `NoteOf` (Agent/Input.cls) -> `RenderMemory:TestNotesLeaveOutCurrentTurn` red.
+- Unmutated after the reverts: `Pins` and `RenderMemory` passed on the warm stack; `test-class-rules.sh` and `test-boundaries.sh` pass.
+
+**Code-review mutations (warm stack `e41s12cw`, torn down; each applied, observed red, reverted, files `cmp`-identical, `git status --short` and `git diff --stat` unchanged):**
+- mutation: `OnUnpin` ignores a busy lock (`If 'lock Quit ..Failed` -> `If 0 Quit ..Failed`) -> `Pins:TestFailedWarned` red ("and the pinned memory is unchanged").
+- mutation: `OnUnpin` without the owner check (`'$IsObject(row) || (row.SessionRef '= request.SessionRef)` -> `'$IsObject(row)`) -> `MemoryApi:TestPin` red ("real: UnpinMemory of another session's ref is 404 not_found", "and the other session's memories are unchanged (one unpinned, one pinned)"), and `Pins:TestOtherSession` red.
+- mutation: `MemoryOps` without the `UnpinMemory` MapItem -> `Pins:TestMessageMap` red ("MessageHandler delivers an UnpinMemory": ErrRequestNotHandled).
+- mutation: `Agent.Input.CoreOf` without `If $$$ISERR(sc) $$$ThrowStatus(sc)` -> `RenderMemory:TestCoreReadFailure` red ("with one more warning").
+- mutation: `StartsSession` `If fresh Quit 1` -> `If 0 Quit 1` -> `ConversationSessionStart:TestCoreMemoryAtStart` red ("and it is rendered as one: its Input holds the notes block").
+- Unmutated after the reverts: `Pins`, `RenderMemory`, `ConversationSessionStart`, `MemoryApi` and `CommandsStep3` passed (the production restarted after MemoryOps was recompiled); `test-class-rules.sh` and `test-boundaries.sh` pass; `ci/iris.sh live sign-in --part 2/19` (`api/body-limit.spec.ts`, `api/memory.spec.ts`: 7 tests) passed on a fresh stack (`e41s12cr`, torn down).
 
 ## Auto Run Result
 

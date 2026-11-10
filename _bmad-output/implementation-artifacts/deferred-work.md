@@ -5833,6 +5833,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Core/Conversation.cls StartsSession (~line 443) counts every earlier non-refused Turn of the local day; a pre-runner fallback sends no model request
 - 2026-11-08T15:15:04Z status=routed owner=burndown by=harvest note=Contest Planner ruling 2026-11-08: to Epic 41's burn-down (Lane B fix in Conversation: count only turns whose request reached a model) and onto Epic 41's retro list
 - 2026-11-09T05:18:30Z owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=burndown note=part-1 burn-down overflow (3 routed <= cap 8, no entry with 2+ occurrences, so no charter): 41.12 changes what is read at every session start (Conversation.StartsSession/the notes block), the code path this fix touches; on Epic 41's retro list
+- 2026-11-10T00:28:40Z status=resolved-by:41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=adjudication note=Conversation.StartsSession_counts_an_earlier_fallback_turn_only_if_its_reply_decision_has_a_Usage_row(Ownership.DecisionServed);ConversationSessionStart_tests;8645a147
 ### DW-911: A retried test that passes leaves its retry-time DIAG /state lines (requests, page probe, host) only in the runner's e2e log and test-results, which a green job neither prints nor uploads
 - source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: cmd_live reprints only RETRY-shaped lines (matrix row 'cmd_live with retries'); ci.yml uploads web/test-results only if: failure(); retain-on-failure keeps no trace of a passing test
@@ -5905,6 +5906,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T19:54:46Z status=routed owner=burndown by=harvest note=Lane B fix with DW-967: DailyNote.Build (or Conversation) leaves the current turn and any later turn out of the note; same family as DW-967 (fallback first turn)
 - 2026-11-08T20:21:51Z status=routed owner=burndown by=cr note=fix also updates SecondModel:TestIntegrationWebChat (notesBlocks>0, notesWrong=0 assert today's quote)
 - 2026-11-09T05:18:30Z owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=burndown note=part-1 burn-down overflow: same session-start path as DW-967 (leave the current and later turns out of today's note; update SecondModel:TestIntegrationWebChat as DW-977's trailer says)
+- 2026-11-10T00:28:40Z status=resolved-by:41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=adjudication note=DailyNote.Build_takes_the_current_ItemId_and_leaves_out_that_turn_and_later;RenderMemory:TestNotesLeaveOutCurrentTurn,Test.Data.DailyNote,SecondModel:TestIntegrationWebChat_updated;8645a147
 ### DW-938: Playwright S9-S12 (Settings: Time zone, Daily digest, Send my digest now, Channels) have no observed mutation line; the browser tier runs only in CI
 - source: _bmad-output/implementation-artifacts/spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: web/e2e/settings/settings.spec.ts S9-S12 written, not run locally (live:sign-in-2, group shards-4); settings-view.test.mjs twins carry the AC 5 mutation
@@ -6257,6 +6259,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Data/Memory.cls Pinned InitialExpression 0 applies to new objects only and AD-5 forbids a back-fill; 41.12's pinned read must use COALESCE(Pinned,0) or read through Memory.Row
 - 2026-11-09T10:11:19Z status=routed owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=harvest note=for 41.12's pinned read and the cap sum
 - 2026-11-09T10:35:54Z occurrence=41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns by=cr note=code review: the same empty-on-old-rows gap holds for Source (read as told only through Memory.Row); 41.13's Memory card (Lane B, reads through Ownership, not Memory.Row) must also read COALESCE(Source,'told') and COALESCE(Pinned,0) for its tabs, labels and token sum
+- 2026-11-10T00:28:40Z status=resolved-by:41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=adjudication note=Memory.Pinned_and_the_cap_read_COALESCE(Pinned,0)=1;Pins:TestOldRow;8645a147
 
 ### DW-1015: The learned-save eval case (eval/memory-learned-save, kind command) covers no real save: an eval turn's owner eval is not a session, so save_memory is refused NOSESSION, yet Eval.Report scores the case right when the reply says I'll remember that, whatever the tool answered; the line rewards a reply that claims a refused save and marks the honest reply wrong
 - source: spec-41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns.md | severity: med | fix-risk: med | footprint: in-story
@@ -6288,6 +6291,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Test/Core/CommandsStep3Probe.cls $Case (else 5001) and Test/Web/MemoryApi.cls TestPin real branch assert 500; 41.12 must dispatch pins to its handlers in the probe and assert done/over_cap through the real MemoryOps
 - 2026-11-09T16:35:22Z status=routed owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=cr note=update the probe's $Case, TestPin's real branch and the Ops class comment with the pin handler
+- 2026-11-10T00:28:40Z status=resolved-by:41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=adjudication note=CommandsStep3Probe_dispatches_pins_to_the_real_handlers;MemoryApi:TestPin_real_mode_asserts_real_outcomes;Pins:TestMessageMap_via_MessageHandler;Memory/Ops.cls_origin_comment_fixed
 
 ### DW-1030: GET /v1/memory/items cannot back 41.13's Pinned tab: it lists only the newest 20 (or the best 5 of a search), with no pinned filter, paging or used-token figure, so an older pinned memory and the {used} of 1,000 tokens are out of reach
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
@@ -6306,6 +6310,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Task 0: a pin gives Outcome failed; memory.spec.ts pin step pins the 500
 - 2026-11-09T17:30:18Z status=routed owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=harvest note=goes red when 41.12 lands; fix in 41.12
+- 2026-11-10T00:28:40Z status=resolved-by:41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=adjudication note=memory.spec.ts_as_LIVE:pin_200+listed_pinned,unpin_200,cap_409_over_cap,PANEL_pin/unpin_of_LIVE_ref_404;ran_green_live:sign-in_part_2/19_fresh_stack_in_cr
 
 ### DW-1040: The search's 503 search_busy reaches the Angular client as an API 503, which the online demo reads as its whole-page busy state (DemoBusyState, chat outbox) rather than a local search-is-busy message; the card must not raise the demo-busy banner on a busy search
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
@@ -6430,3 +6435,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: planner-2026-11-09-replan | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: owner-approved voting-week re-plan relayed by the Contest Planner [3dd56e] 2026-11-09 ~15Z
 - 2026-11-09T14:58:00Z status=decision-pending owner=burndown by=owner note=parked:owner_re-plan_2026-11-09; revisit after voting (Nov 15); sprint-status action item mirrors it
+
+### DW-1053: A pin, unpin or forget made after the day's session start reaches the model only at the next session start: the core block is rendered only with sessionStart 1, and the continued AI session keeps the earlier input
+- source: spec-41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star.md | severity: low | fix-risk: high | footprint: in-epic
+- evidence: Agent.Input.CorePart returns '' unless sessionStart 1; Conversation continues the bridge session unless fresh or rotated, so the 09:00 input (with or without a pin) stays in history all day
+- 2026-11-10T00:26:52Z status=by-design owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=cr note=UX: 'Pinned facts are read at the start of each conversation' (EXPERIENCE.md:1106); AD-21 reads core memory at session start
+
+### DW-1054: A single memory whose rendered block alone passes 4,000 characters (about 980+ line feeds in 2,000 characters) can never be pinned, and its 409 over_cap text says 'Unpin something first' with nothing pinned
+- source: spec-41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: OnPin measures Memory.CoreBlock(session, row.Text) against COREMAX; with no pins a 2,000-character text with 1,000 line feeds renders over 4,000 (each line adds the quote prefix)
+- 2026-11-10T00:26:52Z status=by-design owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=cr note=spec Design Notes 'A refused single pin' (Planner cap ruling 2026-11-09); the card's wording is 41.13's
+
+### DW-1055: A broken-session retry that falls back before any model call makes StartsSession count the turn as not reaching a model, so the next turn repeats the session-start blocks
+- source: spec-41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: StartsSession reads only TurnDecisionRef, which the retry's decision replaces; a retry that falls back writes no Usage row
+- 2026-11-10T00:26:53Z status=wontfix-theoretical owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=cr note=real only if the broken first session's context survived the retry; it does not (the retry is fresh), and a repeat adds a block, never loses one
+
+### DW-1056: OnPin and OnUnpin are not transactional: an exception after a committed %Save would answer failed with the row already changed
+- source: spec-41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: nothing after %Save but Answer (a %New of the response) can throw; QA moved its probe throw to before any write
+- 2026-11-10T00:26:53Z status=wontfix-theoretical owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=cr note=real if code that can throw is added after %Save in either handler
+
+### DW-1057: TestCoreMemoryAtStart's same-day assertions run only inside If StartIfNewDay(first, second) = '', so a run whose two turns straddle local midnight checks nothing for AC 4's second turn
+- source: spec-41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Test/Core/ConversationSessionStart.cls TestCoreMemoryAtStart; the existing StartIfNewDay pattern of the class
+- 2026-11-10T00:26:53Z status=wontfix-accepted owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=cr note=reopen_if=a CI or local run of ConversationSessionStart:TestCoreMemoryAtStart that straddles local midnight goes green with the branch skipped

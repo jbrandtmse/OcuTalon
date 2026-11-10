@@ -17,13 +17,13 @@
 ///     OcuTalon.Memory MAXLIMIT items, and the answer is Ok 1, Outcome done, with the items as the JSON array [{ref, text, savedAt, source, pinned}] (pinned a
 ///     boolean, no origin) in Data. It changes no row and takes no lock. A search that fails (an empty query or session, a query that cannot be embedded) answers failed.
 ///   - PinMemory (Story 41.12; from origin web_user only, as 41.9's gate decides): the memory is found as ForgetMemory finds it, so a Ref that no row has and a Ref of another
-///     session's memory answer the same not_found (Ok 0) and change nothing. A memory that is already pinned answers pinned (Ok 1) and keeps its PinnedAt. Otherwise, under the
+///     session's memory answer the same not_found (Ok 0, an empty Message) and change nothing. A memory that is already pinned answers pinned (Ok 1) and keeps its PinnedAt. Otherwise, under the
 ///     session's lock, the core-memory block that the session would have with this memory pinned (OcuTalon.Memory.CoreBlock with the memory's text as the newest pin; the block
 ///     is formatted by OcuTalon.Agent.Input.CoreBlock and read from Memory.Pinned, where a row saved before Story 41.8 is not pinned) must be at most OcuTalon.Memory COREMAX
 ///     characters, heading, quotes and closing blank line included: if it is longer the answer is over_cap (Ok 0, the existing text of the web layer) and nothing changes, and nothing
 ///     is ever unpinned to make room. Otherwise Pinned is 1, PinnedAt is now (UTC to the second), and the answer is pinned (Ok 1, an empty Message) with the Ref.
 ///   - UnpinMemory (Story 41.12; origin web_user only): an own memory, pinned or not, gets Pinned 0 and PinnedAt empty, and the answer is unpinned (Ok 1, an empty Message); another
-///     session's memory and an unknown Ref answer not_found.
+///     session's memory and an unknown Ref answer not_found (Ok 0, an empty Message).
 ///   - Who may ask (DW-1029): SaveMemory comes from origin tool; ForgetMemory from tool or web_user; PinMemory, UnpinMemory and SearchMemory from web_user only (CommandsIn).
 ///   - A lock on the session that cannot be taken within 5 seconds, a save or delete that fails and any exception answer failed.
 ///   - After a new row is saved, Tuned is called with its id, which has the SQL statistics of the table gathered at every STATSEVERY-th id
@@ -186,7 +186,7 @@ Method OnPin(request As OcuTalon.Msg.Command.PinMemory, Output response As OcuTa
 	Try {
 		Set row = ##class(OcuTalon.Data.Memory).RefIndexOpen(request.MemoryRef)
 		If '$IsObject(row) || (row.SessionRef '= request.SessionRef) {
-			Set sc = ..Answer(.response, 0, "not_found", ..#MESSAGENOTFOUND)
+			Set sc = ..Answer(.response, 0, "not_found", "")
 		} ElseIf +row.Pinned = 1 {
 			Set sc = ..Answer(.response, 1, "pinned", "", row.Ref)
 		} Else {
@@ -224,7 +224,7 @@ Method OnUnpin(request As OcuTalon.Msg.Command.UnpinMemory, Output response As O
 	Try {
 		Set row = ##class(OcuTalon.Data.Memory).RefIndexOpen(request.MemoryRef)
 		If '$IsObject(row) || (row.SessionRef '= request.SessionRef) {
-			Set sc = ..Answer(.response, 0, "not_found", ..#MESSAGENOTFOUND)
+			Set sc = ..Answer(.response, 0, "not_found", "")
 		} Else {
 			Set row.Pinned = 0
 			Set row.PinnedAt = ""

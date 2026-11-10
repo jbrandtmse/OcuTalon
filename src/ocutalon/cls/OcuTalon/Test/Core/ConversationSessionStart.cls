@@ -280,6 +280,7 @@ Method TestCoreMemoryAtStart()
 	Do $$$AssertEquals($ListLength(turns), 3, "three turn requests")
 	Do $$$AssertEquals(..Call($List(turns, 3), "sessionMode"), "fresh", "the turn after a tainted reply is a session start")
 	Set input = ..Call($List(turns, 3), "input")
+	Do $$$AssertTrue(input [ "Your notes for today and yesterday (built by OcuTalon from your records):", "and it is rendered as one: its Input holds the notes block")
 	Do $$$AssertTrue(input '[ opening, "after the unpin the session start holds no core-memory block")
 	Do $$$AssertTrue(input '[ "zz pinned memory", "and not the memory")
 }

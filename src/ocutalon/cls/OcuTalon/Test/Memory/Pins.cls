@@ -3,7 +3,8 @@
 /// a vector that has no meaning, so no embedder and no production are needed. Every test removes its sessions and their memories. The expected lengths are held arithmetic, never
 /// read from the code under test: the opening line is 36 characters, each single-line pin adds 3 and its length (a line feed and the quote prefix), and the closing blank line adds 2,
 /// so pins of 2,000 and 1,956 characters make exactly 4,000.
-///   - TestMessageMap: the message map of MemoryOps sends PinMemory to OnPin and UnpinMemory to OnUnpin (the production dispatches by the map; the tests that call the handlers do not);
+///   - TestMessageMap: the message map of MemoryOps sends PinMemory to OnPin and UnpinMemory to OnUnpin, and MessageHandler, which the production dispatches through, delivers each to
+///     its handler (the tests that call the handlers do not go through it);
 ///   - TestPin: an own unpinned memory is pinned within the cap: Pinned 1, PinnedAt now (UTC to the second), pinned, Ok 1, the Ref, an empty Message;
 ///   - TestCap: the pin that would make the rendered block 4,001 characters is over_cap and changes nothing; the one that makes exactly 4,000 is pinned; one more character is over_cap;
 ///   - TestCapRendered: the cap is measured on the rendered block (line breaks add a quote prefix each), not on the sum of the texts;
@@ -14,6 +15,9 @@
 ///   - TestNoSession: a command whose session has no row answers no_session;
 ///   - TestLockBusy: a session whose lock is not free answers failed for a pin and an unpin, and changes nothing;
 ///   - TestForgetPinned: forgetting a pinned memory deletes it, and it is gone from Pinned and from the block;
+///   - TestFailedWarned (QA): a handler whose Try is reached by an exception, or whose lock is busy answers failed (Ok 0, Outcome failed, MemoryOps' failed text), changes
+///     nothing, and logs exactly one Type 3 warning with the status text redacted, for a pin and an unpin;
+///   - TestLockReleased (QA): after every outcome of a pin and an unpin (pinned, over_cap, already pinned, not_found, unpinned, failed through an exception) the session's lock is free again;
 ///   - TestPinnedOrder: Memory.Pinned answers the session's pinned rows only, newest pin first and then the higher row id first, and an empty session is an error status.
 Class OcuTalon.Test.Memory.Pins Extends %UnitTest.TestCase
 {
@@ -67,6 +71,12 @@ Method TestMessageMap()
 		Set pattern = "<MapItem\s+MessageType=""OcuTalon\.Msg\.Command\."_$List(pair, 1)_"""\s*>\s*<Method>"_$List(pair, 2)_"</Method>\s*</MapItem>"
 		Do $$$AssertTrue($Locate(map, pattern) > 0, $List(pair, 1)_" goes to "_$List(pair, 2))
 	}
+	Set session = ..Session()
+	Set ref = ..Memory(session, ..Text(10, "m"))
+	Do $$$AssertStatusOK(..Host.MessageHandler(..Pin(session, ref), .response), "MessageHandler delivers a PinMemory")
+	Do $$$AssertEquals(response.Outcome_"|"_$Piece(..State(ref), "|", 1), "pinned|1", "to OnPin, which pins the memory")
+	Do $$$AssertStatusOK(..Host.MessageHandler(..Unpin(session, ref), .response), "MessageHandler delivers an UnpinMemory")
+	Do $$$AssertEquals(response.Outcome_"|"_..State(ref), "unpinned|0|", "to OnUnpin, which unpins it")
 }
 
 /// An own unpinned memory is pinned: Pinned 1, PinnedAt now, Ok 1, pinned, with the memory's Ref and an empty Message.
@@ -255,6 +265,87 @@ Method TestForgetPinned()
 	Do $$$AssertEquals(response.Outcome, "pinned", "C fits now")
 }
 
+/// QA, matrix "Lock or save fails": a pin or an unpin that meets a busy lock or an exception inside its Try answers failed (Ok 0, no Ref) with the memory unchanged, and each
+/// logs one Type 3 warning (the status text, redacted; no secret and no memory text in the event log).
+Method TestFailedWarned()
+{
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Memory.PinsProbe", .sc)
+	Do $$$AssertStatusOK(sc, "the probe instance of MemoryOps")
+	Set class = "OcuTalon.Test.Memory.PinsProbe"
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set logged = $ListBuild($Parameter("OcuTalon.Memory.Ops", "LOGFAILED"))
+	Set session = ..Session()
+	Set big = ..Memory(session, ..Text(2000, "a"), 1, "2030-01-01T10:00:00Z")
+	Set plain = ..Memory(session, ..Text(1957, "p"))
+	Set pinned = ..Memory(session, "zz pinned words", 1, "2030-01-02T10:00:00Z")
+	// An exception inside the Try, before any write: the pin that is over the cap, and an unpin of a Ref that no memory has.
+	Set ^||PinsProbe("throw") = "over_cap"
+	Set mark = $ClassMethod(fixture, "EventMark")
+	Do $$$AssertStatusOK(host.OnPin(..Pin(session, plain), .response), "pin with an exception inside the handler")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref, "0|failed|", "failed, Ok 0, no Ref")
+	Do $$$AssertTrue(response.Message '= "", "with MemoryOps' failed text")
+	Do $$$AssertEquals($ClassMethod(fixture, "Warnings", mark, class, "Failed"), 1, "one warning (type 3)")
+	Do $$$AssertEquals($ClassMethod(fixture, "Warnings", mark, class, "Failed", logged_$ListBuild("[redacted]")), 1, "which starts with the fixed words and holds the status text with the secret redacted")
+	Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", mark, "zzsecretvalue"), 0, "and no part of the secret shows in the event log")
+	Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", mark, "ppppppppppppppppppp"), 0, "nor the text of the memory")
+	Do $$$AssertEquals(..State(plain), "0|", "the memory is unchanged")
+	Set ^||PinsProbe("throw") = "not_found"
+	Do $$$AssertStatusOK(host.OnUnpin(..Unpin(session, "zzMemoryPin0000000001"), .response), "unpin with an exception inside the handler")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref, "0|failed|", "failed, Ok 0, no Ref")
+	Do $$$AssertEquals($ClassMethod(fixture, "Warnings", mark, class, "Failed"), 2, "one more warning")
+	Kill ^||PinsProbe("throw")
+	// A busy lock.
+	Set ^||PinsProbe("busy") = 1
+	Do $$$AssertStatusOK(host.OnPin(..Pin(session, plain), .response), "pin with the lock busy")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|failed", "failed")
+	Do $$$AssertEquals(..State(plain), "0|", "and the unpinned memory is unchanged")
+	Do $$$AssertStatusOK(host.OnUnpin(..Unpin(session, pinned), .response), "unpin with the lock busy")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|failed", "failed")
+	Do $$$AssertEquals(..State(pinned), "1|2030-01-02T10:00:00Z", "and the pinned memory is unchanged")
+	Do $$$AssertEquals($ClassMethod(fixture, "Warnings", mark, class, "Failed", logged_$ListBuild("busy")), 2, "each logs one warning that says the memories are busy")
+	Kill ^||PinsProbe("busy")
+}
+
+/// QA, matrix "Under the session's lock": the lock is released after every outcome, so a later command of the session is never kept waiting.
+Method TestLockReleased()
+{
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Memory.PinsProbe", .sc)
+	Do $$$AssertStatusOK(sc, "the probe instance of MemoryOps")
+	Set mine = ..Session(), theirs = ..Session()
+	Set a = ..Memory(mine, ..Text(2000, "a"))
+	Set b = ..Memory(mine, ..Text(1956, "b"))
+	Set c = ..Memory(mine, "c")
+	Set foreign = ..Memory(theirs, "zz foreign")
+	Do $$$AssertEquals(..Held(mine), 0, "no lock is held before the commands")
+	Lock +^OcuTalon.Memory(mine)
+	Do $$$AssertEquals(..Held(mine), 1, "the check sees a lock that is held")
+	Lock -^OcuTalon.Memory(mine)
+	Do $$$AssertEquals(..Held(mine), 0, "and sees it freed")
+	Do host.OnPin(..Pin(mine, a), .response)
+	Do $$$AssertEquals(response.Outcome_"|"_..Held(mine), "pinned|0", "after a pin")
+	Do host.OnPin(..Pin(mine, b), .response)
+	Do $$$AssertEquals(response.Outcome_"|"_..Held(mine), "pinned|0", "after a pin that makes the block exactly 4,000")
+	Do host.OnPin(..Pin(mine, c), .response)
+	Do $$$AssertEquals(response.Outcome_"|"_..Held(mine), "over_cap|0", "after a pin over the cap")
+	Do host.OnPin(..Pin(mine, a), .response)
+	Do $$$AssertEquals(response.Outcome_"|"_..Held(mine), "pinned|0", "after a pin of a memory that is already pinned")
+	Do host.OnPin(..Pin(mine, foreign), .response)
+	Do $$$AssertEquals(response.Outcome_"|"_..Held(mine), "not_found|0", "after a pin of another session's memory")
+	Do host.OnUnpin(..Unpin(mine, foreign), .response)
+	Do $$$AssertEquals(response.Outcome_"|"_..Held(mine), "not_found|0", "after an unpin of another session's memory")
+	Do host.OnUnpin(..Unpin(mine, b), .response)
+	Do $$$AssertEquals(response.Outcome_"|"_..Held(mine), "unpinned|0", "after an unpin")
+	Do host.OnPin(..Pin(mine, b), .response)
+	Do $$$AssertEquals(response.Outcome_"|"_..Held(mine), "pinned|0", "after the unpinned memory is pinned again")
+	Set ^||PinsProbe("throw") = "over_cap"
+	Do host.OnPin(..Pin(mine, c), .response)
+	Do $$$AssertEquals(response.Outcome_"|"_..Held(mine), "failed|0", "after a pin that met an exception")
+	Set ^||PinsProbe("throw") = "not_found"
+	Do host.OnUnpin(..Unpin(mine, foreign), .response)
+	Do $$$AssertEquals(response.Outcome_"|"_..Held(mine), "failed|0", "after an unpin that met an exception")
+	Kill ^||PinsProbe("throw")
+}
+
 /// Memory.Pinned: the session's pinned rows only, newest pin first, then the higher row id first; a row with an empty or 0 Pinned and another session's rows are not in it.
 Method TestPinnedOrder()
 {
@@ -319,6 +410,18 @@ Method Memory(session As %String, text As %String, pinned As %Boolean = 0, pinne
 	Set row.Embedding = ##class(OcuTalon.Test.Memory.Fixture).ToVector(ones)
 	Do $$$AssertStatusOK(row.%Save(), "a fixture memory is saved")
 	Quit row.Ref
+}
+
+/// Whether any lock on the memories of the session is held in the lock table (1 or 0).
+ClassMethod Held(session As %String) As %Boolean [ Private ]
+{
+	Set name = "", held = 0
+	For {
+		Set name = $Order(^$LOCK(name))
+		If name = "" Quit
+		If name [ session Set held = 1
+	}
+	Quit held
 }
 
 /// Makes the stored Pinned of the row empty, as a row saved before Story 41.8 has it.

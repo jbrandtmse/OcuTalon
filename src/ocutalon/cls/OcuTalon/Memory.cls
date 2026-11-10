@@ -168,11 +168,11 @@ ClassMethod List(sessionRef As %String, Output rows As %DynamicArray, Output tot
 ClassMethod Pinned(sessionRef As %String, Output rows As %DynamicArray) As %Status
 {
 	Set rows = []
-	If $Get(sessionRef) = "" Quit $SYSTEM.Status.Error(5001, "A read of the pinned memories needs a session")
+	If $Get(sessionRef) = "" Quit $SYSTEM.Status.Error(5001, "A list needs a session")
 	Set sc = $$$OK
 	Try {
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, Text, SavedAt, Origin, Source, Pinned FROM "_..#TABLE_" WHERE SessionRef = ? AND COALESCE(Pinned, 0) = 1 ORDER BY PinnedAt DESC, ID DESC", sessionRef)
-		If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The pinned memories could not be read: "_rs.%Message))
+		If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The memories could not be read: "_rs.%Message))
 		While rs.%Next() {
 			Do rows.%Push(..Row(rs.%Get("Ref"), rs.%Get("Text"), rs.%Get("SavedAt"), rs.%Get("Origin"), rs.%Get("Source"), rs.%Get("Pinned")))
 		}

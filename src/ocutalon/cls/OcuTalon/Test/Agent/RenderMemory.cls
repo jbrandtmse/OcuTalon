@@ -10,7 +10,9 @@
 ///     measurement the cap took just before the last pin;
 ///   - TestCoreNeverCut: pins written directly whose block is over 4,000 are all in the input, whole;
 ///   - TestCoreOnlyAtAStart: no block, and no read, without sessionStart 1, for an untrusted item and for the owners eval, instance and "";
-///   - TestCoreReadFailure: a read that throws leaves the block out, logs one redacted warning and never throws, and the rest is rendered;
+///   - TestNotesLeaveOutCurrentTurn (QA, DW-977): Render builds the session-start notes for the item's own ItemId, so the notes quote the day's earlier turns and neither the turn being
+///     answered nor a later one;
+///   - TestCoreReadFailure: a read that throws, or answers an error status, leaves the block out, logs one redacted warning and never throws, and the rest is rendered;
 ///   - TestNotesBlock: the notes of both days, of one day and of none, after the persona block and before the text;
 ///   - TestNotesOnlyAtAStart: no block without sessionStart 1, for an untrusted item and for the owners eval, instance and "";
 ///   - TestNotesReadFailure: a Build that throws leaves the block out, logs one redacted warning and never throws;
@@ -266,6 +268,24 @@ Method TestCoreOnlyAtAStart()
 	Do $$$AssertEquals(..Warnings() - warnings, 0, "and none of these made a read (no warning, though the read would throw)")
 }
 
+/// QA, DW-977 at the renderer: at a session start the notes block is built for the ItemId of the item being answered, so it quotes the earlier turn of the day and neither the turn being
+/// answered nor a later one; an item with no ItemId gets the whole day.
+Method TestNotesLeaveOutCurrentTurn()
+{
+	Set lf = $Char(10)
+	Set start = {"sessionStart": 1}
+	Set session = ..Session("notescur")
+	Set earlier = ..Turn(session, "09:00:00", "Zz earlier words")
+	Set current = ..Turn(session, "10:00:00", "Zz current words")
+	Set later = ..Turn(session, "11:00:00", "Zz later words")
+	Set item = ..Item(session, "user", "web", "Zz current words")
+	Set item.ItemId = ##class(OcuTalon.Data.Turn).RefIndexOpen(current).ItemId
+	Set head = ..Preamble()_lf_lf_..#COPYNOTES_lf_"> "_..#DAY_lf
+	Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(item, ..Now(), start), head_"> 09:00 message (web): Zz earlier words"_lf_lf_"Zz current words", "the notes hold the earlier turn only, then the text")
+	Set bare = ..Item(session, "user", "web", "Zz current words")
+	Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(bare, ..Now(), start), head_"> 09:00 message (web): Zz earlier words"_lf_"> 10:00 message (web): Zz current words"_lf_"> 11:00 message (web): Zz later words"_lf_lf_"Zz current words", "an item with no ItemId names no turn, so the notes hold the whole day")
+}
+
 /// A read that throws leaves the block out, logs one warning (redacted) and never throws; the rest of the input is rendered.
 Method TestCoreReadFailure()
 {
@@ -295,6 +315,12 @@ Method TestCoreReadFailure()
 	Do $$$AssertEquals($Extract(logged, 1, $Length(..#COPYLOGCORE)), ..#COPYLOGCORE, "the warning starts with its fixed words")
 	Do $$$AssertTrue(logged '[ "zzsecretvalue", "the warning holds no secret of the exception text")
 	Do $$$AssertTrue(logged [ "[redacted]", "because the exception text went through Redact.Text")
+	Set ^||InputProbe("failCore") = "status"
+	Set text = $ClassMethod(probe, "Render", item, ..Now(), start)
+	Kill ^||InputProbe("failCore")
+	Do $$$AssertEquals(text, expected, "a read that answers an error status leaves the block out the same way")
+	Do $$$AssertEquals(..Warnings() - warnings, 2, "with one more warning")
+	Do $$$AssertEquals($Extract(..LastWarning(), 1, $Length(..#COPYLOGCORE)), ..#COPYLOGCORE, "that starts with the same fixed words")
 }
 
 /// Both days, one day and none: the opening, the date line and the lines of each non-empty day (yesterday first), a blank line and the text, after the persona block.
@@ -714,6 +740,14 @@ Method Reminder(session As %String, day As %String, clock As %String, text As %S
 {
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Reminder(session, ..At(day, clock), "fired", {"Text": (text)})
 	Set ..Refs = ..Refs_","_ref
+}
+
+/// A done turn of the session at a local clock time on the day, recorded for the clean-up. Returns its Ref.
+Method Turn(session As %String, clock As %String, text As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Turn(session, ..At(..#DAY, clock), "done", text)
+	Set ..Refs = ..Refs_","_ref
+	Quit ref
 }
 
 /// A pinned memory of the session, written directly with a vector that has no meaning (no embedder); it is removed with the session's Ref.

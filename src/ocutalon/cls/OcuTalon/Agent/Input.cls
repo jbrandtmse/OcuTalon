@@ -32,14 +32,14 @@
 ///     decide request is the only caller that sets decide;
 ///   - an item with no text, sender or subject, and a user's item with no text, render "", so that Decide refuses it rather than
 ///     send a bare preamble.
-/// An item with no notes block and no precedent block renders as it would without a context. The opening lines of the context blocks
+/// An item with no core-memory block, no notes block and no precedent block renders as it would without a context. The opening lines of the context blocks
 /// (COREOPENING, NOTESOPENING, PRECEDENTSOPENING) and the quote prefix (QUOTEPREFIX) are this class's constants.
 Class OcuTalon.Agent.Input
 {
 
 /// The rendered input text of the item (see the class comment). now is the current time in UTC, YYYY-MM-DDThh:mm:ssZ, and
 /// defaults to the clock; a test passes a fixed time. An unreadable now renders "". context, optional, is a %DynamicObject of
-/// render options (AD-7, AD-21): sessionStart 1 asks for the notes block of a user item, and decide 1 allows the precedent block of an
+/// render options (AD-7, AD-21): sessionStart 1 asks for the core-memory and notes blocks of a user item, and decide 1 allows the precedent block of an
 /// untrusted item. Any other context, none included, gives no block. Memory never makes Render throw or answer "".
 ClassMethod Render(item As OcuTalon.Msg.Item, now As %String = "", context As %DynamicObject = "") As %String
 {
