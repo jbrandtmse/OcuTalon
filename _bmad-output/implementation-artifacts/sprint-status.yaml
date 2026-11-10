@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-10-2026 18:23
+last_updated: 11-10-2026 21:08
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -58,6 +58,7 @@ development_status:
   0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un: done
   0-21-the-readme-opens-with-a-centred-header-logo-tagline-and-badg: done
   0-22-the-more-to-try-panel-shows-its-items-under-three-group-head: done
+  0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute: done
   epic-0-retrospective: optional
 
   epic-1: done

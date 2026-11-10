@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so the build lanes can work in parallel. Stories 0.1 to 0.21 are done. Epic 0 is re-opened once more (lane C, after Story 8.8) for Story 0.22, under the Contest Planner's More to try capacity ruling: the demo guide's More to try panel has grown into a long flat list, so its items are shown under three short group headings, letting a visitor find the kind of thing they want to try without reading every item.
+Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so the build lanes can work in parallel. Stories 0.1 to 0.22 are done. Epic 0 is re-opened once more (lane C, after Story 0.22, for release 1.0.7) for Story 0.23: Open Exchange's README import mangles relative HTML paths (another entry's relative `<img src>` came out as a doubled, broken raw URL), so the README header's logo `src` and LICENSE badge `href` become absolute GitHub URLs, letting the listing show the logo instead of a broken image.
 
 ## Stories
 
@@ -29,44 +29,39 @@ Epic 0 is the walking skeleton: one image build and `docker compose up` give Ocu
 - Story 0.19: The README names the contest (done)
 - Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget (done)
 - Story 0.21: The README opens with a centred header: logo, tagline and badges (done)
-- Story 0.22: The More to try panel shows its items under three group headings (backlog)
+- Story 0.22: The More to try panel shows its items under three group headings (done)
+- Story 0.23: The README header's logo and LICENSE badge link use absolute GitHub URLs (backlog)
 
 ## Requirements & Constraints
 
-**Ruled public text (0.22).** The three group headings and their order are fixed verbatim: "Incidents and fixes", then "Memory and documents", then "Safety and settings". Current items map as: rejectFix to Incidents and fixes; memory, documents and sources to Memory and documents; suspiciousEmail, heartbeat, persona and demoView to Safety and settings. Any other new public string (an accessible name, the EXPERIENCE.md line, a fallback label for ungrouped items) goes to the Contest Planner as PUBLIC TEXT at the spec gate, before implement. Approved text is committed verbatim; if a check refuses it, the conflict goes back to the Planner, not a rewording.
+**Ruled public text (0.23).** The scope is the Contest Planner's ruling, and the two new URLs are the ruled public text, committed byte for byte:
+- Logo `src`: `docs/images/ocutalon-logo.png` becomes `https://raw.githubusercontent.com/jbrandtmse/OcuTalon/main/docs/images/ocutalon-logo.png`.
+- LICENSE badge link: `href="LICENSE"` becomes `href="https://github.com/jbrandtmse/OcuTalon/blob/main/LICENSE"`.
 
-**Scope of change (0.22).** Only `web/src/app/guide/more-to-try.ts`, `web/src/app/guide/more-to-try-view.ts` (the `MORE_TO_TRY_ITEMS` registry), their unit tests under `web/scripts/`, `web/e2e/guide/`, and one marked line in EXPERIENCE.md. No item's label, look-for or control text changes; no registry row changes except its `group:` field. README.md is unchanged.
+If a README rule refuses the ruled text, the conflict goes back to the Planner. The text is not reworded.
 
-**Grouping behaviour.**
-- Group order lives in one exported constant. Within a group, items keep registry order. An item a later story puts first in the registry (23.6's incidentSummary) still renders first overall.
-- Headings come from registry data plus the ordering constant, never a hard-coded list of three; a fourth group must need only data.
-- A group with no present item (after `itemsFor` filters by the instance's features) shows no heading.
-- An item with no `group` still renders, in a place the spec decides and a unit test pins.
+**Scope of change.** Only README.md lines 1 and 10, and `docker/tests/test-readme.sh`.
+- On line 1 only the logo's `src` changes. `alt="OcuTalon logo"`, `width="160"`, `height="160"` and the rest of the line stay.
+- On line 10 only the `href` changes.
+- No other README line changes. In particular, the body's relative Markdown `[LICENSE](LICENSE)` links stay as they are.
 
-**Tests.** Unit tests cover grouping, group order, empty-group suppression, the ungrouped fallback and focus order, reading the registry rather than a literal count. An e2e shows each heading with its items in the open panel.
+**README check.** `test-readme.sh` pins the header block verbatim, so its header pins take the two new URLs. A self-test must still show that a header logo with a different `src` is flagged. No rule is weakened:
+- The header logo's file is still read by the image checks: it exists under `docs/images/` and stays under the size limit, now reached from the absolute URL.
+- Every new host allowance (raw.githubusercontent.com is not allowed today) stays confined to the header block.
 
-**Counts and docs.** README.md and EXPERIENCE.md keep the TOTAL item count (the registry rule). EXPERIENCE.md gains one line, carrying this story's marker, listing the three groups in order; no other text changes.
-
-**Done means:** `docker/tests/test-boundaries.sh` passes, and lane-a and ci are green.
+**Done means:** `bash docker/tests/test-readme.sh` passes every rule and every self-test, `docker/tests/test-boundaries.sh` passes, and CI is green.
 
 ## Technical Decisions
 
-- **Registry is the single source.** `MORE_TO_TRY_ITEMS` already has an optional `group` field (added by Story 20.3); `itemsFor` filters items by the features the server lists in the guide's payload, and an absent feature means the item is absent, not disabled.
-- **In-flight items carry their own group.** incidentSummary (23.6), reroute (23.2), warnPartner (23.5), memoryCard / pinMemory (41.13) and 37.2's item declare their own `group:` in their own stories; the merges are a plain union, so 0.22 must not depend on them.
-- **Existing pins.** Ruled item strings are pinned byte for byte in `web/e2e/guide/more-to-try.spec.ts`, `web/scripts/more-to-try-view.test.mjs` and `web/scripts/ux-strings.test.mjs`; no pin may be deleted or weakened.
-- **CI cost.** Story 4.11's More to try e2e tests once pushed the `live:sign-in` CI unit over its ~1,000 s line; keep the new e2e lean.
-- **Lane ownership.** Epic 0 may edit files from any lane in one story.
-
-## UX & Interaction Patterns
-
-- **The panel.** "Other things to try" is a labelled group inside the demo guide (demo view only), opened by the "More to try" link-button (`aria-expanded`, focus stays on the link). Its label is a paragraph, never a heading. It is open by itself in the finish state (after the links, before the Try it yourself row) except in the compact band (height after banners under 680px) or where the room cannot hold its shortest window; otherwise closed until the link is pressed.
-- **Group headings.** Each shown group renders as a real heading inside the panel, at the level below the panel's label, followed by its items. Since the label itself is a paragraph, the spec must settle the concrete heading level against the guide's heading outline.
-- **Focus and scrolling.** The panel is one Tab stop named "Other things to try" in every band; headings take no focus and keyboard focus still moves item by item. Where the page fills the viewport the panel scrolls on its own, sized by the room the chat leaves above its floor (64px in the compact band, 160px above it), and a focused control scrolls into view. Every item must stay reachable in the compact band. The panel announces nothing; focus moves only on the user's own press.
-- **Layout.** Items sit in a grid of as many columns as fit (each at least 20rem, `gap` `{spacing.2}` rows / `{spacing.4}` columns); headings must not break that layout or widen the page at 320px. The panel keeps `{spacing.1}` inline padding and a `{spacing.1}` list gutter so focus rings are never clipped. Item label is `{typography.body}` strong in `{colors.ink}`, look-for line `{typography.body-sm}` in `{colors.ink-muted}`, control a `button-secondary`.
+- **Header allowance mechanism (from 0.21).** The header is recognised by position and exact text: a quoted-heredoc `HEADER` constant and `header_end`. Header-only image hosts live in a separate list (`HEADER_IMAGE_HOSTS`), apart from the global `ALLOWED_HOSTS`. When the header doesn't match, nothing is exempt.
+- **Never delete or weaken a rule or self-test, and never add a rule to `RULES`.** Changed rule messages or self-test labels count as public text, so they go to the Planner.
+- **Script portability.** `test-readme.sh` stays ASCII-only and runs on bash 3.2 with BSD or GNU tools. For example, BSD `head -n 0` fails, so use `awk`.
+- **Not a release tool.** The `test-readme.sh` hunk needs no RELEASE TOOL review (ruled for 0.21).
+- **Lane ownership.** Epic 0 may edit files from any lane in one story. Never write a local absolute path into a tracked file.
 
 ## Cross-Story Dependencies
 
-- **Built on 20.3 and 4.11.** 20.3 added the `group` field and the sample-runbook controls of items 6 and 8; 4.11 built the panel, its sizing and focus rules. Both are merged.
-- **Sequenced after 8.8** on lane C.
-- **Later stories add grouped items** (23.2, 23.5, 23.6, 37.2, 41.13); each sets its own `group:` and must render correctly through 0.22's data-driven headings.
+- **Built on 0.21** (the centred header, its pins, the header allowances and the `a header logo with a different src` self-test) and **0.18** (the README link allow-list). Both are merged.
+- **Sequenced after 0.22** on lane C, and targeted at release 1.0.7.
+- **The raw URL already works.** The orchestrator checked that `docs/images/ocutalon-logo.png` is on main and that its raw URL answers 200 image/png. The URL points at `main`, so it shows the logo merged there, not the branch's copy.
 - **Known flakes.** Inherited CI flakes (for example DW-973, DW-774, DW-689 and DW-1026) can turn a run red without a cause in this story. Classify them; do not change the story to work around them.

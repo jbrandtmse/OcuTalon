@@ -6585,3 +6585,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic0 5630cf1c (Story 0.23), ci.yml run 42894860855 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: job 130105194799 at 20:36:29Z: image built, containers created, iris container start refused by the daemon (port publish); unit live:online-demo failed in 10 s; 0.23 changes README.md and docker/tests/test-readme.sh only
 - 2026-11-10T21:01:35Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence, likely a port still held on the self-hosted runner from an earlier job); rerun of failed jobs; reopen as real only if it recurs on a quiet runner
+### DW-1097: test-readme.sh: no permanent self-test pins that chk_readme_links feeds the header logo (header_images) into its existence check
+- source: _bmad-output/implementation-artifacts/spec-0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Dropping header_images from chk_readme_links' target stream keeps every rule green while the logo is tracked; only the AC4 untrack mutation shows it; chk_readme_links takes no tree-list argument, so a self-test cannot stub a missing logo; same limit existed with the relative src before 0.23
+- 2026-11-10T20:08:58Z status=wontfix-accepted owner=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute by=harvest note=reopen_if=chk_readme_links gains a tree-list argument, or the header logo goes missing on main without readme-links going red
+- 2026-11-10T20:20:54Z occurrence=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute
