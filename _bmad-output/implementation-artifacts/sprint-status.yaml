@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-10-2026 06:47
+last_updated: 11-10-2026 18:23
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -57,6 +57,7 @@ development_status:
   0-19-the-readme-names-the-contest: done
   0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un: done
   0-21-the-readme-opens-with-a-centred-header-logo-tagline-and-badg: done
+  0-22-the-more-to-try-panel-shows-its-items-under-three-group-head: done
   epic-0-retrospective: optional
 
   epic-1: done
@@ -167,6 +168,7 @@ development_status:
   8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so: done
   8-6-reminders-through-the-chat-on-the-demo-path: done
   8-7-epic-8-burn-down: done
+  8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend: done
   epic-8-retrospective: optional
 
   epic-9: done
@@ -320,12 +322,13 @@ development_status:
   22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone: backlog
   epic-22-retrospective: optional
 
-  epic-23: backlog
-  23-2-suspend-resume-and-reroute-with-a-dry-run: backlog
+  epic-23: in-progress
+  23-2-suspend-resume-and-reroute-with-a-dry-run: in-progress
   23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol: backlog
   23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate: backlog
-  23-5-draft-partner-delay-notices-that-are-sent-only-after-approva: backlog
-  23-6-write-an-incident-summary-when-an-incident-closes: backlog
+  23-5-draft-partner-delay-notices-that-are-sent-only-after-approva: 
+    ready-for-dev
+  23-6-write-an-incident-summary-when-an-incident-closes: done
   23-7-watch-queue-backlogs-between-digests: backlog
   23-8-watch-a-saved-sql-query-as-a-read-only-sql-user: backlog
   epic-23-retrospective: optional

@@ -51,4 +51,7 @@ Parameter MEMORYTOOLS = {..#SAVEMEMORY_","_..#SEARCHMEMORIES_","_..#LISTMEMORIES
 /// RELEASE1 does not list it, and it has no class of its own.
 Parameter DOCUMENTS = "documents";
 
+/// The incident summary tool of Story 23.6 (AD-10, AD-22): not a release-1 tool, so RELEASE1 does not list it.
+Parameter INCIDENTSUMMARY = "incident_summary";
+
 }

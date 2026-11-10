@@ -21,6 +21,7 @@
 ///     mark, while the same session's watch of Orders in OCUORDERS is batched (the control that the poller ran);
 ///   - TestHeaderlessLog (row Headerless log row): an event-log row of type 2 and one of type 6 with no session are one failure each, of kind error and
 ///     alert, with the ConfigName as item, under instance;
+///   - TestBatchExportsAsXml (DW-877, Story 23.6; AC 12): a batch of two failures exports as XML with OK, and the XML holds each failure;
 ///   - TestReadErrorWarns (row Read or send error): a read that throws gives one Type 3 warning that names the production, no error row, the mark as it was and an OK answer;
 ///   - TestSendErrorWarns (row Read or send error): with the probe's send failing, a poll of three failures gives one Type 3 warning that names the production and
 ///     the cause, an OK answer, no mark and nothing sent; with the send back the same three are sent once;
@@ -279,6 +280,29 @@ Method TestHeaderlessLog()
 	Do $$$AssertEquals($Get(kinds("error")), config_"|||"_error_"|A fixture row with no session: "_config, "the error row: its ConfigName is the item, it has no header or session, and its text is the sentence")
 	Do $$$AssertEquals($Get(kinds("alert")), config_"|||"_alert_"|A fixture row with no session: "_config, "the alert row too")
 	Do $$$AssertEquals(..Count(..Batches(since)), 2, "and no other failure is in the batches by then")
+}
+
+/// DW-877 (Story 23.6): a FailureBatch that holds failures exports as XML: the export is OK and the XML holds each failure, so that the message can be shown in the
+/// production's message viewer (Failure is an XML-enabled serial object; its storage did not change).
+Method TestBatchExportsAsXml()
+{
+	Set batch = ##class(OcuTalon.Watch.Msg.FailureBatch).%New()
+	Set batch.Namespace = "OCUORDERS"
+	Set batch.Production = "Orders.Production"
+	For i = 1:1:2 {
+		Set failure = ##class(OcuTalon.Watch.Msg.Failure).%New()
+		Set failure.Kind = "header"
+		Set failure.HeaderId = 7000 + i
+		Set failure.ItemName = "OrdersFromPartner"
+		Set failure.ErrorText = "Zz export failure "_i
+		Set failure.FailedAt = "2026-11-09T10:0"_i_":00Z"
+		Do $$$AssertStatusOK(batch.Failures.Insert(failure), "failure "_i_" is added to the batch")
+	}
+	Set sc = batch.XMLExportToString(.xml)
+	Do $$$AssertStatusOK(sc, "the batch exports as XML")
+	Do $$$AssertTrue(xml [ "Zz export failure 1", "the XML holds the first failure")
+	Do $$$AssertTrue(xml [ "Zz export failure 2", "and the second")
+	Do $$$AssertTrue((xml [ "<HeaderId>7001</HeaderId>") && (xml [ "<HeaderId>7002</HeaderId>"), "with their header ids")
 }
 
 Method TestReadErrorWarns()

@@ -4,10 +4,10 @@
 /// the CommandResult, the orders that the probe recorded (Execute, with the session it would go in) and the sessions' streams. They run warm. The fixture
 /// incidents are noticed unless a test says otherwise, with LastAt in 2030 (so that no real Tick, which reads the clock, finds them quiet), and an owner that is a session.
 ///   - TestDismiss: a noticed open incident and a resolved one are closed by their session (Ok 1, closed, the Ref, Data with the state and no variant; the row has
-///     ClosedAt and no variant; one incident event, closed, on the stream); a session that is not a recipient gets not_found with no Data and no change; an
+///     ClosedAt and no variant; one incident event, closed, on the stream; since Story 23.6 one summary Notification per close, and the summary stored on the row); a session that is not a recipient gets not_found with no Data and no change; an
 ///     incident awaiting approval, fixing, closed or unnoticed gets not_allowed with Data and no change; an unknown verb is unknown_command and a missing
 ///     incident not_found;
-///   - TestInstanceDismiss: an instance incident watched by A and not by C: A closes it (and B, which also watches it, gets the event), C gets not_found;
+///   - TestInstanceDismiss: an instance incident watched by A and not by C: A closes it (and B, which also watches it, gets the event and the summary Notification), C gets not_found;
 ///   - TestCloseForReplay: closed from resolved only, with no session check;
 ///   - TestCloseQuiet: closed from resolved, and from a noticed open incident with demo mode off, after more than 15 minutes; not_allowed with demo mode on, while
 ///     awaiting approval or fixing; not_quiet within 15 minutes, with no change; the item's own reading of the setting demo.mode (the probe's override off) gives
@@ -137,6 +137,10 @@ Method TestDismiss()
 	Set row = ..Row(resolved)
 	Do $$$AssertEquals(row.state_"|"_row.variant_"|"_(row.closedAt '= ""), "closed||1", "its row is closed with ClosedAt")
 	Do $$$AssertEquals(..Count(a), 2, "and A's stream holds a second event")
+	Set summaries = ..Summaries(host)
+	Do $$$AssertEquals(summaries.%Size(), 2, "the two closes sent one summary Notification each")
+	Do $$$AssertEquals(summaries.%Get(0).sessionRef_"|"_summaries.%Get(0).catalogKey_"|"_summaries.%Get(0).slots_"|"_summaries.%Get(0).incidentRef_"|"_summaries.%Get(0).approvalRef, a_"|summary.title|{}|"_noFix_"|", "to A, with the title key, no slots, the incident's Ref and no approval")
+	Do $$$AssertTrue(##class(OcuTalon.Data.Incident).RefIndexOpen(noFix).Summary [ "summary.closedDismiss", "the closed row holds its summary")
 
 	Set other = ..Incident(a, "open", {"OpenVariant": "no_fix"})
 	Set before = ..Snapshot(other)
@@ -162,6 +166,7 @@ Method TestDismiss()
 	Do $$$AssertEquals(..Said(result)_"|"_..Data(result), "0|not_allowed||open|", "an unnoticed open incident: not_allowed, with the state")
 	Do $$$AssertEquals(..Snapshot(unnoticed), before, "and nothing changes")
 	Do $$$AssertEquals(..Count(a), count, "none of the refused Dismisses published anything")
+	Do $$$AssertEquals(..Summaries(host).%Size(), 2, "and none of them sent a summary")
 
 	Set result = ..Command(host, "bogus", noFix, a)
 	Do $$$AssertEquals(..Said(result)_"|"_result.Data, "0|unknown_command||", "a verb that is not one of VERBS is unknown_command")
@@ -193,6 +198,10 @@ Method TestInstanceDismiss()
 	Do $$$AssertEquals(..Said(result), "1|closed|"_incident, "A, who watches it, closes it")
 	Do $$$AssertEquals(..Row(incident).state, "closed", "the incident is closed")
 	Do $$$AssertEquals(..Count(a)_"|"_..Count(b)_"|"_..Count(c), "1|1|0", "A and B, who watch it, each get the event, and C none")
+	Set summaries = ..Summaries(host)
+	Do $$$AssertEquals(summaries.%Size(), 2, "the instance incident's close sent one summary Notification per watcher")
+	Set told = summaries.%Get(0).sessionRef_","_summaries.%Get(1).sessionRef
+	Do $$$AssertTrue((told [ a) && (told [ b) && (told '[ c), "to A and B, and not to C")
 }
 
 Method TestCloseForReplay()
@@ -976,7 +985,11 @@ Method TestPurge()
 	Set closedAt = ..Row(closing).closedAt
 	Do $$$AssertTrue(closedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "a close sets ClosedAt: "_closedAt)
 	Do $$$AssertTrue((closedAt ] ##class(OcuTalon.Bridge.Time).PlusSeconds(now, -60)) && (closedAt '] ##class(OcuTalon.Bridge.Time).PlusSeconds(now, 60)), "which is now")
+	Do $$$AssertTrue(##class(OcuTalon.Data.Incident).RefIndexOpen(closing).Summary [ "summary.title", "the close stored the incident's summary on its row")
 	Do ..SetClosedAt(closing, old)
+	Set kept = ..Incident(a, "resolved")
+	Do ..Command(host, "closeForReplay", kept, "")
+	Do ..SetClosedAt(kept, young)
 
 	Set young89 = ..Incident(a, "closed", {"ClosedAt": (young)})
 	Do ..Group(young89, 1)
@@ -991,6 +1004,8 @@ Method TestPurge()
 	Do $$$AssertStatusOK(##class(OcuTalon.Watch.IncidentManager).Purge(90), "Purge(90) is OK")
 	Do $$$AssertEquals(..Exists(closing)_"|"_..Groups(closing)_"|"_..Runs(closing), "0|0|0", "the incident closed 91 days ago, its two groups and its two fix runs are gone")
 	Do $$$AssertEquals(..Exists(young89)_"|"_..Groups(young89)_"|"_..Runs(young89), "1|1|1", "the one closed 89 days ago stays, with its group and its fix run")
+	Do $$$AssertEquals(..Exists(closing), 0, "the summarized incident's row, and so its summary, is gone")
+	Do $$$AssertTrue(##class(OcuTalon.Data.Incident).RefIndexOpen(kept).Summary [ "summary.title", "a summarized incident closed 89 days ago keeps its summary")
 	Do $$$AssertEquals(..Exists(openOld)_"|"_..Groups(openOld), "1|1", "an old open incident stays")
 	Do $$$AssertEquals(..Exists(noClosedAt)_"|"_..Groups(noClosedAt), "1|1", "so does a closed one with no ClosedAt")
 	Do $$$AssertEquals(..Exists(fixing)_"|"_..Groups(fixing), "1|1", "and a fixing one")
@@ -1418,6 +1433,17 @@ ClassMethod Results(host As OcuTalon.Test.Watch.IncidentProbe) As %DynamicArray
 		If host.Sent.%Get(i).kind = "result" Do results.%Push(host.Sent.%Get(i))
 	}
 	Quit results
+}
+
+/// The summary Notifications that the probe recorded, in order, as a dynamic array of the recorded objects.
+ClassMethod Summaries(host As OcuTalon.Test.Watch.IncidentProbe) As %DynamicArray
+{
+	Set summaries = []
+	If '$IsObject(host.Sent) Quit summaries
+	For i = 0:1:host.Sent.%Size() - 1 {
+		If host.Sent.%Get(i).kind = "summary" Do summaries.%Push(host.Sent.%Get(i))
+	}
+	Quit summaries
 }
 
 /// The slots (JSON text) as "name=value,..." in name order, an object or array value as its JSON text.
