@@ -30,7 +30,7 @@ Step 6 gives a signed-in user a look back at, and more ways into, OcuTalon. A Hi
 - **Bridge records are read-only to OcuTalon.** Web and Core read `OcuTalon.Bridge.Data` (the `Decision` rows: outcome, reasons, `Fallback`, `FallbackReason`, `TraceSessionId`) through the ownership API and keep no copies.
 - **Trace links:** every trace URL comes from the one builder, `OcuTalon.Web.TraceLink`. A decision's target is the session holding its decision message (`Decision.TraceSessionId`). An incident's target is its diagnosis session.
 - **Incident summary:** `IncidentManager` composes it in code (`Watch.Summary`) on every move into `closed` and stores it on the incident row. Incident states are open, awaiting approval, fixing, resolved and closed, with the open variant stored beside the state.
-- **Spine and contracts (AD-29, AD-33):** step 6's Lane B contracts (the usage and history reads, the file upload route and private file table, the Roles routes, and the header navigation's History and Usage entries) are added to the spine's REST surface and ownership tables by Story 37.2. Story 25.2 builds against those names. Any new route, table or event type goes into the ownership tables in the same change, and only the owning lane edits a class.
+- **Spine and contracts (AD-29, AD-33):** each story adds its own step-6 spine rows (Contest Planner ruling, 2026-11-10; the step-pairing rule no longer applies). Story 37.2 adds the usage read and the header navigation's Usage entry; Story 25.2 adds the history read in the REST and ownership tables and the header navigation's History entry; the file upload route, the private file table and the Roles routes come only with Stories 25.3, 25.4/25.5 and 37.1. Story 25.2 builds on 37.2's header and ownership names. Any new route, table or event type goes into the ownership tables in the same change, and only the owning lane edits a class.
 - **Web envelope:** API routes live under `/ocutalon/api/v1`. A request without a session gets 401 `signed_out`, and a user without the OcuTalon role gets 403 `no_role`. State-changing calls need JSON, `X-OcuTalon-Request: 1` and a matching `Origin`. Untrusted text, model text included, renders as text only.
 
 ## UX & Interaction Patterns
@@ -45,7 +45,7 @@ Step 6 gives a signed-in user a look back at, and more ways into, OcuTalon. A Hi
 
 ## Cross-Story Dependencies
 
-- **Story 37.2 (Epic 37, not yet merged):** Story 25.2's implementation waits for its spine rows (the history reads and the header navigation's History entry). Story 25.2's spec can be written ahead of that merge.
+- **Story 37.2 (Epic 37, not yet merged):** Story 25.2's implementation waits for it to merge (the header navigation and the ownership names 25.2 extends). Story 25.2's spec can be written ahead of that merge, against 37.2's spec and spine rows.
 - **Story 37.1:** fixes the step-6 role names and the stubs for `Approval.MayAnswer` and role assignment, which Stories 25.4 and 25.5 call.
 - **Story 23.6 (Lane A):** the source of the incident summary that Story 25.2 lists.
 - **Epic 26** depends on this epic. Story 26.2 needs Story 25.3's file-store call and the CI mock's `getFile`. Story 26.4 needs Story 25.5's `not_allowed` result from `AnswersIn`. Story 25.3 needs Epic 20 (the Documents page's **Add documents**). Story 25.4 needs Epics 16 and 18 (the online demo account and a Settings section).

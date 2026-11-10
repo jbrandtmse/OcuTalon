@@ -11,3 +11,6 @@
 2026-11-10T18:27:30Z	Epic 25	retro_review_skipped	reason=no_x0_input_in_authority sources=ledger_burndown:99,action_items:open,retro:none dispatch=spec_ahead_25.2_only
 2026-11-10T18:27:30Z	Epic 25	epic_status	epic-25=in-progress note=dispatch_epic_start
 2026-11-10T18:29:38Z	Epic 25	epic_context_compiled	reason=initial model=opus words=1086
+2026-11-10T18:30:21Z	Epic 25	ruling	question=25.2_first_AC_spine_rows choice=own_rows_only(history_read,header_History_entry) rejected=all_step6_lane_B_rows why=Contest_Planner_scope_ruling_2026-11-10_06:10Z(epic-37-rulings-372-scope.md)_as_dispatch_relays category=decide policy=5086036 note=planner_ruled
+2026-11-10T18:30:21Z	Epic 25	amendment	file=_bmad-output/planning-artifacts/epics.md:7819 what=25.2_first_AC_own_step6_spine_rows(history_read,History_entry) marker=AMENDED_2026-11-10_Contest_Planner tier=1_ruled
+2026-11-10T18:30:21Z	Epic 25	epic_context_compiled	reason=nfr_amendment model=claude-opus-5-5 note=lead_edit_lines_33,48_to_scope_ruling(each_story_own_rows) words=~1110
