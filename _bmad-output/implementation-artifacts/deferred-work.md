@@ -6483,3 +6483,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Test/Core/ConversationSessionStart.cls TestCoreMemoryAtStart; the existing StartIfNewDay pattern of the class
 - 2026-11-10T00:26:53Z status=wontfix-accepted owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=cr note=reopen_if=a CI or local run of ConversationSessionStart:TestCoreMemoryAtStart that straddles local midnight goes green with the branch skipped
+
+### DW-1089: Usage page: a zero-cost day, group or row reads "<$0.0001" (formatCost(0)), suggesting a tiny spend that did not happen; an exact-zero string needs a PUBLIC TEXT ruling
+- source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: med | fix-risk: low | footprint: web/src/app/usage/usage-page.ts
+- evidence: formatCost(0) returns the shipped <$0.0001; Day grouping zero-fills days; no PUBLIC TEXT string for exact zero
+- 2026-11-10T17:59:38Z status=decision-pending owner=burndown by=harvest note=public_text:exact_zero_cost_string(e.g._$0)_for_the_Planner;fix_is_one_branch_in_usage-page.ts_cost()_plus_a_test
