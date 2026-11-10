@@ -1,16 +1,19 @@
-/// Tests of the verbs of step 3 and how CommandsIn routes them (Story 34.2, and PinMemory, UnpinMemory and SearchMemory from Story 41.9; AD-1, AD-21, AD-29). Safe on a slot: no production runs, so
+/// Tests of the verbs of step 3 and how CommandsIn routes them (Story 34.2, PinMemory, UnpinMemory and SearchMemory from Story 41.9, ListPinnedMemories from Story 41.13; AD-1, AD-21, AD-29). Safe on a slot: no production runs, so
 /// the tests call OnProcessInput on a shadow instance of OcuTalon.Test.Core.CommandsInProbe, which sends to OcuTalon.Test.Core.CommandsOwner and
 /// records each call, or of OcuTalon.Test.Core.CommandsStep3Probe, which sends to the real stub owners. The origin rules and every text are
 /// written out here, never read from CommandsIn.
-///   - TestContracts: the seven verb classes have exactly the properties of XData Contracts and share the Ens.MessageBody extent;
+///   - TestContracts: the eight verb classes have exactly the properties of XData Contracts and share the Ens.MessageBody extent;
 ///   - TestOrigins: each verb by every origin of Msg.Enum ORIGIN, "zz" and "" included, reaches its owner (MemoryOps for the memory verbs,
 ///     DocumentOps for the document verbs) from its listed origins only, or is refused with its text, and a refusal sends nothing: SaveMemory from tool,
-///     ForgetMemory from tool and web_user, PinMemory, UnpinMemory, SearchMemory, AddDocument and RemoveDocument from web_user;
+///     ForgetMemory from tool and web_user, PinMemory, UnpinMemory, SearchMemory, ListPinnedMemories, AddDocument and RemoveDocument from web_user;
 ///   - TestContextOwnSessionOnly: inside a bridge context a SaveMemory or ForgetMemory for a SessionRef that is not the context's OwnerRef is
-///     not_allowed and nothing is sent, as for SendDigest (AD-1); the context's own session is routed, and a document verb, PinMemory, UnpinMemory or SearchMemory that says
-///     web_user is refused inside a context (the origin is tool there, and none of the three is a tool verb);
+///     not_allowed and nothing is sent, as for SendDigest (AD-1); the context's own session is routed, and a document verb, PinMemory, UnpinMemory, SearchMemory or ListPinnedMemories that says
+///     web_user is refused inside a context (the origin is tool there, and none of them is a tool verb);
 ///   - TestSearchMemoryWaits (Story 41.9): a SearchMemory waits SEARCHTIMEOUT (20) seconds, and a send that gets no answer in time is answered Ok 0 Outcome busy; any other verb waits TIMEOUT (120)
 ///     and the same silence is failed; a SearchMemory that is answered in time gets the owner's answer as it is;
+///   - TestListPinnedWaits and TestSearchAllowance (Story 41.13, DW-1031): a ListPinnedMemories waits SEARCHTIMEOUT as a search does; with onlineDemo 1, each SearchMemory counts against the message
+///     allowance in CommandsIn: past the limit it answers Ok 0 allowance with Data {retryAt, limit}, sends nothing and records no Turn and no window; under it, it is sent and adds one entry;
+///     ListPinnedMemories counts none; with the flag off nothing is counted; TestSearchAllowanceBusyLock: a busy row lock answers Ok 0 failed, sends nothing and counts nothing;
 ///   - TestRealStubOwners: the real OcuTalon.Docs.Ops (built in Story 19.4) and the real OcuTalon.Memory.Ops (built in Story 19.3; its pin handlers in Story 41.12) answer their verbs
 ///     as built, no_session for the session of the test, which has no row; each received the very object CommandsIn was given, with its origin and
 ///     SessionRef unchanged.
@@ -36,14 +39,14 @@ Method OnAfterAllTests() As %Status
 	Quit $$$OK
 }
 
-/// The seven verb classes have exactly their contract and keep the Ens.MessageBody extent.
+/// The eight verb classes have exactly their contract and keep the Ens.MessageBody extent.
 Method TestContracts()
 {
 	Do ..AssertContract("Contracts")
 	Do ..AssertMessageExtent("Contracts")
 	Set content = ##class(%Dictionary.CompiledProperty).%OpenId("OcuTalon.Msg.Command.AddDocument||ContentType")
 	Do $$$AssertEquals($Select($IsObject(content): content.Parameters.GetAt("VALUELIST"), 1: "(missing)"), ",markdown,text,pdf,docx", "ContentType is one of the four kinds")
-	For verb = "SaveMemory", "ForgetMemory", "PinMemory", "UnpinMemory", "SearchMemory", "AddDocument", "RemoveDocument" {
+	For verb = "SaveMemory", "ForgetMemory", "PinMemory", "UnpinMemory", "SearchMemory", "ListPinnedMemories", "AddDocument", "RemoveDocument" {
 		Do $$$AssertEquals($Parameter("OcuTalon.Msg.Command."_verb, "RESPONSECLASSNAME"), "OcuTalon.Msg.CommandResult", verb_" is answered with a CommandResult")
 	}
 }
@@ -51,7 +54,7 @@ Method TestContracts()
 /// Each verb by every origin against the oracle: routed to the owner, or refused with its text and nothing sent.
 Method TestOrigins()
 {
-	Set verbs = $ListBuild("SaveMemory", "ForgetMemory", "PinMemory", "UnpinMemory", "SearchMemory", "AddDocument", "RemoveDocument")
+	Set verbs = $ListBuild("SaveMemory", "ForgetMemory", "PinMemory", "UnpinMemory", "SearchMemory", "ListPinnedMemories", "AddDocument", "RemoveDocument")
 	Set origins = $ListFromString($Parameter("OcuTalon.Msg.Enum", "ORIGIN")) _ $ListBuild("zz", "")
 	Do $$$AssertEquals($ListLength(origins), 8, "the six origins of Msg.Enum, 'zz' and ''")
 	Set tried = 0
@@ -78,7 +81,7 @@ Method TestOrigins()
 			}
 		}
 	}
-	Do $$$AssertEquals(tried, 56, "all 56 pairs were tried")
+	Do $$$AssertEquals(tried, 64, "all 64 pairs were tried")
 }
 
 /// Inside a bridge context a tool may save or forget a memory only for the context's own session (AD-1): a SessionRef that is not the
@@ -113,7 +116,7 @@ Method TestContextOwnSessionOnly()
 		}
 		Do $$$AssertEquals(..Calls(), before, "and nothing is sent")
 		Set before = ..Calls()
-		For verb = "PinMemory", "UnpinMemory", "SearchMemory" {
+		For verb = "PinMemory", "UnpinMemory", "SearchMemory", "ListPinnedMemories" {
 			For origin = "tool", "web_user" {
 				Do probe.OnProcessInput(..NewCommand(verb, origin, "zzsessA"), .output)
 				Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_allowed|That can't be done from the chat. Nothing was changed.", verb_" saying "_origin_" for A's own session is refused inside A's context")
@@ -185,7 +188,131 @@ Method TestSearchMemoryWaits()
 	Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Data, "1|done|[]", "Ok 1, done, with the items, never busy")
 }
 
+/// A ListPinnedMemories waits SEARCHTIMEOUT (20) seconds for its owner as a SearchMemory does, and a send that ends with no answer is answered Ok 0 Outcome busy (Story 41.13).
+Method TestListPinnedWaits()
+{
+	Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.CommandsTimeoutProbe", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the timeout probe is made")
+	Set command = ..NewCommand("ListPinnedMemories", "web_user", "zzsessA")
+	Set sc = probe.OnProcessInput(command, .output)
+	Do $$$AssertStatusOK(sc, "the gate answers with a status that is OK")
+	Do $$$AssertEquals(probe.Sends, 1, "one send was made")
+	Do $$$AssertEquals(probe.SeenTarget, "MemoryOps", "to MemoryOps")
+	Do $$$AssertEquals(probe.SeenTimeout, 20, "the pinned read waits 20 seconds")
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|busy", "no answer in time is Ok 0, busy")
+	Set answered = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.CommandsTimeoutProbe", .sc)
+	Set reply = ##class(OcuTalon.Msg.CommandResult).%New()
+	Set reply.Ok = 1, reply.Outcome = "done", reply.Data = "{}"
+	Set answered.Answer = reply
+	Set sc = answered.OnProcessInput(command, .output)
+	Do $$$AssertEquals($IsObject(output) && (output = reply), 1, "an answer in time is the owner's, as it is")
+}
+
+/// On the online demo each SearchMemory counts as one of the session's messages in CommandsIn, through Allowance.TryConsumeRead (Story 41.13, DW-1031). With the limit at 3 and two entries
+/// held, one search is sent and makes 3; the next answers Ok 0 allowance with Data {retryAt, limit} (the oldest entry plus 3600 seconds, and 3), sends nothing and records no Turn, no
+/// window and no entry. A ListPinnedMemories never counts, and with the flag off a search counts nothing.
+Method TestSearchAllowance()
+{
+	Set settings = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")_"|"_##class(OcuTalon.Data.Public.Settings).Get("messageAllowance")
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzsearchallowance"_..Run)
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Do ##class(OcuTalon.Data.Public.Settings).Set("messageAllowance", 3)
+		Set now = ##class(OcuTalon.Data.Time).NowUtc()
+		Set oldest = ##class(OcuTalon.Data.Time).AddSeconds(now, -1000)
+		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+		Set row.AllowanceTimes = $ListBuild(oldest, ##class(OcuTalon.Data.Time).AddSeconds(now, -900))
+		Do $$$AssertStatusOK(row.%Save(), "the session holds two entries")
+		Set probe = ..NewProbe()
+		Set command = ..NewCommand("SearchMemory", "web_user", ref)
+		Set command.Query = "vpn"
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "1|test", "a search under the limit is sent and answered by its owner")
+		Do $$$AssertEquals(..Calls(), 1, "one send was made")
+		Do $$$AssertEquals($ListLength(..Entries(ref)), 3, "and it added one entry")
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|allowance|", "the search at the limit answers Ok 0 allowance, with no message")
+		Set data = {}.%FromJSON(output.Data)
+		Do $$$AssertEquals(data.retryAt_"|"_data.%GetTypeOf("limit")_"|"_data.limit, ##class(OcuTalon.Data.Time).AddSeconds(oldest, 3600)_"|number|3", "Data holds the oldest entry plus 3600 seconds and the limit 3")
+		Do $$$AssertEquals(..Calls(), 1, "nothing was sent to the owner")
+		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+		Do row.%Reload()
+		Do $$$AssertEquals($ListLength(row.AllowanceTimes)_"|"_row.AllowanceUntil, "3|", "no entry and no window were added")
+		Do $$$AssertEquals(..TurnsOf(ref), 0, "and no Turn was recorded")
+		Set list = ..NewCommand("ListPinnedMemories", "web_user", ref)
+		Do probe.OnProcessInput(list, .output)
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "1|test", "a ListPinnedMemories at the limit is sent")
+		Do $$$AssertEquals(..Calls(), 2, "to its owner")
+		Do $$$AssertEquals($ListLength(..Entries(ref)), 3, "and counts nothing")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "1|test", "with the flag off the search is sent")
+		Do $$$AssertEquals(..Calls(), 3, "to its owner")
+		Do $$$AssertEquals($ListLength(..Entries(ref)), 3, "and counts nothing")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the allowance test threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", $Piece(settings, "|", 1))
+	Do ##class(OcuTalon.Data.Public.Settings).Set("messageAllowance", $Piece(settings, "|", 2))
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean(##class(OcuTalon.Test.Data.Fixture).AdoptTurns(ref, ref))
+}
+
+/// Story 41.13: a search whose allowance check cannot take the session row's lock (another job holds it) is not sent and not counted: CommandsIn answers Ok 0 failed.
+Method TestSearchAllowanceBusyLock()
+{
+	Set settings = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzsearchbusylock"_..Run)
+	Set key = "busy"_..Run
+	Set held = 0
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Set id = ##class(OcuTalon.Data.Session).RefIndexOpen(ref).%Id()
+		Kill ^OcuTalonTest("Allowance", "job", key)
+		Job ##class(OcuTalon.Test.Core.Allowance).Hold(id, key)
+		Set deadline = $ZHorolog + 60
+		While '$Get(^OcuTalonTest("Allowance", "job", key, "ready")) && ($ZHorolog < deadline) {
+			Hang 0.05
+		}
+		Set held = $Get(^OcuTalonTest("Allowance", "job", key, "ready"))
+		Do $$$AssertEquals(held, 1, "another job holds the row's lock")
+		Set probe = ..NewProbe()
+		Set command = ..NewCommand("SearchMemory", "web_user", ref)
+		Set command.Query = "vpn"
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|failed", "the search is refused as failed while the lock is busy")
+		Do $$$AssertEquals(..Calls(), 0, "nothing was sent to the owner")
+		Do $$$AssertEquals($ListLength(..Entries(ref)), 0, "and nothing was counted")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the busy-lock test threw: "_exception.DisplayString())
+	}
+	If held {
+		Set ^OcuTalonTest("Allowance", "job", key, "release") = 1
+		Set deadline = $ZHorolog + 60
+		While '$Get(^OcuTalonTest("Allowance", "job", key, "done")) && ($ZHorolog < deadline) {
+			Hang 0.05
+		}
+	}
+	Kill ^OcuTalonTest("Allowance", "job", key)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", settings)
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean(##class(OcuTalon.Test.Data.Fixture).AdoptTurns(ref, ref))
+}
+
 /// --- helpers ---
+/// The AllowanceTimes of the session, read from disk.
+Method Entries(ref As %String) As %List [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Do row.%Reload()
+	Quit row.AllowanceTimes
+}
+
+/// The number of Turns of the session.
+Method TurnsOf(ref As %String) As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE SessionRef = ?", ref)
+	Quit $Select(rs.%Next(): +rs.%GetData(1), 1: 0)
+}
+
 /// A shadow instance of the CommandsIn probe that answers with the mode.
 Method NewProbe(mode As %String = "ok") As OcuTalon.Test.Core.CommandsInProbe [ Private ]
 {
@@ -222,7 +349,7 @@ Method Call(n As %Integer, field As %String) As %String [ Private ]
 /// The owner item of the verb, as this test's oracle has it.
 ClassMethod OwnerOf(verb As %String) As %String [ Private ]
 {
-	Quit $Select(verb [ "Memory": "MemoryOps", 1: "DocumentOps")
+	Quit $Select(verb [ "Memor": "MemoryOps", 1: "DocumentOps")
 }
 
 /// The oracle of the origin rules: "" when the verb from the origin is routed, otherwise the text of its refusal.
@@ -280,6 +407,14 @@ XData Contracts [ MimeType = application/json ]
    "IdempotencyKey": "%String(MAXLEN=128)",
    "SessionRef": "%String(MAXLEN=22)",
    "Query": "%String(MAXLEN=2000)"
+  }
+ },
+ "OcuTalon.Msg.Command.ListPinnedMemories": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)"
   }
  },
  "OcuTalon.Msg.Command.AddDocument": {

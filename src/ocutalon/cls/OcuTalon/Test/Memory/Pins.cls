@@ -18,6 +18,8 @@
 ///   - TestFailedWarned (QA): a handler whose Try is reached by an exception, or whose lock is busy answers failed (Ok 0, Outcome failed, MemoryOps' failed text), changes
 ///     nothing, and logs exactly one Type 3 warning with the status text redacted, for a pin and an unpin;
 ///   - TestLockReleased (QA): after every outcome of a pin and an unpin (pinned, over_cap, already pinned, not_found, unpinned, failed through an exception) the session's lock is free again;
+///   - TestListPinned (Story 41.13): OnListPinned answers Ok 1, done, with Data {items, used}: the session's pinned memories newest pin first as the items of a search, and used, the tokens of the core-memory block
+///     rounded up (pins of 2,000 and 1,956 characters make a 4,000-character block, used 1000; one pin of 19 characters makes 36 + 3 + 19 + 2 = 60 characters, used 15; no pin makes [] and 0), never another session's pins;
 ///   - TestPinnedOrder: Memory.Pinned answers the session's pinned rows only, newest pin first and then the higher row id first, and an empty session is an error status.
 Class OcuTalon.Test.Memory.Pins Extends %UnitTest.TestCase
 {
@@ -65,7 +67,7 @@ Method TestMessageMap()
 	Do $$$AssertTrue($IsObject(xdata), "the class has a message map")
 	If '$IsObject(xdata) Quit
 	Set map = xdata.Data.Read($$$MaxLocalLength)
-	Set pairs = $ListBuild($ListBuild("PinMemory", "OnPin"), $ListBuild("UnpinMemory", "OnUnpin"), $ListBuild("SaveMemory", "OnSave"), $ListBuild("ForgetMemory", "OnForget"), $ListBuild("SearchMemory", "OnSearch"))
+	Set pairs = $ListBuild($ListBuild("PinMemory", "OnPin"), $ListBuild("UnpinMemory", "OnUnpin"), $ListBuild("SaveMemory", "OnSave"), $ListBuild("ForgetMemory", "OnForget"), $ListBuild("SearchMemory", "OnSearch"), $ListBuild("ListPinnedMemories", "OnListPinned"))
 	Set position = 0
 	While $ListNext(pairs, position, pair) {
 		Set pattern = "<MapItem\s+MessageType=""OcuTalon\.Msg\.Command\."_$List(pair, 1)_"""\s*>\s*<Method>"_$List(pair, 2)_"</Method>\s*</MapItem>"
@@ -375,6 +377,42 @@ Method TestPinnedOrder()
 	Do $$$AssertEquals(empty, "", "which is empty")
 }
 
+/// OnListPinned: the items of the session's pinned memories, newest pin first, and used, the tokens of the core-memory block rounded up (4 characters a token). The expected values are held
+/// arithmetic: the block is 36 + (3 + length) per single-line pin + 2.
+Method TestListPinned()
+{
+	Set session = ..Session(), other = ..Session()
+	Do $$$AssertStatusOK(..Host.OnListPinned(..List(session), .response), "a session with no pin is answered OK")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Message, "1|done|", "Ok 1, done, with no message")
+	Set data = {}.%FromJSON(response.Data)
+	Do $$$AssertEquals(data.items.%Size()_"|"_data.used_"|"_data.%GetTypeOf("used"), "0|0|number", "with no pin: no items and used 0")
+
+	Set plain = ..Memory(session, "plain, never pinned")
+	Set first = ..Memory(session, ..Text(2000, "a"), 1, "2030-01-01T10:00:00Z")
+	Set second = ..Memory(session, ..Text(1956, "b"), 1, "2030-01-02T10:00:00Z")
+	Set theirs = ..Memory(other, "another session's pin", 1, "2030-01-03T10:00:00Z")
+	Do $$$AssertStatusOK(..Host.OnListPinned(..List(session), .response), "two pins are answered OK")
+	Set data = {}.%FromJSON(response.Data)
+	Do $$$AssertEquals(data.items.%Size(), 2, "two items: the other session's pin and the unpinned memory are not listed")
+	Do $$$AssertEquals(data.items.%Get(0).ref_"|"_data.items.%Get(1).ref, second_"|"_first, "newest pin first")
+	Do $$$AssertEquals(data.items.%Get(0).source_"|"_data.items.%Get(0).savedAt_"|"_data.items.%Get(0).%GetTypeOf("pinned")_"|"_data.items.%Get(0).pinned, "told|2030-01-01T09:00:00Z|boolean|1", "each item has the shape of a search's: source, savedAt, a boolean pinned")
+	Do $$$AssertEquals(data.items.%Get(0).text, ..Text(1956, "b"), "with its text")
+	Do $$$AssertEquals(data.used, 1000, "used: (36 + 3 + 2,000 + 3 + 1,956 + 2) / 4 = 4,000 / 4 = 1,000, not the 989 of the texts alone")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory).CoreBlock(session, "", .block), "the cap's block")
+	Do $$$AssertEquals($Length(block), 4000, "is 4,000 characters, so the figure and the cap agree")
+
+	Set small = ..Session()
+	Do ..Memory(small, ..Text(19, "c"), 1, "2030-01-01T10:00:00Z")
+	Do $$$AssertStatusOK(..Host.OnListPinned(..List(small), .response), "one pin is answered OK")
+	Set data = {}.%FromJSON(response.Data)
+	Do $$$AssertEquals(data.items.%Size()_"|"_data.used, "1|15", "one pin of 19 characters: the block is 36 + 3 + 19 + 2 = 60, and 60 / 4 = 15")
+
+	Do $$$AssertStatusOK(..Host.OnListPinned(..List(other), .response), "the other session is answered OK")
+	Set data = {}.%FromJSON(response.Data)
+	Do $$$AssertEquals(data.items.%Size()_"|"_data.items.%Get(0).ref, "1|"_theirs, "and lists only its own pin")
+	Do $$$AssertEquals(data.used, 16, "with used 16: its pin has 21 characters, the block is 36 + 3 + 21 + 2 = 62, and 62 / 4 rounds up to 16")
+}
+
 /// A fixture session, recorded for the clean-up.
 Method Session() As %String [ Private ]
 {
@@ -453,6 +491,15 @@ ClassMethod Pin(session As %String, ref As %String) As OcuTalon.Msg.Command.PinM
 	Set command = ##class(OcuTalon.Msg.Command.PinMemory).%New()
 	Set command.SessionRef = session
 	Set command.MemoryRef = ref
+	Set command.Origin = "web_user"
+	Quit command
+}
+
+/// A ListPinnedMemories of the session, origin web_user.
+ClassMethod List(session As %String) As OcuTalon.Msg.Command.ListPinnedMemories [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.ListPinnedMemories).%New()
+	Set command.SessionRef = session
 	Set command.Origin = "web_user"
 	Quit command
 }

@@ -1167,7 +1167,7 @@ ClassMethod Same(one As %String, other As %String) As %Boolean [ Private ]
 
 /// What the run did, from rows that the bridge and the product already write: {since, approvals, commands, settingChanges, fixRuns}. since
 /// is the first SentAt of the run, and null with no row, when every count is 0. The approvals are those of owner eval whose TraceRef is the
-/// run. The commands are the bodies (each once, however many headers carry it) of session eval, except the read verb SearchMemory, with a message header created at or after
+/// run. The commands are the bodies (each once, however many headers carry it) of session eval, except the read verbs SearchMemory and ListPinnedMemories, with a message header created at or after
 /// since, the settings are those updated at or after since and the fix runs are those started at or after since.
 ClassMethod Actions(runRef As %String) As %DynamicObject [ Private ]
 {
@@ -1177,7 +1177,7 @@ ClassMethod Actions(runRef As %String) As %DynamicObject [ Private ]
 	Set actions.since = since
 	Set eval = ##class(OcuTalon.Data.Ownership).#EVAL
 	Set actions.approvals = +..First("SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ? AND TraceRef = ?", eval, runRef)
-	Set actions.commands = +..First("SELECT COUNT(DISTINCT c.ID) FROM OcuTalon_Msg.Command c JOIN Ens.MessageHeader h ON h.MessageBodyId = c.ID WHERE c.SessionRef = ? AND h.MessageBodyClassName %STARTSWITH 'OcuTalon.Msg.Command.' AND h.MessageBodyClassName <> 'OcuTalon.Msg.Command.SearchMemory' AND h.TimeCreated >= ?", eval, $Translate($Extract(since, 1, 19), "T", " "))
+	Set actions.commands = +..First("SELECT COUNT(DISTINCT c.ID) FROM OcuTalon_Msg.Command c JOIN Ens.MessageHeader h ON h.MessageBodyId = c.ID WHERE c.SessionRef = ? AND h.MessageBodyClassName %STARTSWITH 'OcuTalon.Msg.Command.' AND h.MessageBodyClassName NOT IN ('OcuTalon.Msg.Command.SearchMemory', 'OcuTalon.Msg.Command.ListPinnedMemories') AND h.TimeCreated >= ?", eval, $Translate($Extract(since, 1, 19), "T", " "))
 	Set actions.settingChanges = +..First("SELECT COUNT(*) FROM OcuTalon_Data.Setting WHERE UpdatedAt >= ?", since)
 	Set actions.fixRuns = +..First("SELECT COUNT(*) FROM OcuTalon_Data.FixRun WHERE StartedAt >= ?", since)
 	Quit actions

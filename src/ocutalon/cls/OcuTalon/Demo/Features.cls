@@ -6,6 +6,7 @@
 ///   - persona: the class of the Set persona command is compiled (Epic 40);
 ///   - suspiciousEmail, rejectFix, demoView: always, because they are this demo's own controls, shipped in the same package as this class;
 ///   - memory: the memory operation is compiled and is not a stub (its STUB parameter, AD-29, is not 1);
+///   - memoryCard (Story 41.13): the same condition as memory, listed right after it;
 ///   - documents: the documents operation is compiled and is not a stub; the Documents page does not count;
 ///   - heartbeat: the class of the Run now command is compiled (Epic 39);
 ///   - sources: last, when memory or documents is listed, because a cited answer or a From memory chip needs one of them.
@@ -43,6 +44,7 @@ ClassMethod Ids(has As %DynamicObject) As %List
 	If has.%Get("persona") Set ids = ids _ $ListBuild("persona")
 	Set ids = ids _ $ListBuild("suspiciousEmail", "rejectFix", "demoView")
 	If has.%Get("memory") Set ids = ids _ $ListBuild("memory")
+	If has.%Get("memory") Set ids = ids _ $ListBuild("memoryCard")
 	If has.%Get("documents") Set ids = ids _ $ListBuild("documents")
 	If has.%Get("heartbeat") Set ids = ids _ $ListBuild("heartbeat")
 	If has.%Get("memory") || has.%Get("documents") Set ids = ids _ $ListBuild("sources")

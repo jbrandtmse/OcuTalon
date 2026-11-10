@@ -3334,3 +3334,7 @@
 - 2026-11-10T19:58Z orchestrator runner_clarification epic=0 story=0.23 kind=PUBLIC_TEXT item=self-test label 'the header logo address below the header' (test-readme.sh) relayed=contest_planner; local head 0758a32e (3 bookkeeping commits unpushed), integrated onto 3dcd4cb5
 - 2026-11-10T19:58Z orchestrator owner_decision via=contest_planner epic=0 story=0.23 item=self-test label approved verbatim; 0.21 ruling text replacement approved; runner C resumed
 - 2026-11-10T20:15Z orchestrator ci_red_classified head=1d75fbf1 branch=feature run=42874524463 red=iris(production) row 21 = DW-306 flake; lane-a green; action=rerun --failed (one rerun)
+- 2026-11-10T20:23Z orchestrator ci_green_verified branch=OCT-epic41 head=3001feef runs=42875880003,42875880080 missing=none story=41.13
+- 2026-11-10T20:23Z orchestrator merge_gate epic=41 part=41.13 head=3001feef conflicts=none base=3dcd4cb5 (code = 1d75fbf1, ancestor of 3001feef) code_identical_to_epic_head=yes spine_lint=baseline(10 low) tracker=valid more_to_try_count=10(registry)
+- 2026-11-10T20:23Z orchestrator epic_merged_to_feature epic=41 part=41.13 note=green by identity; feature CI cancelled as record-only
+- 2026-11-10T20:23Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=41.13 via merge

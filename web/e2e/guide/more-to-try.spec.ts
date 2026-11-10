@@ -15,7 +15,7 @@ import { blockLiveSocket } from '../support/socket';
  * features it names) and keeps it by dropping guide.state from the page's polls; the POSTs of items 2, 3 and 5 are routed and counted,
  * because their downstream flows are pinned by the demo-path specs. K5 uses the real Persona card, and collapses it again.
  *   - K2 (matrix 1): the routed finish: the panel is open after the links and before Try it yourself, items 1 to 4 in order;
- *   - K3 (matrix 3, 10): every id of the registry: its items in order, links to the Documents page for items 6 and 8, and the Heartbeat checklist heading focused by item 7;
+ *   - K3 (matrix 3, 10): every id of the registry: its items in order with their look-for lines, links to the Documents page for the documents and sources items, the Memory heading focused by the Memory card item and the Heartbeat checklist heading by the heartbeat item;
  *   - K4 (matrix 2): step 1: no panel, the link in the Tab order, Enter opens and Space closes it, focus stays on the link;
  *   - K5 (matrix 5): item 1 opens the Persona card's Change and focuses it, also in the drawer band, where the drawer opens first;
  *   - K6 (matrix 6): item 2 selects the Simulated mailbox tab, sends the chip's own POST once and focuses the chip;
@@ -109,6 +109,12 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
     label: 'Ask it to remember something',
     lookFor: 'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
     button: 'Ask it to remember',
+  },
+  memoryCard: {
+    label: 'Pin a memory',
+    lookFor:
+      'First do "Ask it to remember something". Then open All memories in the Memory card and press Pin on the memory marked Told. Open Pinned to see it: pinned facts are read at the start of each conversation, up to 1,000 tokens.',
+    button: 'Go to the Memory card',
   },
   documents: {
     label: 'Ask about a document',
@@ -292,8 +298,8 @@ test('K2: in the finish the panel is open after the links and before Try it your
   expect(posts.map((one) => one.length), 'nothing was sent').toEqual([0, 0, 0]);
 });
 
-/** K3 (routed finish, every id): the items in order, the Documents links of items 6 and 8 and the Heartbeat checklist heading focused by item 7. */
-test('K3: every id shows its item in order, items 6 and 8 are links to the Documents page and item 7 focuses the Heartbeat checklist heading', async ({ page }) => {
+/** K3 (routed finish, every id): the items in order, the Documents links of the documents and sources items, the Memory heading focused by the Memory card item and the Heartbeat checklist heading by the heartbeat item. */
+test('K3: every id shows its item in order, the documents and sources items are links to the Documents page, the Memory card item focuses the Memory heading and the heartbeat item the Heartbeat checklist heading', async ({ page }) => {
   // These cases are about the panel's items, not its room: a tall viewport leaves the finish its panel whatever the page's fonts.
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.route('**/ocutalon/api/v1/documents', (route) =>
@@ -306,25 +312,28 @@ test('K3: every id shows its item in order, items 6 and 8 are links to the Docum
   await expect(panel.locator('.item-label')).toHaveText(shown(ALL).map((id) => ITEMS[id]!.label));
   for (const id of ALL) await expect(itemOf(page, id).locator('.look-for'), `${id}: its look-for line`).toHaveText(ITEMS[id]!.lookFor);
   const documents = controlOf(page, 'documents');
-  await expect(documents, 'item 6 is a link').toHaveAttribute('href', /#\/documents$/);
-  await expect(controlOf(page, 'sources'), 'item 8 is a link to the same page').toHaveAttribute('href', /#\/documents$/);
+  await expect(documents, 'the documents item is a link').toHaveAttribute('href', /#\/documents$/);
+  await expect(controlOf(page, 'sources'), 'the sources item is a link to the same page').toHaveAttribute('href', /#\/documents$/);
+  await expect(controlOf(page, 'memoryCard')).toHaveAttribute('type', 'button');
+  await controlOf(page, 'memoryCard').click();
+  await expect(page.locator('#rail-heading-memory'), 'the Memory card item puts focus on the Memory heading').toBeFocused();
   await expect(controlOf(page, 'heartbeat')).toHaveAttribute('type', 'button');
   await controlOf(page, 'heartbeat').click();
-  await expect(page.locator('#rail-heading-heartbeat'), 'item 7 puts focus on the Heartbeat checklist heading').toBeFocused();
+  await expect(page.locator('#rail-heading-heartbeat'), 'the heartbeat item puts focus on the Heartbeat checklist heading').toBeFocused();
 });
 
 /**
- * K1b (real stack): the server lists the heartbeat, so item 7 shows, and its press opens the rail (the drawer in the drawer band) and
+ * K1b (real stack): the server lists the heartbeat, so its item shows, and its press opens the rail (the drawer in the drawer band) and
  * puts focus on the Heartbeat checklist card's heading, with nothing pressed.
  */
 for (const size of [{ name: 'default viewport', width: 0, height: 0 }, { name: 'drawer band', width: 1100, height: 720 }]) {
-  test(`K1b: on the real stack item 7 is listed and its press focuses the Heartbeat checklist heading (${size.name})`, async ({ page }) => {
+  test(`K1b: on the real stack the heartbeat item is listed and its press focuses the Heartbeat checklist heading (${size.name})`, async ({ page }) => {
     if (size.width > 0) await page.setViewportSize({ width: size.width, height: size.height });
     await signInReadmeLoaded(page);
     await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
     const link = linkOf(page);
     if ((await link.getAttribute('aria-expanded')) !== 'true') await link.click();
-    await expect(controlOf(page, 'heartbeat'), 'item 7 is in the real panel').toHaveCount(1);
+    await expect(controlOf(page, 'heartbeat'), 'the heartbeat item is in the real panel').toHaveCount(1);
     const heading = page.locator('#rail-heading-heartbeat');
     await expect(heading, 'the card\'s heading is named Heartbeat checklist').toHaveText('Heartbeat checklist');
     const writes: string[] = [];
@@ -493,7 +502,7 @@ test('K8: item 4 turns the Demo view switch off with focus on it, hides the demo
   expect(writes, 'the press sent nothing to the server').toEqual([]);
 });
 
-/** K9 (item 5, routed every id of the registry): one POST /messages with the prompt, from the user; none while the allowance is used up. */
+/** K9 (the memory item, routed every id of the registry): one POST /messages with the prompt, from the user; none while the allowance is used up. */
 test('K9: item 5 sends its prompt once as the user\'s own message, and sends nothing while the allowance is used up', async ({ page, context }) => {
   const bodies: Array<{ clientId: string; text: string; fromGuide: boolean }> = [];
   const accept = async (route: Route): Promise<void> => {

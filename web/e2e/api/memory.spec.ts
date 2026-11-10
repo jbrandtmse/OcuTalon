@@ -323,3 +323,64 @@ test('the pin cap as the LIVE user', async ({ request }) => {
     for (const one of seeded) await removeMemory(one);
   }
 });
+
+/**
+ * Story 41.13 (FR-74, AD-21; the standing rule for /api/v1 routes): GET /api/v1/memory/pinned over real HTTP as the unprivileged LIVE fixture user, with a second OcuTalonUser-only session (PANEL). Signed out it is
+ * 401 signed_out with no challenge. Signed in with no pin it is 200 with exactly the members items and used, `[]` and 0. After a pin of a seeded memory the row comes back as the five-member item with pinned true, and
+ * used is the core-memory block's tokens rounded up, worked out here: the block is 36 + 3 + the text's length + 2 characters, so ceil((41 + length) / 4). The second session's pinned list holds none of the first's
+ * refs, and after the unpin the first's list is `[]` and 0 again. The test needs the LIVE session to hold no pin; the rows it seeds are removed in `finally`.
+ */
+test('the pinned memories as the LIVE user, and a second session sees none of them', async ({ request, playwright, baseURL }) => {
+  test.setTimeout(150_000);
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
+  const session = await sessionRefOfUser(live.user);
+  expect(await pinnedCountOf(session), 'the LIVE session holds no pinned memory before the test').toBe(0);
+  const other = fixtureUser('PANEL');
+  const second = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
+  const anonymous = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
+  const text = `The zzpinned${Date.now()} gateway is pinned.example.test`;
+  const seeded: string[] = [];
+  try {
+    const signedOut = await anonymous.get(`${MEMORY}/pinned`);
+    await expectError(signedOut, 401, 'signed_out', SIGNED_OUT);
+    expect(signedOut.headers()['www-authenticate'], 'signed out sends no challenge').toBeUndefined();
+
+    await signInOverHttp(second, other.user, other.password);
+    expect(await sessionRefOfUser(other.user), 'the second account is another session').not.toBe(session);
+
+    const empty = await request.get(`${MEMORY}/pinned`);
+    expect(empty.status(), await empty.text()).toBe(200);
+    expect(empty.headers()['content-type']).toContain('application/json');
+    const none = (await empty.json()) as Record<string, unknown>;
+    expect(Object.keys(none), 'exactly items and used').toEqual(['items', 'used']);
+    expect(none).toEqual({ items: [], used: 0 });
+
+    const ref = await seedMemory(session, text);
+    seeded.push(ref);
+    await expectDone(await request.fetch(`${MEMORY}/${ref}/pin`, { method: 'POST', headers: envelope() }));
+    const pinned = await request.get(`${MEMORY}/pinned`);
+    expect(pinned.status(), await pinned.text()).toBe(200);
+    const body = (await pinned.json()) as { items: Array<Record<string, unknown>>; used: number };
+    expect(Object.keys(body), 'exactly items and used').toEqual(['items', 'used']);
+    expect(body.items, 'the pinned row, as the five-member item with pinned true').toEqual([
+      { ref, text, savedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/), source: 'told', pinned: true },
+    ]);
+    expect(Object.keys(body.items[0] ?? {})).toEqual(['ref', 'text', 'savedAt', 'source', 'pinned']);
+    expect(body.used, 'used is ceil((36 + 3 + length + 2) / 4)').toBe(Math.ceil((41 + text.length) / 4));
+
+    const theirs = await second.get(`${MEMORY}/pinned`);
+    expect(theirs.status(), await theirs.text()).toBe(200);
+    const theirBody = (await theirs.json()) as { items: Array<{ ref: string }>; used: number };
+    expect(theirBody.items.map((one) => one.ref), "the second session's pinned list holds none of the first's refs").not.toContain(ref);
+
+    await expectDone(await request.fetch(`${MEMORY}/${ref}/pin`, { method: 'DELETE', headers: envelope() }));
+    const cleared = await request.get(`${MEMORY}/pinned`);
+    expect(cleared.status(), await cleared.text()).toBe(200);
+    expect(await cleared.json(), 'after the unpin: no items and used 0').toEqual({ items: [], used: 0 });
+  } finally {
+    await second.dispose();
+    await anonymous.dispose();
+    for (const one of seeded) await removeMemory(one);
+  }
+});
