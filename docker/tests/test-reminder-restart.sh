@@ -261,7 +261,7 @@ expect_eq "restart 1: R_orphan is pending with no waiter and no start header" "$
 
 # --- R_future ---
 
-future_secs=$((6 * restart1_s + 60))
+future_secs=$((6 * restart1_s + 60)); [ "$future_secs" -lt 300 ] && future_secs=300
 [ "$future_secs" -ge 120 ] || future_secs=120
 future=$(printf '%s\n' \
   'Set T="OcuTalon.Data.Time",RF="OcuTalon.Test.Schedule.ReminderFixture"' \

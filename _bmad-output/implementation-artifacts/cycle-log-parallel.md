@@ -3250,3 +3250,5 @@
 2026-11-10T00:49:43Z	Epic 0	ci_green_verified	head=d35467c4 result=green_by_identity (code == ddfa7b8f) feature_runs_cancelled=42730983862,42730983997
 2026-11-10T00:51:35Z	Epic 8	worktree_provisioned	branch=OCT-epic8 base=f59fd609 bootstrap=ok first_push_ci_cancelled=42731351584,42731351414
 2026-11-10T00:51:35Z	Epic 8	runner_dispatched	agent=a81c318c4d228152e model=opus effort=high lane=C slot=c port=52803 scope=8.8(DW-1018 heartbeat Suspended resume; demo-host-check.sh RELEASE TOOL) prompt=prompts/dispatch-epic-8-dw1018.md target=1.0.6
+2026-11-10T01:20:13Z	Epic 41	deps_hash_rerecorded	reason=rule5_amendment hash=050e8754
+2026-11-10T01:20:13Z	Epic 41	epic_merged_to_feature	head=925463cc part_merge=41.8,41.9,41.12 conflicts=sprint-status.yaml(bookkeeping; ours+regenerate+set) code_conflicts=none sprint_valid=yes spine_lint=baseline ci=42730214385,42730214398 DW-689=resolved(ea81dd68) worktree=kept(41.13,41.14)
