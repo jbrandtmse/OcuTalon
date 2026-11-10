@@ -11,3 +11,4 @@
 2026-11-10T05:59:34Z	Epic 37	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true warnings=none_new
 2026-11-10T05:59:34Z	Epic 37	ruling	question=x0_input_with_nonempty_sources choice=skip_x0 rejected=charter_37.0 why=100_burndown_entries_are_run-wide_residue_outside_epic37_authority;no_entry_owned_by_epic37_keys;open_action_items_owner-held;no_epic36_retro(policy_skip);dispatch_says_never_delay_37.2;precedent_epic20 category=decide policy=5086036
 2026-11-10T05:59:34Z	Epic 37	retro_review_skipped	reason=no_x0_input_in_authority sources=ledger_burndown:100,action_items:open,retro:none dispatch=replan_37.2_only
+2026-11-10T06:03:14Z	Epic 37	epic_context_compiled	reason=initial model=opus words=1225
