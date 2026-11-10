@@ -425,3 +425,4 @@
 2026-11-10T23:22:50Z	Epic 41	amendment	file=_bmad-output/planning-artifacts/epics.md:10543 what=Story_41.15_inserted_after_41.14(Rule5_tier1;ACs_from_Planner_rulings_4115) marker=[ADDED_2026-11-10,Contest_Planner_ruling(1.0.6_RC_eval:memory-learned-save_0/3),owner's_delegation]
 2026-11-10T23:22:50Z	Epic 41	ruling	question=41.15_epic_start choice=insert_41.15_into_epics.md;SPRINT_PLAN_generate(new_entries=41-15);X.0_and_retro_review_skipped(policy,dispatch) rejected=none why=dispatch_prompt_dispatch-epic-41-4115 category=decide policy=5086036
 2026-11-10T23:22:50Z	Epic 41	retro_review_skipped	reason=skipped(policy) note=dispatch_41_15:no_X.0
+2026-11-10T23:23:07Z	Epic 41	sprint_planning_complete	gate=PASS model=claude-opus-5-5 scope=41.15_readiness_recheck(ADs_AD-21,AD-28_present;rulings_recorded_in_story_block)
