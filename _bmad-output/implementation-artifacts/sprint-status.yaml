@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-10-2026 23:44
+last_updated: 11-10-2026 23:47
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -481,7 +481,7 @@ development_status:
   41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star: done
   41-13-the-memory-card-pinned-and-learned-memories: done
   41-14-evaluation-and-tests-for-memory-s-second-part: done
-  41-15-learned-saves-are-announced-by-code: ready-for-dev
+  41-15-learned-saves-are-announced-by-code: in-progress
   epic-41-retrospective: optional
 action_items:
   - id: "epic-32-retro-item-1-ci-capacity-dw-55-ocutalon-ci-c-starts-i"
