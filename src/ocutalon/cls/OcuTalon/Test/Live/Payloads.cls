@@ -1111,6 +1111,7 @@ XData Contracts [ MimeType = application/json ]
    "IncidentRef": "%String(%JSONFIELDNAME=incidentRef,MAXLEN=22)",
    "ToolName": "%String(%JSONFIELDNAME=toolName,MAXLEN=128)",
    "Reason": "%String(%JSONFIELDNAME=reason,MAXLEN=1000)",
+   "FixKind": "%String(%JSONFIELDNAME=fixKind,MAXLEN=64)",
    "DryRun": "OcuTalon.Live.Payload.Part.DryRun(%JSONFIELDNAME=dryRun)",
    "RaisedAt": "%String(%JSONFIELDNAME=raisedAt,MAXLEN=20)",
    "ExpiresAt": "%String(%JSONFIELDNAME=expiresAt,MAXLEN=20)",
@@ -1363,6 +1364,10 @@ XData Contracts [ MimeType = application/json ]
    "Before": "%String(%JSONFIELDNAME=before,MAXLEN=1000)",
    "After": "%String(%JSONFIELDNAME=after,MAXLEN=1000)",
    "ItemNoun": "OcuTalon.Live.Payload.Part.ItemNoun(%JSONFIELDNAME=itemNoun)",
+   "Item": "%String(%JSONFIELDNAME=item,MAXLEN=128)",
+   "From": "%String(%JSONFIELDNAME=from,MAXLEN=128)",
+   "To": "%String(%JSONFIELDNAME=to,MAXLEN=128)",
+   "Example": "%String(%JSONFIELDNAME=example,MAXLEN=32)",
    "EitherWay": "%Boolean(%JSONFIELDNAME=eitherWay)",
    "Reading": "%String(%JSONFIELDNAME=reading,MAXLEN=32)"
   }
@@ -1423,6 +1428,9 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
    "State": "%String(%JSONFIELDNAME=state,MAXLEN=32)",
+   "FixKind": "%String(%JSONFIELDNAME=fixKind,MAXLEN=64)",
+   "Item": "%String(%JSONFIELDNAME=item,MAXLEN=128)",
+   "Count": "%Integer(%JSONFIELDNAME=count)",
    "Result": "OcuTalon.Live.Payload.Part.IncidentRequestResult(%JSONFIELDNAME=result)"
   }
  },

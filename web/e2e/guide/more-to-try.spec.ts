@@ -95,6 +95,12 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
       'This presses Break the feed again. OcuTalon usually notices within a minute. When the fix waits for your approval, press Reject in the chat or on the Simulated phone, and look for "Nothing was changed."',
     button: 'Break it again',
   },
+  reroute: {
+    label: 'Reroute the failed orders',
+    lookFor:
+      'First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way.',
+    button: 'Ask to reroute',
+  },
   demoView: {
     label: 'See the page as on your own install',
     lookFor: 'The demo guide, Break the feed and the Simulated devices are hidden, as on your own install. Turn Demo view back on in the top bar to return.',
@@ -118,6 +124,7 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
   },
 };
 const REMEMBER = "Remember that the Results partner's contact is Lee.";
+const REROUTE = 'Reroute the failed orders to OrdersForReview.';
 
 const guideRegion = (page: Page): Locator => page.getByRole('region', { name: 'Demo guide' });
 const linkOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'More to try', exact: true });
@@ -521,6 +528,28 @@ test('K9: item 5 sends its prompt once as the user\'s own message, and sends not
   await blocked.click({ force: true });
   await used.waitForTimeout(500);
   expect(usedBodies, 'a press sends nothing').toEqual([]);
+});
+
+/** K9b (Story 23.2, AC12): the reroute item sends its prompt once as the user's own message, and sends nothing while a turn is in flight. */
+test('K9b: the reroute item sends its prompt once as the user\'s own message, and sends nothing while its turn is in flight', async ({ page }) => {
+  const bodies: Array<{ clientId: string; text: string; fromGuide: boolean }> = [];
+  await page.route(`**${MESSAGES}`, async (route: Route) => {
+    const body = route.request().postDataJSON() as { clientId: string; text: string; fromGuide: boolean };
+    bodies.push(body);
+    await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ clientId: body.clientId }) });
+  });
+  await openWith(page, finished(['rejectFix', 'reroute']));
+  await expect(panelOf(page).locator('.item-label'), 'the reroute item follows Reject a fix').toHaveText([ITEMS['rejectFix']!.label, ITEMS['reroute']!.label]);
+  await expect(itemOf(page, 'reroute').locator('.look-for')).toHaveText(ITEMS['reroute']!.lookFor);
+  const control = controlOf(page, 'reroute');
+  await control.click();
+  await expect.poll(() => bodies.length, { message: 'the prompt was posted' }).toBe(1);
+  expect(bodies[0]!.text).toBe(REROUTE);
+  expect(bodies[0]!.fromGuide, 'as the user\'s own message').toBe(false);
+  await expect(control, 'while its turn is in flight the control is aria-disabled').toHaveAttribute('aria-disabled', 'true');
+  await control.click({ force: true });
+  await page.waitForTimeout(500);
+  expect(bodies, 'and a second press sends nothing').toHaveLength(1);
 });
 
 /** K10: with the switch off, or without demo mode, neither the link nor the panel shows. */

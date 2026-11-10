@@ -33,13 +33,13 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.doesNotMatch(code, /postMailboxSample|postBreakFeed|\bDemoView\b|\.set\(false\)|\.set\(true\)/);
   });
 
-  it('moves focus in one place, and sends only the two prompts through the outbox, with the text alone', () => {
+  it('moves focus in one place, and sends only the three prompts through the outbox, with the text alone', () => {
     assert.equal(count(code, /\.focus\(/g), 1);
     const sends = [...code.matchAll(/\boutbox\.send\(([^)]*)\)/g)];
     assert.deepEqual(
       sends.map((one) => one[1].trim()),
-      ['MORE_TO_TRY_TEXTS.rememberPrompt', 'MORE_TO_TRY_TEXTS.summaryPrompt'],
-      'the memory item sends its own, the incident summary item falls back to its prompt',
+      ['MORE_TO_TRY_TEXTS.reroutePrompt', 'MORE_TO_TRY_TEXTS.rememberPrompt', 'MORE_TO_TRY_TEXTS.summaryPrompt'],
+      'the reroute item and the memory item send their own, the incident summary item falls back to its prompt',
     );
     assert.doesNotMatch(code, /fromGuide/);
   });

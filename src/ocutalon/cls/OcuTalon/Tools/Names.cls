@@ -54,4 +54,7 @@ Parameter DOCUMENTS = "documents";
 /// The incident summary tool of Story 23.6 (AD-10, AD-22): not a release-1 tool, so RELEASE1 does not list it.
 Parameter INCIDENTSUMMARY = "incident_summary";
 
+/// The fix tool of Story 23.2 (AD-1, AD-10, AD-16): asks for approval of a suspend, a resume or a reroute. Not a release-1 tool, so RELEASE1 does not list it.
+Parameter PROPOSEFIX = "propose_fix";
+
 }

@@ -58,11 +58,12 @@ Method OnAfterOneTest(testname As %String) As %Status
 Method TestContract()
 {
 	Do $$$AssertTrue($Parameter(..#KIND, "NAME") = "" && ($Parameter(..#KIND, "PARAMETERS") = "") && ($Parameter(..#KIND, "RESOURCES") = "") && ($Parameter(..#KIND, "NOTALLOWED") = ""), "the base declares NAME, PARAMETERS, RESOURCES and NOTALLOWED, and sets none")
-	Do $$$AssertEquals($Parameter(..#KIND, "KINDS"), "OcuTalon.Fix.Kind.RepairResend", "the kinds that exist are listed once, in KINDS")
-	For parameter = "NAME", "PARAMETERS", "RESOURCES", "NOTALLOWED", "KINDS" {
+	Do $$$AssertEquals($Parameter(..#KIND, "KINDS"), "OcuTalon.Fix.Kind.RepairResend,OcuTalon.Fix.Kind.SuspendItem,OcuTalon.Fix.Kind.ResumeItem,OcuTalon.Fix.Kind.Reroute", "the kinds that exist are listed once, in KINDS")
+	Do $$$AssertEquals($Parameter(..#KIND, "TARGETTYPE")_"|"_$Parameter(..#KIND, "DIAGNOSED")_"|"_$Parameter(..#KIND, "ASKED")_"|"_$Parameter(..#KIND, "NOSTART")_"|"_$Parameter(..#KIND, "NOREAD")_"|"_$Parameter(..#KIND, "ONLINEGRANT"), "message|1|0|||1", "the base's kind has message targets, is a diagnosis kind, is not asked for and has no reasons of its own (Story 23.2)")
+	For parameter = "NAME", "PARAMETERS", "RESOURCES", "NOTALLOWED", "KINDS", "TARGETTYPE", "DIAGNOSED", "ASKED", "NOSTART", "NOREAD", "ONLINEGRANT", "ERRORSTATUS" {
 		Do $$$AssertTrue(##class(%Dictionary.CompiledParameter).%ExistsId(..#KIND_"||"_parameter), "the base declares "_parameter)
 	}
-	For method = "Classes", "Names", "ForName", "Check", "CheckParameters", "DryRun", "Recheck", "Execute" {
+	For method = "Classes", "Names", "ForName", "Check", "CheckParameters", "DryRun", "Recheck", "Execute", "DiagnosedNames", "Diagnosed", "Standing", "Failed", "ItemsOf", "ItemNamed", "Targeted", "MessageReason", "ItemNounOf", "ProductionName" {
 		Do $$$AssertTrue(##class(%Dictionary.CompiledMethod).%ExistsId(..#KIND_"||"_method), "the base declares "_method)
 	}
 	Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%OpenId(..#KIND).Abstract, "the base is abstract")
@@ -76,8 +77,9 @@ Method TestContract()
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(##class(OcuTalon.Fix.Kind).Execute("", "", "", .result)), 5003, "and so is its Execute (error 5003)")
 	Do $$$AssertEquals($Translate($Piece($Piece(##class(%Dictionary.CompiledMethod).%OpenId(..#KIND_"||Execute").FormalSpec, ",", 5), ":", 1), "*&", ""), "run", "Execute takes the run (the FixRun row) as its fifth argument")
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(##class(OcuTalon.Fix.Kind).DryRun("", "", .targets, .dryRun)), 5003, "and its DryRun")
-	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).Classes(), $ListBuild(..#REPAIR), "the registered kinds are exactly RepairResend")
-	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).Names(), $ListBuild("repair_resend"), "named repair_resend")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).Classes(), $ListBuild(..#REPAIR, "OcuTalon.Fix.Kind.SuspendItem", "OcuTalon.Fix.Kind.ResumeItem", "OcuTalon.Fix.Kind.Reroute"), "the registered kinds are RepairResend, SuspendItem, ResumeItem and Reroute")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).Names(), $ListBuild("repair_resend", "suspend_item", "resume_item", "reroute"), "named repair_resend, suspend_item, resume_item and reroute")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).DiagnosedNames(), $ListBuild("repair_resend"), "the diagnosis may name repair_resend only")
 	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).ForName("repair_resend"), ..#REPAIR, "ForName gives its class")
 	For name = "", "Repair_Resend", "repair_resend ", "zz_kind", "rollback", "OcuTalon.Fix.Kind.RepairResend" {
 		Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).ForName(name), "", "ForName gives no class for '"_name_"'")
@@ -92,7 +94,10 @@ Method TestContract()
 	Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%ExistsId(..#ZZ) && ($Parameter(..#ZZ, "NAME") = "zz_kind"), "the fixture kind exists")
 	Do $$$AssertNotTrue($ListFind(##class(OcuTalon.Fix.Kind).Classes(), ..#ZZ), "and is not a registered kind")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Fix.Kind).Check("zz_kind", {"alpha": "a", "beta": "b"}, []), "Check refuses a kind that is not registered")
-	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(##class(OcuTalon.Fix.Kind).Check("rollback", {}, [])) [ "repair_resend", "and the error names the registered kinds")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(##class(OcuTalon.Fix.Kind).Check("rollback", {}, [])) [ "repair_resend", "and the error names the kinds the diagnosis may name")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Fix.Kind).Check("reroute", {"target": "OrdersForReview"}, []), "Check refuses a registered kind that the diagnosis may not name (DIAGNOSED 0), with valid parameters")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Fix.Kind).Check("suspend_item", {"item": "OrdersToWarehouse"}, []), "and suspend_item")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(##class(OcuTalon.Fix.Kind).Check("reroute", {"target": "A"}, [])) '[ "reroute,", "without naming it among the kinds it may name")
 }
 
 Method TestSchemaCheck()
@@ -174,8 +179,8 @@ Method TestFieldWords()
 Method TestGrants()
 {
 	Set grants = ##class(OcuTalon.Install.Step.Fix).Grants()
-	Do $$$AssertEquals(grants.%Size(), 1, "the Fix area declares one grant")
-	Do $$$AssertEquals(grants.%ToJSON(), "[{""role"":"""_##class(OcuTalon.Install.Step.Users).#SERVICEROLE_""",""resource"":""%Ens_MessageResend"",""permission"":""U""}]", "the service role may use %Ens_MessageResend, as RepairResend's RESOURCES say")
+	Do $$$AssertEquals(grants.%Size(), 2, "the Fix area declares two grants: the resend and the item run (Story 23.2)")
+	Do $$$AssertEquals(grants.%ToJSON(), "[{""role"":"""_##class(OcuTalon.Install.Step.Users).#SERVICEROLE_""",""resource"":""%Ens_MessageResend"",""permission"":""U""},{""role"":"""_##class(OcuTalon.Install.Step.Users).#SERVICEROLE_""",""resource"":""%Ens_ConfigItemRun"",""permission"":""U""}]", "the service role may use %Ens_MessageResend and %Ens_ConfigItemRun, as the RESOURCES of the kinds say")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Fix).GrantsOf(##class(OcuTalon.Fix.Kind).Classes()).%ToJSON(), grants.%ToJSON(), "and Grants is GrantsOf the registered kinds")
 	Set zz = ##class(OcuTalon.Install.Step.Fix).GrantsOf($ListBuild(..#ZZ))
 	Set role = ##class(OcuTalon.Install.Step.Users).#SERVICEROLE

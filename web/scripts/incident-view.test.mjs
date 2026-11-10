@@ -183,6 +183,18 @@ describe('the same ref again: count and fixing', () => {
     assert.equal(view(full({ state: 'fixing', requests: [{ state: 'executing', result: { total: 1 } }] })).fixingLine, 'Repairing and resending 1 order\u2026', 'count of one');
   });
 
+  it('says what a fix the user asked for in the chat does, by its kind (Story 23.2)', () => {
+    const suspending = view(full({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'suspend_item', item: 'OrdersToWarehouse' }] }));
+    assert.equal(suspending.fixingLine, 'Suspending OrdersToWarehouse\u2026');
+    assert.equal(view(full({ state: 'fixing', requests: [{ state: 'approved', fixKind: 'resume_item', item: 'OrdersToWarehouse' }] })).fixingLine, 'Resuming OrdersToWarehouse\u2026');
+    assert.equal(view(full({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'reroute', item: 'OrdersForReview', count: 50 }] })).fixingLine, 'Rerouting 50 orders\u2026');
+    assert.equal(view(full({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'reroute', item: 'OrdersForReview', count: 1 }] })).fixingLine, 'Rerouting 1 order\u2026');
+    assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'suspend_item', item: 'OrdersToWarehouse' }] })).fixSentence, 'I can suspend OrdersToWarehouse.');
+    assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'resume_item', item: 'OrdersToWarehouse' }] })).fixSentence, 'I can resume OrdersToWarehouse.');
+    assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'reroute', item: 'OrdersForReview', count: 50 }] })).fixSentence, 'I can reroute 50 orders to OrdersForReview.');
+    assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'repair_resend' }] })).fixSentence, 'I can repair and resend all 50.', 'the diagnosis\'s own request keeps its sentence');
+  });
+
   it('shows the fixing line only while the state is fixing', () => {
     for (const state of ['open', 'awaiting_approval', 'resolved', 'closed']) {
       assert.equal(view(full({ state, requests: [{ state: 'executing', result: { total: 50 } }] })).fixingLine, '', state);
@@ -502,6 +514,12 @@ describe('the fixed strings', () => {
         groupedOne: '1 failure grouped into this incident',
         fix: 'I can {fixSummary}.',
         fixing: 'Repairing and resending {count} {noun}\u2026',
+        fixingSuspend: 'Suspending {item}\u2026',
+        fixingResume: 'Resuming {item}\u2026',
+        fixingReroute: 'Rerouting {count} {noun}\u2026',
+        fixSuspend: 'I can suspend {item}.',
+        fixResume: 'I can resume {item}.',
+        fixReroute: 'I can reroute {count} {noun} to {to}.',
         showDetails: 'Show details',
         nounOne: 'message',
         nounOther: 'messages',

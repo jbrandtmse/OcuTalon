@@ -514,6 +514,74 @@ Method TestDisabledItemsAreReportedOnce()
 	If items.%Size() = 3 Do $$$AssertEquals(..Slot(items.%Get(2).slots, "itemName"), "A", "for A")
 }
 
+/// Story 23.2 (AC5): the pure rule with the items that OcuTalon suspended: such an item is in what is reported but gets no finding, an item disabled by anyone else still does.
+Method TestSuspendedItemsGetNoFinding()
+{
+	Set none = "{""stopped"":0,""disabled"":[]}"
+	Set found = ##class(OcuTalon.Checks.Process).Findings(none, "running", ["A", "B"], .reported, $ListBuild("A"))
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[{""kind"":""disabled"",""item"":""B""}]|{""stopped"":0,""disabled"":[""A"",""B""],""ours"":[""A""]}", "A, suspended by OcuTalon, is reported and recorded in ours but gets no finding; B does")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(none, "running", ["A", "B"], .reported)
+	Do $$$AssertEquals(found.%Size(), 2, "with no suspended item both get one")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(none, "running", ["A"], .reported, $ListBuild("C", "A"))
+	Do $$$AssertEquals(found.%Size(), 0, "a list of several suspended items is read whole")
+	// a foreign enable, then a foreign disable, of the item that OcuTalon suspended
+	Set sighted = "{""stopped"":0,""disabled"":[""A"",""B""],""ours"":[""A""]}"
+	Set found = ##class(OcuTalon.Checks.Process).Findings(sighted, "running", ["B"], .reported, $ListBuild("A"))
+	Do $$$AssertEquals(found.%Size()_"|"_reported, "0|{""stopped"":0,""disabled"":[""B""],""ours"":[""A""]}", "A enabled by anyone else sends nothing and stays in ours while suspended lists it")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(reported, "running", ["A", "B"], .reported, $ListBuild("A"))
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[{""kind"":""disabled"",""item"":""A""}]|{""stopped"":0,""disabled"":[""A"",""B""],""ours"":[""A""]}", "and A disabled by anyone else afterwards is one finding")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(reported, "running", ["A", "B"], .reported, $ListBuild("A"))
+	Do $$$AssertEquals(found.%Size(), 0, "which is reported once")
+	// OcuTalon suspends, resumes (the name leaves suspended), and suspends again
+	Set found = ##class(OcuTalon.Checks.Process).Findings(sighted, "running", ["B"], .reported)
+	Do $$$AssertEquals(found.%Size()_"|"_reported, "0|{""stopped"":0,""disabled"":[""B""]}", "a resume ends ours")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(reported, "running", ["A", "B"], .reported, $ListBuild("A"))
+	Do $$$AssertEquals(found.%Size()_"|"_reported, "0|{""stopped"":0,""disabled"":[""A"",""B""],""ours"":[""A""]}", "and a second suspend by OcuTalon gets no finding")
+	// a baseline records ours
+	Set found = ##class(OcuTalon.Checks.Process).Findings("", "running", ["A", "B"], .reported, $ListBuild("A"))
+	Do $$$AssertEquals(found.%Size()_"|"_reported, "0|{""stopped"":0,""disabled"":[""A"",""B""],""ours"":[""A""]}", "a baseline records the disabled names that suspended lists as ours")
+	Set found = ##class(OcuTalon.Checks.Process).Findings("", "running", ["A", "B"], .reported)
+	Do $$$AssertEquals(reported, "{""stopped"":0,""disabled"":[""A"",""B""]}", "and no ours key when there is none")
+}
+
+/// Story 23.2 (AC5, Integration): Checks reads Fix.Run Suspended. An item that OcuTalon suspended (a done suspend_item that changed it) is not reported as disabled; once a resume_item
+/// changed it again, the same item disabled by anyone else is reported.
+Method TestSuspendedByOcuTalonIsNotReported()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("suspended")
+	Set production = "Zz.Suspended"
+	Set ref = ..Watch(a, production)
+	Do ..Step(host, production, 0, "running")
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(a, , "ZZNS", production, {"State": "closed", "OpenVariant": ""})
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_incident
+	Do ..Done(a, incident, "suspend_item", "A")
+	Do $$$AssertEquals($ListToString(##class(OcuTalon.Fix.Run).Suspended("ZZNS", production)), "A", "Fix.Run Suspended names A")
+	Do $$$AssertEquals($ListLength(##class(OcuTalon.Fix.Run).Suspended("ZZNS", "Zz.Other")), 0, "and nothing for another production")
+	Do ..Step(host, production, 1, "running", ["A", "B"])
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "A, which OcuTalon suspended, sends no Item; B sends one")
+	If items.%Size() = 1 Do $$$AssertEquals(..Slot(items.%Get(0).slots, "itemName"), "B", "for B")
+	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":0,""disabled"":[""A"",""B""],""ours"":[""A""]}", "Reported holds both and records A as ours")
+	Do ..Done(a, incident, "resume_item", "A")
+	Do $$$AssertEquals($ListLength(##class(OcuTalon.Fix.Run).Suspended("ZZNS", production)), 0, "a resume that changed A ends the suspension")
+	Do ..Step(host, production, 2, "running", ["B"])
+	Do $$$AssertEquals(..Items().%Size(), 1, "A resumed sends nothing")
+	Do ..Step(host, production, 3, "running", ["A", "B"])
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 2, "and A disabled by anyone else afterwards is one Item")
+	If items.%Size() = 2 Do $$$AssertEquals(..Slot(items.%Get(1).slots, "itemName"), "A", "for A")
+}
+
+/// A done request of the kind for the item of the incident, with a run that changed it.
+Method Done(owner As %String, incident As %String, kind As %String, item As %String) [ Private ]
+{
+	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, "done", , {"FixKind": (kind), "FixParameters": ({"item": (item)}.%ToJSON()), "FixTargets": "1"})
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_request
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, {"Total": 1, "Completed": 1})
+}
+
 /// Row 7: the first run of a row with nothing reported only records the state.
 Method TestFirstRunIsABaseline()
 {

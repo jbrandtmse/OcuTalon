@@ -71,7 +71,7 @@ Method %OnValidateObject() As %Status [ Private, ServerOnly = 1 ]
 	If (..CauseCategory = ..#FIXCATEGORY) && (..FixKind = "") && '$IsObject(..FixParameters) && ..Blank(..FixSummary) {
 		If ..Blank(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "A data_format_change names its elementAtFault")
 	} ElseIf ..CauseCategory = ..#FIXCATEGORY {
-		If ##class(OcuTalon.Fix.Kind).ForName(..FixKind) = "" Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixKind of "_$ListToString(##class(OcuTalon.Fix.Kind).Names(), ","))
+		If '##class(OcuTalon.Fix.Kind).Diagnosed(..FixKind) Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixKind of "_$ListToString(##class(OcuTalon.Fix.Kind).DiagnosedNames(), ","))
 		If ..Blank(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "A data_format_change names its elementAtFault")
 		If ..Blank(..FixSummary) Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixSummary")
 		If '$IsObject(..FixParameters) || ..Blank(..FixParameters.Field) Quit $$$ERROR($$$GeneralError, "A data_format_change has fixParameters with a field")

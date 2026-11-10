@@ -62,8 +62,8 @@ Method TestToolRows()
 Method CheckToolRows() [ Private ]
 {
 	Set rows = $ClassMethod(..#GENERATOR, "ToolRows")
-	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "DOCUMENTS")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "INCIDENTSUMMARY"))
-	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1, one for propose_persona, one for send_digest, one for each memory tool, one for documents and one for incident_summary")
+	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "DOCUMENTS")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "INCIDENTSUMMARY"), $Parameter("OcuTalon.Tools.Names", "PROPOSEFIX"))
+	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1, one for propose_persona, one for send_digest, one for each memory tool, one for documents, one for incident_summary and one for propose_fix")
 	Set names = ""
 	Set bad = ""
 	Set iterator = rows.%GetIterator()
@@ -279,8 +279,16 @@ Method TestFixKindRows()
 	}
 	Do $$$AssertEquals($ListToString(names), $ListToString(..Sorted(names)), "the rows are sorted by class")
 	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
-	Set expectedRow = "| `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | `%Ens_MessageResend:U` |"
-	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), expectedRow), "the table holds repair_resend with %Ens_MessageResend:U")
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		Do $$$AssertEquals(row.classification, "risky", row.class_": every fix kind is risky")
+	}
+	Set expectedRows = $ListBuild("| `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | risky | `%Ens_MessageResend:U` |", "| `OcuTalon.Fix.Kind.Reroute` | `reroute` | risky | `%Ens_MessageResend:U` |", "| `OcuTalon.Fix.Kind.ResumeItem` | `resume_item` | risky | `%Ens_ConfigItemRun:U` |", "| `OcuTalon.Fix.Kind.SuspendItem` | `suspend_item` | risky | `%Ens_ConfigItemRun:U` |")
+	Set position = 0
+	While $ListNext(expectedRows, position, expectedRow) {
+		Do $$$AssertTrue(..HasLine(sections("fix-kinds"), expectedRow), "the table holds "_expectedRow)
+	}
+	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), "| Class | Name | Classification | Resources |"), "and has a Classification column")
 }
 
 /// DW-213: the grants that only demo mode adds are listed apart: the service role Read on the OCUORDERS data database, and the trace role Read

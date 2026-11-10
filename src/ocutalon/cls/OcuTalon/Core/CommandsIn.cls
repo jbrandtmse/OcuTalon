@@ -13,6 +13,8 @@
 ///     OwnerRef, so a tool cannot name another session. ProposePersona, the one settings verb a tool may send, is held to the same rule:
 ///     inside a bridge context its SessionRef must be the context's OwnerRef (DW-570), so a tool proposes only the persona of the
 ///     session whose turn it is in, and the refusal is not_allowed and nothing reaches SettingsOps;
+///   - ProposeFix (Story 23.2), a tool verb that goes to IncidentManager as the command itself: inside a bridge context its SessionRef must be the context's OwnerRef, and
+///     Ownership.Incident must find its IncidentRef for that session, else the refusal is not_found and nothing reaches IncidentManager;
 ///   - step 4 (AD-1, AD-21): the five MCP verbs AddMcpServer, RemoveMcpServer, ClassifyTool, SetSourcePoll and RemoveSourcePoll go to
 ///     McpOps from web_admin only; none is a tool verb, and a refusal from any other origin than tool says "admin only", as for
 ///     SettingsOps. SendEmail goes to EmailOut from system (FixExecutor's approved email fix) and from tool; from tool it is accepted
@@ -39,10 +41,10 @@ Class OcuTalon.Core.CommandsIn Extends Ens.BusinessService
 /// The package of the verb classes; the rest of a command's class name is its verb.
 Parameter VERBPACKAGE = "OcuTalon.Msg.Command.";
 
-/// The verbs that origin tool may send (AD-1, FR-24, NFR-14). Dismiss is further limited to an incident the session can see.
+/// The verbs that origin tool may send (AD-1, FR-24, NFR-14). Dismiss and ProposeFix are further limited to an incident the session can see.
 /// ProposePersona is the one settings verb among them, and a tool is the only origin that may send it. SendEmail is limited to the
 /// session user's own mailbox address (Carry). No MCP verb is among them.
-Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest,SaveMemory,ForgetMemory,ProposePersona,SendEmail";
+Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest,SaveMemory,ForgetMemory,ProposePersona,SendEmail,ProposeFix";
 
 /// How long the gate waits for the owner's answer, in seconds.
 Parameter TIMEOUT = 120;
@@ -88,6 +90,11 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	}
 	If (origin = "tool") && (verb = "ProposePersona") && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	If (origin = "tool") && (verb = "Dismiss") {
+		If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
+		Set incident = ##class(OcuTalon.Data.Ownership).Incident(command.IncidentRef, command.SessionRef, .sc)
+		If '$IsObject(incident) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
+	}
+	If (origin = "tool") && (verb = "ProposeFix") {
 		If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 		Set incident = ##class(OcuTalon.Data.Ownership).Incident(command.IncidentRef, command.SessionRef, .sc)
 		If '$IsObject(incident) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
@@ -241,7 +248,8 @@ XData Routes [ MimeType = application/json ]
  {"verb": "ClassifyTool", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "SetSourcePoll", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "RemoveSourcePoll", "owner": "McpOps", "origins": "web_admin"},
- {"verb": "SendEmail", "owner": "EmailOut", "origins": "tool,system"}
+ {"verb": "SendEmail", "owner": "EmailOut", "origins": "tool,system"},
+ {"verb": "ProposeFix", "owner": "IncidentManager", "origins": "tool"}
 ]
 }
 

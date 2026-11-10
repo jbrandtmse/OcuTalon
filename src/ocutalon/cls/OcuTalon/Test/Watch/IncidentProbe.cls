@@ -110,6 +110,26 @@ Method SendCheckNow(request As OcuTalon.Checks.Msg.CheckNow) As %Status [ Privat
 	Quit $$$OK
 }
 
+/// The dry runs that AskDryRun recorded (Story 23.2), in order, each {incidentRef, fixKind, parameters}: the asks of a fix the user asked for in the chat.
+Property Asks As %DynamicArray [ Transient ];
+
+/// The answer that AskDryRun gives (Story 23.2): a DryRunResult that a test makes, or empty for an answer with no Reason and no Targets.
+Property DryAnswer As OcuTalon.Fix.Msg.DryRunResult [ Transient ];
+
+/// 1 to make AskDryRun answer an error.
+Property FailAsk As %Boolean [ InitialExpression = 0, Transient ];
+
+/// Records the ask of a fix the user asked for in the chat and gives DryAnswer (the real one waits for FixExecutor, which a shadow instance cannot call).
+Method AskDryRun(ask As OcuTalon.Fix.Msg.DryRun, Output result As OcuTalon.Fix.Msg.DryRunResult) As %Status [ Private ]
+{
+	Set result = ""
+	If '$IsObject(..Asks) Set ..Asks = []
+	Do ..Asks.%Push({"incidentRef": (ask.IncidentRef), "fixKind": (ask.FixKind), "parameters": (ask.Parameters)})
+	If ..FailAsk Quit $SYSTEM.Status.Error(5001, "The dry run of "_ask.IncidentRef_" is refused")
+	Set result = $Select($IsObject(..DryAnswer): ..DryAnswer, 1: ##class(OcuTalon.Fix.Msg.DryRunResult).%New())
+	Quit $$$OK
+}
+
 /// Records the dry run ask, with the completion key, instead of sending it.
 Method SendDryRun(ask As OcuTalon.Fix.Msg.DryRun, key As %String = {..#DRYRUNKEY}) As %Status [ Private ]
 {

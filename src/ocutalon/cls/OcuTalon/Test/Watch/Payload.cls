@@ -185,6 +185,12 @@ Method TestPayloadRefused()
 		}
 		Do ..AssertRefused(reply, "a data-format change with only "_name_" of the fix fields")
 	}
+	For kind = "reroute", "suspend_item", "resume_item", "zz_kind" {
+		Set reply = ..Usable()
+		Set reply.fixKind = kind
+		Do ..AssertRefused(reply, "a diagnosis that names the fixKind "_kind_", which only the chat can ask for (Story 23.2)")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(..Check(reply)) '[ "reroute,", "and the error lists only the kinds a diagnosis may name")
+	}
 	Set reply = ..Usable()
 	Set reply.cause = "  "
 	Do ..AssertRefused(reply, "a blank cause")

@@ -1,0 +1,22 @@
+{
+  "name": "propose-fix-reroute",
+  "match": {
+    "marker": "propose-fix-reroute"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "propose_fix",
+        "input": {
+          "kind": "reroute",
+          "item": "OrdersForReview"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I've asked for your approval to reroute the failed orders."
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "propose-fix-undo",
+  "match": {
+    "marker": "propose-fix-undo"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "propose_fix",
+        "input": {
+          "kind": "resume_item",
+          "item": "OrdersToWarehouse"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I've asked for your approval to resume the item."
+    }
+  ]
+}

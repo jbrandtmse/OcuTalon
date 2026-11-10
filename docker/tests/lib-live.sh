@@ -898,16 +898,16 @@ compare_surfaces() {
   fi
 }
 
-# check_orders_jobs <label>: OrdersFromPartner and OrdersToWarehouse each have an alive job in OCUORDERS, and the adapterless
+# check_orders_jobs <label>: OrdersFromPartner, OrdersToWarehouse and OrdersForReview each have an alive job in OCUORDERS, and the adapterless
 # PartnerOrdersIn has none. The jobs of the system items of Interoperability (Ens.*) are not the production's.
 check_orders_jobs() {
   local label=$1 names
   item_jobs "$tmp/orders.jobs" OCUORDERS
   names=$(awk -F'\t' '$1 !~ /^Ens\./ { print $1 }' "$tmp/orders.jobs" | sort | tr '\n' ' ')
-  if [ "$names" = 'OrdersFromPartner OrdersToWarehouse ' ]; then
-    pass "$label: OrdersFromPartner and OrdersToWarehouse have an alive job, and PartnerOrdersIn has none"
+  if [ "$names" = 'OrdersForReview OrdersFromPartner OrdersToWarehouse ' ]; then
+    pass "$label: OrdersFromPartner, OrdersToWarehouse and OrdersForReview have an alive job, and PartnerOrdersIn has none"
   else
-    fail "$label: the alive jobs of the Orders production are '$names', not OrdersFromPartner and OrdersToWarehouse"
+    fail "$label: the alive jobs of the Orders production are '$names', not OrdersForReview, OrdersFromPartner and OrdersToWarehouse"
   fi
 }
 
@@ -919,7 +919,7 @@ check_orders_jobs() {
 #   - in OCUORDERS, OcuTalon.Demo.Orders resolves to OCUTALON_CODE, OcuTalon.Web.Public, OcuTalon.Data.Public and the global
 #     ^OcuTalonPublic resolve to OCUTALON_PUBLIC;
 #   - Interoperability is enabled, and no HealthShare mapping or instance marker exists for OCUORDERS;
-#   - the Orders production runs with OrdersFromPartner and OrdersToWarehouse alive, and OCUORDERS has no autostart production;
+#   - the Orders production runs with OrdersFromPartner, OrdersToWarehouse and OrdersForReview alive, and OCUORDERS has no autostart production;
 #   - /ocutalon/trace/ocuorders has the properties of the trace application, the Interoperability portal application of the
 #     namespace (/csp/ocuorders) asks for a password (AutheEnabled 32), and the trace role holds Read on the OCUORDERS
 #     databases and SQL SELECT on Ens.MessageHeader in OCUORDERS;

@@ -660,6 +660,50 @@ Method TestText()
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Summary).Text(incident, "email", .sc)_"|"_$SYSTEM.Status.IsError(sc), "|1", "a channel that is not rendered is an error")
 }
 
+/// Story 23.2 (AC14): an incident with a suspend, a resume and a reroute request has each kind's requested line and the item kinds' own end lines, and the item runs add nothing
+/// to the message counts (only the reroute's copies do), nor the diagnosis's fix line or "No fix ran".
+Method TestKindLines()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("kinds")
+	Set incident = ..Incident(owner, "resolved")
+	Set suspend = ..Request(owner, incident, "done", ..T(-6000), {"FixKind": "suspend_item", "FixParameters": ("{""item"":""OrdersToWarehouse""}"), "FixTargets": "5", "DryRun": ("{""item"":""OrdersToWarehouse"",""before"":""enabled"",""after"":""disabled""}"), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
+	Set resume = ..Request(owner, incident, "done", ..T(-5000), {"FixKind": "resume_item", "FixParameters": ("{""item"":""OrdersToWarehouse""}"), "FixTargets": "5", "DryRun": ("{""item"":""OrdersToWarehouse"",""before"":""disabled"",""after"":""enabled""}"), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900))})
+	Set skipped = ..Request(owner, incident, "done", ..T(-4500), {"FixKind": "resume_item", "FixParameters": ("{""item"":""OrdersToWarehouse""}"), "FixTargets": "5", "DryRun": ("{""item"":""OrdersToWarehouse"",""before"":""disabled"",""after"":""enabled""}"), "AnsweredChannel": "web", "AnsweredAt": (..T(-4400))})
+	Set reroute = ..Request(owner, incident, "done", ..T(-4000), {"FixKind": "reroute", "FixParameters": ("{""target"":""OrdersForReview""}"), "FixTargets": "1,2,3", "DryRun": ("{""affected"":3,""resend"":3,""leftOut"":0,""itemNoun"":{""one"":""order"",""other"":""orders""},""from"":""OrdersFromPartner"",""to"":""OrdersForReview"",""example"":""1""}"), "AnsweredChannel": "web", "AnsweredAt": (..T(-3900))})
+	Do ..Link(incident, suspend_","_resume_","_skipped_","_reroute)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, suspend, {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 1, "Resent": 0, "Completed": 1, "FailedAgain": 0, "Skipped": 0})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, resume, {"StartedAt": (..T(-4800)), "EndedAt": (..T(-4700)), "Total": 1, "Resent": 0, "Completed": 1, "FailedAgain": 0, "Skipped": 0})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, skipped, {"StartedAt": (..T(-4300)), "EndedAt": (..T(-4200)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 1})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, reroute, {"StartedAt": (..T(-3800)), "EndedAt": (..T(-3700)), "Total": 3, "Resent": 3, "Completed": 3, "FailedAgain": 0, "Skipped": 0})
+	Set result = ..Command(host, "dismiss", incident, owner)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set keys = ..Keys(row)
+	Do $$$AssertEquals($Length(keys, "summary.requestedSuspend") - 1, 1, "a suspend request has its requested line: "_keys)
+	Do $$$AssertEquals($Length(keys, "summary.requestedResume") - 1, 2, "so has each resume request")
+	Do $$$AssertEquals($Length(keys, "summary.requestedReroute") - 1, 1, "and the reroute request")
+	Do $$$AssertEquals($Length(keys, "summary.requested,") - 1, 0, "none of them has the repair's requested line")
+	Do $$$AssertEquals($Length(keys, "summary.itemSuspended") - 1, 1, "the suspend ends with summary.itemSuspended")
+	Do $$$AssertEquals($Length(keys, "summary.itemResumed") - 1, 1, "the resume that changed the item ends with summary.itemResumed")
+	Do $$$AssertEquals($Length(keys, "summary.itemNotChanged") - 1, 1, "the resume that changed nothing ends with summary.itemNotChanged")
+	Do $$$AssertEquals($Length(keys, "summary.fixEnded") - 1, 1, "and only the reroute ends with the counts (summary.fixEnded)")
+	Do $$$AssertEquals($Length(keys, "summary.noFixRan") - 1, 0, "a fix ran, so the summary does not say that none did")
+	Do $$$AssertEquals($Length(keys, "summary.fix,") - 1, 0, "and the diagnosis's fix line is not there: no fix of a kind the diagnosis proposes ran")
+	Do $$$AssertEquals(..Slots(row, "summary.requestedSuspend").item, "OrdersToWarehouse", "the suspend line names the item")
+	Set reroutes = ..Slots(row, "summary.requestedReroute")
+	Do $$$AssertEquals(reroutes.count_"|"_reroutes.to, "3|OrdersForReview", "and the reroute line the count and the target")
+	Do $$$AssertEquals(..Slots(row, "summary.itemSuspended").item, "OrdersToWarehouse", "the item run line names the item")
+	Set messages = ..Slots(row, "summary.messages")
+	Do $$$AssertEquals(messages.failed_"|"_messages.resent_"|"_messages.completed_"|"_messages.failedAgain_"|"_messages.skipped, "50|3|3|0|0", "the item runs add nothing to the message counts: only the reroute's copies are in them")
+	Set text = ##class(OcuTalon.Watch.Summary).Text(incident, "web", .sc)
+	Do $$$AssertStatusOK(sc, "the summary renders")
+	Do $$$AssertTrue(text [ ": OcuTalon asked for approval to suspend OrdersToWarehouse.", "the suspend line reads as ruled")
+	Do $$$AssertTrue(text [ ": OrdersToWarehouse was suspended.", "and its end line")
+	Do $$$AssertTrue(text [ ": OcuTalon asked for approval to reroute 3 orders to OrdersForReview.", "and the reroute line")
+}
+
 /// A shadow instance of the probe.
 Method Host() As OcuTalon.Test.Watch.IncidentProbe
 {

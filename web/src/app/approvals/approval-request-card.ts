@@ -502,7 +502,7 @@ export class ApprovalRequestCard {
 
   /** A press of Approve or Reject: one call for both buttons; a press while a call is out is ignored. */
   protected press(action: 'approve' | 'reject'): void {
-    this.answer.press(this.view().ref, action);
+    this.answer.press(this.view().ref, action, this.approval().fixKind ?? '');
   }
 
   /**

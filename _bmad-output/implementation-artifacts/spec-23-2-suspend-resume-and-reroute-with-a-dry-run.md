@@ -2,14 +2,22 @@
 title: 'Story 23.2: Suspend, resume and reroute with a dry run'
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2c6fff52198244b9d42d929e823cec855fbf452d'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-23-6-write-an-incident-summary-when-an-incident-closes.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      The generated docs/security-overview.md role table lists %Ens_ConfigItemRun:U for OcuTalonServiceRole unconditionally, but an online-demo install leaves it off (S1).
+    evidence: |-
+      Install.Step.Fix.Grants omits the pair when onlineDemo is 1; Install.SecurityOverview renders the table from Fix.Kind.Classes() without that condition. A new sentence in the overview is public text, which this story may not add without a ruling.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls, docs/security-overview.md
+    severity: medium
 ---
 
 <intent-contract>
@@ -137,8 +145,8 @@ deferred: []
 - AC15: Given a reroute request, when the README account reads `GET /api/v1/state` and answers it over real HTTP, then the payload carries `fixKind` and the dry run's `to`, and a second session's state lists no such request (`web/e2e/cards/approval-card.spec.ts`).
 
 **Added from the Planner's rulings (2026-11-09):**
-- [ ] S1: the online-demo install path leaves `%Ens_ConfigItemRun:U` off `OcuTalonServiceRole` (or revokes it); AD-24's line records the exclusion.
-- [ ] S6: the eval report's unasked-action tally counts a raised fix request; the release evaluation's cases where the user didn't ask (injection included) still show 0 approvals and 0 commands.
+- [x] S1: the online-demo install path leaves `%Ens_ConfigItemRun:U` off `OcuTalonServiceRole` (or revokes it); AD-24's line records the exclusion.
+- [x] S6: the eval report's unasked-action tally counts a raised fix request; the release evaluation's cases where the user didn't ask (injection included) still show 0 approvals and 0 commands.
 - AC-S1: Given an online-demo install, when an item kind runs with the ONLINESHARED check bypassed, then it ends NOTALLOWED, and `OcuTalonServiceRole` holds no `%Ens_ConfigItemRun:U`.
 - AC-S2: Given a shared Orders production with user A's open incident, when user B's chat asks `propose_fix` to reroute, then no request is raised for A's failed messages and none of A's messages is resent (demo and local install).
 - AC-S3: Given `OrdersForReview` in the Orders production, when no reroute ran, then it processes nothing; the demo-path and online e2e suites pass with it present, as does a local demo-host-check against a demo build; every Orders item count is updated.
@@ -146,6 +154,18 @@ deferred: []
 - AC-S5: Given Task 0, when `EnableConfigItem` from the executor's job fails, then the implement stage HALTs with a clarification and no privilege is widened.
 - AC-S6: Given the release evaluation, when the cases where the user didn't ask run (injection included), then they show 0 approvals and 0 commands, and the report counts a raised fix request in that tally.
 - AC-DC: Given a cause sentence that already ends with a full stop, when `incident.goodChanged` renders, then there is no double full stop (a test).
+
+**Review patches (pass 1, 2026-11-09; apply each with the smallest change, tests on the warm stack `e23s2iw` which is up; no public text may change):**
+- [x] RP1 (AC5, MED): `Checks/Process.cls` `Findings` suppresses an item for as long as `Fix.Run.Suspended` lists it, so a suspend by OcuTalon, then a foreign enable, then a foreign disable raises no finding. Fix: `Reported` JSON gains an optional key `"ours"` (a list of item names, written only when non-empty, so every existing exact-string pin of `Reported` still holds). In `Findings`, for each currently disabled name `n` that `suspended` lists: if `n` is not in the previous `ours`, raise no finding and add it to the new `ours`; if it is in the previous `ours` and not in the previous `disabled`, raise the finding (a foreign re-disable); a name not listed in `suspended` follows the old rule. The new `ours` is (previous `ours` intersected with `suspended`) plus the names just added. A baseline run (no previous `Reported`) records `ours` as the disabled names that `suspended` lists. Update the `Findings`/`Run` doc comments and the `Fix.Run` class description so they state this contract (no history narration). Tests in `Test/Checks/Runs.cls` (pure `Findings` cases): suspend sighted -> no finding; foreign enable then foreign disable -> one finding; OcuTalon suspend, resume (name leaves `suspended`), suspend again -> no finding; baseline records `ours`. Write the `mutation:` line for AC5 (e.g. "ignore the previous ours -> the foreign re-disable case red").
+- [x] RP2 (AD-1 guard, MED): `Test/Core/CommandsRouting.cls` has fixed oracles over the verbs and origins; add ProposeFix: origin tool is routed to IncidentManager, any other origin is refused, and a tool ProposeFix whose SessionRef is not the bridge context's OwnerRef, or whose IncidentRef the session does not own, answers `not_found` with nothing sent. Mutation: delete the `Carry` ProposeFix block -> the new case red.
+- [x] RP3 (AC8/AC4/AC1, MED): add tests (`Test/Fix/Reroute.cls`, `Test/Fix/ItemKinds.cls`) for the row-only paths that have none: a reroute row whose target item was disabled after the dry run -> `Recheck`/`Execute` skip every target and send no copy; a reroute row naming a header of another session's TraceRef -> skipped with the scope reason, nothing resent (AC-S2 at the executor); an item-kind run where `EnableConfigItem` errs (use the existing seams or a missing item) -> the request fails with the kind's `NOSTART` and the notice key `result.itemNotChanged`; `Reader.Items` unreadable -> the kind's `NOREAD`, if a seam exists (else name why in the report). Mutation lines for AC4's re-check and for the item-kind failure branch.
+- [x] RP4 (AC-S1, MED): `Test.Fix.ItemKinds.TestGrants` must call `Install.Step.Fix.Grants()` with `Case.SetOnlineDemo(1)` and assert no `%Ens_ConfigItemRun` pair, and with 0 that it is held (no `onlineDemo '= 1` guard that hides the online case). Mutation: `Grants()` passes 0 -> red.
+- [x] RP5 (AC-S2, MED): tool level second-session test: in `Test/Fix/AskedTurns.cls` (or `Asked.cls`, whichever fits the harness) create user A's noticed open incident with real failed messages in the shared Orders production, then run `propose_fix` reroute as user B (no incident of B's own) and assert the answer is `nothing` (`IncidentManager.MESSAGENOTHING`), no approval request exists for A's incident, none of A's messages is resent (no FixRun, no copy). Mutation: let `ResolveIncident` ignore the session -> red.
+- [x] RP6 (AC-S6, MED): add a test in `Test/Eval` that a raised chat-asked fix request is counted by `Eval.Report` `Actions` (approvals 1), and that an eval case where the user did not ask still shows 0 approvals and 0 commands. `RaiseFix` sets TraceRef only for a super session: if the count cannot be shown without a change to `Eval/*`, make no change to `Eval/*` and say so in the report. Mutation: leave TraceRef empty on the chat-asked request -> red.
+- [x] RP7 (AC-S3, MED): `Test/Demo/Production.cls` (`TestOneOrderInEachFormat` or the fitting test): assert `OrdersForReview` received no message in the normal flow (its queue/message count stays 0 while `OrdersToWarehouse` gets its messages). Mutation: route to the review item -> red.
+- [x] RP8 (AC4, MED): `Test/Fix/Reroute.cls` `TestFailedAgainIsNotRetried` uses `Hang 3` before the negative assertion; replace with a wait on an observed signal (the poller has seen the copies' failure: e.g. the batch handler/probe call, or a bounded wait for the copy headers' Error status followed by one forced poll pass), so the negative cannot pass by timing. Mutation: IncidentManager ignores `CopyOf` -> red.
+- [x] RP9 (hermeticity, MED): `Test/Checks/Runs.cls` `TestSuspendedByOcuTalonIsNotReported` creates Incident, ApprovalRequest and FixRun rows with a fixed production name and does not register their refs for `Fixture.Clean`; register every ref (as lines ~845-848 do) so no row survives the test.
+- [x] RP10 (Rule 19, LOW): add `mutation:` lines under `## Verification` for AC-S1 (RP4), AC-S2 (RP5), AC-S3 (RP7), AC-S4 (the no-incident answer: change `MESSAGENOTHING` mapping -> `TestNoIncident` red), AC-S6 (RP6), AC-DC (let `goodChanged` add a full stop after `{cause}` -> its test red) and the changed AC5/AC4/AC8 lines. Each: apply, observe red on the warm stack, revert (tree byte-identical). AC-S5 is Task 0's measurement (no test). AC12 and AC15 stay "left to CI".
 
 ## Spec Change Log
 
@@ -156,6 +176,47 @@ deferred: []
 - 2026-11-09 (runner, spec gate): corrected route-test rule applied (lead note under Design Notes); Planner rulings pending.
 
 ## Review Triage Log
+
+### 2026-11-09 - Review pass
+- verdicts: 36 findings - high 0, medium 15, low 21, false 0, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` (blind 1) a suspension ends only on an OcuTalon resume, so a foreign enable then a foreign disable raises no finding - verified in `Fix.Run.Suspended` and `Process.Findings`; fixed by RP1 (`ours` in Reported, tests, mutation line)
+  - `[low]` `[reject]` (blind 2) `Asked` waits up to 30 s inside `OnRequest` - Design Notes "Decided in-stage" (1) fixes the synchronous ask; spec-bound, closed by-design
+  - `[low]` `[reject]` (blind 3) a reroute accepts any enabled process or operation - the Reroute task states exactly that validation; spec-bound, closed by-design
+  - `[medium]` `[defer]` (blind 4) the generated security overview lists `%Ens_ConfigItemRun:U` without the online-demo exclusion; Grants only omits it - the fix needs a new public sentence (intent gap if written here); deferred
+  - `[low]` `[reject]` (blind 5) the Demo-step upgrade reloads the running production definition - only when an upgrade adds an item; online demo cannot suspend; reopen_if=an upgrade of a local install loses a user's suspend
+  - `[low]` `[reject]` (blind 6) an `Enabled` default-setting override is not re-read after `EnableConfigItem` - theoretical hardening, no override is shipped
+  - `[low]` `[reject]` (blind 7) a suspend or resume ends with the incident resolved - AC3 and the matrix specify it; closed by-design
+  - `[low]` `[reject]` (blind 8) kind names hard-coded in several web and payload files - developer-only, a fix is a refactor over five files; reopen_if=a fifth chat-asked kind is added
+  - `[low]` `[reject]` (blind 9) the server's 403 text still says resends for item kinds - `Web/Api.cls` is outside the AD-33 exception list and the page overrides the text; reopen_if=Telegram or another client shows it
+  - `[medium]` `[patch]` (blind 10) S6 ticked with no test or mutation line, and AC-S1..S6/AC-DC lack mutation lines - fixed by RP6 and RP10
+  - `[low]` `[reject]` (edge 1) `Fix.Run.Suspended` could throw inside the unguarded `Findings` call - needs a missing table; theoretical
+  - `[medium]` `[patch]` (edge 2) same defect as blind 1 (foreign disable of a previously suspended item suppressed) - RP1
+  - `[low]` `[reject]` (edge 3) a check between `EnableConfigItem` and the run reaching done raises a finding - window of a fraction of a second; the suggested fix does not work (Completed is set at Finish)
+  - `[low]` `[reject]` (edge 4) a pending request makes a second reroute ask answer `nothing` - the ruled message says none can be rerouted now, which is true while a request is pending
+  - `[low]` `[reject]` (edge 5) reroute with an unmatched production or incident argument returns the dismiss-style refusal - plain and accurate; not the S4 case
+  - `[low]` `[reject]` (edge 6) the NotRunning gate precedes item kinds - an item of a stopped production is not changed by this story's design; fix adds a branch
+  - `[low]` `[reject]` (edge 7) `ErrProductionNotRunning` from `EnableConfigItem` reports the kind's NOSTART - same area as edge 6
+  - `[low]` `[reject]` (edge 8) a summary line with an empty item slot if FixParameters lack item - the rows are written by OcuTalon itself
+  - `[low]` `[reject]` (edge 9) `recent_activity` reports a chat-asked kind as the incident's fix kind - read-only display of the first request; no user-visible harm shown
+  - `[medium]` `[patch]` (edge 10, claim) the Fix.Run claim "a later disable by anyone else is reported again" is false for the foreign enable case - RP1 makes it true
+  - `[low]` `[reject]` (edge 11, claim) Suspended skips runs that changed nothing - intended ("a run that changed nothing neither starts nor ends one")
+  - `[low]` `[reject]` (edge 12, claim) AC-S4 plain answer not guaranteed for unknown_incident or busy-only incidents - covered by the same reasoning as edge 4 and 5
+  - `[medium]` `[patch]` (gap 1) the CommandsIn ProposeFix guard and route are unpinned - RP2
+  - `[medium]` `[patch]` (gap 2) reroute Recheck/Execute skip paths and the item-kind failure branches have no test - RP3
+  - `[medium]` `[patch]` (gap 3) AC-S1 is pinned only at `GrantsOf` - RP4
+  - `[medium]` `[patch]` (gap 4a) AC-S2 is not tested at the tool level - RP5
+  - `[medium]` `[patch]` (gap 4b) AC-S6 has no test - RP6 (no change to `Eval/*` needed)
+  - `[medium]` `[patch]` (gap 4c) AC-S3 "OrdersForReview processes nothing" has no assertion - RP7
+  - `[medium]` `[patch]` (gap 5) AC4's negative is pinned by a 3 s sleep - RP8
+  - `[low]` `[reject]` (gap 6) AC12's "a reroute card appears" is unverified by K9b - needs a live model or marker; the card path is pinned by `AskedTurns`, the item's prompt by K9b; AC12 is left to CI by the spec
+  - `[low]` `[patch]` (gap 7) mutation lines missing for AC-S1..S6/AC-DC and changed pins - RP10; AC12 and AC15 stay "left to CI" as the spec says
+  - `[low]` `[reject]` (gap 8) `TestOnlineDemoRefused` "reroute offered" and source-regex web tests are weak - the behaviour is pinned elsewhere (`Test.Fix.Reroute`, view tests)
+  - `[medium]` `[patch]` (gap 9) `TestSuspendedByOcuTalonIsNotReported` leaks rows - RP9
+  - `[medium]` `[patch]` (gap 10) same defect as blind 1 (AC5) - RP1
+  - `[low]` `[reject]` (gap 11) a second ask through the tool answers `no_incident`, `already_asked` is reachable at the manager only - spec (ResolveIncident states open,resolved) and Design Notes decision 6; exactly one request is raised either way; closed by-design
+  - `[medium]` `[defer]` (gap 12) the security overview lacks the online-demo exclusion - same as blind 4
+- intent-alignment layer: descriptive only, no findings counted. It reported the incident-bound reading, the two online-demo flag stores (`Reader.OnlineDemo` and `Data.Public.Settings`), and that the live paths are exercised by throwaway-stack and CI tests.
 
 ## Design Notes
 
@@ -193,6 +254,8 @@ deferred: []
   - S6: `propose_fix` joins the chat toolset, so the release evaluation must still show 0 approvals and 0 commands in every case where the user didn't ask, injection cases included; the eval report counts a raised fix request in that tally.
 
 **Press keys placement [AMENDED 2026-11-09, Contest Planner ruling] (Planner rulings on 23.5, which apply to 23.2):** `press.approvedSuspend`, `press.approvedResume` and `press.approvedReroute` go in `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls` (AD-32 keeps every `press.` key there), appended as one block after the last key, a plain union with Epic 35's keys (now on feature), not in `Msg/Catalog/Watch.cls`; `Test/Msg/Catalog.cls`'s Core key list, count and fixtures move with them. Every other 23.2 key stays in the `Catalog.Watch` block.
+
+**Decided in-stage (implement, 2026-11-09).** (1) Task 0 passed on a fresh throwaway: `Ens.Director.EnableConfigItem("OcuTalon.Demo.Orders.Production||OrdersForReview", 0)` and then `1`, called by `Fix.Executor.InProduction` from FixExecutor's own job switched to OCUORDERS (the live case of `Test.Fix.ItemKinds` through a real `Execute`), returned OK both times; `Watch.Reader.Items` saw the item disabled and then enabled; the call took 0.980 s on the first (cold) run and 0.154 s on the next, and the resume 0.151 s and 0.133 s (from the Execute's send to the end of its handler); `CheckUserPermission("OcuTalonService", "%Ens_ConfigItemRun", "U")` is 1 after the Fix step on a local install. No privilege was widened. (2) `Fix.Kind` gains `ONLINEGRANT` (1 for the existing kind, 0 for the two item kinds): `Install.Step.Fix.Grants` leaves a kind's resources off the service role when the public flag `onlineDemo` is 1 (S1); the Public step runs before the Roles step. (3) A kind that finds nothing to do (a reroute with no failed message left) answers OK with no Targets, no DryRun and no Reason: `Executor.DryRun` no longer calls `%ToJSON` on an empty dry run, so `IncidentManager.Asked` answers `nothing`. (4) `propose_fix` names only `open` and `resolved` incidents (the spec's states), so once the first request is raised the incident is `awaiting_approval` and a second ask through the tool answers `no_incident` (the busy incident in `others`); `IncidentManager`'s own `already_asked` for a pending, approved or executing request with the same kind and parameters is pinned in `Test.Fix.Asked`. (5) `Kind.Check`, the diagnosis's check, refuses a kind with `DIAGNOSED` 0, as `DiagnosisPayload` does. (6) A reroute offers `from` = the item of the lowest-numbered failed message; messages at another item count as affected and left out. (7) The web page overrides the server's 403 text with "Only an approver for fixes can answer this request." for suspend and resume (the server's `MESSAGENOTAPPROVER` in `Web/Api.cls`, outside the AD-33 exception, still says resends); the incident card's result band is left out for a suspend or resume and for a reroute whose copies all completed (the chat's notice says what happened). (8) The Telegram press text reads the kind and the dry run's item and target in `Channel/Telegram/In.cls` (`FixSlots`), not in `Core/AnswersIn.cls`. (9) The committed evaluation snapshot `eval/orders-date-format/snapshot.json` gains the fourth item `OrdersForReview`, as a fresh recording holds it (`Test.Demo.Production` pins four items). (10) The EXPERIENCE.md item is numbered "Item 9" and the hand-off bullet reads "Item 9" as ruled, though the file's other items are numbered 1 to 7 and the incident summary item has no number: the Planner may renumber. (11) The upgrade path of the Demo step (a running Orders production that lacks an item of its class definition) was proved by hand on a warm throwaway: with `OrdersForReview` removed through `Ens.Config.Production.RemoveItem` and `UpdateProduction`, `Install.Step.Demo.Run()` loaded the definition again and its job was alive; the automated proof is `live:install-upgrade` (CI).
 
 ## Public Text
 
@@ -271,11 +334,53 @@ Every test added or changed passes on a fresh environment, in either order.
 - (loop) `node --test web/scripts/more-to-try-view.test.mjs web/scripts/more-to-try-sources.test.mjs web/scripts/ux-strings.test.mjs` and, one call, `node --test web/scripts/approval-view.test.mjs web/scripts/approval-sources.test.mjs web/scripts/rail-view.test.mjs web/scripts/incident-view.test.mjs web/scripts/incident-sources.test.mjs web/scripts/phone-view.test.mjs web/scripts/phone-request-sources.test.mjs`. Expected: pass.
 - (loop) `bash docker/tests/test-mock.sh`. Expected: pass.
 - (once) `npm --prefix web run lint`. Expected: pass.
-- **Left to CI** (each over 150 s): the browser units (`live:sign-in` parts with `approval-card.spec.ts` and `more-to-try.spec.ts`, `live:demo-path`, the online demo path), `live:install-upgrade` (the Demo step adds `OrdersForReview` to a running production), the shards, `bash ci/checks.sh`, `npm --prefix web run build`, and the lead's fresh-environment check (forward and `--reverse`).
+- **Task 0 figures (implement, fresh throwaway `e23s2i`):** (a) `OcuTalon.Test.Fix.ItemKinds:TestLiveSuspendResume` passed: EnableConfigItem from FixExecutor's job in OCUORDERS disabled then enabled `OrdersForReview`, both OK, seen by `Watch.Reader.Items`; suspend 0.980 s then 0.154 s, resume 0.151 s then 0.133 s; (b) `CheckUserPermission("OcuTalonService", "%Ens_ConfigItemRun", "U")` is 1.
+
+**Mutations observed (Rule 19), each applied, red, reverted to a byte-identical file:**
+- mutation: AC1 Reroute.Valid skips the disabled check -> `Test.Fix.Reroute:TestValidation` red ("a disabled target is refused")
+- mutation: AC2 AskedSlots drops `example` -> `Test.Fix.Asked` red (the slot is missing, the notice does not render)
+- mutation: AC3 `EnableConfigItem` called with the inverse flag -> `Test.Fix.ItemKinds:TestLiveSuspendResume` red (fresh)
+- mutation: AC4 the copy goes to `header.TargetConfigName` instead of the target -> `Test.Fix.Reroute:TestDryRunAndRun` red (fresh)
+- mutation: AC5 `Fix.Run.Suspended` left out of Checks -> `Test.Checks.Runs:TestSuspendedByOcuTalonIsNotReported` red
+- mutation: AC5 (changed) `Checks.Process.Findings` ignores the previous `ours` (never records a name as ours before) -> `Test.Checks.Runs:TestSuspendedItemsGetNoFinding` red ("and A disabled by anyone else afterwards is one finding")
+- mutation: AC4 (re-check) `Reroute.Plan` ignores a target that is no longer enabled (`If code = "disabled" Set why = ""`) -> `Test.Fix.Reroute:TestTargetDisabledAfterDryRun` red ("and passes no target")
+- mutation: AC8 (item kind that cannot be changed) `Executor.Run` never takes the could-not-start branch for an item kind (`unreached > 9999`) -> `Test.Fix.ItemKinds:TestItemThatCannotBeChanged` red (NOSTART, request failed); `KindReason(class, "NOREAD", ...)` replaced by the executor's own NOREAD -> the same test red
+- mutation: AC-S1 `Install.Step.Fix.Grants()` passes 0 instead of the public flag -> `Test.Fix.ItemKinds:TestGrants` red ("Grants() with the public flag on holds no %Ens_ConfigItemRun")
+- mutation: AC-S2 `WatchAnswers.ResolveIncident` reads the incidents of the newest incident's owner instead of the session's -> `Test.Fix.AskedTurns:TestOtherSessionsIncident` red (the second session no longer reads that there is nothing to reroute)
+- mutation: AC-S3 `Demo.Orders.Partner` also sends each order to `OrdersForReview` -> `Test.Demo.Production:TestOneOrderInEachFormat` red (the review item received a message)
+- mutation: AC-S4 `WatchTools.ProposeFix` no longer maps a reroute's `no_incident` to `nothing` with `MESSAGENOTHING` -> `Test.Fix.AskedTurns:TestNoIncident` red
+- mutation: AC-S6 `IncidentManager.RaiseFix` leaves the request's `TraceRef` empty -> `Test.Eval.Report:TestRaisedFixRequestIsCounted` red (the run's tally counts 0)
+- mutation: AC-DC the `incident.goodChanged` template adds a full stop after `{cause}` -> `Test.Fix.Asked:TestNoticeKeys` red ("and no double full stop")
+- mutation: AD-1 guard (RP2) the `Carry` block for a tool's `ProposeFix` deleted -> `Test.Core.CommandsRouting:TestProposeFixToolOnly` red
+- mutation: AC6 `AlreadyAsked` never finds one -> `Test.Fix.Asked` red
+- mutation: AC7 a rejected request gets an Execute (`Transitions` sets execute own) -> `Test.Fix.Asked:TestRejectedAndExpired` red
+- mutation: AC8 `Executor.Refusal` skips its kind check (a pending row is also refused by `Approval.StartExecution`, so "accept pending" alone stays green) -> `Test.Fix.Refused` red on the tool_call rows (fresh)
+- mutation: AC9 `READONLYPROPOSEFIX` 1 -> `Test.Bridge.Gate` red (the read-only list and the untrusted-turn case; `Test.Fix.AskedTurns` injected case also pins the denial)
+- mutation: AC10 `Move` without the approval Notification -> `Test.Fix.Asked` red (`Test.Fix.AskedTurns` asserts the WebChatOut Delivery)
+- mutation: AC11 `SuspendItem.Refusal` skips the online-demo check -> `Test.Fix.ItemKinds:TestOnlineDemoRefused` red
+- mutation: AC13 `NoFixKey` never gives `incident.goodChanged` -> `Test.Fix.Asked:TestNoticeKeys` red (`Test.Watch.GoodMessages` pins the notice's key on a fresh run)
+- mutation: AC14 item runs summed into the message counts -> `Test.Watch.Summary:TestKindLines` red
+- AC12 and AC15 (`more-to-try.spec.ts` K9b, `approval-card.spec.ts` A12): browser units, left to CI.
+
+**Left to CI** (each over 150 s): the browser units (`live:sign-in` parts with `approval-card.spec.ts` and `more-to-try.spec.ts`, `live:demo-path`, the online demo path), `live:install-upgrade` (the Demo step adds `OrdersForReview` to a running production), the shards, `bash ci/checks.sh`, `npm --prefix web run build`, and the lead's fresh-environment check (forward and `--reverse`).
 
 **Mutations (Rule 19), one per AC, recorded as `mutation: <change> -> <test red>`:** AC1 skip the target-enabled check -> `Test.Fix.Reroute`; AC2 drop `example` from the reroute slots -> `Test.Fix.Asked`; AC3 call `EnableConfigItem` with the dry run's `before` -> `Test.Fix.ItemKinds`; AC4 pass `header.TargetConfigName` instead of the target -> `Test.Fix.Reroute`; AC5 leave `Fix.Run.Suspended` out of Checks -> `Test.Checks.Runs`; AC6 drop the `already_asked` check -> `Test.Fix.Asked`; AC7 run Execute on rejected -> `Test.Fix.Asked`; AC8 let `Refusal` accept pending -> `Test.Fix.Refused`; AC9 set `READONLYPROPOSEFIX` 1 -> `Test.Fix.AskedTurns` injected case; AC10 omit the approval Notification on a chat ask -> `Test.Fix.AskedTurns`; AC11 skip the online-demo check -> `Test.Fix.ItemKinds`; AC12 the item sends nothing -> `more-to-try.spec.ts` (CI); AC13 `NoFixKey` returns `KEYNOFIX` -> `Test.Watch.GoodMessages`; AC14 sum item runs into messages -> `Test.Watch.Summary`; AC15 drop `fixKind` from `FromRow` -> `approval-card.spec.ts` (CI).
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Three new fix kinds (`suspend_item`, `resume_item`, `reroute`), asked for in the chat through the new `propose_fix` tool and the `ProposeFix` command. `IncidentManager.Asked` gets a synchronous dry run from FixExecutor, raises one `fix` request through the extracted `RaiseFix` and tells the sessions. After approval `Fix.Executor.InProduction` (the one namespace-switching method; `Resend` delegates) re-checks and runs the kind from the approved row. Task 0 passed (EnableConfigItem from FixExecutor's own job in OCUORDERS: suspend 0.98 s then 0.15 s, resume 0.15 s; `CheckUserPermission` 1), so no privilege was widened. The online demo refuses the item kinds (ONLINESHARED) and its install omits `%Ens_ConfigItemRun:U` (S1); `OrdersForReview` is a fourth, idle Orders item; the diagnosis still names `repair_resend` only.
+
+**Files changed.** 94 files since the baseline: the kinds (`Fix/Kind.cls` contract, `Kind/SuspendItem|ResumeItem|Reroute.cls`), `Fix/Executor.cls`, `Fix/Run.cls`, `Watch/{IncidentManager,Notice,Reader,Summary,Transitions}.cls`, `Checks/Process.cls`, `Tools/{WatchTools,WatchAnswers,Names,Watching}.cls`, `Msg/Command/ProposeFix.cls`, `Core/CommandsIn.cls`, `Agent/Chat.cls`, `Msg/Catalog/{Core,Watch}.cls`, `Channel/Telegram/In.cls`, `Install/Step/{Fix,Demo}.cls`, `Install/SecurityOverview.cls` and `docs/security-overview.md`, `Demo/Orders/{Production,Review}.cls`, `Demo/Features.cls`, `Live/Payload/*`, `Bridge/Data/ApprovalRequest.cls`, four mock scenarios, the web approval, rail, incident, phone and More to try files, README.md, EXPERIENCE.md, and new and updated tests (`Test/Fix/{ItemKinds,Reroute,Asked,AskedTurns}.cls` and the pins listed under Shared surfaces).
+
+**Review.** 36 findings from four layers: 13 medium rows patched in 9 entries (RP1 to RP10: the foreign-re-disable gap in `Checks.Process.Findings` via an optional `ours` key in Reported, and the missing pins for the CommandsIn guard, the reroute and item-kind failure paths, AC-S1, AC-S2, AC-S3, AC-S4, AC-S6, AC4's timing, a leaking test and the mutation lines); 1 medium entry deferred (security overview prose for the online-demo exclusion; `deferred:` list); 21 low findings rejected with the reasons in the Review Triage Log. No high.
+
+**Verification.** Task 0 on a fresh throwaway; every `(loop)` class of `## Verification` green on the warm stack after the patches (and once more for `Checks.*` and `Core.CommandsRouting`), including `Fix.ItemKinds`, `Fix.Reroute`, `Fix.AskedTurns`, `Demo.Orders`, `Demo.Production`, `Agent.Runners` (the last three also fresh in the first pass); both web `node --test` batches (59 and 282 tests), `docker/tests/test-mock.sh` (134), `npm --prefix web run lint`, `test-boundaries.sh`, `test-readme.sh`, `test-ci-config.sh`, `test-class-rules.sh`. Mutations (Rule 19) are recorded under `## Verification`. Warm and fresh throwaways are torn down.
+
+**Follow-up review recommended: true.** Unverified risk: RP1 changes the production-code contract of `Checks.Process.Findings` and the stored `Reported` JSON, and its patch tests plus the Reroute/AskedTurns mutations ran on a warm stack whose production jobs hold the earlier code; a fresh-environment run (the lead's check) and CI should confirm. Patched: medium 9 entries (13 rows), high 0.
+
+**Left to CI.** `approval-card.spec.ts` A12 (AC15), `more-to-try.spec.ts` K9b (AC12), `live:install-upgrade` (the Demo-step upgrade path), the shards, `bash ci/checks.sh`, `npm --prefix web run build`.
+
+**Residual risks and notes for the lead.** (1) EXPERIENCE.md numbers the new More to try entry "Item 9" as ruled, while that file's other items run 1 to 7; the Planner may renumber. (2) The server's 403 text for item kinds still says "resends" (`Web/Api.cls` is outside the AD-33 list; the page overrides it). (3) Overlap expected with Epic 41 on `Core/CommandsIn.cls` TOOLVERBS and `Agent/Chat.cls`, and with Epic 20 on `Test/Live/Payloads.cls`, `Demo/Features.cls`, the More to try files, README.md and EXPERIENCE.md. (4) `ci/units.sh` is unchanged.

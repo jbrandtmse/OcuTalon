@@ -142,7 +142,7 @@ describe('the call', () => {
     assert.match(method, /\/approvals\/\$\{encodeURIComponent\(ref\)\}\/answer`, \{ action, channel \}/);
     assert.doesNotMatch(method, /session|user/i);
     assert.match(card.code, /answer: \(ref, action, channel\) => this\.api\.answerApproval\(ref, action, channel\),\s*channel: 'web',/);
-    assert.match(card.code, /this\.answer\.press\(this\.view\(\)\.ref, action\)/);
+    assert.match(card.code, /this\.answer\.press\(this\.view\(\)\.ref, action, this\.approval\(\)\.fixKind \?\? ''\)/);
     assert.match(press.code, /\.answer\(ref, action, this\.options\.channel\)/, 'the press posts the channel it was given');
     assert.doesNotMatch(press.code, /session|user/i);
   });

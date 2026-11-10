@@ -25,6 +25,10 @@ Include Ensemble
 ///         (the next start's Interrupt ends it), whose row is not executing or whose read is not read is left alone.
 ///     A run whose End refuses it (another job ended it) or whose save failed (one Type 3 warning, LOGSAVE) returns no result and is left for the next Tick; a result never goes out twice for
 ///     a run. Sweep logs one Type 4 line for each run it ends (LOGSWEPT); an exception for one run logs one Type 3 warning (LOGSWEEP) and the next run is still swept.
+/// Suspended (Story 23.2; AD-15) answers, for Checks, which items of a production OcuTalon itself suspended: a list of item names, each the item of the newest run of a request that is done, of a fix
+/// kind whose targets are items, that changed an item (Completed above 0) in that namespace and production (the incident's), when that run is a suspend_item. A resume_item that changed the
+/// item ends the suspension; a run that changed nothing neither starts nor ends one. Checks does not raise a disabled-item finding for such an item while it stays disabled from the suspend (Checks.Process Findings, which keeps the names it has sighted in Reported "ours"), and a disable by anyone else
+/// after the item was enabled by anyone else is reported. It reads the rows by SQL and writes nothing.
 /// The seams Unended (the runs with no EndedAt), Started (the start of the production), Statuses (the read of the copies, Executor.Read), Close (FinishExecution) and WriteAudit (the audit write)
 /// are class methods that a test subclass overrides (Test.Fix.RunProbe). Fix.Run switches no namespace (AD-3): the only read of the production is Watch.Reader, through Executor.Read.
 Class OcuTalon.Fix.Run Extends %RegisteredObject
@@ -50,6 +54,45 @@ Parameter LOGAUDIT = "Fix.Run could not write the audit entry of request ";
 Parameter LOGSWEEP = "Fix.Run could not sweep the run of request ";
 
 Parameter LOGSWEPT = "Fix.Run ended the run of request ";
+
+/// The items that OcuTalon suspended in the production (see the class description), as a list of names in the order they were suspended.
+ClassMethod Suspended(namespace As %String, production As %String) As %List
+{
+	Set kinds = ""
+	Set classes = ##class(OcuTalon.Fix.Kind).Classes()
+	Set position = 0
+	While $ListNext(classes, position, class) {
+		If $Parameter(class, "TARGETTYPE") = "item" Set kinds = kinds _ $ListBuild($Parameter(class, "NAME"))
+	}
+	If kinds = "" Quit ""
+	Set marks = ""
+	For i = 1:1:$ListLength(kinds) Set marks = marks _ $Select(marks = "": "", 1: ",") _ "?"
+	Set suspend = $Parameter("OcuTalon.Fix.Kind.SuspendItem", "NAME")
+	Set statement = "SELECT a.FixKind, a.FixParameters FROM OcuTalon_Data.FixRun r JOIN OcuTalon_Bridge_Data.ApprovalRequest a ON a.Ref = r.ApprovalRef JOIN OcuTalon_Data.Incident i ON i.Ref = r.IncidentRef WHERE i.Namespace = ? AND i.Production = ? AND a.State = 'done' AND r.Completed > 0 AND a.FixKind IN ("_marks_") ORDER BY r.ID"
+	Set args = 2 + $ListLength(kinds)
+	Set args(1) = namespace
+	Set args(2) = production
+	For i = 1:1:$ListLength(kinds) Set args(2 + i) = $List(kinds, i)
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, statement, args...)
+	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, rs.%Message))
+	Set names = ""
+	While rs.%Next() {
+		Set item = ""
+		Try {
+			Set item = {}.%FromJSON(rs.%GetData(2)).item
+		} Catch {
+			Set item = ""
+		}
+		If item = "" Continue
+		Set at = $ListFind(names, item)
+		If rs.%GetData(1) = suspend {
+			If 'at Set names = names _ $ListBuild(item)
+		} ElseIf at {
+			Set names = $List(names, 1, at - 1) _ $List(names, at + 1, *)
+		}
+	}
+	Quit names
+}
 
 /// Marks each run that the restart cut short and closes its request (see the class description). problems is a dynamic array of one text for each problem, each naming the request.
 /// The status is an error only when the runs cannot be read.

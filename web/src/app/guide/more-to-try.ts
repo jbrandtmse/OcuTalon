@@ -36,7 +36,7 @@ let panels = 0;
  * control's own. The incident summary item presses the Dismiss of the newest incident card that is resolved (the incident's own close, which
  * writes its summary) and, when no card is resolved (the guide's incident was closed already, or the guide has not run), sends "Show me the incident
  * summary" through the chat's outbox instead; the Persona item opens the rail and the Persona card's Change, the suspicious email item selects the
- * Simulated mailbox tab and presses the suspicious-request chip, the Reject a fix item presses the box's Break the feed, the Demo view item presses the
+ * Simulated mailbox tab and presses the suspicious-request chip, the Reject a fix item presses the box's Break the feed, the reroute item sends its prompt through the chat's outbox as the user's own message (Story 23.2), the Demo view item presses the
  * Demo view switch while it is on, the memory item sends its prompt through the chat's outbox (a new message of the user's), the documents item is a
  * link to the Documents page and the heartbeat item opens the rail and focuses the Heartbeat checklist card's heading, pressing nothing. Every action runs from the control's own click, and focus moves
  * only for that press. The panel announces nothing, and it emits `pressed` so that the guide keeps the panel open, and `squeezed` when the
@@ -53,7 +53,7 @@ let panels = 0;
  * carries the focus rule's `moreItem` key like the controls, so a focused group hands focus on when the finish leaves.
  * In the stacked column the page scrolls and the group grows with its items.
  *
- * The memory item is aria-disabled, never disabled, while a turn is in flight or the message allowance is used up, and a press then sends nothing; the
+ * The memory item and the reroute item are aria-disabled, never disabled, while a turn is in flight or the message allowance is used up, and a press then sends nothing; the
  * incident summary item's press sends nothing in the same cases when it falls back to sending its prompt.
  */
 @Component({
@@ -75,8 +75,8 @@ let panels = 0;
                 type="button"
                 class="button button-secondary"
                 data-guide-focus="moreItem"
-                [attr.aria-disabled]="item.action === 'memory' && blocked() ? 'true' : null"
-                [attr.aria-describedby]="item.action === 'memory' ? describedBy() : null"
+                [attr.aria-disabled]="(item.action === 'memory' || item.action === 'reroute') && blocked() ? 'true' : null"
+                [attr.aria-describedby]="item.action === 'memory' || item.action === 'reroute' ? describedBy() : null"
                 (click)="press(item)"
               >{{ item.button }}</button>
             }
@@ -222,6 +222,11 @@ export class MoreToTry {
         break;
       case 'rejectFix':
         this.handTo([BREAK_FEED_BUTTON], () => true);
+        break;
+      case 'reroute':
+        if (!this.blocked()) {
+          this.outbox.send(MORE_TO_TRY_TEXTS.reroutePrompt);
+        }
         break;
       case 'demoView':
         this.handTo([DEMO_VIEW_SWITCH], (control) => control.getAttribute('aria-checked') === 'true');

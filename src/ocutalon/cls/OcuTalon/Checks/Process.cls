@@ -49,8 +49,9 @@
 ///   - Findings (Story 30.4; AC 1-3; FR-23, AD-14, AD-18, AD-30, AD-32): when the read gave the production's state (the outcome read, nothing thrown, a
 ///     state other than timeout, unknown and ""; a run that is not_checked only because the read was cut or the incidents could not be read still counts),
 ///     the state and the disabled items are compared with what the row last reported (BackgroundCheck.Reported, JSON {"stopped": 1 while the stop has been
-///     reported, "disabled": [the names reported disabled]}); Findings applies the rule. A production stopped or suspended since the last run is one finding,
-///     and each item disabled since is one, in the order the reader gave them; troubled, network_stopped and a restart are not stops, and a restart makes the
+///     reported, "disabled": [the names reported disabled], "ours": [the names of the disabled items that OcuTalon suspended, only when there is one]}); Findings applies the rule. A production stopped or suspended since the last run is one finding,
+///     and each item disabled since is one, in the order the reader gave them; an item that OcuTalon itself suspended (Fix.Run Suspended, Story 23.2) is recorded in Reported but gets no finding, and a disable by anyone else after that (the item enabled and disabled again) does;
+///     troubled, network_stopped and a restart are not stops, and a restart makes the
 ///     next stop new. A row whose Reported is empty (a new watch, or one from before this story) only records its baseline: the first reading run reports
 ///     nothing. A run that read no state leaves Reported as it was. Each finding is one OcuTalon.Msg.Item for Intake only (Channel system, Provenance
 ///     untrusted, a new ItemId, the row's SessionRef as owner, the Text TEXTSTOPPED or TEXTDISABLED with the display name, CatalogKey watch.productionStopped or
@@ -575,7 +576,7 @@ Method Run(row As %DynamicObject, tickAt As %String, keep As %Boolean = 0) [ Pri
 	Set reported = row.reported
 	Set items = ##class(%ListOfObjects).%New()
 	If (outcome = "read") && 'threw {
-		Set found = ..Findings(row.reported, state, disabled, .reported)
+		Set found = ..Findings(row.reported, state, disabled, .reported, ##class(OcuTalon.Fix.Run).Suspended(row.namespace, row.production))
 		Set iterator = found.%GetIterator()
 		While iterator.%GetNext(, .one) {
 			If one.kind = "stopped" {
@@ -618,8 +619,12 @@ Method Record(row As %DynamicObject, tickAt As %String, runAt As %String, result
 /// production's running state, disabled the dynamic array of the names of its disabled items. The result is a dynamic array of {"kind": "stopped"} and
 /// {"kind": "disabled", "item"}, the stop first and the items in the order of disabled, and reported is the Reported to store. Empty previous (or one
 /// that is not JSON) is a baseline: no finding, and reported records the state. A state of timeout, unknown or "" was not read: no finding, and reported
-/// is previous, unchanged.
-ClassMethod Findings(previous As %String, state As %String, disabled As %DynamicArray, Output reported As %String) As %DynamicArray
+/// is previous, unchanged. suspended is a list of the item names that OcuTalon itself suspended (Fix.Run Suspended); reported may also carry "ours", the names of those items that
+/// were disabled when sighted, written only when there is one. A disabled item that suspended lists gets no finding when it is not in the previous ours (it is added to ours), so that a
+/// suspend the user approved is not reported as a new state change (Story 23.2); when it is in the previous ours and was not in the previous disabled, someone else disabled it again
+/// and it is a finding. The new ours is the previous ours restricted to suspended, plus the names just added; a baseline records the disabled names that suspended lists. An item that
+/// suspended does not list follows the plain rule: a finding when it was not in the previous disabled.
+ClassMethod Findings(previous As %String, state As %String, disabled As %DynamicArray, Output reported As %String, suspended As %List = "") As %DynamicArray
 {
 	Set found = []
 	Set reported = $Get(previous)
@@ -634,6 +639,7 @@ ClassMethod Findings(previous As %String, state As %String, disabled As %Dynamic
 		}
 	}
 	Set names = []
+	Set ours = []
 	Set iterator = disabled.%GetIterator()
 	While iterator.%GetNext(, .name) {
 		Do names.%Push(name, "string")
@@ -647,14 +653,30 @@ ClassMethod Findings(previous As %String, state As %String, disabled As %Dynamic
 				Set seen(name) = ""
 			}
 		}
-		Set iterator = names.%GetIterator()
-		While iterator.%GetNext(, .name) {
-			If '$Data(seen(name)) Do found.%Push({"kind": "disabled", "item": (name)})
+		If $IsObject(before.ours) {
+			Set iterator = before.ours.%GetIterator()
+			While iterator.%GetNext(, .name) {
+				Set wasOurs(name) = ""
+				If $ListFind(suspended, name) Do ours.%Push(name, "string")
+			}
+		}
+	}
+	Set iterator = names.%GetIterator()
+	While iterator.%GetNext(, .name) {
+		If $ListFind(suspended, name) {
+			If '$Data(wasOurs(name)) {
+				Do ours.%Push(name, "string")
+			} ElseIf '$Data(seen(name)) {
+				Do found.%Push({"kind": "disabled", "item": (name)})
+			}
+		} ElseIf $IsObject(before) && '$Data(seen(name)) {
+			Do found.%Push({"kind": "disabled", "item": (name)})
 		}
 	}
 	Set now = {}
 	Do now.%Set("stopped", stopped, "number")
 	Do now.%Set("disabled", names)
+	If ours.%Size() Do now.%Set("ours", ours)
 	Set reported = now.%ToJSON()
 	Quit found
 }

@@ -695,6 +695,10 @@ export interface SeedDryRun {
   field?: string;
   before?: string;
   after?: string;
+  /** A reroute's dry run (Story 23.2): the item the messages are at, the item they would go to and the header id of the example message. */
+  from?: string;
+  to?: string;
+  example?: string;
 }
 
 /**
@@ -706,6 +710,8 @@ export interface ApprovalFields {
   /** The request's Ref (a new one unless given): a case that names the Ref in its incident's RequestRefs gives it before the request exists. */
   ref?: string;
   kind?: string;
+  /** The request's FixKind (repair_resend, suspend_item, resume_item or reroute). */
+  fixKind?: string;
   state?: string;
   incidentRef?: string;
   toolName?: string;
@@ -742,10 +748,14 @@ export async function seedApproval(user: string, fields: ApprovalFields = {}, ow
             before: fields.dryRun.before ?? '',
             after: fields.dryRun.after ?? '',
             itemNoun: fields.dryRun.itemNoun,
+            ...(fields.dryRun.from === undefined ? {} : { from: fields.dryRun.from }),
+            ...(fields.dryRun.to === undefined ? {} : { to: fields.dryRun.to }),
+            ...(fields.dryRun.example === undefined ? {} : { example: fields.dryRun.example }),
           });
   const row = properties({
     Ref: fields.ref,
     Kind: fields.kind,
+    FixKind: fields.fixKind,
     ToolName: fields.toolName,
     ExpiresAt: fields.expiresAt,
     DryRun: dryRun,

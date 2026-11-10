@@ -46,6 +46,9 @@ Parameter AGENTPACKAGE = "OcuTalon.Agent.";
 /// The package of the installer's areas, whose prefix is left off the area names in the privilege lists.
 Parameter AREAPREFIX = "OcuTalon.Install.Step.";
 
+/// The classification of every fix kind in the document (AD-16): a fix changes something, so it always waits for one approval with a dry run.
+Parameter FIXCLASSIFICATION = "risky";
+
 /// The namespace of the product, where the trace role is granted SQL SELECT on Ens.MessageHeader.
 Parameter HOMENAMESPACE = "OCUTALON";
 
@@ -55,7 +58,7 @@ Parameter SQLOBJECT = "Ens.MessageHeader";
 /// The facts of the document as {"tools","fixKinds","roles","demoOnly","sql","serviceUser","applications"}:
 ///   - tools: one {"name","source","toolset","agents","label","classification","readOnly","trustedOutput","resources"} per tool, sorted by name;
 ///     agents is the array of the agent classes that hold the tool's toolset, resources the array of {"resource","permission"};
-///   - fixKinds: one {"class","name","resources"} per kind of Fix.Kind.Classes, sorted by class;
+///   - fixKinds: one {"class","name","classification","resources"} per kind of Fix.Kind.Classes, sorted by class; every fix kind is risky (FIXCLASSIFICATION): it waits for an approval with a dry run;
 ///   - roles: one {"role","declaredBy","grants"} per role, sorted by role, where grants is the array of {"resource","permission","declaredBy"}
 ///     sorted by resource and declaredBy the short names of the areas whose Grants() declare it;
 ///   - demoOnly: the {"role","resource","permission"} that demo mode adds to the service role and the trace role;
@@ -204,7 +207,7 @@ ClassMethod FixKindRows() As %DynamicArray
 	Set classes = ##class(OcuTalon.Fix.Kind).Classes()
 	Set position = 0
 	While $ListNext(classes, position, class) {
-		Set rows(class) = {"class": (class), "name": ($Parameter(class, "NAME")), "resources": (##class(OcuTalon.Bridge.Policy.Gate).Resources($Parameter(class, "RESOURCES"), class))}
+		Set rows(class) = {"class": (class), "name": ($Parameter(class, "NAME")), "classification": (..#FIXCLASSIFICATION), "resources": (##class(OcuTalon.Bridge.Policy.Gate).Resources($Parameter(class, "RESOURCES"), class))}
 	}
 	Set result = []
 	Set class = ""
@@ -378,10 +381,10 @@ ClassMethod ToolsText(model As %DynamicObject) As %String
 ClassMethod FixKindsText(model As %DynamicObject) As %String
 {
 	Set text = "## Fix kinds"_$Char(10)_$Char(10)
-	Set text = text_"| Class | Name | Resources |"_$Char(10)_"| --- | --- | --- |"_$Char(10)
+	Set text = text_"| Class | Name | Classification | Resources |"_$Char(10)_"| --- | --- | --- | --- |"_$Char(10)
 	Set iterator = model.fixKinds.%GetIterator()
 	While iterator.%GetNext(, .kind) {
-		Set text = text_"| "_..Code(kind.class)_" | "_..Code(kind.name)_" | "_..Pairs(kind.resources)_" |"_$Char(10)
+		Set text = text_"| "_..Code(kind.class)_" | "_..Code(kind.name)_" | "_..Cell(kind.classification)_" | "_..Pairs(kind.resources)_" |"_$Char(10)
 	}
 	Quit text_$Char(10)
 }

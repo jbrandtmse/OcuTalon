@@ -23,6 +23,10 @@
  *   never looks at a date. The row is "" unless `eitherWay` is true, `reading` is not empty and `resend` is a number of at least 1.
  *   Its slots are the notice's: resendCount is `resend` (which also chooses the one or many form), reading is `reading` and item is
  *   the dry run's singular noun, "message" when it has none. It stays on an answered request.
+ * - A suspend or resume (Story 23.2; fixKind suspend_item or resume_item) has a dry run block of two rows, Before "{item}: enabled" and After "{item}: disabled" (swapped for a
+ *   resume), with no count line, no fixed-targets line and no resend row; a reroute has the count line, Before "Message {example}: {from}", After "Message {example}: {to}" and the
+ *   resend row "{count} copies to {to}; the originals stay unchanged." (one copy: "1 copy to {to}; the original stays unchanged."). A refused answer of an item kind reads
+ *   "Only an approver for fixes can answer this request.".
  * - A setting request (Story 40.6; kind "setting", a proposed persona) is drawn with the title from the context alone (its notice text,
  *   the catalog's "OcuTalon suggests a new persona..." sentence, is not the card's text), the action is that title with no period, and
  *   `setting` holds the three lines "Now: {old}", "Proposed: {new}" (the payload's dry run before and after) and, while pending only,
@@ -56,11 +60,17 @@ export const APPROVAL_TEXTS = {
   resendCopies: '{count} repaired copies; the originals stay unchanged.',
   resendCopyOne: '1 repaired copy; the original stays unchanged.',
   nothingYet: 'Nothing has changed yet.',
+  itemState: '{item}: {state}',
+  rerouteBefore: 'Message {example}: {from}',
+  rerouteAfter: 'Message {example}: {to}',
+  rerouteCopies: '{count} copies to {to}; the originals stay unchanged.',
+  rerouteCopyOne: '1 copy to {to}; the original stays unchanged.',
   settingNow: 'Now: {old}',
   settingProposed: 'Proposed: {new}',
   settingNote: 'Nothing changes unless you approve.',
   expires: 'Expires {when}',
   notApprover: 'Only an approver for resends can answer this request.',
+  notApproverFix: 'Only an approver for fixes can answer this request.',
   gone: 'That request is no longer available.',
   busyNotice: "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting.",
   nounOne: 'message',
@@ -216,11 +226,52 @@ function eitherWayOf(dry: DryRun, resend: number | undefined, ctx: ApprovalConte
   });
 }
 
+/** The dry run block of a suspend or resume (Story 23.2): the item's state before and after, or undefined when the dry run names no item. */
+function itemDryRunView(approval: ApprovalPayload, pending: boolean): DryRunView | undefined {
+  const dry = approval.dryRun;
+  const item = dry === null || typeof dry !== 'object' ? '' : textOf(dry.item);
+  if (item === '') {
+    return undefined;
+  }
+  return {
+    countLine: '',
+    field: '',
+    before: fill(APPROVAL_TEXTS.itemState, { item, state: textOf(dry?.before) }),
+    after: fill(APPROVAL_TEXTS.itemState, { item, state: textOf(dry?.after) }),
+    eitherWay: '',
+    resendLine: '',
+    nothingYet: pending ? APPROVAL_TEXTS.nothingYet : '',
+  };
+}
+
+/** The dry run block of a reroute (Story 23.2): the example message where it is now and where it would go, and the copies that will be resent. */
+function rerouteDryRunView(dry: DryRun & { affected: number }, pending: boolean): DryRunView {
+  const resend = numberOf(dry.resend);
+  const example = textOf(dry.example);
+  const to = textOf(dry.to);
+  return {
+    countLine: tidy(fill(APPROVAL_TEXTS.countLine, { count: String(dry.affected), noun: nounFor(dry, dry.affected) })),
+    field: '',
+    before: example === '' ? '' : fill(APPROVAL_TEXTS.rerouteBefore, { example, from: textOf(dry.from) }),
+    after: example === '' ? '' : fill(APPROVAL_TEXTS.rerouteAfter, { example, to }),
+    eitherWay: '',
+    resendLine:
+      resend === undefined ? '' : resend === 1 ? fill(APPROVAL_TEXTS.rerouteCopyOne, { to }) : fill(APPROVAL_TEXTS.rerouteCopies, { count: String(resend), to }),
+    nothingYet: pending ? APPROVAL_TEXTS.nothingYet : '',
+  };
+}
+
 /** The dry run block of a request, or undefined when its dry run has no count. */
 function dryRunView(approval: ApprovalPayload, pending: boolean, ctx: ApprovalContext): DryRunView | undefined {
+  if (approval.fixKind === 'suspend_item' || approval.fixKind === 'resume_item') {
+    return itemDryRunView(approval, pending);
+  }
   const dry = dryRunOf(approval);
   if (dry === undefined) {
     return undefined;
+  }
+  if (approval.fixKind === 'reroute') {
+    return rerouteDryRunView(dry, pending);
   }
   const noun = nounFor(dry, dry.affected);
   const field = textOf(dry.field);
@@ -349,7 +400,7 @@ function messageOf(body: unknown): string {
  * - 404 is "no longer available", 403 not allowed (the server's message for the request's kind);
  * - status 0 (no connection) is unreachable, and any other status is failed with its `error.message`, else unreachable.
  */
-export function answerOutcomeOf(status: number, body: unknown): AnswerOutcome {
+export function answerOutcomeOf(status: number, body: unknown, fixKind = ''): AnswerOutcome {
   const code = textOf(bodyObject(bodyObject(body)?.['error'])?.['code']);
   if (status === 200) {
     return { kind: 'done', approval: approvalOf(body) };
@@ -364,7 +415,8 @@ export function answerOutcomeOf(status: number, body: unknown): AnswerOutcome {
     return { kind: 'gone' };
   }
   if (status === 403) {
-    return { kind: 'notAllowed', message: messageOf(body) || APPROVAL_TEXTS.notApprover };
+    const itemKind = fixKind === 'suspend_item' || fixKind === 'resume_item';
+    return { kind: 'notAllowed', message: itemKind ? APPROVAL_TEXTS.notApproverFix : messageOf(body) || APPROVAL_TEXTS.notApprover };
   }
   const message = status === 0 ? '' : messageOf(body);
   return message === '' ? { kind: 'unreachable' } : { kind: 'failed', message };
@@ -404,6 +456,8 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  * - `failedAgain` and `skipped` above 0: result.failedAndSkipped; `failedAgain` above 0: result.failedAgain; `skipped` above 0:
  *   result.skipped; all partial, `triangle-alert`;
  * - otherwise result.allThrough, success, `circle-check`.
+ * A request of a kind the user asks for in the chat (Story 23.2) has no band for a result that would say "went through": a suspend or resume has none (the chat's notice says
+ * what happened to the item), and a reroute that completed has none (the notice says where the copies went); a reroute with failures or skips has the bands above.
  * A run still going reaches the page as `executing` with no result, so no band shows and the card's fixing line is its still-resending
  * state. The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
  * forms and the noun's form from the strings given.
@@ -411,6 +465,9 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
 export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefined, render: PageRender): ResultView | undefined {
   const result = request.result;
   if (result === null || typeof result !== 'object' || Array.isArray(result)) {
+    return undefined;
+  }
+  if (request.fixKind === 'suspend_item' || request.fixKind === 'resume_item') {
     return undefined;
   }
   const total = numberOf(result.total) ?? 0;
@@ -452,6 +509,8 @@ export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefi
   } else if (skipped > 0) {
     key = 'result.skipped';
     slots = { ...counts, skipped: String(skipped) };
+  } else if (request.fixKind === 'reroute') {
+    return undefined;
   } else {
     key = 'result.allThrough';
     slots = { count: counts.count, itemNoun: counts.itemNoun };

@@ -813,6 +813,148 @@ XData Entries [ MimeType = application/json ]
   "slots": {},
   "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
  },
+ "incident.suspendRequest": {
+  "text": "I can suspend {item} in {production}. Approve?\n\nDry run: {item} is enabled now and would be disabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I can suspend {item} in {production}.\n\nDry run: {item} is enabled now and would be disabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "item": "text",
+   "production": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "incident.resumeRequest": {
+  "text": "I can resume {item} in {production}. Approve?\n\nDry run: {item} is disabled now and would be enabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I can resume {item} in {production}.\n\nDry run: {item} is disabled now and would be enabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "item": "text",
+   "production": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "incident.rerouteRequest": {
+  "text": "I can reroute {count} failed {itemNoun} from {from} to {to}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: message {example} would go to {to} instead of {from}. I'll resend {resendCount} copies to {to}; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I can reroute {count} failed {itemNoun} from {from} to {to}.\n\nDry run: {count} {itemNoun} affected. Example: message {example} would go to {to} instead of {from}. I'll resend {resendCount} copies to {to}; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "from": "text",
+   "to": "text",
+   "example": "text",
+   "resendCount": "count"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09",
+  "one": {
+   "slot": "resendCount",
+   "text": "I can reroute {count} failed {itemNoun} from {from} to {to}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: message {example} would go to {to} instead of {from}. I'll resend 1 copy to {to}; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+   "web": "I can reroute {count} failed {itemNoun} from {from} to {to}.\n\nDry run: {count} {itemNoun} affected. Example: message {example} would go to {to} instead of {from}. I'll resend 1 copy to {to}; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."
+  }
+ },
+ "incident.goodChanged": {
+  "text": "{count} {itemNoun} failed since {time}. {cause}. The fix I would use would also change {noun} that went through, so I'm not proposing it. Nothing was changed.\n\nFailures:\n{groups}\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "time": "time",
+   "cause": "sentence",
+   "noun": "text",
+   "groups": "groups"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.itemSuspended": {
+  "text": "{item} in {production} is suspended: it is disabled now. To undo it, ask me to resume {item}.",
+  "slots": {
+   "item": "text",
+   "production": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.itemResumed": {
+  "text": "{item} in {production} is enabled again.",
+  "slots": {
+   "item": "text",
+   "production": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.itemSkipped": {
+  "text": "{item} was not changed: {reason}. It needs a new approval.",
+  "slots": {
+   "item": "text",
+   "reason": "sentence"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.itemNotChanged": {
+  "text": "Nothing was changed: {reason}.",
+  "slots": {
+   "reason": "sentence"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.rerouted": {
+  "text": "All {count} {itemNoun} were rerouted to {to} and completed there. The originals stay unchanged.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "to": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09",
+  "one": {
+   "slot": "count",
+   "text": "The {itemNoun} was rerouted to {to} and completed there. The original stays unchanged."
+  }
+ },
+ "summary.requestedSuspend": {
+  "text": "{time}: OcuTalon asked for approval to suspend {item}.",
+  "slots": {
+   "time": "time",
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.requestedResume": {
+  "text": "{time}: OcuTalon asked for approval to resume {item}.",
+  "slots": {
+   "time": "time",
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.requestedReroute": {
+  "text": "{time}: OcuTalon asked for approval to reroute {count} {itemNoun} to {to}.",
+  "slots": {
+   "time": "time",
+   "count": "count",
+   "itemNoun": "noun",
+   "to": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.itemSuspended": {
+  "text": "{time}: {item} was suspended.",
+  "slots": {
+   "time": "time",
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.itemResumed": {
+  "text": "{time}: {item} was resumed.",
+  "slots": {
+   "time": "time",
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.itemNotChanged": {
+  "text": "{time}: {item} was not changed.",
+  "slots": {
+   "time": "time",
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
  "mcp.serverUnavailable": {
   "text": "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools.",
   "slots": {

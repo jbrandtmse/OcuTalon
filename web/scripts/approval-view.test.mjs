@@ -51,6 +51,78 @@ const pending = (over = {}) => ({
 const answered = (state, over = {}) =>
   pending({ state, answeredAction: state === 'rejected' ? 'reject' : 'approve', answeredChannel: 'web', answeredBy: 'FLOOR', answeredAt: '2026-10-27T14:15:00Z', ...over });
 
+describe('the fixes the user asks for in the chat (Story 23.2)', () => {
+  const suspend = (over = {}) => pending({ fixKind: 'suspend_item', dryRun: { item: 'OrdersToWarehouse', before: 'enabled', after: 'disabled' }, ...over });
+  const reroute = (over = {}) =>
+    pending({
+      fixKind: 'reroute',
+      dryRun: { affected: 50, resend: 50, leftOut: 0, itemNoun: { one: 'order', other: 'orders' }, from: 'OrdersFromPartner', to: 'OrdersForReview', example: '1234' },
+      ...over,
+    });
+
+  it('titles a suspend, a resume and a reroute by the rail\'s title, and names the buttons by it', () => {
+    const view = approvalView(suspend(), ctx());
+    assert.equal(view.action, 'Suspend OrdersToWarehouse.');
+    assert.equal(view.approveName, 'Approve: suspend OrdersToWarehouse');
+    assert.equal(view.rejectName, 'Reject: suspend OrdersToWarehouse');
+    assert.equal(approvalView(suspend({ fixKind: 'resume_item', dryRun: { item: 'OrdersToWarehouse', before: 'disabled', after: 'enabled' } }), ctx()).action, 'Resume OrdersToWarehouse.');
+    const rerouted = approvalView(reroute(), ctx());
+    assert.equal(rerouted.action, 'Reroute 50 orders to OrdersForReview.');
+    assert.equal(rerouted.approveName, 'Approve: reroute 50 orders to OrdersForReview');
+    assert.equal(approvalView(reroute({ dryRun: { ...reroute().dryRun, affected: 1, resend: 1 } }), ctx()).action, 'Reroute 1 order to OrdersForReview.');
+  });
+
+  it('shows the item\'s state before and after for a suspend, swapped for a resume, with no count and no fixed-targets line', () => {
+    const view = approvalView(suspend(), ctx());
+    assert.deepEqual(view.dryRun, { countLine: '', field: '', before: 'OrdersToWarehouse: enabled', after: 'OrdersToWarehouse: disabled', eitherWay: '', resendLine: '', nothingYet: 'Nothing has changed yet.' });
+    assert.equal(view.fixedTargets, '');
+    const resume = approvalView(suspend({ fixKind: 'resume_item', dryRun: { item: 'OrdersToWarehouse', before: 'disabled', after: 'enabled' } }), ctx());
+    assert.equal(resume.dryRun.before, 'OrdersToWarehouse: disabled');
+    assert.equal(resume.dryRun.after, 'OrdersToWarehouse: enabled');
+    assert.equal(approvalView(suspend({ dryRun: {} }), ctx()).dryRun, undefined, 'a dry run with no item has no block');
+  });
+
+  it('shows the example where it is and where it would go, and the copies, for a reroute (one form too)', () => {
+    const view = approvalView(reroute(), ctx());
+    assert.deepEqual(view.dryRun, {
+      countLine: '50 orders affected',
+      field: '',
+      before: 'Message 1234: OrdersFromPartner',
+      after: 'Message 1234: OrdersForReview',
+      eitherWay: '',
+      resendLine: '50 copies to OrdersForReview; the originals stay unchanged.',
+      nothingYet: 'Nothing has changed yet.',
+    });
+    const one = approvalView(reroute({ dryRun: { ...reroute().dryRun, affected: 1, resend: 1 } }), ctx());
+    assert.equal(one.dryRun.resendLine, '1 copy to OrdersForReview; the original stays unchanged.');
+    assert.equal(approvalView(reroute({ state: 'approved' }), ctx()).dryRun.nothingYet, '', 'an answered request keeps the record without the note');
+  });
+
+  it('reads a refusal of an item kind as the fixes text, whatever the server said, and any other as before', () => {
+    const body = { error: { code: 'not_allowed', message: 'Only an approver for resends can answer this request.' } };
+    assert.deepEqual(answerOutcomeOf(403, body, 'suspend_item'), { kind: 'notAllowed', message: 'Only an approver for fixes can answer this request.' });
+    assert.deepEqual(answerOutcomeOf(403, body, 'resume_item'), { kind: 'notAllowed', message: 'Only an approver for fixes can answer this request.' });
+    assert.deepEqual(answerOutcomeOf(403, body, 'reroute'), { kind: 'notAllowed', message: 'Only an approver for resends can answer this request.' });
+    assert.deepEqual(answerOutcomeOf(403, undefined, 'suspend_item'), { kind: 'notAllowed', message: 'Only an approver for fixes can answer this request.' });
+  });
+});
+
+describe('the result band of a fix the user asked for in the chat (Story 23.2)', () => {
+  const render = renderPageText;
+  it('has none for a suspend or a resume, whatever it did, and none for a reroute whose copies all completed', () => {
+    const done = { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0 };
+    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'suspend_item', result: done }, undefined, render), undefined);
+    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'resume_item', result: { ...done, completed: 0, skipped: 1, reason: 'x' } }, undefined, render), undefined);
+    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'reroute', result: { total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0 } }, { one: 'order', other: 'orders' }, render), undefined);
+    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'repair_resend', result: { total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0 } }, { one: 'order', other: 'orders' }, render).key, 'result.allThrough', 'the diagnosis\'s kind is as before');
+  });
+
+  it('keeps the bands of a reroute that failed again or skipped some', () => {
+    const view = resultView({ ref: 'A', state: 'done', fixKind: 'reroute', result: { total: 50, resent: 50, completed: 48, failedAgain: 2, skipped: 0, interrupted: 0, reason: 'x' } }, { one: 'order', other: 'orders' }, render);
+    assert.equal(view.key, 'result.failedAgain');
+  });
+});
+
 describe('the pending card', () => {
   it('has the label, the action, the fixed-targets line, the dry run, the buttons\' names and the expiry, as the matrix writes them', () => {
     const view = approvalView(pending(), ctx());
@@ -527,11 +599,17 @@ describe('the texts', () => {
       resendCopies: '{count} repaired copies; the originals stay unchanged.',
       resendCopyOne: '1 repaired copy; the original stays unchanged.',
       nothingYet: 'Nothing has changed yet.',
+      itemState: '{item}: {state}',
+      rerouteBefore: 'Message {example}: {from}',
+      rerouteAfter: 'Message {example}: {to}',
+      rerouteCopies: '{count} copies to {to}; the originals stay unchanged.',
+      rerouteCopyOne: '1 copy to {to}; the original stays unchanged.',
       settingNow: 'Now: {old}',
       settingProposed: 'Proposed: {new}',
       settingNote: 'Nothing changes unless you approve.',
       expires: 'Expires {when}',
       notApprover: 'Only an approver for resends can answer this request.',
+      notApproverFix: 'Only an approver for fixes can answer this request.',
       gone: 'That request is no longer available.',
       busyNotice: "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting.",
       nounOne: 'message',

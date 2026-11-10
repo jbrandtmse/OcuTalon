@@ -138,6 +138,8 @@ ClassMethod Details(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.D
 		Set part = ##class(OcuTalon.Live.Payload.Part.IncidentRequest).%New()
 		Set part.Ref = request.Ref
 		Set part.State = request.State
+		Set part.FixKind = request.FixKind
+		Do ..Chosen(part, request)
 		Set run = ##class(OcuTalon.Data.FixRun).OfRequest(request.Ref)
 		If $IsObject(run) && (run.EndedAt '= "") {
 			Set part.Result = ##class(OcuTalon.Live.Payload.Part.IncidentRequestResult).%New()
@@ -151,6 +153,19 @@ ClassMethod Details(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.D
 			Set part.Result.Reason = run.Reason
 		}
 		Do payload.Requests.Insert(part)
+	}
+}
+
+/// Fills the item and the count of a request part for the fix kinds the user asks for in the chat: the item of a suspend or resume, the target item of a reroute and the
+/// count of its dry run. Any other kind, and a request whose parameters or dry run can't be read, leave them empty.
+ClassMethod Chosen(part As OcuTalon.Live.Payload.Part.IncidentRequest, request As OcuTalon.Bridge.Data.ApprovalRequest) [ Private ]
+{
+	If '$ListFind($ListBuild("suspend_item", "resume_item", "reroute"), request.FixKind) Quit
+	Try {
+		Set parameters = {}.%FromJSON(request.FixParameters)
+		Set part.Item = $Select(request.FixKind = "reroute": parameters.%Get("target"), 1: parameters.%Get("item"))
+		If request.FixKind = "reroute" Set part.Count = {}.%FromJSON(request.DryRun).%Get("affected")
+	} Catch {
 	}
 }
 

@@ -161,7 +161,7 @@ Method DryRun(request As OcuTalon.Fix.Msg.DryRun, Output response As OcuTalon.Fi
 			Set reason = $SYSTEM.Status.GetOneErrorText(sc)
 		} Else {
 			Set response.Targets = targets
-			Set response.DryRun = dryRun.%ToJSON()
+			Set response.DryRun = $Select($IsObject(dryRun): dryRun.%ToJSON(), 1: "")
 		}
 	} Catch exception {
 		Set reason = "The dry run could not be worked out because of an internal error."
@@ -357,14 +357,23 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 	If failed '= "" {
 		$$$LOGWARNING(..#LOGRECHECK_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(failed)))
 		If copies = 0 {
-			Do ..CouldNotStart(row, total, ..#NOREAD, $IsObject(run) && (run.%Id() '= ""))
+			Do ..CouldNotStart(row, total, ..KindReason(class, "NOREAD", ..#NOREAD), $IsObject(run) && (run.%Id() '= ""))
 			Quit
 		}
 		Set unreached = $Length($Get(passed), ",") - copies
 		If unreached < 0 Set unreached = 0
 	}
+	If (failed = "") && (passed '= "") && (..KindReason(class, "TARGETTYPE", "message") = "item") {
+		Set changed = $Select($IsObject($Get(result)): +result.changed, 1: 0)
+		If (changed = 0) && (unreached > 0) {
+			Do ..CouldNotStart(row, total, ..KindReason(class, "NOSTART", ..#NOSTART), 1)
+			Quit
+		}
+		Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": (changed), "failedAgain": 0, "skipped": (total - changed), "reason": (..FirstReason(skipped))})
+		Quit
+	}
 	If (copies = 0) && (unreached > 0) {
-		Do ..CouldNotStart(row, total, $Select(first = "stopped": ..#NOTRUNNING, 1: ..#NOSTART), 1)
+		Do ..CouldNotStart(row, total, $Select(first = "stopped": ..#NOTRUNNING, 1: ..KindReason(class, "NOSTART", ..#NOSTART)), 1)
 		Quit
 	}
 	If copies > 0 {
@@ -382,6 +391,13 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		Quit
 	}
 	Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (total), "reason": (..FirstReason(skipped))})
+}
+
+/// The kind's own value of the class parameter (NOSTART, NOREAD or TARGETTYPE), else the default given.
+ClassMethod KindReason(class As %String, name As %String, default As %String) As %String [ Private ]
+{
+	Set value = $Parameter(class, name)
+	Quit $Select(value '= "": value, 1: default)
 }
 
 /// 1 when the incident's production is not running: ProductionState gives stopped, suspended or network_stopped. A seam that throws, and any other state, give 0,
@@ -576,7 +592,7 @@ ClassMethod ActionEntry(row As OcuTalon.Bridge.Data.ApprovalRequest, result As %
 	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(row.IncidentRef)
 	Set data = {}
 	Do data.%Set("action", row.FixKind, "string")
-	Do data.%Set("target", $Select($IsObject(incident): incident.Production_" in "_incident.Namespace, 1: ""), "string")
+	Do data.%Set("target", ..ActionTarget(row, incident), "string")
 	Do data.%Set("result", result, "string")
 	Set tally = {}
 	For name = "total", "resent", "completed", "failedAgain", "skipped" {
@@ -588,6 +604,25 @@ ClassMethod ActionEntry(row As OcuTalon.Bridge.Data.ApprovalRequest, result As %
 	Do data.%Set("sessionRef", $Select(##class(OcuTalon.Bridge.Approval).IsRef(row.OwnerRef): row.OwnerRef, 1: ""), "string")
 	Do data.%Set("channel", $Select(row.AnsweredChannel '= "": row.AnsweredChannel, 1: "system"), "string")
 	Quit data
+}
+
+/// The target of a run's Action entry: "<production> in <namespace>" of the incident; for a kind whose targets are items "<item> in <production> in <namespace>" (the item of the
+/// row's parameters); for a reroute "<production> in <namespace> to <the item the messages went to>".
+ClassMethod ActionTarget(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Data.Incident) As %String [ Private ]
+{
+	If '$IsObject(incident) Quit ""
+	Set target = incident.Production_" in "_incident.Namespace
+	Set class = ##class(OcuTalon.Fix.Kind).ForName(row.FixKind)
+	Set parameters = ""
+	Try {
+		Set parameters = {}.%FromJSON(row.FixParameters)
+	} Catch {
+		Set parameters = ""
+	}
+	If (class = "") || '$IsObject(parameters) Quit target
+	If $Parameter(class, "TARGETTYPE") = "item" Quit parameters.%Get("item")_" in "_target
+	If parameters.%Get("target") '= "" Quit target_" to "_parameters.%Get("target")
+	Quit target
 }
 
 /// The one audit write of the executor: an entry of type Action, through the one writer of product code (a seam for the tests).
@@ -896,22 +931,34 @@ Method Carry(class As %String, incident As OcuTalon.Data.Incident, parameters As
 	Quit $ClassMethod(class, "Execute", incident, parameters, targets, .result, run)
 }
 
-/// Resends a repaired copy of each entry of the plan, one at a time, and registers each copy on the run. plan is a dynamic array of {"id" (the original's
-/// header id), "field", "value" (what the field held when the re-check read it) and "repaired" (the value the copy gets, worked out in the home namespace before
-/// the switch)}. This is the only method of the executor that switches namespace (AD-3, AD-16), and it calls no OcuTalon class while it is in the production's
-/// namespace, only Ens and % classes and the body's class. For each entry, in the production's namespace: the original's header and body are opened; the copy
-/// is built only if the header still is in the status Error and the field still is a stored datatype property of the body's class (as that namespace resolves it,
-/// found in the compiled dictionary, and set through the dictionary's own property name) that holds value; the copy is a %ConstructClone(0) of the body with the
-/// field set, and it is sent with Ens.MessageHeader.ResendDuplicatedMessage(original, newId, the original's TargetConfigName, copy). Back in the home
-/// namespace the new header id is appended to the run's Copies and saved. The originals are never changed. resent is the number of copies made; skipped
-/// holds {"id", "reason"} for each entry that really changed and so was not resent, the reason a plain sentence that names the message: it is no longer in the production,
-/// no longer in the error status, has no body, no longer has the field, or changed since the re-check. The first entry that errs (DW-419) stops the resend: the production isn't
-/// running (a status of ErrProductionNotRunning, with no header made, code "stopped"), the production refused the copy ("refused"), or an error was thrown ("error", one Type 3
-/// warning). That entry and every entry after it, which is never tried (code "after"), are in unreached as {"id", "code"}, in plan order, and not in skipped. A resend that returns
-/// an error after its copy was queued (newId is set) counts as resent, with one Type 3 warning.
+/// Resends a repaired copy of each entry of the plan, one at a time (InProduction), and registers each copy on the run. resent is the number of copies made.
 ClassMethod Resend(namespace As %String, plan As %DynamicArray, run As OcuTalon.Data.FixRun, Output resent As %Integer, Output skipped As %DynamicArray, Output unreached As %DynamicArray)
 {
-	Set resent = 0
+	Do ..InProduction(namespace, plan, run, .resent, .skipped, .unreached)
+}
+
+/// Does the plan's work in the production's namespace, one entry at a time, and registers each copy on the run. This is the only method of the executor that switches
+/// namespace (AD-3, AD-16), and it calls no OcuTalon class while it is in the production's namespace, only Ens and % classes and the body's class. plan is a dynamic
+/// array of entries of three shapes, told apart by their members:
+///   - a repair, {"id" (the original's header id), "field", "value" (what the field held when the re-check read it) and "repaired" (the value the copy gets, worked out in the
+///     home namespace before the switch)}: the original's header and body are opened; the copy is built only if the header still is in the status Error and the field still is
+///     a stored datatype property of the body's class (as that namespace resolves it, found in the compiled dictionary, and set through the dictionary's own property name)
+///     that holds value; the copy is a %ConstructClone(0) of the body with the field set, and it is sent with Ens.MessageHeader.ResendDuplicatedMessage(original, newId,
+///     the original's TargetConfigName, copy);
+///   - a reroute, {"id", "target"} (no field): the header must still be in the status Error and its message is resent as a copy to the target item, with
+///     ResendDuplicatedMessage(original, newId, target), which makes the copy from the header and its body as they are;
+///   - an item change, {"id" (the Ens.Config.Item id), "action" (disable or enable), "item", "production"}: the item is opened by its id and must still be the named item of the
+///     named production in the state the action leaves (enabled for disable, as IRIS runs it: its stored Enabled unless a System Default Setting Enabled overrides it), and
+///     Ens.Director.EnableConfigItem(production||item, enable) changes it.
+/// Back in the home namespace the new header id of a copy is appended to the run's Copies and saved. The originals are never changed. done is the number of copies made, or of
+/// items changed; skipped holds {"id", "reason"} for each entry that really changed and so was not done, the reason a plain sentence that names the message or the item: it is no
+/// longer in the production, no longer in the error status, has no body, no longer has the field, or changed since the re-check. The first entry that errs (DW-419) stops the run:
+/// the production isn't running (a status of ErrProductionNotRunning, with no header made, code "stopped"), the production refused the copy or the change ("refused"), or an error
+/// was thrown ("error", one Type 3 warning). That entry and every entry after it, which is never tried (code "after"), are in unreached as {"id", "code"}, in plan order, and not in
+/// skipped. A resend that returns an error after its copy was queued (newId is set) counts as done, with one Type 3 warning.
+ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As OcuTalon.Data.FixRun, Output done As %Integer, Output skipped As %DynamicArray, Output unreached As %DynamicArray)
+{
+	Set done = 0
 	Set skipped = []
 	Set unreached = []
 	Set stopped = 0
@@ -929,39 +976,70 @@ ClassMethod Resend(namespace As %String, plan As %DynamicArray, run As OcuTalon.
 		Set newId = ""
 		Try {
 			Set $NAMESPACE = namespace
-			Set header = ##class(Ens.MessageHeader).%OpenId(id)
-			If '$IsObject(header) {
-				Set code = "gone"
-			} ElseIf header.Status '= $$$eMessageStatusError {
-				Set code = "status"
-			} Else {
-				Set bodyClass = header.MessageBodyClassName
-				Set body = ""
-				If (bodyClass '= "") && (header.MessageBodyId '= "") && ##class(%Dictionary.CompiledClass).%ExistsId(bodyClass) && $ClassMethod(bodyClass, "%Extends", "%Library.Persistent") {
-					Set body = $ClassMethod(bodyClass, "%OpenId", header.MessageBodyId)
-				}
-				If '$IsObject(body) {
-					Set code = "body"
+			If entry.%Get("action") '= "" {
+				Set item = ##class(Ens.Config.Item).%OpenId(id)
+				If '$IsObject(item) || (item.Name '= entry.item) || '$IsObject(item.Production) || (item.Production.Name '= entry.production) {
+					Set code = "gone"
 				} Else {
-					Set property = ##class(%Dictionary.CompiledProperty).%OpenId(bodyClass_"||"_entry.field)
-					Set type = ""
-					If $IsObject(property) && (property.Name = entry.field) && (property.Private = 0) && (property.Calculated = 0) && (property.Transient = 0) && (property.MultiDimensional = 0) && (property.Relationship = 0) && (property.Collection = "") {
-						Set type = ##class(%Dictionary.CompiledClass).%OpenId(property.Type)
-					}
-					If '$IsObject(type) || (type.ClassType '= "datatype") {
-						Set code = "field"
-					} ElseIf $Property(body, property.Name) '= entry.value {
+					Set enabled = item.Enabled
+					If ##class(Ens.Config.DefaultSettings).%GetSetting(entry.production, item.Name, item.ClassName, "", "Enabled", .override) Set enabled = override
+					Set enable = (entry.action = "enable")
+					If (''enabled) = enable {
 						Set code = "changed"
 					} Else {
-						Set copy = body.%ConstructClone(0)
-						Set $Property(copy, property.Name) = entry.repaired
-						Set sc = ##class(Ens.MessageHeader).ResendDuplicatedMessage(id, .newId, header.TargetConfigName, copy)
-						If $$$ISOK(sc) || (newId '= "") {
-							Set code = "sent"
-							If $$$ISERR(sc) Set detail = $SYSTEM.Status.GetErrorText(sc)
+						Set sc = ##class(Ens.Director).EnableConfigItem(entry.production_"||"_entry.item, enable)
+						If $$$ISOK(sc) {
+							Set code = "done"
 						} Else {
-							Set code = $Select($SYSTEM.Status.Equals(sc, $$$EnsErrProductionNotRunning): "stopped", 1: "refused")
+							Set code = "refused"
 							Set detail = $SYSTEM.Status.GetErrorText(sc)
+						}
+					}
+				}
+			} Else {
+				Set header = ##class(Ens.MessageHeader).%OpenId(id)
+				If '$IsObject(header) {
+					Set code = "gone"
+				} ElseIf header.Status '= $$$eMessageStatusError {
+					Set code = "status"
+				} ElseIf entry.%Get("field") = "" {
+					Set sc = ##class(Ens.MessageHeader).ResendDuplicatedMessage(id, .newId, entry.target)
+					If $$$ISOK(sc) || (newId '= "") {
+						Set code = "sent"
+						If $$$ISERR(sc) Set detail = $SYSTEM.Status.GetErrorText(sc)
+					} Else {
+						Set code = $Select($SYSTEM.Status.Equals(sc, $$$EnsErrProductionNotRunning): "stopped", 1: "refused")
+						Set detail = $SYSTEM.Status.GetErrorText(sc)
+					}
+				} Else {
+					Set bodyClass = header.MessageBodyClassName
+					Set body = ""
+					If (bodyClass '= "") && (header.MessageBodyId '= "") && ##class(%Dictionary.CompiledClass).%ExistsId(bodyClass) && $ClassMethod(bodyClass, "%Extends", "%Library.Persistent") {
+						Set body = $ClassMethod(bodyClass, "%OpenId", header.MessageBodyId)
+					}
+					If '$IsObject(body) {
+						Set code = "body"
+					} Else {
+						Set property = ##class(%Dictionary.CompiledProperty).%OpenId(bodyClass_"||"_entry.field)
+						Set type = ""
+						If $IsObject(property) && (property.Name = entry.field) && (property.Private = 0) && (property.Calculated = 0) && (property.Transient = 0) && (property.MultiDimensional = 0) && (property.Relationship = 0) && (property.Collection = "") {
+							Set type = ##class(%Dictionary.CompiledClass).%OpenId(property.Type)
+						}
+						If '$IsObject(type) || (type.ClassType '= "datatype") {
+							Set code = "field"
+						} ElseIf $Property(body, property.Name) '= entry.value {
+							Set code = "changed"
+						} Else {
+							Set copy = body.%ConstructClone(0)
+							Set $Property(copy, property.Name) = entry.repaired
+							Set sc = ##class(Ens.MessageHeader).ResendDuplicatedMessage(id, .newId, header.TargetConfigName, copy)
+							If $$$ISOK(sc) || (newId '= "") {
+								Set code = "sent"
+								If $$$ISERR(sc) Set detail = $SYSTEM.Status.GetErrorText(sc)
+							} Else {
+								Set code = $Select($SYSTEM.Status.Equals(sc, $$$EnsErrProductionNotRunning): "stopped", 1: "refused")
+								Set detail = $SYSTEM.Status.GetErrorText(sc)
+							}
 						}
 					}
 				}
@@ -971,8 +1049,12 @@ ClassMethod Resend(namespace As %String, plan As %DynamicArray, run As OcuTalon.
 			Set detail = exception.DisplayString()
 		}
 		Set $NAMESPACE = home
+		If code = "done" {
+			Set done = done + 1
+			Continue
+		}
 		If code = "sent" {
-			Set resent = resent + 1
+			Set done = done + 1
 			If detail '= "" $$$LOGWARNING(..#LOGCOPY_id_": its copy "_newId_" was queued, and the resend then returned: "_##class(OcuTalon.Bridge.Redact).Text(detail))
 			If $IsObject(run) {
 				Do run.Copies.Insert(newId)
@@ -989,16 +1071,21 @@ ClassMethod Resend(namespace As %String, plan As %DynamicArray, run As OcuTalon.
 			Set stopped = 1
 			Continue
 		}
-		Do skipped.%Push({"id": (id), "reason": (..SkipReason(code, id, entry.field))})
+		Do skipped.%Push({"id": (id), "reason": (..SkipReason(code, id, entry))})
 	}
 }
 
-/// The plain sentence, naming the message, for a copy that was not made because the target really changed (the skip codes of Resend); the field is named in words, as the re-check
-/// names it.
-ClassMethod SkipReason(code As %String, id As %String, field As %String) As %String [ Private ]
+/// The plain sentence, naming the message or the item, for an entry that was not done because its target really changed (the skip codes of InProduction); the field of a repair
+/// entry is named in words, as the re-check names it.
+ClassMethod SkipReason(code As %String, id As %String, entry As %DynamicObject) As %String [ Private ]
 {
+	If entry.%Get("action") '= "" {
+		If code = "gone" Quit entry.item_" is no longer in the production"
+		If code = "changed" Quit entry.item_" changed since the dry run"
+		Quit entry.item_" was not changed because of an internal error"
+	}
 	Set name = "message "_id
-	Set words = ##class(OcuTalon.Fix.Kind.RepairResend).FieldWords(field)
+	Set words = ##class(OcuTalon.Fix.Kind.RepairResend).FieldWords(entry.%Get("field"))
 	If code = "gone" Quit name_" is no longer in the production"
 	If code = "status" Quit name_" is no longer in the error status"
 	If code = "body" Quit name_" has no body that can be read any more"
