@@ -9,7 +9,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { ACCEPT, DOCUMENTS_TEXTS, REASON_TEXTS, formatSize, reasonText, refusedText, rows } = await import(
+const { ACCEPT, DOCUMENTS_TEXTS, DOCUMENT_PARAM, REASON_TEXTS, docRef, formatSize, reasonText, refusedText, rows } = await import(
   pathToFileURL(join(here, '..', 'src', 'app', 'documents', 'documents-view.ts')).href
 );
 
@@ -28,6 +28,19 @@ describe('the strings', () => {
     assert.equal(DOCUMENTS_TEXTS.removeFailed, "Couldn't remove it. Nothing was changed.");
     assert.equal(DOCUMENTS_TEXTS.removeName, 'Remove {name}');
     assert.equal(ACCEPT, '.md,.markdown,.txt,.pdf,.docx');
+  });
+
+  it('has the ruled texts of an opened document (Story 20.2)', () => {
+    assert.equal(DOCUMENTS_TEXTS.close, 'Close');
+    assert.equal(DOCUMENTS_TEXTS.openFailed, "Couldn't open that document. It may have been removed.");
+    assert.equal(DOCUMENTS_TEXTS.empty, 'No documents yet. Add a runbook to get cited answers.', 'the empty text is unchanged');
+  });
+
+  it('reads the document to open from the doc query parameter: a non-empty value, else nothing', () => {
+    assert.equal(DOCUMENT_PARAM, 'doc');
+    assert.equal(docRef('AbC123'), 'AbC123');
+    assert.equal(docRef(' AbC123 '), 'AbC123');
+    for (const none of [null, undefined, '', '   ']) assert.equal(docRef(none), '', String(none));
   });
 
   it('has the ruled reason texts, both of the size ruling (U-284, U-285) among them', () => {

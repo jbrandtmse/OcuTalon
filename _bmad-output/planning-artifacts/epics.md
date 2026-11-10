@@ -7051,6 +7051,39 @@ So that I can tell where an answer came from.
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 3's stories in both lanes have merged **When** step 3's release is prepared **Then** a hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram, and its findings are fixed before the release (REL-7)"]
 - DW-383: Eval.In.Render is a line-for-line copy of Lane B's private Core.Conversation.Checked (the glue from a Reply's HostData checks to Checks.Render's key and rows), forced by AD-29; when Conversation's HostData handling changes, the evaluation's all-clear path drifts from the product's (AD-22) (ledger; routed by merge_gate 2026-10-31)
+- DW-721: Owner ruling U-280 chips: citation and memory chips are built by code from the turn's tool results (at most 5 each); labels state provenance, never 'used', 'relied on' or 'based on' ('Sources' and 'From memory' are fine); the UI shows 'None of your documents cover that.' and document citations never together, with tests in both directions; FR-41 is met by the 'From memory' chip (ledger; routed earlier, bullet added by runner 2026-11-09)
+- DW-733: flake candidate: Test.Live.GuideRefresh TestHookPublishesOnChange and TestEventsBodyServesTheGuide fail when the class runs alone on a warm stack the lane-b shard already used (ledger; routed earlier, bullet added by runner 2026-11-09)
+- DW-975: When web citations ship, restore a citation line to the demo guide's 'Ask about a document' look-for (more-to-try-view.ts documents.lookFor, its three pins and EXPERIENCE.md item 6 together, under the public-text rules) (ledger; routed earlier, bullet added by runner 2026-11-09)
+- DW-976: Documents page empty state still promises citations ('No documents yet. Add a runbook to get cited answers.'); a public string change needs a Planner ruling (ledger; routed earlier, bullet added by runner 2026-11-09)
+
+### Story 20.3: Add a sample runbook in one press
+
+[ADDED 2026-11-09, owner re-plan, Contest Planner ruling] Voting-week findability follow-up to Story 20.2: a visitor without a file to hand can still see a cited answer.
+
+As a demo visitor,
+I want to add a short sample runbook with one press,
+So that I can ask about it and see a cited answer without bringing my own file.
+
+**Acceptance Criteria:**
+
+**Given** the Documents page
+**When** the user presses the sample-runbook button
+**Then** a short runbook bundled with the web app, about the demo's own feeds, is added through the normal upload and ingest path (the same `POST /api/v1/documents` route, `AddDocument` and `DocumentOps` indexing as any file the person adds), with no special case on the server, no network fetch, and owned by the person's session on the online demo like any upload (an instance document on a local install) (FR-42, AD-21)
+**And** the new row shows in the list and reaches Ready like any other document
+
+**Given** the demo guide's More to try items 6 and 8
+**When** the visitor has no documents
+**Then** the item's control is the sample-runbook button; once the visitor has a document, the control is the existing link to the Documents page
+
+**Given** the sample runbook is Ready
+**When** the visitor reads item 6 or 8's look-for
+**Then** it suggests one question the runbook answers, whose answer carries a citation chip naming the runbook and its section (Story 20.2)
+
+**Given** keyboard and screen-reader use
+**When** the user reaches the button
+**Then** it is a native button with a visible label and a busy state while the upload runs, and a refusal or failure shows the Documents page's existing texts (NFR-25, UX-DR130)
+**And** every new string (the button label, the runbook's name and text, the suggested question) is PUBLIC TEXT ruled by the Planner at this story's spec gate, and the fixed-strings test covers them (UX-DR117)
+**And** the findability rule applies (README "New since 1.0.0" and More to try updated only as the Planner rules), and any new or changed `/api/v1` route has real-HTTP tests as an OcuTalonUser-only user with a second-session isolation check
 
 ## Epic 21: Email, webhooks and MCP settings (step 4)
 

@@ -20,6 +20,7 @@ export type IconName =
   | 'external-link'
   | 'eye'
   | 'eye-off'
+  | 'file-text'
   | 'inbox'
   | 'info'
   | 'life-buoy'
@@ -134,6 +135,13 @@ export type IconName =
           <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" />
           <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" />
           <path d="m2 2 20 20" />
+        }
+        @case ('file-text') {
+          <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" />
+          <path d="M14 2v5a1 1 0 0 0 1 1h5" />
+          <path d="M10 9H8" />
+          <path d="M16 13H8" />
+          <path d="M16 17H8" />
         }
         @case ('inbox') {
           <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />

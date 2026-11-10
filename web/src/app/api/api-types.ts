@@ -270,6 +270,13 @@ export interface DocumentAdded {
   ref: string;
 }
 
+/** The 200 answer to GET /ocutalon/api/v1/documents/:ref: the document's name and its text, as the file was read; the text is shown as plain text. */
+export interface DocumentText {
+  ref: string;
+  name: string;
+  text: string;
+}
+
 /** The 200 answer to DELETE /ocutalon/api/v1/documents/:ref. */
 export interface DocumentRemoved {
   result: 'done';
