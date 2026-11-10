@@ -671,3 +671,4 @@
 2026-11-10T06:20:39Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen(sprint_plan.py_generate+validate);tracker_valid;0.22_added_backlog;dropped_orphans=none
 2026-11-10T06:20:39Z	Epic 0	retro_review_skipped	reason=skipped(policy) note=reopen_for_one_story(0.22);X.0_and_retro_review_recorded_earlier(dispatch)
 2026-11-10T06:22:02Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.22_added) model=claude-opus-5-5 effort=high lines=72
+2026-11-10T06:22:22Z	Story 0.22	stage_spawned	stage=plan spawn_at=2026-11-10T06:22:22Z model=opus effort=high agent_name=0-22-plan-1 cycle_iteration=1
