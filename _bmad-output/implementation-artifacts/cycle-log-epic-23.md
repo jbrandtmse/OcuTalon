@@ -56,3 +56,6 @@
 2026-11-10T04:01:25Z	Story 23.2	integrated_forward_local	feature=cb2b416d_via_f488be23 head=7475b8be conflicts_resolved=Core/CommandsIn.cls(doc_bullets_union),Test/Demo/Features.cls(union:reroute+sources;ten),more-to-try-view.test.mjs(registry_IDS),EXPERIENCE.md(Item_8_sources+Item_9_reroute),cycle-log(union) counts=ten checks=node_290/290,test-readme,test-boundaries
 2026-11-10T04:01:57Z	Story 23.2	ledger_harvest	deferred=1 entries=DW-1059(open,owner=23-2,in-story,needs_ruled_sentence)
 2026-11-10T04:02:19Z	Epic 23	ruling	question=More_to_try_capacity choice=3_groups(0.22_renders);23.6/23.2/23.5_declare_group_Incidents_and_fixes;23.2_merges_when_green;23.5_waits_for_0.22 by=Contest_Planner category=veto policy=5086036 file=coordination/prompts/more-to-try-groups-ruling.md
+2026-11-10T04:04:46Z	Epic 23	slot_loaded	server=ocutalon-slot-d bridge=62 ocutalon=879 compile=clean classes=942 head=2b545e86
+2026-11-10T04:04:46Z	Story 23.2	adr_verifications_complete	tool=none acs=none result=none_required evidence=Task0_EnableConfigItem_measured_by_implement(throwaway) mutations=none
+2026-11-10T04:04:46Z	Story 23.2	stage_spawned	stage=qa spawn_at=2026-11-10T04:04:46Z model=sonnet effort=high agent_name=23-2-suspend-resume-reroute-qa-1 cycle_iteration=1
