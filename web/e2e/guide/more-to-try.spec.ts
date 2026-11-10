@@ -66,7 +66,7 @@ const SAMPLE = '**/ocutalon/api/v1/mailbox/samples/suspicious-request';
 const DEMO_VIEW_KEY = 'ocutalon.demoView.off';
 
 const FOUR = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView'];
-// The ids of the band cases (K16, K16b, K17): all four groups of the panel show, so the room is measured with the fourth heading.
+// The ids of the routed real finish (openRealFinish: K16, K16b, K19 to K23) and of K17: all four groups of the panel show, so the room is measured with the fourth heading.
 const BAND_IDS = [...FOUR, 'memory', 'usage'];
 // Every id of the registry, in its order, so that an item another story adds joins the K3 and K9 cases; ITEMS below is the independent text oracle.
 const ALL = MORE_TO_TRY_ITEMS.map((item) => item.id);
@@ -749,7 +749,7 @@ test('K15: item 2 sends nothing while the email limit holds, and focuses the chi
 const RUN = { decisions: 2, tokens: 9850, costUSD: 0.0041, models: ['Claude Haiku 5.5'] };
 const RUN_TOTAL = 'This run: 2 decisions \u00B7 9,850 tokens \u00B7 $0.0041 on Claude Haiku 5.5.';
 
-/** Opens the routed real finish (the four ids, Break the feed active, the run total) and checks that the run total is on the page. */
+/** Opens the routed real finish (the band ids, Break the feed active, the run total) and checks that the run total is on the page. */
 async function openRealFinish(page: Page, banner = false): Promise<void> {
   await openWith(page, finished(BAND_IDS, { breakFeed: { active: true }, run: RUN }), undefined, false, banner);
   await expect(page.locator('app-demo-guide .finish .run-total'), 'the finish carries the run total').toHaveText(RUN_TOTAL);
