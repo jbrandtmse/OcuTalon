@@ -289,3 +289,4 @@
 2026-11-10T00:55:03Z	Epic 8	retro_review_skipped	reason=skipped(policy) note=reopen_for_one_story;Epic_8_done_and_retro_reviewed_earlier(dispatch)
 2026-11-10T00:55:03Z	Epic 8	epic_status_reopened	epic-8=in-progress via=SC-5_reopen(epic_branch_reopened) stories=8.8 amendment=epics.md:Story_8.8_[ADDED_2026-11-10,DW-1018]
 2026-11-10T00:57:44Z	Epic 8	epic_context_compiled	reason=planning_artifact_newer(story_8.8_added) model=claude-opus-5-5 effort=high
+2026-11-10T01:01:40Z	Epic 8	slot_loaded	slot=ocutalon-slot-c id=96362ba1e3f4 namespace=OCUTALON build=154U from=ab8e251f bridge=62 ocutalon=858 compile=CompilePackage(OcuTalon,ck-d)_ok_errors=0_16.5s stale=1_unlocated(slot_921_nongenerated_vs_920_files;package_counts_match) heartbeat_task=id1007_Suspended0_SuspendTerminated0_production_stopped note=Epic_0's_tree_was_there_before
