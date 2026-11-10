@@ -6375,6 +6375,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: TaskResume.cls LastRow/Rows equal Test/Install/ReconcileIn.cls:104-122 less the optional type/text arguments; the class header names the copy (Rule 2)
 - 2026-11-10T04:48:06Z status=routed owner=burndown by=cr note=unify by making ReconcileIn's Rows/LastRow public (Lane A) and calling them from TaskResume
+- 2026-11-10T05:06:02Z status=wontfix-accepted by=burndown note=reopen_if=a_third_copy_of_the_ReconcileIn_Event-Log_row_count_appears_or_Test.Install.ReconcileIn's_Rows/LastRow_change_shape(a_Lane_A_story_then_makes_them_public_and_TaskResume_calls_them);copy_forced_by_U-177;no_open_story_unifies_it
 
 ### DW-1063: release/demo-host-checks.md:5 still says the two inputs that come from the host are the status output and the time zone; Story 8.8 added a third (the heartbeat line, --heartbeat), outside the doc hunks the Planner ruled on
 - source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: low | fix-risk: low | footprint: in-story
