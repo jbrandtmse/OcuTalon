@@ -414,3 +414,14 @@
 2026-11-10T20:33:28Z	Epic 41	integrated_forward	feature=56c61cea head=e3517f5a conflicts_resolved=cycle-log-epic-41.md(union),sprint-status.yaml(regenerated) checks=warm:8_classes,test-eval-set,test-boundaries,test-class-rules,test-readme,web_1805,lint_spine_baseline
 2026-11-10T20:33:28Z	Epic 41	epic_runner_complete	stories_completed=5(part2:41.8,41.9,41.12,41.13,41.14) part_merge=41.14(41.8,41.9,41.12_merged_d02711ee;41.13_merged_56c61cea) epic_status=in-progress retro=skipped(policy)
 2026-11-10T23:19:37Z	Epic 41	part_merged	part=41.14(+part-2_close) head=20ab22fc feature=66172559 runs=42896494850,42896495028(success) by=orchestrator note=part2_complete;epic-41_in-progress(41.10,41.11_parked);41.15_in_the_pool
+2026-11-10T23:22:15Z	Epic 41	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=dispatch_41_15_learned_save_line lane=A slot=ocutalon-slot-a port=52801
+2026-11-10T23:22:15Z	Epic 41	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-10T23:22:15Z	Epic 41	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-10T23:22:15Z	Epic 41	launch_env	depth=4 watchdog=default bash_max_ms=default bootstrap_check=pass
+2026-11-10T23:22:15Z	Epic 41	integrated_forward_interim	feature=66172559(ci_pending:42922378793,42922378711;dispatch-named_base;own_head_CI_is_the_gate) head=2c2f6e38 conflicts_resolved=none
+2026-11-10T23:22:15Z	Epic 41	epic_branch_checked_out	repos=. head=2c2f6e38 ci=gh
+2026-11-10T23:22:15Z	Epic 41	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-10T23:22:15Z	Epic 41	ledger_load	total=1073 open=0 routed=115 escalated=2 decision_pending=6 terminal=950 owner_unknown=0 burndown=0 reowned_none=0
+2026-11-10T23:22:50Z	Epic 41	amendment	file=_bmad-output/planning-artifacts/epics.md:10543 what=Story_41.15_inserted_after_41.14(Rule5_tier1;ACs_from_Planner_rulings_4115) marker=[ADDED_2026-11-10,Contest_Planner_ruling(1.0.6_RC_eval:memory-learned-save_0/3),owner's_delegation]
+2026-11-10T23:22:50Z	Epic 41	ruling	question=41.15_epic_start choice=insert_41.15_into_epics.md;SPRINT_PLAN_generate(new_entries=41-15);X.0_and_retro_review_skipped(policy,dispatch) rejected=none why=dispatch_prompt_dispatch-epic-41-4115 category=decide policy=5086036
+2026-11-10T23:22:50Z	Epic 41	retro_review_skipped	reason=skipped(policy) note=dispatch_41_15:no_X.0

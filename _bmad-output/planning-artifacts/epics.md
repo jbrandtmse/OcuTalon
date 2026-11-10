@@ -10539,3 +10539,47 @@ So that memory that learns can't be fed from outside and really forgets.
 - DW-1015: the learned-save eval case (`eval/memory-learned-save`) covers no real save (an eval turn's owner `eval` is not a session, so `save_memory` is refused); give the case a real session, and score it right only when the save happened AND the reply carries the sentence; until then it stays report-only, labelled wording-only, never a gate (ledger; routed by owner 2026-11-09, Contest Planner ruling under the owner's delegation)
 
 **Release check:** at the first daily release after the re-open, the Contest Planner's hands-on pass with real keys mentions a fact, sees it learned, pins it, and starts a new day's conversation to see it read (REL-7, as amended 2026-10-31).
+
+### Story 41.15: Learned saves are announced by code
+
+[ADDED 2026-11-10, Contest Planner ruling (1.0.6 RC eval: memory-learned-save 0/3), owner's delegation; rulings verbatim in the orchestrator's `prompts/epic-41-rulings-4115.md`; split from Story 41.14's superseded proposal "Code-guaranteed learned-save line"]
+
+*Home lanes, as ruled: A (`Tools/MemoryTools.cls`) and B (`Core/Conversation.cls`, `Data/Turn.cls`, the catalog, the web chat, Notify). Second part. Not a 1.0.7 requirement.*
+
+As a user,
+I want OcuTalon's code to tell me when it learned a fact from my own words,
+So that a learned save is never silent, whatever the model writes.
+
+**Acceptance Criteria:**
+
+**Given** a `save_memory` call in a user turn
+**When** it is stored with `Source` `learned` and answers `saved`
+**Then** `MemoryTools` records `{memoryRef, text}` in the turn's HostData member `learned` (at most 3 entries; HostData carries `memoryRef` and `text` only)
+**And** a told save, a refused save (DW-1016) and a failed save add nothing (AD-21)
+
+**Given** the turn's reply
+**When** `Conversation` keeps it
+**Then** the learned entries are stored on the Turn as the new property `Learned` (JSON, at most 3 entries) beside `Citations` and `Memories`, and the reply text is never changed: the reply guard's and `Conversation`'s rules hold (AD-21, AD-28)
+**And** the trace shows the Turn's `Learned`
+
+**Given** a Turn with `Learned` entries
+**When** the reply is shown on its channel (the web chat, and Telegram or the phone through Notify) in the same turn
+**Then** one line per entry follows the reply, the way the check rows render, from the catalog key `memory.learnedSaved`, which reads verbatim: `I'll remember this: "{fact}". You can tell me to forget it.` (AD-28)
+**And** `{fact}` is the stored text unchanged, except that one trailing full stop is removed and text over 200 characters is cut to 200 with "…"
+**And** the line is plain text on every channel: escaped in the web chat, and sent with no Telegram parse mode
+**And** no line is shown when the reply already says "I'll remember" or "I will remember", matched as the reply guard matches a phrase
+
+**Given** Chat's instructions
+**When** this story ships
+**Then** Chat's learned-save bullet stays as it is (no model-facing change)
+
+**Given** automated tests
+**When** they run
+**Then** they cover: a fact ending in a full stop; a 300-character fact; a fact containing markup, rendered inert on the web and on Telegram; a told save, a refused save and a failed save adding nothing; and the reply-already-says-it case
+**And** a second-session check proves one session's `Learned` never shows in another session's chat or state payload (standing real-HTTP route rule)
+
+**Given** the evaluation case `memory-learned-save`
+**When** it is scored
+**Then** it stays report-only, and it scores right whenever the learned entry and the rendered line are both present
+
+**Spine:** additive lines under AD-21 and AD-28 (accepted veto items).
