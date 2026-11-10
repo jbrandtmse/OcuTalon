@@ -88,6 +88,11 @@ Property LaterSince As %String(MAXLEN = 20);
 /// way at a time (Story 7.6). Written by IncidentManager only.
 Property AskingSince As %String(MAXLEN = 20);
 
+/// The summary written when the incident closed (Story 23.6; AD-15): JSON {"parts": [{"key", "slots"}], "lines": []}, catalog keys and slots written by
+/// OcuTalon.Watch.Summary, rendered only by OcuTalon.Channel.DigestText through Msg.Catalog. Empty for an incident that closed without one (closed before
+/// summaries existed, or a summary that could not be built). It is deleted with the row (AD-27). Written by IncidentManager only.
+Property Summary As %String(MAXLEN = "");
+
 Index RefIndex On Ref [ Unique ];
 
 Index OwnerRefIndex On OwnerRef;
@@ -178,6 +183,9 @@ Storage Default
 </Value>
 <Value name="28">
 <Value>AskingSince</Value>
+</Value>
+<Value name="29">
+<Value>Summary</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.IncidentD</DataLocation>

@@ -1,0 +1,21 @@
+{
+  "name": "sample-runbook",
+  "match": {
+    "marker": "sample-runbook"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "documents",
+        "input": {
+          "query": "According to the runbook, what should I do when partner orders fail with a date error?"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock answered from the sample runbook."
+    }
+  ]
+}

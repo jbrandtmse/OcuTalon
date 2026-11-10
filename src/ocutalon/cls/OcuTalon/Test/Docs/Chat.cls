@@ -1,6 +1,6 @@
 /// Tests of what the Chat agent and the gate say about the documents tool (Story 19.4; AD-6, AD-7, AD-10, AD-21; the Contest Planner's rulings Q1 to Q6 and
 /// the PUBLIC TEXT ruling of 2026-11-07). Safe on a slot: it reads compiled class definitions only.
-///   - TestBullets (Q6): the two documents bullets of Chat's instructions are there word for word, once each, after the five memory bullets (memory bullet 5
+///   - TestBullets (Q6): the two documents bullets of Chat's instructions are there word for word, once each, after the memory bullets (the last of them, MEMORY5,
 ///     first, then documents bullet 1, then bullet 2) and before the bullet on data from a tool, which stays the last bullet;
 ///   - TestNames: the tool's name is documents in Tools.Names, the gate's RAGTOOL, the knowledge base's name and the sentence of bullet 2 is the one that
 ///     Docs.Reply removes;

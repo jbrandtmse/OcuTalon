@@ -619,7 +619,7 @@ A judge or developer runs one image build and `docker compose up`, gets OcuTalon
 **FRs covered:** FR-11 (admin and user roles created), FR-14 (local sign-in, first cut), FR-55 (image, retag, compose and health check core), FR-56.
 **Also covers:** CON-1, CON-3, REL-1, REL-2 (first demo-path test), REL-4; AD-2, AD-3, AD-5, AD-19, AD-22, AD-23, AD-29, AD-33; UX-DR1 to UX-DR16 (token stylesheet).
 
-### Epic 1: Every item gets an attention decision you can audit and afford
+## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
 **Lane:** A. **Depends on:** Epic 0.
@@ -782,7 +782,7 @@ Ships in the first daily release after it merges (after 1.0.0). [AMENDED 2026-10
 ### Epic 23: Deeper IRIS watch (step 5)
 
 Incidents gain rerouting, suspend and resume and setting rollback as approved fixes, link failures to recent setting changes, page the on-call person with escalation, draft partner warnings sent only after approval, and close with a written summary; queue backlog and SQL query watches report between digests (Could).
-**Lane:** A. **Depends on:** Epic 36 (real: Story 36.1 (was 23.1)'s spine names and setting history, which Stories 23.2 to 23.8 build on; Story 36.2 (was 24.1)'s on-call keys and acknowledgement verb, which Story 23.4 uses, and its save-SQL-query-watch verb, which Story 23.8 handles); story-level: Story 23.2 needs Epic 14 merged (real: the overview's generated list shows the new kinds), Story 23.5 needs Epics 21 and 22 merged (real: `EmailOut` and the mock mail server, Story 21.2; the email fix path, Story 22.7), Story 23.7 needs Epic 17 merged (real: the `checks.thresholds.*` keys Story 17.5 seeds), and Story 23.8 needs Epic 14 merged (real: the security overview lists the read-only SQL user); Stories 23.4 and 23.6 also use the Watch area's purge (real: Story 30.2), which Epic 30 brings in before Epic 36 through Story 36.1's wait. Runner order: after Epic 22 on runner A. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 22; story-level: Story 23.4 needs Story 24.1 (the acknowledgement verb and the on-call keys), and Story 23.8 needs Story 24.1 (the save-SQL-query-watch verb)."; Epic 22 was real only for Story 23.5, now its story-level wait; Story 24.1 is now Story 36.2, which Epic 36 carries]
+**Lane:** A. **Depends on:** Epic 36 (real: Story 36.1 (was 23.1)'s spine names and setting history, which Stories 23.2 to 23.8 build on; Story 36.2 (was 24.1)'s on-call keys and acknowledgement verb, which Story 23.4 uses, and its save-SQL-query-watch verb, which Story 23.8 handles); story-level: Story 23.2 needs Epic 14 merged (real: the overview's generated list shows the new kinds), Story 23.5 needs Epics 21 and 22 merged (real: `EmailOut` and the mock mail server, Story 21.2; the email fix path, Story 22.7), Story 23.7 needs Epic 17 merged (real: the `checks.thresholds.*` keys Story 17.5 seeds), and Story 23.8 needs Epic 14 merged (real: the security overview lists the read-only SQL user); Stories 23.4 and 23.6 also use the Watch area's purge (real: Story 30.2), which Epic 30 brings in before Epic 36 through Story 36.1's wait. Runner order: after Epic 22 on runner A. [AMENDED 2026-11-09, owner re-plan, Contest Planner rulings (i) and (iii), recorded by the Epic 23 runner (the graph's epic-23 row carries them): the epic-level dependency on Epic 36 is lifted to story level (Story 23.3 waits on Story 36.1; Stories 23.4 and 23.8 on Story 36.2); Stories 23.6, 23.2 and 23.5 do not depend on Epic 36, and Story 23.5 no longer waits on Epics 21 and 22 (it sends through the SimMailbox channel; see its note)] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 22; story-level: Story 23.4 needs Story 24.1 (the acknowledgement verb and the on-call keys), and Story 23.8 needs Story 24.1 (the save-SQL-query-watch verb)."; Epic 22 was real only for Story 23.5, now its story-level wait; Story 24.1 is now Story 36.2, which Epic 36 carries]
 Ships in the first daily release after it merges (after 1.0.0). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "After 1.0.0 we'll move to daily releases of whatever features are complete."; it read "Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; …). Releases in between are patch releases."] [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-26, FR-27, FR-28, FR-29, FR-30, FR-33 (step 5 checks), FR-62 (setting-change incidents).
 **Also covers:** AD-15 (setting history), AD-16; UX-DR146 (Lane A's part).
@@ -1471,6 +1471,83 @@ So that I find every claim and its evidence from the top of the README.
 **When** this story merges
 **Then** it is exactly the Planner's Edit 6 line: `community.intersystems.com` and `openexchange.intersystems.com` appear exactly once each, nothing else is added, and no AI Hub bug-report repository is allowed; Story 0.17's narrower post-path entry and its two self-tests that only that narrower entry could pass give way to the host entry
 **And** `bash docker/tests/test-readme.sh` passes every rule, `docker/tests/test-boundaries.sh` passes, and CI is green; if a rule fails on the verbatim text, the text is not reworded
+
+### Story 0.19: The README names the contest
+
+[ADDED 2026-11-09, owner via Contest Planner] SC-5 re-open of Epic 0 for release 1.0.6 (DW-1020). A one-line README change whose public text the owner has already approved verbatim; it is committed exactly as written. Light pipeline (orchestrator dispatch): one `bmad-build-auto` stage that plans and implements, then a code review.
+
+As a judge or visitor reading the README's contest checklist,
+I want the checklist to say which contest OcuTalon is entered in, with a link to the contest post,
+So that I can see at once what the entry is judged against.
+
+**Acceptance Criteria:**
+
+**Given** README.md's "## Contest checklist" section
+**When** this story merges
+**Then** the line `What OcuTalon uses, and where to check each one:` is replaced by exactly `OcuTalon is an entry in the [InterSystems Programming Contest: AI Agents in Interoperability Workflows](https://community.intersystems.com/post/intersystems-programming-contest-ai-agents-interoperability-workflows). What it uses, and where to check each one:`
+**And** nothing else in README.md changes
+- DW-1020: README: name the contest under '## Contest checklist' (ledger; routed by dispatch 2026-11-09)
+
+**Given** the change
+**When** this story merges
+**Then** README.md is the only file changed; `bash docker/tests/test-readme.sh` passes every rule (community.intersystems.com is already on its allow-list), `docker/tests/test-boundaries.sh` passes, and lane-a is green; if a rule refuses the text, the text is not reworded
+
+### Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget
+
+[ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025. A CI-only story built on Story 0.15 and merged with it on one head. On a3086148 (ci run 42634825529) iris (install-upgrade) and iris (shards-2) were cancelled at the 40-minute job limit with no test red, and shards, shards-3, shards-4 and install-fresh took 38 to 39 minutes; on Epic 35's cd13b1ae shards-2, shards-3, shards-4 and install-upgrade were cancelled at the limit. The standing CI split rules apply (REL-4's 35-minute budget; a unit of about 1,000 s at most; a new group only when packing cannot get there). The `.github/workflows/ci.yml` matrix hunk goes to the Contest Planner (`RELEASE TOOL:`) before it merges; every new job reports as `iris (<group>)`, and the Planner adds each new name to main's required checks once this story merges.]
+
+As the owner of the CI budget,
+I want the IRIS groups packed so that each one finishes well under 35 minutes,
+So that no job is cancelled at the 40-minute limit and every head can go green without reruns.
+
+**Acceptance Criteria:**
+
+**Given** `ci/units.sh` and the `iris` matrix of `.github/workflows/ci.yml`
+**When** this story merges
+**Then** a new group `shards-6` holds `live:documents` (moved from shards-3) and `live:memory-offline` (moved from shards-4)
+**And** `live:security-overview` moves from production to shards-5, and the checks/overviewdoc pin (production plus `NO_WEB_BUNDLE_UNITS`) changes in the same commit
+**And** the unit `shard:lane-a@rest` (2,017 to 2,147 s on recent runs) is split, with the existing class-shard pieces mechanism, into two or more units of about 1,000 s at most, every lane-a area still in exactly one piece
+**And** shards, shards-2, shards-3, shards-4, install-upgrade, install-fresh and image are repacked from measured unit times (ci runs 42634825529, 42633085173, 42603815732 and 42583599821) so that every group's planned sum stays well under 35 minutes with the job's own setup, adding `shards-7` or more groups only if packing cannot get there; the spec records each group's planned sum
+**And** `IRIS_GROUPS`, the matrix and `ci/iris.sh groups` agree, every new job is named `iris (<group>)`, and no group is given a longer deadline
+
+**Given** `docker/tests/test-ci-config.sh` and `docker/tests/test-ci-changes.sh`
+**When** this story merges
+**Then** every pin of the old layout moves to the new one, no pin is deleted or weakened, and both pass with `docker/tests/test-boundaries.sh`
+
+**Given** CI on this story's head
+**When** two clean runs finish (the second may be the merge head's)
+**Then** every iris group finishes under 35 minutes in both, each group's time from both runs is reported, and DW-1025 is resolved by this story
+
+### Story 0.21: The README opens with a centred header: logo, tagline and badges
+
+[ADDED 2026-11-09, owner via Contest Planner] SC-5 re-open of Epic 0 for release 1.0.6, after Story 0.19. Scope owner-approved (Contest Planner, 2026-11-09); the tagline is approved verbatim. The exact header markup (alt texts, badge labels, link targets) and any new or changed README-check rule message go to the Contest Planner as PUBLIC TEXT at the spec gate, before the implement stage. The `docker/tests/test-readme.sh` hunk is not a release tool. Files: README.md, docker/tests/test-readme.sh, docs/images/ocutalon-logo.png.
+
+As a judge or visitor opening the repository,
+I want the README to open with the logo, the name, one tagline and a row of status badges,
+So that I see what OcuTalon is and whether it is healthy before I read a word of the body.
+
+**Acceptance Criteria:**
+
+**Given** the logo files under `logo/`
+**When** this story merges
+**Then** `docs/images/ocutalon-logo.png` exists, about 200 px, made from `logo/OcuTalon-Icon.jpeg` or the light logo, whichever reads better at about 160 px on GitHub's light and dark themes
+
+**Given** README.md
+**When** this story merges
+**Then** it opens with a centred header that replaces the bare "# OcuTalon" presentation: the logo, the title OcuTalon, one tagline line reading exactly "An AI assistant that runs inside InterSystems IRIS Interoperability, with every decision in Visual Trace.", then a badge row, then the existing link bar
+**And** the badge row holds, each an image inside a link: CI (`https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml/badge.svg?branch=main`, linking to the ci.yml runs page); version (`https://img.shields.io/github/v/release/jbrandtmse/OcuTalon`, linking to Releases); online demo (shields' live website check `https://img.shields.io/website?url=https%3A%2F%2Fdemo.ocutalon.com&label=online%20demo&up_message=live&down_message=down`, alt "Online demo status", to https://demo.ocutalon.com) [AMENDED 2026-11-09, Contest Planner ruling: was the static shield "online demo | live", which stays green while the demo is down]; and static shields "docker | install.sh" (to #start-it-with-the-install-script), "IPM | ocutalon" (to #install-it-with-ipm), "IRIS | AI Hub" (to #whats-interesting) and "license | MIT" (to LICENSE), in plain colours
+**And** the header's exact markup (alt texts, badge labels and link targets) is the text the Contest Planner approved at the spec gate
+
+**Given** `docker/tests/test-readme.sh`
+**When** this story merges
+**Then** it allows this one header block only: image hosts img.shields.io and github.com/jbrandtmse/OcuTalon (the badge.svg path), images inside links within the block, the centred HTML wrapper if needed, and the logo PNG
+**And** every other rule stays as strict as before: the existing top rule (opening paragraph, teaser, hero image) applies from the first line after the header, and no existing rule is weakened beyond the header block
+**And** new self-tests show that a badge outside the header is flagged, a badge from another host is flagged, and an image inside a link outside the header is flagged, and a header logo with a different src is flagged [AMENDED 2026-11-09, Contest Planner ruling: self-test added]
+**And** any new or changed rule message is the text the Contest Planner approved at the spec gate
+
+**Given** the change
+**When** this story merges
+**Then** `bash docker/tests/test-readme.sh` passes every rule and every self-test, `docker/tests/test-boundaries.sh` passes, lane-a is green, and the header renders on GitHub (checked on the pushed branch's README page)
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
@@ -4044,6 +4121,39 @@ So that later stories can add sign-in tests without a run outgrowing the 10-minu
 
 - DW-314: `live sign-in` runs as two parts of the same script (part 1/2 and 2/2, split by spec file, as `ci/iris.sh shard --part k/n` splits classes), each about 4 to 5 minutes on the developer machine, together running every spec the whole unit runs, exactly once; CI's `browser` group still runs the whole unit; Rule 21's recipe says how to run the two parts (owner via Contest Planner: split live sign-in into two ~4-5 min runs) (ledger; chartered by burndown 2026-10-27)
 - DW-204: `web/e2e/api/api.spec.ts` reads the instance stream's status events against a baseline it takes itself, so it passes whether or not `heartbeat.spec.ts` ran before it, in either part and in the whole unit (ledger; chartered by burndown 2026-10-27)
+
+### Story 8.8: The heartbeat task resumes itself when it comes back Suspended
+
+[ADDED 2026-11-10, DW-1018, owner via Contest Planner (1.0.6 HIGH)] SC-5 re-open of Epic 8 for release 1.0.6, a Rule 5 tier-1 re-open story: it restores FR-32's promise (the heartbeat ticks every minute and catches up once after a restart, Story 8.1) on a start that leaves the task Suspended, and changes no product target. Scope owner-approved (Contest Planner [3dd56e], delegated authority, 2026-11-09). The resume's log line and any `release/demo-host-check.sh` output line go to the Contest Planner as PUBLIC TEXT at the spec gate, before the implement stage; the `release/demo-host-check.sh` hunk is a RELEASE TOOL hunk, ruled by the Planner before this story merges. Any new privilege, role, grant or resource the resume needs is named at the spec gate (veto window); the user role `OcuTalonUser` is never widened. Files: `src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls` (the Schedule area, Lane B), `OcuTalon.Schedule.*`, their tests under `OcuTalon.Test.Schedule`, one new live script under `docker/tests/`, Lane B's entries in `ci/units.sh`, `release/demo-host-check.sh` and `release/demo-host-checks.md`, and that script's existing checks under `docker/tests/`.
+
+As the operator of an OcuTalon instance, the online demo's included,
+I want the heartbeat task to resume itself when a stop and start leaves it Suspended,
+So that ticks, background checks, watches and the digest's coverage come back after every restart, with no hand fix on the host.
+
+**Acceptance Criteria:**
+
+**Given** the Task Manager task "OcuTalon heartbeat" exists and is Suspended, as after a stop or start that cut a run short (seen on the 1.0.5 online demo after an update: Suspended 1, SuspendOnError 0, its last run OK)
+**When** OcuTalon starts: the after-start script's installer steps, an IPM install's steps, or a production start that `ReconcileIn` reconciles (AD-23)
+**Then** the task is resumed and one log line names it, through `Install.Step.Warn` or the equivalent line the path already writes (FR-32, AD-18, AD-23)
+**And** no second task is created, and the task's schedule and every other property stay as they were: it is still the one task Story 8.1 declared (AD-19's seed rule, AD-23)
+
+**Given** the heartbeat task exists and is not Suspended
+**When** OcuTalon starts
+**Then** the task is left exactly as it was and no line is logged
+
+**Given** no heartbeat task exists
+**When** OcuTalon starts
+**Then** the outcome is what the installer does today: the Tasks step creates the task, and the resume path finds nothing to resume
+
+**Given** the heartbeat task has been suspended on a running instance
+**When** the instance is restarted
+**Then** within 2 minutes of the restart the task runs and the heartbeat ticks (a new tick in `OcuTalon.Data.StatusMark`), which a live unit checks; the unit runs in the CI group with the most headroom, never in `production`, `browser`, `install-fresh` or `install-upgrade` (FR-32, AD-22)
+**And** unit tests in `OcuTalon.Test.Schedule` cover the three cases above: not Suspended (unchanged, no line), Suspended (resumed, one line), missing (as today)
+
+**Given** `release/demo-host-check.sh` runs against the online demo host
+**When** the heartbeat's last tick is more than 3 minutes old, or the heartbeat task is Suspended
+**Then** the run reports a FAIL line for it and exits 1, the way the script reports every other failed check (AD-25)
+**And** the script stays read-only and opens no new public read on the host: the evidence comes the way `--zone` and `--demo-status` already bring theirs, unless the spec gate rules otherwise (veto window)
 
 ## Epic 9: Quality is measured: the evaluation set
 
@@ -6974,6 +7084,39 @@ So that I can tell where an answer came from.
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 3's stories in both lanes have merged **When** step 3's release is prepared **Then** a hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram, and its findings are fixed before the release (REL-7)"]
 - DW-383: Eval.In.Render is a line-for-line copy of Lane B's private Core.Conversation.Checked (the glue from a Reply's HostData checks to Checks.Render's key and rows), forced by AD-29; when Conversation's HostData handling changes, the evaluation's all-clear path drifts from the product's (AD-22) (ledger; routed by merge_gate 2026-10-31)
+- DW-721: Owner ruling U-280 chips: citation and memory chips are built by code from the turn's tool results (at most 5 each); labels state provenance, never 'used', 'relied on' or 'based on' ('Sources' and 'From memory' are fine); the UI shows 'None of your documents cover that.' and document citations never together, with tests in both directions; FR-41 is met by the 'From memory' chip (ledger; routed earlier, bullet added by runner 2026-11-09)
+- DW-733: flake candidate: Test.Live.GuideRefresh TestHookPublishesOnChange and TestEventsBodyServesTheGuide fail when the class runs alone on a warm stack the lane-b shard already used (ledger; routed earlier, bullet added by runner 2026-11-09)
+- DW-975: When web citations ship, restore a citation line to the demo guide's 'Ask about a document' look-for (more-to-try-view.ts documents.lookFor, its three pins and EXPERIENCE.md item 6 together, under the public-text rules) (ledger; routed earlier, bullet added by runner 2026-11-09)
+- DW-976: Documents page empty state still promises citations ('No documents yet. Add a runbook to get cited answers.'); a public string change needs a Planner ruling (ledger; routed earlier, bullet added by runner 2026-11-09)
+
+### Story 20.3: Add a sample runbook in one press
+
+[ADDED 2026-11-09, owner re-plan, Contest Planner ruling] Voting-week findability follow-up to Story 20.2: a visitor without a file to hand can still see a cited answer.
+
+As a demo visitor,
+I want to add a short sample runbook with one press,
+So that I can ask about it and see a cited answer without bringing my own file.
+
+**Acceptance Criteria:**
+
+**Given** the Documents page
+**When** the user presses the sample-runbook button
+**Then** a short runbook bundled with the web app, about the demo's own feeds, is added through the normal upload and ingest path (the same `POST /api/v1/documents` route, `AddDocument` and `DocumentOps` indexing as any file the person adds), with no special case on the server, no network fetch, and owned by the person's session on the online demo like any upload (an instance document on a local install) (FR-42, AD-21)
+**And** the new row shows in the list and reaches Ready like any other document
+
+**Given** the demo guide's More to try items 6 and 8
+**When** the visitor has no documents
+**Then** the item's control is the sample-runbook button; once the visitor has a document, the control is the existing link to the Documents page
+
+**Given** the sample runbook is Ready
+**When** the visitor reads item 6 or 8's look-for
+**Then** it suggests one question the runbook answers, whose answer carries a citation chip naming the runbook and its section (Story 20.2)
+
+**Given** keyboard and screen-reader use
+**When** the user reaches the button
+**Then** it is a native button with a visible label and a busy state while the upload runs, and a refusal or failure shows the Documents page's existing texts (NFR-25, UX-DR130)
+**And** every new string (the button label, the runbook's name and text, the suggested question) is PUBLIC TEXT ruled by the Planner at this story's spec gate, and the fixed-strings test covers them (UX-DR117)
+**And** the findability rule applies (README "New since 1.0.0" and More to try updated only as the Planner rules), and any new or changed `/api/v1` route has real-HTTP tests as an OcuTalonUser-only user with a second-session isolation check
 
 ## Epic 21: Email, webhooks and MCP settings (step 4)
 
@@ -7042,6 +7185,8 @@ So that OcuTalon reads and sends mail without storing my mail password.
 
 ### Story 21.4: Add, remove and classify MCP servers and tools in Settings
 
+> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1041] The MCP settings write (IRIS Wallet secret and Config Store entry) moves into `McpOps`, an operation, never the REST process; AD-1 stays unchanged. Story 35.2 left the routes as stubs that change nothing; this story replaces them and adds the `/v1/settings/mcp` route with the standing real-HTTP route tests.
+
 As an admin,
 I want to add and remove MCP servers and classify each of their tools in Settings,
 So that I decide which added tools OcuTalon may use, and how.
@@ -7108,6 +7253,10 @@ Tools from an added MCP server become OcuTalon's tools under the same gate, clas
 **Story 22.1 moved to Story 35.1** (step 4 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 35, so that neither of step 4's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 22.2: Classify MCP tools by server and name
+
+> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1013] Attaching an MCP server gets a bounded timeout with a clear error, so a server that accepts the connection and never answers cannot block `AddTool` or the manager's listing (measure rmcp's own timeout on a throwaway first).
+
+[AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1 on Story 35.1, relayed by the orchestrator: (1) the admin chat notices for an unavailable MCP server and for a refused tool whose name shadows a built-in move here from Story 35.1's attach criterion, beside the changed-tool notice this story already sends; they use the accepted texts `mcp.serverUnavailable` and `mcp.toolShadowsBuiltIn` in `OcuTalon.Msg.Catalog.Watch`, read the attach report Story 35.1 records on the `OcuTalon.Mcp.Server` row, and reach the sessions whose user held `OcuTalonAdmin` at their latest sign-in through Story 35.2's read API (no run-time `%SYS` read, no AD-3 exception); (2) `OcuTalon.Core.SettingsOps` writes the server's Config Store entry `AI.MCP.OcuTalon_<server>` and its IRIS Wallet secret, called from Lane B's MCP settings route (Story 35.2), and `McpOps` writes only the `OcuTalon.Mcp.Server` row and calls `RestartRunners()`, so where the criteria below have `McpOps` write the Config Store entry, `SettingsOps` writes it; no command, log, test output or record ever carries a secret value, only a `secret://` reference]
 
 As an admin,
 I want to add and remove MCP servers, and each of their tools classified by me as read-only or risky, keyed by its server and name,
@@ -7329,6 +7478,8 @@ So that I can contain or route around a failure with one approval and undo it th
 **Then** nothing happens, and a dry run leaves every item, setting, message and queue unchanged (AD-16, NFR-13)
 **And** the gate refuses each kind from an untrusted or tainted turn, the service user's privileges are checked against each kind's `RESOURCES` before it runs, and the security overview's generated list shows the new kinds as risky (FR-7, NFR-12, NFR-14, FR-61)
 
+- DW-823: A good-message refusal (Story 7.9, GOODCHANGED) reuses incident.noFix, whose 'None of my fixes applies to this' fits loosely when a fix exists but would also rewrite messages that went through; give it a precise line (Planner wording 2026-11-06) (ledger; routed by x0 2026-11-09)
+
 ### Story 23.3: Name the setting change behind an incident and offer its rollback
 
 As a production developer,
@@ -7403,6 +7554,8 @@ As a production developer,
 I want OcuTalon to draft a delay notice for the partners an incident affects and send it only after I approve the exact text,
 So that partners hear about a delay early without anything leaving the instance unchecked.
 
+[AMENDED 2026-11-09, owner re-plan, Contest Planner ruling (iii)] For the voting-week re-plan this story sends the approved notice through the existing SimMailbox channel (`Channel/SimMailbox/Out`), not `EmailOut`: read "an email channel connected", "through `EmailOut`" and "a mock mail server" below as the SimMailbox channel and its tests. Real email through `EmailOut` moves to a 23.5 follow-up under Epic 21, parked until after voting. Conditions: (1) no public text says or implies that a real email was sent; the texts say the notice went to the Simulated mailbox; (2) on an install with demo mode off (no SimMailbox), an approved notice is kept as an approved draft with a plain line saying email delivery isn't set up yet, never silently dropped, and a test pins this; (3) the approval covers the exact text and the recipients shown (the partner contacts). The last Given below ("as always on the online demo") is superseded on the demo by this note. The partner-contact source while Stories 36.2 and 24.2 are parked is pending a ruling (see the graph's epic-23 note).
+
 **Acceptance Criteria:**
 
 **Given** an incident in a production with partner contacts configured for it (Lane B's partner-contact table, fixed by Story 36.2 (was 24.1) and filled by Story 24.2, or a test fixture with its fields until Story 24.2 merges) and an email channel connected (step 4)
@@ -7457,6 +7610,8 @@ So that I can review or share what happened without rebuilding the timeline myse
 **Given** an incident that has just closed with its summary stored
 **When** `IncidentManager` records the summary
 **Then** it also sends one `Notification` carrying the summary to the session's channels (the web chat, the simulated phone in demo mode and the paired chat), rendered from the catalog key the step 5 wording fixes (FR-30, AD-32)
+
+- DW-877: Watch.Msg.Failure is not XML-enabled, so a FailureBatch body holding failures cannot be exported as XML (ERROR #6249); add %XML.Adaptor (one line, no storage change) (ledger; routed by x0 2026-11-09)
 
 ### Story 23.7: Watch queue backlogs between digests
 
@@ -9016,6 +9171,8 @@ So that a red browser job means a real defect and not a timing accident.
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 22.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 21 waited for Story 22.1 while Epic 22's Story 22.2 waited for Story 21.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
 
+[AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1, relayed by the orchestrator: in the third criterion, "and tells admins" moves to Story 22.2, which sends the admin chat notices for an unavailable server and a refused shadowing tool with its changed-tool notice; this story records each attach report (status, reason, refused tools) on the `OcuTalon.Mcp.Server` row, which Settings shows, and Story 35.2 adds the read API for admins' sessions; no run-time `%SYS` read and no AD-3 exception]
+
 As an admin,
 I want the MCP servers I register attached to OcuTalon's agents so that their tools are listed for OcuTalon,
 So that I can extend OcuTalon with tools I already run.
@@ -9044,6 +9201,10 @@ So that I can extend OcuTalon with tools I already run.
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 21.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 21 waited for Story 22.1 while Epic 22's Story 22.2 waited for Story 21.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
 
+[AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1 on Story 35.1, relayed by the orchestrator: this story also adds a read API that returns the sessions whose user held `OcuTalonAdmin` at their latest sign-in, recorded as a new `Session` property (a stored-data change, flagged at this story's spec gate), which Story 22.2's admin notices use; and `OcuTalon.Core.SettingsOps` writes an MCP server's Config Store entry `AI.MCP.OcuTalon_<server>` and its IRIS Wallet secret, called from the MCP settings route, while `McpOps` writes only the `OcuTalon.Mcp.Server` row and calls `RestartRunners()`; no command, log, test output or record ever carries a secret value, only a `secret://` reference]
+
+[AMENDED 2026-11-09, Story 35.2 plan, split decided by the Epic 35 runner under doctrine U5 (a split into a sibling planned next in the same epic; nothing dropped): the webhook criteria (create a webhook in Settings > Channels; a `POST` answered 202 and sent by `WebhookIn` to `Intake`; the 401, the body cap and the test of every unauthenticated path) and this story's release check moved, verbatim, to Story 35.3, which follows this story; this story keeps the spine update and command verbs, `RestartRunners()`, the step 4 texts (including the webhook settings texts Story 35.3 ships) and the ruling's admin-session read API and `SettingsOps` MCP entry contract; its title is kept so its tracker key stays the same]
+
 As an admin,
 I want to create webhooks, each with its own secret, that turn any JSON event into an item,
 So that other systems can tell OcuTalon what happened and it decides what needs me.
@@ -9062,6 +9223,19 @@ So that other systems can tell OcuTalon what happened and it decides what needs 
 **Given** the step 4 texts the UX doesn't give yet: the email and webhook settings, the changed-tool banner in Settings, the source-poll form and the cancelled status of an approval request
 **When** this story starts
 **Then** it proposes their wording to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps › Step 4), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, following the voice and plain-English rules, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR145)
+
+
+### Story 35.3: Send events to OcuTalon through a webhook
+
+[AMENDED 2026-11-09, Story 35.2 plan, split decided by the Epic 35 runner under doctrine U5: a new sibling of Story 35.2 (Lane B, it follows Story 35.2), holding Story 35.2's webhook criteria and release check, moved verbatim; nothing dropped; it uses the names and texts Story 35.2 fixes]
+
+[AMENDED 2026-11-09, parked: owner re-plan 2026-11-09 (voting week), relayed by the Contest Planner and the orchestrator: no plan or implement until after voting; Epic 35 merges Stories 35.1 and 35.2 as a part merge and stays in progress; the story's criteria, and the roles-heading and public-path test items Story 35.2's plan found for it, are unchanged]
+
+As an admin,
+I want to create webhooks, each with its own secret, that turn any JSON event into an item,
+So that other systems can tell OcuTalon what happened and it decides what needs me.
+
+**Acceptance Criteria:**
 
 **Given** an admin in Settings › Channels
 **When** they create a webhook with a name and a secret
@@ -10187,8 +10361,9 @@ So that pins come only from the person, and learned saves only from code.
 **Given** Story 41.8's names
 **When** this story adds Lane B's part
 **Then** `PinMemory` and `UnpinMemory` exist, and `CommandsIn` routes them to the memory operation from origin `web_user` only. The governance test refuses each from `tool` (AD-1)
-**And** `CommandsIn` accepts the save-memory verb from origin `system` too, only when it carries `Source` `learned` (for Story 41.11, if it is built) (AD-21)
+[AMENDED 2026-11-09, Story 41.9 spec gate, ruled by the Contest Planner under the owner's delegation (planner-2026-11-09-41.9 item (d)): the criterion "`CommandsIn` accepts the save-memory verb from origin `system` too, only when it carries `Source` `learned` (for Story 41.11, if it is built) (AD-21)" moved to Story 41.11, with its AD-31 amendment there; this story keeps Story 41.8's rule that code decides the source.]
 **And** `GET /api/v1/memory/items` (list and search, with source and pinned) and the pin routes exist, session-checked and owner-scoped (AD-4)
+**And** a web forget route exists for the Memory card's Forget (Story 41.13): it submits `ForgetMemory` from origin `web_user`, session-checked and owner-scoped through `Memory.Ops` as save and list are; another session's ref answers `not_found`, with a test; it has the same CSRF and same-origin protection as the existing `web_user` write routes; and AD-1 gains the note that `ForgetMemory` is accepted from origin `web_user` as well as `tool` (AD-1, AD-4) [ADDED 2026-11-09, Story 41.8 spec gate, veto-recorded amendment approved by the Contest Planner under the owner's delegation (planner-2026-11-09-41.8): `CommandsIn` accepted `ForgetMemory` from origin `tool` only, and this story's routes had no forget route for 41.13's Forget]
 
 ### Story 41.10: Facts learned at compaction (optional: needs AD-31's amendment, decided at the re-open)
 
@@ -10220,6 +10395,7 @@ So that I can see and forget them like any other memory.
 **When** `BridgeSink` handles it
 **Then** for each entry not already among the owner's memories (exact text, case-folded), it submits the save verb with origin `system`, `Source` `learned` and an idempotency key of the event's id plus the entry's position (FR-73, AD-1, AD-21)
 **And** it waits on no lock longer than one second, and a failure is logged without failing the bridge (AD-31)
+**And** `CommandsIn` accepts the save-memory verb from origin `system` too, only when it carries `Source` `learned`; this needs a message-carried source, decided here with AD-31's amendment, against Story 41.8's rule that code decides the source, and Epic 19's trust rule for a non-`tool` row (AD-21) [MOVED 2026-11-09 from Story 41.9, ruled by the Contest Planner under the owner's delegation (planner-2026-11-09-41.9 item (d))]
 
 ### Story 41.12: Core memory: pins under a hard cap, read at every session start
 
@@ -10233,15 +10409,18 @@ So that it never forgets the few things that matter most.
 
 **Given** a `PinMemory` for one of the owner's memories
 **When** the memory operation handles it
-**Then** it sums the pinned memories' text lengths, plus this one's, at 4 characters a token. Up to 1,000 tokens it sets `Pinned` and `PinnedAt`; above that it refuses with `over_cap`, and nothing changes (FR-74, AD-21)
+**Then** the core memory block, heading and quotes included, is capped at 4,000 chars (1,000 tokens at 4 chars/token): if the rendered block with this pin stays within it, it sets `Pinned` and `PinnedAt`; above that it refuses with `over_cap`, and nothing changes; a pinned fact is never left out of the input while it shows as pinned (FR-74, AD-21) [AMENDED 2026-11-09, Contest Planner ruling: it read "it sums the pinned memories' text lengths, plus this one's, at 4 characters a token. Up to 1,000 tokens it sets `Pinned` and `PinnedAt`; above that it refuses with `over_cap`, and nothing changes"; the heading, quotes and line breaks did not fit in 4,000 characters once pins neared the cap]
 **And** `UnpinMemory` clears the pin, and forgetting a pinned memory deletes it
 **And** only a `PinMemory` from the person sets a pin: no save, tool or compaction path pins a memory (FR-74)
 
 **Given** a user item rendered with `sessionStart`
 **When** `Agent.Input.Render` runs
-**Then** before the daily notes it adds the core-memory block: "Your core memory (facts you pinned):", then the pinned memories newest pin first, quoted, never over the cap (FR-74, AD-7, NFR-27)
+**Then** before the daily notes it adds the core-memory block: "Your core memory (facts you pinned):", then the pinned memories newest pin first, quoted, never over the cap, with every pinned memory in it (FR-74, AD-7, NFR-27) [AMENDED 2026-11-09, Contest Planner ruling: "with every pinned memory in it" added with the cap on the rendered block]
 - DW-967: a first turn of the day that ends in a fallback (`no_key`, `daily_cap`, `budget`, `too_large`, failed Chat) still counts as the session start, so that day's notes never reach a model; count only turns whose request reached a model (ledger; routed by burndown 2026-11-09)
 - DW-977: today's note at a session start quotes the current message's own opening, so the model sees the person's words twice; leave the current and later turns out of the note (and update `Test.Bridge.SecondModel:TestIntegrationWebChat`) (ledger; routed by burndown 2026-11-09)
+- DW-1014: rows saved before Story 41.8 hold no stored `Pinned` value, so SQL such as `Pinned = 0` skips them; the pinned read and the cap sum use `COALESCE(Pinned, 0)` or read through `Memory.Row` (ledger; routed by harvest 2026-11-09)
+- DW-1029: the pin tests stop at a probe (`CommandsStep3Probe` answers any pin with error 5001, `MemoryApi:TestPin` real mode pins that 500), so once `MemoryOps` handles `PinMemory`/`UnpinMemory` they stay green past the real handler; re-pin them on the real outcomes, and fix `Memory/Ops.cls:19`'s origin comment (ledger; routed by cr 2026-11-09)
+- DW-1039: the real-HTTP test of the pin routes (`web/e2e/api/memory.spec.ts`) asserts today's 500 because `MemoryOps` has no pin handler; once this story handles `PinMemory`/`UnpinMemory`, assert 200 `{"result":"done"}`, 409 `over_cap` and a second-session 404 (ledger; routed by harvest 2026-11-09)
 
 ### Story 41.13: The Memory card: pinned and learned memories
 
@@ -10264,6 +10443,9 @@ So that I decide what OcuTalon keeps.
 **When** this story updates it
 **Then** it says what forgetting removes (the memory, its search entries, any pin, and every later session start) and that the current conversation's earlier messages aren't rewritten (FR-73)
 - DW-996: unify the Memory card's `ForgetDialog` (`web/src/app/rail/memory-card/forget-dialog.ts`) with `documents/remove-dialog.ts` into one shared confirm dialog (ledger; routed by burndown 2026-11-09)
+- DW-1030: `GET /v1/memory/items` lists only the newest 20 (or a search's best 5), with no pinned filter, paging or used-token figure, so it cannot back the Pinned tab; the card needs the pinned rows and the {used} of 1,000 tokens (ledger; routed by cr 2026-11-09)
+- DW-1031: the card's memory search runs only on submit, never per keystroke, and on the online demo each search counts against the existing message allowance (no new number), so searches cannot fill the shared embedder queue (ledger; routed by owner 2026-11-09, Contest Planner ruling under the owner's delegation)
+- DW-1040: the memory search's 503 `search_busy` must not raise the online demo's whole-page busy state (`DemoBusyState`, the chat outbox): the card shows a local "search is busy" message for a 503 whose code is `search_busy`; Contest Planner ruling 2026-11-09: keep 503 + `search_busy` and add a `Retry-After` header (in this story); the client's whole-page demo-busy handling changes in ONE place to skip responses whose code is `search_busy`; an e2e test proves a `search_busy` answer shows the card's message and does not put the page into demo-busy; check whether the demo's message allowance already answers 429 and, if so, record that 429 is taken (ledger; routed by harvest 2026-11-09)
 
 ### Story 41.14: Evaluation and tests for memory's second part
 
@@ -10287,5 +10469,8 @@ So that memory that learns can't be fed from outside and really forgets.
 **Then** the row, its vector and its `%iFind` entry are gone, recall returns nothing for its text, and the next session start's block doesn't hold it (FR-41, FR-74)
 **And** pins up to the cap succeed, the next one is refused, and the block is never over 4,000 characters (FR-74, NFR-27)
 **And** a `turn` case on the real model asks about a forgotten fact and gets an answer that cites no memory
+- DW-908: no test pins the content of the user-turn remember and forget cases; pin the remember case's text, key phrases, absent phrases, heldOut and recordedBy in `Test.Eval.Cases`, and add both user-turn cases to `Test.Eval.Report`'s chip loop (ledger; routed by x0 2026-11-09)
+- DW-1016: no test or eval checks that Chat's reply after a refused or failed learned save does not say "I'll remember that"; add a case for a denied learned save whose reply must not claim the save (ledger; routed by cr 2026-11-09)
+- DW-1015: the learned-save eval case (`eval/memory-learned-save`) covers no real save (an eval turn's owner `eval` is not a session, so `save_memory` is refused); give the case a real session, and score it right only when the save happened AND the reply carries the sentence; until then it stays report-only, labelled wording-only, never a gate (ledger; routed by owner 2026-11-09, Contest Planner ruling under the owner's delegation)
 
 **Release check:** at the first daily release after the re-open, the Contest Planner's hands-on pass with real keys mentions a fact, sees it learned, pins it, and starts a new day's conversation to see it read (REL-7, as amended 2026-10-31).

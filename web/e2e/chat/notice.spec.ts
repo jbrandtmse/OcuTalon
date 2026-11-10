@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
 import { loadedAfter } from '../support/floor';
-import { fixtureUser, seedDecision, seedTurns, sendItem, sendItemDecision, sendNotification } from '../support/iris';
+import { cleanFixtureRows, fixtureUser, seedDecision, seedIncident, seedTurns, sendItem, sendItemDecision, sendNotification } from '../support/iris';
 import { countFocusins, fromBottom, plain, scrollListTo, tokenColor } from '../support/page';
 
 /**
@@ -696,4 +696,50 @@ test('N11: an untrusted item reaches the simulated phone as a tell-now notificat
   expect(seen, 'the notification is on the simulated phone within 5 s, counted from before the send').toBe(true);
   expect(elapsed, 'in under 5000 ms').toBeLessThan(FIVE_SECONDS_MS);
   await expect(message.locator('.text'), 'with the text of the no-key fallback, on two lines').toHaveText(`${sender}: Invoice\nWhy now: no model key is set`, { useInnerText: true });
+});
+
+/**
+ * N20 (Story 23.6): an incident's summary Notification through Notify is a card of the class summary: the info icon, the stored summary's catalog lines one on
+ * each line with their line breaks (white-space pre-line), no heading, strip, caption or Why now line, and the cause, evidence and sample error shown as text,
+ * their markup characters visible and never taken as markup. After a reload the snapshot shows the same card.
+ */
+test('N20: an incident summary shows as a card that keeps its line breaks and shows markup as plain text, also after a reload', async ({ page }) => {
+  const { user } = fixtureUser('NOTICE');
+  await open(page);
+  const marker = unique('N20');
+  const parts = [
+    { key: 'summary.title', slots: { count: 3, itemNoun: { one: 'order', other: 'orders' }, production: 'Orders' } },
+    { key: 'summary.cause', slots: { cause: `${marker} sent <b>x</b> and *y* in the date.` } },
+    { key: 'summary.evidence', slots: { evidence: 'OrderDate was <i>16/10/2026</i>' } },
+    { key: 'summary.noFixRan', slots: {} },
+    { key: 'summary.messages', slots: { failed: 3, resent: 0, completed: 0, failedAgain: 0, skipped: 0 } },
+  ];
+  const expected = [
+    'Incident summary: 3 orders failed in Orders.',
+    `Cause: ${marker} sent <b>x</b> and *y* in the date.`,
+    'Evidence: OrderDate was <i>16/10/2026</i>',
+    'No fix ran, so nothing was changed.',
+    'Messages: 3 failed, 0 resent, 0 completed, 0 failed again, 0 skipped.',
+  ];
+  const incident = await seedIncident(user, { state: 'closed', summary: JSON.stringify({ parts, lines: [] }) });
+  try {
+    await sendNotification(user, { kind: 'summary', catalogKey: 'summary.title', slots: {}, incidentRef: incident });
+    const card = cardOf(page, marker);
+    const assertCard = async (when: string): Promise<void> => {
+      await expect(card, `${when}: one card`).toHaveCount(1, { timeout: CARD_MS });
+      await expect(card.locator('.notice.summary'), `${when}: of the class summary`).toHaveCount(1);
+      expect((await card.locator('.text').innerText()).split('\n'), `${when}: the text keeps its line breaks, one catalog line on each`).toEqual(expected);
+      await expect(card.locator('.text'), `${when}: white space is kept at the line breaks`).toHaveCSS('white-space', 'pre-line');
+      await expect(card.locator('.text b, .text i, .text em'), `${when}: the markup characters are text, never elements`).toHaveCount(0);
+      await expect(card.locator('h1, h2, h3, h4, h5, h6, [role="heading"], .title'), `${when}: no heading or title`).toHaveCount(0);
+      await expect(card.locator('app-decision-strip, .caption, .why'), `${when}: no strip, caption or Why now line`).toHaveCount(0);
+      await expect(card.getByRole('button'), `${when}: no button`).toHaveCount(0);
+    };
+    await assertCard('arrived');
+    await expect(card.locator('.notice > app-icon'), 'in the info ink').toHaveCSS('color', await tokenColor(page, '--info-ink'));
+    await loadedAfter(page, () => page.reload());
+    await assertCard('after a reload');
+  } finally {
+    await cleanFixtureRows([incident]);
+  }
 });

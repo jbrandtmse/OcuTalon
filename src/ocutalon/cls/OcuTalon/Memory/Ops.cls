@@ -4,16 +4,31 @@
 ///   - SaveMemory: the command's session must have a Data.Session row (otherwise no_session), and its text, trimmed, must not be empty (otherwise
 ///     empty_text, Ok 0). Under the session's lock a memory of the same session, ItemId and text (the natural key; ItemId is the part of the
 ///     idempotency key before its last colon, the turn's item) is not saved a second time: the answer is saved with the first row's Ref, so a
-///     re-sent turn adds nothing. Otherwise the text is embedded through OcuTalon.Memory.Embedding, and a failure answers failed and stores nothing;
-///     else one row is written with a new Ref, SavedAt (UTC to the second), ItemId, the command's Origin and the 384-value embedding, and the answer is
-///     saved (Ok 1) with the Ref. A text over 2,000 characters cannot be saved and answers failed.
+///     re-sent turn adds nothing and keeps the first row's Source. Otherwise Source is decided from the person's own text of the saving turn (the Source
+///     method: told when it holds a phrase of OcuTalon.Tools.MemorySource PHRASES, else learned; learned when the session has no such turn; the saving turn is the turn with the ItemId, or the running turn whose retry
+///     after a rejected history has it), and a turn
+///     that cannot be read answers failed and stores nothing. The text is then embedded through OcuTalon.Memory.Embedding, and a failure answers failed and
+///     stores nothing; else one row is written with a new Ref, SavedAt (UTC to the second), ItemId, the command's Origin, Source, Pinned 0, PinnedAt empty
+///     and the 384-value embedding, and the answer is saved (Ok 1) with the Ref. A text over 2,000 characters cannot be saved and answers failed.
 ///   - ForgetMemory: the row is found by its Ref, and it is the command's session's own row or nothing: a Ref that no row has and a Ref of another
 ///     session's memory answer the same not_found (Ok 0) and delete nothing (DW-740). Otherwise the row is deleted, with its vector and keyword
 ///     entries, and the answer is forgotten (Ok 1).
+///   - SearchMemory (Story 41.9; a read, from origin web_user): OcuTalon.Memory.Search runs for the command's own SessionRef, never another, with the query and at most
+///     OcuTalon.Memory MAXLIMIT items, and the answer is Ok 1, Outcome done, with the items as the JSON array [{ref, text, savedAt, source, pinned}] (pinned a
+///     boolean, no origin) in Data. It changes no row and takes no lock. A search that fails (an empty query or session, a query that cannot be embedded) answers failed.
+///   - PinMemory (Story 41.12; from origin web_user only, as 41.9's gate decides): the memory is found as ForgetMemory finds it, so a Ref that no row has and a Ref of another
+///     session's memory answer the same not_found (Ok 0, an empty Message) and change nothing. A memory that is already pinned answers pinned (Ok 1) and keeps its PinnedAt. Otherwise, under the
+///     session's lock, the core-memory block that the session would have with this memory pinned (OcuTalon.Memory.CoreBlock with the memory's text as the newest pin; the block
+///     is formatted by OcuTalon.Agent.Input.CoreBlock and read from Memory.Pinned, where a row saved before Story 41.8 is not pinned) must be at most OcuTalon.Memory COREMAX
+///     characters, heading, quotes and closing blank line included: if it is longer the answer is over_cap (Ok 0, the existing text of the web layer) and nothing changes, and nothing
+///     is ever unpinned to make room. Otherwise Pinned is 1, PinnedAt is now (UTC to the second), and the answer is pinned (Ok 1, an empty Message) with the Ref.
+///   - UnpinMemory (Story 41.12; origin web_user only): an own memory, pinned or not, gets Pinned 0 and PinnedAt empty, and the answer is unpinned (Ok 1, an empty Message); another
+///     session's memory and an unknown Ref answer not_found (Ok 0, an empty Message).
+///   - Who may ask (DW-1029): SaveMemory comes from origin tool; ForgetMemory from tool or web_user; PinMemory, UnpinMemory and SearchMemory from web_user only (CommandsIn).
 ///   - A lock on the session that cannot be taken within 5 seconds, a save or delete that fails and any exception answer failed.
 ///   - After a new row is saved, Tuned is called with its id, which has the SQL statistics of the table gathered at every STATSEVERY-th id
 ///     (OcuTalon.Memory.Tune), so that the recall query keeps using the HNSW index as the table grows.
-/// The commands arrive from CommandsIn with origin tool only (AD-1), and the memory's Origin is the command's.
+/// The commands arrive from CommandsIn (AD-1; the origins are listed above), and the memory's Origin is the command's.
 Class OcuTalon.Memory.Ops Extends Ens.BusinessOperation
 {
 
@@ -44,6 +59,15 @@ XData MessageMap
 <MapItem MessageType="OcuTalon.Msg.Command.ForgetMemory">
 <Method>OnForget</Method>
 </MapItem>
+<MapItem MessageType="OcuTalon.Msg.Command.SearchMemory">
+<Method>OnSearch</Method>
+</MapItem>
+<MapItem MessageType="OcuTalon.Msg.Command.PinMemory">
+<Method>OnPin</Method>
+</MapItem>
+<MapItem MessageType="OcuTalon.Msg.Command.UnpinMemory">
+<Method>OnUnpin</Method>
+</MapItem>
 </MapItems>
 }
 
@@ -64,7 +88,8 @@ Method OnSave(request As OcuTalon.Msg.Command.SaveMemory, Output response As Ocu
 		If ref '= "" {
 			Set sc = ..Answer(.response, 1, "saved", ..#MESSAGESAVED, ref)
 		} Else {
-			Set sc = ##class(OcuTalon.Memory.Embedding).Embed(text, .vector)
+			Set sc = ..Source(request.SessionRef, itemId, .source)
+			If $$$ISOK(sc) Set sc = ##class(OcuTalon.Memory.Embedding).Embed(text, .vector)
 			If $$$ISOK(sc) {
 				Set row = ##class(OcuTalon.Data.Memory).%New()
 				Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -73,6 +98,7 @@ Method OnSave(request As OcuTalon.Msg.Command.SaveMemory, Output response As Ocu
 				Set row.SavedAt = ##class(OcuTalon.Data.Time).NowUtc()
 				Set row.ItemId = itemId
 				Set row.Origin = request.Origin
+				Set row.Source = source
 				Set row.Embedding = vector
 				Set sc = row.%Save()
 			}
@@ -88,6 +114,36 @@ Method OnSave(request As OcuTalon.Msg.Command.SaveMemory, Output response As Ocu
 	}
 	Lock -^OcuTalon.Memory(request.SessionRef)
 	Quit sc
+}
+
+/// Decides the source of a memory that the session's turn with this ItemId is saving: in source, OcuTalon.Tools.MemorySource TOLD when the person's own text of
+/// that turn (Data.Turn.Text, of the turn that TurnOf finds) holds a phrase of PHRASES, else LEARNED; LEARNED also when the session has no such turn. An
+/// error status when the turn cannot be read, with source empty.
+Method Source(sessionRef As %String, itemId As %String, Output source As %String) As %Status
+{
+	Set source = ""
+	Set turn = ..TurnOf(sessionRef, itemId, .sc)
+	If $$$ISERR(sc) Quit sc
+	Set source = $Select($IsObject(turn): ##class(OcuTalon.Tools.MemorySource).Of(turn.Text), 1: ##class(OcuTalon.Tools.MemorySource).#LEARNED)
+	Quit $$$OK
+}
+
+/// The session's turn that a save with this ItemId belongs to, or "": the turn with the ItemId (Data.Ownership.TurnOfItem), else the session's queued or
+/// running turn whose retry has it (a turn that Conversation sends again after the provider rejected the session's history carries
+/// OcuTalon.Core.Conversation RetryItemId of its ItemId). sc is an error status when the turns cannot be read. A seam for the tests.
+Method TurnOf(sessionRef As %String, itemId As %String, Output sc As %Status) As OcuTalon.Data.Turn
+{
+	Set turn = ##class(OcuTalon.Data.Ownership).TurnOfItem(itemId, sessionRef, .sc)
+	If $$$ISERR(sc) || $IsObject(turn) || (itemId = "") Quit turn
+	Set queue = ##class(OcuTalon.Data.Ownership).TurnQueue(sessionRef, .sc)
+	If $$$ISERR(sc) Quit ""
+	For i = 1:1:queue.Count() {
+		If ##class(OcuTalon.Core.Conversation).RetryItemId(queue.GetAt(i).ItemId) = itemId {
+			Set turn = queue.GetAt(i)
+			Quit
+		}
+	}
+	Quit turn
 }
 
 /// Forgets the command's memory if it is the command's session's own, or answers that there is none.
@@ -116,6 +172,100 @@ Method OnForget(request As OcuTalon.Msg.Command.ForgetMemory, Output response As
 		Set sc = ..Failed(.response, exception.AsStatus())
 	}
 	Lock -^OcuTalon.Memory(request.SessionRef)
+	Quit sc
+}
+
+/// Pins the command's memory if it is the command's session's own and the core-memory block with it stays within COREMAX characters (see the class description).
+Method OnPin(request As OcuTalon.Msg.Command.PinMemory, Output response As OcuTalon.Msg.CommandResult) As %Status
+{
+	Set response = ""
+	If '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(request.SessionRef)) Quit ..Answer(.response, 0, "no_session", ..#MESSAGENOSESSION)
+	Set lock = ..Lock(request.SessionRef)
+	If 'lock Quit ..Failed(.response, $SYSTEM.Status.Error(5001, "The memories of the session are busy"))
+	Set sc = $$$OK
+	Try {
+		Set row = ##class(OcuTalon.Data.Memory).RefIndexOpen(request.MemoryRef)
+		If '$IsObject(row) || (row.SessionRef '= request.SessionRef) {
+			Set sc = ..Answer(.response, 0, "not_found", "")
+		} ElseIf +row.Pinned = 1 {
+			Set sc = ..Answer(.response, 1, "pinned", "", row.Ref)
+		} Else {
+			Set sc = ##class(OcuTalon.Memory).CoreBlock(request.SessionRef, row.Text, .block)
+			If $$$ISERR(sc) {
+				Set sc = ..Failed(.response, sc)
+			} ElseIf $Length(block) > ##class(OcuTalon.Memory).#COREMAX {
+				Set sc = ..Answer(.response, 0, "over_cap", "")
+			} Else {
+				Set row.Pinned = 1
+				Set row.PinnedAt = ##class(OcuTalon.Data.Time).NowUtc()
+				Set sc = row.%Save()
+				If $$$ISOK(sc) {
+					Set sc = ..Answer(.response, 1, "pinned", "", row.Ref)
+				} Else {
+					Set sc = ..Failed(.response, sc)
+				}
+			}
+		}
+	} Catch exception {
+		Set sc = ..Failed(.response, exception.AsStatus())
+	}
+	Lock -^OcuTalon.Memory(request.SessionRef)
+	Quit sc
+}
+
+/// Unpins the command's memory if it is the command's session's own, or answers that there is none.
+Method OnUnpin(request As OcuTalon.Msg.Command.UnpinMemory, Output response As OcuTalon.Msg.CommandResult) As %Status
+{
+	Set response = ""
+	If '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(request.SessionRef)) Quit ..Answer(.response, 0, "no_session", ..#MESSAGENOSESSION)
+	Set lock = ..Lock(request.SessionRef)
+	If 'lock Quit ..Failed(.response, $SYSTEM.Status.Error(5001, "The memories of the session are busy"))
+	Set sc = $$$OK
+	Try {
+		Set row = ##class(OcuTalon.Data.Memory).RefIndexOpen(request.MemoryRef)
+		If '$IsObject(row) || (row.SessionRef '= request.SessionRef) {
+			Set sc = ..Answer(.response, 0, "not_found", "")
+		} Else {
+			Set row.Pinned = 0
+			Set row.PinnedAt = ""
+			Set sc = row.%Save()
+			If $$$ISOK(sc) {
+				Set sc = ..Answer(.response, 1, "unpinned", "", row.Ref)
+			} Else {
+				Set sc = ..Failed(.response, sc)
+			}
+		}
+	} Catch exception {
+		Set sc = ..Failed(.response, exception.AsStatus())
+	}
+	Lock -^OcuTalon.Memory(request.SessionRef)
+	Quit sc
+}
+
+/// Searches the command's session's memories for its query and answers the items in Data (see the class description).
+Method OnSearch(request As OcuTalon.Msg.Command.SearchMemory, Output response As OcuTalon.Msg.CommandResult) As %Status
+{
+	Set response = ""
+	Try {
+		Set sc = ##class(OcuTalon.Memory).Search(request.SessionRef, request.Query, ##class(OcuTalon.Memory).#MAXLIMIT, .rows)
+		If $$$ISERR(sc) Quit
+		Set items = []
+		Set iterator = rows.%GetIterator()
+		While iterator.%GetNext(, .row) {
+			Set item = {}
+			Set item.ref = row.memoryRef
+			Set item.text = row.text
+			Set item.savedAt = row.savedAt
+			Set item.source = row.source
+			Do item.%Set("pinned", (row.pinned = 1), "boolean")
+			Do items.%Push(item)
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) Quit ..Failed(.response, sc)
+	Set sc = ..Answer(.response, 1, "done", "")
+	Set response.Data = items.%ToJSON()
 	Quit sc
 }
 

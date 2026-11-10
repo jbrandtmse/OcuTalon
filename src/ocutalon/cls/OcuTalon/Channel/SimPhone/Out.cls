@@ -2,7 +2,7 @@
 /// notification here while demo mode is on, except kind allowance. Its message map takes OcuTalon.Msg.Notification only, and it
 /// acts only when the message's SessionRef is a session (Session.Recipients gives it back); for any other owner it logs a
 /// warning and records nothing (AD-4).
-///   - A notification of a message kind (tellnow, reminder, incident, approval, result, digest): it renders
+///   - A notification of a message kind (tellnow, reminder, incident, approval, result, digest, summary): it renders
 ///     Msg.Catalog.Render(CatalogKey, Slots, "phone"), the same text as Telegram's (for a digest, OcuTalon.Channel.DigestText.Text(Slots, "phone", .sc)
 ///     in place of the rendering of the CatalogKey: one plain-text message, Story 18.4), and in one transaction saves the phone
 ///     message (a SimMessage of Kind phone, direction out, with the text) and its Delivery row (channel phone, the
@@ -13,6 +13,8 @@
 ///     with no ApprovalRef and so no buttons; the answered edit below stays the only edit. After the commit it publishes one phone event on the session's stream, with
 ///     Live.Payload.Phone.FromRow of the message: it is the only publisher of that event (AD-33). A render error is
 ///     returned with no row and no event, and a failed publish is logged and leaves the rows;
+///   - a notification of kind summary (Story 23.6; AD-32) is a message like a digest, with the text of OcuTalon.Watch.Summary.Text(IncidentRef, "phone", .sc): the
+///     incident's stored summary, one catalog line per part, plain text. Its message keeps no ApprovalRef, so it has no buttons, and no DecisionRef;
 ///   - a notification of kind answered edits the delivered message in place (AD-14): Delivery.FindByApproval(ApprovalRef,
 ///     "phone", SessionRef) gives the message's Ref, and the message must be this session's phone message and carry the notification's
 ///     ApprovalRef, so that a result message (it keeps none) is never edited. Its Answer
@@ -36,7 +38,7 @@ Class OcuTalon.Channel.SimPhone.Out Extends OcuTalon.Channel.Operation
 Parameter CHANNEL = "phone";
 
 /// The notification kinds that the phone shows as messages.
-Parameter CARDKINDS = "tellnow,reminder,incident,approval,result,digest";
+Parameter CARDKINDS = "tellnow,reminder,incident,approval,result,digest,summary";
 
 /// The notification kinds whose phone message keeps the ApprovalRef and so gets Approve and Reject (AD-32).
 Parameter REQUESTKINDS = "incident,approval";
@@ -69,6 +71,8 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 	}
 	If request.Kind = "digest" {
 		Set text = ##class(OcuTalon.Channel.DigestText).Text(request.Slots, ..#TEXTCHANNEL, .sc)
+	} ElseIf request.Kind = "summary" {
+		Set text = ##class(OcuTalon.Watch.Summary).Text(request.IncidentRef, ..#TEXTCHANNEL, .sc)
 	} Else {
 		Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
 	}

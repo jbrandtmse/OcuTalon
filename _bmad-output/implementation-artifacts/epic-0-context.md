@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock. Stories 0.1 to 0.14, 0.16 and 0.17 are done. Epic 0 is re-opened after the v1.0.4 release for release 1.0.5, with small stories that leave the build and install unchanged. Story 0.17 (done) updated the README's Measured table to 1.0.4's real-model numbers. Story 0.18 adds Planner-approved judge-facing README sections on top of 0.17, and must merge before the 10:00Z hold. Story 0.15 moves the Dockerfile to the repository root so the Open Exchange listing reads Docker True.
+Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so both build lanes can work in parallel. Stories 0.1 to 0.18 and 0.20 are done. Epic 0 is re-opened again for release 1.0.6 with two README stories, both owner-approved through the Contest Planner. Story 0.19 names the contest in the README's contest checklist (DW-1020). Story 0.21 then opens the README with a centred header (logo, title, tagline and status badges), so a judge sees what OcuTalon is and whether it is healthy before reading the body.
 
 ## Stories
 
@@ -22,43 +22,57 @@ Epic 0 is the walking skeleton: one image build and `docker compose up` give Ocu
 - Story 0.12: Epic 0 burn-down (done)
 - Story 0.13: A start retries the CPF merge when IRIS cannot quiesce (done)
 - Story 0.14: A start that recovers through the merge retry passes the live checks and the upgrade harness (done)
-- Story 0.15: The Dockerfile sits at the repository root (ready-for-dev)
+- Story 0.15: The Dockerfile sits at the repository root (done)
 - Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction (done)
 - Story 0.17: The README's evaluation table shows release 1.0.4's numbers (done)
-- Story 0.18: The README shows judges where to look (backlog)
+- Story 0.18: The README shows judges where to look (done)
+- Story 0.19: The README names the contest (backlog)
+- Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget (done)
+- Story 0.21: The README opens with a centred header: logo, tagline and badges (backlog)
 
 ## Requirements & Constraints
 
-**Approved public text (0.17, 0.18):** README text the Contest Planner approved under the owner's delegation goes in byte for byte. Do not reword, re-punctuate or "improve" it. If a test rule fails on the verbatim text, the text still stays as written; report the failure.
+**Approved public text is committed verbatim.** The 0.19 checklist line and the 0.21 tagline are approved word for word. If a README check rule refuses approved text, the text is not reworded; the conflict goes back to the Contest Planner.
 
-**Story 0.18 (README for judges):**
-- Source is the Planner's final edit file (`readme-judges-1.0.5-FINAL.md`, section (b), Edits 1 to 6). Edits 1 to 5 go into README.md at their anchors: the link bar becomes the first paragraph of "Try it in two minutes"; the H3 sections "For judges: where to look" and "New since 1.0.0" go after step 4 of the local path; the "What changes without the agent?" paragraph goes above "With a model, and without one."; the H2 "Contest checklist" goes directly before "Credits and licences".
-- Nothing else in README.md changes, and no line is removed.
-- Edit 6 replaces `docker/tests/test-readme.sh`'s link allow-list with exactly the Planner's line: `community.intersystems.com` and `openexchange.intersystems.com` appear once each, nothing else is added, and no AI Hub bug-report repository is allowed. 0.17's narrower post-path entry, and its two self-tests that only that narrower entry could pass, give way to the host entry.
-- Done when `bash docker/tests/test-readme.sh` passes every rule, `docker/tests/test-boundaries.sh` passes, and CI is green.
-- Pipeline (also used for 0.17): one `bmad-build-auto` stage plans and implements. The runner's own byte-for-byte diff review takes the place of separate QA and code-review stages.
-- The README's standing rules still hold: "Try it in two minutes" stays at the top with the online demo link; claim only what the release ships; plain English, with no class names or error codes outside the developer sections; keep the BMAD/Claude Code credits and the not-affiliated note.
+**The spec gate for 0.21.** The exact header markup (alt texts, badge labels, link targets) and any new or changed README-check rule message go to the Contest Planner as PUBLIC TEXT before the implement stage. The `test-readme.sh` change is not a release tool, so it needs no release-tool review.
 
-**Story 0.15 (Dockerfile at the root):**
-- Use `git mv docker/Dockerfile Dockerfile`. Afterwards `docker/Dockerfile` must not exist, and every reference to the old path names the new one: both compose files' `dockerfile:`, `ci/warm.sh`'s manifest list, `release/release.sh`, `release/upgrade-harness.sh`, `docker/tests/*`, workflow files, and every other grep hit.
-- Behaviour stays the same: the build context stays `.`, the COPY paths are unchanged, and `.dockerignore` still keeps the image small. Compare `docker image inspect … --format '{{.Size}}'` before and after; the only allowed difference is layer metadata.
-- `install.sh` and the README's install steps stay the same for the user. No test pin is deleted or weakened; a pin of the old path moves to the new path.
-- `release.sh` builds the current tree from the root `Dockerfile`. The upgrade harness accepts either location for the previous release's tree (v1.0.4 and earlier use `docker/Dockerfile`), with a test pinning each case.
-- Any change to `release/*.sh` goes to the Contest Planner before it merges; the release-tool freeze is lifted for this story only.
-- Any planning artifact or spine row that names `docker/Dockerfile` as the current location (including the architecture's repository-layout line) is amended in place with an `[AMENDED …, Story 0.15, owner decision via the Contest Planner]` marker. A public doc sentence that names the path counts as public text.
-- Gates: CI green on every workflow, and the Planner's clean install.
+**Scope of change.**
+- 0.19 changes README.md only, and only the one checklist line. Nothing else in the README changes.
+- 0.21 changes only README.md, `docker/tests/test-readme.sh` and the new `docs/images/ocutalon-logo.png`.
+
+**README rules that stay in force:**
+- "Try it in two minutes" stays at the top of the body, with the online demo link. The existing link bar follows the new header unchanged.
+- The README keeps the not-affiliated note, the credits, and plain language.
+- Public text holds no keys, local machine paths, private infrastructure details or other entrants' names.
+
+**The README check (0.21).**
+- The new allowance covers only the one header block: badge images from img.shields.io and from the repository's own CI `badge.svg` path, images inside links within the block, a centred HTML wrapper if needed, and the logo PNG.
+- Every existing rule stays as strict outside the block. The top rule (opening paragraph, teaser, hero image) applies from the first line after the header.
+- New self-tests prove that each of these is flagged: a badge outside the header, a badge from another host, and an image inside a link outside the header.
+- No pin is deleted or weakened.
+
+**Done means:**
+- `bash docker/tests/test-readme.sh` passes every rule and self-test.
+- `docker/tests/test-boundaries.sh` passes.
+- Lane-a CI is green.
+- For 0.21, the header renders correctly on the pushed branch's GitHub README page.
 
 ## Technical Decisions
 
-- **One image recipe:** a single Dockerfile builds `FROM` the retagged build 154 image (`ocutalon-iris-base:2026.3.0AI.154.0`), and the `IRIS_IMAGE` build argument selects the non-Health image. IPM and the `ocutalon` package install at container start, version-gated, because the code database lives on the durable volume.
-- **Never push the image:** the AI Hub image, and any image built on it, is never pushed to a registry or kept in CI caches or artifacts. A CI step fails on any `docker push` or registry sign-in.
-- **CI rules:** never run `docker compose config` without `--quiet`, or `docker inspect` without `--format`, because both print `env_file` values. Every `docker/tests/test-*.sh` belongs to exactly one of `CHECK_SCRIPTS`, `WEB_SCRIPTS` or an IRIS group in `ci/units.sh`; otherwise `test-ci-config.sh` fails.
-- **Portability:** scripts also run under macOS's bash 3.2 in hermetic tests, so any new path-fallback logic must be portable shell.
-- **Ownership:** `docker/` belongs to Lane B, except Lane A's `merge.cpf`. `release/` is Lane A's release work. Only Epic 0 may edit files from both lanes in one story.
+- **Badge anchors must resolve.** The badges link to in-page anchors (`#start-it-with-the-install-script`, `#install-it-with-ipm`, `#whats-interesting`). Each must match a heading's GitHub slug in the current README. The license badge links to `LICENSE`, the online-demo badge to https://demo.ocutalon.com, CI to the ci.yml runs page and the version badge to Releases. Static shields use plain colours. The docker logo on its badge is optional.
+- **Link allow-list.** `community.intersystems.com` is already on `test-readme.sh`'s allow-list, so 0.19's contest-post link needs no rule change. No AI Hub bug-report repository may be allowed.
+- **Portability.** `test-readme.sh` also runs under macOS's bash 3.2 in hermetic tests, so shell changes must be portable.
+- **Lane ownership.** `docker/` belongs to Lane B, but Epic 0 may edit files from both lanes in one story.
+
+## UX & Interaction Patterns
+
+- **Choosing the logo.** `docs/images/ocutalon-logo.png` is about 200 px, made from `logo/OcuTalon-Icon.jpeg` or the light logo, whichever reads better at about 160 px on both of GitHub's themes.
+- **Brand rules.** The light logo has a white background box that shows on dark or tinted surfaces. The icon mark carries a navy tile, which must stay intact. Never recolour, crop, outline or animate the logo.
+- **Header order.** The logo, the title OcuTalon, the one-line tagline, the badge row, then the existing link bar.
 
 ## Cross-Story Dependencies
 
-- 0.18 is built on 0.17's README text and its `test-readme.sh` pins. 0.18 must merge before the 10:00Z hold for release 1.0.5.
-- 0.15 and 0.18 both touch `docker/tests/` README pins. Whichever merges second rebases onto the other's pins. If 0.15 changes any README text, the 0.18 anchors must still hold.
-- 0.15 contends with other epics on `docker/tests/lib-live.sh`, `docker/tests/test-install-upgrade.sh` (Epics 17 and 19), `docker/tests/test-release-sequence.sh` and `release/release.sh` (Epic 19). Integrate forward and expect conflicts there.
-- The upgrade harness's previous-release build depends on v1.0.4's tree layout (the old path). Releases ship at most one a day.
+- **0.21 follows 0.19.** Both are on the same lane and both edit README.md, so build 0.21 on 0.19's merged README.
+- **Built on earlier stories.** Both build on the 0.17 and 0.18 README (link bar, judges' table, contest checklist) and on 0.15's root Dockerfile, all already merged.
+- **Release target.** Both target release 1.0.6.
+- **Known flakes.** Inherited CI flakes (for example DW-973, DW-774, DW-689 and DW-1026) can turn a run red without a cause in these stories. Classify them; do not change the stories to work around them.

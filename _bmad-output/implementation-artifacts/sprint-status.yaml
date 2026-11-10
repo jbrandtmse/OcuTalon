@@ -29,13 +29,13 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-09-2026 08:06
+last_updated: 11-10-2026 06:22
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-0: in-progress
+  epic-0: done
   0-1-the-image-builds-and-starts-ocutalon-in-its-own-namespace: done
   0-2-the-package-installs-and-upgrades-itself-at-every-start: done
   0-3-sign-in-to-an-empty-ocutalon-page: done
@@ -50,10 +50,13 @@ development_status:
   0-12-epic-0-burn-down: done
   0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce: done
   0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv: done
-  0-15-the-dockerfile-sits-at-the-repository-root: ready-for-dev
+  0-15-the-dockerfile-sits-at-the-repository-root: done
   0-16-the-embedded-python-callback-crash-s11-is-re-verified-with-a: done
   0-17-the-readme-s-evaluation-table-shows-release-1-0-4-s-numbers: done
   0-18-the-readme-shows-judges-where-to-look: done
+  0-19-the-readme-names-the-contest: done
+  0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un: done
+  0-21-the-readme-opens-with-a-centred-header-logo-tagline-and-badg: done
   epic-0-retrospective: optional
 
   epic-1: done
@@ -164,6 +167,7 @@ development_status:
   8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so: done
   8-6-reminders-through-the-chat-on-the-demo-path: done
   8-7-epic-8-burn-down: done
+  8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend: done
   epic-8-retrospective: optional
 
   epic-9: done
@@ -296,8 +300,9 @@ development_status:
   19-8-epic-19-burn-down: done
   epic-19-retrospective: optional
 
-  epic-20: backlog
-  20-2-see-citations-and-memories-in-answers: backlog
+  epic-20: done
+  20-2-see-citations-and-memories-in-answers: done
+  20-3-add-a-sample-runbook-in-one-press: done
   epic-20-retrospective: optional
 
   epic-21: backlog
@@ -316,12 +321,13 @@ development_status:
   22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone: backlog
   epic-22-retrospective: optional
 
-  epic-23: backlog
-  23-2-suspend-resume-and-reroute-with-a-dry-run: backlog
+  epic-23: in-progress
+  23-2-suspend-resume-and-reroute-with-a-dry-run: in-progress
   23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol: backlog
   23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate: backlog
-  23-5-draft-partner-delay-notices-that-are-sent-only-after-approva: backlog
-  23-6-write-an-incident-summary-when-an-incident-closes: backlog
+  23-5-draft-partner-delay-notices-that-are-sent-only-after-approva: 
+    ready-for-dev
+  23-6-write-an-incident-summary-when-an-incident-closes: done
   23-7-watch-queue-backlogs-between-digests: backlog
   23-8-watch-a-saved-sql-query-as-a-read-only-sql-user: backlog
   epic-23-retrospective: optional
@@ -411,9 +417,10 @@ development_status:
   34-4-the-keyboard-add-documents-test-is-stable-dw-825: done
   epic-34-retrospective: optional
 
-  epic-35: backlog
-  35-1-fix-step-4-s-contracts-and-register-mcp-servers: backlog
-  35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th: backlog
+  epic-35: in-progress
+  35-1-fix-step-4-s-contracts-and-register-mcp-servers: done
+  35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th: done
+  35-3-send-events-to-ocutalon-through-a-webhook: backlog
   epic-35-retrospective: optional
 
   epic-36: backlog
@@ -465,12 +472,12 @@ development_status:
   41-5-this-was-noise-and-your-approval-answers-become-precedents: done
   41-6-the-memory-card-your-notes-and-your-answers: done
   41-7-evaluation-and-tests-for-memory-s-first-part: done
-  41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns: backlog
-  41-9-pins-and-learned-saves-get-their-verbs-and-routes: backlog
+  41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns: done
+  41-9-pins-and-learned-saves-get-their-verbs-and-routes: done
   41-10-facts-learned-at-compaction-optional-needs-ad-31-s-amendment: backlog
   41-11-bridgesink-saves-compaction-facts-as-learned-memories-option: backlog
-  41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star: backlog
-  41-13-the-memory-card-pinned-and-learned-memories: backlog
+  41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star: done
+  41-13-the-memory-card-pinned-and-learned-memories: ready-for-dev
   41-14-evaluation-and-tests-for-memory-s-second-part: backlog
   epic-41-retrospective: optional
 action_items:
@@ -563,5 +570,14 @@ action_items:
     action: "Attended bmad-architecture Update: AD-19 note that the models section
       nested body is not field-to-value"
     owner: "owner"
+    status: open
+    ref: ""
+  - id: "epic-38-retro-item-12-parked-until-after-voting-owner-re-plan"
+    epic: 38
+    action: "Parked until after voting, owner re-plan 2026-11-09 (DW-1021): 41.10,
+      41.11; 11.16, 11.18, 11.29; DW-446/485 story; 35.3; Epics 21, 22, 24, 26, 27,
+      28; 25.3-25.5; 36.2 (36.1, 23.3 if not brought back). Epic 38 CLOSED (1.0.0
+      hands-on pass obsolete). Nothing deleted."
+    owner: "user"
     status: open
     ref: ""

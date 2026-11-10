@@ -53,7 +53,7 @@ EOS
 
 # use_image_context <directory>: the next `up --build` builds from that directory.
 use_image_context() {
-  printf 'services:\n  iris:\n    build:\n      context: %s\n      dockerfile: docker/Dockerfile\n' "$1" > "$tmp/context.yml"
+  printf 'services:\n  iris:\n    build:\n      context: %s\n      dockerfile: Dockerfile\n' "$1" > "$tmp/context.yml"
   if [ "${context_added:-0}" = 1 ]; then live_pop_file; fi
   live_add_file "$tmp/context.yml"
   context_added=1

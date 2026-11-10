@@ -6,6 +6,8 @@
 /// for later, and the cost (digest.cost, whose slot is of the type dailyCost); digest.needsYouMore ends a needs-you list that is cut. button.gotIt and
 /// handled.marked are the Telegram Got it button and the line that a handled message ends with (UX-DR143). The slot named itemNoun of digest.healthy is the
 /// noun of the days, as the catalog test allows a noun under that name only.
+/// The step 4 texts (Story 35.1; EXPERIENCE, MCP servers and tools (step 4)) are the five keys under mcp. and digest.notCheckedStopped, the coverage line of a
+/// source that stopped polling; the story that produces each one sends it.
 /// The XData block Entries has the shape that OcuTalon.Msg.Catalog.Core describes, and OcuTalon.Msg.Catalog is the only
 /// renderer. Each key prefix lives in one catalog class.
 Class OcuTalon.Msg.Catalog.Watch
@@ -556,6 +558,14 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "Contest Planner ruling 2026-11-06 (owner delegation): Daily digest / Coverage line, not checked: capped database"
  },
+ "digest.notCheckedStopped": {
+  "text": "Not checked: {entry} (stopped polling at {time}: its tool is no longer Read-only).",
+  "slots": {
+   "entry": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Digest, not checked: stopped"
+ },
  "digest.needsYouOne": {
   "text": "One thing needs you: {what}.",
   "slots": {
@@ -605,6 +615,245 @@ XData Entries [ MimeType = application/json ]
    "cost": "dailyCost"
   },
   "source": "EXPERIENCE Message Catalog / Daily digest / Every digest (the cost)"
+ },
+ "summary.title": {
+  "text": "Incident summary: {count} {itemNoun} failed in {production}.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.firstFailure": {
+  "text": "{time}: first failure.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.noticed": {
+  "text": "{time}: OcuTalon told you.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.requested": {
+  "text": "{time}: OcuTalon asked for approval to repair and resend {count} {itemNoun}.",
+  "slots": {
+   "time": "time",
+   "count": "count",
+   "itemNoun": "noun"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.approved": {
+  "text": "{time}: approved from {channel}.",
+  "slots": {
+   "time": "time",
+   "channel": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.approvedBy": {
+  "text": "{time}: approved by {user} from {channel}.",
+  "slots": {
+   "time": "time",
+   "user": "text",
+   "channel": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.rejected": {
+  "text": "{time}: rejected from {channel}.",
+  "slots": {
+   "time": "time",
+   "channel": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.rejectedBy": {
+  "text": "{time}: rejected by {user} from {channel}.",
+  "slots": {
+   "time": "time",
+   "user": "text",
+   "channel": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.expired": {
+  "text": "{time}: the approval request expired.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.fixStarted": {
+  "text": "{time}: the fix started.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.fixEnded": {
+  "text": "{time}: the fix ended: {resent} resent, {completed} completed, {failedAgain} failed again, {skipped} skipped.",
+  "slots": {
+   "time": "time",
+   "resent": "count",
+   "completed": "count",
+   "failedAgain": "count",
+   "skipped": "count"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.fixInterrupted": {
+  "text": "{time}: the fix was interrupted after resending {resent}.",
+  "slots": {
+   "time": "time",
+   "resent": "count"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.closedDismiss": {
+  "text": "{time}: closed with Dismiss.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.closedReplay": {
+  "text": "{time}: closed when Break the feed was pressed again.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.closedQuiet": {
+  "text": "{time}: closed after 15 minutes with no new failures.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.cause": {
+  "text": "Cause: {cause}",
+  "slots": {
+   "cause": "sentence"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.element": {
+  "text": "Where it failed: {element}.",
+  "slots": {
+   "element": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.noCause": {
+  "text": "No cause was found: {fallbackReason}.",
+  "slots": {
+   "fallbackReason": "fallbackReason"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.evidence": {
+  "text": "Evidence: {evidence}",
+  "slots": {
+   "evidence": "sentence"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.sampleError": {
+  "text": "Sample error: {error}",
+  "slots": {
+   "error": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.fix": {
+  "text": "Fix: {fix}",
+  "slots": {
+   "fix": "sentence"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.noFixRan": {
+  "text": "No fix ran, so nothing was changed.",
+  "slots": {},
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.groups": {
+  "text": "Failure groups:\n{groups}",
+  "slots": {
+   "groups": "groups"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.messages": {
+  "text": "Messages: {failed} failed, {resent} resent, {completed} completed, {failedAgain} failed again, {skipped} skipped.",
+  "slots": {
+   "failed": "count",
+   "resent": "count",
+   "completed": "count",
+   "failedAgain": "count",
+   "skipped": "count"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.cost": {
+  "text": "Model cost of this incident: {cost}.",
+  "slots": {
+   "cost": "cost"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.costUnknown": {
+  "text": "Model cost of this incident: not known.",
+  "slots": {},
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "mcp.serverUnavailable": {
+  "text": "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools.",
+  "slots": {
+   "server": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Server unavailable"
+ },
+ "mcp.toolShadowsBuiltIn": {
+  "text": "The MCP server {server} offers a tool called '{tool}', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed.",
+  "slots": {
+   "server": "text",
+   "tool": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Tool shadows a built-in"
+ },
+ "mcp.toolChanged": {
+  "text": "{tool} on {server} changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval.",
+  "slots": {
+   "tool": "text",
+   "server": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Tool changed"
+ },
+ "mcp.replayToolChanged": {
+  "text": "{tool} on {server} didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed.",
+  "slots": {
+   "tool": "text",
+   "server": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Approved call, tool changed"
+ },
+ "mcp.sourceStopped": {
+  "text": "The source {source} stopped polling at {time}, because its tool {tool} on {server} is no longer Read-only. Your digest lists it as not checked.",
+  "slots": {
+   "source": "text",
+   "tool": "text",
+   "server": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Source stopped"
  }
 }
 }

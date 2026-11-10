@@ -33,11 +33,11 @@
 ///     of a production (noticed since a time, or open), the visible approval requests of an incident, the newest Break the
 ///     feed run and the newest live event of a type on the session's stream. ResolvedIncidents, which Break the feed's press
 ///     reads, is the session's own noticed resolved incidents of a production, oldest first, and never an instance incident.
-///   - Watchers, ActiveVisitors, AllowanceHeld and ApprovalIncident read across owners, so they prepare with the privilege
+///   - Watchers, ActiveVisitors, AllowanceHeld, AdminSessions and ApprovalIncident read across owners, so they prepare with the privilege
 ///     check, report a failed read in sc, and run only in production jobs and tests.
 ///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
 ///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. RecentTurns leaves out a refused
-///     turn, and RecentNotices includes the allowance cards and the digest cards (Story 17.10).
+///     turn, and RecentNotices includes the allowance cards and the digest cards (Story 17.10) and the summary cards (Story 23.6).
 ///   - The Documents page's reads (Story 34.2) are Rows kinds too: Documents, the session's own documents (and on a local install those of
 ///     owner instance, which every user shares), newest first, and Document, one by its Ref; a document the session can't see answers "".
 ///   - Upload (Story 34.3) is the session's own upload by its Ref, a Rows kind too; Data.Upload's Take and Drop read through it, and an upload of
@@ -46,11 +46,15 @@
 ///     first: Conversation's code-written note to the next turn reads it (AD-30). It is a Rows kind like the others.
 ///   - Precedents and Precedent (Story 41.2) are the session's own precedents (Data.Precedent), newest answer first, and one by its Ref; Rows kinds too. A row of
 ///     another session or of owner eval, and a row that has an EvalRunRef, answers like a missing one.
+///   - Memories, Memory and MemoryTotal (Story 41.9) are the session's own memories (Data.Memory), newest SavedAt first and then newest ID first, one by its Ref, and the session's
+///     count of them; Rows kinds too, so that the Memory card's list is read as the signed-in user, who has no SQL privilege (and no search service). A row of another session answers
+///     like a missing one, and the count is the session's own. The search is not here: it is the SearchMemory verb's, which MemoryOps answers.
 ///   - PhoneDecision (Story 41.5) is the DecisionRef of the session's own phone tell-now Delivery row for a simulated phone message's Ref; a Rows kind too.
 ///   - The daily note's reads (Story 41.3) are Rows kinds too, each owner-scoped and each in a window [from, to) of UTC times: NoteTurns (the session's turns that are not
 ///     refused, by CreatedAt), NoteDecisions (its decide decisions, by RecordedAt), NoteIncidents (the incidents it sees, as Incidents does, by NoticedAt), NoteApprovals (the
 ///     requests it sees, as Approvals does, placed by AnsweredAt, else RaisedAt) and NoteReminders (its reminders of every state, by DueAt). DecisionChannel is the Channel of a
 ///     decision's own usage rows. A window with an empty bound gives an empty list and an error status in sc.
+///   - DecisionServed (Story 41.12) is whether a decision has any usage row of the session.
 Class OcuTalon.Data.Ownership
 {
 
@@ -261,13 +265,20 @@ ClassMethod StartVisitor(Output reference As %String, Output sc As %Status) As %
 	Quit row.Ref
 }
 
-/// Finds or creates the IRIS user's one durable session (Session.ForUser) and records its Ref in the CSP session.
-ClassMethod Attach(irisUser As %String = {$Username}) As %Status
+/// Finds or creates the IRIS user's one durable session (Session.ForUser) and records its Ref in the CSP session. admin is the sign-in's
+/// answer to "does the user hold OcuTalonAdmin" (0 or 1, AD-21): when it is 0 or 1 and differs from the row's AdminAtSignIn, the row takes it
+/// and is saved. The attach holds even when that save fails, and the failed save is the answer. "" (an attach on a first API call) leaves the
+/// flag as the latest sign-in set it.
+ClassMethod Attach(irisUser As %String = {$Username}, admin As %String = "") As %Status
 {
 	If '$IsObject($Get(%session)) Quit $SYSTEM.Status.Error(5001, "There is no CSP session to attach the OcuTalon session to")
 	Set row = ##class(OcuTalon.Data.Session).ForUser(irisUser, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	Set %session.Data(..#SESSIONKEY) = row.Ref
+	If ((admin = 0) || (admin = 1)) && (admin '= row.AdminAtSignIn) {
+		Set row.AdminAtSignIn = admin
+		Quit row.%Save()
+	}
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -417,7 +428,7 @@ ClassMethod Heartbeat(sessionRef As %String, Output sc As %Status) As OcuTalon.D
 }
 
 /// The session's newest web notice cards: the Delivery rows of channel web and kind tellnow, reminder or allowance, and those of
-/// kind approval, result or digest that have a ChannelMessageId (only WebChatOut's tool-call cards and digest cards have one; a digest row
+/// kind approval, result, digest or summary that have a ChannelMessageId (only WebChatOut's tool-call cards, digest cards and summary cards have one; a digest row
 /// of the time before the digest card, which records no text, has none), newest
 /// RecordedAt first and then newest ID first, at most max. sc is an error status when the read failed.
 ClassMethod RecentNotices(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
@@ -648,6 +659,34 @@ ClassMethod AllowanceHeld(now As %String, Output sc As %Status) As %List
 	Quit ..RefList(.found)
 }
 
+/// The Refs of the sessions whose user held OcuTalonAdmin, by its whole name and never %All, at the session's latest sign-in
+/// (Session.AdminAtSignIn, AD-21), in Ref order, as a list. It reads across owners, so it prepares with the privilege check and runs only in
+/// production jobs and tests (Story 22.2's McpOps reads it). sc is OK unless the read failed; the result is then "" and means nothing.
+ClassMethod AdminSessions(Output sc As %Status) As %List
+{
+	Set sc = $SYSTEM.Status.OK()
+	Kill found
+	Try {
+		Set statement = ##class(%SQL.Statement).%New()
+		Set sc = statement.%Prepare("SELECT %EXACT(Ref) AS Ref FROM OcuTalon_Data.Session WHERE AdminAtSignIn = 1")
+		If $SYSTEM.Status.IsOK(sc) {
+			Set result = statement.%Execute()
+			If result.%SQLCODE < 0 {
+				Set sc = $SYSTEM.Status.Error(5001, "The read of the admins' sessions failed: "_result.%Message)
+			} Else {
+				While result.%Next() {
+					Set ref = result.%Get("Ref")
+					If ref '= "" Set found(ref) = ""
+				}
+			}
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Quit ..RefList(.found)
+}
+
 /// The subscripts of the array as a list, in order.
 ClassMethod RefList(ByRef found) As %List [ Private ]
 {
@@ -706,6 +745,31 @@ ClassMethod Precedent(ref As %String, sessionRef As %String, Output sc As %Statu
 	Quit rows.GetAt(1)
 }
 
+/// The session's own memories (Data.Memory), newest SavedAt first and then newest ID first, at most max. sc is an error status when the read failed.
+ClassMethod Memories(sessionRef As %String, max As %Integer = 20, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("memories", sessionRef, .sc, +max)
+}
+
+/// The number of memories (Data.Memory) the session has; 0, with an error status in sc, when the read failed.
+ClassMethod MemoryTotal(sessionRef As %String, Output sc As %Status) As %Integer
+{
+	Set rows = ..Rows("memoryTotal", sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) || (rows.Count() = 0) Quit 0
+	Quit rows.GetAt(1).total
+}
+
+/// The memory with this Ref when it is the session's own, otherwise "": a row of another session answers like a missing one. ref may come from request input; it is only
+/// ever a bound value.
+ClassMethod Memory(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Memory
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ref = "" Quit ""
+	Set rows = ..Rows("memory", sessionRef, .sc, ref)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
 /// The session's turns that are not refused and were created in the window [from, to) (UTC strings, as CreatedAt is), by CreatedAt and then ID. An empty bound gives an empty
 /// list and an error status in sc, and so does a failed read.
 ClassMethod NoteTurns(sessionRef As %String, from As %String, to As %String, Output sc As %Status) As %ListOfObjects
@@ -751,6 +815,18 @@ ClassMethod DecisionChannel(decisionRef As %String, sessionRef As %String, Outpu
 		If channel '= "" Quit
 	}
 	Quit $Get(channel)
+}
+
+/// 1 when the decision has at least one usage row of the session (a model call served it), else 0: the sign that a turn's request reached a model (Story 41.12, DW-967). A decision that a
+/// precheck refused, or whose call threw without spending, has none. decisionRef comes from a row read through this class, never from request input. sc is an error status when the read failed;
+/// the answer is then 0.
+ClassMethod DecisionServed(decisionRef As %String, sessionRef As %String, Output sc As %Status) As %Boolean
+{
+	Set sc = $SYSTEM.Status.OK()
+	If $Get(decisionRef) = "" Quit 0
+	Set rows = ..Rows("turnUsage", sessionRef, .sc, decisionRef, decisionRef)
+	If $SYSTEM.Status.IsError(sc) Quit 0
+	Quit rows.Count() > 0
 }
 
 /// The rows of a note kind in the window [from, to): an empty bound gives an empty list and an error status in sc, as FinishedToolCalls does for an empty end; extra is the bound
@@ -904,6 +980,10 @@ ClassMethod Rows(kind As %String, ownerRef As %String, Output sc As %Status, arg
 				Set sc = $SYSTEM.Status.Error(5001, "The read of '"_kind_"' failed: "_result.%Message)
 			} Else {
 				While result.%Next() {
+					If class = "" {
+						Do list.Insert({"total": (+result.%GetData(1))})
+						Continue
+					}
 					Set row = $ClassMethod(class, "%OpenId", result.%Get("ID"))
 					If $IsObject(row) Do list.Insert(row)
 				}
@@ -915,7 +995,7 @@ ClassMethod Rows(kind As %String, ownerRef As %String, Output sc As %Status, arg
 	Quit list
 }
 
-/// The fixed statement of a row kind, with the class of its rows and its bind pattern: one letter per ? of the text,
+/// The fixed statement of a row kind, with the class of its rows (empty for a count, whose rows are not opened) and its bind pattern: one letter per ? of the text,
 /// in order, o for the owner's Ref and a for the next further argument of Rows. An unknown kind gives "". The texts
 /// are constants of this class; nothing is built from an argument. Every one has the owner check in its WHERE clause.
 ClassMethod Statement(kind As %String, Output class As %String, Output binds As %String) As %String [ Final, Private ]
@@ -1011,7 +1091,7 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	}
 	If kind = "recentNotices" {
 		Set class = "OcuTalon.Data.Delivery", binds = "ao"
-		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND (Kind IN ('tellnow', 'reminder', 'allowance') OR (Kind IN ('approval', 'result', 'digest') AND ChannelMessageId IS NOT NULL)) ORDER BY RecordedAt DESC, ID DESC"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND (Kind IN ('tellnow', 'reminder', 'allowance') OR (Kind IN ('approval', 'result', 'digest', 'summary') AND ChannelMessageId IS NOT NULL)) ORDER BY RecordedAt DESC, ID DESC"
 	}
 	If kind = "recentPhone" {
 		Set class = "OcuTalon.Data.SimMessage", binds = "ao"
@@ -1092,6 +1172,19 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "precedent" {
 		Set class = "OcuTalon.Data.Precedent", binds = "ao"
 		Quit "SELECT p.ID FROM OcuTalon_Data.Precedent p WHERE p.Ref = ? AND p.OwnerRef = ? AND p.EvalRunRef IS NULL"
+	}
+	If kind = "memories" {
+		Set class = "OcuTalon.Data.Memory", binds = "ao"
+		Quit "SELECT TOP ? m.ID FROM OcuTalon_Data.Memory m WHERE m.SessionRef = ? ORDER BY m.SavedAt DESC, m.ID DESC"
+	}
+	If kind = "memory" {
+		Set class = "OcuTalon.Data.Memory", binds = "ao"
+		Quit "SELECT m.ID FROM OcuTalon_Data.Memory m WHERE m.Ref = ? AND m.SessionRef = ?"
+	}
+	If kind = "memoryTotal" {
+		// A count: no row is opened (class is empty), and each result row is {"total": the first column}.
+		Set binds = "o"
+		Quit "SELECT COUNT(*) FROM OcuTalon_Data.Memory WHERE SessionRef = ?"
 	}
 	If kind = "noteTurns" {
 		Set class = "OcuTalon.Data.Turn", binds = "oaa"

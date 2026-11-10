@@ -279,6 +279,11 @@ Method TestFinished()
 	Do ..Assert(..View(resolved), "resolved with an approved fix and the trace", {"finished": 1, "done": "10111"})
 	Set closed = ..Finishing("closed", "fix", "done", 1)
 	Do ..Assert(..View(closed), "closed with no open variant", {"finished": 1})
+	#; Story 23.6: a Dismiss stores the incident's summary on the closed row, and the finish stays (the guide's finish reads the state and the open variant only).
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(..IncidentOf(closed))
+	Set row.Summary = "{""parts"":[{""key"":""summary.noFixRan"",""slots"":{}}],""lines"":[]}"
+	Do $$$AssertStatusOK(row.%Save(), "the closed incident holds a summary, as a Dismiss leaves it")
+	Do ..Assert(..View(closed), "closed with its summary stored: the finish stays", {"finished": 1, "done": "10111"})
 	Set failed = ..Finishing("resolved", "fix", "failed", 1)
 	Do ..Assert(..View(failed), "a failed fix that resolved", {"finished": 1})
 	Do ..Assert(..View(..Finishing("resolved", "fix", "approved", 0)), "no trace marker", {"finished": 0, "done": "10110"})

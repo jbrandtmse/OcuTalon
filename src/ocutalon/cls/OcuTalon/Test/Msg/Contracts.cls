@@ -39,7 +39,7 @@ Method TestContracts()
 Method TestVerbsInheritTheCommonFields()
 {
 	Set classes = $ListBuild("IncidentCommand")
-	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession", "SetHeartbeat", "RunHeartbeat", "MarkNoise", "ForgetPrecedent")
+	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession", "SetHeartbeat", "RunHeartbeat", "MarkNoise", "ForgetPrecedent", "AddMcpServer", "RemoveMcpServer", "ClassifyTool", "SetSourcePoll", "RemoveSourcePoll", "SendEmail")
 	Set position = 0
 	While $ListNext(verbs, position, verb) {
 		Set classes = classes _ $ListBuild("Command."_verb)
@@ -69,7 +69,7 @@ Method TestEnumerations()
 	Set expected("INCIDENTOPENVARIANT") = "fallback,no_fix,rejected,expired"
 	Set expected("APPROVALSTATE") = "pending,approved,rejected,expired,cancelled,executing,done,failed"
 	Set expected("APPROVALKIND") = "fix,tool_call,setting"
-	Set expected("NOTIFICATIONKIND") = "tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest,handled"
+	Set expected("NOTIFICATIONKIND") = "tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest,handled,summary"
 	Set expected("CHECKRESULT") = "passed,failed,not_checked"
 	Set expected("CHANNEL") = "web,phone,mailbox,telegram,email,webhook,slack,system,heartbeat"
 	Set expected("ORIGIN") = "web_user,web_admin,telegram,tool,timer,system"
@@ -218,7 +218,9 @@ XData Contracts [ MimeType = application/json ]
    "Slots": "%String(MAXLEN=)",
    "CheckRows": "%String(MAXLEN=)",
    "DecisionRef": "%String(MAXLEN=22)",
-   "CheckKey": "%String(MAXLEN=128)"
+   "CheckKey": "%String(MAXLEN=128)",
+   "Citations": "%String(MAXLEN=)",
+   "Memories": "%String(MAXLEN=)"
   }
  },
  "OcuTalon.Msg.Tick": {
@@ -445,6 +447,74 @@ XData Contracts [ MimeType = application/json ]
    "Slug": "%String(MAXLEN=32)",
    "Changes": "%String(MAXLEN=)",
    "ActingUser": "%String(MAXLEN=160)"
+  }
+ },
+ "OcuTalon.Msg.Command.AddMcpServer": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Server": "%String(MAXLEN=40)",
+   "Url": "%String(MAXLEN=2000)",
+   "ActingUser": "%String(MAXLEN=160)"
+  }
+ },
+ "OcuTalon.Msg.Command.RemoveMcpServer": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Server": "%String(MAXLEN=40)",
+   "ActingUser": "%String(MAXLEN=160)"
+  }
+ },
+ "OcuTalon.Msg.Command.ClassifyTool": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Server": "%String(MAXLEN=40)",
+   "Tool": "%String(MAXLEN=128)",
+   "Classification": "%String(MAXLEN=16)",
+   "ActingUser": "%String(MAXLEN=160)"
+  }
+ },
+ "OcuTalon.Msg.Command.SetSourcePoll": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Server": "%String(MAXLEN=40)",
+   "Tool": "%String(MAXLEN=128)",
+   "Name": "%String(MAXLEN=100)",
+   "Arguments": "%String(MAXLEN=)",
+   "IntervalMinutes": "%Integer",
+   "ActingUser": "%String(MAXLEN=160)"
+  }
+ },
+ "OcuTalon.Msg.Command.RemoveSourcePoll": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "SourceRef": "%String(MAXLEN=22)",
+   "ActingUser": "%String(MAXLEN=160)"
+  }
+ },
+ "OcuTalon.Msg.Command.SendEmail": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Recipients": "%String(MAXLEN=2000)",
+   "Subject": "%String(MAXLEN=200)",
+   "Text": "%String(MAXLEN=)"
   }
  },
  "OcuTalon.Msg.Command.TestModel": {

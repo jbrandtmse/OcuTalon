@@ -1,10 +1,12 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, output } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { ChatOutbox } from '../chat/chat-outbox';
 import { COMPOSER_REASON_ID } from '../chat/composer';
 import { turnInFlight } from '../chat/try-it-view';
 import { DeviceTabs } from '../devices/device-tabs';
+import { DOCUMENTS_TEXTS } from '../documents/documents-view';
+import { SampleRunbook } from '../documents/sample-runbook';
 import { AllowanceState } from '../live/allowance-state';
 import { LiveState } from '../live/live-state';
 import { chipName, SAMPLES } from '../mailbox/mailbox-view';
@@ -13,7 +15,7 @@ import { PERSONA_HEADING_ID } from '../rail/persona-card/persona-card-view';
 import { Layout, RAIL_REGION } from '../shared/layout';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { keepRoom } from './more-to-try-room';
-import { BREAK_FEED_BUTTON, MORE_TO_TRY_TEXTS, type MoreToTryItem } from './more-to-try-view';
+import { BREAK_FEED_BUTTON, DISMISS_BUTTON, INCIDENT_CARD, MORE_TO_TRY_TEXTS, type MoreToTryItem, RESOLVED_CHIP } from './more-to-try-view';
 
 /** The Persona card's Change button. */
 const PERSONA_CHANGE = 'app-persona-card button.change';
@@ -33,10 +35,12 @@ let panels = 0;
  * control named by its visible text. It decides nothing about which items show; the guide gives it the server's.
  *
  * A control hands off to the control the page already has: it puts focus on that control and presses it, so the action is exactly that
- * control's own. Item 1 opens the rail and the Persona card's Change, item 2 selects the Simulated mailbox tab and presses the
- * suspicious-request chip, item 3 presses the box's Break the feed, item 4 presses the Demo view switch while it is on, item 5 sends its
- * prompt through the chat's outbox (a new message of the user's), item 6 is a link to the Documents page and item 7 opens the rail and
- * focuses the Heartbeat checklist card's heading, pressing nothing. Every action runs from the control's own click, and focus moves
+ * control's own. The incident summary item presses the Dismiss of the newest incident card that is resolved (the incident's own close, which
+ * writes its summary) and, when no card is resolved (the guide's incident was closed already, or the guide has not run), sends "Show me the incident
+ * summary" through the chat's outbox instead; the Persona item opens the rail and the Persona card's Change, the suspicious email item selects the
+ * Simulated mailbox tab and presses the suspicious-request chip, the Reject a fix item presses the box's Break the feed, the Demo view item presses the
+ * Demo view switch while it is on, the memory item sends its prompt through the chat's outbox (a new message of the user's), the documents item is a
+ * link to the Documents page and the heartbeat item opens the rail and focuses the Heartbeat checklist card's heading, pressing nothing, and the sources item (Story 20.2) is a link to the Documents page. While the visitor has no documents (SampleRunbook.none, with the `documents` item listed) the documents and sources items are instead a button, Add the sample runbook, which asks the Documents page to press its own button of that name (SampleRunbook.ask) and opens the page; the panel posts nothing. Every action runs from the control's own click, and focus moves
  * only for that press. The panel announces nothing, and it emits `pressed` so that the guide keeps the panel open, and `squeezed` when the
  * room is too small for it even at its shortest window, so that the guide does not start it open.
  *
@@ -51,7 +55,8 @@ let panels = 0;
  * carries the focus rule's `moreItem` key like the controls, so a focused group hands focus on when the finish leaves.
  * In the stacked column the page scrolls and the group grows with its items.
  *
- * Item 5 is aria-disabled, never disabled, while a turn is in flight or the message allowance is used up, and a press then sends nothing.
+ * The memory item is aria-disabled, never disabled, while a turn is in flight or the message allowance is used up, and a press then sends nothing; the
+ * incident summary item's press sends nothing in the same cases when it falls back to sending its prompt.
  */
 @Component({
   selector: 'app-more-to-try',
@@ -65,7 +70,7 @@ let panels = 0;
           <li class="item">
             <p class="item-label">{{ item.label }}</p>
             <p class="look-for">{{ item.lookFor }}</p>
-            @if (item.action === 'documents') {
+            @if (item.action === 'documents' && !sampleFirst()) {
               <a class="button button-secondary" routerLink="/documents" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
             } @else {
               <button
@@ -75,7 +80,7 @@ let panels = 0;
                 [attr.aria-disabled]="item.action === 'memory' && blocked() ? 'true' : null"
                 [attr.aria-describedby]="item.action === 'memory' ? describedBy() : null"
                 (click)="press(item)"
-              >{{ item.button }}</button>
+              >{{ sampleFirst() && item.action === 'documents' ? documentsTexts.sample : item.button }}</button>
             }
           </li>
         }
@@ -172,6 +177,8 @@ export class MoreToTry {
   private readonly outbox = inject(ChatOutbox);
   private readonly live = inject(LiveState);
   private readonly allowance = inject(AllowanceState);
+  private readonly sample = inject(SampleRunbook);
+  private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
@@ -191,10 +198,14 @@ export class MoreToTry {
   readonly pressed = output<void>();
 
   protected readonly texts = MORE_TO_TRY_TEXTS;
+  protected readonly documentsTexts = DOCUMENTS_TEXTS;
   protected readonly labelId = `more-to-try-label-${++panels}`;
 
   /** True while the session's message allowance is used up. */
   private readonly used = computed(() => this.allowance.active() !== undefined);
+
+  /** True while the visitor has no documents and the instance has them: items 6 and 8 offer the sample runbook in place of the link. */
+  protected readonly sampleFirst = computed(() => this.sample.none() && this.items().some((item) => item.id === 'documents'));
 
   /** True while the memory item's press sends nothing: a turn is in flight (turnInFlight) or the allowance is used up. */
   protected readonly blocked = computed(() => this.used() || turnInFlight(this.live.store()?.chat ?? [], this.outbox.entries()));
@@ -206,6 +217,9 @@ export class MoreToTry {
   protected press(item: MoreToTryItem): void {
     this.pressed.emit();
     switch (item.action) {
+      case 'incidentSummary':
+        this.closeIncident();
+        break;
       case 'persona':
         this.layout.focusRegion(RAIL_REGION);
         this.handTo([PERSONA_CHANGE, `#${PERSONA_HEADING_ID}`], (control) => control.getAttribute('aria-expanded') !== 'true');
@@ -229,9 +243,32 @@ export class MoreToTry {
         this.layout.focusRegion(RAIL_REGION);
         this.handTo([`#${HEARTBEAT_HEADING_ID}`], () => false);
         break;
+      case 'documents':
+        this.sample.ask();
+        void this.router.navigate(['/documents']);
+        break;
       default:
         break;
     }
+  }
+
+  /**
+   * After the next render, focuses the Dismiss of the newest resolved incident card and presses it; with no resolved card, sends the summary prompt
+   * (unless a turn is in flight or the allowance is used up, as for the memory item).
+   */
+  private closeIncident(): void {
+    afterNextRender(
+      () => {
+        const resolved = Array.from(document.querySelectorAll<HTMLElement>(INCIDENT_CARD)).filter((card) => card.querySelector(RESOLVED_CHIP) !== null);
+        const dismiss = resolved.length === 0 ? null : resolved[resolved.length - 1].querySelector<HTMLElement>(DISMISS_BUTTON);
+        if (dismiss !== null) {
+          this.focusAndPress(dismiss, true);
+        } else if (!this.blocked()) {
+          this.outbox.send(MORE_TO_TRY_TEXTS.summaryPrompt);
+        }
+      },
+      { injector: this.injector },
+    );
   }
 
   /** After the next render, focuses the first control found and presses it when `press` says so: the control's own action runs. */
@@ -241,15 +278,20 @@ export class MoreToTry {
         for (const selector of selectors) {
           const control = document.querySelector<HTMLElement>(selector);
           if (control !== null) {
-            control.focus();
-            if (press(control)) {
-              control.click();
-            }
+            this.focusAndPress(control, press(control));
             return;
           }
         }
       },
       { injector: this.injector },
     );
+  }
+
+  /** Puts focus on the control and presses it when `press` is true: the control's own action runs. The one place where this panel moves focus. */
+  private focusAndPress(control: HTMLElement, press: boolean): void {
+    control.focus();
+    if (press) {
+      control.click();
+    }
   }
 }

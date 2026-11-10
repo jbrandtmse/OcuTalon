@@ -23,7 +23,10 @@
 ///     status), wrong (an Ens.StringResponse, which is not a Reply), checks (a Reply with the HostData {"checks":[{"zz":"result"}]}),
 ///     checksfallback:<reason> (a fallback Reply with those HostData), busychecks and brokenchecks (a busy Reply, and a broken one,
 ///     with those HostData), badjson (a Reply whose HostData is not JSON) and nochecks (a Reply whose HostData is an object with no
-///     checks), and rotated (a Reply with SessionRotated 1).
+///     checks), and rotated (a Reply with SessionRotated 1). The next Reply the double makes for a turn request (a busy
+///     one and a fallback included) takes the HostData in ^OcuTalonTest("DecideDouble", OwnerRef, "hostData") when it is set (SetReply),
+///     whatever the answer, and then the three are removed; a Reply that is neither busy nor a fallback also takes the text in "text" when
+///     it is set, and with "filter" set the text then goes through Checks.ReplyGuard.Filter(text, HostData) as Decide runs it.
 Class OcuTalon.Test.Core.DecideDouble Extends Ens.BusinessProcess
 {
 
@@ -121,6 +124,14 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 			Set response.Outcome = answer
 		}
 	}
+	If $IsObject(response) && response.%Extends("OcuTalon.Bridge.Msg.Reply") && (request.Kind = "turn") && $Data(^OcuTalonTest("DecideDouble", owner, "hostData"), hostData) {
+		Set response.HostData = hostData
+		If 'response.Busy && 'response.Fallback {
+			If $Data(^OcuTalonTest("DecideDouble", owner, "text"), text) Set response.Text = text
+			If $Get(^OcuTalonTest("DecideDouble", owner, "filter")) Set response.Text = ##class(OcuTalon.Checks.ReplyGuard).Filter(response.Text, response.HostData)
+		}
+		Kill ^OcuTalonTest("DecideDouble", owner, "hostData"), ^OcuTalonTest("DecideDouble", owner, "text"), ^OcuTalonTest("DecideDouble", owner, "filter")
+	}
 	If $IsObject(response) && response.%Extends("OcuTalon.Bridge.Msg.Result") && (response.DecisionRef '= "") {
 		If $Get(^OcuTalonTest("DecideDouble", owner, "record")) Do ..Write(request, response)
 	}
@@ -199,6 +210,15 @@ ClassMethod Seen(ownerRef As %String) As %DynamicArray
 ClassMethod Clear(ownerRef As %String)
 {
 	Kill ^OcuTalonTest("DecideDouble", ownerRef)
+}
+
+/// Makes the next Reply of the owner's turn requests carry hostData (a JSON text) and, when text is not "" and the Reply is neither busy nor a
+/// fallback, that text; with filter 1 the text goes through Checks.ReplyGuard.Filter as Decide runs it. Clear removes what is left.
+ClassMethod SetReply(ownerRef As %String, hostData As %String, text As %String = "", filter As %Boolean = 0)
+{
+	Set ^OcuTalonTest("DecideDouble", ownerRef, "hostData") = hostData
+	If text '= "" Set ^OcuTalonTest("DecideDouble", ownerRef, "text") = text
+	Set ^OcuTalonTest("DecideDouble", ownerRef, "filter") = filter
 }
 
 /// Takes the next scripted answer for the owner and kind, "" when the script has no more.

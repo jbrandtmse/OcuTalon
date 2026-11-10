@@ -267,12 +267,29 @@ export interface SeedCheck {
   checkedAt?: string;
 }
 
+/** One citation of a seeded reply, as Lane A's HostData carries it (Turn.Citations). */
+export interface SeedCitation {
+  documentRef: string;
+  document: string;
+  section: string;
+  passage: string;
+  chunkIndex: number;
+}
+
+/** One memory of a seeded reply, as Lane A's HostData carries it (Turn.Memories). */
+export interface SeedMemory {
+  memoryRef: string;
+  text: string;
+  savedAt: string;
+}
+
 /**
  * A turn for seedTurns: when it was created (UTC, to the second), its text and reply, and where it came from. A fallback
  * reply carries the catalog key the server answered with and its reason (Turn.ReplyCatalogKey and Turn.FallbackReason); both
  * are empty for a reply of the model's own words. state is done unless it is running (a running turn has no reply). triage and
  * turn are the turn's decisions (the Decision rows are made and their Refs kept on the turn), usage its usage rows, and
- * checkKey and checks the key and rows that Checks.Render made for the reply.
+ * checkKey and checks the key and rows that Checks.Render made for the reply, and citations and memories the sources that the reply's
+ * HostData carried (Story 20.2).
  */
 export interface SeedTurn {
   createdAt: string;
@@ -290,6 +307,8 @@ export interface SeedTurn {
   usage?: SeedUsage[];
   checkKey?: string;
   checks?: SeedCheck[];
+  citations?: SeedCitation[];
+  memories?: SeedMemory[];
 }
 
 /**
@@ -424,6 +443,8 @@ export async function seedTurns(user: string, turns: SeedTurn[], publish = false
     }
     if (turn.checkKey) lines.push(`Set t.CheckKey=${quoted(turn.checkKey)}`);
     if (turn.checks) lines.push(`Set t.CheckRows=${quoted(JSON.stringify(turn.checks))}`);
+    if (turn.citations) lines.push(`Set t.Citations=${quoted(JSON.stringify(turn.citations))}`);
+    if (turn.memories) lines.push(`Set t.Memories=${quoted(JSON.stringify(turn.memories))}`);
     lines.push('Set sc=t.%Save()', 'If $System.Status.IsError(sc) Set bad=1', 'If $System.Status.IsOK(sc) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(t)', `Write !,"CHK|ref|${i}|",t.Ref,"|",'bad`, `Write !,"CHK|dec|${i}|",dt,"|",dr`);
     if (publish) {
       lines.push(
@@ -986,6 +1007,8 @@ export interface IncidentFields {
   openVariant?: string;
   /** The Refs of the incident's approval requests, comma-separated: the closed view lists the requests whose rows name the incident. */
   requestRefs?: string;
+  /** The incident's stored summary (Story 23.6): the JSON {"parts": [{"key", "slots"}], "lines": []} that Watch.Summary builds; none by default. */
+  summary?: string;
 }
 
 /**
@@ -998,6 +1021,7 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
     State: fields.state,
     OpenVariant: fields.openVariant,
     RequestRefs: fields.requestRefs,
+    Summary: fields.summary,
   });
   const lines = await irisScript(
     [
@@ -1094,6 +1118,35 @@ export async function setTelegramIncluded(value: 0 | 1): Promise<0 | 1> {
   const was = chk(lines, 'telegram');
   if (was !== '0' && was !== '1') throw new Error(`the Telegram seam could not be set (${lines.join(' ')})`);
   return was === '1' ? 1 : 0;
+}
+
+/** What adminAtSignIn reads: the session row's Ref, its AdminAtSignIn flag, and whether the Ref is in Ownership.AdminSessions(). */
+export interface AdminAtSignIn {
+  ref: string;
+  flag: string;
+  listed: boolean;
+}
+
+/**
+ * Reads Session.AdminAtSignIn of a user's session row, and whether its Ref is in Ownership.AdminSessions() (AD-21). With `set` given,
+ * the flag is first written to that value, so that a later sign-in is the only thing that can move it (OnLogin's `Held($Roles)`
+ * argument; an attach that leaves the flag alone is then seen). The row is created when the user has none.
+ */
+export async function adminAtSignIn(user: string, set?: 0 | 1): Promise<AdminAtSignIn> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      ...(set === undefined ? [] : [`Set s.AdminAtSignIn=${set} Set sc=s.%Save() Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)`]),
+      'Set l=##class(OcuTalon.Data.Ownership).AdminSessions(.sc2)',
+      'Write !,"CHK|ref|",s.Ref',
+      'Write !,"CHK|flag|",s.AdminAtSignIn',
+      'Write !,"CHK|read|",$SYSTEM.Status.IsOK(sc2)',
+      'Write !,"CHK|listed|",$Select(l="":0,1:$ListFind(l,s.Ref)>0)',
+    ].join('\n'),
+  );
+  if (set !== undefined && chk(lines, 'saved') !== '1') throw new Error(`the flag of ${user} could not be set (${lines.join(' ')})`);
+  if (chk(lines, 'read') !== '1') throw new Error(`Ownership.AdminSessions() could not be read (${lines.join(' ')})`);
+  return { ref: chk(lines, 'ref') ?? '', flag: chk(lines, 'flag') ?? '', listed: chk(lines, 'listed') === '1' };
 }
 
 /** The Visual Trace settings of a user that setTraceSettings reads and writes (^EnsPortal.Settings(user, "VisualTrace", ...)): the page size and "Show events". */

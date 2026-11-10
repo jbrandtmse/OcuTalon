@@ -108,9 +108,10 @@ ClassMethod DropTable(table As %String, suffix As %String)
 	Kill @("^OcuTalonP.KB" _ suffix), @("^OcuTalonP.KB" _ suffix _ "Config")
 }
 
-/// Stores a fixture memory of the owner (a SessionRef string, which needs no Session row) with the Ref, the text, the SavedAt (UTC to the second), the Origin
-/// and the ItemId, and the vector that the product's endpoint gives for the text. The status of the embedding or of the save.
-ClassMethod Store(owner As %String, ref As %String, text As %String, savedAt As %String, origin As %String = "tool", itemId As %String = "zzmemitem") As %Status
+/// Stores a fixture memory of the owner (a SessionRef string, which needs no Session row) with the Ref, the text, the SavedAt (UTC to the second), the Origin,
+/// the ItemId and the Source (empty for a row as saved before Story 41.8), and the vector that the product's endpoint gives for the text. The status of the
+/// embedding or of the save.
+ClassMethod Store(owner As %String, ref As %String, text As %String, savedAt As %String, origin As %String = "tool", itemId As %String = "zzmemitem", source As %String = "") As %Status
 {
 	Set sc = ##class(OcuTalon.Memory.Embedding).Embed(text, .vector)
 	If $SYSTEM.Status.IsError(sc) Quit sc
@@ -121,6 +122,7 @@ ClassMethod Store(owner As %String, ref As %String, text As %String, savedAt As 
 	Set row.SavedAt = savedAt
 	Set row.ItemId = itemId
 	Set row.Origin = origin
+	Set row.Source = source
 	Set row.Embedding = vector
 	Quit row.%Save()
 }

@@ -1,11 +1,11 @@
 /**
  * The demo guide's "Other things to try" panel (Story 4.11; EXPERIENCE: Demo guide and controls): its fixed strings, the registry of
- * its seven items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
+ * its nine items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
  * as it is and the strings test reads it.
  *
  * The catalog is the server's (AD-12): `guide.features` is the list of feature ids that Demo.Features.Present gives, in the guide's
  * payload. The page decides nothing about which epics are merged.
- * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompt that the memory item sends.
+ * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompts that the memory item and the incident summary item (when there is no resolved incident to close) send.
  * - MORE_TO_TRY_ITEMS is the registry: one entry for each feature id, in the order the panel shows them. `action` names the hand-off
  *   that the button makes (more-to-try.ts): each one uses a control that the page already has.
  * - itemsFor(features) is the registry entries whose id the list holds, in registry order. An id the registry does not know is
@@ -15,14 +15,21 @@
  */
 
 /**
- * The link of the guide's first row, the panel's label, the prompt that the memory item sends (the exact text) and each item's label,
+ * The link of the guide's first row, the panel's label, the prompts that the memory item and the incident summary item send (the exact texts) and each item's label,
  * look-for line and control text. The quotes inside the lines are straight ASCII quotes.
  */
 export const MORE_TO_TRY_TEXTS = {
   link: 'More to try',
   label: 'Other things to try',
   rememberPrompt: "Remember that the Results partner's contact is Lee.",
+  summaryPrompt: 'Show me the incident summary',
   items: {
+    incidentSummary: {
+      label: 'Read the incident summary',
+      lookFor:
+        'This closes the guide\'s resolved incident, as Dismiss on its card does. Look for the incident summary in the chat and on the Simulated phone: what happened and when, the cause and the evidence, each approval, the orders affected and the model cost. Later, ask "Show me the incident summary" to get it again.',
+      button: 'Close the incident',
+    },
     persona: {
       label: 'Change how OcuTalon talks',
       lookFor:
@@ -56,7 +63,7 @@ export const MORE_TO_TRY_TEXTS = {
     documents: {
       label: 'Ask about a document',
       lookFor:
-        'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file.',
+        'On the Documents page, press Add the sample runbook, or add a short file of your own (nothing personal: Visual Trace on the demo is shared). When it reads Ready, ask in the chat "According to the runbook, what should I do when partner orders fail with a date error?", or ask about your own file, and look for the chip under the answer that names the document and its section.',
       button: 'Open the Documents page',
     },
     heartbeat: {
@@ -65,14 +72,28 @@ export const MORE_TO_TRY_TEXTS = {
         'In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in\'s outcome and its cost in the card.',
       button: 'Go to the Heartbeat checklist card',
     },
+    sources: {
+      label: 'See where an answer came from',
+      lookFor:
+        'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
+      button: 'Open the Documents page',
+    },
   },
 } as const;
 
-/** The Break the feed button of the box: the control that item 3 presses, and the one that the guide's focus rule hands focus to. */
+/** The Break the feed button of the box: the control that the Reject a fix item presses, and the one that the guide's focus rule hands focus to. */
 export const BREAK_FEED_BUTTON = 'app-break-feed-box app-server-button button';
 
+/**
+ * Where the incident summary item finds the Dismiss to press (Story 23.6): the incident cards of the chat, the chip that says a card is resolved, and the card's
+ * Dismiss button. The newest resolved card is the last one in the page.
+ */
+export const INCIDENT_CARD = 'article[data-part="incident"]';
+export const RESOLVED_CHIP = '.chip-resolved';
+export const DISMISS_BUTTON = 'app-incident-dismiss button';
+
 /** The hand-off that an item's control makes. */
-export type MoreToTryAction = 'persona' | 'suspiciousEmail' | 'rejectFix' | 'demoView' | 'memory' | 'documents' | 'heartbeat';
+export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'demoView' | 'memory' | 'documents' | 'heartbeat';
 
 /** One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off. */
 export interface MoreToTryItem {
@@ -81,10 +102,13 @@ export interface MoreToTryItem {
   readonly lookFor: string;
   readonly button: string;
   readonly action: MoreToTryAction;
+  /** The heading of the panel's group the item belongs to (the More to try groups ruling, 2026-11-10); none until the item declares one. */
+  readonly group?: string;
 }
 
-/** The seven items, in the order the panel shows them. */
+/** The items, in the order the panel shows them: the registry's length is the count that the README and EXPERIENCE give. */
 export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
+  { id: 'incidentSummary', ...MORE_TO_TRY_TEXTS.items.incidentSummary, action: 'incidentSummary' },
   { id: 'persona', ...MORE_TO_TRY_TEXTS.items.persona, action: 'persona' },
   { id: 'suspiciousEmail', ...MORE_TO_TRY_TEXTS.items.suspiciousEmail, action: 'suspiciousEmail' },
   { id: 'rejectFix', ...MORE_TO_TRY_TEXTS.items.rejectFix, action: 'rejectFix' },
@@ -92,6 +116,7 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory' },
   { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents' },
   { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat' },
+  { id: 'sources', ...MORE_TO_TRY_TEXTS.items.sources, action: 'documents', group: 'Memory and documents' },
 ];
 
 /** The registry entries whose id the server's list holds, in registry order. Unknown ids are ignored, and no list gives none. */

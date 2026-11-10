@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { BREAK_FEED_BUTTON, CHAT_FLOOR, COMPACT_BAND_HEIGHT, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, chatFloor, inCompactBand, itemsFor, windowBound } = await import(app('guide', 'more-to-try-view.ts'));
+const { BREAK_FEED_BUTTON, CHAT_FLOOR, COMPACT_BAND_HEIGHT, DISMISS_BUTTON, INCIDENT_CARD, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, RESOLVED_CHIP, chatFloor, inCompactBand, itemsFor, windowBound } = await import(app('guide', 'more-to-try-view.ts'));
 const { HEIGHT_QUERIES } = await import(app('shared', 'layout-view.ts'));
 const { RAIL_TEXTS } = await import(app('rail', 'rail-view.ts'));
 const { HEARTBEAT_HEADING_ID, HEARTBEAT_TEXTS } = await import(app('rail', 'heartbeat-card', 'heartbeat-card-view.ts'));
@@ -21,6 +21,10 @@ const { SAMPLES } = await import(app('mailbox', 'mailbox-view.ts'));
 const { DEVICE_TEXTS } = await import(app('devices', 'device-view.ts'));
 const { FEED_TEXTS } = await import(app('feed', 'break-feed-view.ts'));
 const { MESSAGE_TEXTS, PAGE_TEXTS } = await import(app('msg', 'catalog.ts'));
+const { INCIDENT_TEXTS } = await import(app('incidents', 'incident-view.ts'));
+const { ANSWER_SOURCES_TEXTS } = await import(app('chat', 'answer-sources-view.ts'));
+const { DOCUMENTS_TEXTS } = await import(app('documents', 'documents-view.ts'));
+const { SAMPLE_RUNBOOK_TEXTS } = await import(app('documents', 'sample-runbook-view.ts'));
 const { REQUEST_NAMES } = await import(app('phone', 'phone-view.ts'));
 const { DEMO_VIEW_TEXTS } = await import(app('header', 'demo-view-texts.ts'));
 
@@ -31,7 +35,14 @@ const RULED = {
   link: 'More to try',
   label: 'Other things to try',
   rememberPrompt: "Remember that the Results partner's contact is Lee.",
+  summaryPrompt: 'Show me the incident summary',
   items: {
+    incidentSummary: {
+      label: 'Read the incident summary',
+      lookFor:
+        'This closes the guide\'s resolved incident, as Dismiss on its card does. Look for the incident summary in the chat and on the Simulated phone: what happened and when, the cause and the evidence, each approval, the orders affected and the model cost. Later, ask "Show me the incident summary" to get it again.',
+      button: 'Close the incident',
+    },
     persona: {
       label: 'Change how OcuTalon talks',
       lookFor:
@@ -63,7 +74,7 @@ const RULED = {
     documents: {
       label: 'Ask about a document',
       lookFor:
-        'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file.',
+        'On the Documents page, press Add the sample runbook, or add a short file of your own (nothing personal: Visual Trace on the demo is shared). When it reads Ready, ask in the chat "According to the runbook, what should I do when partner orders fail with a date error?", or ask about your own file, and look for the chip under the answer that names the document and its section.',
       button: 'Open the Documents page',
     },
     heartbeat: {
@@ -71,11 +82,24 @@ const RULED = {
       lookFor: 'In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in\'s outcome and its cost in the card.',
       button: 'Go to the Heartbeat checklist card',
     },
+    sources: {
+      label: 'See where an answer came from',
+      lookFor:
+        'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
+      button: 'Open the Documents page',
+    },
   },
 };
 
-const IDS = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView', 'memory', 'documents', 'heartbeat'];
-const FOUR = IDS.slice(0, 4);
+// The registry's own ids, so that an item another story adds joins the count and the order pins; RULED is the independent text oracle, and
+// a registry entry with no RULED text (or a RULED text with no entry) fails the tests below.
+const IDS = MORE_TO_TRY_ITEMS.map((item) => item.id);
+/** The items that name no memory, document or heartbeat: every item before memory (the registry puts the incident summary item first, Story 23.6). */
+const BEFORE_MEMORY = IDS.slice(0, IDS.indexOf('memory'));
+// The item whose control hands off to another item's control (Story 20.2: See where an answer came from opens the Documents page).
+const ACTION_OF = { sources: 'documents' };
+// The panel's group of each item that declares one (the Contest Planner's More to try groups ruling, 2026-11-10); the other items declare none yet.
+const GROUP_OF = { sources: 'Memory and documents' };
 const idsOf = (items) => items.map((item) => item.id);
 
 describe('(a) the fixed strings', () => {
@@ -84,7 +108,9 @@ describe('(a) the fixed strings', () => {
   });
 
   it('are in the registry in order: ids, labels, look-fors and button texts', () => {
-    assert.deepEqual(idsOf(MORE_TO_TRY_ITEMS), IDS);
+    assert.deepEqual([...IDS].sort(), Object.keys(RULED.items).sort(), 'each registry entry has its ruled text, and each ruled text its entry');
+    assert.equal(new Set(IDS).size, IDS.length, 'the ids are unique');
+    assert.ok(IDS.indexOf('heartbeat') < IDS.indexOf('sources'), 'See where an answer came from comes after the heartbeat item');
     assert.deepEqual(
       MORE_TO_TRY_ITEMS.map(({ id, label, lookFor, button }) => ({ id, label, lookFor, button })),
       IDS.map((id) => ({ id, ...RULED.items[id] })),
@@ -92,7 +118,11 @@ describe('(a) the fixed strings', () => {
   });
 
   it('give each entry a hand-off named by its id', () => {
-    assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS);
+    assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS.map((id) => ACTION_OF[id] ?? id));
+  });
+
+  it('give the sources entry its ruled group, Memory and documents, and no other entry a group yet', () => {
+    assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => [item.id, item.group]), IDS.map((id) => [id, GROUP_OF[id]]));
   });
 
   it('use straight ASCII quotes and no other non-ASCII character', () => {
@@ -108,19 +138,19 @@ describe('(b) itemsFor', () => {
     assert.deepEqual(itemsFor([]), []);
   });
 
-  it('gives items 1 to 4 for the first four ids', () => {
-    assert.deepEqual(idsOf(itemsFor(FOUR)), FOUR);
+  it('gives the items before memory for their ids', () => {
+    assert.deepEqual(idsOf(itemsFor(BEFORE_MEMORY)), BEFORE_MEMORY);
   });
 
   it('shows exactly its item, in its place, when memory, documents or heartbeat is added', () => {
-    for (const id of ['memory', 'documents', 'heartbeat']) {
-      assert.deepEqual(idsOf(itemsFor([...FOUR, id])), IDS.filter((one) => FOUR.includes(one) || one === id), id);
+    for (const id of ['memory', 'documents', 'heartbeat', 'sources']) {
+      assert.deepEqual(idsOf(itemsFor([...BEFORE_MEMORY, id])), IDS.filter((one) => BEFORE_MEMORY.includes(one) || one === id), id);
     }
     assert.deepEqual(idsOf(itemsFor(IDS)), IDS);
   });
 
   it('ignores an id it does not know', () => {
-    assert.deepEqual(idsOf(itemsFor([...FOUR, 'somethingNew'])), FOUR);
+    assert.deepEqual(idsOf(itemsFor([...BEFORE_MEMORY, 'somethingNew'])), BEFORE_MEMORY);
     assert.deepEqual(itemsFor(['somethingNew']), []);
   });
 
@@ -176,15 +206,60 @@ describe('(c) every quoted on-screen name equals its source', () => {
     assert.equal(HEARTBEAT_HEADING_ID, 'rail-heading-heartbeat', 'the heading that item 7 hands focus to');
   });
 
+  it('names Dismiss, the Simulated phone and the summary prompt as the page does (Story 23.6)', () => {
+    has(items.incidentSummary.lookFor, `as ${INCIDENT_TEXTS.dismiss} on its card does`);
+    has(items.incidentSummary.lookFor, `on the ${DEVICE_TEXTS.phoneTab}:`);
+    has(items.incidentSummary.lookFor, `"${RULED.summaryPrompt}"`);
+    assert.equal(MORE_TO_TRY_TEXTS.summaryPrompt, RULED.summaryPrompt);
+    assert.equal(DISMISS_BUTTON, 'app-incident-dismiss button');
+    assert.equal(INCIDENT_CARD, 'article[data-part="incident"]');
+    assert.equal(RESOLVED_CHIP, '.chip-resolved');
+  });
+
+  it('counts the items by the registry: the header comment of the module says how many there are', () => {
+    const header = readFileSync(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts'), 'utf8');
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+    assert.match(header, new RegExp(`the registry of\\s+\\*\\s+its ${words[MORE_TO_TRY_ITEMS.length]} items`), `the header comment says ${words[MORE_TO_TRY_ITEMS.length]} items`);
+  });
+
+  it('counts the items by the registry in the README (line 30) and in EXPERIENCE.md, whatever the number is after the merges (Story 23.6, AC 18)', () => {
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+    const word = words[MORE_TO_TRY_ITEMS.length];
+    const readme = readFileSync(join(here, '..', '..', 'README.md'), 'utf8');
+    assert.match(readme, new RegExp(`its More to try panel has ${word} more things to try`), `the README says ${word} more things to try`);
+    assert.match(readme, /Incident summaries\.\*\* When an incident closes/, 'and holds the incident summary bullet');
+    const ux = readFileSync(join(here, '..', '..', '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
+    assert.match(ux, new RegExp(`There are ${word} items, in this order`), `EXPERIENCE.md says ${word} items`);
+  });
+
   it('names the Documents page as the header does', () => {
     has(items.documents.lookFor, 'On the Documents page');
+    has(items.documents.lookFor, `press ${DOCUMENTS_TEXTS.sample},`);
+    has(items.documents.lookFor, `When it reads ${DOCUMENTS_TEXTS.ready},`);
+    has(items.documents.lookFor, `"${SAMPLE_RUNBOOK_TEXTS.question}"`);
+    has(items.documents.lookFor, 'look for the chip under the answer that names the document and its section');
     has(items.documents.button, 'the Documents page');
+    has(items.sources.button, 'the Documents page');
+    assert.equal(items.sources.button, items.documents.button, 'the last item uses the existing control text');
     const header = readFileSync(join(here, '..', 'src', 'app', 'header', 'header-nav.ts'), 'utf8');
     assert.match(header, />Documents<\/a>/);
   });
 });
 
-describe('(d) the look-for lines of items 1 to 4', () => {
+describe('(c2) the sources item names the chips as the page does (Story 20.2)', () => {
+  it('names Open document and From memory as the sources row does', () => {
+    const lookFor = RULED.items.sources.lookFor;
+    assert.ok(lookFor.includes(`then ${ANSWER_SOURCES_TEXTS.openDocument} to see the whole file`));
+    assert.ok(lookFor.includes(`press ${ANSWER_SOURCES_TEXTS.fromMemory} to see what it remembered and when`));
+  });
+
+  it('says provenance only: no "used", "relied on" or "based on" in the text of the item or of the chips (U-280)', () => {
+    const texts = [RULED.items.sources.label, RULED.items.sources.lookFor, RULED.items.documents.lookFor, ...Object.values(ANSWER_SOURCES_TEXTS)];
+    for (const text of texts) assert.doesNotMatch(text, /\bused\b|relied on|based on/i, text);
+  });
+});
+
+describe('(d) the look-for lines of the items before memory', () => {
   const phrases = (name) => {
     const match = new RegExp(`^Parameter ${name} = "([^"]*)";`, 'm').exec(GUARD);
     assert.ok(match, `ReplyGuard.cls holds Parameter ${name}`);
@@ -193,7 +268,7 @@ describe('(d) the look-for lines of items 1 to 4', () => {
   const folded = (text) => text.toLowerCase().replace(/\u2019/g, "'").replace(/\s+/g, ' ');
 
   it('name no memory, document or heartbeat', () => {
-    for (const id of FOUR) {
+    for (const id of BEFORE_MEMORY) {
       assert.doesNotMatch(RULED.items[id].lookFor, /memor|document|heartbeat/i, id);
       assert.doesNotMatch(MORE_TO_TRY_ITEMS.find((item) => item.id === id).lookFor, /memor|document|heartbeat/i, id);
     }

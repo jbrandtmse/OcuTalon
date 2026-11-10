@@ -13,6 +13,15 @@
 ///     OwnerRef, so a tool cannot name another session. ProposePersona, the one settings verb a tool may send, is held to the same rule:
 ///     inside a bridge context its SessionRef must be the context's OwnerRef (DW-570), so a tool proposes only the persona of the
 ///     session whose turn it is in, and the refusal is not_allowed and nothing reaches SettingsOps;
+///   - the memory verbs PinMemory and UnpinMemory are web_user only and no tool verb, so inside a bridge context they are not_allowed; ForgetMemory
+///     is accepted from tool (with the context check below) and from web_user; SearchMemory, a read verb that the web layer sends for the Memory
+///     card's search, is web_user only and no tool verb either;
+///   - step 4 (AD-1, AD-21): the five MCP verbs AddMcpServer, RemoveMcpServer, ClassifyTool, SetSourcePoll and RemoveSourcePoll go to
+///     McpOps from web_admin only; none is a tool verb, and a refusal from any other origin than tool says "admin only", as for
+///     SettingsOps. SendEmail goes to EmailOut from system (FixExecutor's approved email fix) and from tool; from tool it is accepted
+///     only for the session user's own mailbox: inside a bridge context its SessionRef must be the context's OwnerRef, the product key
+///     email.owner must be the SessionRef, and the product key email.address must be set and equal, ignoring case and surrounding
+///     spaces, every comma-separated recipient (an empty list is refused). Otherwise the refusal is not_allowed and nothing is sent;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
 ///     not_found or unknown_command) and a plain-English Message;
 ///   - an accepted command is sent synchronously to its owner in the right trace session (AD-26): inside a turn the session
@@ -24,6 +33,7 @@
 ///   - the owner's CommandResult is the answer, as it is. An owner that is still a stub (code 5003, or a process stub's
 ///     <Ens>ErrBPTerminated that carries it) gives Outcome not_built; any other error, a timeout, no answer or an answer that
 ///     is not a CommandResult gives Outcome failed. Both have Ok 0.
+///     A SearchMemory that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) instead, which the web layer answers with its own busy text.
 /// OnProcessInput never answers an error status and never throws: an error thrown inside it is logged once and answers failed.
 /// So Submit's status is OK whenever this service answered. Role checks are not made here: they stay with the admin-checked
 /// entry points.
@@ -34,11 +44,16 @@ Class OcuTalon.Core.CommandsIn Extends Ens.BusinessService
 Parameter VERBPACKAGE = "OcuTalon.Msg.Command.";
 
 /// The verbs that origin tool may send (AD-1, FR-24, NFR-14). Dismiss is further limited to an incident the session can see.
-/// ProposePersona is the one settings verb among them, and a tool is the only origin that may send it.
-Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest,SaveMemory,ForgetMemory,ProposePersona";
+/// ProposePersona is the one settings verb among them, and a tool is the only origin that may send it. SendEmail is limited to the
+/// session user's own mailbox address (Carry). No MCP verb is among them.
+Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest,SaveMemory,ForgetMemory,ProposePersona,SendEmail";
 
 /// How long the gate waits for the owner's answer, in seconds.
 Parameter TIMEOUT = 120;
+
+/// How long the gate waits for the answer to a SearchMemory, in seconds. A search is a read that a person waits for, so a slow or stuck embedder
+/// ends the wait early: the answer is Outcome busy (Ok 0), never failed.
+Parameter SEARCHTIMEOUT = 20;
 
 /// The Message of each refusal and failure.
 Parameter MESSAGENOTFROMTOOL = "That can't be done from the chat. Nothing was changed.";
@@ -77,7 +92,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	Set origin = $Select(##class(OcuTalon.Bridge.Context).Active(): "tool", 1: command.Origin)
 	If (origin = "tool") && '$ListFind($ListFromString(..#TOOLVERBS), verb) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	If '$ListFind($ListFromString(origins), origin) {
-		Quit ..Result("not_allowed", $Select((owner = "SettingsOps") && '$ListFind($ListFromString(origins), "web_user") && '$ListFind($ListFromString(origins), "tool"): ..#MESSAGEADMINONLY, verb = "Pair": ..#MESSAGETELEGRAMONLY, 1: ..#MESSAGENOTALLOWED))
+		Quit ..Result("not_allowed", $Select(((owner = "SettingsOps") || (owner = "McpOps")) && '$ListFind($ListFromString(origins), "web_user") && '$ListFind($ListFromString(origins), "tool"): ..#MESSAGEADMINONLY, verb = "Pair": ..#MESSAGETELEGRAMONLY, 1: ..#MESSAGENOTALLOWED))
 	}
 	If (origin = "tool") && (verb = "ProposePersona") && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	If (origin = "tool") && (verb = "Dismiss") {
@@ -86,6 +101,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 		If '$IsObject(incident) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 	}
 	If (origin = "tool") && ((verb = "SendDigest") || (verb = "SaveMemory") || (verb = "ForgetMemory")) && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
+	If (origin = "tool") && (verb = "SendEmail") && '..OwnAddressOnly(command) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	Do ..Join(command)
 	Set request = $Select(verb = "Dismiss": ..Dismissal(command), verb = "RunHeartbeat": ..BeatRequest(command), 1: command)
 	Set sc = ..Send(owner, request, .response)
@@ -97,11 +113,39 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	Quit response
 }
 
+/// 1 when a SendEmail from a tool is for the session user's own mailbox: inside a bridge context the command's SessionRef is the
+/// context's OwnerRef, the product key email.owner is the SessionRef, email.address is set, and every comma-separated recipient,
+/// trimmed and lower-cased, equals it lower-cased. An empty list, an empty recipient or no mailbox gives 0.
+ClassMethod OwnAddressOnly(command As OcuTalon.Msg.Command.SendEmail) As %Boolean [ Private ]
+{
+	If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit 0
+	Set address = $ZConvert($ZStrip(##class(OcuTalon.Data.Setting).Get("email.address"), "<>W"), "L")
+	If (address = "") || (command.SessionRef = "") || (##class(OcuTalon.Data.Setting).Get("email.owner") '= command.SessionRef) Quit 0
+	Set recipients = command.Recipients
+	If $ZStrip(recipients, "<>W") = "" Quit 0
+	Set own = 1
+	For i = 1:1:$Length(recipients, ",") {
+		If $ZConvert($ZStrip($Piece(recipients, ",", i), "<>W"), "L") '= address Set own = 0
+	}
+	Quit own
+}
+
 /// The one send of the class: the command to the owner item, synchronously. Private, so that only Carry sends through it,
 /// after the checks; a test subclass overrides it to stand in for the owner.
 Method Send(target As %String, request As Ens.Request, Output response As %Library.Persistent) As %Status [ Private ]
 {
+	If request.%IsA("OcuTalon.Msg.Command.SearchMemory") Quit ..SendSearch(target, request, .response)
 	Quit ..SendRequestSync(target, request, .response, ..#TIMEOUT)
+}
+
+/// The send of a SearchMemory: it waits SEARCHTIMEOUT seconds. A synchronous send that has no answer by then ends with an OK status and no response, which
+/// is answered here as a CommandResult with Ok 0 and Outcome busy (the Message is the gate's failed sentence); the owner still finishes the request, and
+/// nothing is changed by it.
+Method SendSearch(target As %String, request As Ens.Request, Output response As %Library.Persistent) As %Status [ Private ]
+{
+	Set sc = ..SendRequestSync(target, request, .response, ..#SEARCHTIMEOUT)
+	If $$$ISOK(sc) && '$IsObject($Get(response)) Set response = ..Result("busy", ..#MESSAGEFAILED)
+	Quit sc
 }
 
 /// Finds the command's verb in the table: 1 and the verb, its owner item and its origins (comma-separated) when the command's
@@ -181,8 +225,12 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// except the persona verbs (AD-1): SetPersona from web_user only, the person's own page, and ProposePersona from tool only, and the
 /// heartbeat verbs (Epic 39): SetHeartbeat to SettingsOps and RunHeartbeat to Checks, each from web_user only, and the precedent verbs (Epic 41,
 /// AD-21): MarkNoise and ForgetPrecedent to PrecedentOps, each from web_user only; neither is a tool verb.
+/// The memory verbs (Epic 41, AD-21): PinMemory and UnpinMemory to MemoryOps from web_user only, neither a tool verb, and ForgetMemory
+/// to MemoryOps from tool and from web_user (the Memory card's Forget; MemoryOps forgets only the command's own session's row), and SearchMemory
+/// (a read) to MemoryOps from web_user only.
 /// A settings verb whose origins include web_user or tool is refused with the plain not-allowed text, not the admin-only one.
-/// SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.
+/// Step 4 (Story 35.2, AD-1, AD-21): the MCP verbs go to McpOps from web_admin only, and SendEmail to EmailOut from tool (own address only,
+/// Carry) and system. SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.
 XData Routes [ MimeType = application/json ]
 {
 [
@@ -203,13 +251,22 @@ XData Routes [ MimeType = application/json ]
  {"verb": "TestModel", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "GotIt", "owner": "SessionOps", "origins": "web_user,web_admin,telegram"},
  {"verb": "SaveMemory", "owner": "MemoryOps", "origins": "tool"},
- {"verb": "ForgetMemory", "owner": "MemoryOps", "origins": "tool"},
+ {"verb": "ForgetMemory", "owner": "MemoryOps", "origins": "tool,web_user"},
  {"verb": "AddDocument", "owner": "DocumentOps", "origins": "web_user"},
  {"verb": "RemoveDocument", "owner": "DocumentOps", "origins": "web_user"},
  {"verb": "SetHeartbeat", "owner": "SettingsOps", "origins": "web_user"},
  {"verb": "RunHeartbeat", "owner": "Checks", "origins": "web_user"},
  {"verb": "MarkNoise", "owner": "PrecedentOps", "origins": "web_user"},
- {"verb": "ForgetPrecedent", "owner": "PrecedentOps", "origins": "web_user"}
+ {"verb": "ForgetPrecedent", "owner": "PrecedentOps", "origins": "web_user"},
+ {"verb": "PinMemory", "owner": "MemoryOps", "origins": "web_user"},
+ {"verb": "UnpinMemory", "owner": "MemoryOps", "origins": "web_user"},
+ {"verb": "SearchMemory", "owner": "MemoryOps", "origins": "web_user"},
+ {"verb": "AddMcpServer", "owner": "McpOps", "origins": "web_admin"},
+ {"verb": "RemoveMcpServer", "owner": "McpOps", "origins": "web_admin"},
+ {"verb": "ClassifyTool", "owner": "McpOps", "origins": "web_admin"},
+ {"verb": "SetSourcePoll", "owner": "McpOps", "origins": "web_admin"},
+ {"verb": "RemoveSourcePoll", "owner": "McpOps", "origins": "web_admin"},
+ {"verb": "SendEmail", "owner": "EmailOut", "origins": "tool,system"}
 ]
 }
 

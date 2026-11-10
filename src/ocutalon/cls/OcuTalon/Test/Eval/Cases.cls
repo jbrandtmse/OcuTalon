@@ -51,6 +51,9 @@
 ///     held out, only the second has precedents (3 noise answers that were tellnow, each summary starting with the sender and at most 80 characters), memory-precedent-injection
 ///     holds the newsletter's email and its expected outcome with one precedent whose summary is the instruction-shaped text, every Item has a match key, and
 ///     the double is given exactly the precedents that eval/ records (TestRecordedCases);
+///   - TestLearnedSaveCase (Story 41.8): memory-learned-save is a command-kind turn case, not held out, named for its folder, whose turn states a lasting fact that
+///     OcuTalon.Tools.MemorySource takes as learned (none of the fixed phrases), whose key phrases are the "I'll remember that" statement of a save, and which
+///     Eval.Report names as its learned-save case (scored in its own report-only line);
 ///   - (Story 41.7) an array expectation.outcome is shown in the table as its members joined with a slash, is a known outcome when every member is one, and counts in no
 ///     single outcome's tally.
 /// Read and Plain are public for Test.Eval.Record.
@@ -293,6 +296,24 @@ Method TestUserTurnCases()
 		Do ..AssertTurnShape(name, case)
 		Do $$$AssertEquals(case.recordedBy, "written for the evaluation set (Story 30.5, DW-500)", name_": it says it was written for Story 30.5")
 	}
+}
+
+/// The learned-save case (Story 41.8): a command-kind turn case with a lasting fact that is learned, not told, and the key phrases of the statement of a save.
+Method TestLearnedSaveCase()
+{
+	Set folder = ..Folder()
+	If folder = "" Quit
+	Set name = "memory-learned-save"
+	Set case = ..Read(folder, name)
+	If '$IsObject(case) {
+		Do $$$AssertTrue(0, name_": the learned-save case is in eval/")
+		Quit
+	}
+	Do $$$AssertEquals(case.name_"|"_case.kind_"|"_case.heldOut, name_"|command|0", name_": it is a command-kind turn case, named for its folder, and not held out")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).#LEARNEDCASES, name, "Eval.Report names it as the learned-save case")
+	Do $$$AssertEquals(##class(OcuTalon.Tools.MemorySource).Of(case.turn.text), "learned", name_": the turn holds none of the fixed phrases, so a save of it is learned")
+	Do $$$AssertEquals(case.expectation.%ToJSON(), {"keyPhrases": [["I'll remember that", "I will remember that"]]}.%ToJSON(), name_": it expects the statement of a save, and nothing else")
+	Do ..AssertTurnShape(name, case)
 }
 
 /// (QA) The command case measures the sentence that the product gives for a request to run a command: for each of its key phrases, one of the

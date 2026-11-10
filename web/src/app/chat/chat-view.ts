@@ -5,7 +5,7 @@
  * pageTime themselves.
  *
  * - chatView lists the store's chat.message entries (turns), its incident entries (incident cards, one per Ref) and its notification
- *   entries of the kinds tellnow, reminder, allowance, digest, and approval or result with an approvalRef (notices) in store order, then the page's own messages that the store does not hold
+ *   entries of the kinds tellnow, reminder, allowance, digest, summary (an incident's summary, Story 23.6), and approval or result with an approvalRef (notices) in store order, then the page's own messages that the store does not hold
  *   yet, in send order. A local message is gone as soon as the store holds a chat.message with its clientId, whatever its status
  *   was. A notification of any other kind renders nothing (Stories 6.x and 16.x): the kinds incident and answered, and approval or result with no approvalRef, are the incident card's.
  *   liveRequest says which notice of a tool call's request is drawn as a live approval request card.
@@ -26,9 +26,11 @@ import type {
   ApprovalPayload,
   ChatMessagePayload,
   CheckRow,
+  Citation,
   Cost,
   DecisionPayload,
   IncidentPayload,
+  Memory,
   NotificationPayload,
   TurnStepPayload,
 } from '../live/payloads';
@@ -132,12 +134,16 @@ export interface TurnView {
   checkKey?: string;
   /** The check results of the reply, one row each. */
   checks?: readonly CheckRow[];
+  /** The citations of the reply, as its chat.message carries them; absent when it has none. */
+  citations?: readonly Citation[];
+  /** The memories the reply recalled, as its chat.message carries them; absent when it has none. */
+  memories?: readonly Memory[];
   /** Where the turn's trace opens, as the chat.message served it; absent when the message has none. */
   traceUrl?: string;
 }
 
 /** The kinds of notification that the chat shows as a notice card. */
-export type NoticeKind = 'tellnow' | 'reminder' | 'allowance' | 'digest' | 'approval' | 'result';
+export type NoticeKind = 'tellnow' | 'reminder' | 'allowance' | 'digest' | 'summary' | 'approval' | 'result';
 
 /**
  * One notice card of the chat: a notification of the kind tellnow, reminder, allowance (the session allowance and the daily-cap
@@ -215,7 +221,7 @@ function messageOf(item: LiveItem): ChatMessagePayload | undefined {
 }
 
 /**
- * The notice card of a chat entry: a notification of the kind tellnow, reminder, allowance or digest, or of the kind approval or result
+ * The notice card of a chat entry: a notification of the kind tellnow, reminder, allowance, digest or summary, or of the kind approval or result
  * with an approvalRef (a tool call's request or result); undefined for any other entry.
  */
 export function noticeOf(item: LiveItem): NoticeView | undefined {
@@ -224,7 +230,7 @@ export function noticeOf(item: LiveItem): NoticeView | undefined {
   }
   const payload: NotificationPayload = item.payload;
   const toolCall = (payload.kind === 'approval' || payload.kind === 'result') && !!payload.approvalRef;
-  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder' && payload.kind !== 'allowance' && payload.kind !== 'digest' && !toolCall) {
+  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder' && payload.kind !== 'allowance' && payload.kind !== 'digest' && payload.kind !== 'summary' && !toolCall) {
     return undefined;
   }
   const view: NoticeView = {
@@ -394,6 +400,12 @@ export function chatView(
     }
     if (message.checks !== undefined && message.checks.length > 0) {
       view.checks = message.checks;
+    }
+    if (message.citations !== undefined && message.citations.length > 0) {
+      view.citations = message.citations;
+    }
+    if (message.memories !== undefined && message.memories.length > 0) {
+      view.memories = message.memories;
     }
     if (message.traceUrl) {
       view.traceUrl = message.traceUrl;

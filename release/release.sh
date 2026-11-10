@@ -45,7 +45,7 @@
 # Never a force, a tag, main or another ref. No value of the environment is ever printed.
 # Output: PASS|FAIL|WAIT <step> <detail>, then RECORD <file> and RESULT <stopped|fail>; a WAIT prints only its own line (exit 5), and a
 # passed ipm step also prints ARTIFACT <absolute path>. This script reports no pass for a release.
-# Needs bash 3.2 or later, git, awk, tar, gzip, sha256sum or shasum, node, npm and docker (the base image of docker/Dockerfile for the
+# Needs bash 3.2 or later, git, awk, tar, gzip, sha256sum or shasum, node, npm and docker (the base image of the Dockerfile for the
 # image and ipm steps).
 #
 # Sourced, it defines its functions and runs nothing.
@@ -572,7 +572,7 @@ step_image() {
     step_fail image "the base image $base is missing; build or load it first (ci/iris.sh)"
     return 1
   fi
-  if ! docker build -q -f "$ctx/docker/Dockerfile" --build-arg "IRIS_IMAGE=$base" -t "$tag" "$ctx" < /dev/null > "$log" 2>&1; then
+  if ! docker build -q -f "$ctx/Dockerfile" --build-arg "IRIS_IMAGE=$base" -t "$tag" "$ctx" < /dev/null > "$log" 2>&1; then
     got=$(tail -n 2 "$log" | tr '\n' ' ')
     rm -rf "$ctx" "$log"
     step_fail image "docker build failed: $got"

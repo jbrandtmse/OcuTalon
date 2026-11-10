@@ -44,7 +44,7 @@ Parameter OWNCONNECTIONS = 0;
 /// Attaches the signed-in user's session when the user holds the OcuTalon user role (AttachFor).
 ClassMethod OnLogin() As %Status
 {
-	Quit ..AttachFor(##class(OcuTalon.Web.Public.Shell).HasRole())
+	Quit ..AttachFor(##class(OcuTalon.Web.Public.Shell).HasRole(), ##class(OcuTalon.Core.Admin).Held($Roles))
 }
 
 /// The sign-out hook: off the online demo, and when the CSP session names an OcuTalon session, raises that session's sign-out mark and
@@ -68,15 +68,17 @@ ClassMethod OnLogout() As %Status
 }
 
 /// OnLogin's work for a user who holds the role (hasRole 1) or does not (0): the role attaches the durable session, or on the
-/// online demo the visitor's own (AttachVisitor); no role does nothing. The answer is OK in every case, and a failure is logged.
-ClassMethod AttachFor(hasRole As %Boolean) As %Status
+/// online demo the visitor's own (AttachVisitor); no role does nothing. On a local install the attach also records admin, whether the
+/// user holds OcuTalonAdmin at this sign-in (Ownership.Attach, AD-21); the online demo's visitor rows keep 0. The answer is OK in every
+/// case, and a failure is logged.
+ClassMethod AttachFor(hasRole As %Boolean, admin As %String = "") As %Status
 {
 	Try {
 		If hasRole {
 			If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 {
 				Set sc = ..AttachVisitor()
 			} Else {
-				Set sc = ##class(OcuTalon.Data.Ownership).Attach()
+				Set sc = ##class(OcuTalon.Data.Ownership).Attach($Username, admin)
 			}
 			If $SYSTEM.Status.IsError(sc) Do ..Log("the session could not be attached, error "_$SYSTEM.Status.GetErrorCodes(sc))
 		}

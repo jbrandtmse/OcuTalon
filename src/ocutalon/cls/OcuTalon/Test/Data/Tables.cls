@@ -288,7 +288,8 @@ XData Contracts [ MimeType = application/json ]
    "CspSessionId": "%String(MAXLEN=64)",
    "AllowanceTimes": "%List",
    "AllowanceUntil": "%String(MAXLEN=20)",
-   "DailyCapDay": "%String(MAXLEN=10)"
+   "DailyCapDay": "%String(MAXLEN=10)",
+   "AdminAtSignIn": "%Boolean"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -401,7 +402,9 @@ XData Contracts [ MimeType = application/json ]
    "SessionRotated": "%Boolean",
    "Attempt": "%Integer",
    "CheckKey": "%String(MAXLEN=128)",
-   "CheckRows": "%String(MAXLEN=)"
+   "CheckRows": "%String(MAXLEN=)",
+   "Citations": "%String(MAXLEN=)",
+   "Memories": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -581,7 +584,8 @@ XData Contracts [ MimeType = application/json ]
    "SampleError": "%String(MAXLEN=1000)",
    "RequestRefs": "%String(MAXLEN=)",
    "LaterSince": "%String(MAXLEN=20)",
-   "AskingSince": "%String(MAXLEN=20)"
+   "AskingSince": "%String(MAXLEN=20)",
+   "Summary": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

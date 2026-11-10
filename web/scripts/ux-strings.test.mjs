@@ -40,6 +40,7 @@ function leaves(name, value, into) {
 /** The constants of the page's view modules, imported as they are. */
 const IMPORTED = [
   ['chat/chat-view.ts', ['CHAT_TEXTS', 'NOTICE_TEXTS']],
+  ['chat/answer-sources-view.ts', ['ANSWER_SOURCES_TEXTS']],
   ['chat/decision-view.ts', ['DECISION_TEXTS']],
   ['rail/rail-view.ts', ['RAIL_TEXTS']],
   ['rail/telegram-card/telegram-card-view.ts', ['TELEGRAM_CARD_TEXTS']],
@@ -66,6 +67,7 @@ const IMPORTED = [
   ['guide/more-to-try-view.ts', ['MORE_TO_TRY_TEXTS']],
   ['settings/settings-view.ts', ['SETTINGS_TEXTS']],
   ['documents/documents-view.ts', ['DOCUMENTS_TEXTS', 'REASON_TEXTS']],
+  ['documents/sample-runbook-view.ts', ['SAMPLE_RUNBOOK_TEXTS']],
   ['chat/noise-view.ts', ['NOISE_TEXTS']],
   ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS']],
 ];
@@ -177,6 +179,9 @@ const SOURCES = {
     'Output',
     'Documents',
     'Add documents',
+    'Add the sample runbook',
+    'Sample runbook.md',
+    'According to the runbook, what should I do when partner orders fail with a date error?',
     'Remove',
     'No documents yet. Add a runbook to get cited answers.',
     'Indexing\u2026',
@@ -423,6 +428,10 @@ const SOURCES = {
     'Use the same bridge in your own production',
     'More to try',
     'Other things to try',
+    'Read the incident summary',
+    'This closes the guide\'s resolved incident, as Dismiss on its card does. Look for the incident summary in the chat and on the Simulated phone: what happened and when, the cause and the evidence, each approval, the orders affected and the model cost. Later, ask "Show me the incident summary" to get it again.',
+    'Close the incident',
+    'Show me the incident summary',
     'Change how OcuTalon talks',
     'In the Persona card, choose Pirate, or Another language and then Spanish, and press Save. Then ask "Is anything wrong right now?" and look for the new style in the replies. The check results under them are written by OcuTalon\'s code, so they stay the same in any style.',
     'Go to the Persona card',
@@ -439,8 +448,15 @@ const SOURCES = {
     'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
     'Ask it to remember',
     'Ask about a document',
-    'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file.',
+    'On the Documents page, press Add the sample runbook, or add a short file of your own (nothing personal: Visual Trace on the demo is shared). When it reads Ready, ask in the chat "According to the runbook, what should I do when partner orders fail with a date error?", or ask about your own file, and look for the chip under the answer that names the document and its section.',
     'Open the Documents page',
+    'See where an answer came from',
+    'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
+    '{document} \u00a7 {section}',
+    'Open document',
+    'From memory',
+    'Sources',
+    'Close',
     'Run a heartbeat check-in',
     "In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in's outcome and its cost in the card.",
     'Go to the Heartbeat checklist card',
@@ -751,6 +767,36 @@ const SOURCES = {
       "Couldn't forget it. Nothing was changed.",
       'OcuTalon keeps this answer but does not use it when it decides.',
     ],
+    'Story 20.2 ruling planner-2026-11-09-20.2 (the Contest Planner under the owner\'s delegation, 2026-11-09, relayed by the orchestrator: the accessible name of a citation chip without the section sign (text 1a), the memory chip\'s accessible name and the popover\'s "Saved {when}", and the Documents page\'s line for a document that cannot be opened)': [
+      '{document}, section {section}',
+      'From memory: {memory}',
+      'Saved {when}',
+      "Couldn't open that document. It may have been removed.",
+    ],
+    'Story 20.3 ruling planner-2026-11-09-20.3 (the Contest Planner under the owner\'s delegation, 2026-11-09: the text of the sample runbook that ships with the web app, public text 3)': [
+      `# Sample runbook: the demo's Orders feed
+
+This sample comes with OcuTalon's web app. It covers the Orders production that the demo runs in namespace OCUORDERS, where a simulated partner sends orders.
+
+## How orders flow
+
+The partner's orders arrive at PartnerOrdersIn. OrdersFromPartner turns each order into a warehouse order, and OrdersToWarehouse takes the orders that pass. Each order has a number such as PO-0001, an item and a quantity.
+
+## When orders fail with a date error
+
+OrdersFromPartner accepts an order date written YYYY-MM-DD and nothing else. When the partner sends dates in another format, such as MM/DD/YYYY, each of those orders fails with "The order date was not in the expected format." Break the feed plays this out with 50 orders.
+
+1. Read the error of one failed order to see the format the partner sent.
+2. Rewrite each failed order's date as YYYY-MM-DD and resend it.
+3. Check how many orders went through to OrdersToWarehouse.
+
+Then ask the partner to go back to YYYY-MM-DD, so that the next batch does not fail.
+
+## When the Results partner changes its certificate
+
+The Results partner gives notice before the TLS certificate on its results endpoint changes. Load the new certificate before the change, so that results keep flowing.
+`,
+    ],
   },
   calendar: [
     'Sunday',
@@ -953,11 +999,12 @@ describe('the ellipsis and the characters', () => {
     assert.equal(modules['msg/catalog.ts'].PAGE_TEXTS['banner.reconnecting'], 'Reconnecting\u2026 New messages may be delayed.');
   });
 
-  it('holds no non-ASCII character but U+2026, U+00B7 and U+2197', () => {
-    // U+2197 is UX-DR47's arrow of a link that opens a new tab, hidden from assistive technology (Story 4.7).
+  it('holds no non-ASCII character but U+2026, U+00B7, U+2197 and U+00A7', () => {
+    // U+2197 is UX-DR47's arrow of a link that opens a new tab, hidden from assistive technology (Story 4.7). U+00A7 is the section sign of a
+    // citation chip's label, "{document} \u00a7 {section}" (DESIGN.md citation-chip, Story 20.2).
     for (const text of strings) {
-      const stray = [...text].filter((char) => char.charCodeAt(0) > 127 && char !== '\u2026' && char !== '\u00b7' && char !== '\u2197');
-      assert.deepEqual(stray, [], `${JSON.stringify(text)} holds only ASCII, U+2026, U+00B7 and U+2197`);
+      const stray = [...text].filter((char) => char.charCodeAt(0) > 127 && char !== '\u2026' && char !== '\u00b7' && char !== '\u2197' && char !== '\u00a7');
+      assert.deepEqual(stray, [], `${JSON.stringify(text)} holds only ASCII, U+2026, U+00B7, U+2197 and U+00A7`);
     }
     assert.ok(/^[\x00-\x7f]*$/.test(readFileSync(fileURLToPath(import.meta.url), 'utf8')), 'this test is written in ASCII, with escapes');
   });

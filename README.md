@@ -1,4 +1,14 @@
-# OcuTalon
+<h1 align="center"><img src="docs/images/ocutalon-logo.png" alt="OcuTalon logo" width="160" height="160"><br>OcuTalon</h1>
+<p align="center">An AI assistant that runs inside InterSystems IRIS Interoperability, with every decision in Visual Trace.</p>
+<p align="center">
+  <a href="https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml?query=branch%3Amain"><img src="https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status of the main branch"></a>
+  <a href="https://github.com/jbrandtmse/OcuTalon/releases"><img src="https://img.shields.io/github/v/release/jbrandtmse/OcuTalon" alt="Latest release"></a>
+  <a href="https://demo.ocutalon.com"><img src="https://img.shields.io/website?url=https%3A%2F%2Fdemo.ocutalon.com&label=online%20demo&up_message=live&down_message=down" alt="Online demo status"></a>
+  <a href="#start-it-with-the-install-script"><img src="https://img.shields.io/badge/docker-install.sh-blue" alt="Docker: install.sh"></a>
+  <a href="#install-it-with-ipm"><img src="https://img.shields.io/badge/IPM-ocutalon-blue" alt="IPM: ocutalon"></a>
+  <a href="#whats-interesting"><img src="https://img.shields.io/badge/IRIS-AI%20Hub-blue" alt="IRIS: AI Hub"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+</p>
 
 Your integrations already tell you when something breaks, usually fifty times. OcuTalon reads the failures, works out the one cause, proposes the fix with a dry run, and only interrupts you when something needs you. Nothing risky runs without your yes: fixed rules that the model can't change decide what is risky, and every approval lands in the IRIS audit log. Every decision is in Visual Trace with its reasons and cost. Without a model it fails safe: it tells you everything and claims nothing.
 
@@ -27,18 +37,20 @@ To run OcuTalon on your own machine instead:
 | Clarity of Instructions | The online demo needs no install, and the local path above is four steps. `./install.sh` checks Docker, Docker Compose and the image first, and a failed check prints the exact fix ([Troubleshooting](#troubleshooting)). [Install it with IPM](#install-it-with-ipm) gives both commands. Over 30 rules in [docker/tests/test-readme.sh](docker/tests/test-readme.sh) check this README in CI. |
 | Developer Experience | [The bridge guide](docs/bridge-guide.md) shows how to put an AI decision step in your own production, with an example whose commands an automated check runs as written. Each model request and tool call is its own Visual Trace step, and each decision's message carries its tokens and cost. Over 300 test classes with over 3,000 tests, and over 70 browser test files, run in [CI](.github/workflows/ci.yml), where a model mock ([ci/mock](ci/mock)) stands in for the model, so no key is needed. |
 | Applicability | [What you can use it for](#what-you-can-use-it-for): a partner feed that breaks, a production watched quietly, and an AI step in your own production. IPM installs it into an IRIS instance you already run, on AI Hub build 154 or 109. It implements the community idea [DPI-I-689](https://ideas.intersystems.com/ideas/DPI-I-689). |
-| Usability | The demo guide walks one incident in about two minutes, and its More to try panel has seven more things to try ([New since 1.0.0](#new-since-100)). A dry run with counts comes first, and nothing risky runs without your yes. [Measured](#measured): 0 changes made without a person's approval, and 0 prompt-injection attempts that led to an action. A recorded evaluation set of over 50 cases ([eval](eval)) scores the real model. |
+| Usability | The demo guide walks one incident in about two minutes, and its More to try panel has nine more things to try ([New since 1.0.0](#new-since-100)). A dry run with counts comes first, and nothing risky runs without your yes. [Measured](#measured): 0 changes made without a person's approval, and 0 prompt-injection attempts that led to an action. A recorded evaluation set of over 50 cases ([eval](eval)) scores the real model. |
 
 ### New since 1.0.0
 
 Each item says where to try it on the online demo. Visual Trace there is shared, so save and add nothing personal.
 
 - **Memory.** Say "Remember that ..." in the chat, and it answers later questions from what it remembered. "What do you remember?" lists your memories, and you can tell it to forget one. The vectors are computed on your instance by FastEmbed in Embedded Python, and a search combines IRIS vector search with a keyword index. Try it: More to try, *Ask it to remember something*.
-- **Answers from your own documents.** Add Markdown, plain-text, PDF or Word (.docx) files on the Documents page, then ask about them in the chat. The answer names the document and section it used, or says "None of your documents cover that." Try it: More to try, *Ask about a document*.
+- **Answers from your own documents.** Add Markdown, plain-text, PDF or Word (.docx) files on the Documents page, then ask about them in the chat. The answer names the document and section it used, or says "None of your documents cover that." Try it: More to try, *Ask about a document*, which adds a sample runbook if you have no file to hand.
 - **A daily digest.** On your own install, OcuTalon sends a digest each morning, by default at 08:00 to the web chat, and to Telegram when it is paired: how IRIS is doing, a Passed, Failed or Not checked line for each watched production, what needs you, and yesterday's cost. The checks and the verdict come from OcuTalon's code, not the model. Try it on the online demo: ask "Send my digest now".
 - **Personas.** In the Persona card, choose how OcuTalon talks: Professional, Starship computer, Pirate, Kind friend, Another language, or Your own words (on your own install). A persona changes the wording, never what OcuTalon may do. Try it: More to try, *Change how OcuTalon talks*.
 - **A heartbeat checklist.** Write what to check in the Heartbeat checklist card, and OcuTalon looks at it on your schedule, from every 30 minutes to every 24 hours. Each check-in makes one attention decision, and the card shows its cost. Try it: More to try, *Run a heartbeat check-in*.
 - **A dry run that checks good messages.** Before it offers to repair and resend, OcuTalon tries the repair on up to 20 of the newest messages from the same source that went through, and offers no fix if any of them would change. Try it: after the guide's incident, More to try, *Reject a fix*, then read the approval request on the Simulated phone.
+- **Where an answer came from.** An answer from your documents ends with a chip for each source that names the document and section: press it to read the passage, or open the whole document on the Documents page. An answer that recalls a memory carries a From memory chip that shows what was remembered and when. Try it: More to try, *See where an answer came from*.
+- **Incident summaries.** When an incident closes, OcuTalon writes a summary from its own records, with no extra model request: the timeline, the cause and evidence, each approval with its channel and time, the messages affected and the incident's model cost. It arrives in the chat and on the Simulated phone (and in Telegram when it is paired on your own install), and you can ask for it again in the chat. Try it: after the guide's incident, More to try, *Read the incident summary*.
 
 ## What's interesting
 
@@ -373,7 +385,7 @@ Leave `CSPSystem`, the web gateway's account, and the accounts marked for intern
 
 ## Contest checklist
 
-What OcuTalon uses, and where to check each one:
+OcuTalon is an entry in the [InterSystems Programming Contest: AI Agents in Interoperability Workflows](https://community.intersystems.com/post/intersystems-programming-contest-ai-agents-interoperability-workflows). What it uses, and where to check each one:
 
 | Item | Where to check it |
 | --- | --- |

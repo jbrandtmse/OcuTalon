@@ -64,6 +64,9 @@ Property AllowanceUntil As %String(MAXLEN = 20);
 /// until it was.
 Property DailyCapDay As %String(MAXLEN = 10);
 
+/// 1 when the user held OcuTalonAdmin at the session's latest sign-in (AD-21); written only at sign-in.
+Property AdminAtSignIn As %Boolean [ InitialExpression = 0 ];
+
 Index RefIndex On Ref [ Unique ];
 
 Index TraceRefIndex On TraceRef [ Unique ];
@@ -244,6 +247,9 @@ Storage Default
 </Value>
 <Value name="13">
 <Value>DailyCapDay</Value>
+</Value>
+<Value name="14">
+<Value>AdminAtSignIn</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.SessionD</DataLocation>
