@@ -337,7 +337,21 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
   - `DropEval` never removes a person's session (`MemoryCases:TestRemoved`; `Test.Eval.In`; `Test.Data.Session`).
 - AC 11 (report-only): Given a report with the memory cases right or wrong, when it is built, then the gated shares and counts and `Eval.Gate`'s inputs are unchanged. `learnedSave` and `memoryTurns` have no target and appear only as their own report-only lines (`Report:TestMemoryLinesReportOnly`).
 
+- [ ] [Ruling] Security conditions as tests (planner-2026-11-10-41.14 item 1): (i) `Data.Session.ForEval` refuses and creates nothing unless `OCUTALON_EVAL=1` (a test with the flag unset); (ii) no `/api/v1` read and no `Ownership` query returns an eval session's rows or memories (a second-session-style check in `Test/Data/Session.cls` or the ownership tests); (iii) the startup sweep removes only leftover eval sessions and their memories and touches nothing else (a test that seeds a normal session and memory beside a leftover eval one). Storage changes only through class APIs (standing rule), never by global hand-edits.
+
 ## Spec Change Log
+
+- 2026-11-10 (planner-2026-11-10-41.14, Contest Planner [3dd56e] under the owner's delegated authority, relayed by the orchestrator; verbatim terms; RULED): 
+  Implement may start.
+  1. SECURITY, eval-only session rows: ACCEPTED. Data.Session gains ForEval and DropEval, called only by EvalIn; the rows have no IRIS user and no resume hash, are dropped at the end of the run, and are swept at the next start. The forgotten-fact seed goes straight to MemoryOps, the way SeedPrecedent does. The additive spine lines go under AD-22, AD-1, AD-4 and AD-33 with the marker. CONDITIONS, each with a test:
+     (i) ForEval refuses unless OCUTALON_EVAL=1. It's reachable only from EvalIn, and a call with the flag unset creates nothing.
+     (ii) No /api/v1 read and no ownership query ever returns an eval session's rows or its memories (a second-session-style check in Test/Data/Session.cls or the ownership tests).
+     (iii) The startup sweep removes leftover eval sessions and their memories, and touches nothing else.
+     (iv) The online demo keeps EvalIn off and OCUTALON_EVAL unset (H24); the Planner re-checks at each deploy.
+  2. STORED DATA: ACCEPTED. Eval.Msg.TurnResult gains Memories, as 19.4 added Citations. Retention unchanged.
+  3. FOOTPRINT: ACCEPTED, including the changed (not only added) lines in Test/Eval/Cases.cls and Test/Eval/Report.cls.
+  4. RELEASE GATE: YES. The real-model run of the six memory cases goes on the Planner's 1.0.7 checklist, at the RC eval. The two new lines stay report-only, so the documents case's "why" wording doesn't block the release; the Planner rules on the wording after that run.
+  Each security condition (i)-(iii) is a test this story adds; (iv) is a deploy check the Planner owns (H24), recorded here. Standing rule (2026-11-10): system storage is changed only through its API, even on throwaways.
 
 ## Review Triage Log
 
@@ -418,7 +432,7 @@ No AC contradicts an AD's Rule. The session cases need additive lines under AD-1
   - AC 6 then needs a ruling, because a forgotten fact needs a session.
 - **DW-1016:** AC 8, `memory-learned-refused`. The approved bullet is unchanged.
 
-**Spec-gate items (for the Contest Planner):**
+**Spec-gate items (RULED 2026-11-10, all ACCEPTED with conditions — see the Spec Change Log entry planner-2026-11-10-41.14):**
 1. **Eval session cases (veto window: security posture, AD amendment; cross-lane).**
    - Lane B's `Data.Session` gains `ForEval`/`DropEval`, called only by `EvalIn`. This follows 41.13's ruled Lane-A-edit-by-a-Lane-B-story precedent, in reverse.
    - Additive spine lines `[ADDED 2026-11-09, Story 41.14]`:
