@@ -1067,6 +1067,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: module.xml ships OcuTalon.PKG with every OcuTalon.Test class; the two QA fixtures subclass HeartbeatTask to override PRODUCTION and ITEM
 - 2026-10-24T16:27:52Z status=wontfix-accepted owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=cr note=reopen_if=a release install's New Task wizard lists a task type whose class is under OcuTalon.Test
+- 2026-11-10T04:48:06Z occurrence=8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend
 
 ### DW-171: Test.Schedule.Heartbeat Settle/SettleScheduler repeats lib-live.sh's settle_scheduler ObjectScript line (DW-28) with a weak stated reason (another language)
 - source: spec-8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2358,6 +2359,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: src/ocutalon/cls/OcuTalon/Eval/In.cls Render (12 lines) vs src/ocutalon/cls/OcuTalon/Core/Conversation.cls:449 Checked, identical but for the target fields; Design Notes 10 records the reason (a private method of a Lane B process); unlike the Busy numbers and the Input, no test pins the two equal; Story 20.2 extends Conversation's HostData handling
 - 2026-10-29T05:55:13Z status=routed owner=20-2-see-citations-and-memories-in-answers by=cr note=Rule 2 forced copy: make the check-rows glue one public Lane A helper that Conversation and EvalIn both call
 - 2026-11-09T18:16:48Z status=routed owner=burndown by=spec_gate note=declined_by_20.2:Conversation.Checked_and_RenderChecks_stay_byte-identical(new_carry_is_separate_Sourced);unifying_the_glue_is_Lane_A_Eval/**_work(U-177)
+- 2026-11-10T04:56:57Z status=wontfix-accepted by=burndown note=Epic_20_gate:20.2_kept_Conversation.Checked/RenderChecks_byte-identical(carry_is_separate_Sourced),so_Eval.In.Render_still_mirrors_it;no_next-epic_story_owns_Lane_A_Eval_unification;reopen_if=git_diff_shows_Conversation.Checked_or_RenderChecks_changed_without_the_same_change_in_Eval.In.Render
 
 ### DW-385: Test.Eval.Record FixtureSettings and DefinedSettings (QA, Story 9.4) are near-copies of Epic 7's private Test.Watch.Evidence helpers of the same names (same five fixture names, same open/remove/insert loop), forced by Epic 7's read-only Test/Watch/**; the two Orders-definition fixtures drift when the definition handling changes
 - source: spec-9-4-ten-incidents-are-recorded-from-real-failures.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4673,6 +4675,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T12:23:42Z status=routed owner=burndown by=harvest note=Rule 19 hermeticity; Epic 39 also edits Test/Live/GuideRefresh.cls
 - 2026-11-05T18:44:05Z owner=20-2-see-citations-and-memories-in-answers by=burndown note=overflow_(remainder_1_under_cap_8,no_repeat_occurrence;not_seen_on_any_fresh_stack_or_in_CI):20.2_is_the_next_Lane_B_story_that_changes_chat.message_live_payloads_and_runs_Test.Live;make_GuideRefresh_self-contained_on_a_reused_warm_stack;Epic_39_also_edits_the_file
 - 2026-11-09T18:16:49Z status=routed owner=burndown by=spec_gate note=declined_by_20.2:hermeticity_fix_of_Test.Live.GuideRefresh_unrelated_to_20.2_surface;voting-week_scope_is_judge-visible_work
+- 2026-11-10T04:56:58Z status=wontfix-accepted by=burndown note=Epic_20_gate:flake_candidate_unrelated_to_Epic_20_surface;green_on_every_fresh_shard;reopen_if=Test.Live.GuideRefresh_goes_red_in_a_CI_shard_on_a_fresh_stack_or_a_second_occurrence_is_logged
 
 ### DW-734: AddDocument.Content (up to 10 MB, a %Stream.GlobalBinary on a persistent command message) stays in the message-body store; neither RemoveDocument nor DropSession is known to delete it, so the remove and sign-out promises may not hold for the stored message copy
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -6430,6 +6433,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: low | footprint: out-of-footprint
 - evidence: 1.0.5 demo after update: Suspended=1, SuspendOnError=0, Error Success, last ran OK; Install.Step.Schedule leaves an existing task alone; host-side patch on the demo already resumes it
 - 2026-11-09T14:16:01Z status=routed owner=burndown by=owner note=1.0.6 HIGH ahead of tier 3 (Contest Planner [3dd56e], delegated authority): resume the task when Suspended at every start (after-start / Install) with one log line; test: suspend, restart, task runs and ticks within 2 min; demo-host-check.sh part is a RELEASE TOOL hunk (contended with Epic 11, DW-485); story to charter at the next free lane
+- 2026-11-10T00:55:02Z status=routed owner=8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend by=load note=chartered_as_story_8.8(orchestrator_dispatch_dw1018;Planner_[3dd56e]_1.0.6_HIGH)
+- 2026-11-10T04:50:17Z status=resolved-by:8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend by=adjudication note=Install.Step.Schedule.ResumeTask_from_Reconcile()(03122305);TaskResume+live:heartbeat-restart(restart1_resumed;first_tick_58s_after_ready);demo-host-check.sh_--heartbeat_heartbeat-tick/heartbeat-task(test-online-host_row17)
 
 ### DW-1019: eval: held-out heartbeat-injected-decision labelled Act in 2 of 3 attempts on 1.0.5's real-model evaluation (1 of 3 on 1.0.4); nothing acted but the label should be Tell now; check whether 41.x daily notes or precedents raise Act on an injected heartbeat and fix it in the instructions; target Tell now in 3 of 3
 - source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: med | footprint: out-of-footprint
@@ -6457,11 +6462,42 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-6-write-an-incident-summary-when-an-incident-closes.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: spec Verification: AC10/AC16 'CI, not run here', AC17 'n/a here'; live:sign-in parts take about 300 s per call locally.
 - 2026-11-09T21:01:26Z status=wontfix-accepted owner=23-6-write-an-incident-summary-when-an-incident-closes by=cr note=reopen_if=a CI run of K25/K26 stays green with closeIncident stubbed to a no-op
+### DW-1060: The sample button after ServerButton's 10 s notice looks idle and says Try again, but presses are ignored while its own add is still out (sampling guard)
+- source: spec-20-3-add-a-sample-runbook-in-one-press.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: documents-page.ts addSample returns early while sampling(); ServerButton restores itself and shows BUSY_NOTICE after 10 s with no answer. Only reachable when POST /v1/documents of a 1.2 KB file takes over 10 s.
+- 2026-11-10T04:32:19Z status=wontfix-accepted owner=20-3-add-a-sample-runbook-in-one-press by=cr note=reopen_if=a sample POST is seen taking over 10 s (an e2e or hands-on press shows BUSY_NOTICE while the add is out)
+
+### DW-1061: Focus falls to the body when More to try item 6 or 8 swaps between the sample button and the link while that control has focus
+- source: spec-20-3-add-a-sample-runbook-in-one-press.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: more-to-try.ts @if on sampleFirst() replaces the focused control on a live document event; the guide's focus rule does not track SampleRunbook.none(). Needs a document added or removed elsewhere while focus sits on the control.
+- 2026-11-10T04:32:19Z status=wontfix-accepted owner=20-3-add-a-sample-runbook-in-one-press by=cr note=reopen_if=an e2e or hands-on pass shows document.activeElement is body after a document event with focus on item 6 or 8
 ### DW-1052: README header is an HTML h1 (no Markdown H1): the Open Exchange listing may not show the title and logo as GitHub does
 - source: _bmad-output/implementation-artifacts/spec-0-21-the-readme-opens-with-a-centred-header-logo-tagline-and-badg.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: GitHub markdown API renders it (measured); Open Exchange rendering of the README's HTML cannot be seen from the repository
 - 2026-11-09T23:43:20Z status=decision-pending owner=burndown by=harvest note=human=open the Open Exchange listing once it shows the 1.0.6 README and confirm title+logo render; outward listing, owner/Planner only
 - 2026-11-10T00:47:25Z status=decision-pending owner=burndown by=merge_gate note=Contest Planner (owner delegation) owns it: checks the Open Exchange listing render after 1.0.6 is live; a Markdown fallback follow-up is routed then if needed; no action now
+
+### DW-1062: Test.Schedule.TaskResume copies Lane A's private Test.Install.ReconcileIn LastRow and Rows (the Event Log row count of ReconcileIn by job, type and text), forced by AD-29; a change to how ReconcileIn logs must be repeated in both
+- source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: TaskResume.cls LastRow/Rows equal Test/Install/ReconcileIn.cls:104-122 less the optional type/text arguments; the class header names the copy (Rule 2)
+- 2026-11-10T04:48:06Z status=routed owner=burndown by=cr note=unify by making ReconcileIn's Rows/LastRow public (Lane A) and calling them from TaskResume
+- 2026-11-10T05:06:02Z status=wontfix-accepted by=burndown note=reopen_if=a_third_copy_of_the_ReconcileIn_Event-Log_row_count_appears_or_Test.Install.ReconcileIn's_Rows/LastRow_change_shape(a_Lane_A_story_then_makes_them_public_and_TaskResume_calls_them);copy_forced_by_U-177;no_open_story_unifies_it
+
+### DW-1063: release/demo-host-checks.md:5 still says the two inputs that come from the host are the status output and the time zone; Story 8.8 added a third (the heartbeat line, --heartbeat), outside the doc hunks the Planner ruled on
+- source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Run 1 now says at most one of the three may be standard input; the intro sentence at :5 was left at two (blind-hunter, acceptance-auditor)
+- 2026-11-10T04:48:06Z status=decision-pending owner=burndown by=cr note=human=Planner's release-tool review: approve 'the three inputs ... and the heartbeat line' at :5
+- 2026-11-10T04:50:17Z status=resolved-by:8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend by=adjudication note=lead_fixed_release/demo-host-checks.md:5_(two->three_inputs;heartbeat_line_added);in_the_RELEASE_TOOL_hunks_for_the_Planner's_review
+
+### DW-1064: No test runs the documented --heartbeat host command against check_heartbeat; row 17 uses synthetic fixtures only, so a broken command fails H26 closed (heartbeat-json or heartbeat-tick FAIL on a healthy host)
+- source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: test-online-host.sh row 17 builds JSON with write_hb_fixture; the command in demo-host-checks.md was measured by hand only (M7 and the re-measure)
+- 2026-11-10T04:48:06Z status=wontfix-accepted owner=8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend by=cr note=reopen_if=the Planner's run 1 prints FAIL heartbeat-json or heartbeat-tick on a host whose page shows no stalled banner
+
+### DW-1065: ci/units.sh records no class seconds for the new Test.Schedule.TaskResume in shard:lane-b@rest (about 45 s on a warm stack: four real-task tests with up to 21 s clock waits and two 10 s lock timeouts)
+- source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the Story 8.8 paragraph budgets only live:heartbeat-restart; TaskResume measured 43 s on the e8s8cw warm stack in code review
+- 2026-11-10T04:48:06Z status=wontfix-accepted owner=8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend by=cr note=reopen_if=the group holding shard:lane-b@rest passes 1,800 s of units on the first OCT-epic8 CI run
 ### DW-1053: A pin, unpin or forget made after the day's session start reaches the model only at the next session start: the core block is rendered only with sessionStart 1, and the continued AI session keeps the earlier input
 - source: spec-41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star.md | severity: low | fix-risk: high | footprint: in-epic
 - evidence: Agent.Input.CorePart returns '' unless sessionStart 1; Conversation continues the bridge session unless fresh or rotated, so the 09:00 input (with or without a pin) stays in history all day

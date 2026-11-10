@@ -115,7 +115,7 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
   documents: {
     label: 'Ask about a document',
     lookFor:
-      'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the chip under the answer that names your file and its section.',
+      'On the Documents page, press Add the sample runbook, or add a short file of your own (nothing personal: Visual Trace on the demo is shared). When it reads Ready, ask in the chat "According to the runbook, what should I do when partner orders fail with a date error?", or ask about your own file, and look for the chip under the answer that names the document and its section.',
     button: 'Open the Documents page',
   },
   heartbeat: {
@@ -297,6 +297,11 @@ test('K2: in the finish the panel is open after the links and before Try it your
 test('K3: every id shows its item in order, items 6 and 8 are links to the Documents page and item 7 focuses the Heartbeat checklist heading', async ({ page }) => {
   // These cases are about the panel's items, not its room: a tall viewport leaves the finish its panel whatever the page's fonts.
   await page.setViewportSize({ width: 1280, height: 900 });
+  await page.route('**/ocutalon/api/v1/documents', (route) =>
+    route.request().method() === 'GET'
+      ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ documents: [{ ref: 'zzK3', name: 'k3.md', addedAt: '2025-03-02T10:00:00Z', size: 10, state: 'ready' }] }) })
+      : route.fallback(),
+  );
   await openWith(page, finished(ALL));
   const panel = panelOf(page);
   await expect(panel.locator('.item-label')).toHaveText(ALL.map((id) => ITEMS[id]!.label));

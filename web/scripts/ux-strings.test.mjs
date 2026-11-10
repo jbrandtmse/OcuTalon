@@ -67,6 +67,7 @@ const IMPORTED = [
   ['guide/more-to-try-view.ts', ['MORE_TO_TRY_TEXTS']],
   ['settings/settings-view.ts', ['SETTINGS_TEXTS']],
   ['documents/documents-view.ts', ['DOCUMENTS_TEXTS', 'REASON_TEXTS']],
+  ['documents/sample-runbook-view.ts', ['SAMPLE_RUNBOOK_TEXTS']],
   ['chat/noise-view.ts', ['NOISE_TEXTS']],
   ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS']],
 ];
@@ -178,6 +179,9 @@ const SOURCES = {
     'Output',
     'Documents',
     'Add documents',
+    'Add the sample runbook',
+    'Sample runbook.md',
+    'According to the runbook, what should I do when partner orders fail with a date error?',
     'Remove',
     'No documents yet. Add a runbook to get cited answers.',
     'Indexing\u2026',
@@ -448,7 +452,7 @@ const SOURCES = {
     'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
     'Ask it to remember',
     'Ask about a document',
-    'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the chip under the answer that names your file and its section.',
+    'On the Documents page, press Add the sample runbook, or add a short file of your own (nothing personal: Visual Trace on the demo is shared). When it reads Ready, ask in the chat "According to the runbook, what should I do when partner orders fail with a date error?", or ask about your own file, and look for the chip under the answer that names the document and its section.',
     'Open the Documents page',
     'See where an answer came from',
     'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
@@ -789,6 +793,30 @@ const SOURCES = {
       'From memory: {memory}',
       'Saved {when}',
       "Couldn't open that document. It may have been removed.",
+    ],
+    'Story 20.3 ruling planner-2026-11-09-20.3 (the Contest Planner under the owner\'s delegation, 2026-11-09: the text of the sample runbook that ships with the web app, public text 3)': [
+      `# Sample runbook: the demo's Orders feed
+
+This sample comes with OcuTalon's web app. It covers the Orders production that the demo runs in namespace OCUORDERS, where a simulated partner sends orders.
+
+## How orders flow
+
+The partner's orders arrive at PartnerOrdersIn. OrdersFromPartner turns each order into a warehouse order, and OrdersToWarehouse takes the orders that pass. Each order has a number such as PO-0001, an item and a quantity.
+
+## When orders fail with a date error
+
+OrdersFromPartner accepts an order date written YYYY-MM-DD and nothing else. When the partner sends dates in another format, such as MM/DD/YYYY, each of those orders fails with "The order date was not in the expected format." Break the feed plays this out with 50 orders.
+
+1. Read the error of one failed order to see the format the partner sent.
+2. Rewrite each failed order's date as YYYY-MM-DD and resend it.
+3. Check how many orders went through to OrdersToWarehouse.
+
+Then ask the partner to go back to YYYY-MM-DD, so that the next batch does not fail.
+
+## When the Results partner changes its certificate
+
+The Results partner gives notice before the TLS certificate on its results endpoint changes. Load the new certificate before the change, so that results keep flowing.
+`,
     ],
   },
   calendar: [

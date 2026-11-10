@@ -6,11 +6,14 @@
  *
  * - DOCUMENTS_TEXTS is every fixed string of the page. The UX writes the title, the empty text, the three statuses, the Add button and the removal
  *   question; the reason texts, the Remove button's name and the failure notice of the dialog are ruled (DW-722, the lead's rulings of Story 34.2),
- *   and so are Close and the line for a document that cannot be opened (Story 20.2).
+ *   and so are Close and the line for a document that cannot be opened (Story 20.2), and the label of the sample button (Story 20.3).
  * - REASON_TEXTS says why a document could not be read, by the reason's code; any code it does not know reads as `failed`.
  * - formatSize writes a size in bytes: whole KB under 1 MB, and from 1 MB MB with one decimal, both rounded up.
  * - rows(server, live, local) is the list: the server's rows overlaid by the live payloads by ref (a payload with `removed` drops its row), the page's
  *   own pending and refused rows first, and the rows of documents the user removed hidden.
+ * - hasDocuments(server, live) is true when the visitor's own list holds a row in any state (the guide's sample control shows only while it does
+ *   not), and sampleListed(rows, name) is true when a row of that name is listed and is not the page's own refused row (the page's sample button
+ *   shows only while it is not). Both read `rows`.
  * - ACCEPT is the file picker's accept list.
  * - docRef reads the `doc` query parameter (DOCUMENT_PARAM) of #/documents, which an answer's "Open document" sets (Story 20.2): the page then shows
  *   that document's text, as plain text, from GET /v1/documents/:ref.
@@ -32,6 +35,7 @@ export const DOCUMENTS_TEXTS = {
   removeFailed: "Couldn't remove it. Nothing was changed.",
   close: 'Close',
   openFailed: "Couldn't open that document. It may have been removed.",
+  sample: 'Add the sample runbook',
 } as const;
 
 /** The query parameter of #/documents that names the document whose text the page shows. */
@@ -198,4 +202,14 @@ export function rows(server: readonly DocumentView[], live: Readonly<Record<stri
     .map(localRow)
     .sort(newestFirst);
   return [...own, ...documents];
+}
+
+/** True when the visitor's own list, the server's rows overlaid by the live payloads, holds a document in any state. */
+export function hasDocuments(server: readonly DocumentView[], live: Readonly<Record<string, DocumentView>>): boolean {
+  return rows(server, live, []).length > 0;
+}
+
+/** True when a row of that name is listed, in any state but the page's own refused row, which stores nothing. */
+export function sampleListed(listed: readonly DocumentRow[], name: string): boolean {
+  return listed.some((row) => row.name === name && !(row.local && row.state === 'refused'));
 }
