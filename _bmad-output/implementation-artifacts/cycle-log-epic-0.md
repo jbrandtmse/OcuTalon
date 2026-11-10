@@ -663,3 +663,10 @@
 2026-11-10T06:19:15Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
 2026-11-10T06:19:15Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default note=bootstrap_check_ok;inbox_verify_ok;hashes_match
 2026-11-10T06:19:15Z	Epic 0	ruling	question=integrate_forward_base choice=abed4ec6(green_by_identity:code_identical_to_f59cab73) rejected=1490ab58(8.8+20.3_code_combined;ci_42767577852+42767577887_queued;not_identical_to_any_green_head) why=dispatch(newest_green_or_green_by_identity) category=decide policy=5086036
+2026-11-10T06:20:25Z	Epic 0	integrated_forward	feature=abed4ec6 head=40dcc766 conflicts_resolved=none note=start_of_0.22_dispatch
+2026-11-10T06:20:25Z	Epic 0	epic_branch_reopened	reason=story_0.22_More_to_try_groups(Planner_ruling_option_a) from=abed4ec6
+2026-11-10T06:20:25Z	Story 0.22	amendment	file=_bmad-output/planning-artifacts/epics.md:Story_0.22_block(inserted) rule5=tier1 marker=[ADDED_2026-11-10,More_to_try_capacity_ruling_option_(a),Contest_Planner_under_the_owner's_delegation]
+2026-11-10T06:20:25Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-10T06:20:25Z	Epic 0	ledger_load	total=1052 open=0 routed=120 escalated=2 decision_pending=6 terminal=924 owner_unknown=0 burndown=100 reowned_none=0 note=no_entry_owned_by_an_Epic_0_key
+2026-11-10T06:20:39Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen(sprint_plan.py_generate+validate);tracker_valid;0.22_added_backlog;dropped_orphans=none
+2026-11-10T06:20:39Z	Epic 0	retro_review_skipped	reason=skipped(policy) note=reopen_for_one_story(0.22);X.0_and_retro_review_recorded_earlier(dispatch)
