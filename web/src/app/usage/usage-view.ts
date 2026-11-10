@@ -11,6 +11,8 @@
  *   cache tokens), the cost, estimated (every bucket of the group is an estimate) and includesEstimates (some, not all). Day lists every date of the
  *   range, in order, with zeros for a day without use; Agent, Channel and Model list only the values that have a bucket in the range, sorted by label. The
  *   retry runners count under their agent and the compaction rows are the agent "Chat summaries".
+ * - costText(amount, format) is a cost as the tables show it: an exact zero is "$0", and every other amount is what `format` (the shared formatCost)
+ *   makes of it, so an amount under $0.0001 that is not zero keeps "<$0.0001". The page passes formatCost, as it passes the agent names to groupRows.
  * - largestByDay is the days with use and the largest estimated request of each; dayLabel is the short date; chartGeometry places one bar and one point
  *   for each row on separate token and cost scales.
  */
@@ -32,6 +34,7 @@ export const USAGE_TEXTS = {
   error: "Couldn't load your usage.",
   retry: 'Retry',
   chatSummaries: 'Chat summaries',
+  costZero: '$0',
   channels: {
     web: 'Web chat',
     phone: 'Simulated phone',
@@ -392,4 +395,9 @@ export function chartGeometry(rows: readonly UsageRow[], width: number, drawHeig
 /** A coordinate rounded to two places, for the SVG's attributes. */
 export function round(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/** A cost as the Usage tables show it: "$0" for an exact zero, otherwise `format` (the shared formatCost) of the amount. */
+export function costText(amount: number, format: (amount: number) => string): string {
+  return amount === 0 ? USAGE_TEXTS.costZero : format(amount);
 }

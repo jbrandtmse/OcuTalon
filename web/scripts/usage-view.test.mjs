@@ -10,9 +10,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { CHART_MARGIN, DEFAULT_GROUPING, DEFAULT_RANGE, GROUPINGS, RANGES, USAGE_TEXTS, agentKey, agentLabel, channelLabel, chartGeometry, dayLabel, groupRows, largestByDay, largestText, niceMax } =
+const { CHART_MARGIN, DEFAULT_GROUPING, DEFAULT_RANGE, GROUPINGS, RANGES, USAGE_TEXTS, agentKey, agentLabel, channelLabel, chartGeometry, costText, dayLabel, groupRows, largestByDay, largestText, niceMax } =
   await import(app('usage', 'usage-view.ts'));
 const { SETTINGS_TEXTS } = await import(app('settings', 'settings-view.ts'));
+const { formatCost } = await import(app('chat', 'decision-view.ts'));
 
 const NAMES = SETTINGS_TEXTS.models.agents;
 const DAYS = ['2026-11-07', '2026-11-08', '2026-11-09'];
@@ -66,6 +67,7 @@ describe('the fixed strings', () => {
       error: "Couldn't load your usage.",
       retry: 'Retry',
       chatSummaries: 'Chat summaries',
+      costZero: '$0',
       channels: {
         web: 'Web chat',
         phone: 'Simulated phone',
@@ -229,6 +231,22 @@ describe('largestByDay', () => {
 
   it('writes a cell as "{tokens} of {limit} tokens"', () => {
     assert.equal(largestText('12,345', '100,000'), '12,345 of 100,000 tokens');
+  });
+});
+
+describe('costText', () => {
+  // mutation: costText returns format(amount) for zero too -> "shows an exact zero as $0" red; costText returns "$0" for every amount under 0.0001 -> "keeps <$0.0001 for a non-zero amount under $0.0001" red.
+  it('shows an exact zero as $0, the cost of a day or a group with no cost', () => {
+    assert.equal(costText(0, formatCost), '$0');
+  });
+
+  it('keeps <$0.0001 for a non-zero amount under $0.0001', () => {
+    assert.equal(costText(0.00004, formatCost), '<$0.0001');
+    assert.equal(costText(0.00000001, formatCost), '<$0.0001');
+  });
+
+  it('leaves every other amount to formatCost: $0.0001, $0.0006, $0.042, $1.24', () => {
+    assert.deepEqual([0.0001, 0.0006, 0.042, 1.24].map((amount) => costText(amount, formatCost)), ['$0.0001', '$0.0006', '$0.042', '$1.24']);
   });
 });
 

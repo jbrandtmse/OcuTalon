@@ -79,6 +79,10 @@ describe('EXPERIENCE.md, More to try item 9', () => {
     assert.match(line ?? '', /\[ADDED 2026-11-10, Story 37\.2, Contest Planner ruling [^\]]*\]/);
   });
 
+  it('carries the DW-1090 amendment marker', () => {
+    assert.match(line ?? '', /\[AMENDED 2026-11-10, Contest Planner ruling on DW-1090: the look-for counts only the session's own decisions\]/);
+  });
+
   it('says that item 9\'s control is a link to the Usage page, with the marker', () => {
     const sentence = EXPERIENCE.split('\n').find((one) => one.includes("Item 9's control is a link to the Usage page."));
     assert.ok(sentence, 'the sentence is in EXPERIENCE.md');

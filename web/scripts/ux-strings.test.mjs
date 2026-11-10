@@ -176,7 +176,7 @@ const SOURCES = {
   ux: [
     'Usage',
     'See tokens and cost',
-    'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages and incidents, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+    'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages. If it reads "No model use in this period.", chat or run the guide first.',
     'Open the Usage page',
     'Agent',
     'Channel',
@@ -853,6 +853,7 @@ The Results partner gives notice before the TLS certificate on its results endpo
     'Dec',
   ],
   format: [
+    '$0',
     '{label} \u00b7 {n} s',
     '{label} \u00b7 {n} seconds',
     '{n} seconds',
@@ -895,8 +896,9 @@ The Results partner gives notice before the TLS certificate on its results endpo
 /** The unit words that a format string may hold besides punctuation, digits and the separator. */
 const UNIT_WORDS = new Set(['s', 'min', 'h', 'in', 'at', 'hour', 'hours', 'minute', 'minutes', 'second', 'seconds']);
 
-/** True when the template, with its slots removed, holds only punctuation, digits, the separator and the unit words. */
+/** True for "$0" (the cost of an exact zero), or when the template, with its slots removed, holds only punctuation, digits, the separator and the unit words. */
 function isFormat(text) {
+  if (text === '$0') return true;
   const rest = text.replace(/\{[A-Za-z]+\}/g, ' ');
   return /^[A-Za-z0-9\s.,:;()\u00b7'"-]*$/.test(rest) && (rest.match(/[A-Za-z]+/g) ?? []).every((word) => UNIT_WORDS.has(word));
 }

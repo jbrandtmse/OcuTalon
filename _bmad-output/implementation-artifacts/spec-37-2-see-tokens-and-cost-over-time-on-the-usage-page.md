@@ -2,9 +2,9 @@
 title: 'Story 37.2: See tokens and cost over time on the Usage page'
 type: 'feature'
 created: '2026-11-09'
-status: 'in-progress'
-baseline_revision: 'ad602cfbb9c784c495e12d71cc79d08ecfc38f28'
-baseline_commit: 'ad602cfbb9c784c495e12d71cc79d08ecfc38f28'
+status: 'done'
+baseline_revision: '2a04c65a3377f847ab8c99b68b436f37419591aa'
+baseline_commit: '2a04c65a3377f847ab8c99b68b436f37419591aa'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -189,8 +189,8 @@ deferred:
 
 
 **Rework iteration 2 (trigger: Planner rulings on DW-1089 and DW-1090; scope: these items only) [RULED 2026-11-10 ~21:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md "Integrate-round rulings"]:**
-- [ ] [Ruling] R6 (DW-1089): on the Usage page an exact-zero cost shows `$0`; a non-zero amount under $0.0001 keeps `<$0.0001`; every other amount keeps `formatCost`. Apply it in the Usage page's own cost formatting (`web/src/app/usage/**`), never by changing the shared `formatCost` in `chat/decision-view.ts` (its other callers keep their shipped behaviour). Add a unit case for each (exact zero → `$0`; e.g. 0.00004 → `<$0.0001`), with a mutation line, and update any Usage e2e assertion that expected `<$0.0001` for a zero-cost row or day.
-- [ ] [Ruling] R7 (DW-1090): the More to try usage look-for's SECOND sentence becomes, verbatim: `The tokens and cost come from your chat turns and from the agents' decisions on your messages.` The first and last sentences are unchanged. Update `MORE_TO_TRY_TEXTS.items.usage.lookFor` (straight ASCII apostrophe, escaped as the module does), every test oracle that writes the text out (the RULED copy in `web/scripts/more-to-try-view.test.mjs`, `usage-docs.test.mjs`, `ux-strings.test.mjs` if it holds it), and EXPERIENCE.md's Item 9 entry, with the marker `[AMENDED 2026-11-10, Contest Planner ruling on DW-1090: the look-for counts only the session's own decisions]`. The README bullet stays as ruled.
+- [x] [Ruling] R6 (DW-1089): on the Usage page an exact-zero cost shows `$0`; a non-zero amount under $0.0001 keeps `<$0.0001`; every other amount keeps `formatCost`. Apply it in the Usage page's own cost formatting (`web/src/app/usage/**`), never by changing the shared `formatCost` in `chat/decision-view.ts` (its other callers keep their shipped behaviour). Add a unit case for each (exact zero → `$0`; e.g. 0.00004 → `<$0.0001`), with a mutation line, and update any Usage e2e assertion that expected `<$0.0001` for a zero-cost row or day.
+- [x] [Ruling] R7 (DW-1090): the More to try usage look-for's SECOND sentence becomes, verbatim: `The tokens and cost come from your chat turns and from the agents' decisions on your messages.` The first and last sentences are unchanged. Update `MORE_TO_TRY_TEXTS.items.usage.lookFor` (straight ASCII apostrophe, escaped as the module does), every test oracle that writes the text out (the RULED copy in `web/scripts/more-to-try-view.test.mjs`, `usage-docs.test.mjs`, `ux-strings.test.mjs` if it holds it), and EXPERIENCE.md's Item 9 entry, with the marker `[AMENDED 2026-11-10, Contest Planner ruling on DW-1090: the look-for counts only the session's own decisions]`. The README bullet stays as ruled.
 
 **Acceptance Criteria:**
 - Given this story's change, when the spine is read, then the REST table has the `GET /api/v1/usage` row and the cross-area table has the `Ownership.Usage` and header-navigation Usage rows, each marked `[ADDED 2026-11-10, Story 37.2]`. It has no History, file upload, private file table or Roles row. `lint_spine.py` reports the same 10 low `placeholder` findings at lines 478, 1017 (x2), 1086, 1099 (x2), 1165 (x3) and 1176 as before.
@@ -331,6 +331,26 @@ Rejected:
   - `[low]` `[reject]` Blind: `followup_review_recommended` stays `true` and `review_loop_iteration` 0 after a rework — the computation below sets it; the counter counts bad_spec loopbacks only.
   - `[low]` `[reject]` Edge: the spec's `## Verification` text still names the old group — superseded by the rework lines.
   - `[maybe-false]` `[reject]` Intent auditor: the surface of the intent is the rendered panel while most tests pin constants — K27 and K16/K17 render it on a real stack; nothing further would be low-risk.
+
+### 2026-11-10 — Review pass (rework iteration 2, R6 and R7)
+- verdicts: 15 findings — high 0, medium 3, low 12, false 0, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind: EXPERIENCE.md's Cost format row still said under $0.0001 shows "<$0.0001" with no Usage-page exception — patched: the row now says an exact zero shows "$0" on the Usage page, with `[AMENDED 2026-11-10, Contest Planner ruling on DW-1089: ...]`.
+  - `[low]` `[patch]` Blind: the `isFormat` character class in `ux-strings.test.mjs` allowed `$` for every format string — patched: the class is as before and `isFormat` accepts exactly "$0".
+  - `[low]` `[patch]` Blind: `costText(0, formatCost)` was asserted against `USAGE_TEXTS.costZero` right after the literal `$0` (cannot fail alone) — patched: the second assertion is removed; the fixed-strings test still pins `costZero`.
+  - `[low]` `[reject]` Blind: the spec's closing verification note does not cover rework 2 — the fix edits this build's spec; this pass's `## Auto Run Result` records it.
+  - `[low]` `[patch]` Blind: the mutation comment in `more-to-try.spec.ts` named "K-text", which is no case id — patched: it names K3, the case that went red.
+  - `[low]` `[reject]` Blind: no case ties the non-zero `<$0.0001` branch to R6, and `=== 0` would miss float residue — the Telegram row (0.00005) in `usage.spec.ts` U2 and the unit case for 0.00004 and 1e-8 pin the branch; costs are sums of non-negative values rounded to six decimals, so residue is theoretical.
+  - `[low]` `[reject]` Blind: the look-for no longer mentions the day's largest request — the ruling gives the sentence verbatim (by design); the page and README bullet are unchanged.
+  - `[low]` `[reject]` Edge: NaN or a negative amount shows `<$0.0001` — `costUSD` is a server sum of non-negative values; no reachable input (wontfix-theoretical).
+  - `[low]` `[reject]` Edge: a residue such as 1e-18 shows `<$0.0001` — the same: `roundCost` rounds to six decimals first (wontfix-theoretical).
+  - `[low]` `[patch]` Edge: `isFormat` allows `$` for every template — the same root cause as the second row, patched with it.
+  - `[medium]` `[patch]` Edge: the Cost row of EXPERIENCE.md contradicts the shipped page — the same root cause as the first row, patched with it.
+  - `[low]` `[reject]` Edge: the AC text (":200") still says costs follow `formatCost` including `<$0.0001` for zero — the fix edits this build's spec; R6 carries the ruling.
+  - `[low]` `[reject]` Edge: non-number and negative amounts route to `formatCost` (R6 says every other amount keeps it) — as above, theoretical.
+  - `[medium]` `[patch]` Gap: the DW-1090 marker on EXPERIENCE.md Item 9 is pinned by no test — patched: `usage-docs.test.mjs` "carries the DW-1090 amendment marker"; the mutation (marker removed) is red.
+  - `[low]` `[patch]` Gap: no `mutation:` line for that marker — patched: the line is in `## Verification`.
+  - Intent alignment: descriptive only, no finding; it noted the `=== 0` test runs after `roundCost` and that the largest-request clause left the look-for as the ruling words it.
 
 ## Design Notes
 
@@ -568,6 +588,11 @@ mutation (rework): `'Usage and history'` dropped from `MORE_TO_TRY_GROUPS` (the 
 mutation (rework): the usage registry row's group set back to `'Safety and settings'` (the bundle rebuilt from it) -> `more-to-try.spec.ts` K27 red ("the usage item is in the fourth group"; 125 passed, 1 failed); reverted byte-identical (`git diff --stat` unchanged).
 mutation (rework): the fourth-group `[AMENDED ...]` marker removed from EXPERIENCE.md's "under four headings" sentence -> `sources-docs.test.mjs` red ("the fourth-group ruling's marker"); reverted byte-identical (`cmp`, `git diff --stat` unchanged).
 mutation (rework): `.set-heading` given `height: 4px; overflow: hidden` -> `more-to-try.spec.ts` K16 (24 cases), K16b (5) and K17 (6) red (the headings cut short; 91 passed, 35 failed); reverted byte-identical (`git diff --stat` unchanged). A heading margin of 6rem alone stays green: the panel's window absorbs it.
+mutation (rework 2): `costText` returns `format(amount)` for zero too -> `usage-view.test.mjs` "shows an exact zero as $0" red; `costText` returns `$0` for every amount under 0.0001 -> "keeps <$0.0001 for a non-zero amount under $0.0001" red.
+mutation (rework 2): the Usage page's `cost()` returns `formatCost(amount)` (the bundle rebuilt from it) -> `usage/usage.spec.ts` U2 red (the zero rows' `$0` cells).
+mutation (rework 2): the usage registry look-for's second sentence ends "on your messages and incidents." -> `more-to-try-view.test.mjs` (2), `ux-strings.test.mjs` (2) and `usage-docs.test.mjs` (1) red, and `more-to-try.spec.ts` (the bundle rebuilt from it) K3 red (the usage item's look-for text).
+mutation (rework 2): the DW-1090 `[AMENDED ...]` marker removed from EXPERIENCE.md's Item 9 line -> `usage-docs.test.mjs` "carries the DW-1090 amendment marker" red.
+mutation (rework 2): EXPERIENCE.md Item 9 set back to the old second sentence -> `usage-docs.test.mjs` and `ux-strings.test.mjs` red.
 R5 measurement: K16, K16b and K17 now open with `BAND_IDS` (the four ids plus `memory` and `usage`), so all four headings show in every band; sign-in-3 part 1/2 passes 126 of 126 (K16 1280x650 and 1280x600 among them). Before the change, three probes with a wider id list in the same cases (usage added: 124 of 126; memory and usage added, four headings: 124 of 126, K16 in every band, K16b and K17 green) failed only K2 and K4, which count four items.
 **Code review pass, rework re-review (2026-11-10):** the two patches change comments and a test title only: `node --test web/scripts/sources-docs.test.mjs` 15/15, `npm --prefix web test` 1821/1821 and `npm --prefix web run lint` (tsc over the e2e specs) pass. No e2e re-run: no executable line of a spec changed, so the implement stage's fresh-stack runs (`e37s2r`: sign-in-3 part 1/2 126/126, sign-in part 4/4 58/58) stand. No `mutation:` line is added or changed (no pinning test changed).
 
@@ -607,3 +632,20 @@ Follow-up review recommended: false (this pass patched no high).
 Verification performed: `node --test` of the touched node tests and `npm --prefix web test` (1821) pass; `npm --prefix web run lint` passes; on fresh lane-B stacks (tag `e37s2r`, `ci/iris.sh build` first) `live sign-in-3 --part 1/2` passes 126 of 126 (K16, K16b, K17 with all four headings, and K27) and `live sign-in --part 4/4` (usage.spec.ts) passes 58 of 58; `test-boundaries.sh` passes; mutations demonstrated and recorded under `## Verification`. All stacks torn down.
 
 Residual risks: none new; the planning text of Story 0.22 (deferred above) still says three headings until the lead amends it.
+
+**Rework iteration 2 (R6-R7) -- this pass only.**
+
+Summary: the Usage page shows an exact-zero cost as `$0` through a new `costText` wrapper over the shared `formatCost` (which is unchanged; a non-zero amount under $0.0001 keeps `<$0.0001`), and the More to try usage look-for's second sentence is the ruled one ("...from the agents' decisions on your messages.").
+
+Files changed: `web/src/app/usage/usage-view.ts` (`costText`, `USAGE_TEXTS.costZero`) and `usage-page.ts` (`cost()` calls it); `web/src/app/guide/more-to-try-view.ts` (the look-for); `web/scripts/usage-view.test.mjs`, `more-to-try-view.test.mjs`, `ux-strings.test.mjs`, `usage-docs.test.mjs`; `web/e2e/usage/usage.spec.ts` (zero rows read `$0`), `web/e2e/guide/more-to-try.spec.ts`; EXPERIENCE.md (Item 9 and the Cost row, each with its `[AMENDED 2026-11-10 ...]` marker).
+
+Review findings (15 from four layers: high 0, medium 3, low 12): patched 3 medium (in 2 root causes: the Cost row, the unpinned DW-1090 marker) and 5 low (the `isFormat` scope, a redundant assertion, a mutation comment's case id, the marker's mutation line); rejected 7 low, each with its reason in the triage log; none deferred.
+
+Follow-up review recommended: false (this follow-up pass patched no high).
+
+Verification performed: `node --test` of `usage-view`, `more-to-try-view`, `ux-strings` and `usage-docs` (89 pass); `npm --prefix web test` 1825/1825; `npm --prefix web run lint` clean; `bash docker/tests/test-boundaries.sh` passed; on fresh lane-B stacks (tag e37s2r2, after `ci/iris.sh build`) `live sign-in --part 4/4` (58 passed, with U2 and U3 on `$0`) and `live sign-in-3 --part 1/2` (126 passed, with K3 on the new look-for). Mutations (Rule 19) are in `## Verification`; each was observed red and reverted byte-identical.
+
+Residual risks: the zero-cost entry in the frontmatter `deferred:` (DW-1089) is now resolved by R6 and the lead closes its ledger entry; the AC 5 sentence still names `<$0.0001` for zero (R6 carries the ruling).
+
+Status: done
+Blocking condition: none

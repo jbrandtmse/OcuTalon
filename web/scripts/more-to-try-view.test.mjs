@@ -90,8 +90,9 @@ const RULED = {
     },
     usage: {
       label: 'See tokens and cost',
+      // mutation: the registry's look-for ends its second sentence "on your messages and incidents." -> the RULED copy test, the ux-strings and usage-docs tests go red.
       lookFor:
-        'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages and incidents, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+        'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages. If it reads "No model use in this period.", chat or run the guide first.',
       button: 'Open the Usage page',
     },
   },

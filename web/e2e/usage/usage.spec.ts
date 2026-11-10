@@ -51,7 +51,8 @@ interface Expected {
   cost: number;
 }
 const row = (name: string, marker: string, cells: Expected['cells'], tokens: number, cost: number): Expected => ({ name, marker, cells, tokens, cost });
-const ZERO = (name: string): Expected => row(name, '', ['0', '0', '0', '0', '0', '<$0.0001'], 0, 0);
+// mutation: Usage page cost() returns formatCost(amount) for every amount -> U2 (the zero rows' "$0" cells) red.
+const ZERO = (name: string): Expected => row(name, '', ['0', '0', '0', '0', '0', '$0'], 0, 0);
 
 const BY_AGENT: Expected[] = [
   row('Chat agent', '', ['1,040', '104', '0', '0', '1,144', '$0.0007'], 1144, 0.00065),
@@ -74,7 +75,7 @@ const TOTAL_COST = 0.18705;
 /** The day grouping's rows, oldest first, for the seven dates (index 0 is six days ago, index 6 is today). */
 const BY_DAY = (labels: string[]): Expected[] => [
   ZERO(labels[0]!),
-  row(labels[1]!, '', ['40', '4', '0', '0', '44', '<$0.0001'], 44, 0),
+  row(labels[1]!, '', ['40', '4', '0', '0', '44', '$0'], 44, 0),
   row(labels[2]!, 'estimated', ['3,000', '300', '0', '0', '3,300', '$0.020'], 3300, 0.02),
   row(labels[3]!, '', ['1,000', '100', '0', '0', '1,100', '$0.0007'], 1100, 0.00065),
   row(labels[4]!, '', ['2,000', '300', '100', '0', '2,300', '$0.150'], 2300, 0.15),

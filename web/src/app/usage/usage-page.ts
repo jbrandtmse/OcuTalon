@@ -13,6 +13,7 @@ import {
   RANGES,
   USAGE_TEXTS,
   chartGeometry,
+  costText,
   dayLabel,
   groupRows,
   largestByDay,
@@ -494,7 +495,7 @@ export class UsagePage {
   }
 
   protected cost(amount: number): string {
-    return formatCost(amount);
+    return costText(amount, formatCost);
   }
 
   /** Draws the chart at the figure's width, now and whenever the figure changes size. */

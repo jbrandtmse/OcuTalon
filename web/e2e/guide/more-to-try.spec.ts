@@ -129,10 +129,11 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
       'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
     button: 'Open the Documents page',
   },
+  // mutation: the registry's usage look-for reads "on your messages and incidents." -> K3 (the usage item's look-for text) red.
   usage: {
     label: 'See tokens and cost',
     lookFor:
-      'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages and incidents, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+      'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages. If it reads "No model use in this period.", chat or run the guide first.',
     button: 'Open the Usage page',
   },
 };
