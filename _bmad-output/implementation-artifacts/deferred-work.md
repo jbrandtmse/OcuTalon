@@ -6438,6 +6438,11 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: owner-approved voting-week re-plan relayed by the Contest Planner [3dd56e] 2026-11-09 ~15Z
 - 2026-11-09T14:58:00Z status=decision-pending owner=burndown by=owner note=parked:owner_re-plan_2026-11-09; revisit after voting (Nov 15); sprint-status action item mirrors it
 
+### DW-1052: README header is an HTML h1 (no Markdown H1): the Open Exchange listing may not show the title and logo as GitHub does
+- source: _bmad-output/implementation-artifacts/spec-0-21-the-readme-opens-with-a-centred-header-logo-tagline-and-badg.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: GitHub markdown API renders it (measured); Open Exchange rendering of the README's HTML cannot be seen from the repository
+- 2026-11-09T23:43:20Z status=decision-pending owner=burndown by=harvest note=human=open the Open Exchange listing once it shows the 1.0.6 README and confirm title+logo render; outward listing, owner/Planner only
+- 2026-11-10T00:47:25Z status=decision-pending owner=burndown by=merge_gate note=Contest Planner (owner delegation) owns it: checks the Open Exchange listing render after 1.0.6 is live; a Markdown fallback follow-up is routed then if needed; no action now
 ### DW-1053: A pin, unpin or forget made after the day's session start reaches the model only at the next session start: the core block is rendered only with sessionStart 1, and the continued AI session keeps the earlier input
 - source: spec-41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star.md | severity: low | fix-risk: high | footprint: in-epic
 - evidence: Agent.Input.CorePart returns '' unless sessionStart 1; Conversation continues the bridge session unless fresh or rotated, so the 09:00 input (with or without a pin) stays in history all day
