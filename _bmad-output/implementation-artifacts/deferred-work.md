@@ -2073,6 +2073,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T07:17:33Z occurrence=OCT-epic41-0fb1d182 by=orchestrator note=run 42572723309 iris(production) live:production row 21 'fails naming WatchOps while it cannot start': wanted CHK|start-fails|1|1, got ''
 - 2026-11-10T07:17:50Z occurrence=feature-1490ab58 by=orchestrator note=run 42767577852 job 129667573672 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; parents 87c0223e and f59cab73 passed production; rerun of failed jobs 2026-11-10T07:17:50Z
 - 2026-11-10T20:15:23Z occurrence=feature-1d75fbf1 by=orchestrator note=run 42874524463 job 130034187062 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; merge of 0.22 (web/guide) + v1.0.6 bump; rerun of failed jobs
+- 2026-11-10T22:52:54Z occurrence=23-2 by=orchestrator note=run 42897677403 job 130115016835 iris(production) row 21 got ''; OCT-epic23 f73a09d5 (23.2 integrated onto 56c61cea); rerun of failed jobs
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3971,6 +3972,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T01:44:35Z occurrence=17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta note=lead_smoke_warm_e17s13sm_red_once_then_green_on_unchanged_rerun(Productions_path_untouched_by_17.13)
 - 2026-11-09T02:00:20Z occurrence=OCT-epic39-c7c6e5fb by=orchestrator note=run 42541696724 iris(shards) lane-a@Checks,Install,Watch,Eval Test.Watch.Reader TestDisabledItemsInStoredOrderAcrossAStopAndAStart 'suspended' (not stopped); rerun of failed jobs 02:01Z
 - 2026-11-09T02:44:24Z occurrence=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=ci note=run_42541696724_attempt1_iris(shards)_Test.Watch.Reader_'suspended'_at_c7c6e5fb;green_on_one_rerun_of_the_failed_job(attempt2);Reader_does_not_read_Install.Step.Production(own_Case.SetItemEnabled)
+- 2026-11-10T22:52:54Z occurrence=23-2 by=orchestrator note=run 42897677403 job 130115017670 iris(shards-8) lane-a@Watch Test.Watch.Reader TestDisabledItemsInStoredOrderAcrossAStopAndAStart (stopped, disabled items suspended|[PartnerOrdersIn,OrdersToWarehouse]); same 23.2 code passed shards-8 on c5fec14f (42865281502); code added since = 41.13 memory + 0.22 web, no Watch change; rerun of failed jobs
 - 2026-11-10T07:54:01Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_b99d6529_run_42768243726_shards-8_lane-a@Watch;one_rerun
 
 ### DW-628: The IPM artifact may ship the OcuTalon.Test.* classes: check whether module.xml's OcuTalon.PKG resource (ocutalon/cls) includes them and, if so, leave them out, so the artifact is smaller (4,940,685 bytes at 15.4, 98.8% of the release's soft 5,000,000-byte warning) and no test code reaches users' instances
@@ -5904,6 +5906,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T05:43:35Z occurrence=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=forget content pinned in Test/Eval/In.cls TestForgetCaseRecorded; open: remember, Report loop; fix moves pin to Cases
 - 2026-11-08T06:54:47Z status=routed owner=burndown by=merge_gate note=decision sheet Epic 9: the next eval story after the v1.0.4 merge-back (pin the remember case's content; add both user-turn cases to Test/Eval/Report.cls chip loop; contended files)
 - 2026-11-09T08:10:30Z status=routed owner=41-14-evaluation-and-tests-for-memory-s-second-part by=x0 note=epic_41_part2_retro_review:Epic_9_merge_gate_sent_it_to_the_next_eval_story_after_the_v1.0.4_merge-back;41.14_is_it(pin_the_remember_case_content_in_Test.Eval.Cases;add_both_user-turn_cases_to_Test.Eval.Report_chip_loop)
+- 2026-11-10T17:19:13Z status=resolved-by:41-14-evaluation-and-tests-for-memory-s-second-part by=adjudication note=Test.Eval.Cases_pins_the_user-turn_remember_and_forget_cases(text,keyPhrases,14_absentPhrases,heldOut,recordedBy);both_in_Eval.Report_chip_loop;41e03d54
 
 ### DW-909: Eval: at the integrate-forward over Story 30.9, Test/Eval/Cases.cls's user-turn count pin merges cleanly as 5 (both branches changed :248 to the same text) while the merged eval/ holds 6 user-turn cases; the doc lines :16 and :236-237 conflict
 - source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6287,11 +6290,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Eval/Report.cls ScoreTurn: right = decided && 'missing && (learned || ...) ignores steps; case.json keyPhrases only; Tools/CommandCall.cls Session() NOSESSION; Test/Eval/Report.cls LearnedRun mode 1 pins a tool-ran reply as right
 - 2026-11-09T10:35:54Z status=decision-pending owner=burndown by=cr note=Planner ruling planner-2026-11-09-41.8 not met in substance (no learned save is covered); recommendation: give the case a real session owner in the eval harness so save_memory saves, and score right only for a save_memory step with outcome saved plus the sentence; until then keep the line report-only and labelled wording-only, never promoted to a gate
 - 2026-11-09T14:16:54Z status=routed owner=41-14-evaluation-and-tests-for-memory-s-second-part by=owner note=planner-2026-11-09_ruling(1)_via_orchestrator_addendum_11:04Z_quote='DW-1015 AGREED: give the 41.8 learned-save eval case a real session; score it right only when the save happened AND the reply has the sentence; until then report-only, wording-only, never a gate.'_eval_change_rides_with_41.14(the_eval_story;41.9_is_Lane_B_and_touches_no_eval)
+- 2026-11-10T17:19:13Z status=resolved-by:41-14-evaluation-and-tests-for-memory-s-second-part by=adjudication note=memory-learned-save_runs_with_an_eval-only_session(Data.Session.ForEval,Planner_ruled);scores_right_only_when_save_memory_saved_AND_the_reply_has_the_sentence;report-only;real-model_0/3_on_1.0.6_RC->code-guaranteed_line_proposed(awaiting_Planner)
 
 ### DW-1016: No test or eval checks that Chat's reply after a refused or failed learned save does not say I'll remember that: the learned-save bullet (approved verbatim) and the older told bullet do not name the save's outcome, and only save_memory's description (tell the user when it was not saved) guards a false claim
 - source: spec-41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Agent/Chat.cls lines 67-68; memory-tainted-save.json mock reply; no eval case for a denied learned save (inference: model behaviour unmeasured)
 - 2026-11-09T10:35:54Z status=routed owner=41-14-evaluation-and-tests-for-memory-s-second-part by=cr note=41.14 adds an eval case: a trusted turn whose learned save is denied or fails, with absentPhrases I'll remember that; a wording change to the approved bullet needs a Planner ruling
+- 2026-11-10T17:19:13Z status=resolved-by:41-14-evaluation-and-tests-for-memory-s-second-part by=adjudication note=memory-learned-refused_case:a_failed_learned_save's_reply_must_not_say_I'll_remember_that(absentPhrases);MemoryCases
 
 ### DW-1017: The spine's 41.8 names line gives the phrase rule as whole words, case-folded and the turn as read by the save's ItemId; as built, U+2019 reads as an apostrophe, any white space joins a phrase's words, and a retried turn (Conversation.RetryItemId) is found through Ownership.TurnQueue
 - source: spec-41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns.md | severity: low | fix-risk: low | footprint: in-epic
@@ -6302,11 +6307,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Web/Api.cls MemoryItemCommand vs ForgetPrecedent (about 12 lines alike); the Epic 35 contention ruling forbade in-place edits to shared Web/Api.cls lines in Story 41.9, so the copy was forced
 - 2026-11-09T16:35:13Z status=routed owner=burndown by=cr note=Rule 2 copy forced by the 41.9/35.2 plain-union ruling; unify after Epic 35's merge
+- 2026-11-10T20:33:28Z status=wontfix-accepted by=burndown note=reopen_if=a_fourth_web_write_route_copies_the_SubmitMemory_submit-and-map_tail,or_MemoryItemCommand_and_ForgetPrecedent's_tails_diverge_in_an_outcome_mapping;no_next-epic_story_touches_Web.Api's_memory_routes
 
 ### DW-1028: Test.Web DocumentsApi.PreDispatch and SettingsApi.PreDispatch still copy the OnPreDispatch runner; move them to Test.Web.Api.PreDispatchOf (added by Story 41.9 for MemoryApi)
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Web/DocumentsApi.cls:691 and Test/Web/SettingsApi.cls:593 repeat the stand-in request, Capture, OnPreDispatch and Collect lines that PreDispatchOf now holds
 - 2026-11-09T16:35:13Z status=routed owner=burndown by=cr note=Rule 2; MemoryApi's copy was replaced in 41.9's review
+- 2026-11-10T20:33:28Z status=wontfix-accepted by=burndown note=reopen_if=another_Test.Web_class_copies_the_OnPreDispatch_runner,or_Test.Web.Api.PreDispatchOf_changes_shape;test-only_duplication_in_other_epics'_classes
 
 ### DW-1029: Pin tests stop at a probe: CommandsStep3Probe answers any pin with error 5001 and MemoryApi:TestPin real mode pins that 500, so once MemoryOps handles PinMemory/UnpinMemory both stay green past the real handler; Memory/Ops.cls:19 still says origin tool only
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
@@ -6638,6 +6645,26 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: QA run 2026-11-09: 'expected focused, received inactive' once; code review ruled out the card's re-read (rows clear with the selection while focus is on the tab, render once, tracked by ref); 2 later runs green after hardening
 - 2026-11-10T05:54:17Z status=wontfix-accepted owner=41-13-the-memory-card-pinned-and-learned-memories by=cr note=test hardened (re-read waited, first-row check, focus named); reopen_if=MC6 fails again: its poll names the focused element
+
+### DW-1085: Eval: a command case may declare both session and before; Before asks the old turn as owner eval, so the session turn finds no conversation link and runs fresh, silently losing the before context
+- source: spec-41-14-evaluation-and-tests-for-memory-s-second-part.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Eval/In.cls SendTurn calls Before(case.before) as owner eval while TurnRequest sets OwnerRef to the session; neither SessionShape nor test-eval-set.sh sessionOf refuses the pair; no shipped case has both
+- 2026-11-10T17:05:24Z status=wontfix-accepted owner=41-14-evaluation-and-tests-for-memory-s-second-part by=cr note=no shipped case combines them; reopen_if=a case.json under eval/ declares both session and before
+
+### DW-1086: Eval: session shape accepts unknown members (a typo such as forgoten seeds nothing), so a memories:none case could pass with no memory ever made
+- source: spec-41-14-evaluation-and-tests-for-memory-s-second-part.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Eval/In.cls SessionShape and test-eval-set.sh sessionOf check only forgotten; the shipped case is pinned exactly by Test.Eval.Cases:TestMemoryCases
+- 2026-11-10T17:05:24Z status=wontfix-accepted owner=41-14-evaluation-and-tests-for-memory-s-second-part by=cr note=reopen_if=a new session case under eval/ is added that Test.Eval.Cases does not pin exactly
+
+### DW-1087: Eval report: the turn-case Markdown bullet's saved-steps and absent-phrases text (TurnText/SavedCount) has no assertion
+- source: spec-41-14-evaluation-and-tests-for-memory-s-second-part.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: rg 'saved steps|SavedCount' over Test, eval/run.sh and docker/tests finds nothing; the scored right/saveSteps fields are pinned by Test.Eval.Report
+- 2026-11-10T17:05:24Z status=wontfix-accepted owner=41-14-evaluation-and-tests-for-memory-s-second-part by=cr note=report-only text read by people; reopen_if=the release gate reads the saved-steps text as evidence for a decision
+
+### DW-1088: Test.Eval.In:TestSweepSessions sweeps every no-user Session row of the instance and asserts no warning, so another run's locked leftover would turn it red
+- source: spec-41-14-evaluation-and-tests-for-memory-s-second-part.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: its first SweepSessions call is instance-wide; tests run one class at a time on a stack and no other eval run holds a session then
+- 2026-11-10T17:05:25Z status=wontfix-accepted owner=41-14-evaluation-and-tests-for-memory-s-second-part by=cr note=reopen_if=TestSweepSessions goes red on a LOGSESSIONSWEEP warning naming a Ref the test did not make
 ### DW-1080: flake: shard:lane-a@Watch Test.Watch.* TestNoticeVariants 'WebChatOut recorded one incident Delivery row for each' failed in CI
 - source: cycle-log-parallel.md (OCT-epic41 4612eb5c, ci.yml run 42777878916) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (shards-8) job 129700562402 FAIL TestNoticeVariants at 08:00:10Z, unit shard:lane-a@Watch 816s; the same shard passed on 28229232 (run 42767697005); 28229232..4612eb5c changes no product code (two comment lines in more-to-try-view.ts, docs and web tests only)
@@ -6673,3 +6700,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (image) lane-b@Contract,Core,Data,Live; green on one rerun
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the GuideApi entry filed alongside (unverified); no fix work now
 - 2026-11-10T19:46:28Z note=see also DW-1094 (possible shared cause)
+
+### DW-1098: post-contest idea: admins see instance-owned incident usage on the Usage page (today a local install counts only the session's own rows, by design)
+- source: Contest Planner ruling on DW-1090 (Story 37.2), 2026-11-10 | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: DW-1090: the Usage page reads only the caller's own session's rows (security ruling); instance-owned incident decisions are never counted
+- 2026-11-10T20:45:39Z status=routed owner=burndown by=owner note=post-contest idea; no work now (Contest Planner, delegated authority); a security change: any future story brings route, role and rows to the Planner
+
+### DW-1099: infra: CI iris (browser) live:online-demo first start failed in Docker networking: 'failed to set up container networking: driver failed programming external connectivity on endpoint ...' (no test ran)
+- source: OCT-epic0 5630cf1c (Story 0.23), ci.yml run 42894860855 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: job 130105194799 at 20:36:29Z: image built, containers created, iris container start refused by the daemon (port publish); unit live:online-demo failed in 10 s; 0.23 changes README.md and docker/tests/test-readme.sh only
+- 2026-11-10T21:01:35Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence, likely a port still held on the self-hosted runner from an earlier job); rerun of failed jobs; reopen as real only if it recurs on a quiet runner
+- 2026-11-10T22:32:50Z occurrence=37-2 by=orchestrator note=lane-a run 42907226019 job 130148282085 ipm-install-p on runner ocutalon-ci-6: 'failed to set up container networking: driver failed programming external connectivity' for the second stack (path B) and part p; first occurrence was on ocutalon-ci-11; two runners in two hours: possibly concurrent jobs on one droplet colliding on a published port; rerun of failed jobs; flagged to the Contest Planner (owns the runners)
+- 2026-11-10T22:53:15Z occurrence=feature-d35efc22 by=orchestrator note=run 42902128153 job 130130553943 iris(browser) on ocutalon-ci-6 at 22:21Z: live:demo-path and live:online-demo both refused (driver failed programming external connectivity) 6 s apart, no test ran; third occurrence; fix in flight as Story 0.24; rerun of failed jobs
+### DW-1097: test-readme.sh: no permanent self-test pins that chk_readme_links feeds the header logo (header_images) into its existence check
+- source: _bmad-output/implementation-artifacts/spec-0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Dropping header_images from chk_readme_links' target stream keeps every rule green while the logo is tracked; only the AC4 untrack mutation shows it; chk_readme_links takes no tree-list argument, so a self-test cannot stub a missing logo; same limit existed with the relative src before 0.23
+- 2026-11-10T20:08:58Z status=wontfix-accepted owner=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute by=harvest note=reopen_if=chk_readme_links gains a tree-list argument, or the header logo goes missing on main without readme-links going red
+- 2026-11-10T20:20:54Z occurrence=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute

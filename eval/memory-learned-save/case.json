@@ -2,7 +2,8 @@
   "name": "memory-learned-save",
   "kind": "command",
   "heldOut": false,
-  "description": "The user states a lasting fact about a partner with none of the fixed phrases that make a memory told (Story 41.8). OcuTalon may save it unasked, and when it does it says so in one short sentence. It is scored in its own report-only line, not in the commands score or in SM-1, until a release-candidate run on Claude Haiku 5.5 has measured it: it is right when the reply says that OcuTalon will remember the fact.",
+  "description": "The user states a lasting fact about a partner with none of the fixed phrases that make a memory told (Story 41.8), in a turn that has a session of its own (Story 41.14, DW-1015). OcuTalon may save it unasked, and when it does it says so in one short sentence. It is scored in its own report-only line, not in the commands score or in SM-1, until a release-candidate run on Claude Haiku 5.5 has measured it: it is right only when a save_memory step saved the fact (outcome saved) and the reply says that OcuTalon will remember it.",
+  "session": {},
   "turn": {
     "text": "The Results partner's contact is Lee, and their test desk answers on weekdays."
   },
@@ -12,7 +13,8 @@
         "I'll remember that",
         "I will remember that"
       ]
-    ]
+    ],
+    "save": "saved"
   },
-  "recordedBy": "written for the evaluation set (Story 41.8)"
+  "recordedBy": "written for the evaluation set (Stories 41.8 and 41.14)"
 }

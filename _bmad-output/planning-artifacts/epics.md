@@ -1584,6 +1584,36 @@ So that I can find the kind of thing I want to try without reading a long flat l
 **And** no test pins a group's size or the number of groups as a literal (Story 37.2's `usage` item joins "Safety and settings" as its last item, with no fourth heading) [AMENDED 2026-11-10, Contest Planner ruling for Story 37.2]
 **And** `docker/tests/test-boundaries.sh` passes, and lane-a and ci are green
 
+### Story 0.23: The README header's logo and LICENSE badge link use absolute GitHub URLs
+
+[ADDED 2026-11-10, Contest Planner ruling (PUBLIC TEXT ruled), for 1.0.7] SC-5 re-open of Epic 0 (lane C), after Story 0.22. The scope below is the Contest Planner's ruling of 2026-11-10 (~19:50Z, owner delegation), verbatim; the two new URLs are the ruled public text, and no other README text changes. The `docker/tests/test-readme.sh` hunk is not a release tool (ruled for Story 0.21). Files: README.md (lines 1 and 10 only), docker/tests/test-readme.sh.
+
+As a judge or visitor reading OcuTalon's Open Exchange listing,
+I want the README header's logo and LICENSE badge link to work there as they do on GitHub,
+So that the listing shows the logo instead of a broken image.
+
+Why: Open Exchange's README import mangles relative HTML image paths (another entry's `<img src="web/logo.svg">` became a doubled `https://github.com/.../raw/main/https://github.com/.../raw/main/web/logo.svg`, broken); absolute raw URLs come through intact. The orchestrator checked that `docs/images/ocutalon-logo.png` is on main and that its raw URL answers 200 image/png.
+
+**Acceptance Criteria:**
+
+**Given** README.md line 1 (the header's h1)
+**When** this story merges
+**Then** only the logo's `src` changes, from `docs/images/ocutalon-logo.png` to `https://raw.githubusercontent.com/jbrandtmse/OcuTalon/main/docs/images/ocutalon-logo.png`, keeping `alt="OcuTalon logo"`, `width="160"`, `height="160"` and everything else on the line
+
+**Given** README.md line 10 (the LICENSE badge)
+**When** this story merges
+**Then** its link `href="LICENSE"` becomes `href="https://github.com/jbrandtmse/OcuTalon/blob/main/LICENSE"`, and nothing else in the badge changes
+**And** no other README line changes (the body's relative `[LICENSE](LICENSE)` links stay: they are Markdown, not HTML)
+
+**Given** `docker/tests/test-readme.sh`, which pins the header block verbatim
+**When** this story merges
+**Then** its header pins carry the two new URLs, and a self-test still shows that a header logo with a different src is flagged
+**And** no other rule is weakened: in particular the header logo's file is still read by the image checks (it exists in the tree under `docs/images/` and stays under the size limit), and the allowances stay confined to the header block
+
+**Given** the change
+**When** this story merges
+**Then** `bash docker/tests/test-readme.sh` passes every rule and every self-test, `docker/tests/test-boundaries.sh` passes, and CI is green
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.

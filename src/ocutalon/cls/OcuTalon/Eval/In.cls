@@ -78,6 +78,17 @@
 ///     {case, precedents{runRef}} is in the Watches of the service, and Finish sends PrecedentOps one RemoveSeededPrecedents for each distinct run of the
 ///     records it is given (Unseed). Start removes, before its first case, the seeded rows of every earlier run that left a marked row, and clears that
 ///     run's marks; its case rows stay (SweepPrecedents). A failed removal is one warning, and the run goes on.
+///   - A command case may declare a session (Story 41.14; AD-1, AD-4, AD-22, AD-33): an object, optionally with forgotten, 1 to SESSIONFORGOTTENMAX non-blank texts of at
+///     most SESSIONTEXTMAX characters; a session on any other kind of case (checked for every kind, before anything is saved), a session that is not an object and a forgotten of another shape skip the case with
+///     REASONSESSION before anything is saved. SessionUp makes one eval-only Session row for the case through Data.Session.ForEval (which makes it only while OCUTALON_EVAL is 1:
+///     no IrisUser, no ResumeHash, so no sign-in can attach to it), and for each forgotten text sends MemoryOps (AskMemory) a SaveMemory of that session with the origin
+///     system, which must answer saved, and then a ForgetMemory of the answer's Ref, which must answer forgotten. That is the one command EvalIn sends to an owner outside
+///     CommandsIn, as the precedent seed is. A seed that is not answered so skips the case with REASONSESSION and drops the session. The case's Item stays owner eval, so the
+///     Input is the same as for every eval turn; only the request's OwnerRef is the case's session (TurnRequest). The TurnResult keeps the Reply's HostData.memories (Memories).
+///     A sent case's record {case, session{ref}} joins the Watches of the service from the row's creation on, and Finish drops, for each such record, the session's memories
+///     (OcuTalon.Memory.DropSession, the sign-out's own drop), the conversation links of its turns (Bridge.Purge.DropLinks) and then its row (Data.Session.DropEval); BridgeSink
+///     publishes and notifies nothing for such a session (Data.Session.IsEval, AD-22); a row whose memories could not be dropped stays, so that the next
+///     start's sweep drops both. Start drops, after SweepPrecedents, every Session row with no IrisUser and its memories (SweepSessions); a failure is one warning.
 ///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26), the old turn
 ///     of a before included.
 /// Wait polls the rows of a run until none is still sent, or the seconds have passed.
@@ -128,6 +139,17 @@ Parameter PRECEDENTDAYS = 30;
 
 /// The seconds to wait for PrecedentOps to answer a seed or a removal.
 Parameter PRECEDENTWAIT = 30;
+
+/// The item that saves and forgets the seeded memories of a case that declares a session (Story 41.14).
+Parameter MEMORYTARGET = "MemoryOps";
+
+/// The seconds to wait for MemoryOps to answer a seeded save or forget.
+Parameter MEMORYWAIT = 30;
+
+/// The most texts a session case's forgotten holds, and the most characters of each (the length of Data.Memory.Text).
+Parameter SESSIONFORGOTTENMAX = 3;
+
+Parameter SESSIONTEXTMAX = 2000;
 
 /// The kind of case that holds a recorded reader snapshot, and goes to IncidentManager.
 Parameter INCIDENTKIND = "incident";
@@ -196,6 +218,9 @@ Parameter REASONDOCUMENTS = "its documents could not be set up: {why}";
 /// {why} says what is wrong with the precedents the case declares or what went wrong seeding them (Story 41.7).
 Parameter REASONPRECEDENTS = "its precedents could not be seeded: {why}";
 
+/// {why} says what is wrong with the session the case declares or what went wrong setting it up (Story 41.14).
+Parameter REASONSESSION = "its session could not be set up: {why}";
+
 Parameter REASONNOSNAPSHOT = "it has no snapshot file name";
 
 /// {why} is the text of the status that EvidencePack.Load returned, or says that the name is not a plain file name.
@@ -220,6 +245,12 @@ Parameter LOGSWEEP = "EvalIn could not remove a document that an earlier run lef
 
 /// The start of the warning for the seeded precedents of an earlier run that the start of a run could not remove; the run's Ref and the error follow it.
 Parameter LOGUNSEED = "EvalIn could not remove the precedents that an earlier run seeded: ";
+
+/// The start of the warning for an evaluation session of an earlier run that the start of a run could not remove; the Ref and the error follow it.
+Parameter LOGSESSIONSWEEP = "EvalIn could not remove an evaluation session that an earlier run left: ";
+
+/// The start of the warning for the session of a case that could not be removed after the case failed to start; the Ref and the error follow it.
+Parameter LOGSESSIONDROP = "EvalIn could not remove the session of a case that was not sent: ";
 
 /// The start of the warning for check rows in a Reply that Checks.Render could not take; the error follows it.
 Parameter LOGCHECKS = "EvalIn could not render the check rows of the Reply: ";
@@ -250,6 +281,7 @@ Property PaceStalled As %Boolean [ InitialExpression = 0 ];
 ///     was killed before its Finish leaves such documents, and a case that does not name them would otherwise be answered from them. A removal that fails is one
 ///     warning, and the run goes on. Evaluation runs do not overlap (one release gate or one test class at a time), which is what lets a run take every eval
 ///     document for a leftover.
+///   - After SweepPrecedents, SweepSessions drops the eval-only sessions that an earlier run left, with their memories.
 ///   - folder holds the case folders. names is a comma-separated list of case folder names; "" means every subfolder that holds a
 ///     case.json, in name order.
 ///   - runRef is the run's Ref, 22 characters, "" when the run did not start. sent is the number of cases sent. skipped is a dynamic
@@ -274,6 +306,7 @@ ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output
 	Set service.Preset = preset, service.PersonaLanguage = language
 	Set runRef = service.RunRef
 	Do service.SweepPrecedents()
+	Do service.SweepSessions()
 	Set position = 0
 	While $ListNext(list, position, name) {
 		Set input = ##class(Ens.StringContainer).%New(##class(%File).SubDirectoryName(folder, name))
@@ -302,7 +335,7 @@ ClassMethod Wait(runRef As %String, seconds As %Integer) As %Integer
 }
 
 /// Removes the watch rows of the records that Start returned in watches, each through OcuTalon.Watch.Ops.RemoveEvalWatch, and the documents of the
-/// records of a documents case (DocumentsDown), and the precedents of the records of a case that seeded some (Unseed, once for each distinct run), and nothing else. A row that is already gone is no error. Every record is tried; the status is the first error, and Finish never throws.
+/// records of a documents case (DocumentsDown), the precedents of the records of a case that seeded some (Unseed, once for each distinct run) and the sessions of the records of a session case (SessionDown), and nothing else. A row that is already gone is no error. Every record is tried; the status is the first error, and Finish never throws.
 ClassMethod Finish(watches As %DynamicArray) As %Status
 {
 	Set result = $$$OK
@@ -314,6 +347,10 @@ ClassMethod Finish(watches As %DynamicArray) As %Status
 				If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
 				If $IsObject(record) && record.%IsA("%Library.DynamicObject") && $IsObject(record.%Get("documents")) {
 					Set sc = ..DocumentsDown(record.%Get("documents"))
+					If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
+				}
+				If $IsObject(record) && record.%IsA("%Library.DynamicObject") && $IsObject(record.%Get("session")) {
+					Set sc = ..SessionDown(record.%Get("session"))
 					If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
 				}
 				Set run = $Select($IsObject(record) && record.%IsA("%Library.DynamicObject") && $IsObject(record.%Get("precedents")): record.%Get("precedents").%Get("runRef"), 1: "")
@@ -417,12 +454,24 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	If '$IsObject(case) || 'case.%IsA("%Library.DynamicObject") Quit ..#REASONNOTJSON
 	Set kind = ..Scalar(case, "kind")
 	If '$ListFind($ListFromString(..#KINDS), kind) Quit $Replace($Replace(..#REASONKIND, "{kind}", $Extract(kind, 1, 40)), "{kinds}", ..KindsText())
+	If case.%IsDefined("session") && (kind '= "command") Quit $Replace(..#REASONSESSION, "{why}", "only a command case has a session")
 	If kind = ..#INCIDENTKIND Quit ..SendIncident(case, folder, name)
 	If kind = ..#DIGESTKIND Quit ..SendDigest(case, name)
 	Set reason = ..Persona(case, .preset, .language)
 	If reason '= "" Quit reason
 	If $ListFind($ListFromString(..#TURNKINDS), kind) {
-		If kind '= ..#DOCUMENTSKIND Quit ..SendTurn(case, kind, name, preset, language)
+		Set session = ""
+		If case.%IsDefined("session") {
+			Set reason = ..SessionShape(case.%Get("session"), kind, .texts)
+			If reason '= "" Quit $Replace(..#REASONSESSION, "{why}", reason)
+			Set reason = ..SessionUp(name, texts, .session)
+			If reason '= "" Quit $Replace(..#REASONSESSION, "{why}", reason)
+		}
+		If kind '= ..#DOCUMENTSKIND {
+			Set reason = ..SendTurn(case, kind, name, preset, language, $Select($IsObject(session): session.ref, 1: ""))
+			If (reason '= "") && $IsObject(session) Do ..SessionDrop(session)
+			Quit reason
+		}
 		Set reason = ..DocumentsUp(case, folder, .documents)
 		If reason '= "" Quit reason
 		Set reason = ..SendTurn(case, kind, name, preset, language)
@@ -691,6 +740,154 @@ Method SweepPrecedents()
 	}
 }
 
+/// Checks the session member of a command case (Story 41.14): the reason it is not usable, or "" with texts set to the array of the forgotten texts (empty when the session
+/// declares none). Only a command case has a session; the session is an object; forgotten, when present, is an array of 1 to SESSIONFORGOTTENMAX strings that are not blank
+/// and have at most SESSIONTEXTMAX characters. Nothing is saved or sent.
+Method SessionShape(declared As %DynamicObject, kind As %String, Output texts As %DynamicArray) As %String [ Private ]
+{
+	Set texts = []
+	If kind '= "command" Quit "only a command case has a session"
+	If '$IsObject(declared) || 'declared.%IsA("%Library.DynamicObject") Quit "session is not an object"
+	If 'declared.%IsDefined("forgotten") Quit ""
+	Set list = declared.%Get("forgotten")
+	If '$IsObject(list) || 'list.%IsA("%Library.DynamicArray") || (list.%Size() < 1) || (list.%Size() > ..#SESSIONFORGOTTENMAX) Quit "forgotten is not an array of 1 to "_..#SESSIONFORGOTTENMAX_" texts"
+	Set usable = 1
+	For i = 0:1:list.%Size() - 1 {
+		If (list.%GetTypeOf(i) '= "string") || ($ZStrip(list.%Get(i), "<>WC") = "") || ($Length(list.%Get(i)) > ..#SESSIONTEXTMAX) Set usable = 0
+	}
+	If 'usable Quit "forgotten holds a text that is not a non-blank string of at most "_..#SESSIONTEXTMAX_" characters"
+	Set texts = list
+	Quit ""
+}
+
+/// Makes the session of a session case (Data.Session.ForEval) and seeds its forgotten texts. The case's setup record {case, session{ref}} joins the Watches of the service as
+/// soon as the row exists, so that Finish drops it. session is that record's {ref}. Returns the reason the session could not be set up, or "" with the session ready; on a
+/// reason the session is already dropped and its record removed.
+Method SessionUp(name As %String, texts As %DynamicArray, Output session As %DynamicObject) As %String [ Private ]
+{
+	Set session = ""
+	Set ..%SuperSession = ..RunRef
+	Set row = ..SessionRow(.sc)
+	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
+	If '$IsObject(row) Quit "no session row was made"
+	Set session = {"ref": (row.Ref)}
+	If '$IsObject(..Watches) Set ..Watches = []
+	Do ..Watches.%Push({"case": (name), "session": (session)})
+	Set why = ..SessionSeed(row.Ref, texts)
+	If why '= "" {
+		Do ..SessionDrop(session)
+		Set session = ""
+	}
+	Quit why
+}
+
+/// The one making of a session case's Session row: Data.Session.ForEval, which makes it only while OCUTALON_EVAL is 1. Private; a test subclass overrides it.
+Method SessionRow(Output sc As %Status) As OcuTalon.Data.Session [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Session).ForEval(.sc)
+}
+
+/// Saves each text as a memory of the session and forgets it again, both through MemoryOps (the real OnSave and OnForget). The save is a SaveMemory of origin system with a fresh
+/// idempotency key and must answer saved; the forget is a ForgetMemory of the Ref in that answer and must answer forgotten. Returns the reason one was not, or "".
+Method SessionSeed(sessionRef As %String, texts As %DynamicArray) As %String [ Private ]
+{
+	Set iterator = texts.%GetIterator()
+	While iterator.%GetNext(.index, .text) {
+		Set save = ##class(OcuTalon.Msg.Command.SaveMemory).%New()
+		Set save.SessionRef = sessionRef
+		Set save.Origin = "system"
+		Set save.IdempotencyKey = ##class(OcuTalon.Bridge.Ids).NewRef()_":1"
+		Set save.Text = text
+		Set why = ..SessionAsk(save, "saved", "the save of memory "_(index + 1), .saved)
+		If why '= "" Quit
+		Set forget = ##class(OcuTalon.Msg.Command.ForgetMemory).%New()
+		Set forget.SessionRef = sessionRef
+		Set forget.Origin = "system"
+		Set forget.IdempotencyKey = ##class(OcuTalon.Bridge.Ids).NewRef()_":1"
+		Set forget.MemoryRef = saved.Ref
+		Set why = ..SessionAsk(forget, "forgotten", "the forget of memory "_(index + 1), .forgotten)
+		If why '= "" Quit
+	}
+	Quit $Get(why)
+}
+
+/// Sends MemoryOps the command and checks that it answered a CommandResult with the outcome; the reason it did not, or "". what names the command in the reason.
+Method SessionAsk(command As OcuTalon.Msg.Command, outcome As %String, what As %String, Output result As %Library.Persistent) As %String [ Private ]
+{
+	Set result = ""
+	Set sc = ..AskMemory(command, .result)
+	If $$$ISERR(sc) Quit what_" failed: "_$SYSTEM.Status.GetOneStatusText(sc)
+	If '$IsObject($Get(result)) || 'result.%IsA("OcuTalon.Msg.CommandResult") Quit what_" was answered with no CommandResult"
+	If result.Outcome '= outcome Quit what_" was answered "_result.Outcome_", not "_outcome
+	Quit ""
+}
+
+/// The one send of a seeded memory command: to MemoryOps, synchronously, for at most MEMORYWAIT seconds. Private; a test subclass overrides it.
+Method AskMemory(command As OcuTalon.Msg.Command, Output result As %Library.Persistent) As %Status [ Private ]
+{
+	Set result = ""
+	Quit ..SendRequestSync(..#MEMORYTARGET, command, .result, ..#MEMORYWAIT)
+}
+
+/// Drops the session of a case that was not sent (SessionDown) and removes its setup record from the Watches again; a failed drop is one warning.
+Method SessionDrop(session As %DynamicObject) [ Private ]
+{
+	Set sc = ..SessionDown(session)
+	If $$$ISERR(sc) $$$LOGWARNING(..#LOGSESSIONDROP_session.%Get("ref")_": "_$SYSTEM.Status.GetOneStatusText(sc))
+	If $IsObject(..Watches) && ..Watches.%Size() {
+		Set last = ..Watches.%Get(..Watches.%Size() - 1)
+		If $IsObject(last) && $IsObject(last.%Get("session")) && (last.%Get("session").%Get("ref") = session.%Get("ref")) Do ..Watches.%Pop()
+	}
+}
+
+/// Drops the memories of the session record {"ref"} (Memory.DropSession, the sign-out's own drop), then the conversation links of its turns (Bridge.Purge.DropLinks, as
+/// Data.Purge drops a session's, so that the AI sessions they name are freed) and then its row (Data.Session.DropEval, which drops only a row that has no IrisUser). A row that has an IrisUser (a person's, a visitor's) is refused first (DropEval's error), with its memories untouched. A row that is already gone is no error. When the memories cannot be dropped the row stays, so that SweepSessions finds both again; the status is then that error.
+/// It never throws.
+ClassMethod SessionDown(session As %DynamicObject) As %Status
+{
+	Set result = $$$OK
+	Try {
+		Set ref = $Select($IsObject(session): session.%Get("ref"), 1: "")
+		If ref = "" Quit
+		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+		If $IsObject(row) && (row.IrisUser '= "") {
+			Set row = ""
+			Set result = ##class(OcuTalon.Data.Session).DropEval(ref)
+			Quit
+		}
+		Set row = ""
+		Set result = ##class(OcuTalon.Memory).DropSession(ref)
+		If $$$ISERR(result) Quit
+		Set result = ##class(OcuTalon.Bridge.Purge).DropLinks(ref)
+		If $$$ISERR(result) Quit
+		If ##class(OcuTalon.Data.Session).RefIndexExists(ref) Set result = ##class(OcuTalon.Data.Session).DropEval(ref)
+	} Catch exception {
+		Set result = exception.AsStatus()
+	}
+	Quit result
+}
+
+/// Drops every evaluation session that an earlier run left: each Session row with no IrisUser, with its memories (SessionDown). A drop that fails, or a failure to list them,
+/// is one warning, and the run goes on. A row with an IrisUser is never touched. It never throws.
+ClassMethod SweepSessions()
+{
+	Try {
+		Set refs = []
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Session WHERE COALESCE(IrisUser, '') = ''")
+		If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, rs.%Message))
+		While rs.%Next() {
+			Do refs.%Push(rs.%Get("Ref"))
+		}
+		Set iterator = refs.%GetIterator()
+		While iterator.%GetNext(, .ref) {
+			Set sc = ..SessionDown({"ref": (ref)})
+			If $$$ISERR(sc) $$$LOGWARNING(..#LOGSESSIONSWEEP_ref_": "_$SYSTEM.Status.GetOneStatusText(sc))
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGSESSIONSWEEP_exception.DisplayString())
+	}
+}
+
 /// Sets up the watch that a case declares: the reason it was not set up, or "" when it was, with the watch's stored fields in fields. A watch
 /// that is not an object with a non-blank namespace and production is REASONWATCHSHAPE; one that WatchOps.EvalWatch refuses is REASONWATCH.
 Method WatchUp(declared As %DynamicObject, Output fields As %DynamicObject) As %String [ Private ]
@@ -743,8 +940,9 @@ Method DispatchDigest(digest As OcuTalon.Eval.Msg.DigestCase) As %Status [ Priva
 /// The steps for one turn case (see the class description); the reason it was not sent, or "" when it was. A case that has no turn.text,
 /// or an all-clear case whose checks is not an array, is refused before anything is saved. Otherwise the case's TurnResult and row are
 /// saved, and a case that gets no Reply from Decide (or whose send throws) loses both again. A row that cannot be opened (the run already
-/// has a row of that case) is refused with the error text, and only the case's own TurnResult is deleted: the row that is there stays.
-Method SendTurn(case As %DynamicObject, kind As %String, name As %String, preset As %String = "", language As %String = "") As %String [ Private ]
+/// has a row of that case) is refused with the error text, and only the case's own TurnResult is deleted: the row that is there stays. owner is the Ref of the case's
+/// session (Story 41.14), "" for the owner eval.
+Method SendTurn(case As %DynamicObject, kind As %String, name As %String, preset As %String = "", language As %String = "", owner As %String = "") As %String [ Private ]
 {
 	Set turn = case.turn
 	Set text = $Select($IsObject(turn) && turn.%IsA("%Library.DynamicObject"): ..Scalar(turn, "text"), 1: "")
@@ -775,7 +973,7 @@ Method SendTurn(case As %DynamicObject, kind As %String, name As %String, preset
 	}
 	Set reason = ""
 	Try {
-		Set reason = ..Converse(result, text, name, kind, linked)
+		Set reason = ..Converse(result, text, name, kind, linked, owner)
 	} Catch exception {
 		Set reason = exception.DisplayString()
 	}
@@ -786,11 +984,11 @@ Method SendTurn(case As %DynamicObject, kind As %String, name As %String, preset
 /// Asks Decide for the turn, again after a Busy reply, then keeps the Reply in the TurnResult and sends the TurnResult to EvalSink. The
 /// reason there was no Reply to keep, or "". The turn is asked at most BUSYMAX + 1 times, BUSYWAIT seconds apart; a Decide that is busy
 /// every time ends the case as a fallback with the reason rate_limited, with no DecisionRef.
-Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As %String, kind As %String = "", linked As %Boolean = 0) As %String [ Private ]
+Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As %String, kind As %String = "", linked As %Boolean = 0, owner As %String = "") As %String [ Private ]
 {
 	Set userTurn = (kind = ..#USERTURNKIND)
 	Set answerClass = $Select(userTurn: "OcuTalon.Bridge.Msg.DecisionResponse", 1: "OcuTalon.Bridge.Msg.Reply")
-	Set sc = ..AskTurn(result.ItemId, text, userTurn, linked, .reply)
+	Set sc = ..AskTurn(result.ItemId, text, userTurn, linked, .reply, owner)
 	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
 	If '$IsObject($Get(reply)) || 'reply.%IsA(answerClass) Quit ..#REASONNOREPLY
 	If userTurn {
@@ -817,13 +1015,13 @@ Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As
 
 /// Asks Decide for a turn, again after a Busy reply: at most BUSYMAX + 1 times, BUSYWAIT seconds apart. reply is the last answer. A user turn is
 /// asked once, because its answer has no Busy.
-Method AskTurn(itemId As %String, text As %String, userTurn As %Boolean, linked As %Boolean, Output reply) As %Status [ Private ]
+Method AskTurn(itemId As %String, text As %String, userTurn As %Boolean, linked As %Boolean, Output reply, owner As %String = "") As %Status [ Private ]
 {
 	Set answerClass = $Select(userTurn: "OcuTalon.Bridge.Msg.DecisionResponse", 1: "OcuTalon.Bridge.Msg.Reply")
 	Set reply = "", sc = $$$OK
 	For asks = 1:1:..#BUSYMAX + 1 {
 		Kill reply
-		Set sc = ..Ask(..TurnRequest(itemId, text, userTurn, linked), .reply)
+		Set sc = ..Ask(..TurnRequest(itemId, text, userTurn, linked, owner), .reply)
 		If $$$ISERR(sc) Quit
 		If '$IsObject($Get(reply)) || 'reply.%IsA(answerClass) Quit
 		If userTurn || 'reply.Busy Quit
@@ -884,8 +1082,9 @@ Method Before(before As %DynamicObject, kind As %String, name As %String) As %St
 /// The request to Decide for a turn case (AD-6): a user turn of owner eval, in a fresh conversation, with no recap. The Input is what
 /// Agent.Input renders from an Item of the same fields as a user's turn in the chat, so the model sees the turn as the product sends it.
 /// With userTurn the request is the decide request of a user's chat turn (Kind decide, no SessionMode) instead of the turn request. With linked the
-/// turn has no SessionMode, so that it opens the session that the case's before turn saved (AD-6) instead of a fresh one.
-Method TurnRequest(itemId As %String, text As %String, userTurn As %Boolean = 0, linked As %Boolean = 0) As OcuTalon.Bridge.Msg.Request [ Private ]
+/// turn has no SessionMode, so that it opens the session that the case's before turn saved (AD-6) instead of a fresh one. With an owner (the Ref of a session case's
+/// session, Story 41.14) only the request's OwnerRef is that session, so that the tools act as it; the Item, and so the Input, stays owner eval.
+Method TurnRequest(itemId As %String, text As %String, userTurn As %Boolean = 0, linked As %Boolean = 0, owner As %String = "") As OcuTalon.Bridge.Msg.Request [ Private ]
 {
 	Set item = ##class(OcuTalon.Msg.Item).%New()
 	Set item.ItemId = itemId
@@ -899,7 +1098,7 @@ Method TurnRequest(itemId As %String, text As %String, userTurn As %Boolean = 0,
 	Set request.Input = ##class(OcuTalon.Agent.Input).Render(item)
 	Set request.ItemId = itemId
 	Set request.Summary = ..FirstLine(text)
-	Set request.OwnerRef = ##class(OcuTalon.Data.Ownership).#EVAL
+	Set request.OwnerRef = $Select(owner '= "": owner, 1: ##class(OcuTalon.Data.Ownership).#EVAL)
 	Set request.TraceRef = ..RunRef
 	Set request.Channel = ..#TURNCHANNEL
 	Set request.ThreadSessionId = ..%SessionId
@@ -937,14 +1136,15 @@ Method Render(result As OcuTalon.Eval.Msg.TurnResult, hostData As %String) [ Pri
 	}
 }
 
-/// Puts the citations of the Reply's HostData (an array) in the TurnResult as JSON. A HostData with no citations array adds nothing.
+/// Puts the citations and the memories of the Reply's HostData (each an array) in the TurnResult as JSON (Citations, Memories). A HostData with neither adds nothing.
 Method Cite(result As OcuTalon.Eval.Msg.TurnResult, hostData As %String) [ Private ]
 {
 	If hostData = "" Quit
 	Try {
 		Set data = ##class(%DynamicAbstractObject).%FromJSON(hostData)
-		If ($ClassName(data) '= "%Library.DynamicObject") || (data.%GetTypeOf("citations") '= "array") Quit
-		If data.citations.%Size() > 0 Set result.Citations = data.citations.%ToJSON()
+		If $ClassName(data) '= "%Library.DynamicObject" Quit
+		If (data.%GetTypeOf("citations") = "array") && (data.citations.%Size() > 0) Set result.Citations = data.citations.%ToJSON()
+		If (data.%GetTypeOf("memories") = "array") && (data.memories.%Size() > 0) Set result.Memories = data.memories.%ToJSON()
 	} Catch exception {
 		$$$LOGWARNING(..#LOGCHECKS_exception.DisplayString())
 	}

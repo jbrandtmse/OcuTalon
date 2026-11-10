@@ -7,7 +7,9 @@
 #     both print the values that env_file passes in (AD-22);
 #   - the test-only global ^OcuTalonTest appears nowhere in the product (outside the OcuTalon/Test classes and
 #     docker/tests/) except in the one read of ^OcuTalonTest("TelegramIncluded") in Channel/Telegram/In.cls, so the
-#     judges' install never has it set (AD-29, Story 0.4).
+#     judges' install never has it set (AD-29, Story 0.4);
+#   - Data.Session's ForEval and DropEval, the evaluation session rows, are called in the product only by Eval/In.cls (EvalIn) and named in
+#     Data/Session.cls only where they are defined (AD-4, AD-33; the Contest Planner's condition (i) of Story 41.14).
 # And in every file that git tracks or has not ignored (the pipeline's folders and the agent files included, a binary skipped,
 # .env and .env.<x> other than .env.example never read), CON-5:
 #   - no local machine path: a home or volume folder with a name below it, a /private/tmp, /private/var or /private/etc path,
@@ -70,6 +72,20 @@ test_global() {
       line = $0
       if (FILENAME ~ /OcuTalon\/Channel\/Telegram\/In\.cls$/) gsub(/\$Get\(\^OcuTalonTest\("TelegramIncluded"\)\)/, "", line)
       if (line ~ /OcuTalonTest/) print FILENAME ":" FNR
+    }
+  ' "$@"
+}
+
+# Product class text that names Data.Session's ForEval or DropEval outside Eval/In.cls, other than their own definition lines in Data/Session.cls. The OcuTalon/Test
+# classes are the tests and are skipped, and so is a comment line; only class, routine and include files are read.
+eval_session_callers() {
+  awk '
+    FILENAME !~ /\.(cls|mac|int|inc)$/ || FILENAME ~ /\/OcuTalon\/Test\// || FILENAME ~ /OcuTalon\/Eval\/In\.cls$/ { next }
+    /^[ \t]*(\/\/|;|#;)/ { next }
+    {
+      line = $0
+      if (FILENAME ~ /OcuTalon\/Data\/Session\.cls$/ && line ~ /^ClassMethod (ForEval|DropEval)\(/) next
+      if (line ~ /(^|[^A-Za-z0-9_])(ForEval|DropEval)([^A-Za-z0-9_]|$)/) print FILENAME ":" FNR
     }
   ' "$@"
 }
@@ -186,6 +202,14 @@ mkdir -p "$tmp/OcuTalon/Channel/Telegram"
   printf 'Set ^OcuTalonP.Setting = 1\n'
 } > "$tmp/OcuTalon/Channel/Telegram/In.cls"
 
+mkdir -p "$tmp/es/OcuTalon/Core" "$tmp/es/OcuTalon/Data" "$tmp/es/OcuTalon/Eval" "$tmp/es/good/OcuTalon/Data"
+printf 'ClassMethod Run()\n{\n\tSet row = ##class(OcuTalon.Data.Session).ForEval(.sc)\n}\n' > "$tmp/es/OcuTalon/Core/Bad1.cls"
+printf 'ClassMethod Run()\n{\n\tQuit ##class(OcuTalon.Data.Session).DropEval(ref)\n}\n' > "$tmp/es/OcuTalon/Core/Bad2.cls"
+printf 'ClassMethod Run()\n{\n\tQuit $ClassMethod("OcuTalon.Data.Session", "ForEval")\n}\n' > "$tmp/es/OcuTalon/Core/Bad3.cls"
+printf 'ClassMethod ForEval(Output sc As %%Status) As OcuTalon.Data.Session\n{\n\tQuit ..DropEval(ref)\n}\n' > "$tmp/es/OcuTalon/Data/Session.cls"
+printf 'ClassMethod Run()\n{\n\tSet row = ##class(OcuTalon.Data.Session).ForEval(.sc)\n\tQuit ##class(OcuTalon.Data.Session).DropEval(row.Ref)\n}\n' > "$tmp/es/OcuTalon/Eval/In.cls"
+printf '/// Data.Session.ForEval makes the row.\nClassMethod ForEval(Output sc As %%Status) As OcuTalon.Data.Session\n{\n\tQuit ""\n}\nClassMethod DropEval(ref As %%String) As %%Status\n{\n\tQuit $$$OK\n}\n' > "$tmp/es/good/OcuTalon/Data/Session.cls"
+
 scan_rule "ascii: only printable ASCII, spaces and tabs" non_ascii "$tmp/ascii.bad" "$tmp/ascii.good" "$(ascii_scope "$files")"
 
 # The built page is left out of the ASCII rule, and nothing beside it is. The files are made here, because only a candidate's tree holds the page.
@@ -270,6 +294,24 @@ done
 if [ "$testglobal_ok" -eq 1 ]; then
   scan_rule "test global: ^OcuTalonTest is read only in Channel/Telegram/In.cls and set only by the tests" \
     test_global "$tmp/testglobal.bad1" "$tmp/OcuTalon/Channel/Telegram/In.cls" "$files"
+fi
+
+evalsession_ok=1
+for bad in Core/Bad1.cls Core/Bad2.cls Core/Bad3.cls Data/Session.cls; do
+  if [ -z "$(eval_session_callers "$tmp/es/OcuTalon/$bad")" ]; then
+    echo "FAIL evaluation sessions: the scanner does not flag $bad"
+    fails=$((fails + 1))
+    evalsession_ok=0
+  fi
+done
+if [ -n "$(eval_session_callers "$tmp/es/OcuTalon/Eval/In.cls")" ]; then
+  echo "FAIL evaluation sessions: the scanner flags Eval/In.cls"
+  fails=$((fails + 1))
+  evalsession_ok=0
+fi
+if [ "$evalsession_ok" -eq 1 ]; then
+  scan_rule "evaluation sessions: Data.Session.ForEval and DropEval are called only by Eval/In.cls" \
+    eval_session_callers "$tmp/es/OcuTalon/Core/Bad1.cls" "$tmp/es/good/OcuTalon/Data/Session.cls" "$files"
 fi
 
 controls_ok=1

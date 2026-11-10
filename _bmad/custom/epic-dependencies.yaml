@@ -131,7 +131,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "3192aeb65834f949b5c331cbb13fed1b2dfe1da0740369b45cf3ea73eb0d84fa"
+epics_md_hash: "87e1ab39aef3fad7fdf11717ffb5f074f112174a35f00c530b6cbc9addaa00fc"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
