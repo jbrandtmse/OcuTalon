@@ -6527,6 +6527,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Install.Step.Fix.Grants omits the pair when onlineDemo is 1; Install.SecurityOverview renders the table from Fix.Kind.Classes() without that condition; the fix needs one ruled public sentence
 - 2026-11-10T04:01:57Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=harvest note=needs_a_Planner_ruled_sentence;fix_in_23.2_before_its_commit
+- 2026-11-10T06:27:52Z note=Planner_ruling_2026-11-10:sentence_approved_verbatim;fix_in_rework_iteration_1
 
 ### DW-1067: The incident card shows no result band for a suspend or resume request, nor for a reroute whose copies all completed, against AD-15's 'each approval request card carries its own answered status and result band'
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: high | fix-risk: high | footprint: in-story
@@ -6537,11 +6538,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: WatchTools.ProposeFix resolves only open,resolved incidents (FIXABLE), so resume_item answers no_incident after close; Fix.Run.Suspended ignores incident state, so Checks.Findings keeps the item in ours.
 - 2026-11-10T06:18:26Z status=decision-pending owner=burndown by=cr note=product call: resume without an incident, keep the incident open while suspended, or reword; touches ruled text
+- 2026-11-10T06:27:51Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=merge_gate note=Planner_ruling_2026-11-10_option_a(resume_after_close_scoped;no_state_move;second-session_proof);rework_iteration_1
 
 ### DW-1069: AD-33 exception list of Story 23.2 does not name four Lane B paths the story edits under other rulings: README.md, docker/tests/lib-live.sh, web/e2e/support/iris.ts, Test/Core/CommandsRouting.cls
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: README edit is ruled (Public Text, Tasks), lib-live.sh check_orders_jobs is S3's Orders item count, iris.ts seeds A12's reroute request, CommandsRouting is RP2's pin of the listed CommandsIn.cls.
 - 2026-11-10T06:18:26Z status=escalated owner=burndown by=cr note=Planner to confirm the AD-33 exception covers these four paths (no code change expected)
+- 2026-11-10T06:27:52Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=merge_gate note=Planner_ruling_2026-11-10:four_paths_added_to_AD-33_list(additive);recorded_in_spec;close_at_adjudication
 
 ### DW-1070: propose_fix's tool description sends ambiguous, unknown_incident and no_incident to dismiss_incident's wording, so the model may answer a fix ask in dismiss terms
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: in-story
@@ -6587,3 +6590,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: check_orders_probe's comment predates OrdersForReview; check_orders_jobs (lib-live.sh) already checks three items.
 - 2026-11-10T06:18:43Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=comment only, Lane B file outside the AD-33 list; reopen_if=the next Lane B story edits test-install-upgrade.sh
+
+### DW-1079: Web/Api.cls 403 text for the item fix kinds still says 'resends' (the page overrides it); give it its own wording when a story next touches Web/Api.cls
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Web/Api.cls not_allowed text for suspend_item/resume_item; page override in approval-view (Story 23.2); new wording needs a Planner ruling
+- 2026-11-10T06:27:52Z status=wontfix-accepted owner=burndown by=merge_gate note=reopen_if=a_story_edits_Web/Api.cls_approval_answer_403_text;Planner_ruling_2026-11-10

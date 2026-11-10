@@ -529,6 +529,7 @@ From step 3, `OcuTalon.Tools` may call `OcuTalon.Memory.Search` and `OcuTalon.Me
   - **Time budget for the demo incident:** pickup under 3 s, settle about 12 s, diagnosis under 12 s, delivery under 2 s, about 30 to 35 s typical against NFR-7's 60 s. The 10-run gate measures diagnosis; the end-to-end time is measured in 20 runs in the clean-machine rehearsal and on the online demo.
   - **The incident summary** [ADDED 2026-11-09, Story 23.6, Contest Planner ruling]. On every move into `closed`, `IncidentManager` composes the incident's summary in code (`Watch.Summary`), stores it on the row in the same save and sends the `summary` notification.
   - **A fix asked in the chat** [ADDED 2026-11-09, Story 23.2, Contest Planner ruling]. `IncidentManager` raises a chat-asked request from a `ProposeFix` command (one synchronous dry run, then `Approval.Raise`); an `open`, noticed incident whose chat-asked request is raised moves to `awaiting_approval`, and a rejected or expired one returns it to `open`.
+  - **A resume of a suspend on a closed incident** [ADDED 2026-11-10, Story 23.2, Contest Planner ruling]. `resume_item` may be raised for an item OcuTalon itself suspended when the item is disabled now and its most recent disable was an executed `suspend_item` request of an incident the caller can see (the same ownership scope as every incident read), closed incidents included; such a request never moves the closed incident's state (no reopen, no lost guide finish).
 
 ### AD-16: Fixes come from a fixed set, and the executor trusts only the row
 
