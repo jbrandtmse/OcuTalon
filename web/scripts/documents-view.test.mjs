@@ -9,7 +9,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { ACCEPT, DOCUMENTS_TEXTS, REASON_TEXTS, formatSize, reasonText, refusedText, rows } = await import(
+const { ACCEPT, DOCUMENTS_TEXTS, DOCUMENT_PARAM, REASON_TEXTS, docRef, formatSize, hasDocuments, reasonText, refusedText, rows, sampleListed } = await import(
   pathToFileURL(join(here, '..', 'src', 'app', 'documents', 'documents-view.ts')).href
 );
 
@@ -28,6 +28,23 @@ describe('the strings', () => {
     assert.equal(DOCUMENTS_TEXTS.removeFailed, "Couldn't remove it. Nothing was changed.");
     assert.equal(DOCUMENTS_TEXTS.removeName, 'Remove {name}');
     assert.equal(ACCEPT, '.md,.markdown,.txt,.pdf,.docx');
+  });
+
+  it('has the ruled texts of an opened document (Story 20.2)', () => {
+    assert.equal(DOCUMENTS_TEXTS.close, 'Close');
+    assert.equal(DOCUMENTS_TEXTS.openFailed, "Couldn't open that document. It may have been removed.");
+    assert.equal(DOCUMENTS_TEXTS.empty, 'No documents yet. Add a runbook to get cited answers.', 'the empty text is unchanged');
+  });
+
+  it('has the ruled label of the sample button (Story 20.3)', () => {
+    assert.equal(DOCUMENTS_TEXTS.sample, 'Add the sample runbook');
+  });
+
+  it('reads the document to open from the doc query parameter: a non-empty value, else nothing', () => {
+    assert.equal(DOCUMENT_PARAM, 'doc');
+    assert.equal(docRef('AbC123'), 'AbC123');
+    assert.equal(docRef(' AbC123 '), 'AbC123');
+    for (const none of [null, undefined, '', '   ']) assert.equal(docRef(none), '', String(none));
   });
 
   it('has the ruled reason texts, both of the size ruling (U-284, U-285) among them', () => {
@@ -168,5 +185,44 @@ describe('the rows', () => {
     const list = rows([{ ref: 'a', name: 'a.md' }, { ref: 'b', name: 'b.md', state: 'zz' }], {}, [{ id: 1, kind: 'pending', name: 'c.md', size: 1, at: '2030-01-01T10:00:00Z' }]);
     assert.deepEqual(list.map((row) => row.state), ['indexing', 'indexing', 'indexing']);
     assert.equal(new Set(list.map((row) => row.key)).size, 3);
+  });
+});
+
+describe('whether the visitor has documents, and whether the sample is listed (Story 20.3)', () => {
+  const SAMPLE = 'Sample runbook.md';
+  const at = '2030-01-01T10:00:00Z';
+  const named = (name, over = {}) => doc(name, { name, ...over });
+
+  it('has documents when the server lists a row in any state, or a live payload adds one', () => {
+    assert.equal(hasDocuments([], {}), false);
+    for (const state of ['indexing', 'ready', 'failed']) assert.equal(hasDocuments([doc('a', { state })], {}), true, state);
+    assert.equal(hasDocuments([], { b: doc('b') }), true, 'a live add');
+  });
+
+  it('has no documents once a live removed payload takes the last one away', () => {
+    assert.equal(hasDocuments([doc('a')], { a: doc('a', { removed: true }) }), false);
+    assert.equal(hasDocuments([doc('a')], { b: doc('b', { removed: true }) }), true, 'another ref stays');
+  });
+
+  it('lists the sample for a server row of that name in each state', () => {
+    for (const state of ['indexing', 'ready', 'failed']) {
+      assert.equal(sampleListed(rows([named(SAMPLE, { state })], {}, []), SAMPLE), true, state);
+    }
+  });
+
+  it('lists the sample for a live row of that name, and not once a removed payload takes it away', () => {
+    assert.equal(sampleListed(rows([], { s: named(SAMPLE, { ref: 's' }) }, []), SAMPLE), true);
+    assert.equal(sampleListed(rows([named(SAMPLE, { ref: 's' })], { s: { ref: 's', removed: true } }, []), SAMPLE), false);
+  });
+
+  it('lists the sample for the page\'s own pending add, and not for its own refused row', () => {
+    const pending = { id: 1, kind: 'pending', name: SAMPLE, size: 10, at };
+    assert.equal(sampleListed(rows([], {}, [pending]), SAMPLE), true);
+    assert.equal(sampleListed(rows([], {}, [{ ...pending, kind: 'refused', reason: 'failed' }]), SAMPLE), false);
+  });
+
+  it('does not list the sample for a row of another name', () => {
+    assert.equal(sampleListed(rows([doc('a')], {}, []), SAMPLE), false);
+    assert.equal(sampleListed([], SAMPLE), false);
   });
 });

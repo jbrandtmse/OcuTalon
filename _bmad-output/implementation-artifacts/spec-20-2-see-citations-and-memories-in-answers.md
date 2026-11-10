@@ -1,0 +1,337 @@
+---
+title: 'Story 20.2: See citations and memories in answers'
+type: 'feature'
+created: '2026-11-09'
+status: 'done'
+baseline_revision: '8d15564f2ba53833bbe4fd65fcbf610b7a38edb0'
+baseline_commit: '8d15564f2ba53833bbe4fd65fcbf610b7a38edb0'
+review_loop_iteration: 0
+followup_review_recommended: true
+context:
+  - '{project-root}/_bmad-output/implementation-artifacts/epic-20-context.md'
+  - '{project-root}/_bmad/custom/skill-rules.md'
+warnings: ['oversized']
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** Lane A already puts code-built `citations` and `memories` on the bridge `Reply`'s `HostData` (Stories 34.1, 19.3, 19.4), but `Conversation` drops them, so the web chat cannot show where an answer came from, and the "cited answers" the Documents page and README promise are invisible to a visitor or a judge.
+
+**Approach:** `Conversation` keeps both arrays on the `Turn` (beside `CheckKey`/`CheckRows`) and carries them onto the `Outbound` and `chat.message` (and so `/v1/state`); the web reply ends with citation chips and "From memory" chips whose popovers show the passage or memory, and "Open document" shows that document's text on the Documents page through a new read-only `GET /v1/documents/:ref`. An eighth More to try item and a README line lead visitors to it.
+
+## Boundaries & Constraints
+
+**Always:**
+- Carry only what Lane A's `HostData` holds, after Decide's reply filter: `citations` `{documentRef, document, section, passage, chunkIndex}` and `memories` `{memoryRef, text, savedAt}`, at most 5 each, absent when empty. Chips are built by code from these arrays, never from reply text (DW-721, U-280).
+- Only a usable reply (the `Replied` path that reaches `Checked`) is read; Busy, SessionBroken, fallback and unusable answers carry nothing. Bad JSON or a wrong shape adds nothing and never fails the turn.
+- `Conversation.Checked` and `RenderChecks` stay byte-identical (DW-383: `Eval.In.Render` mirrors `Checked`).
+- Passage, memory and document text render as plain text (interpolation, `white-space: pre-wrap`), never `innerHTML`; a passage shows at most 6 lines (CSS line clamp, not a fixed height: `floor-sources.test.mjs`).
+- Chips are native buttons with `aria-haspopup="dialog"`; each chip's accessible name includes its document or memory; popovers use `shared/popover.ts` (`Popovers.show`), named by their heading; nothing relies on colour alone; text resizes to 200%.
+- Labels state provenance only: never "used", "relied on" or "based on" (U-280). No new public string is committed before the Planner rules it (see `## Public Text`).
+- Live-event keys camelCase; nested shapes are `OcuTalon.Live.Payload.Part` classes and `web/src/app/live/payloads.ts` is regenerated, never hand-edited (AD-12).
+- `GET /v1/documents/:ref` reads through `Ownership.Document(ref, sessionRef)` (the check DELETE uses): a document the session cannot see answers 404 `not_found` exactly like a missing one. It submits nothing and publishes nothing; it inherits `Web.Api`'s role check and browser envelope. No new role, grant or privilege.
+- Non-ASCII in code via escapes (`'§'`, `'…'`), Rule 14. Every change to a contended file is an additive block (Design Notes lists them).
+
+**Never:**
+- Never edit a Lane A class or test (U-177): `src/bridge/**`, `Tools/**`, `Agent/**`, `Docs/**`, `Memory/**`, `Checks/**`, `Eval/**` and their tests. Never duplicate `Docs.Reply.Apply`'s none-line logic in Lane B or the page.
+- No Telegram or Simulated phone rendering of citations or memories; no change to `Channel/**/Out.cls`.
+- No memory REST route, no new memory lookup; the "From memory" popover shows only what the chat message carries (it does not duplicate the Memory card).
+- No new CI unit, group or shard area; no change to `ci/units.sh`.
+- No seeded/sample document on the online demo (out of scope; see Design Notes, escalation).
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Cited answer | usable Reply, `HostData.citations` 2 entries (same doc, sections A and B) | Turn.Citations holds both; Outbound and `chat.message`/`/v1/state` carry `citations`; page shows 2 chips "{document} § {section}" after the text and check rows | none |
+| Same section twice | two citations, same `documentRef` and `section`, different `chunkIndex` | one chip; its popover shows both passages in order, each clamped to 6 lines | none |
+| Section-less passage | citation with `section` "" | chip label is the document name alone | none |
+| Memory recall | `HostData.memories` 1 entry | one "From memory" chip; accessible name "From memory: {text, cut to 80 chars}"; popover heading "From memory", the text, "Saved {when}" (`pageWhen`) | none |
+| Both kinds | citations and memories | citation chips first, then memory chips, in one `role="group"` named "Sources" | none |
+| None-line, no citations (DW-721 a) | reply text "None of your documents cover that.", no `citations` | text shown as sent, no chip | none |
+| Citations with none-line in model text (DW-721 b) | model text holds the sentence + citations, through the real `ReplyGuard.Filter` | stored/shown reply lacks the sentence; chips shown | guard is Lane A's, carried unchanged |
+| Bad HostData | not JSON, not an object, `citations` not an array, entries missing fields, 7 entries | malformed entries dropped (non-string text fields), at most 5 kept, nothing stored when none valid; checks unaffected | `$$$LOGWARNING`, turn ends normally |
+| Not a usable reply | Busy, SessionBroken, Fallback, error | no citations/memories on the turn | none |
+| Old turn rows | rows saved before this story | `citations`/`memories` absent; page renders as today | none |
+| Open document | press "Open document" | navigates to `#/documents?doc=<documentRef>`; the page shows a panel with the document's name as heading and its text; focus on the panel heading | none |
+| Document gone / other owner | `GET /v1/documents/<ref>` for a removed ref or another session's document (online-demo owner) | 404 `not_found`; page shows "Couldn't open that document. It may have been removed." | no text leaks |
+| Route failure | read error | 500 `server_error`; page shows the same failure line | logged |
+
+</intent-contract>
+
+## Code Map
+
+- `src/ocutalon/cls/OcuTalon/Core/Conversation.cls` -- `Replied` :493-507 (calls `Checked` at :506, then `Conclude`); `Checked` :513-527 and `RenderChecks` :530-533 (DO NOT CHANGE, DW-383); `Conclude` :602-616; `Announce` :620-628 (`ChatMessage.FromRow`); `Tell` :632-650 (copies CheckKey/CheckRows at :640-641); class doc bullets :26-31. Contended (Epic 41): additive only.
+- `src/ocutalon/cls/OcuTalon/Data/Turn.cls` -- `%Persistent`, explicit `Storage Default`, values 1-23 (:93-172, last `SessionRotated` = 23 at :162); `CheckKey` :71, `CheckRows` :75 (`MAXLEN=""`); pattern for "rows saved before hold no value" :63-65. Lane B (spine Tables :1338).
+- `src/ocutalon/cls/OcuTalon/Msg/Outbound.cls` -- `CheckRows` :25 (storage value 7), `CheckKey` :31 (value 9); new properties take value 10+. Read by `Channel/Telegram/Out.cls:158` (checks only); WebChat Out records a Delivery only (`Channel/WebChat/Out.cls:31-32`).
+- `src/ocutalon/cls/OcuTalon/Live/Payload/ChatMessage.cls` -- properties :6-58 (`CheckKey` :55, `Checks` :58 `list Of Part.CheckRow`); `FromRow` :66-90 (checks at :86-88). Reused by `/v1/state` `ChatItems` (`Web/Api.cls:1163-1170`), so reload shows the same.
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Part/CheckRow.cls` -- sibling to extend in shape: properties with `%JSONFIELDNAME`, `ListFromJSON(json)` :19, private `Text` :43.
+- `src/bridge/cls/OcuTalon/Bridge/Citations.cls` (read-only, Lane A) -- citation shape :8-10,20-26; CITEFLOOR 0.4 :20, MAXCITATIONS 5 :23. `src/ocutalon/cls/OcuTalon/Tools/MemoryTools.cls:153-162` (read-only) -- memory shape, `savedAt` = `Data.Memory.SavedAt` (UTC to the second, same format as `Turn.CreatedAt`).
+- `src/ocutalon/cls/OcuTalon/Checks/ReplyGuard.cls:30-40` and `Docs/Reply.cls:16-41` (read-only) -- the filter that strips the none-line when citations exist; called from `Bridge/Process/Decide.cls:1371`; HostData passes through unchanged (:1405).
+- `src/ocutalon/cls/OcuTalon/Web/Documents.cls` -- URL map :55-58; `Remove` :122-150 (pattern: `Ownership.SessionRef`, `Ownership.Document`, 404 `not_found` with `MESSAGENOTFOUND`); `List` :72-90 (`ServerError`, `CONTENTTYPE`). Not contended (Epic 35 edits `Web/Api.cls`, which this story does not touch).
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls:366-374` -- `Document(ref, sessionRef)`: own, or on a local install owner `instance`. `Data/Document.cls:43` `Text` stream; `:47` `Sections` ("" for a passage under no heading).
+- `src/ocutalon/cls/OcuTalon/Demo/Features.cls` -- `Present` / `Ids` :26-45 (feature ids of the More to try panel); `Test/Demo/Features.cls:52-60` pins the mapping.
+- `web/src/app/chat/ocutalon-reply.ts` -- template: text :57-81, `app-check-rows` :82-84, `app-decision-strip` :86-95; input `turn` :193. Silent file (`announce-focus-sources.test.mjs:94`).
+- `web/src/app/chat/chat-view.ts` -- `TurnView` :110-137 (checkKey/checks :132-134); `chatView` copies at :392-397. Contended (23.6): additive only.
+- `web/src/app/shared/popover.ts` -- `Popovers.show({trigger, content, viewContainerRef, labelledBy})` :7-15,:73; role dialog :89-90; Esc :100, outside :107, focus-out :167; `focusFirst` :217 (selector includes `[tabindex]:not([tabindex="-1"])`). Usage pattern: `web/src/app/shared/trace-link.ts:126-134,183-215`.
+- `web/src/app/chat/page-time.ts` -- `pageWhen` :183 (the Memory card's date format, `rail/memory-card/memory-card.ts:255`).
+- `web/src/app/icon/icon.ts` -- `IconName` union :4-29, `@switch` of Lucide paths :49+; no `file-text` yet.
+- `web/src/styles/tokens.css` (generated, do not edit) -- `--citation-chip-*` :547-554 (dark :775-777, :998-1000).
+- `web/src/app/documents/documents-page.ts` (315 lines) and `documents-view.ts` (`DOCUMENTS_TEXTS` :16-29, `empty` :21); `web/src/app/api/api-client.ts:172-191` (documents calls); route `#/documents` (`app.config.ts:22`).
+- `web/src/app/guide/more-to-try-view.ts` -- `MORE_TO_TRY_TEXTS` :21-69 (documents :56-61), `MoreToTryAction` :75, `MORE_TO_TRY_ITEMS` :87-95, header count :2-3 and :86; `more-to-try.ts:36-39` (item-number comment), :68-69 (`documents` action is a `routerLink="/documents"` link). Contended (23.6): additive.
+- Count/text pins: `web/scripts/more-to-try-view.test.mjs:64-66,77,87,89,95,180,198,202-211`; `web/e2e/guide/more-to-try.spec.ts:61-62 (FOUR/SEVEN), 64-103 (ITEMS oracle, documents :95-97), K3 :267-273`; `web/scripts/ux-strings.test.mjs:181,441-443`, `IMPORTED` :41-71, `SOURCES` :172, char allow-list :956 (U+00A7 not allowed yet).
+- `web/e2e/support/iris.ts` -- `SeedTurn` :277-293, `seedTurns` :397 (`CheckRows` at :426), `fixtureUser` :71, `irisScript`; `web/e2e/chat/decision.spec.ts` D7-D9 :308-436 (seeded check rows pattern); composer marker pattern `web/e2e/reminder/chat.spec.ts:116`.
+- `ci/mock/scenarios/A/memory-save.json`, `memory-recall-keyword.json` -- real memory save and recall through the mock; `docker/tests/test-session-data.sh:123-136,260` drops saved AI sessions between marker turns (`RunnerFixture.DropSince`).
+- Tests to extend: `Test/Core/ConversationTurns.cls` (`TestCheckRowsFromRender` :1591, `TestOutboundCarriesTheDecision` :1558, `TestBusyAndBrokenRepliesAreNotChecked` :1682; `DecideDouble`), `Test/Live/Payloads.cls` (`TestFromRowBuilders` :608), `Test/Web/Api.cls` (`TestStateBody` :103), `Test/Web/DocumentsApi.cls` (`TestDispatch` :80, `TestRemove` :589), `Test/Data/Tables.cls` (Turn columns :395-404), `Test/Msg/Contracts.cls` (Outbound :210), `Test/Demo/Features.cls`; web `chat-view.test.mjs:314-327`, `documents-view.test.mjs`.
+- `README.md` -- L30 "seven more things to try"; "### New since 1.0.0" L32, bullets L36-41 (L37 documents). `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- More to try block :242-255 (count :248, item 6 :251, controls :253); citation chip :348; memory :977; answers :982; Documents empty :391.
+
+## Tasks & Acceptance
+
+**Execution:**
+- [x] Task 0 (measure on the lane-B warm stack, record each result as a "Task 0 results" bullet under `## Design Notes`): (a) `Data.Document.Text` holds the text for a ready Markdown, PDF and Word document (one `iris_sql_query`/class call on the warm stack); (b) through the composer and the CI mock, `[[mock:memory-save]]` then `[[mock:memory-recall-keyword]]` gives a Reply whose `HostData.memories` is non-empty; if the mock does not read the second marker on a continued AI session, the e2e drops the saved AI sessions between the turns as `test-session-data.sh:123-136` does; (c) the two chromium fixture users the e2e uses each hold exactly `OcuTalonUser`.
+- [x] `src/ocutalon/cls/OcuTalon/Data/Turn.cls` -- add `Citations` and `Memories` `%String(MAXLEN = "")` (JSON arrays as `HostData` carries them; rows saved before hold no value); storage values 24 and 25 appended -- the turn is the record `chat.message` and `/v1/state` render from.
+- [x] `src/ocutalon/cls/OcuTalon/Msg/Outbound.cls` -- add `Citations` and `Memories` `%String(MAXLEN = "")` (next storage values) -- AC "on the outbound reply"; visible in Visual Trace's message body.
+- [x] `src/ocutalon/cls/OcuTalon/Core/Conversation.cls` -- in `Replied`, after `Do ..Checked(...)`, add `Do ..Sourced(turn, answer.HostData)`; add private `Sourced` (parse HostData; for `citations` keep entries with string `documentRef`, `document`, `passage`, string `section` ("" allowed) and numeric `chunkIndex`; for `memories` entries with string `memoryRef`, `text`, `savedAt`; at most 5 each; set the Turn field only when at least one entry is kept; Try/Catch -> `$$$LOGWARNING`); in `Tell` copy both to the Outbound; add one class-doc bullet. Leave `Checked`/`RenderChecks` byte-identical.
+- [x] `src/ocutalon/cls/OcuTalon/Live/Payload/Part/Citation.cls`, `Part/Memory.cls` (new) -- `{documentRef, document, section, passage, chunkIndex}` and `{memoryRef, text, savedAt}`, each with `ListFromJSON` in `Part.CheckRow`'s shape.
+- [x] `src/ocutalon/cls/OcuTalon/Live/Payload/ChatMessage.cls` -- `Citations` (`citations`) and `Memories` (`memories`) lists filled in `FromRow` from the row; then `npm --prefix web run payloads` regenerates `web/src/app/live/payloads.ts`.
+- [x] `src/ocutalon/cls/OcuTalon/Web/Documents.cls` -- route `<Route Url="/:ref" Method="GET" Call="Text"/>`; `Text(ref)`: sweep as the others do, `Ownership.SessionRef`, `Ownership.Document`; no row -> 404 `not_found`; else 200 `{"ref","name","text"}` (text read from the stream); a failed read -> 500. Update the class doc.
+- [x] `src/ocutalon/cls/OcuTalon/Demo/Features.cls` -- new id `sources`, listed last when memory or documents is built; update the doc comment.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls` -- add `TestSourcesCarried` (turn fields, `chat.message` payload, the Outbound sent to Notify), `TestSourcesShape` (bad JSON, non-array, malformed entries dropped, 7 -> 5, checks still rendered), `TestSourcesNotOnFallbacks` (Busy, Broken, Fallback, error), `TestNeverBoth` (DW-721: text run through the real `ReplyGuard.Filter(text, hostData)` before the double delivers it: with citations the stored ReplyText lacks the none-line and citations are carried; without citations the sentence stays and nothing is carried).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Live/Payloads.cls`, `Test/Web/Api.cls`, `Test/Data/Tables.cls`, `Test/Msg/Contracts.cls`, `Test/Demo/Features.cls` -- update shape pins for the new payload keys, columns, Outbound properties and the `sources` id; add a `/v1/state` assertion that a turn with sources lists them.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Web/DocumentsApi.cls` -- `TestText`: own, instance-owned (local), another session's (404), unknown (404), empty ref, read failure (500), nothing submitted; `TestDispatch` gains GET `/:ref`.
+- [x] Planner conditions (2026-11-09): (a) the citation chip's accessible name is `{document}, section {section}` (`{document}` alone when the section is ""), never containing U+00A7, while the visible label stays `{document} § {section}`; pin it in `answer-sources-view.test.mjs` AND in `web/e2e/chat/sources.spec.ts` (getByRole button name). (b) The document text on the Documents page (and passage/memory text in popovers) renders as PLAIN, ESCAPED text (Angular interpolation, never `innerHTML`/`[innerHTML]`, never a Markdown renderer); add one test with markup in a document: a document whose text holds `<b>bold</b> <script>window.__x=1</script> **md** # Heading` shows those characters literally on the Documents page (e2e: `textContent` equals the raw text, no `b`/`script`/`h1` element created, `window.__x` undefined) and in a citation passage popover (view or e2e).
+- [x] `web/src/app/icon/icon.ts` -- add `file-text` (Lucide paths).
+- [x] `web/src/app/chat/answer-sources-view.ts` (new, framework-free) -- `ANSWER_SOURCES_TEXTS` and pure helpers: citation chips grouped by `documentRef`+`section` in first-seen order (label per `## Public Text`), memory chips (accessible name with the text cut to 80 chars + `…`), at most 5 of each kind.
+- [x] `web/src/app/chat/answer-sources.ts` (new) -- `role="group"` "Sources" row of citation then memory chip buttons (citation chip: `--citation-chip-*` tokens + `file-text` icon; memory chip: the same tokens, no icon); popovers via `Popovers` (citation: heading = chip label, passages clamped to 6 lines, `routerLink="/documents" [queryParams]="{doc: documentRef}"` "Open document"; memory: heading "From memory", text in a `tabindex="0"` block so focus enters, "Saved {when}" via `pageWhen`).
+- [x] `web/src/app/chat/chat-view.ts` -- `TurnView` gains optional `citations`/`memories`, copied in `chatView` when non-empty (additive lines beside `checks`).
+- [x] `web/src/app/chat/ocutalon-reply.ts` -- render `<app-answer-sources>` after `app-check-rows`, inside the reply branch, when the turn has either.
+- [x] `web/src/app/api/api-client.ts`, `web/src/app/documents/documents-page.ts`, `documents-view.ts` -- `documentText(ref)`; the page reads the `doc` query param, fetches the text and shows a region (heading = name, focus moved to it, text `pre-wrap`, "Close" removes the param); 404/500 show the failure line. `empty` string unchanged (DW-976).
+- [x] `web/src/app/guide/more-to-try-view.ts`, `more-to-try.ts` -- DW-975: `documents.lookFor` per `## Public Text`; append item `sources` LAST (`action: 'documents'`, existing button text); header comments say eight.
+- [x] `web/scripts/answer-sources-view.test.mjs` (new), `chat-view.test.mjs`, `documents-view.test.mjs`, `more-to-try-view.test.mjs`, `ux-strings.test.mjs` -- view tests incl. DW-721 both directions; replace literal count/order pins with registry-derived ones (keep the independent text oracle); register `answer-sources-view.ts` in `IMPORTED`, each new string in `SOURCES` (`ux` for UX-sourced texts, `ruled` keyed by the Planner ruling's id for the others), allow U+00A7 in the char rule.
+- [x] `web/e2e/support/iris.ts` -- `SeedTurn` gains `citations`/`memories` (written to the Turn's columns).
+- [x] `web/e2e/chat/sources.spec.ts` (new, chromium project) -- seeded cited, memory and none-line turns; chip names, popover rules (Esc/outside/Tab-away, focus return), 6-line clamp, "Open document" -> Documents page text; real-HTTP route checks as two `OcuTalonUser`-only fixture users; the memory chip through the real composer and mock.
+- [x] `web/e2e/guide/more-to-try.spec.ts` -- K3 expected ids from `MORE_TO_TRY_ITEMS` (imported), oracle gains the new item and the new item 6 lookFor.
+- [x] `README.md` -- L30 "seven" -> "eight"; append the new bullet LAST under "New since 1.0.0".
+- [x] `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- More to try block: "eight items", item 6 new look-for with an `[AMENDED ...]` marker that names the commit's date, Story 20.2 and the Planner ruling's id, new Item 8, controls line names items 6 and 8 as Documents links.
+
+**Acceptance Criteria:**
+- Given a usable Reply whose HostData carries citations and memories (Lane A's shape), when `Conversation` records the turn, then the Turn, the Outbound sent to Notify and `chat.message` (and `/v1/state`) carry them after the reply filter, with `Checked` unchanged and check rows still carried (AD-6, AD-28, AD-30).
+- Given a reply with citations in the web chat, when it shows, then it ends with citation chips styled by the `citation-chip` tokens with the `file-text` icon and "{document} § {section}" (fixture "Results runbook § Rotating the certificate"), and pressing one opens a popover with the passage (at most 6 lines), the document, the section and "Open document" (FR-42, UX-DR144, UX-DR106, UX-DR38).
+- Given the citation popover, when the user presses "Open document", then the Documents page shows that document's name and full text, through `GET /v1/documents/:ref` (FR-42).
+- Given `GET /v1/documents/:ref` over real HTTP, when an `OcuTalonUser`-only fixture user (local install) asks for an instance document it gets 200 with the text; when user B asks for a document owned by user A's session it gets 404 `not_found` while A gets 200; an unknown ref is 404 (Planner standing rule (i) and (iii)).
+- Given a reply that recalled a memory, when it shows, then it carries a "From memory" chip whose popover shows the remembered text and the date it was saved, and the chip appears on a real turn driven through the composer and the CI mock (FR-41, UX-DR144; Integration AC: the web chat consumes `chat.message`'s `memories`).
+- Given keyboard and screen-reader use, when the user Tabs to a chip, then it is a button whose accessible name includes its document or memory, Enter opens its popover with focus inside, Esc / an outside press / Tab-away closes it and returns focus to the chip, state never relies on colour alone, and the fixed-strings test covers every new string (NFR-25, UX-DR38, UX-DR130, UX-DR134, UX-DR117).
+- Given DW-721, when a reply says "None of your documents cover that.", then it shows no document chip, and when it has document chips, then its text never holds that sentence, with tests in both directions (Conversation through the real guard, the view, the e2e).
+- Given the demo guide on an instance with documents or memory, when the visitor opens More to try, then the last item "See where an answer came from" links to the Documents page, item 6's look-for names the chip, every count (README L30, EXPERIENCE.md, the registry comment) says eight, and every count-pinning test reads the registry.
+- Given README.md, when read, then "New since 1.0.0" ends with the Planner-ruled line about citation and memory chips.
+
+### Review Findings
+
+Code review 2026-11-09 (four layers, full mode, no model override: no `model-overrides.yaml`). 30 rows: 6 entries patched (high 1, medium 2, low 3), 0 decision-needed, 0 deferred, 23 rows rejected.
+
+- [x] [Review][Patch] (high, fix-risk low: an escape of the same character) A literal U+00A7 in S9 fails `docker/tests/test-boundaries.sh` (Rule 14) [web/e2e/chat/sources.spec.ts:470] -- written as `'§'`; boundaries pass
+- [x] [Review][Patch] (medium, fix-risk low: one added test) The More to try order is no longer pinned: every order check read the registry, so swapping two items stayed green, and "the last item" was unpinned [web/scripts/sources-docs.test.mjs] -- EXPERIENCE.md Item n must be the registry's entry n, with no Item past them (independent oracle; counts still read the registry)
+- [x] [Review][Patch] (medium, fix-risk low: probe-only change) `TestText`'s read-failure case never ran the route's real `TextBody` Catch, and its "no text" assertion could not fail [src/ocutalon/cls/OcuTalon/Test/Web/DocumentsProbe.cls:58] -- the probe now hands the real `TextBody` a stand-in whose text is no stream; the assertion also checks the name is absent
+- [x] [Review][Patch] (low, fix-risk low) `TestSourcesNotOnFallbacks` had no `mutation:` line; its busy and broken sub-cases pin the persisted outcome, not where `Sourced` runs [src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls:1808] -- the fallback mutation was applied, seen red and recorded under `## Verification`
+- [x] [Review][Patch] (low, fix-risk low) AC6 "never colour alone": no executed test checked the open chip's underline, and the "Saved {when}" line had no mutation [web/e2e/chat/sources.spec.ts:157] -- S1 asserts `text-decoration-line` underline when open and none when closed; both mutations recorded
+- [x] [Review][Patch] (low, fix-risk low) Stale header comments: "(S0 to S7)" in sources.spec.ts and K9 "routed seven ids" [web/e2e/chat/sources.spec.ts:11, web/e2e/guide/more-to-try.spec.ts:470]
+
+Rejected:
+- Blind: README L37 "it used" and EXPERIENCE.md "uses a memory" break U-280. `false`: the Planner ruled README L37 KEEP (Design Notes, ruling A), and U-280 binds chip labels.
+- Blind: `Sources` and `Close` are filed under `ux` through incidental EXPERIENCE.md matches. `false`: the test's convention puts any string EXPERIENCE.md holds under `ux` (`names the UX first`, and the 39.5 entry states it).
+- Blind: item 8's control goes to the Documents page, and it is listed when only memory is built. Spec-bound: the Task fixes `action: 'documents'` and the gate (already adjudicated as Blind 2 / Intent 2).
+- Blind: snapshots outlive document removal and memory forgetting. By design: the Planner ruled veto 1 ACCEPTED, "no scrub on forget".
+- Blind / Edge: `Kept` accepts an empty `documentRef`/`document`/`text`/`passage`, or whitespace-only memory text. `wontfix-theoretical`: Lane A's `Citations.Collect` and `MemoryTools` write non-empty fields. Reopen if a HostData entry with an empty field is ever seen.
+- Blind: Auto Run Result counts are stale (21 lows rejected, 12 tests). Rejected because the fix edits the spec's build record; `## Verification` already says 12 tests.
+- Edge: a fractional `chunkIndex` exports invalid JSON. `wontfix-theoretical`: Lane A's store writes an integer chunk_index (Intent 1 earlier). Reopen if a non-integer chunkIndex reaches a Turn.
+- Edge: a document removed from another tab leaves its text panel open. Low and rare (two tabs, or another local user); the fix adds an effect. `reopen_if` a visitor sees a removed document's text stay open.
+- Edge: an indexing or failed document opens with an empty text. Low: reachable only through a hand-typed `?doc=`, since chips cite ready documents.
+- Edge: a slow GET moves focus after the user has moved on. Low and rare; the fix adds a guard.
+- Edge: `Kept` throws for memories after citations were kept. `wontfix-theoretical`: at most 5 short entries cannot reach MAXSTRING.
+- Edge: grapheme split at 80 characters in the memory accessible name. Low and cosmetic; rare.
+- Gap: the view-side DW-721 test duplicates the empty-input test. Low: e2e S3 and the source-text test (with its mutation) are the pins.
+- Gap: `TestNeverBoth`'s none-line half is stripped by the double. Spec-bound: the Task says the double runs the real `ReplyGuard.Filter`.
+- Gap: S5 depends on onlineDemo being off. Already adjudicated (Gap 7, with `reopen_if`).
+- Gap: `seedDocument` creates the chat user's session row. Low, with no observable effect; S5 and S7 sign that user in anyway.
+- Auditor: part of the subject is uncommitted. `false`: the lead commits after the smoke gate.
+- Auditor: forward Tab out of the last popover control does not close the popover. Low: focus leaves the document for the browser's chrome, and the shared `Popovers` waits by design (Story 2.x, out of footprint); Shift+Tab and in-page focus moves close it. `wontfix-accepted`, `reopen_if` a popover stays open after in-page forward Tab.
+- Auditor: only bad JSON logs a warning, not every wrong shape. Spec-bound: the Task says "Try/Catch -> `$$$LOGWARNING`", and `TestSourcesShape` pins it.
+- Auditor: the matrix's "error" case is untested. Already adjudicated (Gap 3): the double gives no Reply.
+- Auditor: `Sourced` and `Kept` sit after `RenderChecks` rather than at the class end. Low: the change is purely additive, which is what the contended-file rule requires.
+- Auditor: the spine row says `Ownership.Document` first, but `Sweep` and `SessionRef` run before it. `false`: `SessionRef` is that check's input, the sweep is the spec's Task, and no document data is read before the check.
+
+## Spec Change Log
+
+- 2026-11-09 (lead, spec gate): Planner rulings applied: `## Public Text` marked ruled (14 edited, 1a added); Tasks gain the two Planner conditions (accessible name without §; plain escaped document text with a markup test); Design Notes record the rulings and the spine rows.
+
+## Review Triage Log
+
+### 2026-11-09 -- Review pass
+- verdicts: 34 findings -- high 0, medium 4, low 23, false 7, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1, chip accessible name lacks the visible text (WCAG 2.5.3) -- the Planner's condition (a) rules the name `{document}, section {section}` with no section sign and pins it; the fix would contradict the ruling
+  - `[low]` `[reject]` Blind 2, item 8 can be a dead end and assumes earlier steps -- the look-for text is ruled verbatim and the `sources` id gate (memory or documents) is the spec's; a split by feature or a new sentence is a spec and public-text change
+  - `[medium]` `[patch]` Blind 3, the opened document's text stays after the document is removed -- `gone()` now calls `closeText()` when the open `doc` is the removed ref; `sources.spec.ts` S4b pins it (red when the change is reverted)
+  - `[false]` `[reject]` Blind 4, `Outbound.Citations`/`Memories` have no consumer -- the spec's Tasks and AC require them on the Outbound sent to Notify and visible in Visual Trace; Telegram rendering is excluded by the intent
+  - `[low]` `[reject]` Blind 5, `chunkIndex` and `memoryRef` carried but unused; passages ordered by arrival -- arrival is the order Lane A returns them and the matrix says "in order"; the fields are the documented shape; reopen_if a section's passages are seen out of document order
+  - `[false]` `[reject]` Blind 6, memories not deduplicated -- `Tools.MemoryTools.Merge` (Lane A) keeps each `memoryRef` once, so the array holds no repeat
+  - `[low]` `[reject]` Blind 7, Documents-page behaviour missing from EXPERIENCE.md -- the spec names the EXPERIENCE.md edits (More to try block); the panel is specified in the spec and the tests; documentation outside the tasks, not worth a change now
+  - `[low]` `[reject]` Blind 8, the text route has no size cap and the page no height limit -- an upload is capped at 10 MiB (`Docs.Extract.MAXBYTES`) and the panel has Close; a scroll region needs the scroll-padding rule and is more than a correction; reopen_if a visitor reports a long document hiding the list
+  - `[low]` `[reject]` Edge 1, all entries malformed while the guard strips the none-line -- Lane A builds well-formed entries (Citations.Collect); dropping malformed entries is the matrix's row; theoretical
+  - `[false]` `[reject]` Edge 2, stale citations after a re-entered `Replied` -- `Sourced` runs only after the busy and broken checks, so only the one usable reply sets the fields; no path sets them twice
+  - `[low]` `[reject]` Edge 3, fractional or negative chunkIndex and unbounded text -- Lane A writes integer chunk_index and its own passages; theoretical hardening
+  - `[low]` `[reject]` Edge 4, very large document text -- same as Blind 8
+  - `[medium]` `[patch]` Edge 5, removed open document stays on screen -- same root cause as Blind 3, fixed there
+  - `[low]` `[reject]` Edge 6, superseded GET not unsubscribed -- the stale answer is dropped by the counter; a wasted fetch of an own document is harmless
+  - `[false]` `[reject]` Edge 7, popover open while the chip inputs change -- a done chat message's citations are never changed while it is shown
+  - `[false]` `[reject]` Edge 8, dangling heading id/unnamed dialog -- both branches of the panel draw the heading with the id, and the panel opens only for a chip key that exists
+  - `[false]` `[reject]` Edge 9, repeated passages or memory texts -- Citations.Collect adds a (documentRef, chunkIndex) once and MemoryTools.Merge a memoryRef once
+  - `[low]` `[reject]` Edge 10, `popovers.show` throwing leaves `openKey` set -- the shared service does not throw for a live trigger; theoretical
+  - `[low]` `[reject]` Edge 11, a non-ReplyGuard filter class leaves the none-line beside chips -- Decide's filter is Lane A's and fixed; the chips never read the text
+  - `[low]` `[reject]` Edge 12, accessible name differs from the visible label -- same as Blind 1
+  - `[low]` `[reject]` Edge 13, "never both" holds only with the guard and well-formed entries -- the guard is carried unchanged by the spec (Lane A's); the matrix rows are pinned both ways
+  - `[low]` `[patch]` Gap 1, mutation lines missing for parts of AC1, AC2, AC3, AC4, AC5, AC6, AC7 -- mutations applied on the warm and fresh stacks, observed red, reverted byte-identical (tree hash before and after), and recorded in `## Verification`
+  - `[low]` `[reject]` Gap 2, no test overlaps two opens of the Documents page -- narrow race, not an AC; reopen_if a wrong document is seen under a quick second Open document
+  - `[medium]` `[patch]` Gap 3, `TestSourcesNotOnFallbacks` error and wrong cases cannot fail -- the double gives `Conversation` no Reply in those cases; the two cases and their wording are removed, busy, broken and fallback remain
+  - `[medium]` `[patch]` Gap 4, two view tests cannot fail ("same chips whatever the reply says" never passes a reply text) -- the first is removed, with its unused constants; the empty-input test and the source-text test remain and e2e S3 pins the page
+  - `[low]` `[reject]` Gap 5, source-text assertions stand for the component -- the component's behaviour is pinned by the executed e2e S1-S7, each with a recorded mutation; the text tests add the token and escaping rules the project pins this way (floor-sources)
+  - `[low]` `[reject]` Gap 6, S3 only reflects its seeded rows -- the conflict through the real guard is `TestNeverBoth`; S3 pins that the page invents neither a chip nor text
+  - `[low]` `[reject]` Gap 7, S5 relies on onlineDemo being off -- the e2e stack is a local install by construction (`TestText` sets the setting itself); reopen_if CI runs the e2e with onlineDemo on
+  - `[low]` `[patch]` Gap 8, `Test.Web.DocumentsApi` header lists a removed document as a case -- the header now says an unknown ref is what a removed document's ref is
+  - `[low]` `[reject]` Gap 9, `TestSourcesShape` deletes warnings by text prefix -- a parallel process logging the same text is not a case; theoretical
+  - `[false]` `[reject]` Intent 1, the per-entry strict shape drops real Lane A citations -- Lane A's store writes chunk_index as an integer for every row (`Test.Docs.Store`, `Test.Docs.Ops`) and `Citations.Collect` passes it through
+  - `[low]` `[reject]` Intent 2, item 8 can show on an instance with one of the two features -- same as Blind 2
+  - `[low]` `[reject]` Intent 3, no sample document on the online demo -- the intent excludes it (Never; 20.3)
+  - `[low]` `[reject]` Intent 4, the cited path is tested in two halves, not in one real flow -- the join is Lane A's `docker/tests/test-documents.sh`; the shape is pinned on both sides; the memory chip is tested end to end
+
+## Design Notes
+
+**Architecture decisions (Rule 6):** AD-6 (HostData reaches `Conversation` on the Reply); AD-28 (check glue unchanged, carried after the guard); AD-30 (Conversation records the turn, publishes `chat.message`, sends the reply to Notify); AD-12 (publish through `Live.Publish`, Part classes, generated TS); AD-13 (route inherits role check and envelope; no CORS); AD-14 (reply goes to its channel and the web chat; Outbound only gains fields); AD-21 (documents/memories scoping: `Ownership.Document`; the "Citations and memories" convention row); AD-25 (proxy allows `/ocutalon/*`, so the new GET is reachable on the demo); AD-29/AD-33 (Lane B edits only Lane B classes; `Turn`, `chat.message`, `Conversation` are Lane B); AD-22 (CI mock only; tests in `OcuTalon.Test.<Area>`). No AC contradicts an AD.
+
+**Consumes:** Lane A `Reply.HostData` `citations`/`memories` (Stories 34.1, 19.3, 19.4, 19.7); `Checks.ReplyGuard` + `Docs.Reply.Apply` (via Decide); `Ownership.Document`; `Data.Document.Text`; `shared/popover.ts`; `page-time.ts` `pageWhen`; the Documents page (34.2); the CI mock scenarios `memory-save`/`memory-recall-keyword`.
+**Consumed-by:** the web chat (this story: `answer-sources.ts` reads `chat.message`/`/v1/state` `citations`/`memories`); the Documents page (this story: `GET /v1/documents/:ref`); Visual Trace (Outbound message body). No Telegram/phone consumer; the first would be a later Telegram story (none planned).
+**Integration ACs:** the memory-chip AC (real turn through composer + mock -> Conversation -> `chat.message` -> chip) and the "Open document" AC (page -> real route -> text) are the consumer ACs (Rule 1).
+
+**Extend, don't copy (Rule 2):** `Sourced` resembles `Checked` (parse HostData, guard, catch); a separate method is chosen so `Checked` stays identical to `Eval.In.Render` (DW-383). `Part.Citation`/`Part.Memory` follow `Part.CheckRow`'s `ListFromJSON`. `Web.Documents.Text` follows `Remove`'s ownership lookup. `answer-sources.ts` uses `Popovers` like `trace-link.ts`; dates use `pageWhen` like the Memory card.
+
+**Ledger inbox (Rule 17):**
+- Declined DW-383: 20.2 leaves `Conversation.Checked`/`RenderChecks` byte-identical (new carry is a separate method), so `Eval.In.Render`'s copy stays honest; unifying the glue into one helper is Lane A work (`Eval/**`, U-177) -- re-own to Lane A / burndown.
+- DW-721: addressed (I/O rows "None-line" and "Citations with none-line", AC "Given DW-721", `TestNeverBoth`, view and e2e tests; labels per `## Public Text`; FR-41 met by "From memory").
+- Declined DW-733: a hermeticity fix of `Test.Live.GuideRefresh`, unrelated to 20.2's surface; the voting-week scope admits only judge-visible work, and Epic 39 also edits the file -- re-own to burndown or Epic 39.
+- DW-975: addressed (item 6 look-for restored with its three pins and EXPERIENCE.md item 6; text in `## Public Text`).
+- DW-976: addressed without a string change: 20.2 makes "cited answers" true; the e2e adds a document and shows its chip and text.
+
+**Contended files (all additive):** `Core/Conversation.cls` (one call line in `Replied`, two lines in `Tell`, one new method appended, one doc bullet; Epic 41); `web/src/app/chat/chat-view.ts` (two optional fields + copy lines; 23.6); `web/src/app/guide/more-to-try-view.ts` (one string changed for DW-975, one item appended LAST; 23.6 prepends FIRST); `more-to-try.ts` (comment only); `README.md` (L30 count + one bullet appended last; 23.6); EXPERIENCE.md More to try block (count, item 6, item 8 appended; 23.6, Epic 35). `Demo/Features.cls` may also gain 23.6's id: ours is appended last. Not touched: `Agent/Chat.cls`, `Channel/**/Out.cls`, `Msg/Catalog/*`, `Web/Api.cls`, `Web/SessionEvents.cls`, `Data/Session.cls`, `Core/CommandsIn.cls`, `Core/SessionOps.cls`, `Memory/**`.
+
+**Count ruling:** this branch's registry has 7 items; with `sources` it has 8, so README L30, EXPERIENCE.md and the registry comment say eight. Whichever of 23.6/20.2 merges second sets the final count (nine if both). Placement proposal: `sources` LAST, after `heartbeat` (23.6 prepends, so the two hunks never overlap).
+
+**Veto-window / escalation items (for the lead at the spec gate):**
+1. Stored data (veto 3): `Data.Turn` gains `Citations` and `Memories` (copies of passage and memory text, kept with the turn under the existing turn retention and online-demo reset); `Msg.Outbound` gains the same two properties (message bodies under the Ens purge). Consequence: a memory forgotten or a document removed later stays visible in earlier answers' chips until the turn rows go. Recommended: accept (the reply text itself already persists; only the session's own chat shows them).
+2. New route (no new privilege): `GET /api/v1/documents/:ref`, user route under the existing role check. Spine update for the lead (Rule 20): add its row to the routes table after `ARCHITECTURE-SPINE.md:1540`.
+3. Public text: every string in `## Public Text` marked "new" needs a Planner ruling before implement.
+4. Demo path (measured by reading, model behaviour inference): a visitor's online-demo session CAN produce both chips, but only by its own actions -- nothing is seeded (AD-25 golden copy; `test-session-data.sh` fresh state 0|0|0|0|0). (a) Citation: Documents page -> add a short .md/.txt -> wait for Ready -> ask about it; the chip appears only if Haiku calls `documents` and a passage scores >= 0.4 (inference). (b) From memory: More to try item 5 sends "Remember that ..."; asking "Who do I call about Results?" shows the chip only if Haiku calls `search_memories` (inference: the save taints the turn, so the next turn starts fresh with a code-written recap and must search). Neither is measurable without the real key; the Planner's release hands-on pass covers it. Not built here (smaller is better): a "sample runbook" button for visitors without a file -- the lead may raise it as a follow-up.
+
+**Spec gate (lead, 2026-11-09):** passed (Integration ACs present; AD ids mapped; ledger inbox complete: DW-383 and DW-733 re-owned to `burndown` by=spec_gate; no decision dependency; destructive checks on lane-B throwaways only). Sent to the orchestrator before any implement: the `## Public Text` list (PUBLIC TEXT), veto-window items 1 (stored data) and 2 (new user route), the spine rows (REST surface row for `GET /api/v1/documents/:ref`; the Live events convention's `chat.message` sentence gains citations and memories), and item 4 (demo path). Implement waits for those rulings; each ruling is recorded here when it arrives. Spine rows: written 2026-11-09 by orchestrator ruling (decide) as two separate marked rows (Consistency Conventions `Citations and memories on the page`; REST surface `GET /api/v1/documents/:ref`), lint at baseline.
+
+**Planner rulings (2026-11-09, relayed by the orchestrator, recorded):** A. Public text 1-13 and 15 approved as drafted; item 8 goes LAST; the count follows the registry; text 14 approved as edited (verbatim in `## Public Text`); accessibility condition on text 1: accessible name `{document}, section {section}` (no § sign), visible label unchanged, pinned in a test; `No documents yet. Add a runbook to get cited answers.` KEEP; README L37 "names the document and section it used" KEEP. B. Veto 1 (Citations/Memories on `Data.Turn` and `Msg.Outbound`) ACCEPTED, no scrub on forget; veto 2 (`GET /api/v1/documents/:ref`) ACCEPTED as specified with the real-HTTP route-rule tests, on condition the document text shows as plain, escaped text, never rendered HTML or Markdown, with one test with markup in a document. C. Spine rows: the orchestrator's plain-union ruling agreed (written e52f7e75). D. The Planner does the hands-on demo pass after deploy. A "sample runbook" button is a separate next story (20.3), NOT part of 20.2.
+
+**Decided in-stage:** one memory chip per memory (DW-721 "at most 5 each" chips); citation chips grouped by document+section, passages listed in the popover; section-less label = document name; memory chip shares the citation-chip tokens without an icon (DESIGN.md has no memory-chip token); memory popover focus lands on its `tabindex="0"` text block; "Open document" uses `#/documents?doc=<ref>`; route body `{"ref","name","text"}`; feature id `sources` listed when memory or documents is built; U+00A7 added to `ux-strings.test.mjs`'s allowed characters (UX text uses it).
+
+**Task 0 results (2026-11-09, lane-B warm stack and the fresh sign-in stack):**
+- (a) `Data.Document.Text` holds the text for a ready document of each type: `Docs.Ops.Text` on a Markdown file ("# Title" and a body line) gave 18 characters, on `Samples.PdfRunbook()` 384 characters (it starts "## Page 1", the extraction indexes like Markdown) and on `Samples.DocxRunbook()` 236 characters (starts "# Lab feed runbook"); written to a `Data.Document` row's `Text` stream (as `Docs.Ops.NewRow` does) and read back, each stream had the same length. Measured with a scratch test class on the warm stack, removed afterwards.
+- (b) Through the composer and the CI mock, `[[mock:memory-save]]` and then `[[mock:memory-recall-keyword]]` on the same session (no AI session dropped between the turns, the save turn is not tainted) gave the reply "The CI mock found the memory." and a `HostData.memories` with one entry: the From memory chip showed under it, with the text and "Saved ..." in its popover, and again after a reload (`sources.spec.ts` S7, passed on the fresh sign-in stack in five runs, one of them with the turns wiped and the AI sessions dropped between the two sends and four without). So the mock does read the second marker on a continued AI session here, and S7 drops nothing between the turns; it wipes the chat user's turns, memories and saved AI sessions before and after.
+- (c) The two chromium fixture users the e2e uses, ZzDecision (`DECISION`) and ZzChat (`CHAT`), are created by `test-sign-in.sh` with the roles `OcuTalonUser` alone, and `sources.spec.ts` S0 reads `Security.Users` on the fresh stack: both hold exactly `OcuTalonUser`.
+
+## Public Text
+
+RULED by the Planner 2026-11-09 (see Design Notes, "Planner rulings"): 1-13 and 15 approved as drafted; 14 approved as edited below; 1a added. Use every text verbatim. Sources: UX = EXPERIENCE.md/DESIGN.md; ruled = owner ruling U-280.
+
+| # | Text (verbatim) | Target | Source |
+|---|---|---|---|
+| 1 | `{document} § {section}` (chip label and citation popover heading; section "" gives `{document}` alone) | `web/src/app/chat/answer-sources-view.ts` | UX: DESIGN.md:863, EXPERIENCE.md:590 (section-less form: new, needs ruling) |
+| 1a | `{document}, section {section}` (citation chip's ACCESSIBLE NAME; section "" gives `{document}`; no § sign) | `answer-sources-view.ts` | Planner ruling 2026-11-09 (accessibility condition on text 1) |
+| 2 | `Sources` (accessible name of the chip group) | `answer-sources-view.ts` | ruled U-280 ("Sources" allowed); placement new, needs ruling |
+| 3 | `Open document` | `answer-sources-view.ts` | UX: EXPERIENCE.md:348 |
+| 4 | `From memory` (chip text, memory popover heading) | `answer-sources-view.ts` | UX: EXPERIENCE.md:977, UX-DR144 |
+| 5 | `From memory: {memory}` (memory chip accessible name; text cut to 80 characters with "…") | `answer-sources-view.ts` | new, needs ruling |
+| 6 | `Saved {when}` ({when} from `pageWhen`, e.g. "Saved Monday at 14:13") | `answer-sources-view.ts` | new, needs ruling |
+| 7 | `Close` (closes the document text) | `web/src/app/documents/documents-view.ts` | new, needs ruling |
+| 8 | `Couldn't open that document. It may have been removed.` | `documents-view.ts` | new, needs ruling |
+| 9 | Item 6 look-for: `On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the chip under the answer that names your file and its section.` | `web/src/app/guide/more-to-try-view.ts` (`documents.lookFor`), its pins, EXPERIENCE.md:251 | new (DW-975), needs ruling |
+| 10 | Item 8 label: `See where an answer came from` | `more-to-try-view.ts` (`sources.label`), EXPERIENCE.md More to try | new, needs ruling |
+| 11 | Item 8 look-for: `Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.` | `more-to-try-view.ts` (`sources.lookFor`), EXPERIENCE.md | new, needs ruling |
+| 12 | Item 8 control: `Open the Documents page` | `more-to-try-view.ts` | UX (existing item 6 control, reused) |
+| 13 | README L30: `seven more things to try` -> `eight more things to try` | `README.md:30` | count ruling (binding) |
+| 14 | README bullet, appended last (Planner-edited, verbatim): `- **Where an answer came from.** An answer from your documents ends with a chip for each source that names the document and section: press it to read the passage, or open the whole document on the Documents page. An answer that recalls a memory carries a From memory chip that shows what was remembered and when. Try it: More to try, *See where an answer came from*.` | `README.md` "New since 1.0.0", after L41 | Planner ruling 2026-11-09 (edited) |
+| 15 | EXPERIENCE.md: `There are eight items` (was seven); Item 8 entry with texts 10-12; controls line: `Items 6 and 8's controls are links to the Documents page.` | EXPERIENCE.md :248, :253 | count ruling + new, needs ruling |
+| -- | Unchanged: `No documents yet. Add a runbook to get cited answers.` (DW-976, now true); README L37 "names the document and section it used" (U-280 binds chip labels; the Planner may rule it) | `documents-view.ts:21`, `README.md:37` | -- |
+
+## Verification
+
+Lane variables on every `ci/iris.sh` / `ci/warm.sh` call (written here as on the command line): `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=20 stage=implement'`, abbreviated `$LANE` below. Warm tag `e20s2iw`, fresh tag `e20s2i`. One command per tool call, each under about 150 s; IRIS only on lane-B throwaways (warm or fresh), never the dev slot for destructive checks.
+
+**Commands:**
+- `$LANE OCUTALON_RUN_TAG=e20s2iw ci/warm.sh up` -- once at stage start; `ci/warm.sh down` at stage end, also after a failure.
+- (loop) `$LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e20s2iw ci/iris.sh class OcuTalon.Test.Core.ConversationTurns` -- passed; likewise one call each for `OcuTalon.Test.Live.Payloads`, `OcuTalon.Test.Web.DocumentsApi`, `OcuTalon.Test.Web.Api`, `OcuTalon.Test.Demo.Features`, `OcuTalon.Test.Data.Tables`, `OcuTalon.Test.Msg.Contracts`.
+- (loop) `npm --prefix web run payloads` -- regenerates `payloads.ts` after any Payload class change.
+- (loop) `node --test web/scripts/answer-sources-view.test.mjs web/scripts/chat-view.test.mjs web/scripts/documents-view.test.mjs web/scripts/more-to-try-view.test.mjs web/scripts/ux-strings.test.mjs` -- all pass.
+- (loop) e2e: `$LANE OCUTALON_RUN_TAG=e20s2i ci/iris.sh build`; `npm --silent --prefix web run e2e -- --list --reporter=json > "$SCRATCH/chromium.json"` and `node web/scripts/e2e-part.mjs k/n "$SCRATCH/chromium.json"` (`$SCRATCH` = a folder of the session scratchpad, outside the repo) to pick n (e.g. 20) and the k that holds `e2e/chat/sources.spec.ts`; then `$LANE OCUTALON_RUN_TAG=e20s2i ci/iris.sh live sign-in --part k/n` -- the part passes. The same for `e2e/guide/more-to-try.spec.ts` with `npm --silent --prefix web run e2e:sign-in-3 -- --list --reporter=json` and `ci/iris.sh live sign-in-3 --part k/n`. Teardown: `$LANE OCUTALON_RUN_TAG=e20s2i ci/iris.sh teardown`.
+- (once) `npm --prefix web test`; `npm --prefix web run lint`; `npm --prefix web run build` -- each passes.
+- (once) `bash ci/checks.sh` -- every block passes (class rules, README public-text and links).
+- (once) `$LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e20s2iw ci/iris.sh shard lane-b --part k/8`, k = 1..8, one per call -- all passed (the part holding `Test.Schedule.Heartbeat` can run past 150 s: if moved to the background, wait in bounded foreground polls).
+- Mutations recorded (Rule 19), observed red and reverted (byte-identical):
+  - mutation: dropped `Do ..Sourced(turn, answer.HostData)` in `Replied` -> `TestSourcesCarried`, `TestSourcesShape` and `TestNeverBoth` red (Test.Core.ConversationTurns);
+  - mutation: dropped `Set outbound.Citations = turn.Citations` in `Tell` -> `TestSourcesCarried` ("the Outbound carries the citations") and `TestSourcesShape` red;
+  - mutation: `ChatMessage.FromRow` skips the memories -> `TestChatMessageCarriesItsDecision` red (Test.Live.Payloads);
+  - mutation: `Web.Documents.Text` reads `Data.Document.RefIndexOpen(ref)` instead of `Ownership.Document` -> `TestText` red on the other-session and unknown-ref cases (Test.Web.DocumentsApi);
+  - mutation: `Demo.Features` without the `sources` id -> `TestIds` red (Test.Demo.Features);
+  - mutation: the chip label without the section -> `answer-sources-view.test.mjs` "reads ... and is named ..." red; the accessible name built from the label (with the section sign) -> the same test and "keeps a $ ..." red;
+  - mutation: a passage bound with `[innerHTML]` -> `answer-sources-view.test.mjs` "binds every passage ... by interpolation" red; the none-line named in the view -> "has no function of the view that reads a reply text" red (DW-721, view side);
+  - mutation: `[queryParams]="{}"` on the Open document link -> `sources.spec.ts` S1 (the href) and S4 (the Documents page) red on the fresh sign-in stack;
+  - mutation: `chatView` does not copy `citations` -> `chat-view.test.mjs` red; the registry without the `sources` item -> `more-to-try-view.test.mjs` "are in the registry in order" red; `docRef` without `trim()` -> `documents-view.test.mjs` red; the chip's font size hard-coded instead of the token -> `answer-sources-view.test.mjs` token test red.
+  - mutation: `MAXSOURCES` 5 -> 6 in `Conversation` -> `TestSourcesShape` red (7 entries keep 6); the `chunkIndex` number check in `Kept` removed -> `TestSourcesShape` red on the bad-entry and one-valid cases (Test.Core.ConversationTurns, warm stack);
+  - mutation: the passage clamp 6 -> 7 -> `answer-sources-view.test.mjs` "shows a passage in at most 6 lines" red and `sources.spec.ts` S1 ("at most 6 lines") red; the `file-text` icon replaced -> "shows the visible label, with the file-text icon" red;
+  - mutation: the popover opened with the host element as its trigger instead of the chip (no focus return to the chip) -> `sources.spec.ts` S1 and S2 red (fresh stack, applied alone);
+  - mutation: the Documents page shows an empty text for the opened document -> `sources.spec.ts` S4 and S6 red; `gone()` without the closing of the open document -> S4b red;
+  - mutation: `Web.Documents.Text` reads `RefIndexOpen(ref)` with no `Ownership.Document` -> `sources.spec.ts` S5 (another session's document is 404) red, as well as `TestText`;
+  - mutation: `ChatMessage.FromRow` skips the memories -> `sources.spec.ts` S7 (the From memory chip on the real turn) and S2 red; `<app-answer-sources>` and its group drawn for every reply -> S3 ("a reply with no sources has no group") red;
+  - the error status and the non-Reply answer of the double give `Conversation` no Reply and so no HostData to read; `TestSourcesNotOnFallbacks` pins the busy, broken and fallback Replies, whose HostData does reach it;
+- QA additions (2026-11-09, Rule 19; each mutation applied alone, observed red, reverted byte-identical by tree hash):
+  - (QA) `web/scripts/sources-docs.test.mjs` (new; README, EXPERIENCE.md and the registry comments say the registry's count; README holds the ruled bullet word for word; EXPERIENCE.md items 6 and 8 equal the registry's texts): mutation: README "eight more things to try" -> "seven" -> "README says how many more things to try there are" red (AC count); README bullet "carries" -> "uses" -> "holds the ruled line about the chips, word for word, once" red (AC README);
+  - (QA) `Test.Web.DocumentsApi.TestTextSweeps` (new method; `GET /v1/documents/:ref` sweeps stale uploads as the other routes do, also on a 404 and when the sweep throws): mutation: `Do ..Sweep()` removed from `Web.Documents.Text` -> `TestTextSweeps` red on both sweep assertions (warm stack); the class passes after the revert;
+  - (QA) `web/e2e/chat/sources.spec.ts` S8 (memory chip: Enter opens with focus on the text, markup memory text is characters, outside press / Shift+Tab / Esc close it onto the chip) and S9 (a second chip swaps the popover, one dialog): mutation: the memory text bound with `[innerHTML]` -> S8 red alone (S2 stayed green: it seeds plain text); the memory chip's popover trigger set to its parent element -> S8 and S2 red (focus not returned to the chip); the memory chip's `aria-expanded` fixed to false -> S8 and S9 red. `live sign-in --part 10/20` (12 tests, S0 to S9) passes on a fresh stack;
+  - Observed, not changed: Tab (forward) out of the last control of a popover leaves the page, the window loses focus, and `Popovers` (shared, Story 2.x) keeps the popover open by design ("not while the browser window itself has lost focus"); Shift+Tab out of it closes it onto the chip. The Tab-away rule is pinned with Shift+Tab (S1, S8).
+- Code review additions (2026-11-09, Rule 19; each mutation applied alone, observed red, reverted byte-identical by `git hash-object`; IRIS on the lane-B warm stack `e20s2cw`, e2e on the fresh stack `e20s2c`, both torn down):
+  - (CR) mutation: `Sourced` moved above `If answer.Fallback` in `Replied` -> `TestSourcesNotOnFallbacks` red on the fallback case only (Turn, Outbound, done chat.message). The busy and broken cases stayed green: those paths do not save the turn, so they pin the persisted outcome, not where `Sourced` runs;
+  - (CR) `DocumentsProbe.TextBody` hands the route's real `TextBody` a stand-in whose text is no stream; mutation: the Try/Catch removed from `Web.Documents.TextBody` -> `TestText` red (`<INVALID OREF>` escapes `Text`); the class passes after the revert;
+  - (CR) `sources-docs.test.mjs` "lists the registry's items in the order of its entries" (EXPERIENCE.md Item n is registry entry n, and there is no Item past them); mutation: `memory` and `documents` swapped in `MORE_TO_TRY_ITEMS` -> that test red (`more-to-try-view.test.mjs` stayed green, which is the gap it closes);
+  - (CR) mutation: `savedLine` returns '' -> `answer-sources-view.test.mjs` "writes the saved line ..." red (AC5, the "Saved {when}" line);
+  - (CR) S1 asserts `text-decoration-line` is underline on the open chip and none once it closes (AC6, never colour alone); mutation: `.chip[aria-expanded='true']` `text-decoration-line: none` -> S1 red, 11 others green; unmutated, `live sign-in --part 10/20` passed 12 of 12.
+- Plan for the mutations, kept for the record: drop the `Sourced` call -> `TestSourcesCarried` red; drop the `Tell` copy -> its Outbound assertion red; `FromRow` skips memories -> `Test.Live.Payloads` red; route skips `Ownership.Document` (reads by ref) -> `TestText` other-session case and the e2e isolation check red; chip label without section -> view test red; popover without focus return -> e2e red; reading the none-line in the view -> both-directions test red; registry item removed -> registry-derived count tests red.
+
+**Shared surfaces:** `chat.message` and `/v1/state` chat item keys (`payloads.ts`, `Test.Live.Payloads`, `Test.Web.Api`); `Data.Turn` columns (`Test.Data.Tables`); `Msg.Outbound` properties (`Test.Msg.Contracts`); the Documents URL map (`Test.Web.DocumentsApi` `TestDispatch`); `Demo.Features` ids and `guide.features` (`Test.Demo.Features`, `more-to-try.spec.ts`); the More to try registry and its count (`more-to-try-view.test.mjs`, `more-to-try.spec.ts`, README L30, EXPERIENCE.md); `ux-strings.test.mjs` `IMPORTED`/`SOURCES`/allowed characters; `IconName`; `TurnView` (`chat-view.test.mjs`); `SeedTurn`. Standing criterion: every test added or changed passes on a fresh environment, in either order.
+
+## Auto Run Result
+
+Status: done
+Blocking condition: none
+
+**Summary.** `Conversation` keeps the `citations` and `memories` of a usable reply's HostData on the Turn (`Sourced`, entries of the documented shape only, at most 5 each) and carries them onto the Outbound and `chat.message` (so `/v1/state`). The web reply ends with a "Sources" group of citation chips and "From memory" chips with popovers (plain escaped text, 6-line clamp, Open document). `GET /v1/documents/:ref` (`Web.Documents.Text`, through `Ownership.Document`) feeds the Documents page's open-document panel. An eighth More to try item (`sources`), the README line and EXPERIENCE.md say eight. `Conversation.Checked` and `RenderChecks` are byte-identical; no Lane A file is touched.
+
+**Files changed.**
+- IRIS: `Core/Conversation.cls` (Sourced, Kept, Tell copy), `Data/Turn.cls` and `Msg/Outbound.cls` (Citations, Memories), `Live/Payload/ChatMessage.cls` with new `Part/Citation.cls` and `Part/Memory.cls`, `Web/Documents.cls` (Text route), `Demo/Features.cls` (`sources` id).
+- IRIS tests: `Test/Core/ConversationTurns.cls`, `ConversationProbe.cls`, `DecideDouble.cls`, `Test/Live/Payloads.cls`, `Test/Web/Api.cls`, `Test/Web/DocumentsApi.cls`, `DocumentsProbe.cls`, `Test/Data/Tables.cls`, `Test/Msg/Contracts.cls`, `Test/Demo/Features.cls`.
+- Web: `chat/answer-sources-view.ts` and `chat/answer-sources.ts` (new), `chat/ocutalon-reply.ts`, `chat/chat-view.ts`, `icon/icon.ts`, `live/payloads.ts` (generated), `api/api-client.ts`, `api/api-types.ts`, `documents/documents-page.ts`, `documents/documents-view.ts`, `guide/more-to-try-view.ts`, `guide/more-to-try.ts`.
+- Web tests: `answer-sources-view.test.mjs` (new), `chat-view`, `documents-view`, `more-to-try-view`, `ux-strings`, `payloads`, `announce-focus-sources`, `floor-sources` tests; `e2e/chat/sources.spec.ts` (new, S0-S7 and S4b), `e2e/guide/more-to-try.spec.ts`, `e2e/support/iris.ts`.
+- Docs: `README.md` (eight, new bullet last), EXPERIENCE.md More to try block.
+
+**Review.** 34 findings from four layers: high 0, medium 4, low 23, false 7. Patched (3 entries, all medium; 4 rows) plus 2 low rows: the open document's text now closes when its document is removed (`gone()`, pinned by e2e S4b); the unfalsifiable error and non-Reply sub-cases of `TestSourcesNotOnFallbacks` and the vacuous view test were removed; the `Test.Web.DocumentsApi` header was corrected; the missing Rule 19 mutations were run and recorded. Deferred: none. Rejected: 23 low and 7 false findings, each with its reason in the Review Triage Log (the main ones: the accessible name without the section sign is the Planner's ruling; Lane A already de-duplicates memories and passages; document size is capped at 10 MiB by the upload).
+
+**Follow-up review recommended: true.** Two or more medium entries were patched on this first pass (patched counts: medium 3 entries, low 2). The unverified risk: the close-on-remove path of the Documents page is pinned by one e2e case (S4b, DELETE stubbed) and the removed tests were replaced by the structural and e2e pins, not by a new executed unit host for `answer-sources.ts` or `documents-page.ts`.
+
+**Verification.** Seven IRIS classes (ConversationTurns, Payloads, DocumentsApi, Api, Demo.Features, Data.Tables, Msg.Contracts) passed on the lane-B warm stack, and `lane-b` shard parts 1 to 8 passed; `npm --prefix web run payloads` leaves `payloads.ts` unchanged; the five view test files pass (150 tests), `npm --prefix web test` (1733), lint and build pass; `live sign-in --part 10/20` (`sources.spec.ts`, 10 tests) and `live sign-in-3 --part 1/8` (`more-to-try.spec.ts`, 114 tests) passed on fresh stacks; every script of `ci/checks.sh`'s CHECK_SCRIPTS passed, run in batches (the whole script exceeds one call); `docker/tests/test-boundaries.sh` passes. Mutations (Rule 19) were observed red and reverted with a byte-identical tree (hash before and after); the stacks were torn down.
+
+**Residual risks.** The online demo shows a chip only when Haiku calls the documents or memory tool (inference, Planner's hands-on pass); a 200% text-zoom check is not automated (chip sizes come from tokens); the Documents-page race of two quick opens has no test.

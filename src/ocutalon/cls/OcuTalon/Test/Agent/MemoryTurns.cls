@@ -4,8 +4,8 @@
 /// mock's request log (Test.Contract.Mock.LogSince) shows what each request carried. Both hops of Conversation.Request -> Intake.RequestFor -> Render
 /// are observed. Each marker carries the run's number, a countdown is armed at 1 for it and cleared after the test, and the precedent rows of the run's
 /// sessions are removed in OnAfterAllTests. A marker stands at the start of a message or in an item's text, never in a sender or a subject.
-///   - TestNotesAtSessionStart: the first message of a session with fired reminders on yesterday and today carries the notes in its Chat request and not
-///     in its Triage request, and the second message carries none;
+///   - TestNotesAtSessionStart: the first message of a session with fired reminders on yesterday and today carries the notes in its Chat request, without a line
+///     for the message itself (DW-977), and not in its Triage request, and the second message carries none;
 ///   - TestPrecedentInDecide: an email whose sender the person marked as noise carries the precedent line in the Triage request of the next email of that
 ///     sender, and an email of another sender carries none;
 ///   - TestActTurnHasNone: the act turn of such an email carries none, though its Triage request does;
@@ -96,7 +96,7 @@ Method TestNotesAtSessionStart()
 		Do $$$AssertEquals($Extract(text, 1, 12), "Local time: ", "the Chat request starts with the preamble")
 		Do $$$AssertEquals($Length(text, opening) - 1, 1, "the Chat request holds the notes opening once")
 		Do $$$AssertTrue(text [ head, "and then the date line and the reminder line of yesterday and of today")
-		Do $$$AssertTrue(text [ ("> "_time_" message (web): "_sentA), "and the line of this message")
+		Do $$$AssertTrue(text '[ ("> "_time_" message (web): "), "and no line of this message: the note leaves out the turn being answered (DW-977)")
 		Do $$$AssertEquals($Extract(text, $Length(text) - $Length(tail) + 1, $Length(text)), tail, "and the text ends with a blank line and the message as sent")
 		Set block = $Extract(text, $Find(text, opening), $Length(text) - $Length(tail))
 		Set quoted = 1

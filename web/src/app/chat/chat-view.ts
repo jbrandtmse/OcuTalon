@@ -26,9 +26,11 @@ import type {
   ApprovalPayload,
   ChatMessagePayload,
   CheckRow,
+  Citation,
   Cost,
   DecisionPayload,
   IncidentPayload,
+  Memory,
   NotificationPayload,
   TurnStepPayload,
 } from '../live/payloads';
@@ -132,6 +134,10 @@ export interface TurnView {
   checkKey?: string;
   /** The check results of the reply, one row each. */
   checks?: readonly CheckRow[];
+  /** The citations of the reply, as its chat.message carries them; absent when it has none. */
+  citations?: readonly Citation[];
+  /** The memories the reply recalled, as its chat.message carries them; absent when it has none. */
+  memories?: readonly Memory[];
   /** Where the turn's trace opens, as the chat.message served it; absent when the message has none. */
   traceUrl?: string;
 }
@@ -394,6 +400,12 @@ export function chatView(
     }
     if (message.checks !== undefined && message.checks.length > 0) {
       view.checks = message.checks;
+    }
+    if (message.citations !== undefined && message.citations.length > 0) {
+      view.citations = message.citations;
+    }
+    if (message.memories !== undefined && message.memories.length > 0) {
+      view.memories = message.memories;
     }
     if (message.traceUrl) {
       view.traceUrl = message.traceUrl;

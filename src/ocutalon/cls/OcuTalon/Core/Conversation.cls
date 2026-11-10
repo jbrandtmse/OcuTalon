@@ -13,7 +13,8 @@
 ///     Summary, never the text of another turn. The decision landing stores the DecisionRef and publishes chat.message
 ///     (running); a turn request is fresh with a code-written recap (Recap) when the session's last replied turn was Tainted,
 ///     and continues otherwise. The turn request of a session start also carries the context {"sessionStart": 1} for Agent.Input.Render
-///     (AD-21): a session start is the session's first turn of its local day in the instance zone, a turn that is fresh, and the turn after a
+///     (AD-21): a session start is the session's first turn of its local day in the instance zone (a day's earlier turn counts only when its request reached a model: it did not
+///     fall back, or its decision has a Usage row), a turn that is fresh, and the turn after a
 ///     reply with SessionRotated, which the Turn keeps (StartsSession). No other request carries a context: not the decide request, and not Intake's;
 ///   - the turn's answer: Busy waits BUSYWAIT seconds (a timer) and sends the request again, at most BUSYMAX times, and the next
 ///     Busy is the fallback rate_limited; SessionBroken sends the request once more as a new Decide call under a new ItemId
@@ -27,6 +28,10 @@
 ///     Checks.Render makes the catalog key and the rows (AD-28), which the Turn keeps as CheckKey and CheckRows (JSON). Bad JSON,
 ///     no checks or a failing Render add nothing. The guard has already run in Decide; a fallback, a busy and a broken reply
 ///     are never read;
+///   - the same HostData's arrays citations and memories (at most 5 each, built by code from tool results, after the guard) are
+///     kept on the Turn as Citations and Memories (JSON) when they hold an entry of the documented shape; a malformed entry is
+///     dropped, and bad JSON or a wrong shape adds nothing. They are read only from a usable reply, like the checks, and go with
+///     the turn on chat.message and on the Outbound to Notify;
 ///   - finishing: the Turn is done and saved, then chat.message is published (it carries the turn's shown decision, cost and
 ///     check rows), an Outbound goes to Notify with the shown decision's Ref (Turn.ShownDecisionRef) and the check key and
 ///     rows, and RunTurns goes to Conversation itself when the session has a queued turn. A failed publish or send is logged
@@ -113,6 +118,11 @@ Parameter ERRORBUSY = "The turn queue of the session is busy: its lock wasn't fr
 Parameter ERRORSWEEP = "The sweep could not read the turns: ";
 
 Parameter LOGCHECKS = "Conversation added no check results: ";
+
+Parameter LOGSOURCES = "Conversation added no citations or memories: ";
+
+/// The most citations and the most memories a reply carries.
+Parameter MAXSOURCES = 5;
 
 /// The start of the warning when StartsSession could not read what it needs; the reason follows it.
 Parameter LOGSTART = "Conversation could not tell whether the turn starts a session, so it does: ";
@@ -441,10 +451,11 @@ Method Ask(turn As OcuTalon.Data.Turn) As %Status [ Private ]
 }
 
 /// 1 when the turn starts a session (AD-21), so that its turn request carries the context {"sessionStart": 1}: fresh (the turn request is fresh, whether
-/// because of a taint or a broken session), or the first turn of its local day in the instance zone (no earlier turn of the session that is not refused was
-/// created on the same local date as this turn's CreatedAt), or the session's last replied turn has SessionRotated. turn is the session's newest turn, the one
-/// that Conversation is sending: the rotation half reads the session's last replied turn, not the last one before turn. It reads only the Turn rows, and the
-/// answer is the same each time the turn is asked, a Busy resend included. A read that fails, and a CreatedAt that can't be read, count as a session start,
+/// because of a taint or a broken session), or the first turn of its local day in the instance zone (no earlier turn of the session that is not refused and reached a model was
+/// created on the same local date as this turn's CreatedAt; an earlier turn reached a model when it did not fall back, or when the decision of its fallback has a usage row of the session,
+/// Ownership.DecisionServed, so a day's first turn that fell back before any model call leaves the next turn a start, DW-967), or the session's last replied turn has SessionRotated. turn is the session's newest turn, the one
+/// that Conversation is sending: the rotation half reads the session's last replied turn, not the last one before turn. It reads the Turn rows and, for an earlier turn that fell back, the Usage
+/// rows of its decision, and the answer is the same each time the turn is asked, a Busy resend included. A read that fails, and a CreatedAt that can't be read, count as a session start,
 /// with one warning, so that a failure adds a block of the code-written notes and never loses it.
 ClassMethod StartsSession(turn As OcuTalon.Data.Turn, fresh As %Boolean) As %Boolean
 {
@@ -460,8 +471,18 @@ ClassMethod StartsSession(turn As OcuTalon.Data.Turn, fresh As %Boolean) As %Boo
 		Set other = turns.GetAt(i)
 		If other.Ref = turn.Ref Quit
 		If (other.State '= "refused") && ($Piece(##class(OcuTalon.Data.Time).ToLocal(other.CreatedAt), "T", 1) = date) {
-			Set first = 0
-			Quit
+			Set reached = 1
+			If other.FallbackReason '= "" {
+				Set reached = ..Served(other.TurnDecisionRef, turn.SessionRef, .served)
+				If $$$ISERR(served) {
+					$$$LOGWARNING(..#LOGSTART_$SYSTEM.Status.GetErrorText(served))
+					Quit
+				}
+			}
+			If reached {
+				Set first = 0
+				Quit
+			}
 		}
 	}
 	If first Quit 1
@@ -471,6 +492,12 @@ ClassMethod StartsSession(turn As OcuTalon.Data.Turn, fresh As %Boolean) As %Boo
 		Quit 1
 	}
 	Quit $IsObject(last) && last.SessionRotated
+}
+
+/// 1 when the decision has a usage row of the session (Ownership.DecisionServed): the turn's request reached a model; sc is the status of the read. A seam for the tests.
+ClassMethod Served(decisionRef As %String, sessionRef As %String, Output sc As %Status) As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Ownership).DecisionServed(decisionRef, sessionRef, .sc)
 }
 
 /// The session's last replied turn (Ownership.LastRepliedTurn), or ""; sc is the status of the read.
@@ -504,6 +531,7 @@ Method Replied(answer As %RegisteredObject) As %Status [ Private ]
 	If answer.SessionBroken Quit ..Rebuild(turn, answer)
 	If answer.Fallback Quit ..Conclude(turn, "", ..Reason(answer.FallbackReason))
 	Do ..Checked(turn, answer.HostData)
+	Do ..Sourced(turn, answer.HostData)
 	Quit ..Conclude(turn, answer.Text, "")
 }
 
@@ -530,6 +558,51 @@ Method Checked(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
 Method RenderChecks(results As %DynamicArray, Output rows As %DynamicArray) As %String [ Private ]
 {
 	Quit ##class(OcuTalon.Checks.Render).Render(results, .rows)
+}
+
+/// The citations and memories of a usable reply: the arrays citations and memories of HostData, when it is a JSON object, are kept
+/// on the turn as Citations and Memories (JSON arrays) with the entries of the documented shape only, at most MAXSOURCES each. A
+/// field is set only when an entry is kept. Bad JSON, a wrong shape or an error add nothing; the turn ends normally in every case.
+Method Sourced(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
+{
+	If hostData = "" Quit
+	Try {
+		Set data = ##class(%DynamicAbstractObject).%FromJSON(hostData)
+		If $ClassName(data) '= "%Library.DynamicObject" Quit
+		Set citations = ..Kept(data, "citations", $ListBuild("documentRef", "document", "section", "passage"), "chunkIndex")
+		Set memories = ..Kept(data, "memories", $ListBuild("memoryRef", "text", "savedAt"), "")
+		If citations '= "" Set turn.Citations = citations
+		If memories '= "" Set turn.Memories = memories
+	} Catch exception {
+		$$$LOGWARNING(..#LOGSOURCES_exception.DisplayString())
+	}
+}
+
+/// The entries of the array member of data as a JSON array: an entry is kept when it is an object whose strings (a list of
+/// names) are strings and whose number (a name, or "" for none) is a number; it is cut down to those members, in that order.
+/// At most MAXSOURCES entries are kept. "" when the member is not an array or no entry is kept.
+Method Kept(data As %DynamicObject, member As %String, strings As %List, number As %String) As %String [ Private ]
+{
+	If data.%GetTypeOf(member) '= "array" Quit ""
+	Set array = data.%Get(member)
+	Set kept = []
+	For i = 0:1:array.%Size() - 1 {
+		If kept.%Size() >= ..#MAXSOURCES Quit
+		If array.%GetTypeOf(i) '= "object" Continue
+		Set element = array.%Get(i)
+		Set entry = {}, valid = 1
+		For j = 1:1:$ListLength(strings) {
+			Set name = $List(strings, j)
+			If element.%GetTypeOf(name) '= "string" Set valid = 0 Quit
+			Do entry.%Set(name, element.%Get(name))
+		}
+		If valid && (number '= "") {
+			If element.%GetTypeOf(number) '= "number" Continue
+			Do entry.%Set(number, element.%Get(number), "number")
+		}
+		If valid Do kept.%Push(entry)
+	}
+	Quit $Select(kept.%Size(): kept.%ToJSON(), 1: "")
 }
 
 /// Decide was busy: waits BUSYWAIT seconds and sends the request again, BUSYMAX times at most; then the fallback rate_limited.
@@ -639,6 +712,8 @@ Method Tell(turn As OcuTalon.Data.Turn) [ Private ]
 		Set outbound.DecisionRef = turn.ShownDecisionRef()
 		Set outbound.CheckKey = turn.CheckKey
 		Set outbound.CheckRows = turn.CheckRows
+		Set outbound.Citations = turn.Citations
+		Set outbound.Memories = turn.Memories
 		If turn.ReplyCatalogKey '= "" {
 			Set outbound.CatalogKey = turn.ReplyCatalogKey
 			Set outbound.Slots = {"fallbackReason": (turn.FallbackReason)}.%ToJSON()

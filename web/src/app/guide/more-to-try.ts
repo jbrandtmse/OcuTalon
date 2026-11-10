@@ -1,10 +1,12 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, output } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { ChatOutbox } from '../chat/chat-outbox';
 import { COMPOSER_REASON_ID } from '../chat/composer';
 import { turnInFlight } from '../chat/try-it-view';
 import { DeviceTabs } from '../devices/device-tabs';
+import { DOCUMENTS_TEXTS } from '../documents/documents-view';
+import { SampleRunbook } from '../documents/sample-runbook';
 import { AllowanceState } from '../live/allowance-state';
 import { LiveState } from '../live/live-state';
 import { chipName, SAMPLES } from '../mailbox/mailbox-view';
@@ -35,8 +37,10 @@ let panels = 0;
  * A control hands off to the control the page already has: it puts focus on that control and presses it, so the action is exactly that
  * control's own. Item 1 opens the rail and the Persona card's Change, item 2 selects the Simulated mailbox tab and presses the
  * suspicious-request chip, item 3 presses the box's Break the feed, item 4 presses the Demo view switch while it is on, item 5 sends its
- * prompt through the chat's outbox (a new message of the user's), item 6 is a link to the Documents page and item 7 opens the rail and
- * focuses the Heartbeat checklist card's heading, pressing nothing. Every action runs from the control's own click, and focus moves
+ * prompt through the chat's outbox (a new message of the user's), item 6 is a link to the Documents page, item 7 opens the rail and
+ * focuses the Heartbeat checklist card's heading, pressing nothing, and item 8 is a link to the Documents page. While the visitor has no
+ * documents (SampleRunbook.none, with the `documents` item listed) items 6 and 8 are instead a button, Add the sample runbook, which asks the
+ * Documents page to press its own button of that name (SampleRunbook.ask) and opens the page; the panel posts nothing. Every action runs from the control's own click, and focus moves
  * only for that press. The panel announces nothing, and it emits `pressed` so that the guide keeps the panel open, and `squeezed` when the
  * room is too small for it even at its shortest window, so that the guide does not start it open.
  *
@@ -65,7 +69,7 @@ let panels = 0;
           <li class="item">
             <p class="item-label">{{ item.label }}</p>
             <p class="look-for">{{ item.lookFor }}</p>
-            @if (item.action === 'documents') {
+            @if (item.action === 'documents' && !sampleFirst()) {
               <a class="button button-secondary" routerLink="/documents" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
             } @else {
               <button
@@ -75,7 +79,7 @@ let panels = 0;
                 [attr.aria-disabled]="item.action === 'memory' && blocked() ? 'true' : null"
                 [attr.aria-describedby]="item.action === 'memory' ? describedBy() : null"
                 (click)="press(item)"
-              >{{ item.button }}</button>
+              >{{ sampleFirst() && item.action === 'documents' ? documentsTexts.sample : item.button }}</button>
             }
           </li>
         }
@@ -172,6 +176,8 @@ export class MoreToTry {
   private readonly outbox = inject(ChatOutbox);
   private readonly live = inject(LiveState);
   private readonly allowance = inject(AllowanceState);
+  private readonly sample = inject(SampleRunbook);
+  private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
@@ -191,10 +197,14 @@ export class MoreToTry {
   readonly pressed = output<void>();
 
   protected readonly texts = MORE_TO_TRY_TEXTS;
+  protected readonly documentsTexts = DOCUMENTS_TEXTS;
   protected readonly labelId = `more-to-try-label-${++panels}`;
 
   /** True while the session's message allowance is used up. */
   private readonly used = computed(() => this.allowance.active() !== undefined);
+
+  /** True while the visitor has no documents and the instance has them: items 6 and 8 offer the sample runbook in place of the link. */
+  protected readonly sampleFirst = computed(() => this.sample.none() && this.items().some((item) => item.id === 'documents'));
 
   /** True while the memory item's press sends nothing: a turn is in flight (turnInFlight) or the allowance is used up. */
   protected readonly blocked = computed(() => this.used() || turnInFlight(this.live.store()?.chat ?? [], this.outbox.entries()));
@@ -228,6 +238,10 @@ export class MoreToTry {
       case 'heartbeat':
         this.layout.focusRegion(RAIL_REGION);
         this.handTo([`#${HEARTBEAT_HEADING_ID}`], () => false);
+        break;
+      case 'documents':
+        this.sample.ask();
+        void this.router.navigate(['/documents']);
         break;
       default:
         break;

@@ -508,10 +508,12 @@ Method TestStateChatDecision()
 	Set row.TurnDecisionRef = reply
 	Set row.CheckKey = "checks.allPassed"
 	Set row.CheckRows = "[{""result"":""passed"",""entry"":""Orders production"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""},{""result"":""failed"",""entry"":""Warehouse queue"",""finding"":""zz finding"",""checkedAt"":""2030-01-01T10:01:00Z""}]"
+	Set row.Citations = "[{""documentRef"":""zzdoc1"",""document"":""Results runbook"",""section"":""Rotating the certificate"",""passage"":""zz passage"",""chunkIndex"":2}]"
+	Set row.Memories = "[{""memoryRef"":""zzmem1"",""text"":""zz remembered"",""savedAt"":""2030-01-01T10:00:00Z""}]"
 	Set row.TraceHeaderId = 9001
 	Set row.TraceItemIndex = 41
 	Set row.TraceItemIndexNoEvents = 30
-	Do $$$AssertStatusOK(row.%Save(), "the first turn has both decisions, two check rows and a trace target at position 41 (30 without events)")
+	Do $$$AssertStatusOK(row.%Save(), "the first turn has both decisions, two check rows, a citation, a memory and a trace target at position 41 (30 without events)")
 	Set fallback = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:02Z")
 	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(fallback)
 	Set row.TriageDecisionRef = triage
@@ -528,6 +530,8 @@ Method TestStateChatDecision()
 	Do $$$AssertEquals(+first.turnCost.inputTokens_"|"_+first.turnCost.outputTokens_"|"_+first.turnCost.costUSD, "1084|312|.0008", "and the turn's cost, the sum of both decisions and no other session's")
 	Do $$$AssertEquals(first.checkKey_"|"_first.checks.%Size(), "checks.allPassed|2", "and the check key with its two rows")
 	Do $$$AssertEquals(first.checks.%Get(1).result_"|"_first.checks.%Get(1).entry_"|"_first.checks.%Get(1).finding_"|"_first.checks.%Get(1).checkedAt, "failed|Warehouse queue|zz finding|2030-01-01T10:01:00Z", "each row with its result, entry, finding and time")
+	Do $$$AssertEquals(first.citations.%Size()_"|"_first.citations.%Get(0).documentRef_"|"_first.citations.%Get(0).document_"|"_first.citations.%Get(0).section_"|"_first.citations.%Get(0).passage_"|"_first.citations.%Get(0).chunkIndex, "1|zzdoc1|Results runbook|Rotating the certificate|zz passage|2", "the entry lists the turn's citations, as chat.message does")
+	Do $$$AssertEquals(first.memories.%Size()_"|"_first.memories.%Get(0).memoryRef_"|"_first.memories.%Get(0).text_"|"_first.memories.%Get(0).savedAt, "1|zzmem1|zz remembered|2030-01-01T10:00:00Z", "and its memories")
 	Do $$$AssertEquals(first.traceItemIndex_"|"_first.traceItemIndexNoEvents, "41|30", "the entry carries both positions of its trace target")
 	Do $$$AssertEquals(first.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=2", "and its trace URL, at the page of position 41 for 40 items a page")
 	Do $$$AssertEquals(first.decision.traceUrl, first.traceUrl, "the nested decision of the turn's Item opens where the turn does")
@@ -537,6 +541,7 @@ Method TestStateChatDecision()
 	Do $$$AssertEquals(second.decision.ref_"|"_second.decision.fallbackReason_"|"_+second.turnCost.costUSD, reply_"|timeout|.0008", "a fallback: the reply decision and the same cost")
 	Do $$$AssertEquals(second.decision.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42", "its decision is of no turn's Item, so it opens its own TraceSessionId, with no PAGE")
 	Do $$$AssertEquals(second.%IsDefined("checkKey")_"|"_second.%IsDefined("checks"), "0|0", "with no check rows")
+	Do $$$AssertEquals(second.%IsDefined("citations")_"|"_second.%IsDefined("memories"), "0|0", "and no citations or memories")
 	Set third = body.chat.%Get(2).payload
 	Do $$$AssertEquals(third.%IsDefined("decision")_"|"_third.%IsDefined("turnCost"), "0|0", "a turn with no decision has neither decision nor cost")
 	Do ##class(EnsPortal.VisualTrace).SetItemsPerPage(10)
@@ -949,12 +954,12 @@ Method TestErrorTexts()
 	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Login).#ERRORNOROLE, "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.", "no_role is the sign-in page's text")
 }
 
-/// The URL map holds exactly the 32 routes, each with its call.
+/// The URL map holds exactly the 36 routes, each with its call.
 Method TestRoutes()
 {
 	Set found = ..Routes("OcuTalon.Web.Api")
-	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/decisions/:ref/got-it GotIt", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing", "GET /v1/persona GetPersona", "PUT /v1/persona PutPersona", "GET /v1/heartbeat GetHeartbeat", "PUT /v1/heartbeat PutHeartbeat", "POST /v1/heartbeat/run RunHeartbeat", "POST /v1/decisions/:ref/noise MarkNoise", "GET /v1/memory/precedents Precedents", "DELETE /v1/memory/precedents/:ref ForgetPrecedent", "GET /v1/memory/notes Notes", "GET /v1/settings Settings", "POST /v1/settings/models SaveModels", "POST /v1/settings/models/test TestModel", "POST /v1/settings/budgets SaveBudgets", "POST /v1/settings/channels NotBuilt", "POST /v1/settings/daily-digest SaveDailyDigest", "POST /v1/settings/daily-digest/send SendDigest", "POST /v1/settings/time-zone SaveTimeZone", "POST /v1/settings/check-thresholds SaveCheckThresholds", "POST /v1/settings/demo-mode SaveDemoMode")
-	Do $$$AssertEquals($ListLength(found), 32, "32 routes")
+	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/decisions/:ref/got-it GotIt", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing", "GET /v1/persona GetPersona", "PUT /v1/persona PutPersona", "GET /v1/heartbeat GetHeartbeat", "PUT /v1/heartbeat PutHeartbeat", "POST /v1/heartbeat/run RunHeartbeat", "POST /v1/decisions/:ref/noise MarkNoise", "GET /v1/memory/precedents Precedents", "DELETE /v1/memory/precedents/:ref ForgetPrecedent", "GET /v1/memory/notes Notes", "GET /v1/memory/items MemoryItems", "POST /v1/memory/:ref/pin PinMemory", "DELETE /v1/memory/:ref/pin UnpinMemory", "DELETE /v1/memory/items/:ref ForgetMemory", "GET /v1/settings Settings", "POST /v1/settings/models SaveModels", "POST /v1/settings/models/test TestModel", "POST /v1/settings/budgets SaveBudgets", "POST /v1/settings/channels NotBuilt", "POST /v1/settings/daily-digest SaveDailyDigest", "POST /v1/settings/daily-digest/send SendDigest", "POST /v1/settings/time-zone SaveTimeZone", "POST /v1/settings/check-thresholds SaveCheckThresholds", "POST /v1/settings/demo-mode SaveDemoMode")
+	Do $$$AssertEquals($ListLength(found), 36, "36 routes")
 	Do $$$AssertEquals($ListToString(found, "|"), $ListToString(expected, "|"), "the routes, in order")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HandleCorsRequest"), 0, "no CORS handling")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "CHARSET"), "utf-8", "utf-8")
@@ -1402,6 +1407,30 @@ ClassMethod Collect(ByRef capture) As %String
 	Do ##class(%File).Delete(capture("file"))
 	Kill capture
 	Quit written
+}
+
+/// Runs OnPreDispatch of the dispatch class probe for the URL and method with a stand-in request made of the Content-Type, the X-OcuTalon-Request value,
+/// the Origin and the Host, and a CSP session of that id; returns what it wrote. response is the response it left, continue the dispatch flag it left,
+/// and sc its status (an error when the output could not be captured or OnPreDispatch threw).
+ClassMethod PreDispatchOf(probe As %String, sessionId As %String, url As %String, method As %String, contentType As %String, header As %String, origin As %String, host As %String, Output response, Output continue, Output sc As %Status) As %String
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeCall("/ocutalon/api/", method, contentType, header, origin, host)
+	Set %response = ##class(%CSP.Response).%New()
+	Set %response.ContentType = ""
+	Set %session = ##class(%CSP.Session).%New(sessionId, 0)
+	Set continue = 1
+	Set sc = ..Capture(.capture)
+	If $SYSTEM.Status.IsOK(sc) {
+		Try {
+			Set sc = $ClassMethod(probe, "OnPreDispatch", url, method, .continue)
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+	}
+	Set body = ..Collect(.capture)
+	Set response = %response
+	Quit body
 }
 
 /// Calls Events with the given cursors and a stand-in request, and returns the body that it wrote.
