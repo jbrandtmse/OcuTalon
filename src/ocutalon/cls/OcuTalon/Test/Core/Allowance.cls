@@ -238,6 +238,90 @@ Method TestBusyLockRefusesWithNoRetryAt()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Trace).LockFree(id), 1, "the row's lock is free")
 }
 
+/// Story 41.13: below the limit TryConsumeRead allows a read, with an empty retryAt, and appends now to AllowanceTimes as a message's
+/// entry is; it records no Turn and opens no window. It shares the entries with TryConsume: 48 messages and one read make 49, so the
+/// 50th message is allowed and the 51st is refused.
+Method TestReadUnderLimit()
+{
+	Set ref = ..Session("readunder")
+	Do ..Seed(ref, 48, 1000)
+	Set retryAt = "zz"
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsumeRead(ref, .retryAt)_"|"_retryAt, "1|", "a read under the limit is allowed, with no retryAt")
+	Set times = ..Times(ref)
+	Do $$$AssertEquals($ListLength(times), 49, "its entry is appended")
+	Do $$$AssertTrue(..Shaped(times) && ..Ordered(times), "in UTC to the second, oldest first")
+	Do $$$AssertEquals(..TurnCount(ref), 0, "no Turn is recorded")
+	Do $$$AssertEquals(..Row(ref).AllowanceUntil, "", "and no window is opened")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsume(ref, "web", "zz the fiftieth", .again, .first), 1, "the 50th count is a message")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsume(ref, "web", "zz the fifty-first", .again, .first), 0, "and the 51st is refused: reads and messages share one count")
+}
+
+/// Story 41.13: at the limit a read is refused with the retryAt of a message (the oldest entry plus WINDOW) and writes nothing: no Turn,
+/// no new entry, AllowanceUntil unchanged, so that a following TryConsume still flags the first refusal of the window.
+Method TestReadAtLimitRecordsNothing()
+{
+	Set ref = ..Session("readlimit")
+	Do ..Seed(ref, 50, 1000)
+	Set oldest = $List(..Times(ref), 1)
+	Set before = ..Row(ref).AllowanceTimes
+	For i = 1:1:2 {
+		Set retryAt = "zz"
+		Set allowed = ##class(OcuTalon.Core.Allowance).TryConsumeRead(ref, .retryAt)
+		Do $$$AssertEquals(allowed_"|"_retryAt, "0|"_##class(OcuTalon.Data.Time).AddSeconds(oldest, 3600), "read "_i_" is refused, with the oldest entry plus 3600 seconds")
+	}
+	Set row = ..Row(ref)
+	Do $$$AssertEquals(row.AllowanceTimes, before, "no entry is added")
+	Do $$$AssertEquals(row.AllowanceUntil, "", "AllowanceUntil is unchanged")
+	Do $$$AssertEquals(..TurnCount(ref), 0, "and no refused Turn is recorded")
+	Do $$$AssertEquals($TLevel, 0, "with no open transaction")
+	Set allowed = ##class(OcuTalon.Core.Allowance).TryConsume(ref, "web", "zz the first message past the limit", .retryAt, .first)
+	Do $$$AssertEquals(allowed_"|"_first, "0|1", "the next message is the first refusal of the window")
+	Do $$$AssertEquals(..TurnCount(ref), 1, "and records its one refused Turn")
+}
+
+/// Story 41.13: with the flag off, or for a session that has no row, a read is allowed and nothing is recorded.
+Method TestReadFlagOff()
+{
+	Set ref = ..Session("readoff")
+	Do ..Seed(ref, 50, 500)
+	Set before = ..Times(ref)
+	For flag = "", 0 {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", flag)
+		Set retryAt = "zz"
+		Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsumeRead(ref, .retryAt)_"|"_retryAt, "1|", "flag '"_flag_"': allowed, nothing to retry")
+	}
+	Do $$$AssertEquals(..Row(ref).AllowanceTimes, before, "the entries are untouched")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set unknown = "zzallowance"_..Number_"readnorow"
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsumeRead(unknown, .retryAt)_"|"_retryAt, "1|", "a session with no row is allowed")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(unknown), 0, "and no row is made")
+	Do $$$AssertEquals(..TurnCount(ref), 0, "no Turn is recorded")
+}
+
+/// Story 41.13: another job holds the session's row lock: a read waits about LOCKWAIT seconds, then answers 0 with an empty retryAt and
+/// records nothing.
+Method TestReadBusyLock()
+{
+	Set ref = ..Session("readbusy")
+	Do ..Seed(ref, 10, 500)
+	Set id = ..Row(ref).%Id()
+	Set before = ..Times(ref)
+	Kill ^OcuTalonTest("Allowance", "job", "readhold")
+	Job ##class(OcuTalon.Test.Core.Allowance).Hold(id, "readhold")
+	Do ..WaitFor($Name(^OcuTalonTest("Allowance", "job", "readhold", "ready")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("Allowance", "job", "readhold", "ready")), 1, "another job holds the row's lock")
+	Set started = $ZHorolog
+	Set allowed = ##class(OcuTalon.Core.Allowance).TryConsumeRead(ref, .retryAt)
+	Set waited = $ZHorolog - started
+	Do $$$AssertEquals(allowed_"|"_retryAt, "0|", "the read is refused with no retryAt")
+	Do $$$AssertTrue((waited >= (##class(OcuTalon.Core.Allowance).#LOCKWAIT - 0.5)) && (waited < (##class(OcuTalon.Core.Allowance).#LOCKWAIT + 5)), "after about "_##class(OcuTalon.Core.Allowance).#LOCKWAIT_" seconds: "_waited)
+	Set ^OcuTalonTest("Allowance", "job", "readhold", "release") = 1
+	Do ..WaitFor($Name(^OcuTalonTest("Allowance", "job", "readhold", "done")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("Allowance", "job", "readhold", "done")), 1, "the other job lets go")
+	Do $$$AssertEquals(..Times(ref), before, "nothing was recorded on the row")
+	Do $$$AssertEquals(..TurnCount(ref), 0, "and no Turn")
+}
+
 /// Row 8, a failed save: a refused message whose Turn cannot be saved (a channel over the property's length) rolls back, so
 /// the call answers 0 with an empty retryAt, no flag, no window, no Turn and no open transaction, and holds no lock.
 Method TestFailedSaveRollsBack()

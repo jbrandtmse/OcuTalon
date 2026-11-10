@@ -1,6 +1,6 @@
 // Tests that the written texts of Story 37.2 follow the More to try registry (src/app/guide/more-to-try-view.ts): the README's Usage bullet in "New since 1.0.0"
-// (the Planner-ruled text, word for word, once, after the sources bullet), and EXPERIENCE.md's item 9 line (label, look-for and control as the registry has
-// them, the marker, under its own heading), its sentence that item 9's control is a link to the Usage page, and its Cost format row's
+// (the Planner-ruled text, word for word, once, after the sources bullet), and EXPERIENCE.md's usage item line (label, look-for and control as the registry has
+// them, the marker, under its own heading), its sentence that the usage item's control is a link to the Usage page, and its Cost format row's
 // Usage-page exact-zero text (the page's own constant) with the DW-1089 marker. The counts follow the registry and are pinned by sources-docs.test.mjs. The README
 // bullet is not pinned as the very last one, so that a story that merges later and appends its own line does not fail this test.
 // Run with: node --test web/scripts/
@@ -54,26 +54,29 @@ describe('README, the Usage bullet of "New since 1.0.0"', () => {
   });
 });
 
-describe('EXPERIENCE.md, More to try item 9', () => {
-  const line = EXPERIENCE.split('\n').find((one) => one.startsWith('    - Item 9. Label '));
+describe('EXPERIENCE.md, the More to try usage item', () => {
+  const lines = EXPERIENCE.split('\n');
+  const at = lines.findIndex((one) => /^    - Item \d+\. Label /.test(one) && one.includes(`Label "${usage.label}".`));
+  const line = at >= 0 ? lines[at] : undefined;
+  // Items are numbered by group in panel order, so the usage item's number follows the items before it; read it from its own line.
+  const number = Number((line ?? '').match(/^    - Item (\d+)\./)?.[1] ?? NaN);
+  const numbers = lines.map((one) => one.match(/^    - Item (\d+)\. /)?.[1]).filter(Boolean).map(Number);
 
-  it('is the usage item, the registry\'s last entry and the last numbered item (items are numbered by group): label, look-for and control', () => {
-    assert.ok(line, 'EXPERIENCE.md has an Item 9 entry');
+  it('is the usage item, the registry\'s last entry and the last numbered item: label, look-for and control', () => {
+    assert.ok(line, 'EXPERIENCE.md has a numbered entry with the usage label');
     assert.equal(MORE_TO_TRY_ITEMS.at(-1)?.id, 'usage', 'the registry\'s last entry is the usage item');
-    assert.ok(!EXPERIENCE.includes('    - Item 10. '), 'Item 9 is the last numbered item');
-    assert.ok(line.includes(`Label "${usage.label}". Look for: "${usage.lookFor}"`), 'Item 9 label and look-for');
-    assert.ok(line.includes(`Control: "${usage.button}".`), 'Item 9 control');
+    assert.equal(number, Math.max(...numbers), 'the usage item is the last numbered item');
+    assert.ok(line.includes(`Label "${usage.label}". Look for: "${usage.lookFor}"`), 'its label and look-for');
+    assert.ok(line.includes(`Control: "${usage.button}".`), 'its control');
   });
 
   it('sits under its own heading, the registry\'s usage group, with the ruling\'s marker', () => {
-    const lines = EXPERIENCE.split('\n');
-    const at = lines.findIndex((one) => one.startsWith('    - Item 9. Label '));
-    assert.ok(at > 0, 'EXPERIENCE.md has the Item 9 line');
+    assert.ok(at > 0, 'EXPERIENCE.md has the usage item\'s line');
     assert.equal(usage.group, 'Usage and history', 'the registry\'s usage group');
     assert.equal(
       lines[at - 1],
       `    - Heading "${usage.group}". [AMENDED 2026-11-10, Contest Planner ruling: a fourth group for the step-6 pages]`,
-      'the heading line comes right before Item 9',
+      'the heading line comes right before the usage item',
     );
   });
 
@@ -81,14 +84,16 @@ describe('EXPERIENCE.md, More to try item 9', () => {
     assert.match(line ?? '', /\[ADDED 2026-11-10, Story 37\.2, Contest Planner ruling [^\]]*\]/);
   });
 
-  it('carries the DW-1090 amendment marker', () => {
+  it('carries the DW-1090 amendment marker and the look-for correction marker', () => {
     assert.match(line ?? '', /\[AMENDED 2026-11-10, Contest Planner ruling on DW-1090: the look-for counts only the session's own decisions\]/);
+    assert.match(line ?? '', /\[AMENDED 2026-11-10, Contest Planner look-for correction: the largest-request clause reinstated\]/);
   });
 
-  it('says that item 9\'s control is a link to the Usage page, with the marker', () => {
-    const sentence = EXPERIENCE.split('\n').find((one) => one.includes("Item 9's control is a link to the Usage page."));
-    assert.ok(sentence, 'the sentence is in EXPERIENCE.md');
-    assert.match(sentence, /Item 9's control is a link to the Usage page\. \[ADDED 2026-11-10, Story 37\.2, Contest Planner ruling [^\]]*\]/);
+  it('says that the usage item\'s control is a link to the Usage page, with the marker', () => {
+    const text = `Item ${number}'s control is a link to the Usage page.`;
+    const sentence = lines.find((one) => one.includes(text));
+    assert.ok(sentence, `the sentence "${text}" is in EXPERIENCE.md`);
+    assert.ok(/\[ADDED 2026-11-10, Story 37\.2, Contest Planner ruling [^\]]*\]/.test(sentence.slice(sentence.indexOf(text))), 'with the story marker after it');
   });
 });
 

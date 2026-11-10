@@ -7,6 +7,8 @@
 ///     that the real gate and the real MemoryOps answer (a memory verb only), and any other text is the JSON {"ok", "outcome", "message", "data"} of the
 ///     CommandResult to answer; "timeout" has a shadow Test.Core.CommandsTimeoutProbe answer, so that the real gate gets no answer from its owner in time (the wait it asked for
 ///     is recorded under ("waited")); a SearchMemory records its Query as "ref";
+///   - ReadPinned (Story 41.13) records its session under ("readPinned", "session") and answers from ^OcuTalonTest("MemoryApiProbe", "readPinnedMode"): "fail" is an error status, "record" is OK with no items and used 0 (no read is made), and anything else is the real read
+///     (a ListPinnedMemories through SubmitMemory);
 ///   - ReadMemories records its session and query under ^OcuTalonTest("MemoryApiProbe", "read", "session") and ("query"), and answers from
 ///     ^OcuTalonTest("MemoryApiProbe", "readMode"): "fail" is an error status, "record" is OK with no items (no read is made), "ownershipFails" runs the real read for an empty SessionRef, which Ownership refuses, and anything else is the real read (the list through
 ///     Ownership, the search through SubmitMemory);
@@ -24,7 +26,7 @@ ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTa
 	Set n = $Increment(^OcuTalonTest("MemoryApiProbe", "submitted"))
 	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "class") = $ClassName(command)
 	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "session") = command.SessionRef
-	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "ref") = $Case($ClassName(command), "OcuTalon.Msg.Command.MarkNoise": command.DecisionRef, "OcuTalon.Msg.Command.ForgetPrecedent": command.PrecedentRef, "OcuTalon.Msg.Command.SearchMemory": command.Query, : command.MemoryRef)
+	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "ref") = $Case($ClassName(command), "OcuTalon.Msg.Command.MarkNoise": command.DecisionRef, "OcuTalon.Msg.Command.ForgetPrecedent": command.PrecedentRef, "OcuTalon.Msg.Command.SearchMemory": command.Query, "OcuTalon.Msg.Command.ListPinnedMemories": "", : command.MemoryRef)
 	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "channel") = $Select(command.%IsA("OcuTalon.Msg.Command.MarkNoise"): command.Channel, 1: "")
 	Set answer = $Get(^OcuTalonTest("MemoryApiProbe", "submit"))
 	If answer = "fail" Quit $SYSTEM.Status.Error(5001, "zz CommandsIn is not running")
@@ -52,16 +54,26 @@ ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTa
 	Quit $SYSTEM.Status.OK()
 }
 
-ClassMethod ReadMemories(sessionRef As %String, query As %String, Output items As %DynamicArray, Output total As %Integer, Output busy As %Boolean) As %Status [ Private ]
+ClassMethod ReadMemories(sessionRef As %String, query As %String, Output items As %DynamicArray, Output total As %Integer, Output busy As %Boolean, Output refusal As %DynamicObject) As %Status [ Private ]
 {
 	Set ^OcuTalonTest("MemoryApiProbe", "read", "session") = sessionRef
 	Set ^OcuTalonTest("MemoryApiProbe", "read", "query") = query
 	Set mode = $Get(^OcuTalonTest("MemoryApiProbe", "readMode"))
-	Set items = [], total = 0, busy = 0
+	Set items = [], total = 0, busy = 0, refusal = ""
 	If mode = "fail" Quit $SYSTEM.Status.Error(5001, "zz the memories could not be read")
 	If mode = "record" Quit $SYSTEM.Status.OK()
-	If mode = "ownershipFails" Quit ##super("", query, .items, .total, .busy)
-	Quit ##super(sessionRef, query, .items, .total, .busy)
+	If mode = "ownershipFails" Quit ##super("", query, .items, .total, .busy, .refusal)
+	Quit ##super(sessionRef, query, .items, .total, .busy, .refusal)
+}
+
+ClassMethod ReadPinned(sessionRef As %String, Output items As %DynamicArray, Output used As %Integer, Output busy As %Boolean) As %Status [ Private ]
+{
+	Set ^OcuTalonTest("MemoryApiProbe", "readPinned", "session") = sessionRef
+	Set mode = $Get(^OcuTalonTest("MemoryApiProbe", "readPinnedMode"))
+	Set items = [], used = 0, busy = 0
+	If mode = "fail" Quit $SYSTEM.Status.Error(5001, "zz the pinned memories could not be read")
+	If mode = "record" Quit $SYSTEM.Status.OK()
+	Quit ##super(sessionRef, .items, .used, .busy)
 }
 
 ClassMethod NoteText(sessionRef As %String, date As %String) As %String [ Private ]

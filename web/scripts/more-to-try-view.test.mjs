@@ -14,6 +14,7 @@ const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)
 const { BREAK_FEED_BUTTON, CHAT_FLOOR, COMPACT_BAND_HEIGHT, DISMISS_BUTTON, INCIDENT_CARD, MORE_TO_TRY_GROUPS, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, RESOLVED_CHIP, chatFloor, groupsOf, inCompactBand, itemsFor, windowBound } = await import(app('guide', 'more-to-try-view.ts'));
 const { HEIGHT_QUERIES } = await import(app('shared', 'layout-view.ts'));
 const { RAIL_TEXTS } = await import(app('rail', 'rail-view.ts'));
+const { MEMORY_HEADING_ID, MEMORY_TEXTS } = await import(app('rail', 'memory-card', 'memory-card-view.ts'));
 const { HEARTBEAT_HEADING_ID, HEARTBEAT_TEXTS } = await import(app('rail', 'heartbeat-card', 'heartbeat-card-view.ts'));
 const { PERSONA_TEXTS, PRESETS } = await import(app('rail', 'persona-card', 'persona-card-view.ts'));
 const { TRY_IT_TEXTS } = await import(app('chat', 'try-it-view.ts'));
@@ -71,6 +72,12 @@ const RULED = {
       lookFor: 'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
       button: 'Ask it to remember',
     },
+    memoryCard: {
+      label: 'Pin a memory',
+      lookFor:
+        'First do "Ask it to remember something". Then open All memories in the Memory card and press Pin on the memory marked Told. Open Pinned to see it: pinned facts are read at the start of each conversation, up to 1,000 tokens.',
+      button: 'Go to the Memory card',
+    },
     documents: {
       label: 'Ask about a document',
       lookFor:
@@ -92,7 +99,7 @@ const RULED = {
       label: 'See tokens and cost',
       // mutation: the registry's look-for ends its second sentence "on your messages and incidents." -> the RULED copy test, the ux-strings and usage-docs tests go red.
       lookFor:
-        'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages. If it reads "No model use in this period.", chat or run the guide first.',
+        'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
       button: 'Open the Usage page',
     },
   },
@@ -110,6 +117,7 @@ const GROUP_OF = {
   incidentSummary: 'Incidents and fixes',
   rejectFix: 'Incidents and fixes',
   memory: 'Memory and documents',
+  memoryCard: 'Memory and documents',
   documents: 'Memory and documents',
   sources: 'Memory and documents',
   suspiciousEmail: 'Safety and settings',
@@ -163,7 +171,7 @@ describe('(b) itemsFor', () => {
   });
 
   it('shows exactly its item, in its place, when memory, documents or heartbeat is added', () => {
-    for (const id of ['memory', 'documents', 'heartbeat', 'sources']) {
+    for (const id of ['memory', 'memoryCard', 'documents', 'heartbeat', 'sources']) {
       assert.deepEqual(idsOf(itemsFor([...BEFORE_MEMORY, id])), IDS.filter((one) => BEFORE_MEMORY.includes(one) || one === id), id);
     }
     assert.deepEqual(idsOf(itemsFor(IDS)), IDS);
@@ -287,7 +295,23 @@ describe('(c) every quoted on-screen name equals its source', () => {
     has(items.heartbeat.lookFor, `press ${HEARTBEAT_TEXTS.run}.`);
     assert.equal(HEARTBEAT_TEXTS.run, 'Run the heartbeat now');
     has(items.heartbeat.button, `the ${RAIL_TEXTS.heartbeat} card`);
-    assert.equal(HEARTBEAT_HEADING_ID, 'rail-heading-heartbeat', 'the heading that item 7 hands focus to');
+    assert.equal(HEARTBEAT_HEADING_ID, 'rail-heading-heartbeat', 'the heading that the heartbeat item hands focus to');
+  });
+
+  it('names the Memory card, its tabs and its controls as the card does, and the item it follows by its label', () => {
+    has(items.memoryCard.lookFor, `"${items.memory.label}"`);
+    has(items.memoryCard.lookFor, `open ${MEMORY_TEXTS.memories} in the ${RAIL_TEXTS.memory} card`);
+    has(items.memoryCard.lookFor, `press ${MEMORY_TEXTS.pin} on the memory marked ${MEMORY_TEXTS.told}`);
+    has(items.memoryCard.lookFor, `Open ${MEMORY_TEXTS.pinned} to see it`);
+    has(items.memoryCard.lookFor, 'up to 1,000 tokens');
+    assert.equal(MEMORY_TEXTS.used, '{used} of 1,000 tokens (estimated).', 'the limit the line quotes');
+    has(items.memoryCard.button, `the ${RAIL_TEXTS.memory} card`);
+    assert.equal(MEMORY_HEADING_ID, 'rail-heading-memory', 'the heading that the button hands focus to');
+  });
+
+  it('puts the Memory card item right after the memory item', () => {
+    const at = MORE_TO_TRY_ITEMS.findIndex((item) => item.id === 'memory');
+    assert.equal(MORE_TO_TRY_ITEMS[at + 1]?.id, 'memoryCard');
   });
 
   it('names Dismiss, the Simulated phone and the summary prompt as the page does (Story 23.6)', () => {

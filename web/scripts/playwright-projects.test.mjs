@@ -393,7 +393,7 @@ describe('the online-demo, online-session, online-allowance, online-demo-path an
 
   it('online-allowance (the e2e:online-allowance script) lists exactly the spec files of web/e2e-online/allowance/, and the online-demo script none of them', () => {
     const own = onlineOnDisk.filter((name) => name.startsWith('allowance/'));
-    assert.deepEqual(own, ['allowance/daily-cap.spec.ts', 'allowance/messages.spec.ts'], 'web/e2e-online/allowance/ holds the two specs of Story 16.9');
+    assert.deepEqual(own, ['allowance/daily-cap.spec.ts', 'allowance/memory-search.spec.ts', 'allowance/messages.spec.ts'], 'web/e2e-online/allowance/ holds the two specs of Story 16.9 and the Memory card search spec of Story 41.13');
     assert.deepEqual(
       filesOf('e2e:online-allowance'),
       own.map((name) => `../e2e-online/${name}`),

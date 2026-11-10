@@ -10,10 +10,10 @@ import { messageTime } from '../chat/page-time';
 import { LiveState } from '../live/live-state';
 import type { DocumentPayload } from '../live/payloads';
 import { Announcer } from '../shared/announcer';
+import { CONFIRM_TITLE_ID, CONFIRMED, ConfirmDialog, ConfirmRequest } from '../shared/confirm-dialog';
 import { Dialogs } from '../shared/dialogs';
 import { ServerButton } from '../shared/server-button';
 import { ACCEPT, DOCUMENTS_TEXTS, DOCUMENT_PARAM, docRef, formatSize, refusedText, rows, sampleListed, type DocumentRow, type LocalRow } from './documents-view';
-import { REMOVE_TITLE_ID, REMOVED, RemoveDocumentDialog, RemoveTarget } from './remove-dialog';
 import { SampleRunbook } from './sample-runbook';
 import { SAMPLE_RUNBOOK_TEXTS } from './sample-runbook-view';
 
@@ -43,7 +43,7 @@ import { SAMPLE_RUNBOOK_TEXTS } from './sample-runbook-view';
  * asked for it (SampleRunbook.take, the user's own press there), the page focuses the button and presses it once the list has loaded, or, with the
  * sample already listed, puts focus on the list region and posts nothing.
  *
- * Remove opens the Remove dialog (RemoveDocumentDialog). When it reports the document gone, the row leaves and focus goes to the list region, which
+ * Remove opens the shared confirm dialog (ConfirmDialog). When it reports the document gone, the row leaves and focus goes to the list region, which
  * has tabindex -1; Esc and Cancel leave the row and return focus to Remove.
  */
 @Component({
@@ -194,7 +194,7 @@ export class DocumentsPage {
   private readonly live = inject(LiveState);
   private readonly announcer = inject(Announcer);
   private readonly dialogs = inject(Dialogs);
-  private readonly target = inject(RemoveTarget);
+  private readonly target = inject(ConfirmRequest);
   private readonly destroyed = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -346,10 +346,16 @@ export class DocumentsPage {
 
   /** Opens the Remove dialog for the row; the button that opened it gets focus back when the dialog closes without removing. */
   protected askRemove(row: DocumentRow, event: Event): void {
-    this.target.document.set({ ref: row.ref, name: row.name });
-    const ref = this.dialogs.open(RemoveDocumentDialog, { labelledBy: REMOVE_TITLE_ID, restoreFocus: event.currentTarget as HTMLElement });
+    this.target.content.set({
+      question: DOCUMENTS_TEXTS.question.replace('{name}', () => row.name),
+      confirm: DOCUMENTS_TEXTS.remove,
+      cancel: DOCUMENTS_TEXTS.cancel,
+      failed: DOCUMENTS_TEXTS.removeFailed,
+      act: () => this.api.removeDocument(row.ref),
+    });
+    const ref = this.dialogs.open(ConfirmDialog, { labelledBy: CONFIRM_TITLE_ID, restoreFocus: event.currentTarget as HTMLElement });
     ref.closed.subscribe((result) => {
-      if (result === REMOVED) {
+      if (result === CONFIRMED) {
         this.gone(row.ref);
       }
     });
