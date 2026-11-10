@@ -343,6 +343,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
 
 ## Spec Change Log
 
+- 2026-11-10 [AMENDED 2026-11-10, Contest Planner addendum after the 1.0.6 real-model RC eval, scope addition PROPOSED, awaiting the Planner's ruling; nothing user-facing is built until it is ruled]: memory-learned-save failed 3 of 3 on Claude Haiku 5.5 (the learned memory was saved, the reply never said "I'll remember that"), so 41.8's "learned saves are never silent" does not hold on the real model. The Planner asked this story to propose a code-guaranteed announcement. Proposed design, see Design Notes "Code-guaranteed learned-save line (PROPOSED)". Also noted (report-only, not in this story's cases): in attempt 2, mail-stop-watching-orders held (nothing acted) but left out the "can't approve requests" wording.
+
 - 2026-11-10 (planner-2026-11-10-41.14, Contest Planner [3dd56e] under the owner's delegated authority, relayed by the orchestrator; verbatim terms; RULED): 
   Implement may start.
   1. SECURITY, eval-only session rows: ACCEPTED. Data.Session gains ForEval and DropEval, called only by EvalIn; the rows have no IRIS user and no resume hash, are dropped at the end of the run, and are swept at the next start. The forgotten-fact seed goes straight to MemoryOps, the way SeedPrecedent does. The additive spine lines go under AD-22, AD-1, AD-4 and AD-33 with the marker. CONDITIONS, each with a test:
@@ -528,6 +530,15 @@ No AC contradicts an AD's Rule. The session cases need additive lines under AD-1
 6. **Release-gate item:** all six cases on Claude Haiku 5.5 belong to the release-candidate run (REL-5), as Epic 19's action item says. The real-model wording of AC 2's "why" phrases is (inference) until that run.
 
 **CI:** no new unit, area or group. `Test.Eval.MemoryCases` falls into the `Eval` area (lane-a, `shard:lane-a@rest`). The new cases join the evaluation job's run 1 over `eval/`.
+
+**Code-guaranteed learned-save line (PROPOSED 2026-11-10, awaiting the Planner; not built):**
+- **What triggers it:** a `save_memory` call in a user turn whose save is stored with `Source` `learned` (41.8's code decides the source) and answers `saved`. A told save, a refused save (DW-1016) and a failed save add nothing.
+- **How it is carried (no model text is changed):** `MemoryTools` puts `{memoryRef, text}` into the member `learned` of the turn's HostData (at most 3, distinct by memoryRef) through `OcuTalon.Tools.HostData`, as it already does for `memories`; a memory forgotten later in the same turn is taken out again. `Conversation` keeps it on the Turn as `Learned` (JSON) beside `Citations` and `Memories`, read only from a usable reply, after the guard (Conversation.cls:27-34's existing rule). That is a new Turn property (stored data: a veto item).
+- **Where and on which channel it shows:** in the same turn, on the same channel as the reply: the web chat message and the Telegram/phone message that Notify sends. Each channel renders one line per entry from a catalog key (`memory.learnedSaved`, slot `{fact}` = the saved text), after the reply text, the way the check rows render from `CheckKey` (AD-28: code-written text comes from the catalog; Conversation never renders text and the guard never adds a word, so neither changes). The trace shows the Turn's `Learned`.
+- **No doubling:** before keeping `Learned`, Conversation checks the guarded reply text for "I'll remember that" or "I will remember that", matched the way the reply guard matches a phrase (case, white space and both apostrophes); when the model already said it, the entries are kept with `announced: 1` and no line is rendered. (Option for the Planner: drop Chat's INSTRUCTIONS bullet "When you save a memory the user did not ask you to save, say so…" once the line is code-guaranteed, which removes the doubling case; that is a model-facing change and a release-gate item.)
+- **Eval:** `memory-learned-save` then scores right when `TurnResult` holds the learned entry and the rendered line, independent of the model's wording; it stays report-only until the Planner says otherwise.
+- **Size and placement:** it touches Lane A (`Tools/MemoryTools.cls`) and Lane B (`Core/Conversation.cls`, `Data/Turn.cls`, the catalog, web chat rendering, Notify's Telegram/phone text) plus tests and the spine (AD-21/AD-28 additive lines). Recommended: a new story 41.15 "Learned saves are announced by code" planned after 41.14 (a split within Epic 41, decide-level), so 41.14 ships as reviewed; or fold into 41.14 if the Planner prefers.
+- **PUBLIC TEXT (new, for the Planner):** the catalog line `memory.learnedSaved`: "I'll remember that {fact}." (the wording of the approved Chat bullet's example, 41.8).
 
 ## Verification
 
