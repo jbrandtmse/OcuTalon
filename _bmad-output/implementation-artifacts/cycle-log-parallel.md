@@ -3242,3 +3242,6 @@
 2026-11-09T23:27:00Z	Epic 41	merge_gate_blocked	reason=code_conflict head=ea81dd68 ci=42712098739,42712099126(green) files=Core/CommandsIn.cls(plain union vs Epic 35) +bookkeeping; runner_resumed ruling=integrate_forward_onto_1d3cc767, ship part 41.8,41.9,41.12 together (41.12 already committed locally atop ea81dd68). Rule 13 protocol_violation (implement handoff ran ci/iris.sh from main checkout; no residue) noted.
 2026-11-09T23:57:27Z	Epic 0	deps_hash_rerecorded	reason=rule5_amendment (Stories 0.19, 0.21 inserted, owner via Planner) hash=58288971
 2026-11-09T23:57:27Z	Epic 0	epic_merged_to_feature	head=b43e7bce part_merge=0.19 conflicts=none sprint_valid=yes spine_lint=baseline ci=42718157592,42718157873 DW-1020=resolved decisions_for_user=DW-1052(Open Exchange header render check, human-only -> Planner)
+2026-11-09T23:57:42Z	Epic 0	ci_green_verified	head=61b40bba result=green_by_identity (code == b43e7bce, ci 42718157592 + lane-a 42718157873) feature_runs_cancelled=42724567915,42724568198 (record-only rule)
+2026-11-09T23:58:27Z	Epic 0	owner_decision	via=contest_planner DW-1052 owned by Planner (post-1.0.6 listing check); 1.0.6 floor=61b40bba
+2026-11-09T23:58:35Z	Epic 0	note	DW-1052 is on OCT-epic0 (unpushed); at the 0.21 merge append status=decision-pending owner=burndown by=merge_gate (Planner owns the post-1.0.6 listing check)
