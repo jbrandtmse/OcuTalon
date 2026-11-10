@@ -85,3 +85,6 @@
 2026-11-10T08:27:52Z	Story 23.2	ledger_adjudicated	owned=4 resolved=4(DW-823,DW-1059,DW-1067,DW-1069) reowned=0 terminal=0 note=DW-1068_reowned_to_23-9_earlier(parked)
 2026-11-10T08:48:04Z	Story 23.6	ci_resolved	story=23.6 sha=b99d6529 runs=42768243726(attempt2_success),42768243772(success) result=success failed=none via=none resolved_at=part_merge first_ci=flake(DW-626,DW-1026_rerun)
 2026-11-10T08:48:04Z	Epic 23	part_merge	story=23.6 head=b99d6529 feature=b896ef39 by=orchestrator note=feature_runs_cancelled_record-only(code_identical)
+2026-11-10T15:00:02Z	Epic 23	crash_recovery	mac_crash_~overnight;reboot_~11:29Z;docker_restart_14:57Z recovery_ref=refs/recovery/crash-20261110-epic-23=53eed67a(tree_identical_to_worktree) head=e34a4678 dirty=13(23.2_re-review_patches+Chat.cls_line) stage_at_crash=lead_smoke(warm_e23s2gw_failed;teardown) policy_hash_ok doctrine_hash_ok HOLD=absent host_limit=one_IRIS_stack_build_or_start_at_a_time
+2026-11-10T15:00:02Z	Story 23.2	re_verified	tree=preserved checks=node_1790/1790,catalog_current,web_lint,test-readme,test-boundaries diff_vs_rulings=coherent(itemSuspended+README_ruled_texts,Chat.cls_while_open_limit,A12_bands)
+2026-11-10T15:00:02Z	Epic 23	slot_loaded	server=ocutalon-slot-d build=154U bridge=62 ocutalon=881 compile=clean classes=944 head=e34a4678+dirty
