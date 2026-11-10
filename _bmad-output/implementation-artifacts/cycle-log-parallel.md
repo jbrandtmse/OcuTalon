@@ -3248,3 +3248,5 @@
 2026-11-10T00:47:26Z	Epic 0	deps_hash_rerecorded	reason=rule5_amendment (0.21 ACs amended per ruling) hash=1a29b796
 2026-11-10T00:47:26Z	Epic 0	epic_merged_to_feature	head=ddfa7b8f part_merge=0.21 conflicts=none sprint_valid=yes spine_lint=baseline ci=42727330617,42727330506 render_check=ok(light+dark) DW-1052=decision-pending(Planner) epic-0=done lane_C=free
 2026-11-10T00:49:43Z	Epic 0	ci_green_verified	head=d35467c4 result=green_by_identity (code == ddfa7b8f) feature_runs_cancelled=42730983862,42730983997
+2026-11-10T00:51:35Z	Epic 8	worktree_provisioned	branch=OCT-epic8 base=f59fd609 bootstrap=ok first_push_ci_cancelled=42731351584,42731351414
+2026-11-10T00:51:35Z	Epic 8	runner_dispatched	agent=a81c318c4d228152e model=opus effort=high lane=C slot=c port=52803 scope=8.8(DW-1018 heartbeat Suspended resume; demo-host-check.sh RELEASE TOOL) prompt=prompts/dispatch-epic-8-dw1018.md target=1.0.6
