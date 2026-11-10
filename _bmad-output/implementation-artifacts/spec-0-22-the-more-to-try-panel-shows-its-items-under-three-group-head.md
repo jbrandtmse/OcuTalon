@@ -2,7 +2,7 @@
 title: 'Story 0.22: The More to try panel shows its items under three group headings'
 type: 'feature'
 created: '2026-11-09'
-status: 'in-progress'
+status: 'blocked'
 baseline_revision: 'e16fc917873c0352c8ed70a776b9c0f5b201f915'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -298,8 +298,6 @@ mutation: AC4 (renumbered list out of order): the `Heading "Memory and documents
 ## Auto Run Result
 
 Status: blocked
-Blocking condition: implementation verification failed: the e2e part holding web/e2e/guide/more-to-try.spec.ts (ci/iris.sh live sign-in-3 --part 2/9) could not run. Two throwaway-stack attempts on lane C (tag e0s22i) failed on the host, not on the code: attempt 1 spent 1027 s exporting the image layers and was cancelled by the start deadline; attempt 2 built, then 'the first start did not end ready within 400 s' (load average peaked at 262), and its two containers then stuck as Dead with removal 'already in progress' in the Docker daemon. `ci/iris.sh teardown` for the tag reported 1 project removed, but the two Dead containers (ocutalon-t03c-e0s22i-1794297356-51979-iris-1 and -mock-1) and a `docker compose down` were still pending when this run ended.
+Blocking condition: TOOLING (host): the lane-C throwaway stack for e2e part 2/9 of sign-in-3 did not become ready, twice (the one allowed retry included). Command (both times, from the epic-0 worktree, with the lane-C env and run tag e0s22i): `ci/iris.sh live sign-in-3 --part 2/9`. Attempt 1 started 2026-11-10 08:25:39Z (the `ci/iris.sh build` of the web bundle before it passed in 4.5 s): the `docker buildx bake` inside its `compose up --build` sat with no progress for about 15 minutes while three other lanes' bakes ran at once (load average 100-260), then `FAIL the first start did not end ready within 400 s` at about 08:41Z, the iris container having started only seconds before. Torn down (`ci/iris.sh teardown`). Retry started 08:48:45Z after the teardown: the same hang for about 25 minutes, then at about 09:14Z the same `FAIL the first start did not end ready within 400 s` (last lines: `iris-1  | [INFO] Starting InterSystems IRIS instance IRIS...`, `FAIL the first start did not end ready within 400 s`, `test-sign-in: aborted`). No test ran. Teardown done again at 09:15Z: tag e0s22i has no containers left, and `throwaway-iris.lock` in the lane-C lock folder is gone. No docker build process of mine was killed.
 
-Done and verified before the halt: the implementation and all test changes are in the working tree, uncommitted. Node unit tests (4 files): 82 pass. docker/tests/test-boundaries.sh: all rules passed. npm test (1780), lint and build pass. The listed unit-level mutations were observed red and reverted.
-
-Not run: the e2e part (K1-K4, K16/K17, K25, guide.spec.ts and more-to-try-sample.spec.ts in part 1/9), the e2e-level mutations (K25/K2/K4/K16), and ci/checks.sh. Recommended next step: once the Docker daemon on this host is healthy and the Dead containers are gone, re-run the spec's e2e steps (parts 1/9 and 2/9 of sign-in-3), then the review and finalize steps.
+Nothing in the code or tests is known to be wrong: the written implementation and tests stay uncommitted in the working tree, as dispatched (pass 1: 82 unit tests, `npm --prefix web test` 1780, lint, build, `test-boundaries.sh` and the unit-level mutations passed). Still open, all `[Infra]` items under Tasks & Acceptance: e2e parts 2/9 and 1/9 of sign-in-3, the e2e-level mutations (K25, K2, K4, K16) with their `mutation:` lines, `bash ci/checks.sh`, the review layers and the finalize commit. `followup_pass`: not evaluated (no patch made in this pass). Recommended next step: re-dispatch on this spec path once the Docker host is not running several lanes' image builds at once.
