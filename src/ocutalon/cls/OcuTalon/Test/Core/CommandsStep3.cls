@@ -8,7 +8,7 @@
 ///     ForgetMemory from tool and web_user, PinMemory, UnpinMemory, SearchMemory, ListPinnedMemories, AddDocument and RemoveDocument from web_user;
 ///   - TestContextOwnSessionOnly: inside a bridge context a SaveMemory or ForgetMemory for a SessionRef that is not the context's OwnerRef is
 ///     not_allowed and nothing is sent, as for SendDigest (AD-1); the context's own session is routed, and a document verb, PinMemory, UnpinMemory, SearchMemory or ListPinnedMemories that says
-///     web_user is refused inside a context (the origin is tool there, and none of the three is a tool verb);
+///     web_user is refused inside a context (the origin is tool there, and none of them is a tool verb);
 ///   - TestSearchMemoryWaits (Story 41.9): a SearchMemory waits SEARCHTIMEOUT (20) seconds, and a send that gets no answer in time is answered Ok 0 Outcome busy; any other verb waits TIMEOUT (120)
 ///     and the same silence is failed; a SearchMemory that is answered in time gets the owner's answer as it is;
 ///   - TestListPinnedWaits and TestSearchAllowance (Story 41.13, DW-1031): a ListPinnedMemories waits SEARCHTIMEOUT as a search does; with onlineDemo 1, each SearchMemory counts against the message

@@ -920,6 +920,7 @@ From step 3, `OcuTalon.Tools` may call `OcuTalon.Memory.Search` and `OcuTalon.Me
         A tested stand-in blocked all eleven password-change forms while sign-in, the app, the JSON API, polling, the trace pages and the broker files still worked;
       - serves the maintenance page during resets;
       - serves the "Demo busy" page in place of IRIS's HTTP 503 for every request under `/ocutalon/` except `/ocutalon/api/` (S13), whose 503 the page itself shows as busy;
+        - except a `503` whose body `error.code` is `search_busy` (the memory reads), which is the Memory card's own message and never the page's busy state (AD-13, "The memory reads' own busy answer") [ADDED 2026-11-09, Story 41.13]
     - the IRIS container, with no general internet access;
     - an outbound gateway that:
       - answers for the model API (`POST /v1/messages` and the model lookup `GET /v1/models/<id>`, S3), the Telegram API and, from step 4, the allow-listed MCP servers;

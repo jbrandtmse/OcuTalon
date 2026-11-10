@@ -62,8 +62,9 @@ test('OM2: a 503 search_busy on a search shows the card\'s own notice, and the p
     await expect.poll(() => answered, { message: 'the search was answered with 503' }).toBe(1);
     await expect(memoriesPanel(page).getByText(SEARCH_BUSY, { exact: true }), "the card shows its own busy notice").toBeVisible();
     await expect(searchBox(page), 'the box is described by it').toHaveAccessibleDescription(SEARCH_BUSY);
-    expect(await announcements(page, SEARCH_BUSY), 'it is announced once').toBe(1);
+    await expect.poll(() => announcements(page, SEARCH_BUSY), { message: 'it is announced once' }).toBe(1);
     await page.waitForTimeout(1500);
+    expect(await announcements(page, SEARCH_BUSY), 'and not again later').toBe(1);
     await expect(page.locator(BANNER), 'the page is not busy: the Demo busy banner stays at 0').toHaveCount(0);
   } finally {
     await signOutGroup(page);

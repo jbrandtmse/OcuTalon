@@ -41,7 +41,8 @@ ClassMethod Ids(has As %DynamicObject) As %List
 	Set ids = ""
 	If has.%Get("persona") Set ids = ids _ $ListBuild("persona")
 	Set ids = ids _ $ListBuild("suspiciousEmail", "rejectFix", "demoView")
-	If has.%Get("memory") Set ids = ids _ $ListBuild("memory", "memoryCard")
+	If has.%Get("memory") Set ids = ids _ $ListBuild("memory")
+	If has.%Get("memory") Set ids = ids _ $ListBuild("memoryCard")
 	If has.%Get("documents") Set ids = ids _ $ListBuild("documents")
 	If has.%Get("heartbeat") Set ids = ids _ $ListBuild("heartbeat")
 	Quit ids

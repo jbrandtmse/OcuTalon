@@ -38,9 +38,11 @@ test('MS1: each search counts as a message, the one past the limit is a 429 with
     await seedAllowance(epoch, 49, 60);
     expect((await allowanceRow(epoch)).times, 'the session holds 49 entries').toBe(49);
 
+    const listed = page.waitForResponse((response) => ITEMS.test(response.url()) && !response.url().includes('q=') && response.request().method() === 'GET');
     await memoriesTab(page).click();
     await expect(searchBox(page)).toBeVisible();
-    expect((await allowanceRow(epoch)).times, 'opening All memories (the list) counts nothing').toBe(49);
+    expect((await listed).status(), 'opening All memories reads the list').toBe(200);
+    expect((await allowanceRow(epoch)).times, 'and the list counts nothing').toBe(49);
 
     const first = searchAnswer(page);
     await searchBox(page).fill('zz allowance one');

@@ -687,7 +687,7 @@ export class MemoryCard {
     }
   }
 
-  /** A pin or unpin that did not go through: a 404 means the memory is gone, so its row leaves; anything else shows the panel's notice. */
+  /** A pin or unpin that did not go through: a 404 means the memory is gone, so its row leaves and focus goes to the Memory heading; anything else shows the panel's notice. */
   private toggleFailed(ref: string, pinning: boolean, panel: MemoryPanel, error: unknown): void {
     if (!this.shown) {
       return;
@@ -699,6 +699,7 @@ export class MemoryCard {
       if (wasPinned || panel === 'pinned') {
         this.readPinned(true);
       }
+      this.focusHeading();
       return;
     }
     const text = status === 409 && pinning ? MEMORY_TEXTS.overCap : pinning ? MEMORY_TEXTS.pinFailed : MEMORY_TEXTS.unpinFailed;

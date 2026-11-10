@@ -15,8 +15,9 @@
 ///     session whose turn it is in, and the refusal is not_allowed and nothing reaches SettingsOps;
 ///   - the memory verbs PinMemory and UnpinMemory are web_user only and no tool verb, so inside a bridge context they are not_allowed; ForgetMemory
 ///     is accepted from tool (with the context check below) and from web_user; SearchMemory, a read verb that the web layer sends for the Memory
-///     card's search, is web_user only and no tool verb either; ListPinnedMemories, the read behind the card's Pinned tab, is web_user only and no tool
-///     verb, and is sent with the search's bounded wait (Story 41.13);
+///     card's search, is web_user only and no tool verb either;
+///   - ListPinnedMemories, the read behind the Memory card's Pinned tab, is web_user only and no tool verb, and is sent with the search's bounded wait
+///     (Story 41.13);
 ///   - on the online demo (Data.Setting onlineDemo = 1) each SearchMemory counts as one of the session's messages through Allowance.TryConsumeRead,
 ///     before anything is sent and without a Turn or an allowance window; past the limit the answer is Outcome allowance (Ok 0) with Data {retryAt, limit}
 ///     (Story 41.13). The list, the pinned read and every other verb never count;
@@ -37,7 +38,8 @@
 ///   - the owner's CommandResult is the answer, as it is. An owner that is still a stub (code 5003, or a process stub's
 ///     <Ens>ErrBPTerminated that carries it) gives Outcome not_built; any other error, a timeout, no answer or an answer that
 ///     is not a CommandResult gives Outcome failed. Both have Ok 0.
-///     A SearchMemory or ListPinnedMemories that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) instead, which the web layer answers with its own busy text.
+///     A SearchMemory that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) instead, which the web layer answers with its own busy text.
+///     A ListPinnedMemories that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) the same way (Story 41.13).
 /// OnProcessInput never answers an error status and never throws: an error thrown inside it is logged once and answers failed.
 /// So Submit's status is OK whenever this service answered. Role checks are not made here: they stay with the admin-checked
 /// entry points.
@@ -162,9 +164,10 @@ Method SearchAllowance(command As OcuTalon.Msg.Command.SearchMemory) As OcuTalon
 	Quit result
 }
 
-/// The send of a SearchMemory or ListPinnedMemories: it waits SEARCHTIMEOUT seconds. A synchronous send that has no answer by then ends with an OK status and no response, which
+/// The send of a SearchMemory: it waits SEARCHTIMEOUT seconds. A synchronous send that has no answer by then ends with an OK status and no response, which
 /// is answered here as a CommandResult with Ok 0 and Outcome busy (the Message is the gate's failed sentence); the owner still finishes the request, and
 /// nothing is changed by it.
+/// A ListPinnedMemories is sent the same way (Story 41.13).
 Method SendSearch(target As %String, request As Ens.Request, Output response As %Library.Persistent) As %Status [ Private ]
 {
 	Set sc = ..SendRequestSync(target, request, .response, ..#SEARCHTIMEOUT)
@@ -251,7 +254,8 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// AD-21): MarkNoise and ForgetPrecedent to PrecedentOps, each from web_user only; neither is a tool verb.
 /// The memory verbs (Epic 41, AD-21): PinMemory and UnpinMemory to MemoryOps from web_user only, neither a tool verb, and ForgetMemory
 /// to MemoryOps from tool and from web_user (the Memory card's Forget; MemoryOps forgets only the command's own session's row), and SearchMemory
-/// (a read) to MemoryOps from web_user only. ListPinnedMemories (a read, Story 41.13) goes to MemoryOps from web_user only.
+/// (a read) to MemoryOps from web_user only.
+/// ListPinnedMemories (a read, Story 41.13) goes to MemoryOps from web_user only.
 /// A settings verb whose origins include web_user or tool is refused with the plain not-allowed text, not the admin-only one.
 /// Step 4 (Story 35.2, AD-1, AD-21): the MCP verbs go to McpOps from web_admin only, and SendEmail to EmailOut from tool (own address only,
 /// Carry) and system. SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.

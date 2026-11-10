@@ -87,6 +87,8 @@ export interface MoreToTryItem {
   readonly lookFor: string;
   readonly button: string;
   readonly action: MoreToTryAction;
+  /** The heading of the panel's group the item belongs to (the More to try groups ruling, 2026-11-10); none until the item declares one. */
+  readonly group?: string;
 }
 
 /** The items, in the order the panel shows them. */
@@ -96,7 +98,7 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'rejectFix', ...MORE_TO_TRY_TEXTS.items.rejectFix, action: 'rejectFix' },
   { id: 'demoView', ...MORE_TO_TRY_TEXTS.items.demoView, action: 'demoView' },
   { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory' },
-  { id: 'memoryCard', ...MORE_TO_TRY_TEXTS.items.memoryCard, action: 'memoryCard' },
+  { id: 'memoryCard', ...MORE_TO_TRY_TEXTS.items.memoryCard, action: 'memoryCard', group: 'Memory and documents' },
   { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents' },
   { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat' },
 ];

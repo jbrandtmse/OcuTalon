@@ -2004,7 +2004,8 @@ ClassMethod MemoryItemCommand(verb As %String, ref As %String) As %Status [ Priv
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "The "_verb_" was answered "_outcome))
 }
 
-/// Submits the MarkNoise, ForgetPrecedent, PinMemory, UnpinMemory, ForgetMemory, SearchMemory or ListPinnedMemories with origin web_user; result is the CommandResult. An error status means the command never reached CommandsIn.
+/// Submits the MarkNoise, ForgetPrecedent, PinMemory, UnpinMemory, ForgetMemory or SearchMemory with origin web_user; result is the CommandResult. An error status means the command never reached CommandsIn.
+/// A ListPinnedMemories is submitted the same way (Story 41.13).
 ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)

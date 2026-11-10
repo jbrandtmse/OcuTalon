@@ -284,7 +284,9 @@ test('D10: Remove asks first, a failed remove is announced once and named in the
   await confirm.click();
   await expect(dialog.getByText(REMOVE_FAILED), 'an error answer to the remove').toBeVisible({ timeout: 30_000 });
   await expect(confirm, 'the confirm button is described by the notice').toHaveAccessibleDescription(REMOVE_FAILED);
-  expect(await announcements(page, REMOVE_FAILED), 'and the notice is announced once').toBe(1);
+  await expect.poll(() => announcements(page, REMOVE_FAILED), { message: 'and the notice is announced once' }).toBe(1);
+  await page.waitForTimeout(1000);
+  expect(await announcements(page, REMOVE_FAILED), 'and only once').toBe(1);
   await expect(row, 'the row is kept').toHaveCount(1);
 
   await page.route(`**${DOCUMENTS}/*`, (route) =>
