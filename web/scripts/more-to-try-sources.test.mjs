@@ -89,9 +89,14 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.doesNotMatch(code, /@media \$\{LAYOUT_QUERIES\.stacked\}/, 'the stacked column has no bound of its own: the page scrolls');
   });
 
-  it('hands item 7 to the Heartbeat checklist card\'s heading and presses nothing', () => {
+  it('hands the heartbeat item to the Heartbeat checklist card\'s heading and presses nothing', () => {
     assert.match(code, /case 'heartbeat':\s*this\.layout\.focusRegion\(RAIL_REGION\);\s*this\.handTo\(\[`#\$\{HEARTBEAT_HEADING_ID\}`\], \(\) => false\);/);
     assert.match(code, /import \{ HEARTBEAT_HEADING_ID \} from '\.\.\/rail\/heartbeat-card\/heartbeat-card-view'/);
+  });
+
+  it('hands the Memory card item to the Memory heading and presses nothing', () => {
+    assert.match(code, /case 'memoryCard':\s*this\.layout\.focusRegion\(RAIL_REGION\);\s*this\.handTo\(\[`#\$\{MEMORY_HEADING_ID\}`\], \(\) => false\);/);
+    assert.match(code, /import \{ MEMORY_HEADING_ID \} from '\.\.\/rail\/memory-card\/memory-card-view'/);
   });
 
   it('uses none of the class names the guide\'s other parts use', () => {

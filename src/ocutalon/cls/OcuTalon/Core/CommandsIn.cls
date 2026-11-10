@@ -15,7 +15,11 @@
 ///     session whose turn it is in, and the refusal is not_allowed and nothing reaches SettingsOps;
 ///   - the memory verbs PinMemory and UnpinMemory are web_user only and no tool verb, so inside a bridge context they are not_allowed; ForgetMemory
 ///     is accepted from tool (with the context check below) and from web_user; SearchMemory, a read verb that the web layer sends for the Memory
-///     card's search, is web_user only and no tool verb either;
+///     card's search, is web_user only and no tool verb either; ListPinnedMemories, the read behind the card's Pinned tab, is web_user only and no tool
+///     verb, and is sent with the search's bounded wait (Story 41.13);
+///   - on the online demo (Data.Setting onlineDemo = 1) each SearchMemory counts as one of the session's messages through Allowance.TryConsumeRead,
+///     before anything is sent and without a Turn or an allowance window; past the limit the answer is Outcome allowance (Ok 0) with Data {retryAt, limit}
+///     (Story 41.13). The list, the pinned read and every other verb never count;
 ///   - step 4 (AD-1, AD-21): the five MCP verbs AddMcpServer, RemoveMcpServer, ClassifyTool, SetSourcePoll and RemoveSourcePoll go to
 ///     McpOps from web_admin only; none is a tool verb, and a refusal from any other origin than tool says "admin only", as for
 ///     SettingsOps. SendEmail goes to EmailOut from system (FixExecutor's approved email fix) and from tool; from tool it is accepted
@@ -33,7 +37,7 @@
 ///   - the owner's CommandResult is the answer, as it is. An owner that is still a stub (code 5003, or a process stub's
 ///     <Ens>ErrBPTerminated that carries it) gives Outcome not_built; any other error, a timeout, no answer or an answer that
 ///     is not a CommandResult gives Outcome failed. Both have Ok 0.
-///     A SearchMemory that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) instead, which the web layer answers with its own busy text.
+///     A SearchMemory or ListPinnedMemories that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) instead, which the web layer answers with its own busy text.
 /// OnProcessInput never answers an error status and never throws: an error thrown inside it is logged once and answers failed.
 /// So Submit's status is OK whenever this service answered. Role checks are not made here: they stay with the admin-checked
 /// entry points.
@@ -102,6 +106,10 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	}
 	If (origin = "tool") && ((verb = "SendDigest") || (verb = "SaveMemory") || (verb = "ForgetMemory")) && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	If (origin = "tool") && (verb = "SendEmail") && '..OwnAddressOnly(command) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
+	If verb = "SearchMemory" {
+		Set refusal = ..SearchAllowance(command)
+		If $IsObject(refusal) Quit refusal
+	}
 	Do ..Join(command)
 	Set request = $Select(verb = "Dismiss": ..Dismissal(command), verb = "RunHeartbeat": ..BeatRequest(command), 1: command)
 	Set sc = ..Send(owner, request, .response)
@@ -134,11 +142,27 @@ ClassMethod OwnAddressOnly(command As OcuTalon.Msg.Command.SendEmail) As %Boolea
 /// after the checks; a test subclass overrides it to stand in for the owner.
 Method Send(target As %String, request As Ens.Request, Output response As %Library.Persistent) As %Status [ Private ]
 {
+	If request.%IsA("OcuTalon.Msg.Command.ListPinnedMemories") Quit ..SendSearch(target, request, .response)
 	If request.%IsA("OcuTalon.Msg.Command.SearchMemory") Quit ..SendSearch(target, request, .response)
 	Quit ..SendRequestSync(target, request, .response, ..#TIMEOUT)
 }
 
-/// The send of a SearchMemory: it waits SEARCHTIMEOUT seconds. A synchronous send that has no answer by then ends with an OK status and no response, which
+/// The refusal that a SearchMemory meets on the online demo, or "" when it may go on (Story 41.13, DW-1031): Allowance.TryConsumeRead counts it
+/// against the session's message allowance. Refused with a retryAt, the result is Outcome allowance with Data {retryAt, limit}; refused without
+/// one (the row's lock stayed busy, or a failure), it is the gate's failed result. Nothing is recorded by a refusal.
+Method SearchAllowance(command As OcuTalon.Msg.Command.SearchMemory) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	If ##class(OcuTalon.Core.Allowance).TryConsumeRead(command.SessionRef, .retryAt) Quit ""
+	If retryAt = "" Quit ..Result("failed", ..#MESSAGEFAILED)
+	Set result = ..Result("allowance", "")
+	Set data = {}
+	Set data.retryAt = retryAt
+	Do data.%Set("limit", ##class(OcuTalon.Core.Allowance).Limit(), "number")
+	Set result.Data = data.%ToJSON()
+	Quit result
+}
+
+/// The send of a SearchMemory or ListPinnedMemories: it waits SEARCHTIMEOUT seconds. A synchronous send that has no answer by then ends with an OK status and no response, which
 /// is answered here as a CommandResult with Ok 0 and Outcome busy (the Message is the gate's failed sentence); the owner still finishes the request, and
 /// nothing is changed by it.
 Method SendSearch(target As %String, request As Ens.Request, Output response As %Library.Persistent) As %Status [ Private ]
@@ -227,7 +251,7 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// AD-21): MarkNoise and ForgetPrecedent to PrecedentOps, each from web_user only; neither is a tool verb.
 /// The memory verbs (Epic 41, AD-21): PinMemory and UnpinMemory to MemoryOps from web_user only, neither a tool verb, and ForgetMemory
 /// to MemoryOps from tool and from web_user (the Memory card's Forget; MemoryOps forgets only the command's own session's row), and SearchMemory
-/// (a read) to MemoryOps from web_user only.
+/// (a read) to MemoryOps from web_user only. ListPinnedMemories (a read, Story 41.13) goes to MemoryOps from web_user only.
 /// A settings verb whose origins include web_user or tool is refused with the plain not-allowed text, not the admin-only one.
 /// Step 4 (Story 35.2, AD-1, AD-21): the MCP verbs go to McpOps from web_admin only, and SendEmail to EmailOut from tool (own address only,
 /// Carry) and system. SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.
@@ -266,7 +290,8 @@ XData Routes [ MimeType = application/json ]
  {"verb": "ClassifyTool", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "SetSourcePoll", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "RemoveSourcePoll", "owner": "McpOps", "origins": "web_admin"},
- {"verb": "SendEmail", "owner": "EmailOut", "origins": "tool,system"}
+ {"verb": "SendEmail", "owner": "EmailOut", "origins": "tool,system"},
+ {"verb": "ListPinnedMemories", "owner": "MemoryOps", "origins": "web_user"}
 ]
 }
 

@@ -67,7 +67,7 @@ const IMPORTED = [
   ['settings/settings-view.ts', ['SETTINGS_TEXTS']],
   ['documents/documents-view.ts', ['DOCUMENTS_TEXTS', 'REASON_TEXTS']],
   ['chat/noise-view.ts', ['NOISE_TEXTS']],
-  ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS']],
+  ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS', 'ANSWER_WORDS']],
 ];
 const modules = {};
 const imported = [];
@@ -574,6 +574,18 @@ const SOURCES = {
     'Yesterday',
     'This was noise',
     'Marked as noise at {time}. Similar items will take this into account.',
+    // Story 41.13 (EXPERIENCE.md, the Memory card: the tabs, the Pinned line and its figure, the chips, the refused pin) and the stored answers' words (DW-998).
+    'Pinned',
+    'All memories',
+    'Pinned facts are read at the start of each conversation.',
+    '{used} of 1,000 tokens (estimated).',
+    'Told',
+    'Learned',
+    'Pin',
+    'Unpin',
+    'That would go over the 1,000-token limit. Unpin something first.',
+    'Approved',
+    'Rejected',
   ],
   design: [
     'Unread',
@@ -750,6 +762,22 @@ const SOURCES = {
       'Forget {summary}',
       "Couldn't forget it. Nothing was changed.",
       'OcuTalon keeps this answer but does not use it when it decides.',
+    ],
+    'Story 41.13 ruling planner-2026-11-09-41.13 (the Contest Planner under the owner\'s delegation, relayed by the orchestrator: the PUBLIC TEXT list of the Memory card\'s Pinned and All memories tabs, with the two empty texts, the More to try item and the demo rule line; the Search is busy text is Story 41.9\'s ruling)': [
+      'Nothing pinned yet. Pin a memory from All memories.',
+      'No memories yet. Say "Remember that ..." in the chat.',
+      'No memories match.',
+      'Search your memories',
+      'Search',
+      'Showing the newest {shown} of {total}. Search to find the others.',
+      'Forget this memory? OcuTalon will stop using it.',
+      "Couldn't pin it. Nothing was changed.",
+      "Couldn't unpin it. Nothing was changed.",
+      'Search is busy right now. Try again in a moment.',
+      "On the online demo, your memories and pins belong to this visit: they're deleted when you sign out or the demo resets. Each search counts as one of your messages.",
+      'Pin a memory',
+      'First do "Ask it to remember something". Then open All memories in the Memory card and press Pin on the memory marked Told. Open Pinned to see it: pinned facts are read at the start of each conversation, up to 1,000 tokens.',
+      'Go to the Memory card',
     ],
   },
   calendar: [
@@ -933,8 +961,9 @@ describe('the sources', () => {
 describe('the ellipsis and the characters', () => {
   const strings = [...inventory.keys()];
 
-  it('never holds three dots', () => {
-    assert.deepEqual(strings.filter((text) => text.includes('...')), []);
+  it('never holds three dots, but in the one text that the Contest Planner ruled with the user\'s own words in straight quotes', () => {
+    // Story 41.13 (planner-2026-11-09-41.13): the Memory card's empty text quotes the phrase to type, "Remember that ...", as the other look-for lines quote theirs.
+    assert.deepEqual(strings.filter((text) => text.includes('...')), ['No memories yet. Say "Remember that ..." in the chat.']);
   });
 
   it('holds U+2026 once, from the UX, when a string holds it', () => {

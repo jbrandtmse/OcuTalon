@@ -2,6 +2,7 @@
  * The online demo's busy state on the signed-in page (Story 16.5; AD-13). A framework-free state machine: it imports nothing and
  * uses only erasable TypeScript syntax, so Node runs it as it is, and its timer is injected like ContactWatch's.
  *
+ * - `makesDemoBusy` is the rule for an API answer: a 503 makes the page busy unless its body's `error.code` is `search_busy` (the Memory card's own).
  * - There are two causes. The API cause holds from an API answer of 503 until the next 2xx API answer. The trace cause holds from a
  *   status check that said busy until a later status check says otherwise.
  * - `busy` is true while either cause holds. A 2xx API answer does not clear the trace cause, and a status check does not clear the
@@ -18,6 +19,22 @@ export const DEMO_BUSY_RECHECK_MS = 10_000;
 
 /** The status of an API answer that is the busy state (AD-25). */
 export const DEMO_BUSY_STATUS = 503;
+
+/** The error code of a memory read that has no answer in time: the Memory card shows its own message, and the page is not busy (Story 41.13, DW-1040). */
+export const SEARCH_BUSY_CODE = 'search_busy';
+
+/**
+ * True when an API answer of this status, with this error body, makes the page busy: a 503 whose body `error.code` is not `search_busy`. The
+ * one rule of the client for the busy state; the envelope interceptor asks it for every 503.
+ */
+export function makesDemoBusy(status: number, body: unknown): boolean {
+  if (status !== DEMO_BUSY_STATUS) {
+    return false;
+  }
+  const error = typeof body === 'object' && body !== null ? (body as { error?: unknown }).error : undefined;
+  const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
+  return code !== SEARCH_BUSY_CODE;
+}
 
 /** What a DemoBusyWatch needs: its timer functions, injected so a test can run them on a fake clock, and the check it asks for. */
 export interface DemoBusyOptions {

@@ -9,6 +9,7 @@ import { AllowanceState } from '../live/allowance-state';
 import { LiveState } from '../live/live-state';
 import { chipName, SAMPLES } from '../mailbox/mailbox-view';
 import { HEARTBEAT_HEADING_ID } from '../rail/heartbeat-card/heartbeat-card-view';
+import { MEMORY_HEADING_ID } from '../rail/memory-card/memory-card-view';
 import { PERSONA_HEADING_ID } from '../rail/persona-card/persona-card-view';
 import { Layout, RAIL_REGION } from '../shared/layout';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
@@ -35,8 +36,7 @@ let panels = 0;
  * A control hands off to the control the page already has: it puts focus on that control and presses it, so the action is exactly that
  * control's own. Item 1 opens the rail and the Persona card's Change, item 2 selects the Simulated mailbox tab and presses the
  * suspicious-request chip, item 3 presses the box's Break the feed, item 4 presses the Demo view switch while it is on, item 5 sends its
- * prompt through the chat's outbox (a new message of the user's), item 6 is a link to the Documents page and item 7 opens the rail and
- * focuses the Heartbeat checklist card's heading, pressing nothing. Every action runs from the control's own click, and focus moves
+ * prompt through the chat's outbox (a new message of the user's), the Memory card item and the heartbeat item open the rail and focus the card's heading, pressing nothing, and the documents item is a link to the Documents page. Every action runs from the control's own click, and focus moves
  * only for that press. The panel announces nothing, and it emits `pressed` so that the guide keeps the panel open, and `squeezed` when the
  * room is too small for it even at its shortest window, so that the guide does not start it open.
  *
@@ -224,6 +224,10 @@ export class MoreToTry {
         if (!this.blocked()) {
           this.outbox.send(MORE_TO_TRY_TEXTS.rememberPrompt);
         }
+        break;
+      case 'memoryCard':
+        this.layout.focusRegion(RAIL_REGION);
+        this.handTo([`#${MEMORY_HEADING_ID}`], () => false);
         break;
       case 'heartbeat':
         this.layout.focusRegion(RAIL_REGION);

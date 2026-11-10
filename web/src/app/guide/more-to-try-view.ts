@@ -1,6 +1,6 @@
 /**
  * The demo guide's "Other things to try" panel (Story 4.11; EXPERIENCE: Demo guide and controls): its fixed strings, the registry of
- * its seven items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
+ * its items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
  * as it is and the strings test reads it.
  *
  * The catalog is the server's (AD-12): `guide.features` is the list of feature ids that Demo.Features.Present gives, in the guide's
@@ -53,6 +53,12 @@ export const MORE_TO_TRY_TEXTS = {
         'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
       button: 'Ask it to remember',
     },
+    memoryCard: {
+      label: 'Pin a memory',
+      lookFor:
+        'First do "Ask it to remember something". Then open All memories in the Memory card and press Pin on the memory marked Told. Open Pinned to see it: pinned facts are read at the start of each conversation, up to 1,000 tokens.',
+      button: 'Go to the Memory card',
+    },
     documents: {
       label: 'Ask about a document',
       lookFor:
@@ -72,7 +78,7 @@ export const MORE_TO_TRY_TEXTS = {
 export const BREAK_FEED_BUTTON = 'app-break-feed-box app-server-button button';
 
 /** The hand-off that an item's control makes. */
-export type MoreToTryAction = 'persona' | 'suspiciousEmail' | 'rejectFix' | 'demoView' | 'memory' | 'documents' | 'heartbeat';
+export type MoreToTryAction = 'persona' | 'suspiciousEmail' | 'rejectFix' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat';
 
 /** One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off. */
 export interface MoreToTryItem {
@@ -83,13 +89,14 @@ export interface MoreToTryItem {
   readonly action: MoreToTryAction;
 }
 
-/** The seven items, in the order the panel shows them. */
+/** The items, in the order the panel shows them. */
 export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'persona', ...MORE_TO_TRY_TEXTS.items.persona, action: 'persona' },
   { id: 'suspiciousEmail', ...MORE_TO_TRY_TEXTS.items.suspiciousEmail, action: 'suspiciousEmail' },
   { id: 'rejectFix', ...MORE_TO_TRY_TEXTS.items.rejectFix, action: 'rejectFix' },
   { id: 'demoView', ...MORE_TO_TRY_TEXTS.items.demoView, action: 'demoView' },
   { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory' },
+  { id: 'memoryCard', ...MORE_TO_TRY_TEXTS.items.memoryCard, action: 'memoryCard' },
   { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents' },
   { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat' },
 ];

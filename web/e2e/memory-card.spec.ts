@@ -1,21 +1,28 @@
 import { expect, test, type Locator, type Page, type Request, type Response } from './support/fixtures';
 
-import { README_ACCOUNT } from './sign-in/helpers';
+import { README_ACCOUNT, envelope, signIn } from './sign-in/helpers';
 import { dropPhone, pointKeys, restoreKeys } from './support/devices';
-import { railOf, signInReadmeLoaded, unique } from './support/floor';
-import { cleanFixtureRows, sendItem, seedOtherSession } from './support/iris';
+import { loadedAfter, railOf, signInReadmeLoaded, unique } from './support/floor';
+import { cleanFixtureRows, fixtureUser, sendItem, seedOtherSession } from './support/iris';
 import {
   localTimeUtc,
   logMark,
+  memoryExists,
+  pinnedCountOf,
   precedentExists,
   removeDecisionsOf,
+  removeMemory,
   removeNoteRows,
   removePrecedent,
+  seedMemory,
   seedNoteTurn,
   seedPrecedent,
+  sessionRefOfUser,
+  setMemorySource,
   triageRequests,
   waitDecideRef,
 } from './support/memory';
+import { announcements, recordAnnouncements } from './support/page';
 import { sessionRef } from './support/persona';
 import { instanceSeq, monitorSettled, runnersReady, runnersRecorded } from './support/runners';
 
@@ -35,6 +42,16 @@ import { instanceSeq, monitorSettled, runnersReady, runnersRecorded } from './su
  *   MC8  the demo variant: another session's and a seeded row never show, and the card keeps nothing across loads;
  *   MC9  Integration: after Forget the next decide request for the same sender carries no precedent (the CI mock's log);
  *   MC10 a served line, the cut mark "(more not shown)" included, is one list item as served.
+ * Story 41.13 (FR-73, FR-74, DW-996, DW-997, DW-1030, DW-1031, DW-1040) adds the tabs Pinned and All memories and the shared confirm dialog, signed in as the unprivileged LIVE
+ * fixture user (role OcuTalonUser only); every case seeds its memories through support/memory.ts and removes them in `finally`:
+ *   MC11 the four tabs in order, with their roles, and the arrows cycle all four;
+ *   MC12 All memories lists a told and a learned row with their chips; typing sends no search and Enter sends one; a match, and "No memories match.";
+ *   MC13 Pin moves a row to Pinned with the figure (held arithmetic), and Unpin takes it off and reads the figure again (Integration: the real route, gate, MemoryOps and Memory.CoreBlock);
+ *   MC14 two pins of 2,000 and 1,956 characters, then Pin on a 2-character row shows the refusal, announced and named in the button's description, and the row stays unpinned;
+ *   MC15 Forget asks, then the row leaves All memories and Pinned, and a search no longer finds it;
+ *   MC16 a faked 503 search_busy shows the card's own busy notice, announced and named in the search's description;
+ *   MC17 the confirm dialog's faked 500 notice is announced once and named in the confirm button's description;
+ *   MC18 a local install shows no demo rule line.
  */
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
 
@@ -54,9 +71,11 @@ const REGION = '.empty, .hint, [aria-live], [role="status"], [role="alert"], [ro
 
 const card = (page: Page): Locator => railOf(page).locator('app-memory-card');
 const headingOf = (page: Page): Locator => page.locator('#rail-heading-memory');
-const tabOf = (page: Page, name: 'Notes' | 'Your answers'): Locator => card(page).getByRole('tab', { name, exact: true });
+const tabOf = (page: Page, name: 'Notes' | 'Your answers' | 'Pinned' | 'All memories'): Locator => card(page).getByRole('tab', { name, exact: true });
 const notesPanel = (page: Page): Locator => card(page).getByRole('tabpanel', { name: 'Notes', exact: true });
 const answersPanel = (page: Page): Locator => card(page).getByRole('tabpanel', { name: 'Your answers', exact: true });
+const pinnedPanel = (page: Page): Locator => card(page).getByRole('tabpanel', { name: 'Pinned', exact: true });
+const memoriesPanel = (page: Page): Locator => card(page).getByRole('tabpanel', { name: 'All memories', exact: true });
 const rowOf = (page: Page, summary: string): Locator => answersPanel(page).locator('li.row').filter({ hasText: summary });
 const forgetOf = (page: Page, summary: string): Locator => rowOf(page, summary).getByRole('button', { name: `Forget ${summary}`, exact: true });
 const dialogOf = (page: Page): Locator => page.getByRole('dialog', { name: QUESTION, exact: true });
@@ -113,7 +132,7 @@ async function servedLines(page: Page, day: 'today' | 'yesterday'): Promise<stri
 }
 
 /** MC1: the section, its tabs and the Notes intro. */
-test('MC1: the rail has eight headings with Memory between Heartbeat checklist and Persona, and the card shows the tabs Notes and Your answers', async ({ page }) => {
+test('MC1: the rail has eight headings with Memory between Heartbeat checklist and Persona, and the card shows the tabs Notes, Your answers, Pinned and All memories', async ({ page }) => {
   await open(page);
   const headings = railOf(page).getByRole('heading', { level: 3 });
   await expect(headings, 'eight sections, Telegram first and Persona last').toHaveCount(8);
@@ -125,13 +144,15 @@ test('MC1: the rail has eight headings with Memory between Heartbeat checklist a
 
   await expect(card(page).getByRole('tablist', { name: 'Memory', exact: true }), 'the tab list is named by the Memory heading').toHaveCount(1);
   const tabs = card(page).getByRole('tab');
-  await expect(tabs, 'two tabs, in order').toHaveText(['Notes', 'Your answers']);
+  await expect(tabs, 'four tabs, in order').toHaveText(['Notes', 'Your answers', 'Pinned', 'All memories']);
   await expect(tabOf(page, 'Notes'), 'Notes is selected').toHaveAttribute('aria-selected', 'true');
   await expect(tabOf(page, 'Notes')).toHaveAttribute('tabindex', '0');
   await expect(tabOf(page, 'Your answers')).toHaveAttribute('aria-selected', 'false');
   await expect(tabOf(page, 'Your answers')).toHaveAttribute('tabindex', '-1');
   await expect(notesPanel(page), 'the Notes panel is named by its tab').toBeVisible();
   await expect(answersPanel(page), 'the Your answers panel is hidden').toHaveCount(0);
+  await expect(pinnedPanel(page), 'so are the Pinned and All memories panels').toHaveCount(0);
+  await expect(memoriesPanel(page)).toHaveCount(0);
   await expect(notesPanel(page).getByText(NOTES_INTRO, { exact: true }), 'the Notes intro, verbatim').toBeVisible();
   await expect(card(page).locator(REGION), 'the card adds no empty text, hint or live region').toHaveCount(0);
   await expect(card(page).getByRole('heading', { level: 3 }), 'and no h3 of its own').toHaveCount(0);
@@ -406,7 +427,7 @@ test('MC6: the tabs, Forget and the dialog work by keyboard alone', async ({ pag
     await page.keyboard.press('Tab');
     await expect(tabOf(page, 'Notes'), 'Tab reaches the selected tab').toBeFocused();
     await page.keyboard.press('ArrowRight');
-    await expect(tabOf(page, 'Your answers'), 'ArrowRight focuses the other tab').toBeFocused();
+    await expect(tabOf(page, 'Your answers'), 'ArrowRight focuses the next tab').toBeFocused();
     await expect(tabOf(page, 'Your answers'), 'and selects it').toHaveAttribute('aria-selected', 'true');
     await expect(tabOf(page, 'Your answers'), 'the roving tabindex follows the selection').toHaveAttribute('tabindex', '0');
     await expect(tabOf(page, 'Notes')).toHaveAttribute('aria-selected', 'false');
@@ -414,9 +435,9 @@ test('MC6: the tabs, Forget and the dialog work by keyboard alone', async ({ pag
     await expect(answersPanel(page).getByText(ANSWERS_INTRO, { exact: true }), 'the panel changes').toBeVisible();
     await expect(notesPanel(page), 'and the Notes panel is hidden').toHaveCount(0);
     await page.keyboard.press('ArrowRight');
-    await expect(tabOf(page, 'Notes'), 'ArrowRight wraps').toBeFocused();
+    await expect(tabOf(page, 'Pinned'), 'ArrowRight moves on to Pinned').toBeFocused();
     await page.keyboard.press('ArrowLeft');
-    await expect(tabOf(page, 'Your answers'), 'ArrowLeft wraps back').toBeFocused();
+    await expect(tabOf(page, 'Your answers'), 'ArrowLeft moves back').toBeFocused();
     await expect(tabOf(page, 'Your answers')).toHaveAttribute('aria-selected', 'true');
     await expect(forgetOf(page, summary), 'the newest row is the first Forget').toBeVisible();
 
@@ -603,4 +624,366 @@ test.describe('MC9 (Integration)', () => {
       await dropPhone(README_ACCOUNT.user, since);
     }
   });
+});
+
+// --- Story 41.13: the tabs Pinned and All memories, as the unprivileged LIVE fixture user ---
+
+const ITEMS = /\/api\/v1\/memory\/items(\?|$)/;
+const ITEM_FORGET = /\/api\/v1\/memory\/items\/[^/?]+$/;
+const PINNED = /\/api\/v1\/memory\/pinned$/;
+const PINNED_INTRO = 'Pinned facts are read at the start of each conversation.';
+const PINNED_EMPTY = 'Nothing pinned yet. Pin a memory from All memories.';
+const MEMORIES_EMPTY = 'No memories yet. Say "Remember that ..." in the chat.';
+const NO_MATCH = 'No memories match.';
+const SEARCH_BUSY = 'Search is busy right now. Try again in a moment.';
+const OVER_CAP = 'That would go over the 1,000-token limit. Unpin something first.';
+const MEMORY_QUESTION = 'Forget this memory? OcuTalon will stop using it.';
+const DEMO_RULE = 'On the online demo, your memories and pins belong to this visit';
+
+const searchBox = (page: Page): Locator => memoriesPanel(page).getByRole('searchbox', { name: 'Search your memories', exact: true });
+const searchButton = (page: Page): Locator => memoriesPanel(page).getByRole('button', { name: 'Search', exact: true });
+/** The row of a memory in a panel, found by its text, which is the row's title. */
+const memoryRow = (panel: Locator, text: string): Locator => panel.locator('li.row').filter({ has: panel.page().locator('.title', { hasText: text }) });
+const memoryDialog = (page: Page): Locator => page.getByRole('dialog', { name: MEMORY_QUESTION, exact: true });
+/** The tokens a block of single-line pins uses, worked out here: the opening is 36 characters, each pin adds 3 and its length, and the closing blank line adds 2. */
+const tokensOf = (lengths: number[]): number => Math.ceil((36 + lengths.reduce((sum, length) => sum + 3 + length, 0) + 2) / 4);
+
+/** Signs the LIVE fixture user in (role OcuTalonUser only) and waits for the card; answers the user's session Ref and checks that it holds no pin. */
+async function openLive(page: Page): Promise<string> {
+  const live = fixtureUser('LIVE');
+  await loadedAfter(page, () => signIn(page, live.user, live.password));
+  await expect(tabOf(page, 'Notes'), 'the card is drawn').toBeVisible();
+  const session = await sessionRefOfUser(live.user);
+  expect(await pinnedCountOf(session), 'the LIVE session holds no pinned memory before the case').toBe(0);
+  return session;
+}
+
+/** Selects All memories and waits for the list that selecting it reads. */
+async function showMemories(page: Page): Promise<void> {
+  const listed = answerOf(page, ITEMS, 200);
+  await tabOf(page, 'All memories').click();
+  await expect(tabOf(page, 'All memories')).toHaveAttribute('aria-selected', 'true');
+  await handled(page, listed);
+}
+
+/** Selects Pinned and waits for the read that selecting it makes. */
+async function showPinned(page: Page): Promise<void> {
+  const read = answerOf(page, PINNED, 200);
+  await tabOf(page, 'Pinned').click();
+  await expect(tabOf(page, 'Pinned')).toHaveAttribute('aria-selected', 'true');
+  await handled(page, read);
+}
+
+/** Removes the memories of a case, if they are there. */
+async function removeAllMemories(refs: string[]): Promise<void> {
+  for (const ref of refs) await removeMemory(ref);
+}
+
+/** MC11: the four tabs, their roles and the arrow keys. */
+test('MC11: the card has the tabs Notes, Your answers, Pinned and All memories in order, and the arrows cycle all four', async ({ page }) => {
+  await openLive(page);
+  await expect(card(page).getByRole('tablist', { name: 'Memory', exact: true }), 'the tab list is named by the Memory heading').toHaveCount(1);
+  await expect(card(page).getByRole('tab'), 'four tabs, in order').toHaveText(['Notes', 'Your answers', 'Pinned', 'All memories']);
+  await expect(tabOf(page, 'Notes'), 'Notes is selected at first').toHaveAttribute('aria-selected', 'true');
+  for (const name of ['Your answers', 'Pinned', 'All memories'] as const) {
+    await expect(tabOf(page, name)).toHaveAttribute('aria-selected', 'false');
+    await expect(tabOf(page, name)).toHaveAttribute('tabindex', '-1');
+  }
+
+  await tabOf(page, 'Notes').focus();
+  for (const name of ['Your answers', 'Pinned', 'All memories', 'Notes'] as const) {
+    await page.keyboard.press('ArrowRight');
+    await expect(tabOf(page, name), `ArrowRight focuses ${name}`).toBeFocused();
+    await expect(tabOf(page, name), 'and selects it').toHaveAttribute('aria-selected', 'true');
+    await expect(tabOf(page, name), 'the roving tabindex follows').toHaveAttribute('tabindex', '0');
+  }
+  for (const name of ['All memories', 'Pinned', 'Your answers', 'Notes'] as const) {
+    await page.keyboard.press('ArrowLeft');
+    await expect(tabOf(page, name), `ArrowLeft focuses ${name}`).toBeFocused();
+    await expect(tabOf(page, name)).toHaveAttribute('aria-selected', 'true');
+  }
+  await expect(pinnedPanel(page), 'the Pinned panel is hidden while Notes is selected').toHaveCount(0);
+  await tabOf(page, 'Pinned').click();
+  await expect(pinnedPanel(page).getByText(PINNED_INTRO, { exact: true }), 'the Pinned panel is named by its tab and opens with its intro').toBeVisible();
+  await tabOf(page, 'All memories').click();
+  await expect(memoriesPanel(page).getByText('Search your memories', { exact: true }), 'the All memories panel opens with its search label').toBeVisible();
+});
+
+/** MC12: the list, the chips, and a search that runs only on submit. */
+test('MC12: All memories lists a told and a learned row with their chips, searches only on Enter, and says when nothing matches', async ({ page }) => {
+  test.setTimeout(150_000);
+  const stamp = Date.now().toString(36);
+  const toldText = `The zzquokka${stamp} gateway is quokka.example.test`;
+  const learnedText = `The zzwombat${stamp} desk is on floor nine`;
+  const refs: string[] = [];
+  try {
+    const session = await openLive(page);
+    refs.push(await seedMemory(session, toldText));
+    const learned = await seedMemory(session, learnedText);
+    refs.push(learned);
+    await setMemorySource(learned, 'learned');
+    const memory = watchMemory(page);
+    await showMemories(page);
+    await expect(memoryRow(memoriesPanel(page), toldText).locator('.chip'), 'the told row carries the chip Told').toHaveText('Told');
+    await expect(memoryRow(memoriesPanel(page), learnedText).locator('.chip'), 'the learned row carries the chip Learned').toHaveText('Learned');
+    await expect(memoryRow(memoriesPanel(page), toldText).getByRole('button', { name: `Pin ${toldText}`, exact: true }), 'Pin is named by the text').toBeVisible();
+    await expect(memoryRow(memoriesPanel(page), toldText).getByRole('button', { name: `Forget ${toldText}`, exact: true }), 'and so is Forget').toBeVisible();
+
+    await searchBox(page).pressSequentially(`zzquokka${stamp}`);
+    await page.waitForTimeout(800);
+    expect(
+      memory().filter((one) => one.includes('/items?q=')),
+      'typing sends no search',
+    ).toEqual([]);
+
+    let status = 0;
+    for (let attempt = 0; attempt < 3 && status !== 200; attempt += 1) {
+      const answered = page.waitForResponse((response) => ITEMS.test(response.url()) && response.url().includes('q='));
+      await searchBox(page).press('Enter');
+      status = (await answered).status();
+    }
+    expect(status, 'Enter sends one search, and it was answered').toBe(200);
+    expect(memory().filter((one) => one.includes(`/items?q=zzquokka${stamp}`)).length, 'the search names the typed text').toBeGreaterThanOrEqual(1);
+    await expect(memoryRow(memoriesPanel(page), toldText), 'the match is listed').toHaveCount(1);
+    await expect(memoriesPanel(page).getByText(NO_MATCH), 'with no empty text').toHaveCount(0);
+
+    await page.route(/\/api\/v1\/memory\/items\?q=zznothing/, (route) => route.fulfill({ json: { items: [], total: 0 } }));
+    await searchBox(page).fill('zznothing');
+    await searchBox(page).press('Enter');
+    await expect(memoriesPanel(page).getByText(NO_MATCH, { exact: true }), 'a search that finds nothing says so').toBeVisible();
+    await expect(memoriesPanel(page).getByText(MEMORIES_EMPTY), 'and not the empty-list text').toHaveCount(0);
+
+    const newest = answerOf(page, ITEMS, 200);
+    await searchBox(page).fill('   ');
+    await searchButton(page).click();
+    await handled(page, newest);
+    await expect(memoryRow(memoriesPanel(page), toldText), 'a blank submit shows the newest list again').toHaveCount(1);
+    await expect(memoryRow(memoriesPanel(page), learnedText)).toHaveCount(1);
+  } finally {
+    await removeAllMemories(refs);
+  }
+});
+
+/** MC13: Pin, the Pinned tab with its figure, and Unpin. */
+test('MC13: Pin moves a row to Pinned with the figure the server counted, and Unpin takes it off and reads the figure again', async ({ page }) => {
+  const text = `The zzpin${Date.now().toString(36)} number is 4242`;
+  const refs: string[] = [];
+  try {
+    const session = await openLive(page);
+    refs.push(await seedMemory(session, text));
+    await showMemories(page);
+    const pin = memoryRow(memoriesPanel(page), text).getByRole('button', { name: `Pin ${text}`, exact: true });
+    await pin.click();
+    const unpin = memoryRow(memoriesPanel(page), text).getByRole('button', { name: `Unpin ${text}`, exact: true });
+    await expect(unpin, 'the same button now says Unpin').toBeVisible();
+    await expect(unpin, 'and keeps focus').toBeFocused();
+    expect(await pinnedCountOf(session), 'the memory is pinned in the table').toBe(1);
+
+    await showPinned(page);
+    await expect(pinnedPanel(page).getByText(PINNED_INTRO, { exact: true })).toBeVisible();
+    await expect(pinnedPanel(page).getByText(`${tokensOf([text.length])} of 1,000 tokens (estimated).`, { exact: true }), 'the figure is worked out here from the text').toBeVisible();
+    await expect(memoryRow(pinnedPanel(page), text).locator('.chip'), 'the pinned row has its chip').toHaveText('Told');
+    await expect(pinnedPanel(page).getByText(PINNED_EMPTY), 'and the panel is not empty').toHaveCount(0);
+
+    await memoryRow(pinnedPanel(page), text).getByRole('button', { name: `Unpin ${text}`, exact: true }).click();
+    await expect(memoryRow(pinnedPanel(page), text), 'Unpin takes the row off Pinned').toHaveCount(0);
+    await expect(pinnedPanel(page).getByText('0 of 1,000 tokens (estimated).', { exact: true }), 'and the figure is read again').toBeVisible();
+    await expect(pinnedPanel(page).getByText(PINNED_EMPTY, { exact: true })).toBeVisible();
+    await expect(headingOf(page), 'focus goes to the Memory heading').toBeFocused();
+    expect(await pinnedCountOf(session), 'the table holds no pin').toBe(0);
+
+    await showMemories(page);
+    await expect(memoryRow(memoriesPanel(page), text).getByRole('button', { name: `Pin ${text}`, exact: true }), 'All memories shows it unpinned again').toBeVisible();
+  } finally {
+    await removeAllMemories(refs);
+  }
+});
+
+/** MC14: the refused pin. */
+test('MC14: a pin that would go over the cap shows the refusal, announced and named in the button\'s description, and the row stays unpinned', async ({ page }) => {
+  test.setTimeout(150_000);
+  const refs: string[] = [];
+  try {
+    await recordAnnouncements(page);
+    const session = await openLive(page);
+    const big = await seedMemory(session, 'a'.repeat(2000));
+    const mid = await seedMemory(session, 'b'.repeat(1956));
+    const short = await seedMemory(session, 'cc');
+    refs.push(big, mid, short);
+    for (const ref of [big, mid]) {
+      const pinned = await page.request.fetch(`${MEMORY}/${ref}/pin`, { method: 'POST', headers: envelope() });
+      expect(pinned.status(), await pinned.text()).toBe(200);
+    }
+    expect(await pinnedCountOf(session), 'two memories are pinned: the block is exactly 4,000 characters').toBe(2);
+
+    await showMemories(page);
+    const row = memoriesPanel(page).locator('li.row').filter({ has: page.locator('.title', { hasText: /^cc$/ }) });
+    const pin = row.getByRole('button', { name: 'Pin cc', exact: true });
+    await pin.click();
+    await expect(memoriesPanel(page).getByText(OVER_CAP, { exact: true }), 'the refusal shows').toBeVisible();
+    await expect(pin, 'the button is described by it').toHaveAccessibleDescription(OVER_CAP);
+    await expect(row.getByRole('button', { name: 'Pin cc', exact: true }), 'the row stays unpinned').toBeVisible();
+    expect(await announcements(page, OVER_CAP), 'it is announced once').toBe(1);
+    expect(await pinnedCountOf(session), 'and nothing was pinned or unpinned').toBe(2);
+    await showPinned(page);
+    await expect(pinnedPanel(page).getByText(`1,000 of 1,000 tokens (estimated).`, { exact: true }), 'the figure is the cap: 1,000 of 1,000').toBeVisible();
+    await expect(pinnedPanel(page).locator('li.row'), 'two pins').toHaveCount(2);
+  } finally {
+    await removeAllMemories(refs);
+  }
+});
+
+/** MC15: Forget, in both lists. */
+test('MC15: Forget asks, then the memory leaves All memories and Pinned at once, and a search no longer finds it', async ({ page }) => {
+  test.setTimeout(150_000);
+  const stamp = Date.now().toString(36);
+  const text = `The zzforget${stamp} contact is Lee`;
+  const refs: string[] = [];
+  try {
+    const session = await openLive(page);
+    const ref = await seedMemory(session, text);
+    refs.push(ref);
+    const pinned = await page.request.fetch(`${MEMORY}/${ref}/pin`, { method: 'POST', headers: envelope() });
+    expect(pinned.status(), await pinned.text()).toBe(200);
+    await showPinned(page);
+    await expect(memoryRow(pinnedPanel(page), text), 'the memory is on Pinned').toHaveCount(1);
+    await showMemories(page);
+    const forget = memoryRow(memoriesPanel(page), text).getByRole('button', { name: `Forget ${text}`, exact: true });
+    await forget.click();
+    await expect(memoryDialog(page), 'Forget asks').toBeVisible();
+    await expect(memoryDialog(page).getByRole('heading', { name: MEMORY_QUESTION, exact: true }), 'with focus on the question').toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(memoryDialog(page)).toHaveCount(0);
+    await expect(forget, 'Esc gives focus back to Forget').toBeFocused();
+    expect(await memoryExists(ref), 'and nothing was forgotten').toBe(1);
+
+    await forget.click();
+    const deleted = page.waitForResponse((response) => response.request().method() === 'DELETE' && ITEM_FORGET.test(new URL(response.url()).pathname));
+    await memoryDialog(page).getByRole('button', { name: 'Forget', exact: true }).click();
+    expect((await deleted).status(), 'the confirm is answered 200').toBe(200);
+    await expect(memoryDialog(page)).toHaveCount(0);
+    await expect(memoryRow(memoriesPanel(page), text), 'the row leaves All memories').toHaveCount(0);
+    await expect(headingOf(page), 'focus goes to the Memory heading').toBeFocused();
+    expect(await memoryExists(ref), 'the table row is gone').toBe(0);
+    await showPinned(page);
+    await expect(memoryRow(pinnedPanel(page), text), 'and it leaves Pinned').toHaveCount(0);
+    await expect(pinnedPanel(page).getByText('0 of 1,000 tokens (estimated).', { exact: true }), 'with the figure read again').toBeVisible();
+
+    await showMemories(page);
+    let status = 0;
+    for (let attempt = 0; attempt < 3 && status !== 200; attempt += 1) {
+      const answered = page.waitForResponse((response) => ITEMS.test(response.url()) && response.url().includes('q='));
+      await searchBox(page).fill(`zzforget${stamp}`);
+      await searchBox(page).press('Enter');
+      status = (await answered).status();
+    }
+    expect(status, 'the search was answered').toBe(200);
+    await expect(memoryRow(memoriesPanel(page), text), 'a later search does not find it').toHaveCount(0);
+  } finally {
+    await removeAllMemories(refs);
+  }
+});
+
+/** MC16: the card's own busy message. */
+test('MC16: a 503 search_busy shows the card\'s busy notice, announced and named in the search\'s description', async ({ page }) => {
+  await recordAnnouncements(page);
+  await page.route(/\/api\/v1\/memory\/items\?q=/, (route) =>
+    route.fulfill({ status: 503, headers: { 'retry-after': '5' }, json: { error: { code: 'search_busy', message: SEARCH_BUSY } } }),
+  );
+  await openLive(page);
+  await showMemories(page);
+  await searchBox(page).fill('vpn');
+  await searchBox(page).press('Enter');
+  await expect(memoriesPanel(page).getByText(SEARCH_BUSY, { exact: true }), 'the card shows the busy message').toBeVisible();
+  await expect(searchBox(page), 'the box is described by it').toHaveAccessibleDescription(SEARCH_BUSY);
+  await expect(searchButton(page), 'and so is the button').toHaveAccessibleDescription(SEARCH_BUSY);
+  expect(await announcements(page, SEARCH_BUSY), 'it is announced once').toBe(1);
+  await expect(memoriesPanel(page).locator('li.row'), 'no rows show after a failed search').toHaveCount(0);
+  await expect(page.locator('[data-banner="demoBusy"]'), 'the page is not busy').toHaveCount(0);
+});
+
+/** MC17: the confirm dialog's failure notice. */
+test('MC17: the confirm dialog\'s failure notice is announced once and named in the confirm button\'s description', async ({ page }) => {
+  const text = `The zzfail${Date.now().toString(36)} rule stays`;
+  const refs: string[] = [];
+  try {
+    await recordAnnouncements(page);
+    const session = await openLive(page);
+    refs.push(await seedMemory(session, text));
+    await page.route(ITEM_FORGET, (route) =>
+      route.request().method() === 'DELETE' ? route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The forget failed.' } } }) : route.continue(),
+    );
+    await showMemories(page);
+    await memoryRow(memoriesPanel(page), text).getByRole('button', { name: `Forget ${text}`, exact: true }).click();
+    const confirm = memoryDialog(page).getByRole('button', { name: 'Forget', exact: true });
+    await expect(confirm, 'the confirm button has no description before it fails').not.toHaveAccessibleDescription(FAILED);
+    await confirm.click();
+    await expect(memoryDialog(page).getByText(FAILED, { exact: true }), 'the failure notice shows in the dialog').toBeVisible();
+    await expect(confirm, 'the confirm button is described by it').toHaveAccessibleDescription(FAILED);
+    expect(await announcements(page, FAILED), 'it is announced once').toBe(1);
+    await expect(memoryDialog(page), 'the dialog stays open').toBeVisible();
+    await expect(page.locator('app-memory-card li.row').filter({ hasText: text }), 'and the row stays (seen from behind the dialog)').toHaveCount(1);
+    expect(await memoryExists(refs[0] ?? ''), 'and so does the table row').toBe(1);
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await removeAllMemories(refs);
+  }
+});
+
+/** MC19: a pin or unpin that fails says so in the panel's one notice, and a 404 means the memory is gone. */
+test('MC19: a failed pin or unpin shows its notice, announced once and named in the button\'s description, and a 404 takes the row off', async ({ page }) => {
+  test.setTimeout(150_000);
+  const stamp = Date.now().toString(36);
+  const plain = `The zzpinfail${stamp} cable is blue`;
+  const held = `The zzunpinfail${stamp} cable is red`;
+  const pinFailed = "Couldn't pin it. Nothing was changed.";
+  const unpinFailed = "Couldn't unpin it. Nothing was changed.";
+  const refs: string[] = [];
+  try {
+    await recordAnnouncements(page);
+    const session = await openLive(page);
+    refs.push(await seedMemory(session, plain), await seedMemory(session, held));
+    const pinned = await page.request.fetch(`${MEMORY}/${refs[1] ?? ''}/pin`, { method: 'POST', headers: envelope() });
+    expect(pinned.status(), await pinned.text()).toBe(200);
+    let unpins = 0;
+    await page.route(/\/api\/v1\/memory\/[^/?]+\/pin$/, (route) => {
+      if (route.request().method() === 'POST') {
+        return route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The pin failed.' } } });
+      }
+      unpins += 1;
+      return unpins === 1
+        ? route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The unpin failed.' } } })
+        : route.fulfill({ status: 404, json: { error: { code: 'not_found', message: 'zz Gone.' } } });
+    });
+    await showMemories(page);
+
+    const pin = memoryRow(memoriesPanel(page), plain).getByRole('button', { name: `Pin ${plain}`, exact: true });
+    await pin.click();
+    await expect(memoriesPanel(page).getByText(pinFailed, { exact: true }), 'a failed pin shows its notice').toBeVisible();
+    await expect(pin, 'the button is described by it').toHaveAccessibleDescription(pinFailed);
+    await expect(pin, 'and the row stays unpinned').toBeVisible();
+    expect(await announcements(page, pinFailed), 'it is announced once').toBe(1);
+    expect(await pinnedCountOf(session), 'and nothing else was pinned').toBe(1);
+
+    const unpin = memoryRow(memoriesPanel(page), held).getByRole('button', { name: `Unpin ${held}`, exact: true });
+    await unpin.click();
+    await expect(memoriesPanel(page).getByText(unpinFailed, { exact: true }), 'a failed unpin shows its notice').toBeVisible();
+    await expect(unpin, 'the button is described by it').toHaveAccessibleDescription(unpinFailed);
+    expect(await announcements(page, unpinFailed), 'it is announced once').toBe(1);
+    expect(await pinnedCountOf(session), 'and the pin is still there').toBe(1);
+
+    await unpin.click();
+    await expect(memoryRow(memoriesPanel(page), held), 'a 404 takes the row off the list').toHaveCount(0);
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await removeAllMemories(refs);
+  }
+});
+
+/** MC18: a local install has no demo rule line. */
+test('MC18: a local install shows no demo rule line in the card', async ({ page }) => {
+  await openLive(page);
+  await expect(card(page).getByText(DEMO_RULE), 'no demo rule line under the tabs').toHaveCount(0);
+  await showMemories(page);
+  await expect(card(page).getByText(DEMO_RULE)).toHaveCount(0);
 });
