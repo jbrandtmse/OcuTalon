@@ -10,3 +10,4 @@
 2026-11-10T18:27:30Z	Epic 25	ruling	question=x0_input_with_nonempty_sources choice=skip_x0 rejected=charter_25.0 why=99_burndown_entries_are_run-wide_residue_outside_epic25_authority;no_entry_owned_by_epic25_keys;open_action_items_owner-held;no_epic24_retro(policy_skip);dispatch_says_never_delay_25.2;precedent_epic37 category=decide policy=5086036
 2026-11-10T18:27:30Z	Epic 25	retro_review_skipped	reason=no_x0_input_in_authority sources=ledger_burndown:99,action_items:open,retro:none dispatch=spec_ahead_25.2_only
 2026-11-10T18:27:30Z	Epic 25	epic_status	epic-25=in-progress note=dispatch_epic_start
+2026-11-10T18:29:38Z	Epic 25	epic_context_compiled	reason=initial model=opus words=1086
