@@ -2,7 +2,7 @@
 title: 'Story 0.22: The More to try panel shows its items under three group headings'
 type: 'feature'
 created: '2026-11-09'
-status: 'blocked'
+status: 'in-progress'
 baseline_revision: 'e16fc917873c0352c8ed70a776b9c0f5b201f915'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -157,6 +157,8 @@ deferred: []
   - lane-a and ci are green.
 
 ## Spec Change Log
+
+- 2026-11-10 ~09:20Z (lead): implement pass 2 blocked again on host Docker contention (no test ran); reported as TOOLING. Orchestrator ruling (option 1): a quiet window on the Docker host (lanes A and B start no new bake or fresh stack; marker `<coordination>/locks/host-quiet-0.22`). Re-dispatched (pass 3) for the `[Infra]` items only; if the first start fails again (400 s timeout or a stuck bake), no retry: HALT for TOOLING.
 
 - 2026-11-10 ~08:25Z (lead): implement pass 1 halted `blocked` on host infrastructure, not the code (two lane-C throwaway starts failed: a 1027 s image-layer export, then a 400 s first-start timeout at load average ~262; the orchestrator also killed a hung `docker buildx bake` from this stage at ~08:1xZ and confirmed Docker builds work again). Classified infra (U5: fixed, never answered). Re-dispatched with status `in-progress` to work ONLY the `[Infra]` open items; the written code and tests stay as they are.
 
