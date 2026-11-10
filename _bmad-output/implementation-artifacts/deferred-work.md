@@ -6547,3 +6547,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: Dropping header_images from chk_readme_links' target stream keeps every rule green while the logo is tracked; only the AC4 untrack mutation shows it; chk_readme_links takes no tree-list argument, so a self-test cannot stub a missing logo; same limit existed with the relative src before 0.23
 - 2026-11-10T20:08:58Z status=wontfix-accepted owner=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute by=harvest note=reopen_if=chk_readme_links gains a tree-list argument, or the header logo goes missing on main without readme-links going red
+- 2026-11-10T20:20:54Z occurrence=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute

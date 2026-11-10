@@ -102,6 +102,18 @@ deferred:
 - Given a README whose header logo file is untracked, oversized, or whose raw address appears below the header, when `test-readme.sh` runs, then `readme-links` or `images` goes red. The logo's existence and size are still checked, and the raw allowance holds only on the header lines.
 - Given the change, when `bash docker/tests/test-readme.sh` and `bash docker/tests/test-boundaries.sh` run, then both pass, and CI is green after the push.
 
+### Review Findings
+
+Code review, 2026-11-10 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 8 rows, 3 entries, 2 rejected).
+
+- [x] [Review][Patch] The `readme-links` header comment left out the header logo's existence check and wrapped "no two / headings share a slug" across lines; the target stream had no comment saying it reads `header_images` [docker/tests/test-readme.sh:89] -- low, fix-risk low (comment only), in-story. Rewrapped, and it now states that the logo, in either src form, must be a file the tree lists; one comment line added above the target stream.
+- [x] [Review][Patch] The `HEADER` comment read as if `HEADER_IMAGE_HOSTS` and `HEADER_RAW_DIR` were two separate allowances [docker/tests/test-readme.sh:215] -- low, fix-risk low (comment only), in-story. It now says `HEADER_RAW_DIR` is one of the entries of `HEADER_IMAGE_HOSTS`.
+- [x] [Review][Defer] No permanent self-test pins that `chk_readme_links` feeds `header_images` into its existence check [docker/tests/test-readme.sh:1307] -- deferred: pre-existing (the relative src had the same limit), already DW-1097 (wontfix-accepted); occurrence appended. The reviewer showed that a self-test would not need a tree-list argument: renaming the logo in both the README copy and `$tmp/header.want` keeps `header_end` matching. Such a self-test still needs a new self-test label (public text), so it stays under DW-1097's `reopen_if`.
+
+Rejected:
+- `low` The `readme-links` PASS line names only img.shields.io as header-only -- spec-bound ("PASS lines stay as they are", Design Notes) and still true; changing it is public text the ruling does not cover.
+- `low` A raw logo src with a query or fragment would map to `docs/images/<name>?...`, which the size check skips -- unreachable: `top` pins the header byte for byte, and the relative branch had the same behavior before this story. It becomes real if a query or fragment is ruled into the pinned logo src.
+
 ## Spec Change Log
 
 - 2026-11-10 (spec gate, lead): the Contest Planner approved the PUBLIC TEXT proposal (the self-test label `the header logo address below the header`, verbatim, in `rule_readme_links` after `a shields.io badge below the header`) and the supersession of 0.21's "local docs/images file" wording. Task (f) is confirmed; no other change.
