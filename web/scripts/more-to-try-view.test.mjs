@@ -23,6 +23,8 @@ const { FEED_TEXTS } = await import(app('feed', 'break-feed-view.ts'));
 const { MESSAGE_TEXTS, PAGE_TEXTS } = await import(app('msg', 'catalog.ts'));
 const { INCIDENT_TEXTS } = await import(app('incidents', 'incident-view.ts'));
 const { ANSWER_SOURCES_TEXTS } = await import(app('chat', 'answer-sources-view.ts'));
+const { DOCUMENTS_TEXTS } = await import(app('documents', 'documents-view.ts'));
+const { SAMPLE_RUNBOOK_TEXTS } = await import(app('documents', 'sample-runbook-view.ts'));
 const { REQUEST_NAMES } = await import(app('phone', 'phone-view.ts'));
 const { DEMO_VIEW_TEXTS } = await import(app('header', 'demo-view-texts.ts'));
 
@@ -72,7 +74,7 @@ const RULED = {
     documents: {
       label: 'Ask about a document',
       lookFor:
-        'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the chip under the answer that names your file and its section.',
+        'On the Documents page, press Add the sample runbook, or add a short file of your own (nothing personal: Visual Trace on the demo is shared). When it reads Ready, ask in the chat "According to the runbook, what should I do when partner orders fail with a date error?", or ask about your own file, and look for the chip under the answer that names the document and its section.',
       button: 'Open the Documents page',
     },
     heartbeat: {
@@ -96,6 +98,8 @@ const IDS = MORE_TO_TRY_ITEMS.map((item) => item.id);
 const BEFORE_MEMORY = IDS.slice(0, IDS.indexOf('memory'));
 // The item whose control hands off to another item's control (Story 20.2: See where an answer came from opens the Documents page).
 const ACTION_OF = { sources: 'documents' };
+// The panel's group of each item that declares one (the Contest Planner's More to try groups ruling, 2026-11-10); the other items declare none yet.
+const GROUP_OF = { sources: 'Memory and documents' };
 const idsOf = (items) => items.map((item) => item.id);
 
 describe('(a) the fixed strings', () => {
@@ -115,6 +119,10 @@ describe('(a) the fixed strings', () => {
 
   it('give each entry a hand-off named by its id', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS.map((id) => ACTION_OF[id] ?? id));
+  });
+
+  it('give the sources entry its ruled group, Memory and documents, and no other entry a group yet', () => {
+    assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => [item.id, item.group]), IDS.map((id) => [id, GROUP_OF[id]]));
   });
 
   it('use straight ASCII quotes and no other non-ASCII character', () => {
@@ -226,7 +234,10 @@ describe('(c) every quoted on-screen name equals its source', () => {
 
   it('names the Documents page as the header does', () => {
     has(items.documents.lookFor, 'On the Documents page');
-    has(items.documents.lookFor, 'look for the chip under the answer that names your file and its section');
+    has(items.documents.lookFor, `press ${DOCUMENTS_TEXTS.sample},`);
+    has(items.documents.lookFor, `When it reads ${DOCUMENTS_TEXTS.ready},`);
+    has(items.documents.lookFor, `"${SAMPLE_RUNBOOK_TEXTS.question}"`);
+    has(items.documents.lookFor, 'look for the chip under the answer that names the document and its section');
     has(items.documents.button, 'the Documents page');
     has(items.sources.button, 'the Documents page');
     assert.equal(items.sources.button, items.documents.button, 'the last item uses the existing control text');

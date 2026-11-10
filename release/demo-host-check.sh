@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Read-only check of the online demo host against AD-25 (Story 29.3): the Contest Planner runs it against the host, from any machine.
-#   bash release/demo-host-check.sh <base-url> [--state normal|busy|maintenance] [--demo-status FILE|-] [--zone FILE|-]
+#   bash release/demo-host-check.sh <base-url> [--state normal|busy|maintenance] [--demo-status FILE|-] [--zone FILE|-] [--heartbeat FILE|-]
 # <base-url> is the host's origin, for example https://demo.example. The default state is normal. At most one input may be "-" (standard
 # input). The settings the Planner uses, and what each run covers, are in release/demo-host-checks.md.
 #
@@ -20,6 +20,7 @@
 #                demo-status-* the output of the host's `ocutalon-demo status` command, piped in with --demo-status, against AD-25
 #                             and the status JSON;
 #                zone         the IRIS container's TZ, piped in with --zone, is US Eastern;
+#                heartbeat-*  the heartbeat's last tick and its task, from one line that a terminal on the host prints, piped in with --heartbeat: the tick is at most 3 minutes old and the task is not suspended (DW-1018);
 #   busy         the status read and busy-*: the busy page in place of IRIS's busy answer, except under /ocutalon/api/;
 #   maintenance  maint-*: the maintenance page and the four logos, beside the page and under /ocutalon/assets/brand/.
 # A block check (block-*, block-pw-*, guard-F*, guard-case, guard-extra, guard-big, guard-query, guard-api) passes only when the status is one of the
@@ -39,8 +40,7 @@
 # public reads, and requests that the host must refuse. Neither published account's name or password is ever used, nothing is retried,
 # and each request has a 30 s limit. A request that opens an IRIS session is followed by a sign-out of that session. The dummy sign-ins
 # leave failed-sign-in entries in the host's audit log.
-# `ocutalon-demo status` and the TZ of the IRIS container are the Planner's to read on the host; this script runs neither and takes
-# their output from a file or standard input.
+# `ocutalon-demo status`, the TZ of the IRIS container and the heartbeat line are the Planner's to read on the host; this script runs none of them and takes their output from a file or standard input.
 #
 # Exit codes: 0 every check ran and passed; 1 a check failed; 2 a usage error, a missing tool (bash 3.2 or later, curl, jq), or the
 # host or the gate refusing the first credentialed request (nothing else runs); 3 nothing failed, but a check was skipped.
@@ -56,7 +56,7 @@ die2() {
 
 usage() {
   printf 'demo-host-check: %s\n' "$1" >&2
-  printf 'usage: bash release/demo-host-check.sh <base-url> [--state normal|busy|maintenance] [--demo-status FILE|-] [--zone FILE|-]\n' >&2
+  printf 'usage: bash release/demo-host-check.sh <base-url> [--state normal|busy|maintenance] [--demo-status FILE|-] [--zone FILE|-] [--heartbeat FILE|-]\n' >&2
   exit 2
 }
 
@@ -77,6 +77,7 @@ base=""
 state=normal
 demo_status_src=""
 zone_src=""
+heartbeat_src=""
 while [ $# -gt 0 ]; do
   case $1 in
     --state)
@@ -94,6 +95,11 @@ while [ $# -gt 0 ]; do
       zone_src=$2
       shift 2
       ;;
+    --heartbeat)
+      [ $# -ge 2 ] || usage "--heartbeat needs a file or -"
+      heartbeat_src=$2
+      shift 2
+      ;;
     -*) usage "unknown option $1" ;;
     *)
       [ -z "$base" ] || usage "more than one base URL"
@@ -108,7 +114,11 @@ case $base in */) base=${base%/} ;; esac
 if ! origin_ok "$base"; then
   usage "the base URL is an origin: a scheme, a host and an optional port, no path and no user name"
 fi
-if [ "$demo_status_src" = - ] && [ "$zone_src" = - ]; then usage "at most one input may be - (standard input)"; fi
+stdin_inputs=0
+for src in "$demo_status_src" "$zone_src" "$heartbeat_src"; do
+  if [ "$src" = - ]; then stdin_inputs=$((stdin_inputs + 1)); fi
+done
+if [ "$stdin_inputs" -gt 1 ]; then usage "at most one input may be - (standard input)"; fi
 
 gate_read || usage "$gate_problem"
 if [ -n "$gate_user" ]; then
@@ -144,6 +154,7 @@ read_input() { # <source> <destination file>
 }
 if [ -n "$demo_status_src" ]; then read_input "$demo_status_src" "$work/demo-status.json"; fi
 if [ -n "$zone_src" ]; then read_input "$zone_src" "$work/zone.txt"; fi
+if [ -n "$heartbeat_src" ]; then read_input "$heartbeat_src" "$work/heartbeat.txt"; fi
 
 # The repository's own pages and logos, for busy and maintenance.
 busy_page="$root/docker/busy.html"
@@ -393,6 +404,7 @@ PROBES
 
   check_demo_status
   check_zone
+  check_heartbeat
 }
 
 check_demo_status() {
@@ -446,6 +458,43 @@ check_zone() {
   case $zone in
     America/New_York | US/Eastern | EST5EDT) pass zone "the time zone is $zone" ;;
     *) fail zone "the time zone is '$zone', not US Eastern" ;;
+  esac
+}
+
+# The heartbeat (DW-1018): the last line of the input that starts with { is the JSON object {"lastTick", "now", "suspended"} that the
+# host command prints (release/demo-host-checks.md). The tick fails when it is more than 180 s older than now, which is the page banner's
+# stall threshold (Schedule.Heartbeat STALLSECONDS); a tick later than now does not fail, as Heartbeat.Stalled treats it. The task fails
+# when suspended is 1 or 2 (a Task Manager suspension) or "missing". The input is read from a file; nothing is sent.
+check_heartbeat() {
+  local f="$work/heartbeat.json" age suspended shown
+  if [ -z "$heartbeat_src" ]; then
+    skip heartbeat "no --heartbeat input given"
+    return
+  fi
+  tr -d '\r' < "$work/heartbeat.txt" | grep '^{' | tail -n 1 > "$f"
+  if [ ! -s "$f" ] || ! jq -e 'type == "object"' "$f" > /dev/null 2>&1; then
+    fail heartbeat-json "the input holds no JSON object line"
+    return
+  fi
+  pass heartbeat-json "the input holds a JSON object"
+  age=$(jq -r --arg re "$iso_re" 'if ((.lastTick | type) == "string") and ((.now | type) == "string") and (.lastTick | test($re)) and (.now | test($re))
+    then ((.now | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) - (.lastTick | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) | floor | tostring) else "" end' "$f" 2> /dev/null)
+  if [ -z "$age" ]; then
+    fail heartbeat-tick "the input has no readable lastTick and now"
+  elif [ "$age" -gt 180 ]; then
+    fail heartbeat-tick "the last tick is $age s old, more than 3 minutes"
+  else
+    pass heartbeat-tick "the last tick is $age s old"
+  fi
+  suspended=$(jq -r '.suspended' "$f" 2> /dev/null)
+  case $suspended in
+    0) pass heartbeat-task "the heartbeat task is not suspended" ;;
+    1 | 2) fail heartbeat-task "the heartbeat task is suspended (Suspended $suspended)" ;;
+    missing) fail heartbeat-task "the heartbeat task does not exist" ;;
+    *)
+      shown=$(jq -c '.suspended' "$f" 2> /dev/null | cut -c1-40)
+      fail heartbeat-task "suspended is $shown, not 0, 1, 2 or missing"
+      ;;
   esac
 }
 
