@@ -5340,6 +5340,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Msg/Catalog/Watch.cls incident.noFix (L179-180) is shown for the GOODCHANGED refusal; the reason is log-only (PT-b ruling)
 - 2026-11-06T19:44:07Z status=routed owner=burndown by=spec_gate note=Planner 2026-11-06: later wording, not now: 'The fix I would use would also change {noun} that went through, so I'm not proposing it.'
 - 2026-11-09T17:07:25Z status=routed owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=x0 note=Epic23_start:23.2_adds_fix_kinds_and_refusal_lines_in_Msg/Catalog/Watch.cls;Planner_wording_2026-11-06:'The_fix_I_would_use_would_also_change_{noun}_that_went_through,_so_I'm_not_proposing_it.'(PUBLIC_TEXT_at_23.2_spec_gate)
+- 2026-11-10T08:27:40Z status=resolved-by:23-2-suspend-resume-and-reroute-with-a-dry-run by=adjudication note=incident.goodChanged_key_with_the_Planner's_sentence_in_Msg/Catalog/Watch.cls(73d44553);Notice.NoFixKey(GOODCHANGED);Test.Watch.GoodMessages+Test.Fix.Asked:TestNoticeKeys(no_double_full_stop)
 
 ### DW-836: Story 7.9 adds Test.Watch.GoodMessages (about 108-116 s locally) to CI group shards (shard:lane-a@Checks,Install,Watch) with no group re-measure; ci/units.sh's comments put shards near its about 1,940 s target, so the group may pass 33 minutes (unverified)
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6530,11 +6531,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Install.Step.Fix.Grants omits the pair when onlineDemo is 1; Install.SecurityOverview renders the table from Fix.Kind.Classes() without that condition; the fix needs one ruled public sentence
 - 2026-11-10T04:01:57Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=harvest note=needs_a_Planner_ruled_sentence;fix_in_23.2_before_its_commit
 - 2026-11-10T06:27:52Z note=Planner_ruling_2026-11-10:sentence_approved_verbatim;fix_in_rework_iteration_1
+- 2026-11-10T08:27:40Z status=resolved-by:23-2-suspend-resume-and-reroute-with-a-dry-run by=adjudication note=Install/SecurityOverview.cls_ONLINESTATEMENT_generates_the_approved_sentence;docs/security-overview.md:48;Test.Install.SecurityOverview:TestFixKindRows_pins_it(6a4eb1f1);live:security-overview_regeneration_check_in_CI
 
 ### DW-1067: The incident card shows no result band for a suspend or resume request, nor for a reroute whose copies all completed, against AD-15's 'each approval request card carries its own answered status and result band'
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: high | fix-risk: high | footprint: in-story
 - evidence: web/src/app/approvals/approval-view.ts resultView returns undefined for suspend_item/resume_item and for a completed reroute (Decided in-stage 7, no ruling); AD-15 Results per request requires a band per request card.
 - 2026-11-10T06:18:26Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=needs Planner: extend AD-33 list (web/src/app/msg/catalog.ts, incidents/incident-card.ts) to render ruled result.item*/rerouted keys, or amend AD-15
+- 2026-11-10T08:27:40Z status=resolved-by:23-2-suspend-resume-and-reroute-with-a-dry-run by=adjudication note=result_bands_for_suspend/resume/reroute_with_ruled_texts(approval-view.ts_resultView,incident-card.ts,catalog.ts);unit_cases_per_kind;A12_asserts_reroute_band_after_Approve_and_closed_compact_bands(6a4eb1f1+re-review_patches)
 
 ### DW-1068: After a suspend's incident closes (Dismiss, replay, 15 quiet minutes) the user cannot ask to resume the item, while result.itemSuspended says to, and Checks never reports the item as disabled
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: high | footprint: in-story
@@ -6542,12 +6545,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T06:18:26Z status=decision-pending owner=burndown by=cr note=product call: resume without an incident, keep the incident open while suspended, or reword; touches ruled text
 - 2026-11-10T06:27:51Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=merge_gate note=Planner_ruling_2026-11-10_option_a(resume_after_close_scoped;no_state_move;second-session_proof);rework_iteration_1
 - 2026-11-10T07:55:00Z status=routed owner=23-9-resume-a-suspended-item-after-its-incident-closes by=merge_gate note=Planner_re-ruling_2026-11-10_~07:20Z:(c)_text_limit_in_23.2;resume_after_close_parked_as_Story_23.9(after_voting;(a)_or_(b),Planner_leans_(b))
+- 2026-11-10T08:23:02Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run
 
 ### DW-1069: AD-33 exception list of Story 23.2 does not name four Lane B paths the story edits under other rulings: README.md, docker/tests/lib-live.sh, web/e2e/support/iris.ts, Test/Core/CommandsRouting.cls
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: README edit is ruled (Public Text, Tasks), lib-live.sh check_orders_jobs is S3's Orders item count, iris.ts seeds A12's reroute request, CommandsRouting is RP2's pin of the listed CommandsIn.cls.
 - 2026-11-10T06:18:26Z status=escalated owner=burndown by=cr note=Planner to confirm the AD-33 exception covers these four paths (no code change expected)
 - 2026-11-10T06:27:52Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=merge_gate note=Planner_ruling_2026-11-10:four_paths_added_to_AD-33_list(additive);recorded_in_spec;close_at_adjudication
+- 2026-11-10T08:27:40Z status=resolved-by:23-2-suspend-resume-and-reroute-with-a-dry-run by=adjudication note=four_paths_recorded_in_the_spec's_AD-33_list(Planner_ruling_3);no_code_change
 
 ### DW-1070: propose_fix's tool description sends ambiguous, unknown_incident and no_incident to dismiss_incident's wording, so the model may answer a fix ask in dismiss terms
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: in-story
