@@ -2,8 +2,8 @@
 title: 'Story 0.22: The More to try panel shows its items under three group headings'
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
-baseline_revision: '5fd56712c918b213049fd20af0358b2061677901'
+status: 'in-progress'
+baseline_revision: 'e16fc917873c0352c8ed70a776b9c0f5b201f915'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -132,6 +132,13 @@ deferred: []
   - Add one lean test, K25 (routed finish, `ALL`, 1280x900). Its oracle is the ruled heading strings written out. The level-4 headings in the panel are exactly the groups that have items, in order. Each heading's next `ul.items` holds exactly its group's labels, in registry order. The label `p` is not a heading, and no heading has a `tabindex`. Update the header list to name K25.
 - `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- replace lines 246-255 with the text under `### EXPERIENCE renumbering` verbatim (byte for byte, as approved at the gate), then insert the approved marked line verbatim right after it.
 
+**Open items (infra re-dispatch, 2026-11-10 08:2xZ; the code and tests are written and uncommitted in the tree):**
+- [ ] [Infra] Run e2e part 2/9 of `sign-in-3` (holds `e2e/guide/more-to-try.spec.ts`: K1-K4, K16/K17, K25) on a fresh lane-C throwaway (`n` is 9: the listing has 9 spec files) -- passes.
+- [ ] [Infra] Run e2e part 1/9 of `sign-in-3` (holds `guide.spec.ts` and `more-to-try-sample.spec.ts`) -- passes.
+- [ ] [Infra] Demonstrate the e2e-level mutations (K25, K2, K4, K16) -- each red, reverted byte-identical -- and write their `mutation:` lines.
+- [ ] [Infra] `bash ci/checks.sh` (in batches of its `CHECK_SCRIPTS`) -- every block passes.
+- [ ] [Infra] Then the skill's review layers and the finalize commit.
+
 **Acceptance Criteria:**
 - Given the registry, when this story merges:
   - every existing item declares its ruled group, and `MORE_TO_TRY_GROUPS` is the ruled order;
@@ -150,6 +157,8 @@ deferred: []
   - lane-a and ci are green.
 
 ## Spec Change Log
+
+- 2026-11-10 ~08:25Z (lead): implement pass 1 halted `blocked` on host infrastructure, not the code (two lane-C throwaway starts failed: a 1027 s image-layer export, then a 400 s first-start timeout at load average ~262; the orchestrator also killed a hung `docker buildx bake` from this stage at ~08:1xZ and confirmed Docker builds work again). Classified infra (U5: fixed, never answered). Re-dispatched with status `in-progress` to work ONLY the `[Infra]` open items; the written code and tests stay as they are.
 
 - 2026-11-10 (lead, spec gate): two Contest Planner rulings relayed by the orchestrator during planning, applied: (1) ~06:40Z, EXPERIENCE.md's More to try entries renumbered by group (scope added: Boundaries, Code Map, Tasks, Acceptance, Public text, `### EXPERIENCE renumbering`, the `sources-docs.test.mjs` panel-order test, one mutation); (2) ~07:00Z, Story 37.2's `usage` joins "Safety and settings" last, no fourth heading, and no test pins a group size as a literal (Boundaries, Decided in-stage). The renumbered text and the marked line go to the Planner as PUBLIC TEXT before the implement stage.
 - 2026-11-10 ~07:45Z (lead): Contest Planner ruling (owner's delegated authority, `prompts/epic-0-rulings-022.md` in the coordination folder): PUBLIC TEXT OK, implement may start. (1) The marked line is approved verbatim. (2) The renumbering is approved as proposed (old 1->5, 2->6, 3->1, 4->7, 5->2, 6->3, 7->8, 8->4; every number in the renumbered lines 254/255 checked). (3) No other strings, headings as `h4`, no `tabindex`: OK. Clarification: the ruled group lists fix membership only; within each group the panel keeps REGISTRY order ("Safety and settings" shows persona, suspiciousEmail, demoView, heartbeat, then 37.2's usage). Registry rows are never reordered. Merge instruction (orchestrator): if 23.6's `incidentSummary` (or 23.2's `reroute`) is on feature without a `group:` at this story's integrate-forward, the lead adds `group: 'Incidents and fixes'` to it (ruled text, not new).
@@ -275,7 +284,22 @@ Shared surfaces:
 - Two groups swapped in the EXPERIENCE line -> `sources-docs.test.mjs` red. A heading missing from EXPERIENCE -> `ux-strings.test.mjs` red.
 - Two item entries swapped in EXPERIENCE's renumbered list (or an entry moved under the wrong heading entry) -> the panel-order test in `sources-docs.test.mjs` red.
 
+mutation: AC1 (`rejectFix` in the wrong group): `group: 'Incidents and fixes'` of the `rejectFix` row changed to `'Safety and settings'` in `more-to-try-view.ts`, observed red in `more-to-try-view.test.mjs`: `give every entry its ruled group`, `gives the whole registry under the headings in order, and each group in registry order` and `leaves out a group with no item, and gives nothing for no items`; restored from the scratch copy, byte-identical, `git diff --stat` identical. K25 (e2e) not run here, for the parent.
+mutation: AC1 (two entries of `MORE_TO_TRY_GROUPS` swapped): the first two entries swapped, observed red: `holds the ruled headings, in the ruled order` and `keeps an Incidents and fixes item that comes first in the input first overall`; restored, byte-identical. K25 (e2e) not run here, for the parent.
+mutation: AC2 (`h4` to `h3`, and the heading dropped): in the template of `more-to-try.ts`, `<h4 class="set-heading">` changed to `<h3 ...>`, and separately the heading line removed, each observed red in `more-to-try-sources.test.mjs` (`names no aria-label and no icon, and its only heading is the group heading, which takes no focus`); restored, byte-identical. K25 and K2 (e2e) not run here, for the parent.
+mutation: AC2 (`groupsOf` keeping empty groups as headed sets): the `if (set !== undefined)` guard replaced by `?? []` and an unconditional push, observed red in `more-to-try-view.test.mjs`: `leaves out a group with no item, and gives nothing for no items`, `puts the items with no group, or a blank one, first and with no heading` and `puts a group the constant does not hold after the ordered groups, in order of first appearance`; restored, byte-identical. K2 (e2e) not run here, for the parent.
+mutation: AC2 (`groupsOf` dropping ungrouped items, and putting them last): the ungrouped set dropped, and separately appended after the last set, each observed red: `puts the items with no group, or a blank one, first and with no heading`; restored, byte-identical.
+mutation: AC2/AC3 (the template iterating the flat `items()`): the `@for (set of groups(); ...)` header replaced by a single set over `items()`, observed red in `more-to-try-sources.test.mjs`: `holds none of the heading strings, and iterates the sets that groupsOf gives`; restored, byte-identical. K4, K1 and K3 (e2e) not run here, for the parent.
+mutation: AC3 (framed `.group { overflow-y: hidden }`): `overflow-y: auto` changed to `hidden` in `more-to-try.ts`, observed red in `more-to-try-sources.test.mjs` (`is bounded where the page fills the viewport: its own vertical scroll, ...`); restored, byte-identical. K16 at 1280x650 and 1280x600 (e2e) not run here, for the parent.
+mutation: AC4 (two groups swapped in the EXPERIENCE line): `"Incidents and fixes", "Memory and documents" and` changed to `"Memory and documents", "Incidents and fixes" and`, observed red in `sources-docs.test.mjs`: `has exactly one line for the headings, naming each in order with its count word (Story 0.22)`; restored, byte-identical.
+mutation: AC4 (a heading missing from EXPERIENCE): every `Memory and documents` in EXPERIENCE.md renamed, observed red in `ux-strings.test.mjs`: `finds each ux and design string in its document` (`"Memory and documents" is not in EXPERIENCE.md`); restored, byte-identical.
+mutation: AC4 (renumbered list out of order): the `Heading "Memory and documents"` entry moved below Item 2 in EXPERIENCE.md, observed red in `sources-docs.test.mjs`: `lists the headings of the panel, each followed by exactly its group's items`; with a heading entry removed instead, the same test is red; with an item entry's label changed, `lists the registry's items in the panel's order, and no item past them` is red too; restored, byte-identical.
+
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: implementation verification failed: the e2e part holding web/e2e/guide/more-to-try.spec.ts (ci/iris.sh live sign-in-3 --part 2/9) could not run. Two throwaway-stack attempts on lane C (tag e0s22i) failed on the host, not on the code: attempt 1 spent 1027 s exporting the image layers and was cancelled by the start deadline; attempt 2 built, then 'the first start did not end ready within 400 s' (load average peaked at 262), and its two containers then stuck as Dead with removal 'already in progress' in the Docker daemon. `ci/iris.sh teardown` for the tag reported 1 project removed, but the two Dead containers (ocutalon-t03c-e0s22i-1794297356-51979-iris-1 and -mock-1) and a `docker compose down` were still pending when this run ended.
+
+Done and verified before the halt: the implementation and all test changes are in the working tree, uncommitted. Node unit tests (4 files): 82 pass. docker/tests/test-boundaries.sh: all rules passed. npm test (1780), lint and build pass. The listed unit-level mutations were observed red and reverted.
+
+Not run: the e2e part (K1-K4, K16/K17, K25, guide.spec.ts and more-to-try-sample.spec.ts in part 1/9), the e2e-level mutations (K25/K2/K4/K16), and ci/checks.sh. Recommended next step: once the Docker daemon on this host is healthy and the Dead containers are gone, re-run the spec's e2e steps (parts 1/9 and 2/9 of sign-in-3), then the review and finalize steps.
