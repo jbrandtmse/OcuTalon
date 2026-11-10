@@ -77,6 +77,8 @@ describe('README, "New since 1.0.0"', () => {
     assert.equal(bullet.length, 1);
     assert.ok(bullet[0].endsWith(`Try it: More to try, *${documents.label}*, which adds a sample runbook if you have no file to hand.`));
     assert.equal(bullets.filter((line) => /sample runbook/i.test(line)).length, 1, 'no bullet of its own');
+    assert.ok(bullet[0].endsWith('Try it: More to try, *Ask about a document*, which adds a sample runbook if you have no file to hand.'), 'the ruled sentence, written out');
+    assert.ok(bullet[0].includes('The answer names the document and section it used, or says "None of your documents cover that." Try it:'), 'and the sentence before it is unchanged');
   });
 });
 

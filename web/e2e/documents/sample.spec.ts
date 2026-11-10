@@ -146,10 +146,15 @@ test.describe('E1: the sample runbook in one press', () => {
     try {
       await removeSamples(page);
       const posts: Array<{ name: string; content: string }> = [];
+      // The POST is held until the second press has been made, so that the press lands while the add is out, however slow the runner.
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
       await page.route(`**${DOCUMENTS}`, async (route) => {
         if (route.request().method() !== 'POST') return route.fallback();
         posts.push(route.request().postDataJSON() as { name: string; content: string });
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await held;
         return route.continue();
       });
       await openDocuments(page);
@@ -167,10 +172,14 @@ test.describe('E1: the sample runbook in one press', () => {
       await expect(sampleRow(page).locator('.status'), 'the page\'s own row reads Indexing').toHaveText('Indexing\u2026');
       await button.focus();
       await page.keyboard.press('Enter');
+      await page.waitForTimeout(500);
+      await expect(button, 'the second press finds the add still out').toHaveAttribute('aria-busy', 'true');
+      release();
       const response = await answered;
       expect(response.status(), await response.text()).toBe(200);
       const ref = ((await response.json()) as { ref: string }).ref;
       expect(posts.length, 'a second press while the add is out makes no second POST').toBe(1);
+      expect(Object.keys(posts[0]!).sort(), 'the body is the route\'s {name, content} and nothing else').toEqual(['content', 'name']);
       expect(posts[0]!.name).toBe(SAMPLE_NAME);
       expect(Buffer.from(posts[0]!.content, 'base64').toString('utf8'), 'the content is the bundled runbook').toBe(SAMPLE_TEXT);
 
@@ -253,9 +262,10 @@ test('E4: Tab from Add documents reaches Add the sample runbook, and Enter press
   await removeSamples(page);
   const bodies = await fakeAdds(page);
   await openDocuments(page);
+  const button = sampleButton(page);
+  await expect(button, 'the list has loaded, so the button is drawn').toBeVisible();
   await page.getByRole('button', { name: 'Add documents', exact: true }).focus();
   await page.keyboard.press('Tab');
-  const button = sampleButton(page);
   await expect(button, 'Tab reaches it').toBeFocused();
   expect(await button.evaluate((node) => node.tagName), 'a native button').toBe('BUTTON');
   await page.keyboard.press('Enter');

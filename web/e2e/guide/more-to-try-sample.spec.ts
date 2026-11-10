@@ -1,9 +1,10 @@
 import { expect, test, type Locator, type Page, type Response } from '../support/fixtures';
 
-import { STATE } from '../support/api';
+import { changeSnapshot, STATE } from '../support/api';
 import { README_ACCOUNT } from '../sign-in/helpers';
 import { publishFixtureEvent } from '../support/devices';
 import { CARD_MS, signInReadmeLoaded, unique } from '../support/floor';
+import { blockLiveSocket } from '../support/socket';
 
 /**
  * Story 20.3, the sample control of More to try's items 6 and 8, on the sign-in stack with the README account and the real guide. The
@@ -12,9 +13,12 @@ import { CARD_MS, signInReadmeLoaded, unique } from '../support/floor';
  *   - G1: with no documents, items 6 and 8 are native buttons "Add the sample runbook"; with one, they are the links to the Documents
  *     page; a published `document` event flips the buttons to links, and its `removed` event flips them back, with no reload;
  *   - G2: pressing item 6's button lands on #/documents with focus on the page's Add the sample runbook, which that press presses: exactly
- *     one POST, named "Sample runbook.md", sent from the Documents page and not by the panel;
+ *     one POST, named "Sample runbook.md", sent from the Documents page and not by the panel; G2b: item 8's button does the same;
  *   - G3: Tab and Enter do the same;
- *   - G4: with the sample already listed when the page loads, the same press puts focus on the list region and posts nothing.
+ *   - G4: with the sample already listed when the page loads, the same press puts focus on the list region and posts nothing;
+ *   - G5: with a guide that does not list `documents`, an empty list never turns item 8 into the sample button (the control is gated on the
+ *     `documents` item);
+ *   - G6: a snapshot reload asks for the list again, so a document that was added elsewhere turns the buttons into links with no `document` event.
  */
 const DOCUMENTS = '**/ocutalon/api/v1/documents';
 const SAMPLE_BUTTON = 'Add the sample runbook';
@@ -42,14 +46,14 @@ async function routeList(page: Page, current: () => Array<Record<string, unknown
 }
 
 /** Signs the README account in, opens the panel from the link, and checks that the server lists the documents and sources items. */
-async function openPanel(page: Page): Promise<void> {
+async function openPanel(page: Page, options: { documents?: boolean } = {}): Promise<void> {
   const listed = documentsAnswered(page);
   await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const response = await page.request.get(STATE);
   expect(response.status(), await response.text()).toBe(200);
   const features = ((await response.json()) as { guide: { features?: string[] } }).guide.features ?? [];
-  expect(features, 'the instance has the documents feature').toEqual(expect.arrayContaining(['documents', 'sources']));
+  expect(features, 'the instance lists the features the case needs').toEqual(expect.arrayContaining(options.documents === false ? ['sources'] : ['documents', 'sources']));
   if ((await linkOf(page).getAttribute('aria-expanded')) !== 'true') await linkOf(page).click();
   await expect(panelOf(page)).toBeVisible();
   await listed;
@@ -149,12 +153,12 @@ test('G1b: with a document, or with a list that failed, items 6 and 8 stay links
   }
 });
 
-/** G2: a press lands on the Documents page, on the page's own button, which posts the sample once. */
-test('G2: the sample button of item 6 opens the Documents page, focuses its Add the sample runbook and makes one POST', async ({ page }) => {
+/** A press of the item's sample button lands on the Documents page, on the page's own button, which posts the sample once. */
+async function pressLandsOnSample(page: Page, label: string): Promise<void> {
   await routeList(page, () => []);
   const posts = await holdPosts(page);
   await openPanel(page);
-  await itemOf(page, SIX).getByRole('button', { name: SAMPLE_BUTTON, exact: true }).click();
+  await itemOf(page, label).getByRole('button', { name: SAMPLE_BUTTON, exact: true }).click();
   await expect.poll(() => new URL(page.url()).hash, 'the press opens the Documents page').toBe('#/documents');
   const button = sampleButton(page);
   await expect(button, 'the page\'s button is busy with its press').toHaveAttribute('aria-busy', 'true');
@@ -168,6 +172,16 @@ test('G2: the sample button of item 6 opens the Documents page, focuses its Add 
   await expect(listRegion(page), 'and focus goes to the list region').toBeFocused();
   await page.waitForTimeout(500);
   expect(posts.bodies.length, 'still one POST').toBe(1);
+}
+
+/** G2: item 6's press lands on the Documents page, on the page's own button, which posts the sample once. */
+test('G2: the sample button of item 6 opens the Documents page, focuses its Add the sample runbook and makes one POST', async ({ page }) => {
+  await pressLandsOnSample(page, SIX);
+});
+
+/** G2b: item 8's control is the same sample button, and its press does the same. */
+test('G2b: the sample button of item 8 opens the Documents page, focuses its Add the sample runbook and makes one POST', async ({ page }) => {
+  await pressLandsOnSample(page, EIGHT);
 });
 
 /** G3: Tab reaches the control, a native button, and Enter does the same as a click. */
@@ -205,4 +219,42 @@ test('G4: when the list already holds the sample, the press puts focus on the li
   await expect(sampleButton(page), 'no sample button while the sample is listed').toHaveCount(0);
   await page.waitForTimeout(500);
   expect(posts.bodies, 'nothing was posted').toEqual([]);
+});
+
+/** G5: the control is gated on the `documents` item, so a guide without it keeps item 8's link whatever the list holds. */
+test('G5: with a guide that does not list documents, an empty list leaves item 8 a link and offers no sample button', async ({ page }) => {
+  await routeList(page, () => []);
+  await changeSnapshot(page, (snapshot) => {
+    const guide = snapshot['guide'] as { features?: string[] };
+    guide.features = (guide.features ?? []).filter((id) => id !== 'documents');
+  });
+  await openPanel(page, { documents: false });
+  await expect(itemOf(page, SIX), 'item 6 is not listed without the documents feature').toHaveCount(0);
+  await expect(itemOf(page, EIGHT).getByRole('link', { name: OPEN_LINK, exact: true }), 'item 8 stays the link').toHaveAttribute('href', /#\/documents$/);
+  await expect(panelOf(page).getByRole('button', { name: SAMPLE_BUTTON, exact: true }), 'and no item offers the sample').toHaveCount(0);
+});
+
+/** G6: a snapshot reload (a poll with another epoch) asks for the list again; the document that the list now holds turns the buttons into links. */
+test('G6: a snapshot reload asks for the list again, so a document added elsewhere turns the buttons into links with no document event', async ({ page }) => {
+  const held: Array<Record<string, unknown>> = [];
+  await routeList(page, () => held);
+  await blockLiveSocket(page);
+  let armed = false;
+  let changed = false;
+  await page.route(/\/ocutalon\/api\/v1\/events\?/, async (route) => {
+    const response = await route.fetch();
+    if (!armed || changed) return route.fulfill({ response });
+    changed = true;
+    const body = (await response.json()) as Record<string, unknown>;
+    body['epoch'] = 'ZzE2EOtherEpoch';
+    return route.fulfill({ response, json: body });
+  });
+  await openPanel(page);
+  for (const label of [SIX, EIGHT]) await expect(itemOf(page, label).getByRole('button', { name: SAMPLE_BUTTON, exact: true }), `${label}: the sample button first`).toHaveCount(1);
+  held.push(listing('zzG6', 'g6.md'));
+  armed = true;
+  for (const label of [SIX, EIGHT]) {
+    await expect(itemOf(page, label).getByRole('link', { name: OPEN_LINK, exact: true }), `${label}: the reloaded list turns the button into the link`).toHaveAttribute('href', /#\/documents$/, { timeout: CARD_MS });
+  }
+  expect(changed, 'the poll with another epoch was served').toBe(true);
 });

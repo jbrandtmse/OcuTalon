@@ -6364,3 +6364,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: planner-2026-11-09-replan | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: owner-approved voting-week re-plan relayed by the Contest Planner [3dd56e] 2026-11-09 ~15Z
 - 2026-11-09T14:58:00Z status=decision-pending owner=burndown by=owner note=parked:owner_re-plan_2026-11-09; revisit after voting (Nov 15); sprint-status action item mirrors it
+
+### DW-1060: The sample button after ServerButton's 10 s notice looks idle and says Try again, but presses are ignored while its own add is still out (sampling guard)
+- source: spec-20-3-add-a-sample-runbook-in-one-press.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: documents-page.ts addSample returns early while sampling(); ServerButton restores itself and shows BUSY_NOTICE after 10 s with no answer. Only reachable when POST /v1/documents of a 1.2 KB file takes over 10 s.
+- 2026-11-10T04:32:19Z status=wontfix-accepted owner=20-3-add-a-sample-runbook-in-one-press by=cr note=reopen_if=a sample POST is seen taking over 10 s (an e2e or hands-on press shows BUSY_NOTICE while the add is out)
+
+### DW-1061: Focus falls to the body when More to try item 6 or 8 swaps between the sample button and the link while that control has focus
+- source: spec-20-3-add-a-sample-runbook-in-one-press.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: more-to-try.ts @if on sampleFirst() replaces the focused control on a live document event; the guide's focus rule does not track SampleRunbook.none(). Needs a document added or removed elsewhere while focus sits on the control.
+- 2026-11-10T04:32:19Z status=wontfix-accepted owner=20-3-add-a-sample-runbook-in-one-press by=cr note=reopen_if=an e2e or hands-on pass shows document.activeElement is body after a document event with focus on item 6 or 8

@@ -90,6 +90,8 @@ const IDS = MORE_TO_TRY_ITEMS.map((item) => item.id);
 const FOUR = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView'];
 // The item whose control hands off to another item's control (Story 20.2: See where an answer came from opens the Documents page).
 const ACTION_OF = { sources: 'documents' };
+// The panel's group of each item that declares one (the Contest Planner's More to try groups ruling, 2026-11-10); the other items declare none yet.
+const GROUP_OF = { sources: 'Memory and documents' };
 const idsOf = (items) => items.map((item) => item.id);
 
 describe('(a) the fixed strings', () => {
@@ -109,6 +111,10 @@ describe('(a) the fixed strings', () => {
 
   it('give each entry a hand-off named by its id', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS.map((id) => ACTION_OF[id] ?? id));
+  });
+
+  it('give the sources entry its ruled group, Memory and documents, and no other entry a group yet', () => {
+    assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => [item.id, item.group]), IDS.map((id) => [id, GROUP_OF[id]]));
   });
 
   it('use straight ASCII quotes and no other non-ASCII character', () => {
