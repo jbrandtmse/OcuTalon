@@ -681,14 +681,14 @@ describe('the result bands (Story 6.4)', () => {
     assert.deepEqual(
       view(closed).results.map((band) => [band.key, band.text, band.tone, band.icon]),
       [
-        ['result.itemSuspended', 'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is suspended: it is disabled now. To undo it, ask me to resume OrdersToWarehouse.', 'success', 'circle-check'],
+        ['result.itemSuspended', 'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is suspended: it is disabled now. To undo it while this incident is open, ask me to resume OrdersToWarehouse. After the incident closes, enable OrdersToWarehouse again on the production\'s configuration page in the Management Portal.', 'success', 'circle-check'],
         ['result.itemResumed', 'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is enabled again.', 'success', 'circle-check'],
         ['result.itemSkipped', 'OrdersToWarehouse was not changed: OrdersToWarehouse is already enabled. It needs a new approval.', 'partial', 'triangle-alert'],
         ['result.itemNotChanged', "Nothing was changed: OcuTalon couldn't change the item.", 'partial', 'triangle-alert'],
         ['result.rerouted', 'All 50 orders were rerouted to OrdersForReview and completed there. The originals stay unchanged.', 'success', 'circle-check'],
       ],
     );
-    assert.equal(bandTexts(closed, context()).S1, 'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is suspended: it is disabled now. To undo it, ask me to resume OrdersToWarehouse.', 'and the chat announces it');
+    assert.equal(bandTexts(closed, context()).S1, 'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is suspended: it is disabled now. To undo it while this incident is open, ask me to resume OrdersToWarehouse. After the incident closes, enable OrdersToWarehouse again on the production\'s configuration page in the Management Portal.', 'and the chat announces it');
     assert.equal(bandTexts(full({ state: 'closed', requests: asked }), context()).S1, undefined, 'a payload with no production names no item in it, so it claims nothing');
   });
 

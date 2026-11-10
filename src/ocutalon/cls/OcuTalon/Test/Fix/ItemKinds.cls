@@ -224,7 +224,7 @@ Method TestLiveSuspendResume()
 	If notes.%Size() = 1 {
 		Set note = notes.%Get(0)
 		Do $$$AssertEquals(note.catalogKey_"|"_note.approvalRef, "result.itemSuspended|"_suspend, "result.itemSuspended with the request's Ref")
-		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render(note.catalogKey, note.slots.%ToJSON(), "phone", .sc), ..#ITEM_" in Orders is suspended: it is disabled now. To undo it, ask me to resume "_..#ITEM_".", "which says what happened")
+		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render(note.catalogKey, note.slots.%ToJSON(), "phone", .sc), ..#ITEM_" in Orders is suspended: it is disabled now. To undo it while this incident is open, ask me to resume "_..#ITEM_". After the incident closes, enable "_..#ITEM_" again on the production's configuration page in the Management Portal.", "which says what happened")
 	}
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(auditMark, "OcuTalon", "Action", "", suspend, "", 1, 20)
 	Do $$$AssertEquals(entries.%Size(), 1, "one Action entry names the request")

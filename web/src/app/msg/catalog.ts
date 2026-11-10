@@ -41,7 +41,7 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'result.interrupted': 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval.',
   'result.couldNotStart': 'Nothing was resent: {reason}. Nothing was changed.',
   'result.stoppedPartway': "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
-  'result.itemSuspended': '{item} in {production} is suspended: it is disabled now. To undo it, ask me to resume {item}.',
+  'result.itemSuspended': "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal.",
   'result.itemResumed': '{item} in {production} is enabled again.',
   'result.itemSkipped': '{item} was not changed: {reason}. It needs a new approval.',
   'result.itemNotChanged': 'Nothing was changed: {reason}.',

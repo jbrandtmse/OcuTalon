@@ -214,7 +214,7 @@ describe('the result texts of a fix the user asks for in the chat (Story 23.2, D
   const noun = { one: 'order', other: 'orders' };
 
   it('read as the Public Text gives them, with the count-of-one form of the reroute and no doubled full stop after a sentence', () => {
-    assert.equal(real.renderPageText('result.itemSuspended', { item: 'OrdersToWarehouse', production: 'Demo.Orders' }), 'OrdersToWarehouse in Demo.Orders is suspended: it is disabled now. To undo it, ask me to resume OrdersToWarehouse.');
+    assert.equal(real.renderPageText('result.itemSuspended', { item: 'OrdersToWarehouse', production: 'Demo.Orders' }), 'OrdersToWarehouse in Demo.Orders is suspended: it is disabled now. To undo it while this incident is open, ask me to resume OrdersToWarehouse. After the incident closes, enable OrdersToWarehouse again on the production\'s configuration page in the Management Portal.');
     assert.equal(real.renderPageText('result.itemResumed', { item: 'OrdersToWarehouse', production: 'Demo.Orders' }), 'OrdersToWarehouse in Demo.Orders is enabled again.');
     assert.equal(real.renderPageText('result.itemSkipped', { item: 'OrdersToWarehouse', reason: 'OrdersToWarehouse is already disabled' }), 'OrdersToWarehouse was not changed: OrdersToWarehouse is already disabled. It needs a new approval.');
     assert.equal(real.renderPageText('result.itemNotChanged', { reason: "OcuTalon couldn't change the item" }), "Nothing was changed: OcuTalon couldn't change the item.");

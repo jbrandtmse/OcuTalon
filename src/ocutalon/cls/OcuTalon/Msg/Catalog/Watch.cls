@@ -862,12 +862,12 @@ XData Entries [ MimeType = application/json ]
   "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
  },
  "result.itemSuspended": {
-  "text": "{item} in {production} is suspended: it is disabled now. To undo it, ask me to resume {item}.",
+  "text": "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal.",
   "slots": {
    "item": "text",
    "production": "text"
   },
-  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, text ruled by the Contest Planner 2026-11-10 (DW-1068 re-ruling)"
  },
  "result.itemResumed": {
   "text": "{item} in {production} is enabled again.",

@@ -119,7 +119,7 @@ describe('the result band of a fix the user asked for in the chat (Story 23.2, D
   it('is the success band of result.itemSuspended for a suspend that changed the item, and of result.itemResumed for a resume', () => {
     assert.deepEqual(item('suspend_item', ran()), {
       key: 'result.itemSuspended',
-      text: `${ITEM} in ${PRODUCTION} is suspended: it is disabled now. To undo it, ask me to resume ${ITEM}.`,
+      text: `${ITEM} in ${PRODUCTION} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume ${ITEM}. After the incident closes, enable ${ITEM} again on the production's configuration page in the Management Portal.`,
       tone: 'success',
       icon: 'circle-check',
       audit: AUDIT,

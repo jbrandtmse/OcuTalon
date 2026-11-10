@@ -760,8 +760,8 @@ const SOURCES = {
     'Story 30.5 ruling U-182 (AD-16 as amended: the text of result.stoppedPartway, a resend that stops at the first copy that errs; the page renders the catalog\'s text)': [
       "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
     ],
-    'Story 23.2 ruling (Contest Planner, Public Text 2026-11-09, texts of the result.item* and result.rerouted catalog keys; its DW-1067 ruling of 2026-11-10 has the request card show them in its result band, rendered from the catalog)': [
-      '{item} in {production} is suspended: it is disabled now. To undo it, ask me to resume {item}.',
+    'Story 23.2 ruling (Contest Planner, Public Text 2026-11-09, texts of the result.item* and result.rerouted catalog keys, result.itemSuspended as re-ruled on 2026-11-10 for DW-1068; its DW-1067 ruling of 2026-11-10 has the request card show them in its result band, rendered from the catalog)': [
+      "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal.",
       '{item} in {production} is enabled again.',
       '{item} was not changed: {reason}. It needs a new approval.',
       'Nothing was changed: {reason}.',
