@@ -12,3 +12,5 @@
 2026-11-10T05:59:34Z	Epic 37	ruling	question=x0_input_with_nonempty_sources choice=skip_x0 rejected=charter_37.0 why=100_burndown_entries_are_run-wide_residue_outside_epic37_authority;no_entry_owned_by_epic37_keys;open_action_items_owner-held;no_epic36_retro(policy_skip);dispatch_says_never_delay_37.2;precedent_epic20 category=decide policy=5086036
 2026-11-10T05:59:34Z	Epic 37	retro_review_skipped	reason=no_x0_input_in_authority sources=ledger_burndown:100,action_items:open,retro:none dispatch=replan_37.2_only
 2026-11-10T06:03:14Z	Epic 37	epic_context_compiled	reason=initial model=opus words=1225
+2026-11-10T06:07:27Z	Epic 37	slot_loaded	slot=ocutalon-slot-b ns=OCUTALON bridge=62 ocutalon=868 preload=1 compile=ok stale_deleted=0 source_classes=931_match identity=build154_port1991
+2026-11-10T06:07:27Z	Story 37.2	stage_spawned	stage=plan spawn_at=2026-11-10T06:07:27Z model=opus agent_name=37-2-see-tokens-and-cost-over-time-on-the-usage-page-plan-1 cycle_iteration=1
