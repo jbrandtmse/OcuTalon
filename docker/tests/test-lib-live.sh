@@ -38,6 +38,12 @@
 #   - wait_disabled_quiet (Story 11.22): check_items_run and live_park_telegram (after PARK done only) sample a disabled item only
 #     once the probe lists no Ens.Job entry of it in any state; a Dead entry or a silent session that outlasts DISABLED_QUIET_SECONDS
 #     fails naming the item, the state and the status, and the probe script carries no state filter.
+#   - the start's port guard (Story 0.24): with a web port, dc up, start and restart wait up to 20 s for the port (the 7 checks, 3 s
+#     apart), start anyway when it stays held, retry once after a pause on the bind error (both Docker lines) and then fail loudly,
+#     never retry another failure, skip the wait when the project's own container publishes the port, and leave calls with no web
+#     port and every other subcommand untouched; live_web_port waits for a briefly held override; port_in_use reads the listener
+#     table (ss, else lsof, else the connect check alone). `docker`, `sleep` and `port_in_use` are stubs; a subshell sources
+#     lib-live.sh again for the real dc.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass. Takes about a minute: the waits sleep 3 s each.
 set -u
 
@@ -543,6 +549,7 @@ done
 
 printf '%s\n' 52815 > "$used_ports"
 OCUTALON_TEST_WEB_PORT=52815
+LIVE_PORT_WAIT=0 # a port held for good: the override is refused at once, without the 20 s wait
 web_port=""
 if live_web_port > "$tmp/port.out" 2>&1 || [ -n "$web_port" ]; then
   fail "web port: the override 52815 was accepted while something listens on it"
@@ -552,6 +559,7 @@ else
   fail "web port: an override that is in use was refused without saying so"
 fi
 unset OCUTALON_TEST_WEB_PORT
+LIVE_PORT_WAIT=20
 
 seq 52800 52819 > "$used_ports"
 web_port=""
@@ -571,6 +579,253 @@ if [ "$in_range" -eq 0 ] && [ "$LIVE_FORBIDDEN_PORTS" = "52773 1979 52779 8089 1
   pass "web port: none of the ports of the judges' stack, the slots and the other instances is in 52800-52819"
 else
   fail "web port: the forbidden ports are wrong, or one is in the range"
+fi
+
+# --- the start's port guard (Story 0.24) ---
+
+# Every case runs the real dc in a subshell that sources lib-live.sh again (this script's own dc is a stub), with `docker`, `sleep` and
+# `port_in_use` replaced: `docker` records its arguments and answers `ps` and `compose` from the case, `sleep` records its seconds
+# and does not sleep, and `port_in_use` is busy for a number of checks and then free (each check is recorded in the calls file).
+# guard_run <web port or empty> <busy checks> <own: 1 when the project's container publishes the port> <compose outcomes> <dc arguments...>
+# sets g_out (stdout), g_err (stderr), g_rc, and leaves $gdir/calls and $gdir/sleeps for the checks. An outcome is ok (prints
+# compose-out), bind-mac, bind-ci (the two bind errors of Docker Desktop and of the CI engine), or other.
+gdir="$tmp/guard"
+mkdir -p "$gdir"
+guard_run() {
+  local wp=$1 busy=$2 own=$3 queue=$4
+  shift 4
+  : > "$gdir/calls"
+  : > "$gdir/sleeps"
+  printf '%s\n' $queue > "$gdir/queue"
+  printf '%s\n' "$busy" > "$gdir/busy"
+  (
+    . "$root/docker/tests/lib-live.sh"
+    LIVE_PORT_WAIT=20
+    LIVE_PORT_RETRY_PAUSE=5
+    P=guardproj
+    tmp=$gdir
+    deadline=$((SECONDS + 1000))
+    LIVE_FILES=(a.yml)
+    web_port=$wp
+    docker() {
+      case $1 in
+        ps)
+          echo "$*" >> "$gdir/calls"
+          if [ "$own" = 1 ]; then echo 0123456789ab; fi
+          return 0
+          ;;
+        compose)
+          echo "$*" >> "$gdir/calls"
+          local outcome
+          outcome=$(head -n 1 "$gdir/queue")
+          tail -n +2 "$gdir/queue" > "$gdir/queue.next"
+          mv "$gdir/queue.next" "$gdir/queue"
+          case $outcome in
+            bind-mac)
+              echo "Error response from daemon: ports are not available: exposing port TCP 127.0.0.1:52803 -> 127.0.0.1:0: listen tcp4 127.0.0.1:52803: bind: address already in use" >&2
+              return 1
+              ;;
+            bind-ci)
+              echo "Error response from daemon: driver failed programming external connectivity on endpoint guardproj-iris-1 (0123): Bind for 127.0.0.1:52803 failed: port is already allocated" >&2
+              return 1
+              ;;
+            other)
+              echo "Error response from daemon: no such image: ocutalon-iris-base" >&2
+              return 1
+              ;;
+            *) echo compose-out ;;
+          esac
+          ;;
+      esac
+    }
+    sleep() { echo "$1" >> "$gdir/sleeps"; }
+    port_in_use() {
+      local n
+      echo check >> "$gdir/calls"
+      n=$(cat "$gdir/busy")
+      if [ "$n" -gt 0 ]; then
+        printf '%s\n' $((n - 1)) > "$gdir/busy"
+        return 0
+      fi
+      return 1
+    }
+    dc "$@"
+    echo "RC=$?"
+  ) > "$gdir/stdout" 2> "$gdir/stderr"
+  g_out=$(cat "$gdir/stdout")
+  g_err=$(cat "$gdir/stderr")
+  g_rc=$(printf '%s\n' "$g_out" | sed -n 's/^RC=//p')
+}
+g_has() { printf '%s\n' "$g_out" | grep -qF -- "$1"; }
+g_count() { grep -c -- "$1" "$gdir/calls"; }
+g_composes() { g_count '^compose '; }
+g_checks() { g_count '^check$'; }
+g_sleeps() { grep -c . "$gdir/sleeps"; }
+
+guard_run 52803 3 0 ok up -d --no-build
+if [ "$g_rc" = 0 ] && g_has 'PORT waiting: 127.0.0.1:52803 is in use; waiting up to 20 s' && g_has 'PORT free: 127.0.0.1:52803 after ' \
+  && [ "$(g_composes)" = 1 ] && [ "$(tail -n 1 "$gdir/calls" | cut -c1-7)" = compose ] && ! g_has 'PORT retry' && [ "$(g_checks)" = 4 ]; then
+  pass "port guard: a held port is waited for (PORT waiting, then PORT free) and the up runs once, after the checks"
+else
+  fail "port guard: held port: rc '$g_rc', composes '$(g_composes)', checks '$(g_checks)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+guard_run 52803 999999 0 ok up -d
+if [ "$g_rc" = 0 ] && [ "$(g_sleeps)" = 7 ] && [ "$(sort -u "$gdir/sleeps" | tr '\n' ' ')" = '3 ' ] && g_has 'PORT waiting' \
+  && g_has 'PORT still in use: 127.0.0.1:52803 after ' && g_has 'starting anyway' && ! g_has 'PORT free' && [ "$(g_composes)" = 1 ]; then
+  pass "port guard: a port that stays held is waited for 7 checks (7 sleeps of 3 s) and the start runs once anyway"
+else
+  fail "port guard: held for good: rc '$g_rc', sleeps '$(g_sleeps)', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+guard_run 52803 0 0 'bind-mac ok' up -d --build
+if [ "$g_rc" = 0 ] && g_has 'PORT retry: ' && g_has 'bind: address already in use; retrying once in 5 s' && [ "$(g_composes)" = 2 ] \
+  && [ "$(cat "$gdir/sleeps")" = 5 ] && [ "$(g_checks)" = 2 ] && ! g_has 'FAIL web port' \
+  && printf '%s\n' "$g_err" | grep -qF 'bind: address already in use' \
+  && [ "$(grep -c '^compose -p guardproj -f a.yml up -d --build$' "$gdir/calls")" = 2 ]; then
+  pass "port guard: a bind error is retried once after a pause of 5 s and another wait, and the first attempt's stderr is still shown"
+else
+  fail "port guard: bind then success: rc '$g_rc', composes '$(g_composes)', sleeps '$(tr '\n' ' ' < "$gdir/sleeps")', checks '$(g_checks)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+guard_run 52803 0 0 'bind-ci bind-ci' up -d
+if [ "$g_rc" != 0 ] && [ -n "$g_rc" ] && [ "$(g_composes)" = 2 ] \
+  && g_has 'FAIL web port: 127.0.0.1:52803 could not be bound after one retry: Error response from daemon: driver failed programming external connectivity on endpoint'; then
+  pass "port guard: a second bind error fails loudly after exactly 2 starts, with the web port and the error line"
+else
+  fail "port guard: bind twice: rc '$g_rc', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+guard_run 52803 0 0 other up -d
+if [ "$g_rc" = 1 ] && [ "$(g_composes)" = 1 ] && ! g_has 'PORT retry' && ! g_has 'FAIL web port' && printf '%s\n' "$g_err" | grep -qF 'no such image'; then
+  pass "port guard: another start failure is not retried and keeps its status"
+else
+  fail "port guard: other failure: rc '$g_rc', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+guard_run 52803 999999 1 ok restart iris
+if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 1 ] && [ "$(g_checks)" = 0 ] && ! g_has 'PORT' \
+  && grep -qx 'ps -q --filter label=com.docker.compose.project=guardproj --filter publish=52803' "$gdir/calls" \
+  && grep -qx 'compose -p guardproj -f a.yml restart iris' "$gdir/calls"; then
+  pass "port guard: a restart of the project's own stack (it publishes the port) is not pre-waited"
+else
+  fail "port guard: own stack, restart: rc '$g_rc', composes '$(g_composes)', checks '$(g_checks)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+guard_run 52803 999999 1 ok up -d
+if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 1 ] && [ "$(g_checks)" = 0 ] && ! g_has 'PORT'; then
+  pass "port guard: an up over the project's own running stack is not pre-waited"
+else
+  fail "port guard: own stack, up: rc '$g_rc', composes '$(g_composes)', checks '$(g_checks)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+guard_run 52803 0 1 'bind-mac ok' start iris
+if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 2 ] && g_has 'PORT retry: '; then
+  pass "port guard: a bind error on the project's own stack is retried once, as elsewhere"
+else
+  fail "port guard: own stack, bind error: rc '$g_rc', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+guard_run "" 999999 0 ok up -d --build --wait
+if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 1 ] && ! grep -q '^ps ' "$gdir/calls" && [ "$(g_checks)" = 0 ] && ! g_has 'PORT' && g_has compose-out; then
+  pass "port guard: with no web port a start runs as it is: no docker ps, no port check, no PORT line"
+else
+  fail "port guard: no web port: rc '$g_rc', composes '$(g_composes)', checks '$(g_checks)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+pass_through_ok=1
+for sub in 'exec -T iris ls' 'ps -q iris' 'down -v'; do
+  guard_run 52803 999999 0 ok $sub
+  if [ "$g_rc" != 0 ] || [ "$(g_composes)" != 1 ] || grep -q '^ps ' "$gdir/calls" || [ "$(g_checks)" != 0 ] \
+    || [ "$g_out" != "$(printf 'compose-out\nRC=0')" ]; then
+    pass_through_ok=0
+    fail "port guard: '$sub' was not passed straight through: rc '$g_rc', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+  fi
+done
+if [ "$pass_through_ok" = 1 ]; then
+  pass "port guard: exec, ps and down pass straight through with a web port, output unchanged"
+fi
+
+# The override of live_web_port waits for a port that is held briefly.
+: > "$gdir/calls"
+: > "$gdir/sleeps"
+printf '%s\n' 2 > "$gdir/busy"
+g_out=$(
+  . "$root/docker/tests/lib-live.sh"
+  LIVE_PORT_WAIT=20
+  tmp=$gdir
+  deadline=$((SECONDS + 1000))
+  LIVE_FILES=()
+  web_port=""
+  OCUTALON_TEST_WEB_PORT=52815
+  sleep() { echo "$1" >> "$gdir/sleeps"; }
+  port_in_use() {
+    local n
+    n=$(cat "$gdir/busy")
+    if [ "$n" -gt 0 ]; then
+      printf '%s\n' $((n - 1)) > "$gdir/busy"
+      return 0
+    fi
+    return 1
+  }
+  live_web_port
+  echo "RC=$? PORT=$web_port"
+)
+if printf '%s\n' "$g_out" | grep -q '^PORT waiting' && printf '%s\n' "$g_out" | grep -q '^RC=0 PORT=52815$' \
+  && grep -q '127.0.0.1:52815:52773' "$gdir/port.yml" && [ "$(cat "$gdir/sleeps" | wc -l | tr -d ' ')" = 1 ]; then
+  pass "port guard: an override port that is held briefly is waited for, then accepted and published on 127.0.0.1 only"
+else
+  fail "port guard: override held briefly: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+# The listener table: ss, or lsof where ss is absent, with a PATH that holds only the stubs, awk and cat. Port 9 has no listener.
+tools="$gdir/tools"
+mkdir -p "$tools"
+ln -sf "$(command -v awk)" "$tools/awk"
+ln -sf "$(command -v cat)" "$tools/cat"
+printf '#!/bin/sh\necho "$*" >> "%s/ss.args"\ncat "%s/ss.out"\n' "$gdir" "$gdir" > "$tools/ss"
+printf '#!/bin/sh\necho "$*" >> "%s/lsof.args"\nexit "$(cat "%s/lsof.rc")"\n' "$gdir" "$gdir" > "$tools/lsof"
+chmod +x "$tools/ss" "$tools/lsof"
+# listed <ss.out text> <lsof rc> <with ss: 1|0> <with lsof: 1|0>: prints 1 when port_in_use 9 is true
+listed() {
+  printf '%b' "$1" > "$gdir/ss.out"
+  printf '%s\n' "$2" > "$gdir/lsof.rc"
+  : > "$gdir/ss.args"
+  : > "$gdir/lsof.args"
+  (
+    . "$root/docker/tests/lib-live.sh"
+    mkdir -p "$gdir/path-$3$4"
+    ln -sf "$tools/awk" "$gdir/path-$3$4/awk"
+    ln -sf "$tools/cat" "$gdir/path-$3$4/cat"
+    if [ "$3" = 1 ]; then ln -sf "$tools/ss" "$gdir/path-$3$4/ss"; fi
+    if [ "$4" = 1 ]; then ln -sf "$tools/lsof" "$gdir/path-$3$4/lsof"; fi
+    PATH="$gdir/path-$3$4"
+    if port_in_use 9; then echo 1; else echo 0; fi
+  )
+}
+ss_head='State Recv-Q Send-Q Local Address:Port Peer Address:Port\n'
+ss_ok=1
+for addr in 127.0.0.1:9 0.0.0.0:9 '*:9' '[::]:9'; do
+  if [ "$(listed "${ss_head}LISTEN 0 4096 $addr 0.0.0.0:*\n" 1 1 1)" != 1 ]; then ss_ok=0; echo "  ss table: $addr was not seen as a listener"; fi
+done
+for addr in 127.0.0.1:90 127.0.0.1:19 '*:99' '[::]:19' 192.168.1.5:9; do
+  if [ "$(listed "${ss_head}LISTEN 0 4096 $addr 0.0.0.0:*\n" 0 1 1)" != 0 ]; then ss_ok=0; echo "  ss table: $addr was taken for a listener"; fi
+done
+if [ "$(listed "${ss_head}ESTAB 0 0 127.0.0.1:9 127.0.0.1:5000\n" 0 1 1)" != 0 ]; then ss_ok=0; echo "  ss table: a connected socket was taken for a listener"; fi
+listed "${ss_head}" 0 1 1 > /dev/null
+if [ "$(cat "$gdir/ss.args")" != '-ltn' ] || [ -s "$gdir/lsof.args" ]; then ss_ok=0; echo "  ss table: ss was run with '$(cat "$gdir/ss.args")', or lsof was run beside it"; fi
+if [ "$ss_ok" = 1 ]; then
+  pass "listener table: ss -ltn lists 127.0.0.1, 0.0.0.0, * and [::] on the port as in use; a neighbour port, another address and a connected socket are not"
+else
+  fail "listener table: ss"
+fi
+if [ "$(listed '' 0 0 1)" = 1 ] && [ "$(cat "$gdir/lsof.args")" = '-nP -iTCP:9 -sTCP:LISTEN' ] && [ "$(listed '' 1 0 1)" = 0 ]; then
+  pass "listener table: without ss, lsof -nP -iTCP:<p> -sTCP:LISTEN decides (exit 0 is in use)"
+else
+  fail "listener table: lsof"
+fi
+if [ "$(listed '' 0 0 0)" = 0 ]; then
+  pass "listener table: with neither tool the connect check stands alone"
+else
+  fail "listener table: with neither tool a free port was reported in use"
 fi
 
 # --- first_start_report and live_first_start (Story 0.8) ---

@@ -2,7 +2,8 @@
 title: 'Story 0.24: A test stack''s web port can never collide with a port that is still being released'
 type: 'bugfix'
 created: '2026-11-10'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'af4189de12b78ecebee770b838f2d96abe846a8d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -148,6 +149,31 @@ These rows are the hermetic self-tests in `test-lib-live.sh`. They stub `docker`
 
 ## Review Triage Log
 
+### 2026-11-10 -- Review pass
+- verdicts: 21 rows (grouped findings share a row; the intent layer's descriptive report is the last row) -- high 0, medium 2, low 18, false 0, maybe-false 0; 3 patched, 0 deferred, 17 rejected, 1 descriptive
+- findings:
+  - `[low]` `[reject]` Blind: stderr is held until the start ends -- Task (e).2 of the spec prescribes capture-and-replay; callers redirect the up log to a file; a tee would add a process-substitution race on bash 3.2.
+  - `[low]` `[reject]` Blind, Edge, Intent: `lsof` branch matches any address (`::1`, LAN IP) -- the spec's task (a) names `lsof -nP -iTCP:<p> -sTCP:LISTEN`; the worst case is a 20 s wait; macOS only.
+  - `[low]` `[reject]` Blind, Edge: `wait_until` does not check after the last sleep (7 checks, 21 s) -- the matrix row pins exactly 7 sleeps and no more (spec-bound).
+  - `[low]` `[reject]` Blind, Edge x2: retry pause and second start ignore `$deadline`; a pre-wait plus a retry can pass it -- Design Notes record "can pass the run's deadline by at most about 25 s" (spec-bound).
+  - `[low]` `[reject]` Blind, Edge: `live_bind_error` matches the phrase anywhere in stderr, not tied to the port -- the spec says "a message that contains" the phrases (spec-bound); a wrong port in the FAIL line is cosmetic.
+  - `[low]` `[reject]` Blind: `ss` present but failing does not fall back to `lsof` -- theoretical (standard `ss` on the CI hosts; `lsof` on macOS).
+  - `[low]` `[reject]` Edge: the retry after a bind error on the project's own stack waits 21 s -- a bind error there means another process holds the port, so the wait is what is wanted.
+  - `[low]` `[reject]` Edge: `ss` address spellings `[::ffff:127.0.0.1]` or `127.0.0.1%dev` are missed -- Docker publishes `127.0.0.1:<p>`, which `ss` prints as that; no reachable case shown.
+  - `[low]` `[reject]` Edge: `dc` with global compose options before the subcommand, or `create`, `run`, `unpause`, is not guarded -- the spec guards the first argument `up`, `start`, `restart` and records the `git grep` check that every site uses it.
+  - `[low]` `[reject]` Edge: `$tmp` empty or unwritable -- `$tmp` is set by `live_start` before any `dc`; theoretical.
+  - `[low]` `[reject]` Edge: PORT lines on stdout mix into a caller's captured output -- Design Notes decide stdout and record that no caller parses them.
+  - `[low]` `[reject]` Edge: test-lib-live restores `LIVE_PORT_WAIT=20` hard-coded -- the new block now sets its own values in each subshell, so nothing downstream depends on it.
+  - `[low]` `[reject]` Edge, Intent: the claim "exactly the bind error" or "every start" is looser than the code -- same root cause as the substring and first-argument rows above; no code change.
+  - `[medium]` `[patch]` Edge: with `LIVE_PORT_WAIT=0` the `PORT waiting ... is in use` line is printed, so the `test-ci-config.sh` pin that greps `in use` in the refusal output can pass without the `FAIL live_web_port` line -- fixed: `live_port_wait_free` returns 1 silently when `LIVE_PORT_WAIT` is 0 or less (the held-port pins keep their meaning).
+  - `[low]` `[patch]` Blind, Verification-gap: `LIVE_PORT_RETRY_PAUSE` (and `LIVE_PORT_WAIT`) are read from the caller's environment inside the new block -- fixed: each guard subshell sets both explicitly.
+  - `[medium]` `[patch]` Verification-gap: no assertion checks the compose arguments of the first and the retry call or the `docker ps` probe's filters -- fixed: the retry row asserts 2 identical `compose -p guardproj -f a.yml up -d --build` calls, the own-stack row asserts the probe's label and publish filters and the `restart iris` call; two new `mutation:` lines observed red.
+  - `[low]` `[reject]` Verification-gap: step 5's `live_port_guard` wrapper has no hermetic test or mutation -- the wrapper can fail only when the race occurs; the logic it calls is pinned through `dc`. Closed wontfix-accepted; reopen_if `install-script-live` shows a bind error at step 5.
+  - `[low]` `[reject]` Verification-gap: AC4 and AC5 are live observations and cannot fail without the race -- the only fix is to edit this spec's Verification (a held listener around the second start), which a review may not do; recorded as a residual risk.
+  - `[low]` `[reject]` Verification-gap Other: `LIVE_PORT_WAIT=0` pins no longer reach the wait path -- intended (the knob exists for that); the new rows cover the wait.
+  - `[low]` `[reject]` Verification-gap: listener-table rows assume nothing listens on port 9 -- the connect check on 127.0.0.1:9 is refused on any dev or CI host; theoretical.
+  - Intent-alignment layer: descriptive report, no defect. Its divergences (the diff proves the logic at the `dc` surface with stubs; Path B and part p are not replayed live; the guard adds the own-stack skip, the start-anyway rule, the pause and the second wait) are all recorded in Design Notes; the live proof and CI (AC4, AC5) own the real surface.
+
 ## Design Notes
 
 **Choice: fix (2), wait and retry once (decided in-stage).**
@@ -242,13 +268,31 @@ Mutations, one per AC. Revert each one and confirm that `git status --short` and
 - mutation: AC1, loud failure -- drop the `FAIL web port` line -> the `bind error twice` row goes red.
 - mutation: AC2, override wait -- in `live_web_port`, refuse an in-use override at once again -> the `override held briefly` row goes red.
 - mutation: AC2, binding -- write `"%s:52773"` (all interfaces) in `port.yml` -> the existing `publishes 52800 on 127.0.0.1 only` check goes red.
+- mutation: AC1, retry arguments -- the retry runs the command without its last argument (`"${@:1:$#-1}"`) -> the `bind error, then success` row goes red (observed).
+- mutation: AC1, own-stack probe -- drop `--filter "publish=$p"` from the `docker ps` probe in `live_port_guard` -> the `own stack, restart` row goes red (observed).
 - mutation: AC3, listener table -- make `port_in_use` ignore `ss` -> the listener-table row goes red.
 - mutation: AC3, pass-through -- run the guard with no web port set -> the `no web port` row goes red.
 - mutation: AC4 -- (lead) none needed; the proof is a live observation of two starts.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). Fix (2), wait and retry once, chosen and recorded under Design Notes. Files to touch: `docker/tests/lib-live.sh`, `docker/tests/test-lib-live.sh`, `docker/tests/test-ci-config.sh`, `docker/tests/test-install-script-live.sh`; no `release/**` or workflow file.
+**Implemented (fix 2).** `dc` sends `up`, `start` and `restart` with a web port through `live_port_guard`; every other call runs as before. The guard waits up to `LIVE_PORT_WAIT` (20) s for the port, unless the project's own container publishes it, starts anyway when the port stays held, retries once after `LIVE_PORT_RETRY_PAUSE` (5) s and another wait on `address already in use` or `failed programming external connectivity`, and then fails loudly. `port_in_use` also reads the listener table (`ss -ltn`, else `lsof`), and `live_web_port`'s override waits before its refusal.
+
+**Files changed**
+- `docker/tests/lib-live.sh` -- the guard, the wait, the listener table, the `dc` split, header and comments.
+- `docker/tests/test-lib-live.sh` -- the block `the start's port guard (Story 0.24)` (14 PASS lines, 134 to 148), `LIVE_PORT_WAIT=0` around the held-override case, the header bullet.
+- `docker/tests/test-ci-config.sh` -- `LIVE_PORT_WAIT=0` in `live_port_checks` (no assertion changed).
+- `docker/tests/test-install-script-live.sh` -- step 5's plain `docker compose up -d` runs through `live_port_guard`.
+
+**Decided in-pass (small).** `live_port_wait_free` returns 1 silently when `LIVE_PORT_WAIT` is 0 or less, so the held-port pins that set the knob to 0 keep seeing the `FAIL live_web_port ... in use` line (not the PORT line) in their match.
+
+**Review.** 21 triage rows from four layers; 3 patched (medium 2, low 1), 0 deferred, 17 rejected with reasons in the Review Triage Log, and the intent layer's descriptive report. Follow-up review recommended: false.
+
+**Verification performed.** `test-lib-live.sh` (148 PASS, 0 FAIL, with `bash` and with `/bin/bash` 3.2), `test-ci-config.sh`, `test-boundaries.sh`, `test-ci-changes.sh`, `test-ci-warm.sh` all pass; ASCII check prints four 0; no absolute local path in the diff. Ten mutations (the eight planned, plus two for the new assertions) went red and were reverted byte-identically.
+
+**Not run here (lead-owned).** The live proof (two stacks back to back on lane C, port 52803), `bash ci/iris.sh live install-script-live`, and CI on the head (`ipm-install-p`).
+
+**Residual risks.** AC4 and AC5 are observations: Docker Desktop did not reproduce the race, so a green proof or a green CI run is evidence, not a falsification; the hermetic rows carry the logic. An occupant that neither the connect check nor the listener table sees (a bound, non-listening socket) is covered only by the retry. `install.sh` and the rehearsal stand-in stay unguarded (Design Notes).
