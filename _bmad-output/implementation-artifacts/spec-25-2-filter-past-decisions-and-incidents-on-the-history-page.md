@@ -180,7 +180,7 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 - [ ] `web/src/app/rail/rail-view.ts` and `web/src/app/rail/status-rail.ts` -- export `decisionRow` and `formatAt` with no behaviour change.
 - [ ] `web/src/app/app.config.ts` and `web/src/app/settings/settings-view.ts` -- add the route `{ path: 'history', component: HistoryPage, title: HISTORY_TEXTS.title }` before 37.2's `usage` route, and give `pageOf` a `'history'` branch for `/history`.
 - [ ] `web/src/app/header/header-nav.ts` -- add the `History` link (`routerLink="/history"`, `aria-current` from `page.page() === 'history'`) between Documents and Usage (EXPERIENCE :77 order). Update 37.2's doc comment and `header.ts`'s "four navigation links" comment to five.
-- [ ] `web/src/app/guide/more-to-try-view.ts` and `more-to-try.ts` -- add `MORE_TO_TRY_TEXTS.items.history` (PUBLIC TEXT), the action `'history'`, and the registry entry `{ id: 'history', …, action: 'history', group: 'Safety and settings' }` (the proposed group; a different Planner ruling at the spec gate replaces it, recorded in the Spec Change Log) `` appended last. Extend 37.2's usage link branch so it serves both page links (one `<a>`, path from the action) and add `case 'history'` to the navigate switch. The header comment's count word follows the registry.
+- [ ] `web/src/app/guide/more-to-try-view.ts` and `more-to-try.ts` -- add `MORE_TO_TRY_TEXTS.items.history` (PUBLIC TEXT), the action `'history'`, and the registry entry `{ id: 'history', …, action: 'history', group: 'Usage and history' }` appended last (the Planner's ruling: the fourth heading that 37.2 adds, usage then history). Extend 37.2's usage link branch so it serves both page links (one `<a>`, path from the action) and add `case 'history'` to the navigate switch. The header comment's count word follows the registry.
 - [ ] `src/ocutalon/cls/OcuTalon/Demo/Features.cls` -- `Ids` appends `history` unconditionally after `usage`. Update the doc line so it no longer says "usage … last".
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Data/OwnershipHistory.cls` (new; extends `OcuTalon.Test.Bridge.ZoneCase` like 37.2's `OwnershipUsage`) -- tests every I/O matrix row at the Ownership level:
   - each filter, alone and combined;
@@ -199,7 +199,7 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
   - Isolation, the summary text, and no session → 500.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Demo/Features.cls` -- add `,history` after `usage` in every `TestIds` expectation. `src/ocutalon/cls/OcuTalon/Test/Web/DocumentsApi.cls` -- no edit when, as at 37.2, its Map pin filters on `/v1/documents`; otherwise apply 37.2's URL filter.
 - [ ] `web/e2e/api/history.spec.ts` (new; real HTTP, mirrors 37.2's `api/usage.spec.ts`) -- the SECURITY tests listed in Design Notes. Seed through `irisScript` with `Test.Data.Fixture` `Decision`, `Usage` and `Incident` (with a stored `Summary`) and clean up in `finally`. Extend `support/iris.ts`'s `seedDecision(s)`/`seedIncident` where they fit, and otherwise add `web/e2e/support/history.ts`.
-- [ ] `web/e2e/history/history.spec.ts` (new) -- covers:
+- [ ] `web/e2e/history/history.spec.ts` (new) -- covers (also: a decision with no usage row shows no channel text at all, no "Unknown" and no labelled dash, the Planner's condition):
   - the page from the header nav: title, `aria-current`;
   - the tabs: `aria-selected`, ArrowRight/ArrowLeft, Enter/Space, never switching by themselves;
   - every filter changes the address, and a reload and a copied link keep it;
@@ -213,14 +213,14 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 - [ ] Shared tests (Rule 19) -- update these:
   - `frame.spec.ts`: the Tab order gains History before Usage, and 37.2's 1024px test becomes five links. Measure it first; see Design Notes → HEADER RISK.
   - `settings.spec.ts:68` → `['Chat','Settings','Documents','History','Usage']`; `documents.spec.ts:338` → `['Chat','Documents','History','Usage']`.
-  - `more-to-try.spec.ts`: `ITEMS`, `controlOf`, K3's href for the history item, and the new **K28** "the link of the History item opens the History page".
+  - `more-to-try.spec.ts`: `ITEMS`, `controlOf`, K3's href for the history item, the group-heading oracle (K27) gains history under "Usage and history", and the new **K28** "the link of the History item opens the History page". K16 and K17 (the compact band at 1280x650 and 1280x600) must stay green unchanged (the Planner's condition).
   - `settings-view.test.mjs`: `pageOf` `history` cases, the same set as 37.2's usage cases.
-  - `more-to-try-view.test.mjs`: `RULED`, `GROUP_OF` gets `history`, and an assertion that history is last.
+  - `more-to-try-view.test.mjs`: `RULED`, `GROUP_OF` gets `history: 'Usage and history'`, and an assertion that history is last in that group and in the registry.
   - `more-to-try-sources.test.mjs`: the counts follow the extended link branch.
-  - `ux-strings.test.mjs`: `IMPORTED` gets `['history/history-view.ts', ['HISTORY_TEXTS']]`, the `ux`/`ac` sources, and a `ruled` block "Story 25.2 rulings at the spec gate".
+  - `ux-strings.test.mjs`: `IMPORTED` gets `['history/history-view.ts', ['HISTORY_TEXTS']]`, the `ux`/`ac` sources, and a `ruled` block "Story 25.2 rulings at the spec gate" (2026-11-10, Contest Planner: PUBLIC TEXT approved as proposed).
   - `floor-sources.test.mjs`: the history page in `KEY_HANDLERS`, the arrow list and bindings, the `tabs` allowed map (reason: UX-DR130 Decisions/Incidents tabs), and the scroller list only if it adds a scroller.
   - `web/scripts/history-view.test.mjs` (new): `paramsOf`/`queryOf` round trips, invalid values dropped, `emptyText`, `pageText`.
-- [ ] `README.md` -- append the History bullet last in "New since 1.0.0" and update :40's count word. `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- add the More to try entry under "Safety and settings" (or the heading the Planner rules), with the next item number, plus "Item N's control is a link to the History page.", and update the "There are … items" count word. Both carry `[ADDED <date>, Story 25.2, Contest Planner ruling …]`.
+- [ ] `README.md` -- append the History bullet last in "New since 1.0.0" and update :40's count word. `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- add the More to try entry under 37.2's "Usage and history" heading, after usage, with the next item number, plus "Item N's control is a link to the History page.", and update the "There are … items" count word. Both carry `[ADDED <date>, Story 25.2, Contest Planner ruling …]`.
 - [ ] `ARCHITECTURE-SPINE.md` -- append the three rows in Design Notes → SPINE ROWS after 37.2's rows. Refresh `updated:`, run `memlog.py append --type decision` and lint (Rule 20).
 
 **Acceptance Criteria:**
@@ -234,10 +234,23 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 ## Spec Change Log
 
 - 2026-11-10 (lead, spec gate): Design Notes gained the lead note on DW-941. The PUBLIC TEXT, SECURITY and MORE TO TRY GROUP sections go to the Contest Planner; the rulings are written here before implement.
+- 2026-11-10 ~19:15Z (lead): the Planner's rulings written in verbatim (Design Notes, "Planner rulings at the spec gate"). PUBLIC TEXT approved as proposed, with the no-channel condition. SECURITY accepted; real-HTTP case 7 (page beyond the last → 200, empty list) added. GROUP changed to the fourth heading "Usage and history" (37.2 adds it; 25.2 appends history; K16/K17 stay green, else fallback "Safety and settings"). Tasks, Shared tests and the registry task updated to match.
 
 ## Review Triage Log
 
 ## Design Notes
+
+### Planner rulings at the spec gate (verbatim) [RULED 2026-11-10 ~19:10Z, Contest Planner under the owner's delegation, spec gate of Story 25.2, relayed by the orchestrator]
+
+1. PUBLIC TEXT: a to n APPROVED as proposed, including the README bullet (m) unhedged ("filtered by ... channel" holds for every decision that has a channel; DW-941 stays in the burn-down). CONDITION for the gap: a decision with no channel shows NO channel cell text at all; no "Unknown" and no dash with a label.
+2. SECURITY: ACCEPTED as specced (two GETs /api/v1/history/decisions and /incidents for any OcuTalonUser; the caller's own session's decide rows and the existing INCIDENTVISIBLE rule; constant statements through the allow-listed prepare with bound filters; the body allow-lists as listed; no new privilege, role, grant, resource, table, column, index, live-event type or retention). Tests as listed satisfy the standing route rule. ADD one case: page beyond the last page (e.g. page=9999 with 26 rows) returns 200 with an empty list, not an error. (If you'd rather 404, say so and the Planner rules.)
+3. MORE TO TRY GROUP: CHANGED. A FOURTH heading, "Usage and history", holding usage then history.
+   - It becomes the LAST entry of MORE_TO_TRY_GROUPS. 37.2 (merges first) makes the change: its usage item's group becomes "Usage and history"; it appends the heading to the constant; it updates the group-heading e2e's written oracle (the Planner called it K25; on feature 0.22 renamed it K27) and EXPERIENCE (a new `    - Heading "Usage and history".` entry, numbered by panel order, marker "[AMENDED 2026-11-10, Contest Planner ruling: a fourth group for the step-6 pages]"). This SUPERSEDES the 37.2 group ruling ("Safety and settings", last).
+   - 25.2 then appends history to that group. Nothing earlier is renumbered.
+   - CONDITION: the compact-band tests (K16, K17 at 1280x650 and 1280x600) must stay green with the fourth heading. If they can't, report it and keep both items last in "Safety and settings" as the fallback; don't change the band logic for this.
+   - Demo.Features gets ",history" after "usage".
+
+("a to n" in the relay are the PUBLIC TEXT table's "New (needs ruling)" rows; the ruled README bullet is row 31.)
 
 **Planned against Story 37.2 at OCT-epic37 `7ef82a46` (not merged).** Its spec, spine rows, header nav, `Web.Usage`, `Ownership.Usage`/kind `usage`, More to try item, `Demo.Features`, README and EXPERIENCE changes were read with `git show 7ef82a46:<path>`. This story is a delta on those names. Task 0 re-checks them on the merged feature branch.
 
@@ -305,7 +318,9 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 - The spine: three rows appended after 37.2's.
 - Epic 23's and Epic 41's edits to these files are unaffected: no shared lines except the count words, which follow the registry.
 
-### PUBLIC TEXT (pending Planner ruling)
+### PUBLIC TEXT (ruled: approved as proposed [RULED 2026-11-10 ~19:10Z, Contest Planner under the owner's delegation, spec gate of Story 25.2, relayed by the orchestrator])
+
+Every row below marked "New (needs ruling)" is APPROVED as proposed, the README bullet (row 31) unhedged. CONDITION: a decision with no channel shows NO channel cell text at all: no "Unknown" and no dash with a label (Decided in-stage 4 already leaves the channel out of the meta line; the implement stage pins it with a test).
 
 | # | Where (file; location) | String (verbatim) | Status |
 |---|---|---|---|
@@ -342,7 +357,9 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 | 31 | README "New since 1.0.0", appended last | `- **A History page.** Open History in the header to look back at the decisions OcuTalon made on your messages, filtered by outcome, channel, date and fallback, each with its reasons and a link to its trace, and at your incidents with their state and, once closed, their summary. On the online demo you see only your own session's decisions and incidents. Try it: More to try, *Look back at past decisions*.` | New (needs ruling); the shape of 37.2's ruled bullet |
 | 32 | README :40 / registry comment / EXPERIENCE count | the count word one higher than after 37.2 | Mechanical (`sources-docs.test.mjs`) |
 
-### SECURITY (pending Planner ruling)
+### SECURITY (ruled: accepted as specced, one case added [RULED 2026-11-10 ~19:10Z, Contest Planner under the owner's delegation, spec gate of Story 25.2, relayed by the orchestrator])
+
+Accepted as specced. ADDED case: a page beyond the last page (e.g. `page=9999` with 26 rows) returns 200 with an empty list, not an error (real-HTTP test 7 below; it matches the I/O matrix row "Page past the end").
 
 **Routes** (new; both are GET, so they need no `X-OcuTalon-Request` header):
 
@@ -384,14 +401,19 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 4. Every invalid value in the matrix gives 404 `not_found`.
 5. Key allow-list: the sorted top keys, and every item's sorted keys, are within the lists above. The serialized body contains neither user name, neither session Ref, nor any `"id"`, `ownerRef`, `itemId` or `traceHeaderId`.
 6. `OCUTALON_TRACEONLY_USER` gets 403 `no_role`.
+7. [ADDED by the Planner's ruling] A page beyond the last page: with 26 seeded decisions, `page=9999` (and `page=3`) gives 200 `{"page":9999,"pages":2,"decisions":[]}` (the same for incidents), never an error.
 
-### MORE TO TRY GROUP (pending Planner ruling)
+### MORE TO TRY GROUP (ruled: CHANGED [RULED 2026-11-10 ~19:10Z, Contest Planner under the owner's delegation, spec gate of Story 25.2, relayed by the orchestrator])
 
-Proposed: **"Safety and settings", last (after 37.2's usage item)**. History, like Usage, is a step-6 look-back page reached from the header. Placing it last there is a plain append (the next EXPERIENCE item number). Any other heading would renumber the EXPERIENCE entries after it, including 37.2's (`sources-docs.test.mjs` numbers by panel order).
+Ruled: a FOURTH heading, **"Usage and history"**, the LAST entry of `MORE_TO_TRY_GROUPS`, holding usage then history. Story 37.2 (merges first) makes the change: its usage item's group becomes "Usage and history", it appends the heading to the constant, it updates the group-heading e2e's written oracle (K27 on feature) and EXPERIENCE (a new `    - Heading "Usage and history".` entry, numbered by panel order). This supersedes 37.2's earlier group ruling ("Safety and settings", last) and this spec's proposal.
 
-The alternative is "Incidents and fixes", after "Reject a fix", because the Incidents tab shows the 23.6 summaries. Its cost: Items 2 to 9 become 3 to 10.
+Story 25.2 then APPENDS history to that group, last: its registry row with `group: 'Usage and history'`, one `GROUP_OF` line, and its EXPERIENCE entry under the "Usage and history" heading. Nothing earlier is renumbered. E2E: **K28**. `Demo.Features` gets `,history` after `usage`.
 
-The new item adds only its registry row with `group:`, one `GROUP_OF` line, and its EXPERIENCE entry. E2E: **K28**.
+CONDITION: the compact-band tests K16 and K17 (1280x650 and 1280x600) must stay green with the fourth heading and the history item. If they cannot, do not change the band logic: report it (`## Clarification Needed` from the implement stage) and the fallback is both items last in "Safety and settings".
+
+Task 0 confirms on the merged feature that 37.2 shipped the heading as ruled; if it did not (for example 37.2 kept usage in "Safety and settings"), that is drift for the Spec Change Log and a `## Clarification Needed`, never a 25.2 edit of 37.2's heading.
+
+(Proposal at the gate, superseded: "Safety and settings", last; alternative "Incidents and fixes".)
 
 ### SPINE ROWS (this story's own; AD-33, the amended first AC)
 
@@ -450,4 +472,4 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 Status: ready-for-dev
 Blocking condition: none
 
-Planned to the spec gate against Story 37.2 at OCT-epic37 `7ef82a46` (not merged). The implement stage waits for 37.2's merge (`story_waits_stories: {"25.2": "37.2"}`) and starts with Task 0's re-check. The three sections for the Planner are under Design Notes: PUBLIC TEXT, SECURITY and MORE TO TRY GROUP (proposed: "Safety and settings", last). Decided in-stage item 4 is flagged for the Planner: a decision that no model call served has no recorded channel.
+Planned to the spec gate against Story 37.2 at OCT-epic37 `7ef82a46` (not merged). The implement stage waits for 37.2's merge (`story_waits_stories: {"25.2": "37.2"}`) and starts with Task 0's re-check. The three sections for the Planner are under Design Notes: PUBLIC TEXT, SECURITY and MORE TO TRY GROUP; the Planner ruled them on 2026-11-10 (~19:10Z): text approved, security accepted with the page-beyond-the-last case, group "Usage and history" (fourth heading, from 37.2). Decided in-stage item 4 is flagged for the Planner: a decision that no model call served has no recorded channel.
