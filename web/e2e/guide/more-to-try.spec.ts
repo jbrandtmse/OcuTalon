@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Route } from '../support/fixtures';
 
-import { MORE_TO_TRY_ITEMS, itemsFor } from '../../src/app/guide/more-to-try-view.ts';
+import { MORE_TO_TRY_GROUPS, MORE_TO_TRY_ITEMS, groupsOf, itemsFor } from '../../src/app/guide/more-to-try-view.ts';
 import { changeSnapshot, MESSAGES, STATE } from '../support/api';
 import { signIn } from '../sign-in/helpers';
 import { sampleChipOf } from '../support/devices';
@@ -53,6 +53,8 @@ import { blockLiveSocket } from '../support/socket';
  *     style) the finish closes the panel, and the link says so; the squeeze holds until the viewport's height changes (then the panel
  *     opens by itself) or a new finish begins (then it opens again);
  *   - K18: a focused panel group hands focus on when the finish leaves;
+ *   - K27: the panel's level-4 headings are exactly the groups that have items, in order, each followed by its own list of items, and no
+ *     heading takes focus;
  *   - K14 (matrix 5, error): item 1 focuses the Persona heading when the card has not loaded;
  *   - K15 (matrix 6, error): item 2 sends nothing while the email limit holds, and focuses the inactive chip;
  *   - K25 (Story 23.6, AC 10): the incident summary item at the finish presses the Dismiss of the newest resolved incident card: the card's chip says
@@ -66,6 +68,8 @@ const DEMO_VIEW_KEY = 'ocutalon.demoView.off';
 const FOUR = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView'];
 // Every id of the registry, in its order, so that an item another story adds joins the K3 and K9 cases; ITEMS below is the independent text oracle.
 const ALL = MORE_TO_TRY_ITEMS.map((item) => item.id);
+/** The ids the panel shows for a feature list, in the order it shows them: the sets of groupsOf, flattened. */
+const shown = (ids: readonly string[] | undefined): string[] => groupsOf(itemsFor(ids)).flatMap((set) => set.items.map((item) => item.id));
 /** The id that the server lists first (Demo.Features, Story 23.6); a routed case names the ids it wants, so this one joins only where a case says so. */
 const SUMMARY = 'incidentSummary';
 const SUMMARY_PROMPT = 'Show me the incident summary';
@@ -245,7 +249,7 @@ test('K1: the panel shows exactly the items for the server\'s guide.features', a
   if ((await link.getAttribute('aria-expanded')) !== 'true') await link.click();
   await expect(link).toHaveAttribute('aria-expanded', 'true');
   await expect(panelOf(page)).toBeVisible();
-  await expect(panelOf(page).locator('.item-label'), 'the panel\'s labels are the registry\'s items for the list, in order').toHaveText(itemsFor(features).map((item) => item.label));
+  await expect(panelOf(page).locator('.item-label'), 'the panel\'s labels are the registry\'s items for the list, in order').toHaveText(shown(features).map((id) => MORE_TO_TRY_ITEMS.find((item) => item.id === id)!.label));
 });
 
 /** K2 (routed finish, four ids): the panel is open in the finish, after the links and before Try it yourself, with items 1 to 4. */
@@ -265,10 +269,12 @@ test('K2: in the finish the panel is open after the links and before Try it your
   expect(await before(finish, '.finish-links', 'app-more-to-try'), 'after the finish links').toBe(true);
   expect(await before(finish, 'app-more-to-try', 'app-try-it-row'), 'and before Try it yourself').toBe(true);
   await expect(panel.locator('p').first(), 'the label is a paragraph').toHaveText('Other things to try');
-  await expect(guideRegion(page).getByRole('heading'), 'and no heading').toHaveCount(0);
+  await expect(panel.getByRole('heading', { level: 4 }), 'the groups with an item show their heading').toHaveText(['Incidents and fixes', 'Safety and settings']);
+  await expect(panel.locator('p.group-label'), 'and the label is still a paragraph').toHaveCount(1);
+  await expect(guideRegion(page).getByRole('heading'), 'with no other heading in the guide').toHaveCount(2);
 
   await expect(panel.getByRole('listitem')).toHaveCount(4);
-  await expect(panel.locator('.item-label'), 'items 1 to 4 in order').toHaveText(FOUR.map((id) => ITEMS[id]!.label));
+  await expect(panel.locator('.item-label'), 'the four items in the order shown').toHaveText(shown(FOUR).map((id) => ITEMS[id]!.label));
   for (const id of FOUR) {
     const item = itemOf(page, id);
     await expect(item.locator('.look-for'), `${id}: its look-for line`).toHaveText(ITEMS[id]!.lookFor);
@@ -297,7 +303,7 @@ test('K3: every id shows its item in order, items 6 and 8 are links to the Docum
   );
   await openWith(page, finished(ALL));
   const panel = panelOf(page);
-  await expect(panel.locator('.item-label')).toHaveText(ALL.map((id) => ITEMS[id]!.label));
+  await expect(panel.locator('.item-label')).toHaveText(shown(ALL).map((id) => ITEMS[id]!.label));
   for (const id of ALL) await expect(itemOf(page, id).locator('.look-for'), `${id}: its look-for line`).toHaveText(ITEMS[id]!.lookFor);
   const documents = controlOf(page, 'documents');
   await expect(documents, 'item 6 is a link').toHaveAttribute('href', /#\/documents$/);
@@ -364,7 +370,7 @@ test('K4: before the finish the panel is closed; the link opens it with Enter an
   await expect(guideRegion(page).locator('.prompt').getByRole('button', { name: 'Send', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(panelOf(page), 'the panel is a scroll region and a Tab stop of its own, before its controls').toBeFocused();
-  for (const id of FOUR) {
+  for (const id of shown(FOUR)) {
     await page.keyboard.press('Tab');
     await expect(controlOf(page, id), `Tab reaches ${id}`).toBeFocused();
   }
@@ -797,7 +803,7 @@ interface Room {
   window: number;
   holds: number;
   need: number;
-  columns: number;
+  columns: number[];
   width: number;
   overflowX: number;
   sideways: number;
@@ -813,7 +819,7 @@ const measureRoom = (page: Page): Promise<Room> =>
   page.evaluate(() => {
     const group = document.querySelector<HTMLElement>('app-more-to-try .group')!;
     const style = getComputedStyle(group);
-    const tops = Array.from(group.querySelectorAll('li')).map((item) => Math.round(item.getBoundingClientRect().top));
+    const lists = Array.from(group.querySelectorAll('ul.items')).map((list) => Array.from(list.querySelectorAll('li')).map((item) => Math.round(item.getBoundingClientRect().top)));
     return {
       chat: document.querySelector('app-chat-panel .list')!.getBoundingClientRect().height,
       page: document.scrollingElement!.scrollHeight - document.scrollingElement!.clientHeight,
@@ -823,11 +829,11 @@ const measureRoom = (page: Page): Promise<Room> =>
         group.querySelector('.group-label')!.getBoundingClientRect().height +
         (parseFloat(style.rowGap) || 0) +
         group.querySelector('.button')!.getBoundingClientRect().height,
-      columns: tops.filter((top) => top === tops[0]).length,
+      columns: lists.map((tops) => tops.filter((top) => top === tops[0]).length),
       width: group.clientWidth,
       overflowX: Math.max(0, group.getBoundingClientRect().right, ...Array.from(group.querySelectorAll('li')).map((item) => item.getBoundingClientRect().right)) - document.documentElement.clientWidth,
       sideways: group.scrollWidth - group.clientWidth,
-      clipped: Array.from(group.querySelectorAll<HTMLElement>('.item-label, .look-for')).filter(
+      clipped: Array.from(group.querySelectorAll<HTMLElement>('.set-heading, .item-label, .look-for')).filter(
         (text) => text.scrollHeight > text.clientHeight + 1 || text.scrollWidth > text.clientWidth + 1,
       ).length,
       overflowY: style.overflowY,
@@ -910,7 +916,7 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
   expect(room.chat, `${at}: the chat's list keeps its height`).toBeGreaterThanOrEqual(size.chat);
   expect(room.overflowX, `${at}: the panel stays within the page's width`).toBeLessThanOrEqual(1);
   expect(room.sideways, `${at}: nothing in the panel reaches past its own width`).toBeLessThanOrEqual(1);
-  expect(room.clipped, `${at}: no label or look-for line is cut short`).toBe(0);
+  expect(room.clipped, `${at}: no heading, label or look-for line is cut short`).toBe(0);
   expect(room.short, `${at}: the panel takes its container's whole width`).toBeLessThanOrEqual(1);
   if (size.framed) {
     expect(room.page, `${at}: the page does not scroll as a whole`).toBeLessThanOrEqual(1);
@@ -923,7 +929,10 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
       expect(room.window, `${at}: and uses the room the viewport leaves it`).toBeGreaterThanOrEqual(size.window);
     }
     expect(room.holds <= 1 || room.chat < size.chat + 4, `${at}: its window takes all the room above the chat's floor, unless it shows everything`).toBe(true);
-    expect(room.columns, `${at}: the items are in as many columns as fit, each at least 20rem wide`).toBe(Math.min(FOUR.length, Math.max(1, Math.floor((room.width - 8 + 16) / (320 + 16)))));
+    const fit = Math.max(1, Math.floor((room.width - 8 + 16) / (320 + 16)));
+    expect(room.columns, `${at}: the items of each list are in as many columns as fit, each at least 20rem wide`).toEqual(
+      groupsOf(itemsFor(FOUR)).map((set) => Math.min(set.items.length, fit)),
+    );
   } else {
     expect(room.overflowY, `${at}: the stacked panel is no scroller of its own`).toBe('visible');
     expect(room.maxHeight, `${at}: and has no bound`).toBe('none');
@@ -934,13 +943,13 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
 }
 
 /**
- * Tab from the panel's own stop through the four controls: each one that takes focus is wholly in view in the panel's window with its
+ * Tab from the panel's own stop through the four controls, in the order shown: each one that takes focus is wholly in view in the panel's window with its
  * focus ring (the control's box grown by the ring's offset and width, 4px), and the window has scrolled by the time the last one is reached.
  */
 async function expectTabInView(page: Page, at: string): Promise<void> {
   await panelOf(page).focus();
   const scrolls = await panelOf(page).evaluate((node) => node.scrollHeight - node.clientHeight > 1);
-  for (const id of FOUR) {
+  for (const id of shown(FOUR)) {
     await page.keyboard.press('Tab');
     await expect(controlOf(page, id), `${at}: Tab reaches ${id}`).toBeFocused();
     const inView = await page.evaluate(() => {
@@ -1531,4 +1540,34 @@ test('K26: Close the incident with no resolved incident sends "Show me the incid
   expect(bodies, 'exactly one POST').toHaveLength(1);
   expect(bodies[0]!.text).toBe(SUMMARY_PROMPT);
   expect(bodies[0]!.fromGuide, 'as the user\'s own message').toBe(false);
+});
+
+/**
+ * K27 (routed finish, every id): the panel's level-4 headings are the ruled groups that have an item, in the ruled order, and the list
+ * after each holds exactly the labels of the registry items that declare that group, in registry order. The label is no heading, and
+ * no heading takes focus. The oracle is the ruled heading strings written out; membership comes from the registry's group fields.
+ */
+test('K27: the panel shows its items under the ruled group headings, each followed by its own list', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openWith(page, finished(ALL));
+  const panel = panelOf(page);
+  await expect(panel).toBeVisible();
+  const RULED_HEADINGS = ['Incidents and fixes', 'Memory and documents', 'Safety and settings'];
+  const groupOf = (id: string): string | undefined => MORE_TO_TRY_ITEMS.find((item) => item.id === id)!.group;
+  expect(ALL.filter((id) => !RULED_HEADINGS.includes(groupOf(id) ?? '')), 'every item declares a ruled group').toEqual([]);
+  const expected = RULED_HEADINGS.map((group): [string, string[]] => [group, ALL.filter((id) => groupOf(id) === group)]).filter(([, ids]) => ids.length > 0);
+  expect(MORE_TO_TRY_GROUPS, 'the page\'s constant is the ruled order').toEqual(RULED_HEADINGS);
+
+  const headings = panel.getByRole('heading', { level: 4 });
+  await expect(headings, 'the groups that have items, in order').toHaveText(expected.map(([group]) => group));
+  await expect(panel.getByRole('heading'), 'and no other heading').toHaveCount(expected.length);
+  await expect(panel.getByRole('heading', { name: 'Other things to try', exact: true }), 'the label is no heading').toHaveCount(0);
+  await expect(panel.locator('p.group-label')).toHaveText('Other things to try');
+  await expect(panel.locator('ul.items'), 'one list for each heading').toHaveCount(expected.length);
+  for (const [at, [group, ids]] of expected.entries()) {
+    const heading = headings.nth(at);
+    await expect(heading, `${group}: no tabindex`).not.toHaveAttribute('tabindex', /.*/);
+    await expect(heading.locator('xpath=following-sibling::ul[1]').locator('.item-label'), `${group}: its labels, in registry order`).toHaveText(ids.map((id) => ITEMS[id]!.label));
+  }
+  await expect(panel.locator('.item-label'), 'every item once').toHaveCount(ALL.length);
 });
