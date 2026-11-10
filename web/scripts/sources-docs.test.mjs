@@ -103,8 +103,8 @@ describe('EXPERIENCE.md, More to try', () => {
   });
 
   for (const [n, id] of [
-    [6, 'documents'],
-    [8, 'sources'],
+    [7, 'documents'],
+    [9, 'sources'],
   ]) {
     it(`Item ${n} is the ${id} entry of the registry: label, look-for and control`, () => {
       const item = entry(id);
@@ -115,14 +115,14 @@ describe('EXPERIENCE.md, More to try', () => {
   }
 
   it('names the items whose controls are links to the Documents page', () => {
-    assert.ok(EXPERIENCE.includes("Items 6 and 8's controls are links to the Documents page."));
+    assert.ok(EXPERIENCE.includes("Items 7 and 9's controls are links to the Documents page."));
   });
 
   it('says that, with no documents, items 6 and 8 are the sample button that the Documents page presses (Story 20.3)', () => {
     const control = 'While the visitor has no documents, each is instead an "Add the sample runbook" button, which opens the Documents page and presses that page\'s Add the sample runbook.';
-    assert.ok(EXPERIENCE.includes(`Items 6 and 8's controls are links to the Documents page. ${control}`), 'the controls sentence');
+    assert.ok(EXPERIENCE.includes(`Items 7 and 9's controls are links to the Documents page. ${control}`), 'the controls sentence');
     assert.ok(
-      EXPERIENCE.includes('item 4 turns the Demo view switch off and leaves focus on it; items 6 and 8, while the visitor has no documents, open the Documents page and press its Add the sample runbook, with focus on it;'),
+      EXPERIENCE.includes('item 4 turns the Demo view switch off and leaves focus on it; items 7 and 9, while the visitor has no documents, open the Documents page and press its Add the sample runbook, with focus on it;'),
       'the hand-off rule',
     );
     assert.ok(
@@ -131,14 +131,14 @@ describe('EXPERIENCE.md, More to try', () => {
       ),
       'the Documents step',
     );
-    for (const text of [control, 'items 6 and 8, while the visitor has no documents,']) {
+    for (const text of [control, 'items 7 and 9, while the visitor has no documents,']) {
       assert.ok(EXPERIENCE.split('\n').some((one) => one.includes(text) && /\[(?:AMENDED|ADDED) 2026-11-09, Story 20\.3, Planner ruling [^\]]*\]/.test(one)), `${text} carries its marker`);
     }
   });
 
-  it('marks the change to item 6 and the new item 8 with the story and the ruling', () => {
-    assert.match(line(6), /\[AMENDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 9\)/);
-    assert.match(line(8), /\[ADDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 10 to 12\)/);
-    assert.match(line(6), /\[AMENDED 2026-11-09, Story 20\.3, Planner ruling [^\]]*public text 5\)\. It read: "/);
+  it('marks the change to the documents item (7) and the new sources item (9) with the story and the ruling', () => {
+    assert.match(line(7), /\[AMENDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 9\)/);
+    assert.match(line(9), /\[ADDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 10 to 12\)/);
+    assert.match(line(7), /\[AMENDED 2026-11-09, Story 20\.3, Planner ruling [^\]]*public text 5\)\. It read: "/);
   });
 });

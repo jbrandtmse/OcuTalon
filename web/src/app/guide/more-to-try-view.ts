@@ -1,6 +1,6 @@
 /**
  * The demo guide's "Other things to try" panel (Story 4.11; EXPERIENCE: Demo guide and controls): its fixed strings, the registry of
- * its items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
+ * its nine items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
  * as it is and the strings test reads it.
  *
  * The catalog is the server's (AD-12): `guide.features` is the list of feature ids that Demo.Features.Present gives, in the guide's
@@ -97,7 +97,7 @@ export interface MoreToTryItem {
   readonly group?: string;
 }
 
-/** The items, in the order the panel shows them. */
+/** The nine items, in the order the panel shows them. */
 export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'persona', ...MORE_TO_TRY_TEXTS.items.persona, action: 'persona' },
   { id: 'suspiciousEmail', ...MORE_TO_TRY_TEXTS.items.suspiciousEmail, action: 'suspiciousEmail' },
