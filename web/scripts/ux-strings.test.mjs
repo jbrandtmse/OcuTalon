@@ -268,6 +268,7 @@ const SOURCES = {
     'Cache write',
     'Decision {decision} \u00b7 Turn {turn}',
     '<$0.0001',
+    '$0',
     'Passed',
     'Failed',
     'Not checked',
@@ -853,7 +854,6 @@ The Results partner gives notice before the TLS certificate on its results endpo
     'Dec',
   ],
   format: [
-    '$0',
     '{label} \u00b7 {n} s',
     '{label} \u00b7 {n} seconds',
     '{n} seconds',
@@ -896,9 +896,8 @@ The Results partner gives notice before the TLS certificate on its results endpo
 /** The unit words that a format string may hold besides punctuation, digits and the separator. */
 const UNIT_WORDS = new Set(['s', 'min', 'h', 'in', 'at', 'hour', 'hours', 'minute', 'minutes', 'second', 'seconds']);
 
-/** True for "$0" (the cost of an exact zero), or when the template, with its slots removed, holds only punctuation, digits, the separator and the unit words. */
+/** True when the template, with its slots removed, holds only punctuation, digits, the separator and the unit words. */
 function isFormat(text) {
-  if (text === '$0') return true;
   const rest = text.replace(/\{[A-Za-z]+\}/g, ' ');
   return /^[A-Za-z0-9\s.,:;()\u00b7'"-]*$/.test(rest) && (rest.match(/[A-Za-z]+/g) ?? []).every((word) => UNIT_WORDS.has(word));
 }

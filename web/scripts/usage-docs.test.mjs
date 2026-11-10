@@ -1,6 +1,7 @@
 // Tests that the written texts of Story 37.2 follow the More to try registry (src/app/guide/more-to-try-view.ts): the README's Usage bullet in "New since 1.0.0"
 // (the Planner-ruled text, word for word, once, after the sources bullet), and EXPERIENCE.md's item 9 line (label, look-for and control as the registry has
-// them, the marker, under its own heading) and its sentence that item 9's control is a link to the Usage page. The counts follow the registry and are pinned by sources-docs.test.mjs. The README
+// them, the marker, under its own heading), its sentence that item 9's control is a link to the Usage page, and its Cost format row's
+// Usage-page exact-zero text (the page's own constant) with the DW-1089 marker. The counts follow the registry and are pinned by sources-docs.test.mjs. The README
 // bullet is not pinned as the very last one, so that a story that merges later and appends its own line does not fail this test.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -12,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
 const { MORE_TO_TRY_ITEMS } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts')).href);
+const { USAGE_TEXTS } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'usage', 'usage-view.ts')).href);
 
 const README = readFileSync(join(root, 'README.md'), 'utf8');
 const EXPERIENCE = readFileSync(join(root, '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
@@ -87,5 +89,15 @@ describe('EXPERIENCE.md, More to try item 9', () => {
     const sentence = EXPERIENCE.split('\n').find((one) => one.includes("Item 9's control is a link to the Usage page."));
     assert.ok(sentence, 'the sentence is in EXPERIENCE.md');
     assert.match(sentence, /Item 9's control is a link to the Usage page\. \[ADDED 2026-11-10, Story 37\.2, Contest Planner ruling [^\]]*\]/);
+  });
+});
+
+describe('EXPERIENCE.md, the Cost format row', () => {
+  // mutation: the DW-1089 sentence or its marker removed from the Cost row -> "says that the Usage page shows an exact zero as $0, with the marker" red.
+  it('says that the Usage page shows an exact zero as $0, with the marker', () => {
+    const row = EXPERIENCE.split('\n').find((one) => one.startsWith('| Cost |'));
+    assert.ok(row, 'EXPERIENCE.md has the Cost row');
+    assert.ok(row.includes(`On the Usage page an exact zero shows "${USAGE_TEXTS.costZero}".`), 'the Usage-page exact-zero sentence, with the page\'s text');
+    assert.match(row, /\[AMENDED 2026-11-10, Contest Planner ruling on DW-1089: the Usage page shows an exact-zero cost as \$0\]/);
   });
 });

@@ -6534,11 +6534,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: formatCost(0) returns the shipped <$0.0001; Day grouping zero-fills days; no PUBLIC TEXT string for exact zero
 - 2026-11-10T17:59:38Z status=decision-pending owner=burndown by=harvest note=public_text:exact_zero_cost_string(e.g._$0)_for_the_Planner;fix_is_one_branch_in_usage-page.ts_cost()_plus_a_test
 - 2026-11-10T18:36:08Z occurrence=37-2-see-tokens-and-cost-over-time-on-the-usage-page
+- 2026-11-10T21:22:13Z status=resolved-by:37-2-see-tokens-and-cost-over-time-on-the-usage-page owner=37-2-see-tokens-and-cost-over-time-on-the-usage-page by=adjudication note=Planner_ruling_2026-11-10_21:00Z_applied_in_3cee6f2e:costText_shows_$0_for_exact_zero,<$0.0001_kept;usage-view.test_and_U2_pin_it
 
 ### DW-1090: Usage page on a local install counts only the session's own rows, never instance-owned incident decisions, while the ruled look-for says the cost comes from the agents' decisions on your messages and incidents
 - source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Ownership.Usage reads OwnerRef = session only (spec SECURITY: instance rows not shown on a local install); a local session sees instance incidents (Ownership class doc) but their decisions' cost never shows; ruled text in more-to-try-view.ts items.usage
 - 2026-11-10T18:36:08Z status=decision-pending owner=burndown by=cr note=product call for the Planner: show instance-owned usage on a local install (admins?) or reword the ruled look-for; behaviour is spec-bound
+- 2026-11-10T21:22:14Z status=resolved-by:37-2-see-tokens-and-cost-over-time-on-the-usage-page owner=37-2-see-tokens-and-cost-over-time-on-the-usage-page by=adjudication note=Planner_ruling_option_a_applied_in_3cee6f2e:look-for_second_sentence_reworded(own_decisions_only);option_b_ledgered_by_Planner_as_post-contest_idea
 
 ### DW-1091: Story 37.2 test classes repeat small private helpers: UsageApi.Envelope copies DocumentsApi.Envelope; KeysOf, Models and LocalDate/Date are in both Test.Web.UsageApi and Test.Data.OwnershipUsage
 - source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: med | footprint: in-story
