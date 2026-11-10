@@ -56,7 +56,7 @@ deferred: []
 - **The reply text is never changed.**
   - The guard runs once on model text and never sees the line (AD-28).
   - `Conversation` renders no text.
-- **Eval.** `memory-learned-save` stays report-only. It also scores right when the turn is not a fallback, the save rule holds, `TurnResult.Learned` holds the entry and the line renders. The existing phrase rule stays as it is.
+- **Eval.** `memory-learned-save` stays report-only. It also scores right when the turn is not a fallback, the save rule holds, `TurnResult.Learned` holds the entry and the line renders. The existing phrase rule stays as it is. [AMENDED 2026-11-11, Contest Planner spec-gate ruling 4, owner's delegation] It is also right when the save rule holds and the reply passes the same no-doubling check (`Memory.Learned.Said`, the one server method), so a reply such as "I'll remember Lee…" counts as announced, and the eval and the user see the same thing. This is a one-call reuse in Epic 41's own eval file (`Eval/Report.cls`).
 - **Session isolation.** One session's `Learned` never shows in another session's chat or `/v1/state` payload (AD-4).
 - **Tests stand alone.** Every test added or changed passes on a fresh environment, in either order, and creates and removes its own rows, turns, memories and settings.
 
@@ -298,6 +298,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
     `Eval/Report.cls`:
     - In the learned-case memory rule, right also when all of these hold: not a fallback, the save rule holds, `row.Learned` holds at least one entry, and `Learned.Lines(row.Learned, row.ReplyText, "web")` is non-empty.
     - The existing phrase rule is kept unchanged.
+    - [AMENDED 2026-11-11, Contest Planner spec-gate ruling 4, owner's delegation] Right also when not a fallback, the save rule holds, and `##class(OcuTalon.Memory.Learned).Said(row.ReplyText)` is true: ONE call, added to the same rule, nothing else changed in the eval files. If that cannot be done as a one-call reuse in Epic 41's own eval files (`Eval/Report.cls`, `Test/Eval/Report.cls`, `Test/Eval/MemoryCases.cls`), HALT with an `intent gap` naming what more it needs (the lead reports it to the Planner).
     - Update the doc :17-27.
     - The tallies and report-only status are unchanged.
 
@@ -340,6 +341,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
       - `TestLearnedSaveByTheLine`: a silent reply, a saved step and `Learned` give right;
       - the same with `Learned` empty gives wrong;
       - with `Fallback` it is wrong;
+      - [AMENDED 2026-11-11, Contest Planner spec-gate ruling 4, owner's delegation] `TestLearnedSaveBySaid`: a reply "I'll remember Lee is the contact." (no "that"), a saved step and `Learned` give right; the same reply with no saved step gives wrong;
       - SM-1 and `commands` are unchanged.
     - `Test/Eval/MemoryCases.cls` `TestLearnedEntry` (added method):
       - the learned-save case's `TurnResult.Learned` holds the session memory's Ref and text;
@@ -380,9 +382,16 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
 - **AC 6 (AD-4, standing route rule).** Given LIVE (OcuTalonUser only) with a learned turn and a PANEL second session, when each reads `GET /v1/state` and the events over real HTTP, then LIVE gets 200 with its `learned`, and PANEL sees no `learned` and no LIVE turn. Pinned by `api/memory.spec.ts` (new test) and `Web.Api:TestStateLearned`.
 - **AC 7 (Integration).** Given the real chain on the CI mock, when the CHAT user sends a learned fact, then `MemoryTools` → HostData → `Conversation` → `chat.message` and `/v1/state` → the page shows the line, and a told save shows none. Pinned by e2e S12. On the eval path, `MemoryCases:TestLearnedEntry` pins the `learned` entry from the real `MemoryTools`.
 - **AC 8 (AD-7).** Given `Agent/Chat.cls` and every tool description, when this story ships, then they are byte-identical to `0eb14ea2` (`git diff 0eb14ea2 -- src/ocutalon/cls/OcuTalon/Agent/Chat.cls` is empty, and `Test.Tools.Memory:TestInstructions` passes).
-- **AC 9 (AD-22).** Given `memory-learned-save`, when it is scored, then it is right when the learned entry and the rendered line are both present (and not a fallback, with the save rule holding), and still right by the phrase rule. It stays report-only: SM-1 and `commands` are unchanged. Pinned by `Report:TestLearnedSaveByTheLine` and `TestLearnedSaveReportOnly` (unchanged).
+- **AC 9 (AD-22).** Given `memory-learned-save`, when it is scored, then it is right when the learned entry and the rendered line are both present (and not a fallback, with the save rule holding), and still right by the phrase rule, and [AMENDED 2026-11-11, Contest Planner spec-gate ruling 4, owner's delegation] also right when the save rule holds and the reply passes `Memory.Learned.Said` ("I'll remember Lee…" counts as announced). It stays report-only: SM-1 and `commands` are unchanged. Pinned by `Report:TestLearnedSaveByTheLine`, `Report:TestLearnedSaveBySaid` and `TestLearnedSaveReportOnly` (unchanged).
 
 ## Spec Change Log
+
+- 2026-11-11 (spec gate; Contest Planner rulings ~00:15Z under the owner's delegation, relayed by the orchestrator; verbatim terms, from the orchestrator's `prompts/epic-41-rulings-4115.md`, section "Spec-gate rulings"; implement may start):
+  > 1. STORED DATA: both ACCEPTED. (a) Msg.Outbound.Learned and (b) Eval.Msg.TurnResult.Learned: nullable JSON appended to storage, no migration, no grant, role or Data.Memory column (20.2 and 41.14 precedents).
+  > 2. SCOPE: CONFIRMED, web chat and Telegram only (the channels that show a reply). Nothing is added for the phone. ("Telegram/phone" was the Planner's error.)
+  > 3. CUT: ACCEPTED, 199 characters + "…" (200 in all), after removing one trailing ASCII full stop, matching Conversation.Cut.
+  > 4. EVAL: fold in now. memory-learned-save scores right when the turn's Learned line would be shown, OR when the reply passes the same no-doubling check (the one server method), so "I'll remember Lee…" counts as announced and the eval and the user see the same thing. A one-call reuse in Epic 41's own eval files; if it's more than that, report it. The case stays report-only.
+  Applied: items 1-3 match the plan as written (Design Notes spec-gate items 1 and 3, "The phone", the 200-character cut). Item 4 amends the Eval bullet in Boundaries, Task 12's `Eval/Report.cls` rule, the `Test/Eval/Report.cls` task (`TestLearnedSaveBySaid`), AC 9, Design Notes "The eval rule", and the AC 9 mutation, each marked [AMENDED 2026-11-11, Contest Planner spec-gate ruling 4, owner's delegation].
 
 ## Review Triage Log
 
@@ -427,11 +436,11 @@ No AC contradicts an AD's Rule.
 - **The phone.** The simulated phone never shows a turn reply. Notify's Outbound rule targets `WebChatOut` and `TelegramOut` only, `SimPhone/Out.cls` maps `Notification` only, and no Turn has channel `phone`. So the line follows the reply on every channel that shows one, which is the web chat and Telegram. Nothing is added for the phone.
 - **The eval rule.** `memory-learned-save` stays right by its phrase rule, and is now also right by "entry and line". `case.json` and its pins in `Test/Eval/Cases.cls` are unchanged.
   - On the mock the reply says "I'll remember that", so the line is suppressed and the phrase rule scores it.
-  - Edge (inference; report-only): a real reply that says "I'll remember Lee …" without "that" suppresses the line and misses the phrase rule, so it scores wrong. The Planner rules on the wording after the next RC eval.
+  - ~~Edge (inference; report-only): a real reply that says "I'll remember Lee …" without "that" suppresses the line and misses the phrase rule, so it scores wrong.~~ RULED (spec-gate ruling 4): such a reply passes `Memory.Learned.Said` and scores right.
 - **The catalog entry goes in `Core.cls`.** That is Lane B's class, and the catalog is in Lane B's ruled scope. The entry is inserted between existing entries, so the edit is plain added lines. It has no `web` variant, so the "ten web wordings" pin stays.
 - **e2e placement.** The real-turn test joins S7's describe, reusing its `wipe`, `send` and keys. The seeded tests join `sources.spec.ts` (the 20.2 sibling). The second-session test joins `api/memory.spec.ts` (the LIVE/PANEL idiom). One new mock scenario, A/`memory-learned-line.json`, is added because no existing scenario saves a learned fact with a silent reply.
 
-**Spec-gate items (for the lead; veto window or footprint, ruled before implement as at 41.14):**
+**Spec-gate items (for the lead; veto window or footprint, ruled before implement as at 41.14):** RULED 2026-11-11 by the Contest Planner (see the Spec Change Log): item 1 ACCEPTED (both properties); scope web chat and Telegram only CONFIRMED; the 199 + "…" cut ACCEPTED; the eval also counts a reply that passes `Memory.Learned.Said`.
 1. **Stored data beyond the ruled `Turn.Learned` (veto window item 3).** Both are needed for ruled ACs. Both are nullable JSON strings, appended to storage, and need no migration.
    - `Msg.Outbound.Learned`: `TelegramOut` renders from the Outbound, and the trace shows the Turn's `Learned` through the Outbound body. This is Story 20.2's precedent for `Citations`/`Memories`.
    - `Eval.Msg.TurnResult.Learned`: the eval ruling scores on the learned entry, and the eval path never reads the Turn (`In.cls:176`). This is the 19.4 and 41.14 precedent for `Citations`/`Memories`.
@@ -566,7 +575,7 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC 6: drop the `SessionRef` term from `Ownership.RecentTurns`' query. This is a temporary edit to a contended file and is reverted at once. Then `Web.Api:TestStateLearned` is red: `theirs` sees `mine`'s `learned`. The real-HTTP test (`api/memory.spec.ts`) runs in CI.
 - AC 7: `Cite` skips `learned` → `MemoryCases:TestLearnedEntry` red. S12 runs in CI.
 - AC 8: a bullet changed in `Chat.cls` → `Tools.Memory:TestInstructions` red.
-- AC 9: the "entry and line" rule removed → `Report:TestLearnedSaveByTheLine` red.
+- AC 9: the "entry and line" rule removed → `Report:TestLearnedSaveByTheLine` red; the `Said` call removed → `Report:TestLearnedSaveBySaid` red.
 
 ## Auto Run Result
 
