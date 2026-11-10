@@ -34,6 +34,10 @@
 ///   - TestOwnerNotRunning: while the owner item is not running (DocumentOps is disabled until Story 19.4) a valid add and a remove of an own document
 ///     are 501 not_built at once and nothing is submitted;
 ///   - TestOwnerRunningReadsTheItem: the real OwnerRunning is 1 for an enabled item and 0 for a disabled or unknown one (a stand-in item of the test);
+///   - TestText (Story 20.2): GET /:ref answers 200 {"ref","name","text"} for an own document and, on a local install, an instance one, with the
+///     text as stored (markup, a line break and an accented character unchanged, and an empty text); another session's document, an unknown ref (which is what a removed
+///     document's ref is) and an empty ref are 404 not_found with the same body and no text; a session that can't be read and a text that can't be read are 500
+///     server_error; nothing is submitted;
 ///   - TestRemove: another session's document, an unknown ref and an empty-case variant of a ref are 404 with nothing submitted; an own one
 ///     submits one RemoveDocument (the document's Ref, the session, web_user) and is 200 {"result":"done"};
 ///   - TestEnvelope: the forwarded dispatch refuses a POST and a DELETE without the browser envelope 403, and lets a GET and a full envelope through.
@@ -99,12 +103,15 @@ Method TestDispatch()
 	Do $$$AssertTrue(matcher.Match("/v1/documents/abc"), "the prefix and a ref match")
 	Do $$$AssertTrue('matcher.Match("/v1/documentsx"), "a longer word does not")
 	Do $$$AssertTrue('matcher.Match("/v1/state"), "another route does not")
-	Do $$$AssertEquals($ListToString(##class(OcuTalon.Test.Web.Api).Routes("OcuTalon.Web.Documents"), "|"), "GET  List|POST  Add|DELETE /:ref Remove", "Web.Documents' routes, in order")
+	Do $$$AssertEquals($ListToString(##class(OcuTalon.Test.Web.Api).Routes("OcuTalon.Web.Documents"), "|"), "GET  List|POST  Add|GET /:ref Text|DELETE /:ref Remove", "Web.Documents' routes, in order")
 
 	Set route = ##class(OcuTalon.Web.Documents).DispatchMap("", "GET", .verbs, .args)
 	Do $$$AssertEquals($ListGet(route, 1)_"|"_$ListGet(route, 2)_"|"_$ListGet(route, 3), "R|List|OcuTalon.Web.Documents", "GET of the empty remainder is List")
 	Set route = ##class(OcuTalon.Web.Documents).DispatchMap("", "POST", .verbs, .args)
 	Do $$$AssertEquals($ListGet(route, 1)_"|"_$ListGet(route, 2)_"|"_$ListGet(route, 3), "R|Add|OcuTalon.Web.Documents", "POST of the empty remainder is Add")
+	Kill args
+	Set route = ##class(OcuTalon.Web.Documents).DispatchMap("/zzRef", "GET", .verbs, .args)
+	Do $$$AssertEquals($ListGet(route, 1)_"|"_$ListGet(route, 2)_"|"_$ListGet(route, 3)_"|"_$Get(args(1)), "R|Text|OcuTalon.Web.Documents|zzRef", "GET of /:ref is Text with the ref")
 	Kill args
 	Set route = ##class(OcuTalon.Web.Documents).DispatchMap("/zzRef", "DELETE", .verbs, .args)
 	Do $$$AssertEquals($ListGet(route, 1)_"|"_$ListGet(route, 2)_"|"_$ListGet(route, 3)_"|"_$Get(args(1)), "R|Remove|OcuTalon.Web.Documents|zzRef", "DELETE of /:ref is Remove with the ref")
@@ -120,7 +127,7 @@ Method TestDispatch()
 	// The whole chain through a Map of the same kind (Test.Web.DocumentsMapProbe forwards to the probe, whose roles the test sets): the map, the
 	// forwarded dispatch's role check and its own routes. The empty remainder reaches List and Add; /:ref reaches Remove with the ref.
 	Set ^OcuTalonTest("DocumentsProbe", "roles") = "%DB_OCUTALON,"_##class(OcuTalon.Web.Public.Shell).#ROLE
-	For case = $ListBuild("/v1/documents", "GET", "List", ""), $ListBuild("/v1/documents", "POST", "Add", ""), $ListBuild("/v1/documents/zzRef", "DELETE", "Remove", "zzRef") {
+	For case = $ListBuild("/v1/documents", "GET", "List", ""), $ListBuild("/v1/documents", "POST", "Add", ""), $ListBuild("/v1/documents/zzRef", "GET", "Text", "zzRef"), $ListBuild("/v1/documents/zzRef", "DELETE", "Remove", "zzRef") {
 		Kill args, verbs
 		Set %request = ..Envelope($List(case, 2))
 		Set route = ##class(OcuTalon.Test.Web.DocumentsMapProbe).DispatchMap($List(case, 1), $List(case, 2), .verbs, .args)
@@ -131,7 +138,7 @@ Method TestDispatch()
 
 	// The whole chain from Web.Api: the forwarded dispatch runs its own role check first.
 	Set holds = ##class(OcuTalon.Web.Public.Shell).HasRole()
-	For case = $ListBuild("/v1/documents", "GET", "List"), $ListBuild("/v1/documents", "POST", "Add"), $ListBuild("/v1/documents/zzRef", "DELETE", "Remove") {
+	For case = $ListBuild("/v1/documents", "GET", "List"), $ListBuild("/v1/documents", "POST", "Add"), $ListBuild("/v1/documents/zzRef", "GET", "Text"), $ListBuild("/v1/documents/zzRef", "DELETE", "Remove") {
 		Kill args, verbs
 		Set %request = ..Envelope($List(case, 2))
 		Set sc = ##class(OcuTalon.Test.Web.Api).Capture(.capture)
@@ -402,6 +409,35 @@ Method TestSweepOnEveryRoute()
 	Do ##class(OcuTalon.Data.Upload).DropSession(owner)
 }
 
+/// The text route sweeps stale uploads as the list, add and remove routes do (Story 20.2, QA): an upload of another session over an
+/// hour old is gone after a read of a document's text, the ones exactly an hour old and fresh stay, and the read is answered as before.
+Method TestTextSweeps()
+{
+	Set a = ..Session("a")
+	Set owner = "ZzSweepText"_..Number
+	Set ..Sessions = ..Sessions_","_owner
+	Set ^OcuTalonTest("DocumentsProbe", "now") = "2001-01-01T01:00:01Z"
+	Set fresh = ..PlantUpload(owner, "")
+	Set boundary = ..PlantUpload(owner, "2001-01-01T00:00:01Z")
+	Set old = ..PlantUpload(owner, "2001-01-01T00:00:00Z")
+	Do $$$AssertTrue((fresh '= "") && (boundary '= "") && (old '= ""), "three uploads of another session are stored")
+	Set doc = ..TextDocument(a, "zz sweep text.md", "zz sweep text")
+	Set body = ..Call("Text", a, , .response, doc)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).text, "200 OK|zz sweep text", "the text is answered as before")
+	Do ..AssertSwept(owner, old, boundary, fresh, "a read of a document's text")
+	// An answered 404 sweeps too, and a sweep that throws changes nothing and does not fail the read.
+	Set old = ..PlantUpload(owner, "2001-01-01T00:00:00Z")
+	Set body = ..Call("Text", a, , .response, "zzNoSuchRef")
+	Do $$$AssertEquals(response.Status, "404 Not Found", "an unknown ref is 404 as before")
+	Do ..AssertSwept(owner, old, boundary, fresh, "a read that finds nothing")
+	Set old = ..PlantUpload(owner, "2001-01-01T00:00:00Z")
+	Set ^OcuTalonTest("DocumentsProbe", "now") = "throw"
+	Set body = ..Call("Text", a, , .response, doc)
+	Do $$$AssertEquals(response.Status_"|"_##class(OcuTalon.Data.Upload).RefIndexExists(old), "200 OK|1", "a failed sweep leaves the rows and the text is still answered")
+	Kill ^OcuTalonTest("DocumentsProbe")
+	Do ##class(OcuTalon.Data.Upload).DropSession(owner)
+}
+
 /// A body of BODYMAX bytes is read; one byte more is refused 413 before parsing.
 Method TestBodyBound()
 {
@@ -585,6 +621,54 @@ Method TestOwnerRunningReadsTheItem()
 	Kill ^Ens.Runtime("ConfigItem", item)
 }
 
+/// GET /:ref reads the text of a document the session can see, and nothing else.
+Method TestText()
+{
+	Set a = ..Session("a"), b = ..Session("b")
+	Set raw = "<b>bold</b> <script>window.__x=1</script> **md** # Heading"_$Char(10)_"caf"_$Char(233)
+	Set own = ..TextDocument(a, "zz own.md", raw)
+	Set empty = ..TextDocument(a, "zz empty.txt", "")
+	Set theirs = ..TextDocument(b, "zz theirs.md", "zz b secret")
+	Set shared = ..TextDocument("instance", "zz shared.md", "zz shared text")
+	Set notFound = {"error": {"code": "not_found", "message": "OcuTalon has nothing at this address."}}.%ToJSON()
+	Set body = ..Call("Text", a, , .response, own)
+	Do $$$AssertEquals(response.Status, "200 OK", "an own document is 200")
+	Set answer = {}.%FromJSON(body)
+	Do $$$AssertEquals(answer.ref_"|"_answer.name, own_"|zz own.md", "with its ref and name")
+	Do $$$AssertTrue(answer.text = raw, "and its text exactly as stored: markup, a line break and an accented character unchanged")
+	Set keys = ""
+	Set iterator = answer.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set keys = keys_$Select(keys = "": "", 1: ",")_key
+	}
+	Do $$$AssertEquals(keys, "ref,name,text", "in that order")
+	Set body = ..Call("Text", a, , .response, empty)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).text, "200 OK|", "a document with no text is 200 with an empty text")
+	For ref = theirs, shared, "zzNoSuchRef", $ZConvert(own, "U"), "" {
+		Set body = ..Call("Text", a, , .response, ref)
+		Do $$$AssertEquals(response.Status, "404 Not Found", "'"_ref_"' is 404 for A on the online demo")
+		Do $$$AssertEquals(body, notFound, "with not_found and no text")
+	}
+	Set body = ..Call("Text", b, , .response, own)
+	Do $$$AssertEquals(response.Status_"|"_body, "404 Not Found|"_notFound, "B can't read A's document, and the answer is a missing document's")
+	Set body = ..Call("Text", b, , .response, theirs)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).text, "200 OK|zz b secret", "while B reads its own")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set body = ..Call("Text", a, , .response, shared)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).text, "200 OK|zz shared text", "on a local install the instance's document is readable")
+	Set body = ..Call("Text", a, , .response, theirs)
+	Do $$$AssertEquals(response.Status_"|"_body, "404 Not Found|"_notFound, "but not another session's own document")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set body = ..Call("Text", "zzNoSuchSession", , .response, own)
+	Do $$$AssertEquals(+response.Status_"|"_{}.%FromJSON(body).error.code, "500|server_error", "a session that can't be read is 500 server_error")
+	Set ^OcuTalonTest("DocumentsProbe", "textfail") = 1
+	Set body = ..Call("Text", a, , .response, own)
+	Do $$$AssertEquals(+response.Status_"|"_{}.%FromJSON(body).error.code, "500|server_error", "a text that can't be read is 500 server_error")
+	Do $$$AssertTrue((body '[ "<b>") && (body '[ "zz own.md"), "and the body holds neither its text nor its name")
+	Kill ^OcuTalonTest("DocumentsProbe", "textfail")
+	Do $$$AssertEquals(..Submits(), 0, "nothing was submitted")
+}
+
 /// Remove checks the session's view first.
 Method TestRemove()
 {
@@ -639,6 +723,16 @@ Method TestEnvelope()
 }
 
 /// --- helpers ---
+/// A fixture document of the owner whose text is text; returns its Ref.
+Method TextDocument(owner As %String, name As %String, text As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Document(owner, name)
+	Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
+	If text '= "" Do row.Text.Write(text)
+	Do $$$AssertStatusOK(row.%Save(), "the document "_name_" holds its text")
+	Quit ref
+}
+
 /// A fixture session of the IRIS user who runs the tests (the user that Ownership.SessionRef resolves the CSP session for; the name only
 /// says which of the test's sessions it is). Returns its Ref.
 Method Session(name As %String) As %String [ Private ]

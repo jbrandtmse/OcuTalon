@@ -40,6 +40,7 @@ function leaves(name, value, into) {
 /** The constants of the page's view modules, imported as they are. */
 const IMPORTED = [
   ['chat/chat-view.ts', ['CHAT_TEXTS', 'NOTICE_TEXTS']],
+  ['chat/answer-sources-view.ts', ['ANSWER_SOURCES_TEXTS']],
   ['chat/decision-view.ts', ['DECISION_TEXTS']],
   ['rail/rail-view.ts', ['RAIL_TEXTS']],
   ['rail/telegram-card/telegram-card-view.ts', ['TELEGRAM_CARD_TEXTS']],
@@ -447,8 +448,15 @@ const SOURCES = {
     'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
     'Ask it to remember',
     'Ask about a document',
-    'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file.',
+    'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the chip under the answer that names your file and its section.',
     'Open the Documents page',
+    'See where an answer came from',
+    'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
+    '{document} \u00a7 {section}',
+    'Open document',
+    'From memory',
+    'Sources',
+    'Close',
     'Run a heartbeat check-in',
     "In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in's outcome and its cost in the card.",
     'Go to the Heartbeat checklist card',
@@ -776,6 +784,12 @@ const SOURCES = {
       "Couldn't forget it. Nothing was changed.",
       'OcuTalon keeps this answer but does not use it when it decides.',
     ],
+    'Story 20.2 ruling planner-2026-11-09-20.2 (the Contest Planner under the owner\'s delegation, 2026-11-09, relayed by the orchestrator: the accessible name of a citation chip without the section sign (text 1a), the memory chip\'s accessible name and the popover\'s "Saved {when}", and the Documents page\'s line for a document that cannot be opened)': [
+      '{document}, section {section}',
+      'From memory: {memory}',
+      'Saved {when}',
+      "Couldn't open that document. It may have been removed.",
+    ],
   },
   calendar: [
     'Sunday',
@@ -982,11 +996,12 @@ describe('the ellipsis and the characters', () => {
     assert.equal(modules['msg/catalog.ts'].PAGE_TEXTS['banner.reconnecting'], 'Reconnecting\u2026 New messages may be delayed.');
   });
 
-  it('holds no non-ASCII character but U+2026, U+00B7 and U+2197', () => {
-    // U+2197 is UX-DR47's arrow of a link that opens a new tab, hidden from assistive technology (Story 4.7).
+  it('holds no non-ASCII character but U+2026, U+00B7, U+2197 and U+00A7', () => {
+    // U+2197 is UX-DR47's arrow of a link that opens a new tab, hidden from assistive technology (Story 4.7). U+00A7 is the section sign of a
+    // citation chip's label, "{document} \u00a7 {section}" (DESIGN.md citation-chip, Story 20.2).
     for (const text of strings) {
-      const stray = [...text].filter((char) => char.charCodeAt(0) > 127 && char !== '\u2026' && char !== '\u00b7' && char !== '\u2197');
-      assert.deepEqual(stray, [], `${JSON.stringify(text)} holds only ASCII, U+2026, U+00B7 and U+2197`);
+      const stray = [...text].filter((char) => char.charCodeAt(0) > 127 && char !== '\u2026' && char !== '\u00b7' && char !== '\u2197' && char !== '\u00a7');
+      assert.deepEqual(stray, [], `${JSON.stringify(text)} holds only ASCII, U+2026, U+00B7, U+2197 and U+00A7`);
     }
     assert.ok(/^[\x00-\x7f]*$/.test(readFileSync(fileURLToPath(import.meta.url), 'utf8')), 'this test is written in ASCII, with escapes');
   });

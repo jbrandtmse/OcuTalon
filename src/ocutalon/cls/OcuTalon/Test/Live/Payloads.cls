@@ -1,5 +1,5 @@
-/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 32 payload
-/// and part classes (Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 34 payload
+/// and part classes (Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 20.2 the parts Citation and Memory and the chat message's citations and memories, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
 /// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
@@ -90,7 +90,7 @@ Method TestContracts()
 			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
 		}
 	}
-	Do $$$AssertEquals(classes, 32, "the contracts hold the 32 payload and part classes")
+	Do $$$AssertEquals(classes, 34, "the contracts hold the 34 payload and part classes")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
 }
@@ -395,7 +395,9 @@ Method TestChatMessageCarriesItsDecision()
 	Set row.TurnDecisionRef = reply
 	Set row.CheckKey = "checks.everythingElsePassed"
 	Set row.CheckRows = "[{""result"":""passed"",""entry"":""Orders production"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""},""skipped"",5,null,[1],{""result"":""failed"",""entry"":""Warehouse queue"",""finding"":""zz 12 waiting"",""checkedAt"":""2030-01-01T10:01:00Z"",""other"":""ignored""}]"
-	Do $$$AssertStatusOK(row.%Save(), "the turn has both decisions and its check rows")
+	Set row.Citations = "[{""documentRef"":""zzdoc1"",""document"":""Results runbook"",""section"":""Rotating the certificate"",""passage"":""zz passage"",""chunkIndex"":3},""skipped"",5,{""documentRef"":""zzdoc2"",""document"":""Other"",""section"":"""",""passage"":""zz two"",""chunkIndex"":0,""other"":""ignored""}]"
+	Set row.Memories = "[{""memoryRef"":""zzmem1"",""text"":""zz remembered"",""savedAt"":""2030-01-01T10:00:00Z""},null]"
+	Do $$$AssertStatusOK(row.%Save(), "the turn has both decisions, its check rows, citations and memories")
 
 	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
 	Set expected = ##class(OcuTalon.Live.Payload.Decision).FromRow(##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(triage))
@@ -411,6 +413,13 @@ Method TestChatMessageCarriesItsDecision()
 	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
 	Set exported = ##class(%DynamicObject).%FromJSON(json)
 	Do $$$AssertEquals(exported.decision.ref_"|"_exported.turnCost.inputTokens_"|"_exported.checkKey_"|"_exported.checks.%Size(), triage_"|1084|checks.everythingElsePassed|2", "the JSON nests the decision, the cost and the rows under their own names")
+	Do $$$AssertEquals(payload.Citations.Count()_"|"_payload.Memories.Count(), "2|1", "the two citations that are objects and the memory")
+	Set cited = payload.Citations.GetAt(1), plain = payload.Citations.GetAt(2)
+	Do $$$AssertEquals(cited.DocumentRef_"|"_cited.Document_"|"_cited.Section_"|"_cited.Passage_"|"_cited.ChunkIndex, "zzdoc1|Results runbook|Rotating the certificate|zz passage|3", "the first citation")
+	Do $$$AssertEquals(plain.DocumentRef_"|"_plain.Section_"|"_plain.ChunkIndex, "zzdoc2||0", "the second, with no section, without the member it does not know")
+	Set remembered = payload.Memories.GetAt(1)
+	Do $$$AssertEquals(remembered.MemoryRef_"|"_remembered.Text_"|"_remembered.SavedAt, "zzmem1|zz remembered|2030-01-01T10:00:00Z", "the memory")
+	Do $$$AssertEquals(exported.citations.%Size()_"|"_exported.citations.%Get(0).chunkIndex_"|"_exported.citations.%Get(1).%IsDefined("section")_"|"_exported.memories.%Get(0).savedAt, "2|3|0|2030-01-01T10:00:00Z", "the JSON names them under citations and memories")
 
 	Set row.ReplyCatalogKey = "conversation.turnFallback"
 	Set row.FallbackReason = "timeout"
@@ -429,9 +438,14 @@ Method TestChatMessageCarriesItsDecision()
 
 	For text = "not json", "{""result"":""passed""}", "[", "" {
 		Set row.CheckRows = text
+		Set row.Citations = text
+		Set row.Memories = text
 		Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
-		Do $$$AssertEquals(payload.Checks.Count(), 0, "check rows of '"_text_"' give no row")
+		Do $$$AssertEquals(payload.Checks.Count()_"|"_payload.Citations.Count()_"|"_payload.Memories.Count(), "0|0|0", "check rows, citations and memories of '"_text_"' give no row")
 	}
+	Do payload.%JSONExportToString(.bareJson)
+	Set emptied = ##class(%DynamicObject).%FromJSON(bareJson)
+	Do $$$AssertEquals(emptied.%IsDefined("citations")_"|"_emptied.%IsDefined("memories"), "0|0", "and the JSON then leaves both out")
 
 	Set bare = ##class(OcuTalon.Data.Turn).%New()
 	Set bare.Ref = "ZzBare"_..Number
@@ -1152,7 +1166,9 @@ XData Contracts [ MimeType = application/json ]
    "Decision": "OcuTalon.Live.Payload.Decision(%JSONFIELDNAME=decision)",
    "TurnCost": "OcuTalon.Live.Payload.Part.Cost(%JSONFIELDNAME=turnCost)",
    "CheckKey": "%String(%JSONFIELDNAME=checkKey,MAXLEN=128)",
-   "Checks": "list Of OcuTalon.Live.Payload.Part.CheckRow(%JSONFIELDNAME=checks)"
+   "Checks": "list Of OcuTalon.Live.Payload.Part.CheckRow(%JSONFIELDNAME=checks)",
+   "Citations": "list Of OcuTalon.Live.Payload.Part.Citation(%JSONFIELDNAME=citations)",
+   "Memories": "list Of OcuTalon.Live.Payload.Part.Memory(%JSONFIELDNAME=memories)"
   }
  },
  "OcuTalon.Live.Payload.Check": {
@@ -1344,6 +1360,16 @@ XData Contracts [ MimeType = application/json ]
    "CheckedAt": "%String(%JSONFIELDNAME=checkedAt,MAXLEN=32)"
   }
  },
+ "OcuTalon.Live.Payload.Part.Citation": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "DocumentRef": "%String(%JSONFIELDNAME=documentRef,MAXLEN=128)",
+   "Document": "%String(%JSONFIELDNAME=document,MAXLEN=1000)",
+   "Section": "%String(%JSONFIELDNAME=section,MAXLEN=1000)",
+   "Passage": "%String(%JSONFIELDNAME=passage,MAXLEN=)",
+   "ChunkIndex": "%Integer(%JSONFIELDNAME=chunkIndex)"
+  }
+ },
  "OcuTalon.Live.Payload.Part.Cost": {
   "super": "%RegisteredObject,%JSON.Adaptor",
   "props": {
@@ -1460,6 +1486,14 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "One": "%String(%JSONFIELDNAME=one,MAXLEN=128)",
    "Other": "%String(%JSONFIELDNAME=other,MAXLEN=128)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.Memory": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "MemoryRef": "%String(%JSONFIELDNAME=memoryRef,MAXLEN=128)",
+   "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)",
+   "SavedAt": "%String(%JSONFIELDNAME=savedAt,MAXLEN=32)"
   }
  },
  "OcuTalon.Live.Payload.Part.StatusSlots": {

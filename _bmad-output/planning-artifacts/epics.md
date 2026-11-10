@@ -1472,6 +1472,26 @@ So that I find every claim and its evidence from the top of the README.
 **Then** it is exactly the Planner's Edit 6 line: `community.intersystems.com` and `openexchange.intersystems.com` appear exactly once each, nothing else is added, and no AI Hub bug-report repository is allowed; Story 0.17's narrower post-path entry and its two self-tests that only that narrower entry could pass give way to the host entry
 **And** `bash docker/tests/test-readme.sh` passes every rule, `docker/tests/test-boundaries.sh` passes, and CI is green; if a rule fails on the verbatim text, the text is not reworded
 
+### Story 0.19: The README names the contest
+
+[ADDED 2026-11-09, owner via Contest Planner] SC-5 re-open of Epic 0 for release 1.0.6 (DW-1020). A one-line README change whose public text the owner has already approved verbatim; it is committed exactly as written. Light pipeline (orchestrator dispatch): one `bmad-build-auto` stage that plans and implements, then a code review.
+
+As a judge or visitor reading the README's contest checklist,
+I want the checklist to say which contest OcuTalon is entered in, with a link to the contest post,
+So that I can see at once what the entry is judged against.
+
+**Acceptance Criteria:**
+
+**Given** README.md's "## Contest checklist" section
+**When** this story merges
+**Then** the line `What OcuTalon uses, and where to check each one:` is replaced by exactly `OcuTalon is an entry in the [InterSystems Programming Contest: AI Agents in Interoperability Workflows](https://community.intersystems.com/post/intersystems-programming-contest-ai-agents-interoperability-workflows). What it uses, and where to check each one:`
+**And** nothing else in README.md changes
+- DW-1020: README: name the contest under '## Contest checklist' (ledger; routed by dispatch 2026-11-09)
+
+**Given** the change
+**When** this story merges
+**Then** README.md is the only file changed; `bash docker/tests/test-readme.sh` passes every rule (community.intersystems.com is already on its allow-list), `docker/tests/test-boundaries.sh` passes, and lane-a is green; if a rule refuses the text, the text is not reworded
+
 ### Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget
 
 [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025. A CI-only story built on Story 0.15 and merged with it on one head. On a3086148 (ci run 42634825529) iris (install-upgrade) and iris (shards-2) were cancelled at the 40-minute job limit with no test red, and shards, shards-3, shards-4 and install-fresh took 38 to 39 minutes; on Epic 35's cd13b1ae shards-2, shards-3, shards-4 and install-upgrade were cancelled at the limit. The standing CI split rules apply (REL-4's 35-minute budget; a unit of about 1,000 s at most; a new group only when packing cannot get there). The `.github/workflows/ci.yml` matrix hunk goes to the Contest Planner (`RELEASE TOOL:`) before it merges; every new job reports as `iris (<group>)`, and the Planner adds each new name to main's required checks once this story merges.]
@@ -1497,6 +1517,37 @@ So that no job is cancelled at the 40-minute limit and every head can go green w
 **Given** CI on this story's head
 **When** two clean runs finish (the second may be the merge head's)
 **Then** every iris group finishes under 35 minutes in both, each group's time from both runs is reported, and DW-1025 is resolved by this story
+
+### Story 0.21: The README opens with a centred header: logo, tagline and badges
+
+[ADDED 2026-11-09, owner via Contest Planner] SC-5 re-open of Epic 0 for release 1.0.6, after Story 0.19. Scope owner-approved (Contest Planner, 2026-11-09); the tagline is approved verbatim. The exact header markup (alt texts, badge labels, link targets) and any new or changed README-check rule message go to the Contest Planner as PUBLIC TEXT at the spec gate, before the implement stage. The `docker/tests/test-readme.sh` hunk is not a release tool. Files: README.md, docker/tests/test-readme.sh, docs/images/ocutalon-logo.png.
+
+As a judge or visitor opening the repository,
+I want the README to open with the logo, the name, one tagline and a row of status badges,
+So that I see what OcuTalon is and whether it is healthy before I read a word of the body.
+
+**Acceptance Criteria:**
+
+**Given** the logo files under `logo/`
+**When** this story merges
+**Then** `docs/images/ocutalon-logo.png` exists, about 200 px, made from `logo/OcuTalon-Icon.jpeg` or the light logo, whichever reads better at about 160 px on GitHub's light and dark themes
+
+**Given** README.md
+**When** this story merges
+**Then** it opens with a centred header that replaces the bare "# OcuTalon" presentation: the logo, the title OcuTalon, one tagline line reading exactly "An AI assistant that runs inside InterSystems IRIS Interoperability, with every decision in Visual Trace.", then a badge row, then the existing link bar
+**And** the badge row holds, each an image inside a link: CI (`https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml/badge.svg?branch=main`, linking to the ci.yml runs page); version (`https://img.shields.io/github/v/release/jbrandtmse/OcuTalon`, linking to Releases); online demo (shields' live website check `https://img.shields.io/website?url=https%3A%2F%2Fdemo.ocutalon.com&label=online%20demo&up_message=live&down_message=down`, alt "Online demo status", to https://demo.ocutalon.com) [AMENDED 2026-11-09, Contest Planner ruling: was the static shield "online demo | live", which stays green while the demo is down]; and static shields "docker | install.sh" (to #start-it-with-the-install-script), "IPM | ocutalon" (to #install-it-with-ipm), "IRIS | AI Hub" (to #whats-interesting) and "license | MIT" (to LICENSE), in plain colours
+**And** the header's exact markup (alt texts, badge labels and link targets) is the text the Contest Planner approved at the spec gate
+
+**Given** `docker/tests/test-readme.sh`
+**When** this story merges
+**Then** it allows this one header block only: image hosts img.shields.io and github.com/jbrandtmse/OcuTalon (the badge.svg path), images inside links within the block, the centred HTML wrapper if needed, and the logo PNG
+**And** every other rule stays as strict as before: the existing top rule (opening paragraph, teaser, hero image) applies from the first line after the header, and no existing rule is weakened beyond the header block
+**And** new self-tests show that a badge outside the header is flagged, a badge from another host is flagged, and an image inside a link outside the header is flagged, and a header logo with a different src is flagged [AMENDED 2026-11-09, Contest Planner ruling: self-test added]
+**And** any new or changed rule message is the text the Contest Planner approved at the spec gate
+
+**Given** the change
+**When** this story merges
+**Then** `bash docker/tests/test-readme.sh` passes every rule and every self-test, `docker/tests/test-boundaries.sh` passes, lane-a is green, and the header renders on GitHub (checked on the pushed branch's README page)
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
@@ -7000,6 +7051,39 @@ So that I can tell where an answer came from.
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 3's stories in both lanes have merged **When** step 3's release is prepared **Then** a hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram, and its findings are fixed before the release (REL-7)"]
 - DW-383: Eval.In.Render is a line-for-line copy of Lane B's private Core.Conversation.Checked (the glue from a Reply's HostData checks to Checks.Render's key and rows), forced by AD-29; when Conversation's HostData handling changes, the evaluation's all-clear path drifts from the product's (AD-22) (ledger; routed by merge_gate 2026-10-31)
+- DW-721: Owner ruling U-280 chips: citation and memory chips are built by code from the turn's tool results (at most 5 each); labels state provenance, never 'used', 'relied on' or 'based on' ('Sources' and 'From memory' are fine); the UI shows 'None of your documents cover that.' and document citations never together, with tests in both directions; FR-41 is met by the 'From memory' chip (ledger; routed earlier, bullet added by runner 2026-11-09)
+- DW-733: flake candidate: Test.Live.GuideRefresh TestHookPublishesOnChange and TestEventsBodyServesTheGuide fail when the class runs alone on a warm stack the lane-b shard already used (ledger; routed earlier, bullet added by runner 2026-11-09)
+- DW-975: When web citations ship, restore a citation line to the demo guide's 'Ask about a document' look-for (more-to-try-view.ts documents.lookFor, its three pins and EXPERIENCE.md item 6 together, under the public-text rules) (ledger; routed earlier, bullet added by runner 2026-11-09)
+- DW-976: Documents page empty state still promises citations ('No documents yet. Add a runbook to get cited answers.'); a public string change needs a Planner ruling (ledger; routed earlier, bullet added by runner 2026-11-09)
+
+### Story 20.3: Add a sample runbook in one press
+
+[ADDED 2026-11-09, owner re-plan, Contest Planner ruling] Voting-week findability follow-up to Story 20.2: a visitor without a file to hand can still see a cited answer.
+
+As a demo visitor,
+I want to add a short sample runbook with one press,
+So that I can ask about it and see a cited answer without bringing my own file.
+
+**Acceptance Criteria:**
+
+**Given** the Documents page
+**When** the user presses the sample-runbook button
+**Then** a short runbook bundled with the web app, about the demo's own feeds, is added through the normal upload and ingest path (the same `POST /api/v1/documents` route, `AddDocument` and `DocumentOps` indexing as any file the person adds), with no special case on the server, no network fetch, and owned by the person's session on the online demo like any upload (an instance document on a local install) (FR-42, AD-21)
+**And** the new row shows in the list and reaches Ready like any other document
+
+**Given** the demo guide's More to try items 6 and 8
+**When** the visitor has no documents
+**Then** the item's control is the sample-runbook button; once the visitor has a document, the control is the existing link to the Documents page
+
+**Given** the sample runbook is Ready
+**When** the visitor reads item 6 or 8's look-for
+**Then** it suggests one question the runbook answers, whose answer carries a citation chip naming the runbook and its section (Story 20.2)
+
+**Given** keyboard and screen-reader use
+**When** the user reaches the button
+**Then** it is a native button with a visible label and a busy state while the upload runs, and a refusal or failure shows the Documents page's existing texts (NFR-25, UX-DR130)
+**And** every new string (the button label, the runbook's name and text, the suggested question) is PUBLIC TEXT ruled by the Planner at this story's spec gate, and the fixed-strings test covers them (UX-DR117)
+**And** the findability rule applies (README "New since 1.0.0" and More to try updated only as the Planner rules), and any new or changed `/api/v1` route has real-HTTP tests as an OcuTalonUser-only user with a second-session isolation check
 
 ## Epic 21: Email, webhooks and MCP settings (step 4)
 
@@ -10244,8 +10328,9 @@ So that pins come only from the person, and learned saves only from code.
 **Given** Story 41.8's names
 **When** this story adds Lane B's part
 **Then** `PinMemory` and `UnpinMemory` exist, and `CommandsIn` routes them to the memory operation from origin `web_user` only. The governance test refuses each from `tool` (AD-1)
-**And** `CommandsIn` accepts the save-memory verb from origin `system` too, only when it carries `Source` `learned` (for Story 41.11, if it is built) (AD-21)
+[AMENDED 2026-11-09, Story 41.9 spec gate, ruled by the Contest Planner under the owner's delegation (planner-2026-11-09-41.9 item (d)): the criterion "`CommandsIn` accepts the save-memory verb from origin `system` too, only when it carries `Source` `learned` (for Story 41.11, if it is built) (AD-21)" moved to Story 41.11, with its AD-31 amendment there; this story keeps Story 41.8's rule that code decides the source.]
 **And** `GET /api/v1/memory/items` (list and search, with source and pinned) and the pin routes exist, session-checked and owner-scoped (AD-4)
+**And** a web forget route exists for the Memory card's Forget (Story 41.13): it submits `ForgetMemory` from origin `web_user`, session-checked and owner-scoped through `Memory.Ops` as save and list are; another session's ref answers `not_found`, with a test; it has the same CSRF and same-origin protection as the existing `web_user` write routes; and AD-1 gains the note that `ForgetMemory` is accepted from origin `web_user` as well as `tool` (AD-1, AD-4) [ADDED 2026-11-09, Story 41.8 spec gate, veto-recorded amendment approved by the Contest Planner under the owner's delegation (planner-2026-11-09-41.8): `CommandsIn` accepted `ForgetMemory` from origin `tool` only, and this story's routes had no forget route for 41.13's Forget]
 
 ### Story 41.10: Facts learned at compaction (optional: needs AD-31's amendment, decided at the re-open)
 
@@ -10277,6 +10362,7 @@ So that I can see and forget them like any other memory.
 **When** `BridgeSink` handles it
 **Then** for each entry not already among the owner's memories (exact text, case-folded), it submits the save verb with origin `system`, `Source` `learned` and an idempotency key of the event's id plus the entry's position (FR-73, AD-1, AD-21)
 **And** it waits on no lock longer than one second, and a failure is logged without failing the bridge (AD-31)
+**And** `CommandsIn` accepts the save-memory verb from origin `system` too, only when it carries `Source` `learned`; this needs a message-carried source, decided here with AD-31's amendment, against Story 41.8's rule that code decides the source, and Epic 19's trust rule for a non-`tool` row (AD-21) [MOVED 2026-11-09 from Story 41.9, ruled by the Contest Planner under the owner's delegation (planner-2026-11-09-41.9 item (d))]
 
 ### Story 41.12: Core memory: pins under a hard cap, read at every session start
 
@@ -10290,15 +10376,18 @@ So that it never forgets the few things that matter most.
 
 **Given** a `PinMemory` for one of the owner's memories
 **When** the memory operation handles it
-**Then** it sums the pinned memories' text lengths, plus this one's, at 4 characters a token. Up to 1,000 tokens it sets `Pinned` and `PinnedAt`; above that it refuses with `over_cap`, and nothing changes (FR-74, AD-21)
+**Then** the core memory block, heading and quotes included, is capped at 4,000 chars (1,000 tokens at 4 chars/token): if the rendered block with this pin stays within it, it sets `Pinned` and `PinnedAt`; above that it refuses with `over_cap`, and nothing changes; a pinned fact is never left out of the input while it shows as pinned (FR-74, AD-21) [AMENDED 2026-11-09, Contest Planner ruling: it read "it sums the pinned memories' text lengths, plus this one's, at 4 characters a token. Up to 1,000 tokens it sets `Pinned` and `PinnedAt`; above that it refuses with `over_cap`, and nothing changes"; the heading, quotes and line breaks did not fit in 4,000 characters once pins neared the cap]
 **And** `UnpinMemory` clears the pin, and forgetting a pinned memory deletes it
 **And** only a `PinMemory` from the person sets a pin: no save, tool or compaction path pins a memory (FR-74)
 
 **Given** a user item rendered with `sessionStart`
 **When** `Agent.Input.Render` runs
-**Then** before the daily notes it adds the core-memory block: "Your core memory (facts you pinned):", then the pinned memories newest pin first, quoted, never over the cap (FR-74, AD-7, NFR-27)
+**Then** before the daily notes it adds the core-memory block: "Your core memory (facts you pinned):", then the pinned memories newest pin first, quoted, never over the cap, with every pinned memory in it (FR-74, AD-7, NFR-27) [AMENDED 2026-11-09, Contest Planner ruling: "with every pinned memory in it" added with the cap on the rendered block]
 - DW-967: a first turn of the day that ends in a fallback (`no_key`, `daily_cap`, `budget`, `too_large`, failed Chat) still counts as the session start, so that day's notes never reach a model; count only turns whose request reached a model (ledger; routed by burndown 2026-11-09)
 - DW-977: today's note at a session start quotes the current message's own opening, so the model sees the person's words twice; leave the current and later turns out of the note (and update `Test.Bridge.SecondModel:TestIntegrationWebChat`) (ledger; routed by burndown 2026-11-09)
+- DW-1014: rows saved before Story 41.8 hold no stored `Pinned` value, so SQL such as `Pinned = 0` skips them; the pinned read and the cap sum use `COALESCE(Pinned, 0)` or read through `Memory.Row` (ledger; routed by harvest 2026-11-09)
+- DW-1029: the pin tests stop at a probe (`CommandsStep3Probe` answers any pin with error 5001, `MemoryApi:TestPin` real mode pins that 500), so once `MemoryOps` handles `PinMemory`/`UnpinMemory` they stay green past the real handler; re-pin them on the real outcomes, and fix `Memory/Ops.cls:19`'s origin comment (ledger; routed by cr 2026-11-09)
+- DW-1039: the real-HTTP test of the pin routes (`web/e2e/api/memory.spec.ts`) asserts today's 500 because `MemoryOps` has no pin handler; once this story handles `PinMemory`/`UnpinMemory`, assert 200 `{"result":"done"}`, 409 `over_cap` and a second-session 404 (ledger; routed by harvest 2026-11-09)
 
 ### Story 41.13: The Memory card: pinned and learned memories
 
@@ -10321,6 +10410,9 @@ So that I decide what OcuTalon keeps.
 **When** this story updates it
 **Then** it says what forgetting removes (the memory, its search entries, any pin, and every later session start) and that the current conversation's earlier messages aren't rewritten (FR-73)
 - DW-996: unify the Memory card's `ForgetDialog` (`web/src/app/rail/memory-card/forget-dialog.ts`) with `documents/remove-dialog.ts` into one shared confirm dialog (ledger; routed by burndown 2026-11-09)
+- DW-1030: `GET /v1/memory/items` lists only the newest 20 (or a search's best 5), with no pinned filter, paging or used-token figure, so it cannot back the Pinned tab; the card needs the pinned rows and the {used} of 1,000 tokens (ledger; routed by cr 2026-11-09)
+- DW-1031: the card's memory search runs only on submit, never per keystroke, and on the online demo each search counts against the existing message allowance (no new number), so searches cannot fill the shared embedder queue (ledger; routed by owner 2026-11-09, Contest Planner ruling under the owner's delegation)
+- DW-1040: the memory search's 503 `search_busy` must not raise the online demo's whole-page busy state (`DemoBusyState`, the chat outbox): the card shows a local "search is busy" message for a 503 whose code is `search_busy`; Contest Planner ruling 2026-11-09: keep 503 + `search_busy` and add a `Retry-After` header (in this story); the client's whole-page demo-busy handling changes in ONE place to skip responses whose code is `search_busy`; an e2e test proves a `search_busy` answer shows the card's message and does not put the page into demo-busy; check whether the demo's message allowance already answers 429 and, if so, record that 429 is taken (ledger; routed by harvest 2026-11-09)
 
 ### Story 41.14: Evaluation and tests for memory's second part
 
@@ -10344,5 +10436,8 @@ So that memory that learns can't be fed from outside and really forgets.
 **Then** the row, its vector and its `%iFind` entry are gone, recall returns nothing for its text, and the next session start's block doesn't hold it (FR-41, FR-74)
 **And** pins up to the cap succeed, the next one is refused, and the block is never over 4,000 characters (FR-74, NFR-27)
 **And** a `turn` case on the real model asks about a forgotten fact and gets an answer that cites no memory
+- DW-908: no test pins the content of the user-turn remember and forget cases; pin the remember case's text, key phrases, absent phrases, heldOut and recordedBy in `Test.Eval.Cases`, and add both user-turn cases to `Test.Eval.Report`'s chip loop (ledger; routed by x0 2026-11-09)
+- DW-1016: no test or eval checks that Chat's reply after a refused or failed learned save does not say "I'll remember that"; add a case for a denied learned save whose reply must not claim the save (ledger; routed by cr 2026-11-09)
+- DW-1015: the learned-save eval case (`eval/memory-learned-save`) covers no real save (an eval turn's owner `eval` is not a session, so `save_memory` is refused); give the case a real session, and score it right only when the save happened AND the reply carries the sentence; until then it stays report-only, labelled wording-only, never a gate (ledger; routed by owner 2026-11-09, Contest Planner ruling under the owner's delegation)
 
 **Release check:** at the first daily release after the re-open, the Contest Planner's hands-on pass with real keys mentions a fact, sees it learned, pins it, and starts a new day's conversation to see it read (REL-7, as amended 2026-10-31).

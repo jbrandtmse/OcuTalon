@@ -7,6 +7,14 @@ export interface CheckRow {
   checkedAt?: string;
 }
 
+export interface Citation {
+  documentRef?: string;
+  document?: string;
+  section?: string;
+  passage?: string;
+  chunkIndex?: number;
+}
+
 export interface Cost {
   inputTokens?: number;
   outputTokens?: number;
@@ -101,6 +109,12 @@ export interface ItemNoun {
   other?: string;
 }
 
+export interface Memory {
+  memoryRef?: string;
+  text?: string;
+  savedAt?: string;
+}
+
 export interface StatusSlots {
   limit?: number;
   cap?: number;
@@ -132,6 +146,8 @@ export interface ChatMessagePayload {
   turnCost?: Cost;
   checkKey?: string;
   checks?: CheckRow[];
+  citations?: Citation[];
+  memories?: Memory[];
   traceUrl?: string;
 }
 

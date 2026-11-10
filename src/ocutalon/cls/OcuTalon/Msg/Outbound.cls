@@ -30,6 +30,13 @@ Property DecisionRef As %String(MAXLEN = 22);
 /// The catalog key of the check results (AD-28); empty when the reply has none.
 Property CheckKey As %String(MAXLEN = 128);
 
+/// The citations of the reply, as a JSON array of {documentRef, document, section, passage, chunkIndex}: what the reply's
+/// HostData carried, after the reply filter. Empty for a reply with none.
+Property Citations As %String(MAXLEN = "");
+
+/// The memories the reply recalled, as a JSON array of {memoryRef, text, savedAt}. Empty for a reply with none.
+Property Memories As %String(MAXLEN = "");
+
 Storage Default
 {
 <Data name="OutboundDefaultData">
@@ -60,6 +67,12 @@ Storage Default
 </Value>
 <Value name="9">
 <Value>CheckKey</Value>
+</Value>
+<Value name="10">
+<Value>Citations</Value>
+</Value>
+<Value name="11">
+<Value>Memories</Value>
 </Value>
 </Data>
 <DefaultData>OutboundDefaultData</DefaultData>
