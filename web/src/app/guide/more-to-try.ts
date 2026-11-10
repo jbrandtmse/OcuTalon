@@ -11,6 +11,7 @@ import { AllowanceState } from '../live/allowance-state';
 import { LiveState } from '../live/live-state';
 import { chipName, SAMPLES } from '../mailbox/mailbox-view';
 import { HEARTBEAT_HEADING_ID } from '../rail/heartbeat-card/heartbeat-card-view';
+import { MEMORY_HEADING_ID } from '../rail/memory-card/memory-card-view';
 import { PERSONA_HEADING_ID } from '../rail/persona-card/persona-card-view';
 import { Layout, RAIL_REGION } from '../shared/layout';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
@@ -39,8 +40,8 @@ let panels = 0;
  * writes its summary) and, when no card is resolved (the guide's incident was closed already, or the guide has not run), sends "Show me the incident
  * summary" through the chat's outbox instead; the Persona item opens the rail and the Persona card's Change, the suspicious email item selects the
  * Simulated mailbox tab and presses the suspicious-request chip, the Reject a fix item presses the box's Break the feed, the reroute item sends its prompt through the chat's outbox as the user's own message (Story 23.2), the Demo view item presses the
- * Demo view switch while it is on, the memory item sends its prompt through the chat's outbox (a new message of the user's), the documents item is a
- * link to the Documents page and the heartbeat item opens the rail and focuses the Heartbeat checklist card's heading, pressing nothing, and the sources item (Story 20.2) is a link to the Documents page. While the visitor has no documents (SampleRunbook.none, with the `documents` item listed) the documents and sources items are instead a button, Add the sample runbook, which asks the Documents page to press its own button of that name (SampleRunbook.ask) and opens the page; the panel posts nothing. Every action runs from the control's own click, and focus moves
+ * Demo view switch while it is on, the memory item sends its prompt through the chat's outbox (a new message of the user's), the Memory card item opens the rail and focuses the
+ * Memory card's heading, the documents item is a link to the Documents page and the heartbeat item opens the rail and focuses the Heartbeat checklist card's heading, pressing nothing, and the sources item (Story 20.2) is a link to the Documents page. While the visitor has no documents (SampleRunbook.none, with the `documents` item listed) the documents and sources items are instead a button, Add the sample runbook, which asks the Documents page to press its own button of that name (SampleRunbook.ask) and opens the page; the panel posts nothing. Every action runs from the control's own click, and focus moves
  * only for that press. The panel announces nothing, and it emits `pressed` so that the guide keeps the panel open, and `squeezed` when the
  * room is too small for it even at its shortest window, so that the guide does not start it open.
  *
@@ -260,6 +261,10 @@ export class MoreToTry {
         if (!this.blocked()) {
           this.outbox.send(MORE_TO_TRY_TEXTS.rememberPrompt);
         }
+        break;
+      case 'memoryCard':
+        this.layout.focusRegion(RAIL_REGION);
+        this.handTo([`#${MEMORY_HEADING_ID}`], () => false);
         break;
       case 'heartbeat':
         this.layout.focusRegion(RAIL_REGION);

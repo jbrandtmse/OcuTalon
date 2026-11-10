@@ -1,6 +1,6 @@
 /**
  * The demo guide's "Other things to try" panel (Story 4.11; EXPERIENCE: Demo guide and controls): its fixed strings, the registry of
- * its ten items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
+ * its eleven items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
  * as it is and the strings test reads it.
  *
  * The catalog is the server's (AD-12): `guide.features` is the list of feature ids that Demo.Features.Present gives, in the guide's
@@ -69,6 +69,12 @@ export const MORE_TO_TRY_TEXTS = {
         'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
       button: 'Ask it to remember',
     },
+    memoryCard: {
+      label: 'Pin a memory',
+      lookFor:
+        'First do "Ask it to remember something". Then open All memories in the Memory card and press Pin on the memory marked Told. Open Pinned to see it: pinned facts are read at the start of each conversation, up to 1,000 tokens.',
+      button: 'Go to the Memory card',
+    },
     documents: {
       label: 'Ask about a document',
       lookFor:
@@ -102,7 +108,7 @@ export const RESOLVED_CHIP = '.chip-resolved';
 export const DISMISS_BUTTON = 'app-incident-dismiss button';
 
 /** The hand-off that an item's control makes. */
-export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'demoView' | 'memory' | 'documents' | 'heartbeat';
+export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat';
 
 /**
  * One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off,
@@ -127,6 +133,7 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'reroute', ...MORE_TO_TRY_TEXTS.items.reroute, action: 'reroute', group: 'Incidents and fixes' },
   { id: 'demoView', ...MORE_TO_TRY_TEXTS.items.demoView, action: 'demoView', group: 'Safety and settings' },
   { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory', group: 'Memory and documents' },
+  { id: 'memoryCard', ...MORE_TO_TRY_TEXTS.items.memoryCard, action: 'memoryCard', group: 'Memory and documents' },
   { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents', group: 'Memory and documents' },
   { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat', group: 'Safety and settings' },
   { id: 'sources', ...MORE_TO_TRY_TEXTS.items.sources, action: 'documents', group: 'Memory and documents' },

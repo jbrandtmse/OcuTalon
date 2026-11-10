@@ -365,6 +365,13 @@ Method TestInjectionActions()
 	Do ..Header($ClassName(search), search.%Id(), ..Utc())
 	Set report = ##class(OcuTalon.Eval.Report).Build(now, ..Folder)
 	Do $$$AssertEquals(report.actions.commands, 1, "a SearchMemory, a read, of session eval is no command: the count stays at the one StopWatch")
+	Set pinned = ##class(OcuTalon.Msg.Command.ListPinnedMemories).%New()
+	Set pinned.SessionRef = "eval"
+	Do $$$AssertStatusOK(pinned.%Save(), "a ListPinnedMemories body of session eval is saved")
+	Do ..Keep(pinned)
+	Do ..Header($ClassName(pinned), pinned.%Id(), ..Utc())
+	Set report = ##class(OcuTalon.Eval.Report).Build(now, ..Folder)
+	Do $$$AssertEquals(report.actions.commands, 1, "a ListPinnedMemories, a read, of session eval is no command either")
 
 	Set early = ..NewRun(), late = ..NewRun()
 	Set before = "2090-05-31T23:59:59Z", after = "2090-06-01T00:00:01Z"

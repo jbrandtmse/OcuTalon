@@ -23,6 +23,7 @@ const FAILED = "Couldn't read it: something went wrong inside OcuTalon.";
 const UNREADABLE = "Couldn't read it: OcuTalon found no text in it.";
 const NOT_BUILT = "Couldn't read it: this part of OcuTalon isn't built yet.";
 const MB = 1048576;
+const REMOVE_FAILED = "Couldn't remove it. Nothing was changed.";
 
 const pagesNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true });
 const documentsLink = (page: Page): Locator => pagesNav(page).getByRole('link', { name: 'Documents', exact: true });
@@ -249,10 +250,11 @@ test('D9: an accepted .md reads Indexing and then Ready', async ({ page }) => {
   expect(await announcements(page, UNREADABLE), 'once').toBe(1);
 });
 
-/** D10: Remove asks first; Esc and Cancel keep the row; a failed remove says so; a done one removes the row and focuses the list. */
-test('D10: Remove asks first, and a removed row leaves', async ({ page }) => {
+/** D10: Remove asks first; Esc and Cancel keep the row; a failed remove says so (announced once, named in the confirm button's description: DW-997); a done one removes the row and focuses the list. */
+test('D10: Remove asks first, a failed remove is announced once and named in the confirm button\'s description, and a removed row leaves', async ({ page }) => {
   const name = `${unique('remove')}.md`;
   await seed(name, { State: 'ready' });
+  await recordAnnouncements(page);
   await openDocuments(page);
   const row = rowsOf(page, name);
   const remove = row.getByRole('button', { name: `Remove ${name}`, exact: true });
@@ -277,8 +279,14 @@ test('D10: Remove asks first, and a removed row leaves', async ({ page }) => {
     route.request().method() === 'DELETE' ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":{"code":"server_error","message":"zz"}}' }) : route.fallback(),
   );
   await remove.click();
-  await dialog.getByRole('button', { name: 'Remove', exact: true }).click();
-  await expect(dialog.getByText("Couldn't remove it. Nothing was changed."), 'an error answer to the remove').toBeVisible({ timeout: 30_000 });
+  const confirm = dialog.getByRole('button', { name: 'Remove', exact: true });
+  await expect(confirm, 'the confirm button has no description before it fails').not.toHaveAccessibleDescription(REMOVE_FAILED);
+  await confirm.click();
+  await expect(dialog.getByText(REMOVE_FAILED), 'an error answer to the remove').toBeVisible({ timeout: 30_000 });
+  await expect(confirm, 'the confirm button is described by the notice').toHaveAccessibleDescription(REMOVE_FAILED);
+  await expect.poll(() => announcements(page, REMOVE_FAILED), { message: 'and the notice is announced once' }).toBe(1);
+  await page.waitForTimeout(1000);
+  expect(await announcements(page, REMOVE_FAILED), 'and only once').toBe(1);
   await expect(row, 'the row is kept').toHaveCount(1);
 
   await page.route(`**${DOCUMENTS}/*`, (route) =>

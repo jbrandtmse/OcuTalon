@@ -2072,6 +2072,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T01:38:53Z occurrence=feature-550bf9b8 by=orchestrator note=run 42425689094 job 128563351949 iris(production) row 21 'the step fails naming WatchOps while it cannot start' (1 of 5 values differ), unit live:production 326 s, group 1546 s; same code as bed23f1d whose production group passed; 18/18 hosts busy; rerun of failed jobs 01:39Z
 - 2026-11-09T07:17:33Z occurrence=OCT-epic41-0fb1d182 by=orchestrator note=run 42572723309 iris(production) live:production row 21 'fails naming WatchOps while it cannot start': wanted CHK|start-fails|1|1, got ''
 - 2026-11-10T07:17:50Z occurrence=feature-1490ab58 by=orchestrator note=run 42767577852 job 129667573672 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; parents 87c0223e and f59cab73 passed production; rerun of failed jobs 2026-11-10T07:17:50Z
+- 2026-11-10T20:15:23Z occurrence=feature-1d75fbf1 by=orchestrator note=run 42874524463 job 130034187062 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; merge of 0.22 (web/guide) + v1.0.6 bump; rerun of failed jobs
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6168,12 +6169,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T02:25:29Z status=routed owner=burndown by=cr note=Rule 2 spec-forced copy; unify with remove-dialog.ts and fix DW (dialog notice a11y) in the same change
 - 2026-11-09T02:25:34Z status=routed owner=burndown by=cr note=the dialog notice a11y fix is DW-997; do both in one change
 - 2026-11-09T05:18:30Z owner=41-13-the-memory-card-pinned-and-learned-memories by=burndown note=part-1 burn-down overflow: 41.13 extends the Memory card and its Forget dialog; unify ForgetDialog with documents/remove-dialog.ts there
+- 2026-11-10T05:55:50Z status=resolved-by:41-13-the-memory-card-pinned-and-learned-memories by=adjudication note=shared/confirm-dialog.ts_replaces_forget-dialog.ts_and_remove-dialog.ts(deleted);documents.spec_D10,memory-card_MC14-MC17
 
 ### DW-997: The Forget and Remove dialogs' failure notice is neither announced nor described: confirm catches every error so ServerButton sees success, and app-inline-notice has no id in the button's describedBy and no Announcer call (noise-control.ts and incident-dismiss.ts do both)
 - source: spec-41-6-the-memory-card-your-notes-and-your-answers.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: forget-dialog.ts:35-37,85-98 and documents/remove-dialog.ts: after a 500/501/network error focus stays on the confirm and a screen reader hears nothing; the fix needs the Announcer (announce-focus-sources.test.mjs speakers list, Epic 18 contended) and Story 34.2's dialog
 - 2026-11-09T02:25:29Z status=escalated owner=burndown by=cr note=NFR-25/WCAG 4.1.3; fix with the confirm-dialog unification: describedBy the notice id and announce it once
 - 2026-11-09T08:06:55Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=merge_gate note=decision_sheet_Epic_41_part1(Planner_agreed):with_DW-996's_shared-dialog_unification
+- 2026-11-10T05:55:50Z status=resolved-by:41-13-the-memory-card-pinned-and-learned-memories by=adjudication note=ConfirmDialog_failure_notice_has_an_id_in_the_confirm_button_describedBy_and_is_announced_once;MC14,MC16,MC17,MC19,D10_assert_announced_once(re-checked_after_1s)
 
 ### DW-998: ux-strings.test.mjs does not inventory memory-card-view.ts ANSWER_WORDS, so the ruled answer words 'Approved' and 'Rejected' have no source entry (only MEMORY_TEXTS is imported)
 - source: spec-41-6-the-memory-card-your-notes-and-your-answers.md | severity: low | fix-risk: low | footprint: in-epic
@@ -6315,6 +6318,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Web/Api.cls MemoryItems uses Memory.List (LISTLIMIT 20); epics Story 41.13 asks for a Pinned tab with '{used} of 1,000 tokens (estimated)'
 - 2026-11-09T16:35:22Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=cr note=41.13's plan names the pinned read (a pinned view of the route, or a field) and who computes used
+- 2026-11-10T05:55:50Z status=resolved-by:41-13-the-memory-card-pinned-and-learned-memories by=adjudication note=GET_/api/v1/memory/pinned_via_ListPinnedMemories(every_pinned_row+used_from_Memory.CoreBlock);paging_part_declined_by_Planner(newest_20+search);MemoryApi,MC20,memory.spec.ts
 
 ### DW-1031: Memory item search embeds on every GET with no allowance: a signed-in visitor (or a per-keystroke search box) can fill the shared Embedder queue (2 workers) that the agent's save_memory and search_memories also use
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: med | footprint: in-story
@@ -6323,6 +6327,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T16:41:26Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=owner note=planner-2026-11-09-41.9-readpath_DW-1031:_the_Memory_card_searches_only_on_submit,never_per_keystroke;on_the_demo_each_search_counts_against_the_existing_message_allowance;no_new_number
 - 2026-11-09T17:46:42Z occurrence=41-9-pins-and-learned-saves-get-their-verbs-and-routes
 - 2026-11-09T17:46:42Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=cr note=reachable since 41.9 rework: GET ?q= -> SearchMemory -> MemoryOps (PoolSize 1, shared with saves); enforce allowance in the route
+- 2026-11-10T05:55:51Z status=resolved-by:41-13-the-memory-card-pinned-and-learned-memories by=adjudication note=search_on_submit_only(MC24_second_submit_ignored);Allowance.TryConsumeRead_counts_each_online-demo_search;429_allowance;online-allowance_MS1
 
 ### DW-1039: The real-HTTP test of the pin routes (web/e2e/api/memory.spec.ts) asserts today's 500 server_error because MemoryOps has no pin handler before 41.12; replace it with 200 {result:done}, 409 over_cap and a second-session 404 when 41.12 handles PinMemory/UnpinMemory (standing real-HTTP rule)
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
@@ -6337,6 +6342,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T17:46:42Z occurrence=41-9-pins-and-learned-saves-get-their-verbs-and-routes
 - 2026-11-09T17:46:42Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=cr note=the fix also amends AD-25 (client shows demo-busy for any API 503) or changes the status; spine line with it
 - 2026-11-09T18:43:19Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=owner note=planner_ruling_2026-11-09:_keep_503+search_busy;add_Retry-After_header;client_demo-busy_handling_skips_code_search_busy_in_ONE_place;e2e_proves_card_message_and_no_demo-busy;check_whether_the_message_allowance_already_answers_429_and_record_it;Retry-After_goes_in_41.13_with_the_interceptor(lead's_call:41.9_stays_as_reviewed)
+- 2026-11-10T05:55:51Z status=resolved-by:41-13-the-memory-card-pinned-and-learned-memories by=adjudication note=503_search_busy_with_Retry-After:5;client_demo-busy_hook_skips_code_search_busy_in_one_place(live/demo-busy.ts_makesDemoBusy);OM2_proves_no_demo-busy;429_is_the_allowance's
 
 ### DW-1046: A memory search copies up to five memory texts into CommandResult.Data and its query into the SearchMemory body; both stay in the messages (data database) for 90 days and survive a later Forget
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: low | fix-risk: med | footprint: in-story
@@ -6622,6 +6628,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340184 shards-10; first-start timeout is DW-999's; the park step is a new signature; the 23.2 rework checks it for a story cause
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:reminder-restart_telegram_park;one_rerun_with_the_next_push
+### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
+- source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
+- 2026-11-10T02:34:24Z status=wontfix-accepted owner=41-13-the-memory-card-pinned-and-learned-memories by=harvest note=reopen_if=the newest-N line or listMore changes, or an e2e case seeds more than 20 memories
+- 2026-11-10T04:49:18Z status=resolved-by:41-13-the-memory-card-pinned-and-learned-memories by=qa note=MC21_seeds_21_more_memories_and_asserts_the_newest-20_line
+
+### DW-1066: MC6 (Tab reaches Forget) failed once in four QA runs of live:sign-in-3 part 7/8 with focus not on Forget; root cause unproven
+- source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: QA run 2026-11-09: 'expected focused, received inactive' once; code review ruled out the card's re-read (rows clear with the selection while focus is on the tab, render once, tracked by ref); 2 later runs green after hardening
+- 2026-11-10T05:54:17Z status=wontfix-accepted owner=41-13-the-memory-card-pinned-and-learned-memories by=cr note=test hardened (re-read waited, first-row check, focus named); reopen_if=MC6 fails again: its poll names the focused element
 ### DW-1080: flake: shard:lane-a@Watch Test.Watch.* TestNoticeVariants 'WebChatOut recorded one incident Delivery row for each' failed in CI
 - source: cycle-log-parallel.md (OCT-epic41 4612eb5c, ci.yml run 42777878916) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (shards-8) job 129700562402 FAIL TestNoticeVariants at 08:00:10Z, unit shard:lane-a@Watch 816s; the same shard passed on 28229232 (run 42767697005); 28229232..4612eb5c changes no product code (two comment lines in more-to-try-view.ts, docs and web tests only)
@@ -6640,3 +6656,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 merge 649b511f (feature 3dcd4cb5 + 23.2) local live:sign-in-3: 1 failed, 166 passed; 23.2 changes neither the Memory card nor its spec
 - 2026-11-10T19:23:42Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=ci note=flake_candidate:MC6_keyboard_tab;watch_CI_sign-in-3
+### DW-1093: flake: live:sign-in-2 e2e/rail/rail.spec.ts:432 R10 'after live events the rail holds what a reload shows' failed at :470 'a reload shows the same rail'
+- source: main run 42863516417 attempt 1 (v1.0.6 tag 96947f4d), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: iris (shards-4) live:sign-in-2 R10 red at :470; green on one rerun; main badge green 19:45Z
+- 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); no fix work now (Planner); rerun once per occurrence
+
+### DW-1094: flake: lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges ('trace_opened/run_again changes none of the session's data rows') and TestRunAgain ('steps 3 to 5 reset; the watch still counts')
+- source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: iris (shards-6) lane-b@rest; green on one rerun
+- 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the Data.Purge entry filed alongside (Planner's unverified guess); no fix work now
+- 2026-11-10T19:46:28Z note=see also DW-1095 (possible shared cause: before/after session-row comparisons)
+
+### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
+- source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: iris (image) lane-b@Contract,Core,Data,Live; green on one rerun
+- 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the GuideApi entry filed alongside (unverified); no fix work now
+- 2026-11-10T19:46:28Z note=see also DW-1094 (possible shared cause)
