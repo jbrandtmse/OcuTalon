@@ -4,11 +4,12 @@ import { signIn } from '../sign-in/helpers';
 import { loadedAfter } from '../support/floor';
 import { fixtureUser } from '../support/iris';
 import { sessionRefOfUser } from '../support/memory';
+import { announcements, recordAnnouncements } from '../support/page';
 import { scanContrast, scanNames } from '../support/scan';
 import { cleanUsage, clearUsage, seedUsage, type SeededUsage, type UsageSeed } from '../support/usage';
 
 /**
- * Story 37.2, the Usage page (U1 to U9), in a real browser against a real stack, signed in as the LIVE fixture user (OcuTalonUser only, the online demo
+ * Story 37.2, the Usage page (U1 to U15), in a real browser against a real stack, signed in as the LIVE fixture user (OcuTalonUser only, the online demo
  * visitors' role). Each case clears the LIVE session's Usage rows (this folder relies on workers 1 and fullyParallel off, playwright.config.ts) and seeds the
  * rows below through the product's test fixture, one to five days ago in the instance zone, plus a row of the second session (PANEL) and an eval-owned row that must
  * never show. The expected tables are written out from those rows, not computed from the page:
@@ -322,7 +323,7 @@ test('U7: the page passes the names and contrast scans in light and dark', async
   }
 });
 
-/** U8: the regions stack below 1024px, and the page never scrolls sideways, also with the text at twice its size. */
+/** U8: the regions stack below 1024px, the page never scrolls sideways, also with the text at twice its size, and at 305px every navigation link is shown in the window. */
 test('U8: below 1024px the regions stack, and the page does not scroll sideways at 200%', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 800 });
   await openUsage(page);
@@ -332,6 +333,14 @@ test('U8: below 1024px the regions stack, and the page does not scroll sideways 
   const sideways = (): Promise<boolean[]> =>
     page.evaluate(() => [document.documentElement, document.body, document.querySelector('main.usage')!].map((el) => el.scrollWidth <= el.clientWidth + 1));
   expect(await sideways(), 'no sideways scroll at 1000px').toEqual([true, true, true]);
+
+  await page.setViewportSize({ width: 305, height: 700 });
+  await expect(nav(page).getByRole('link'), 'at 305px the header navigation still holds every link').toHaveText(['Chat', 'Documents', 'Usage']);
+  for (const link of await nav(page).getByRole('link').all()) {
+    await expect(link, 'each link is shown at 305px').toBeVisible();
+    const box = (await link.boundingBox())!;
+    expect(box.x >= 0 && box.x + box.width <= 305.5, `${await link.textContent()} is inside the 305px window`).toBe(true);
+  }
 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.addStyleTag({
@@ -371,12 +380,12 @@ test('U10: a failed read shows its error and Retry, and the limit shown is the a
   );
   await loadedAfter(page, () => signIn(page, live().user, live().password));
   await usageLink(page).click();
-  await expect(page.getByText("Couldn't load your usage.", { exact: true }), 'the error text').toBeVisible();
+  await expect(page.locator('main').getByText("Couldn't load your usage.", { exact: true }), 'the error text').toBeVisible();
   await expect(page.locator('table'), 'no table under the error').toHaveCount(0);
   failing = false;
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(tableOf(page), 'Retry reads again and shows the table').toBeVisible();
-  await expect(page.getByText("Couldn't load your usage.", { exact: true })).toHaveCount(0);
+  await expect(page.locator('main').getByText("Couldn't load your usage.", { exact: true })).toHaveCount(0);
   const cells = await page.locator('section[data-part="usage-largest"] tbody td').allTextContents();
   expect(cells.length, 'the days with use').toBeGreaterThan(0);
   for (const cell of cells) expect(cell, 'the limit is the answer\'s own').toMatch(/ of 50,000 tokens$/);
@@ -427,4 +436,61 @@ test('U13: the figures of both tables are tabular', async ({ page }) => {
   await openUsage(page);
   await expect(tableOf(page).locator('tbody td').first(), 'the usage table\'s figures').toHaveCSS('font-variant-numeric', 'tabular-nums');
   await expect(page.locator('section[data-part="usage-largest"] tbody td').first(), 'the largest-request figures').toHaveCSS('font-variant-numeric', 'tabular-nums');
+});
+
+/** U14: a Retry that fails again keeps focus on Retry, and each failed read is announced. */
+test('U14: a Retry that fails again keeps focus on Retry, and each failure is announced', async ({ page }) => {
+  const failed = "Couldn't load your usage.";
+  let reads = 0;
+  await recordAnnouncements(page);
+  await page.route(
+    (url) => url.pathname === USAGE,
+    async (route) => {
+      reads += 1;
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'server_error' }) });
+    },
+  );
+  await loadedAfter(page, () => signIn(page, live().user, live().password));
+  await usageLink(page).click();
+  const retry = page.getByRole('button', { name: 'Retry', exact: true });
+  await expect(retry, 'the failed read shows Retry').toBeVisible();
+  await expect.poll(() => announcements(page, failed), { message: 'the failure is announced' }).toBe(1);
+  await retry.focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => reads, { message: 'Retry read again' }).toBe(2);
+  await expect.poll(() => announcements(page, failed), { message: 'the second failure is announced too' }).toBe(2);
+  await expect(retry, 'Retry keeps focus through a read that fails again').toBeFocused();
+  await expect(page.locator('main').getByText(failed, { exact: true }), 'the error text stays').toBeVisible();
+});
+
+/** U15: the answer to an earlier range that arrives after the answer to a later one is dropped, so a table never shows another range's numbers. */
+test('U15: a late answer to an earlier range does not replace the current range', async ({ page }) => {
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(
+    (url) => url.pathname === USAGE && url.searchParams.get('days') === '7',
+    async (route) => {
+      const real = await route.fetch();
+      const body = (await real.json()) as { limit: number };
+      await held;
+      await route.fulfill({ response: real, json: { ...body, limit: 50000 } });
+    },
+  );
+  await loadedAfter(page, () => signIn(page, live().user, live().password));
+  await usageLink(page).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Usage');
+  const month = page.waitForResponse(isUsage(30));
+  await page.getByLabel('Range', { exact: true }).selectOption('30');
+  expect((await month).status()).toBe(200);
+  await expect(tableOf(page), 'the 30-day answer is shown').toBeVisible();
+  const late = page.waitForResponse(isUsage(7));
+  release();
+  await (await late).finished();
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 500)));
+  await expect(page.getByLabel('Range', { exact: true })).toHaveValue('30');
+  const cells = await page.locator('section[data-part="usage-largest"] tbody td').allTextContents();
+  expect(cells.length, 'the days with use').toBeGreaterThan(0);
+  for (const cell of cells) expect(cell, 'the late 7-day answer (limit 50,000) was dropped').toMatch(/ of 100,000 tokens$/);
 });

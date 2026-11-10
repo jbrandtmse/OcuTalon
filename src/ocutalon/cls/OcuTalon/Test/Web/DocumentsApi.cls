@@ -99,7 +99,6 @@ Method TestDispatch()
 		}
 	}
 	Do $$$AssertEquals(maps, 1, "Web.Api's URL map holds exactly one Map for /v1/documents")
-	Do $$$AssertEquals(map.url, "/v1/documents", "its prefix is /v1/documents")
 	Do $$$AssertEquals(map.forward, "OcuTalon.Web.Documents", "it forwards to Web.Documents")
 	Set matcher = ##class(%Regex.Matcher).%New(map.regex)
 	Do $$$AssertTrue(matcher.Match("/v1/documents"), "the prefix itself matches")

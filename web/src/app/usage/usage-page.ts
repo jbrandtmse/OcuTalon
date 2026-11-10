@@ -5,6 +5,7 @@ import { ApiClient } from '../api/api-client';
 import type { UsageDays, UsageResponse } from '../api/usage-types';
 import { DECISION_TEXTS, formatCost, formatTokens } from '../chat/decision-view';
 import { SETTINGS_TEXTS } from '../settings/settings-view';
+import { Announcer } from '../shared/announcer';
 import {
   DEFAULT_GROUPING,
   DEFAULT_RANGE,
@@ -33,7 +34,8 @@ const CHART_WIDTH = 640;
  *
  * The page asks GET /v1/usage?days= when it opens, on a range change and on Retry; a grouping change regroups the buckets it holds, with no request. It shows
  * nothing before the first answer, "No model use in this period." for an answer with no bucket (and no chart or table), and "Couldn't load your usage." with
- * Retry for a failed read. A range change shows nothing until its answer, so a table never sits under another range's name.
+ * Retry for a failed read, announced through the page's live region; the failed text and Retry stay until the next answer, so a Retry that fails again
+ * keeps focus on Retry. A range change shows nothing until its answer, so a table never sits under another range's name.
  *
  * The "Tokens and cost" region is a figure and a table. The figure is an inline SVG hidden from assistive technology: one bar for each row's tokens (input plus
  * output) on the token scale and one point on the cost line, on its own scale, in the usage chart tokens, with a gridline each quarter and the series named
@@ -394,6 +396,7 @@ const CHART_WIDTH = 640;
 export class UsagePage {
   private readonly api = inject(ApiClient);
   private readonly destroyed = inject(DestroyRef);
+  private readonly announcer = inject(Announcer);
 
   protected readonly texts = USAGE_TEXTS;
   protected readonly decision = DECISION_TEXTS;
@@ -447,10 +450,12 @@ export class UsagePage {
     this.destroyed.onDestroy(() => this.observer?.disconnect());
   }
 
-  /** Reads the usage of the current range; an answer that arrives after a later read is dropped. */
+  /**
+   * Reads the usage of the current range; an answer that arrives after a later read is dropped. A failed read stays on screen until the next
+   * answer, so Retry keeps focus while it reads again, and every failure is announced.
+   */
   protected load(): void {
     const ask = (this.asked += 1);
-    this.failed.set(false);
     this.answer.set(undefined);
     this.api
       .usage(this.range())
@@ -458,12 +463,14 @@ export class UsagePage {
       .subscribe({
         next: (answer) => {
           if (ask === this.asked) {
+            this.failed.set(false);
             this.answer.set(answer);
           }
         },
         error: () => {
           if (ask === this.asked) {
             this.failed.set(true);
+            this.announcer.announce(USAGE_TEXTS.error);
           }
         },
       });

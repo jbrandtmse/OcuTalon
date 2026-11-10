@@ -7,7 +7,7 @@
 ///   - memory: the memory operation is compiled and is not a stub (its STUB parameter, AD-29, is not 1);
 ///   - documents: the documents operation is compiled and is not a stub; the Documents page does not count;
 ///   - heartbeat: the class of the Run now command is compiled (Epic 39);
-///   - sources: last, when memory or documents is listed, because a cited answer or a From memory chip needs one of them.
+///   - sources: when memory or documents is listed, because a cited answer or a From memory chip needs one of them.
 ///   - usage: always, last, because the Usage page ships in the same package as this class.
 Class OcuTalon.Demo.Features Extends %RegisteredObject
 {

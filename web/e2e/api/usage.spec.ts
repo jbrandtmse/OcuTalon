@@ -6,7 +6,7 @@ import { sessionRefOfUser } from '../support/memory';
 import { cleanUsage, seedUsage, type UsageSeed } from '../support/usage';
 
 /**
- * Story 37.2, the Rule 3 evidence for GET /api/v1/usage over real HTTP, on the stack that test-sign-in.sh seeds. Signed out the route is 401 signed_out with no
+ * Story 37.2, GET /api/v1/usage over real HTTP, on the stack that test-sign-in.sh seeds. Signed out the route is 401 signed_out with no
  * challenge. As the LIVE fixture user (role OcuTalonUser only, the online demo visitors' role) the read is 200 and holds the user's seeded rows summed exactly,
  * `limit` is 100000 and `days` has 7 dates for the default range, 1 for ?days=1 and 30 for ?days=30; a row 10 days ago is in the 30-day read and not in the 7-day
  * one. A key allow-list proves the body: the top level is exactly days, limit and buckets, and every bucket is exactly the eleven keys, so that no ref, row id,
@@ -96,7 +96,7 @@ test('the usage route: signed out, the read as the LIVE user with exact sums, th
     expect(explicit.days, '?days=7 is the default range').toEqual(week.days);
     expect(ofModels(explicit, [modelA]), 'and holds the same buckets of the test\'s own model').toEqual(ofModels(week, [modelA]));
     const sevenDays = ofModels(week, [modelA]).sort((a, b) => (a.day + a.agent < b.day + b.agent ? -1 : 1));
-    expect(sevenDays, 'the 7-day read holds the four buckets of the last 7 days, summed exactly, and not the row of 10 days ago').toEqual([
+    expect(sevenDays, 'the 7-day read holds the three buckets of the last 7 days, summed exactly, and not the row of 10 days ago').toEqual([
       { day: twoAgo, agent: 'TriageAgentRetry', channel: 'telegram', model: modelA, estimated: false, inputTokens: 7, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, costUSD: 0, largestRequestTokens: 70 },
       { day: twoAgo, agent: 'compaction', channel: 'web', model: modelA, estimated: true, inputTokens: 300, outputTokens: 30, cacheReadTokens: 0, cacheWriteTokens: 0, costUSD: 0.003, largestRequestTokens: 2000 },
       { day: today, agent: 'ChatAgent', channel: 'web', model: modelA, estimated: false, inputTokens: 150, outputTokens: 15, cacheReadTokens: 20, cacheWriteTokens: 5, costUSD: 0.0015, largestRequestTokens: 2500 },

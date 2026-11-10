@@ -183,6 +183,43 @@ deferred:
 - Given the guide's More to try panel with the `usage` feature, when the visitor presses the Usage item's link, then the Usage page opens by navigation. The registry, the view's header comment, README :40 and EXPERIENCE.md :245 all say nine items. The README's "New since 1.0.0" ends with the Usage line.
 - Integration: the Usage page (the consumer) reads `GET /api/v1/usage` on a real stack and shows its seeded rows' sums. The `live:sign-in` e2e specs `api/usage.spec.ts` and `usage/usage.spec.ts` exercise this against a running IRIS, with no mocks.
 
+### Review Findings
+
+Code review 2026-11-10 (bmad-code-review, full mode, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; diff `e6dbfcc4` to the working tree). 35 raw findings: 0 high; 14 entries kept (11 patched, 3 deferred to the ledger), 16 rejected (below). No AD mismatch (AD-4, AD-13, AD-18, AD-20, AD-27, AD-29, AD-31, AD-33 checked); every RULED string and condition is in the code verbatim.
+
+- [x] [Review][Patch] (med) Retry dropped focus to the body and a failed read was never announced: a Retry that fails again left a keyboard or screen-reader user with nothing said and no focus [web/src/app/usage/usage-page.ts:457] -- the failed text and Retry stay until the next answer and each failure is announced (the ruled error text, through the Announcer, as the settings page does); new U14; `announce-focus-sources.test.mjs` lists the page as a speaker.
+- [x] [Review][Patch] (med) The route's 500 when `Ownership.Usage` fails (I/O matrix "Failed read") had no test; deleting the branch gave 200 with empty days and buckets [src/ocutalon/cls/OcuTalon/Web/Usage.cls:32] -- `Test.Web.UsageApi` TestFailedRead.
+- [x] [Review][Patch] (low) The page's drop of a late answer to an earlier range had no test [web/src/app/usage/usage-page.ts:465] -- new U15.
+- [x] [Review][Patch] (low) `Demo.Features` doc still said "sources: last" beside "usage: always, last" [src/ocutalon/cls/OcuTalon/Demo/Features.cls:10]
+- [x] [Review][Patch] (low) `api/usage.spec.ts` message said "four buckets" for three [web/e2e/api/usage.spec.ts:99]
+- [x] [Review][Patch] (low) `usage.spec.ts` header said "U1 to U9" [web/e2e/usage/usage.spec.ts:12] -- now U1 to U15.
+- [x] [Review][Patch] (low) Rule 14 process narration in comments: "(QA)" and "(QA, Story 37.2)" in `Test.Web.UsageApi`, "the Rule 3 evidence for" in `api/usage.spec.ts`, "the last one before this story" in `usage-docs.test.mjs` [src/ocutalon/cls/OcuTalon/Test/Web/UsageApi.cls:12]
+- [x] [Review][Patch] (low) `usage-docs.test.mjs` checked the per-turn and never-per-step claims against its own constant (could not fail) [web/scripts/usage-docs.test.mjs:49] -- they now read the README's Usage bullet; mutation recorded.
+- [x] [Review][Patch] (low) `Test.Web.DocumentsApi` TestDispatch kept an always-true `map.url` assertion after the loop was narrowed to `/v1/documents` [src/ocutalon/cls/OcuTalon/Test/Web/DocumentsApi.cls:102] -- removed (the count of `/v1/documents` Maps still pins it).
+- [x] [Review][Patch] (low) Rule 2: TestDayEdge saved and restored the process zone by hand instead of `ZoneCase.CurrentZone`/`PutZone`, which ZoneCase offers to classes outside it [src/ocutalon/cls/OcuTalon/Test/Web/UsageApi.cls:207]
+- [x] [Review][Patch] (low) No test showed every navigation link inside a 305px window [web/e2e/usage/usage.spec.ts:337] -- U8 asserts it for LIVE (three links). Not discriminating against the wrap for three links (removing `flex-wrap` left U8 green); the four-link case is `more-to-try.spec.ts` K22/K23, which were red before the wrap. The wrap itself keeps every link visible and reachable: the header has a min-height and no overflow clip, and F3 pins one line at 1024px.
+- [x] [Review][Defer] A zero cost reads "<$0.0001" [web/src/app/usage/usage-page.ts:497] -- deferred: DW-1089 (decision-pending, PUBLIC TEXT ruling), occurrence appended.
+- [x] [Review][Defer] On a local install the page never counts instance-owned incident decisions, while the ruled look-for says the cost comes from "the agents' decisions on your messages and incidents" [src/ocutalon/cls/OcuTalon/Data/Ownership.cls:190] -- deferred: DW-1090 (decision-pending owner=burndown; spec-bound behaviour, product or ruled-text call for the Planner).
+- [x] [Review][Defer] Small private test helpers repeated: `UsageApi.Envelope` = `DocumentsApi.Envelope`; `KeysOf`, `Models`, `LocalDate`/`Date` in both new test classes [src/ocutalon/cls/OcuTalon/Test/Web/UsageApi.cls:298] -- deferred: DW-1091 (wontfix-accepted, reopen_if a third copy or a drift).
+
+Rejected:
+- (low) Edge: `today` empty makes `$ZDateH` throw -- `NowUtc` always has the form `ToLocal` reads; the same lines run in `HeartbeatToday`. Theoretical.
+- (low) Edge: a zone change between the bounds and the per-row `ToLocal` could put a bucket outside `days` -- theoretical (the instance zone changes mid-read).
+- (low) Edge: with a zero last row the "Cost" label sits 16px under the baseline -- it stays in the right margin, apart from the category labels; cosmetic, and the fix adds a branch.
+- (false) Edge: `dayLabel` of day 00 -- the server writes `days` and `day` with `$ZDate(...,3)`, always a real date.
+- (low) Edge: a run across local midnight shifts the seeded days -- theoretical, as the sibling classes; rejected before in the triage log.
+- (low) Blind: the real-HTTP isolation seeds no `instance` row -- `Test.Web.UsageApi` TestIsolation reads through `Read` with onlineDemo off (the local-install case) and the instance row stays out; the SECURITY ruling names eval for the HTTP test.
+- (low) VG: "New since 1.0.0 ends with the Usage line" has no pin -- it holds on this branch (README read); a "last" pin breaks at the next story's merge; the fix would be the AC's wording.
+- (false) VG: TestDispatch's doc claims both branches in one run -- it states the outcome for a process with and without the role.
+- (low) VG: the spine rows' check is a grep -- the AC's mutation is recorded; the spine is a document with no test host.
+- (false) VG: digit separators and the route's limit have no `mutation:` line -- one per AC: AC 5 has U13's, AC 4 has `largestByDay`'s (plus U4).
+- (low) VG: `clearUsage(LIVE)` relies on `workers: 1` -- judged safe: in the chromium project only `api/memory`, `api/usage`, `documents` (navigation) and `usage` sign in as LIVE, `api/usage.spec.ts` asserts only its own models, and `usage.spec.ts` clears in `beforeEach`; the e2e stack is a throwaway.
+- (low) VG: TestDayEdge leaves the InstanceZone row deleted if the process is killed, and other processes see no instance zone for a few seconds -- the zone is process-local, the restore follows a Try/Catch, and the same window exists in about two dozen ZoneCase classes; only lane B's slot and throwaways run it.
+- (low) VG: `onlineDemo` is set per test and restored in OnAfterAllTests -- `Test.Web.DocumentsApi`'s existing pattern, lane B's slot only.
+- (low) Acceptance: the nav wraps at every width, not only below 1024px -- F3 pins one line at 1024px for the widest header (README admin, demo mode); where links would not fit, a wrap is the graceful case (before, the page scrolled sideways).
+- (low) Acceptance: no check ties the look-for's quoted empty text to `USAGE_TEXTS.empty` -- each is pinned to its ruled value in `ux-strings.test.mjs` and `RULED`; a cross-check is new test surface.
+- (low) Acceptance: the "Always" list names `--chart-tokens`/`--chart-cost` while the code uses `--usage-chart-*-series` -- the code follows Tasks and the Code Map and both tokens exist; the fix edits the spec.
+
 ## Spec Change Log
 
 - 2026-11-10 ~08:2xZ, lead (re-dispatch): the implement HALT (`implementation verification failed`, a machine-wide Docker build hang) was infrastructure, not the story. The orchestrator reports builds work again (probe at about 08:1xZ; the stuck process was another lane's bake). Status reset from `blocked` to `in-progress` for a verification-and-finalize pass over the implementation already in the working tree (uncommitted, from implement pass 1, baseline 51ce312d). Any build that hangs again is time-limited and reported as TOOLING, with the stuck process left running.
@@ -436,6 +473,23 @@ mutation: the bars lose their `[attr.height]` binding -> `usage.spec.ts` U12 red
 mutation: `.table td { font-variant-numeric: normal }` added to the page's CSS -> `usage.spec.ts` U13 red; reverted byte-identical. (Removing the `tabular` class is not a mutation: the body's own rule already sets tabular figures.)
 mutation: the More to try Usage link's `routerLink` changed to `/documents` -> `more-to-try.spec.ts` K3b and K3 red; reverted byte-identical.
 Rule 19 note: the 403 `no_role` case in `api/usage.spec.ts` pins `Web.Api`'s inherited role check (not an AC of this story); `Web.Usage` overriding `OnPreDispatch` does not reach the check, so no mutation of this story's files turns it red.
+
+**QA pass (qa stage, 2026-11-10): gaps found against the I/O matrix and the ACs, and the tests added.**
+- (QA) `web/scripts/usage-docs.test.mjs` (new; node, picked up by `npm --prefix web test`): the ruled README Usage bullet word for word and once, after the sources bullet (not pinned as the very last bullet, so a story that merges later and appends its own line does not break it; the AC's "ends with" holds on this branch); EXPERIENCE.md item 9's label, look-for, control and marker as the registry has them; and the sentence that item 9's control is a link to the Usage page. Before this, only the counts ("nine") were pinned.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Web/UsageApi.cls` TestDayEdge (added method; shard lane-b, area Web, no new class): the matrix's day edge, retry runner and null cost rows through the route, in Pacific/Auckland (a zone whose midnight is not UTC midnight): `days=7` holds the row at local 00:00:00 of the first day, the rows at local 23:59:59 of day D and 00:00:00 of day D+1 in two buckets, leaves out the row at 23:59:59 before the first day and the one at the first instant of tomorrow; `ChatAgentRetry` keeps its stored name; a NULL cost is the number 0; `days=1` leaves out yesterday's 23:59:59 row. The zone, the InstanceZone row and `^||OcuTalon.Bridge.Time` are put back (`ZoneCase.ForgetZoneRow`/`RestoreZoneRow`).
+- Checked and found already pinned (no test added): the null-cost and retry rows over real HTTP (`api/usage.spec.ts` (ii)); Agent, Channel and Model show only values with rows (`usage-view.test.mjs`, three tests); the key allow-list (`TestShape` and `api/usage.spec.ts`); `days=0/31/abc` 404 in `TestDays` and over HTTP; `eval` and `instance` rows (`TestIsolation`, `OwnershipUsage`, `api/usage.spec.ts` (iii) for eval); the empty state (U5); More to try's last item of Safety and settings and its navigation (`more-to-try-view.test.mjs`, K3b).
+- QA runs: `Test.Web.UsageApi` 6/6 on the slot (`ocutalon-slot-b`, OCUTALON); `npm --prefix web test` 1804/1804; `test-boundaries.sh` and `test-class-rules.sh` pass.
+
+mutation (QA): `Ownership.Usage`'s first bound built from `first_"T00:00:00Z"` (UTC midnight) instead of `FromLocal` -> `Test.Web.UsageApi` TestDayEdge red (the window, the first-day row and the day-D bucket); reverted byte-identical (md5 of `Ownership.cls` equal), slot reloaded, green again.
+mutation (QA): the README Usage bullet's "per turn and per decision" changed to "per turn and per step" -> `usage-docs.test.mjs` red (the ruled line and its position); reverted byte-identical (`cmp`).
+mutation (QA): EXPERIENCE.md's "Item 9's control is a link to the Usage page." changed to "... is a button." -> `usage-docs.test.mjs` red (the link sentence); reverted byte-identical (`cmp`).
+
+**Code review pass (2026-11-10):** slot `ocutalon-slot-b`/OCUTALON: `Test.Web.UsageApi` 7/7 (TestFailedRead added), `Test.Web.DocumentsApi` 20/20, `Test.Demo.Features` 5/5; `npm --prefix web test` 1804/1804, `run lint` passes, `test-boundaries.sh` and `test-class-rules.sh` pass; `ci/iris.sh build` then `live sign-in --part 4/4` on fresh stack `e37s2c`: 58 passed (U1-U15); torn down (0 leftovers). Part 1/4 (`api/usage.spec.ts`) was not re-run: only an assertion message and the header comment changed (lint type-checks it).
+
+mutation (CR): `Web.Usage.Read` no longer answers an error status from `Ownership.Usage` (line 32 removed) -> `Test.Web.UsageApi` TestFailedRead red ("500: {"days":"","limit":100000,"buckets":""}", server_error); reverted byte-identical (md5), slot reloaded, green again.
+mutation (CR): `load()` clears `failed` before the read again (the old behaviour) -> `usage.spec.ts` U14 red ("Retry keeps focus through a read that fails again": inactive); reverted byte-identical (`cmp`).
+mutation (CR): the `next` handler keeps every answer (`ask === this.asked` -> `ask > 0`) -> `usage.spec.ts` U15 red ("the late 7-day answer (limit 50,000) was dropped"); reverted byte-identical (`cmp`). Run together with the U14 mutation and `flex-wrap` removed from `header-nav.ts`: exactly U14 and U15 red, 56 passed (U8's 305px check stayed green for LIVE's three links, so it is not a mutation pin of the wrap).
+mutation (CR): the README Usage bullet's "per decision" followed by "per step" -> `usage-docs.test.mjs` red, among them "the README bullet never says per step"; reverted byte-identical (`cmp`).
 
 ## Auto Run Result
 

@@ -8,7 +8,10 @@
 ///   - TestShape: 200 application/json; the top-level keys are exactly days, limit and buckets, every bucket's keys are exactly the eleven of the contract,
 ///     limit is Decide's MAXREQUESTTOKENS, and no Ref, row id, user name or SessionRef is in the body;
 ///   - TestIsolation: another session's rows, eval's and instance's never appear in the body;
-///   - TestNoSession: a CSP session with no OcuTalon session of the signed-in user is 500 server_error.
+///   - TestNoSession: a CSP session with no OcuTalon session of the signed-in user is 500 server_error;
+///   - TestFailedRead: a usage read that fails (a row whose time cannot be read) is 500 server_error, never an empty range;
+///   - TestDayEdge: the day edge, the first-day and tomorrow bounds, the retry runner's stored agent and a NULL cost, through the route, in a zone
+///     whose midnight is not the UTC midnight.
 Class OcuTalon.Test.Web.UsageApi Extends %UnitTest.TestCase
 {
 
@@ -185,7 +188,81 @@ Method TestNoSession()
 	Do $$$AssertEquals({}.%FromJSON(body).error.code, "server_error", "server_error")
 }
 
+/// A read that fails is 500 server_error: a row of the session whose time cannot be read fails Ownership.Usage, and the route answers the error,
+/// never 200 with an empty range.
+Method TestFailedRead()
+{
+	Set a = ..Session()
+	Set utc = ##class(OcuTalon.Data.Time).FromLocal(..LocalDate(0)_"T12:30:00")
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(..Tag, a, {"RecordedAt": ($Extract(utc, 1, 19)_"X"), "InputTokens": 1})
+	Set body = ..Call(a, 7, .response)
+	Do $$$AssertEquals(+response.Status, 500, "500: "_body)
+	Do $$$AssertEquals({}.%FromJSON(body).error.code, "server_error", "server_error")
+}
+
+/// The I/O matrix's day edge, null cost and retry runner rows, through the route, in a process zone whose midnight is not the UTC
+/// midnight: a row at local 23:59:59 of day D and one at local 00:00:00 of day D+1 are in two buckets, D and D+1; a row before the first day's midnight
+/// and one at the first instant of tomorrow are left out; the retry runner keeps its stored agent; a row with no cost counts 0 in costUSD. The zone, the
+/// InstanceZone row and the private state of Bridge.Time are put back whatever happens.
+Method TestDayEdge()
+{
+	Set saved = ##class(OcuTalon.Test.Bridge.ZoneCase).CurrentZone()
+	Set zoneRow = ##class(OcuTalon.Test.Bridge.ZoneCase).ForgetZoneRow()
+	Try {
+		Do $SYSTEM.Process.TimeZone("Pacific/Auckland")
+		Kill ^||OcuTalon.Bridge.Time
+		Do ..DayEdgeIn()
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the day edge test ran without an error")
+	}
+	Do ##class(OcuTalon.Test.Bridge.ZoneCase).RestoreZoneRow(zoneRow)
+	Kill ^||OcuTalon.Bridge.Time
+	Do ##class(OcuTalon.Test.Bridge.ZoneCase).PutZone(saved)
+}
+
+/// TestDayEdge's body, in the zone the test set.
+Method DayEdgeIn() [ Private ]
+{
+	Set a = ..Session()
+	Set d0 = ..LocalDate(0), d1 = ..LocalDate(1), d6 = ..LocalDate(6)
+	Do ..RowAt(a, ..LocalDate(7), "23:59:59", "TriageAgent", "zz-usage-edge", 1000, ".1")
+	Do ..RowAt(a, d6, "00:00:00", "TriageAgent", "zz-usage-edge", 6, ".06")
+	Do ..RowAt(a, d1, "23:59:59", "TriageAgent", "zz-usage-edge", 10, ".01")
+	Do ..RowAt(a, d0, "00:00:00", "ChatAgentRetry", "zz-usage-edge", 20, "")
+	Do ..RowAt(a, ..LocalDate(-1), "00:00:00", "TriageAgent", "zz-usage-edge", 5000, ".5")
+	Set body = ..Call(a, 7, .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "days=7: 200: "_body)
+	Set answer = {}.%FromJSON(body)
+	Do $$$AssertEquals(answer.days.%Get(0)_"|"_answer.days.%Get(6), d6_"|"_d0, "days=7 lists the 6 days before today and today")
+	Do $$$AssertEquals(answer.buckets.%Size(), 3, "three buckets: the row before the first day's midnight and the one at the first instant of tomorrow are left out")
+	Set first = answer.buckets.%Get(0), second = answer.buckets.%Get(1), third = answer.buckets.%Get(2)
+	Do $$$AssertEquals(first.day_"|"_first.inputTokens, d6_"|6", "the row at local 00:00:00 of the first day is in")
+	Do $$$AssertEquals(second.day_"|"_second.agent_"|"_second.inputTokens_"|"_+second.costUSD, d1_"|TriageAgent|10|.01", "the row at local 23:59:59 is in day D's bucket")
+	Do $$$AssertEquals(third.day_"|"_third.agent_"|"_third.inputTokens, d0_"|ChatAgentRetry|20", "the row at local 00:00:00 is in day D+1's bucket, and the retry runner keeps its stored agent")
+	Do $$$AssertEquals(+third.costUSD, 0, "a row with no cost counts 0")
+	Do $$$AssertEquals(third.%GetTypeOf("costUSD"), "number", "and costUSD is a number")
+	Set body = ..Call(a, 1, .response)
+	Set answer = {}.%FromJSON(body)
+	Do $$$AssertEquals(answer.days.%Size()_"|"_answer.buckets.%Size()_"|"_answer.buckets.%Get(0).agent, "1|1|ChatAgentRetry", "days=1 holds today's row only: yesterday's 23:59:59 row is out")
+}
+
 /// --- helpers ---
+/// The local date YYYY-MM-DD of today minus ago days (a negative ago is after today), in the process zone.
+ClassMethod LocalDate(ago As %Integer) As %String [ Private ]
+{
+	Set today = $Piece(##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).NowUtc()), "T", 1)
+	Quit $ZDate($ZDateH(today, 3) - ago, 3)
+}
+
+/// A Usage row of the owner at the local time date, hms; cost "" is NULL.
+Method RowAt(owner As %String, date As %String, hms As %String, agent As %String, model As %String, inTokens As %Integer, cost As %String) [ Private ]
+{
+	Set fields = {"Agent": (agent), "Channel": "web", "Model": (model), "InputTokens": (inTokens), "OutputTokens": 0, "CacheReadTokens": 0, "CacheWriteTokens": 0, "LargestRequestTokens": (inTokens), "RequestCount": 1}
+	Set fields.RecordedAt = ##class(OcuTalon.Data.Time).FromLocal(date_"T"_hms)
+	If cost '= "" Set fields.CostUSD = cost
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(..Tag, owner, fields)
+}
+
 /// A fixture session of the IRIS user who runs the tests; returns its Ref.
 Method Session() As %String [ Private ]
 {
