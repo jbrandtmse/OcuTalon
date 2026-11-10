@@ -12,6 +12,7 @@ import type {
   GotItBody,
   DocumentAdded,
   DocumentRemoved,
+  DocumentText,
   DocumentsList,
   EventsResponse,
   GuideMarker,
@@ -181,6 +182,14 @@ export class ApiClient {
    */
   addDocument(name: string, content: string): Observable<DocumentAdded> {
     return this.http.post<DocumentAdded>(`${BASE}/documents`, { name, content });
+  }
+
+  /**
+   * One document's text: a GET of /v1/documents/:ref, 200 {ref, name, text}. A 404 for a document that the session cannot see (also one that
+   * was removed), and a 500, fail as an HttpErrorResponse.
+   */
+  documentText(ref: string): Observable<DocumentText> {
+    return this.http.get<DocumentText>(`${BASE}/documents/${encodeURIComponent(ref)}`);
   }
 
   /**

@@ -402,7 +402,9 @@ XData Contracts [ MimeType = application/json ]
    "SessionRotated": "%Boolean",
    "Attempt": "%Integer",
    "CheckKey": "%String(MAXLEN=128)",
-   "CheckRows": "%String(MAXLEN=)"
+   "CheckRows": "%String(MAXLEN=)",
+   "Citations": "%String(MAXLEN=)",
+   "Memories": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

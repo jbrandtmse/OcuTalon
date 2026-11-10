@@ -2357,6 +2357,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Eval/In.cls Render (12 lines) vs src/ocutalon/cls/OcuTalon/Core/Conversation.cls:449 Checked, identical but for the target fields; Design Notes 10 records the reason (a private method of a Lane B process); unlike the Busy numbers and the Input, no test pins the two equal; Story 20.2 extends Conversation's HostData handling
 - 2026-10-29T05:55:13Z status=routed owner=20-2-see-citations-and-memories-in-answers by=cr note=Rule 2 forced copy: make the check-rows glue one public Lane A helper that Conversation and EvalIn both call
+- 2026-11-09T18:16:48Z status=routed owner=burndown by=spec_gate note=declined_by_20.2:Conversation.Checked_and_RenderChecks_stay_byte-identical(new_carry_is_separate_Sourced);unifying_the_glue_is_Lane_A_Eval/**_work(U-177)
+- 2026-11-10T04:56:57Z status=wontfix-accepted by=burndown note=Epic_20_gate:20.2_kept_Conversation.Checked/RenderChecks_byte-identical(carry_is_separate_Sourced),so_Eval.In.Render_still_mirrors_it;no_next-epic_story_owns_Lane_A_Eval_unification;reopen_if=git_diff_shows_Conversation.Checked_or_RenderChecks_changed_without_the_same_change_in_Eval.In.Render
 
 ### DW-385: Test.Eval.Record FixtureSettings and DefinedSettings (QA, Story 9.4) are near-copies of Epic 7's private Test.Watch.Evidence helpers of the same names (same five fixture names, same open/remove/insert loop), forced by Epic 7's read-only Test/Watch/**; the two Orders-definition fixtures drift when the definition handling changes
 - source: spec-9-4-ten-incidents-are-recorded-from-real-failures.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4644,6 +4646,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: U-280 at=2026-11-05T05:37:42Z#849 conditions 1-3; spine Conventions row 'Citations and memories'
 - 2026-11-05T07:02:58Z status=routed owner=20-2-see-citations-and-memories-in-answers by=spec_gate note=carry into 20.2's ACs and tests
+- 2026-11-09T22:25:36Z status=resolved-by:20-2-see-citations-and-memories-in-answers by=adjudication note=chips_built_from_HostData_arrays(max5);labels_Sources/From_memory;never_both:ConversationTurns.TestNeverBoth(real_ReplyGuard)+answer-sources-view.test+sources.spec_S3
 
 ### DW-722: Document refusal reason codes and their page text are unnamed: spine AD-21 Documents says only 'Reason a code', and with DocumentOps a 5003 stub until Story 19.4 nothing writes the failed row that Story 34.2's refusal AC (wrong type, PDF/Word over 10 MB: 'Couldn't read it: {reason}') shows
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: med | footprint: in-epic
@@ -4669,6 +4672,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 34.2 implement, warm stack e34s2iw; not seen on fresh stacks
 - 2026-11-05T12:23:42Z status=routed owner=burndown by=harvest note=Rule 19 hermeticity; Epic 39 also edits Test/Live/GuideRefresh.cls
 - 2026-11-05T18:44:05Z owner=20-2-see-citations-and-memories-in-answers by=burndown note=overflow_(remainder_1_under_cap_8,no_repeat_occurrence;not_seen_on_any_fresh_stack_or_in_CI):20.2_is_the_next_Lane_B_story_that_changes_chat.message_live_payloads_and_runs_Test.Live;make_GuideRefresh_self-contained_on_a_reused_warm_stack;Epic_39_also_edits_the_file
+- 2026-11-09T18:16:49Z status=routed owner=burndown by=spec_gate note=declined_by_20.2:hermeticity_fix_of_Test.Live.GuideRefresh_unrelated_to_20.2_surface;voting-week_scope_is_judge-visible_work
+- 2026-11-10T04:56:58Z status=wontfix-accepted by=burndown note=Epic_20_gate:flake_candidate_unrelated_to_Epic_20_surface;green_on_every_fresh_shard;reopen_if=Test.Live.GuideRefresh_goes_red_in_a_CI_shard_on_a_fresh_stack_or_a_second_occurrence_is_logged
 
 ### DW-734: AddDocument.Content (up to 10 MB, a %Stream.GlobalBinary on a persistent command message) stays in the message-body store; neither RemoveDocument nor DropSession is known to delete it, so the remove and sign-out promises may not hold for the stored message copy
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -6063,12 +6068,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: story-4.12 (planner_ruling guide_documents_citation_promise 2026-11-08) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 4.12 ruled text ends 'look for the answer that comes from your file.'; Story 20.2 adds the citation chips
 - 2026-11-08T17:51:46Z status=routed owner=20-2-see-citations-and-memories-in-answers by=lead note=restore_citation_line_when_20.2_ships;ruled_text_needed_at_20.2_spec_gate
+- 2026-11-09T22:25:37Z status=resolved-by:20-2-see-citations-and-memories-in-answers by=adjudication note=documents.lookFor_restored(Planner-ruled_text_9);pins_in_more-to-try-view.test+more-to-try.spec;EXPERIENCE.md_item_6_amended
 
 ### DW-976: Documents page empty state still promises citations ('No documents yet. Add a runbook to get cited answers.'), the same unbuilt Story 20.2 promise, on the page the 4.12 tip opens; a public string change needs a Planner ruling
 - source: spec-4-12-the-demo-guide-s-document-tip-promises-only-what-1-0-4-shows.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: web/src/app/documents/documents-view.ts:21; pinned in documents-view.test.mjs, documents.spec.ts, ux-strings.test.mjs; EXPERIENCE.md source
 - 2026-11-08T18:00:37Z status=escalated owner=burndown by=harvest note=public_text_ruling_needed;for_the_Planner_at_the_decision_sheet;recommended:_rule_text_now_or_route_to_20-2
 - 2026-11-08T19:16:11Z status=routed owner=20-2-see-citations-and-memories-in-answers by=merge_gate note=planner_ruling_2026-11-08~18:10Z(2):keep_'cited answers'_in_1.0.4(the answer names document+section);Planner_checks_on_the_1.0.4_demo_walk,else_new_text_for_1.0.5;otherwise_rides_with_20.2
+- 2026-11-09T22:25:37Z status=resolved-by:20-2-see-citations-and-memories-in-answers by=adjudication note=empty_state_kept_by_Planner_ruling;cited_answers_now_true(sources.spec_S4_adds_a_document_and_shows_its_chip_and_text)
 
 ### DW-982: Act notices are tell-now Notifications (Rule.Outcome/Rule.Notice) that SessionOps.GotIt refuses (Outcome must be tellnow): Telegram still offers Got it on them (GOTITKINDS=tellnow) and Digest.NeedsYou counts act items that no Got it can clear
 - source: spec-18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -6443,6 +6450,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: owner-approved voting-week re-plan relayed by the Contest Planner [3dd56e] 2026-11-09 ~15Z
 - 2026-11-09T14:58:00Z status=decision-pending owner=burndown by=owner note=parked:owner_re-plan_2026-11-09; revisit after voting (Nov 15); sprint-status action item mirrors it
 
+### DW-1060: The sample button after ServerButton's 10 s notice looks idle and says Try again, but presses are ignored while its own add is still out (sampling guard)
+- source: spec-20-3-add-a-sample-runbook-in-one-press.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: documents-page.ts addSample returns early while sampling(); ServerButton restores itself and shows BUSY_NOTICE after 10 s with no answer. Only reachable when POST /v1/documents of a 1.2 KB file takes over 10 s.
+- 2026-11-10T04:32:19Z status=wontfix-accepted owner=20-3-add-a-sample-runbook-in-one-press by=cr note=reopen_if=a sample POST is seen taking over 10 s (an e2e or hands-on press shows BUSY_NOTICE while the add is out)
+
+### DW-1061: Focus falls to the body when More to try item 6 or 8 swaps between the sample button and the link while that control has focus
+- source: spec-20-3-add-a-sample-runbook-in-one-press.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: more-to-try.ts @if on sampleFirst() replaces the focused control on a live document event; the guide's focus rule does not track SampleRunbook.none(). Needs a document added or removed elsewhere while focus sits on the control.
+- 2026-11-10T04:32:19Z status=wontfix-accepted owner=20-3-add-a-sample-runbook-in-one-press by=cr note=reopen_if=an e2e or hands-on pass shows document.activeElement is body after a document event with focus on item 6 or 8
 ### DW-1052: README header is an HTML h1 (no Markdown H1): the Open Exchange listing may not show the title and logo as GitHub does
 - source: _bmad-output/implementation-artifacts/spec-0-21-the-readme-opens-with-a-centred-header-logo-tagline-and-badg.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: GitHub markdown API renders it (measured); Open Exchange rendering of the README's HTML cannot be seen from the repository

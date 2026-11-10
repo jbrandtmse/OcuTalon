@@ -508,10 +508,12 @@ Method TestStateChatDecision()
 	Set row.TurnDecisionRef = reply
 	Set row.CheckKey = "checks.allPassed"
 	Set row.CheckRows = "[{""result"":""passed"",""entry"":""Orders production"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""},{""result"":""failed"",""entry"":""Warehouse queue"",""finding"":""zz finding"",""checkedAt"":""2030-01-01T10:01:00Z""}]"
+	Set row.Citations = "[{""documentRef"":""zzdoc1"",""document"":""Results runbook"",""section"":""Rotating the certificate"",""passage"":""zz passage"",""chunkIndex"":2}]"
+	Set row.Memories = "[{""memoryRef"":""zzmem1"",""text"":""zz remembered"",""savedAt"":""2030-01-01T10:00:00Z""}]"
 	Set row.TraceHeaderId = 9001
 	Set row.TraceItemIndex = 41
 	Set row.TraceItemIndexNoEvents = 30
-	Do $$$AssertStatusOK(row.%Save(), "the first turn has both decisions, two check rows and a trace target at position 41 (30 without events)")
+	Do $$$AssertStatusOK(row.%Save(), "the first turn has both decisions, two check rows, a citation, a memory and a trace target at position 41 (30 without events)")
 	Set fallback = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:02Z")
 	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(fallback)
 	Set row.TriageDecisionRef = triage
@@ -528,6 +530,8 @@ Method TestStateChatDecision()
 	Do $$$AssertEquals(+first.turnCost.inputTokens_"|"_+first.turnCost.outputTokens_"|"_+first.turnCost.costUSD, "1084|312|.0008", "and the turn's cost, the sum of both decisions and no other session's")
 	Do $$$AssertEquals(first.checkKey_"|"_first.checks.%Size(), "checks.allPassed|2", "and the check key with its two rows")
 	Do $$$AssertEquals(first.checks.%Get(1).result_"|"_first.checks.%Get(1).entry_"|"_first.checks.%Get(1).finding_"|"_first.checks.%Get(1).checkedAt, "failed|Warehouse queue|zz finding|2030-01-01T10:01:00Z", "each row with its result, entry, finding and time")
+	Do $$$AssertEquals(first.citations.%Size()_"|"_first.citations.%Get(0).documentRef_"|"_first.citations.%Get(0).document_"|"_first.citations.%Get(0).section_"|"_first.citations.%Get(0).passage_"|"_first.citations.%Get(0).chunkIndex, "1|zzdoc1|Results runbook|Rotating the certificate|zz passage|2", "the entry lists the turn's citations, as chat.message does")
+	Do $$$AssertEquals(first.memories.%Size()_"|"_first.memories.%Get(0).memoryRef_"|"_first.memories.%Get(0).text_"|"_first.memories.%Get(0).savedAt, "1|zzmem1|zz remembered|2030-01-01T10:00:00Z", "and its memories")
 	Do $$$AssertEquals(first.traceItemIndex_"|"_first.traceItemIndexNoEvents, "41|30", "the entry carries both positions of its trace target")
 	Do $$$AssertEquals(first.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=2", "and its trace URL, at the page of position 41 for 40 items a page")
 	Do $$$AssertEquals(first.decision.traceUrl, first.traceUrl, "the nested decision of the turn's Item opens where the turn does")
@@ -537,6 +541,7 @@ Method TestStateChatDecision()
 	Do $$$AssertEquals(second.decision.ref_"|"_second.decision.fallbackReason_"|"_+second.turnCost.costUSD, reply_"|timeout|.0008", "a fallback: the reply decision and the same cost")
 	Do $$$AssertEquals(second.decision.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42", "its decision is of no turn's Item, so it opens its own TraceSessionId, with no PAGE")
 	Do $$$AssertEquals(second.%IsDefined("checkKey")_"|"_second.%IsDefined("checks"), "0|0", "with no check rows")
+	Do $$$AssertEquals(second.%IsDefined("citations")_"|"_second.%IsDefined("memories"), "0|0", "and no citations or memories")
 	Set third = body.chat.%Get(2).payload
 	Do $$$AssertEquals(third.%IsDefined("decision")_"|"_third.%IsDefined("turnCost"), "0|0", "a turn with no decision has neither decision nor cost")
 	Do ##class(EnsPortal.VisualTrace).SetItemsPerPage(10)
