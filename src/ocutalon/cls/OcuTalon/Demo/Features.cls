@@ -6,7 +6,8 @@
 ///   - suspiciousEmail, rejectFix, demoView: always, because they are this demo's own controls, shipped in the same package as this class;
 ///   - memory: the memory operation is compiled and is not a stub (its STUB parameter, AD-29, is not 1);
 ///   - documents: the documents operation is compiled and is not a stub; the Documents page does not count;
-///   - heartbeat: the class of the Run now command is compiled (Epic 39).
+///   - heartbeat: the class of the Run now command is compiled (Epic 39);
+///   - sources: last, when memory or documents is listed, because a cited answer or a From memory chip needs one of them.
 Class OcuTalon.Demo.Features Extends %RegisteredObject
 {
 
@@ -43,6 +44,7 @@ ClassMethod Ids(has As %DynamicObject) As %List
 	If has.%Get("memory") Set ids = ids _ $ListBuild("memory")
 	If has.%Get("documents") Set ids = ids _ $ListBuild("documents")
 	If has.%Get("heartbeat") Set ids = ids _ $ListBuild("heartbeat")
+	If has.%Get("memory") || has.%Get("documents") Set ids = ids _ $ListBuild("sources")
 	Quit ids
 }
 

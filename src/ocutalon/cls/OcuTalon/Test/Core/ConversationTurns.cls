@@ -51,6 +51,10 @@
 ///     with no checks and a failing Render add none;
 ///   - TestBusyAndBrokenRepliesAreNotChecked: a busy reply and a broken session with check results in their HostData are never
 ///     given to Render, so the answer that ends the turn is the only one that can leave a key or rows;
+///   - TestSourcesCarried, TestSourcesShape, TestSourcesNotOnFallbacks, TestNeverBoth (Story 20.2): the citations and memories of a usable
+///     reply's HostData are on the Turn, the Outbound and chat.message, with the check rows still carried; a malformed entry, bad JSON and a
+///     wrong shape add nothing and at most 5 of each are kept; a busy, a broken and a fallback reply carry none; and a reply
+///     that cites a document never says the none-line, through the real reply guard, while a reply without citations keeps it and carries none;
 ///   - TestAnswerForNonRunningTurnDropped: an answer for a turn that is no longer running changes nothing, whatever its Attempt;
 ///   - TestDecideAnswerOfAnotherClassStillRuns: a decide answer that is not a DecisionResponse keeps no DecisionRef and the turn
 ///     runs on;
@@ -1700,14 +1704,160 @@ Method TestBusyAndBrokenRepliesAreNotChecked()
 	}
 }
 
+/// A usable reply whose HostData holds citations, memories and checks: the Turn keeps the citations and the memories (JSON), the
+/// Outbound sent to Notify and the done chat.message carry them, the check rows are still carried, and the messages before the reply
+/// have none.
+Method TestSourcesCarried()
+{
+	Set rows = "[{""result"":""passed"",""entry"":""Orders production"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""}]"
+	Set citations = [(..Citation(1, "Rotating the certificate")), (..Citation(2, "Checking the expiry"))]
+	Set memories = [(..Memory(1))]
+	Set hostData = {"checks": [{"zz": "result"}], "citations": (citations), "memories": (memories)}.%ToJSON()
+	Set row = ..Finish("srcs", "reply", $ListBuild("checks.everythingElsePassed", rows), , .session, hostData)
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz srcs", "the turn ends normally with its reply")
+	Do $$$AssertEquals(row.Citations, citations.%ToJSON(), "the Turn keeps both citations, as JSON")
+	Do $$$AssertEquals(row.Memories, memories.%ToJSON(), "and the memory")
+	Do $$$AssertEquals(row.CheckKey, "checks.everythingElsePassed", "the check key is still kept")
+	Set sent = ..SentFor("Notify", session)
+	Do $$$AssertEquals(..Call($List(sent, 1), "citations"), row.Citations, "the Outbound carries the citations")
+	Do $$$AssertEquals(..Call($List(sent, 1), "memories"), row.Memories, "and the memories")
+	Do $$$AssertEquals(..Call($List(sent, 1), "checkRows"), row.CheckRows, "and the check rows")
+	Set events = ..ChatEvents(session)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running,done", "the three stages are published")
+	Do $$$AssertEquals(events.%Get(1).payload.%IsDefined("citations")_"|"_events.%Get(1).payload.%IsDefined("memories"), "0|0", "running: none")
+	Set done = events.%Get(2).payload
+	Do $$$AssertEquals(done.citations.%Size()_"|"_done.memories.%Size()_"|"_done.checks.%Size(), "2|1|1", "done: two citations, one memory and the check row")
+	Set first = done.citations.%Get(0), second = done.citations.%Get(1)
+	Do $$$AssertEquals(first.documentRef_"|"_first.document_"|"_first.section_"|"_first.passage_"|"_first.chunkIndex, "zzdoc1|Results runbook|Rotating the certificate|zz passage 1|1", "the first citation, every field")
+	Do $$$AssertEquals(second.section_"|"_second.chunkIndex, "Checking the expiry|2", "the second citation")
+	Set memory = done.memories.%Get(0)
+	Do $$$AssertEquals(memory.memoryRef_"|"_memory.text_"|"_memory.savedAt, "zzmem1|zz remembered 1|2030-01-01T10:00:00Z", "the memory, every field")
+	Set state = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do state.%JSONExportToString(.json)
+	Do $$$AssertEquals({}.%FromJSON(json).citations.%Size(), 2, "the payload built from the row (what /v1/state lists) holds the citations")
+}
+
+/// What HostData may hold: bad JSON, a value that is not an object, members that are not arrays and entries of the wrong shape add
+/// nothing, a valid entry among bad ones is kept, no more than 5 of each are kept, a section of "" is a valid entry, and the check rows
+/// are rendered whatever the sources hold. Each turn ends normally; bad JSON is one warning.
+Method TestSourcesShape()
+{
+	Set rows = "[{""result"":""passed"",""entry"":""Orders production"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""}]"
+	Set seven = []
+	For i = 1:1:7 Do seven.%Push(..Citation(i, "Section "_i))
+	Set sevenMemories = []
+	For i = 1:1:7 Do sevenMemories.%Push(..Memory(i))
+	Set noSection = ..Citation(1, "")
+	Set noChunk = ..Citation(2, "A")
+	Do noChunk.%Remove("chunkIndex")
+	Set textChunk = ..Citation(3, "A")
+	Do textChunk.%Set("chunkIndex", "3")
+	Set badSection = ..Citation(4, "A")
+	Do badSection.%Set("section", 5)
+	Set noPassage = ..Citation(5, "A")
+	Do noPassage.%Remove("passage")
+	Set numberText = ..Memory(2)
+	Do numberText.%Set("text", 5)
+	Set noSaved = ..Memory(3)
+	Do noSaved.%Remove("savedAt")
+	Set extra = ..Citation(6, "B")
+	Do extra.%Set("zz", "extra member")
+	// name | HostData | citations kept | memories kept
+	Set cases = $ListBuild(
+		$ListBuild("badjson", "{""checks"": [{", 0, 0),
+		$ListBuild("array", "[1,2]", 0, 0),
+		$ListBuild("notarrays", {"citations": "x", "memories": {"a": 1}}.%ToJSON(), 0, 0),
+		$ListBuild("emptyarrays", {"citations": [], "memories": []}.%ToJSON(), 0, 0),
+		$ListBuild("nonobjects", {"citations": [1, "x", null, [1]], "memories": [true, "x"]}.%ToJSON(), 0, 0),
+		$ListBuild("badentries", {"citations": [(noChunk), (textChunk), (badSection), (noPassage)], "memories": [(numberText), (noSaved)]}.%ToJSON(), 0, 0),
+		$ListBuild("onevalid", {"citations": [(noChunk), (noSection), (noPassage)], "memories": [(numberText), (..Memory(1))]}.%ToJSON(), 1, 1),
+		$ListBuild("seven", {"citations": (seven), "memories": (sevenMemories)}.%ToJSON(), 5, 5),
+		$ListBuild("extramember", {"citations": [(extra)]}.%ToJSON(), 1, 0))
+	Set mark = ..LastLog()
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = $List(case, 1)
+		Set row = ..Finish("shape"_position, "reply", $ListBuild("checks.everythingElsePassed", rows), , .session, $List(case, 2))
+		Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz shape"_position, label_": the turn ends normally with its reply")
+		Set kept = $Select(row.Citations = "": 0, 1: {}.%FromJSON("{""a"":"_row.Citations_"}").a.%Size())
+		Set keptMemories = $Select(row.Memories = "": 0, 1: {}.%FromJSON("{""a"":"_row.Memories_"}").a.%Size())
+		Do $$$AssertEquals(kept_"|"_keptMemories, $List(case, 3)_"|"_$List(case, 4), label_": the entries kept")
+		Set sent = ..SentFor("Notify", session)
+		Do $$$AssertEquals(..Call($List(sent, 1), "citations")_"|"_..Call($List(sent, 1), "memories"), row.Citations_"|"_row.Memories, label_": the Outbound carries what the Turn keeps")
+		Set done = ..ChatEvents(session).%Get(2).payload
+		Do $$$AssertEquals($Select(done.%IsDefined("citations"): done.citations.%Size(), 1: 0)_"|"_$Select(done.%IsDefined("memories"): done.memories.%Size(), 1: 0), $List(case, 3)_"|"_$List(case, 4), label_": and chat.message")
+		If label = "badjson" {
+			Do $$$AssertEquals(row.CheckKey, "", label_": the check rows are not made from bad JSON")
+		} ElseIf (label = "onevalid") || (label = "seven") || (label = "extramember") {
+			Do $$$AssertEquals(row.CheckKey, "", label_": HostData without checks has no check key")
+		}
+	}
+	Set row = ..Finish("shapechecks", "reply", $ListBuild("checks.everythingElsePassed", rows), , .session, {"checks": [{"zz": "result"}], "citations": [(..Citation(1, "A"))]}.%ToJSON())
+	Do $$$AssertEquals(row.CheckKey_"|"_(row.CheckRows '= ""), "checks.everythingElsePassed|1", "with sources the check key and rows are still made")
+	Do $$$AssertEquals(row.Citations, [(..Citation(1, "A"))].%ToJSON(), "and the citation is kept")
+	Set cut = ..Finish("shapecut", "reply", , , .session, {"citations": [(extra)]}.%ToJSON())
+	Do $$$AssertEquals(cut.Citations, [(..Citation(6, "B"))].%ToJSON(), "a member outside the shape is cut away")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, "Sourced", "Conversation added no citations or memories")
+	Do result.%Next()
+	Do $$$AssertEquals(+result.%GetData(1), 1, "bad JSON is one warning, the other shapes are not")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, "Sourced", "Conversation added no citations or memories")
+}
+
+/// A busy reply, a broken session and a fallback whose HostData holds citations and memories carry none: the first two are asked
+/// again and the answer that follows has none, and the fallback ends the turn without reading them.
+Method TestSourcesNotOnFallbacks()
+{
+	Set hostData = {"citations": [(..Citation(1, "A"))], "memories": [(..Memory(1))]}.%ToJSON()
+	Set cases = $ListBuild("busy,reply|a busy reply", "broken,reply|a broken session", "fallback:timeout|a fallback")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set answers = $Piece(case, "|", 1), label = $Piece(case, "|", 2)
+		Set row = ..Finish("nosrc"_position, answers, , , .session, hostData)
+		Do $$$AssertEquals(row.State, "done", label_": the turn ends")
+		Do $$$AssertEquals(row.Citations_row.Memories, "", label_": no citations or memories on the Turn")
+		Set sent = ..SentFor("Notify", session)
+		Do $$$AssertEquals(..Call($List(sent, 1), "citations")_..Call($List(sent, 1), "memories"), "", label_": none on the Outbound")
+		Set events = ..ChatEvents(session)
+		Set done = events.%Get(events.%Size() - 1).payload
+		Do $$$AssertEquals(done.state_"|"_done.%IsDefined("citations")_"|"_done.%IsDefined("memories"), "done|0|0", label_": none on the done chat.message")
+	}
+}
+
+/// DW-721 (U-280), through the real reply guard that Decide runs: a reply whose text says "None of your documents cover that." and
+/// whose HostData holds citations is stored without the sentence and carries the citations; a reply with the sentence and no citations
+/// keeps it and carries none.
+Method TestNeverBoth()
+{
+	Set none = "None of your documents cover that."
+	Set hostData = {"citations": [(..Citation(1, "Rotating the certificate"))]}.%ToJSON()
+	Set row = ..Finish("both", "reply", , , .session, hostData, "Rotate it from the Certificates page. "_none, 1)
+	Do $$$AssertEquals(row.ReplyText, "Rotate it from the Certificates page.", "with citations the stored reply lacks the sentence")
+	Do $$$AssertEquals(row.ReplyText '[ none, 1, "and never holds it")
+	Do $$$AssertEquals(row.Citations, {}.%FromJSON(hostData).citations.%ToJSON(), "and the citations are carried")
+	Set done = ..ChatEvents(session).%Get(2).payload
+	Do $$$AssertEquals(done.replyText_"|"_done.citations.%Size(), "Rotate it from the Certificates page.|1", "chat.message shows the filtered text with the citation")
+
+	Set row = ..Finish("nocite", "reply", , , .session, "{""zz"": ""tool result""}", none, 1)
+	Do $$$AssertEquals(row.ReplyText, none, "without citations the sentence stays as sent")
+	Do $$$AssertEquals(row.Citations_row.Memories, "", "and nothing is carried")
+	Set done = ..ChatEvents(session).%Get(2).payload
+	Do $$$AssertEquals(done.replyText_"|"_done.%IsDefined("citations"), none_"|0", "chat.message shows the sentence and no citation")
+
+	Set row = ..Finish("emptycite", "reply", , , .session, "{""citations"": []}", none, 1)
+	Do $$$AssertEquals(row.ReplyText_"|"_row.Citations, none_"|", "an empty citations array leaves the sentence and carries nothing")
+}
+
 /// --- helpers ---
 /// Runs a message of a new session to its end, with the turn answers scripted (answer is one answer, or several separated by
 /// commas, given in turn), and returns the turn. render, when it is not "", is what the probe's Render stand-in returns
-/// ($ListBuild(key, rowsJSON)); throwIn is set on the probe. The session is returned in session.
-Method Finish(name As %String, answer As %String, render As %List = "", throwIn As %String = "", Output session As %String) As OcuTalon.Data.Turn [ Private ]
+/// ($ListBuild(key, rowsJSON)); throwIn is set on the probe. The session is returned in session. hostData, when it is not "", is the
+/// HostData of the first reply the double makes, with text as its text when that is not "" and the real reply guard applied to it when
+/// filter is 1 (DecideDouble SetReply).
+Method Finish(name As %String, answer As %String, render As %List = "", throwIn As %String = "", Output session As %String, hostData As %String = "", text As %String = "", filter As %Boolean = 0) As OcuTalon.Data.Turn [ Private ]
 {
 	Set session = ..Session(name)
 	Do ##class(OcuTalon.Test.Core.DecideDouble).Script(session, "turn", $ListFromString(answer))
+	If hostData '= "" Do ##class(OcuTalon.Test.Core.DecideDouble).SetReply(session, hostData, text, filter)
 	If render '= "" Set ^OcuTalonTest("ConversationProbe", ..Number, "render") = render
 	Set probe = ..NewProbe()
 	Set probe.ThrowIn = throwIn
@@ -1811,6 +1961,18 @@ Method SentFor(target As %String, session As %String) As %List [ Private ]
 		If (..Call(n, "target") = target) && (..Call(n, "sessionRef") = session) Set list = list_$ListBuild(n)
 	}
 	Quit list
+}
+
+/// A citation of the document "Results runbook" under the section; its document ref, passage and chunk index follow the number.
+Method Citation(number As %Integer, section As %String) As %DynamicObject [ Private ]
+{
+	Quit {"documentRef": ("zzdoc"_number), "document": "Results runbook", "section": (section), "passage": ("zz passage "_number), "chunkIndex": (number)}
+}
+
+/// A memory made from the number.
+Method Memory(number As %Integer) As %DynamicObject [ Private ]
+{
+	Quit {"memoryRef": ("zzmem"_number), "text": ("zz remembered "_number), "savedAt": "2030-01-01T10:00:00Z"}
 }
 
 /// The session's turns, as Ownership reads them.

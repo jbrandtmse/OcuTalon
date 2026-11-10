@@ -13,10 +13,13 @@
 ///     fails or the owner does not answer Ok (DocumentOps takes it with Upload.Take). not_built is 501 not_built (also while DocumentOps is
 ///     not running, when nothing is stored or submitted); any other outcome or status is 500 server_error. DocumentOps (Lane A) checks the
 ///     file again, finds an unreadable one and writes the row (AD-21).
+///   - GET /v1/documents/:ref reads one document's text for the Documents page: 200 {"ref","name","text"}, the text as the file was read
+///     (Document.Text), through Ownership.Document, so that a ref the session can't see answers 404 not_found exactly like a missing one,
+///     with no text; a failed read is 500 server_error. It submits and publishes nothing.
 ///   - DELETE /v1/documents/:ref answers 404 not_found first for a ref the session can't see (Ownership.Document), nothing submitted;
 ///     otherwise it submits one RemoveDocument with origin web_user: Ok is 200 {"result":"done"}, not_found 404, not_built 501, any
 ///     other outcome or status 500.
-/// Every call of the three routes first sweeps the uploads that nobody took and that are more than an hour old (Upload.Purge, with no SQL);
+/// Every call of the four routes first sweeps the uploads that nobody took and that are more than an hour old (Upload.Purge, with no SQL);
 /// a failed sweep never fails the call.
 /// No call takes a SessionRef from the client, and the routes publish nothing: DocumentOps is the one publisher of the document event (AD-33).
 Class OcuTalon.Web.Documents Extends OcuTalon.Web.Api
@@ -55,6 +58,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Routes>
 <Route Url="" Method="GET" Call="List"/>
 <Route Url="" Method="POST" Call="Add"/>
+<Route Url="/:ref" Method="GET" Call="Text"/>
 <Route Url="/:ref" Method="DELETE" Call="Remove"/>
 </Routes>
 }
@@ -116,6 +120,38 @@ ClassMethod Add() As %Status
 	}
 	If result.Outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "The addition was answered "_result.Outcome))
+}
+
+/// GET /v1/documents/:ref: see the class description.
+ClassMethod Text(ref As %String) As %Status
+{
+	Do ..Sweep()
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set row = ##class(OcuTalon.Data.Ownership).Document(ref, sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(row) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Set sc = ..TextBody(row, .body)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set %response.ContentType = ..#CONTENTTYPE
+	Do body.OutputToDevice()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The JSON body {"ref","name","text"} of the document in body, read in full before anything is written, so that a failed read writes nothing.
+ClassMethod TextBody(row As OcuTalon.Data.Document, Output body As %Stream.TmpCharacter) As %Status [ Private ]
+{
+	Set sc = $SYSTEM.Status.OK()
+	Try {
+		Set answer = {"ref": (row.Ref), "name": (row.Name)}
+		Do row.Text.Rewind()
+		Do answer.%Set("text", row.Text, "stream")
+		Set body = ##class(%Stream.TmpCharacter).%New()
+		Do answer.%ToJSON(body)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
 }
 
 /// DELETE /v1/documents/:ref: see the class description.

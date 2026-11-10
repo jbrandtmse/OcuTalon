@@ -4,8 +4,8 @@
 /// the answers of the Decide double and Deliver, which hands the kept answers to OnError and OnResponse, are those of
 /// Test.Core.ProbeSeam.
 ///   - Send records each call (target, class, key, required and the trace session the instance had set); for a Bridge.Msg.Request
-///     the request's fields; for an Outbound sessionRef, originChannel, text, catalogKey, slots, decisionRef, checkKey and
-///     checkRows; for a RunTurns sessionRef. Every call also records the state of the instance's Turn at that moment (turnState)
+///     the request's fields; for an Outbound sessionRef, originChannel, text, catalogKey, slots, decisionRef, checkKey,
+///     checkRows, citations and memories; for a RunTurns sessionRef. Every call also records the state of the instance's Turn at that moment (turnState)
 ///     and how many done chat.message events of that Turn the session's stream already holds (doneEvents), which tell the order
 ///     of saving, publishing and sending. A request to Decide goes to a shadow instance of Test.Core.DecideDouble and its answer
 ///     is kept; a send to Conversation or Notify is recorded only. FailTarget names a target whose send fails;
@@ -39,6 +39,8 @@ Method Send(target As %String, request As %Library.Persistent, responseRequired 
 		Set @call@("decisionRef") = request.DecisionRef
 		Set @call@("checkKey") = request.CheckKey
 		Set @call@("checkRows") = request.CheckRows
+		Set @call@("citations") = request.Citations
+		Set @call@("memories") = request.Memories
 	} ElseIf request.%Extends("OcuTalon.Core.Msg.RunTurns") {
 		Set @call@("sessionRef") = request.SessionRef
 	}

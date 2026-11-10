@@ -57,12 +57,18 @@ Property CheckKey As %String(%JSONFIELDNAME = "checkKey", MAXLEN = 128);
 /// The check results of the reply, one row each.
 Property Checks As list Of OcuTalon.Live.Payload.Part.CheckRow(%JSONFIELDNAME = "checks");
 
+/// The citations of the reply, one per passage a documents tool call returned for the turn; absent for a reply with none.
+Property Citations As list Of OcuTalon.Live.Payload.Part.Citation(%JSONFIELDNAME = "citations");
+
+/// The memories the reply recalled, one per memory a memory search returned for the turn; absent for a reply with none.
+Property Memories As list Of OcuTalon.Live.Payload.Part.Memory(%JSONFIELDNAME = "memories");
+
 /// The payload for a turn row, with every field set from the row: ref, clientId, channel, fromGuide, state, text, replyText,
 /// the fallback's catalogKey and fallbackReason, createdAt, the trace target (the row's TraceHeaderId, in the running
 /// namespace; both stay empty while the row has none), the position of the trace target in its session's item list (both
 /// indexes, set only when the row has them), the shown decision (Decision.FromRow of the row ShownDecisionRef
-/// names, read as the session's own through Ownership) with the turn's cost, and the check key and rows. A read that fails
-/// leaves the decision, the cost and the rows empty; it never fails the payload.
+/// names, read as the session's own through Ownership) with the turn's cost, the check key and rows, and the citations and
+/// memories. A read that fails leaves the decision, the cost and the rows empty; it never fails the payload.
 ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMessage
 {
 	Set payload = ..%New()
@@ -86,6 +92,10 @@ ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMess
 	Set payload.CheckKey = row.CheckKey
 	Set list = ##class(OcuTalon.Live.Payload.Part.CheckRow).ListFromJSON(row.CheckRows)
 	For i = 1:1:list.Count() Do payload.Checks.Insert(list.GetAt(i))
+	Set list = ##class(OcuTalon.Live.Payload.Part.Citation).ListFromJSON(row.Citations)
+	For i = 1:1:list.Count() Do payload.Citations.Insert(list.GetAt(i))
+	Set list = ##class(OcuTalon.Live.Payload.Part.Memory).ListFromJSON(row.Memories)
+	For i = 1:1:list.Count() Do payload.Memories.Insert(list.GetAt(i))
 	Quit payload
 }
 

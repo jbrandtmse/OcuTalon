@@ -300,8 +300,9 @@ development_status:
   19-8-epic-19-burn-down: done
   epic-19-retrospective: optional
 
-  epic-20: backlog
-  20-2-see-citations-and-memories-in-answers: backlog
+  epic-20: in-progress
+  20-2-see-citations-and-memories-in-answers: done
+  20-3-add-a-sample-runbook-in-one-press: ready-for-dev
   epic-20-retrospective: optional
 
   epic-21: backlog
@@ -470,12 +471,12 @@ development_status:
   41-5-this-was-noise-and-your-approval-answers-become-precedents: done
   41-6-the-memory-card-your-notes-and-your-answers: done
   41-7-evaluation-and-tests-for-memory-s-first-part: done
-  41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns: backlog
-  41-9-pins-and-learned-saves-get-their-verbs-and-routes: backlog
+  41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns: done
+  41-9-pins-and-learned-saves-get-their-verbs-and-routes: done
   41-10-facts-learned-at-compaction-optional-needs-ad-31-s-amendment: backlog
   41-11-bridgesink-saves-compaction-facts-as-learned-memories-option: backlog
-  41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star: backlog
-  41-13-the-memory-card-pinned-and-learned-memories: backlog
+  41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star: done
+  41-13-the-memory-card-pinned-and-learned-memories: ready-for-dev
   41-14-evaluation-and-tests-for-memory-s-second-part: backlog
   epic-41-retrospective: optional
 action_items:
