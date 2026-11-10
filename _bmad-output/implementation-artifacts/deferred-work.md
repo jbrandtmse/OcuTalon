@@ -6375,6 +6375,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 42633085173 attempt 4 job shards-2 17:00Z, lane-a@rest 2065s, 1 of 79 classes; attempts 2 and 3 lane-a@rest passed on the same sha
 - 2026-11-09T17:10:28Z status=routed owner=burndown by=runner note=Story 35.1's test (Lane A file); burn-down priority; a red on a quiet host makes it real
 - 2026-11-09T17:51:03Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=burndown note=Epic_35_part_merge_burn-down_overflow:Test.Mcp.Attach_(Lane_A)_is_extended_by_22.2's_McpOps_work;make_TestShadow's_bare-manager_AddTool_wait_for_the_mock_or_retry_once_under_load;a_red_on_a_quiet_host_makes_it_real
+- 2026-11-10T17:14:25Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run note=e6eb901d_shards-2_TestAttach_mock_tools_not_attached;passed_3x_locally(warm2,fresh1);files_reached_unchanged_since_b99d6529
 
 ### DW-1041: AD-1 lets REST code write only the Session row, counters, pairing hashes and UI markers, but the step 4 contract has the MCP settings routes call SettingsOps.SaveMcpEntry/RemoveMcpEntry in the REST process to write the wallet secret and Config Store entry (ruling Q4), with no AD-1 exception recorded
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: med | fix-risk: high | footprint: out-of-footprint
