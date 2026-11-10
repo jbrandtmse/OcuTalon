@@ -2,7 +2,7 @@
 title: 'Story 37.2: See tokens and cost over time on the Usage page'
 type: 'feature'
 created: '2026-11-09'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'e6dbfcc48e465b46d88ee6593d80d80e045cd4e7'
 baseline_commit: 'e6dbfcc48e465b46d88ee6593d80d80e045cd4e7'
 review_loop_iteration: 0
@@ -172,6 +172,14 @@ deferred:
   - any spec or test that pins `guide.features` or the README and EXPERIENCE More to try counts.
 - `web/scripts/usage-view.test.mjs` (new) -- Cover `groupRows` for all four groupings (sums, order, zero days, the retry merge, the compaction and includes-estimates markers, unknown values), `largestByDay`, `dayLabel` (year, and a UTC-safe date), `chartGeometry` (one bar and one point per row, scales), and `USAGE_TEXTS` equal to the PUBLIC TEXT values.
 
+
+**Rework iteration 1 (trigger: a Planner ruling after code review; scope: these items only) [RULED 2026-11-10 ~19:10Z, Contest Planner under the owner's delegation, prompts/epic-25-rulings-252.md section 3; SUPERSEDES the "Safety and settings" group ruling]:**
+- [ ] [Ruling] R1: the usage registry row's group becomes `'Usage and history'` (`web/src/app/guide/more-to-try-view.ts`); usage stays the last registry entry.
+- [ ] [Ruling] R2: append `'Usage and history'` as the LAST entry of `MORE_TO_TRY_GROUPS` (0.22's constant). The heading text is ruled; no other text changes. Story 25.2 will later add its history item to the same group.
+- [ ] [Ruling] R3: tests follow it: the `GROUP_OF` line for usage in `web/scripts/more-to-try-view.test.mjs` (and its "usage is the last item of Safety and settings" assertion becomes "usage is the last item of Usage and history and the last registry entry"); any unit test that pins `MORE_TO_TRY_GROUPS` or `groupsOf`; and K27's written oracle in `web/e2e/guide/more-to-try.spec.ts` (the four headings in order, usage under the fourth). Add NO new e2e case numbers K25-K28 (K28 is reserved for Story 25.2).
+- [ ] [Ruling] R4: EXPERIENCE.md: after the Safety and settings items, a new entry `    - Heading "Usage and history". [AMENDED 2026-11-10, Contest Planner ruling: a fourth group for the step-6 pages]`, with the usage entry (Item 9) under it, numbered by panel order; the sentence that names the panel's headings ("three headings ...") names the four, with the same marker. `web/scripts/usage-docs.test.mjs` and any test reading EXPERIENCE's headings follow.
+- [ ] [Ruling] R5 (condition): the compact-band tests K16 and K17 (1280x650 and 1280x600) stay green with the fourth heading; run the `live sign-in-3` part(s) holding `guide/more-to-try.spec.ts`. If they cannot stay green without changing the band logic, do NOT change the band logic: revert R1-R4 to the previous ruling (usage last in "Safety and settings") and HALT with an intent gap that reports the measurement.
+
 **Acceptance Criteria:**
 - Given this story's change, when the spine is read, then the REST table has the `GET /api/v1/usage` row and the cross-area table has the `Ownership.Usage` and header-navigation Usage rows, each marked `[ADDED 2026-11-10, Story 37.2]`. It has no History, file upload, private file table or Roles row. `lint_spine.py` reports the same 10 low `placeholder` findings at lines 478, 1017 (x2), 1086, 1099 (x2), 1165 (x3) and 1176 as before.
 - Given the LIVE fixture user (OcuTalonUser only) signed in, when they press Usage in the header navigation, then `#/usage` opens, titled "Usage · OcuTalon", with `aria-current="page"` on the Usage item and no History item. It shows the Range control, the Group by control, the chart with token bars and a cost line (each labelled directly and in the legend), and beneath the chart a table with one row for every bar and point.
@@ -221,6 +229,8 @@ Rejected:
 - (low) Acceptance: the "Always" list names `--chart-tokens`/`--chart-cost` while the code uses `--usage-chart-*-series` -- the code follows Tasks and the Code Map and both tokens exist; the fix edits the spec.
 
 ## Spec Change Log
+
+- 2026-11-10 ~19:15Z, lead: a new Planner ruling [RULED 2026-11-10 ~19:10Z, Contest Planner under the owner's delegation, prompts/epic-25-rulings-252.md section 3; SUPERSEDES the "Safety and settings" group ruling] moves the usage item into a NEW fourth More to try heading, "Usage and history", the last entry of MORE_TO_TRY_GROUPS (Story 25.2 adds history to it later; nothing earlier is renumbered). Condition: K16 and K17 stay green, else the fallback is the old ruling, reported. Rework iteration 1 opened with items R1-R5 (Tasks & Acceptance). The heading text is ruled, so no new PUBLIC TEXT gate.
 
 - 2026-11-10 ~08:2xZ, lead (re-dispatch): the implement HALT (`implementation verification failed`, a machine-wide Docker build hang) was infrastructure, not the story. The orchestrator reports builds work again (probe at about 08:1xZ; the stuck process was another lane's bake). Status reset from `blocked` to `in-progress` for a verification-and-finalize pass over the implementation already in the working tree (uncommitted, from implement pass 1, baseline 51ce312d). Any build that hangs again is time-limited and reported as TOOLING, with the stuck process left running.
 
@@ -393,7 +403,7 @@ None is contended.
 | `README.md:40` | `eight more things to try` → `nine more things to try` | Count follows the registry |
 | EXPERIENCE.md:245 + new item 9 line + :254 clause | "There are nine items…"; item 9: `**See tokens and cost**: …` in the list's form, with the look-for text above; ":254 … and item 9's control is a link to the Usage page" | Follows the item's ruled text and the count |
 
-**MORE TO TRY GROUP -- RULED [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md]: the existing "Safety and settings", with usage LAST in it (five items there). No fourth heading.** The plan proposed the existing group `Safety and settings`. Cost and the 100,000-token limit are guardrails that sit with the daily cost cap and the token budget, and a fourth heading over a single item would spend the panel's limited room (the compact band, `more-to-try-view.ts` `inCompactBand`). The alternative is a fourth heading, `Usage and cost`. Until Story 0.22 renders headings, the field is ignored.
+**MORE TO TRY GROUP -- SUPERSEDED [RULED 2026-11-10 ~19:10Z, Contest Planner under the owner's delegation, prompts/epic-25-rulings-252.md section 3; SUPERSEDES the "Safety and settings" group ruling]: usage goes under a fourth heading, "Usage and history", the last group; see Rework iteration 1. The earlier ruling follows for the record.** **MORE TO TRY GROUP -- RULED [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md]: the existing "Safety and settings", with usage LAST in it (five items there). No fourth heading.** The plan proposed the existing group `Safety and settings`. Cost and the 100,000-token limit are guardrails that sit with the daily cost cap and the token budget, and a fourth heading over a single item would spend the panel's limited room (the compact band, `more-to-try-view.ts` `inCompactBand`). The alternative is a fourth heading, `Usage and cost`. Until Story 0.22 renders headings, the field is ignored.
 
 **Lead spec gate (2026-11-10, runner B):**
 - RULED 2026-11-10 ~07:00Z (see Spec Change Log): PUBLIC TEXT, SECURITY and MORE TO TRY GROUP are written into the table and sections above and into Tasks & Acceptance. SCOPE is already ruled (the first AC's [AMENDED 2026-11-10] marker in epics.md): this story's own rows only, no History entry.
