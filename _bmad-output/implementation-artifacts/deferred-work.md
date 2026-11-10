@@ -3967,6 +3967,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T01:44:35Z occurrence=17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta note=lead_smoke_warm_e17s13sm_red_once_then_green_on_unchanged_rerun(Productions_path_untouched_by_17.13)
 - 2026-11-09T02:00:20Z occurrence=OCT-epic39-c7c6e5fb by=orchestrator note=run 42541696724 iris(shards) lane-a@Checks,Install,Watch,Eval Test.Watch.Reader TestDisabledItemsInStoredOrderAcrossAStopAndAStart 'suspended' (not stopped); rerun of failed jobs 02:01Z
 - 2026-11-09T02:44:24Z occurrence=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=ci note=run_42541696724_attempt1_iris(shards)_Test.Watch.Reader_'suspended'_at_c7c6e5fb;green_on_one_rerun_of_the_failed_job(attempt2);Reader_does_not_read_Install.Step.Production(own_Case.SetItemEnabled)
+- 2026-11-10T07:54:01Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_b99d6529_run_42768243726_shards-8_lane-a@Watch;one_rerun
 
 ### DW-628: The IPM artifact may ship the OcuTalon.Test.* classes: check whether module.xml's OcuTalon.PKG resource (ocutalon/cls) includes them and, if so, leave them out, so the artifact is smaller (4,940,685 bytes at 15.4, 98.8% of the release's soft 5,000,000-byte warning) and no test code reaches users' instances
 - source: Epic 15 merge gate (Contest Planner, 2026-11-03) | severity: low | fix-risk: low | footprint: small
@@ -6402,6 +6403,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (browser) job 129220092453 attempt 1 red (DEMO-PATH step 6 trace failed, 27 passed); attempt 2 job 129260909530 green 15:39-16:15Z; same code as green feature 2a45f8bc plus the Dockerfile move
 - 2026-11-09T16:27:08Z status=routed owner=burndown by=lead note=flake class; possibly kin to DW-690 (sign-out after the trace) and DW-388; rerun once per occurrence
 - 2026-11-09T21:55:44Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_594a66af_run_42702099695_browser_live:demo-path_06-trace:35_finish_not_found_after_navigation_to_?signedOut=1;one_rerun_of_the_failed_job
+- 2026-11-10T07:54:01Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_b99d6529_run_42768243726_browser_06-trace_signedOut;one_rerun
 
 ### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -6539,6 +6541,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: WatchTools.ProposeFix resolves only open,resolved incidents (FIXABLE), so resume_item answers no_incident after close; Fix.Run.Suspended ignores incident state, so Checks.Findings keeps the item in ours.
 - 2026-11-10T06:18:26Z status=decision-pending owner=burndown by=cr note=product call: resume without an incident, keep the incident open while suspended, or reword; touches ruled text
 - 2026-11-10T06:27:51Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=merge_gate note=Planner_ruling_2026-11-10_option_a(resume_after_close_scoped;no_state_move;second-session_proof);rework_iteration_1
+- 2026-11-10T07:55:00Z status=routed owner=23-9-resume-a-suspended-item-after-its-incident-closes by=merge_gate note=Planner_re-ruling_2026-11-10_~07:20Z:(c)_text_limit_in_23.2;resume_after_close_parked_as_Story_23.9(after_voting;(a)_or_(b),Planner_leans_(b))
 
 ### DW-1069: AD-33 exception list of Story 23.2 does not name four Lane B paths the story edits under other rulings: README.md, docker/tests/lib-live.sh, web/e2e/support/iris.ts, Test/Core/CommandsRouting.cls
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: out-of-footprint

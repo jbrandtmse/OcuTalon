@@ -198,11 +198,13 @@ Rejected:
 - reject (spec edit) — the QA list credits `web/scripts/sources-docs.test.mjs` to 23.2's QA, though it landed in 23.6's 3cc38259.
 
 - [x] [Review] DW-1067 (HIGH, AD-15 'Results per request'): the incident card shows no result band for a suspend or resume request, nor for a reroute whose copies all completed — web/src/app/approvals/approval-view.ts resultView (Decided in-stage 7) — show the ruled result texts (result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted) in each request card's band. RULED (Planner ruling 1, option (a)): edit web/src/app/msg/catalog.ts and web/src/app/incidents/incident-card.ts (now on the AD-33 list), additive; a unit case per kind and the reroute band asserted in the e2e after Approve.
-- [ ] [Review] ON HOLD, build nothing (orchestrator 2026-11-10 ~06:32Z: the implement stage's estimate of about 5 h exceeded the ruling's 1.5 h bound; re-ruling pending with the Planner) — DW-1068 (Planner ruling 2, option (a)): `resume_item` for an item OcuTalon itself suspended, closed incidents included, under conditions (i) and (ii); a resume on a closed incident never moves its state; second-session isolation proof; online demo unchanged.
+- [ ] [Review] DW-1068 (re-ruling (c), [RULED 2026-11-10 ~07:20Z, Contest Planner, DW-1068 re-ruling]): `result.itemSuspended` and the README bullet's sentence take the ruled texts verbatim (Msg/Catalog/Watch.cls, the generated web catalog, and every pin of the old text); the `Agent/Chat.cls` resume line gets the "while the incident is open" limit only once the Planner has ruled its wording (lead relays it); no resume-after-close code (parked as Story 23.9).
 - [x] [Review] DW-1059 (Planner ruling 4): `Install/SecurityOverview.cls` generates the approved sentence verbatim; `docs/security-overview.md` regenerated; its regeneration check green.
 - [x] [Review] DW-1069 (Planner ruling 3): record the four paths in this spec's AD-33 list (README.md ruled bullet only, docker/tests/lib-live.sh, web/e2e/support/iris.ts, Test/Core/CommandsRouting.cls); no code change.
 
 ## Spec Change Log
+
+- 2026-11-10 (runner): DW-1068 re-ruled (c) [RULED 2026-11-10 ~07:20Z, Contest Planner, DW-1068 re-ruling]: ruled texts for result.itemSuspended and the README sentence; resume after close parked as Story 23.9; AD-15's 06:27Z line reverted.
 
 - 2026-11-10 (runner): rework pass halted on DW-1068 (estimate about 5 h); per the orchestrator, DW-1068 is on hold (nothing built; result.itemSuspended unchanged; AD-15 line marked pending) and the rework re-dispatched on DW-1067, DW-1059 and DW-1069 only.
 
@@ -331,6 +333,8 @@ Rejected:
 - FYI: EXPERIENCE.md keeps "Item 9" (renumbering by group belongs to 0.22). The `Web/Api.cls` 403 text that still says "resends" is a LOW follow-up for the next story that touches `Web/Api.cls` (ledgered), the page override stays.
 - Standing rule (Planner, 2026-11-10): system storage is changed only through its API, even on throwaways; never hand-edit %SYS.Task or any system class's storage globals or rebuild their indices by hand.
 
+**DW-1068 re-ruling [RULED 2026-11-10 ~07:20Z, Contest Planner, DW-1068 re-ruling] (replaces item 2 of the rulings above):** option 1, (c) now. `result.itemSuspended` reads, verbatim: "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal." The README bullet's sentence becomes, verbatim: "Nothing changes until you approve, and while the incident is open a suspend is undone the same way, by asking OcuTalon to resume the item." (the rest of the bullet unchanged; test-readme green). Every other place that promises the resume gets the same "while the incident is open" limit; a changed user-facing line goes to the Planner verbatim before commit. Optional (one agent-instruction line, no new code path): when `resume_item` finds no incident, the chat agent points the user to the Management Portal; the line is shown to the Planner first. Resume after close is NOT built here: it is parked as Story 23.9 "Resume a suspended item after its incident closes" (after voting; its spec chooses (a) or (b), the Planner leaning to (b)). The 06:27Z AD-15 line is reverted.
+
 ## Public Text
 
 All drafts unless marked; EXPERIENCE.md and the PRD give no wording for these fixes (EXPERIENCE.md:997, PRD FR-26). Slot types in brackets.
@@ -340,7 +344,7 @@ Catalog keys, `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`, appended after 
 - `incident.resumeRequest`: "I can resume {item} in {production}. Approve?\n\nDry run: {item} is disabled now and would be enabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page." web: without " Approve?" [item, production]
 - `incident.rerouteRequest`: "I can reroute {count} failed {itemNoun} from {from} to {to}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: message {example} would go to {to} instead of {from}. I'll resend {resendCount} copies to {to}; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page." web: without " Approve?"; one (resendCount): "I'll resend 1 copy to {to}; the original stays unchanged." [count, itemNoun noun, from text, to text, example text, resendCount count]
 - `incident.goodChanged` (DW-823; middle sentence verbatim from the Planner, 2026-11-06): "{count} {itemNoun} failed since {time}. {cause}. The fix I would use would also change {noun} that went through, so I'm not proposing it. Nothing was changed.\n\nFailures:\n{groups}\n\nDetails and trace: on your OcuTalon page." [count, itemNoun noun, time, cause sentence, noun text, groups]
-- `result.itemSuspended`: "{item} in {production} is suspended: it is disabled now. To undo it, ask me to resume {item}." [item, production]
+- `result.itemSuspended`: "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal." [RULED 2026-11-10 ~07:20Z, Contest Planner, DW-1068 re-ruling] [item, production]
 - `result.itemResumed`: "{item} in {production} is enabled again." [item, production]
 - `result.itemSkipped`: "{item} was not changed: {reason}. It needs a new approval." [item, reason sentence]
 - `result.itemNotChanged`: "Nothing was changed: {reason}." [reason sentence]
