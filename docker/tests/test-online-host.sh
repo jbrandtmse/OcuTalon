@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Hermetic test of release/demo-host-check.sh and release/demo-host-checks.md (Story 29.3; matrix rows 1 to 16), and, for row 15 (Story
+# Hermetic test of release/demo-host-check.sh and release/demo-host-checks.md (Story 29.3; matrix rows 1 to 16; row 17, Story 8.8), and, for row 15 (Story
 # 29.8), of release/demo-load.sh's files and of the check list's H25. No container and no
 # host: one inline Node server on 127.0.0.1 (a random port, docker/tests/lib-stub.sh) stands in for the demo host. It is the proxy and
 # the password guard of AD-25 as the lead's ruling U-158 reads it (a sign-in body is a bounded urlencoded POST body whose decoded names
@@ -336,6 +336,9 @@ write_hb_fixture "$tmp/hb-missing.txt" 40 '"missing"'
 write_hb_fixture "$tmp/hb-notick.txt" 40 0 '.lastTick = ""'
 write_hb_fixture "$tmp/hb-odd.txt" 40 '"x"'
 printf 'not json\n' > "$tmp/hb-bad.txt"
+# A line that starts with { but is not a JSON object (a command that failed half way), and a lastTick that is not ISO UTC text.
+printf 'OCUTALON>\n{"lastTick": "oops"\nOCUTALON>\n' > "$tmp/hb-brace.txt"
+write_hb_fixture "$tmp/hb-noniso.txt" 40 0 '.lastTick = "yesterday at noon"'
 
 # set_flags [<flag>...]: the stand-in's flags for the next runs, "name" or "name=value" each.
 set_flags() { printf '%s\n' ${1+"$@"} > "$flags"; }
@@ -768,6 +771,12 @@ if line_has FAIL heartbeat-tick "no readable lastTick and now"; then pass "row 1
 hb_run "$tmp/hb-bad.txt"
 expect_run "row 17: input with no JSON object line fails heartbeat-json and nothing else" 1 "heartbeat-json" ""
 if grep -qE '^(PASS|FAIL|SKIP) heartbeat-(tick|task) ' "$tmp/out"; then fail "row 17: heartbeat-tick or heartbeat-task was printed for input with no JSON"; else pass "row 17: heartbeat-tick and heartbeat-task are not printed for input with no JSON"; fi
+hb_run "$tmp/hb-brace.txt"
+expect_run "row 17: a line that starts with { but is no JSON object fails heartbeat-json and nothing else" 1 "heartbeat-json" ""
+if grep -qE '^(PASS|FAIL|SKIP) heartbeat-(tick|task) ' "$tmp/out"; then fail "row 17: heartbeat-tick or heartbeat-task was printed for a line that is no JSON object"; else pass "row 17: heartbeat-tick and heartbeat-task are not printed for a line that is no JSON object"; fi
+hb_run "$tmp/hb-noniso.txt"
+expect_run "row 17: a lastTick that is not ISO UTC text fails heartbeat-tick" 1 "heartbeat-tick" ""
+if line_has FAIL heartbeat-tick "no readable lastTick and now"; then pass "row 17: the line says there is no readable lastTick and now (not ISO UTC)"; else fail "row 17: no 'no readable lastTick and now' on the heartbeat-tick line for a lastTick that is not ISO UTC"; fi
 hb_run "$tmp/hb-odd.txt"
 expect_run "row 17: a suspended value outside 0, 1, 2 and missing fails heartbeat-task" 1 "heartbeat-task" ""
 run_stdin="$tmp/hb.txt"

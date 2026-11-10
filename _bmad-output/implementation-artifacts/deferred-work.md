@@ -1067,6 +1067,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: module.xml ships OcuTalon.PKG with every OcuTalon.Test class; the two QA fixtures subclass HeartbeatTask to override PRODUCTION and ITEM
 - 2026-10-24T16:27:52Z status=wontfix-accepted owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=cr note=reopen_if=a release install's New Task wizard lists a task type whose class is under OcuTalon.Test
+- 2026-11-10T04:48:06Z occurrence=8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend
 
 ### DW-171: Test.Schedule.Heartbeat Settle/SettleScheduler repeats lib-live.sh's settle_scheduler ObjectScript line (DW-28) with a weak stated reason (another language)
 - source: spec-8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6345,6 +6346,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 1.0.5 demo after update: Suspended=1, SuspendOnError=0, Error Success, last ran OK; Install.Step.Schedule leaves an existing task alone; host-side patch on the demo already resumes it
 - 2026-11-09T14:16:01Z status=routed owner=burndown by=owner note=1.0.6 HIGH ahead of tier 3 (Contest Planner [3dd56e], delegated authority): resume the task when Suspended at every start (after-start / Install) with one log line; test: suspend, restart, task runs and ticks within 2 min; demo-host-check.sh part is a RELEASE TOOL hunk (contended with Epic 11, DW-485); story to charter at the next free lane
 - 2026-11-10T00:55:02Z status=routed owner=8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend by=load note=chartered_as_story_8.8(orchestrator_dispatch_dw1018;Planner_[3dd56e]_1.0.6_HIGH)
+- 2026-11-10T04:50:17Z status=resolved-by:8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend by=adjudication note=Install.Step.Schedule.ResumeTask_from_Reconcile()(03122305);TaskResume+live:heartbeat-restart(restart1_resumed;first_tick_58s_after_ready);demo-host-check.sh_--heartbeat_heartbeat-tick/heartbeat-task(test-online-host_row17)
 
 ### DW-1019: eval: held-out heartbeat-injected-decision labelled Act in 2 of 3 attempts on 1.0.5's real-model evaluation (1 of 3 on 1.0.4); nothing acted but the label should be Tell now; check whether 41.x daily notes or precedents raise Act on an injected heartbeat and fix it in the instructions; target Tell now in 3 of 3
 - source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: med | footprint: out-of-footprint
@@ -6368,3 +6370,24 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: GitHub markdown API renders it (measured); Open Exchange rendering of the README's HTML cannot be seen from the repository
 - 2026-11-09T23:43:20Z status=decision-pending owner=burndown by=harvest note=human=open the Open Exchange listing once it shows the 1.0.6 README and confirm title+logo render; outward listing, owner/Planner only
 - 2026-11-10T00:47:25Z status=decision-pending owner=burndown by=merge_gate note=Contest Planner (owner delegation) owns it: checks the Open Exchange listing render after 1.0.6 is live; a Markdown fallback follow-up is routed then if needed; no action now
+
+### DW-1062: Test.Schedule.TaskResume copies Lane A's private Test.Install.ReconcileIn LastRow and Rows (the Event Log row count of ReconcileIn by job, type and text), forced by AD-29; a change to how ReconcileIn logs must be repeated in both
+- source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: TaskResume.cls LastRow/Rows equal Test/Install/ReconcileIn.cls:104-122 less the optional type/text arguments; the class header names the copy (Rule 2)
+- 2026-11-10T04:48:06Z status=routed owner=burndown by=cr note=unify by making ReconcileIn's Rows/LastRow public (Lane A) and calling them from TaskResume
+
+### DW-1063: release/demo-host-checks.md:5 still says the two inputs that come from the host are the status output and the time zone; Story 8.8 added a third (the heartbeat line, --heartbeat), outside the doc hunks the Planner ruled on
+- source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Run 1 now says at most one of the three may be standard input; the intro sentence at :5 was left at two (blind-hunter, acceptance-auditor)
+- 2026-11-10T04:48:06Z status=decision-pending owner=burndown by=cr note=human=Planner's release-tool review: approve 'the three inputs ... and the heartbeat line' at :5
+- 2026-11-10T04:50:17Z status=resolved-by:8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend by=adjudication note=lead_fixed_release/demo-host-checks.md:5_(two->three_inputs;heartbeat_line_added);in_the_RELEASE_TOOL_hunks_for_the_Planner's_review
+
+### DW-1064: No test runs the documented --heartbeat host command against check_heartbeat; row 17 uses synthetic fixtures only, so a broken command fails H26 closed (heartbeat-json or heartbeat-tick FAIL on a healthy host)
+- source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: test-online-host.sh row 17 builds JSON with write_hb_fixture; the command in demo-host-checks.md was measured by hand only (M7 and the re-measure)
+- 2026-11-10T04:48:06Z status=wontfix-accepted owner=8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend by=cr note=reopen_if=the Planner's run 1 prints FAIL heartbeat-json or heartbeat-tick on a host whose page shows no stalled banner
+
+### DW-1065: ci/units.sh records no class seconds for the new Test.Schedule.TaskResume in shard:lane-b@rest (about 45 s on a warm stack: four real-task tests with up to 21 s clock waits and two 10 s lock timeouts)
+- source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the Story 8.8 paragraph budgets only live:heartbeat-restart; TaskResume measured 43 s on the e8s8cw warm stack in code review
+- 2026-11-10T04:48:06Z status=wontfix-accepted owner=8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend by=cr note=reopen_if=the group holding shard:lane-b@rest passes 1,800 s of units on the first OCT-epic8 CI run

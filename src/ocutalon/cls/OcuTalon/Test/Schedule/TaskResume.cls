@@ -1,6 +1,6 @@
 /// Tests of the heartbeat task's resume (Story 8.8; AD-18, AD-19, AD-23, FR-32; DW-1018). THESE TESTS RUN IN THROWAWAY STACKS AND IN CI ONLY
-/// (Rule 21): they act on the Task Manager, and two of them on the real task OcuTalon heartbeat and the running OcuTalon.Production. The real
-/// task's Suspended value is put back as found after each test that changes it (OnAfterOneTest).
+/// (Rule 21): they act on the Task Manager, four of them on the real task OcuTalon heartbeat, and TestReconcileInResumes also on the running
+/// OcuTalon.Production. The real task's Suspended value is put back as found after each test that changes it (OnAfterOneTest).
 ///   - TestNotSuspended (AC 2): ResumeTask on a probe task with Suspended 0 is OK, writes no warning and changes no property, its id included;
 ///   - TestSuspended (AC 1): for Suspended 1 and 2, ResumeTask is OK, the stored Suspended is 0, exactly one warning says that the task was
 ///     suspended and resumed, no other property changes, and there is still one task of that name with the same id;
@@ -16,9 +16,9 @@
 ///   - TestReconcileInResumes (AC 1, 5): with the real task Suspended 1, a poll of a shadow instance of Install.ReconcileIn writes one Event Log
 ///     Warning row, ReconcileIn: <the heartbeat line>, and the task is at 0.
 /// A probe task is ZzResumeProbe <job>-<n>, of the class ResumeProbeTask, in this namespace, on a start date a year ahead so that it never runs;
-/// it is deleted after the test. The real-task tests wait for a clock second between 5 and 45 first, so that no run the Task Manager dispatched at
-/// the minute boundary is in flight. The Event Log row count is a copy of Test.Install.ReconcileIn's Rows and LastRow, which are Private in that
-/// (Lane A's) class.
+/// it is deleted after the test. The real-task tests wait for a clock second between 5 and 45 first (StallFixture.SecondInWindow), so that
+/// no run the Task Manager dispatched at the minute boundary is in flight. The Event Log row count is a copy of Test.Install.ReconcileIn's
+/// Rows and LastRow, which are Private in that (Lane A's) class.
 Class OcuTalon.Test.Schedule.TaskResume Extends %UnitTest.TestCase
 {
 
@@ -276,7 +276,7 @@ Method Text() As %String [ Private ]
 Method HoldRealTask(suspended As %Boolean) As %String [ Private ]
 {
 	Set end = $ZHorolog + ..#WAITCLOCK
-	While ('..SecondInWindow()) && ($ZHorolog < end) {
+	While ('##class(OcuTalon.Test.Schedule.StallFixture).SecondInWindow()) && ($ZHorolog < end) {
 		Hang 0.5
 	}
 	Set id = ##class(%SYS.Task).FindId(..#TASK)
@@ -290,13 +290,6 @@ Method HoldRealTask(suspended As %Boolean) As %String [ Private ]
 	Do $$$AssertEquals(##class(%SYS.Task).SuspendedGetStored(id), suspended, "its stored Suspended is " _ suspended)
 	Do ##class(OcuTalon.Install.Step).TakeWarnings()
 	Quit id
-}
-
-/// 1 when the clock second (UTC) is between 5 and 45, so that a run that the Task Manager dispatched at the minute boundary is over.
-ClassMethod SecondInWindow() As %Boolean [ Private ]
-{
-	Set second = +$Extract(##class(OcuTalon.Data.Time).NowUtc(), 18, 19)
-	Quit (second >= 5) && (second <= 45)
 }
 
 /// The number of lines of the list that equal the text.

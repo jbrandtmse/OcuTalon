@@ -2,7 +2,7 @@
 
 For the Contest Planner's hands-on pass on the gated demo host (Story 29.3; AD-25). The host and its configuration are the author's and stay outside this repository. This list, `release/demo-host-check.sh` and the author's load script `release/demo-load.sh` (Story 29.8; see "The load run" below) hold no host address, name, gate user, password or token; the examples use `https://demo.example`.
 
-The script is read-only. It sends GET and POST requests only: public reads, and requests the host must refuse, all with dummy values (user `zz-host-check`, passwords `dummy-old` and `dummy-new`, token `dummy-token`). It never uses either published account, and it signs out every IRIS session its own requests open. Its dummy sign-ins leave failed-sign-in entries in the host's audit log. It runs no `ocutalon-demo` command: the two inputs that come from the host (the status command's output and the container's time zone) are read from a file or from standard input.
+The script is read-only. It sends GET and POST requests only: public reads, and requests the host must refuse, all with dummy values (user `zz-host-check`, passwords `dummy-old` and `dummy-new`, token `dummy-token`). It never uses either published account, and it signs out every IRIS session its own requests open. Its dummy sign-ins leave failed-sign-in entries in the host's audit log. It runs no `ocutalon-demo` command: the three inputs that come from the host (the status command's output, the container's time zone and the heartbeat line) are read from a file or from standard input.
 
 A host-only criterion is marked as passing here only when the Contest Planner checked it by hand, with the date. Otherwise it stays `pending` until the Planner records it, or carries what the Planner measured. Every recorded row is re-checked at the release deploy.
 
@@ -77,7 +77,7 @@ Measured on the gated host (2026-10-30): the probe is healthy, and its scheduled
 
 ## The heartbeat input (DW-1018, H26)
 
-The check reads one line that the Planner prints on the host, outside the cap (a terminal takes one licence unit; see "The licence units"). The command is read-only: it opens the task only to read its stored Suspended value (`##class(%SYS.Task).SuspendedGetStored`), and it never resumes, suspends or changes the task, the mark or anything else. The container name below is the example of the demo host's IRIS container (`ocutalon-demo-iris`).
+The check reads one line that the Planner prints on the host, outside the cap (a terminal takes one licence unit; see "The licence units"). The command is read-only: it reads the task's stored Suspended value without opening the task (`##class(%SYS.Task).SuspendedGetStored`), and it never resumes, suspends or changes the task, the mark or anything else. The container name below is the example of the demo host's IRIS container (`ocutalon-demo-iris`).
 
 ```
 printf '%s\n' 'Set id=##class(%SYS.Task).FindId("OcuTalon heartbeat") Write !,{"lastTick":(##class(OcuTalon.Data.StatusMark).Get("heartbeatTick")),"now":(##class(OcuTalon.Data.Time).NowUtc()),"suspended":($Select(id="":"missing",1:##class(%SYS.Task).SuspendedGetStored(id)))}.%ToJSON(),!' 'Halt' \

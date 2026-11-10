@@ -129,10 +129,10 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # most 120 s for the first tick after a restart with the heartbeat task suspended) to shards, the group with the most headroom on the two newest full green
 # runs (shards 1,233 s of units in run 42730214385 and 1,346 s in run 42718893543; shards-7 1,341 and 1,288; image 1,287 and 1,353; shards-3 1,266 and 1,386;
 # shards-10 1,451 holds the contended live:reminder-restart). The unit is estimated at 350 to 450 s (inference: live:compose-start is 173 to 191 s for a start,
-# and a plain restart took 23 s in live:reminder-restart), so shards becomes about 1,700 to 1,800 s of units, about 30 minutes a job: inside REL-4's 35
-# minutes and the 40-minute timeout (inference until a run measures it). Locally, on a loaded ARM developer machine, the unit did 521 s of work (a first start of 276 s, restart 1 26 s to
-# ready, the first tick 62 s after ready, restart 2 44 s), so the CI figure is the one to confirm. The unit reads no web bundle, but it is not added to NO_WEB_BUNDLE_UNITS, because
-# shards holds units that read it. No group is added, renamed or given a longer deadline.
+# and a plain restart took 23 s in live:reminder-restart), so shards becomes about 1,580 to 1,800 s of units, about 27 to 30 minutes a job: inside REL-4's 35
+# minutes and the 40-minute timeout, and possibly above Story 0.20's 1,687 s a group (inference until a run measures it). Locally, on a loaded ARM developer machine, the unit did 521 s of work (a first start of 276 s, restart 1 26 s to
+# ready, the first tick 62 s after ready, restart 2 44 s), so the CI figure is the one to confirm. The unit reads no web bundle, but it is not added to NO_WEB_BUNDLE_UNITS: shards holds units that read
+# it, so listing it would change no skip (list it if it ever moves to a group whose other units read no bundle). No group is added, renamed or given a longer deadline.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo-path" ;;
