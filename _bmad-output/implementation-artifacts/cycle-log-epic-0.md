@@ -658,3 +658,8 @@
 2026-11-10T00:18:21Z	Epic 0	epic_runner_complete	stories_completed=2 part_merge=0.21 note=0.19_merged_by_orchestrator(61b40bba)
 2026-11-10T00:18:21Z	Story 0.21	committed	sha=pending_push(next_commit) submodules= ci=pending runs=pending amendments=epics.md:Story_0.21_ACs(Planner_ruling) code_commits=42fbd74a,59b4f86b note=the_pushed_head_is_this_bookkeeping_commit;CI_ids_in_the_contract(write_nothing_after_push)
 2026-11-10T00:18:21Z	Story 0.21	story_cycle	plan_to_commit_min=77 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-10T06:19:15Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=dispatch_0_22_more_to_try_groups lane=C
+2026-11-10T06:19:15Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-10T06:19:15Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-10T06:19:15Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default note=bootstrap_check_ok;inbox_verify_ok;hashes_match
+2026-11-10T06:19:15Z	Epic 0	ruling	question=integrate_forward_base choice=abed4ec6(green_by_identity:code_identical_to_f59cab73) rejected=1490ab58(8.8+20.3_code_combined;ci_42767577852+42767577887_queued;not_identical_to_any_green_head) why=dispatch(newest_green_or_green_by_identity) category=decide policy=5086036
