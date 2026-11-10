@@ -320,6 +320,18 @@ describe('the decision strip of a turn', () => {
     assert.deepEqual(view.checks, checks);
   });
 
+  it('carries the citations and the memories of the chat.message as served, and leaves them out when it has none (Story 20.2)', () => {
+    const citations = [{ documentRef: 'D1', document: 'Results runbook', section: 'Rotating the certificate', passage: 'Rotate it.', chunkIndex: 2 }];
+    const memories = [{ memoryRef: 'M1', text: 'Lee is the Results contact.', savedAt: '2026-10-22T14:11:00Z' }];
+    const [both, none, empty] = chatView([turn('A', { citations, memories }), turn('B'), turn('C', { citations: [], memories: [] })], [], NO_RUNNING, NOW);
+    assert.deepEqual(both.citations, citations);
+    assert.deepEqual(both.memories, memories);
+    for (const view of [none, empty]) {
+      assert.equal(view.citations, undefined);
+      assert.equal(view.memories, undefined);
+    }
+  });
+
   it('leaves them out when the chat.message has none', () => {
     const [view] = chatView([turn('A')], [], NO_RUNNING, NOW);
     for (const field of ['decision', 'turnCost', 'fallbackReason', 'checkKey', 'checks', 'traceUrl']) {

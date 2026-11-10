@@ -1,5 +1,5 @@
 /// Tests of the reads of the daily note in OcuTalon.Data.Ownership (Story 41.3; AD-4, AD-13, AD-21): NoteTurns, NoteDecisions, NoteIncidents, NoteApprovals and
-/// NoteReminders, their Rows kinds, and DecisionChannel. Safe on a slot: no production is needed. The sessions and rows are fixtures, and every test removes its own by Ref.
+/// NoteReminders, their Rows kinds, DecisionChannel and DecisionServed. Safe on a slot: no production is needed. The sessions and rows are fixtures, and every test removes its own by Ref.
 ///   - TestIsolation: two sessions read none of each other's rows through any of the kinds, and the owners eval and instance are no session's; an instance incident of a
 ///     watched production, and its instance approval request, are read on a local install and not on the online demo;
 ///   - TestRefusals: each kind refuses an empty owner and the owners eval and instance (in any case, with trailing blanks) through Test.Data.OwnershipProbe.Call, with an
@@ -7,6 +7,8 @@
 ///   - TestWindows: each window includes its from bound and excludes its to bound, and a record outside it is not read; an approval request is placed by AnsweredAt, else RaisedAt;
 ///   - TestEmptyBounds: a window with an empty bound is an error status and no row;
 ///   - TestOrder: the rows come by time and then ID;
+///   - TestDecisionServed (Story 41.12; DW-967): a decision with a usage row of the session is served (1), one with none is not (0), another owner's usage row does not count, an empty
+///     decision and a refused owner read nothing, and the read is OK;
 ///   - TestTurnsAndChannel: a refused turn is not one of the turns; a decision's channel is its own usage rows' first that is not empty, and another owner's usage is not read.
 Class OcuTalon.Test.Data.OwnershipNotes Extends %UnitTest.TestCase
 {
@@ -183,6 +185,30 @@ Method TestOrder()
 	Set early = ..Keep(##class(OcuTalon.Test.Data.Fixture).Approval(a, "", "approved", "2030-06-15T09:00:00Z", {"AnsweredAction": "approve", "AnsweredAt": "2030-06-15T13:00:00Z"}))
 	Set tie = ..Keep(##class(OcuTalon.Test.Data.Fixture).Approval(a, "", "pending", "2030-06-15T12:00:00Z"))
 	Do $$$AssertEquals(..RefsOf(##class(OcuTalon.Data.Ownership).NoteApprovals(a, ..#FROM, ..#TO)), late_","_tie_","_early, "requests by AnsweredAt else RaisedAt, then ID")
+}
+
+/// DecisionServed: 1 when the decision has a usage row of the session; none, another owner's row, an empty decision and the owners eval, instance and "" give 0.
+Method TestDecisionServed()
+{
+	Set a = ..Session(), b = ..Session()
+	Set served = ..Keep(##class(OcuTalon.Test.Data.Fixture).Decision(a, "decide", "2030-06-15T10:00:00Z"))
+	Set bare = ..Keep(##class(OcuTalon.Test.Data.Fixture).Decision(a, "decide", "2030-06-15T10:01:00Z"))
+	Set foreign = ..Keep(##class(OcuTalon.Test.Data.Fixture).Decision(a, "decide", "2030-06-15T10:02:00Z"))
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(served, a)
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(foreign, b)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).DecisionServed(served, a, .sc), 1, "a decision with a usage row of the session is served")
+	Do $$$AssertStatusOK(sc, "and the read is OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).DecisionServed(bare, a, .sc), 0, "a decision with no usage row is not")
+	Do $$$AssertStatusOK(sc, "and the read is OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).DecisionServed(foreign, a, .sc), 0, "a usage row of another owner does not count")
+	Do $$$AssertStatusOK(sc, "and the read is OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).DecisionServed(foreign, b, .sc), 1, "it counts for its own owner")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).DecisionServed("", a, .sc), 0, "an empty decision is not served")
+	Do $$$AssertStatusOK(sc, "and the read is OK")
+	For owner = "", "eval", "instance" {
+		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).DecisionServed(served, owner, .sc), 0, "the owner '"_owner_"' reads nothing")
+		Do $$$AssertStatusNotOK(sc, "and says why")
+	}
 }
 
 /// A refused turn is not one of the turns; a queued and a running one are. DecisionChannel is the first Channel that is not empty among the decision's own usage rows,

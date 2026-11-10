@@ -1,5 +1,6 @@
-/// Forgets one of the session's memories (AD-1, AD-21, AD-29; Story 34.2). Owner: MemoryOps (OcuTalon.Memory.Ops, Lane A). Origin: tool only,
-/// with the same context check as SaveMemory: a tool forgets only its own session's memory.
+/// Forgets one of the session's memories (AD-1, AD-21, AD-29; Story 34.2). Owner: MemoryOps (OcuTalon.Memory.Ops, Lane A). Origin: tool or web_user.
+/// From tool it has the same context check as SaveMemory: a tool forgets only its own session's memory. From web_user (Story 41.9) the
+/// web layer sets the CSP session's SessionRef, and MemoryOps forgets only that session's own row.
 Class OcuTalon.Msg.Command.ForgetMemory Extends OcuTalon.Msg.Command
 {
 

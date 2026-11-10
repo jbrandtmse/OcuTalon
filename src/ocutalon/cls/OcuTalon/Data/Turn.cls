@@ -74,6 +74,14 @@ Property CheckKey As %String(MAXLEN = 128);
 /// a reply with none.
 Property CheckRows As %String(MAXLEN = "");
 
+/// The citations of the reply, as a JSON array of {documentRef, document, section, passage, chunkIndex} (at most 5); empty for
+/// a reply with none. Rows saved before this property hold no value.
+Property Citations As %String(MAXLEN = "");
+
+/// The memories the reply recalled, as a JSON array of {memoryRef, text, savedAt} (at most 5); empty for a reply with none.
+/// Rows saved before this property hold no value.
+Property Memories As %String(MAXLEN = "");
+
 /// The Ref of the decision whose figures the turn shows (AD-20): for a fallback reply the reply decision, else the triage
 /// decision; the other one when the first is empty.
 Method ShownDecisionRef() As %String
@@ -161,6 +169,12 @@ Storage Default
 </Value>
 <Value name="23">
 <Value>SessionRotated</Value>
+</Value>
+<Value name="24">
+<Value>Citations</Value>
+</Value>
+<Value name="25">
+<Value>Memories</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.TurnD</DataLocation>

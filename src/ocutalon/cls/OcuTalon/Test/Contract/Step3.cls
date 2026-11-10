@@ -152,7 +152,10 @@ XData Contracts [ MimeType = application/json ]
    "SavedAt": "%String(MAXLEN=20)",
    "ItemId": "%String(MAXLEN=22)",
    "Origin": "%String(MAXLEN=16)",
-   "Embedding": "%Vector"
+   "Embedding": "%Vector",
+   "Source": "%String(MAXLEN=16)",
+   "Pinned": "%Boolean",
+   "PinnedAt": "%String(MAXLEN=20)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

@@ -8,6 +8,10 @@
 ///     ItemId), the model's next request carries ok, saved and the Ref; a later turn that asks by meaning (memory-recall-meaning) and one by the word Lee
 ///     (memory-recall-keyword) get the memory, and the Reply's HostData.memories holds {memoryRef, text, savedAt} for it, with Tainted 0; a list turn (memory-list)
 ///     gives the memory and total 1 and no HostData; the ChatAgent job is the same across the four turns and the steps of each are right;
+///   - TestToldAndLearnedThroughTheAgent (Story 41.8, Integration AC): three "[[mock:memory-save]]" turns of one session: on a Data.Turn of the session whose text
+///     holds "Remember that" the new row is told; on a Data.Turn whose text holds none of the fixed phrases it is learned; and with an ItemId that has no Data.Turn it
+///     is learned; every row has Pinned 0 and PinnedAt empty; then "[[mock:memory-list]]" gives the model the three memories, newest first, with the source learned,
+///     learned and told;
 ///   - TestForgetThroughTheAgent (matrix "Forget"): memory-forget forgets the session's memory named by the scenario's fixed Ref, the reply is "Forgotten.", the
 ///     model's next request carries ok and forgotten, the row is gone, another memory of the session stays, and a later recall by the word Lee finds nothing;
 ///   - TestSearchThenForget (Conventions "Citations and memories"): memory-search-forget searches first, as the forget bullet tells the model, then forgets the
@@ -42,6 +46,9 @@ Parameter SYSTEMREF = "zzMemorySystem00000001";
 
 /// The ItemIds of the turns that the test made.
 Property ItemIds As %List;
+
+/// The Refs of the Data.Turn fixture rows that the test made, comma-separated.
+Property TurnRefs As %String(MAXLEN = "") [ Transient ];
 
 /// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark).
 Property SessionMark As %Integer;
@@ -84,6 +91,8 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", itemId)
 	}
 	Set ..ItemIds = ""
+	If ..TurnRefs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..TurnRefs)
+	Set ..TurnRefs = ""
 	If $ClassMethod(..#FIXTURE, "Running") Do $ClassMethod(..#FIXTURE, "DropSince", ..SessionMark)
 	Do ..DropRows()
 	Quit $$$OK
@@ -138,11 +147,13 @@ Method Ready() As %Boolean [ Private ]
 }
 
 /// Sends a turn of the owner through Decide (RunnerFixture.Run) and reads the mock's log for it: request is the Request, answer the Reply, session the session of
-/// the request and requests the entries of the mock's log for the turn, in order.
-Method Turn(provenance As %String, text As %String, owner As %String, Output request As OcuTalon.Bridge.Msg.Request, Output answer As %Persistent, Output session As %Integer, Output requests As %DynamicArray) As %Status [ Private ]
+/// the request and requests the entries of the mock's log for the turn, in order. itemId, when given, is the ItemId of the request instead of the new reference
+/// (the mock's log is still searched by the reference).
+Method Turn(provenance As %String, text As %String, owner As %String, Output request As OcuTalon.Bridge.Msg.Request, Output answer As %Persistent, Output session As %Integer, Output requests As %DynamicArray, itemId As %String = "") As %Status [ Private ]
 {
 	Set request = $ClassMethod(..#FIXTURE, "NewRequest", "turn", provenance, text, .ref, owner)
-	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	If itemId '= "" Set request.ItemId = itemId
+	Set ..ItemIds = ..ItemIds _ $ListBuild(request.ItemId)
 	Set mark = $ClassMethod(..#MOCK, "LogMark")
 	Set sc = $ClassMethod(..#FIXTURE, "Run", request, .answer, .session)
 	Set requests = []
@@ -270,6 +281,65 @@ Method TestSaveRecallListThroughTheAgent()
 	Do ..AssertSteps(answer, turnSession, $ListBuild("Listing your memories"), $ListBuild("list_memories"))
 	Do ..SameJob(job, "after the list")
 	Do $$$AssertEquals(..Count(session), 1, "and the table still holds one memory of the session")
+}
+
+/// A Data.Turn of the session with the person's text, as Conversation stores the turn; its ItemId.
+Method TurnItem(session As %String, text As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Turn(session, , "running", text)
+	Set ..TurnRefs = ..TurnRefs _ $Select(..TurnRefs '= "": ",", 1: "") _ ref
+	Quit ##class(OcuTalon.Data.Turn).RefIndexOpen(ref).ItemId
+}
+
+/// The memories of the session that the ItemId saved, as "<Source>|<Pinned>|<PinnedAt>|<Ref>" lines joined with "; ", oldest first.
+ClassMethod SourceRows(session As %String, itemId As %String) As %String [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Source, Pinned, PinnedAt, Ref FROM OcuTalon_Data.Memory WHERE SessionRef = ? AND ItemId = ? ORDER BY ID", session, itemId)
+	Set text = ""
+	While rs.%Next() {
+		Set text = text _ $Select(text '= "": "; ", 1: "") _ rs.%Get("Source")_"|"_rs.%Get("Pinned")_"|"_rs.%Get("PinnedAt")_"|"_rs.%Get("Ref")
+	}
+	Quit text
+}
+
+/// A memory the person asked for is told, one saved from a turn without a fixed phrase and one with no turn row are learned, and the list shows the model each source.
+Method TestToldAndLearnedThroughTheAgent()
+{
+	If '..Ready() Quit
+	Set session = ..Session("told")
+	Set fact = "the Results partner's contact is Lee"
+	Set toldText = "Remember that "_fact_". [[mock:memory-save]]"
+	Set learnedText = "The Results partner's contact is Lee. [[mock:memory-save]]"
+	Set toldItem = ..TurnItem(session, toldText)
+	Set learnedItem = ..TurnItem(session, learnedText)
+	Set noTurnItem = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = ..Turn("user", toldText, session, .request, .answer, .turnSession, .requests, toldItem)
+	If '..AssertTurn(sc, answer, request, "The CI mock will remember that.") Quit
+	Set toldRows = ..SourceRows(session, toldItem)
+	Do $$$AssertEquals($Piece(toldRows, "|", 1, 3), "told|0|", "the turn that says Remember that saved a told memory, not pinned")
+	Set sc = ..Turn("user", learnedText, session, .request, .answer, .turnSession, .requests, learnedItem)
+	If '..AssertTurn(sc, answer, request, "The CI mock will remember that.") Quit
+	Set learnedRows = ..SourceRows(session, learnedItem)
+	Do $$$AssertEquals($Piece(learnedRows, "|", 1, 3), "learned|0|", "the turn with no fixed phrase saved a learned memory, not pinned")
+	Set sc = ..Turn("user", toldText, session, .request, .answer, .turnSession, .requests, noTurnItem)
+	If '..AssertTurn(sc, answer, request, "The CI mock will remember that.") Quit
+	Set noTurnRows = ..SourceRows(session, noTurnItem)
+	Do $$$AssertEquals($Piece(noTurnRows, "|", 1, 3), "learned|0|", "an ItemId with no Data.Turn of the session saved a learned memory, whatever the text says")
+	Do $$$AssertEquals(..Count(session), 3, "three memories in all")
+	Set sc = ..Turn("user", "What do you remember? [[mock:memory-list]]", session, .request, .answer, .turnSession, .requests)
+	If '..AssertTurn(sc, answer, request, "The CI mock listed the memories.") Quit
+	If ..LastResult(requests, .result) {
+		Set refs = ""
+		Set sources = ""
+		Set iterator = result.memories.%GetIterator()
+		While iterator.%GetNext(, .memory) {
+			Set refs = refs _ $Select(refs '= "": ",", 1: "") _ memory.ref
+			Set sources = sources _ $Select(sources '= "": ",", 1: "") _ memory.source
+		}
+		Do $$$AssertEquals(result.total, 3, "the model reads total 3")
+		Do $$$AssertEquals(refs, $Piece(noTurnRows, "|", 4)_","_$Piece(learnedRows, "|", 4)_","_$Piece(toldRows, "|", 4), "the memories newest first")
+		Do $$$AssertEquals(sources, "learned,learned,told", "each with its source")
+	}
 }
 
 /// The owner forgets its memory; the reply is Forgotten.; a recall misses it.

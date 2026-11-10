@@ -3,6 +3,9 @@
 /// fixture row is removed by Ref after its test. Every public text and every expected line is written out here, never read from the class.
 ///   - TestTexts: each public text of the class is compared with the copy held here (the eight line forms, the fired-late word and the closing line), and the limit;
 ///   - TestMessageLines: a message's line holds its opening (the first line, at most 80 characters with the cut mark), a refused turn gives none, and a queued turn gives one;
+///   - TestLeavesOutCurrentTurn (DW-977): built for the ItemId of a turn, the note leaves out that turn, every later turn (by CreatedAt, then ID, so a turn of the same second made after it too) and the
+///     decide decisions those turns made, and keeps the earlier ones and the records that are no person's words; built with two arguments, or with an ItemId that names no turn of the session, it
+///     is the whole day;
 ///   - TestDecisionLines: the channel of a decision is its turn's, else the first channel of its own usage rows, else there is none and the bare form is used;
 ///   - TestIncidentLines: the state and the count, and the fix kind of the newest fix request that has one;
 ///   - TestApprovalLines: approved and rejected from the answer, the state of an unanswered request, the answering channel, and the time (AnsweredAt, else RaisedAt);
@@ -116,6 +119,34 @@ Method TestMessageLines()
 	Set expected = expected _ "10:34 message (web): Running one" _ $Char(10)
 	Set expected = expected _ "10:35 message (phone): From the phone"
 	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#DAY), expected, "the five messages that were not refused, each with its opening")
+}
+
+/// DW-977: the note built for a turn's ItemId leaves out that turn, the later turns and their decide decisions; two arguments and an unknown ItemId give the whole day.
+Method TestLeavesOutCurrentTurn()
+{
+	Set session = ..Session()
+	Set other = ..Session()
+	Set earlier = ..Turn(session, "09:00:00", "Earlier one")
+	Do ..Decision(session, "09:00:01", "digest", {"ItemId": (..TurnItem(earlier))})
+	Set tieBefore = ..Turn(session, "10:00:00", "Tie before")
+	Set current = ..Turn(session, "10:00:00", "Current one")
+	Set tieAfter = ..Turn(session, "10:00:00", "Tie after")
+	Do ..Decision(session, "10:00:01", "act", {"ItemId": (..TurnItem(current))})
+	Set later = ..Turn(session, "11:00:00", "Later one")
+	Do ..Decision(session, "11:00:01", "tellnow", {"ItemId": (..TurnItem(later))})
+	Do ..Reminder(session, "12:00:00", "pending", "Zz kept")
+	Set otherTurn = ..Turn(other, "10:00:00", "Other session")
+	Set lf = $Char(10)
+	Set whole = "09:00 message (web): Earlier one"_lf_"09:00 decision (web): digest"_lf_"10:00 message (web): Tie before"_lf_"10:00 message (web): Current one"_lf_"10:00 message (web): Tie after"_lf_"10:00 decision (web): act"_lf_"11:00 message (web): Later one"_lf_"11:00 decision (web): tellnow"_lf_"12:00 reminder due: Zz kept (pending)"
+	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#DAY), whole, "with two arguments the note is the whole day")
+	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#DAY, ""), whole, "with an empty ItemId too")
+	Set expected = "09:00 message (web): Earlier one"_lf_"09:00 decision (web): digest"_lf_"10:00 message (web): Tie before"_lf_"12:00 reminder due: Zz kept (pending)"
+	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#DAY, ..TurnItem(current)), expected, "for the current turn: it, the turn of its second made after it, the later turn and their decisions are left out")
+	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#DAY, ..TurnItem(earlier)), "12:00 reminder due: Zz kept (pending)", "for the earliest turn: every message and decision of the day is left out, the reminder stays")
+	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#DAY, ..TurnItem(later)), "09:00 message (web): Earlier one"_lf_"09:00 decision (web): digest"_lf_"10:00 message (web): Tie before"_lf_"10:00 message (web): Current one"_lf_"10:00 message (web): Tie after"_lf_"10:00 decision (web): act"_lf_"12:00 reminder due: Zz kept (pending)", "for the last turn: only it and its decision are left out")
+	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#DAY, "zzNoSuchItem0000000001"), whole, "an ItemId that names no turn gives the whole note")
+	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#DAY, ..TurnItem(otherTurn)), whole, "and so does the ItemId of another session's turn")
+	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#BEFORE, ..TurnItem(current)), "", "(a day with no records stays empty)")
 }
 
 /// A decision's channel is its turn's; otherwise it is the first channel of its own usage rows; otherwise there is none and the line is the bare form.

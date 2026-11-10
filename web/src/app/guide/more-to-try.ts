@@ -38,7 +38,7 @@ let panels = 0;
  * summary" through the chat's outbox instead; the Persona item opens the rail and the Persona card's Change, the suspicious email item selects the
  * Simulated mailbox tab and presses the suspicious-request chip, the Reject a fix item presses the box's Break the feed, the Demo view item presses the
  * Demo view switch while it is on, the memory item sends its prompt through the chat's outbox (a new message of the user's), the documents item is a
- * link to the Documents page and the heartbeat item opens the rail and focuses the Heartbeat checklist card's heading, pressing nothing. Every action runs from the control's own click, and focus moves
+ * link to the Documents page and the heartbeat item opens the rail and focuses the Heartbeat checklist card's heading, pressing nothing, and the sources item (Story 20.2) is a link to the Documents page. Every action runs from the control's own click, and focus moves
  * only for that press. The panel announces nothing, and it emits `pressed` so that the guide keeps the panel open, and `squeezed` when the
  * room is too small for it even at its shortest window, so that the guide does not start it open.
  *

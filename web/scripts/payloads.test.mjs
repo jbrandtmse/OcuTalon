@@ -72,7 +72,7 @@ describe('the real tree', () => {
       assert.match(text, new RegExp(`^  '${type.replace('.', '\\.')}': ${cls}Payload;$`, 'm'), `LivePayloads maps ${type}`);
       assert.match(text, new RegExp(`^  \\| '${type.replace('.', '\\.')}';?$`, 'm'), `LiveEventType holds ${type}`);
     }
-    for (const part of ['DryRun', 'IncidentEvidence', 'IncidentEvidenceItem', 'IncidentGroup', 'IncidentRequest', 'IncidentRequestResult', 'IncidentTraceTargets', 'ItemNoun', 'StatusSlots', 'TraceTarget']) {
+    for (const part of ['Citation', 'DryRun', 'IncidentEvidence', 'IncidentEvidenceItem', 'IncidentGroup', 'IncidentRequest', 'IncidentRequestResult', 'IncidentTraceTargets', 'ItemNoun', 'Memory', 'StatusSlots', 'TraceTarget']) {
       assert.match(text, new RegExp(`export interface ${part} \\{`), part);
     }
     assert.match(text, /^export interface IncidentPayload \{[\s\S]*?\n  itemNoun\?: ItemNoun;[\s\S]*?\n  groups\?: IncidentGroup\[\];[\s\S]*?\n  traceTargets\?: IncidentTraceTargets;/m);
@@ -80,9 +80,11 @@ describe('the real tree', () => {
     assert.match(text, /^export interface IncidentPayload \{[\s\S]*?\n  fallback\?: boolean;/m);
   });
 
-  it('nests the decision payload, the cost and the check rows in ChatMessagePayload', () => {
+  it('nests the decision payload, the cost and the check rows, the citations and the memories in ChatMessagePayload', () => {
     const text = readFileSync(realOut, 'utf8');
-    assert.match(text, /^export interface ChatMessagePayload \{[\s\S]*?\n  decision\?: DecisionPayload;\n  turnCost\?: Cost;\n  checkKey\?: string;\n  checks\?: CheckRow\[\];\n  traceUrl\?: string;\n\}/m);
+    assert.match(text, /^export interface ChatMessagePayload \{[\s\S]*?\n  decision\?: DecisionPayload;\n  turnCost\?: Cost;\n  checkKey\?: string;\n  checks\?: CheckRow\[\];\n  citations\?: Citation\[\];\n  memories\?: Memory\[\];\n  traceUrl\?: string;\n\}/m);
+    assert.match(text, /^export interface Citation \{\n  documentRef\?: string;\n  document\?: string;\n  section\?: string;\n  passage\?: string;\n  chunkIndex\?: number;\n\}/m);
+    assert.match(text, /^export interface Memory \{\n  memoryRef\?: string;\n  text\?: string;\n  savedAt\?: string;\n\}/m);
     assert.match(text, /^export interface Cost \{\n  inputTokens\?: number;[\s\S]*?\n  costUSD\?: number;\n\}/m);
     assert.match(text, /^export interface CheckRow \{\n  result\?: string;\n  entry\?: string;\n  finding\?: string;\n  checkedAt\?: string;\n\}/m);
     assert.match(text, /^export interface TurnStepPayload \{\n  turnRef\?: string;\n  decisionRef\?: string;/m);
