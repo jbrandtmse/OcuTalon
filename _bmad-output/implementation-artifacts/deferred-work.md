@@ -6635,3 +6635,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-22-the-more-to-try-panel-shows-its-items-under-three-group-head.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web has no component test host and every registry row declares a ruled group (the typo-guard unit test fails otherwise), so no e2e can render an ungrouped set; a template rewrite that keeps the @if regex green could misrender it
 - 2026-11-10T16:33:14Z status=wontfix-accepted owner=0-22-the-more-to-try-panel-shows-its-items-under-three-group-head by=cr note=reopen_if=a registry item ships with no group, or web gains a component test host
+
+### DW-1092: flake candidate: live:sign-in-3 web/e2e/memory-card.spec.ts:424 MC6 'Tab reaches Forget' (the Forget button stayed inactive) once on a local fresh stack
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: OCT-epic23 merge 649b511f (feature 3dcd4cb5 + 23.2) local live:sign-in-3: 1 failed, 166 passed; 23.2 changes neither the Memory card nor its spec
+- 2026-11-10T19:23:42Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=ci note=flake_candidate:MC6_keyboard_tab;watch_CI_sign-in-3
