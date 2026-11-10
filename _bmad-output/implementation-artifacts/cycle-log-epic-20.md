@@ -44,3 +44,5 @@
 2026-11-10T03:03:42Z	Story 20.2	ci_resolved	story=20.2 sha=a51c2e4a runs=42718893543,42718894011 result=success failed=none via=none resolved_at=next_implement(20.3_returned)
 2026-11-10T03:03:42Z	Story 20.3	dev_complete	spawn_at=2026-11-09T23:15:41Z model=sonnet build_sha=01d675d5 baseline_revision=74770cc8 story_base=a51c2e4a review_loop_iteration=0 followup_review_recommended=true deferred=0 files=18 loc_added=937 loc_removed=16 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1
 2026-11-10T03:03:42Z	Story 20.3	ruling	question=more_to_try_capacity_groups choice=planner_option_a(3_groups;renderer_story_0.22_lane_C);20.2_sources_item_declares_group_Memory_and_documents_via_20.3(20.2_head_already_pushed) category=veto by=planner_via_orchestrator policy=5086036
+2026-11-10T03:07:26Z	Epic 20	part_merged	story=20.2 head=a51c2e4a feature_merge=cb2b416d by=orchestrator
+2026-11-10T03:07:26Z	Story 20.3	stage_spawned	stage=qa spawn_at=2026-11-10T03:07:26Z model=sonnet agent_name=20-3-add-a-sample-runbook-in-one-press-qa-1 cycle_iteration=1
