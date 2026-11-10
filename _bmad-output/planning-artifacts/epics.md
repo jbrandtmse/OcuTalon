@@ -1472,6 +1472,26 @@ So that I find every claim and its evidence from the top of the README.
 **Then** it is exactly the Planner's Edit 6 line: `community.intersystems.com` and `openexchange.intersystems.com` appear exactly once each, nothing else is added, and no AI Hub bug-report repository is allowed; Story 0.17's narrower post-path entry and its two self-tests that only that narrower entry could pass give way to the host entry
 **And** `bash docker/tests/test-readme.sh` passes every rule, `docker/tests/test-boundaries.sh` passes, and CI is green; if a rule fails on the verbatim text, the text is not reworded
 
+### Story 0.19: The README names the contest
+
+[ADDED 2026-11-09, owner via Contest Planner] SC-5 re-open of Epic 0 for release 1.0.6 (DW-1020). A one-line README change whose public text the owner has already approved verbatim; it is committed exactly as written. Light pipeline (orchestrator dispatch): one `bmad-build-auto` stage that plans and implements, then a code review.
+
+As a judge or visitor reading the README's contest checklist,
+I want the checklist to say which contest OcuTalon is entered in, with a link to the contest post,
+So that I can see at once what the entry is judged against.
+
+**Acceptance Criteria:**
+
+**Given** README.md's "## Contest checklist" section
+**When** this story merges
+**Then** the line `What OcuTalon uses, and where to check each one:` is replaced by exactly `OcuTalon is an entry in the [InterSystems Programming Contest: AI Agents in Interoperability Workflows](https://community.intersystems.com/post/intersystems-programming-contest-ai-agents-interoperability-workflows). What it uses, and where to check each one:`
+**And** nothing else in README.md changes
+- DW-1020: README: name the contest under '## Contest checklist' (ledger; routed by dispatch 2026-11-09)
+
+**Given** the change
+**When** this story merges
+**Then** README.md is the only file changed; `bash docker/tests/test-readme.sh` passes every rule (community.intersystems.com is already on its allow-list), `docker/tests/test-boundaries.sh` passes, and lane-a is green; if a rule refuses the text, the text is not reworded
+
 ### Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget
 
 [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025. A CI-only story built on Story 0.15 and merged with it on one head. On a3086148 (ci run 42634825529) iris (install-upgrade) and iris (shards-2) were cancelled at the 40-minute job limit with no test red, and shards, shards-3, shards-4 and install-fresh took 38 to 39 minutes; on Epic 35's cd13b1ae shards-2, shards-3, shards-4 and install-upgrade were cancelled at the limit. The standing CI split rules apply (REL-4's 35-minute budget; a unit of about 1,000 s at most; a new group only when packing cannot get there). The `.github/workflows/ci.yml` matrix hunk goes to the Contest Planner (`RELEASE TOOL:`) before it merges; every new job reports as `iris (<group>)`, and the Planner adds each new name to main's required checks once this story merges.]
@@ -1497,6 +1517,37 @@ So that no job is cancelled at the 40-minute limit and every head can go green w
 **Given** CI on this story's head
 **When** two clean runs finish (the second may be the merge head's)
 **Then** every iris group finishes under 35 minutes in both, each group's time from both runs is reported, and DW-1025 is resolved by this story
+
+### Story 0.21: The README opens with a centred header: logo, tagline and badges
+
+[ADDED 2026-11-09, owner via Contest Planner] SC-5 re-open of Epic 0 for release 1.0.6, after Story 0.19. Scope owner-approved (Contest Planner, 2026-11-09); the tagline is approved verbatim. The exact header markup (alt texts, badge labels, link targets) and any new or changed README-check rule message go to the Contest Planner as PUBLIC TEXT at the spec gate, before the implement stage. The `docker/tests/test-readme.sh` hunk is not a release tool. Files: README.md, docker/tests/test-readme.sh, docs/images/ocutalon-logo.png.
+
+As a judge or visitor opening the repository,
+I want the README to open with the logo, the name, one tagline and a row of status badges,
+So that I see what OcuTalon is and whether it is healthy before I read a word of the body.
+
+**Acceptance Criteria:**
+
+**Given** the logo files under `logo/`
+**When** this story merges
+**Then** `docs/images/ocutalon-logo.png` exists, about 200 px, made from `logo/OcuTalon-Icon.jpeg` or the light logo, whichever reads better at about 160 px on GitHub's light and dark themes
+
+**Given** README.md
+**When** this story merges
+**Then** it opens with a centred header that replaces the bare "# OcuTalon" presentation: the logo, the title OcuTalon, one tagline line reading exactly "An AI assistant that runs inside InterSystems IRIS Interoperability, with every decision in Visual Trace.", then a badge row, then the existing link bar
+**And** the badge row holds, each an image inside a link: CI (`https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml/badge.svg?branch=main`, linking to the ci.yml runs page); version (`https://img.shields.io/github/v/release/jbrandtmse/OcuTalon`, linking to Releases); and static shields "online demo | live" (to https://demo.ocutalon.com), "docker | install.sh" (to #start-it-with-the-install-script), "IPM | ocutalon" (to #install-it-with-ipm), "IRIS | AI Hub" (to #whats-interesting) and "license | MIT" (to LICENSE), in plain colours
+**And** the header's exact markup (alt texts, badge labels and link targets) is the text the Contest Planner approved at the spec gate
+
+**Given** `docker/tests/test-readme.sh`
+**When** this story merges
+**Then** it allows this one header block only: image hosts img.shields.io and github.com/jbrandtmse/OcuTalon (the badge.svg path), images inside links within the block, the centred HTML wrapper if needed, and the logo PNG
+**And** every other rule stays as strict as before: the existing top rule (opening paragraph, teaser, hero image) applies from the first line after the header, and no existing rule is weakened beyond the header block
+**And** new self-tests show that a badge outside the header is flagged, a badge from another host is flagged, and an image inside a link outside the header is flagged
+**And** any new or changed rule message is the text the Contest Planner approved at the spec gate
+
+**Given** the change
+**When** this story merges
+**Then** `bash docker/tests/test-readme.sh` passes every rule and every self-test, `docker/tests/test-boundaries.sh` passes, lane-a is green, and the header renders on GitHub (checked on the pushed branch's README page)
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 

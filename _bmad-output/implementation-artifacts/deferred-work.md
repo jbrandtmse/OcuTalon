@@ -6430,6 +6430,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: planner-2026-11-09-readme-contest | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: owner's request via the Planner; PUBLIC TEXT approved verbatim; community.intersystems.com already on the README check allow-list
 - 2026-11-09T14:41:04Z status=routed owner=burndown by=owner note=1.0.6; Epic 0 re-open Story 0.19 (README) on lane C right after 0.15 merges (not now: a push would cancel a3086148's CI); done when test-readme.sh passes all rules and lane-a is green; a refusing rule goes back to the Planner, never reworded
+- 2026-11-09T22:47:15Z status=routed owner=0-19-the-readme-names-the-contest by=dispatch note=Epic_0_re-open_Story_0.19_(1.0.6);acceptance_bullet_in_epics.md
+- 2026-11-09T23:04:51Z status=resolved-by:0-19-the-readme-names-the-contest by=adjudication note=README.md:376_byte-exact_approved_line(build_8d09f760);test-readme.sh_all_rules_pass;CR_done
 
 ### DW-1021: PARKED until after voting (owner re-plan 2026-11-09): 41.10, 41.11; Epic 11 part 2 after 11.15 (11.16, 11.18, 11.29, approved texts kept in their specs); DW-446/DW-485 release-tool story (except DW-1018's host-check add-on); Epic 35 after 35.2 (35.3); Epics 21, 22 (step 4) incl. the 23.5 EmailOut follow-up; Epics 24, 26, 27, 28; Stories 25.3-25.5, 36.2 (and 36.1/23.3 unless the Planner brings them back); Epic 38 CLOSED (1.0.0 hands-on pass obsolete). Nothing deleted; tracker statuses unchanged.
 - source: planner-2026-11-09-replan | severity: med | fix-risk: low | footprint: out-of-footprint
