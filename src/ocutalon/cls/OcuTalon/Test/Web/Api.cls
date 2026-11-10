@@ -954,12 +954,12 @@ Method TestErrorTexts()
 	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Login).#ERRORNOROLE, "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.", "no_role is the sign-in page's text")
 }
 
-/// The URL map holds exactly the 32 routes, each with its call.
+/// The URL map holds exactly the 36 routes, each with its call.
 Method TestRoutes()
 {
 	Set found = ..Routes("OcuTalon.Web.Api")
-	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/decisions/:ref/got-it GotIt", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing", "GET /v1/persona GetPersona", "PUT /v1/persona PutPersona", "GET /v1/heartbeat GetHeartbeat", "PUT /v1/heartbeat PutHeartbeat", "POST /v1/heartbeat/run RunHeartbeat", "POST /v1/decisions/:ref/noise MarkNoise", "GET /v1/memory/precedents Precedents", "DELETE /v1/memory/precedents/:ref ForgetPrecedent", "GET /v1/memory/notes Notes", "GET /v1/settings Settings", "POST /v1/settings/models SaveModels", "POST /v1/settings/models/test TestModel", "POST /v1/settings/budgets SaveBudgets", "POST /v1/settings/channels NotBuilt", "POST /v1/settings/daily-digest SaveDailyDigest", "POST /v1/settings/daily-digest/send SendDigest", "POST /v1/settings/time-zone SaveTimeZone", "POST /v1/settings/check-thresholds SaveCheckThresholds", "POST /v1/settings/demo-mode SaveDemoMode")
-	Do $$$AssertEquals($ListLength(found), 32, "32 routes")
+	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/decisions/:ref/got-it GotIt", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing", "GET /v1/persona GetPersona", "PUT /v1/persona PutPersona", "GET /v1/heartbeat GetHeartbeat", "PUT /v1/heartbeat PutHeartbeat", "POST /v1/heartbeat/run RunHeartbeat", "POST /v1/decisions/:ref/noise MarkNoise", "GET /v1/memory/precedents Precedents", "DELETE /v1/memory/precedents/:ref ForgetPrecedent", "GET /v1/memory/notes Notes", "GET /v1/memory/items MemoryItems", "POST /v1/memory/:ref/pin PinMemory", "DELETE /v1/memory/:ref/pin UnpinMemory", "DELETE /v1/memory/items/:ref ForgetMemory", "GET /v1/settings Settings", "POST /v1/settings/models SaveModels", "POST /v1/settings/models/test TestModel", "POST /v1/settings/budgets SaveBudgets", "POST /v1/settings/channels NotBuilt", "POST /v1/settings/daily-digest SaveDailyDigest", "POST /v1/settings/daily-digest/send SendDigest", "POST /v1/settings/time-zone SaveTimeZone", "POST /v1/settings/check-thresholds SaveCheckThresholds", "POST /v1/settings/demo-mode SaveDemoMode")
+	Do $$$AssertEquals($ListLength(found), 36, "36 routes")
 	Do $$$AssertEquals($ListToString(found, "|"), $ListToString(expected, "|"), "the routes, in order")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HandleCorsRequest"), 0, "no CORS handling")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "CHARSET"), "utf-8", "utf-8")
@@ -1407,6 +1407,30 @@ ClassMethod Collect(ByRef capture) As %String
 	Do ##class(%File).Delete(capture("file"))
 	Kill capture
 	Quit written
+}
+
+/// Runs OnPreDispatch of the dispatch class probe for the URL and method with a stand-in request made of the Content-Type, the X-OcuTalon-Request value,
+/// the Origin and the Host, and a CSP session of that id; returns what it wrote. response is the response it left, continue the dispatch flag it left,
+/// and sc its status (an error when the output could not be captured or OnPreDispatch threw).
+ClassMethod PreDispatchOf(probe As %String, sessionId As %String, url As %String, method As %String, contentType As %String, header As %String, origin As %String, host As %String, Output response, Output continue, Output sc As %Status) As %String
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeCall("/ocutalon/api/", method, contentType, header, origin, host)
+	Set %response = ##class(%CSP.Response).%New()
+	Set %response.ContentType = ""
+	Set %session = ##class(%CSP.Session).%New(sessionId, 0)
+	Set continue = 1
+	Set sc = ..Capture(.capture)
+	If $SYSTEM.Status.IsOK(sc) {
+		Try {
+			Set sc = $ClassMethod(probe, "OnPreDispatch", url, method, .continue)
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+	}
+	Set body = ..Collect(.capture)
+	Set response = %response
+	Quit body
 }
 
 /// Calls Events with the given cursors and a stand-in request, and returns the body that it wrote.

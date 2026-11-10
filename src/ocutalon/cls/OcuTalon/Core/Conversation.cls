@@ -13,7 +13,8 @@
 ///     Summary, never the text of another turn. The decision landing stores the DecisionRef and publishes chat.message
 ///     (running); a turn request is fresh with a code-written recap (Recap) when the session's last replied turn was Tainted,
 ///     and continues otherwise. The turn request of a session start also carries the context {"sessionStart": 1} for Agent.Input.Render
-///     (AD-21): a session start is the session's first turn of its local day in the instance zone, a turn that is fresh, and the turn after a
+///     (AD-21): a session start is the session's first turn of its local day in the instance zone (a day's earlier turn counts only when its request reached a model: it did not
+///     fall back, or its decision has a Usage row), a turn that is fresh, and the turn after a
 ///     reply with SessionRotated, which the Turn keeps (StartsSession). No other request carries a context: not the decide request, and not Intake's;
 ///   - the turn's answer: Busy waits BUSYWAIT seconds (a timer) and sends the request again, at most BUSYMAX times, and the next
 ///     Busy is the fallback rate_limited; SessionBroken sends the request once more as a new Decide call under a new ItemId
@@ -450,10 +451,11 @@ Method Ask(turn As OcuTalon.Data.Turn) As %Status [ Private ]
 }
 
 /// 1 when the turn starts a session (AD-21), so that its turn request carries the context {"sessionStart": 1}: fresh (the turn request is fresh, whether
-/// because of a taint or a broken session), or the first turn of its local day in the instance zone (no earlier turn of the session that is not refused was
-/// created on the same local date as this turn's CreatedAt), or the session's last replied turn has SessionRotated. turn is the session's newest turn, the one
-/// that Conversation is sending: the rotation half reads the session's last replied turn, not the last one before turn. It reads only the Turn rows, and the
-/// answer is the same each time the turn is asked, a Busy resend included. A read that fails, and a CreatedAt that can't be read, count as a session start,
+/// because of a taint or a broken session), or the first turn of its local day in the instance zone (no earlier turn of the session that is not refused and reached a model was
+/// created on the same local date as this turn's CreatedAt; an earlier turn reached a model when it did not fall back, or when the decision of its fallback has a usage row of the session,
+/// Ownership.DecisionServed, so a day's first turn that fell back before any model call leaves the next turn a start, DW-967), or the session's last replied turn has SessionRotated. turn is the session's newest turn, the one
+/// that Conversation is sending: the rotation half reads the session's last replied turn, not the last one before turn. It reads the Turn rows and, for an earlier turn that fell back, the Usage
+/// rows of its decision, and the answer is the same each time the turn is asked, a Busy resend included. A read that fails, and a CreatedAt that can't be read, count as a session start,
 /// with one warning, so that a failure adds a block of the code-written notes and never loses it.
 ClassMethod StartsSession(turn As OcuTalon.Data.Turn, fresh As %Boolean) As %Boolean
 {
@@ -469,8 +471,18 @@ ClassMethod StartsSession(turn As OcuTalon.Data.Turn, fresh As %Boolean) As %Boo
 		Set other = turns.GetAt(i)
 		If other.Ref = turn.Ref Quit
 		If (other.State '= "refused") && ($Piece(##class(OcuTalon.Data.Time).ToLocal(other.CreatedAt), "T", 1) = date) {
-			Set first = 0
-			Quit
+			Set reached = 1
+			If other.FallbackReason '= "" {
+				Set reached = ..Served(other.TurnDecisionRef, turn.SessionRef, .served)
+				If $$$ISERR(served) {
+					$$$LOGWARNING(..#LOGSTART_$SYSTEM.Status.GetErrorText(served))
+					Quit
+				}
+			}
+			If reached {
+				Set first = 0
+				Quit
+			}
 		}
 	}
 	If first Quit 1
@@ -480,6 +492,12 @@ ClassMethod StartsSession(turn As OcuTalon.Data.Turn, fresh As %Boolean) As %Boo
 		Quit 1
 	}
 	Quit $IsObject(last) && last.SessionRotated
+}
+
+/// 1 when the decision has a usage row of the session (Ownership.DecisionServed): the turn's request reached a model; sc is the status of the read. A seam for the tests.
+ClassMethod Served(decisionRef As %String, sessionRef As %String, Output sc As %Status) As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Ownership).DecisionServed(decisionRef, sessionRef, .sc)
 }
 
 /// The session's last replied turn (Ownership.LastRepliedTurn), or ""; sc is the status of the read.

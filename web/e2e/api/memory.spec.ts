@@ -1,7 +1,8 @@
-import { expect, test } from '../support/fixtures';
+import { expect, test, type APIRequestContext, type APIResponse } from '../support/fixtures';
 
 import { README_ACCOUNT, envelope, expectError, signInOverHttp } from '../sign-in/helpers';
-import { precedentExists, removeNoteRows, removePrecedent, seedNoteDecision, seedNoteTurn, seedPrecedent } from '../support/memory';
+import { fixtureUser } from '../support/iris';
+import { memoryExists, pinnedCountOf, precedentExists, removeMemory, removeNoteRows, removePrecedent, seedMemory, seedNoteDecision, seedNoteTurn, seedPrecedent, sessionRefOfUser } from '../support/memory';
 import { sessionRef } from '../support/persona';
 
 /**
@@ -17,11 +18,28 @@ import { sessionRef } from '../support/persona';
  * and a decide decision whose Summary is an instruction, and GET /api/v1/memory/notes?day=today is 200 with a line `hh:mm message (web): <text>` for
  * the turn and one more line `hh:mm decision: digest` than before the seeding for the decision, every line a string, and no line that holds the
  * decision's instruction text.
+ *
+ * Story 41.9 adds the memory item routes: GET /api/v1/memory/items, POST and DELETE /api/v1/memory/:ref/pin and DELETE /api/v1/memory/items/:ref.
+ * Signed out each is 401 signed_out with no challenge. Signed in as the LIVE fixture user, the list is 200 {items, total} with an array of items and a count; deleting an unknown
+ * ref with the envelope is 404 not_found (the real gate and MemoryOps answer), and the same call without the X-OcuTalon-Request header is refused as
+ * every other write route is.
+ *
+ * Story 41.9, the read path (planner-2026-11-09-41.9-readpath) and the standing rule for /api/v1 routes: the unprivileged LIVE fixture user (role OcuTalonUser only, the demo visitors' role; the README account holds OcuTalonAdmin and is not the
+ * unprivileged account) signs in over HTTP and a second session (the PANEL fixture user, also OcuTalonUser only, so another durable session) does too. The first session's seeded memory is listed (200, the five-member item, `pinned` a boolean), found by a search
+ * (200), not found by the second session's list or search, kept when the second session forgets its Ref (404 not_found), and forgotten by the first (200 {"result":"done"}, then
+ * gone from the row, the list and the search). The memory is seeded through the memory area's fixture (support/memory.ts), never through a route.
+ *
+ * Story 41.12 (DW-1039): the pin routes are handled by MemoryOps. In the list/search/forget test the first session pins its row (200 {"result":"done"}, and the list shows `pinned: true`), the second
+ * session's POST and DELETE of the pin on the first session's ref are 404 not_found and the row stays pinned, the unpin is 200 (`pinned: false`), a second pin is 200, and the forget of the pinned row is 200 and
+ * the row is gone. A further test pins under the cap as the LIVE user: memories of 2,000 and 1,956 characters pin (the core-memory block is then exactly 4,000 characters), a third of 2 characters is 409 over_cap
+ * with the approved sentence and stays unpinned, and after the 1,956-character memory is unpinned the short one pins. The rows are removed in `finally`.
  */
 const MEMORY = '/ocutalon/api/v1/memory';
 const NOISE = (ref: string): string => `/ocutalon/api/v1/decisions/${ref}/noise`;
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
+const OVER_CAP = 'That would go over the 1,000-token limit. Unpin something first.';
+const NO_REQUEST_HEADER = "OcuTalon refused this request because it didn't come from the OcuTalon page.";
 
 /** Saves a done turn of the session (channel web, created now) with the text, and a decide decision of the session (recorded now) with the summary, and answers their Refs. */
 async function seedNote(session: string, text: string, summary: string): Promise<{ turn: string; decision: string }> {
@@ -108,5 +126,200 @@ test('the memory routes: signed out, the list, a delete, unknown refs, and the n
   } finally {
     for (const one of seeded) await removePrecedent(one);
     if (noteRows) await removeNoteRows(noteRows);
+  }
+});
+
+test('the memory item routes: signed out, the list, an unknown forget, and the envelope', async ({ request, playwright, baseURL }) => {
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
+  const anonymous = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
+  try {
+    const calls = [
+      { method: 'GET', url: `${MEMORY}/items` },
+      { method: 'POST', url: `${MEMORY}/zzunknownref/pin` },
+      { method: 'DELETE', url: `${MEMORY}/zzunknownref/pin` },
+      { method: 'DELETE', url: `${MEMORY}/items/zzunknownref` },
+    ] as const;
+    for (const call of calls) {
+      const response = await anonymous.fetch(call.url, { method: call.method, headers: envelope() });
+      await expectError(response, 401, 'signed_out', SIGNED_OUT);
+      expect(response.headers()['www-authenticate'], `${call.method} ${call.url} sends no challenge`).toBeUndefined();
+    }
+  } finally {
+    await anonymous.dispose();
+  }
+
+  const listed = await request.get(`${MEMORY}/items`);
+  expect(listed.status(), await listed.text()).toBe(200);
+  expect(listed.headers()['content-type']).toContain('application/json');
+  const list = (await listed.json()) as { items: unknown[]; total: number };
+  expect(Object.keys(list)).toEqual(['items', 'total']);
+  expect(Array.isArray(list.items)).toBe(true);
+  expect(Number.isInteger(list.total) && list.total >= list.items.length).toBe(true);
+
+  await expectError(await request.fetch(`${MEMORY}/items/zzunknownref`, { method: 'DELETE', headers: envelope() }), 404, 'not_found', NOT_FOUND);
+  await expectError(await request.fetch(`${MEMORY}/items/zzunknownref`, { method: 'DELETE', headers: envelope({ 'x-ocutalon-request': undefined }) }), 403, 'no_request_header', NO_REQUEST_HEADER);
+});
+
+/*
+ * Story 41.9 (QA): the other two write routes are behind the envelope as well, and a ref longer than the 22 characters of a memory Ref names no memory on any of the three,
+ * before anything reaches MemoryOps, which handles the pins since Story 41.12.
+ */
+test('the memory item writes: the envelope on the pin routes, and an over-long ref', async ({ request }) => {
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
+  const writes = [
+    { method: 'POST', url: (ref: string): string => `${MEMORY}/${ref}/pin` },
+    { method: 'DELETE', url: (ref: string): string => `${MEMORY}/${ref}/pin` },
+    { method: 'DELETE', url: (ref: string): string => `${MEMORY}/items/${ref}` },
+  ] as const;
+  const tooLong = 'z'.repeat(23);
+  for (const write of writes) {
+    const label = `${write.method} ${write.url('<ref>')}`;
+    const noHeader = await request.fetch(write.url('zzunknownref'), { method: write.method, headers: envelope({ 'x-ocutalon-request': undefined }) });
+    await expectError(noHeader, 403, 'no_request_header', NO_REQUEST_HEADER);
+    const notJson = await request.fetch(write.url('zzunknownref'), { method: write.method, headers: envelope({ 'content-type': 'text/plain' }) });
+    expect(notJson.status(), `${label} with text/plain is refused`).toBe(403);
+    expect(((await notJson.json()) as { error: { code: string } }).error.code).toBe('not_json');
+    const elsewhere = await request.fetch(write.url('zzunknownref'), { method: write.method, headers: envelope({ origin: 'http://evil.example' }) });
+    expect(elsewhere.status(), `${label} from another site is refused`).toBe(403);
+    expect(((await elsewhere.json()) as { error: { code: string } }).error.code).toBe('wrong_origin');
+    await expectError(await request.fetch(write.url(tooLong), { method: write.method, headers: envelope() }), 404, 'not_found', NOT_FOUND);
+  }
+});
+
+/** The answer is 200 {"result":"done"}. */
+async function expectDone(response: APIResponse): Promise<void> {
+  expect(response.status(), await response.text()).toBe(200);
+  expect(await response.json()).toEqual({ result: 'done' });
+}
+
+/** Whether the list of the context shows the memory with the ref as pinned. */
+async function pinnedOf(context: APIRequestContext, ref: string): Promise<boolean> {
+  const response = await context.get(`${MEMORY}/items`);
+  expect(response.status(), await response.text()).toBe(200);
+  const item = ((await response.json()) as { items: Array<{ ref: string; pinned: boolean }> }).items.find((one) => one.ref === ref);
+  expect(item, 'the memory is listed').toBeDefined();
+  return item?.pinned === true;
+}
+
+/** GET with the query; a search that finds the owner busy (503 search_busy: a cold embedder) is asked again, at most twice more. */
+async function items(context: APIRequestContext, query?: string): Promise<APIResponse> {
+  const url = query === undefined ? `${MEMORY}/items` : `${MEMORY}/items?q=${encodeURIComponent(query)}`;
+  let response = await context.get(url);
+  for (let again = 0; again < 2 && response.status() === 503; again += 1) response = await context.get(url);
+  return response;
+}
+
+/** The refs of the items of a 200 answer of the list or the search. */
+async function refsOf(response: APIResponse): Promise<string[]> {
+  expect(response.status(), await response.text()).toBe(200);
+  const body = (await response.json()) as { items: Array<{ ref: string }>; total: number };
+  expect(body.total, 'total is a count').toBeGreaterThanOrEqual(body.items.length);
+  return body.items.map((item) => item.ref);
+}
+
+/**
+ * Story 41.9 (standing rule): the memory item routes over real HTTP as the unprivileged LIVE fixture user, with a second OcuTalonUser-only session (PANEL). Rows are seeded through support/memory.ts and removed in `finally`.
+ */
+test('the memory items: list, search and forget as the LIVE user, and a second session sees none of it', async ({ request, playwright, baseURL }) => {
+  // A search that finds the embedder busy waits 20 s and is asked up to three times, which does not fit the default 45 s.
+  test.setTimeout(150_000);
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
+  const first = await sessionRefOfUser(live.user);
+  const other = fixtureUser('PANEL');
+  const second = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
+  const unique = `zzquokka${Date.now()}`;
+  const text = `The ${unique} gateway is quokka.example.test`;
+  const seeded: string[] = [];
+  try {
+    await signInOverHttp(second, other.user, other.password);
+    expect(await sessionRefOfUser(other.user), 'the second account is another session').not.toBe(first);
+    const ref = await seedMemory(first, text);
+    seeded.push(ref);
+
+    // The first session lists the row (200, the five members, pinned a boolean) and finds it by a search.
+    const listed = await request.get(`${MEMORY}/items`);
+    expect(listed.status(), await listed.text()).toBe(200);
+    expect(listed.headers()['content-type']).toContain('application/json');
+    const list = (await listed.json()) as { items: Array<Record<string, unknown>>; total: number };
+    const item = list.items.find((one) => one['ref'] === ref);
+    expect(item, 'the seeded memory is listed').toBeDefined();
+    expect(Object.keys(item ?? {})).toEqual(['ref', 'text', 'savedAt', 'source', 'pinned']);
+    expect(item).toEqual({ ref, text, savedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/), source: 'told', pinned: false });
+    expect(list.total).toBeGreaterThanOrEqual(1);
+    const search = await items(request, unique);
+    const hits = (await refsOf(search)).filter((one) => seeded.includes(one));
+    expect(hits, 'the search finds the seeded memory').toEqual([ref]);
+    const hit = ((await search.json()) as { items: Array<Record<string, unknown>>; total: number }).items.find((one) => one['ref'] === ref);
+    expect(hit).toEqual(item);
+
+    // The second session lists and searches none of the first session's rows, and cannot forget one.
+    expect(await refsOf(await items(second)), 'the second session lists none of the first\'s rows').not.toContain(ref);
+    expect(await refsOf(await items(second, unique)), 'the second session finds none of the first\'s rows').not.toContain(ref);
+    await expectError(await second.fetch(`${MEMORY}/items/${ref}`, { method: 'DELETE', headers: envelope() }), 404, 'not_found', NOT_FOUND);
+    expect(await memoryExists(ref), 'the first session\'s row is kept').toBe(1);
+    expect(await refsOf(await items(request)), 'and the first session still lists it').toContain(ref);
+
+    // The first session pins it: 200 {"result":"done"}, and the list shows it pinned.
+    await expectDone(await request.fetch(`${MEMORY}/${ref}/pin`, { method: 'POST', headers: envelope() }));
+    expect(await pinnedOf(request, ref), 'the list shows the memory pinned').toBe(true);
+
+    // The second session cannot pin or unpin it (404 not_found), and it stays pinned.
+    await expectError(await second.fetch(`${MEMORY}/${ref}/pin`, { method: 'POST', headers: envelope() }), 404, 'not_found', NOT_FOUND);
+    await expectError(await second.fetch(`${MEMORY}/${ref}/pin`, { method: 'DELETE', headers: envelope() }), 404, 'not_found', NOT_FOUND);
+    expect(await pinnedOf(request, ref), 'the first session\'s row stays pinned').toBe(true);
+
+    // The first session unpins it (200, pinned false) and pins it again (200).
+    await expectDone(await request.fetch(`${MEMORY}/${ref}/pin`, { method: 'DELETE', headers: envelope() }));
+    expect(await pinnedOf(request, ref), 'the list shows the memory unpinned').toBe(false);
+    await expectDone(await request.fetch(`${MEMORY}/${ref}/pin`, { method: 'POST', headers: envelope() }));
+    expect(await pinnedOf(request, ref), 'and pinned again').toBe(true);
+
+    // The first session forgets the pinned row: 200 {"result":"done"}, then it is gone from the row, the list and the search.
+    const forgotten = await request.fetch(`${MEMORY}/items/${ref}`, { method: 'DELETE', headers: envelope() });
+    expect(forgotten.status(), await forgotten.text()).toBe(200);
+    expect(await forgotten.json()).toEqual({ result: 'done' });
+    expect(await memoryExists(ref), 'the row is gone').toBe(0);
+    expect(await refsOf(await items(request)), 'the list no longer holds it').not.toContain(ref);
+    expect(await refsOf(await items(request, unique)), 'the search no longer finds it').not.toContain(ref);
+    await expectError(await request.fetch(`${MEMORY}/items/${ref}`, { method: 'DELETE', headers: envelope() }), 404, 'not_found', NOT_FOUND);
+  } finally {
+    await second.dispose();
+    for (const one of seeded) await removeMemory(one);
+  }
+});
+
+/**
+ * Story 41.12 (FR-74, NFR-27): the pin cap over real HTTP as the LIVE user. The core-memory block, heading and quotes included, is capped at 4,000 characters: the opening is 36 characters, a single-line pin adds
+ * 3 and its length, and the closing blank line adds 2, so pins of 2,000 and 1,956 characters make exactly 4,000 and fit, and a third memory of 2 characters (5 more) is 409 over_cap with the approved sentence and
+ * stays unpinned. Unpinning the 1,956-character memory makes room, and the short one then pins. The test needs the LIVE session to hold no pin; the rows it seeds are removed in `finally`.
+ */
+test('the pin cap as the LIVE user', async ({ request }) => {
+  test.setTimeout(150_000);
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
+  const session = await sessionRefOfUser(live.user);
+  expect(await pinnedCountOf(session), 'the LIVE session holds no pinned memory before the test').toBe(0);
+  const seeded: string[] = [];
+  try {
+    const big = await seedMemory(session, 'a'.repeat(2000));
+    seeded.push(big);
+    const mid = await seedMemory(session, 'b'.repeat(1956));
+    seeded.push(mid);
+    const short = await seedMemory(session, 'cc');
+    seeded.push(short);
+    await expectDone(await request.fetch(`${MEMORY}/${big}/pin`, { method: 'POST', headers: envelope() }));
+    await expectDone(await request.fetch(`${MEMORY}/${mid}/pin`, { method: 'POST', headers: envelope() }));
+    expect(await pinnedCountOf(session), 'two memories are pinned: the block is exactly 4,000 characters').toBe(2);
+    await expectError(await request.fetch(`${MEMORY}/${short}/pin`, { method: 'POST', headers: envelope() }), 409, 'over_cap', OVER_CAP);
+    expect(await pinnedOf(request, short), 'the short memory is not pinned').toBe(false);
+    expect(await pinnedCountOf(session), 'and nothing was unpinned to make room').toBe(2);
+    await expectDone(await request.fetch(`${MEMORY}/${mid}/pin`, { method: 'DELETE', headers: envelope() }));
+    await expectDone(await request.fetch(`${MEMORY}/${short}/pin`, { method: 'POST', headers: envelope() }));
+    expect(await pinnedOf(request, short), 'the short memory is pinned once there is room').toBe(true);
+  } finally {
+    for (const one of seeded) await removeMemory(one);
   }
 });

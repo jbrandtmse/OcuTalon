@@ -14,6 +14,9 @@
 /// Subject or body, a decision's Summary, Reasons or Payload, a turn's ReplyText, an incident's Cause, FixSummary, SampleError or ItemNoun, an approval
 /// request's ToolArguments, DryRun, Result or ToolName, or any event-log text. Control characters are stripped from every value, so a value never
 /// breaks a line.
+/// A note built for the turn being answered (Build with an itemId, DW-977; the session-start input) leaves out that turn, every later turn of the session (by CreatedAt, then ID)
+/// and the decide decisions those turns made, so that the note never quotes the person's current message back to the model. Incidents, approvals and reminders are no
+/// person's words and stay. Built without an itemId, or with one that names no turn of the session, the note is the whole day, as the Notes route lists it.
 /// The text is cut at MAXCHARS characters, line feeds included: whole lines from the earliest, then the line MORE as the last line, and only when an
 /// entry was left out.
 Class OcuTalon.Data.DailyNote
@@ -54,8 +57,9 @@ Parameter STATEFIREDLATE = "fired late";
 
 /// The note of the session for one local day of the instance zone, as one text with its lines separated by line feeds; "" when there is none. day is a
 /// local date, YYYY-MM-DD. "" too for an empty sessionRef, for the owners eval and instance (in any case, as the SQL equality takes them) and for a
-/// day that is not a date; no read is made then. A failed read throws.
-ClassMethod Build(sessionRef As %String, day As %String) As %String
+/// day that is not a date; no read is made then. A failed read throws. itemId, optional, is the ItemId of the turn being answered (see the class comment): the note leaves out
+/// that turn and every later one, and the decide decisions they made; an itemId that names no turn of the session gives the whole note.
+ClassMethod Build(sessionRef As %String, day As %String, itemId As %String = "") As %String
 {
 	If ..Literal($Get(sessionRef)) Quit ""
 	Set from = ..DayStart($Get(day))
@@ -67,9 +71,19 @@ ClassMethod Build(sessionRef As %String, day As %String) As %String
 	}
 	Set to = ..DayStart(next)
 	If to = "" Quit ""
-	Kill entries
-	Do ..Messages(sessionRef, from, to, .entries)
-	Do ..Decisions(sessionRef, from, to, .entries)
+	Kill entries, skip
+	Set current = ""
+	If $Get(itemId) '= "" {
+		Set current = ..TurnOf(itemId, sessionRef, .sc)
+		Do ..Check(sc)
+	}
+	If $IsObject(current) {
+		Set skip = 1
+		Set skip("createdAt") = current.CreatedAt
+		Set skip("id") = current.%Id()
+	}
+	Do ..Messages(sessionRef, from, to, .entries, .skip)
+	Do ..Decisions(sessionRef, from, to, .entries, .skip)
 	Do ..Incidents(sessionRef, from, to, .entries)
 	Do ..Approvals(sessionRef, from, to, .entries)
 	Do ..Reminders(sessionRef, from, to, .entries)
@@ -124,12 +138,13 @@ ClassMethod Cut(ByRef entries) As %String [ Private ]
 }
 
 /// The session's own messages of the window.
-ClassMethod Messages(sessionRef As %String, from As %String, to As %String, ByRef entries) [ Private ]
+ClassMethod Messages(sessionRef As %String, from As %String, to As %String, ByRef entries, ByRef skip) [ Private ]
 {
 	Set rows = ##class(OcuTalon.Data.Ownership).NoteTurns(sessionRef, from, to, .sc)
 	Do ..Check(sc)
 	For i = 1:1:rows.Count() {
 		Set row = rows.GetAt(i)
+		If ..Skipped(row, .skip) Continue
 		Set time = ..Time(row.CreatedAt)
 		If time = "" Continue
 		Set entries(row.CreatedAt, 1, row.%Id()) = ..Fill(..#LINEMESSAGE, $ListBuild("time", "channel", "text"), $ListBuild(time, row.Channel, ##class(OcuTalon.Core.Conversation).Summary(row.Text)))
@@ -138,7 +153,7 @@ ClassMethod Messages(sessionRef As %String, from As %String, to As %String, ByRe
 
 /// The session's decide decisions of the window. The channel of a decision that a turn of the session made is the turn's; any other decision's is the
 /// channel of its own usage rows, and a decision with none has no channel.
-ClassMethod Decisions(sessionRef As %String, from As %String, to As %String, ByRef entries) [ Private ]
+ClassMethod Decisions(sessionRef As %String, from As %String, to As %String, ByRef entries, ByRef skip) [ Private ]
 {
 	Set rows = ##class(OcuTalon.Data.Ownership).NoteDecisions(sessionRef, from, to, .sc)
 	Do ..Check(sc)
@@ -148,6 +163,7 @@ ClassMethod Decisions(sessionRef As %String, from As %String, to As %String, ByR
 		If (time = "") || (row.Outcome = "") Continue
 		Set turn = ..TurnOf(row.ItemId, sessionRef, .sc)
 		Do ..Check(sc)
+		If $IsObject(turn) && ..Skipped(turn, .skip) Continue
 		If $IsObject(turn) {
 			Set channel = turn.Channel
 		} Else {
@@ -188,6 +204,15 @@ ClassMethod Incidents(sessionRef As %String, from As %String, to As %String, ByR
 ClassMethod TurnOf(itemId As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Turn [ Private ]
 {
 	Quit ##class(OcuTalon.Data.Ownership).TurnOfItem(itemId, sessionRef, .sc)
+}
+
+/// 1 when the turn is the turn being answered or a later one, by (CreatedAt, ID): skip is set (to 1, with the current turn's "createdAt" and "id") only when Build was
+/// given the ItemId of a turn of the session.
+ClassMethod Skipped(turn As OcuTalon.Data.Turn, ByRef skip) As %Boolean [ Private ]
+{
+	If '$Get(skip) Quit 0
+	If turn.CreatedAt '= skip("createdAt") Quit turn.CreatedAt ] skip("createdAt")
+	Quit turn.%Id() >= skip("id")
 }
 
 /// The channel of the decision's own usage rows (Ownership.DecisionChannel), or ""; sc is the status of the read.
