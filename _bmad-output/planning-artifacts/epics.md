@@ -1580,6 +1580,8 @@ So that I can find the kind of thing I want to try without reading a long flat l
 **Given** README.md and EXPERIENCE.md
 **When** this story merges
 **Then** both keep the TOTAL item count (the registry rule) and README.md is otherwise unchanged; EXPERIENCE.md gets one line, carrying this story's marker, that lists the three groups in order; no other text changes
+**And** EXPERIENCE.md's More to try entries are listed and renumbered by group: the three ruled headings, with the order inside each group, and the item numbers it cites elsewhere follow; the wording of the renumbering goes to the Contest Planner at the spec gate [AMENDED 2026-11-10, Contest Planner ruling]
+**And** no test pins a group's size or the number of groups as a literal (Story 37.2's `usage` item joins "Safety and settings" as its last item, with no fourth heading) [AMENDED 2026-11-10, Contest Planner ruling for Story 37.2]
 **And** `docker/tests/test-boundaries.sh` passes, and lane-a and ci are green
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
