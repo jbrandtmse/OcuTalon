@@ -51,7 +51,8 @@ describe('every written count follows the registry', () => {
 
   it('the registry\'s comments say how many items there are', () => {
     assert.match(REGISTRY, new RegExp(`the registry of\\s+\\*\\s+its ${count} items`));
-    assert.match(REGISTRY, new RegExp(`/\\*\\* The ${count} items, in the order the panel shows them\\. \\*/`));
+    // the comment above the array carries no number (Story 23.6): it says that the registry's length is the count the documents give
+    assert.match(REGISTRY, /\/\*\* The items, in the order the panel shows them: the registry's length is the count that the README and EXPERIENCE give\. \*\//);
   });
 });
 
@@ -95,11 +96,11 @@ describe('EXPERIENCE.md, More to try', () => {
   };
 
   it('lists the registry\'s items in the order of its entries, and no item past them', () => {
-    MORE_TO_TRY_ITEMS.forEach((item, at) => {
-      assert.ok(line(at + 1).includes(`Label "${item.label}".`), `Item ${at + 1} is the registry's ${item.id} entry`);
-    });
-    const past = `    - Item ${MORE_TO_TRY_ITEMS.length + 1}. Label `;
-    assert.ok(!EXPERIENCE.split('\n').some((one) => one.startsWith(past)), 'EXPERIENCE.md has no item the registry lacks');
+    // The entries sit in the order of the panel, whatever their numbers: 23.6's first item comes before Item 1 and 23.2's Item 9 after Item 3 ("the numbers of the other items stay as they are").
+    const labels = EXPERIENCE.split('\n')
+      .filter((one) => /^    - (Item \d+|First item)\b/.test(one))
+      .map((one) => /Label "([^"]+)"/.exec(one)?.[1]);
+    assert.deepEqual(labels, MORE_TO_TRY_ITEMS.map((item) => item.label), 'EXPERIENCE.md lists the registry\'s items, in the registry\'s order, and no other');
   });
 
   for (const [n, id] of [

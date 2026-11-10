@@ -2,8 +2,10 @@ import { expect, test, type Locator, type Page, type Route } from '../support/fi
 
 import { MORE_TO_TRY_ITEMS, itemsFor } from '../../src/app/guide/more-to-try-view.ts';
 import { changeSnapshot, MESSAGES, STATE } from '../support/api';
+import { signIn } from '../sign-in/helpers';
 import { sampleChipOf } from '../support/devices';
 import { loadedAfter, signInReadmeLoaded } from '../support/floor';
+import { cleanFixtureRows, fixtureUser, seedIncident } from '../support/iris';
 import { blockLiveSocket } from '../support/socket';
 
 /**
@@ -52,7 +54,10 @@ import { blockLiveSocket } from '../support/socket';
  *     opens by itself) or a new finish begins (then it opens again);
  *   - K18: a focused panel group hands focus on when the finish leaves;
  *   - K14 (matrix 5, error): item 1 focuses the Persona heading when the card has not loaded;
- *   - K15 (matrix 6, error): item 2 sends nothing while the email limit holds, and focuses the inactive chip.
+ *   - K15 (matrix 6, error): item 2 sends nothing while the email limit holds, and focuses the inactive chip;
+ *   - K25 (Story 23.6, AC 10): the incident summary item at the finish presses the Dismiss of the newest resolved incident card: the card's chip says
+ *     Closed, the incident's summary is a card in the chat and a message on the Simulated phone, and the finish is still shown;
+ *   - K26 (Story 23.6, AC 16): with no resolved incident to close the same control sends "Show me the incident summary" once as the user's own message.
  */
 const BREAK_FEED = '**/ocutalon/api/v1/demo/break-feed';
 const SAMPLE = '**/ocutalon/api/v1/mailbox/samples/suspicious-request';
@@ -61,9 +66,18 @@ const DEMO_VIEW_KEY = 'ocutalon.demoView.off';
 const FOUR = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView'];
 // Every id of the registry, in its order, so that an item another story adds joins the K3 and K9 cases; ITEMS below is the independent text oracle.
 const ALL = MORE_TO_TRY_ITEMS.map((item) => item.id);
+/** The id that the server lists first (Demo.Features, Story 23.6); a routed case names the ids it wants, so this one joins only where a case says so. */
+const SUMMARY = 'incidentSummary';
+const SUMMARY_PROMPT = 'Show me the incident summary';
 
 /** The ruled texts of the items, written out here as the independent oracle of the page's own. */
 const ITEMS: Record<string, { label: string; lookFor: string; button: string }> = {
+  incidentSummary: {
+    label: 'Read the incident summary',
+    lookFor:
+      'This closes the guide\'s resolved incident, as Dismiss on its card does. Look for the incident summary in the chat and on the Simulated phone: what happened and when, the cause and the evidence, each approval, the orders affected and the model cost. Later, ask "Show me the incident summary" to get it again.',
+    button: 'Close the incident',
+  },
   persona: {
     label: 'Change how OcuTalon talks',
     lookFor:
@@ -221,7 +235,8 @@ test('K1: the panel shows exactly the items for the server\'s guide.features', a
   expect(response.status(), await response.text()).toBe(200);
   const features = ((await response.json()) as { guide: { features?: string[] } }).guide.features;
   expect(Array.isArray(features), 'the guide carries a list of feature ids').toBe(true);
-  expect(features, 'the demo\'s own controls are always listed').toEqual(expect.arrayContaining(['suspiciousEmail', 'rejectFix', 'demoView']));
+  expect(features, 'the demo\'s own controls are always listed').toEqual(expect.arrayContaining([SUMMARY, 'suspiciousEmail', 'rejectFix', 'demoView']));
+  expect((features ?? [])[0], 'and the incident summary is first').toBe(SUMMARY);
   expect(features, 'this tree has Epic 39\'s Run now command, so the heartbeat is listed').toEqual(expect.arrayContaining(['heartbeat']));
   test.info().annotations.push({ type: 'guide.features', description: (features ?? []).join(',') });
   console.log(`K1 guide.features=${(features ?? []).join(',')}`);
@@ -264,7 +279,7 @@ test('K2: in the finish the panel is open after the links and before Try it your
     await expect(control).not.toHaveAttribute('aria-label', /.*/);
     await expect(item.getByRole('button'), `${id}: only that control`).toHaveCount(1);
   }
-  for (const id of ALL.slice(4)) {
+  for (const id of ALL.filter((one) => !FOUR.includes(one))) {
     await expect(panel.getByText(ITEMS[id]!.label, { exact: true }), `item ${id} is absent`).toHaveCount(0);
   }
   await page.waitForTimeout(500);
@@ -1445,4 +1460,75 @@ test('K24: a panel the room cannot hold closes, and a taller viewport or a new f
   await push(guide(FOUR, { step: 3, breakFeed: { active: true } }));
   await push(finished(FOUR, { breakFeed: { active: true } }));
   await expect.soft(panelOf(page), 'a new finish opens the panel again').toBeVisible();
+});
+
+/**
+ * Signs the fixture user in with the guide that the case names, kept against the live polls (as openWith does for the README account), and waits for the loaded page.
+ * The user's own session owns the incident that a case seeds, so the cards and messages that its Dismiss makes reach this page.
+ */
+async function openAs(page: Page, view: Record<string, unknown>): Promise<void> {
+  const { user, password } = fixtureUser('NOTICE');
+  await keepRoutedGuide(page);
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['guide'] = view;
+    snapshot['status'] = [];
+  });
+  await loadedAfter(page, () => signIn(page, user, password));
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+}
+
+/**
+ * K25 (Story 23.6, AC 10): at the finish the first item's control, "Close the incident", presses the Dismiss of the newest resolved incident card. The incident
+ * is the user's own, resolved, with its summary built when it closes (the rows of the incident are the fixture's): the card's chip says Closed, the chat holds a
+ * summary card whose first line is the title line and the Simulated phone a message with the same title line, and the finish and the panel are still shown.
+ */
+test('K25: Close the incident at the finish dismisses the resolved incident, and its summary reaches the chat and the Simulated phone', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const { user } = fixtureUser('NOTICE');
+  const production = `Zz.K25.${Date.now().toString(36)}`;
+  const named = new RegExp(`^Incident summary: \\d+ .* failed in ${production.replace(/\./g, '\\.')}\\.$`);
+  const incident = await seedIncident(user, { state: 'resolved', production });
+  try {
+    await openAs(page, finished([SUMMARY, ...FOUR]));
+    const card = page.locator(`article[data-part="incident"][data-key="incident:${incident}"]`);
+    await expect(card.locator('.chip'), 'the incident card says Resolved').toHaveText('Resolved');
+    await expect(panelOf(page), 'the finish shows the panel').toBeVisible();
+    await expect(guideRegion(page).locator('.finish-done'), 'and the finish').toBeVisible();
+    await controlOf(page, SUMMARY).click();
+    await expect(card.locator('.chip'), 'the card says Closed').toHaveText('Closed', { timeout: 20_000 });
+    const noticeCard = page.locator('app-chat-panel app-notice-card .notice.summary').filter({ hasText: production });
+    await expect(noticeCard, 'the chat holds the summary card').toHaveCount(1, { timeout: 20_000 });
+    expect((await noticeCard.locator('.text').innerText()).split('\n')[0], 'whose first line is the title line').toMatch(named);
+    const phone = page.getByRole('region', { name: 'Simulated devices' }).locator('app-simulated-phone');
+    const message = phone.locator('.notification').filter({ hasText: production });
+    await expect(message, 'the Simulated phone holds the summary message').toHaveCount(1, { timeout: 20_000 });
+    expect((await message.locator('.text').innerText()).split('\n')[0], 'with the same title line').toMatch(named);
+    await expect(message.getByRole('button'), 'and no button').toHaveCount(0);
+    await expect(panelOf(page), 'the panel is still shown').toBeVisible();
+    await expect(guideRegion(page).locator('.finish-done'), 'and the finish still holds').toBeVisible();
+  } finally {
+    await cleanFixtureRows([incident]);
+  }
+});
+
+/**
+ * K26 (Story 23.6, AC 16; the Planner's ruling 2): with no resolved incident card to close (already closed, or the guide not run), the first item's control
+ * sends "Show me the incident summary" once, as the user's own message, and presses nothing else.
+ */
+test('K26: Close the incident with no resolved incident sends "Show me the incident summary" once', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const bodies: Array<{ clientId: string; text: string; fromGuide: boolean }> = [];
+  await page.route(`**${MESSAGES}`, async (route: Route) => {
+    const body = route.request().postDataJSON() as { clientId: string; text: string; fromGuide: boolean };
+    bodies.push(body);
+    await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ clientId: body.clientId }) });
+  });
+  await openAs(page, finished([SUMMARY, ...FOUR]));
+  await expect(page.locator('article[data-part="incident"] .chip-resolved'), 'no incident card is resolved').toHaveCount(0);
+  await controlOf(page, SUMMARY).click();
+  await expect.poll(() => bodies.length, { message: 'the prompt was posted' }).toBe(1);
+  await page.waitForTimeout(500);
+  expect(bodies, 'exactly one POST').toHaveLength(1);
+  expect(bodies[0]!.text).toBe(SUMMARY_PROMPT);
+  expect(bodies[0]!.fromGuide, 'as the user\'s own message').toBe(false);
 });

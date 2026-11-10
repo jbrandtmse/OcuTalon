@@ -3293,3 +3293,6 @@
 - 2026-11-10T07:55Z orchestrator runner_clarification epic=41 story=41.13 kind=CI_WAIT head=4612eb5c runs=42777878916,42777879109; 41.14 spec gate (4 items) relayed to contest_planner
 - 2026-11-10T07:56Z orchestrator owner_decision via=contest_planner epic=41 story=41.14 security=accepted(4 test conditions) stored_data=accepted footprint=accepted release_gate=1.0.7 RC eval; merge_plan=41.13 own part right after 0.22, 41.14 own part (1.0.7); quota_hold_corrected=~00:00-05:00Z Wed 2026-11-11 ref=prompts/epic-41-rulings-4114.md
 - 2026-11-10T08:36Z orchestrator ci_green_verified branch=OCT-epic23 head=b99d6529 runs=42768243726,42768243772 missing=none story=23.6
+- 2026-11-10T08:36Z orchestrator merge_gate epic=23 part=23.6 head=b99d6529 ci=success runs=42768243726,42768243772 missing=none conflicts=none base=1490ab58(ancestor) code_identical_to_epic_head=yes spine_lint=baseline(10 low) tracker=valid more_to_try_count=9(registry)
+- 2026-11-10T08:36Z orchestrator epic_merged_to_feature epic=23 part=23.6 note=merged by orchestrator on green ahead of the runner's PART READY (runner busy on the 23.2 rework)
+- 2026-11-10T08:36Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=23.6 amendments via merge

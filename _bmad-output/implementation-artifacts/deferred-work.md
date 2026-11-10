@@ -5338,6 +5338,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Msg/Catalog/Watch.cls incident.noFix (L179-180) is shown for the GOODCHANGED refusal; the reason is log-only (PT-b ruling)
 - 2026-11-06T19:44:07Z status=routed owner=burndown by=spec_gate note=Planner 2026-11-06: later wording, not now: 'The fix I would use would also change {noun} that went through, so I'm not proposing it.'
+- 2026-11-09T17:07:25Z status=routed owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=x0 note=Epic23_start:23.2_adds_fix_kinds_and_refusal_lines_in_Msg/Catalog/Watch.cls;Planner_wording_2026-11-06:'The_fix_I_would_use_would_also_change_{noun}_that_went_through,_so_I'm_not_proposing_it.'(PUBLIC_TEXT_at_23.2_spec_gate)
 
 ### DW-836: Story 7.9 adds Test.Watch.GoodMessages (about 108-116 s locally) to CI group shards (shard:lane-a@Checks,Install,Watch) with no group re-measure; ci/units.sh's comments put shards near its about 1,940 s target, so the group may pass 33 minutes (unverified)
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -5450,6 +5451,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 31.4 implement pass 1: TraceHits returned -1 until Failure gained %XML.Adaptor (one line, no storage change); AD-33 keeps the class Lane A's, so 31.4 reads such bodies through a Lane B fallback instead (ruling R2); also check whether anything else that XML-exports message bodies (the key proof of 9.10 and 30.8, the Visual Trace contents) meets the same error
 - 2026-11-07T17:31:07Z status=routed owner=burndown by=harvest note=AD-33_request_to_Lane_A:add_%XML.Adaptor_to_OcuTalon.Watch.Msg.Failure(Extends_(%SerialObject,%XML.Adaptor)),then_31.4's_fallback_can_go
 - 2026-11-08T02:32:04Z status=routed owner=burndown by=burndown note=epic-31_burn-down(31.4_scope):overflow;AD-33:only_Lane_A_edits_Watch.Msg.Failure(add_%XML.Adaptor);no_open_Lane_A_story_owns_it;31.4's_Lane_B_second-reader_fallback_covers_the_search_until_then(then_the_fallback_can_go)
+- 2026-11-09T17:07:25Z status=routed owner=23-6-write-an-incident-summary-when-an-incident-closes by=x0 note=Epic23_start:one-line_%XML.Adaptor_on_Watch.Msg.Failure(Lane_A,Epic23_footprint_Watch/**);23.6_is_the_first_Lane_A_Watch_story_in_voting_week;no_X.0_chartered(dispatch:never_delay_23.6)
+- 2026-11-09T21:03:09Z status=resolved-by:23-6-write-an-incident-summary-when-an-incident-closes by=adjudication note=Watch/Msg/Failure.cls_Extends_(%SerialObject,%XML.Adaptor)_in_79f913f0;pinned_by_Test.Watch.Poller:TestBatchExportsAsXml(mutation_AC12_red);31.4's_Lane_B_fallback_removal_is_Lane_B's
 
 ### DW-888: 31.4 code-review patches mirror two Lane A private helpers: Test.Eval.KeyProof.ListHas as Test.Web.SessionEvents.Names (about 7 lines) and the inline-keyboard flattening of Test.Channel.TelegramPageFixture.Buttons in web/e2e-online/telegram.ts sentCalls (about 4 lines of ObjectScript), forced by AD-33 (Lane A classes are called, never edited) and by ListHas being private
 - source: spec-31-4-the-paired-chat-stays-isolated-under-load-too.md | severity: low | fix-risk: low | footprint: in-story
@@ -6399,6 +6402,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (browser) job 129220092453 attempt 1 red (DEMO-PATH step 6 trace failed, 27 passed); attempt 2 job 129260909530 green 15:39-16:15Z; same code as green feature 2a45f8bc plus the Dockerfile move
 - 2026-11-09T16:27:08Z status=routed owner=burndown by=lead note=flake class; possibly kin to DW-690 (sign-out after the trace) and DW-388; rerun once per occurrence
 - 2026-11-10T07:17:50Z occurrence=feature-1490ab58 by=orchestrator note=run 42767577852 job 129667573668 iris(browser) live:demo-path 06-trace.spec.ts:36 .finish-done not found, navigated to /ocutalon/?signedOut=1 (same signature); parents 87c0223e and f59cab73 passed browser; rerun of failed jobs 2026-11-10T07:17:50Z
+- 2026-11-09T21:55:44Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_594a66af_run_42702099695_browser_live:demo-path_06-trace:35_finish_not_found_after_navigation_to_?signedOut=1;one_rerun_of_the_failed_job
 
 ### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -6450,6 +6454,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: owner-approved voting-week re-plan relayed by the Contest Planner [3dd56e] 2026-11-09 ~15Z
 - 2026-11-09T14:58:00Z status=decision-pending owner=burndown by=owner note=parked:owner_re-plan_2026-11-09; revisit after voting (Nov 15); sprint-status action item mirrors it
 
+### DW-1050: Watch.Summary copies Msg.Catalog's private Clean character list and Lookup (Summary.Shown/Clean, Summary.Lookup), so a character the renderer starts dropping can make a stored summary unrenderable again
+- source: spec-23-6-write-an-incident-summary-when-an-incident-closes.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Summary.Shown repeats Catalog.Clean's invisible-character list byte for byte (Catalog.cls ~276) and Summary.Lookup is Catalog.Lookup (~285); both are Private in Msg/Catalog.cls, outside the AD-33 exception, and the builder may not render (spec Always).
+- 2026-11-09T21:01:22Z status=routed owner=burndown by=cr note=unify by a public Catalog predicate for what a slot would show; same pattern as DW-383
+
+### DW-1051: Story 23.6's browser and harness ACs (AC10 K25, AC16 K26, AC17 live:install-upgrade) carry mutation lines never observed red: the units run only in CI and exceed the stage's 150 s call budget
+- source: spec-23-6-write-an-incident-summary-when-an-incident-closes.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec Verification: AC10/AC16 'CI, not run here', AC17 'n/a here'; live:sign-in parts take about 300 s per call locally.
+- 2026-11-09T21:01:26Z status=wontfix-accepted owner=23-6-write-an-incident-summary-when-an-incident-closes by=cr note=reopen_if=a CI run of K25/K26 stays green with closeIncident stubbed to a no-op
 ### DW-1060: The sample button after ServerButton's 10 s notice looks idle and says Try again, but presses are ignored while its own add is still out (sampling guard)
 - source: spec-20-3-add-a-sample-runbook-in-one-press.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: documents-page.ts addSample returns early while sampling(); ServerButton restores itself and shows BUSY_NOTICE after 10 s with no answer. Only reachable when POST /v1/documents of a 1.2 KB file takes over 10 s.

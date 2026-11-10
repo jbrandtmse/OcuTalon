@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { BREAK_FEED_BUTTON, CHAT_FLOOR, COMPACT_BAND_HEIGHT, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, chatFloor, inCompactBand, itemsFor, windowBound } = await import(app('guide', 'more-to-try-view.ts'));
+const { BREAK_FEED_BUTTON, CHAT_FLOOR, COMPACT_BAND_HEIGHT, DISMISS_BUTTON, INCIDENT_CARD, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, RESOLVED_CHIP, chatFloor, inCompactBand, itemsFor, windowBound } = await import(app('guide', 'more-to-try-view.ts'));
 const { HEIGHT_QUERIES } = await import(app('shared', 'layout-view.ts'));
 const { RAIL_TEXTS } = await import(app('rail', 'rail-view.ts'));
 const { HEARTBEAT_HEADING_ID, HEARTBEAT_TEXTS } = await import(app('rail', 'heartbeat-card', 'heartbeat-card-view.ts'));
@@ -21,6 +21,7 @@ const { SAMPLES } = await import(app('mailbox', 'mailbox-view.ts'));
 const { DEVICE_TEXTS } = await import(app('devices', 'device-view.ts'));
 const { FEED_TEXTS } = await import(app('feed', 'break-feed-view.ts'));
 const { MESSAGE_TEXTS, PAGE_TEXTS } = await import(app('msg', 'catalog.ts'));
+const { INCIDENT_TEXTS } = await import(app('incidents', 'incident-view.ts'));
 const { ANSWER_SOURCES_TEXTS } = await import(app('chat', 'answer-sources-view.ts'));
 const { DOCUMENTS_TEXTS } = await import(app('documents', 'documents-view.ts'));
 const { SAMPLE_RUNBOOK_TEXTS } = await import(app('documents', 'sample-runbook-view.ts'));
@@ -34,7 +35,14 @@ const RULED = {
   link: 'More to try',
   label: 'Other things to try',
   rememberPrompt: "Remember that the Results partner's contact is Lee.",
+  summaryPrompt: 'Show me the incident summary',
   items: {
+    incidentSummary: {
+      label: 'Read the incident summary',
+      lookFor:
+        'This closes the guide\'s resolved incident, as Dismiss on its card does. Look for the incident summary in the chat and on the Simulated phone: what happened and when, the cause and the evidence, each approval, the orders affected and the model cost. Later, ask "Show me the incident summary" to get it again.',
+      button: 'Close the incident',
+    },
     persona: {
       label: 'Change how OcuTalon talks',
       lookFor:
@@ -86,8 +94,8 @@ const RULED = {
 // The registry's own ids, so that an item another story adds joins the count and the order pins; RULED is the independent text oracle, and
 // a registry entry with no RULED text (or a RULED text with no entry) fails the tests below.
 const IDS = MORE_TO_TRY_ITEMS.map((item) => item.id);
-// The demo's own controls: always listed.
-const FOUR = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView'];
+/** The items that name no memory, document or heartbeat: every item before memory (the registry puts the incident summary item first, Story 23.6). */
+const BEFORE_MEMORY = IDS.slice(0, IDS.indexOf('memory'));
 // The item whose control hands off to another item's control (Story 20.2: See where an answer came from opens the Documents page).
 const ACTION_OF = { sources: 'documents' };
 // The panel's group of each item that declares one (the Contest Planner's More to try groups ruling, 2026-11-10); the other items declare none yet.
@@ -130,19 +138,19 @@ describe('(b) itemsFor', () => {
     assert.deepEqual(itemsFor([]), []);
   });
 
-  it('gives items 1 to 4 for the first four ids', () => {
-    assert.deepEqual(idsOf(itemsFor(FOUR)), FOUR);
+  it('gives the items before memory for their ids', () => {
+    assert.deepEqual(idsOf(itemsFor(BEFORE_MEMORY)), BEFORE_MEMORY);
   });
 
   it('shows exactly its item, in its place, when memory, documents or heartbeat is added', () => {
     for (const id of ['memory', 'documents', 'heartbeat', 'sources']) {
-      assert.deepEqual(idsOf(itemsFor([...FOUR, id])), IDS.filter((one) => FOUR.includes(one) || one === id), id);
+      assert.deepEqual(idsOf(itemsFor([...BEFORE_MEMORY, id])), IDS.filter((one) => BEFORE_MEMORY.includes(one) || one === id), id);
     }
     assert.deepEqual(idsOf(itemsFor(IDS)), IDS);
   });
 
   it('ignores an id it does not know', () => {
-    assert.deepEqual(idsOf(itemsFor([...FOUR, 'somethingNew'])), FOUR);
+    assert.deepEqual(idsOf(itemsFor([...BEFORE_MEMORY, 'somethingNew'])), BEFORE_MEMORY);
     assert.deepEqual(itemsFor(['somethingNew']), []);
   });
 
@@ -198,6 +206,32 @@ describe('(c) every quoted on-screen name equals its source', () => {
     assert.equal(HEARTBEAT_HEADING_ID, 'rail-heading-heartbeat', 'the heading that item 7 hands focus to');
   });
 
+  it('names Dismiss, the Simulated phone and the summary prompt as the page does (Story 23.6)', () => {
+    has(items.incidentSummary.lookFor, `as ${INCIDENT_TEXTS.dismiss} on its card does`);
+    has(items.incidentSummary.lookFor, `on the ${DEVICE_TEXTS.phoneTab}:`);
+    has(items.incidentSummary.lookFor, `"${RULED.summaryPrompt}"`);
+    assert.equal(MORE_TO_TRY_TEXTS.summaryPrompt, RULED.summaryPrompt);
+    assert.equal(DISMISS_BUTTON, 'app-incident-dismiss button');
+    assert.equal(INCIDENT_CARD, 'article[data-part="incident"]');
+    assert.equal(RESOLVED_CHIP, '.chip-resolved');
+  });
+
+  it('counts the items by the registry: the header comment of the module says how many there are', () => {
+    const header = readFileSync(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts'), 'utf8');
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+    assert.match(header, new RegExp(`the registry of\\s+\\*\\s+its ${words[MORE_TO_TRY_ITEMS.length]} items`), `the header comment says ${words[MORE_TO_TRY_ITEMS.length]} items`);
+  });
+
+  it('counts the items by the registry in the README (line 30) and in EXPERIENCE.md, whatever the number is after the merges (Story 23.6, AC 18)', () => {
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+    const word = words[MORE_TO_TRY_ITEMS.length];
+    const readme = readFileSync(join(here, '..', '..', 'README.md'), 'utf8');
+    assert.match(readme, new RegExp(`its More to try panel has ${word} more things to try`), `the README says ${word} more things to try`);
+    assert.match(readme, /Incident summaries\.\*\* When an incident closes/, 'and holds the incident summary bullet');
+    const ux = readFileSync(join(here, '..', '..', '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
+    assert.match(ux, new RegExp(`There are ${word} items, in this order`), `EXPERIENCE.md says ${word} items`);
+  });
+
   it('names the Documents page as the header does', () => {
     has(items.documents.lookFor, 'On the Documents page');
     has(items.documents.lookFor, `press ${DOCUMENTS_TEXTS.sample},`);
@@ -225,7 +259,7 @@ describe('(c2) the sources item names the chips as the page does (Story 20.2)', 
   });
 });
 
-describe('(d) the look-for lines of items 1 to 4', () => {
+describe('(d) the look-for lines of the items before memory', () => {
   const phrases = (name) => {
     const match = new RegExp(`^Parameter ${name} = "([^"]*)";`, 'm').exec(GUARD);
     assert.ok(match, `ReplyGuard.cls holds Parameter ${name}`);
@@ -234,7 +268,7 @@ describe('(d) the look-for lines of items 1 to 4', () => {
   const folded = (text) => text.toLowerCase().replace(/\u2019/g, "'").replace(/\s+/g, ' ');
 
   it('name no memory, document or heartbeat', () => {
-    for (const id of FOUR) {
+    for (const id of BEFORE_MEMORY) {
       assert.doesNotMatch(RULED.items[id].lookFor, /memor|document|heartbeat/i, id);
       assert.doesNotMatch(MORE_TO_TRY_ITEMS.find((item) => item.id === id).lookFor, /memor|document|heartbeat/i, id);
     }

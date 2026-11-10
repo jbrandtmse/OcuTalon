@@ -1,0 +1,23 @@
+{
+  "name": "incident-summary",
+  "match": {
+    "marker": "incident-summary"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock answers the user now.\"],\"confidence\":0.9}"
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "incident_summary",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The incident closed. Its summary lists 50 orders that failed on the OrdersFromPartner item because of OrderDate, and one fix that you approved on the web."
+    }
+  ]
+}

@@ -28,6 +28,10 @@
 ///     carries them as checks;
 ///   - TestHandledRepublishesTheCard (Story 18.4): a handled Notification publishes the tell-now card again, with its own ref and handledAt, and
 ///     records the bare Delivery row; a second one (the newest row is then the handled row) records the row only;
+///   - TestSummaryCard (Story 23.6; AC 5, AC 14): a summary Notification is a card of kind summary whose text is the stored summary's lines, with the markup of the
+///     cause, the evidence and the sample error left as it is; one event; another session gets no row; a missing summary records nothing;
+///   - TestSummaryBuilt (QA; AC 14): the summary that Watch.Summary.Build makes of an incident whose cause, fix and sample error hold markup (the sample error longer than a notice's error summary)
+///     is a web card whose text shows the markup as it came and the sample error cut to the notice's length;
 ///   - TestHandledWithNoCardRecordsOnly: with no tell-now card for the DecisionRef (none at all, or a digest) it records the bare row and no event;
 ///   - TestReloadShowsHandled: Notification.FromRow of the card's row carries handledAt once the notice is marked (tell-now only), and the checks;
 ///   - TestOlderDigestRowRenders (U-313): a digest row written without CheckRows reads as a card with no check rows, in RecentNotices and in the payload;
@@ -309,7 +313,7 @@ Method TestPersonaCards()
 Method TestOtherKindsRecordOnly()
 {
 	Do ..AssertRecordOnly(..Session("other"), $ListFromString("fallback,pairing,status"), "the other kinds")
-	Do $$$AssertEquals(##class(OcuTalon.Channel.WebChat.Out).#CARDKINDS, "tellnow,reminder,allowance,digest", "allowance and digest are card kinds, so they are not one of them")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.WebChat.Out).#CARDKINDS, "tellnow,reminder,allowance,digest,summary", "allowance, digest and summary are card kinds, so they are not one of them")
 }
 
 /// A digest (Story 17.10) is a card of kind digest. Its text is the rendering for the web of the parts and the lines of its Slots, one piece on each line,
@@ -620,6 +624,79 @@ Method AssertRecordOnly(session As %String, kinds As %List, what As %String) [ P
 	}
 	Do $$$AssertEquals(..Notifications(session).%Size(), 0, what_": none publishes an event")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 0, what_": and none is a card of the chat")
+}
+
+/// An incident summary (Story 23.6; AC 5, AC 14) is a card of kind summary. Its text is OcuTalon.Watch.Summary.Text of the notification's incident for the web: the
+/// stored summary, one catalog line per part, with its line breaks, and the cause, the evidence and the sample error exactly as stored, with their markup characters
+/// (the page shows them as text). The row keeps the DecisionRef as sent and no due time and no reason, and the one notification event carries the whole text.
+/// Another session gets no row, and a summary that is missing records nothing.
+Method TestSummaryCard()
+{
+	Set session = ..Session("summary")
+	Set other = ..Session("summaryother")
+	Set parts = [{"key": "summary.title", "slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders"}}, {"key": "summary.cause", "slots": {"cause": "The partner sent <b>x</b> and *y* in the date."}}, {"key": "summary.evidence", "slots": {"evidence": "OrderDate was <i>16/10/2026</i> and _z_"}}, {"key": "summary.sampleError", "slots": {"error": "Field <script>alert(1)</script> was not a date."}}, {"key": "summary.messages", "slots": {"failed": 50, "resent": 50, "completed": 50, "failedAgain": 0, "skipped": 0}}]
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(session, , , , {"State": "closed", "ClosedAt": (##class(OcuTalon.Data.Time).NowUtc()), "Summary": ({"parts": (parts), "lines": []}.%ToJSON())})
+	Set ..Refs = ..Refs_","_incident
+	Set expected = "Incident summary: 50 orders failed in Orders."
+		_$Char(10)_"Cause: The partner sent <b>x</b> and *y* in the date."
+		_$Char(10)_"Evidence: OrderDate was <i>16/10/2026</i> and _z_"
+		_$Char(10)_"Sample error: Field <script>alert(1)</script> was not a date."
+		_$Char(10)_"Messages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped."
+	Set notification = ..Notification(session, "summary", "summary.title", {})
+	Set notification.IncidentRef = incident
+	Set notification.DecisionRef = "ZzSummaryDecision"
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the summary is delivered")
+	Do $$$AssertEquals(..Rows(session), 1, "one row is recorded")
+	Do $$$AssertEquals(..Rows(other), 0, "and another session gets none")
+	Do $$$AssertEquals(..Notifications(other).%Size(), 0, "nor an event")
+	Set row = ..Newest(session)
+	Do $$$AssertTrue($IsObject(row), "the summary is a card in RecentNotices")
+	If $IsObject(row) {
+		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.DecisionRef_"|"_row.DueAt_"|"_row.FallbackReason_"|"_row.ApprovalRef, "web|summary|ZzSummaryDecision|||", "its channel, kind and decision, and nothing else")
+		Do $$$AssertTrue(row.ChannelMessageId ? 22(1AN,1"-",1"_"), "a new message id")
+		Do $$$AssertEquals(row.Text, expected, "the text is the stored summary's lines, with the markup characters as they are")
+		Do $$$AssertEquals(row.Text, ##class(OcuTalon.Watch.Summary).Text(incident, "web"), "and the text of Watch.Summary.Text for the web")
+	}
+	Set events = ..Notifications(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one notification event")
+	If events.%Size() = 1 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.kind_"|"_payload.whyNow_"|"_payload.dueAt_"|"_payload.fallbackReason, "summary|||", "the payload: kind summary, no whyNow, no due time and no reason")
+		Do $$$AssertEquals(payload.text, expected, "and the whole text, with its line breaks")
+	}
+	Set bare = ##class(OcuTalon.Test.Data.Fixture).Incident(session, , , , {"State": "closed"})
+	Set ..Refs = ..Refs_","_bare
+	Set missing = ..Notification(session, "summary", "summary.title", {})
+	Set missing.IncidentRef = bare
+	Do $$$AssertStatusNotOK(..Out().OnNotification(missing, .response), "an incident with no summary is an error")
+	Set unknown = ..Notification(session, "summary", "summary.title", {})
+	Do $$$AssertStatusNotOK(..Out().OnNotification(unknown, .response), "and so is a notification with no incident")
+	Do $$$AssertEquals(..Rows(session), 1, "neither records a row")
+	Do $$$AssertEquals(..Notifications(session).%Size(), 1, "or an event")
+}
+
+/// AC 14 (QA), the web chat: an incident whose rows hold markup is summarized by Watch.Summary.Build (Test.Watch.Summary.Built), and the card that WebChatOut records
+/// shows the cause and the sample error as they came: the markup literally, the sample error cut to an incident notice's length, one line each. The page binds the text
+/// as text (N20 and page-safety.test.mjs), so that it is shown, not taken as markup.
+Method TestSummaryBuilt()
+{
+	Set session = ..Session("built")
+	Set incident = ##class(OcuTalon.Test.Watch.Summary).Built(session)
+	Set ..Refs = ..Refs_","_incident
+	Set notification = ..Notification(session, "summary", "summary.title", {})
+	Set notification.IncidentRef = incident
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the built summary is delivered")
+	Set row = ..Newest(session)
+	Do $$$AssertTrue($IsObject(row), "it is a card")
+	If '$IsObject(row) Quit
+	Set cut = ##class(OcuTalon.Test.Watch.Summary).CutLine()
+	Do $$$AssertTrue($Length(cut) '> $Parameter("OcuTalon.Watch.ErrorText", "SUMMARYMAX"), "the cut is no longer than a notice's error summary")
+	Do $$$AssertTrue(row.Text [ ($Char(10)_"Cause: The partner sent <b>x</b> and *y*."_$Char(10)), "the cause shows its markup literally")
+	Do $$$AssertTrue(row.Text [ ($Char(10)_"Sample error: "_cut_$Char(10)), "and the sample error is the cut, with its markup: "_cut)
+	Do $$$AssertTrue(row.Text '[ ##class(OcuTalon.Test.Watch.Summary).#LONGMARKUP, "the whole sample error is not in the card")
+	Set events = ..Notifications(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one notification event")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.text, row.Text, "which carries the same text")
 }
 
 /// A fixture session; its Ref is kept for the clean-up.
