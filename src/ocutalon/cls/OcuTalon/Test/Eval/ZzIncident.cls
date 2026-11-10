@@ -39,6 +39,13 @@ Method SendEval(decision As OcuTalon.Msg.ItemDecision) As %Status [ Private ]
 	Quit $$$OK
 }
 
+/// RaiseFix as a ProposeFix and the window's fix request call it: the request of the incident for the kind, with the SuperSession of this host (RaiseRequest records it, with its
+/// TraceRef, in Raised).
+Method RaiseNow(incident As OcuTalon.Data.Incident, kind As %String, parameters As %String, targets As %String, dryRun As %DynamicObject, Output ref As %String) As %Status
+{
+	Quit ..RaiseFix(incident, kind, parameters, targets, dryRun, .ref)
+}
+
 /// The request handler, as the framework calls it when EvalIn sends the IncidentCase: the status, and the response in response.
 Method CaseRequest(case As %Library.Persistent, Output response As %Library.Persistent) As %Status
 {

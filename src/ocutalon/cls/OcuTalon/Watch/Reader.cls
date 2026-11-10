@@ -49,6 +49,8 @@ Include (Ensemble, EnsConstants, EnsErrors)
 ///     included: the caller redacts them. Given resent 1 (Story 7.3), each failure also gains resentBy, an array of the ids of the headers of its session
 ///     whose Description names it as resent: the ids that follow "Resent " and precede any ":" (IRIS writes "Resent <id>[,<earlier ids>][: <description>]" on a
 ///     copy, whoever resends it); without the flag the failures have no such member.
+///   - Items reads the production's items for the item fix kinds (Story 23.2) inside the same switching method and under the same two checks: one {"id", "name",
+///     "className", "businessType", "enabled"} per item, enabled as IRIS runs it.
 ///   - Good reads, for each failed header given as a reference (Story 7.9), the newest good messages from the same source: at most limit headers of Status 9 (Completed),
 ///     IsError 0 and Type 1 (Request) whose SourceConfigName, TargetConfigName, MessageBodyClassName and SuperSession all equal the reference's (an empty SuperSession
 ///     matches only an empty one), highest header id first, no id twice. It reads them inside Current, under the same two checks as Evidence, through the same
@@ -503,6 +505,23 @@ ClassMethod Good(namespace As %String, production As %String, item As %String, r
 	Quit outcome
 }
 
+/// The items of the production in the namespace (see the class description), for the item fix kinds: items (a dynamic array) holds one {"id" (the Ens.Config.Item id,
+/// a whole number), "name", "className", "businessType" (service, process, operation or unknown) and "enabled" (1 or 0, as IRIS runs the item: the stored Enabled unless
+/// a System Default Setting Enabled overrides it)} per item, in id order. The outcome is read (items holds what was found, possibly nothing), unreadable (the service
+/// user cannot read the namespace: nothing was entered) or not_current (the production is not the namespace's own, or a name is empty: nothing was read), as for Failures.
+/// A namespace that cannot be read for another reason is an error. It writes nothing and switches namespace in Current only.
+ClassMethod Items(namespace As %String, production As %String, Output items As %DynamicArray) As %String
+{
+	Set items = []
+	If ($Get(namespace) = "") || ($Get(production) = "") Quit "not_current"
+	Set user = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ServiceUser", , , .sc)
+	If $$$ISERR(sc) $$$ThrowStatus(sc)
+	If '..Readable(user, namespace) Quit "unreadable"
+	Do ..Current(namespace, .description, production, , 0, .rows, .outcome, .fault, , , , , , , , , , 1, .items)
+	If fault '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The items of "_production_" in "_namespace_" could not be read: "_fault))
+	Quit outcome
+}
+
 /// 1 when the name of a setting is one whose value must never leave the reader: it holds one of CREDENTIALPARTS, in any case (pure).
 ClassMethod CredentialName(name As %String) As %Boolean
 {
@@ -534,8 +553,9 @@ ClassMethod CredentialName(name As %String) As %Boolean
 /// of which another item is enabled is not disabled), in ID order, each name once, and stoppedAt the stop time that Ens.Director wrote for the production
 /// (^Ens.Configuration("csp","Activity",production,"stopped"), IRIS UTC as stored; killed at a start), "" when there is none; with every other outcome,
 /// and when the read threw, they are [] and "". resent 1 (Evidence only) adds resentBy to each failure: the ids of the headers of its session whose Description names it as resent.
-ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0, Output disabled As %DynamicArray, Output stoppedAt As %String, Output errored As %DynamicArray, Output queues As %DynamicArray) As %String [ Private ]
+ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0, Output disabled As %DynamicArray, Output stoppedAt As %String, Output errored As %DynamicArray, Output queues As %DynamicArray, listItems As %Boolean = 0, Output items As %DynamicArray) As %String [ Private ]
 {
+	Set items = []
 	Set description = ""
 	Set name = ""
 	Set rows = []
@@ -566,7 +586,7 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 			} Else {
 				Set outcome = "read"
 				Set stoppedAt = $Get(^Ens.Configuration("csp", "Activity", name, "stopped"))
-				Set stored = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name, ClassName, Enabled FROM Ens_Config.Item WHERE Production = ? ORDER BY ID", name)
+				Set stored = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name, ClassName, Enabled, ID FROM Ens_Config.Item WHERE Production = ? ORDER BY ID", name)
 				If stored.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, stored.%Message))
 				Set cfgCount = 0
 				While stored.%Next() {
@@ -574,6 +594,10 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 					Set cfgAll($ZConvert(cfgName, "U")) = cfgName
 					Set cfgEnabled = stored.%GetData(3)
 					If ##class(Ens.Config.DefaultSettings).%GetSetting(name, cfgName, stored.%GetData(2), "", "Enabled", .cfgSetting) Set cfgEnabled = cfgSetting
+					If listItems {
+						Set cfgType = $Case(+##class(Ens.Config.Item).%OpenId(stored.%GetData(4)).BusinessType(), $$$eHostTypeService: "service", $$$eHostTypeProcess: "process", $$$eHostTypeOperation: "operation", : "unknown")
+						Do items.%Push({"id": (+stored.%GetData(4)), "name": (cfgName), "className": (stored.%GetData(2)), "businessType": (cfgType), "enabled": (''cfgEnabled)})
+					}
 					If cfgEnabled {
 						Set cfgOn(cfgName) = ""
 					} Else {
@@ -839,6 +863,7 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 		Set stoppedAt = ""
 		Set errored = []
 		Set queues = []
+		Set items = []
 		Set fault = exception.DisplayString()
 	}
 	Quit name

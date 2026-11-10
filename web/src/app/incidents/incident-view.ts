@@ -44,6 +44,12 @@ export const INCIDENT_TEXTS = {
   groupedOne: '1 failure grouped into this incident',
   fix: 'I can {fixSummary}.',
   fixing: 'Repairing and resending {count} {noun}\u2026',
+  fixingSuspend: 'Suspending {item}\u2026',
+  fixingResume: 'Resuming {item}\u2026',
+  fixingReroute: 'Rerouting {count} {noun}\u2026',
+  fixSuspend: 'I can suspend {item}.',
+  fixResume: 'I can resume {item}.',
+  fixReroute: 'I can reroute {count} {noun} to {to}.',
   showDetails: 'Show details',
   nounOne: 'message',
   nounOther: 'messages',
@@ -86,8 +92,8 @@ export interface IncidentContext {
   topTime(iso: string, nowMs: number): string;
   /** A time of a panel row: the page's time with the day when it is not today (pageWhen). */
   itemTime(iso: string, nowMs: number): string;
-  /** The band of a request's result with the incident's item noun (approval-view.ts resultView with the catalog's renderer), or undefined for a request with no result. */
-  result(request: IncidentRequest, itemNoun: ItemNoun | undefined): ResultView | undefined;
+  /** The band of a request's result with the incident's item noun and production (approval-view.ts resultView with the catalog's renderer), or undefined for a request with no result. */
+  result(request: IncidentRequest, itemNoun: ItemNoun | undefined, production: string): ResultView | undefined;
   /** The text of a fallback reason value, as the catalog words it (the generic reason's for a value it does not know). */
   reasonText(reason: string | undefined): string;
 }
@@ -244,8 +250,31 @@ function evidenceLineOf(payload: IncidentPayload): string {
   return parts.filter((part) => part !== '').join(INCIDENT_TEXTS.separator);
 }
 
-/** The fix sentence "I can repair and resend all 50.", without the message's closing "Approve?"; "" when there is no fix. */
+/** The fix kinds the user asks for in the chat (Story 23.2): a request of one has its own fix and fixing sentences. */
+const CHAT_KINDS: ReadonlySet<string> = new Set(['suspend_item', 'resume_item', 'reroute']);
+
+/** The sentence of a request of a kind the chat asks for ("I can suspend X." or, with the fixing form, "Suspending X\u2026"), "" for any other request. */
+function chatSentenceOf(request: IncidentRequest | undefined, payload: IncidentPayload, fixing: boolean): string {
+  const kind = textOf(request?.fixKind);
+  if (!CHAT_KINDS.has(kind)) {
+    return '';
+  }
+  const item = textOf(request?.item);
+  if (kind === 'reroute') {
+    const count = numberOf(request?.count) ?? numberOf(request?.result?.total) ?? 0;
+    return fill(fixing ? INCIDENT_TEXTS.fixingReroute : INCIDENT_TEXTS.fixReroute, { count: String(count), noun: nounFor(payload.itemNoun, count), to: item });
+  }
+  const template = kind === 'suspend_item' ? (fixing ? INCIDENT_TEXTS.fixingSuspend : INCIDENT_TEXTS.fixSuspend) : fixing ? INCIDENT_TEXTS.fixingResume : INCIDENT_TEXTS.fixResume;
+  return fill(template, { item });
+}
+
+/** The fix sentence "I can repair and resend all 50.", without the message's closing "Approve?"; "" when there is no fix. The pending request of a kind the chat asks for gives its own. */
 function fixSentenceOf(payload: IncidentPayload): string {
+  const pending = listOf(payload.requests).find((request) => request?.state === 'pending');
+  const own = chatSentenceOf(pending, payload, false);
+  if (own !== '') {
+    return own;
+  }
   const summary = sentenceOf(textOf(payload.fixSummary).replace(/\s*Approve\?$/i, ''));
   return summary === '' ? '' : fill(INCIDENT_TEXTS.fix, { fixSummary: summary.slice(0, -1) });
 }
@@ -265,6 +294,11 @@ function fixingCountOf(payload: IncidentPayload): number | undefined {
 function fixingLineOf(payload: IncidentPayload): string {
   if (payload.state !== 'fixing') {
     return '';
+  }
+  const running = listOf(payload.requests).find((request) => request?.state === 'approved' || request?.state === 'executing');
+  const own = chatSentenceOf(running, payload, true);
+  if (own !== '') {
+    return own;
   }
   const count = fixingCountOf(payload) ?? 0;
   return fill(INCIDENT_TEXTS.fixing, { count: String(count), noun: nounFor(payload.itemNoun, count) });
@@ -376,11 +410,16 @@ function groupLinesOf(payload: IncidentPayload, ctx: IncidentContext): string[] 
     });
 }
 
+/** The production a payload names for its incident, or "" when it names none (the band of a suspend or resume names its item in the production, so without one it claims nothing). */
+export function productionOf(payload: IncidentPayload): string {
+  return textOf(payload.production);
+}
+
 /** The result bands of the payload's requests, in order, each with the request's ref; a request with no result has none. */
 function bandsOf(payload: IncidentPayload, ctx: IncidentContext): { ref: string; band: ResultView }[] {
   const bands: { ref: string; band: ResultView }[] = [];
   for (const request of listOf(payload.requests)) {
-    const band = request !== null && typeof request === 'object' ? ctx.result(request, payload.itemNoun) : undefined;
+    const band = request !== null && typeof request === 'object' ? ctx.result(request, payload.itemNoun, productionOf(payload)) : undefined;
     if (band !== undefined) {
       bands.push({ ref: request.ref ?? '', band });
     }

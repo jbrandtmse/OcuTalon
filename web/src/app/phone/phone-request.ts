@@ -252,7 +252,7 @@ export class PhoneRequest {
 
   /** A press of Approve or Reject: one call for both buttons; a press while a call is out is ignored. */
   protected press(action: 'approve' | 'reject'): void {
-    this.answer.press(this.approvalRef(), action);
+    this.answer.press(this.approvalRef(), action, this.approval()?.fixKind ?? '');
   }
 
   private approvalRef(): string {

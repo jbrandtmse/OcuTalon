@@ -66,7 +66,7 @@ const ANSWERED_KEYS = [
   'answered.alreadyRejectedBy',
 ];
 
-/** The eight result texts and the audit line that the page renders (Story 6.4), in the generator's order. */
+/** The thirteen result texts and the audit line that the page renders (Story 6.4; the last five are Story 23.2's fixes the user asks for in the chat), in the generator's order. */
 const RESULT_KEYS = [
   'result.allThrough',
   'result.failedAgain',
@@ -76,6 +76,11 @@ const RESULT_KEYS = [
   'result.interrupted',
   'result.couldNotStart',
   'result.stoppedPartway',
+  'result.itemSuspended',
+  'result.itemResumed',
+  'result.itemSkipped',
+  'result.itemNotChanged',
+  'result.rerouted',
   'audit.recorded',
 ];
 
@@ -102,20 +107,20 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the nine answered keys, the nine result keys, the either-way line and the two Got it keys', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the nine answered keys, the fourteen result keys, the either-way line and the two Got it keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     assert.equal(CHECK_KEYS.length, 5);
     assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 54);
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 59);
   });
 
-  it('holds the 16 banner and action keys, the nine answered keys and the nine result keys with the slot types of the catalog, and no key that waits for another story', () => {
+  it('holds the 16 banner and action keys, the nine answered keys and the fourteen result keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 16);
     assert.equal(ANSWERED_KEYS.length, 9);
-    assert.equal(RESULT_KEYS.length, 9);
+    assert.equal(RESULT_KEYS.length, 14);
     assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS]);
     const slots = {
       'checks.notEverything': { whatFailed: 'text' },
@@ -144,6 +149,11 @@ describe('the real tree', () => {
       'result.interrupted': { count: 'count', itemNoun: 'noun', completed: 'count', remaining: 'count' },
       'result.couldNotStart': { reason: 'text' },
       'result.stoppedPartway': { count: 'count', itemNoun: 'noun', resent: 'count', completed: 'count', notTried: 'count' },
+      'result.itemSuspended': { item: 'text', production: 'text' },
+      'result.itemResumed': { item: 'text', production: 'text' },
+      'result.itemSkipped': { item: 'text', reason: 'sentence' },
+      'result.itemNotChanged': { reason: 'sentence' },
+      'result.rerouted': { count: 'count', itemNoun: 'noun', to: 'text' },
       [LINE_KEY]: { resendCount: 'count', reading: 'text', item: 'text' },
       'handled.marked': { time: 'time' },
     };
@@ -200,6 +210,54 @@ describe('the answered texts', () => {
   });
 });
 
+describe('the result texts of a fix the user asks for in the chat (Story 23.2, DW-1067)', () => {
+  const noun = { one: 'order', other: 'orders' };
+
+  it('read as the Public Text gives them, with the count-of-one form of the reroute and no doubled full stop after a sentence', () => {
+    assert.equal(real.renderPageText('result.itemSuspended', { item: 'OrdersToWarehouse', production: 'Demo.Orders' }), 'OrdersToWarehouse in Demo.Orders is suspended: it is disabled now. To undo it while this incident is open, ask me to resume OrdersToWarehouse. After the incident closes, enable OrdersToWarehouse again on the production\'s configuration page in the Management Portal.');
+    assert.equal(real.renderPageText('result.itemResumed', { item: 'OrdersToWarehouse', production: 'Demo.Orders' }), 'OrdersToWarehouse in Demo.Orders is enabled again.');
+    assert.equal(real.renderPageText('result.itemSkipped', { item: 'OrdersToWarehouse', reason: 'OrdersToWarehouse is already disabled' }), 'OrdersToWarehouse was not changed: OrdersToWarehouse is already disabled. It needs a new approval.');
+    assert.equal(real.renderPageText('result.itemNotChanged', { reason: "OcuTalon couldn't change the item" }), "Nothing was changed: OcuTalon couldn't change the item.");
+    assert.equal(real.renderPageText('result.rerouted', { count: '50', itemNoun: noun, to: 'OrdersForReview' }), 'All 50 orders were rerouted to OrdersForReview and completed there. The originals stay unchanged.');
+    assert.equal(real.renderPageText('result.rerouted', { count: '1', itemNoun: noun, to: 'OrdersForReview' }), 'The order was rerouted to OrdersForReview and completed there. The original stays unchanged.');
+    assert.equal(real.renderPageText('result.itemNotChanged', { reason: 'It failed.' }), 'Nothing was changed: It failed.', 'a sentence that ends with a full stop keeps one');
+    assert.equal(real.renderPageText('result.itemNotChanged', { reason: 'Why?' }), 'Nothing was changed: Why?', 'a question mark ends the sentence in place of the full stop');
+    assert.equal(real.renderPageText('result.itemSkipped', { item: 'A', reason: 'gone\u2026' }), 'A was not changed: gone\u2026 It needs a new approval.', 'and so does an ellipsis');
+    assert.equal(real.renderPageText('result.itemNotChanged', { reason: '' }), 'Nothing was changed: .', 'an empty sentence takes the full stop of the text');
+    assert.equal(real.renderPageText('result.couldNotStart', { reason: 'it failed.' }), 'Nothing was resent: it failed.. Nothing was changed.', 'a text slot is as before');
+  });
+
+  it('allows a sentence slot on the two keys of SENTENCE_SLOT_KEYS only, and a text slot on the keys that name an item, a production or a target', async () => {
+    const { LISTED_KEYS, SENTENCE_SLOT_KEYS } = await import(pathToFileURL(script).href);
+    assert.deepEqual(SENTENCE_SLOT_KEYS, ['result.itemSkipped', 'result.itemNotChanged']);
+    for (const key of LISTED_KEYS.filter((one) => one !== LINE_KEY)) {
+      const inWatch = Object.hasOwn(WATCH, key);
+      const entry = (inWatch ? WATCH : GOOD)[key];
+      const withSentence = { ...entry, slots: { ...entry.slots, extra: 'sentence' } };
+      const r = run(...fixture(`extra-sentence-${key}`, inWatch ? { watchEntries: { ...WATCH, [key]: withSentence } } : { entries: { ...GOOD, [key]: withSentence } }));
+      if (SENTENCE_SLOT_KEYS.includes(key)) {
+        assert.equal(r.status, 0, `${key}: ${r.stderr}`);
+      } else {
+        assert.equal(r.status, 1, key);
+        assert.ok(r.stderr.includes(`'${key}' has the slot 'extra' of type 'sentence'`), `${key}: ${r.stderr}`);
+      }
+    }
+  });
+
+  it('renders a sentence slot with the full stop rule of the server and a text slot unchanged, in the page text and in the message text', async () => {
+    const args = fixture('sentence-stop');
+    assert.equal(run(...args).status, 0);
+    const module = await import(pathToFileURL(args[5]).href);
+    for (const render of [module.renderPageText, module.renderMessageText]) {
+      assert.equal(render('result.itemNotChanged', { reason: 'it broke' }), 'Not changed: it broke.');
+      assert.equal(render('result.itemNotChanged', { reason: 'it broke.' }), 'Not changed: it broke.');
+      assert.equal(render('result.itemNotChanged', { reason: 'it broke!' }), 'Not changed: it broke!');
+      assert.equal(render('result.itemSkipped', { item: 'A', reason: ' it\n broke. ' }), 'A skipped: it broke.', 'cleaned like any string slot');
+      assert.equal(render('result.couldNotStart', { reason: 'it broke.' }), 'Not started: it broke..', 'a text slot keeps the full stop of the text');
+    }
+  });
+});
+
 describe('the result texts', () => {
   const noun = { one: 'order', other: 'orders' };
   const reason = "the order date still wasn't accepted";
@@ -243,7 +301,7 @@ describe('the result texts', () => {
   });
 
   it('read the catalog\'s count-of-one form where the named count slot is 1, and the noun by the count slot', () => {
-    assert.deepEqual(Object.keys(real.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted', 'result.stoppedPartway', LINE_KEY]);
+    assert.deepEqual(Object.keys(real.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted', 'result.stoppedPartway', 'result.rerouted', LINE_KEY]);
     assert.deepEqual(Object.fromEntries(Object.entries(real.PAGE_ONE_FORMS).map(([key, form]) => [key, form.slot])), {
       'result.allThrough': 'count',
       'result.failedAgain': 'failedAgain',
@@ -252,6 +310,7 @@ describe('the result texts', () => {
       'result.stillResending': 'completed',
       'result.interrupted': 'remaining',
       'result.stoppedPartway': 'notTried',
+      'result.rerouted': 'count',
       [LINE_KEY]: 'resendCount',
     });
     assert.equal(real.renderPageText('result.allThrough', { count: '1', itemNoun: noun }), 'The order went through.');
@@ -463,6 +522,11 @@ const RESULTS = {
   'result.interrupted': { text: 'Stopped: {completed}/{count} {itemNoun}; {remaining} left.', slots: { count: 'count', itemNoun: 'noun', completed: 'count', remaining: 'count' }, source: 'fixture', one: { slot: 'remaining', text: 'Stopped: {completed}/{count} {itemNoun}; one left.' } },
   'result.couldNotStart': { text: 'Not started: {reason}.', slots: { reason: 'text' }, source: 'fixture' },
   'result.stoppedPartway': { text: 'Partway: {resent}/{count} {itemNoun}, {completed} through; {notTried} not tried.', slots: { count: 'count', itemNoun: 'noun', resent: 'count', completed: 'count', notTried: 'count' }, source: 'fixture', one: { slot: 'notTried', text: 'Partway: {resent}/{count} {itemNoun}, {completed} through; 1 not tried.' } },
+  'result.itemSuspended': { text: '{item} in {production} suspended.', slots: { item: 'text', production: 'text' }, source: 'fixture' },
+  'result.itemResumed': { text: '{item} in {production} resumed.', slots: { item: 'text', production: 'text' }, source: 'fixture' },
+  'result.itemSkipped': { text: '{item} skipped: {reason}.', slots: { item: 'text', reason: 'sentence' }, source: 'fixture' },
+  'result.itemNotChanged': { text: 'Not changed: {reason}.', slots: { reason: 'sentence' }, source: 'fixture' },
+  'result.rerouted': { text: 'All {count} {itemNoun} sent to {to}.', slots: { count: 'count', itemNoun: 'noun', to: 'text' }, source: 'fixture', one: { slot: 'count', text: 'The {itemNoun} sent to {to}.' } },
   'audit.recorded': { text: 'Logged.', slots: {}, source: 'fixture' },
 };
 
@@ -529,7 +593,7 @@ describe('the generator on a fixture', () => {
     assert.deepEqual({ ...module.PAGE_SLOTS['handled.marked'] }, { time: 'time' });
     assert.equal(module.renderPageText('handled.marked', { time: '14:12' }), 'Handled at 14:12');
     assert.equal(module.renderPageText('checks.notEverythingRestPassed', { whatFailed: 'A (x)' }), 'Not everything: A (x). The rest was fine.');
-    assert.deepEqual(Object.keys(module.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted', 'result.stoppedPartway', LINE_KEY]);
+    assert.deepEqual(Object.keys(module.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted', 'result.stoppedPartway', 'result.rerouted', LINE_KEY]);
     assert.deepEqual({ ...module.CHANNEL_NAMES }, { web: 'the web chat', phone: 'the simulated phone' });
     assert.deepEqual({ ...module.MESSAGE_TEXTS }, { 'answered.approved': 'Yes from {channel} at {time}.' }, 'the text form of the one listed key with a web form');
     assert.equal(module.renderMessageText('answered.approved', { channel: 'phone', time: 'Monday at 09:00' }), 'Yes from the simulated phone on Monday at 09:00.');
@@ -699,6 +763,10 @@ describe('the generator on a fixture', () => {
       'result.failedAgain',
       'result.failedAndSkipped',
       'result.couldNotStart',
+      'result.itemSuspended',
+      'result.itemResumed',
+      'result.itemSkipped',
+      'result.rerouted',
       LINE_KEY,
     ]);
     assert.deepEqual(Object.keys(real.PAGE_SLOTS).filter((key) => Object.values(real.PAGE_SLOTS[key]).includes('text')), TEXT_SLOT_KEYS, 'the listed keys of the real catalog with a text slot');

@@ -41,6 +41,13 @@
 ///     ResultSlots gives the slots that the key declares, as a dynamic object, from the FixResult and the item noun: count (Total), itemNoun, completed, failedAgain,
 ///     skipped, resent, notTried (Unreached less the copy that erred, at least 0), remaining (Total less Completed, at least 0), failReason and reason (both the Reason). An empty count is 0. The result texts (OcuTalon.Msg.Catalog.Watch)
 ///     are the experience document's; this class renders nothing.
+///   - A fix the user asked for in the chat (Story 23.2): AskedKey gives the catalog key of its approval notice from the kind's name (incident.suspendRequest,
+///     incident.resumeRequest or incident.rerouteRequest) and AskedSlots builds the slots from the dry run: item and production for the two item kinds; count (the dry run's
+///     affected), itemNoun, from, to, example and resendCount (its resend) for a reroute. ResultKey, given the kind's name, gives result.itemSuspended or result.itemResumed
+///     for an item kind that changed its item, result.itemSkipped when the re-check skipped it and result.itemNotChanged when the run could not start; for a reroute whose copies
+///     all completed (the key that is result.allThrough) it gives result.rerouted. ResultSlots, given the item, production and target in extra, adds them.
+///   - The good-message refusal (DW-823): NoFixKey gives incident.goodChanged, in place of incident.noFix, for the reason of a repair dry run that the good-message check refused
+///     (Fix.Kind.RepairResend GOODCHANGED); its slots are those of incident.noFix and noun, the plural item noun.
 /// Slots, WithFixSlots and ResultSlots give "" with an error status in sc where the slots cannot be built (no group, an empty cause, an empty time, a dry run without its
 /// field, before or after or with a resend below 1, a given count below 1 or not a whole number, a given time that is empty; a noun without both forms, an empty
 /// reason where the key needs one, a key that is no result key).
@@ -107,6 +114,25 @@ Parameter KEYPARTWAY = "result.stoppedPartway";
 
 Parameter KEYCOULDNOTSTART = "result.couldNotStart";
 
+/// The catalog keys of the notice of a fix the user asked for in the chat and of its result (Story 23.2), and of the good-message refusal (DW-823).
+Parameter KEYSUSPENDREQUEST = "incident.suspendRequest";
+
+Parameter KEYRESUMEREQUEST = "incident.resumeRequest";
+
+Parameter KEYREROUTEREQUEST = "incident.rerouteRequest";
+
+Parameter KEYGOODCHANGED = "incident.goodChanged";
+
+Parameter KEYITEMSUSPENDED = "result.itemSuspended";
+
+Parameter KEYITEMRESUMED = "result.itemResumed";
+
+Parameter KEYITEMSKIPPED = "result.itemSkipped";
+
+Parameter KEYITEMNOTCHANGED = "result.itemNotChanged";
+
+Parameter KEYREROUTED = "result.rerouted";
+
 /// The state of an approval request that is still carrying out its fix.
 Parameter EXECUTING = "executing";
 
@@ -147,18 +173,73 @@ ClassMethod Slots(incident As OcuTalon.Data.Incident, groups As %ListOfObjects =
 	Set slots = ..Common(incident, .sc)
 	If $$$ISERR(sc) Quit ""
 	If key = ..#KEYFALLBACK Do slots.%Set("fallbackReason", ..Reason(incident))
-	If key = ..#KEYNOFIX {
+	If (key = ..#KEYNOFIX) || (key = ..#KEYGOODCHANGED) {
 		Set cause = ..Text(incident.Cause)
 		If cause = "" {
 			Set sc = $SYSTEM.Status.Error(5001, "The incident "_incident.Ref_" has no cause")
 			Quit ""
 		}
 		Do slots.%Set("cause", cause)
+		If key = ..#KEYGOODCHANGED Do slots.%Set("noun", slots.itemNoun.other)
 	}
 	Set lines = ..Groups(incident, groups, .sc)
 	If $$$ISERR(sc) Quit ""
 	Do slots.%Set("groups", lines)
 	Quit slots
+}
+
+/// The catalog key of the notice of a no-fix incident whose repair dry run was refused with the reason: KEYGOODCHANGED when the reason is that of the good-message check
+/// (it starts with the text of Fix.Kind.RepairResend GOODCHANGED before its first placeholder), else KEYNOFIX. Pure.
+ClassMethod NoFixKey(reason As %String) As %String
+{
+	Set lead = $Piece($Parameter("OcuTalon.Fix.Kind.RepairResend", "GOODCHANGED"), "{", 1)
+	If (lead '= "") && ($Extract($Get(reason), 1, $Length(lead)) = lead) Quit ..#KEYGOODCHANGED
+	Quit ..#KEYNOFIX
+}
+
+/// The catalog key of the approval notice of a fix the user asked for in the chat, from the kind's name (suspend_item, resume_item or reroute); "" for any other kind. Pure.
+ClassMethod AskedKey(kind As %String) As %String
+{
+	Quit $Case($Get(kind), "suspend_item": ..#KEYSUSPENDREQUEST, "resume_item": ..#KEYRESUMEREQUEST, "reroute": ..#KEYREROUTEREQUEST, : "")
+}
+
+/// The slots of the approval notice of a fix the user asked for in the chat (see the class description), from the kind's name, the dry run (a dynamic object) and the incident;
+/// "" with the reason in sc when the kind has no such notice or the dry run lacks what the notice says.
+ClassMethod AskedSlots(kind As %String, dryRun As %DynamicObject, incident As OcuTalon.Data.Incident, Output sc As %Status) As %DynamicObject
+{
+	Set sc = $$$OK
+	Set key = ..AskedKey(kind)
+	If key = "" {
+		Set sc = $SYSTEM.Status.Error(5001, "'"_$Get(kind)_"' is not a fix that the chat asks for")
+		Quit ""
+	}
+	If '$IsObject($Get(dryRun)) {
+		Set sc = $SYSTEM.Status.Error(5001, "The dry run of incident "_incident.Ref_" is not an object")
+		Quit ""
+	}
+	If (key = ..#KEYSUSPENDREQUEST) || (key = ..#KEYRESUMEREQUEST) {
+		Set item = ..Text(dryRun.item)
+		If item = "" {
+			Set sc = $SYSTEM.Status.Error(5001, "The dry run of incident "_incident.Ref_" has no item")
+			Quit ""
+		}
+		Quit {"item": (item), "production": (##class(OcuTalon.Fix.Kind).ProductionName(incident))}
+	}
+	Set from = ..Text(dryRun.from)
+	Set to = ..Text(dryRun.to)
+	Set example = ..Text(dryRun.example)
+	Set noun = dryRun.itemNoun
+	Set affected = dryRun.affected
+	Set resend = dryRun.resend
+	If (from = "") || (to = "") || (example = "") || (affected '? 1.N) || (+affected < 1) || (resend '? 1.N) || (+resend < 1) {
+		Set sc = $SYSTEM.Status.Error(5001, "The dry run of incident "_incident.Ref_" has no from, to, example, affected or resend")
+		Quit ""
+	}
+	If '$IsObject(noun) || (..Text(noun.one) = "") || (..Text(noun.other) = "") {
+		Set sc = $SYSTEM.Status.Error(5001, "The dry run of incident "_incident.Ref_" has no item noun with both forms")
+		Quit ""
+	}
+	Quit {"count": (+affected), "itemNoun": (noun), "from": (from), "to": (to), "example": (example), "resendCount": (+resend)}
 }
 
 /// The catalog key of the with-fix notice for the dry run and the request's parameters (JSON text or a dynamic object): KEYWITHFIX, or KEYWITHFIXEITHER when the
@@ -275,10 +356,24 @@ ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Statu
 }
 
 /// The catalog key of the notice of a FixResult, for the state of the request's row (see the class description). Pure.
-ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult) As %String
+ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult, kind As %String = "") As %String
 {
 	If ($Get(state) = ..#EXECUTING) || ('result.Final && 'result.Interrupted) Quit ..#KEYSTILL
 	If result.Interrupted Quit ..#KEYINTERRUPTED
+	Set class = ##class(OcuTalon.Fix.Kind).ForName(kind)
+	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "item") {
+		If +result.Completed > 0 Quit $Select($Parameter(class, "ENABLE"): ..#KEYITEMRESUMED, 1: ..#KEYITEMSUSPENDED)
+		If +result.Skipped > 0 Quit ..#KEYITEMSKIPPED
+		Quit ..#KEYITEMNOTCHANGED
+	}
+	Set key = ..MessageKey(result)
+	If (key = ..#KEYALLTHROUGH) && ($Get(kind) = "reroute") Quit ..#KEYREROUTED
+	Quit key
+}
+
+/// The catalog key of the result of a fix whose targets are messages, from the counts (the rows of the class description after the first two). Pure.
+ClassMethod MessageKey(result As OcuTalon.Fix.Msg.FixResult) As %String [ Private ]
+{
 	Set failedAgain = +result.FailedAgain
 	Set skipped = +result.Skipped
 	If (+result.Resent = 0) && (+result.Completed = 0) && (failedAgain = 0) && (skipped = 0) && (result.Reason '= "") Quit ..#KEYCOULDNOTSTART
@@ -291,10 +386,28 @@ ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult) As
 
 /// The slots of the result key for the FixResult (see the class description) as a dynamic object, or "" with the reason in sc. noun is the item noun, a dynamic
 /// object with both forms {"one", "other"}.
-ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, noun As %DynamicObject, Output sc As %Status) As %DynamicObject
+ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, noun As %DynamicObject, Output sc As %Status, extra As %DynamicObject = "") As %DynamicObject
 {
 	Set sc = $$$OK
 	Set reason = ..Text(result.Reason)
+	If '$IsObject(extra) Set extra = {}
+	If (key = ..#KEYITEMSUSPENDED) || (key = ..#KEYITEMRESUMED) || (key = ..#KEYITEMSKIPPED) || (key = ..#KEYITEMNOTCHANGED) {
+		If (key '= ..#KEYITEMNOTCHANGED) && (..Text(extra.item) = "") {
+			Set sc = $SYSTEM.Status.Error(5001, "The result of "_result.ApprovalRef_" has no item")
+			Quit ""
+		}
+		If ((key = ..#KEYITEMSUSPENDED) || (key = ..#KEYITEMRESUMED)) && (..Text(extra.production) = "") {
+			Set sc = $SYSTEM.Status.Error(5001, "The result of "_result.ApprovalRef_" has no production")
+			Quit ""
+		}
+		If ((key = ..#KEYITEMSKIPPED) || (key = ..#KEYITEMNOTCHANGED)) && (reason = "") {
+			Set sc = $SYSTEM.Status.Error(5001, "The result of "_result.ApprovalRef_" has no reason")
+			Quit ""
+		}
+		If key = ..#KEYITEMNOTCHANGED Quit {"reason": (reason)}
+		If key = ..#KEYITEMSKIPPED Quit {"item": (..Text(extra.item)), "reason": (reason)}
+		Quit {"item": (..Text(extra.item)), "production": (..Text(extra.production))}
+	}
 	If key = ..#KEYCOULDNOTSTART {
 		If reason = "" {
 			Set sc = $SYSTEM.Status.Error(5001, "The result of "_result.ApprovalRef_" has no reason")
@@ -302,7 +415,7 @@ ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, no
 		}
 		Quit {"reason": (reason)}
 	}
-	If '$ListFind($ListBuild(..#KEYALLTHROUGH, ..#KEYFAILEDAGAIN, ..#KEYSKIPPED, ..#KEYFAILEDANDSKIPPED, ..#KEYSTILL, ..#KEYINTERRUPTED, ..#KEYPARTWAY), key) {
+	If '$ListFind($ListBuild(..#KEYALLTHROUGH, ..#KEYREROUTED, ..#KEYFAILEDAGAIN, ..#KEYSKIPPED, ..#KEYFAILEDANDSKIPPED, ..#KEYSTILL, ..#KEYINTERRUPTED, ..#KEYPARTWAY), key) {
 		Set sc = $SYSTEM.Status.Error(5001, "'"_$Get(key)_"' is not the key of a result")
 		Quit ""
 	}
@@ -319,7 +432,14 @@ ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, no
 	Set slots = {}
 	Do slots.%Set("count", count, "number")
 	Do slots.%Set("itemNoun", noun)
-	If key '= ..#KEYALLTHROUGH Do slots.%Set("completed", completed, "number")
+	If key = ..#KEYREROUTED {
+		If ..Text(extra.to) = "" {
+			Set sc = $SYSTEM.Status.Error(5001, "The result of "_result.ApprovalRef_" has no target item")
+			Quit ""
+		}
+		Do slots.%Set("to", ..Text(extra.to))
+	}
+	If (key '= ..#KEYALLTHROUGH) && (key '= ..#KEYREROUTED) Do slots.%Set("completed", completed, "number")
 	If (key = ..#KEYFAILEDAGAIN) || (key = ..#KEYFAILEDANDSKIPPED) {
 		Do slots.%Set("failedAgain", +result.FailedAgain, "number")
 		Do slots.%Set("failReason", reason)

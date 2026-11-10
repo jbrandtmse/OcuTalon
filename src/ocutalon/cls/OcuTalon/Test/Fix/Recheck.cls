@@ -226,16 +226,16 @@ Method TestResendStopsWhereItErrs()
 	Do $$$AssertEquals(resent, 1, "the first valid entry is resent")
 	Do $$$AssertEquals(skipped.%Size(), 0, "and nothing is skipped")
 	Do $$$AssertEquals(unreached.%Size()_"|"_unreached.%Get(0).id_"|"_unreached.%Get(0).code_"|"_unreached.%Get(1).id_"|"_unreached.%Get(1).code, "2|"_third_"|refused|"_fourth_"|after", "the refused entry is unreached as refused, and the entry after it as after")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "Resend", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY")), 1, "and the refusal logs one Type 3 warning")
-	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Resend", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY"))
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "InProduction", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY")), 1, "and the refusal logs one Type 3 warning")
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "InProduction", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY"))
 
 	// a copy that throws: the namespace of the production cannot be entered
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do ##class(OcuTalon.Fix.Executor).Resend("ZZNOSUCHNAMESPACE", plan, "", .resent, .skipped, .unreached)
 	Do $$$AssertEquals(resent_"|"_skipped.%Size(), "0|0", "nothing is resent and nothing is skipped when the first copy throws")
 	Do $$$AssertEquals(unreached.%Size()_"|"_unreached.%Get(0).id_"|"_unreached.%Get(0).code_"|"_unreached.%Get(2).id_"|"_unreached.%Get(2).code, "3|"_second_"|error|"_fourth_"|after", "the entry that threw is unreached as error, and every entry after it as after")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "Resend", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY")), 1, "and the error logs one Type 3 warning")
-	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Resend", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY"))
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "InProduction", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY")), 1, "and the error logs one Type 3 warning")
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "InProduction", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY"))
 }
 
 /// --- helpers ---

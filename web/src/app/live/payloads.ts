@@ -31,6 +31,10 @@ export interface DryRun {
   before?: string;
   after?: string;
   itemNoun?: ItemNoun;
+  item?: string;
+  from?: string;
+  to?: string;
+  example?: string;
   eitherWay?: boolean;
   reading?: string;
 }
@@ -77,6 +81,9 @@ export interface IncidentGroup {
 export interface IncidentRequest {
   ref?: string;
   state?: string;
+  fixKind?: string;
+  item?: string;
+  count?: number;
   result?: IncidentRequestResult;
 }
 
@@ -215,6 +222,7 @@ export interface ApprovalPayload {
   incidentRef?: string;
   toolName?: string;
   reason?: string;
+  fixKind?: string;
   dryRun?: DryRun;
   raisedAt?: string;
   expiresAt?: string;
@@ -291,6 +299,7 @@ export interface GuideStatePayload {
 
 export interface IncidentPayload {
   ref?: string;
+  production?: string;
   state?: string;
   openVariant?: string;
   count?: number;

@@ -126,7 +126,7 @@ describe('the buttons', () => {
 
   it('press through AnswerPress with the channel phone, the request of the message, and no session or user', () => {
     assert.match(request.code, /new AnswerPress\(\{\s*answer: \(ref, action, channel\) => this\.api\.answerApproval\(ref, action, channel\),\s*channel: 'phone',/);
-    assert.match(request.code, /this\.answer\.press\(this\.approvalRef\(\), action\)/);
+    assert.match(request.code, /this\.answer\.press\(this\.approvalRef\(\), action, this\.approval\(\)\?\.fixKind \?\? ''\)/);
     assert.match(request.code, /return this\.message\(\)\.approvalRef \?\? '';/);
     assert.doesNotMatch(request.code, /channel: 'web'/);
     assert.doesNotMatch(request.code, /BusyState|HttpClient|\.post\(/, 'the phone has no busy state or call of its own');

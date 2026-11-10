@@ -1,0 +1,22 @@
+{
+  "name": "propose-fix-injected",
+  "match": {
+    "marker": "propose-fix-injected"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "propose_fix",
+        "input": {
+          "kind": "reroute",
+          "item": "OrdersForReview"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock was refused the fix."
+    }
+  ]
+}

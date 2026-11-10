@@ -114,7 +114,7 @@ Parameter DENIED = "<%AICore>ToolAccessDenied";
 /// The built-in tools that declare TRUSTEDOUTPUT 1 and those that declare READONLY 1, as provider:name lists. A built-in tool that declares either
 /// flag fails TestFlagsAreListed until it is added here: that edit is the review of its output (message bodies, event-log text, email, webhook, MCP
 /// and document results are never trusted output).
-Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:dismiss_incident,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.RecentActivity:recent_activity,OcuTalon.Tools.PersonaTools:propose_persona,OcuTalon.Tools.DigestTools:send_digest,OcuTalon.Tools.MemoryTools:save_memory,OcuTalon.Tools.MemoryTools:search_memories,OcuTalon.Tools.MemoryTools:list_memories,OcuTalon.Tools.MemoryTools:forget_memory";
+Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:dismiss_incident,OcuTalon.Tools.WatchTools:propose_fix,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.RecentActivity:recent_activity,OcuTalon.Tools.PersonaTools:propose_persona,OcuTalon.Tools.DigestTools:send_digest,OcuTalon.Tools.MemoryTools:save_memory,OcuTalon.Tools.MemoryTools:search_memories,OcuTalon.Tools.MemoryTools:list_memories,OcuTalon.Tools.MemoryTools:forget_memory";
 
 Parameter READONLYTOOLS = "OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.WatchReads:read_failed_messages,OcuTalon.Tools.WatchReads:read_event_log,OcuTalon.Tools.WatchReads:read_item_settings,OcuTalon.Tools.RecentActivity:recent_activity,OcuTalon.Tools.RecentActivity:incident_summary,OcuTalon.Tools.MemoryTools:search_memories,OcuTalon.Tools.MemoryTools:list_memories";
 
@@ -2089,7 +2089,7 @@ Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, a
 
 /// Rows 1 to 3 in a turn of the provenance whose taint starts at the value: the safe, read-only built-in list_reminders, list_productions and check_status and the test tool zz_gate_read are
 /// allowed, each reports one turn.step, and the taint ends as the tool says (list_reminders is trusted output, zz_gate_read is not); in a fresh context every
-/// other call (set_reminder, cancel_reminder, start_watch, stop_watch, dismiss_incident, propose_persona, save_memory, forget_memory, zz_change_endpoint, zz_gate_held, zz_gate_risky_read, zz_approve_requests and the MCP tool zz_mcp_safe) is denied
+/// other call (set_reminder, cancel_reminder, start_watch, stop_watch, dismiss_incident, propose_fix, propose_persona, save_memory, forget_memory, zz_change_endpoint, zz_gate_held, zz_gate_risky_read, zz_approve_requests and the MCP tool zz_mcp_safe) is denied
 /// with UNTRUSTED, runs no method, reports nothing, leaves the taint as it was and raises no approval request (dismiss_incident runs for an owner with a noticed
 /// open incident, and propose_persona for the candidate session, so that a method that ran would submit). The ClassificationClass setting is the test's.
 Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label As %String) [ Private ]
@@ -2125,7 +2125,7 @@ Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label 
 	Kill ^||ZzProbeSink
 	Set request = ..Begin("turn", provenance)
 	If tainted Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Put("Tainted", 1), "the turn is tainted")
-	Set cases = $ListBuild($ListBuild("set_reminder", ..#REMINDERS), $ListBuild("cancel_reminder", ..#REMINDERS), $ListBuild("start_watch", ..#WATCHING), $ListBuild("stop_watch", ..#WATCHING), $ListBuild("dismiss_incident", ..#WATCHING), $ListBuild("zz_change_endpoint", ..#TOOLS), $ListBuild("zz_gate_held", ..#TOOLS), $ListBuild("zz_gate_risky_read", ..#TOOLS), $ListBuild("zz_approve_requests", ..#TOOLS), $ListBuild("zz_mcp_safe", "mcp:zzserver"))
+	Set cases = $ListBuild($ListBuild("set_reminder", ..#REMINDERS), $ListBuild("cancel_reminder", ..#REMINDERS), $ListBuild("start_watch", ..#WATCHING), $ListBuild("stop_watch", ..#WATCHING), $ListBuild("dismiss_incident", ..#WATCHING), $ListBuild("propose_fix", ..#WATCHING), $ListBuild("zz_change_endpoint", ..#TOOLS), $ListBuild("zz_gate_held", ..#TOOLS), $ListBuild("zz_gate_risky_read", ..#TOOLS), $ListBuild("zz_approve_requests", ..#TOOLS), $ListBuild("zz_mcp_safe", "mcp:zzserver"))
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Set name = $List(case, 1)
