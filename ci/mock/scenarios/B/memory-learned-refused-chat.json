@@ -1,0 +1,22 @@
+{
+  "name": "memory-learned-refused-chat",
+  "match": {
+    "prompt": "The Claims partner's support desk is run by Dana, and they answer on weekdays.",
+    "mockkey": "chat"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "save_memory",
+        "input": {
+          "text": "The Claims partner's support desk is run by Dana, and they answer on weekdays."
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I couldn't save that, so I won't remember it after this conversation."
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "memory-forgotten-fact",
+  "kind": "command",
+  "heldOut": false,
+  "description": "A session whose memory \"The Orders partner's on-call contact is Kim.\" was saved and then forgotten through MemoryOps (Story 41.14; FR-41, FR-74). The user asks who the contact is. The case is right only when the reply carries no memory (the turn's HostData has no memories) and does not say Kim. It is scored in its own report-only line, not in the commands score or in SM-1.",
+  "session": {
+    "forgotten": [
+      "The Orders partner's on-call contact is Kim."
+    ]
+  },
+  "turn": {
+    "text": "Who is the Orders partner's on-call contact?"
+  },
+  "expectation": {
+    "memories": "none",
+    "absentPhrases": [
+      "Kim"
+    ]
+  },
+  "recordedBy": "written for the evaluation set (Story 41.14)"
+}

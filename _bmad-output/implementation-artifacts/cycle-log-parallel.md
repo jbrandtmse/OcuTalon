@@ -3361,3 +3361,7 @@
 - 2026-11-10T22:34:46Z orchestrator runner_dispatched epic=0 story=0.24 (DW-1099 CI port) lane=C slot=ocutalon-slot-c model=opus effort=high prompt=prompts/dispatch-epic-0-024.md; note: 25.2 implement may go to lane B when 37.2 completes, if lane C is still busy
 - 2026-11-10T22:52Z orchestrator ci_red_classified head=f73a09d5 branch=OCT-epic23 story=23.2 run=42897677403 red=production(DW-306),shards-8(DW-626 Watch.Reader disabled items) class=flake (ledgered; c5fec14f passed both) action=rerun --failed
 - 2026-11-10T22:53Z orchestrator ci_red_classified head=d35efc22 branch=feature run=42902128153 red=iris(browser) DW-1099 (runner ocutalon-ci-6; demo-path + online-demo back to back) lane-a green action=rerun --failed
+- 2026-11-10T23:19Z orchestrator ci_green_verified branch=OCT-epic41 head=20ab22fc runs=42896494850,42896495028 missing=none story=41.14 (+ part-2 close)
+- 2026-11-10T23:19Z orchestrator merge_gate epic=41 part=41.14 head=20ab22fc base=d35efc22 conflicts=sprint-status.yaml(ours+regenerate+set 41-14=done) code_diff_vs_epic_head=README.md,docker/tests/test-readme.sh (0.23, green on 5630cf1c) test_readme=pass test_boundaries=pass spine_lint=baseline tracker=valid epic-41=in-progress (41.10/41.11 parked)
+- 2026-11-10T23:19Z orchestrator epic_merged_to_feature epic=41 part=41.14 note=Epic 41 part 2 complete (41.8,41.9,41.12,41.13,41.14); feature CI runs
+- 2026-11-10T23:19Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=41.14 via merge

@@ -1,0 +1,22 @@
+{
+  "name": "memory-forgotten-fact-chat",
+  "match": {
+    "prompt": "Who is the Orders partner's on-call contact?",
+    "mockkey": "chat"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "search_memories",
+        "input": {
+          "query": "the Orders partner's on-call contact"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I have no memory of the Orders partner's on-call contact."
+    }
+  ]
+}

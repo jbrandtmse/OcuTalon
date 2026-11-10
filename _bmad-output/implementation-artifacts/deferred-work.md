@@ -5903,6 +5903,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T05:43:35Z occurrence=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=forget content pinned in Test/Eval/In.cls TestForgetCaseRecorded; open: remember, Report loop; fix moves pin to Cases
 - 2026-11-08T06:54:47Z status=routed owner=burndown by=merge_gate note=decision sheet Epic 9: the next eval story after the v1.0.4 merge-back (pin the remember case's content; add both user-turn cases to Test/Eval/Report.cls chip loop; contended files)
 - 2026-11-09T08:10:30Z status=routed owner=41-14-evaluation-and-tests-for-memory-s-second-part by=x0 note=epic_41_part2_retro_review:Epic_9_merge_gate_sent_it_to_the_next_eval_story_after_the_v1.0.4_merge-back;41.14_is_it(pin_the_remember_case_content_in_Test.Eval.Cases;add_both_user-turn_cases_to_Test.Eval.Report_chip_loop)
+- 2026-11-10T17:19:13Z status=resolved-by:41-14-evaluation-and-tests-for-memory-s-second-part by=adjudication note=Test.Eval.Cases_pins_the_user-turn_remember_and_forget_cases(text,keyPhrases,14_absentPhrases,heldOut,recordedBy);both_in_Eval.Report_chip_loop;41e03d54
 
 ### DW-909: Eval: at the integrate-forward over Story 30.9, Test/Eval/Cases.cls's user-turn count pin merges cleanly as 5 (both branches changed :248 to the same text) while the merged eval/ holds 6 user-turn cases; the doc lines :16 and :236-237 conflict
 - source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6285,11 +6286,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Eval/Report.cls ScoreTurn: right = decided && 'missing && (learned || ...) ignores steps; case.json keyPhrases only; Tools/CommandCall.cls Session() NOSESSION; Test/Eval/Report.cls LearnedRun mode 1 pins a tool-ran reply as right
 - 2026-11-09T10:35:54Z status=decision-pending owner=burndown by=cr note=Planner ruling planner-2026-11-09-41.8 not met in substance (no learned save is covered); recommendation: give the case a real session owner in the eval harness so save_memory saves, and score right only for a save_memory step with outcome saved plus the sentence; until then keep the line report-only and labelled wording-only, never promoted to a gate
 - 2026-11-09T14:16:54Z status=routed owner=41-14-evaluation-and-tests-for-memory-s-second-part by=owner note=planner-2026-11-09_ruling(1)_via_orchestrator_addendum_11:04Z_quote='DW-1015 AGREED: give the 41.8 learned-save eval case a real session; score it right only when the save happened AND the reply has the sentence; until then report-only, wording-only, never a gate.'_eval_change_rides_with_41.14(the_eval_story;41.9_is_Lane_B_and_touches_no_eval)
+- 2026-11-10T17:19:13Z status=resolved-by:41-14-evaluation-and-tests-for-memory-s-second-part by=adjudication note=memory-learned-save_runs_with_an_eval-only_session(Data.Session.ForEval,Planner_ruled);scores_right_only_when_save_memory_saved_AND_the_reply_has_the_sentence;report-only;real-model_0/3_on_1.0.6_RC->code-guaranteed_line_proposed(awaiting_Planner)
 
 ### DW-1016: No test or eval checks that Chat's reply after a refused or failed learned save does not say I'll remember that: the learned-save bullet (approved verbatim) and the older told bullet do not name the save's outcome, and only save_memory's description (tell the user when it was not saved) guards a false claim
 - source: spec-41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Agent/Chat.cls lines 67-68; memory-tainted-save.json mock reply; no eval case for a denied learned save (inference: model behaviour unmeasured)
 - 2026-11-09T10:35:54Z status=routed owner=41-14-evaluation-and-tests-for-memory-s-second-part by=cr note=41.14 adds an eval case: a trusted turn whose learned save is denied or fails, with absentPhrases I'll remember that; a wording change to the approved bullet needs a Planner ruling
+- 2026-11-10T17:19:13Z status=resolved-by:41-14-evaluation-and-tests-for-memory-s-second-part by=adjudication note=memory-learned-refused_case:a_failed_learned_save's_reply_must_not_say_I'll_remember_that(absentPhrases);MemoryCases
 
 ### DW-1017: The spine's 41.8 names line gives the phrase rule as whole words, case-folded and the turn as read by the save's ItemId; as built, U+2019 reads as an apostrophe, any white space joins a phrase's words, and a retried turn (Conversation.RetryItemId) is found through Ownership.TurnQueue
 - source: spec-41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns.md | severity: low | fix-risk: low | footprint: in-epic
@@ -6300,11 +6303,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Web/Api.cls MemoryItemCommand vs ForgetPrecedent (about 12 lines alike); the Epic 35 contention ruling forbade in-place edits to shared Web/Api.cls lines in Story 41.9, so the copy was forced
 - 2026-11-09T16:35:13Z status=routed owner=burndown by=cr note=Rule 2 copy forced by the 41.9/35.2 plain-union ruling; unify after Epic 35's merge
+- 2026-11-10T20:33:28Z status=wontfix-accepted by=burndown note=reopen_if=a_fourth_web_write_route_copies_the_SubmitMemory_submit-and-map_tail,or_MemoryItemCommand_and_ForgetPrecedent's_tails_diverge_in_an_outcome_mapping;no_next-epic_story_touches_Web.Api's_memory_routes
 
 ### DW-1028: Test.Web DocumentsApi.PreDispatch and SettingsApi.PreDispatch still copy the OnPreDispatch runner; move them to Test.Web.Api.PreDispatchOf (added by Story 41.9 for MemoryApi)
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Web/DocumentsApi.cls:691 and Test/Web/SettingsApi.cls:593 repeat the stand-in request, Capture, OnPreDispatch and Collect lines that PreDispatchOf now holds
 - 2026-11-09T16:35:13Z status=routed owner=burndown by=cr note=Rule 2; MemoryApi's copy was replaced in 41.9's review
+- 2026-11-10T20:33:28Z status=wontfix-accepted by=burndown note=reopen_if=another_Test.Web_class_copies_the_OnPreDispatch_runner,or_Test.Web.Api.PreDispatchOf_changes_shape;test-only_duplication_in_other_epics'_classes
 
 ### DW-1029: Pin tests stop at a probe: CommandsStep3Probe answers any pin with error 5001 and MemoryApi:TestPin real mode pins that 500, so once MemoryOps handles PinMemory/UnpinMemory both stay green past the real handler; Memory/Ops.cls:19 still says origin tool only
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
@@ -6547,6 +6552,26 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: QA run 2026-11-09: 'expected focused, received inactive' once; code review ruled out the card's re-read (rows clear with the selection while focus is on the tab, render once, tracked by ref); 2 later runs green after hardening
 - 2026-11-10T05:54:17Z status=wontfix-accepted owner=41-13-the-memory-card-pinned-and-learned-memories by=cr note=test hardened (re-read waited, first-row check, focus named); reopen_if=MC6 fails again: its poll names the focused element
+
+### DW-1085: Eval: a command case may declare both session and before; Before asks the old turn as owner eval, so the session turn finds no conversation link and runs fresh, silently losing the before context
+- source: spec-41-14-evaluation-and-tests-for-memory-s-second-part.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Eval/In.cls SendTurn calls Before(case.before) as owner eval while TurnRequest sets OwnerRef to the session; neither SessionShape nor test-eval-set.sh sessionOf refuses the pair; no shipped case has both
+- 2026-11-10T17:05:24Z status=wontfix-accepted owner=41-14-evaluation-and-tests-for-memory-s-second-part by=cr note=no shipped case combines them; reopen_if=a case.json under eval/ declares both session and before
+
+### DW-1086: Eval: session shape accepts unknown members (a typo such as forgoten seeds nothing), so a memories:none case could pass with no memory ever made
+- source: spec-41-14-evaluation-and-tests-for-memory-s-second-part.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Eval/In.cls SessionShape and test-eval-set.sh sessionOf check only forgotten; the shipped case is pinned exactly by Test.Eval.Cases:TestMemoryCases
+- 2026-11-10T17:05:24Z status=wontfix-accepted owner=41-14-evaluation-and-tests-for-memory-s-second-part by=cr note=reopen_if=a new session case under eval/ is added that Test.Eval.Cases does not pin exactly
+
+### DW-1087: Eval report: the turn-case Markdown bullet's saved-steps and absent-phrases text (TurnText/SavedCount) has no assertion
+- source: spec-41-14-evaluation-and-tests-for-memory-s-second-part.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: rg 'saved steps|SavedCount' over Test, eval/run.sh and docker/tests finds nothing; the scored right/saveSteps fields are pinned by Test.Eval.Report
+- 2026-11-10T17:05:24Z status=wontfix-accepted owner=41-14-evaluation-and-tests-for-memory-s-second-part by=cr note=report-only text read by people; reopen_if=the release gate reads the saved-steps text as evidence for a decision
+
+### DW-1088: Test.Eval.In:TestSweepSessions sweeps every no-user Session row of the instance and asserts no warning, so another run's locked leftover would turn it red
+- source: spec-41-14-evaluation-and-tests-for-memory-s-second-part.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: its first SweepSessions call is instance-wide; tests run one class at a time on a stack and no other eval run holds a session then
+- 2026-11-10T17:05:25Z status=wontfix-accepted owner=41-14-evaluation-and-tests-for-memory-s-second-part by=cr note=reopen_if=TestSweepSessions goes red on a LOGSESSIONSWEEP warning naming a Ref the test did not make
 ### DW-1080: flake: shard:lane-a@Watch Test.Watch.* TestNoticeVariants 'WebChatOut recorded one incident Delivery row for each' failed in CI
 - source: cycle-log-parallel.md (OCT-epic41 4612eb5c, ci.yml run 42777878916) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (shards-8) job 129700562402 FAIL TestNoticeVariants at 08:00:10Z, unit shard:lane-a@Watch 816s; the same shard passed on 28229232 (run 42767697005); 28229232..4612eb5c changes no product code (two comment lines in more-to-try-view.ts, docs and web tests only)
