@@ -2071,6 +2071,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T21:53:29Z status=routed owner=burndown by=orchestrator note=rerun attempt 2 of run 42285847375 green on 9683c1f0
 - 2026-11-08T01:38:53Z occurrence=feature-550bf9b8 by=orchestrator note=run 42425689094 job 128563351949 iris(production) row 21 'the step fails naming WatchOps while it cannot start' (1 of 5 values differ), unit live:production 326 s, group 1546 s; same code as bed23f1d whose production group passed; 18/18 hosts busy; rerun of failed jobs 01:39Z
 - 2026-11-09T07:17:33Z occurrence=OCT-epic41-0fb1d182 by=orchestrator note=run 42572723309 iris(production) live:production row 21 'fails naming WatchOps while it cannot start': wanted CHK|start-fails|1|1, got ''
+- 2026-11-10T07:17:50Z occurrence=feature-1490ab58 by=orchestrator note=run 42767577852 job 129667573672 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; parents 87c0223e and f59cab73 passed production; rerun of failed jobs 2026-11-10T07:17:50Z
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6403,6 +6404,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-0.md (OCT-epic0 a3086148, ci.yml run 42634825529) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (browser) job 129220092453 attempt 1 red (DEMO-PATH step 6 trace failed, 27 passed); attempt 2 job 129260909530 green 15:39-16:15Z; same code as green feature 2a45f8bc plus the Dockerfile move
 - 2026-11-09T16:27:08Z status=routed owner=burndown by=lead note=flake class; possibly kin to DW-690 (sign-out after the trace) and DW-388; rerun once per occurrence
+- 2026-11-10T07:17:50Z occurrence=feature-1490ab58 by=orchestrator note=run 42767577852 job 129667573668 iris(browser) live:demo-path 06-trace.spec.ts:36 .finish-done not found, navigated to /ocutalon/?signedOut=1 (same signature); parents 87c0223e and f59cab73 passed browser; rerun of failed jobs 2026-11-10T07:17:50Z
 - 2026-11-09T21:55:44Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_594a66af_run_42702099695_browser_live:demo-path_06-trace:35_finish_not_found_after_navigation_to_?signedOut=1;one_rerun_of_the_failed_job
 - 2026-11-10T07:54:01Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_b99d6529_run_42768243726_browser_06-trace_signedOut;one_rerun
 
