@@ -3268,3 +3268,5 @@
 - 2026-11-10T05:54Z orchestrator merge_gate epic=20 part=20.3 head=f59cab73 ci=success runs=42759214463,42759214446 missing=none conflicts=none base=cb2b416d(ancestor) code_identical_to_epic_head=yes spine_lint=baseline(10 low) tracker=valid epic-20=done
 - 2026-11-10T05:54Z orchestrator epic_merged_to_feature epic=20 part=20.3 note=epic 20 complete (20.2, 20.3)
 - 2026-11-10T05:54Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=20.3 insert via merge
+- 2026-11-10T05:54Z orchestrator ci_cancelled_record_only head=de6b7d13 runs=42765029796,42765029630 reason=green_by_identity(code = f59cab73, green on 42759214463,42759214446)
+- 2026-11-10T05:55Z orchestrator lane_assignment story=0.22 lane=C (kept; Planner order 8.8 then 0.22) lane_B_free=yes next_lane_B=epic-37 story=37.2 (replan-20261109 order: 20.2 -> 37.2 -> 25.2)
