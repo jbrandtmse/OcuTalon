@@ -5,6 +5,9 @@ Class OcuTalon.Live.Payload.Incident Extends (%RegisteredObject, %JSON.Adaptor)
 /// The incident's Ref.
 Property Ref As %String(%JSONFIELDNAME = "ref", MAXLEN = 22);
 
+/// The watched production the incident is in, which the result band of a suspend or resume names its item in.
+Property Production As %String(%JSONFIELDNAME = "production", MAXLEN = 128);
+
 /// One of Msg.Enum INCIDENTSTATE.
 Property State As %String(%JSONFIELDNAME = "state", MAXLEN = 32);
 
@@ -75,6 +78,7 @@ ClassMethod FromRow(row As OcuTalon.Data.Incident) As OcuTalon.Live.Payload.Inci
 {
 	Set payload = ..%New()
 	Set payload.Ref = row.Ref
+	Set payload.Production = row.Production
 	Set payload.State = row.State
 	Set payload.OpenVariant = row.OpenVariant
 	Set payload.Count = row.Count

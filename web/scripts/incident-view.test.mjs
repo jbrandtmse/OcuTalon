@@ -30,7 +30,7 @@ function context(over = {}, { onlineDemo = false, browser = 'Europe/Berlin' } = 
     messageTime: (iso, now) => messageTime(iso, now, 'UTC', onlineDemo),
     topTime: (iso, now) => pageWhenBeside(iso, now, 'UTC', 'en-GB', browser),
     itemTime: (iso, now) => pageWhen(iso, now, 'en-GB', browser),
-    result: (request, itemNoun) => resultView(request, itemNoun, renderPageText),
+    result: (request, itemNoun, production) => resultView(request, itemNoun, renderPageText, production),
     // The reason's text as decision-strip.ts fallbackReasonText finds it.
     reasonText: (reason) => PAGE_TEXTS['fallbackReason.' + (reason !== undefined && Object.hasOwn(REASON_KEYS, reason) ? REASON_KEYS[reason] : 'generic')],
     ...over,
@@ -667,6 +667,29 @@ describe('the result bands (Story 6.4)', () => {
     });
     assert.deepEqual(bandTexts(full({ requests: [{ ref: 'A1', state: 'pending' }] }), context()), {});
     assert.deepEqual(bandTexts(full({ requests: undefined }), context()), {});
+  });
+
+  it('give a suspend, a resume and a reroute their own band on a compact card, with the incident\'s production for the item kinds (Story 23.2)', () => {
+    const asked = [
+      { ref: 'S1', state: 'done', fixKind: 'suspend_item', item: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } },
+      { ref: 'S2', state: 'done', fixKind: 'resume_item', item: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } },
+      { ref: 'S3', state: 'done', fixKind: 'resume_item', item: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 1, interrupted: 0, reason: 'OrdersToWarehouse is already enabled' } },
+      { ref: 'S4', state: 'failed', fixKind: 'suspend_item', item: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 0, interrupted: 0, reason: "OcuTalon couldn't change the item" } },
+      { ref: 'R1', state: 'done', fixKind: 'reroute', item: 'OrdersForReview', count: 50, result: { total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } },
+    ];
+    const closed = full({ state: 'closed', production: 'OcuTalon.Demo.Orders.Production', requests: asked });
+    assert.deepEqual(
+      view(closed).results.map((band) => [band.key, band.text, band.tone, band.icon]),
+      [
+        ['result.itemSuspended', 'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is suspended: it is disabled now. To undo it, ask me to resume OrdersToWarehouse.', 'success', 'circle-check'],
+        ['result.itemResumed', 'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is enabled again.', 'success', 'circle-check'],
+        ['result.itemSkipped', 'OrdersToWarehouse was not changed: OrdersToWarehouse is already enabled. It needs a new approval.', 'partial', 'triangle-alert'],
+        ['result.itemNotChanged', "Nothing was changed: OcuTalon couldn't change the item.", 'partial', 'triangle-alert'],
+        ['result.rerouted', 'All 50 orders were rerouted to OrdersForReview and completed there. The originals stay unchanged.', 'success', 'circle-check'],
+      ],
+    );
+    assert.equal(bandTexts(closed, context()).S1, 'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is suspended: it is disabled now. To undo it, ask me to resume OrdersToWarehouse.', 'and the chat announces it');
+    assert.equal(bandTexts(full({ state: 'closed', requests: asked }), context()).S1, undefined, 'a payload with no production names no item in it, so it claims nothing');
   });
 
   it('show no band for a fix run that is still going and has no result: the fixing line is its still-resending state', () => {

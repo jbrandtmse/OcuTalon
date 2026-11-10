@@ -32,7 +32,7 @@ const FAKE = {
   // The real texts of an incident card, with a headline that carries the count so that a count change would show.
   incidentText: (previous, incident) => announcementOf(previous, incident, `H${incident.count ?? ''}`),
   // The real result bands: the catalog's texts of the Result mapping.
-  bandTexts: (incident) => bandTexts(incident, { result: (request, noun) => resultView(request, noun, renderPageText) }),
+  bandTexts: (incident) => bandTexts(incident, { result: (request, noun, production) => resultView(request, noun, renderPageText, production) }),
   dismissed: () => false,
 };
 

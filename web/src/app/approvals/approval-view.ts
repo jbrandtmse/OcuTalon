@@ -35,9 +35,10 @@
  * - answerOutcomeOf reads the reply of POST /approvals/:ref/answer; latePressText is the notice of a press that lost the race.
  * - resultView (Story 6.4; AD-16) reads the `result` of one of the incident payload's `requests` into the band under the request's
  *   answered status: the catalog's result.* key by the fields (the page maps the fields, because the payload carries no key), its text
- *   with the count-of-one forms, the tone (success only for all-through, else partial), the icon and the audit line.
+ *   with the count-of-one forms, the tone (success only for all-through, a completed suspend or resume and a completed reroute, else partial), the icon and the
+ *   audit line.
  */
-import type { ApprovalPayload, DryRun, IncidentPayload, IncidentRequest, ItemNoun } from '../live/payloads';
+import type { ApprovalPayload, DryRun, IncidentPayload, IncidentRequest, IncidentRequestResult, ItemNoun } from '../live/payloads';
 
 /** Every fixed string of the approval request card and its notices. */
 export const APPROVAL_TEXTS = {
@@ -456,19 +457,23 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  * - `failedAgain` and `skipped` above 0: result.failedAndSkipped; `failedAgain` above 0: result.failedAgain; `skipped` above 0:
  *   result.skipped; all partial, `triangle-alert`;
  * - otherwise result.allThrough, success, `circle-check`.
- * A request of a kind the user asks for in the chat (Story 23.2) has no band for a result that would say "went through": a suspend or resume has none (the chat's notice says
- * what happened to the item), and a reroute that completed has none (the notice says where the copies went); a reroute with failures or skips has the bands above.
+ * A request of a kind the user asks for in the chat (Story 23.2) has its own bands, the texts of the chat's notice, because "went through" would hide what was done:
+ * - a suspend or resume (fixKind suspend_item, resume_item; `item` of the request, `production` of the incident): `completed` above 0 is result.itemSuspended or
+ *   result.itemResumed, success, `circle-check`; else `skipped` above 0 is result.itemSkipped (reason), partial, `triangle-alert`; else a reason is result.itemNotChanged,
+ *   partial, `triangle-alert`. A run still going or interrupted, and a result that lacks the item, production or reason its text names, has no band (nothing is claimed);
+ * - a reroute (fixKind reroute; `item` of the request is the target) whose copies all completed is result.rerouted (count = `total`, to), success, `circle-check`, in
+ *   place of result.allThrough; with failures or skips it has the bands above.
  * A run still going reaches the page as `executing` with no result, so no band shows and the card's fixing line is its still-resending
  * state. The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
  * forms and the noun's form from the strings given.
  */
-export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefined, render: PageRender): ResultView | undefined {
+export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefined, render: PageRender, production = ''): ResultView | undefined {
   const result = request.result;
   if (result === null || typeof result !== 'object' || Array.isArray(result)) {
     return undefined;
   }
   if (request.fixKind === 'suspend_item' || request.fixKind === 'resume_item') {
-    return undefined;
+    return itemResultView(request, result, render, production);
   }
   const total = numberOf(result.total) ?? 0;
   const resent = numberOf(result.resent) ?? 0;
@@ -510,12 +515,57 @@ export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefi
     key = 'result.skipped';
     slots = { ...counts, skipped: String(skipped) };
   } else if (request.fixKind === 'reroute') {
-    return undefined;
+    const to = textOf(request.item);
+    if (to === '') {
+      return undefined;
+    }
+    key = 'result.rerouted';
+    slots = { count: counts.count, itemNoun: counts.itemNoun, to };
+    tone = 'success';
+    icon = 'circle-check';
   } else {
     key = 'result.allThrough';
     slots = { count: counts.count, itemNoun: counts.itemNoun };
     tone = 'success';
     icon = 'circle-check';
   }
+  return bandOf(key, slots, tone, icon, render);
+}
+
+/** The band of a suspend or resume (Story 23.2): see resultView. */
+function itemResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender, production: string): ResultView | undefined {
+  const item = textOf(request.item);
+  const reason = textOf(result.reason);
+  let key: string;
+  let slots: Record<string, unknown>;
+  let tone: ResultView['tone'] = 'partial';
+  let icon: ResultView['icon'] = 'triangle-alert';
+  if (request.state === 'executing' || (numberOf(result.interrupted) ?? 0) > 0) {
+    return undefined;
+  } else if ((numberOf(result.completed) ?? 0) > 0) {
+    if (item === '' || production === '') {
+      return undefined;
+    }
+    key = request.fixKind === 'resume_item' ? 'result.itemResumed' : 'result.itemSuspended';
+    slots = { item, production };
+    tone = 'success';
+    icon = 'circle-check';
+  } else if (reason === '') {
+    return undefined;
+  } else if ((numberOf(result.skipped) ?? 0) > 0) {
+    if (item === '') {
+      return undefined;
+    }
+    key = 'result.itemSkipped';
+    slots = { item, reason };
+  } else {
+    key = 'result.itemNotChanged';
+    slots = { reason };
+  }
+  return bandOf(key, slots, tone, icon, render);
+}
+
+/** A band from its key, slots, tone and icon: the text from the renderer and the audit line beneath it. */
+function bandOf(key: string, slots: Record<string, unknown>, tone: ResultView['tone'], icon: ResultView['icon'], render: PageRender): ResultView {
   return { key, text: render(key, slots), tone, icon, audit: render('audit.recorded', {}) };
 }

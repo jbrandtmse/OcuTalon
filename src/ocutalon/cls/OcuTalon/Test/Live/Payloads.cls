@@ -324,6 +324,7 @@ Method TestFromRowRequestResult()
 	Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.FixRun).OfRequest(ended)) + $IsObject(##class(OcuTalon.Data.FixRun).OfRequest(bare)) + $IsObject(##class(OcuTalon.Data.FixRun).OfRequest("")), 1, "OfRequest finds the run of the Ref, compares it exactly (the upper-case run is not the bare request's) and gives none for an empty Ref")
 	Do $$$AssertStatusOK(##class(OcuTalon.Live.Payload.Incident).FromRow(row).%JSONExportToString(.json), "the payload exports")
 	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.production, "Zz.Production", "the payload names the incident's production, which a suspend's band names its item in")
 	Do $$$AssertEquals(object.requests.%Size(), 3, "three requests")
 	If object.requests.%Size() = 3 {
 		Set result = object.requests.%Get(0).result
@@ -1254,6 +1255,7 @@ XData Contracts [ MimeType = application/json ]
   "super": "%RegisteredObject,%JSON.Adaptor",
   "props": {
    "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "Production": "%String(%JSONFIELDNAME=production,MAXLEN=128)",
    "State": "%String(%JSONFIELDNAME=state,MAXLEN=32)",
    "OpenVariant": "%String(%JSONFIELDNAME=openVariant,MAXLEN=32)",
    "Count": "%Integer(%JSONFIELDNAME=count)",

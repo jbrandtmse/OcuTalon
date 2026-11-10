@@ -289,6 +289,9 @@ Method TestFixKindRows()
 		Do $$$AssertTrue(..HasLine(sections("fix-kinds"), expectedRow), "the table holds "_expectedRow)
 	}
 	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), "| Class | Name | Classification | Resources |"), "and has a Classification column")
+	Set sentence = "On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so OcuTalon can't suspend or resume items there."
+	Do $$$AssertEquals($Parameter(..#GENERATOR, "ONLINESTATEMENT"), sentence, "the online demo sentence is the ruled one, word for word")
+	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), sentence), "and the fix kinds section holds it as a line of its own")
 }
 
 /// DW-213: the grants that only demo mode adds are listed apart: the service role Read on the OCUORDERS data database, and the trace role Read

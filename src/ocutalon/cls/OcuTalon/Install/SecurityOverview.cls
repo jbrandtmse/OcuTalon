@@ -8,7 +8,7 @@
 ///     from the Grants() of the areas, the grants that only demo mode adds (Install.Step.Demo WithOrdersData and WithOrders), the SQL
 ///     privileges of the trace role, the service user and the application roles of the web applications;
 ///   - Sections renders the facts as the Markdown of the keys tools, fix-kinds and privileges, in a sorted and deterministic order, in ASCII; the tools section ends
-///     with the sentence RAGSTATEMENT about the one tool that has no class of its own (Story 19.4);
+///     with the sentence RAGSTATEMENT about the one tool that has no class of its own (Story 19.4), and the fix-kinds section with the sentence ONLINESTATEMENT about the online demo's service role (Story 23.2);
 ///   - Splice replaces the text between the markers of each key in a document and nothing else; Regenerate does that for a file.
 /// A tool value is read only through the readers that the gate and the installer use (StepBuffer.ToolParameter and LabelFor,
 /// Gate.HookFor and Resources). A tool that classifies by its arguments (it has a Classify or Classify<NAME> method) shows the text of its
@@ -29,6 +29,10 @@ Parameter STATEMENT = "No built-in tool runs operating-system commands, arbitrar
 /// The sentence after the tools table (Story 19.4, the Contest Planner's PUBLIC TEXT ruling of 2026-11-07), word for word: the one tool that has no class of
 /// its own, AI Hub's knowledge base over the added documents, which the gate classifies by the bridge's classification setting.
 Parameter RAGSTATEMENT = "One tool has no class of its own: `documents`, the search over your added documents that AI Hub's knowledge base gives the Chat agent. AI Hub sends no source class with its calls, so the gate classifies this one tool, and no other, by the bridge's classification setting: safe and read-only, but its output is never trusted, so a turn that searches your documents is treated as holding untrusted content. The gate also limits each search to 5 passages. Any other call that arrives without a source class stays unclassified and counts as risky.";
+
+/// The sentence after the fix kinds table, word for word: an online-demo install leaves the item kinds' resource off the service role (Install.Step.Fix Grants), so
+/// the item kinds can run on a local install only. The privileges tables below list the role's grants for a local install.
+Parameter ONLINESTATEMENT = "On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so OcuTalon can't suspend or resume items there.";
 
 /// The class of the product's classification entries that name AI Hub's knowledge base, the toolset that attaches it and the agent that holds it.
 Parameter RAGCLASS = "%AI.RAG.KnowledgeBase";
@@ -377,7 +381,7 @@ ClassMethod ToolsText(model As %DynamicObject) As %String
 	Quit text_$Char(10)_..#RAGSTATEMENT_$Char(10)_$Char(10)
 }
 
-/// The fix kinds section.
+/// The fix kinds section: the table and the sentence about the online demo.
 ClassMethod FixKindsText(model As %DynamicObject) As %String
 {
 	Set text = "## Fix kinds"_$Char(10)_$Char(10)
@@ -386,7 +390,7 @@ ClassMethod FixKindsText(model As %DynamicObject) As %String
 	While iterator.%GetNext(, .kind) {
 		Set text = text_"| "_..Code(kind.class)_" | "_..Code(kind.name)_" | "_..Cell(kind.classification)_" | "_..Pairs(kind.resources)_" |"_$Char(10)
 	}
-	Quit text_$Char(10)
+	Quit text_$Char(10)_..#ONLINESTATEMENT_$Char(10)_$Char(10)
 }
 
 /// The privileges section: the roles, the grants that only demo mode adds, the SQL privileges, the service user and the application roles.

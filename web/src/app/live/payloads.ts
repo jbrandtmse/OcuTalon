@@ -299,6 +299,7 @@ export interface GuideStatePayload {
 
 export interface IncidentPayload {
   ref?: string;
+  production?: string;
   state?: string;
   openVariant?: string;
   count?: number;

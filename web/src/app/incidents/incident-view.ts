@@ -92,8 +92,8 @@ export interface IncidentContext {
   topTime(iso: string, nowMs: number): string;
   /** A time of a panel row: the page's time with the day when it is not today (pageWhen). */
   itemTime(iso: string, nowMs: number): string;
-  /** The band of a request's result with the incident's item noun (approval-view.ts resultView with the catalog's renderer), or undefined for a request with no result. */
-  result(request: IncidentRequest, itemNoun: ItemNoun | undefined): ResultView | undefined;
+  /** The band of a request's result with the incident's item noun and production (approval-view.ts resultView with the catalog's renderer), or undefined for a request with no result. */
+  result(request: IncidentRequest, itemNoun: ItemNoun | undefined, production: string): ResultView | undefined;
   /** The text of a fallback reason value, as the catalog words it (the generic reason's for a value it does not know). */
   reasonText(reason: string | undefined): string;
 }
@@ -410,11 +410,16 @@ function groupLinesOf(payload: IncidentPayload, ctx: IncidentContext): string[] 
     });
 }
 
+/** The production a payload names for its incident, or "" when it names none (the band of a suspend or resume names its item in the production, so without one it claims nothing). */
+export function productionOf(payload: IncidentPayload): string {
+  return textOf(payload.production);
+}
+
 /** The result bands of the payload's requests, in order, each with the request's ref; a request with no result has none. */
 function bandsOf(payload: IncidentPayload, ctx: IncidentContext): { ref: string; band: ResultView }[] {
   const bands: { ref: string; band: ResultView }[] = [];
   for (const request of listOf(payload.requests)) {
-    const band = request !== null && typeof request === 'object' ? ctx.result(request, payload.itemNoun) : undefined;
+    const band = request !== null && typeof request === 'object' ? ctx.result(request, payload.itemNoun, productionOf(payload)) : undefined;
     if (band !== undefined) {
       bands.push({ ref: request.ref ?? '', band });
     }

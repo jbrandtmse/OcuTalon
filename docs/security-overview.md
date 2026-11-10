@@ -45,6 +45,8 @@ One tool has no class of its own: `documents`, the search over your added docume
 | `OcuTalon.Fix.Kind.ResumeItem` | `resume_item` | risky | `%Ens_ConfigItemRun:U` |
 | `OcuTalon.Fix.Kind.SuspendItem` | `suspend_item` | risky | `%Ens_ConfigItemRun:U` |
 
+On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so OcuTalon can't suspend or resume items there.
+
 <!-- END GENERATED fix-kinds -->
 
 <!-- BEGIN GENERATED privileges: written by OcuTalon.Install.SecurityOverview, do not edit -->

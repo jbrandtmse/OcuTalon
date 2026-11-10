@@ -760,6 +760,13 @@ const SOURCES = {
     'Story 30.5 ruling U-182 (AD-16 as amended: the text of result.stoppedPartway, a resend that stops at the first copy that errs; the page renders the catalog\'s text)': [
       "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
     ],
+    'Story 23.2 ruling (Contest Planner, Public Text 2026-11-09, texts of the result.item* and result.rerouted catalog keys; its DW-1067 ruling of 2026-11-10 has the request card show them in its result band, rendered from the catalog)': [
+      '{item} in {production} is suspended: it is disabled now. To undo it, ask me to resume {item}.',
+      '{item} in {production} is enabled again.',
+      '{item} was not changed: {reason}. It needs a new approval.',
+      'Nothing was changed: {reason}.',
+      'All {count} {itemNoun} were rerouted to {to} and completed there. The originals stay unchanged.',
+    ],
     'Story 7.8 (U-249: the either-way sentence of the dry run, which the notice carries since Story 7.7; the page renders the catalog\'s text, cut by the generator from the two entries that hold it)': [
       'All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived.',
     ],

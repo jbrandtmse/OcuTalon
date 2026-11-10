@@ -107,18 +107,74 @@ describe('the fixes the user asks for in the chat (Story 23.2)', () => {
   });
 });
 
-describe('the result band of a fix the user asked for in the chat (Story 23.2)', () => {
+describe('the result band of a fix the user asked for in the chat (Story 23.2, DW-1067)', () => {
   const render = renderPageText;
-  it('has none for a suspend or a resume, whatever it did, and none for a reroute whose copies all completed', () => {
-    const done = { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0 };
-    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'suspend_item', result: done }, undefined, render), undefined);
-    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'resume_item', result: { ...done, completed: 0, skipped: 1, reason: 'x' } }, undefined, render), undefined);
-    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'reroute', result: { total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0 } }, { one: 'order', other: 'orders' }, render), undefined);
-    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'repair_resend', result: { total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0 } }, { one: 'order', other: 'orders' }, render).key, 'result.allThrough', 'the diagnosis\'s kind is as before');
+  const noun = { one: 'order', other: 'orders' };
+  const PRODUCTION = 'OcuTalon.Demo.Orders.Production';
+  const ITEM = 'OrdersToWarehouse';
+  const AUDIT = 'Recorded in the IRIS audit log.';
+  const ran = (over = {}) => ({ total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '', ...over });
+  const item = (fixKind, result, over = {}) => resultView({ ref: 'A', state: 'done', fixKind, item: ITEM, result, ...over }, undefined, render, PRODUCTION);
+
+  it('is the success band of result.itemSuspended for a suspend that changed the item, and of result.itemResumed for a resume', () => {
+    assert.deepEqual(item('suspend_item', ran()), {
+      key: 'result.itemSuspended',
+      text: `${ITEM} in ${PRODUCTION} is suspended: it is disabled now. To undo it, ask me to resume ${ITEM}.`,
+      tone: 'success',
+      icon: 'circle-check',
+      audit: AUDIT,
+    });
+    assert.deepEqual(item('resume_item', ran()), { key: 'result.itemResumed', text: `${ITEM} in ${PRODUCTION} is enabled again.`, tone: 'success', icon: 'circle-check', audit: AUDIT });
+  });
+
+  it('is the partial band of result.itemSkipped when the item had changed since the dry run, with the reason as the sentence it is, and of result.itemNotChanged when the run could not change it', () => {
+    const skipped = ran({ completed: 0, skipped: 1, reason: `${ITEM} is already disabled` });
+    assert.deepEqual(item('suspend_item', skipped), {
+      key: 'result.itemSkipped',
+      text: `${ITEM} was not changed: ${ITEM} is already disabled. It needs a new approval.`,
+      tone: 'partial',
+      icon: 'triangle-alert',
+      audit: AUDIT,
+    });
+    assert.equal(item('resume_item', ran({ completed: 0, skipped: 1, reason: 'It changed.' })).text, `${ITEM} was not changed: It changed. It needs a new approval.`, 'a reason with its own full stop is not doubled');
+    const failed = ran({ completed: 0, reason: "OcuTalon couldn't change the item" });
+    assert.deepEqual(item('resume_item', failed, { state: 'failed' }), {
+      key: 'result.itemNotChanged',
+      text: "Nothing was changed: OcuTalon couldn't change the item.",
+      tone: 'partial',
+      icon: 'triangle-alert',
+      audit: AUDIT,
+    });
+  });
+
+  it('claims nothing for an item kind that is still going, was interrupted, or lacks what its text names', () => {
+    assert.equal(item('suspend_item', ran(), { state: 'executing' }), undefined, 'still going');
+    assert.equal(item('suspend_item', ran({ completed: 0, interrupted: 1, reason: 'x' })), undefined, 'interrupted');
+    assert.equal(item('suspend_item', ran({ completed: 0 })), undefined, 'nothing changed and no reason');
+    assert.equal(item('suspend_item', ran(), { item: undefined }), undefined, 'no item');
+    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'suspend_item', item: ITEM, result: ran() }, undefined, render), undefined, 'no production');
+    assert.equal(item('suspend_item', ran({ completed: 0, skipped: 1, reason: 'x' }), { item: undefined }), undefined, 'a skipped item with no item');
+  });
+
+  it('is the success band of result.rerouted for a reroute whose copies all completed, with the target and the count-of-one form, and none without a target', () => {
+    const all = { total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' };
+    assert.deepEqual(resultView({ ref: 'A', state: 'done', fixKind: 'reroute', item: 'OrdersForReview', result: all }, noun, render), {
+      key: 'result.rerouted',
+      text: 'All 50 orders were rerouted to OrdersForReview and completed there. The originals stay unchanged.',
+      tone: 'success',
+      icon: 'circle-check',
+      audit: AUDIT,
+    });
+    assert.equal(
+      resultView({ ref: 'A', state: 'done', fixKind: 'reroute', item: 'OrdersForReview', result: { ...all, total: 1, resent: 1, completed: 1 } }, noun, render).text,
+      'The order was rerouted to OrdersForReview and completed there. The original stays unchanged.',
+    );
+    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'reroute', result: all }, noun, render), undefined, 'no target');
+    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'repair_resend', result: all }, noun, render).key, 'result.allThrough', 'the diagnosis\'s kind is as before');
   });
 
   it('keeps the bands of a reroute that failed again or skipped some', () => {
-    const view = resultView({ ref: 'A', state: 'done', fixKind: 'reroute', result: { total: 50, resent: 50, completed: 48, failedAgain: 2, skipped: 0, interrupted: 0, reason: 'x' } }, { one: 'order', other: 'orders' }, render);
+    const view = resultView({ ref: 'A', state: 'done', fixKind: 'reroute', item: 'OrdersForReview', result: { total: 50, resent: 50, completed: 48, failedAgain: 2, skipped: 0, interrupted: 0, reason: 'x' } }, noun, render);
     assert.equal(view.key, 'result.failedAgain');
   });
 });
