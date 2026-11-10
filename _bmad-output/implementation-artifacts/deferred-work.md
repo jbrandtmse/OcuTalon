@@ -2072,6 +2072,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T01:38:53Z occurrence=feature-550bf9b8 by=orchestrator note=run 42425689094 job 128563351949 iris(production) row 21 'the step fails naming WatchOps while it cannot start' (1 of 5 values differ), unit live:production 326 s, group 1546 s; same code as bed23f1d whose production group passed; 18/18 hosts busy; rerun of failed jobs 01:39Z
 - 2026-11-09T07:17:33Z occurrence=OCT-epic41-0fb1d182 by=orchestrator note=run 42572723309 iris(production) live:production row 21 'fails naming WatchOps while it cannot start': wanted CHK|start-fails|1|1, got ''
 - 2026-11-10T07:17:50Z occurrence=feature-1490ab58 by=orchestrator note=run 42767577852 job 129667573672 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; parents 87c0223e and f59cab73 passed production; rerun of failed jobs 2026-11-10T07:17:50Z
+- 2026-11-10T20:15:23Z occurrence=feature-1d75fbf1 by=orchestrator note=run 42874524463 job 130034187062 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; merge of 0.22 (web/guide) + v1.0.6 bump; rerun of failed jobs
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6542,3 +6543,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-22-the-more-to-try-panel-shows-its-items-under-three-group-head.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web has no component test host and every registry row declares a ruled group (the typo-guard unit test fails otherwise), so no e2e can render an ungrouped set; a template rewrite that keeps the @if regex green could misrender it
 - 2026-11-10T16:33:14Z status=wontfix-accepted owner=0-22-the-more-to-try-panel-shows-its-items-under-three-group-head by=cr note=reopen_if=a registry item ships with no group, or web gains a component test host
+
+### DW-1093: flake: live:sign-in-2 e2e/rail/rail.spec.ts:432 R10 'after live events the rail holds what a reload shows' failed at :470 'a reload shows the same rail'
+- source: main run 42863516417 attempt 1 (v1.0.6 tag 96947f4d), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: iris (shards-4) live:sign-in-2 R10 red at :470; green on one rerun; main badge green 19:45Z
+- 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); no fix work now (Planner); rerun once per occurrence
+
+### DW-1094: flake: lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges ('trace_opened/run_again changes none of the session's data rows') and TestRunAgain ('steps 3 to 5 reset; the watch still counts')
+- source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: iris (shards-6) lane-b@rest; green on one rerun
+- 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the Data.Purge entry filed alongside (Planner's unverified guess); no fix work now
+- 2026-11-10T19:46:28Z note=see also DW-1095 (possible shared cause: before/after session-row comparisons)
+
+### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
+- source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: iris (image) lane-b@Contract,Core,Data,Live; green on one rerun
+- 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the GuideApi entry filed alongside (unverified); no fix work now
+- 2026-11-10T19:46:28Z note=see also DW-1094 (possible shared cause)
