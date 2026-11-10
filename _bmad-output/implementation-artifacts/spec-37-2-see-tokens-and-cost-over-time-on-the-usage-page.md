@@ -50,7 +50,7 @@ deferred: []
 | Other owners | Rows of another session, `eval`, `instance` or no owner | Never in any bucket | — |
 | Day edge | Rows at instance-zone `23:59:59` of day D and `00:00:00` of day D+1 | In two buckets, days D and D+1. A row before the first day's midnight is left out | — |
 | Retry runner | Agent `ChatAgentRetry` (also `TriageAgentRetry`, `DiagnosisAgentRetry`) | The bucket keeps the stored agent; the page groups it under its agent ("Chat agent") | — |
-| Compaction | Agent `compaction`, `Estimated` 1 | Its own bucket, `estimated: true`; the page shows "Compaction" with the estimated marker | — |
+| Compaction | Agent `compaction`, `Estimated` 1 | Its own bucket, `estimated: true`; the page shows "Chat summaries" with the estimated marker [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] | — |
 | Null cost | Row with no `CostUSD` (model without a price) | Counts as 0 in `costUSD` | — |
 | Empty range | No rows in range | 200 with `buckets: []`; the page shows "No model use in this period." and no chart or table | — |
 | Failed read | `SessionRef` or `Rows` error | — | 500 `server_error` (`..ServerError(sc)`); the page shows its error text and Retry |
@@ -102,13 +102,13 @@ deferred: []
   - TestRefusals: `Rows` kind `usage` with an empty, `eval` or `instance` owner, through `OwnershipProbe`.
   - TestEmpty: `buckets` is `[]` and `days` still lists the range.
   - `Clean` everything in `OnAfterOneTest`.
-- `src/ocutalon/cls/OcuTalon/Test/Web/UsageApi.cls` (new; shard `lane-b@rest`, group `shards-6`) -- Follow `Test.Web.DocumentsApi`'s stand-ins. TestDispatch: the forwarded GET reaches `Read`. TestDays: absent is 7, 1, 7 and 30 are accepted, and 0, 5, 31, `abc` and an empty value are 404 `not_found`. TestShape: the keys, `limit` = `Decide`'s parameter, and no `SessionRef` or ID in the body.
+- `src/ocutalon/cls/OcuTalon/Test/Web/UsageApi.cls` (new; shard `lane-b@rest`, group `shards-6`) -- Follow `Test.Web.DocumentsApi`'s stand-ins. TestDispatch: the forwarded GET reaches `Read`. TestDays: absent is 7, 1, 7 and 30 are accepted, and 0, 5, 31, `abc` and an empty value are 404 `not_found`. TestShape: the keys, `limit` = `Decide`'s parameter, and a KEY ALLOW-LIST assertion: the body's top-level keys are exactly `days`, `limit`, `buckets`, and every bucket's keys are exactly the eleven listed in the I/O matrix, so no ref, row id, user name or `SessionRef` can appear [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md].
 - `web/src/app/api/usage-types.ts` (new) + `web/src/app/api/api-client.ts` -- Add the `UsageResponse` and `UsageBucket` types, and `usage(days: 1 | 7 | 30)` → `GET ${BASE}/usage` with `{ params: { days } }`.
 - `web/src/app/usage/usage-view.ts` (new, framework-free; it imports only the framework-free `chat/decision-view.ts` and `settings/settings-view.ts`) -- It holds:
   - `USAGE_TEXTS`, exactly the PUBLIC TEXT strings;
   - `RANGES` = 1, 7, 30, with 7 the default;
   - `GROUPINGS` = day, agent, channel, model;
-  - `groupRows(response, grouping)`, which returns one row per group with the four token kinds, `tokens` (Input + Output), `costUSD`, `estimated` (all its buckets estimated) and `includesEstimates` (some). Day lists every date of `days` in order, with 0s for days without use. Agent maps the `…Retry` agents to their agent, `compaction` to "Compaction", and an unknown value to itself. Channel uses the channel names. Model uses the stored id. Agent, channel and model are sorted by label;
+  - `groupRows(response, grouping)`, which returns one row per group with the four token kinds, `tokens` (Input + Output), `costUSD`, `estimated` (all its buckets estimated) and `includesEstimates` (some). Day lists every date of `days` in order, with 0s for days without use. Agent maps the `…Retry` agents to their agent, `compaction` to "Chat summaries", and an unknown value to itself. Channel uses the channel names. Model uses the stored id. Agent, channel and model are sorted by label, and show only values that have rows in the range: no zero rows for an agent, channel or model the install did not use (Day alone keeps every date, with 0s) [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md];
   - `largestByDay(response)`: the days with use, each with the maximum `largestRequestTokens`;
   - `dayLabel(date, today)`: short date per UX "Dates" ("Nov 9", with the year only when it differs), formatted in UTC from the local date string so the browser zone cannot shift it;
   - `chartGeometry(rows, width, height)`: one bar and one point per row, on separate token and cost scales.
@@ -123,7 +123,7 @@ deferred: []
 - `web/src/app/app.config.ts` -- Add `{ path: 'usage', component: UsagePage, title: USAGE_TEXTS.title }` before `'**'`. `web/src/app/settings/settings-view.ts` `pageOf` -- add `'usage'` for `/usage` and update its doc line. `web/src/app/header/header-nav.ts` -- add `<a class="header-nav-item" routerLink="/usage" …aria-current…>Usage</a>` after Documents, shown to every signed-in user. In `header.ts` the drawer-band comment says "four navigation links", and the spacing is tightened only if the 1024px check fails; nothing is ever hidden.
 - `web/src/app/guide/more-to-try-view.ts` + `more-to-try.ts` -- Additive:
   - add `'usage'` to `MoreToTryAction`;
-  - add `items.usage` texts and one registry entry `{ id: 'usage', …items.usage, action: 'usage', group: 'Safety and settings' }` last. That group value is the proposal under MORE TO TRY GROUP; the lead writes the Planner's ruling here before implement;
+  - add `items.usage` texts and one registry entry `{ id: 'usage', …items.usage, action: 'usage', group: 'Safety and settings' }` last, so it is the LAST item of the Safety and settings group (five items there; no fourth heading) [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md];
   - add one `@else if (item.action === 'usage')` link branch `<a routerLink="/usage">`, beside the documents branch, and one `case 'usage'` in `press()`;
   - "eight" becomes "nine" in the header comment :2-3 and :94.
 - `README.md` -- Append the PUBLIC TEXT bullet LAST in "New since 1.0.0" (after :52), and change :40 "eight more things to try" to "nine". `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- :245 "eight" becomes "nine"; add item 9's line after :253 in the list's form; :254 also says item 9's control is a link to the Usage page.
@@ -138,14 +138,14 @@ deferred: []
   - `cleanUsage(refs)`.
 - `web/e2e/api/usage.spec.ts` (new; `chromium` project, the `live:sign-in` unit, group `shards-10`) -- Real HTTP, following `api/memory.spec.ts`. It asserts only on its own unique model ids, so other rows change nothing:
   - (i) signed out is 401 `signed_out`;
-  - (ii) LIVE (OcuTalonUser only) over `signInOverHttp`: `?days=7` is 200 with its seeded buckets summed exactly, `limit` is 100000, and `days` has 7 entries; `?days=5` is 404 `not_found`;
+  - (ii) LIVE (OcuTalonUser only) over `signInOverHttp`: `?days=7` is 200 with its seeded buckets summed exactly, `limit` is 100000, and `days` has 7 entries; `?days=0`, `?days=31`, `?days=abc` and `?days=5` are each 404 `not_found`; and a key allow-list assertion on the 200 body (top level exactly `days`, `limit`, `buckets`; each bucket exactly the eleven matrix keys) proves no ref, row id, user name or SessionRef appears [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md];
   - (iii) a second session (PANEL, its own durable session) with its own seeded rows: neither response holds the other's model ids, and an `eval`-owned row seeded beside them never appears;
   - no admin-only route exists, so there is no 403 case;
   - the rows are removed in `finally`.
 - `web/e2e/usage/usage.spec.ts` (new; `chromium`, `live:sign-in`, `shards-10`) -- `clearUsage(LIVE)` then seed (in `beforeEach`), and remove the rows after. The fixtures are rows 1 to 5 days ago across three agents plus `ChatAgentRetry` and `compaction`, the channels `web`, `phone` and `telegram`, two unique models, and distinct largest requests. The cases:
   - U1: open from the nav as LIVE; the title, `aria-current`, the nav list `['Chat', 'Documents', 'Usage']` and no History.
   - U2: for each grouping, every table row equals the fixture sum written out in the test, the totals add up, and the chart's bars and points equal the table's rows (count, `data-key`, `data-tokens`, `data-cost`).
-  - U3: Compaction carries "estimated", the retry rows sit under "Chat agent", and a row that includes an estimate is marked.
+  - U3: Chat summaries (the compaction rows) carries "estimated", the retry rows sit under "Chat agent", and a row that includes an estimate is marked.
   - U4: the largest-request table lists each day's maximum as "n of 100,000 tokens".
   - U5: "Today" shows "No model use in this period." and no chart or table.
   - U6: keyboard only. Tab reaches the nav item, the Range select and the Group by radios, both change by keyboard, `getByLabel` finds each control, and the legend and markers are words and shapes, not colour alone.
@@ -166,7 +166,7 @@ deferred: []
 **Acceptance Criteria:**
 - Given this story's change, when the spine is read, then the REST table has the `GET /api/v1/usage` row and the cross-area table has the `Ownership.Usage` and header-navigation Usage rows, each marked `[ADDED 2026-11-10, Story 37.2]`. It has no History, file upload, private file table or Roles row. `lint_spine.py` reports the same 10 low `placeholder` findings at lines 478, 1017 (x2), 1086, 1099 (x2), 1165 (x3) and 1176 as before.
 - Given the LIVE fixture user (OcuTalonUser only) signed in, when they press Usage in the header navigation, then `#/usage` opens, titled "Usage · OcuTalon", with `aria-current="page"` on the Usage item and no History item. It shows the Range control, the Group by control, the chart with token bars and a cost line (each labelled directly and in the legend), and beneath the chart a table with one row for every bar and point.
-- Given fixture rows across days, agents, channels and models in the caller's session, plus another session's and `eval`'s rows, when each grouping is chosen, then each table row's tokens and cost equal the sum of its rows, and the chart's bars and points equal the table's rows. Compaction appears as its own agent, marked estimated. The retry runners' rows count under their agent. No other-session or `eval` row ever counts.
+- Given fixture rows across days, agents, channels and models in the caller's session, plus another session's and `eval`'s rows, when each grouping is chosen, then each table row's tokens and cost equal the sum of its rows, and the chart's bars and points equal the table's rows. The compaction rows appear as their own agent, labelled "Chat summaries" and marked estimated; the Agent, Channel and Model groupings show only values with rows in the range. The retry runners' rows count under their agent. No other-session or `eval` row ever counts.
 - Given rows on several days, when the page shows the range, then each day with use shows its largest model request (estimated) as "{n} of 100,000 tokens", taken from the route's `limit`.
 - Given any row, when its numbers render, then tokens use digit separators and costs follow `formatCost` (for example $0.0006, $0.042, $1.24, and <$0.0001 below that) in tabular figures.
 - Given a range with no model use, when the page loads, then it shows "No model use in this period." and no chart or table.
@@ -175,6 +175,8 @@ deferred: []
 - Integration: the Usage page (the consumer) reads `GET /api/v1/usage` on a real stack and shows its seeded rows' sums. The `live:sign-in` e2e specs `api/usage.spec.ts` and `usage/usage.spec.ts` exercise this against a running IRIS, with no mocks.
 
 ## Spec Change Log
+
+- 2026-11-10, lead (spec gate): the Contest Planner's rulings written in [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md]. PUBLIC TEXT approved except the agent name ("Chat summaries", not "Compaction"), the More to try look-for and the README bullet (ruled texts in the table); condition: Agent, Channel and Model groupings show only values with rows in the range, Day keeps every date with 0s. SECURITY accepted with conditions (ii) days=0, 31 and abc are 404 not_found and (iii) a key allow-list assertion on the body (added to Test.Web.UsageApi TestShape and api/usage.spec.ts (ii)). Group: "Safety and settings", usage last. The Demo/Features union with ",usage" last is accepted. 37.2 targets release 1.0.7.
 
 ## Review Triage Log
 
@@ -267,47 +269,47 @@ None is contended.
   - `shards-5` reruns its updated `more-to-try.spec.ts` (`live:sign-in-3`), and `shards-4` reruns `settings.spec.ts` (`live:sign-in-2`).
 - Both shard pieces were planned at about 900 s, so the first CI run checks them.
 
-**SECURITY (for the Planner) -- pending the Planner's ruling:**
+**SECURITY -- ACCEPTED as specced [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md], with conditions: (i) the real-HTTP tests as listed (401 signed out; LIVE 200 with exact sums; PANEL isolated both ways; an eval row never appears); (ii) `days=0`, `31` and `abc` each give 404 `not_found`; (iii) a key allow-list assertion on the body proves no ref, row id, user name or SessionRef appears; (iv) the user role is not widened, and the 1024px header escalates rather than hiding a link.**
 - New route: `GET /api/v1/usage` (query `days` = 1, 7 or 30). It is the only new route.
 - Who may call it: any signed-in user with `OcuTalonUser` (the online demo's visitors, local users and admins, who also hold it). It is not admin-only. The existing envelope applies: 401 `signed_out`, 403 `no_role`.
 - Rows returned: only the caller's own session's `Bridge.Data.Usage` rows, summed. On the online demo that is the visitor's session (the Ref recorded in the CSP session at sign-in; no fallback). On a local install it is the IRIS user's durable session. Rows of another session, `eval`, `instance` or no owner are never read; instance-owner rows are not shown on a local install either. No refs, row ids, user names or `SessionRef` appear in the body.
 - New privilege, role, grant, resource, stored table, stored column, index or retention: none. The read uses the existing allow-listed unchecked prepare in `Ownership.Rows` (fixed SQL with the owner in `WHERE`), so the user role gains no SQL privilege.
 
-**PUBLIC TEXT (for the Planner) -- every new or changed user-facing string, verbatim. "Given" cites the source; "PROPOSED" is pending the Planner. The implement stage uses exactly these strings.**
+**PUBLIC TEXT -- every new or changed user-facing string, verbatim. "Given" cites the source; every proposal is RULED [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md]: approved except items 4 (agent name), 10 (look-for) and 12 (README bullet), which carry the ruled text below. The implement stage uses exactly these strings.**
 
 | Where (file) | String | Status |
 | --- | --- | --- |
 | `header/header-nav.ts` | `Usage` | Given: EXPERIENCE.md:60, :77; UX-DR21 |
 | `usage/usage-view.ts` title | `Usage · OcuTalon` | Given: epics.md:9339; UX-DR22 pattern |
 | usage-view `h1` | `Usage` | Given: same as the nav label (EXPERIENCE.md:60) |
-| usage-view range label | `Range` | PROPOSED (the UX gives "a range", EXPERIENCE.md:1055, but no label) |
-| usage-view range options | `Today` · `Last 7 days` · `Last 30 days` | PROPOSED |
-| usage-view grouping legend | `Group by` | PROPOSED |
+| usage-view range label | `Range` | PROPOSED -> RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] (the UX gives "a range", EXPERIENCE.md:1055, but no label) |
+| usage-view range options | `Today` · `Last 7 days` · `Last 30 days` | RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] |
+| usage-view grouping legend | `Group by` | RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] |
 | usage-view grouping options and first column header | `Day` · `Agent` · `Channel` · `Model` | Given as words: PRD FR-52 (prd.md:990), epics.md:9339; capitalised |
-| usage-view chart region `h2` | `Tokens and cost` | PROPOSED |
+| usage-view chart region `h2` | `Tokens and cost` | RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] |
 | usage-view legend and direct labels; table headers | `Tokens` · `Cost` | Shipped strings reused (`decision-view.ts` rowTokens and rowCost); DESIGN.md:865 names token bars and a cost line |
 | usage-view table headers | `Input` · `Output (includes thinking)` · `Cache read` · `Cache write` | Given: EXPERIENCE.md:185 (shipped in decision-view.ts:29-32) |
 | usage-view agent names | `Triage agent` · `Diagnosis agent` · `Chat agent` | Shipped strings reused (settings-view.ts:77) |
-| usage-view agent name | `Compaction` | PROPOSED |
-| usage-view channel names | `Web chat` · `Simulated phone` · `Simulated mailbox` · `Telegram` · `Email` · `Webhook` · `Slack` · `System` · `Heartbeat` | "Simulated phone" and "Simulated mailbox" are given (EXPERIENCE.md:71), "Telegram" and "the web chat" are given (EXPERIENCE.md:188, lower case in sentences); the rest are PROPOSED |
-| usage-view estimated marker (a row that is all estimates, e.g. Compaction) | `estimated` | PROPOSED (the AC says "marked as estimated", epics.md:9344) |
-| usage-view marker (a group that includes estimated rows) | `includes estimates` | PROPOSED |
-| usage-view largest region `h2` | `Largest request per day` | PROPOSED |
-| usage-view largest column header | `Largest request (estimated)` | PROPOSED (PRD prd.md:245 says the request size is labelled as an estimate) |
-| usage-view largest cell | `{tokens} of {limit} tokens` → "12,345 of 100,000 tokens" | PROPOSED |
+| usage-view agent name | `Chat summaries` (keeps the `estimated` marker) | RULED (changed from "Compaction") [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] |
+| usage-view channel names | `Web chat` · `Simulated phone` · `Simulated mailbox` · `Telegram` · `Email` · `Webhook` · `Slack` · `System` · `Heartbeat` | "Simulated phone" and "Simulated mailbox" are given (EXPERIENCE.md:71), "Telegram" and "the web chat" are given (EXPERIENCE.md:188, lower case in sentences); the rest RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md]; Agent, Channel and Model groupings show only values with rows in the range |
+| usage-view estimated marker (a row that is all estimates, e.g. Chat summaries) | `estimated` | RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] (the AC says "marked as estimated", epics.md:9344) |
+| usage-view marker (a group that includes estimated rows) | `includes estimates` | RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] |
+| usage-view largest region `h2` | `Largest request per day` | RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] |
+| usage-view largest column header | `Largest request (estimated)` | RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] (PRD prd.md:245 says the request size is labelled as an estimate) |
+| usage-view largest cell | `{tokens} of {limit} tokens` → "12,345 of 100,000 tokens" | RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] |
 | usage-view empty | `No model use in this period.` | Given: EXPERIENCE.md:394; UX-DR147 |
-| usage-view error | `Couldn't load your usage.` and the button `Retry` | PROPOSED (follows EXPERIENCE.md:363 "Couldn't load your session." + Retry); no loading text, as on the Documents page |
-| `guide/more-to-try-view.ts` item label | `See tokens and cost` | PROPOSED |
-| item look-for | `On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your turns and decisions, and each day shows its largest model request against the 100,000-token limit.` | PROPOSED |
-| item control (a link) | `Open the Usage page` | PROPOSED |
-| `README.md`, appended last in "New since 1.0.0" | `- **A Usage page.** Open Usage in the header to see your tokens and cost by day, agent, channel or model, counted per turn and per decision, with each day's largest model request (an estimate) against the 100,000-token limit. Try it: More to try, *See tokens and cost*.` | PROPOSED |
+| usage-view error | `Couldn't load your usage.` and the button `Retry` | RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] (follows EXPERIENCE.md:363 "Couldn't load your session." + Retry); no loading text, as on the Documents page |
+| `guide/more-to-try-view.ts` item label | `See tokens and cost` | RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] |
+| item look-for | `On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents' decisions on your messages and incidents, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.` | RULED (changed) [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md]. The inner quotes are straight ASCII quotes, as the module's other texts are |
+| item control (a link) | `Open the Usage page` | RULED OK [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md] |
+| `README.md`, appended last in "New since 1.0.0" | `- **A Usage page.** Open Usage in the header to see your tokens and cost by day, agent, channel or model, counted per turn and per decision, with each day's largest model request (an estimate) against the 100,000-token limit. On the online demo you see only your own session's use. Try it: More to try, *See tokens and cost*.` | RULED (changed) [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md]; test-readme must stay green |
 | `README.md:40` | `eight more things to try` → `nine more things to try` | Count follows the registry |
 | EXPERIENCE.md:245 + new item 9 line + :254 clause | "There are nine items…"; item 9: `**See tokens and cost**: …` in the list's form, with the look-for text above; ":254 … and item 9's control is a link to the Usage page" | Follows the item's ruled text and the count |
 
-**MORE TO TRY GROUP (for the Planner) -- pending:** I propose the existing group `Safety and settings`. Cost and the 100,000-token limit are guardrails that sit with the daily cost cap and the token budget, and a fourth heading over a single item would spend the panel's limited room (the compact band, `more-to-try-view.ts` `inCompactBand`). The alternative is a fourth heading, `Usage and cost`. Until Story 0.22 renders headings, the field is ignored.
+**MORE TO TRY GROUP -- RULED [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md]: the existing "Safety and settings", with usage LAST in it (five items there). No fourth heading.** The plan proposed the existing group `Safety and settings`. Cost and the 100,000-token limit are guardrails that sit with the daily cost cap and the token budget, and a fourth heading over a single item would spend the panel's limited room (the compact band, `more-to-try-view.ts` `inCompactBand`). The alternative is a fourth heading, `Usage and cost`. Until Story 0.22 renders headings, the field is ignored.
 
 **Lead spec gate (2026-11-10, runner B):**
-- Pending the Contest Planner, relayed by the orchestrator: PUBLIC TEXT (the table above), SECURITY (above) and MORE TO TRY GROUP (above). The implement stage does not start until the lead has written the rulings here: the ruled strings replace the PROPOSED ones in the PUBLIC TEXT table, and the ruled group replaces `'Safety and settings'` in Tasks & Acceptance if it differs. SCOPE is already ruled (the first AC's [AMENDED 2026-11-10] marker in epics.md): this story's own rows only, no History entry.
+- RULED 2026-11-10 ~07:00Z (see Spec Change Log): PUBLIC TEXT, SECURITY and MORE TO TRY GROUP are written into the table and sections above and into Tasks & Acceptance. SCOPE is already ruled (the first AC's [AMENDED 2026-11-10] marker in epics.md): this story's own rows only, no History entry.
 - Contended, plain union at integrate-forward: `Demo/Features.cls` and `Test/Demo/Features.cls` are also changed on OCT-epic23 (Story 23.6 puts `incidentSummary` first among the constants). Merged, the ids read `incidentSummary,...,sources,usage`, and the count words follow the registry. The same applies to the More to try registry, README :40 and EXPERIENCE.md :245, which Story 23.6 also counts.
 - `e2e/usage/usage.spec.ts`'s `clearUsage(LIVE)` relies on `workers: 1` and `fullyParallel: false` (`playwright.config.ts:65-67`), as the heartbeat card spec does. It deletes only the LIVE session's Usage rows on the e2e stack, never on a dev slot.
 
