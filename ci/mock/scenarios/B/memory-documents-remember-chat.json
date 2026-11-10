@@ -1,0 +1,31 @@
+{
+  "name": "memory-documents-remember-chat",
+  "match": {
+    "prompt": "Find the section Clearing the queue in my Results runbook and remember what it says.",
+    "mockkey": "chat"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "documents",
+        "input": {
+          "query": "Clearing the queue"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "save_memory",
+        "input": {
+          "text": "When the Results queue grows and does not shrink, find the message at the head of the queue, read why it fails, fix the cause, and resend it."
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I can't save that: it came from one of your documents, not from you. Tell me the steps in your own words if you want me to keep them."
+    }
+  ]
+}

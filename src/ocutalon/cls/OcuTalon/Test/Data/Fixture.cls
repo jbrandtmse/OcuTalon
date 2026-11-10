@@ -30,6 +30,20 @@ ClassMethod Session(user As %String) As %String
 	Quit ..Keep(row)
 }
 
+/// Sets OCUTALON_EVAL in this process's environment to the value (removes it for ""), as Data.Session.ForEval and the evaluation switch read it, and returns the value it had. A test that
+/// calls it puts the returned value back in a Try/Catch or in its teardown.
+ClassMethod SetEval(value As %String) As %String
+{
+	Set environ = ##class(%SYS.Python).Import("os").environ
+	Set previous = $SYSTEM.Util.GetEnviron("OCUTALON_EVAL")
+	If value '= "" {
+		Do environ."__setitem__"("OCUTALON_EVAL", value)
+	} Else {
+		Do environ.pop("OCUTALON_EVAL", "")
+	}
+	Quit previous
+}
+
 /// A turn of the session; createdAt defaults to now and state to done. It always has a new ItemId (the ItemId index is
 /// unique); text, clientId and attempt are set when given.
 ClassMethod Turn(sessionRef As %String, createdAt As %String = {##class(OcuTalon.Data.Time).NowUtc()}, state As %String = "done", text As %String = "", clientId As %String = "", attempt As %Integer = 0) As %String

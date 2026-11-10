@@ -35,6 +35,12 @@
 ///   - RemoveRun (the removal of one run's seeded precedents, which Unseed and the start-of-run sweep share) records each run under ^OcuTalonTest("EvalIn", "remove", n)
 ///     and sends nothing; it answers OK for a run that ^OcuTalonTest("EvalIn", "removeOk", run) names and an error status for every other.
 ///   - Pause (the wait before a Busy turn is asked again) records the seconds under ^OcuTalonTest("EvalIn", "paused", n) and waits for none.
+///   - SessionRow (a session case's Session row, Story 41.14) answers an unsaved row with a fresh Ref and makes no Session row, unless
+///     ^OcuTalonTest("EvalIn", "sessionReal") is 1, when it makes the real row (Data.Session.ForEval, which needs OCUTALON_EVAL=1).
+///   - AskMemory (a seeded SaveMemory or ForgetMemory of a session case) records each command under ^OcuTalonTest("EvalIn", "memory", n) as a list: the class
+///     name, SessionRef, Origin, IdempotencyKey, and the Text (a save) or the MemoryRef (a forget). It answers a CommandResult saved with a made-up Ref, or forgotten, a
+///     CommandResult with the outcome ^OcuTalonTest("EvalIn", "memoryOutcome", n) holds for its nth call, and an error status for its nth call when
+///     ^OcuTalonTest("EvalIn", "memoryError") holds n.
 /// DeleteBodies deletes the TurnResult bodies of the ItemIds that Ask and Deliver recorded: EvalIn saves a TurnResult before it asks, and the
 /// double's Deliver sends nothing, so no purge would ever remove it. The tests call it before they clear the records.
 Class OcuTalon.Test.Eval.ZzIn Extends OcuTalon.Eval.In
@@ -193,6 +199,28 @@ Method RemoveRun(runRef As %String) As %Status
 {
 	Set ^OcuTalonTest("EvalIn", "remove", $Increment(^OcuTalonTest("EvalIn", "remove"))) = runRef
 	Quit $Select($Data(^OcuTalonTest("EvalIn", "removeOk", runRef)): $$$OK, 1: $SYSTEM.Status.Error(5001, "the removal of the run "_runRef_" failed"))
+}
+
+Method SessionRow(Output sc As %Status) As OcuTalon.Data.Session [ Private ]
+{
+	If $Get(^OcuTalonTest("EvalIn", "sessionReal")) Quit ##super(.sc)
+	Set sc = $$$OK
+	Set row = ##class(OcuTalon.Data.Session).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Quit row
+}
+
+Method AskMemory(command As OcuTalon.Msg.Command, Output result As %Library.Persistent) As %Status [ Private ]
+{
+	Set n = $Increment(^OcuTalonTest("EvalIn", "memory"))
+	Set save = command.%IsA("OcuTalon.Msg.Command.SaveMemory")
+	Set ^OcuTalonTest("EvalIn", "memory", n) = $ListBuild($ClassName(command), command.SessionRef, command.Origin, command.IdempotencyKey, $Select(save: command.Text, 1: command.MemoryRef))
+	If $Get(^OcuTalonTest("EvalIn", "memoryError")) = n Quit $SYSTEM.Status.Error(5001, "MemoryOps could not be reached")
+	Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+	Set result.Outcome = $Get(^OcuTalonTest("EvalIn", "memoryOutcome", n), $Select(save: "saved", 1: "forgotten"))
+	Set result.Ok = (result.Outcome = $Select(save: "saved", 1: "forgotten"))
+	If save Set result.Ref = $Extract("zzMem"_$Translate($Justify(n, 17), " ", "0"), 1, 22)
+	Quit $$$OK
 }
 
 Method Pause(seconds As %Integer) [ Private ]

@@ -84,6 +84,13 @@
 ///     its marked rows and goes on;
 ///   - TestFinishUnseeds (Matrix: end of run): Finish sends one removal for each distinct run of the records, none for a record without precedents, and gives the
 ///     first error while it still tries the others.
+///   - (Story 41.14) TestSessionShapeRefused: a session that is not an object, a forgotten that is not 1 to 3 non-blank strings of at most 2,000 characters and a session on a kind other than command skip the case
+///     with REASONSESSION before anything is saved, seeded or asked; TestSessionCase: a session case has one session of its own (a Ref, a record {case, session{ref}} in the Watches), one SaveMemory of origin system and one
+///     ForgetMemory of its Ref for each forgotten text, a turn asked with that session as OwnerRef and the same Input as an owner-eval turn, and its TurnResult keeps the Reply's memories; TestSessionSeedFails: a seed
+///     that is not answered saved or forgotten, or that fails, skips the case with REASONSESSION, drops the session and keeps no record; TestSessionRow, TestSessionRefusedWithoutTheSwitch: with OCUTALON_EVAL=1 the row
+///     is real, has no IrisUser and no ResumeHash, and Finish drops its memories and then the row (a second Finish is no error); without it no row is made and the case is skipped; TestFinishSessions: Finish
+///     tries every record, drops no person's session and gives the first error; TestSweepSessions (security condition iii): the start-of-run sweep drops only the sessions with no IrisUser and their memories, and
+///     leaves a person's session and everything of it, and a session whose memories are busy is one warning and the sweep goes on.
 /// OnAfterOneTest removes, through RemoveEvalWatch, every eval watch row created since the test began.
 Class OcuTalon.Test.Eval.In Extends %UnitTest.TestCase
 {
@@ -105,6 +112,17 @@ Property Begun As %String;
 
 /// The Refs of the runs of other tests' making whose case rows a test opened, comma-separated; removed after the test.
 Property Fakes As %String(MAXLEN = "");
+
+/// The Refs of the sessions that a test made (evaluation sessions and fixture sessions), comma-separated: their memories are dropped, and their rows removed, after the test.
+Property Sessions As %String(MAXLEN = "");
+
+/// The Refs of the fixture sessions among them, which Fixture.Clean removes.
+Property Fixtures As %String(MAXLEN = "");
+
+/// OCUTALON_EVAL as the process had it before a test changed it (UseEval); restored after the test.
+Property EvalWas As %String;
+
+Property EvalTouched As %Boolean [ InitialExpression = 0 ];
 
 /// The IDs of the synthetic watch rows of other owners that a test saved, comma-separated.
 Property SessionRows As %String(MAXLEN = "");
@@ -138,6 +156,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ##class(OcuTalon.Test.Eval.ZzIn).DeleteBodies()
 	Kill ^OcuTalonTest("EvalIn")
+	Do ..RemoveSessions()
 	Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..Run)
 	For i = 1:1:$Length(..Fakes, ",") {
 		If $Piece(..Fakes, ",", i) '= "" Do ##class(OcuTalon.Eval.Data.CaseResult).Remove($Piece(..Fakes, ",", i))
@@ -146,7 +165,106 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "SweepPrecedents", ##class(OcuTalon.Eval.In).#LOGUNSEED)
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "OnProcessInput", ##class(OcuTalon.Eval.In).#LOGSKIPPED)
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "Converse", ##class(OcuTalon.Eval.In).#LOGNOTDELIVERED)
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "SweepSessions", ##class(OcuTalon.Eval.In).#LOGSESSIONSWEEP)
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "SessionDrop", ##class(OcuTalon.Eval.In).#LOGSESSIONDROP)
+	If ..EvalTouched Do ##class(OcuTalon.Test.Data.Fixture).SetEval(..EvalWas)
+	Set ..EvalTouched = 0
 	Quit $$$OK
+}
+
+/// Sets OCUTALON_EVAL for the test; the value it had is put back after the test.
+Method UseEval(value As %String) [ Private ]
+{
+	Set was = ##class(OcuTalon.Test.Data.Fixture).SetEval(value)
+	If '..EvalTouched Set ..EvalWas = was, ..EvalTouched = 1
+}
+
+/// Drops the memories and removes the rows of the sessions that the test made.
+Method RemoveSessions() [ Private ]
+{
+	For i = 1:1:$Length(..Sessions, ",") {
+		Set ref = $Piece(..Sessions, ",", i)
+		If ref = "" Continue
+		Do ##class(OcuTalon.Memory).DropSession(ref)
+		If ##class(OcuTalon.Data.Session).RefIndexExists(ref) && ($Find(","_..Fixtures_",", ","_ref_",") = 0) Do ##class(OcuTalon.Data.Session).DropEval(ref)
+	}
+	If ..Fixtures '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Fixtures)
+	Set ..Sessions = "", ..Fixtures = ""
+	Kill ^OcuTalonTest("EvalInLock")
+}
+
+/// A fixture session of a person (an IRIS user), kept for the clean-up; returns its Ref.
+Method Person(name As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzevalin"_$Extract(..Run, 3, 12)_name)
+	Set ..Sessions = ..Sessions_$Select(..Sessions = "": "", 1: ",")_ref
+	Set ..Fixtures = ..Fixtures_$Select(..Fixtures = "": "", 1: ",")_ref
+	Quit ref
+}
+
+/// An evaluation session made through Data.Session.ForEval (OCUTALON_EVAL must be 1), kept for the clean-up; returns its Ref.
+Method Leftover() As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Session).ForEval(.sc)
+	Do $$$AssertStatusOK(sc, "an evaluation session is made")
+	If '$IsObject(row) Quit ""
+	Set ..Sessions = ..Sessions_$Select(..Sessions = "": "", 1: ",")_row.Ref
+	Quit row.Ref
+}
+
+/// Saves a memory row of the session without an embedding (the test needs only the row), and returns its Ref.
+Method Memory(session As %String, text As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Memory).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.SessionRef = session
+	Set row.Text = text
+	Set row.SavedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set row.ItemId = "zzevalin"
+	Set row.Origin = "tool"
+	Do $$$AssertStatusOK(row.%Save(), "a memory of the session is saved")
+	Quit row.Ref
+}
+
+/// The number of memories of the session.
+ClassMethod MemoryCount(session As %String) As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Memory WHERE SessionRef = ?", session)
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
+/// The number of Session rows that have no IrisUser.
+ClassMethod EvalSessions() As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Session WHERE COALESCE(IrisUser, '') = ''")
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
+/// How many seeded memory commands the double was given.
+ClassMethod Memories() As %Integer [ Private ]
+{
+	Quit +$Get(^OcuTalonTest("EvalIn", "memory"))
+}
+
+/// The nth seeded memory command, as a list: class name, SessionRef, Origin, IdempotencyKey and the Text (a save) or the MemoryRef (a forget).
+ClassMethod MemoryAt(n As %Integer) As %List [ Private ]
+{
+	Quit $Get(^OcuTalonTest("EvalIn", "memory", n))
+}
+
+/// The job body of TestSweepSessions: holds the memory lock of the session until the test releases it (or 15 seconds pass).
+ClassMethod HoldLock(session As %String)
+{
+	Lock +^OcuTalon.Memory(session)
+	Set ^OcuTalonTest("EvalInLock", "held") = 1
+	Set end = $ZHorolog + 15
+	While '$Get(^OcuTalonTest("EvalInLock", "release")) && ($ZHorolog < end) {
+		Hang 0.1
+	}
+	Lock -^OcuTalon.Memory(session)
+	Set ^OcuTalonTest("EvalInLock", "done") = 1
 }
 
 /// Removes, through RemoveEvalWatch, every eval watch row created since the test began, and deletes the synthetic rows of other owners.
@@ -1470,6 +1588,242 @@ Method SessionRow() As %String [ Private ]
 	Do $$$AssertStatusOK(row.%Save(), "a watch row of a session is saved")
 	Set ..SessionRows = ..SessionRows_$Select(..SessionRows = "": "", 1: ",")_row.%Id()
 	Quit row.%Id()
+}
+
+/// A session case is refused with REASONSESSION before anything is saved, seeded or asked: a session that is not an object, a forgotten that is not an array of 1 to 3 non-blank strings of at most 2,000
+/// characters, and a session on a kind other than command. The service holds no record, no row is opened and no evaluation session is made.
+Method TestSessionShapeRefused()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set prefix = $Piece($Parameter("OcuTalon.Eval.In", "REASONSESSION"), "{why}", 1)
+	Set before = ..EvalSessions()
+	Set fact = "A fact."
+	Set long = $Translate($Justify("", 2001), " ", "x")
+	Set shapes = $ListBuild("""yes""", "[]", "null", "5", "{""forgotten"": ""A fact.""}", "{""forgotten"": []}", "{""forgotten"": null}", "{""forgotten"": {}}", "{""forgotten"": [""a"", ""b"", ""c"", ""d""]}", "{""forgotten"": [""a"", "" ""]}", "{""forgotten"": [""""]}", "{""forgotten"": [5]}", "{""forgotten"": [null]}", "{""forgotten"": [[""a""]]}", "{""forgotten"": [""" _ long _ """]}")
+	Set position = 0, n = 0
+	While $ListNext(shapes, position, shape) {
+		Set n = n + 1
+		Do ..WriteCase("zz-session-bad", "{""name"": ""zz-session-bad"", ""kind"": ""command"", ""session"": " _ shape _ ", ""turn"": {""text"": ""Who is the contact?""}, ""expectation"": {""memories"": ""none""}}")
+		Set reason = ..Process(service, "zz-session-bad")
+		Do $$$AssertTrue($Extract(reason, 1, $Length(prefix)) = prefix, "shape "_n_": the case is skipped with REASONSESSION: "_reason)
+	}
+	Do $$$AssertEquals(..Asked()_"|"_..Memories()_"|"_..Rows()_"|"_..Bodies("zz-session-bad")_"|"_..EvalSessions(), "0|0|0|0|"_before, "none was asked, seeded or saved, and no evaluation session was made")
+	Do $$$AssertEquals($Select($IsObject(service.Watches): service.Watches.%Size(), 1: 0), 0, "and the service holds no record")
+	Set two = "{""name"": ""zz-session-kind"", ""session"": {}, ""expectation"": {""keyPhrases"": [""a""]}"
+	For kind = "all-clear", "documents", "user-turn", "item", "injection", "incident", "digest" {
+		Do ..WriteCase("zz-session-kind", two _ ", ""kind"": """ _ kind _ """, ""turn"": {""text"": ""Is it fine?""}, ""checks"": [], ""documents"": [{""name"": ""R.md"", ""file"": ""r.md""}], ""snapshot"": ""s.json"", ""item"": {""itemId"": ""zz-session-kind"", ""channel"": ""mailbox""}}")
+		Set reason = ..Process(service, "zz-session-kind")
+		Do $$$AssertTrue($Extract(reason, 1, $Length(prefix)) = prefix, kind_": a session on this kind is skipped with REASONSESSION: "_reason)
+		Do $$$AssertTrue(reason [ "only a command case has a session", kind_": and the reason says so")
+	}
+	Do $$$AssertEquals(..Asked()_"|"_..Memories()_"|"_..Rows()_"|"_..Seen()_"|"_..Incidents()_"|"_..Digests(), "0|0|0|0|0|0", "nothing was asked, seeded, opened or dispatched for them either")
+	Do ..WriteCase("zz-session-edge", "{""name"": ""zz-session-edge"", ""kind"": ""command"", ""session"": {""forgotten"": [""" _ $Extract(long, 1, 2000) _ """, ""b"", ""c""]}, ""turn"": {""text"": ""Who is the contact?""}, ""expectation"": {""memories"": ""none""}}")
+	Do $$$AssertEquals(..Process(service, "zz-session-edge"), "", "a forgotten of three texts, one of exactly 2,000 characters, is accepted")
+	Do $$$AssertEquals(..Memories(), 6, "and seeds all three")
+}
+
+/// A session case (AC 10): one session of its own for the case, a SaveMemory of origin system with a fresh idempotency key for each forgotten text, answered saved, and a ForgetMemory of the Ref in that
+/// answer, answered forgotten; then the turn is asked with the session as OwnerRef and the Input of an owner-eval turn, and the TurnResult keeps the Reply's HostData.memories. The setup record joins the Watches.
+Method TestSessionCase()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Do ..WriteCase("zz-session", {"name": "zz-session", "kind": "command", "session": {"forgotten": ["The Zz partner's contact is Kim.", "The Zz desk answers on Fridays."]}, "turn": {"text": "Who is the Zz partner's contact?"}, "expectation": {"memories": "none"}}.%ToJSON())
+	Set held = [{"memoryRef": "zzMemoryRef0000000001", "text": "The Zz partner's contact is Kim.", "savedAt": "2026-11-09T10:00:00Z"}]
+	Set ^OcuTalonTest("EvalIn", "reply", 1) = {"Text": "I have no memory of that.", "DecisionRef": "zzDecisionRef000000010", "HostData": ({"memories": (held)}.%ToJSON())}.%ToJSON()
+	Set item = ##class(OcuTalon.Msg.Item).%New()
+	Set item.ItemId = "zzitem", item.SessionRef = ##class(OcuTalon.Data.Ownership).#EVAL, item.Channel = "web", item.Provenance = "user", item.Text = "Who is the Zz partner's contact?"
+	Set before = ##class(OcuTalon.Agent.Input).Render(item)
+	Do $$$AssertEquals(..Process(service, "zz-session"), "", "a session case is sent")
+	Set after = ##class(OcuTalon.Agent.Input).Render(item)
+	Set records = $Select($IsObject(service.Watches): service.Watches.%Size(), 1: 0)
+	Do $$$AssertEquals(records, 1, "the service holds one setup record")
+	If records '= 1 Quit
+	Set record = service.Watches.%Get(0)
+	Set ref = record.session.ref
+	Do $$$AssertEquals(record.%ToJSON(), {"case": "zz-session", "session": {"ref": (ref)}}.%ToJSON(), "{case, session{ref}} with the Ref of the case's own session")
+	Do $$$AssertEquals($Length(ref), 22, "a Ref of 22 characters")
+	Do $$$AssertEquals(..Memories(), 4, "four commands were sent to MemoryOps: a save and a forget for each text")
+	Set save1 = ..MemoryAt(1), forget1 = ..MemoryAt(2), save2 = ..MemoryAt(3), forget2 = ..MemoryAt(4)
+	Do $$$AssertEquals($List(save1, 1)_"|"_$List(save1, 2)_"|"_$List(save1, 3)_"|"_$List(save1, 5), "OcuTalon.Msg.Command.SaveMemory|"_ref_"|system|The Zz partner's contact is Kim.", "the first save is a SaveMemory of the session, origin system, with the first text")
+	Do $$$AssertEquals($List(save2, 1)_"|"_$List(save2, 2)_"|"_$List(save2, 3)_"|"_$List(save2, 5), "OcuTalon.Msg.Command.SaveMemory|"_ref_"|system|The Zz desk answers on Fridays.", "and the second with the second text")
+	Do $$$AssertEquals($List(forget1, 1)_"|"_$List(forget1, 2)_"|"_$List(forget1, 3)_"|"_$List(forget1, 5), "OcuTalon.Msg.Command.ForgetMemory|"_ref_"|system|zzMem00000000000000001", "the forget follows its save at once, of the Ref the save answered")
+	Do $$$AssertEquals($List(forget2, 5), "zzMem00000000000000003", "and the second forget names the second save's Ref")
+	Do $$$AssertTrue(($Length($Piece($List(save1, 4), ":", 1)) = 22) && ($Piece($List(save1, 4), ":", 2) = 1) && ($List(forget1, 4) '= $List(save1, 4)), "the idempotency key is a fresh Ref and :1, and differs for the forget: "_$List(save1, 4))
+	Do $$$AssertTrue($Piece($List(save1, 4), ":", 1) '= $Piece($List(save2, 4), ":", 1), "and differs for each save")
+	Set asked = ..AskedAt(1)
+	Do $$$AssertEquals($List(asked, 1)_"|"_$List(asked, 2)_"|"_$List(asked, 3)_"|"_$List(asked, 10), "turn|user|"_ref_"|fresh", "the turn is asked as a fresh user turn with the session as OwnerRef")
+	Do $$$AssertTrue(($List(asked, 5) [ "Who is the Zz partner's contact?") && ($List(asked, 5) '[ "Kim"), "the Input holds the turn and no memory")
+	Do $$$AssertTrue(($List(asked, 5) = before) || ($List(asked, 5) = after), "and is the Input that Agent.Input renders for an Item of owner eval: "_$List(asked, 5))
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Memories FROM OcuTalon_Eval_Msg.TurnResult WHERE SourceItemId = 'zz-session' ORDER BY ID DESC")
+	Do rs.%Next()
+	Do $$$AssertEquals(rs.%Get("Memories"), held.%ToJSON(), "the TurnResult keeps the Reply's HostData.memories as JSON")
+	Do ..Reset()
+	Do ..WriteCase("zz-session-plain", {"name": "zz-session-plain", "kind": "command", "session": {}, "turn": {"text": "Who is it?"}, "expectation": {"memories": "none"}}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "reply", 1) = {"Text": "Nobody.", "DecisionRef": "zzDecisionRef000000011", "HostData": "{\"citations\":[],\"memories\":[]}"}.%ToJSON()
+	Do $$$AssertEquals(..Process(service, "zz-session-plain"), "", "a session with nothing forgotten is sent")
+	Do $$$AssertEquals(..Memories(), 0, "and seeds nothing")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Memories, Citations FROM OcuTalon_Eval_Msg.TurnResult WHERE SourceItemId = 'zz-session-plain' ORDER BY ID DESC")
+	Do rs.%Next()
+	Do $$$AssertEquals(rs.%Get("Memories")_"|"_rs.%Get("Citations"), "|", "empty memories and citations arrays are kept as none")
+	Do ..Reset()
+	Do ..WriteCase("zz-session-owner", {"name": "zz-session-owner", "kind": "command", "turn": {"text": "Who is it?"}, "expectation": {"memories": "none"}}.%ToJSON())
+	Do $$$AssertEquals(..Process(service, "zz-session-owner"), "", "a command case with no session is sent")
+	Do $$$AssertEquals($List(..AskedAt(1), 3), "eval", "as owner eval")
+}
+
+/// A seed that MemoryOps does not answer saved or forgotten, or that fails, skips the case with REASONSESSION and the why: the session is dropped, the setup record is not kept and the later texts are not seeded.
+Method TestSessionSeedFails()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set prefix = $Piece($Parameter("OcuTalon.Eval.In", "REASONSESSION"), "{why}", 1)
+	Do ..UseEval("1")
+	Set ^OcuTalonTest("EvalIn", "sessionReal") = 1
+	Set before = ..EvalSessions()
+	Do ..WriteCase("zz-seedfail", {"name": "zz-seedfail", "kind": "command", "session": {"forgotten": ["One.", "Two.", "Three."]}, "turn": {"text": "Who is it?"}, "expectation": {"memories": "none"}}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "memoryOutcome", 1) = "failed"
+	Set reason = ..Process(service, "zz-seedfail")
+	Do $$$AssertTrue($Extract(reason, 1, $Length(prefix)) = prefix, "a save answered failed skips the case with REASONSESSION: "_reason)
+	Do $$$AssertTrue(reason [ "answered failed, not saved", "and says what MemoryOps answered: "_reason)
+	Do $$$AssertEquals(..Memories(), 1, "the later texts were not seeded")
+	Do $$$AssertEquals(..EvalSessions(), before, "the session was dropped")
+	Do $$$AssertEquals($Select($IsObject(service.Watches): service.Watches.%Size(), 1: 0)_"|"_..Asked()_"|"_..Rows(), "0|0|0", "no record is kept, nothing is asked and no row is opened")
+	Kill ^OcuTalonTest("EvalIn", "memory"), ^OcuTalonTest("EvalIn", "memoryOutcome")
+	Set ^OcuTalonTest("EvalIn", "memoryOutcome", 2) = "not_found"
+	Set reason = ..Process(service, "zz-seedfail")
+	Do $$$AssertTrue(reason [ "answered not_found, not forgotten", "a forget answered not_found skips the case: "_reason)
+	Do $$$AssertEquals(..Memories()_"|"_..EvalSessions(), "2|"_before, "after its save, with the session dropped")
+	Kill ^OcuTalonTest("EvalIn", "memory"), ^OcuTalonTest("EvalIn", "memoryOutcome")
+	Set ^OcuTalonTest("EvalIn", "memoryError") = 3
+	Set reason = ..Process(service, "zz-seedfail")
+	Do $$$AssertTrue($Extract(reason, 1, $Length(prefix)) = prefix, "a seed that gives an error status skips the case with REASONSESSION: "_reason)
+	Do $$$AssertTrue(reason [ "could not be reached", "with the status text: "_reason)
+	Do $$$AssertEquals(..Memories()_"|"_..EvalSessions()_"|"_$Select($IsObject(service.Watches): service.Watches.%Size(), 1: 0), "3|"_before_"|0", "the session is dropped and no record is kept")
+	Kill ^OcuTalonTest("EvalIn", "memory"), ^OcuTalonTest("EvalIn", "memoryError")
+	Do $$$AssertEquals(..Process(service, "zz-seedfail"), "", "the case is sent when the seeds work")
+	Do $$$AssertEquals(..Memories()_"|"_(..EvalSessions() - before)_"|"_service.Watches.%Size(), "6|1|1", "with its six commands, its session and its record")
+	Set ..Sessions = service.Watches.%Get(0).session.ref
+}
+
+/// With OCUTALON_EVAL=1 a session case has a real Session row with no IrisUser and no ResumeHash (so ForUser, ForResume and a sign-in cannot reach it), and Finish drops its memories and then the row; a second
+/// Finish is no error. A turn that fails after the session was made (Decide gives no Reply) drops the session again.
+Method TestSessionRow()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Do ..UseEval("1")
+	Set ^OcuTalonTest("EvalIn", "sessionReal") = 1
+	Set before = ..EvalSessions()
+	Do ..WriteCase("zz-row", {"name": "zz-row", "kind": "command", "session": {"forgotten": ["Gone."]}, "turn": {"text": "Who is it?"}, "expectation": {"memories": "none"}}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "reply", 1) = "none"
+	Do $$$AssertTrue(..Process(service, "zz-row") [ "Decide gave no Reply", "a turn that gets no Reply skips the case")
+	Do $$$AssertEquals(..EvalSessions()_"|"_$Select($IsObject(service.Watches): service.Watches.%Size(), 1: 0), before_"|0", "and the session it made is dropped, with no record")
+	Kill ^OcuTalonTest("EvalIn", "reply"), ^OcuTalonTest("EvalIn", "memory")
+	Do $$$AssertEquals(..Process(service, "zz-row"), "", "a session case is sent")
+	Set ref = service.Watches.%Get(0).session.ref
+	Set ..Sessions = ref
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Do $$$AssertTrue($IsObject(row), "its Session row exists")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.IrisUser_"|"_row.ResumeHash_"|"_row.CspSessionId, "||", "it has no IrisUser, no ResumeHash and no CSP session")
+	Do $$$AssertEquals($Length(row.Ref)_"|"_$Length(row.TraceRef)_"|"_$Length(row.Epoch)_"|"_(row.CreatedAt '= ""), "22|22|22|1", "but a Ref, a TraceRef, an Epoch and a creation time")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(ref), "", "ForResume cannot find it by its Ref")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(row.TraceRef), "", "nor by its TraceRef")
+	Set memory = ..Memory(ref, "A memory that the turn made.")
+	Do $$$AssertEquals(..MemoryCount(ref), 1, "the session has a memory")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Eval.ZzIn).Finish(service.Watches), "Finish answers OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(ref)_"|"_..MemoryCount(ref), "0|0", "and the row and its memory are gone")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Eval.ZzIn).Finish(service.Watches), "a second Finish is no error")
+	Do $$$AssertEquals(..EvalSessions(), before, "and no evaluation session is left")
+}
+
+/// Condition (i) of the ruling: without OCUTALON_EVAL=1 no evaluation session is made, so a session case is skipped with REASONSESSION and no row, record or seed is left.
+Method TestSessionRefusedWithoutTheSwitch()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set prefix = $Piece($Parameter("OcuTalon.Eval.In", "REASONSESSION"), "{why}", 1)
+	Set ^OcuTalonTest("EvalIn", "sessionReal") = 1
+	Do ..WriteCase("zz-noswitch", {"name": "zz-noswitch", "kind": "command", "session": {"forgotten": ["Gone."]}, "turn": {"text": "Who is it?"}, "expectation": {"memories": "none"}}.%ToJSON())
+	Set before = ..EvalSessions()
+	For value = "", "0", "true", "11", "1 " {
+		Do ..UseEval(value)
+		Set reason = ..Process(service, "zz-noswitch")
+		Do $$$AssertTrue($Extract(reason, 1, $Length(prefix)) = prefix, "OCUTALON_EVAL '"_value_"': the case is skipped with REASONSESSION: "_reason)
+		Do $$$AssertTrue(reason [ "needs OCUTALON_EVAL=1", "and the reason names the switch")
+	}
+	Do $$$AssertEquals(..EvalSessions()_"|"_..Memories()_"|"_..Asked()_"|"_..Rows()_"|"_$Select($IsObject(service.Watches): service.Watches.%Size(), 1: 0), before_"|0|0|0|0", "no session was made, nothing was seeded or asked, and no row or record is left")
+}
+
+/// Finish tries every record, drops a session case's memories and row and nothing else, never drops a person's session (it answers an error and the session and its memories stay), and gives the first error.
+Method TestFinishSessions()
+{
+	Do ..UseEval("1")
+	Set mine = ..Leftover(), other = ..Leftover(), person = ..Person("finish")
+	Do ..Memory(mine, "Mine."), ..Memory(other, "Other."), ..Memory(person, "Person.")
+	Set records = [{"case": "zz-a", "session": {"ref": (mine)}}, {"case": "zz-b", "session": {"ref": (person)}}, "x", {"case": "zz-c"}, {"case": "zz-d", "session": {"ref": ""}}, {"case": "zz-e", "session": {"ref": (other)}}]
+	Set sc = ##class(OcuTalon.Test.Eval.ZzIn).Finish(records)
+	Do $$$AssertStatusNotOK(sc, "Finish gives the error of the person's session")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "belongs to a user", "which says that it belongs to a user: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(mine)_"|"_##class(OcuTalon.Data.Session).RefIndexExists(other), "0|0", "the first and the last session case's rows are removed")
+	Do $$$AssertEquals(..MemoryCount(mine)_"|"_..MemoryCount(other), "0|0", "with their memories")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(person)_"|"_..MemoryCount(person), "1|1", "the person's row and its memory stay (DropEval refuses it)")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Eval.ZzIn).Finish([{"case": "zz-a", "session": {"ref": (mine)}}]), "a record whose session is already gone is no error")
+}
+
+/// Condition (iii) of the ruling: the start-of-run sweep drops every Session row with no IrisUser and its memories, and touches nothing else: a person's session keeps its row, its memories, its turns and its
+/// reminders. A session whose memories are busy (the lock is held) is one warning and keeps its row, and the sweep goes on.
+Method TestSweepSessions()
+{
+	Do ..UseEval("1")
+	Set stale = ..Leftover(), second = ..Leftover(), person = ..Person("sweep"), visitor = ""
+	Set row = ##class(OcuTalon.Data.Session).NewVisitor("zzevalinvisitor"_$Extract(..Run, 3, 12), "ZzEvalInVisitor", .reference, .sc)
+	Do $$$AssertStatusOK(sc, "a visitor's session is made")
+	If $IsObject(row) {
+		Set visitor = row.Ref
+		Do ##class(OcuTalon.Test.Data.Fixture).Adopt(row)
+		Set ..Sessions = ..Sessions_","_visitor, ..Fixtures = ..Fixtures_","_visitor
+	}
+	Do ..Memory(stale, "Stale one."), ..Memory(stale, "Stale two."), ..Memory(second, "Second."), ..Memory(person, "Person one."), ..Memory(person, "Person two.")
+	If visitor '= "" Do ..Memory(visitor, "Visitor.")
+	Set turn = ##class(OcuTalon.Test.Data.Fixture).Turn(person)
+	Set reminder = ##class(OcuTalon.Test.Data.Fixture).Reminder(person)
+	Set memories = ..MemoryCount(person)_"|"_..MemoryCount(visitor)
+	Set people = ##class(OcuTalon.Test.Data.Fixture).SessionCount(row.IrisUser)
+	Do ##class(OcuTalon.Eval.In).SweepSessions()
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(stale)_"|"_##class(OcuTalon.Data.Session).RefIndexExists(second), "0|0", "the leftover evaluation sessions are dropped")
+	Do $$$AssertEquals(..MemoryCount(stale)_"|"_..MemoryCount(second), "0|0", "with their memories")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(person)_"|"_..MemoryCount(person), "1|2", "a person's session and its memories stay")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(visitor)_"|"_..MemoryCount(visitor)_"|"_##class(OcuTalon.Test.Data.Fixture).SessionCount(row.IrisUser), "1|1|"_people, "so do a visitor's session and its memory")
+	Do $$$AssertEquals(..MemoryCount(person)_"|"_..MemoryCount(visitor), memories, "no memory of either was touched")
+	Do $$$AssertTrue($IsObject(##class(OcuTalon.Data.Turn).RefIndexOpen(turn)) && $IsObject(##class(OcuTalon.Data.Reminder).RefIndexOpen(reminder)), "nor was its turn or its reminder")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .text, "SweepSessions", ##class(OcuTalon.Eval.In).#LOGSESSIONSWEEP), 0, "and the sweep logged no warning")
+	Do ##class(OcuTalon.Eval.In).SweepSessions()
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(person), 1, "a second sweep changes nothing")
+	Set busy = ..Leftover(), free = ..Leftover()
+	Do ..Memory(busy, "Busy."), ..Memory(free, "Free.")
+	Kill ^OcuTalonTest("EvalInLock")
+	Job ##class(OcuTalon.Test.Eval.In).HoldLock(busy)
+	For i = 1:1:100 {
+		If $Get(^OcuTalonTest("EvalInLock", "held")) Quit
+		Hang 0.1
+	}
+	Do $$$AssertEquals($Get(^OcuTalonTest("EvalInLock", "held")), 1, "a job holds the memory lock of one session")
+	Do ##class(OcuTalon.Eval.In).SweepSessions()
+	Set ^OcuTalonTest("EvalInLock", "release") = 1
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .text, "SweepSessions", ##class(OcuTalon.Eval.In).#LOGSESSIONSWEEP_busy), 1, "the session whose memories are busy is one warning")
+	Do $$$AssertTrue(text [ "busy", "which says why: "_text)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(busy)_"|"_..MemoryCount(busy), "1|1", "its row and memory stay for the next sweep")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(free)_"|"_..MemoryCount(free), "0|0", "and the other leftover was dropped although the sweep went on past it")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(person), 1, "the person's session still stays")
+	For i = 1:1:100 {
+		If $Get(^OcuTalonTest("EvalInLock", "done")) Quit
+		Hang 0.1
+	}
+	Do ##class(OcuTalon.Eval.In).SweepSessions()
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(busy)_"|"_..MemoryCount(busy), "0|0", "once the lock is free the next sweep drops it")
 }
 
 /// A shadow instance of the double, for the run of the test.

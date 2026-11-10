@@ -127,6 +127,51 @@ ClassMethod NewRow(irisUser As %String) As OcuTalon.Data.Session [ Private ]
 	Quit session
 }
 
+/// A new session row for one evaluation case (Story 41.14; AD-4, AD-22), made only while OCUTALON_EVAL is the text 1 and called only by Eval.In: a new Ref,
+/// TraceRef and Epoch, CreatedAt, and no IrisUser and no ResumeHash, so that ForUser, ForResume and the sign-in cannot reach it and no person ever owns it.
+/// With OCUTALON_EVAL unset or anything but 1 it creates nothing, and sc holds the error status; the result is then "". Eval.In.Finish and Eval.In.Start
+/// remove the row again (DropEval).
+ClassMethod ForEval(Output sc As %Status) As OcuTalon.Data.Session
+{
+	Set sc = $SYSTEM.Status.OK()
+	If $SYSTEM.Util.GetEnviron("OCUTALON_EVAL") '= "1" {
+		Set sc = $SYSTEM.Status.Error(5001, "An evaluation session needs OCUTALON_EVAL=1")
+		Quit ""
+	}
+	Set session = ""
+	Try {
+		Set session = ..NewRow("")
+		Set sc = session.%Save()
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Quit session
+}
+
+/// Deletes the evaluation session row of the Ref (ForEval's), and only such a row: a row that has an IrisUser (a person's, a visitor's), an unknown Ref and
+/// an empty Ref answer an error status and change nothing. Called only by Eval.In. Its memories are not touched: Eval.In drops them first (Memory.DropSession).
+ClassMethod DropEval(ref As %String) As %Status
+{
+	If ref = "" Quit $SYSTEM.Status.Error(5001, "An evaluation session needs its Ref")
+	Set sc = $SYSTEM.Status.OK()
+	Try {
+		Set row = ..RefIndexOpen(ref)
+		If '$IsObject(row) {
+			Set sc = $SYSTEM.Status.Error(5001, "There is no session with that Ref")
+		} ElseIf row.IrisUser '= "" {
+			Set sc = $SYSTEM.Status.Error(5001, "That session belongs to a user, and only an evaluation session is dropped here")
+		} Else {
+			Set id = row.%Id()
+			Set row = ""
+			Set sc = ..%DeleteId(id)
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
 /// Raises the sign-out mark of the session ref by one: atomic, no row lock. An empty ref raises nothing.
 ClassMethod MarkSignedOut(ref As %String) As %Status
 {

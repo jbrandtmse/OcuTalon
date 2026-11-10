@@ -15,6 +15,9 @@
 ///   - TestForgetOther (DW-740): another session's forget of the Ref answers not_found, Ok 0, with the same outcome and message as for an unknown Ref, and the
 ///     memory stays and is found;
 ///   - TestIndexesFollowTheTable: after a save the keyword index and the nearest search return the memory at once, and after a forget neither does;
+///   - TestForgetPinned (Story 41.14; FR-41, FR-74): two pinned memories (a PinMemory of origin web_user through the item), then one forgotten through the item: its row is gone, the vector index (the layer-0 node of the HNSW
+///     index global for its id, because a nearest query joins the row and hides a stale entry; and a %ID-only nearest query by its own vector) and the keyword index (the generated TextIdxFind, which reads the index alone) no longer list its id, a search by its text returns no row with
+///     its Ref, the core-memory block holds only the other pin, and the input of a user item of the session at its start (Agent.Input.Render with sessionStart) holds the other pin and not the forgotten one;
 ///   - TestAnswerTime (DW-731, "Enabled owner"): a save through Commands.Submit is answered within 10 seconds, saved, not failed and not not_built;
 ///   - TestEmbedFailure: a save whose text cannot be embedded (the model folder of the process names a folder that holds no model) answers failed, Ok 0, with no
 ///     row, and the memory is saved again once the embedder works;
@@ -135,6 +138,49 @@ Method Ask(command As OcuTalon.Msg.Command) As OcuTalon.Msg.CommandResult [ Priv
 		Quit ##class(OcuTalon.Msg.CommandResult).%New()
 	}
 	Quit response
+}
+
+/// A PinMemory of the session for the memory, origin web_user, as the web layer sends it.
+ClassMethod Pin(session As %String, ref As %String) As OcuTalon.Msg.Command.PinMemory [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.PinMemory).%New()
+	Set command.SessionRef = session
+	Set command.MemoryRef = ref
+	Set command.Origin = "web_user"
+	Quit command
+}
+
+/// A ForgetMemory of the session for the memory, origin web_user, as the web layer sends it.
+ClassMethod ForgetFromUser(session As %String, ref As %String) As OcuTalon.Msg.Command.ForgetMemory [ Private ]
+{
+	Set command = ..Forget(session, ref)
+	Set command.Origin = "web_user"
+	Quit command
+}
+
+/// 1 when the vector index (the HNSW index EmbeddingIdx) itself holds the id: its layer-0 node ("G", 0, id) under the index's own subscript of the table's index global. The nearest query cannot show this, because
+/// it joins each id it finds to the row and drops an id whose row is gone, so a stale entry is invisible to it.
+ClassMethod VectorIndexHas(id As %Integer) As %Boolean [ Private ]
+{
+	Quit ''$Data(^OcuTalonP.MemoryI("EmbeddingIdx", "G", 0, id))
+}
+
+/// 1 when a %ID-only nearest query by the vector, with no filter on the session, lists the id (the query joins to the row, so it shows what a recall by the vector would return).
+ClassMethod VectorQueryHas(id As %Integer, vector As %Vector) As %Boolean [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 5 %ID AS RowId FROM OcuTalon_Data.Memory ORDER BY VECTOR_COSINE(Embedding, TO_VECTOR(?, DOUBLE, 384)) DESC", ##class(OcuTalon.Test.Memory.Fixture).ToString(vector))
+	Set found = 0
+	While rs.%Next() {
+		If rs.%Get("RowId") = id Set found = 1
+	}
+	Quit found
+}
+
+/// 1 when the keyword index lists the id for the word: the generated TextIdxFind returns the index's own search, and ContainsItem reads the index alone.
+ClassMethod KeywordIndexHas(id As %Integer, word As %String) As %Boolean [ Private ]
+{
+	Set find = ##class(OcuTalon.Data.Memory).TextIdxFind(""""_word_"""")
+	Quit ''find.ContainsItem(id)
 }
 
 /// The number of memories of the session.
@@ -305,6 +351,48 @@ Method TestIndexesFollowTheTable()
 	Do $$$AssertEquals(response.Outcome, "forgotten", "the memory is forgotten")
 	Do $$$AssertEquals(..KeywordHits(session, "Lee"), "", "and the keyword index no longer returns it")
 	Do $$$AssertEquals(..NearestTo(session, "who is the contact at the Results partner?"), "", "nor does the vector index")
+}
+
+/// A pinned memory that is forgotten leaves nothing behind (Story 41.14; FR-41, FR-74): the index entries are read from the indexes themselves, not from the row, which the filter on SessionRef of
+/// KeywordHits and NearestTo would hide. The two pins are made through the item as the web layer makes them; the forget is the web layer's too (origin web_user).
+Method TestForgetPinned()
+{
+	If '..Ready() Quit
+	Set session = ..Session("forgetpinned")
+	Set textA = "The Orders partner escalation phone is 5550111 and it rings in Berlin"
+	Set textB = "The Claims desk closes at noon on Fridays in Boston"
+	Set a = ..Ask(..Save(session, "zzmemitem00000000001:1", textA))
+	Set b = ..Ask(..Save(session, "zzmemitem00000000002:1", textB))
+	Do $$$AssertEquals(a.Outcome_"|"_b.Outcome, "saved|saved", "two memories are saved: "_a.Message_" "_b.Message)
+	Set idA = ##class(OcuTalon.Data.Memory).RefIndexOpen(a.Ref).%Id()
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Embedding FROM OcuTalon_Data.Memory WHERE Ref = ?", a.Ref)
+	Do rs.%Next()
+	Set vectorA = ##class(OcuTalon.Test.Memory.Fixture).ToVector(rs.%GetData(1))
+	Do $$$AssertEquals($VOP("length", vectorA), 384, "A's stored vector has 384 values")
+	Do $$$AssertEquals(..Ask(..Pin(session, a.Ref)).Outcome_"|"_..Ask(..Pin(session, b.Ref)).Outcome, "pinned|pinned", "both are pinned")
+	Do $$$AssertEquals(..VectorIndexHas(idA)_..VectorQueryHas(idA, vectorA), "11", "control: before the forget the vector index holds A's id and the nearest query by A's vector finds it")
+	Do $$$AssertEquals(..KeywordIndexHas(idA, "escalation"), 1, "and the keyword index lists it for escalation")
+	Do $$$AssertEquals(..KeywordIndexHas(idA, "Boston"), 0, "but not for a word of B's text")
+	Set response = ..Ask(..ForgetFromUser(session, a.Ref))
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "1|forgotten", "A is forgotten: "_response.Message)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Memory).RefIndexExists(a.Ref)_"|"_..Count(session), "0|1", "A's row is gone and B's stays")
+	Do $$$AssertEquals(..VectorIndexHas(idA), 0, "the vector index itself no longer holds A's id (its layer-0 node is read, not a query that joins the row)")
+	Do $$$AssertEquals(..VectorQueryHas(idA, vectorA), 0, "and the nearest query by A's own vector, with no filter on the session, no longer finds it")
+	Do $$$AssertEquals(..KeywordIndexHas(idA, "escalation"), 0, "and the keyword index no longer lists it, read from the index alone")
+	Do $$$AssertEquals(..KeywordIndexHas(idA, "Berlin"), 0, "for any word of its text")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory).Search(session, textA, 5, .rows), "a search by A's text")
+	Set refs = ""
+	For i = 0:1:rows.%Size() - 1 {
+		Set refs = refs_$Select(refs = "": "", 1: ",")_rows.%Get(i).memoryRef
+	}
+	Do $$$AssertEquals(refs, b.Ref, "returns no row with A's Ref, only B")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory).CoreBlock(session, "", .block), "the core-memory block")
+	Do $$$AssertTrue((block [ textB) && (block '[ textA), "holds B's text and not A's")
+	Set item = ##class(OcuTalon.Msg.Item).%New()
+	Set item.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef(), item.SessionRef = session, item.Channel = "web", item.Provenance = "user", item.Text = "Hello there"
+	Set input = ##class(OcuTalon.Agent.Input).Render(item, , {"sessionStart": 1})
+	Do $$$AssertTrue((input [ textB) && (input '[ textA), "the input of a user item at the session's start holds B's text and not A's")
+	Do $$$AssertEquals(..Ask(..Forget(session, a.Ref)).Outcome, "not_found", "a second forget of A answers not_found")
 }
 
 /// A save is answered in seconds, not after the owner's 120-second wait (DW-731).

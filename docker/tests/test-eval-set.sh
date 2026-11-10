@@ -26,7 +26,7 @@
 #                                       and a text, or the channel heartbeat (Story 39.6) with no catalogKey, an empty sender, the
 #                                       beat's subject and a text that holds a line that starts with the status line start and ends
 #                                       with its end, after a blank line;
-#                   injection           an expectation with expectation.keyPhrases, a non-empty array whose elements are each a non-empty
+#                   injection           an item channel (when present) of mailbox, webhook or heartbeat (Story 41.14); an expectation with expectation.keyPhrases, a non-empty array whose elements are each a non-empty
 #                                       string or a non-empty array of them (alternatives), or expectation.outcome of the outcomes, or
 #                                       both (Story 39.6), and a keyPhrases or an outcome that is present must be valid; the item record
 #                                       of an item (itemId and provenance), without the channel rules (an injection on the channel
@@ -48,8 +48,12 @@
 #                                       string, empty or a UTC time (YYYY-MM-DDThh:mm:ssZ), which a passed or a failed row must have
 #                                       (Checks.Render makes any other row not_checked, and only a not_checked row may have none); heldOut
 #                                       false (no turn score has a held-out share); and no item;
-#                   command             a turn object with a non-blank text; expectation.keyPhrases as for an injection; heldOut false; and no
-#                                       expectation.outcome, no expectation.catalogKey, no checks and no item;
+#                   command             a turn object with a non-blank text; expectation.keyPhrases as for an injection, or (Story 41.14) none when the
+#                                       expectation has absentPhrases or memories; heldOut false; and no expectation.outcome, no
+#                                       expectation.catalogKey, no checks and no item. A command or documents case may also hold expectation.save
+#                                       (saved, none or denied), expectation.memories (none) and expectation.absentPhrases (a non-empty array of
+#                                       non-empty strings), and a command case may hold session (Story 41.14): an object whose forgotten, when
+#                                       present, is an array of 1 to 3 non-blank strings of at most 2,000 characters; no other kind has a session;
 #                   documents           (Story 19.4) a turn object with a non-blank text; documents, a non-empty array of {name, file}, each name a
 #                                       non-blank string that ends .md, .markdown or .txt (in any case) and each file a non-blank path of a
 #                                       file that exists, below eval/ (a case may name the file of another case with ../); expectation.citations,
@@ -287,6 +291,23 @@ const rowsOk = (file, list, name = 'checks') => {
   }
 };
 const strings = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
+// Story 41.14: the memory members that a command or documents expectation may hold, and the session that a command case may declare.
+const MEMORYSAVES = ['saved', 'none', 'denied'];
+const memoryExpectation = (file, x) => {
+  if (x.save !== undefined && !MEMORYSAVES.includes(x.save)) bad(file, 'expectation.save is not saved, none or denied');
+  if (x.memories !== undefined && x.memories !== 'none') bad(file, 'expectation.memories is not none');
+  if (x.absentPhrases !== undefined && !(Array.isArray(x.absentPhrases) && x.absentPhrases.length > 0 && x.absentPhrases.every(text))) {
+    bad(file, 'expectation.absentPhrases is not a non-empty array of non-empty strings');
+  }
+};
+const sessionOf = (file, c) => {
+  if (c.session === undefined) return;
+  if (c.kind !== 'command') bad(file, 'only a command case may have a session');
+  else if (!isObject(c.session)) bad(file, 'session is not an object');
+  else if (c.session.forgotten !== undefined && !(Array.isArray(c.session.forgotten) && c.session.forgotten.length >= 1 && c.session.forgotten.length <= 3 && c.session.forgotten.every((t) => text(t) && t.length <= 2000))) {
+    bad(file, 'session.forgotten is not an array of 1 to 3 non-blank strings of at most 2,000 characters');
+  }
+};
 
 try {
   const files = fs.readFileSync(filesPath, 'utf8').split('\n').filter((f) => f.startsWith('eval/') && !path.posix.basename(f).startsWith('.'));
@@ -330,6 +351,7 @@ try {
         bad(file, 'watch is not an object with a namespace and a production and nothing else');
       }
     }
+    sessionOf(file, c);
     if (c.kind === 'item' || c.kind === 'injection') {
       if (c.kind === 'item') {
         const choice = Array.isArray(x.outcome) && x.outcome.length > 0 && x.outcome.every((o) => OUTCOMES.includes(o)) && new Set(x.outcome).size === x.outcome.length;
@@ -344,6 +366,7 @@ try {
         if (c.item.itemId !== c.name && !file.startsWith('eval/mock-wrong/')) bad(file, "item.itemId is not the case's name");
         if (c.item.provenance !== undefined && c.item.provenance !== 'untrusted') bad(file, 'item.provenance is not untrusted');
         if (c.kind === 'item' || (BEATCHANNEL !== '' && c.item.channel === BEATCHANNEL)) shape(file, c.item);
+        if (c.kind === 'injection' && c.item.channel !== undefined && !['mailbox', 'webhook', BEATCHANNEL].includes(c.item.channel)) bad(file, 'item.channel of an injection is neither mailbox, webhook nor heartbeat');
       }
     } else if (c.kind === 'incident') {
       if (!CATEGORIES.includes(x.causeCategory)) bad(file, 'expectation.causeCategory is not one of the cause categories');
@@ -415,6 +438,8 @@ try {
       if (!(wanted === 'none' || (Array.isArray(wanted) && wanted.length > 0 && wanted.every((w) => isObject(w) && text(w.document) && typeof w.section === 'string')))) {
         bad(file, 'expectation.citations is not none or a non-empty array of {document, section}');
       }
+      if (x.keyPhrases !== undefined && !phrases(x.keyPhrases)) bad(file, 'expectation.keyPhrases is not a non-empty array of phrases (a string, or an array of alternatives)');
+      memoryExpectation(file, x);
       if (x.outcome !== undefined) bad(file, 'a documents case is not scored by outcome');
       if (x.catalogKey !== undefined) bad(file, 'a documents case has an expectation.catalogKey');
       if (c.checks !== undefined) bad(file, 'a documents case has checks');
@@ -422,7 +447,9 @@ try {
       if (c.item !== undefined) bad(file, 'a documents case has an item');
     } else if (c.kind === 'command') {
       if (!isObject(c.turn) || !text(c.turn.text)) bad(file, 'has no turn.text');
-      if (!phrases(x.keyPhrases)) bad(file, 'expectation.keyPhrases is not a non-empty array of phrases (a string, or an array of alternatives)');
+      const memory = x.absentPhrases !== undefined || x.memories !== undefined;
+      if (x.keyPhrases === undefined ? !memory : !phrases(x.keyPhrases)) bad(file, 'expectation.keyPhrases is not a non-empty array of phrases (a string, or an array of alternatives)');
+      memoryExpectation(file, x);
       if (x.outcome !== undefined) bad(file, 'a command case is not scored by outcome');
       if (x.catalogKey !== undefined) bad(file, 'a command case has an expectation.catalogKey');
       if (c.checks !== undefined) bad(file, 'a command case has checks');
@@ -1158,6 +1185,36 @@ variant('cases', 'bad-command-key', 'a command case has an expectation.catalogKe
 variant('cases', 'bad-command-checks', 'a command case has checks', (f) => { f[COMMAND].checks = []; });
 variant('cases', 'bad-command-item', 'a command case has an item', (f) => { f[COMMAND].item = f[ITEM].item; });
 variant('cases', 'bad-command-held-out', 'a command case is held out', (f) => { f[COMMAND].heldOut = true; });
+const MEMORYCOMMAND = (f) => { delete f[COMMAND].expectation.keyPhrases; f[COMMAND].expectation.absentPhrases = ["I'll remember that"]; f[COMMAND].expectation.save = 'none'; };
+variant('cases', 'good-command-memory', '', (f) => { MEMORYCOMMAND(f); });
+variant('cases', 'good-command-memories-only', '', (f) => { delete f[COMMAND].expectation.keyPhrases; f[COMMAND].expectation.memories = 'none'; });
+variant('cases', 'good-command-memory-with-phrases', '', (f) => { f[COMMAND].expectation.absentPhrases = ['Kim']; f[COMMAND].expectation.memories = 'none'; f[COMMAND].expectation.save = 'saved'; });
+variant('cases', 'bad-command-only-save', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { delete f[COMMAND].expectation.keyPhrases; f[COMMAND].expectation.save = 'none'; });
+variant('cases', 'bad-command-save', 'expectation.save is not saved, none or denied', (f) => { f[COMMAND].expectation.save = 'maybe'; });
+variant('cases', 'bad-command-memories', 'expectation.memories is not none', (f) => { f[COMMAND].expectation.memories = 'some'; });
+variant('cases', 'bad-command-absent-empty', 'expectation.absentPhrases is not a non-empty array of non-empty strings', (f) => { MEMORYCOMMAND(f); f[COMMAND].expectation.absentPhrases = []; });
+variant('cases', 'bad-command-absent-blank', 'expectation.absentPhrases is not a non-empty array of non-empty strings', (f) => { MEMORYCOMMAND(f); f[COMMAND].expectation.absentPhrases = ['  ']; });
+variant('cases', 'bad-command-absent-alternatives', 'expectation.absentPhrases is not a non-empty array of non-empty strings', (f) => { MEMORYCOMMAND(f); f[COMMAND].expectation.absentPhrases = [['a', 'b']]; });
+variant('cases', 'good-command-session', '', (f) => { f[COMMAND].session = {}; });
+variant('cases', 'good-command-session-forgotten', '', (f) => { f[COMMAND].session = { forgotten: ['A fact.', 'x'.repeat(2000)] }; });
+variant('cases', 'bad-command-session-not-object', 'session is not an object', (f) => { f[COMMAND].session = 'yes'; });
+variant('cases', 'bad-command-session-array', 'session is not an object', (f) => { f[COMMAND].session = []; });
+variant('cases', 'bad-command-session-forgotten-string', 'session.forgotten is not an array of 1 to 3 non-blank strings', (f) => { f[COMMAND].session = { forgotten: 'A fact.' }; });
+variant('cases', 'bad-command-session-forgotten-empty', 'session.forgotten is not an array of 1 to 3 non-blank strings', (f) => { f[COMMAND].session = { forgotten: [] }; });
+variant('cases', 'bad-command-session-forgotten-four', 'session.forgotten is not an array of 1 to 3 non-blank strings', (f) => { f[COMMAND].session = { forgotten: ['a', 'b', 'c', 'd'] }; });
+variant('cases', 'bad-command-session-forgotten-blank', 'session.forgotten is not an array of 1 to 3 non-blank strings', (f) => { f[COMMAND].session = { forgotten: ['a', ' '] }; });
+variant('cases', 'bad-command-session-forgotten-number', 'session.forgotten is not an array of 1 to 3 non-blank strings', (f) => { f[COMMAND].session = { forgotten: [5] }; });
+variant('cases', 'bad-command-session-forgotten-long', 'session.forgotten is not an array of 1 to 3 non-blank strings', (f) => { f[COMMAND].session = { forgotten: ['x'.repeat(2001)] }; });
+variant('cases', 'bad-session-on-documents', 'only a command case may have a session', (f) => { f[DOCUMENTS].session = {}; });
+variant('cases', 'bad-session-on-injection', 'only a command case may have a session', (f) => { f[INJECTION].session = {}; });
+variant('cases', 'bad-session-on-item', 'only a command case may have a session', (f) => { f[ITEM].session = {}; });
+variant('cases', 'good-documents-memory', '', (f) => { f[DOCUMENTS].expectation.keyPhrases = [['document'], ["can't save", 'cannot save']]; f[DOCUMENTS].expectation.absentPhrases = ["I'll remember that"]; f[DOCUMENTS].expectation.save = 'denied'; });
+variant('cases', 'bad-documents-save', 'expectation.save is not saved, none or denied', (f) => { f[DOCUMENTS].expectation.save = 'denies'; });
+variant('cases', 'bad-documents-memories', 'expectation.memories is not none', (f) => { f[DOCUMENTS].expectation.memories = 'none '; });
+variant('cases', 'bad-documents-absent', 'expectation.absentPhrases is not a non-empty array of non-empty strings', (f) => { f[DOCUMENTS].expectation.absentPhrases = 'no'; });
+variant('cases', 'bad-documents-key-phrases', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[DOCUMENTS].expectation.keyPhrases = []; });
+variant('cases', 'good-injection-webhook', '', (f) => { f[INJECTION].item.channel = 'webhook'; });
+variant('cases', 'bad-injection-channel', 'item.channel of an injection is neither mailbox, webhook nor heartbeat', (f) => { f[INJECTION].item.channel = 'slack'; });
 variant('cases', 'bad-mock-wrong-case', 'has no expectation', (f) => { delete f[WRONG].expectation; });
 variant('cases', 'bad-empty-tree', 'holds no case.json', (f) => { for (const k of Object.keys(f)) if (k.startsWith('eval/')) delete f[k]; });
 
