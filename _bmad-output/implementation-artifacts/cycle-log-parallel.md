@@ -3262,3 +3262,9 @@
 - 2026-11-10T03:06Z orchestrator merge_gate epic=20 part=20.2 head=a51c2e4a ci=success runs=42718893543,42718894011 missing=none conflicts=sprint-status.yaml(ours+regenerate+set epic-20=in-progress,20-2=done,20-3=ready-for-dev) code_automerge=Core/Conversation.cls,Test/Web/Api.cls spine_lint=baseline(10 low) test_readme=pass web_units=sources-docs,more-to-try*,answer-sources-view pass more_to_try_count=8(registry; 23.6 not yet on feature)
 - 2026-11-10T03:06Z orchestrator epic_merged_to_feature epic=20 part=20.2 base=d02711ee
 - 2026-11-10T03:06Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=20.2/20.3 inserts via merge
+- 2026-11-10T03:48Z orchestrator ci_green_verified head=cb2b416d branch=feature/OCT_OcuTalon_MVP runs=42747301528,42747301263 missing=none note=newest fully green 1.0.6 base (d02711ee + 20.2)
+- 2026-11-10T05:16Z orchestrator release_tool_relayed epic=8 story=8.8 head=87c0223e files=release/demo-host-check.sh,release/demo-host-checks.md,docker/tests/test-online-host.sh to=contest_planner awaiting=ok
+- 2026-11-10T05:17Z orchestrator owner_decision via=contest_planner epic=8 story=8.8 item=release_tool_hunks head=87c0223e ruling=approved_as_is threshold_wording=accepted note=live host command proof on demo 1.0.5; standing reminder: system storage only through its API, even on throwaways; ref=prompts/epic-8-rulings-88-release-tool.md
+- 2026-11-10T05:54Z orchestrator merge_gate epic=20 part=20.3 head=f59cab73 ci=success runs=42759214463,42759214446 missing=none conflicts=none base=cb2b416d(ancestor) code_identical_to_epic_head=yes spine_lint=baseline(10 low) tracker=valid epic-20=done
+- 2026-11-10T05:54Z orchestrator epic_merged_to_feature epic=20 part=20.3 note=epic 20 complete (20.2, 20.3)
+- 2026-11-10T05:54Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=20.3 insert via merge

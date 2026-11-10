@@ -69,6 +69,17 @@ describe('README, "New since 1.0.0"', () => {
     assert.ok(sources, 'the registry has the sources item');
     assert.ok(BULLET.includes(`*${sources.label}*`));
   });
+
+  it('ends the documents bullet with the ruled sentence about the sample runbook (Story 20.3), without a bullet of its own', () => {
+    const documents = MORE_TO_TRY_ITEMS.find((item) => item.id === 'documents');
+    assert.ok(documents, 'the registry has the documents item');
+    const bullet = bullets.filter((line) => line.startsWith('- **Answers from your own documents.**'));
+    assert.equal(bullet.length, 1);
+    assert.ok(bullet[0].endsWith(`Try it: More to try, *${documents.label}*, which adds a sample runbook if you have no file to hand.`));
+    assert.equal(bullets.filter((line) => /sample runbook/i.test(line)).length, 1, 'no bullet of its own');
+    assert.ok(bullet[0].endsWith('Try it: More to try, *Ask about a document*, which adds a sample runbook if you have no file to hand.'), 'the ruled sentence, written out');
+    assert.ok(bullet[0].includes('The answer names the document and section it used, or says "None of your documents cover that." Try it:'), 'and the sentence before it is unchanged');
+  });
 });
 
 describe('EXPERIENCE.md, More to try', () => {
@@ -107,8 +118,27 @@ describe('EXPERIENCE.md, More to try', () => {
     assert.ok(EXPERIENCE.includes("Items 6 and 8's controls are links to the Documents page."));
   });
 
+  it('says that, with no documents, items 6 and 8 are the sample button that the Documents page presses (Story 20.3)', () => {
+    const control = 'While the visitor has no documents, each is instead an "Add the sample runbook" button, which opens the Documents page and presses that page\'s Add the sample runbook.';
+    assert.ok(EXPERIENCE.includes(`Items 6 and 8's controls are links to the Documents page. ${control}`), 'the controls sentence');
+    assert.ok(
+      EXPERIENCE.includes('item 4 turns the Demo view switch off and leaves focus on it; items 6 and 8, while the visitor has no documents, open the Documents page and press its Add the sample runbook, with focus on it;'),
+      'the hand-off rule',
+    );
+    assert.ok(
+      EXPERIENCE.includes(
+        '- **Sample:** an **Add the sample runbook** button beside Add documents adds a short runbook about the demo\'s Orders feed, which ships with the page, through the same upload. It shows only while the list holds no "Sample runbook.md".',
+      ),
+      'the Documents step',
+    );
+    for (const text of [control, 'items 6 and 8, while the visitor has no documents,']) {
+      assert.ok(EXPERIENCE.split('\n').some((one) => one.includes(text) && /\[(?:AMENDED|ADDED) 2026-11-09, Story 20\.3, Planner ruling [^\]]*\]/.test(one)), `${text} carries its marker`);
+    }
+  });
+
   it('marks the change to item 6 and the new item 8 with the story and the ruling', () => {
     assert.match(line(6), /\[AMENDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 9\)/);
     assert.match(line(8), /\[ADDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 10 to 12\)/);
+    assert.match(line(6), /\[AMENDED 2026-11-09, Story 20\.3, Planner ruling [^\]]*public text 5\)\. It read: "/);
   });
 });

@@ -8,6 +8,9 @@
 ///     a process that holds the OcuTalon user role, and in one that lacks it the forwarded dispatch refuses 403 no_role;
 ///   - TestList: two sessions' documents, newest addedAt first and only the caller's own on the online demo; on a local install the instance's
 ///     documents to every session; the keys of a row;
+///   - TestSampleNamePerSession (Story 20.3): a document named "Sample runbook.md" follows the same ownership as any other: on the online demo the
+///     session that added it lists it and a second session lists none (so the demo guide offers the second visitor its own button), each
+///     session can hold one of its own, and on a local install the instance's one is listed to both;
 ///   - TestAddAccepted: one AddDocument per accepted extension, in any case, with the decoded byte size, the CSP session's Ref (a sessionRef of
 ///     the body is ignored) and origin web_user, and 200 {"result":"done","ref"};
 ///   - TestAddRefused: every refusal of the Matrix is a 400 bad_document with its reason (none for a malformed body) and submits nothing; a file
@@ -189,6 +192,32 @@ Method TestList()
 	Set empty = ..Session("empty")
 	Set body = ..Call("List", empty, , .response)
 	Do $$$AssertEquals(body, "{""documents"":[]}", "a session with none gets an empty list")
+}
+
+/// The sample runbook's file name is owned like any other (Story 20.3): the demo guide offers a visitor the sample while the visitor's own list is empty.
+Method TestSampleNamePerSession()
+{
+	Set name = "Sample runbook.md"
+	Set a = ..Session("a"), b = ..Session("b")
+	Set first = ##class(OcuTalon.Test.Data.Fixture).Document(a, name)
+	Set body = ..Call("List", a, , .response)
+	Do $$$AssertEquals(..Refs(body), first, "online demo: A lists its sample runbook")
+	Set body = ..Call("List", b, , .response)
+	Do $$$AssertEquals(body, "{""documents"":[]}", "online demo: B, who added none, lists nothing (A's sample is not B's)")
+	Set second = ##class(OcuTalon.Test.Data.Fixture).Document(b, name)
+	Set body = ..Call("List", b, , .response)
+	Do $$$AssertEquals(..Refs(body), second, "online demo: B lists only the sample that B added")
+	Set body = ..Call("List", a, , .response)
+	Do $$$AssertEquals(..Refs(body), first, "and A still lists only its own")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set shared = ##class(OcuTalon.Test.Data.Fixture).Document("instance", name)
+	Set mine = $ListBuild(shared, first, second)
+	Set body = ..Call("List", a, , .response)
+	Set refs = $ListFromString(..Refs(body, mine))
+	Do $$$AssertEquals($ListLength(refs)_"|"_(''$ListFind(refs, shared))_"|"_(''$ListFind(refs, first)), "2|1|1", "local install: A lists the instance's sample and its own row, not B's")
+	Set body = ..Call("List", b, , .response)
+	Set refs = $ListFromString(..Refs(body, mine))
+	Do $$$AssertEquals($ListLength(refs)_"|"_(''$ListFind(refs, shared))_"|"_(''$ListFind(refs, second)), "2|1|1", "local install: B lists the instance's sample and its own row, not A's")
 }
 
 /// An accepted file submits one AddDocument for the CSP session.

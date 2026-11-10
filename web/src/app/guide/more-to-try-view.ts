@@ -56,7 +56,7 @@ export const MORE_TO_TRY_TEXTS = {
     documents: {
       label: 'Ask about a document',
       lookFor:
-        'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the chip under the answer that names your file and its section.',
+        'On the Documents page, press Add the sample runbook, or add a short file of your own (nothing personal: Visual Trace on the demo is shared). When it reads Ready, ask in the chat "According to the runbook, what should I do when partner orders fail with a date error?", or ask about your own file, and look for the chip under the answer that names the document and its section.',
       button: 'Open the Documents page',
     },
     heartbeat: {
@@ -87,6 +87,8 @@ export interface MoreToTryItem {
   readonly lookFor: string;
   readonly button: string;
   readonly action: MoreToTryAction;
+  /** The heading of the panel's group the item belongs to (the More to try groups ruling, 2026-11-10); none until the item declares one. */
+  readonly group?: string;
 }
 
 /** The eight items, in the order the panel shows them. */
@@ -98,7 +100,7 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory' },
   { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents' },
   { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat' },
-  { id: 'sources', ...MORE_TO_TRY_TEXTS.items.sources, action: 'documents' },
+  { id: 'sources', ...MORE_TO_TRY_TEXTS.items.sources, action: 'documents', group: 'Memory and documents' },
 ];
 
 /** The registry entries whose id the server's list holds, in registry order. Unknown ids are ignored, and no list gives none. */
