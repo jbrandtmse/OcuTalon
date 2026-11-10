@@ -288,3 +288,4 @@
 2026-11-10T00:55:03Z	Epic 8	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen(sprint_plan.py_generate+validate);tracker_valid;8.8_added_backlog;dropped_orphans=none
 2026-11-10T00:55:03Z	Epic 8	retro_review_skipped	reason=skipped(policy) note=reopen_for_one_story;Epic_8_done_and_retro_reviewed_earlier(dispatch)
 2026-11-10T00:55:03Z	Epic 8	epic_status_reopened	epic-8=in-progress via=SC-5_reopen(epic_branch_reopened) stories=8.8 amendment=epics.md:Story_8.8_[ADDED_2026-11-10,DW-1018]
+2026-11-10T00:57:44Z	Epic 8	epic_context_compiled	reason=planning_artifact_newer(story_8.8_added) model=claude-opus-5-5 effort=high
