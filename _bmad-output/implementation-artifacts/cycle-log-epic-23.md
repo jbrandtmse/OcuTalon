@@ -48,3 +48,6 @@
 2026-11-09T22:59:13Z	Story 23.2	spec_amended	press.*_keys_to_Msg/Catalog/Core.cls(Planner_ruling_on_23.5)
 2026-11-09T22:59:13Z	Epic 23	slot_loaded	server=ocutalon-slot-d build=154U bridge=62 ocutalon=860 compile=clean classes=923(922_disk+Install.Ipm) head=a0edb568(post_1d3cc767)
 2026-11-09T22:59:14Z	Story 23.2	stage_spawned	stage=implement spawn_at=2026-11-09T22:59:14Z model=sonnet effort=high agent_name=23-2-suspend-resume-reroute-implement-1 cycle_iteration=1 story_base=a0edb568 note=local_only_until_23.6_head_CI_resolves
+2026-11-10T03:54:10Z	Story 23.6	ci_red_classified	run=42716252321 workflow=.github/workflows/ci.yml job=iris(shards-10) class=flake test=live:reminder-restart(DW-689;restart_2_took_209s) occurrence=appended
+2026-11-10T03:54:10Z	Story 23.6	ci_red_classified	run=42716252321 workflow=.github/workflows/ci.yml job=iris(browser) class=infra test=none(first_start_did_not_end_ready_8s;no_test_ran)
+2026-11-10T03:54:10Z	Story 23.6	ci_resolution	decision=no_rerun_on_a0edb568:feature_moved_to_cb2b416d(Epic20,conflicting_files)->one_more_integrate-forward;the_new_head_CI_is_the_gate method=detached_HEAD_at_2c6fff52(bookkeeping-only,descends_a0edb568),merge,push_HEAD:OCT-epic23(fast-forward),then_merge_back_into_OCT-epic23(23.2_local)
