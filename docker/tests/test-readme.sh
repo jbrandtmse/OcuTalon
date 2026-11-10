@@ -22,12 +22,14 @@
 #                  image line, and never the word Slack
 #   teaser         the teaser line is there once, word for word, two lines below the opening paragraph with an empty line between
 #                  them and above the first H2 section; no HTML media tag, no image inside a link, and no image that is not an
-#                  inline docs/images/<name>.png image; the one exception is the <img> tags of the header block, which count only
-#                  while the first lines are exactly the approved header, an empty line and the opening paragraph
+#                  inline docs/images/<name>.png image; the one exception is the <img> tags of the header block (the logo's src is
+#                  an absolute raw.githubusercontent.com address), which count only while the first lines are exactly the approved
+#                  header, an empty line and the opening paragraph
 #   images         every Markdown image link of the README has non-empty alt text and a target that is a file directly in
 #                  docs/images/ which the tree lists, there is at least one, and "What OcuTalon does" holds at least two, both
 #                  under the Break the feed bullet; each image line has an empty line before and after it; every linked file of
-#                  docs/images/, and the header block's logo, is under 300,000 bytes in the tree; it names no image file
+#                  docs/images/, and the header block's logo (named by its docs/images/ path or by its raw.githubusercontent.com
+#                  address), is under 300,000 bytes in the tree; it names no image file
 #   once           each docs/images/ file is named at most once in the README, so no screenshot is shown twice (the owner's
 #                  decision of 2026-11-05)
 #   outcomes       the four outcomes, with the meanings that web/src/app/chat/chat-view.ts shows
@@ -85,7 +87,8 @@
 #   no-telegram    no "Telegram" while Included() has its test-only body
 #   product-links  every README anchor the page or the server text can show reaches a heading (#readme while README.md exists)
 #   readme-links   every link of the README, Markdown or HTML (href and src values), reaches a heading, a file or folder of the
-#                  repository, or an allow-listed host; img.shields.io is allowed only on the header block's lines; no two
+#                  repository, or an allow-listed host; img.shields.io, and this repository's raw.githubusercontent.com main/docs/images/
+#                  path, are allowed only on the header block's lines; no two
 #                  headings share a slug
 #   must-scan      docker/tests/test-boundaries.sh's must-scan list for paths and keys names README.md, so the most public file can
 #                  never drop out of that scan
@@ -209,9 +212,10 @@ $T_ROW3"
 FIXED_SENTENCE='Without a key, OcuTalon still starts. Every decision uses fixed rules, and the page shows a notice that says so.'
 TEASER='Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU'
 # The approved header block (Story 0.21): README.md lines 1 to HEADER_LINES, word for word, as a quoted heredoc, because the lines
-# hold quotes, with its trailing newline stripped. HEADER_IMAGE_HOSTS are the image hosts that only those lines may use.
+# hold quotes, with its trailing newline stripped. HEADER_IMAGE_HOSTS are the image hosts, and HEADER_RAW_DIR is the path of this
+# repository's images on its main branch (the logo's address), that only those lines may use.
 IFS= read -r -d '' HEADER <<'HDR' || true
-<h1 align="center"><img src="docs/images/ocutalon-logo.png" alt="OcuTalon logo" width="160" height="160"><br>OcuTalon</h1>
+<h1 align="center"><img src="https://raw.githubusercontent.com/jbrandtmse/OcuTalon/main/docs/images/ocutalon-logo.png" alt="OcuTalon logo" width="160" height="160"><br>OcuTalon</h1>
 <p align="center">An AI assistant that runs inside InterSystems IRIS Interoperability, with every decision in Visual Trace.</p>
 <p align="center">
   <a href="https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml?query=branch%3Amain"><img src="https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status of the main branch"></a>
@@ -220,12 +224,13 @@ IFS= read -r -d '' HEADER <<'HDR' || true
   <a href="#start-it-with-the-install-script"><img src="https://img.shields.io/badge/docker-install.sh-blue" alt="Docker: install.sh"></a>
   <a href="#install-it-with-ipm"><img src="https://img.shields.io/badge/IPM-ocutalon-blue" alt="IPM: ocutalon"></a>
   <a href="#whats-interesting"><img src="https://img.shields.io/badge/IRIS-AI%20Hub-blue" alt="IRIS: AI Hub"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+  <a href="https://github.com/jbrandtmse/OcuTalon/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
 </p>
 HDR
 HEADER=${HEADER%?}
 HEADER_LINES=$(printf '%s\n' "$HEADER" | wc -l | tr -d ' ')
-HEADER_IMAGE_HOSTS='img.shields.io'
+HEADER_RAW_DIR='raw.githubusercontent.com/jbrandtmse/OcuTalon/main/docs/images'
+HEADER_IMAGE_HOSTS="img.shields.io $HEADER_RAW_DIR"
 # awk reads the block from a file: a -v value cannot hold a newline in every awk.
 printf '%s\n' "$HEADER" > "$tmp/header.want"
 # The facts of "How you talk to it", each on a line of that section.
@@ -301,9 +306,16 @@ header_end() {
   ' "$1"
 }
 
-# header_images <file>: the docs/images/ src values of the header lines (those up to header_end), one per line.
+# header_images <file>: the docs/images/ files that the src values of the header lines (those up to header_end) name, one path per
+# line. A src is either docs/images/<name> or https://HEADER_RAW_DIR/<name> (this repository's main branch), and both print as
+# docs/images/<name>.
 header_images() {
-  awk -v n="$(header_end "$1")" 'NR > n { exit } { print }' "$1" | grep -oE 'src="docs/images/[^"]*"' | sed 's/^src="//; s/"$//'
+  awk -v n="$(header_end "$1")" 'NR > n { exit } { print }' "$1" | grep -oE 'src="[^"]*"' | sed 's/^src="//; s/"$//' | while IFS= read -r s; do
+    case $s in
+      docs/images/*) printf '%s\n' "$s" ;;
+      "https://$HEADER_RAW_DIR/"*) printf 'docs/images/%s\n' "${s#"https://$HEADER_RAW_DIR/"}" ;;
+    esac
+  done
 }
 
 # section <file> <H2 title>: the lines of that H2 section, subsections included, without its heading.
@@ -1290,7 +1302,7 @@ chk_readme_links() {
   slugs=$(headings "$1" | cut -f2)
   dup=$(printf '%s\n' "$slugs" | sort | uniq -d)
   if [ -n "$dup" ]; then printf '%s\n' "$dup" | sed 's|^|readme-links: two headings have the slug |'; fi
-  { grep -oE '\]\([^)]*\)' "$1" | sed 's/^](//; s/)$//'; grep -oE '(href|src)="[^"]*"' "$1" | sed 's/^[a-z]*="//; s/"$//'; } | while IFS= read -r target; do
+  { grep -oE '\]\([^)]*\)' "$1" | sed 's/^](//; s/)$//'; grep -oE '(href|src)="[^"]*"' "$1" | sed 's/^[a-z]*="//; s/"$//'; header_images "$1"; } | while IFS= read -r target; do
     case $target in
       '#'*)
         if ! printf '%s\n' "$slugs" | grep -qxF -- "${target:1}"; then echo "readme-links: the link ($target) reaches no heading"; fi
@@ -1526,7 +1538,7 @@ rule_teaser() {
   st_append 'the teaser line twice' "$TEASER" chk_teaser
   # The header's first badge line (the CI badge, whose host is allowed on every line) copied to the end is no longer exempt; neither is a
   # linked image right after the hero image.
-  st 'a header badge line below the header' 1 "$README" 'NR <= '"$HEADER_LINES"' && b == "" && /<img/ && !/src="docs\/images\// { b = $0 } { print } END { print ""; print b }' chk_teaser
+  st 'a header badge line below the header' 1 "$README" 'NR <= '"$HEADER_LINES"' && b == "" && /<img/ && /<a href=/ { b = $0 } { print } END { print ""; print b }' chk_teaser
   st 'an image inside a link right after the hero image' 1 "$README" '{ print } index($0, "]('"$first"')") > 0 && !done { print ""; print "[![x]('"$first"')](LICENSE)"; done = 1 }' chk_teaser
   finish teaser 'the teaser is a plain link, word for word, two lines below the opening paragraph, with no media tag and only inline docs/images PNG images below the header block' chk_teaser
 }
@@ -1895,6 +1907,7 @@ rule_readme_links() {
   st_append 'a link that is not http' '[x](mailto:a@b.c)' chk_readme_links
   st_append 'two headings with one slug' '## Sign in' chk_readme_links
   st 'a shields.io badge below the header' 1 "$README" 'NR <= '"$HEADER_LINES"' && /img\.shields\.io/ { b = $0 } { print } END { print ""; print b }' chk_readme_links
+  st 'the header logo address below the header' 1 "$README" 'NR == 1 { b = $0 } { print } END { print ""; print b }' chk_readme_links
   st 'a header badge from another host' 1 "$README" 'NR <= '"$HEADER_LINES"' && !done && /img\.shields\.io/ { sub(/img\.shields\.io/, "badgen.net"); done = 1 } { print }' chk_readme_links
   st 'an HTML link to a heading that is not there' 1 "$README" '{ print } END { print ""; print "<a href=\"#nowhere\">x</a>" }' chk_readme_links
   st 'an HTML image of a file that is not there' 1 "$README" '{ print } END { print ""; print "<img src=\"docs/missing.png\" alt=\"x\">" }' chk_readme_links

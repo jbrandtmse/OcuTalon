@@ -2,12 +2,20 @@
 title: 'Story 0.23: The README header''s logo and LICENSE badge link use absolute GitHub URLs'
 type: 'bugfix'
 created: '2026-11-10'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '48e55642883ec1b2b9805d04a802efbe1b773c6e'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Nothing pins, as a permanent self-test, that chk_readme_links still feeds the header logo into its existence check.
+    evidence: |-
+      The only demonstration is the AC4 untrack mutation. Dropping `header_images "$1"` from the target stream of chk_readme_links keeps every rule and self-test green while the logo is tracked. chk_readme_links takes no tree-list argument, so a self-test cannot stub a missing logo. The relative-src form had the same limit before this story.
+    location: >-
+      docker/tests/test-readme.sh:1305
+    severity: low
 ---
 
 <intent-contract>
@@ -99,6 +107,23 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-10 - Review pass
+- verdicts: 13 findings - high 0, medium 0, low 9, false 4, maybe-false 0
+- findings:
+  - `[low]` `reject` Blind: the LICENSE badge href is no longer checked against a file in the tree - the ruled blob URL is allow-listed by design (Design Notes, no exemption); the `licence` rule still requires LICENSE and the body links `[LICENSE](LICENSE)` stay relative; the fix adds a mapping for a ruled value
+  - `[low]` `reject` Blind: the logo URL points at main while the checks read the branch tree - decided in-stage (identical tracked file, confirmed 200 image/png on main); no network check belongs in a hermetic test
+  - `[false]` `reject` Blind: header_images silently drops an unrecognised src - any header change makes header_end 0 and `top` flags it, so no header edit escapes; the behavior is unchanged from the relative form
+  - `[low]` `reject` Blind: thin self-test for the raw path prefix on header lines - a header line edit empties header_end, so the allowance cannot be exercised on an edited header; the confinement self-test and AC4 confinement mutation pin it
+  - `[low]` `reject` Edge: the allowance admits any file under main/docs/images - the header is pinned word for word by `top`, so no other raw URL can sit on a header line; the path entry is the spec's decision
+  - `[false]` `reject` Edge: an http:// or differently cased src is unmapped - the pinned header cannot carry it; `top` flags it first
+  - `[low]` `reject` Edge: a relative header src would print the missing-file message twice - cosmetic, unreachable because the pinned header carries the absolute form
+  - `[low]` `reject` Edge: existence and size read the branch tree while the URL resolves on main - same as the second row
+  - `[low]` `defer` Verification gap: no permanent self-test pins that chk_readme_links feeds header_images into the existence check - pre-existing limit (the relative form had it); closing it needs a tree-list argument on chk_readme_links; recorded in `deferred:`
+  - `[false]` `reject` Verification gap (other): no self-test that the allowance is not the bare host - the pinned header makes that unreachable; the AC4 confinement mutation turns the new self-test red
+  - `[low]` `reject` Intent: the intent's surface is the imported Open Exchange listing, which no local check reaches - the lead smoke (GFM render and curl, both 200, image/png) covers what is reachable; the import itself is outside CI
+  - `[low]` `reject` Intent: other relative references (body images, anchors) are untouched - the intent names two values and Boundaries keep the body links; DW-1052 is the related open item
+  - `[false]` `reject` Verification gap (other): Rule 19 observations - every AC has a mutation line and every demonstrated mutation turned red as named; no finding
+
 ## Design Notes
 
 **Governing ADs:**
@@ -158,7 +183,7 @@ A repo-wide `git grep` finds no other file outside `_bmad-output` that names `oc
 Mutations to demonstrate, one per AC (revert each one and confirm that `git status --short` and `git diff --stat` are unchanged):
 - mutation: AC1 -- in README line 1, change `/main/` to `/master/` in the raw URL -> `top` (`README.md:1: the line is not line 1 of the approved header block`).
 - mutation: AC2 -- put README line 10's `href` back to `"LICENSE"` -> `top` (`README.md:10: ...`).
-- mutation: AC3 -- put pin line 214 back to the relative src -> `top` on the real README. Then ignore `src` values in `chk_top`'s comparison -> `self-test: a header logo with a different src: not flagged`.
+- mutation: AC3 -- put pin line 214 back to the relative src -> `top` on the real README. Then ignore `src` values in both of `chk_top`'s header comparisons (its awk line compare and `chk_block`) -> `self-test: a header logo with a different src: not flagged`, `FAIL top`; ignoring them in the awk compare alone stays green, because `chk_block` pins the line too.
 - mutation: AC4, existence -- `git rm --cached -q docs/images/ocutalon-logo.png` -> `readme-links: the link (docs/images/ocutalon-logo.png) reaches no file or folder of the repository`. Re-stage with `git add -f`.
 - mutation: AC4, size -- remove the raw-prefix mapping from `header_images` -> `self-test: the header logo of exactly 300,000 bytes is not flagged`, `FAIL images`.
 - mutation: AC4, confinement -- move the raw entry from `HEADER_IMAGE_HOSTS` to `ALLOWED_HOSTS` -> `self-test: the header logo address below the header: not flagged`, `FAIL readme-links`.
@@ -166,7 +191,22 @@ Mutations to demonstrate, one per AC (revert each one and confirm that `git stat
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). One PUBLIC TEXT proposal (a new self-test label) awaits the Contest Planner at the spec gate; see Design Notes.
+**Summary.** README line 1 now carries the ruled raw logo URL and line 10 the ruled blob LICENSE URL. `docker/tests/test-readme.sh` pins both lines, allows the raw path only on header lines (`HEADER_RAW_DIR`, in `HEADER_IMAGE_HOSTS`, never in `ALLOWED_HOSTS`), maps the raw logo address back to `docs/images/<name>` in `header_images`, and feeds that into the `readme-links` existence check. The teaser self-test filter picks the CI badge line again. The one approved new self-test label, `the header logo address below the header`, sits after `a shields.io badge below the header`.
+
+**Files changed.**
+- `README.md`: lines 1 and 10 only (`git diff -U0` shows four changed lines).
+- `docker/tests/test-readme.sh`: header pin, `HEADER_RAW_DIR`, `header_images`, `chk_readme_links` target stream, teaser self-test filter, new self-test, comments.
+- This spec: the AC3 mutation line, corrected (ignoring `src` in the awk compare alone stays green because `chk_block` also pins the line; both must be ignored).
+
+**Review.** 13 findings: 0 patched, 1 deferred (low, in `deferred:`), 12 rejected with the reasons in the Review Triage Log. Follow-up review recommended: false (no patches).
+
+**Verification.**
+- `bash docker/tests/test-readme.sh`: `test-readme: all rules passed`. `bash docker/tests/test-boundaries.sh`: `test-boundaries: all rules passed`.
+- README diff count 4; the ASCII check printed 0; the logo is tracked.
+- Mutations demonstrated red and reverted byte-identical: AC1 (`top`), AC2 (`top`), AC3 (`top`, then both comparisons ignored gives `a header logo with a different src: not flagged`), AC4 existence (`reaches no file or folder`, restored with `git add -f`), AC4 size (`the header logo of exactly 300,000 bytes is not flagged`, `FAIL images`), AC4 confinement (`the header logo address below the header: not flagged`, `FAIL readme-links`).
+- Lead smoke: the GFM render shows the raw logo `<img>` and the blob LICENSE `<a>`; `curl -sI` gave 200 `image/png` for the raw URL and 200 for the blob URL.
+
+**Residual risk.** The checks read the branch tree while the URLs resolve on main; the logo is the same tracked file (200 on main). Whether Open Exchange's importer keeps absolute URLs is unreachable from CI.
