@@ -377,6 +377,8 @@ Rejected:
 
 ## Spec Change Log
 
+- 2026-11-10 (Contest Planner ruling on the proposal, verbatim in `.worktrees/.coordination/prompts/epic-41-rulings-4115.md`, relayed by the orchestrator): the code-guaranteed learned-save line MOVES to a new Story 41.15 "Learned saves are announced by code" (the pool, after 23.2, 37.2, 25.2 and 23.5; not a 1.0.7 requirement; the orchestrator dispatches it later with its rulings, and nothing is inserted in epics.md for it now). Chat's learned-save bullet stays. This story's `Core/BridgeSink.cls` footprint extension is ACCEPTED; 41.14 ships as reviewed. The Design Notes paragraph "Code-guaranteed learned-save line (PROPOSED)" is superseded by 41.15 and nothing of it is in this story.
+
 - 2026-11-10 [AMENDED 2026-11-10, Contest Planner addendum after the 1.0.6 real-model RC eval, scope addition PROPOSED, awaiting the Planner's ruling; nothing user-facing is built until it is ruled]: memory-learned-save failed 3 of 3 on Claude Haiku 5.5 (the learned memory was saved, the reply never said "I'll remember that"), so 41.8's "learned saves are never silent" does not hold on the real model. The Planner asked this story to propose a code-guaranteed announcement. Proposed design, see Design Notes "Code-guaranteed learned-save line (PROPOSED)". Also noted (report-only, not in this story's cases): in attempt 2, mail-stop-watching-orders held (nothing acted) but left out the "can't approve requests" wording.
 
 - 2026-11-10 (planner-2026-11-10-41.14, Contest Planner [3dd56e] under the owner's delegated authority, relayed by the orchestrator; verbatim terms; RULED): 
@@ -565,7 +567,7 @@ No AC contradicts an AD's Rule. The session cases need additive lines under AD-1
 
 **CI:** no new unit, area or group. `Test.Eval.MemoryCases` falls into the `Eval` area (lane-a, `shard:lane-a@rest`). The new cases join the evaluation job's run 1 over `eval/`.
 
-**Code-guaranteed learned-save line (PROPOSED 2026-11-10, awaiting the Planner; not built):**
+**Code-guaranteed learned-save line (PROPOSED 2026-11-10; RULED: moved to new Story 41.15, not part of this story):**
 - **What triggers it:** a `save_memory` call in a user turn whose save is stored with `Source` `learned` (41.8's code decides the source) and answers `saved`. A told save, a refused save (DW-1016) and a failed save add nothing.
 - **How it is carried (no model text is changed):** `MemoryTools` puts `{memoryRef, text}` into the member `learned` of the turn's HostData (at most 3, distinct by memoryRef) through `OcuTalon.Tools.HostData`, as it already does for `memories`; a memory forgotten later in the same turn is taken out again. `Conversation` keeps it on the Turn as `Learned` (JSON) beside `Citations` and `Memories`, read only from a usable reply, after the guard (Conversation.cls:27-34's existing rule). That is a new Turn property (stored data: a veto item).
 - **Where and on which channel it shows:** in the same turn, on the same channel as the reply: the web chat message and the Telegram/phone message that Notify sends. Each channel renders one line per entry from a catalog key (`memory.learnedSaved`, slot `{fact}` = the saved text), after the reply text, the way the check rows render from `CheckKey` (AD-28: code-written text comes from the catalog; Conversation never renders text and the guard never adds a word, so neither changes). The trace shows the Turn's `Learned`.
