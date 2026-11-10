@@ -2358,6 +2358,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: src/ocutalon/cls/OcuTalon/Eval/In.cls Render (12 lines) vs src/ocutalon/cls/OcuTalon/Core/Conversation.cls:449 Checked, identical but for the target fields; Design Notes 10 records the reason (a private method of a Lane B process); unlike the Busy numbers and the Input, no test pins the two equal; Story 20.2 extends Conversation's HostData handling
 - 2026-10-29T05:55:13Z status=routed owner=20-2-see-citations-and-memories-in-answers by=cr note=Rule 2 forced copy: make the check-rows glue one public Lane A helper that Conversation and EvalIn both call
 - 2026-11-09T18:16:48Z status=routed owner=burndown by=spec_gate note=declined_by_20.2:Conversation.Checked_and_RenderChecks_stay_byte-identical(new_carry_is_separate_Sourced);unifying_the_glue_is_Lane_A_Eval/**_work(U-177)
+- 2026-11-10T04:56:57Z status=wontfix-accepted by=burndown note=Epic_20_gate:20.2_kept_Conversation.Checked/RenderChecks_byte-identical(carry_is_separate_Sourced),so_Eval.In.Render_still_mirrors_it;no_next-epic_story_owns_Lane_A_Eval_unification;reopen_if=git_diff_shows_Conversation.Checked_or_RenderChecks_changed_without_the_same_change_in_Eval.In.Render
 
 ### DW-385: Test.Eval.Record FixtureSettings and DefinedSettings (QA, Story 9.4) are near-copies of Epic 7's private Test.Watch.Evidence helpers of the same names (same five fixture names, same open/remove/insert loop), forced by Epic 7's read-only Test/Watch/**; the two Orders-definition fixtures drift when the definition handling changes
 - source: spec-9-4-ten-incidents-are-recorded-from-real-failures.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4672,6 +4673,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T12:23:42Z status=routed owner=burndown by=harvest note=Rule 19 hermeticity; Epic 39 also edits Test/Live/GuideRefresh.cls
 - 2026-11-05T18:44:05Z owner=20-2-see-citations-and-memories-in-answers by=burndown note=overflow_(remainder_1_under_cap_8,no_repeat_occurrence;not_seen_on_any_fresh_stack_or_in_CI):20.2_is_the_next_Lane_B_story_that_changes_chat.message_live_payloads_and_runs_Test.Live;make_GuideRefresh_self-contained_on_a_reused_warm_stack;Epic_39_also_edits_the_file
 - 2026-11-09T18:16:49Z status=routed owner=burndown by=spec_gate note=declined_by_20.2:hermeticity_fix_of_Test.Live.GuideRefresh_unrelated_to_20.2_surface;voting-week_scope_is_judge-visible_work
+- 2026-11-10T04:56:58Z status=wontfix-accepted by=burndown note=Epic_20_gate:flake_candidate_unrelated_to_Epic_20_surface;green_on_every_fresh_shard;reopen_if=Test.Live.GuideRefresh_goes_red_in_a_CI_shard_on_a_fresh_stack_or_a_second_occurrence_is_logged
 
 ### DW-734: AddDocument.Content (up to 10 MB, a %Stream.GlobalBinary on a persistent command message) stays in the message-body store; neither RemoveDocument nor DropSession is known to delete it, so the remove and sign-out promises may not hold for the stored message copy
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: med | footprint: out-of-footprint
