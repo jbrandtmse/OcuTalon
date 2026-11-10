@@ -193,6 +193,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-10 (runner): lead note before implement: 23.2 delivered (build on its code), More to try groups and count twelve, 37.2 interplay, spine lines written.
+
 - 2026-11-10 (runner): More to try groups ruling recorded [AMENDED 2026-11-10, Contest Planner ruling].
 
 - 2026-11-09 (runner): Contest Planner rulings on 23.5 recorded [AMENDED 2026-11-09, Contest Planner ruling]: three text edits, the no-open-incident answer, the web-chat condition replacing the residual, S6 for partner_warning; press.* keys in Catalog.Core.
@@ -261,6 +263,13 @@ This story adds per-kind tests for each.
 - S6 extends to this kind: the release evaluation shows no `partner_warning` request raised where the user didn't ask, injection cases included.
 
 **More to try groups [AMENDED 2026-11-10, Contest Planner ruling] (Planner ruling 2026-11-10 ~01:30Z with its ~01:40Z correction, `prompts/more-to-try-groups-ruling.md`):** three headed groups, rendered by Epic 0 Story 0.22 (lane C, a separate story). In-flight stories only declare their group as an additive registry field, a plain union: incidentSummary (23.6), rejectFix, reroute (23.2) and warnPartner (23.5) declare `group: 'Incidents and fixes'`; 23.6's item stays FIRST overall. This story's item (warnPartner) declares `group: 'Incidents and fixes'` at implement. README line 30 and EXPERIENCE keep the TOTAL count per the registry rule; no other item text changes. Merge gate: 23.2 (the 10th item) merges as soon as it is green, its group field ignored until 0.22 lands; 23.5 (the 11th) does not merge to feature before 0.22 lands.
+
+**Lead note before implement (2026-11-10, after Story 23.2 merged as feature 9f7db82c):**
+- Story 23.2 is DELIVERED on this branch: build on its actual code, not on its planned spec. Check every 23.2 seam this spec names (`propose_fix`, `Msg.Command.ProposeFix`, `IncidentManager.Asked` and the raise path, `Fix.Kind` `ASKED`/`TARGETTYPE`/`DRYRUNKEYS`, the result-band rendering in `web/src/app/approvals/approval-view.ts` and `web/src/app/incidents/incident-card.ts`, the incident payload's `Production` and each request's `FixKind`/`Item`/`Count`) against the code, and extend those; where the delivered names differ from this spec's, follow the code and record it under Design Notes ("Decided in-stage").
+- More to try (Story 0.22 merged): the registry holds eleven items under three headings; `warnPartner` is ONE row with `group: 'Incidents and fixes'`, after `reroute` in registry order (plus one `GROUP_OF` line in `web/scripts/more-to-try-view.test.mjs`). EXPERIENCE.md lists the items by group and numbers them in panel order: warnPartner becomes Item 3 under "Incidents and fixes" and the items after it are numbered one higher (with the hand-off lines and the first-item line updated); the count becomes TWELVE in README line 40, the `more-to-try-view.ts` header comment and EXPERIENCE.md. No new e2e K numbers collide (K25-K28 are taken).
+- Story 37.2 (Usage, a fourth heading "Usage and history") may land first; whichever merges second re-integrates (plain union, counts from the registry).
+- The spine lines for this story (AD-14, AD-15, AD-16, AD-20, AD-32, [ADDED 2026-11-10, Story 23.5, Contest Planner ruling]) are already written; AD-12's incident-payload line from 23.2 is on feature.
+- The `result.partnerNotDrafted` web-chat notice card condition: estimate it FIRST; more than about an hour of work is an intent-gap HALT naming the estimate (the lead reports to the Planner).
 
 ## Public Text
 
