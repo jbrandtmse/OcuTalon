@@ -2,7 +2,8 @@
 title: 'Story 37.2: See tokens and cost over time on the Usage page'
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'in-progress'
+baseline_revision: '51ce312dc31c7f5111a2734b71446b18434d6500'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -175,6 +176,8 @@ deferred: []
 - Integration: the Usage page (the consumer) reads `GET /api/v1/usage` on a real stack and shows its seeded rows' sums. The `live:sign-in` e2e specs `api/usage.spec.ts` and `usage/usage.spec.ts` exercise this against a running IRIS, with no mocks.
 
 ## Spec Change Log
+
+- 2026-11-10 ~08:2xZ, lead (re-dispatch): the implement HALT (`implementation verification failed`, a machine-wide Docker build hang) was infrastructure, not the story. The orchestrator reports builds work again (probe at about 08:1xZ; the stuck process was another lane's bake). Status reset from `blocked` to `in-progress` for a verification-and-finalize pass over the implementation already in the working tree (uncommitted, from implement pass 1, baseline 51ce312d). Any build that hangs again is time-limited and reported as TOOLING, with the stuck process left running.
 
 - 2026-11-10, lead (spec gate): the Contest Planner's rulings written in [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md]. PUBLIC TEXT approved except the agent name ("Chat summaries", not "Compaction"), the More to try look-for and the README bullet (ruled texts in the table); condition: Agent, Channel and Model groupings show only values with rows in the range, Day keeps every date with 0s. SECURITY accepted with conditions (ii) days=0, 31 and abc are 404 not_found and (iii) a key allow-list assertion on the body (added to Test.Web.UsageApi TestShape and api/usage.spec.ts (ii)). Group: "Safety and settings", usage last. The Demo/Features union with ",usage" last is accepted. 37.2 targets release 1.0.7.
 
@@ -356,7 +359,30 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - a ruled string changed by one word -> `ux-strings.test.mjs` red;
 - one spine row's `[ADDED 2026-11-10, Story 37.2]` marker removed -> the implement record's `grep -c 'ADDED 2026-11-10, Story 37.2'` on the spine counts 2, not 3.
 
+**Implementation record (implement stage, 2026-11-10):**
+- Spine: `grep -c 'ADDED 2026-11-10, Story 37.2'` on the spine = 3 (REST row, `Ownership.Usage` row, header-navigation and page row); `lint_spine.py` reports the same 10 low `placeholder` findings as `lint-before.json` (identical findings, `ok` false before and after).
+- Verified in this stage: `node --test` of `usage-view`, `settings-view`, `more-to-try-view`, `ux-strings`, `decision-view` and the whole `npm --prefix web test` green (the e2e-part and playwright-projects tests included); `npm --prefix web run lint` and `run build` pass; `docker/tests/test-boundaries.sh`, `test-readme.sh`, `test-ci-config.sh` and `test-class-rules.sh` pass; on the dev slot (profile `ocutalon-slot-b`) `Test.Data.OwnershipUsage` (5), `Test.Web.UsageApi` (5), `Test.Demo.Features` (5), `Test.Data.OwnershipMemories` (4), `Test.Web.DocumentsApi:TestDispatch` and `Test.Web.Api:TestRoutes` pass.
+- NOT run: the warm-stack class runs, the e2e parts and the 1024px header measurement. Docker image builds hang on this machine (a plain `docker build` of `FROM alpine` did not finish in 60 s, with the classic builder as well, while two other epics' builds had been stuck 20+ minutes), so `ci/warm.sh up` never produced a stack; it was stopped and `ci/warm.sh down` ran (0 leftovers). The e2e specs `api/usage.spec.ts` and `usage/usage.spec.ts`, the new `frame.spec.ts` case "F3: at 1024px the header holds the four navigation links on one line" (it prints a `HEADER1024` line) and the updated `settings`, `documents`, `frame` and `guide/more-to-try` specs are written, type-checked (`npm run lint`) and listed by Playwright, but have not run.
+
+mutation: the `usage` kind's `OwnerRef = ?` replaced by `(OwnerRef = ? OR 1 = 1)` -> `Test.Data.OwnershipUsage` TestIsolation red (4 of 5 green), reverted, green again. `api/usage.spec.ts` (iii) not run (no stack).
+mutation: `Set bucket.cacheWriteTokens = 0` after `Sum` in `Ownership.Usage` -> `Test.Data.OwnershipUsage` TestBuckets red, reverted, green again. `usage.spec.ts` U2 not run.
+mutation: the `Retry` merge removed (`agentKey` returns its argument) -> `usage-view.test.mjs` red ("counts the retry runner under its agent..." and "merges all three retry runners..."), reverted byte-identical. U3 not run.
+mutation: `largestRequestTokens` summed instead of maxed -> `Test.Data.OwnershipUsage` TestBuckets red, reverted, green again. U4 not run.
+mutation: the bounds built from UTC midnight (`first_"T00:00:00Z"`) instead of `FromLocal` -> `Test.Data.OwnershipUsage` TestRange red (in America/New_York, Asia/Kolkata and Pacific/Auckland: the day edge and the window), reverted, green again.
+mutation: the empty branch removed -> NOT observed (needs U5 on a stack).
+mutation: the Range `<label for>` removed -> NOT observed (needs U6 on a stack).
+mutation: the nav link placed before Documents -> NOT observed (needs `frame.spec.ts` F3 Tab order on a stack).
+mutation: the ruled string 'Largest request per day' changed to 'Largest request each day' -> `ux-strings.test.mjs` red (3 tests) and `usage-view.test.mjs` red (1 test), reverted byte-identical.
+mutation: one spine row's `[ADDED 2026-11-10, Story 37.2]` marker removed -> `grep -c` on the spine counts 2, not 3; reverted byte-identical (3 again).
+
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: implementation verification failed: Docker image builds hang on the dev machine (infrastructure), so no throwaway or warm stack can start and the spec's (loop) e2e lines, the warm class runs, the 1024px header measurement and the e2e-bound Rule 19 mutations cannot run.
+
+Evidence (2026-11-10, implement stage):
+- `docker run` works, but `docker build`, `buildx bake` (compose build) and `ci/warm.sh up` never finish: a plain `FROM <local image>` build did not finish in 60-90 s with BuildKit or the legacy builder; with `docker-credential-desktop` bypassed through a private DOCKER_CONFIG it still hangs. Other runners' builds (epic-0 bake, 50 min; epic-23 bake, 40+ min) were stuck the same way. `com.docker.build` has run for 17 days. Not fixed from this session: restarting Docker Desktop would stop the shared slots and the other runners' stacks.
+- The warm/fresh tags `e37s2iw` and `e37s2i` were torn down (`ci/warm.sh down`: 0 leftovers; lane-b lock folder empty).
+- The implementation is complete in the working tree and uncommitted (HEAD is still the baseline). Passed: slot-b class runs `Test.Data.OwnershipUsage` 5/5, `Test.Web.UsageApi` 5/5, `Test.Demo.Features` 5/5, `Test.Data.OwnershipMemories` 4/4, `DocumentsApi:TestDispatch` and `Api:TestRoutes`; `npm --prefix web test` 1798/1798; `npm --prefix web run lint` and `build` pass; `test-boundaries.sh`, `test-readme.sh`, `test-ci-config.sh`, `test-class-rules.sh` pass; spine lint equals the baseline and the spine holds 3 `[ADDED 2026-11-10, Story 37.2]` markers.
+- Not run (needs a stack): the new `web/e2e/api/usage.spec.ts` and `web/e2e/usage/usage.spec.ts` and the updated frame, documents, settings and more-to-try specs (never executed; untried: ArrowDown firing `change` on the Range select in U6, `costUSD` JSON number form), the 1024px header measurement (case F3 in `frame.spec.ts` prints a `HEADER1024` line; remove that temporary console.log once measured), the e2e-bound mutations (empty branch, Range `<label for>`, nav before Documents), `bash ci/checks.sh` in full, the review layers and the finalize commit.
+- To resume once Docker builds work: re-dispatch on this spec path; set status back to `in-progress` (baseline_revision is recorded), run the (loop) e2e parts, then the review layers.
