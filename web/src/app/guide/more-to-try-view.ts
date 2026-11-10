@@ -1,28 +1,37 @@
 /**
  * The demo guide's "Other things to try" panel (Story 4.11; EXPERIENCE: Demo guide and controls): its fixed strings, the registry of
- * its nine items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
+ * its ten items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
  * as it is and the strings test reads it.
  *
  * The catalog is the server's (AD-12): `guide.features` is the list of feature ids that Demo.Features.Present gives, in the guide's
  * payload. The page decides nothing about which epics are merged.
- * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompt that the memory item sends.
+ * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompts that the memory item and the incident summary item (when there is no resolved incident to close) send.
  * - MORE_TO_TRY_ITEMS is the registry: one entry for each feature id, in the order the panel shows them. `action` names the hand-off
  *   that the button makes (more-to-try.ts): each one uses a control that the page already has.
  * - itemsFor(features) is the registry entries whose id the list holds, in registry order. An id the registry does not know is
  *   ignored, and no list gives none.
+ * - MORE_TO_TRY_GROUPS is the panel's group headings in the order shown, and groupsOf(items) turns the items into the panel's sets:
+ *   the items with no group first, then each heading in that order, then any other group in order of first appearance.
  * - inCompactBand, chatFloor and windowBound decide the panel's room: whether the page is in the compact band (the height left after the
  *   banners is under 680px), the least height of the chat's list for that band, and the tallest window that leaves the chat that floor.
  */
 
 /**
- * The link of the guide's first row, the panel's label, the prompt that the memory item sends (the exact text) and each item's label,
+ * The link of the guide's first row, the panel's label, the prompts that the memory item and the incident summary item send (the exact texts) and each item's label,
  * look-for line and control text. The quotes inside the lines are straight ASCII quotes.
  */
 export const MORE_TO_TRY_TEXTS = {
   link: 'More to try',
   label: 'Other things to try',
   rememberPrompt: "Remember that the Results partner's contact is Lee.",
+  summaryPrompt: 'Show me the incident summary',
   items: {
+    incidentSummary: {
+      label: 'Read the incident summary',
+      lookFor:
+        'This closes the guide\'s resolved incident, as Dismiss on its card does. Look for the incident summary in the chat and on the Simulated phone: what happened and when, the cause and the evidence, each approval, the orders affected and the model cost. Later, ask "Show me the incident summary" to get it again.',
+      button: 'Close the incident',
+    },
     persona: {
       label: 'Change how OcuTalon talks',
       lookFor:
@@ -80,11 +89,19 @@ export const MORE_TO_TRY_TEXTS = {
   },
 } as const;
 
-/** The Break the feed button of the box: the control that item 3 presses, and the one that the guide's focus rule hands focus to. */
+/** The Break the feed button of the box: the control that the Reject a fix item presses, and the one that the guide's focus rule hands focus to. */
 export const BREAK_FEED_BUTTON = 'app-break-feed-box app-server-button button';
 
+/**
+ * Where the incident summary item finds the Dismiss to press (Story 23.6): the incident cards of the chat, the chip that says a card is resolved, and the card's
+ * Dismiss button. The newest resolved card is the last one in the page.
+ */
+export const INCIDENT_CARD = 'article[data-part="incident"]';
+export const RESOLVED_CHIP = '.chip-resolved';
+export const DISMISS_BUTTON = 'app-incident-dismiss button';
+
 /** The hand-off that an item's control makes. */
-export type MoreToTryAction = 'persona' | 'suspiciousEmail' | 'rejectFix' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat';
+export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat';
 
 /** One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off. */
 export interface MoreToTryItem {
@@ -97,16 +114,17 @@ export interface MoreToTryItem {
   readonly group?: string;
 }
 
-/** The nine items, in the order the panel shows them. */
+/** The items, in the order the panel shows them: the registry's length is the count that the README and EXPERIENCE give. */
 export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
-  { id: 'persona', ...MORE_TO_TRY_TEXTS.items.persona, action: 'persona' },
-  { id: 'suspiciousEmail', ...MORE_TO_TRY_TEXTS.items.suspiciousEmail, action: 'suspiciousEmail' },
-  { id: 'rejectFix', ...MORE_TO_TRY_TEXTS.items.rejectFix, action: 'rejectFix' },
-  { id: 'demoView', ...MORE_TO_TRY_TEXTS.items.demoView, action: 'demoView' },
-  { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory' },
+  { id: 'incidentSummary', ...MORE_TO_TRY_TEXTS.items.incidentSummary, action: 'incidentSummary', group: 'Incidents and fixes' },
+  { id: 'persona', ...MORE_TO_TRY_TEXTS.items.persona, action: 'persona', group: 'Safety and settings' },
+  { id: 'suspiciousEmail', ...MORE_TO_TRY_TEXTS.items.suspiciousEmail, action: 'suspiciousEmail', group: 'Safety and settings' },
+  { id: 'rejectFix', ...MORE_TO_TRY_TEXTS.items.rejectFix, action: 'rejectFix', group: 'Incidents and fixes' },
+  { id: 'demoView', ...MORE_TO_TRY_TEXTS.items.demoView, action: 'demoView', group: 'Safety and settings' },
+  { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory', group: 'Memory and documents' },
   { id: 'memoryCard', ...MORE_TO_TRY_TEXTS.items.memoryCard, action: 'memoryCard', group: 'Memory and documents' },
-  { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents' },
-  { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat' },
+  { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents', group: 'Memory and documents' },
+  { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat', group: 'Safety and settings' },
   { id: 'sources', ...MORE_TO_TRY_TEXTS.items.sources, action: 'documents', group: 'Memory and documents' },
 ];
 
@@ -116,6 +134,47 @@ export function itemsFor(features: readonly string[] | undefined): readonly More
     return [];
   }
   return MORE_TO_TRY_ITEMS.filter((item) => features.includes(item.id));
+}
+
+/** The panel's group headings, in the order the panel shows them. */
+export const MORE_TO_TRY_GROUPS: readonly string[] = ['Incidents and fixes', 'Memory and documents', 'Safety and settings'];
+
+/** One set of the panel: its heading (none for the items that declare no group) and its items, in order. */
+export interface MoreToTryGroup {
+  readonly heading?: string;
+  readonly items: readonly MoreToTryItem[];
+}
+
+/**
+ * The sets the panel shows for these items, in this order: the items with no group (undefined, empty or blank) as one set with no
+ * heading; each group of MORE_TO_TRY_GROUPS that has an item; then any other group, in the order its name first appears. Every item
+ * appears once and keeps its input order within its set. No items give none, and a group with no item gives no set.
+ */
+export function groupsOf(items: readonly MoreToTryItem[]): readonly MoreToTryGroup[] {
+  const ungrouped: MoreToTryItem[] = [];
+  const named = new Map<string, MoreToTryItem[]>();
+  for (const item of items) {
+    const name = item.group;
+    if (name === undefined || name.trim() === '') {
+      ungrouped.push(item);
+    } else {
+      const set = named.get(name);
+      if (set === undefined) {
+        named.set(name, [item]);
+      } else {
+        set.push(item);
+      }
+    }
+  }
+  const sets: MoreToTryGroup[] = ungrouped.length > 0 ? [{ items: ungrouped }] : [];
+  const others = [...named.keys()].filter((name) => !MORE_TO_TRY_GROUPS.includes(name));
+  for (const heading of [...MORE_TO_TRY_GROUPS, ...others]) {
+    const set = named.get(heading);
+    if (set !== undefined) {
+      sets.push({ heading, items: set });
+    }
+  }
+  return sets;
 }
 
 /** The height, in px, left after the banners, under which the page is in the compact band: 680, the height of HEIGHT_QUERIES.compact. */

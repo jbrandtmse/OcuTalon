@@ -14,6 +14,10 @@
 ///     row's DueAt and FallbackReason are "" and its DecisionRef is the one sent. The row also keeps the Slots' rows (the check rows, as JSON; "[]" when
 ///     there are none) as CheckRows, and the event's payload carries them as checks, so a reload shows the same card (Story 18.4). A Slots or a
 ///     piece that cannot be rendered is an error with no row and no event;
+///   - Notification of the kind summary (Story 23.6; AD-32): it takes the same card path, with the text of OcuTalon.Watch.Summary.Text(IncidentRef, "web", .sc), the
+///     incident's stored summary rendered one catalog line per part, in place of the rendering of the CatalogKey (its Slots are empty, so no untrusted text and no
+///     user name travels in the message). The row's DueAt and FallbackReason are "" and its DecisionRef is the one sent. A summary that cannot be read or rendered
+///     is an error with no row and no event;
 ///   - Notification of the kind handled (Story 18.4; Core.SessionOps sends it once, when the user marks a tell-now notice as handled):
 ///     Ownership.DeliveryByRef(DecisionRef, "web", SessionRef) gives the notice's newest web row. When that row is a tell-now card with a
 ///     ChannelMessageId, it publishes one more notification event with Live.Payload.Notification.FromRow of THAT row, so the card keeps
@@ -38,7 +42,7 @@ Class OcuTalon.Channel.WebChat.Out Extends OcuTalon.Channel.Operation
 Parameter CHANNEL = "web";
 
 /// The notification kinds that the web chat shows as cards.
-Parameter CARDKINDS = "tellnow,reminder,allowance,digest";
+Parameter CARDKINDS = "tellnow,reminder,allowance,digest,summary";
 
 /// The notification kinds whose web form is the incident card: they record their Delivery row only and never a card or an event.
 Parameter INCIDENTKINDS = "incident,approval,answered,result";
@@ -74,6 +78,8 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 	}
 	If request.Kind = "digest" {
 		Set text = ##class(OcuTalon.Channel.DigestText).Text(request.Slots, ..#TEXTCHANNEL, .sc)
+	} ElseIf request.Kind = "summary" {
+		Set text = ##class(OcuTalon.Watch.Summary).Text(request.IncidentRef, ..#TEXTCHANNEL, .sc)
 	} Else {
 		Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
 	}

@@ -1,5 +1,5 @@
 /// One failure of a watched production, as FailurePoller reports it inside a FailureBatch (AD-15). Lane A.
-Class OcuTalon.Watch.Msg.Failure Extends %SerialObject
+Class OcuTalon.Watch.Msg.Failure Extends (%SerialObject, %XML.Adaptor)
 {
 
 /// header for a message header in the error status, error or alert for an event-log row with no session.

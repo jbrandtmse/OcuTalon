@@ -45,7 +45,7 @@ let lastId = 0;
   imports: [CheckRows, DecisionStrip, GotIt, Icon, NoiseControl],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="notice" [class.tell-now]="notice().kind === 'tellnow'" [class.allowance]="notice().kind === 'allowance'" [class.request]="notice().kind === 'approval'" [class.digest]="notice().kind === 'digest'" data-part="notice" [attr.data-key]="notice().key" tabindex="-1">
+    <div class="notice" [class.tell-now]="notice().kind === 'tellnow'" [class.allowance]="notice().kind === 'allowance'" [class.request]="notice().kind === 'approval'" [class.digest]="notice().kind === 'digest'" [class.summary]="notice().kind === 'summary'" data-part="notice" [attr.data-key]="notice().key" tabindex="-1">
       <app-icon class="bell" [name]="icon()" [size]="16" />
       <div class="body">
         <p class="text">{{ notice().text }}</p>
@@ -119,7 +119,8 @@ let lastId = 0;
       color: var(--info-ink);
     }
     .request .text,
-    .digest .text {
+    .digest .text,
+    .summary .text {
       white-space: pre-line;
     }
     .tell-now .bell {
@@ -198,10 +199,10 @@ export class NoticeCard {
     this.chosen.set(!this.open());
   }
 
-  /** The icon of the kind: bell-ring for a tell now, circle-alert for an allowance message, inbox for a digest, info for a tool call's notice, bell for a reminder. */
+  /** The icon of the kind: bell-ring for a tell now, circle-alert for an allowance message, inbox for a digest, info for a tool call's notice or an incident summary, bell for a reminder. */
   protected readonly icon = computed(() => {
     const kind = this.notice().kind;
-    if (kind === 'approval' || kind === 'result') {
+    if (kind === 'approval' || kind === 'result' || kind === 'summary') {
       return 'info';
     }
     if (kind === 'digest') {
