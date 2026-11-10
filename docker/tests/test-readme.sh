@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Pins README.md (Stories 10.2, 10.4 and 10.5; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134). Hermetic: it starts nothing, needs no network
+# Pins README.md (Stories 10.2, 10.4, 10.5 and 0.21; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134). Hermetic: it starts nothing, needs no network
 # and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules).
 #
 # What it pins, one rule each:
-#   top            the README opens with "# OcuTalon", a blank line and the owner's opening paragraph, then the teaser line and, after
-#                  it, exactly one image line (the hero), then the H2 sections "Try it in two minutes", "What's interesting",
+#   top            the README opens with the approved header block (Story 0.21: the centred logo and title, the tagline and the badge
+#                  row, lines 1 to 11, word for word), a blank line and the owner's opening paragraph, then the teaser line and,
+#                  after it, exactly one image line (the hero), then the H2 sections "Try it in two minutes", "What's interesting",
 #                  "Measured" (Story 11.25), "What you can use it for" and "How you talk to it" in this order; the other H2 sections
 #                  are there; no "Contest task" heading and no header row of its table
 #   try-it         the online demo link comes before ./install.sh, with "nothing to install, and no Early Access image needed"
@@ -21,11 +22,12 @@
 #                  image line, and never the word Slack
 #   teaser         the teaser line is there once, word for word, two lines below the opening paragraph with an empty line between
 #                  them and above the first H2 section; no HTML media tag, no image inside a link, and no image that is not an
-#                  inline docs/images/<name>.png image
+#                  inline docs/images/<name>.png image; the one exception is the <img> tags of the header block, which count only
+#                  while the first lines are exactly the approved header, an empty line and the opening paragraph
 #   images         every Markdown image link of the README has non-empty alt text and a target that is a file directly in
 #                  docs/images/ which the tree lists, there is at least one, and "What OcuTalon does" holds at least two, both
 #                  under the Break the feed bullet; each image line has an empty line before and after it; every linked file of
-#                  docs/images/ is under 300,000 bytes in the tree; it names no image file
+#                  docs/images/, and the header block's logo, is under 300,000 bytes in the tree; it names no image file
 #   once           each docs/images/ file is named at most once in the README, so no screenshot is shown twice (the owner's
 #                  decision of 2026-11-05)
 #   outcomes       the four outcomes, with the meanings that web/src/app/chat/chat-view.ts shows
@@ -82,8 +84,9 @@
 #                  mentions Telegram says "your own install" (U-228: the online demo has no bot)
 #   no-telegram    no "Telegram" while Included() has its test-only body
 #   product-links  every README anchor the page or the server text can show reaches a heading (#readme while README.md exists)
-#   readme-links   every link of the README reaches a heading, a file or folder of the repository, or an allow-listed host;
-#                  no two headings share a slug
+#   readme-links   every link of the README, Markdown or HTML (href and src values), reaches a heading, a file or folder of the
+#                  repository, or an allow-listed host; img.shields.io is allowed only on the header block's lines; no two
+#                  headings share a slug
 #   must-scan      docker/tests/test-boundaries.sh's must-scan list for paths and keys names README.md, so the most public file can
 #                  never drop out of that scan
 #
@@ -205,6 +208,26 @@ $T_ROW3"
 # The sentence of "Set a model key" that stays as it is.
 FIXED_SENTENCE='Without a key, OcuTalon still starts. Every decision uses fixed rules, and the page shows a notice that says so.'
 TEASER='Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU'
+# The approved header block (Story 0.21): README.md lines 1 to HEADER_LINES, word for word, as a quoted heredoc, because the lines
+# hold quotes, with its trailing newline stripped. HEADER_IMAGE_HOSTS are the image hosts that only those lines may use.
+IFS= read -r -d '' HEADER <<'HDR' || true
+<h1 align="center"><img src="docs/images/ocutalon-logo.png" alt="OcuTalon logo" width="160" height="160"><br>OcuTalon</h1>
+<p align="center">An AI assistant that runs inside InterSystems IRIS Interoperability, with every decision in Visual Trace.</p>
+<p align="center">
+  <a href="https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml?query=branch%3Amain"><img src="https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status of the main branch"></a>
+  <a href="https://github.com/jbrandtmse/OcuTalon/releases"><img src="https://img.shields.io/github/v/release/jbrandtmse/OcuTalon" alt="Latest release"></a>
+  <a href="https://demo.ocutalon.com"><img src="https://img.shields.io/website?url=https%3A%2F%2Fdemo.ocutalon.com&label=online%20demo&up_message=live&down_message=down" alt="Online demo status"></a>
+  <a href="#start-it-with-the-install-script"><img src="https://img.shields.io/badge/docker-install.sh-blue" alt="Docker: install.sh"></a>
+  <a href="#install-it-with-ipm"><img src="https://img.shields.io/badge/IPM-ocutalon-blue" alt="IPM: ocutalon"></a>
+  <a href="#whats-interesting"><img src="https://img.shields.io/badge/IRIS-AI%20Hub-blue" alt="IRIS: AI Hub"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+</p>
+HDR
+HEADER=${HEADER%?}
+HEADER_LINES=$(printf '%s\n' "$HEADER" | wc -l | tr -d ' ')
+HEADER_IMAGE_HOSTS='img.shields.io'
+# awk reads the block from a file: a -v value cannot hold a newline in every awk.
+printf '%s\n' "$HEADER" > "$tmp/header.want"
 # The facts of "How you talk to it", each on a line of that section.
 TALK_FACTS='The web chat page is OcuTalon on every install.
 | The web chat page |
@@ -263,6 +286,24 @@ image_links() {
       }
     }
   ' "$1"
+}
+
+# header_end <file>: HEADER_LINES when the file's first lines are exactly HEADER, followed by an empty line and the opening paragraph;
+# else 0. The header allowance (its <img> tags and img.shields.io) holds on the lines up to this number, so a header that is changed
+# or gone exempts no line.
+header_end() {
+  awk -v hf="$tmp/header.want" -v opening="$OPENING" -v n="$HEADER_LINES" '
+    BEGIN { while ((getline l < hf) > 0) want[++k] = l }
+    FNR <= n { if ($0 != want[FNR]) bad = 1; next }
+    FNR == n + 1 { if ($0 != "") bad = 1; next }
+    FNR == n + 2 { if ($0 != opening) bad = 1; got = 1; exit }
+    END { print (!bad && got) ? n : 0 }
+  ' "$1"
+}
+
+# header_images <file>: the docs/images/ src values of the header lines (those up to header_end), one per line.
+header_images() {
+  awk -v n="$(header_end "$1")" 'NR > n { exit } { print }' "$1" | grep -oE 'src="docs/images/[^"]*"' | sed 's/^src="//; s/"$//'
 }
 
 # section <file> <H2 title>: the lines of that H2 section, subsections included, without its heading.
@@ -409,21 +450,21 @@ finish() {
 # top
 chk_top() {
   local f=$1 h2s t n
-  awk -v opening="$OPENING" -v teaser="$TEASER" '
-    state == 0 && $0 ~ /[^ \t]/ { if ($0 != "# OcuTalon") print FILENAME ":" FNR ": the first line is not \"# OcuTalon\""; state = 1; next }
+  awk -v opening="$OPENING" -v teaser="$TEASER" -v hf="$tmp/header.want" -v hn="$HEADER_LINES" '
+    BEGIN { while ((getline l < hf) > 0) want[++k] = l; state = 1 }
+    FNR <= hn { if ($0 != want[FNR] && !bad) { print FILENAME ":" FNR ": the line is not line " FNR " of the approved header block"; bad = 1 } next }
     state == 1 && /^## / { state = 2 }
     state == 1 && $0 ~ /[^ \t]/ {
       if ($0 == teaser) seen = 1
       else if (index($0, "![") == 1 && (k = index($0, "](")) > 0 && index(substr($0, k + 2), ")") == length($0) - k - 1) {
         imgs++
         if (!seen) print FILENAME ":" FNR ": the image line is above the teaser"
-      } else if ($0 != opening) print FILENAME ":" FNR ": a line between the title and the first H2 section that is neither the opening paragraph, the teaser nor the image line"
+      } else if ($0 != opening) print FILENAME ":" FNR ": a line between the header block and the first H2 section that is neither the opening paragraph, the teaser nor the image line"
     }
-    state == 0 { next }
     /^#+ Contest task/ || index($0, "| Contest task or criterion") == 1 { print FILENAME ":" FNR ": the Contest task section is back" }
-    END { if (imgs != 1) print FILENAME ": " imgs + 0 " image lines between the title and the first H2 section, not exactly one" }
+    END { if (imgs != 1) print FILENAME ": " imgs + 0 " image lines between the header block and the first H2 section, not exactly one" }
   ' "$f"
-  chk_block top "$f" "# OcuTalon
+  chk_block top "$f" "$HEADER
 
 $OPENING"
   n=$(grep -cxF -- "$OPENING" "$f")
@@ -574,7 +615,7 @@ chk_images() {
       else if (!($3 in have)) print "images: " readme ":" $1 ": the target " $3 " is not a file the tree lists"
     }
   '
-  image_links "$1" | cut -f3 | sort -u | while IFS= read -r target; do
+  { image_links "$1" | cut -f3; header_images "$1"; } | sort -u | while IFS= read -r target; do
     case $target in
       docs/images/*)
         if [ -f "${3:-$root}/$target" ]; then
@@ -613,7 +654,8 @@ chk_once() {
 
 # teaser
 chk_teaser() {
-  local f=$1 n op at h2
+  local f=$1 n op at h2 he
+  he=$(header_end "$f")
   n=$(grep -cxF -- "$TEASER" "$f")
   if [ "$n" -ne 1 ]; then echo "teaser: the line '$TEASER' is there $n times, not once"; fi
   op=$(grep -nxF -- "$OPENING" "$f" | head -n 1 | cut -d: -f1)
@@ -629,7 +671,8 @@ chk_teaser() {
     fi
     if [ -n "$h2" ] && [ "$at" -gt "$h2" ]; then echo "teaser: $f:$at: it is below the first H2 section"; fi
   fi
-  grep -niE '<(img|iframe|video|embed|object|picture)' "$f" | cut -d: -f1 | sed "s|^|$f:|; s|\$|: an HTML media tag (the teaser is a plain link)|"
+  # An <img> tag is exempt on the header lines only; every other media tag is checked on every line.
+  { grep -niE '<(iframe|video|embed|object|picture)' "$f"; grep -niE '<img' "$f" | awk -F: -v he="$he" '$1 > he'; } | cut -d: -f1 | sort -un | sed "s|^|$f:|; s|\$|: an HTML media tag (the teaser is a plain link)|"
   grep -nF '[![' "$f" | cut -d: -f1 | sed "s|^|$f:|; s|\$|: an image inside a link (the teaser is a plain link)|"
   # Every "![" of a line must be an inline docs/images/<name>.png image; a remote, local-elsewhere, non-PNG or reference-style image is not.
   image_links "$f" | awk -F'\t' '$3 ~ /^docs\/images\/[^\/]+\.png$/ { good[$1]++ } END { for (l in good) print l, good[l] }' > "$tmp/img.good"
@@ -1222,13 +1265,14 @@ chk_product_links() {
 # readme-links (Design Notes 8 and 9)
 ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com community.intersystems.com openexchange.intersystems.com'
 URL_RE='https?://[^][:space:])>"<`]+'
+# url_allowed <url> [extra hosts]: the allow-list, plus the extra hosts (space separated) when given.
 url_allowed() {
   local rest=${1#*://} host entry
   case $rest in */../* | */..) return 1 ;; esac
   host=${rest%%[/?#]*}
   host=${host##*@}
   host=${host%%:*}
-  for entry in $ALLOWED_HOSTS; do
+  for entry in $ALLOWED_HOSTS ${2:-}; do
     case $entry in
       */*)
         case $rest in
@@ -1241,11 +1285,12 @@ url_allowed() {
   return 1
 }
 chk_readme_links() {
-  local slugs dup
+  local slugs dup he hit n url extra
+  he=$(header_end "$1")
   slugs=$(headings "$1" | cut -f2)
   dup=$(printf '%s\n' "$slugs" | sort | uniq -d)
   if [ -n "$dup" ]; then printf '%s\n' "$dup" | sed 's|^|readme-links: two headings have the slug |'; fi
-  grep -oE '\]\([^)]*\)' "$1" | sed 's/^](//; s/)$//' | while IFS= read -r target; do
+  { grep -oE '\]\([^)]*\)' "$1" | sed 's/^](//; s/)$//'; grep -oE '(href|src)="[^"]*"' "$1" | sed 's/^[a-z]*="//; s/"$//'; } | while IFS= read -r target; do
     case $target in
       '#'*)
         if ! printf '%s\n' "$slugs" | grep -qxF -- "${target:1}"; then echo "readme-links: the link ($target) reaches no heading"; fi
@@ -1258,9 +1303,14 @@ chk_readme_links() {
         ;;
     esac
   done
-  grep -oE "$URL_RE" "$1" | sed 's/[.,;:]*$//' | sort -u | while IFS= read -r url; do
-    if ! url_allowed "$url"; then echo "readme-links: the address $url is not on the allow-list"; fi
-  done
+  # The header lines (up to header_end) may also use HEADER_IMAGE_HOSTS; every other line is checked against the allow-list alone.
+  grep -noE "$URL_RE" "$1" | sed 's/[.,;:]*$//' | sort -u | while IFS= read -r hit; do
+    n=${hit%%:*}
+    url=${hit#*:}
+    extra=""
+    if [ "$n" -le "$he" ]; then extra=$HEADER_IMAGE_HOSTS; fi
+    if ! url_allowed "$url" "$extra"; then echo "readme-links: the address $url is not on the allow-list"; fi
+  done | sort -u
 }
 
 # --- the rules ---
@@ -1268,7 +1318,12 @@ chk_readme_links() {
 rule_top() {
   rule_begin top "$README" || return
   st 'a line before the first H2 section' 1 "$README" 'NR == 1 { print; print "A stray line."; next } { print }' chk_top
-  st 'a first line that is not the title' 1 "$README" 'NR == 1 { print "# Other"; next } { print }' chk_top
+  st 'the bare title back as the first line' 1 "$README" 'NR == 1 { print "# OcuTalon"; next } { print }' chk_top
+  st 'the header replaced by the bare title' 1 "$README" 'NR == 1 { print "# OcuTalon"; next } NR <= '"$HEADER_LINES"' { next } { print }' chk_top
+  st 'a stray line between the header and the opening paragraph' 1 "$README" 'NR == '"$HEADER_LINES"' { print; print "A stray line."; next } { print }' chk_top
+  st 'a header badge from another host' 1 "$README" 'NR <= '"$HEADER_LINES"' && !done && /img\.shields\.io/ { sub(/img\.shields\.io/, "badgen.net"); done = 1 } { print }' chk_top
+  st 'the tagline changed' 1 "$README" 'NR == 2 { sub(/every decision/, "each decision") } { print }' chk_top
+  st 'a header logo with a different src' 1 "$README" 'NR == 1 { sub(/src="[^"]*"/, "src=\"https://example.org/logo.png\"") } { print }' chk_top
   st 'the first two sections swapped' 1 "$README" '/^## What.s interesting$/ { print "## Try it in two minutes"; next } /^## Try it in two minutes$/ { print "## What'"'"'s interesting"; next } { print }' chk_top
   st 'the opening paragraph changed' 1 "$README" '/^Your integrations already/ { sub(/fifty/, "fifteen") } { print }' chk_top
   st 'the opening paragraph removed' 1 "$README" '!/^Your integrations already/' chk_top
@@ -1294,7 +1349,7 @@ rule_top() {
   st 'the Measured section above What'"'"'s interesting' 1 "$README" '/^## Measured$/ { print "## What'"'"'s interesting"; next } /^## What.s interesting$/ { print "## Measured"; next } { print }' chk_top
   st 'the Measured section below What you can use it for' 1 "$README" '/^## Measured$/ { print "## What you can use it for"; next } /^## What you can use it for$/ { print "## Measured"; next } { print }' chk_top
   st 'the Measured heading one level down' 1 "$README" '/^## Measured$/ { print "### Measured"; next } { print }' chk_top
-  finish top 'the title, the opening paragraph, the teaser and the hero image, then the five top sections in order, and the other sections are there' chk_top
+  finish top 'the header block, the opening paragraph, the teaser and the hero image, then the five top sections in order, and the other sections are there' chk_top
 }
 
 rule_try_it() {
@@ -1390,7 +1445,7 @@ set_alt() {
 }
 
 rule_images() {
-  local first other target
+  local first other target logo
   printf '%s\n' "$listing" > "$tmp/files.list"
   rule_begin images "$README" "$tmp/files.list" || return
   # The self-tests use the README's own first image link, so that no image file is named here.
@@ -1413,13 +1468,19 @@ rule_images() {
   st 'the first image file dropped from the list' 2 "$tmp/files.list" '$0 != "'"$first"'"' chk_images
   # A linked file of exactly 300,000 bytes is flagged, and one byte less is not: the sizes are read from a root of the rule's own.
   mkdir -p "$tmp/size/docs/images"
-  image_links "$README" | cut -f3 | sort -u | while IFS= read -r target; do
+  { image_links "$README" | cut -f3; header_images "$README"; } | sort -u | while IFS= read -r target; do
     case $target in docs/images/*) head -c 10 /dev/zero > "$tmp/size/$target" ;; esac
   done
   head -c 299999 /dev/zero > "$tmp/size/$first"
   if [ -n "$(chk_images "$README" "$tmp/files.list" "$tmp/size")" ]; then st_note 'a linked file of 299,999 bytes is flagged'; fi
   head -c 300000 /dev/zero > "$tmp/size/$first"
   if [ -z "$(chk_images "$README" "$tmp/files.list" "$tmp/size")" ]; then st_note 'a linked file of exactly 300,000 bytes is not flagged'; fi
+  # The header's logo is read too: at exactly 300,000 bytes it is flagged (the first image goes back to 10 bytes, so that it is the only one).
+  # A header that names no docs/images logo gives the check nothing to flag, so it counts as not flagged.
+  head -c 10 /dev/zero > "$tmp/size/$first"
+  logo=$(header_images "$README" | head -n 1)
+  if [ -n "$logo" ]; then head -c 300000 /dev/zero > "$tmp/size/$logo"; fi
+  if [ -z "$logo" ] || [ -z "$(chk_images "$README" "$tmp/files.list" "$tmp/size")" ]; then st_note 'the header logo of exactly 300,000 bytes is not flagged'; fi
   # A newly listed and linked docs/images file is not flagged: the rule names no file.
   mkdir -p "$tmp/imgs"
   { cat "$tmp/files.list"; echo docs/images/zz-extra.png; } > "$tmp/imgs/extra.list"
@@ -1442,7 +1503,9 @@ rule_once() {
 }
 
 rule_teaser() {
+  local first
   rule_begin teaser "$README" || return
+  first=$(image_links "$README" | head -n 1 | cut -f3)
   st 'the teaser line removed' 1 "$README" '!/^Watch the 35-second teaser: /' chk_teaser
   st 'the teaser line changed' 1 "$README" '{ sub(/35-second/, "36-second"); print }' chk_teaser
   st 'the teaser moved to the end of the README' 1 "$README" '/^Watch the 35-second teaser: / { next } { print } END { print ""; print "Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU" }' chk_teaser
@@ -1461,7 +1524,11 @@ rule_teaser() {
   st_append 'an image tag in capitals' '<IMG src=teaser.png>' chk_teaser
   st_append 'a picture tag' '<picture><source srcset=teaser.png></picture>' chk_teaser
   st_append 'the teaser line twice' "$TEASER" chk_teaser
-  finish teaser 'the teaser is a plain link, word for word, two lines below the opening paragraph, with no media tag and only inline docs/images PNG images' chk_teaser
+  # The header's first badge line (the CI badge, whose host is allowed on every line) copied to the end is no longer exempt; neither is a
+  # linked image right after the hero image.
+  st 'a header badge line below the header' 1 "$README" 'NR <= '"$HEADER_LINES"' && b == "" && /<img/ && !/src="docs\/images\// { b = $0 } { print } END { print ""; print b }' chk_teaser
+  st 'an image inside a link right after the hero image' 1 "$README" '{ print } index($0, "]('"$first"')") > 0 && !done { print ""; print "[![x]('"$first"')](LICENSE)"; done = 1 }' chk_teaser
+  finish teaser 'the teaser is a plain link, word for word, two lines below the opening paragraph, with no media tag and only inline docs/images PNG images below the header block' chk_teaser
 }
 
 rule_outcomes() {
@@ -1637,7 +1704,7 @@ rule_public_text() {
   { printf '%s\n' "$NOTE"; printf '%s\n' "$PUBLIC_FACTS"; printf 'Listen on 127.0.0.1 or 0.0.0.0 only.\nNot providers, only words that contain one: llamas, grokking, gptx and azurite.\n'; } > "$tmp/pub.good"
   st_facts public_text_1 "$PUBLIC_FACTS"
   st 'the note altered' 1 "$README" '{ sub(/not affiliated with/, "affiliated with"); print }' public_text_1
-  st 'OpenClaw outside the note' 1 "$README" '/^# OcuTalon$/ { print; print ""; print "An OpenClaw-style assistant."; next } { print }' public_text_1
+  st 'OpenClaw outside the note' 1 "$README" 'NR == 1 { print; print ""; print "An OpenClaw-style assistant."; next } { print }' public_text_1
   while IFS='|' read -r label text; do
     [ -n "$label" ] || continue
     st_append "$label" "$text" public_text_1
@@ -1827,11 +1894,15 @@ rule_readme_links() {
   st_append 'a repository that only starts with the allowed one' '[x](https://github.com/jbrandtmse/OcuTalon-fork)' chk_readme_links
   st_append 'a link that is not http' '[x](mailto:a@b.c)' chk_readme_links
   st_append 'two headings with one slug' '## Sign in' chk_readme_links
+  st 'a shields.io badge below the header' 1 "$README" 'NR <= '"$HEADER_LINES"' && /img\.shields\.io/ { b = $0 } { print } END { print ""; print b }' chk_readme_links
+  st 'a header badge from another host' 1 "$README" 'NR <= '"$HEADER_LINES"' && !done && /img\.shields\.io/ { sub(/img\.shields\.io/, "badgen.net"); done = 1 } { print }' chk_readme_links
+  st 'an HTML link to a heading that is not there' 1 "$README" '{ print } END { print ""; print "<a href=\"#nowhere\">x</a>" }' chk_readme_links
+  st 'an HTML image of a file that is not there' 1 "$README" '{ print } END { print ""; print "<img src=\"docs/missing.png\" alt=\"x\">" }' chk_readme_links
   # A link by the GitHub slug of a heading (Design Note 8) is not flagged: the arrow, the apostrophe and the parentheses are dropped,
   # the spaces around the arrow stay (two hyphens), and a hyphen of the heading stays. The copy gets its own heading with the arrow.
   awk -v arrow="$ARROW" '{ print } END { print ""; print "## Contest task " arrow " where to see it"; print "[a](#contest-task--where-to-see-it) [b](#whats-interesting) [c](#stop-start-and-update) [d](#the-iris-non-health-image)" }' "$README" > "$tmp/slug.md"
   if [ -n "$(chk_readme_links "$tmp/slug.md")" ]; then st_note 'a link by the GitHub slug of a heading is flagged'; fi
-  finish readme-links 'every link reaches a heading, a file or folder of the repository, or an allow-listed host' chk_readme_links
+  finish readme-links 'every link, Markdown or HTML, reaches a heading, a file or folder of the repository, or an allow-listed host, and img.shields.io only in the header block' chk_readme_links
 }
 
 rule_must_scan() {

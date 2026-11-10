@@ -3245,3 +3245,5 @@
 2026-11-09T23:57:42Z	Epic 0	ci_green_verified	head=61b40bba result=green_by_identity (code == b43e7bce, ci 42718157592 + lane-a 42718157873) feature_runs_cancelled=42724567915,42724568198 (record-only rule)
 2026-11-09T23:58:27Z	Epic 0	owner_decision	via=contest_planner DW-1052 owned by Planner (post-1.0.6 listing check); 1.0.6 floor=61b40bba
 2026-11-09T23:58:35Z	Epic 0	note	DW-1052 is on OCT-epic0 (unpushed); at the 0.21 merge append status=decision-pending owner=burndown by=merge_gate (Planner owns the post-1.0.6 listing check)
+2026-11-10T00:47:26Z	Epic 0	deps_hash_rerecorded	reason=rule5_amendment (0.21 ACs amended per ruling) hash=1a29b796
+2026-11-10T00:47:26Z	Epic 0	epic_merged_to_feature	head=ddfa7b8f part_merge=0.21 conflicts=none sprint_valid=yes spine_lint=baseline ci=42727330617,42727330506 render_check=ok(light+dark) DW-1052=decision-pending(Planner) epic-0=done lane_C=free
