@@ -2,9 +2,9 @@
 title: 'Story 23.2: Suspend, resume and reroute with a dry run'
 type: 'feature'
 created: '2026-11-09'
-status: 'in-progress'
-baseline_revision: '5e32f719812a14399dd42277661ce34ec818978e'
-baseline_commit: '5e32f719812a14399dd42277661ce34ec818978e'
+status: 'done'
+baseline_revision: '5d5e11d9ea7a0595e72abe13e174a107b859310d'
+baseline_commit: '5d5e11d9ea7a0595e72abe13e174a107b859310d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -218,10 +218,12 @@ Rejected (rework re-review 1):
 - low (lead, Rule 20) -- (blind 7, acceptance note) AD-12's `incident` payload paragraph does not list `Production` (this rework) or each request's `FixKind`, `Item` and `Count` (round 1): the spine is the lead's to update.
 
 **CI rework (iteration 2; CI on e6eb901d, run 42844253322):**
-- [ ] [CI] iris (production) shard:lane-a@Channel: `Test.Channel.TelegramChat:TestNotices` pins "there are 19 Watch notice keys" and "there are 25 of them"; this story added nine `incident.`/`result.` keys. Update the pins to the counts the catalog now holds (Rule 19 shared surface), every new key sending as the others do; a demonstrated mutation line.
-- [ ] [CI] iris (shards-11) live:cards: A12 in `web/e2e/cards/approval-card.spec.ts:383` times out at `signIn(page, …)` waiting for "User name", because the earlier `signInOverHttp(page.request, …)` shares the page's cookies, so the page is already signed in. Fix the test (no product change) and run A12 locally (`ci/iris.sh live cards`, or its spec alone) so its bands are observed, with a mutation line.
-- [ ] [CI] iris (shards-2) shard:lane-a@rest: `Test.Mcp.Attach:TestAttach` — the mock MCP server's tools never attach on this story's tree (it passed on b99d6529). Reproduce on a stack; find the cause (for example a tool-count or name check that this story's added chat tool changes, or a classification change); fix it inside this story's files if the story caused it, else report it as not this story's with evidence.
-- [ ] [CI] check: `live:reminder-restart` "Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled" (DW-1083): confirm whether any change of this story (item enable/disable, `Checks.Process` `ours`, `Fix.Run.Suspended`) can delay a disabled item's Ens.Job exit; report the finding. No change if it is unrelated (it is then a flake, rerun with the push).
+- [x] [CI] iris (production) shard:lane-a@Channel: `Test.Channel.TelegramChat:TestNotices` pins "there are 19 Watch notice keys" and "there are 25 of them"; this story added nine `incident.`/`result.` keys. Update the pins to the counts the catalog now holds (Rule 19 shared surface), every new key sending as the others do; a demonstrated mutation line.
+- [x] [CI] iris (shards-11) live:cards: A12 in `web/e2e/cards/approval-card.spec.ts:383` times out at `signIn(page, …)` waiting for "User name", because the earlier `signInOverHttp(page.request, …)` shares the page's cookies, so the page is already signed in. Fix the test (no product change) and run A12 locally (`ci/iris.sh live cards`, or its spec alone) so its bands are observed, with a mutation line.
+- [x] [CI] iris (shards-2) shard:lane-a@rest: `Test.Mcp.Attach:TestAttach` — the mock MCP server's tools never attach on this story's tree (it passed on b99d6529). Reproduce on a stack; find the cause (for example a tool-count or name check that this story's added chat tool changes, or a classification change); fix it inside this story's files if the story caused it, else report it as not this story's with evidence.
+- [x] [CI] check: `live:reminder-restart` "Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled" (DW-1083): confirm whether any change of this story (item enable/disable, `Checks.Process` `ours`, `Fix.Run.Suspended`) can delay a disabled item's Ens.Job exit; report the finding. No change if it is unrelated (it is then a flake, rerun with the push).
+  - Found (iteration 2): `Test.Mcp.Attach` is not this story's. It passes on this tree three times (warm twice, fresh once, 0 failures); none of the files it reaches (`Mcp/*`, `Bridge/Ext/McpServers`, `Bridge/Adapter/Agent`, `Test/Mcp/*`, `Test/Bridge/Zz*`) differs from b99d6529, and the story's one chat tool is not in the shadow agent's manager. CI gave no attach reason (only the four asserts). Same signature and shard as DW-1038 (the mock's handshake under load in lane-a@rest); no change.
+  - Found (iteration 2): the reminder-restart park is not this story's. `Telegram park` disables the Telegram items through `Test.Channel.LiveCase.Disable` and waits for their Ens.Job entries; the only story code that enables or disables an item is `Fix.Executor.InProduction`, run from an approved fix row, which that unit never raises; `Checks.Process` `ours` and `Fix.Run.Suspended` only read; the same job then failed its first start at 400 s (DW-999's load signature). No change; a flake, rerun with the push.
 
 ## Spec Change Log
 
@@ -306,6 +308,21 @@ Rejected (rework re-review 1):
   - `[low]` `[reject]` (verification-gap 3) mutation lines missing for single branches of `itemResultView`, `slotWithStop` and the docs file - Rule 19 asks one demonstrated mutation per AC; DW-1067 has eight and DW-1059 one; the branches are pinned by executed node cases.
   - `[low]` `[reject]` (verification-gap other 1) a test title claims a text-slot half it does not assert - cosmetic, covered by the existing `TEXT_SLOT_KEYS` check.
   - `[low]` `[reject]` (verification-gap other 2) the failed-again reroute case asserts only the key - the item field is not the case's subject.
+
+### 2026-11-10 - Review pass (rework iteration 2)
+- verdicts: 11 findings - high 0, medium 1, low 10, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (blind 1, edge 2) the count pins in `TestNotices` are literals and drift again with the next key - the CI item asks for the pins to be updated to the catalog's counts, and the literals are the class's tripwire; deriving them adds logic to a test.
+  - `[low]` `[reject]` (blind 2, edge 1) the `$Select` naming the approval-kind keys is a maintenance list - the same existing design, one more name per key; the reroute row's kind is also pinned in `Test.Fix.Asked`.
+  - `[low]` `[reject]` (blind 3) the three new request keys' Telegram text is not asserted to end in "Approve?" - an existing gap of the class (only `incident.withFix` is), not caused by the pin update; the catalog tests own the key texts.
+  - `[low]` `[reject]` (blind 4) A12's comment is one long line and does not say why `request: http` - the contract sentence states it; the long line is the file's style.
+  - `[low]` `[reject]` (edge 3) AC15 says "the README account" while A12 signs in as `fixtureUser(KIND)` - not changed by this diff, and the fixture user holds `OcuTalonUser` only, as the README account does.
+  - `[medium]` `[patch]` (verification-gap 1) A12's HTTP half (AC15) had no observed mutation - `FromRow` set to an empty `FixKind` and `live:cards` run: A12 red at "the state names the fix kind", reverted byte-identical; the line is under `## Verification`.
+  - `[low]` `[reject]` (verification-gap 2) the sign-in fix has no red-before of its own - CI run 42844253322 is the red observation (`signIn` timing out on "User name"); a local revert of only the sign-in call fails earlier at the 401 of the `request` fixture's own jar, so it would not reproduce that failure and is not recorded.
+  - `[low]` `[reject]` (verification-gap other 1) the three new `$Select` entries cannot fail, since the test passes the same kind to the notification - the key-to-kind mapping is production's `IncidentManager`, pinned by `Test.Fix.Asked`; this test pins the counts and that every key sends.
+  - `[low]` `[reject]` (verification-gap other 2) the last `WaitRows(...) >= 34` cannot fail on an excess - the exact row list is asserted earlier in the same test.
+  - `[low]` `[reject]` (intent-alignment, divergence 1) the pins stay hard-coded - descriptive, the same as blind 1.
+  - `[low]` `[reject]` (intent-alignment, divergence 2) A7 still signs in over `page.request` - A7 never calls `signIn(page, ...)`, so it is not on the failing path.
 
 ## Design Notes
 
@@ -518,12 +535,37 @@ AC-S1, AC-S6 and AC-S5 keep the implement stage's lines above (test-process code
 - mutation: DW-1068 (re-ruled text) `Msg/Catalog/Watch.cls` `result.itemSuspended` back to "To undo it, ask me to resume {item}." -> `node web/scripts/catalog.mjs --check` exit 1 and `web/scripts/catalog.test.mjs` red ("has a current catalog.ts"); reverted byte-identical (`cmp`, `git status --short` unchanged), green again.
 - A12's closed-card bands (the compact card through `incidentContext`) lint and type-check; their mutation (drop `production` at `incident-card.ts:33`) stays with the browser unit in CI.
 
+**CI rework iteration 2 (2026-11-10), tags `e23s2tw` (warm) and `e23s2t` (fresh); each mutation applied, red, reverted byte-identical (`cmp`).** `Test.Channel.TelegramChat` passed (warm; the pins are 28 notice keys, 34 Delivery rows, 35 and 34 handled, and the three request keys are `approval` rows); `Test.Mcp.Attach` passed warm twice and fresh once; `live:cards` ran A12 locally, 29 passed (A12 12.2 s), after `ci/iris.sh build`.
+- mutation: CI pin (TelegramChat) the notice filter leaves `result.rerouted` out -> `Test.Channel.TelegramChat:TestNotices` red ("there are 28 Watch notice keys", "there are 34 of them", "TelegramOut has handled all 34 notifications")
+- mutation: A12 (closed card) `incident-card.ts` hands `resultView` an empty production -> `live:cards` A12 red at "and keeps both bands, the suspend's naming the item in the incident's production"
+- mutation: A12 (reroute band) `resultView`'s reroute branch never matches -> A12 red at "the band says where the copies went"
+- mutation: A12 (suspend band) `itemResultView` always gives `result.itemResumed` -> A12 red at "the suspend band names the item in the incident's production"
+- mutation: AC15 (A12's HTTP half) `Live/Payload/Approval.cls` `FromRow` sets `FixKind` to the empty string -> `live:cards` A12 red at "the state names the fix kind" (28 others pass); reverted byte-identical (`cmp`).
+- A12's sign-in: the failure was the CI run's (`signIn` waiting for "User name" after `signInOverHttp(page.request)`); the HTTP half now uses the `request` fixture, whose cookies are not the page's, and the case passes.
+
 ## Auto Run Result
 
 Status: done
 Blocking condition: none
 
-**This pass (rework iteration 1: DW-1067, DW-1059, DW-1069; DW-1068 stays ON HOLD, nothing built for it, its checkbox unchecked).**
+**This pass (rework iteration 2: the four [CI] items of CI run 42844253322).**
+
+**Summary.** (1) `Test.Channel.TelegramChat:TestNotices` pins the catalog's 28 Watch notice keys, 34 Delivery rows, 35 and 34 handled notifications, and the three request keys (`incident.suspendRequest`, `incident.resumeRequest`, `incident.rerouteRequest`) are `approval` rows. (2) A12's HTTP half uses the `request` fixture, so its cookies are not the page's and `signIn(page, ...)` finds the form. (3) `Test.Mcp.Attach:TestAttach` is not this story's: it passes on this tree three times, none of the files it reaches differs from b99d6529, and the story's chat tool is not in its shadow agent; same shard and signature as DW-1038. (4) `live:reminder-restart`'s Telegram park is not this story's: the only story code that enables or disables an item is `Fix.Executor.InProduction`, which that unit never reaches, and `Checks.Process` `ours` and `Fix.Run.Suspended` only read (DW-1083 is a flake, rerun with the push). No product code changed.
+
+**Files changed.** `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls` (pins), `web/e2e/cards/approval-card.spec.ts` (A12), this spec.
+
+**Review.** 11 findings from the four layers: patches applied 1 (medium: the missing mutation for A12's HTTP half, observed and recorded), deferred 0, rejected 10 with the reasons in the Review Triage Log (low 10).
+
+**Follow-up review recommended: false.** No high was patched in this pass (patched: high 0, medium 1, low 0).
+
+**Verification.** `Test.Channel.TelegramChat` passed (warm); `Test.Mcp.Attach` passed (warm twice, fresh once); `ci/iris.sh live cards` ran A12 (29 passed). Mutations (each red, reverted byte-identical): the notice filter, the three A12 bands, and `FromRow`'s `FixKind` (A12 red). `node --test web/scripts/*.test.mjs` (1790 pass), `npm --prefix web run lint`, `docker/tests/test-boundaries.sh`, `test-readme.sh`, `test-ci-config.sh` pass.
+
+**Residual risks.** CI's `live:cards` and the shards confirm A12 and the notices pin; if `Test.Mcp.Attach` fails again on a quiet host it is real (DW-1038).
+
+### Rework iteration 1 (history)
+
+**Rework iteration 1 (DW-1067, DW-1059, DW-1069; DW-1068 stays ON HOLD, nothing built for it, its checkbox unchecked).**
+
 
 **Summary.** DW-1067: each request card shows its result band for a suspend, a resume and a reroute, with the ruled texts verbatim (`result.itemSuspended`, `result.itemResumed`, `result.itemSkipped`, `result.itemNotChanged`, `result.rerouted`): `approval-view.ts` `resultView` extends the existing band (item kinds through `itemResultView`, the reroute through the all-through branch); `web/scripts/catalog.mjs` gained a `sentence` slot type and `catalog.ts` was regenerated; the incident payload (`Live/Payload/Incident.cls`, Lane A) gained `production` so a suspend or resume names its item in it. DW-1059: `Install/SecurityOverview.cls` generates the approved sentence verbatim after the fix kinds table; `docs/security-overview.md` carries it. DW-1069: the paths are recorded in the AD-33 list.
 

@@ -373,37 +373,37 @@ test('A7: another session\'s request answers 404 from the page\'s context and st
 });
 
 /**
- * A12 (Story 23.2, AC15): a reroute request over real HTTP, as the unprivileged cards user (OcuTalonUser only) with no page load. GET /api/v1/state lists the
+ * A12 (Story 23.2, AC15): a reroute request over real HTTP, as the unprivileged cards user (OcuTalonUser only) through the `request` fixture (http), whose cookies are not the page's, so the page still signs in itself. GET /api/v1/state lists the
  * request in the rail with its fixKind and the dry run's to, from and example; a reject over the answer route (user routes need the user role alone) answers 200 with the
  * request's payload, state rejected, with the same fixKind and to; and a second session's reroute request is in neither this user's state nor its answer route.
  * Then, in the page, the card of a second reroute request is approved from the web, and once the incident carries the finished runs (50 of 50 copies completed; a
  * suspended item) each request's result band reads result.rerouted with the target and result.itemSuspended with the item and the incident's production (DW-1067:
  * the band of a fix the user asked for in the chat); once the incident is closed, the compact card draws the same two bands itself.
  */
-test('A12: a reroute request carries its fixKind and dry run over real HTTP, a second session sees none of it, and a finished run shows its band', async ({ page }) => {
+test('A12: a reroute request carries its fixKind and dry run over real HTTP, a second session sees none of it, and a finished run shows its band', async ({ page, request: http }) => {
   const { user, password } = fixtureUser(KIND);
   const rows: string[] = [];
   const dryRun = { affected: 50, resend: 50, field: '', itemNoun: { one: 'order', other: 'orders' }, from: 'OrdersFromPartner', to: 'OrdersForReview', example: '1234' } as const;
   try {
-    await signInOverHttp(page.request, user, password);
-    expect((await page.request.get(STATE)).status(), 'signed in').toBe(200);
+    await signInOverHttp(http, user, password);
+    expect((await http.get(STATE)).status(), 'signed in').toBe(200);
     const mine = await seedApproval(user, { fixKind: 'reroute', requiredRole: 'OcuTalonUser', expiresAt: TOMORROW_AT_1413, dryRun });
     rows.push(mine);
     const other = await seedOtherSession(`zzother${Date.now().toString(36)}`);
     rows.push(other);
     const theirs = await seedApproval(user, { fixKind: 'reroute', requiredRole: 'OcuTalonUser', expiresAt: TOMORROW_AT_1413, dryRun }, { sessionRef: other });
     rows.push(theirs);
-    const state = (await (await page.request.get(STATE)).json()) as { rail: { approvals: Array<{ ref: string; fixKind?: string; dryRun?: { to?: string; from?: string; example?: string } }> } };
+    const state = (await (await http.get(STATE)).json()) as { rail: { approvals: Array<{ ref: string; fixKind?: string; dryRun?: { to?: string; from?: string; example?: string } }> } };
     const found = state.rail.approvals.find((one) => one.ref === mine);
     expect(found?.fixKind, 'the state names the fix kind').toBe('reroute');
     expect(found?.dryRun?.to, 'and the item the messages would go to').toBe('OrdersForReview');
     expect(found?.dryRun?.from).toBe('OrdersFromPartner');
     expect(found?.dryRun?.example).toBe('1234');
     expect(JSON.stringify(state.rail.approvals), 'the second session\'s request is not in this user\'s state').not.toContain(theirs);
-    const stranger = await post(page.request, `/ocutalon/api/v1/approvals/${theirs}/answer`, { action: 'reject', channel: 'web' });
+    const stranger = await post(http, `/ocutalon/api/v1/approvals/${theirs}/answer`, { action: 'reject', channel: 'web' });
     expect(stranger.status(), 'and its answer route is 404').toBe(404);
     expect(await readApproval(theirs).then((one) => one.state), 'the second session\'s request stays pending').toBe('pending');
-    const answer = await post(page.request, `/ocutalon/api/v1/approvals/${mine}/answer`, { action: 'reject', channel: 'web' });
+    const answer = await post(http, `/ocutalon/api/v1/approvals/${mine}/answer`, { action: 'reject', channel: 'web' });
     expect(answer.status(), 'a reject over the answer route is 200').toBe(200);
     const body = JSON.parse(await answer.text()) as { approval?: { state?: string; fixKind?: string; dryRun?: { to?: string } } };
     expect(body.approval?.state).toBe('rejected');
