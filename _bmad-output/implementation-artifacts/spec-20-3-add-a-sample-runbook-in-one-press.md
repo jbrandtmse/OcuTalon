@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-11-09'
 status: 'done'
 baseline_revision: '74770cc870a18d04b35778f82cbf7a35c2b06d4d'
+baseline_commit: '74770cc870a18d04b35778f82cbf7a35c2b06d4d'
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
@@ -77,6 +78,7 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
+- [ ] [Planner] (2026-11-10, More to try groups ruling): add an additive optional `group` field to the More to try item shape in `web/src/app/guide/more-to-try-view.ts` and set `group: 'Memory and documents'` on the `sources` entry ONLY (20.2's item); no renderer, no heading, no other item changed (the renderer and other items' groups are Story 0.22 and the in-flight stories); a view test pins `sources`' group; the public text `Memory and documents` is Planner-ruled (groups ruling).
 - [x] Planner conditions (2026-11-09): (a) add a test (web unit test reading the class sources, or an IRIS test) that pins the runbook's facts: the runbook text's quoted error equals the demo's actual order-date error text in `src/ocutalon/cls/OcuTalon/Demo/Orders/**`, and PartnerOrdersIn, OrdersFromPartner and OrdersToWarehouse are item names in `Demo/Orders/Production.cls`; record its mutation. (b) README.md: change ONLY the last sentence of the existing "Answers from your own documents" bullet to exactly `Try it: More to try, *Ask about a document*, which adds a sample runbook if you have no file to hand.`; no new bullet; `docker/tests/test-readme.sh` passes.
 - [x] Task 0 (measure, record as "Task 0 results (implement)" under Design Notes). (a) On the fresh sign-in stack, the e2e's real turn shows the citation on the target section, and the popover passage starts with "OrdersFromPartner accepts". (b) The fixture user the new e2e uses holds exactly `OcuTalonUser` (`Security.Users`, like sources.spec S0). (c) The time from the press to "Ready" on the developer machine.
 - [x] `web/src/app/documents/sample-runbook-view.ts` (new, framework-free, imports nothing) -- `SAMPLE_RUNBOOK_TEXTS = {name, text, question}`, verbatim from `## Public Text`. The bundled runbook.
@@ -105,6 +107,8 @@ deferred: []
 - Given the fixed-strings test, when it runs, then every new string is in `SOURCES` with its ruling, the runbook module is in `IMPORTED`, item 6's look-for in EXPERIENCE.md equals the registry's, and the count stays eight (UX-DR117).
 
 ## Spec Change Log
+
+- 2026-11-10 (lead): Planner ruling on More to try capacity recorded (`.worktrees/.coordination/prompts/more-to-try-groups-ruling.md`, option (a), three headed groups; the renderer is Story 0.22 on lane C). 20.2's head was already pushed, so 20.3 carries 20.2's item field: the `sources` registry entry declares `group: "Memory and documents"` as an additive field (ignored until 0.22). Added as a `[Planner]` task for the code-review stage. Epic 41's 41.13 (memoryCard item after memory; Documents Remove dialog -> shared ConfirmDialog) is contended: plain union, the second merge writes counts from the registry.
 
 - 2026-11-09 (lead): Planner rulings applied [AMENDED 2026-11-09, Contest Planner ruling]: Public Text 1-8 approved; 9 replaced by the README sentence change (see Design Notes); new task: the runbook-facts test (condition a).
 
