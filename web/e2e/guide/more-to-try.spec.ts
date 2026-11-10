@@ -13,7 +13,7 @@ import { blockLiveSocket } from '../support/socket';
  * features it names) and keeps it by dropping guide.state from the page's polls; the POSTs of items 2, 3 and 5 are routed and counted,
  * because their downstream flows are pinned by the demo-path specs. K5 uses the real Persona card, and collapses it again.
  *   - K2 (matrix 1): the routed finish: the panel is open after the links and before Try it yourself, items 1 to 4 in order;
- *   - K3 (matrix 3, 10): every id of the registry: its items in order, links to the Documents page for items 6 and 8, and the Heartbeat checklist heading focused by item 7;
+ *   - K3 (matrix 3, 10): every id of the registry: its items in order, links to the Documents page for items 6 and 8, the link to the Usage page for item 9, and the Heartbeat checklist heading focused by item 7;
  *   - K4 (matrix 2): step 1: no panel, the link in the Tab order, Enter opens and Space closes it, focus stays on the link;
  *   - K5 (matrix 5): item 1 opens the Persona card's Change and focuses it, also in the drawer band, where the drawer opens first;
  *   - K6 (matrix 6): item 2 selects the Simulated mailbox tab, sends the chip's own POST once and focuses the chip;
@@ -109,6 +109,12 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
       'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
     button: 'Open the Documents page',
   },
+  usage: {
+    label: 'See tokens and cost',
+    lookFor:
+      'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages and incidents, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+    button: 'Open the Usage page',
+  },
 };
 const REMEMBER = "Remember that the Results partner's contact is Lee.";
 
@@ -116,7 +122,7 @@ const guideRegion = (page: Page): Locator => page.getByRole('region', { name: 'D
 const linkOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'More to try', exact: true });
 const panelOf = (page: Page): Locator => guideRegion(page).getByRole('group', { name: 'Other things to try', exact: true });
 const itemOf = (page: Page, id: string): Locator => panelOf(page).getByRole('listitem').filter({ has: page.getByText(ITEMS[id]!.label, { exact: true }) });
-const controlOf = (page: Page, id: string): Locator => itemOf(page, id).getByRole(id === 'documents' || id === 'sources' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
+const controlOf = (page: Page, id: string): Locator => itemOf(page, id).getByRole(id === 'documents' || id === 'sources' || id === 'usage' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
 const switchOf = (page: Page): Locator => page.getByRole('switch', { name: 'Demo view', exact: true });
 const breakButton = (page: Page): Locator => page.locator('app-break-feed-box app-server-button button');
 const hideOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'Hide guide', exact: true });
@@ -287,9 +293,19 @@ test('K3: every id shows its item in order, items 6 and 8 are links to the Docum
   const documents = controlOf(page, 'documents');
   await expect(documents, 'item 6 is a link').toHaveAttribute('href', /#\/documents$/);
   await expect(controlOf(page, 'sources'), 'item 8 is a link to the same page').toHaveAttribute('href', /#\/documents$/);
+  await expect(controlOf(page, 'usage'), 'item 9 is a link to the Usage page').toHaveAttribute('href', /#\/usage$/);
   await expect(controlOf(page, 'heartbeat')).toHaveAttribute('type', 'button');
   await controlOf(page, 'heartbeat').click();
   await expect(page.locator('#rail-heading-heartbeat'), 'item 7 puts focus on the Heartbeat checklist heading').toBeFocused();
+});
+
+/** K3b (routed finish, every id): pressing item 9's link opens the Usage page by navigation. */
+test('K3b: the link of item 9 opens the Usage page', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openWith(page, finished(ALL));
+  await controlOf(page, 'usage').click();
+  await expect(page, 'at the address #/usage').toHaveURL(/#\/usage$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Usage', exact: true }), 'the Usage page').toBeVisible();
 });
 
 /**

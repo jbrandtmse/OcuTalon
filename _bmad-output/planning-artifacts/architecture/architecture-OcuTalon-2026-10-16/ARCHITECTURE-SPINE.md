@@ -1426,6 +1426,8 @@ flowchart LR
 | `OcuTalon.Msg.Command.SearchMemory` (`Query`), a read verb submitted by the web layer through `Commands.Submit` with origin `web_user` only, routed by `CommandsIn` to `MemoryOps` (`OnSearch`, a MessageMap entry and one handler in Lane A's `OcuTalon.Memory.Ops`), which answers `Ok` 1 with the items in `CommandResult.Data`; it is no tool verb, needs no approval and is not counted as a command or an action by the evaluation [ADDED 2026-11-09, Story 41.9] | B | Story 41.9 (the verb, the routing, the web path and, by the Planner's ruling of 2026-11-09, `MemoryOps`' entry and handler) |
 | `OcuTalon.Tools.MemorySource.Of(text)` and `PHRASES` (AD-21), read by `MemoryOps` [ADDED 2026-11-09, Story 41.8] | A | Story 41.8 |
 | `OcuTalon.Data.Ownership.TurnOfItem(itemId, sessionRef)` (AD-4), read by `MemoryOps` for a save's source [ADDED 2026-11-09, Story 41.8] | B | built (read by `DailyNote.Build` since Story 41.3) |
+| `OcuTalon.Data.Ownership.Usage(sessionRef, days, .sc)` and the `Ownership.Rows` kind `usage` (AD-4, AD-13, AD-20): the session's own `OcuTalon.Bridge.Data.Usage` rows (Lane A's table, read only) of a range of instance-zone days, read by the usage route [ADDED 2026-11-10, Story 37.2] | B | Story 37.2 |
+| The header navigation's Usage entry (`web/src/app/header/header-nav.ts`, after Documents, for every signed-in user) and the Usage page (`web/src/app/usage/`, `#/usage`), which reads only `GET /api/v1/usage` [ADDED 2026-11-10, Story 37.2] | B | Story 37.2 |
 
 **Live-event types and their single publisher:**
 
@@ -1586,6 +1588,7 @@ OcuTalon/
 | `POST /api/v1/settings/mcp/servers` and `DELETE /api/v1/settings/mcp/servers/<server>` | `SaveMcpEntry`, then `AddMcpServer`; `RemoveMcpServer`, then `RemoveMcpEntry` (Story 21.4) [ADDED 2026-11-09, Story 35.2] |
 | `POST /api/v1/settings/mcp/classify` | `ClassifyTool` (Story 21.4) [ADDED 2026-11-09, Story 35.2] |
 | `POST /api/v1/settings/mcp/sources` and `DELETE /api/v1/settings/mcp/sources/<ref>` | `SetSourcePoll`, `RemoveSourcePoll` (Story 21.5); every `/api/v1/settings` row is admin-checked before the envelope and submits with origin `web_admin` [ADDED 2026-11-09, Story 35.2] |
+| `GET /api/v1/usage?days=1`, `7` or `30` (7 when absent) | `OcuTalon.Web.Usage`, forwarded from `Web.Api`'s map: the CSP session's own Usage rows (AD-20) through `Ownership.Usage` (`Ownership.Rows` kind `usage`), from the first instant of the instance-zone local date `days - 1` days before today up to the first instant of tomorrow (`Data.Time`), summed by `Ownership.Sum` into buckets by local date, agent, channel, model and `Estimated`: 200 with `days`, `limit` (`Decide`'s `MAXREQUESTTOKENS`) and `buckets`; any other `days` is 404 `not_found`; a failed read is 500 `server_error`; any user with the OcuTalon user role, behind the AD-13 envelope [ADDED 2026-11-10, Story 37.2] |
 
 ## Capability → Architecture Map
 

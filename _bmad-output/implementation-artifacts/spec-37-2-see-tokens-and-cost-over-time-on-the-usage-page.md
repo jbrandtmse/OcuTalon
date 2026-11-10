@@ -2,15 +2,22 @@
 title: 'Story 37.2: See tokens and cost over time on the Usage page'
 type: 'feature'
 created: '2026-11-09'
-status: 'in-progress'
-baseline_revision: '51ce312dc31c7f5111a2734b71446b18434d6500'
+status: 'done'
+baseline_revision: 'e6dbfcc48e465b46d88ee6593d80d80e045cd4e7'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-37-context.md'
   - '{project-root}/_bmad/custom/skill-rules.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      A day, group or bucket with no cost reads "<$0.0001" (formatCost of 0), so an empty day in the Day grouping suggests a tiny spend that did not happen.
+    evidence: |-
+      `formatCost(0)` returns the shipped "<$0.0001" and the Usage tables render it for every zero-cost row, including the zero-fill days of the Day grouping and a row whose model has no price. The AC says costs follow `formatCost`, so the page is as specified, but the PUBLIC TEXT table has no string for an exact zero (for example "$0"), and a new public string needs the Planner's ruling.
+    location: >-
+      web/src/app/usage/usage-page.ts cost(); web/src/app/chat/decision-view.ts formatCost
+    severity: medium
 ---
 
 <intent-contract>
@@ -181,7 +188,46 @@ deferred: []
 
 - 2026-11-10, lead (spec gate): the Contest Planner's rulings written in [RULED 2026-11-10 ~07:00Z, Contest Planner under the owner's delegation, prompts/epic-37-rulings-372.md]. PUBLIC TEXT approved except the agent name ("Chat summaries", not "Compaction"), the More to try look-for and the README bullet (ruled texts in the table); condition: Agent, Channel and Model groupings show only values with rows in the range, Day keeps every date with 0s. SECURITY accepted with conditions (ii) days=0, 31 and abc are 404 not_found and (iii) a key allow-list assertion on the body (added to Test.Web.UsageApi TestShape and api/usage.spec.ts (ii)). Group: "Safety and settings", usage last. The Demo/Features union with ",usage" last is accepted. 37.2 targets release 1.0.7.
 
+- 2026-11-10 ~17:3xZ, implement (re-run after the crash, baseline e6dbfcc4): decided in-stage, small and reversible, each inside the spec's intent: (1) the 1024px header holds the four links on one line as it stands (HEADER1024 56px high, no spacing change); (2) the header navigation wraps its links (`flex-wrap`) instead of widening the page by 3px at 305px, found by `more-to-try.spec.ts` K22/K23; no link is hidden; (3) the table scrollers are `role="group"` so a region name is not repeated inside its section; (4) U6 chooses the Range by type-ahead because ArrowDown only opens a closed select on macOS; (5) `groupRows` takes the agent names as its third argument and `usage-view.ts` imports only types, so the view stays framework-free and keeps no copy of the names; (6) an unreadable `RecordedAt` fails the read (500) instead of dropping the row from the totals, as `Ownership.Usage`'s doc comment says; (7) `Test.Web.DocumentsApi` TestDispatch counts the Maps of `/v1/documents` only, since `Web.Api` now has two forwarded Maps; (8) one 403 `no_role` case in `api/usage.spec.ts` for the trace-only fixture user (the role check is `Web.Api`'s, so it has no mutation line of this story's).
+
 ## Review Triage Log
+
+### 2026-11-10 — Review pass
+- verdicts: 33 findings — high 0, medium 7, low 22, false 3, maybe-false 1
+- findings:
+  - `[low]` `[patch]` Blind: `Ownership.Usage` drops a row whose time cannot be read, against its doc comment (error status) — patched: the read fails with an error status and `{}`; `TestUnreadable` pins it (mutation recorded).
+  - `[false]` `[reject]` Blind: a zone whose midnight does not exist makes `FromLocal` return "" and the route 500 — `Data.Time.FromLocal` reads a skipped local time one hour later and returns "" only for unreadable input.
+  - `[low]` `[reject]` Blind: every row of up to 30 days is opened as an object — the spec fixes this design (`Rows` kind and `Sum` per bucket, AD-13); about 1,500 rows at most for the default heartbeat; no aggregate-in-SQL fix without a new unchecked prepare.
+  - `[low]` `[reject]` Blind: the cost line joins unordered categories — the spec and DESIGN.md name token bars and a cost line for every grouping.
+  - `[low]` `[reject]` Blind: no loading or update feedback — ruled: no loading text, as on the Documents page; a grouping change does not blank the table.
+  - `[low]` `[reject]` Blind: the `usage` case in `press()` is unreachable from the link — the spec asks for it beside the documents case, which has the same shape.
+  - `[false]` `[reject]` Blind: the nav wrap is only tested on one line — `more-to-try.spec.ts` K22 and K23 (305px and 320px wide) were red before the wrap and are green after it; F3 at 1024px pins the one-line case.
+  - `[low]` `[reject]` Blind: `ApiClient.usage` uses inline `import()` types — the memory methods of the same file do the same.
+  - `[low]` `[reject]` Blind: the "Safety and settings" group is not in EXPERIENCE.md — ruled by the Planner (MORE TO TRY GROUP); the registry is where the group lives.
+  - `[low]` `[reject]` Blind: `usage` is always in the feature catalog — the spec says always on, because the page ships in the package.
+  - `[low]` `[reject]` Blind: the README does not say a local install shows only the session's own use — the README bullet is the ruled text.
+  - `[low]` `[patch]` Edge: same root cause as the first Blind finding (unreadable time dropped) — patched with it.
+  - `[low]` `[reject]` Edge: all rows opened as objects — same as the Blind finding, spec-bound.
+  - `[low]` `[reject]` Edge: an empty Model, Agent or Channel gives a blank row header — every runner row carries a model, agent and channel; a label for "unknown" would be a new public string needing a ruling.
+  - `[low]` `[reject]` Edge: a page left open across local midnight stays on yesterday's range — the user changes the range or reopens; the page reads on open by design (Design Notes 8, no live refresh).
+  - `[medium]` `[defer]` Edge: a zero cost reads "<$0.0001" — `formatCost` as shipped; the AC says costs follow it; an exact-zero string needs the Planner's ruling; in `deferred:` (unverified fix).
+  - `[low]` `[reject]` Edge: the shown limit is `MAXREQUESTTOKENS`, not the effective RequestTokenLimit setting — by-design: the spec, the I/O matrix and the ruled text say `limit` is Decide's constant (NFR-3's 100,000).
+  - `[maybe-false]` `[reject]` Edge: the nav may wrap in the 1024px band for a header wider than the one tested — low if true; the wrap keeps every link and the page unscrolled; the widest header is the one F3 measures (56px high).
+  - `[low]` `[reject]` Edge: `usage-view.ts` imports and the `groupRows` signature differ from the spec's wording — the fix is to edit the spec; the implementation is the better reading (framework-free view, no copy of the agent names); recorded in the Spec Change Log.
+  - `[medium]` `[patch]` Verification gap: the chart's marks are never observed, only their data attributes — patched: U12 asserts bar heights follow the tokens and the cost line runs through the points; mutation recorded (the `height` binding removed).
+  - `[medium]` `[patch]` Verification gap: the failed-read state and Retry have no test (a matrix row) — patched: U10 fails the first read, expects the text and Retry, and reads again; mutation recorded.
+  - `[medium]` `[patch]` Verification gap: "a grouping change fetches nothing" is not asserted — patched: U11 counts the route's requests across four grouping changes and one range change; mutation recorded.
+  - `[low]` `[patch]` Verification gap: tabular figures are never asserted — patched: U13 asserts `font-variant-numeric: tabular-nums` on both tables' figures; the `tabular` class is redundant with the body's rule, so the mutation overrides it in the component's CSS.
+  - `[low]` `[patch]` Verification gap: the limit shown is only ever 100,000 — patched: U10's retry answer carries 50,000 and every largest-request cell must end "of 50,000 tokens".
+  - `[medium]` `[patch]` Verification gap: pressing the More to try Usage link is not exercised (K3 only reads the href) — patched: K3b presses it and expects `#/usage` and the Usage h1; mutation recorded.
+  - `[low]` `[patch]` Verification gap: several ACs had no `mutation:` line (number formatting, the page and aria-current, keyboard and reflow, More to try, the client's largest request) — patched: nine mutations were run and recorded below.
+  - `[medium]` `[patch]` Verification gap: `api/usage.spec.ts` compared two whole bodies of the LIVE session, which other rows could change — patched: it compares the dates and the test's own model's buckets.
+  - `[low]` `[reject]` Verification gap: U2, U3 and U9 assert the whole table and rely on `clearUsage` and `workers: 1` — the Design Notes record that reliance (as the heartbeat card spec does) and `beforeEach` clears first.
+  - `[low]` `[reject]` Verification gap: the seeded dates depend on the clock at midnight — theoretical (a run crossing local midnight between seed and read), the same as the sibling test classes.
+  - `[low]` `[reject]` Intent: rows come from fixtures, not the runner's own write — the integration AC names seeded rows on a real stack; the runner's write is Lane A's (U-177) and its owner column is read by the existing `RunCost` the same way.
+  - `[false]` `[reject]` Intent: the server tests use stand-ins, not HTTP — `api/usage.spec.ts` is real HTTP (401, 403, 404, 200 with exact sums, the key allow-list, the second session).
+  - `[medium]` `[patch]` Intent: the chart is checked at its data attributes, not its drawn geometry — the same root cause as the chart-marks finding; patched with U12.
+  - `[low]` `[reject]` Intent: `TestDispatch` is edited in place, the Features id is added, the header wraps — each is listed in the spec (shared-surface updates, the Features ruling) or recorded in the Spec Change Log.
 
 ## Design Notes
 
@@ -359,30 +405,55 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - a ruled string changed by one word -> `ux-strings.test.mjs` red;
 - one spine row's `[ADDED 2026-11-10, Story 37.2]` marker removed -> the implement record's `grep -c 'ADDED 2026-11-10, Story 37.2'` on the spine counts 2, not 3.
 
-**Implementation record (implement stage, 2026-11-10):**
-- Spine: `grep -c 'ADDED 2026-11-10, Story 37.2'` on the spine = 3 (REST row, `Ownership.Usage` row, header-navigation and page row); `lint_spine.py` reports the same 10 low `placeholder` findings as `lint-before.json` (identical findings, `ok` false before and after).
-- Verified in this stage: `node --test` of `usage-view`, `settings-view`, `more-to-try-view`, `ux-strings`, `decision-view` and the whole `npm --prefix web test` green (the e2e-part and playwright-projects tests included); `npm --prefix web run lint` and `run build` pass; `docker/tests/test-boundaries.sh`, `test-readme.sh`, `test-ci-config.sh` and `test-class-rules.sh` pass; on the dev slot (profile `ocutalon-slot-b`) `Test.Data.OwnershipUsage` (5), `Test.Web.UsageApi` (5), `Test.Demo.Features` (5), `Test.Data.OwnershipMemories` (4), `Test.Web.DocumentsApi:TestDispatch` and `Test.Web.Api:TestRoutes` pass.
-- NOT run: the warm-stack class runs, the e2e parts and the 1024px header measurement. Docker image builds hang on this machine (a plain `docker build` of `FROM alpine` did not finish in 60 s, with the classic builder as well, while two other epics' builds had been stuck 20+ minutes), so `ci/warm.sh up` never produced a stack; it was stopped and `ci/warm.sh down` ran (0 leftovers). The e2e specs `api/usage.spec.ts` and `usage/usage.spec.ts`, the new `frame.spec.ts` case "F3: at 1024px the header holds the four navigation links on one line" (it prints a `HEADER1024` line) and the updated `settings`, `documents`, `frame` and `guide/more-to-try` specs are written, type-checked (`npm run lint`) and listed by Playwright, but have not run.
+**Implementation record (implement stage, re-run after the crash, 2026-11-10):**
+- Spine: `grep -c 'ADDED 2026-11-10, Story 37.2'` on the spine = 3 (REST row, `Ownership.Usage` row, header-navigation and page row); `lint_spine.py` reports the same 10 low `placeholder` findings, at the same lines, as `lint-before.json`.
+- 1024px header (measured, `frame.spec.ts` "F3: at 1024px the header holds the four navigation links on one line", as the README admin in demo mode, window 1024x768): `HEADER1024 {"header":{"h":56,"right":1024},"nav":559.65625,"trace":755.234375,"account":1012}`. The header is 56px high (one line, under the 64px bound), the Usage link ends at x=559.7, the Status/Trace group starts at x=755 and the account button ends at x=1012 of 1024. The four links fit on one line with no change to the drawer band's spacing, so `header.ts` changes only its comment ("four navigation links"). The temporary `console.log` is removed.
+- Warm class runs on stack `e37s2iw` (`ci/warm.sh up` 170 s): `Test.Data.OwnershipUsage`, `Test.Web.UsageApi`, `Test.Demo.Features`, `Test.Data.OwnershipMemories`, `Test.Web.DocumentsApi` and `Test.Web.Api` each `CLASS ... passed`. Node: `usage-view`, `settings-view`, `more-to-try-view`, `ux-strings` and `decision-view` tests 144/144; `npm --prefix web test` 1798/1798.
+- e2e parts (each on its own fresh stack; `ci/iris.sh build` first): `live sign-in --part 4/4` (usage/usage.spec.ts U1-U9; 52 tests), `--part 1/4` (api/usage.spec.ts; 74), `--part 3/4` (documents, frame; 59), `live sign-in-2 --part 2/2` (settings; 95) and `live sign-in-3 --part 1/2` (guide/more-to-try; 122).
+- Corrections made in this pass, found by those runs: (1) `usage.spec.ts` read the table before a regroup finished (U3, U9): a `choose()` helper waits for the first column's name; (2) U6's ArrowDown only opens the list of a closed select on macOS, so the Range is changed by type-ahead (`Last 3`), which picks an option on every platform; (3) the Usage page's two table scrollers had `role="region"` with the same name as their section, so `getByRole('region', { name })` matched two elements and the landmark names were duplicated: the scrollers are `role="group"` (still focusable and labelled); (4) a fourth link made the header 3px wider than a 305px window (K22/K23 of `more-to-try.spec.ts` red, five cases): the header navigation wraps its links (`flex-wrap`) instead of hiding one. `usage-view.ts` takes the agent names as a third argument of `groupRows` (the page passes `SETTINGS_TEXTS.models.agents`), so the view imports only types and keeps no copy of the names.
+- Review patches (this pass): `usage.spec.ts` gains U10 (a failed read, Retry, and the limit of the answer), U11 (a grouping change asks nothing, a range change asks once), U12 (bar heights follow the tokens, the cost line runs through the points) and U13 (tabular figures); `api/usage.spec.ts` compares only its own model's buckets and gains a 403 `no_role` case; `more-to-try.spec.ts` gains K3b (item 9's link opens the Usage page); `Ownership.Usage` fails the read on a row whose time cannot be read (`TestUnreadable`).
+- After the last patch: each part ran green on its own fresh stack (`ci/iris.sh build` first): chromium 1/4 (75 tests, api/usage.spec.ts 2 tests), 3/4 (59, frame and documents), 4/4 (56, usage.spec.ts U1-U13), `sign-in-2 --part 2/2` (95, settings) and `sign-in-3 --part 1/2` (123, more-to-try with K3b). Warm stack `e37s2iw` (recreated after the bundle changed): `Test.Data.OwnershipUsage` (with `TestUnreadable`) and `Test.Web.UsageApi` passed. `npm --prefix web test` 1798/1798, `run lint` and `run build` pass, `lint_spine.py` has the same 10 low `placeholder` findings, and all 32 scripts of `bash ci/checks.sh` passed (run in batches, rc=0 each). Stacks `e37s2i` and `e37s2iw` are torn down (0 leftovers).
 
-mutation: the `usage` kind's `OwnerRef = ?` replaced by `(OwnerRef = ? OR 1 = 1)` -> `Test.Data.OwnershipUsage` TestIsolation red (4 of 5 green), reverted, green again. `api/usage.spec.ts` (iii) not run (no stack).
-mutation: `Set bucket.cacheWriteTokens = 0` after `Sum` in `Ownership.Usage` -> `Test.Data.OwnershipUsage` TestBuckets red, reverted, green again. `usage.spec.ts` U2 not run.
-mutation: the `Retry` merge removed (`agentKey` returns its argument) -> `usage-view.test.mjs` red ("counts the retry runner under its agent..." and "merges all three retry runners..."), reverted byte-identical. U3 not run.
-mutation: `largestRequestTokens` summed instead of maxed -> `Test.Data.OwnershipUsage` TestBuckets red, reverted, green again. U4 not run.
-mutation: the bounds built from UTC midnight (`first_"T00:00:00Z"`) instead of `FromLocal` -> `Test.Data.OwnershipUsage` TestRange red (in America/New_York, Asia/Kolkata and Pacific/Auckland: the day edge and the window), reverted, green again.
-mutation: the empty branch removed -> NOT observed (needs U5 on a stack).
-mutation: the Range `<label for>` removed -> NOT observed (needs U6 on a stack).
-mutation: the nav link placed before Documents -> NOT observed (needs `frame.spec.ts` F3 Tab order on a stack).
+mutation: the `usage` kind's `OwnerRef = ?` replaced by `(OwnerRef = ? OR 1 = 1)` -> `Test.Data.OwnershipUsage` TestIsolation red (4 assertions) and `api/usage.spec.ts` (iii) red ("the LIVE session sees neither the other session's row nor the eval row"); reverted byte-identical, green again.
+mutation: `Set bucket.cacheWriteTokens = 0` after `Sum` in `Ownership.Usage` -> `Test.Data.OwnershipUsage` TestBuckets red and `usage.spec.ts` U2 red ("Day: every row equals the sum of its fixture rows"); reverted byte-identical, green again.
+mutation: `agentKey` returns its argument (the `Retry` merge removed) -> `usage-view.test.mjs` red (2 tests: "counts the retry runner under its agent..." and "merges all three retry runners...") and `usage.spec.ts` U3 red; reverted byte-identical.
+mutation: `largestRequestTokens` summed instead of maxed -> `Test.Data.OwnershipUsage` TestBuckets red and `usage.spec.ts` U4 red; reverted byte-identical, green again.
+mutation: the bounds built from UTC midnight (`first_"T00:00:00Z"`) instead of `FromLocal` -> `Test.Data.OwnershipUsage` TestRange red (the day edge and the window, in America/New_York, Asia/Kolkata and Pacific/Auckland); reverted byte-identical, green again.
+mutation: the empty branch removed (`@if (shown.buckets.length === 0)` -> `@if (false)`) -> `usage.spec.ts` U5 red ("element(s) not found": the empty text is gone); reverted byte-identical.
+mutation: the Range `<label for>` replaced by a `<span>` -> `usage.spec.ts` U6 red ("getByLabel finds the Range select"), with U1 and U7 red too; reverted byte-identical.
+mutation: the Usage link placed before Documents in `header-nav.ts` -> `frame.spec.ts` F7 red ("the Documents link follows Settings", the Tab order) with F3 and `documents.spec.ts` D13 red; reverted byte-identical.
 mutation: the ruled string 'Largest request per day' changed to 'Largest request each day' -> `ux-strings.test.mjs` red (3 tests) and `usage-view.test.mjs` red (1 test), reverted byte-identical.
 mutation: one spine row's `[ADDED 2026-11-10, Story 37.2]` marker removed -> `grep -c` on the spine counts 2, not 3; reverted byte-identical (3 again).
+mutation: `Ownership.Usage` skips a row whose time cannot be read (`If day = "" Continue`) instead of failing the read -> `Test.Data.OwnershipUsage` TestUnreadable red (2 assertions); reverted byte-identical, green again.
+mutation: `largestByDay` sums the buckets' largest requests instead of taking the maximum -> `usage-view.test.mjs` red ("... the largest request among its buckets, not their sum") and `usage.spec.ts` U4 red; reverted byte-identical.
+mutation: `pageOf` no longer maps `/usage` to `usage` -> `settings-view.test.mjs` red ("is usage for /usage ...") and `usage.spec.ts` U1 red (the aria-current mark); reverted byte-identical.
+mutation: the Group by radios lose their shared `name` -> `usage.spec.ts` U6 red (the arrow key no longer chooses Agent); reverted byte-identical.
+mutation: the `.scroll` regions lose `overflow-x: auto` -> `usage.spec.ts` U8 red (the page scrolls sideways at 200%); reverted byte-identical.
+mutation: the page's error handler does nothing (`error: () => undefined`) -> `usage.spec.ts` U10 red (no error text, no Retry); reverted byte-identical.
+mutation: `pickGrouping` also calls `load()` -> `usage.spec.ts` U11 red (a grouping change asked the route); reverted byte-identical.
+mutation: the bars lose their `[attr.height]` binding -> `usage.spec.ts` U12 red (the tallest bar has no height); reverted byte-identical.
+mutation: `.table td { font-variant-numeric: normal }` added to the page's CSS -> `usage.spec.ts` U13 red; reverted byte-identical. (Removing the `tabular` class is not a mutation: the body's own rule already sets tabular figures.)
+mutation: the More to try Usage link's `routerLink` changed to `/documents` -> `more-to-try.spec.ts` K3b and K3 red; reverted byte-identical.
+Rule 19 note: the 403 `no_role` case in `api/usage.spec.ts` pins `Web.Api`'s inherited role check (not an AC of this story); `Web.Usage` overriding `OnPreDispatch` does not reach the check, so no mutation of this story's files turns it red.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: implementation verification failed: Docker image builds hang on the dev machine (infrastructure), so no throwaway or warm stack can start and the spec's (loop) e2e lines, the warm class runs, the 1024px header measurement and the e2e-bound Rule 19 mutations cannot run.
+Status: done
+Blocking condition: none
 
-Evidence (2026-11-10, implement stage):
-- `docker run` works, but `docker build`, `buildx bake` (compose build) and `ci/warm.sh up` never finish: a plain `FROM <local image>` build did not finish in 60-90 s with BuildKit or the legacy builder; with `docker-credential-desktop` bypassed through a private DOCKER_CONFIG it still hangs. Other runners' builds (epic-0 bake, 50 min; epic-23 bake, 40+ min) were stuck the same way. `com.docker.build` has run for 17 days. Not fixed from this session: restarting Docker Desktop would stop the shared slots and the other runners' stacks.
-- The warm/fresh tags `e37s2iw` and `e37s2i` were torn down (`ci/warm.sh down`: 0 leftovers; lane-b lock folder empty).
-- The implementation is complete in the working tree and uncommitted (HEAD is still the baseline). Passed: slot-b class runs `Test.Data.OwnershipUsage` 5/5, `Test.Web.UsageApi` 5/5, `Test.Demo.Features` 5/5, `Test.Data.OwnershipMemories` 4/4, `DocumentsApi:TestDispatch` and `Api:TestRoutes`; `npm --prefix web test` 1798/1798; `npm --prefix web run lint` and `build` pass; `test-boundaries.sh`, `test-readme.sh`, `test-ci-config.sh`, `test-class-rules.sh` pass; spine lint equals the baseline and the spine holds 3 `[ADDED 2026-11-10, Story 37.2]` markers.
-- Not run (needs a stack): the new `web/e2e/api/usage.spec.ts` and `web/e2e/usage/usage.spec.ts` and the updated frame, documents, settings and more-to-try specs (never executed; untried: ArrowDown firing `change` on the Range select in U6, `costUSD` JSON number form), the 1024px header measurement (case F3 in `frame.spec.ts` prints a `HEADER1024` line; remove that temporary console.log once measured), the e2e-bound mutations (empty branch, Range `<label for>`, nav before Documents), `bash ci/checks.sh` in full, the review layers and the finalize commit.
-- To resume once Docker builds work: re-dispatch on this spec path; set status back to `in-progress` (baseline_revision is recorded), run the (loop) e2e parts, then the review layers.
+Summary: the Usage page and its route are in. `GET /api/v1/usage?days=1|7|30` (`OcuTalon.Web.Usage`, forwarded from `Web.Api`) sums the caller's own session's usage rows into buckets by instance-zone day, agent, channel, model and the estimated flag through `Ownership.Usage` and the new `Ownership.Rows` kind `usage`. The Usage page (`#/usage`, reached from a new header navigation link after Documents) groups those buckets by day, agent, channel or model in an inline SVG chart and a table, with each day's largest request against the limit; More to try has item 9 (a link), `Demo.Features` has `usage`, the README, EXPERIENCE.md and the spine carry this story's rows.
+
+Files changed (the one-line account; the full list is `git show --stat` of the commit):
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- the `usage` kind and `Usage()`; `Web/Usage.cls` (new) and `Web/Api.cls` (one Map) -- the route; `Demo/Features.cls` -- `usage` always on.
+- `src/ocutalon/cls/OcuTalon/Test/Data/OwnershipUsage.cls`, `Test/Web/UsageApi.cls` (new), `Test/Demo/Features.cls`, `Test/Web/DocumentsApi.cls` -- class tests and the shared-surface updates.
+- `web/src/app/usage/` (new view and page), `api/usage-types.ts` (new), `api/api-client.ts`, `app.config.ts`, `settings/settings-view.ts` (`pageOf`), `header/header-nav.ts` (the link; the links wrap), `header/header.ts` (comment), `header/current-page.ts`, `guide/more-to-try{,-view}.ts` -- the page, its route and entry points.
+- `web/e2e/usage/usage.spec.ts` (U1-U13), `web/e2e/api/usage.spec.ts`, `web/e2e/support/usage.ts` (new); updated `frame`, `documents`, `settings` and `guide/more-to-try` specs; `web/scripts/usage-view.test.mjs` (new) and the updated node tests.
+- `README.md`, `EXPERIENCE.md` (item 9, nine items) and the spine (three rows marked `[ADDED 2026-11-10, Story 37.2]`).
+
+Review findings: 33 findings from four layers (high 0, medium 7, low 22, false 3, maybe-false 1). Patched: 5 medium entries (chart marks drawn, failed read and Retry, no fetch on regroup, the More to try link press, and the api spec's whole-body compare) and 6 low (unreadable time fails the read, tabular figures, the limit from the answer, nine missing mutation lines, among them). Deferred: 1 (a zero cost reads "<$0.0001"; needs a ruled string). Rejected, each with its reason in the Review Triage Log: 3 false, 1 maybe-false, 19 low (spec-bound or ruled design, theoretical, or a fix that would edit the spec).
+
+Follow-up review recommended: true. Unverified risk: this pass patched 5 medium entries (four new e2e cases U10-U13 plus K3b, and the api spec compare) and the header navigation now wraps (`flex-wrap`) so that four links never widen the page at 305px; a follow-up should read the new cases and the wrapped header at 305 to 1023px once more.
+
+Verification performed: warm class runs `OwnershipUsage`, `UsageApi`, `Demo.Features`, `OwnershipMemories`, `DocumentsApi` and `Web.Api` passed; node tests 144/144 (listed set) and `npm --prefix web test` 1798/1798; `npm --prefix web run lint` and `run build` pass; five e2e parts green on fresh stacks (chromium 1/4, 3/4, 4/4; sign-in-2 2/2; sign-in-3 1/2); spine lint equals the baseline (10 low); all 32 `ci/checks.sh` scripts passed; 20 mutations demonstrated red and reverted byte-identical (the `mutation:` lines above). 1024px header: 56px high, Usage ends at x=559.7, account ends at x=1012 of 1024, one line, no spacing change.
+
+Residual risks: (1) zero-cost display, deferred above; (2) the Usage rows are read as the CSP session's own rows, so on a local install an admin sees their own session's use, not instance-owned rows (as the spec says); (3) the e2e specs rely on `workers: 1` and clearing the LIVE session's rows, as the heartbeat card spec does; (4) the wrapped header was exercised at 305 and 320px by `more-to-try.spec.ts` K22/K23 only.

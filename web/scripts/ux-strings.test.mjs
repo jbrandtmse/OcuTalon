@@ -70,6 +70,7 @@ const IMPORTED = [
   ['documents/sample-runbook-view.ts', ['SAMPLE_RUNBOOK_TEXTS']],
   ['chat/noise-view.ts', ['NOISE_TEXTS']],
   ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS']],
+  ['usage/usage-view.ts', ['USAGE_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -173,6 +174,18 @@ for (const [name, text] of [...imported, ...fromSource, ...fromTemplates]) {
  */
 const SOURCES = {
   ux: [
+    'Usage',
+    'See tokens and cost',
+    'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages and incidents, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+    'Open the Usage page',
+    'Agent',
+    'Channel',
+    'Tokens and cost',
+    'No model use in this period.',
+    'Webhook',
+    'Email',
+    'Heartbeat',
+    'estimated',
     'No key set. Add {variable} to .env.',
     'Test',
     'None',
@@ -619,9 +632,25 @@ const SOURCES = {
       'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.',
     ],
     'Story 34.2: Add and remove documents on a Documents page (the page title "Documents \u00b7 OcuTalon")': ['Documents \u00b7 OcuTalon'],
+    'Story 37.2: See tokens and cost over time on the Usage page (the page title "Usage \u00b7 OcuTalon", epics.md)': ['Usage \u00b7 OcuTalon'],
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 37.2 rulings at the spec gate 2026-11-10 (the Contest Planner under the owner\'s delegation, prompts/epic-37-rulings-372.md: the Usage page\'s Range and Group by labels, the range options, the Day grouping, the Tokens and cost, Largest request per day and Largest request (estimated) headings, the largest-request cell, the error line, the agent name Chat summaries, the channel names Web chat and Slack, and the includes estimates marker; the More to try item\'s label, look-for and control sit under ux, because EXPERIENCE.md holds them)': [
+      'Range',
+      'Last 7 days',
+      'Last 30 days',
+      'Group by',
+      'Day',
+      'Largest request per day',
+      'Largest request (estimated)',
+      '{tokens} of {limit} tokens',
+      "Couldn't load your usage.",
+      'Chat summaries',
+      'Web chat',
+      'Slack',
+      'includes estimates',
+    ],
     'Story 18.4 ruling planner-2026-11-08-18.4 (the Contest Planner under the owner\'s delegation, 2026-11-08, relayed by the orchestrator: the digest card\'s disclosure "What I checked ({n})", the line "Marked as handled at {time}", which the catalog gives (the Got it button is the UX\'s and sits under ux); "Saved for the daily digest" is the UX\'s and sits under ux)': [
       'What I checked ({n})',
       'Marked as handled at {time}',

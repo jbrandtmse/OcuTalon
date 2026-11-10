@@ -84,7 +84,7 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  * button holds focus, the button leaves and focus goes to the main region without scrolling, through the page's focus rule. This band is
  * the narrowest one where the header stays on one line, so it takes less space between and inside its items (12px inline padding, 8px
  * between the left group's items, 4px between the right group's and inside its buttons; the navigation and the reset countdown do the
- * same), which keeps the mark, the context badge, the Demo view switch, the three navigation links, the Status button, the reset
+ * same), which keeps the mark, the context badge, the Demo view switch, the four navigation links, the Status button, the reset
  * countdown and the menus inside the window at 1024px.
  *
  * Below 1024px the header is the page's one sticky element and is compact (48px minimum, 12px inline padding, may wrap). It writes its

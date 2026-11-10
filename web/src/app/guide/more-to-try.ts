@@ -71,6 +71,8 @@ let panels = 0;
             <p class="look-for">{{ item.lookFor }}</p>
             @if (item.action === 'documents' && !sampleFirst()) {
               <a class="button button-secondary" routerLink="/documents" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
+            } @else if (item.action === 'usage') {
+              <a class="button button-secondary" routerLink="/usage" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
             } @else {
               <button
                 type="button"
@@ -242,6 +244,9 @@ export class MoreToTry {
       case 'documents':
         this.sample.ask();
         void this.router.navigate(['/documents']);
+        break;
+      case 'usage':
+        void this.router.navigate(['/usage']);
         break;
       default:
         break;

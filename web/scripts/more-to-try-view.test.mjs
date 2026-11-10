@@ -80,6 +80,12 @@ const RULED = {
         'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
       button: 'Open the Documents page',
     },
+    usage: {
+      label: 'See tokens and cost',
+      lookFor:
+        'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages and incidents, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+      button: 'Open the Usage page',
+    },
   },
 };
 
@@ -91,7 +97,7 @@ const FOUR = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView'];
 // The item whose control hands off to another item's control (Story 20.2: See where an answer came from opens the Documents page).
 const ACTION_OF = { sources: 'documents' };
 // The panel's group of each item that declares one (the Contest Planner's More to try groups ruling, 2026-11-10); the other items declare none yet.
-const GROUP_OF = { sources: 'Memory and documents' };
+const GROUP_OF = { sources: 'Memory and documents', usage: 'Safety and settings' };
 const idsOf = (items) => items.map((item) => item.id);
 
 describe('(a) the fixed strings', () => {
@@ -113,8 +119,10 @@ describe('(a) the fixed strings', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS.map((id) => ACTION_OF[id] ?? id));
   });
 
-  it('give the sources entry its ruled group, Memory and documents, and no other entry a group yet', () => {
+  it('give the sources entry its ruled group, Memory and documents, the usage entry Safety and settings as the last of the registry, and no other entry a group yet', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => [item.id, item.group]), IDS.map((id) => [id, GROUP_OF[id]]));
+    assert.equal(MORE_TO_TRY_ITEMS.filter((item) => item.group === 'Safety and settings').at(-1)?.id, 'usage', 'usage is the last item of Safety and settings');
+    assert.equal(MORE_TO_TRY_ITEMS.at(-1)?.id, 'usage', 'and the last registry entry');
   });
 
   it('use straight ASCII quotes and no other non-ASCII character', () => {
