@@ -69,6 +69,7 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.doesNotMatch(template[1], /aria-label=|<app-icon/);
     const headings = template[1].match(/<h[1-6]\b[^>]*>[^<]*<\/h[1-6]>/g) ?? [];
     assert.deepEqual(headings, ['<h4 class="set-heading">{{ set.heading }}</h4>']);
+    assert.equal((template[1].match(/<h[1-6]\b/g) ?? []).length, 1, 'no other heading element, whatever it holds');
     assert.doesNotMatch(headings[0], /tabindex|\bid=/);
     assert.match(template[1], /@if \(set\.heading\) \{\s*<h4 class="set-heading">/, 'a set with no heading renders no heading element');
     assert.match(template[1], /<p class="group-label" \[id\]="labelId">/, 'the panel label stays a paragraph');

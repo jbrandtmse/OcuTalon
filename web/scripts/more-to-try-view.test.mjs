@@ -220,6 +220,7 @@ describe('(b2) groupsOf', () => {
       const sets = groupsOf(input);
       assert.deepEqual(flat(sets).sort(), idsOf(input).sort(), id);
       assert.equal(new Set(flat(sets)).size, input.length, id);
+      assert.deepEqual(flat(sets), MORE_TO_TRY_GROUPS.flatMap((group) => idsOf(input).filter((one) => GROUP_OF[one] === group)), `${id}: the order shown`);
     }
   });
 });

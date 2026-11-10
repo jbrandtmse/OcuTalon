@@ -97,7 +97,10 @@ describe('EXPERIENCE.md, More to try', () => {
   // The panel's order: the sets of groupsOf, flattened. EXPERIENCE.md numbers its entries in this order.
   const SETS = groupsOf(MORE_TO_TRY_ITEMS);
   const PANEL = SETS.flatMap((set) => set.items);
-  const numberOf = (id) => PANEL.findIndex((one) => one.id === id) + 1;
+  // EXPERIENCE.md numbers its `Item n` entries 1, 2, ... in the panel's order; an unnumbered entry (`First item`) takes no number and
+  // leaves the numbers of the others as they are.
+  const NUMBERED = PANEL.filter((item) => EXPERIENCE.split('\n').some((one) => one.startsWith('    - Item ') && one.includes(`Label "${item.label}".`)));
+  const numberOf = (id) => NUMBERED.findIndex((one) => one.id === id) + 1;
   const ENTRY_LINE = /^    - (Item \d+|First item)\b/;
   const HEADING_LINE = /^    - Heading "([^"]*)"\./;
   const labelOf = (text) => /Label "([^"]*)"\./.exec(text)?.[1];
@@ -105,7 +108,7 @@ describe('EXPERIENCE.md, More to try', () => {
   it('lists the registry\'s items in the panel\'s order, and no item past them', () => {
     const lines = EXPERIENCE.split('\n').filter((one) => ENTRY_LINE.test(one));
     assert.deepEqual(lines.map(labelOf), PANEL.map((item) => item.label), 'the entries are the panel\'s items, in its order');
-    PANEL.forEach((item, at) => {
+    NUMBERED.forEach((item, at) => {
       assert.ok(line(at + 1).includes(`Label "${item.label}".`), `Item ${at + 1} is the registry's ${item.id} entry`);
     });
   });
@@ -123,15 +126,6 @@ describe('EXPERIENCE.md, More to try', () => {
       EXPERIENCE.split('\n').filter((one) => HEADING_LINE.test(one)).map((one) => HEADING_LINE.exec(one)[1]),
       SETS.flatMap((set) => (set.heading === undefined ? [] : [set.heading])),
     );
-  });
-
-  it('has exactly one line for the headings, naming each in order with its count word (Story 0.22)', () => {
-    const lines = EXPERIENCE.split('\n').filter((one) => one.includes('[ADDED 2026-11-10, Story 0.22,'));
-    assert.equal(lines.length, 1);
-    const at = MORE_TO_TRY_GROUPS.map((group) => lines[0].indexOf(`"${group}"`));
-    assert.ok(at.every((one) => one >= 0), 'every heading is quoted');
-    assert.deepEqual([...at].sort((x, y) => x - y), at, 'in the panel\'s order');
-    assert.ok(lines[0].includes(`under ${WORDS[MORE_TO_TRY_GROUPS.length]} headings`), 'the count word');
   });
 
   for (const id of ['documents', 'sources']) {
@@ -172,5 +166,14 @@ describe('EXPERIENCE.md, More to try', () => {
     assert.match(line(numberOf('documents')), /\[AMENDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 9\)/);
     assert.match(line(numberOf('sources')), /\[ADDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 10 to 12\)/);
     assert.match(line(numberOf('documents')), /\[AMENDED 2026-11-09, Story 20\.3, Planner ruling [^\]]*public text 5\)\. It read: "/);
+  });
+
+  it('has exactly one line for the headings, naming each in order with its count word (Story 0.22)', () => {
+    const lines = EXPERIENCE.split('\n').filter((one) => one.includes('[ADDED 2026-11-10, Story 0.22,'));
+    assert.equal(lines.length, 1);
+    const at = MORE_TO_TRY_GROUPS.map((group) => lines[0].indexOf(`"${group}"`));
+    assert.ok(at.every((one) => one >= 0), 'every heading is quoted');
+    assert.deepEqual([...at].sort((x, y) => x - y), at, 'in the panel\'s order');
+    assert.ok(lines[0].includes(`under ${WORDS[MORE_TO_TRY_GROUPS.length]} headings`), 'the count word');
   });
 });

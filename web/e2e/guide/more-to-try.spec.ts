@@ -256,7 +256,7 @@ test('K2: in the finish the panel is open after the links and before Try it your
   await expect(panel.locator('p').first(), 'the label is a paragraph').toHaveText('Other things to try');
   await expect(panel.getByRole('heading', { level: 4 }), 'the groups with an item show their heading').toHaveText(['Incidents and fixes', 'Safety and settings']);
   await expect(panel.locator('p.group-label'), 'and the label is still a paragraph').toHaveCount(1);
-  await expect(panel.getByRole('heading'), 'with no other heading').toHaveCount(2);
+  await expect(guideRegion(page).getByRole('heading'), 'with no other heading in the guide').toHaveCount(2);
 
   await expect(panel.getByRole('listitem')).toHaveCount(4);
   await expect(panel.locator('.item-label'), 'the four items in the order shown').toHaveText(shown(FOUR).map((id) => ITEMS[id]!.label));
@@ -901,7 +901,7 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
   expect(room.chat, `${at}: the chat's list keeps its height`).toBeGreaterThanOrEqual(size.chat);
   expect(room.overflowX, `${at}: the panel stays within the page's width`).toBeLessThanOrEqual(1);
   expect(room.sideways, `${at}: nothing in the panel reaches past its own width`).toBeLessThanOrEqual(1);
-  expect(room.clipped, `${at}: no label or look-for line is cut short`).toBe(0);
+  expect(room.clipped, `${at}: no heading, label or look-for line is cut short`).toBe(0);
   expect(room.short, `${at}: the panel takes its container's whole width`).toBeLessThanOrEqual(1);
   if (size.framed) {
     expect(room.page, `${at}: the page does not scroll as a whole`).toBeLessThanOrEqual(1);
@@ -1458,20 +1458,19 @@ test('K24: a panel the room cannot hold closes, and a taller viewport or a new f
 
 /**
  * K25 (routed finish, every id): the panel's level-4 headings are the ruled groups that have an item, in the ruled order, and the list
- * after each holds exactly that group's labels in registry order. The label is no heading, and no heading takes focus.
+ * after each holds exactly the labels of the registry items that declare that group, in registry order. The label is no heading, and
+ * no heading takes focus. The oracle is the ruled heading strings written out; membership comes from the registry's group fields.
  */
 test('K25: the panel shows its items under the ruled group headings, each followed by its own list', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await openWith(page, finished(ALL));
   const panel = panelOf(page);
   await expect(panel).toBeVisible();
-  const RULED_GROUPS: [string, string[]][] = [
-    ['Incidents and fixes', ['rejectFix']],
-    ['Memory and documents', ['memory', 'documents', 'sources']],
-    ['Safety and settings', ['persona', 'suspiciousEmail', 'demoView', 'heartbeat']],
-  ];
-  const expected = RULED_GROUPS.map(([group, ids]): [string, string[]] => [group, ALL.filter((id) => ids.includes(id))]).filter(([, ids]) => ids.length > 0);
-  expect(MORE_TO_TRY_GROUPS, 'the page\'s constant is the ruled order').toEqual(RULED_GROUPS.map(([group]) => group));
+  const RULED_HEADINGS = ['Incidents and fixes', 'Memory and documents', 'Safety and settings'];
+  const groupOf = (id: string): string | undefined => MORE_TO_TRY_ITEMS.find((item) => item.id === id)!.group;
+  expect(ALL.filter((id) => !RULED_HEADINGS.includes(groupOf(id) ?? '')), 'every item declares a ruled group').toEqual([]);
+  const expected = RULED_HEADINGS.map((group): [string, string[]] => [group, ALL.filter((id) => groupOf(id) === group)]).filter(([, ids]) => ids.length > 0);
+  expect(MORE_TO_TRY_GROUPS, 'the page\'s constant is the ruled order').toEqual(RULED_HEADINGS);
 
   const headings = panel.getByRole('heading', { level: 4 });
   await expect(headings, 'the groups that have items, in order').toHaveText(expected.map(([group]) => group));

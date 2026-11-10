@@ -6483,3 +6483,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Test/Core/ConversationSessionStart.cls TestCoreMemoryAtStart; the existing StartIfNewDay pattern of the class
 - 2026-11-10T00:26:53Z status=wontfix-accepted owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=cr note=reopen_if=a CI or local run of ConversationSessionStart:TestCoreMemoryAtStart that straddles local midnight goes green with the branch skipped
+
+### DW-1084: More to try: the panel's render of an ungrouped set (first, no h4) is pinned only by groupsOf unit tests and a template source-text match; no executed render covers it
+- source: spec-0-22-the-more-to-try-panel-shows-its-items-under-three-group-head.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: web has no component test host and every registry row declares a ruled group (the typo-guard unit test fails otherwise), so no e2e can render an ungrouped set; a template rewrite that keeps the @if regex green could misrender it
+- 2026-11-10T16:33:14Z status=wontfix-accepted owner=0-22-the-more-to-try-panel-shows-its-items-under-three-group-head by=cr note=reopen_if=a registry item ships with no group, or web gains a component test host

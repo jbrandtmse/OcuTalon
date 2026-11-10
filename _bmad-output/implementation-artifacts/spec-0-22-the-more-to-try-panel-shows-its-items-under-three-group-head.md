@@ -157,6 +157,34 @@ deferred: []
   - `sources-docs.test.mjs`, `ux-strings.test.mjs` and `docker/tests/test-boundaries.sh` pass;
   - lane-a and ci are green.
 
+### Review Findings
+
+Code review 2026-11-10 (review tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 35 raw rows, 9 entries after grouping).
+
+- [x] [Review][Patch] (med, fix-risk low, in-story) K25 wrote each group's member ids out by hand (`RULED_GROUPS`), so every in-flight item (23.6 `incidentSummary`, 23.2, 23.5, 41.13, 37.2 `usage`) turned K25 red and needed an edit of an existing line, against the 37.2 ruling ("membership come from the registry data") -- K25 now keeps the ruled heading strings written out as its oracle and takes membership from the registry's `group` fields, so an item that declares its group needs no K25 edit [web/e2e/guide/more-to-try.spec.ts:1464]
+- [x] [Review][Patch] (med, fix-risk low, in-story) `sources-docs.test.mjs` numbered EXPERIENCE entries by panel position, so 23.6's unnumbered "First item" entry (already on feature, "the numbers of the items below stay as they are") would turn the panel-order and Documents-item pins red at integrate-forward -- the number of an entry now counts only the panel's items whose entry is numbered (`NUMBERED`); identical today [web/scripts/sources-docs.test.mjs:102]
+- [x] [Review][Patch] (med, fix-risk low, in-story) K2 narrowed the old guide-wide "no heading" guard to the panel, so a heading added elsewhere in the finished guide went unpinned (spec: never weaken an existing pin) -- K2 counts the headings of the whole guide region (2) [web/e2e/guide/more-to-try.spec.ts:259]
+- [x] [Review][Patch] (low) the template's heading pin matched only headings with plain text, so a second heading with child markup escaped it -- added a count of every `<h1-6` opening (one) [web/scripts/more-to-try-sources.test.mjs:72]
+- [x] [Review][Patch] (low) the unit case "the flattened sets are the focus order" asserted no order -- it now asserts the order shown, from `GROUP_OF` [web/scripts/more-to-try-view.test.mjs:223]
+- [x] [Review][Patch] (low) `expectRoom`'s clipped message still named only labels and look-fors after `.set-heading` joined the check [web/e2e/guide/more-to-try.spec.ts:904]
+- [x] [Review][Patch] (low) the EXPERIENCE marked-line test sat mid-describe, not at its end as the Code Map asks -- moved to the end [web/scripts/sources-docs.test.mjs:171]
+- [x] [Review][Patch] (low) the spec's planned e2e mutation "two entries of `MORE_TO_TRY_GROUPS` swapped -> K25 red" was never run -- demonstrated (see `## Verification`)
+- [x] [Review][Defer] (low) the render of an ungrouped set is pinned by unit tests and a source-text match only (no component test host; every registry row is grouped, so no e2e can render one) [web/src/app/guide/more-to-try.ts:69] -- deferred: DW-1084 `wontfix-accepted`, reopen_if a registry item ships with no group or web gains a component test host
+
+Merge note (integrate-forward with feature, which holds 23.6): `git merge-tree` shows textual conflicts in EXPERIENCE.md, the registry, the e2e spec and the three unit files, as the in-flight rows were expected to give. After this review's patches, 23.6 needs: `group: 'Incidents and fixes'` on `incidentSummary` (the ruled merge instruction), its `GROUP_OF` line, and its "First item" EXPERIENCE entry placed after `Heading "Incidents and fixes"` and before Item 1; K25 and the numbering pins need no edit.
+
+Rejected:
+- (by-design) Edge 1/2/6: `--more-window-min` and `measureRoom.need` leave out the heading height -- the spec's Never list keeps `--more-window-min` unchanged; the first item's label and look-for already sat above its control before this story; K16/K17 (Tab brings every control wholly into view) are green.
+- (by-design) Blind 1 (part): `GROUP_OF` needs a key for each in-flight item -- the spec designs it one key per line, a one-line union at each merge; it is AC1's literal membership pin.
+- (low, theoretical) Edge 4: a group name with stray whitespace or case becomes a second heading -- registry data is authored and the typo-guard unit test compares exact strings.
+- (false) Edge 7: spec `status: done` against sprint-status `review` -- the frontmatter is bmad-build-auto's machine state; the review verdict lives in sprint-status.
+- (low) Gap 3: registry row order across groups is unpinned -- not observable by a user or the panel; this review checked the diff: rows are byte-identical but for the appended `group:`.
+- (false) Gap other: six assertions that "cannot fail on their own" -- each sits beside a pinning assertion that has a recorded mutation; redundancy is not unfalsifiability.
+- (false) Gap other: AC sub-bullets with no mutation line -- Rule 19 asks one demonstrated mutation per AC; AC1-AC4 each have one.
+- (false) Blind 7, Auditor 5: AC2 and AC3 shown red at e2e only together -- each has a single-change mutation too (AC3: the flat `items()` template, K4; AC1/AC2: QA's `rejectFix` move, K25/K2; AC2: this review's `MORE_TO_TRY_GROUPS` swap, K25).
+- (false) Auditor 2: the comment sentence sits after line 55, not 56 -- lines 33-55 and 58 are byte-identical and `git merge-tree` against feature shows no conflict in the doc comment.
+- (reject: fix edits the spec) Blind 4 and 5: the Auto Run Result's fallback wording and one triage-log reason.
+
 ## Spec Change Log
 
 - 2026-11-10 ~15:05Z (lead): the host crashed at ~11:29Z with implement pass 4 being spawned; it left no edit (worktree byte-identical to the orchestrator's snapshot `refs/recovery/crash-20261110-epic-0`). The lead re-read the uncommitted diff against this spec and both rulings, and re-ran the unit level on the preserved tree (82 unit tests, 1780 web tests, lint, build, test-boundaries: all pass). Orchestrator: host hold and stack cap lifted, lane C first in the stagger: the local e2e tier is tried first (the three e2e `[Infra]` items re-opened); fallback (a) still applies if a start fails. Re-dispatched (pass 5).
@@ -307,7 +335,7 @@ Shared surfaces:
 - `live:floor` takes no `--part`, and its panel assertion is order-free and heading-free, so CI covers it.
 
 **Mutations to record (Rule 19), one per AC, each observed red and reverted byte-identical:**
-- `rejectFix`'s group set to "Safety and settings" -> `more-to-try-view.test.mjs` group test red, and K25 red.
+- `rejectFix`'s group set to "Safety and settings" -> `more-to-try-view.test.mjs` group test red, and K2 red (K25 takes membership from the registry).
 - Two entries of `MORE_TO_TRY_GROUPS` swapped -> the ruled-order unit test and K25 red.
 - The `h4` changed to `h3`, or the heading dropped -> K25 and K2 red, and the source pin red.
 - `groupsOf` keeping empty groups as headed sets -> the suppression unit test red, and K2 red.
@@ -335,6 +363,20 @@ e2e tier (pass 5, 2026-11-10, lane-C throwaway, run tag e0s22i; the first start 
 mutation: AC2 (`h4` to `h3`) and AC3 (framed `.group { overflow-y: hidden }`) applied together in `more-to-try.ts`, `ci/iris.sh live sign-in-3 --part 2/9` observed red (38 failed, 59 passed): K25, K2 and K16 at 1280x650 and 1280x600 (and every other framed K16/K16b size); restored from the scratch copy, `shasum` and `git diff --stat` identical.
 mutation: AC2/AC3 (the template iterating the flat `items()` as one headed-less set in place of `groups()`): observed red in the same part: K1, K2, K3, K4, K25 and K16/K17 sizes; restored from the scratch copy, `shasum` and `git diff --stat` identical.
 mutation: AC2 (the `@if (set.heading)` guard of the heading): in `more-to-try.ts`, `@if (set.heading) {` replaced by `@if (true) {`, observed red in `more-to-try-sources.test.mjs` (`names no aria-label and no icon, and its only heading is the group heading, which takes no focus`); restored from the scratch copy, `shasum` identical.
+
+QA stage (2026-11-10, lane-C throwaway, run tag e0s22q; audit found no AC or matrix row without a pinning test and no assertion that cannot fail, so no test file was added (QA)): the four unit files 82 passed (34, 20, 15, 13); `ci/iris.sh live sign-in-3 --part 2/9` 97 passed (15:59Z-16:03Z) and `--part 1/9` 26 passed (16:03Z-16:06Z); stacks torn down, lane-C lock folder empty.
+
+mutation: AC1 (`rejectFix` in the wrong group, at e2e) (QA): `group: 'Incidents and fixes'` of the `rejectFix` row changed to `'Safety and settings'`, web rebuilt, `ci/iris.sh live sign-in-3 --part 2/9` observed red (2 failed, 95 passed): K25 and K2 (before the review took K25's membership from the registry; re-run below); restored from the scratch copy, `shasum` and `git diff --stat` identical, web rebuilt from the restored tree.
+mutation: AC2 (items of a group no longer in registry order) (QA): `set.push(item)` changed to `set.unshift(item)` in `groupsOf`, observed red in `more-to-try-view.test.mjs`: `gives the whole registry under the headings in order, and each group in registry order`, `puts a group the constant does not hold after the ordered groups, in order of first appearance` and `keeps an Incidents and fixes item that comes first in the input first overall`; restored, `shasum` and `git diff --stat` identical.
+mutation: AC2 (groups the constant does not hold sorted instead of in first-appearance order) (QA): `.sort()` appended to the `others` filter in `groupsOf`, observed red in `more-to-try-view.test.mjs`: `puts a group the constant does not hold after the ordered groups, in order of first appearance`; restored, `shasum` and `git diff --stat` identical.
+
+Code review stage (2026-11-10, lane-C throwaway, run tag e0s22r): after the review patches, the four unit files 82 passed, `npm --prefix web test` 1780 passed, lint passes; `ci/iris.sh live sign-in-3 --part 2/9` 97 passed (to 16:25Z, K25 as re-expressed and K2 included); stacks torn down, lane-C lock folder empty.
+
+mutation: AC2 (two entries of `MORE_TO_TRY_GROUPS` swapped, at e2e, with K25's membership from the registry) (code review): the first two entries swapped in `more-to-try-view.ts`, web rebuilt, `ci/iris.sh live sign-in-3 --part 2/9` observed red (1 failed, 96 passed): K25 (`the page's constant is the ruled order`); restored from the scratch copy, `shasum`, `git status --short` and `git diff --stat` identical, web rebuilt from the restored tree.
+mutation: AC4 (EXPERIENCE entries numbered out of the panel's order, with numbers counted over the numbered entries) (code review): the numbers of Item 3 and Item 4 swapped in EXPERIENCE.md, entries left in place, observed red in `sources-docs.test.mjs`: `lists the registry's items in the panel's order, and no item past them`, both `The documents/sources entry is the registry's ...` and `marks the change to the documents item ...`; restored, byte-identical.
+mutation: AC1 (`rejectFix` in the wrong group, at e2e, re-run after the K25 change) (code review): `group: 'Incidents and fixes'` of the `rejectFix` row changed to `'Safety and settings'`, web rebuilt, `ci/iris.sh live sign-in-3 --part 2/9` observed red (1 failed, 96 passed): K2 (its ruled headings for the four ids). K25 stays green by design: it takes membership from the registry (37.2 ruling), and the literal membership pin is the unit test `give every entry its ruled group`. Restored from the scratch copy, `shasum`, `git status --short` and `git diff --stat` identical, web rebuilt from the restored tree; teardown of e0s22r, lane-C lock folder empty.
+mutation: AC2 (a second heading element with child markup in the template) (code review): `<h3><span>x</span></h3>` added after the label in `more-to-try.ts`, observed red in `more-to-try-sources.test.mjs`: `names no aria-label and no icon, and its only heading is the group heading, which takes no focus`; restored, byte-identical.
+mutation: AC3 (the flattened sets out of the order shown) (code review): `groupsOf` walking `MORE_TO_TRY_GROUPS` in reverse, observed red in `more-to-try-view.test.mjs`, `gives every input item once, and the flattened sets are the focus order` among six; restored, byte-identical.
 
 ## Auto Run Result
 
