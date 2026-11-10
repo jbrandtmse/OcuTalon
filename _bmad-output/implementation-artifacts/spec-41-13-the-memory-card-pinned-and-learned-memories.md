@@ -271,6 +271,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` (server) or `web/` (client) unless 
 
 ## Spec Change Log
 
+- 2026-11-10 (orchestrator ruling, decide, contended with Epics 20 and 23 in flight): plain union. (1) `Demo/Features.cls` `Ids`, the More to try registry and `Test/Demo/Features:TestIds` are list appends: this story adds `memoryCard` right after `memory`; the second epic to merge fixes the order and the numbered "item N" doc lines from the merged registry. (2) Every More to try count (README.md:30, `SEVEN`-style constants in `web/e2e/guide/more-to-try.spec.ts`, `more-to-try-view.test.mjs`) is derived from the registry, never a literal; the README line's number is written from the registry at merge (the Planner may group items above ten; until then build to the registry rule). (3) README "New since 1.0.0": one appended bullet. (4) `web/src/app/documents/documents-page.ts`: change ONLY the dialog import and the open call (lines 14 and 224) to the shared `ConfirmDialog`; add no other lines there; keep `documents-view.ts`'s text constants in place (Epic 20's 20.2/20.3 add lines and a button there). (5) `Test/Web/Api.cls`: a one-route append in map order. (6) Anything at merge outside (1)-(5) comes back as a Clarification.
+
 - 2026-11-09 (planner-2026-11-09-41.13, Contest Planner under the owner's delegation, relayed by the orchestrator): the spec-gate items are ruled as below (verbatim). Where a text below differs from the Design Notes' drafts, the ruling wins; implement uses these exact strings.
 
   1. PUBLIC TEXT: everything APPROVED as drafted EXCEPT:
