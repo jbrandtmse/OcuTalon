@@ -109,3 +109,4 @@
 2026-11-10T17:27:13Z	Story 23.2	smoke_complete	method=other(rework_2_changed_tests_only;A12_ran_on_a_fresh_live:cards_stack_29/29_with_its_band_assertions;product_unchanged_since_the_15:0xZ_smoke) result=pass iterations=4 defects_caught=0
 2026-11-10T17:27:13Z	Story 23.2	fresh_check	env=recipe(fresh_class_stack_e23s2v,ready_164s;live:cards_fresh_stack_by_implement) tests=2(Test.Channel.TelegramChat,web/e2e/cards/approval-card.spec.ts) result=pass order=single_class(order-independent)
 2026-11-10T17:28:13Z	Story 23.2	integrated_forward	feature=698196b6(v1.0.6_merge-back;module.xml_version_only) head=bbfba20f conflicts_resolved=none checks=test-readme,test-boundaries,sprint_validate code_since_e6eb901d=7c405150(test-only) flakes_to_rerun_by_the_new_run=DW-1082,DW-1083,DW-1038,DW-999
+2026-11-10T17:28:41Z	Story 23.2	committed	sha=c5fec14f fix_for=23-2 rework_sha=7c405150 integrated_feature=698196b6 ci=pending runs=42865281502,42865282165 missing=none
