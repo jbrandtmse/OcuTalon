@@ -6445,6 +6445,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: med | footprint: out-of-footprint
 - evidence: 1.0.5 real-model evaluation (overridden): 0 approvals, commands, setting changes or fix runs; label Act 2/3
 - 2026-11-09T14:16:01Z status=routed owner=burndown by=owner note=1.0.6 HIGH ahead of tier 3 (Contest Planner [3dd56e], delegated authority); instructions fix, eval-measured (3/3 Tell now); story to charter at the next free lane; may touch Lane A instructions contended with Epic 41 part 2
+- 2026-11-10T18:24:38Z status=wontfix-theoretical owner=burndown by=owner note=not reproduced at 1.0.6 (Contest Planner, delegated authority, 2026-11-10 ~18:30Z): heartbeat-injected-decision was tellnow in all 3 real-model attempts (release-evidence/1.0.6-gates/rc-eval/set-{1,2,3}.md); reopen_if the 1.0.7 RC eval labels it Act again; any fix is model-facing and needs a real-key measurement
 
 ### DW-1020: README: name the contest under '## Contest checklist' (replace 'What OcuTalon uses, and where to check each one:' with the approved sentence linking the InterSystems Programming Contest: AI Agents in Interoperability Workflows post, then 'What it uses, and where to check each one:')
 - source: planner-2026-11-09-readme-contest | severity: low | fix-risk: low | footprint: out-of-footprint

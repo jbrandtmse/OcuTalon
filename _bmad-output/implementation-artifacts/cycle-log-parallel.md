@@ -3319,3 +3319,6 @@
 - 2026-11-10T18:22Z orchestrator merge_gate epic=0 part=0.22 head=cec5dbb1 conflicts=none base=698196b6 code_diff_vs_epic_head=module.xml,src/module.xml (v1.0.6 bump only) spine_lint=baseline(10 low) tracker=valid epic-0=done
 - 2026-11-10T18:22Z orchestrator epic_merged_to_feature epic=0 part=0.22 note=feature CI runs (version bump differs from the epic head)
 - 2026-11-10T18:22Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=0.22 insert via merge
+- 2026-11-10T18:22Z orchestrator lane_free_pending lane=C after epic-0 close; asked contest_planner next: (a) DW-1019 eval Act label (rec, if not contended with 41.14 eval files) (b) host-capacity start-lock story (c) 41.15 (blocked: OCT-epic41 busy) (d) idle until 25.2
+- 2026-11-10T18:24Z orchestrator epic_runner_complete epic=0 part=0.22 runner=a843cc53b908514c8 head=c0b9545e (records only) ci_cancelled_record_only=42874781745,42874781914, lane_C=free
+- 2026-11-10T18:24Z orchestrator owner_decision via=contest_planner item=lane_C_next ruling=open Epic 25, 25.2 to its spec gate only (spec against 37.2's spec + spine rows; implement waits for 37.2 merge per story_waits_stories); DW-1019 not reproduced at 1.0.6 -> wontfix-theoretical (reopen if 1.0.7 RC eval shows Act); start-lock story stays low
