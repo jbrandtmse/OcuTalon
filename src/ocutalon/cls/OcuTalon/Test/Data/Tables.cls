@@ -10,7 +10,7 @@ Class OcuTalon.Test.Data.Tables Extends OcuTalon.Test.Contract
 Method TestContracts()
 {
 	Do ..AssertContract("Contracts")
-	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS"), "affected,resend,leftOut,field,before,after,itemNoun", "the dry run keys")
+	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS"), "affected,resend,leftOut,field,before,after,itemNoun,item,from,to,example", "the dry run keys (item, from, to and example since Story 23.2)")
 }
 
 /// Each registry class sets the row's DEFAULTGLOBAL, stores its data in the global plus D, and has its globals in the

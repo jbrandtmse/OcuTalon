@@ -9,7 +9,8 @@
 ///     online-demo install;
 ///   - TestDryRunsChangeNothing, TestOnlineDemoRefused and TestOwnProduction (AC1, AC8, AC11): the dry runs, their refusals and what they leave unchanged;
 ///   - TestRecheckSkips (AC3): the item changed since the dry run is skipped, with a reason that names it;
-///   - TestNotAllowed (AC9; the matrix row "Missing resource"): with %Ens_ConfigItemRun taken from the service role the run could not start;
+///   - TestNotAllowed (AC9, AC-S1; the matrix row "Missing resource"): on an online-demo install (the public flag on, %Ens_ConfigItemRun not held by the service role), an
+///     approved item run that bypasses the ONLINESHARED check could not start;
 ///   - TestItemThatCannotBeChanged (AC3, AC8): through FixExecutor's handler with the Check and Carry seams of Test.Fix.ExecutorProbe: a change that Ens.Director.EnableConfigItem refuses ends the request
 ///     failed with the kind's NOSTART and the session reads result.itemNotChanged, and items that can't be read end it failed with the kind's NOREAD;
 ///   - TestNoApprovedRow (AC8): a pending request is not carried out.
@@ -256,7 +257,8 @@ Method TestLiveSuspendResume()
 }
 
 /// With %Ens_ConfigItemRun taken from the service role the run could not start: the item is not changed, the request failed with the kind's reason, and the session reads
-/// result.itemNotChanged.
+/// result.itemNotChanged. The run is that of an online-demo install (AC-S1): the public flag onlineDemo is on and the service role holds no %Ens_ConfigItemRun, as
+/// Install.Step.Fix.Grants() leaves it there, and the approved row reaches the executor with no dry run, so the kind's ONLINESHARED check is bypassed.
 Method TestNotAllowed()
 {
 	If '..Ready() Quit
@@ -273,6 +275,8 @@ Method TestNotAllowed()
 	Do $$$AssertStatusOK(row.%Save(), "the incident names the request")
 	Kill row
 	Do ..RevokeRole("%Ens_ConfigItemRun")
+	Do ..SetOnlineDemo(1)
+	Do $$$AssertTrue(..RoleResources() '[ "%Ens_ConfigItemRun", "the service role holds no %Ens_ConfigItemRun, as on an online-demo install")
 	Do $$$AssertStatusOK(..SendExecute(ref, .session), "the Execute is handled")
 	Do $$$AssertEquals(..WaitState(incident, ref, "failed"), "failed", "the request failed")
 	Set results = ..WaitFixResults(ref, 1)

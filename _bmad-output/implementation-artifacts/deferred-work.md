@@ -6491,3 +6491,63 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Install.Step.Fix.Grants omits the pair when onlineDemo is 1; Install.SecurityOverview renders the table from Fix.Kind.Classes() without that condition; the fix needs one ruled public sentence
 - 2026-11-10T04:01:57Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=harvest note=needs_a_Planner_ruled_sentence;fix_in_23.2_before_its_commit
+
+### DW-1067: The incident card shows no result band for a suspend or resume request, nor for a reroute whose copies all completed, against AD-15's 'each approval request card carries its own answered status and result band'
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: high | fix-risk: high | footprint: in-story
+- evidence: web/src/app/approvals/approval-view.ts resultView returns undefined for suspend_item/resume_item and for a completed reroute (Decided in-stage 7, no ruling); AD-15 Results per request requires a band per request card.
+- 2026-11-10T06:18:26Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=needs Planner: extend AD-33 list (web/src/app/msg/catalog.ts, incidents/incident-card.ts) to render ruled result.item*/rerouted keys, or amend AD-15
+
+### DW-1068: After a suspend's incident closes (Dismiss, replay, 15 quiet minutes) the user cannot ask to resume the item, while result.itemSuspended says to, and Checks never reports the item as disabled
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: WatchTools.ProposeFix resolves only open,resolved incidents (FIXABLE), so resume_item answers no_incident after close; Fix.Run.Suspended ignores incident state, so Checks.Findings keeps the item in ours.
+- 2026-11-10T06:18:26Z status=decision-pending owner=burndown by=cr note=product call: resume without an incident, keep the incident open while suspended, or reword; touches ruled text
+
+### DW-1069: AD-33 exception list of Story 23.2 does not name four Lane B paths the story edits under other rulings: README.md, docker/tests/lib-live.sh, web/e2e/support/iris.ts, Test/Core/CommandsRouting.cls
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: README edit is ruled (Public Text, Tasks), lib-live.sh check_orders_jobs is S3's Orders item count, iris.ts seeds A12's reroute request, CommandsRouting is RP2's pin of the listed CommandsIn.cls.
+- 2026-11-10T06:18:26Z status=escalated owner=burndown by=cr note=Planner to confirm the AD-33 exception covers these four paths (no code change expected)
+
+### DW-1070: propose_fix's tool description sends ambiguous, unknown_incident and no_incident to dismiss_incident's wording, so the model may answer a fix ask in dismiss terms
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Tools/WatchTools.cls ProposeFix description: 'ambiguous, unknown_incident and no_incident are as for dismiss_incident'; Agent/Chat.cls rule covers refused only.
+- 2026-11-10T06:18:43Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=agent text, unruled; reopen_if=a mock or release-eval transcript shows a propose_fix answer worded as a dismissal
+
+### DW-1071: Reroute has no own-production guard: an incident on OcuTalon.Production could offer copies to one of OcuTalon's own operations
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Fix/Kind/Reroute.cls Valid checks existence, enabled and business type only; SuspendItem refuses OWNPRODUCTION. Approval with a dry run naming the target still gates it.
+- 2026-11-10T06:18:43Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=needs a new ruled reason; reopen_if=a reroute dry run is raised for an incident of OcuTalon.Production
+
+### DW-1072: Item-kind failures are logged with message-resend wording: LOGCOPY names an Ens.Config.Item id as a message, LOGRECHECK says failed messages
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Fix/Executor.cls InProduction logs LOGCOPY for a refused EnableConfigItem; Run logs LOGRECHECK when Reader.Items fails for an item kind.
+- 2026-11-10T06:18:43Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=operator log text only; reopen_if=an operator report or a test reads an item-kind failure from the event log
+
+### DW-1073: Test.Eval.Report TestRaisedFixRequestIsCounted writes the approval row it counts, so only its TraceRef assertion exercises RaiseFix
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Test/Eval/Report.cls builds the row with ..Approval(raised.ownerRef, raised.traceRef) through the ZzIncident double; the recorded mutation reds the traceRef assertion.
+- 2026-11-10T06:18:43Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=RP6 allowed no Eval change; reopen_if=Eval.Report's tally changes its row selection
+
+### DW-1074: Supplementary negative assertions in Test.Fix.AskedTurns cannot fail without an approval (no FixRun, no copy, no item changed)
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: SecondSessionAsksToReroute and TestSuspendTurn assert no copy or change while nothing is ever approved; the load-bearing checks are the request and approval counts.
+- 2026-11-10T06:18:43Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=those assertions become the only pin of AC-S2 or AC1's no-change clause
+
+### DW-1075: The fixKind wiring of the approval card and phone presses (403 text for item kinds) is pinned only by source-regex tests
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: approval-sources.test.mjs and phone-request-sources.test.mjs match source text; answer-press.ts has no executed node host.
+- 2026-11-10T06:18:43Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=a browser spec or user report shows the resend 403 text on a suspend or resume card
+
+### DW-1076: A suspend or resume that Ens.Director.EnableConfigItem refuses is tested only through the ExecutorProbe Carry stand-in
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Test.Fix.ItemKinds TestItemThatCannotBeChanged uses CarryIs; the live tests take the success path only.
+- 2026-11-10T06:18:43Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=a real EnableConfigItem refusal (e.g. pool-size 0 process) reports anything but NOSTART
+
+### DW-1077: A suspend of a business process with PoolSize 0 is offered by the dry run, then EnableConfigItem refuses it and the run ends NOSTART
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: irislib Ens/Director.cls EnableConfigItem refuses disabling a process with PoolSize 0; SuspendItem.DryRun does not read PoolSize.
+- 2026-11-10T06:18:43Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=honest result, new reason text needed; reopen_if=a user suspends a pool-size-0 process and asks why it failed
+
+### DW-1078: docker/tests/test-install-upgrade.sh:98 comment still says both pooled items of the Orders production
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: check_orders_probe's comment predates OrdersForReview; check_orders_jobs (lib-live.sh) already checks three items.
+- 2026-11-10T06:18:43Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=comment only, Lane B file outside the AD-33 list; reopen_if=the next Lane B story edits test-install-upgrade.sh

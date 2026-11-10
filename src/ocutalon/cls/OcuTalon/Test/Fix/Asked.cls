@@ -273,6 +273,12 @@ Method TestNoticeKeys()
 	Do $$$AssertStatusOK(sc, "incident.goodChanged renders")
 	Do $$$AssertTrue(text [ "The date format changed. The fix I would use would also change orders that went through, so I'm not proposing it. Nothing was changed.", "with the Planner's sentence")
 	Do $$$AssertTrue(text '[ "..", "and no double full stop")
+	// (QA) a cause without a full stop gets exactly one
+	Set bare = ##class(OcuTalon.Msg.Catalog).Render("incident.goodChanged", {"count": 1, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "cause": "The date format changed", "noun": "orders", "groups": [{"itemName": "OrdersFromPartner", "count": 1, "errorSummary": "e", "firstAt": "2026-10-16T18:12:00Z"}]}.%ToJSON(), "phone", .sc)
+	Do $$$AssertStatusOK(sc, "a cause without a full stop renders")
+	Do $$$AssertTrue(bare [ "1 order failed since", "the count and the noun are the single ones")
+	Do $$$AssertTrue(bare [ "The date format changed. The fix I would use would also change orders that went through", "and the sentence has its one full stop")
+	Do $$$AssertTrue(bare '[ "..", "and no double full stop")
 }
 
 /// --- helpers ---

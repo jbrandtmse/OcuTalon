@@ -1076,13 +1076,13 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 }
 
 /// The plain sentence, naming the message or the item, for an entry that was not done because its target really changed (the skip codes of InProduction); the field of a repair
-/// entry is named in words, as the re-check names it.
+/// entry is named in words, as the re-check names it. Any other code of an item entry gives the item kinds' NOSTART.
 ClassMethod SkipReason(code As %String, id As %String, entry As %DynamicObject) As %String [ Private ]
 {
 	If entry.%Get("action") '= "" {
 		If code = "gone" Quit entry.item_" is no longer in the production"
 		If code = "changed" Quit entry.item_" changed since the dry run"
-		Quit entry.item_" was not changed because of an internal error"
+		Quit ##class(OcuTalon.Fix.Kind.SuspendItem).#NOSTART
 	}
 	Set name = "message "_id
 	Set words = ##class(OcuTalon.Fix.Kind.RepairResend).FieldWords(entry.%Get("field"))

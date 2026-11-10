@@ -13,8 +13,6 @@
 ///     OwnerRef, so a tool cannot name another session. ProposePersona, the one settings verb a tool may send, is held to the same rule:
 ///     inside a bridge context its SessionRef must be the context's OwnerRef (DW-570), so a tool proposes only the persona of the
 ///     session whose turn it is in, and the refusal is not_allowed and nothing reaches SettingsOps;
-///   - ProposeFix (Story 23.2), a tool verb that goes to IncidentManager as the command itself: inside a bridge context its SessionRef must be the context's OwnerRef, and
-///     Ownership.Incident must find its IncidentRef for that session, else the refusal is not_found and nothing reaches IncidentManager;
 ///   - the memory verbs PinMemory and UnpinMemory are web_user only and no tool verb, so inside a bridge context they are not_allowed; ForgetMemory
 ///     is accepted from tool (with the context check below) and from web_user; SearchMemory, a read verb that the web layer sends for the Memory
 ///     card's search, is web_user only and no tool verb either;

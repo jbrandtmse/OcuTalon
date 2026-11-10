@@ -532,6 +532,10 @@ Method TestSuspendedItemsGetNoFinding()
 	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[{""kind"":""disabled"",""item"":""A""}]|{""stopped"":0,""disabled"":[""A"",""B""],""ours"":[""A""]}", "and A disabled by anyone else afterwards is one finding")
 	Set found = ##class(OcuTalon.Checks.Process).Findings(reported, "running", ["A", "B"], .reported, $ListBuild("A"))
 	Do $$$AssertEquals(found.%Size(), 0, "which is reported once")
+	// a foreign enable, then a second suspend by OcuTalon (fresh: its run ended since the previous run)
+	Set found = ##class(OcuTalon.Checks.Process).Findings(sighted, "running", ["B"], .reported, $ListBuild("A"))
+	Set found = ##class(OcuTalon.Checks.Process).Findings(reported, "running", ["A", "B"], .reported, $ListBuild("A"), $ListBuild("A"))
+	Do $$$AssertEquals(found.%Size()_"|"_reported, "0|{""stopped"":0,""disabled"":[""A"",""B""],""ours"":[""A""]}", "A enabled by anyone else and then suspended again by OcuTalon gets no finding")
 	// OcuTalon suspends, resumes (the name leaves suspended), and suspends again
 	Set found = ##class(OcuTalon.Checks.Process).Findings(sighted, "running", ["B"], .reported)
 	Do $$$AssertEquals(found.%Size()_"|"_reported, "0|{""stopped"":0,""disabled"":[""B""]}", "a resume ends ours")
@@ -559,6 +563,14 @@ Method TestSuspendedByOcuTalonIsNotReported()
 	Do ..Done(a, incident, "suspend_item", "A")
 	Do $$$AssertEquals($ListToString(##class(OcuTalon.Fix.Run).Suspended("ZZNS", production)), "A", "Fix.Run Suspended names A")
 	Do $$$AssertEquals($ListLength(##class(OcuTalon.Fix.Run).Suspended("ZZNS", "Zz.Other")), 0, "and nothing for another production")
+	Do ##class(OcuTalon.Fix.Run).Suspended("ZZNS", production, "2000-01-01T00:00:00Z", .fresh)
+	Do $$$AssertEquals($ListToString(fresh), "A", "A's suspend ended after a previous run of 2000, so it is fresh")
+	Do ##class(OcuTalon.Fix.Run).Suspended("ZZNS", production, "2999-01-01T00:00:00Z", .fresh)
+	Do $$$AssertEquals($ListLength(fresh), 0, "and not after one of 2999")
+	Do ##class(OcuTalon.Fix.Run).Suspended("ZZNS", production, "", .fresh)
+	Do $$$AssertEquals($ListLength(fresh), 0, "and none is fresh with no previous run")
+	Do ..Done(a, incident, "suspend_item", "C", 0)
+	Do $$$AssertEquals($ListToString(##class(OcuTalon.Fix.Run).Suspended("ZZNS", production)), "A", "a suspend that changed nothing (C was already disabled) does not name C")
 	Do ..Step(host, production, 1, "running", ["A", "B"])
 	Set items = ..Items()
 	Do $$$AssertEquals(items.%Size(), 1, "A, which OcuTalon suspended, sends no Item; B sends one")
@@ -574,12 +586,12 @@ Method TestSuspendedByOcuTalonIsNotReported()
 	If items.%Size() = 2 Do $$$AssertEquals(..Slot(items.%Get(1).slots, "itemName"), "A", "for A")
 }
 
-/// A done request of the kind for the item of the incident, with a run that changed it.
-Method Done(owner As %String, incident As %String, kind As %String, item As %String) [ Private ]
+/// A done request of the kind for the item of the incident, with a run that changed it (completed 1) or skipped it (completed 0).
+Method Done(owner As %String, incident As %String, kind As %String, item As %String, completed As %Integer = 1) [ Private ]
 {
 	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, "done", , {"FixKind": (kind), "FixParameters": ({"item": (item)}.%ToJSON()), "FixTargets": "1"})
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_request
-	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, {"Total": 1, "Completed": 1})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, {"Total": 1, "Completed": (completed), "Skipped": (1 - completed)})
 }
 
 /// Row 7: the first run of a row with nothing reported only records the state.

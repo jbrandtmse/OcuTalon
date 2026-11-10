@@ -28,7 +28,8 @@ Include Ensemble
 /// Suspended (Story 23.2; AD-15) answers, for Checks, which items of a production OcuTalon itself suspended: a list of item names, each the item of the newest run of a request that is done, of a fix
 /// kind whose targets are items, that changed an item (Completed above 0) in that namespace and production (the incident's), when that run is a suspend_item. A resume_item that changed the
 /// item ends the suspension; a run that changed nothing neither starts nor ends one. Checks does not raise a disabled-item finding for such an item while it stays disabled from the suspend (Checks.Process Findings, which keeps the names it has sighted in Reported "ours"), and a disable by anyone else
-/// after the item was enabled by anyone else is reported. It reads the rows by SQL and writes nothing.
+/// after the item was enabled by anyone else is reported. Given since (the time of the previous check), fresh lists the items whose suspending run ended at or after it, so that a
+/// second suspend by OcuTalon of an item that someone else enabled in between is not taken for a disable by anyone else. It reads the rows by SQL and writes nothing.
 /// The seams Unended (the runs with no EndedAt), Started (the start of the production), Statuses (the read of the copies, Executor.Read), Close (FinishExecution) and WriteAudit (the audit write)
 /// are class methods that a test subclass overrides (Test.Fix.RunProbe). Fix.Run switches no namespace (AD-3): the only read of the production is Watch.Reader, through Executor.Read.
 Class OcuTalon.Fix.Run Extends %RegisteredObject
@@ -55,9 +56,11 @@ Parameter LOGSWEEP = "Fix.Run could not sweep the run of request ";
 
 Parameter LOGSWEPT = "Fix.Run ended the run of request ";
 
-/// The items that OcuTalon suspended in the production (see the class description), as a list of names in the order they were suspended.
-ClassMethod Suspended(namespace As %String, production As %String) As %List
+/// The items that OcuTalon suspended in the production (see the class description), as a list of names in the order they were suspended; fresh holds those of them whose
+/// suspending run ended at or after since, to the second (none when since is empty).
+ClassMethod Suspended(namespace As %String, production As %String, since As %String = "", Output fresh As %List) As %List
 {
+	Set fresh = ""
 	Set kinds = ""
 	Set classes = ##class(OcuTalon.Fix.Kind).Classes()
 	Set position = 0
@@ -68,7 +71,7 @@ ClassMethod Suspended(namespace As %String, production As %String) As %List
 	Set marks = ""
 	For i = 1:1:$ListLength(kinds) Set marks = marks _ $Select(marks = "": "", 1: ",") _ "?"
 	Set suspend = $Parameter("OcuTalon.Fix.Kind.SuspendItem", "NAME")
-	Set statement = "SELECT a.FixKind, a.FixParameters FROM OcuTalon_Data.FixRun r JOIN OcuTalon_Bridge_Data.ApprovalRequest a ON a.Ref = r.ApprovalRef JOIN OcuTalon_Data.Incident i ON i.Ref = r.IncidentRef WHERE i.Namespace = ? AND i.Production = ? AND a.State = 'done' AND r.Completed > 0 AND a.FixKind IN ("_marks_") ORDER BY r.ID"
+	Set statement = "SELECT a.FixKind, a.FixParameters, r.EndedAt FROM OcuTalon_Data.FixRun r JOIN OcuTalon_Bridge_Data.ApprovalRequest a ON a.Ref = r.ApprovalRef JOIN OcuTalon_Data.Incident i ON i.Ref = r.IncidentRef WHERE i.Namespace = ? AND i.Production = ? AND a.State = 'done' AND r.Completed > 0 AND a.FixKind IN ("_marks_") ORDER BY r.ID"
 	Set args = 2 + $ListLength(kinds)
 	Set args(1) = namespace
 	Set args(2) = production
@@ -85,10 +88,13 @@ ClassMethod Suspended(namespace As %String, production As %String) As %List
 		}
 		If item = "" Continue
 		Set at = $ListFind(names, item)
+		Set inFresh = $ListFind(fresh, item)
 		If rs.%GetData(1) = suspend {
 			If 'at Set names = names _ $ListBuild(item)
-		} ElseIf at {
-			Set names = $List(names, 1, at - 1) _ $List(names, at + 1, *)
+			If (since '= "") && (rs.%GetData(3) '= "") && '(since ] rs.%GetData(3)) && 'inFresh Set fresh = fresh _ $ListBuild(item)
+		} Else {
+			If at Set names = $List(names, 1, at - 1) _ $List(names, at + 1, *)
+			If inFresh Set fresh = $List(fresh, 1, inFresh - 1) _ $List(fresh, inFresh + 1, *)
 		}
 	}
 	Quit names

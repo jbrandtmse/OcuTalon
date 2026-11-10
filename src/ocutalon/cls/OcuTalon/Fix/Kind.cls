@@ -215,14 +215,12 @@ ClassMethod ProductionName(incident As OcuTalon.Data.Incident) As %String
 	Quit incident.Production
 }
 
-/// The items of the incident's production (Reader.Items) as a dynamic array of {"id", "name", "className", "businessType", "enabled"}. An error status that says why when the
-/// production can't be read.
+/// The items of the incident's production (Reader.Items) as a dynamic array of {"id", "name", "className", "businessType", "enabled"}. When the production can't be read, an
+/// error status whose text is the item kinds' plain reason (SuspendItem NOREAD), which the chat model is given.
 ClassMethod ItemsOf(incident As OcuTalon.Data.Incident, Output items As %DynamicArray) As %Status
 {
 	Set outcome = ##class(OcuTalon.Watch.Reader).Items(incident.Namespace, incident.Production, .items)
-	If outcome '= "read" {
-		Quit $$$ERROR($$$GeneralError, "The items of "_incident.Production_" in "_incident.Namespace_" could not be read: "_$Select(outcome = "unreadable": "the service user cannot read the namespace", outcome = "not_current": "the production is not the one that runs there", 1: outcome))
-	}
+	If outcome '= "read" Quit $$$ERROR($$$GeneralError, ##class(OcuTalon.Fix.Kind.SuspendItem).#NOREAD)
 	Quit $$$OK
 }
 

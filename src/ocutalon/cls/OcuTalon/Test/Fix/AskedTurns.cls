@@ -11,6 +11,7 @@
 ///     request is raised;
 ///   - TestOtherSessionsIncident (AC-S2): a second session that has no incident of its own asks to reroute while the first session's noticed incident holds real failed orders: the answer is
 ///     nothing, no request exists for the first session's incident, no FixRun and no copy, and the originals are unchanged;
+///   - TestOtherSessionsIncidentOnlineDemo (AC-S2, QA): the same with the public flag onlineDemo on (the demo and a local install are both named by the AC);
 ///   - TestNoIncident (AC-S4): a session with no incident of its own is told there is nothing to reroute, and nothing is raised.
 Class OcuTalon.Test.Fix.AskedTurns Extends OcuTalon.Test.Watch.Case
 {
@@ -42,8 +43,10 @@ Method TestRerouteTurn()
 		Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(incident).State, "awaiting_approval", "the incident is awaiting approval")
 		Do ..AssertDelivered(a, "approval", one.ref)
 		Do $$$AssertEquals(..Deliveries(b, "web", "approval", one.ref), 0, "a second session gets no approval Delivery for it")
+		Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 		If requests.%Size() = 2 {
 			Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
+			Do $$$AssertEquals($ListLength(results), 1, "and the second carries one tool result")
 			If $ListLength(results) = 1 {
 				Set seen = {}.%FromJSON($List(results, 1))
 				Do $$$AssertEquals(seen.ok_"|"_seen.outcome_"|"_seen.kind_"|"_seen.item_"|"_seen.approvalRef, "1|raised|reroute|OrdersForReview|"_one.ref, "the model reads ok, raised, the kind, the item and the request's Ref")
@@ -132,11 +135,27 @@ Method TestInjectedTurn()
 /// nothing to reroute, and nothing of the first session's is raised, run or resent.
 Method TestOtherSessionsIncident()
 {
+	Do ..SecondSessionAsksToReroute("secown", "secother")
+}
+
+/// AC-S2 on the online demo (QA): the same second-session ask with the public flag onlineDemo on, where a session reads only its own incidents (no instance incident is added, Ownership LocalFlag).
+/// The flag is put back by OnAfterOneTest.
+Method TestOtherSessionsIncidentOnlineDemo()
+{
+	If '..Ready() Quit
+	Do ..SetOnlineDemo(1)
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Reader).OnlineDemo(), 1, "the public flag onlineDemo is on")
+	Do ..SecondSessionAsksToReroute("secdemoown", "secdemoother")
+}
+
+/// The body of both AC-S2 tests: user a has a noticed open incident with three real failed orders, user b has none and asks to reroute them.
+Method SecondSessionAsksToReroute(own As %String, other As %String) [ Private ]
+{
 	If '..Ready() Quit
 	If '..PointKeys() Quit
 	If '..UseReal() Quit
-	Set a = ..Session("secown")
-	Set b = ..Session("secother")
+	Set a = ..Session(own)
+	Set b = ..Session(other)
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
 	If '..Fail(3, trace) Quit
 	Set failed = ..WaitFailed(3)
@@ -173,6 +192,7 @@ Method TestNoIncident()
 	Set sc = ..Turn("user", "Reroute the failed orders to OrdersForReview. [[mock:propose-fix-reroute]]", a, .request, .answer, .turnSession, .requests)
 	Do $$$AssertStatusOK(sc, "Decide answers the turn")
 	If '$IsObject(answer) Quit
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
 		Set seen = {}.%FromJSON($List(##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1)), 1))
 		Do $$$AssertEquals(seen.ok_"|"_seen.outcome_"|"_seen.message, "0|nothing|None of the incident's failed messages can be rerouted now, so no request was raised.", "the model reads that there is nothing to reroute, plainly")

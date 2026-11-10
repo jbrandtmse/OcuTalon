@@ -5,7 +5,7 @@
 /// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
 /// shows (from unsaved rows), and the trace targets of a chat turn's decision and of an approval request (Story 2.13), which
 /// build from fixture sessions, turns, incidents and approval requests, and the result that the incident payload lists for a request whose run has ended (Story 7.4),
-/// read from the request's FixRun, and the either-way fields of the approval payload's dry run (Story 7.8), built from unsaved rows, and the heartbeat payload's FromRow of an unsaved HeartbeatBeat row and of no row (Story 39.7). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// read from the request's FixRun, the kind, item and count that it lists for a chat-asked suspend, resume or reroute request (Story 23.2), and the either-way fields of the approval payload's dry run (Story 7.8), built from unsaved rows, and the heartbeat payload's FromRow of an unsaved HeartbeatBeat row and of no row (Story 39.7). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
 /// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
 Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {
@@ -337,6 +337,33 @@ Method TestFromRowRequestResult()
 		Do $$$AssertEquals(object.requests.%Get(2).%IsDefined("result"), 0, "and neither has a request that has no run of its own")
 	}
 	Do $ClassMethod(fixture, "Clean", ended_","_running_","_bare_","_row.Ref)
+}
+
+/// The requests of a chat-asked fix (Story 23.2): FromRow lists each request's fixKind; a suspend or resume names the item of its parameters, a reroute names its target item and
+/// counts its dry run's affected messages, and a repair request names no item and gives no count.
+Method TestFromRowRequestKinds()
+{
+	Set owner = "ZzPay"_..Number_"rk"
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set row = ..Incident(owner)
+	Set at = ##class(OcuTalon.Data.Time).NowUtc()
+	Set reroute = $ClassMethod(fixture, "Approval", owner, row.Ref, "pending", at, {"FixKind": "reroute", "FixParameters": ({"target": "OrdersForReview"}.%ToJSON()), "DryRun": ({"affected": 7, "resend": 6, "leftOut": 1, "itemNoun": {"one": "order", "other": "orders"}, "from": "OrdersFromPartner", "to": "OrdersForReview", "example": "41"}.%ToJSON())})
+	Set suspend = $ClassMethod(fixture, "Approval", owner, row.Ref, "pending", at, {"FixKind": "suspend_item", "FixParameters": ({"item": "OrdersToWarehouse"}.%ToJSON()), "DryRun": ({"item": "OrdersToWarehouse", "before": "enabled", "after": "disabled"}.%ToJSON())})
+	Set repair = $ClassMethod(fixture, "Approval", owner, row.Ref, "pending", at, {"FixKind": "repair_resend", "FixParameters": ({"field": "OrderDate", "from": "DD/MM/YYYY", "to": "YYYY-MM-DD"}.%ToJSON())})
+	Set row.RequestRefs = reroute_","_suspend_","_repair
+	Do $$$AssertStatusOK(row.%Save(), "the fixture row lists three requests")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Payload.Incident).FromRow(row).%JSONExportToString(.json), "the payload exports")
+	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.requests.%Size(), 3, "three requests")
+	If object.requests.%Size() = 3 {
+		Set one = object.requests.%Get(0)
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.count_"|"_one.%GetTypeOf("count"), reroute_"|reroute|OrdersForReview|7|number", "the reroute names its target and counts its affected messages")
+		Set one = object.requests.%Get(1)
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.%IsDefined("count"), suspend_"|suspend_item|OrdersToWarehouse|0", "the suspend names its item and gives no count")
+		Set one = object.requests.%Get(2)
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.%IsDefined("item")_"|"_one.%IsDefined("count"), repair_"|repair_resend|0|0", "the repair request names no item and gives no count")
+	}
+	Do $ClassMethod(fixture, "Clean", reroute_","_suspend_","_repair_","_row.Ref)
 }
 
 /// A saved FixRun of the request (the Ref) and the incident, with the properties of fields (an object) set. Fixture.FixRun ends the

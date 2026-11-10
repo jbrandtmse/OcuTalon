@@ -50,7 +50,7 @@
 ///     state other than timeout, unknown and ""; a run that is not_checked only because the read was cut or the incidents could not be read still counts),
 ///     the state and the disabled items are compared with what the row last reported (BackgroundCheck.Reported, JSON {"stopped": 1 while the stop has been
 ///     reported, "disabled": [the names reported disabled], "ours": [the names of the disabled items that OcuTalon suspended, only when there is one]}); Findings applies the rule. A production stopped or suspended since the last run is one finding,
-///     and each item disabled since is one, in the order the reader gave them; an item that OcuTalon itself suspended (Fix.Run Suspended, Story 23.2) is recorded in Reported but gets no finding, and a disable by anyone else after that (the item enabled and disabled again) does;
+///     and each item disabled since is one, in the order the reader gave them; an item that OcuTalon itself suspended (Fix.Run Suspended, Story 23.2) is recorded in Reported but gets no finding, and a disable by anyone else after that (the item enabled and disabled again) does, while a second suspend by OcuTalon does not;
 ///     troubled, network_stopped and a restart are not stops, and a restart makes the
 ///     next stop new. A row whose Reported is empty (a new watch, or one from before this story) only records its baseline: the first reading run reports
 ///     nothing. A run that read no state leaves Reported as it was. Each finding is one OcuTalon.Msg.Item for Intake only (Channel system, Provenance
@@ -576,7 +576,8 @@ Method Run(row As %DynamicObject, tickAt As %String, keep As %Boolean = 0) [ Pri
 	Set reported = row.reported
 	Set items = ##class(%ListOfObjects).%New()
 	If (outcome = "read") && 'threw {
-		Set found = ..Findings(row.reported, state, disabled, .reported, ##class(OcuTalon.Fix.Run).Suspended(row.namespace, row.production))
+		Set suspended = ##class(OcuTalon.Fix.Run).Suspended(row.namespace, row.production, row.lastRunAt, .fresh)
+		Set found = ..Findings(row.reported, state, disabled, .reported, suspended, fresh)
 		Set iterator = found.%GetIterator()
 		While iterator.%GetNext(, .one) {
 			If one.kind = "stopped" {
@@ -622,9 +623,10 @@ Method Record(row As %DynamicObject, tickAt As %String, runAt As %String, result
 /// is previous, unchanged. suspended is a list of the item names that OcuTalon itself suspended (Fix.Run Suspended); reported may also carry "ours", the names of those items that
 /// were disabled when sighted, written only when there is one. A disabled item that suspended lists gets no finding when it is not in the previous ours (it is added to ours), so that a
 /// suspend the user approved is not reported as a new state change (Story 23.2); when it is in the previous ours and was not in the previous disabled, someone else disabled it again
-/// and it is a finding. The new ours is the previous ours restricted to suspended, plus the names just added; a baseline records the disabled names that suspended lists. An item that
+/// and it is a finding, unless fresh (Fix.Run Suspended's names whose suspending run ended since the previous run) lists it: then OcuTalon suspended it again. The new ours is the
+/// previous ours restricted to suspended, plus the names just added; a baseline records the disabled names that suspended lists. An item that
 /// suspended does not list follows the plain rule: a finding when it was not in the previous disabled.
-ClassMethod Findings(previous As %String, state As %String, disabled As %DynamicArray, Output reported As %String, suspended As %List = "") As %DynamicArray
+ClassMethod Findings(previous As %String, state As %String, disabled As %DynamicArray, Output reported As %String, suspended As %List = "", fresh As %List = "") As %DynamicArray
 {
 	Set found = []
 	Set reported = $Get(previous)
@@ -666,7 +668,7 @@ ClassMethod Findings(previous As %String, state As %String, disabled As %Dynamic
 		If $ListFind(suspended, name) {
 			If '$Data(wasOurs(name)) {
 				Do ours.%Push(name, "string")
-			} ElseIf '$Data(seen(name)) {
+			} ElseIf '$Data(seen(name)) && '$ListFind(fresh, name) {
 				Do found.%Push({"kind": "disabled", "item": (name)})
 			}
 		} ElseIf $IsObject(before) && '$Data(seen(name)) {

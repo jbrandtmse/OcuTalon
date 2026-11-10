@@ -801,12 +801,13 @@ Method TestLaterWakeEnds()
 }
 
 /// A later round that cannot raise a request (V2; the matrix rows "Later dry run refused", "Nothing to resend", "Raise fails / ask not sent / error answer / slots
-/// unbuildable", "Opened during the ask", "Gone" and "No first request row"): nothing is raised or sent, AskingSince is cleared (for an incident that is closed or
+/// unbuildable", "Opened during the ask", "Gone" and "No first request row"; and, Story 23.2, an incident whose only request is of a kind the diagnosis never names,
+/// such as a chat-asked suspend_item): nothing is raised or sent, AskingSince is cleared (for an incident that is closed or
 /// gone, nothing is written), the state stands, and each error is one Type 3 warning (LOGLATER, naming the incident) while an empty Targets, an open incident, a
 /// closed or deleted one and a stale answer are none. A waiter that cannot be started clears LaterSince with one warning.
 Method TestLaterNoRequestRoutes()
 {
-	Set cases = $ListBuild("reason", "targets", "raise", "ask", "error", "field", "resend", "object", "open", "closed", "deleted", "stale", "closedwake", "norow", "nokind", "start")
+	Set cases = $ListBuild("reason", "targets", "raise", "ask", "error", "field", "resend", "object", "open", "closed", "deleted", "stale", "closedwake", "norow", "nokind", "chatkind", "start")
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Do ..Setup("norequest"_case, .a, .b, .incident, .row)
@@ -818,6 +819,7 @@ Method TestLaterNoRequestRoutes()
 		Set at = ##class(OcuTalon.Test.Watch.Incidents).Stamp(-120)
 		If case = "norow" Do ..Change(incident, "RequestRefs", ##class(OcuTalon.Bridge.Ids).NewRef())
 		If case = "nokind" Do ..ChangeRequest(r1, "FixKind", "")
+		If case = "chatkind" Do ..ChangeRequest(r1, "FixKind", "suspend_item")
 		Set host.FailStart = (case = "start")
 		Set host.FailDryRun = (case = "ask")
 		Do $$$AssertStatusOK(..Join(host, incident, "104,105", at_","_at), case_": the later failures are handled")
@@ -836,7 +838,7 @@ Method TestLaterNoRequestRoutes()
 			Do ..Clear()
 			Continue
 		}
-		If (case = "norow") || (case = "nokind") {
+		If (case = "norow") || (case = "nokind") || (case = "chatkind") {
 			Do $$$AssertEquals(asked_"|"_now.laterSince_"|"_now.askingSince_"|"_..Logged(.text), "0|||1", case_": the first request cannot be read: nothing is asked, LaterSince is cleared and one warning is logged: "_text)
 			Do ..Clear()
 			Continue

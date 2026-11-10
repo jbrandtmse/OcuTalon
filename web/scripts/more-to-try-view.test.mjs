@@ -124,6 +124,12 @@ describe('(a) the fixed strings', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS.map((id) => ACTION_OF[id] ?? id));
   });
 
+  it('declare the group of the incident summary and reroute items, Incidents and fixes (Contest Planner ruling, 2026-11-10)', () => {
+    const byId = Object.fromEntries(MORE_TO_TRY_ITEMS.map((item) => [item.id, item]));
+    assert.equal(byId.incidentSummary.group, 'Incidents and fixes');
+    assert.equal(byId.reroute.group, 'Incidents and fixes');
+  });
+
   it('use straight ASCII quotes and no other non-ASCII character', () => {
     for (const text of JSON.stringify(MORE_TO_TRY_TEXTS)) {
       assert.ok(text.charCodeAt(0) < 128, `${JSON.stringify(text)} is ASCII`);

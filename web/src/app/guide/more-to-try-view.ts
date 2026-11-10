@@ -102,22 +102,26 @@ export const DISMISS_BUTTON = 'app-incident-dismiss button';
 /** The hand-off that an item's control makes. */
 export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'demoView' | 'memory' | 'documents' | 'heartbeat';
 
-/** One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off. */
+/**
+ * One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off,
+ * and, optionally, the heading of the group it belongs to (the panel does not render groups yet).
+ */
 export interface MoreToTryItem {
   readonly id: string;
   readonly label: string;
   readonly lookFor: string;
   readonly button: string;
   readonly action: MoreToTryAction;
+  readonly group?: string;
 }
 
 /** The items, in the order the panel shows them: the registry's length is the count that the README and EXPERIENCE give. */
 export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
-  { id: 'incidentSummary', ...MORE_TO_TRY_TEXTS.items.incidentSummary, action: 'incidentSummary' },
+  { id: 'incidentSummary', ...MORE_TO_TRY_TEXTS.items.incidentSummary, action: 'incidentSummary', group: 'Incidents and fixes' },
   { id: 'persona', ...MORE_TO_TRY_TEXTS.items.persona, action: 'persona' },
   { id: 'suspiciousEmail', ...MORE_TO_TRY_TEXTS.items.suspiciousEmail, action: 'suspiciousEmail' },
   { id: 'rejectFix', ...MORE_TO_TRY_TEXTS.items.rejectFix, action: 'rejectFix' },
-  { id: 'reroute', ...MORE_TO_TRY_TEXTS.items.reroute, action: 'reroute' },
+  { id: 'reroute', ...MORE_TO_TRY_TEXTS.items.reroute, action: 'reroute', group: 'Incidents and fixes' },
   { id: 'demoView', ...MORE_TO_TRY_TEXTS.items.demoView, action: 'demoView' },
   { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory' },
   { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents' },

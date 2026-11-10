@@ -10,6 +10,8 @@
 ///   - TestSchemaCheck: the base's CheckParameters (through ZzKind) accepts exactly the PARAMETERS keys, each a string that is not blank;
 ///   - TestCheckParameters: RepairResend's matrix: the field must be a member of the fields (exactly), both formats registered, one family, two different formats;
 ///   - TestFieldWords: the words of a property name;
+///   - TestItemsNotRead (Story 23.2): a suspend, resume or reroute dry run for a production whose items can't be read refuses with the item kinds' plain reason
+///     (SuspendItem NOREAD), the text the chat model is given, and nothing else;
 ///   - TestGoodChanges (Story 7.9): RepairResend GoodChanges says whether the repair would change a good message's body: 11/11/2026 from MM/DD/YYYY to DD/MM/YYYY converts to
 ///     itself and is unchanged, to YYYY-MM-DD it is changed, 1234 from 1234.56 to 1234,56 is unchanged, and an empty value, a missing field, an empty body, a body that is no
 ///     object and a value in another format (YYYY-MM-DD under MM/DD/YYYY) are unchanged;
@@ -173,6 +175,23 @@ Method TestFieldWords()
 	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind.RepairResend).FieldWords(""), "", "an empty name has no words")
 	For pair = "OrderDate=order date", "PONumber=po number", "Sku=sku", "order_date=order date", "order-date=order date", "order.date=order date", "OrderID=order id", "XMLHttpRequest=xml http request", "Line2Total=line2 total", "a__b=a b", "_Lead=lead", "ALLCAPS=allcaps" {
 		Do $$$AssertEquals(##class(OcuTalon.Fix.Kind.RepairResend).FieldWords($Piece(pair, "=", 1)), $Piece(pair, "=", 2), "the words of '"_$Piece(pair, "=", 1)_"'")
+	}
+}
+
+Method TestItemsNotRead()
+{
+	Set incident = ##class(OcuTalon.Data.Incident).%New()
+	Set incident.Namespace = ""
+	Set incident.Production = "Zz.NoSuchProduction"
+	Set noread = $Parameter("OcuTalon.Fix.Kind.SuspendItem", "NOREAD")
+	For pair = "OcuTalon.Fix.Kind.SuspendItem|item", "OcuTalon.Fix.Kind.ResumeItem|item", "OcuTalon.Fix.Kind.Reroute|target" {
+		Set class = $Piece(pair, "|", 1)
+		Set parameters = {}
+		Do parameters.%Set($Piece(pair, "|", 2), "OrdersForReview")
+		Set sc = $ClassMethod(class, "DryRun", incident, parameters, .targets, .dryRun)
+		Do $$$AssertStatusNotOK(sc, class_": the dry run refuses when the items can't be read")
+		Do $$$AssertEquals($SYSTEM.Status.GetOneStatusText(sc), noread, class_": with the plain reason NOREAD only")
+		Do $$$AssertEquals($Get(targets)_"|"_$IsObject($Get(dryRun)), "|0", class_": and gives no target and no dry run")
 	}
 }
 
