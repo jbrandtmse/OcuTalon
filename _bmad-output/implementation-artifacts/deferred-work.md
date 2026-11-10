@@ -6656,6 +6656,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 merge 649b511f (feature 3dcd4cb5 + 23.2) local live:sign-in-3: 1 failed, 166 passed; 23.2 changes neither the Memory card nor its spec
 - 2026-11-10T19:23:42Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=ci note=flake_candidate:MC6_keyboard_tab;watch_CI_sign-in-3
+- 2026-11-10T20:40:47Z note=MC6_passed_on_the_merged_tree_e2e83fbc(feature_56c61cea_with_41.13+23.2):live:sign-in-3_181_passed;the_one_red_was_on_649b511f(3dcd4cb5+23.2,before_41.13);no_23.2_code_touches_the_Memory_card
 ### DW-1093: flake: live:sign-in-2 e2e/rail/rail.spec.ts:432 R10 'after live events the rail holds what a reload shows' failed at :470 'a reload shows the same rail'
 - source: main run 42863516417 attempt 1 (v1.0.6 tag 96947f4d), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (shards-4) live:sign-in-2 R10 red at :470; green on one rerun; main badge green 19:45Z
