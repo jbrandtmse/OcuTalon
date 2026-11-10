@@ -6486,3 +6486,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Test/Core/ConversationSessionStart.cls TestCoreMemoryAtStart; the existing StartIfNewDay pattern of the class
 - 2026-11-10T00:26:53Z status=wontfix-accepted owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=cr note=reopen_if=a CI or local run of ConversationSessionStart:TestCoreMemoryAtStart that straddles local midnight goes green with the branch skipped
+
+### DW-1059: The generated docs/security-overview.md role table lists %Ens_ConfigItemRun:U for OcuTalonServiceRole unconditionally, but an online-demo install leaves it off (S1)
+- source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Install.Step.Fix.Grants omits the pair when onlineDemo is 1; Install.SecurityOverview renders the table from Fix.Kind.Classes() without that condition; the fix needs one ruled public sentence
+- 2026-11-10T04:01:57Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=harvest note=needs_a_Planner_ruled_sentence;fix_in_23.2_before_its_commit
