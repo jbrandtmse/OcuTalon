@@ -20,11 +20,11 @@ A refusal counts as a block only when its status is one of the block statuses, i
 
 Exit codes: 0 every check passed; 1 a check failed; 2 a usage error, a missing tool (bash 3.2 or later, curl, jq), or the host or the gate refusing the first credentialed request; 3 nothing failed, but a check was skipped.
 
-1. Normal, at any time: the allow-list, the blocks, the password guard, the status JSON, the time zone and the status command. The Planner pipes in what only the host can read: the output of `ocutalon-demo status` (`--demo-status`) and the IRIS container's `TZ` value (`--zone`); at most one of the two may be standard input.
+1. Normal, at any time: the allow-list, the blocks, the password guard, the status JSON, the time zone, the status command and the heartbeat. The Planner pipes in what only the host can read: the output of `ocutalon-demo status` (`--demo-status`), the IRIS container's `TZ` value (`--zone`) and the one line that the heartbeat command prints (`--heartbeat`, DW-1018; see "The heartbeat input"); at most one of the three may be standard input.
 
    ```
    OCUTALON_CHECK_BLOCK_STATUS='403 404' OCUTALON_CHECK_BLOCK_MARK='<mark>' \
-     bash release/demo-host-check.sh https://demo.example --demo-status status.json --zone zone.txt
+     bash release/demo-host-check.sh https://demo.example --demo-status status.json --zone zone.txt --heartbeat heartbeat.txt
    ```
 
 2. During a reset, while the maintenance page is up (DW-240): `bash release/demo-host-check.sh https://demo.example --state maintenance`. It compares the page and the four logos (`logo/web/OcuTalon-Logo-{light,dark}-{640,1280}.png`) byte for byte against the repository, beside the page and under `/ocutalon/assets/brand/`.
@@ -62,6 +62,7 @@ Exit codes: 0 every check passed; 1 a check failed; 2 a usage error, a missing t
 | H23 | AC7: the configuration and runbook stay outside the repository; the server and DNS, the bot and token, the real key in the gateway, SSH for the hook, opening the gate | none | The author's preconditions | pass 2026-11-02 (by hand, Contest Planner); re-check at the release deploy |
 | H24 | The Epic 16 deploy fact "EvalIn off" | none | Measured: `EvalIn` `Enabled=0`, and `OCUTALON_EVAL` is unset | measured 2026-10-30 (Epic 16 deploy); re-check at the release deploy |
 | H25 | NFR-7, NFR-23, DW-286: the load run through the real proxy. Case 1: 6 visitors on the demo path, every notice within 60 s, the one more visitor sees "Demo busy". Case 2: 3 visitors with Visual Trace open, the one more visitor sees "Demo busy" at the trace connections. The licence units per visitor on the host | `release/demo-load.sh` (the load run below) | The two cases of "The load run", with the source addresses and the units command; the tables go into the 1.0.0 release notes | pending |
+| H26 | DW-1018: the heartbeat ticks (last tick at most 3 minutes old) and its task is not suspended | `heartbeat-*` | Run 1 with `--heartbeat` | pending |
 
 ## The probe's host interface (DW-254, H20)
 
@@ -73,6 +74,19 @@ Exit codes: 0 every check passed; 1 a check failed; 2 a usage error, a missing t
 - The outcomes and exit codes: `healthy` and `capped` exit 0 with no alert; `busy`, `no_splash` and `degraded` alert and exit 1 and change no count (`busy` adds one to the day's busy count; `degraded` is a turn that fell back with `no_key`, `timeout` or `rate_limited`, so the demo answers but without its model); `auth_failed` and `no_decision` alert, add one to the count of counted failures and exit 1, and at two the reset command runs once; a configuration error exits 2; a run that receives a signal signs out and exits 130. The alert reaches the author for every outcome it is given, `degraded` included, and the reset command resets the demo.
 
 Measured on the gated host (2026-10-30): the probe is healthy, and its scheduled run alerted `busy` during the busy test, so the alert path works.
+
+## The heartbeat input (DW-1018, H26)
+
+The check reads one line that the Planner prints on the host, outside the cap (a terminal takes one licence unit; see "The licence units"). The command is read-only: it opens the task only to read its stored Suspended value (`##class(%SYS.Task).SuspendedGetStored`), and it never resumes, suspends or changes the task, the mark or anything else. The container name below is the example of the demo host's IRIS container (`ocutalon-demo-iris`).
+
+```
+printf '%s\n' 'Set id=##class(%SYS.Task).FindId("OcuTalon heartbeat") Write !,{"lastTick":(##class(OcuTalon.Data.StatusMark).Get("heartbeatTick")),"now":(##class(OcuTalon.Data.Time).NowUtc()),"suspended":($Select(id="":"missing",1:##class(%SYS.Task).SuspendedGetStored(id)))}.%ToJSON(),!' 'Halt' \
+  | docker exec -i ocutalon-demo-iris iris session IRIS -U OCUTALON > heartbeat.txt
+```
+
+- The script reads the last line of the file that starts with `{` (the terminal prints its banner and prompts around it). It fails `heartbeat-tick` when `now - lastTick` is over 180 s, and `heartbeat-task` when `suspended` is not 0 (`1` or `2` is a suspended task, `"missing"` is no task of that name).
+- The 180 s are the page banner's: `OcuTalon.Schedule.Heartbeat` `STALLSECONDS` is 180, which `StatusMonitor` uses for `heartbeatStalled`. For a readable tick, `heartbeat-tick` fails exactly when the page would show the "Background checks have paused" banner. An empty or unreadable tick also fails the check (a host that never ticked), where the page shows no banner.
+- A host-side fix is no longer needed from 1.0.6: the next start resumes the task (Reconcile resumes a Suspended heartbeat task, and writes one `WARN Reconcile` line to the after-start log).
 
 ## The licence units (DW-287, H22)
 

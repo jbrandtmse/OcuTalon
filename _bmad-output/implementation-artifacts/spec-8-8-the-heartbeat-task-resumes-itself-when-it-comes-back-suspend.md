@@ -2,7 +2,8 @@
 title: 'Story 8.8: The heartbeat task resumes itself when it comes back Suspended'
 type: 'bugfix'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'fbd9b13310d2fdbbcd7023412c90fa3eb36d2ef5'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -193,6 +194,28 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-10 -- Review pass
+- verdicts: 29 findings (rows group findings that share a root cause) -- high 0, medium 2, low 27, false 0, maybe-false 0; 11 patched, 18 rejected
+- findings:
+  - `[low]` `[patch]` blind 1 / edge 9 -- `ci/units.sh` comment sizes the unit at 350 to 450 s while the local run was 521 s -- the comment now states the local figure and that CI's is the one to confirm
+  - `[low]` `[patch]` blind 2 -- `test-heartbeat-restart.sh` fails on lib-live's 540 s default locally -- the header names `OCUTALON_LIVE_DEADLINE=1200` (CI's value)
+  - `[low]` `[patch]` blind 3 / edge 4 -- `resumed_since` used a locale `sort` -- now `LC_ALL=C sort`; the fraction part is `[reject]`: `NowUtc()` writes whole seconds (`Data.Time.NowUtc`)
+  - `[low]` `[reject]` blind 4 / edge 1 -- Reconcile now fails when Resume fails, against "warns without failing" -- spec-bound: Decided 3 makes a failed Resume an error; the doc comment says both; row 5 is now pinned by `TestResumeFails` and `TestReconcileReportsFailedResume`
+  - `[low]` `[reject]` blind 5 / edge 3 -- `FindId` resumes one of two same-named tasks -- no path creates a second (`Tasks.Create` finds by name first), wontfix-theoretical
+  - `[low]` `[reject]` blind 6 / intent 1 -- a stale capture passes `heartbeat-tick` -- spec-bound: the tick is compared with the `now` printed beside it (Design Notes 1f3); the Planner prints the file at the run
+  - `[low]` `[reject]` blind 7 -- a killed run leaves a probe task -- its StartDate is a year ahead and it exists only on throwaways, wontfix-theoretical
+  - `[low]` `[reject]` blind 8 / gap other 2 -- plan bullets remain beside the `mutation:` lines -- the fix is a spec edit; the `mutation:` lines carry the results
+  - `[low]` `[reject]` edge 2 -- Resume OK while the stored value stays non-zero -- Resume is one SQL UPDATE (measured, M1); no such state is reachable
+  - `[medium]` `[patch]` edge 5 / gap other 1 -- `HoldRow` waited 5 s for the lock-holding job, and a late job could block the restore -- the wait is 10 s, twice the job's own lock wait
+  - `[low]` `[reject]` edge 6 -- `suspended` "0" as a string passes -- the host command prints a number; theoretical
+  - `[low]` `[reject]` edge 7 -- a tick later than now passes -- spec-bound (Decided 7); now pinned by the `hb-future` fixture (see the gap row)
+  - `[low]` `[patch]` edge 8 -- the doc says the check fails exactly when the page shows the banner, but an empty tick fails the check only -- the sentence now says "for a readable tick" and names the empty case (flagged to the lead as a narrowing of the ruling's wording)
+  - `[low]` `[patch]` gap 1 -- AC 5 "restored afterwards" had no assertion or mutation -- `RestoreRealTask` asserts it at the end of each real-task test; mutation recorded
+  - `[low]` `[patch]` gap 2 -- AC 4 had no mutation line -- demonstrated on the live unit (3 checks red); recorded
+  - `[low]` `[patch]` gap 3 -- the negative-age rule had no fixture -- `hb-future.txt` (age -30) added to row 17, expecting exit 0
+  - `[low]` `[reject]` gap 4 -- no fractional-second fixture -- `NowUtc()` and the tick mark are whole seconds; theoretical
+  - `[low]` `[reject]` intent 2-7 -- descriptive divergences (extra FAIL conditions and usage errors the intent does not name, failed Resume status, IPM path pinned through the shared Reconcile, plain restart in place of an update flow, banner not observed directly, no new request) -- each is in the spec's Design Notes or Acceptance Criteria as written; nothing to patch
+
 ## Design Notes
 
 **Governing ADs:**
@@ -329,6 +352,13 @@ deferred: []
   2. The `heartbeat-tick` FAIL threshold (more than 180 s) is the same number as the page banner's stall threshold (`OcuTalon.Schedule.Heartbeat` `STALLSECONDS` 180, which `StatusMonitor` uses for `heartbeatStalled`), and the doc line says so: the host check fails exactly when the page would show the stalled banner. If the implementation finds the two numbers differ, that is a blocker to report, not a silent choice.
 - **The AD-18 line** is approved by the orchestrator (U14) and written by the lead in the spine, marked `[ADDED 2026-11-10, Story 8.8]`.
 
+**Decided in-stage (implement):**
+- The doc's banner sentence is narrowed (review): for a readable tick `heartbeat-tick` fails exactly when the page would show the banner, and the doc says that an empty or unreadable tick also fails the check where the page shows no banner (`Heartbeat.Stalled` returns 0 for those). The 180 s equality with `STALLSECONDS` is stated unchanged. The lead should ratify this narrowing with the Planner's ruling condition 2.
+- Matrix row 5 (Resume fails) is covered by `TestResumeFails` (probe task) and `TestReconcileReportsFailedResume` (real task, through `Reconcile()`). A failing `Resume` is provoked by a second job holding the task's row lock (`^|"^^"_$ZU(12)|SYS("Task","TaskD",id)`, measured on slot C: `Resume` returns `ERROR #7419 ... (SQLCODE=-110)` after 10 s and the stored Suspended stays 1). A past `EndDate` and a deleted `RunAsUser` do not make `Resume` fail (measured).
+- `Test.Schedule.TaskResume` creates its probe task only for `TestNotSuspended` and `TestSuspended`. `Snapshot` compares the id, `ScheduleOf` without its `Suspended` field, `RunAsUser`, `NameSpace`, `TaskClass`, `Description` and `Name`, each from a fresh `%OpenId` inside a class method (no OREF held by the caller).
+- `test-heartbeat-restart.sh` needs more than the 540 s default deadline of `lib-live.sh` on a loaded developer machine (521 s of work, 8:53 wall including the build): run it locally with `OCUTALON_LIVE_DEADLINE=1200`, which is CI's value. The measured TIMING lines: restart 1 (task suspended) 26 s to ready, first tick 62 s after ready, restart 2 44 s.
+- The doc command was re-measured on the lane-C warm throwaway (SuspendedGetStored form): `{"lastTick":"2026-11-10T02:13:00Z","now":"2026-11-10T02:13:44Z","suspended":0}`.
+
 **Decided:**
 1. **Where the resume lives.** It is in `Install.Step.Schedule` (`ResumeTask` called from `Reconcile()`), as the lead expected. The Reconcile declaration is the one hook all three start paths share, and it runs after `Tasks` and the package load.
    - A method in `OcuTalon.Schedule.*` would add a class and a cross-class call for four lines.
@@ -381,6 +411,14 @@ Lane C on the developer machine: `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.
 - The full shards (`lane-b@rest`, `lane-a@*`) and the other groups are left to CI.
 
 **Mutations (Rule 19; the implement stage records each result as `mutation: ... -> ...`):**
+
+- mutation: AC 1 -- drop the `ResumeTask` call from `Reconcile()` (`Quit sc`) -> `TestReconcileResumesHeartbeat` (the task stays at 1, the heartbeat line occurs 0 times) and `TestReconcileInResumes` (no Warning row, task at 1) red on the warm stack; reverted, tree byte-identical. The live unit's resume check was not re-run under this mutation (a 9-minute run); it is the same Reconcile call, shown red by M4.
+- mutation: AC 4 (live unit) -- `Quit sc` in place of `Quit $SYSTEM.Status.AppendStatus(sc, ..ResumeTask(..#HEARTBEATTASK))` in `Reconcile()` -> `ci/iris.sh live heartbeat-restart` fails 3 checks: "restart 1: the log has no STEP Reconcile OK, or not exactly one '...was suspended, so it was resumed' line", "restart 1: the task is not at 0, or no tick was taken after the start, within 120 s of ready" and "restart 2: the task changed or is not at 0" (the task stays at 1 across both restarts); reverted, byte-identical.
+- mutation: AC 5 (the real task's Suspended is as it was found) -- `Quit $$$OK` at the top of `PutBack()` in `Test.Schedule.TaskResume` -> `TestReconcileReportsFailedResume` ("its stored Suspended is as the test found it") and, through the task it leaves at 1, `TestReconcileResumesHeartbeat` red on the warm stack; reverted, byte-identical.
+- mutation: matrix row 5 (Resume fails) -- `Set sc = $$$OK` right after the `Resume` call in `ResumeTask` -> `TestResumeFails` ("a Resume that fails returns its status", "and writes no line") and `TestReconcileReportsFailedResume` red on the warm stack; reverted, byte-identical.
+- mutation: AC 2 -- remove the `SuspendedGetStored` guard -> `TestNotSuspended` ("and writes no line") and `TestReconcileLeavesHeartbeat` ("no heartbeat line is written") red; reverted, byte-identical.
+- mutation: AC 3 -- `If id = "" Quit $SYSTEM.Status.Error(5001, "no task")` -> `TestMissing` ("ResumeTask returns OK") red; reverted, byte-identical.
+- mutation: AC 6 -- both applied in one run of `bash docker/tests/test-online-host.sh`: the limit 180 changed to 240, and `0 | 1)` for the PASS case of `suspended` -> row 17 red for `hb-181` (exit 0, no `heartbeat-tick` FAIL, no "more than 3 minutes" text), `hb-old` (240 s), `hb-s1` (no `heartbeat-task` FAIL, no "(Suspended 1)" text): 5 checks failed; reverted, byte-identical.
 - AC 1: drop the `ResumeTask` call from `Reconcile()`. Expect `TestReconcileResumesHeartbeat`, `TestReconcileInResumes` and the live unit's resume check to go red (M4 showed the task staying at 1 with no tick).
 - AC 2: remove the `SuspendedGetStored` guard. Expect `TestNotSuspended` red, from a line.
 - AC 3: quit an error on an empty id. Expect `TestMissing` red.
@@ -396,5 +434,26 @@ Lane C on the developer machine: `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `Install.Step.Schedule.Reconcile()` now resumes the `OcuTalon heartbeat` task when its stored Suspended value is 1 or 2 (`ResumeTask`, read through `SuspendedGetStored`, resumed with `Resume`) and writes one `Warn` line; a task at 0, or none, is left alone with no line; a failed `Resume` is returned. `release/demo-host-check.sh` takes `--heartbeat FILE|-` and prints `heartbeat-json`, `heartbeat-tick` (fails over 180 s, the banner's `STALLSECONDS`) and `heartbeat-task`, or `SKIP heartbeat` (exit 3).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls`: `ResumeTask`, and `Reconcile()` calls it.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/ResumeProbeTask.cls` (new): the probe tests' task class.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/TaskResume.cls` (new): not-suspended, suspended (1, 2), missing, failed Resume (row lock held by another job), Reconcile and ReconcileIn wiring, and the restore of the real task.
+- `docker/tests/test-heartbeat-restart.sh` (new): the live unit (first start, suspend, restart 1, restart 2).
+- `ci/units.sh`: `live:heartbeat-restart` in `shards`, and the comment paragraph.
+- `release/demo-host-check.sh`, `release/demo-host-checks.md`, `docker/tests/test-online-host.sh`: the `--heartbeat` input, the H26 row and the row 17 cases.
+
+**Review.** 4 layers, 29 findings: 11 patched (the units comment figure, the live unit's deadline note and `LC_ALL=C sort`, the lock-holder wait of 10 s, the doc's banner sentence narrowed, the `RestoreRealTask` assertion, the `hb-future` fixture, and two mutation lines), 18 rejected with reasons in the triage log, none deferred. Follow-up review recommended: false (one medium entry patched, no high).
+
+**Verification (all on lane C).** `Test.Schedule.TaskResume` passed on the warm stack (the loop, after every patch); `Test.Schedule.Heartbeat` (85 s), `Stalled` (24 s), `Reminders` (87 s) and `Test.Install.ReconcileIn` (0.5 s) passed; `bash docker/tests/test-online-host.sh` passed (97 runs, 214 s) after the last patch; `test-ci-config.sh`, `test-ci-changes.sh` and `test-boundaries.sh` passed; `ci/iris.sh live heartbeat-restart` passed (restart 1 48 s to ready, first tick 58 s after ready, restart 2 24 s; total 522 s with `OCUTALON_LIVE_DEADLINE=1200`). Mutations: AC 1, 2, 3, 4, 5, 6 and matrix row 5 each demonstrated red and reverted byte-identical (see `## Verification`).
+
+**Residual risks.**
+- `shards` becomes about 30 minutes a job (inference until a CI run measures it); locally the unit took 522 s on a loaded machine.
+- The doc's banner sentence is narrower than the ruling's wording (an empty tick fails the check; the page shows no banner): the lead should ratify it.
+- Footprint extensions (AD-29): `release/demo-host-check.sh`, `release/demo-host-checks.md`, `docker/tests/test-online-host.sh`.
+- The spine needs the one-line addition to AD-18 and AD-23 that the spec's Design Notes give (Reconcile resumes a Suspended heartbeat task at every start); the lead writes it.
+- During the stage, one slot-C probe task row was wiped by hand and removed with `%BuildIndices` in `%SYS` (slot C task 1007 stayed at Suspended 0; no probe task or scratch class remains).

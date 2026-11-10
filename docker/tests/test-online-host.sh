@@ -23,8 +23,9 @@
 #   row 10  the status JSON    row 11  --demo-status    row 12  --zone
 #   row 13  busy    row 14  maintenance (DW-240)
 #   row 15  both release scripts (demo-host-check.sh and, Story 29.8, demo-load.sh) and the check list hold no host detail; the check
-#           list's rows H1 to H25 hold one of the four statuses
+#           list's rows H1 to H26 hold one of the four statuses
 #   row 16  a host that refuses the password-change pages with 404 (the Planner's settings pass, no answer of IRIS counts as a block)
+#   row 17  --heartbeat (DW-1018)
 # Needs Node, curl and jq. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
 
@@ -314,6 +315,28 @@ write_status_fixture "$tmp/ds.json" .
 write_status_fixture "$tmp/ds-public.json" '.access = "public"'
 printf 'America/New_York\n' > "$tmp/zone.txt"
 
+# The heartbeat fixture of the host command (release/demo-host-checks.md): the IRIS terminal's banner lines, one JSON line, and the prompt, so
+# that only the JSON line counts. write_hb_fixture <file> <age s> <suspended JSON> [<jq filter applied to the object>]: lastTick is <age> s
+# before now.
+write_hb_fixture() {
+  {
+    printf 'Node: x, Instance: IRIS\n\nOCUTALON>\n'
+    jq -nc --argjson age "$2" --argjson s "$3" '(now | floor) as $n | {lastTick: (($n - $age) | todate), now: ($n | todate), suspended: $s}' | jq -c "${4:-.}"
+    printf 'OCUTALON>\n'
+  } > "$1"
+}
+write_hb_fixture "$tmp/hb.txt" 40 0
+write_hb_fixture "$tmp/hb-180.txt" 180 0
+write_hb_fixture "$tmp/hb-181.txt" 181 0
+write_hb_fixture "$tmp/hb-old.txt" 240 0
+write_hb_fixture "$tmp/hb-future.txt" -30 0
+write_hb_fixture "$tmp/hb-s1.txt" 40 1
+write_hb_fixture "$tmp/hb-s2.txt" 40 2
+write_hb_fixture "$tmp/hb-missing.txt" 40 '"missing"'
+write_hb_fixture "$tmp/hb-notick.txt" 40 0 '.lastTick = ""'
+write_hb_fixture "$tmp/hb-odd.txt" 40 '"x"'
+printf 'not json\n' > "$tmp/hb-bad.txt"
+
 # set_flags [<flag>...]: the stand-in's flags for the next runs, "name" or "name=value" each.
 set_flags() { printf '%s\n' ${1+"$@"} > "$flags"; }
 
@@ -344,7 +367,7 @@ run_script() {
   run_seconds=$((run_seconds + SECONDS - t0))
   runs=$((runs + 1))
 }
-full=(--demo-status "$tmp/ds.json" --zone "$tmp/zone.txt")
+full=(--demo-status "$tmp/ds.json" --zone "$tmp/zone.txt" --heartbeat "$tmp/hb.txt")
 
 # ids_of <PASS|FAIL|SKIP>: the ids of the lines of that kind, sorted, one line.
 ids_of() { grep "^$1 " "$tmp/out" | cut -d' ' -f2 | LC_ALL=C sort | tr '\n' ' '; }
@@ -382,7 +405,7 @@ line_has() { grep "^$1 $2 " "$tmp/out" | grep -qF -- "$3"; }
 set_flags
 : > "$record"
 run_script -- ${full[@]+"${full[@]}"}
-expect_run "row 1: a correct host (normal state, gate credentials, block mark, --demo-status, --zone) passes every check" 0 "" ""
+expect_run "row 1: a correct host (normal state, gate credentials, block mark, --demo-status, --zone, --heartbeat) passes every check" 0 "" ""
 if grep -q 'plain http' "$tmp/err"; then pass "row 1: gate credentials over plain http draw a warning on standard error"; else fail "row 1: no plain-http warning for gate credentials"; fi
 pass_count=$(grep -c '^PASS ' "$tmp/out")
 pw_count=$(grep -c '^PASS block-pw-' "$tmp/out")
@@ -394,7 +417,8 @@ else
 fi
 missing=""
 for id in allow-splash allow-status allow-broker gate-closed status-json status-keys status-types status-nostore status-kind status-next guard-signin-3 guard-signin-4 \
-  block-mark demo-status-json demo-status-keys demo-status-types demo-status-match demo-status-version demo-status-access zone; do
+  block-mark demo-status-json demo-status-keys demo-status-types demo-status-match demo-status-version demo-status-access zone \
+  heartbeat-json heartbeat-tick heartbeat-task; do
   grep -q "^PASS $id " "$tmp/out" || missing="$missing $id"
 done
 while IFS= read -r line; do
@@ -655,40 +679,40 @@ set_flags gate_open
 run_script -- ${full[@]+"${full[@]}"}
 expect_run "row 9: a request without the credentials admitted fails gate-closed and nothing else" 1 "gate-closed" ""
 set_flags nogate
-run_script -u:OCUTALON_GATE_USER -u:OCUTALON_GATE_PASSWORD -- --demo-status "$tmp/ds-public.json" --zone "$tmp/zone.txt"
+run_script -u:OCUTALON_GATE_USER -u:OCUTALON_GATE_PASSWORD -- --demo-status "$tmp/ds-public.json" --zone "$tmp/zone.txt" --heartbeat "$tmp/hb.txt"
 expect_run "row 9: no credentials against a host with no gate: gate-closed is SKIP (exit 3), access public passes" 3 "" "gate-closed"
 
 # --- row 10: the status JSON ---
 
 set_flags status_extra status_nocache status_kind status_past
-run_script -- --zone "$tmp/zone.txt"
+run_script -- --zone "$tmp/zone.txt" --heartbeat "$tmp/hb.txt"
 expect_run "row 10: a key added, no no-store, a kind outside the two and a next reset in the past fail status-keys, -nostore, -kind and -next" 1 \
   "status-keys status-nostore status-kind status-next" "demo-status"
 set_flags status_missing status_type
-run_script -- --zone "$tmp/zone.txt"
+run_script -- --zone "$tmp/zone.txt" --heartbeat "$tmp/hb.txt"
 expect_run "row 10: a key missing and a wrong type fail status-keys and status-types" 1 "status-keys status-types" "demo-status"
 
 # --- row 11: --demo-status ---
 
 set_flags
 printf 'this is not json\n' > "$tmp/ds-bad.json"
-run_script -- --demo-status "$tmp/ds-bad.json" --zone "$tmp/zone.txt"
+run_script -- --demo-status "$tmp/ds-bad.json" --zone "$tmp/zone.txt" --heartbeat "$tmp/hb.txt"
 expect_run "row 11: input that is not JSON fails demo-status-json" 1 "demo-status-json" ""
 write_status_fixture "$tmp/ds-faults.json" '. + {extra: 1} | .pendingVersion = 5 | .lastReset = "2026-10-26T08:00:00Z" | .goldenVersion = "0.9.0" | .access = "public"'
-run_script -- --demo-status "$tmp/ds-faults.json" --zone "$tmp/zone.txt"
+run_script -- --demo-status "$tmp/ds-faults.json" --zone "$tmp/zone.txt" --heartbeat "$tmp/hb.txt"
 expect_run "row 11: a key added, a wrong type, a reset time that differs, running not golden and access public fail their demo-status-* checks" 1 \
   "demo-status-keys demo-status-types demo-status-match demo-status-version demo-status-access" ""
 write_status_fixture "$tmp/ds-kind.json" '.lastResetKind = "unscheduled"'
-run_script -- --demo-status "$tmp/ds-kind.json" --zone "$tmp/zone.txt"
+run_script -- --demo-status "$tmp/ds-kind.json" --zone "$tmp/zone.txt" --heartbeat "$tmp/hb.txt"
 expect_run "row 11: a lastResetKind that differs fails demo-status-match and nothing else" 1 "demo-status-match" ""
 write_status_fixture "$tmp/ds-next.json" '.nextReset = "2099-01-01T00:00:00Z"'
-run_script -- --demo-status "$tmp/ds-next.json" --zone "$tmp/zone.txt"
+run_script -- --demo-status "$tmp/ds-next.json" --zone "$tmp/zone.txt" --heartbeat "$tmp/hb.txt"
 expect_run "row 11: a nextReset that differs fails demo-status-match and nothing else" 1 "demo-status-match" ""
 run_stdin="$tmp/ds.json"
-run_script -- --demo-status - --zone "$tmp/zone.txt"
+run_script -- --demo-status - --zone "$tmp/zone.txt" --heartbeat "$tmp/hb.txt"
 run_stdin=
 expect_run "row 11: --demo-status - reads standard input and passes" 0 "" ""
-run_script -- --zone "$tmp/zone.txt"
+run_script -- --zone "$tmp/zone.txt" --heartbeat "$tmp/hb.txt"
 expect_run "row 11: no --demo-status input is SKIP demo-status (exit 3)" 3 "" "demo-status"
 
 # --- row 12: --zone ---
@@ -696,20 +720,62 @@ expect_run "row 11: no --demo-status input is SKIP demo-status (exit 3)" 3 "" "d
 set_flags
 for z in US/Eastern EST5EDT; do
   printf '%s\n' "$z" > "$tmp/zone.$$.txt"
-  run_script -- --demo-status "$tmp/ds.json" --zone "$tmp/zone.$$.txt"
+  run_script -- --demo-status "$tmp/ds.json" --zone "$tmp/zone.$$.txt" --heartbeat "$tmp/hb.txt"
   expect_run "row 12: the zone $z passes" 0 "" ""
 done
 printf 'UTC\n' > "$tmp/zone.$$.txt"
-run_script -- --demo-status "$tmp/ds.json" --zone "$tmp/zone.$$.txt"
+run_script -- --demo-status "$tmp/ds.json" --zone "$tmp/zone.$$.txt" --heartbeat "$tmp/hb.txt"
 expect_run "row 12: the zone UTC fails zone" 1 "zone" ""
 run_stdin="$tmp/zone.txt"
-run_script -- --demo-status "$tmp/ds.json" --zone -
+run_script -- --demo-status "$tmp/ds.json" --zone - --heartbeat "$tmp/hb.txt"
 run_stdin=
 expect_run "row 12: --zone - reads standard input and passes" 0 "" ""
-run_script -- --demo-status "$tmp/ds.json"
+run_script -- --demo-status "$tmp/ds.json" --heartbeat "$tmp/hb.txt"
 expect_run "row 12: no --zone input is SKIP zone (exit 3)" 3 "" "zone"
-run_script -- --demo-status "$tmp/ds.json" --zone <(printf 'America/New_York\n')
+run_script -- --demo-status "$tmp/ds.json" --zone <(printf 'America/New_York\n') --heartbeat "$tmp/hb.txt"
 expect_run "row 12: --zone from a pipe (process substitution, not a regular file) passes" 0 "" ""
+
+# --- row 17: --heartbeat (DW-1018) ---
+
+set_flags
+hb_run() { run_script -- --demo-status "$tmp/ds.json" --zone "$tmp/zone.txt" --heartbeat "$1"; }
+hb_run "$tmp/hb.txt"
+expect_run "row 17: a tick 40 s old and the task not suspended pass heartbeat-json, -tick and -task" 0 "" ""
+for id in heartbeat-json heartbeat-tick heartbeat-task; do
+  grep -q "^PASS $id " "$tmp/out" || fail "row 17: no PASS line for $id"
+done
+hb_run "$tmp/hb-180.txt"
+expect_run "row 17: a tick exactly 180 s old passes" 0 "" ""
+hb_run "$tmp/hb-181.txt"
+expect_run "row 17: a tick 181 s old fails heartbeat-tick" 1 "heartbeat-tick" ""
+if line_has FAIL heartbeat-tick "181 s old, more than 3 minutes"; then pass "row 17: the line says 181 s old, more than 3 minutes"; else fail "row 17: no 'more than 3 minutes' text on the heartbeat-tick line"; fi
+hb_run "$tmp/hb-old.txt"
+expect_run "row 17: a tick 240 s old fails heartbeat-tick" 1 "heartbeat-tick" ""
+hb_run "$tmp/hb-future.txt"
+expect_run "row 17: a tick 30 s later than now does not fail (as Heartbeat.Stalled treats it)" 0 "" ""
+hb_run "$tmp/hb-s1.txt"
+expect_run "row 17: Suspended 1 fails heartbeat-task" 1 "heartbeat-task" ""
+if line_has FAIL heartbeat-task "(Suspended 1)"; then pass "row 17: the line says (Suspended 1)"; else fail "row 17: no '(Suspended 1)' on the heartbeat-task line"; fi
+hb_run "$tmp/hb-s2.txt"
+expect_run "row 17: Suspended 2 fails heartbeat-task" 1 "heartbeat-task" ""
+if line_has FAIL heartbeat-task "(Suspended 2)"; then pass "row 17: the line says (Suspended 2)"; else fail "row 17: no '(Suspended 2)' on the heartbeat-task line"; fi
+hb_run "$tmp/hb-missing.txt"
+expect_run "row 17: a missing task fails heartbeat-task" 1 "heartbeat-task" ""
+if line_has FAIL heartbeat-task "does not exist"; then pass "row 17: the line says the task does not exist"; else fail "row 17: no 'does not exist' on the heartbeat-task line"; fi
+hb_run "$tmp/hb-notick.txt"
+expect_run "row 17: an empty lastTick fails heartbeat-tick" 1 "heartbeat-tick" ""
+if line_has FAIL heartbeat-tick "no readable lastTick and now"; then pass "row 17: the line says there is no readable lastTick and now"; else fail "row 17: no 'no readable lastTick and now' on the heartbeat-tick line"; fi
+hb_run "$tmp/hb-bad.txt"
+expect_run "row 17: input with no JSON object line fails heartbeat-json and nothing else" 1 "heartbeat-json" ""
+if grep -qE '^(PASS|FAIL|SKIP) heartbeat-(tick|task) ' "$tmp/out"; then fail "row 17: heartbeat-tick or heartbeat-task was printed for input with no JSON"; else pass "row 17: heartbeat-tick and heartbeat-task are not printed for input with no JSON"; fi
+hb_run "$tmp/hb-odd.txt"
+expect_run "row 17: a suspended value outside 0, 1, 2 and missing fails heartbeat-task" 1 "heartbeat-task" ""
+run_stdin="$tmp/hb.txt"
+run_script -- --demo-status "$tmp/ds.json" --zone "$tmp/zone.txt" --heartbeat -
+run_stdin=
+expect_run "row 17: --heartbeat - reads standard input and passes" 0 "" ""
+run_script -- --demo-status "$tmp/ds.json" --zone "$tmp/zone.txt"
+expect_run "row 17: no --heartbeat input is SKIP heartbeat (exit 3)" 3 "" "heartbeat"
 
 # --- usage errors: exit 2, nothing sent ---
 
@@ -726,6 +792,8 @@ usage_case "a block status of 407" OCUTALON_CHECK_BLOCK_STATUS=407
 usage_case "a block status that is no status" OCUTALON_CHECK_BLOCK_STATUS="403 abc"
 usage_case "two inputs on standard input" X=1 --demo-status - --zone -
 usage_case "an option without a value" X=1 --zone
+usage_case "--heartbeat without a value" X=1 --heartbeat
+usage_case "two inputs on standard input (zone and heartbeat)" X=1 --zone - --heartbeat -
 usage_case "a gate user without a password" -u:OCUTALON_GATE_PASSWORD
 usage_case "an unreadable input" X=1 --zone "$tmp/no-such-file"
 usage_case "a folder as input" X=1 --zone "$tmp"
@@ -873,16 +941,16 @@ else
   fail "row 15: a release script or the check list does not exist"
 fi
 
-# --- AC 9: the check list's rows H1 to H25 ---
+# --- AC 9: the check list's rows H1 to H26 ---
 
 status_pending="pending"
 status_measured="measured 2026-10-30 (Epic 16 deploy); re-check at the release deploy"
 status_part="measured in part 2026-10-30 (Epic 16 deploy); rest pending"
 status_hand="pass 2026-11-02 (by hand, Contest Planner); re-check at the release deploy"
-# host_status_bad <file>: the rows among H1 to H25 that are not present once with exactly one of the four statuses.
+# host_status_bad <file>: the rows among H1 to H26 that are not present once with exactly one of the four statuses.
 host_status_bad() {
   local f=$1 n rows count status bad=""
-  for n in $(seq 1 25); do
+  for n in $(seq 1 26); do
     rows=$(grep -E "^\| H$n \|" "$f" 2> /dev/null)
     count=$(printf '%s\n' "$rows" | grep -c .)
     status=$(printf '%s\n' "$rows" | awk -F'|' '{ gsub(/^ +| +$/, "", $(NF-1)); print $(NF-1) }')
@@ -899,7 +967,7 @@ host_marked_pass() { grep -qiE '^\| H[0-9]+ \|.*\|[[:space:]]*(pass|passed|ok)[[
 
 bad=$(host_status_bad "$checklist")
 if [ -z "$bad" ]; then
-  pass "check list: H1 to H25 are each present once with one of the four statuses (no bare pass)"
+  pass "check list: H1 to H26 are each present once with one of the four statuses (no bare pass)"
 else
   fail "check list: no single row with one of the four statuses for:$bad"
 fi
