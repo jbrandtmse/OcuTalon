@@ -189,6 +189,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-10 (lead, spec gate): the Contest Planner's ruling recorded under Design Notes, "Spec gate: ruling" [AMENDED 2026-11-10, Contest Planner ruling]. The texts are approved as written. The doc hunk (3b) must give a paste-ready, read-only host command naming `ocutalon-demo-iris` and reading the stored Suspended value, and must say that the 180 s threshold equals the banner's. The AD-18 line is written in the spine by the lead.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -319,6 +321,13 @@ deferred: []
      - The script reads the last line that starts with `{`. It fails `heartbeat-tick` when `now - lastTick` is over 180 s, and `heartbeat-task` when `suspended` is not 0.
      - A host-side fix is no longer needed from 1.0.6: the next start resumes the task.
    - c. **H26** in the criteria table: `| H26 | DW-1018: the heartbeat ticks (last tick at most 3 minutes old) and its task is not suspended | \`heartbeat-*\` | Run 1 with \`--heartbeat\` | pending |`.
+
+**Spec gate: ruling** [AMENDED 2026-11-10, Contest Planner ruling] (owner delegation, ~02:10Z, relayed by the orchestrator; the verbatim ruling is in the coordination folder's `epic-8-rulings-88.md`):
+- **Approved as written:** the resume line in its three forms (the `Schedule.cls` Warn text, the after-start/IPM `WARN Reconcile ...` line, the Event Log Warning `ReconcileIn: ...`); every `check_heartbeat` PASS/FAIL/SKIP line, the usage lines and the usage error above; the `--heartbeat FILE|-` input, with `SKIP heartbeat` and exit 3 when it is absent, like the other optional inputs. The Planner adds `--heartbeat` to Run 1 in the runbook.
+- **Conditions the doc hunk (3b) must meet** (checked by the lead before PART READY):
+  1. `release/demo-host-checks.md` gives the exact host command that prints the JSON line, ready to paste, with `ocutalon-demo-iris` as the example container name (not a `<placeholder>`), and the doc says plainly that the command is read-only: it never resumes or changes the task. The command reads only (`FindId`, `StatusMark.Get`, `Data.Time` now, and the stored Suspended value through `##class(%SYS.Task).SuspendedGetStored(id)` rather than `%OpenId(...).Suspended`, as the product code does); re-measure it on the throwaway (M7) after the change.
+  2. The `heartbeat-tick` FAIL threshold (more than 180 s) is the same number as the page banner's stall threshold (`OcuTalon.Schedule.Heartbeat` `STALLSECONDS` 180, which `StatusMonitor` uses for `heartbeatStalled`), and the doc line says so: the host check fails exactly when the page would show the stalled banner. If the implementation finds the two numbers differ, that is a blocker to report, not a silent choice.
+- **The AD-18 line** is approved by the orchestrator (U14) and written by the lead in the spine, marked `[ADDED 2026-11-10, Story 8.8]`.
 
 **Decided:**
 1. **Where the resume lives.** It is in `Install.Step.Schedule` (`ResumeTask` called from `Reconcile()`), as the lead expected. The Reconcile declaration is the one hook all three start paths share, and it runs after `Tasks` and the package load.
