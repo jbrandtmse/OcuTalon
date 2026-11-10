@@ -776,3 +776,5 @@
 2026-11-10T22:36:57Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) story=0.24
 2026-11-10T22:36:57Z	Epic 0	retro_review_skipped	reason=skipped(policy) note=reopen_for_one_story(0.24);X.0_and_retro_review_skipped_per_dispatch
 2026-11-10T22:37:05Z	Epic 0	ledger_routed_planned	story=0.24 entries=1 excess=0 by=load note=DW-1099_reowned_burndown->0.24(cited_in_the_story_block_header)
+2026-11-10T22:38:09Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.24_added) model=claude-opus-5-5 effort=high lines=74
+2026-11-10T22:38:09Z	Story 0.24	stage_spawned	stage=plan spawn_at=2026-11-10T22:38:09Z model=opus effort=high agent_name=0-24-plan-1 cycle_iteration=1
