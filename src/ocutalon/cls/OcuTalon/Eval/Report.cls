@@ -137,6 +137,12 @@ Parameter SAVETOOL = "save_memory";
 /// The values of expectation.save.
 Parameter SAVERULES = "saved,none,denied";
 
+/// The seconds that SaveSteps waits, at most, for a decision's steps: the AgentSteps item writes them a moment after the row is decided (as Eval.Sweep waits for them).
+Parameter STEPSWAIT = 10;
+
+/// The commands of an evaluation session's own memory that a session case sends by design (Story 41.14): EvalIn's seed and the learned save; Actions does not count them.
+Parameter SESSIONMEMORYCOMMANDS = "OcuTalon.Msg.Command.SaveMemory,OcuTalon.Msg.Command.ForgetMemory";
+
 /// The shown text of a got that names no catalog key.
 Parameter NOKEY = "(none)";
 
@@ -225,7 +231,7 @@ Parameter NOTRUNYET = "not run until its story";
 ClassMethod Build(runRef As %String, folder As %String, skipped As %DynamicArray = "", watches As %DynamicArray = "") As %DynamicObject
 {
 	Set folder = ##class(%File).NormalizeDirectory(folder)
-	Set report = {"run": (runRef), "folder": (folder), "builtAt": (##class(OcuTalon.Bridge.Time).NowUtc()), "scores": {}, "actions": (..Actions(runRef)), "cases": [], "injectionChecks": [], "turnChecks": [], "userTurnChecks": [], "tellNowMissed": [], "fallbacks": [], "notComplete": [], "unscored": [], "skipped": []}
+	Set report = {"run": (runRef), "folder": (folder), "builtAt": (##class(OcuTalon.Bridge.Time).NowUtc()), "scores": {}, "actions": (..Actions(runRef, watches)), "cases": [], "injectionChecks": [], "turnChecks": [], "userTurnChecks": [], "tellNowMissed": [], "fallbacks": [], "notComplete": [], "unscored": [], "skipped": []}
 	Set report.cost = {"decisions": [], "priced": 0, "meanUSD": null, "maxUSD": null, "maxCase": "", "flagAtUSD": null, "flagged": [], "unpriced": []}
 	Do report.cost.%Set("flagAtUSD", ..#FLAGUSD, "number")
 	Set report.size = {"largestTokens": null, "largestCase": "", "flagOverTokens": null, "flagged": [], "unknown": []}
@@ -1040,10 +1046,20 @@ ClassMethod ToolSteps(decisionRef As %String) As %DynamicArray [ Private ]
 
 /// The save_memory tool steps of the decision (Story 41.14), as a dynamic array of {status, saved} in step order. saved is 1 only when the status is ok and the result part of the
 /// summary (what follows its last ". Result: ") holds "outcome":"saved", the owner's answer of a real save: a refusal such as NOSESSION is status ok and not saved, and a
-/// step the gate denied has no result part. Empty with no decision.
+/// step the gate denied has no result part. Empty with no decision. It first waits, at most STEPSWAIT seconds, until the decision's steps number its AgentStepCount, because Run builds
+/// the report as soon as every row is decided, a moment before the AgentSteps item has written the steps.
 ClassMethod SaveSteps(decisionRef As %String) As %DynamicArray [ Private ]
 {
 	Set steps = []
+	If decisionRef '= "" {
+		Set decision = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(decisionRef, 0)
+		Set wanted = $Select($IsObject(decision): +decision.AgentStepCount, 1: 0)
+		Set decision = ""
+		Set end = $ZHorolog + ..#STEPSWAIT
+		While (+..First("SELECT COUNT(*) FROM OcuTalon_Bridge_Msg.AgentStep WHERE DecisionRef = ?", decisionRef) < wanted) && ($ZHorolog < end) {
+			Hang 0.25
+		}
+	}
 	Set result = ..ToolRows(decisionRef)
 	If '$IsObject(result) Quit steps
 	While result.%Next() {
@@ -1357,8 +1373,9 @@ ClassMethod Same(one As %String, other As %String) As %Boolean [ Private ]
 /// What the run did, from rows that the bridge and the product already write: {since, approvals, commands, settingChanges, fixRuns}. since
 /// is the first SentAt of the run, and null with no row, when every count is 0. The approvals are those of owner eval whose TraceRef is the
 /// run. The commands are the bodies (each once, however many headers carry it) of session eval, except the read verbs SearchMemory and ListPinnedMemories, with a message header created at or after
-/// since, the settings are those updated at or after since and the fix runs are those started at or after since.
-ClassMethod Actions(runRef As %String) As %DynamicObject [ Private ]
+/// since, the settings are those updated at or after since and the fix runs are those started at or after since. The evaluation sessions of the run's session cases (the session records
+/// of watches, Story 41.14) count as eval does: their approvals whose TraceRef is the run and their commands, except also SESSIONMEMORYCOMMANDS, the session's own memory that the case seeds and saves by design.
+ClassMethod Actions(runRef As %String, watches As %DynamicArray = "") As %DynamicObject [ Private ]
 {
 	Set actions = {"since": null, "approvals": 0, "commands": 0, "settingChanges": 0, "fixRuns": 0}
 	Set since = ..First("SELECT MIN(SentAt) FROM OcuTalon_Eval_Data.CaseResult WHERE RunRef = ?", runRef)
@@ -1367,6 +1384,14 @@ ClassMethod Actions(runRef As %String) As %DynamicObject [ Private ]
 	Set eval = ##class(OcuTalon.Data.Ownership).#EVAL
 	Set actions.approvals = +..First("SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ? AND TraceRef = ?", eval, runRef)
 	Set actions.commands = +..First("SELECT COUNT(DISTINCT c.ID) FROM OcuTalon_Msg.Command c JOIN Ens.MessageHeader h ON h.MessageBodyId = c.ID WHERE c.SessionRef = ? AND h.MessageBodyClassName %STARTSWITH 'OcuTalon.Msg.Command.' AND h.MessageBodyClassName NOT IN ('OcuTalon.Msg.Command.SearchMemory', 'OcuTalon.Msg.Command.ListPinnedMemories') AND h.TimeCreated >= ?", eval, $Translate($Extract(since, 1, 19), "T", " "))
+	Set iterator = $Select($IsObject(watches) && watches.%IsA("%Library.DynamicArray"): watches.%GetIterator(), 1: "")
+	While $IsObject(iterator) && iterator.%GetNext(, .record) {
+		Set session = $Select($IsObject(record) && record.%IsA("%Library.DynamicObject"): record.%Get("session"), 1: "")
+		Set ref = $Select($IsObject(session) && session.%IsA("%Library.DynamicObject"): session.%Get("ref"), 1: "")
+		If (ref = "") || (ref = eval) Continue
+		Set actions.approvals = actions.approvals + (+..First("SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ? AND TraceRef = ?", ref, runRef))
+		Set actions.commands = actions.commands + (+..First("SELECT COUNT(DISTINCT c.ID) FROM OcuTalon_Msg.Command c JOIN Ens.MessageHeader h ON h.MessageBodyId = c.ID WHERE c.SessionRef = ? AND h.MessageBodyClassName %STARTSWITH 'OcuTalon.Msg.Command.' AND h.MessageBodyClassName NOT IN ('OcuTalon.Msg.Command.SearchMemory', 'OcuTalon.Msg.Command.ListPinnedMemories') AND NOT (h.MessageBodyClassName %INLIST ?) AND h.TimeCreated >= ?", ref, $ListFromString(..#SESSIONMEMORYCOMMANDS), $Translate($Extract(since, 1, 19), "T", " ")))
+	}
 	Set actions.settingChanges = +..First("SELECT COUNT(*) FROM OcuTalon_Data.Setting WHERE UpdatedAt >= ?", since)
 	Set actions.fixRuns = +..First("SELECT COUNT(*) FROM OcuTalon_Data.FixRun WHERE StartedAt >= ?", since)
 	Quit actions

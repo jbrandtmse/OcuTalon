@@ -215,15 +215,9 @@ Method Leftover() As %String [ Private ]
 /// Saves a memory row of the session without an embedding (the test needs only the row), and returns its Ref.
 Method Memory(session As %String, text As %String) As %String [ Private ]
 {
-	Set row = ##class(OcuTalon.Data.Memory).%New()
-	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.SessionRef = session
-	Set row.Text = text
-	Set row.SavedAt = ##class(OcuTalon.Data.Time).NowUtc()
-	Set row.ItemId = "zzevalin"
-	Set row.Origin = "tool"
-	Do $$$AssertStatusOK(row.%Save(), "a memory of the session is saved")
-	Quit row.Ref
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Memory(session, text, "zzevalin", .sc)
+	Do $$$AssertStatusOK(sc, "a memory of the session is saved")
+	Quit ref
 }
 
 /// The number of memories of the session.
@@ -1671,6 +1665,19 @@ Method TestSessionCase()
 	Do ..WriteCase("zz-session-owner", {"name": "zz-session-owner", "kind": "command", "turn": {"text": "Who is it?"}, "expectation": {"memories": "none"}}.%ToJSON())
 	Do $$$AssertEquals(..Process(service, "zz-session-owner"), "", "a command case with no session is sent")
 	Do $$$AssertEquals($List(..AskedAt(1), 3), "eval", "as owner eval")
+	Do ..Reset()
+	Set block = ##class(OcuTalon.Agent.Persona).BlockFor("pirate")
+	Set service.Preset = "pirate"
+	Try {
+		Do ..WriteCase("zz-session-persona", {"name": "zz-session-persona", "kind": "command", "session": {}, "turn": {"text": "Who is it?"}, "expectation": {"memories": "none"}}.%ToJSON())
+		Set ^OcuTalonTest("EvalIn", "reply", 1) = {"Text": "Nobody.", "DecisionRef": "zzDecisionRef000000013", "HostData": "{\"memories\":[]}"}.%ToJSON()
+		Do $$$AssertEquals(..Process(service, "zz-session-persona"), "", "a session case of a run with a preset is sent")
+		Set asked = ..AskedAt(1)
+		Do $$$AssertTrue((block '= "") && ($Length($List(asked, 3)) = 22) && ($List(asked, 5) [ block), "the Input of a session case holds the run's persona block, as every eval turn does (the Item stays owner eval)")
+	} Catch exception {
+		Do $$$AssertFailure("the persona variant threw: "_exception.DisplayString())
+	}
+	Set service.Preset = ""
 }
 
 /// A seed that MemoryOps does not answer saved or forgotten, or that fails, skips the case with REASONSESSION and the why: the session is dropped, the setup record is not kept and the later texts are not seeded.

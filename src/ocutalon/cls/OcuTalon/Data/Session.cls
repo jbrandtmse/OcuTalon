@@ -13,6 +13,8 @@
 /// property, so that raising it is atomic, takes no row lock and changes no storage. Web.SessionEvents.OnLogout raises it
 /// (MarkSignedOut) when a CSP session signs out off the online demo; the live WebSocket (Web.Live) reads it (SignOuts) on each loop
 /// and ends when it has changed since the socket opened. A session that never signed out reads 0.
+/// An evaluation session row (Story 41.14) is the third kind: ForEval makes it for one case of an evaluation run, with no IrisUser and no ResumeHash, Eval.In drops it
+/// (DropEval) at the run's Finish or, when a run did not finish, at the next run's Start, and IsEval tells it apart, so that BridgeSink publishes and notifies nothing for it (AD-22).
 Class OcuTalon.Data.Session Extends %Persistent
 {
 
@@ -147,6 +149,15 @@ ClassMethod ForEval(Output sc As %Status) As OcuTalon.Data.Session
 	}
 	If $SYSTEM.Status.IsError(sc) Quit ""
 	Quit session
+}
+
+/// 1 when ref is the Ref of an evaluation session row (ForEval's: a row with no IrisUser), else 0; an unknown or empty Ref is 0. A read only, with no lock: BridgeSink asks it so
+/// that an evaluation run's session turns publish no live event and send no Notification (AD-22).
+ClassMethod IsEval(ref As %String) As %Boolean
+{
+	If ref = "" Quit 0
+	Set row = ..RefIndexOpen(ref, 0)
+	Quit $IsObject(row) && (row.IrisUser = "")
 }
 
 /// Deletes the evaluation session row of the Ref (ForEval's), and only such a row: a row that has an IrisUser (a person's, a visitor's), an unknown Ref and

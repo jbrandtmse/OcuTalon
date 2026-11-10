@@ -20,7 +20,9 @@
 ///   - TestForgotten (AC 6, AC 10): MemoryOps answered the seed's SaveMemory saved and its ForgetMemory forgotten, the session holds no memory, the turn carries none, the reply does not say Kim and the case is right in memoryTurns;
 ///   - TestSessionRows (AC 10): each session row had no IrisUser and no ResumeHash; the seeds were of origin system and addressed the forgotten-fact session alone;
 ///   - TestNoProblem (AC 3): the report has no problem, all six cases are scored and none is skipped;
-///   - TestRemoved (AC 10): right after Finish no eval Session row and no memory of the run's sessions was left, and Finish answered OK.
+///   - TestRemoved (AC 10): right after Finish no eval Session row, no memory and no conversation link of the run's sessions was left, and Finish answered OK;
+///   - TestSessionsQuiet (AD-22): no live event, Notification or Delivery was ever written for the run's sessions;
+///   - TestStartSweeps (AC 10): a leftover evaluation session (a row with no IrisUser and a memory) made before Start was gone, with its memory, once Start had run.
 /// OnAfterAllTests puts the EvalIn row, OCUTALON_EVAL and the runner keys back, removes the rows, Decision, Usage and step rows, the AI sessions, the messages and the documents, and fails the class when a case
 /// row, a session, a memory, a message or a Decision of the run is left.
 Class OcuTalon.Test.Eval.MemoryCases Extends OcuTalon.Test.Core.InProduction
@@ -103,7 +105,17 @@ Property LeftMemories As %Integer;
 
 Property LeftDocuments As %Integer;
 
-Property Runs As %String(MAXLEN = "");
+/// A leftover evaluation session (a row and a memory, as a killed run leaves them) made before Start, and whether Start's sweep removed both (Story 41.14 review).
+Property Stale As %String(MAXLEN = 22);
+
+Property StaleSwept As %Boolean [ InitialExpression = 0 ];
+
+/// Counted right after Finish for the run's sessions: the conversation links of their turns, and the live events, Notifications and Deliveries ever written for them (AD-22).
+Property LeftLinks As %Integer;
+
+Property SessionEvents As %Integer;
+
+Property SessionNotices As %Integer;
 
 Method OnBeforeAllTests() As %Status
 {
@@ -140,12 +152,23 @@ Method Prepare() As %String [ Private ]
 	Set sc = ..Apply(1)
 	If $$$ISERR(sc) Quit "switching EvalIn on failed: "_$SYSTEM.Status.GetErrorText(sc)
 	Set ..EvalWas = ##class(OcuTalon.Test.Data.Fixture).SetEval("1"), ..EvalTouched = 1
-	Set ..SessionsBefore = ..EvalSessions()
+	Set stale = ##class(OcuTalon.Data.Session).ForEval(.sc)
+	If '$IsObject(stale) Quit "the leftover evaluation session was not made: "_$SYSTEM.Status.GetErrorText(sc)
+	Set ..Stale = stale.Ref
+	Set stale = ""
+	If ##class(OcuTalon.Test.Data.Fixture).Memory(..Stale, "zz leftover memory", "zzmemcases", .sc) = "" Quit "the leftover memory was not saved: "_$SYSTEM.Status.GetErrorText(sc)
 	Set ..DocumentsBefore = ..Count("OcuTalon_Data.Document", "OwnerRef", ##class(OcuTalon.Docs.Store).#EVALOWNER)
 
 	Set sc = ##class(OcuTalon.Eval.In).Start(##class(OcuTalon.Eval.In).#FOLDER, ..#CASES, .run, .sent, .skipped, .watches)
 	If $$$ISERR(sc) Quit "the run did not start: "_$SYSTEM.Status.GetErrorText(sc)
 	Set ..RunRef = run, ..Sent = sent, ..Skipped = skipped, ..Watches = watches
+	Set ..StaleSwept = ('##class(OcuTalon.Data.Session).RefIndexExists(..Stale)) && (..Count("OcuTalon_Data.Memory", "SessionRef", ..Stale) = 0)
+	Set own = 0
+	Set iterator = watches.%GetIterator()
+	While iterator.%GetNext(, .record) {
+		If $IsObject(record) && $IsObject(record.%Get("session")) Set own = own + 1
+	}
+	Set ..SessionsBefore = ..EvalSessions() - own
 	Do ..Supers.%Push(run)
 	Set ..Undecided = ##class(OcuTalon.Eval.In).Wait(run, ..#WAITRUN)
 	Do ..WaitSteps()
@@ -153,10 +176,13 @@ Method Prepare() As %String [ Private ]
 	Set finished = ##class(OcuTalon.Eval.In).Finish(..Watches)
 	Set ..FinishText = $Select($$$ISOK(finished): "", 1: $SYSTEM.Status.GetErrorText(finished))
 	Set ..LeftSessions = ..EvalSessions()
-	Set ..LeftMemories = 0
+	Set ..LeftMemories = 0, ..LeftLinks = 0, ..SessionEvents = 0, ..SessionNotices = 0
 	Set iterator = ..Sessions1.%GetIterator()
 	While iterator.%GetNext(, .one) {
 		Set ..LeftMemories = ..LeftMemories + ..Count("OcuTalon_Data.Memory", "SessionRef", one.ref)
+		Set ..LeftLinks = ..LeftLinks + ..Count("OcuTalon_Bridge_Data.ConversationLink", "OwnerRef", one.ref)
+		Set ..SessionEvents = ..SessionEvents + ..Count("OcuTalon_Live.Event", "Stream", one.ref)
+		Set ..SessionNotices = ..SessionNotices + ..Count("OcuTalon_Msg.Notification", "SessionRef", one.ref) + ..Count("OcuTalon_Data.Delivery", "OwnerRef", one.ref)
 	}
 	Set ..LeftDocuments = ..Count("OcuTalon_Data.Document", "OwnerRef", ##class(OcuTalon.Docs.Store).#EVALOWNER)
 	Quit ""
@@ -325,8 +351,9 @@ Method OnAfterAllTests() As %Status
 			Do ##class(OcuTalon.Data.Session).DropEval(one.ref)
 		}
 	}
-	For i = 1:1:$Length(..Runs, ",") {
-		If $Piece(..Runs, ",", i) '= "" Do ##class(OcuTalon.Eval.Data.CaseResult).Remove($Piece(..Runs, ",", i))
+	If ..Stale '= "" {
+		Do ##class(OcuTalon.Memory).DropSession(..Stale)
+		Do ##class(OcuTalon.Data.Session).DropEval(..Stale)
 	}
 	If ..RunRef '= "" Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..RunRef)
 	If ..SessionMark '= "" Set sc = $$$ADDSC(sc, $ClassMethod(fixture, "DropSince", ..SessionMark))
@@ -346,13 +373,11 @@ Method OnAfterAllTests() As %Status
 Method Leftovers(items As %List) As %Status [ Private ]
 {
 	Set left = ""
-	Set runs = ..RunRef_$Select(..Runs = "": "", 1: ","_..Runs)
-	For i = 1:1:$Length(runs, ",") {
-		Set run = $Piece(runs, ",", i)
-		If run = "" Continue
-		If ..Count("OcuTalon_Eval_Data.CaseResult", "RunRef", run) Set left = left_", case rows of the run "_run
-		If ##class(OcuTalon.Test.Data.Fixture).Headers(run).%Size() Set left = left_", messages of the run "_run
+	If ..RunRef '= "" {
+		If ..Count("OcuTalon_Eval_Data.CaseResult", "RunRef", ..RunRef) Set left = left_", case rows of the run "_..RunRef
+		If ##class(OcuTalon.Test.Data.Fixture).Headers(..RunRef).%Size() Set left = left_", messages of the run "_..RunRef
 	}
+	If (..Stale '= "") && ##class(OcuTalon.Data.Session).RefIndexExists(..Stale) Set left = left_", the leftover evaluation session "_..Stale
 	If ..EvalSessions() > ..SessionsBefore Set left = left_", evaluation sessions"
 	If ..Count("OcuTalon_Data.Document", "OwnerRef", ##class(OcuTalon.Docs.Store).#EVALOWNER) > ..DocumentsBefore Set left = left_", documents of owner eval"
 	If $IsObject(..Sessions1) {
@@ -615,11 +640,31 @@ Method TestRemoved()
 	Do $$$AssertEquals(..FinishText, "", "Finish answered OK")
 	Do $$$AssertTrue(..LeftSessions '> ..SessionsBefore, "no evaluation Session row beyond the ones found at the start was left: "_..LeftSessions_" of "_..SessionsBefore)
 	Do $$$AssertEquals(..LeftMemories, 0, "and no memory of the run's sessions")
+	Do $$$AssertEquals(..LeftLinks, 0, "and no conversation link of the run's sessions, so the AI sessions they named are freed")
 	Do $$$AssertTrue(..LeftDocuments '> ..DocumentsBefore, "and no document of owner eval beyond the ones found at the start")
 	Set iterator = ..Sessions1.%GetIterator()
 	While iterator.%GetNext(, .one) {
 		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(one.ref), 0, "the session "_one.ref_" is gone")
 	}
+}
+
+/// AD-22 (Story 41.14 review): the turns of the session cases published no live event to their sessions' streams and wrote no Notification or Delivery for them, as no evaluation run does.
+/// Control: the learned-save turn did run, as a turn of its session.
+Method TestSessionsQuiet()
+{
+	If '..Guard() Quit
+	Set case = ..CaseOf("memory-learned-save")
+	Do $$$AssertTrue($IsObject(case) && ($Length(case.owner) = 22), "control: the learned-save turn was asked as its session")
+	Do $$$AssertEquals(..SessionEvents, 0, "no live event was published to the run's sessions")
+	Do $$$AssertEquals(..SessionNotices, 0, "and no Notification or Delivery was written for them")
+}
+
+/// AD-22, AC 10 (Story 41.14 review): Start swept the evaluation session that an earlier run left (a row with no IrisUser and its memory) before it sent the cases.
+Method TestStartSweeps()
+{
+	If '..Guard() Quit
+	Do $$$AssertTrue(..Stale '= "", "control: a leftover evaluation session was made before Start")
+	Do $$$AssertTrue(..StaleSwept, "Start removed the leftover row and its memory")
 }
 
 }

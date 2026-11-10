@@ -86,7 +86,8 @@
 ///     CommandsIn, as the precedent seed is. A seed that is not answered so skips the case with REASONSESSION and drops the session. The case's Item stays owner eval, so the
 ///     Input is the same as for every eval turn; only the request's OwnerRef is the case's session (TurnRequest). The TurnResult keeps the Reply's HostData.memories (Memories).
 ///     A sent case's record {case, session{ref}} joins the Watches of the service from the row's creation on, and Finish drops, for each such record, the session's memories
-///     (OcuTalon.Memory.DropSession, the sign-out's own drop) and then its row (Data.Session.DropEval); a row whose memories could not be dropped stays, so that the next
+///     (OcuTalon.Memory.DropSession, the sign-out's own drop), the conversation links of its turns (Bridge.Purge.DropLinks) and then its row (Data.Session.DropEval); BridgeSink
+///     publishes and notifies nothing for such a session (Data.Session.IsEval, AD-22); a row whose memories could not be dropped stays, so that the next
 ///     start's sweep drops both. Start drops, after SweepPrecedents, every Session row with no IrisUser and its memories (SweepSessions); a failure is one warning.
 ///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26), the old turn
 ///     of a before included.
@@ -839,8 +840,8 @@ Method SessionDrop(session As %DynamicObject) [ Private ]
 	}
 }
 
-/// Drops the memories of the session record {"ref"} (Memory.DropSession, the sign-out's own drop) and then its row (Data.Session.DropEval, which drops only a row that has no
-/// IrisUser). A row that has an IrisUser (a person's, a visitor's) is refused first (DropEval's error), with its memories untouched. A row that is already gone is no error. When the memories cannot be dropped the row stays, so that SweepSessions finds both again; the status is then that error.
+/// Drops the memories of the session record {"ref"} (Memory.DropSession, the sign-out's own drop), then the conversation links of its turns (Bridge.Purge.DropLinks, as
+/// Data.Purge drops a session's, so that the AI sessions they name are freed) and then its row (Data.Session.DropEval, which drops only a row that has no IrisUser). A row that has an IrisUser (a person's, a visitor's) is refused first (DropEval's error), with its memories untouched. A row that is already gone is no error. When the memories cannot be dropped the row stays, so that SweepSessions finds both again; the status is then that error.
 /// It never throws.
 ClassMethod SessionDown(session As %DynamicObject) As %Status
 {
@@ -856,6 +857,8 @@ ClassMethod SessionDown(session As %DynamicObject) As %Status
 		}
 		Set row = ""
 		Set result = ##class(OcuTalon.Memory).DropSession(ref)
+		If $$$ISERR(result) Quit
+		Set result = ##class(OcuTalon.Bridge.Purge).DropLinks(ref)
 		If $$$ISERR(result) Quit
 		If ##class(OcuTalon.Data.Session).RefIndexExists(ref) Set result = ##class(OcuTalon.Data.Session).DropEval(ref)
 	} Catch exception {

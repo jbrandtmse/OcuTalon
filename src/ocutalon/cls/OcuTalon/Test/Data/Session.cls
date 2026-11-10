@@ -409,15 +409,9 @@ Method TestSignOutMark()
 /// Saves a Data.Memory row of the owner without an embedding (the test needs only the row), and returns its Ref; the test deletes it.
 Method Memory(owner As %String, text As %String) As %String [ Private ]
 {
-	Set row = ##class(OcuTalon.Data.Memory).%New()
-	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.SessionRef = owner
-	Set row.Text = text
-	Set row.SavedAt = ##class(OcuTalon.Data.Time).NowUtc()
-	Set row.ItemId = "zzsess"
-	Set row.Origin = "tool"
-	Do $$$AssertStatusOK(row.%Save(), "a memory is saved")
-	Quit row.Ref
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Memory(owner, text, "zzsess", .sc)
+	Do $$$AssertStatusOK(sc, "a memory is saved")
+	Quit ref
 }
 
 /// The Refs of the rows of a list, comma-separated.

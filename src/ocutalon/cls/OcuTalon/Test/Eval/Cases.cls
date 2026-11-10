@@ -309,6 +309,7 @@ Method TestUserTurnCases()
 			For phrase = "tool", "access", "look up", "cannot", "can't", "unable", "needs the user", "need the user", "nothing", "healthy", "all clear", "everything is", "no failure", "no error" {
 				Do $$$AssertTrue(joined [ ("|"_phrase_"|"), name_": it forbids '"_phrase_"'")
 			}
+			Do $$$AssertEquals(absent.%Size(), 14, name_": it forbids those 14 phrases and no other")
 		}
 		Do ..AssertTurnShape(name, case)
 		Do $$$AssertEquals(case.recordedBy, $List(entry, 3), name_": it says which story wrote it")
