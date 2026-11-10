@@ -6575,3 +6575,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (image) lane-b@Contract,Core,Data,Live; green on one rerun
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the GuideApi entry filed alongside (unverified); no fix work now
 - 2026-11-10T19:46:28Z note=see also DW-1094 (possible shared cause)
+
+### DW-1098: post-contest idea: admins see instance-owned incident usage on the Usage page (today a local install counts only the session's own rows, by design)
+- source: Contest Planner ruling on DW-1090 (Story 37.2), 2026-11-10 | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: DW-1090: the Usage page reads only the caller's own session's rows (security ruling); instance-owned incident decisions are never counted
+- 2026-11-10T20:45:39Z status=routed owner=burndown by=owner note=post-contest idea; no work now (Contest Planner, delegated authority); a security change: any future story brings route, role and rows to the Planner
+
+### DW-1099: infra: CI iris (browser) live:online-demo first start failed in Docker networking: 'failed to set up container networking: driver failed programming external connectivity on endpoint ...' (no test ran)
+- source: OCT-epic0 5630cf1c (Story 0.23), ci.yml run 42894860855 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: job 130105194799 at 20:36:29Z: image built, containers created, iris container start refused by the daemon (port publish); unit live:online-demo failed in 10 s; 0.23 changes README.md and docker/tests/test-readme.sh only
+- 2026-11-10T21:01:35Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence, likely a port still held on the self-hosted runner from an earlier job); rerun of failed jobs; reopen as real only if it recurs on a quiet runner
