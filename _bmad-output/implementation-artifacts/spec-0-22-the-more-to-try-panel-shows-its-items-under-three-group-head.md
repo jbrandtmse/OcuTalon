@@ -152,12 +152,15 @@ deferred: []
 ## Spec Change Log
 
 - 2026-11-10 (lead, spec gate): two Contest Planner rulings relayed by the orchestrator during planning, applied: (1) ~06:40Z, EXPERIENCE.md's More to try entries renumbered by group (scope added: Boundaries, Code Map, Tasks, Acceptance, Public text, `### EXPERIENCE renumbering`, the `sources-docs.test.mjs` panel-order test, one mutation); (2) ~07:00Z, Story 37.2's `usage` joins "Safety and settings" last, no fourth heading, and no test pins a group size as a literal (Boundaries, Decided in-stage). The renumbered text and the marked line go to the Planner as PUBLIC TEXT before the implement stage.
+- 2026-11-10 ~07:45Z (lead): Contest Planner ruling (owner's delegated authority, `prompts/epic-0-rulings-022.md` in the coordination folder): PUBLIC TEXT OK, implement may start. (1) The marked line is approved verbatim. (2) The renumbering is approved as proposed (old 1->5, 2->6, 3->1, 4->7, 5->2, 6->3, 7->8, 8->4; every number in the renumbered lines 254/255 checked). (3) No other strings, headings as `h4`, no `tabindex`: OK. Clarification: the ruled group lists fix membership only; within each group the panel keeps REGISTRY order ("Safety and settings" shows persona, suspiciousEmail, demoView, heartbeat, then 37.2's usage). Registry rows are never reordered. Merge instruction (orchestrator): if 23.6's `incidentSummary` (or 23.2's `reroute`) is on feature without a `group:` at this story's integrate-forward, the lead adds `group: 'Incidents and fixes'` to it (ruled text, not new).
 
 ## Review Triage Log
 
 ## Design Notes
 
 ### Public text for the gate
+
+**APPROVED 2026-11-10 ~07:45Z by the Contest Planner (owner's delegated authority), in full: the marked line verbatim, the renumbering as proposed, `h4` headings with no `tabindex`, no other strings. Commit both exactly as written below.**
 
 - The three headings are ruled verbatim (no gate).
 - One new string is the EXPERIENCE.md marked line, placed right after the renumbered section (before `  - Every control is a native button or link`). The line is indented two spaces:
