@@ -29,13 +29,13 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-10-2026 18:22
+last_updated: 11-10-2026 19:48
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-0: done
+  epic-0: in-progress
   0-1-the-image-builds-and-starts-ocutalon-in-its-own-namespace: done
   0-2-the-package-installs-and-upgrades-itself-at-every-start: done
   0-3-sign-in-to-an-empty-ocutalon-page: done
@@ -58,6 +58,7 @@ development_status:
   0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un: done
   0-21-the-readme-opens-with-a-centred-header-logo-tagline-and-badg: done
   0-22-the-more-to-try-panel-shows-its-items-under-three-group-head: done
+  0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute: backlog
   epic-0-retrospective: optional
 
   epic-1: done

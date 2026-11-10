@@ -722,3 +722,18 @@
 2026-11-10T18:23:16Z	Epic 0	epic_status_done	stories=22 note=reopen_0.22_done;tracker_already_done_on_feature(1d75fbf1)
 2026-11-10T18:23:16Z	Epic 0	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=sonnet high_med_avg=3.00 unresolved_high_med_avg=0.00 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=3 result=hold applied=false scope=reopen_0.22
 2026-11-10T18:23:16Z	Epic 0	epic_runner_complete	stories_completed=1 part_merge=0.22 note=merged_by_orchestrator(1d75fbf1)
+2026-11-10T19:49:05Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=dispatch_0_23_readme_absolute_urls lane=C
+2026-11-10T19:49:05Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-10T19:49:05Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-10T19:49:05Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default note=bootstrap_check_ok;inbox_verify_ok;hashes_match(policy_5086036,doctrine_3d11cec);HOLD_absent
+2026-11-10T19:49:05Z	Epic 0	ruling	question=integrate_forward_base choice=3dcd4cb5(green_by_identity:bookkeeping_only_above_1d75fbf1=merge_of_green_cec5dbb1+698196b6(v1.0.6_merge-back)) rejected=none why=dispatch(newest_green_or_green_by_identity);own_head_CI_is_the_gate category=decide policy=5086036
+2026-11-10T19:49:05Z	Epic 0	integrated_forward	feature=3dcd4cb5 head=eae74e21 conflicts_resolved=none note=start_of_0.23_dispatch
+2026-11-10T19:49:05Z	Epic 0	epic_branch_reopened	reason=story_0.23_README_absolute_urls(Planner_ruling_PUBLIC_TEXT_ruled) from=3dcd4cb5
+2026-11-10T19:49:05Z	Story 0.23	amendment	file=_bmad-output/planning-artifacts/epics.md:Story_0.23_block(inserted) rule5=tier1 marker=[ADDED_2026-11-10,Contest_Planner_ruling_(PUBLIC_TEXT_ruled),for_1.0.7]
+2026-11-10T19:49:05Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-10T19:49:05Z	Epic 0	ledger_load	total=1061 open=0 routed=121 escalated=2 decision_pending=6 terminal=932 owner_unknown=0 burndown=100 reowned_none=0 note=no_entry_owned_by_an_Epic_0_key;DW-1052(Open_Exchange_render)_stays_Planner-owned
+2026-11-10T19:49:05Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen(sprint_plan.py_generate+validate);tracker_valid;0.23_added_backlog;dropped_orphans=none
+2026-11-10T19:49:05Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) story=0.23
+2026-11-10T19:49:05Z	Epic 0	retro_review_skipped	reason=skipped(policy) note=reopen_for_one_story(0.23);X.0_and_retro_review_skipped_per_dispatch
+2026-11-10T19:50:16Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.23_added) model=claude-opus-5-5 effort=high lines=67
+2026-11-10T19:50:16Z	Story 0.23	stage_spawned	stage=plan spawn_at=2026-11-10T19:50:16Z model=opus effort=high agent_name=0-23-plan-1 cycle_iteration=1
