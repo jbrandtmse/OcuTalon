@@ -6301,11 +6301,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Web/Api.cls MemoryItemCommand vs ForgetPrecedent (about 12 lines alike); the Epic 35 contention ruling forbade in-place edits to shared Web/Api.cls lines in Story 41.9, so the copy was forced
 - 2026-11-09T16:35:13Z status=routed owner=burndown by=cr note=Rule 2 copy forced by the 41.9/35.2 plain-union ruling; unify after Epic 35's merge
+- 2026-11-10T20:33:28Z status=wontfix-accepted by=burndown note=reopen_if=a_fourth_web_write_route_copies_the_SubmitMemory_submit-and-map_tail,or_MemoryItemCommand_and_ForgetPrecedent's_tails_diverge_in_an_outcome_mapping;no_next-epic_story_touches_Web.Api's_memory_routes
 
 ### DW-1028: Test.Web DocumentsApi.PreDispatch and SettingsApi.PreDispatch still copy the OnPreDispatch runner; move them to Test.Web.Api.PreDispatchOf (added by Story 41.9 for MemoryApi)
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Web/DocumentsApi.cls:691 and Test/Web/SettingsApi.cls:593 repeat the stand-in request, Capture, OnPreDispatch and Collect lines that PreDispatchOf now holds
 - 2026-11-09T16:35:13Z status=routed owner=burndown by=cr note=Rule 2; MemoryApi's copy was replaced in 41.9's review
+- 2026-11-10T20:33:28Z status=wontfix-accepted by=burndown note=reopen_if=another_Test.Web_class_copies_the_OnPreDispatch_runner,or_Test.Web.Api.PreDispatchOf_changes_shape;test-only_duplication_in_other_epics'_classes
 
 ### DW-1029: Pin tests stop at a probe: CommandsStep3Probe answers any pin with error 5001 and MemoryApi:TestPin real mode pins that 500, so once MemoryOps handles PinMemory/UnpinMemory both stay green past the real handler; Memory/Ops.cls:19 still says origin tool only
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
