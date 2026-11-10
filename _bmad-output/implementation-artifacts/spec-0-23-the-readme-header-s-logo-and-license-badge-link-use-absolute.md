@@ -95,6 +95,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-10 (spec gate, lead): the Contest Planner approved the PUBLIC TEXT proposal (the self-test label `the header logo address below the header`, verbatim, in `rule_readme_links` after `a shields.io badge below the header`) and the supersession of 0.21's "local docs/images file" wording. Task (f) is confirmed; no other change.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -130,6 +132,7 @@ No AD governs README presentation, and the README-link convention (`README_URL`,
 - `docker/tests/test-readme.sh`, in `rule_readme_links` after line 1897, a new self-test label: `the header logo address below the header`. It prints only as `  self-test: the header logo address below the header: not flagged` (or `: the edit changed nothing`) when the check cannot flag it.
   - Why it is needed: without it, moving the raw entry into `ALLOWED_HOSTS` would leave every rule green. No existing self-test would notice, so the confinement AC would have no pinning test.
   - If the Planner declines it: drop task (f), and record the confinement mutant as accepted, like 0.21's survivors.
+  - [APPROVED 2026-11-10, Contest Planner ruling (owner delegation), relayed by the orchestrator] The label `the header logo address below the header` goes in verbatim, in `rule_readme_links` after `a shields.io badge below the header`. Task (f) stands. Replacing 0.21's "the logo must be the local docs/images file" ruling text with today's ruling is also approved; the self-test `a header logo with a different src` stays.
 
 ## Verification
 
