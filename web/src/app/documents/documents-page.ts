@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, DestroyRef, Injector, afterNextRender, computed, effect, inject, signal, untracked, viewChild, type ElementRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, Injector, afterNextRender, computed, effect, inject, signal, untracked, viewChild, ElementRef } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -11,8 +11,11 @@ import { LiveState } from '../live/live-state';
 import type { DocumentPayload } from '../live/payloads';
 import { Announcer } from '../shared/announcer';
 import { Dialogs } from '../shared/dialogs';
-import { ACCEPT, DOCUMENTS_TEXTS, DOCUMENT_PARAM, docRef, formatSize, refusedText, rows, type DocumentRow, type LocalRow } from './documents-view';
+import { ServerButton } from '../shared/server-button';
+import { ACCEPT, DOCUMENTS_TEXTS, DOCUMENT_PARAM, docRef, formatSize, refusedText, rows, sampleListed, type DocumentRow, type LocalRow } from './documents-view';
 import { REMOVE_TITLE_ID, REMOVED, RemoveDocumentDialog, RemoveTarget } from './remove-dialog';
+import { SampleRunbook } from './sample-runbook';
+import { SAMPLE_RUNBOOK_TEXTS } from './sample-runbook-view';
 
 /**
  * The Documents page (Story 34.2; FR-42; UX: Step 3, memory and documents), at #/documents for every signed-in user and titled "Documents \u00B7 OcuTalon" by
@@ -33,11 +36,19 @@ import { REMOVE_TITLE_ID, REMOVED, RemoveDocumentDialog, RemoveTarget } from './
  * heading once the text is shown. A document that cannot be opened (a 404 for one that was removed or is not the session's, or a failure) shows
  * "Couldn't open that document. It may have been removed." in its place, with Close.
  *
+ * Beside Add documents, **Add the sample runbook** (a ServerButton) gives the runbook bundled in the web app (sample-runbook-view.ts) to the same
+ * `addFile` as a picked file: a `File` built from the text, so the request, the pending and refused rows and the announcement are the file's. It
+ * shows once the list has loaded and while no row is named "Sample runbook.md" (documents-view.sampleListed), and also while its own add is out, so
+ * that it stays busy; a refusal leaves it with focus, and a success takes it away and puts focus on the list region. When the demo guide's control
+ * asked for it (SampleRunbook.take, the user's own press there), the page focuses the button and presses it once the list has loaded, or, with the
+ * sample already listed, puts focus on the list region and posts nothing.
+ *
  * Remove opens the Remove dialog (RemoveDocumentDialog). When it reports the document gone, the row leaves and focus goes to the list region, which
  * has tabindex -1; Esc and Cancel leave the row and return focus to Remove.
  */
 @Component({
   selector: 'app-documents-page',
+  imports: [ServerButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main
@@ -51,6 +62,9 @@ import { REMOVE_TITLE_ID, REMOVED, RemoveDocumentDialog, RemoveTarget } from './
       <h1 id="documents-heading" class="heading">{{ texts.heading }}</h1>
       <div class="bar">
         <button type="button" class="button button-primary add" (click)="picker.click()">{{ texts.add }}</button>
+        @if (sampleShown()) {
+          <app-server-button #sample variant="secondary" [action]="addSample">{{ texts.sample }}</app-server-button>
+        }
         <input #picker type="file" multiple hidden [accept]="accept" (change)="picked(picker)" />
       </div>
       @if (opened(); as shown) {
@@ -185,11 +199,13 @@ export class DocumentsPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
+  private handOff = inject(SampleRunbook).take();
 
   protected readonly texts = DOCUMENTS_TEXTS;
   protected readonly accept = ACCEPT;
   protected readonly list = viewChild.required<ElementRef<HTMLElement>>('list');
   private readonly focusTarget = viewChild<ElementRef<HTMLElement>>('focusTarget');
+  private readonly sampleHost = viewChild<unknown, ElementRef<HTMLElement>>('sample', { read: ElementRef });
 
   /** The document the page was asked to open: its text, or that it could not be opened; undefined while none is asked for or its text is on the way. */
   protected readonly opened = signal<{ kind: 'text'; name: string; text: string } | { kind: 'failed' } | undefined>(undefined);
@@ -215,6 +231,12 @@ export class DocumentsPage {
 
   private readonly shown = computed(() => rows(this.server(), this.live.store()?.documents ?? {}, this.local()));
 
+  /** True while the sample's own add is out: the button stays, busy, until the route has answered. */
+  private readonly sampling = signal(false);
+
+  /** The sample button shows once the list is loaded, while no row is named as the sample, and while its own add is out. */
+  protected readonly sampleShown = computed(() => this.loaded() && (this.sampling() || !sampleListed(this.shown(), SAMPLE_RUNBOOK_TEXTS.name)));
+
   /** The rows with their date and size as text. */
   protected readonly items = computed(() => {
     const snapshot = this.live.snapshot();
@@ -232,6 +254,12 @@ export class DocumentsPage {
     effect(() => {
       const ref = docRef(this.param()?.get(DOCUMENT_PARAM));
       untracked(() => this.open(ref));
+    });
+    effect(() => {
+      if (this.handOff && this.loaded()) {
+        this.handOff = false;
+        untracked(() => this.handToSample());
+      }
     });
     effect(() => {
       const refused = this.shown().filter((row) => row.state === 'refused' && row.ref !== '' && this.own.has(row.ref) && !this.spoken.has(row.ref));
@@ -338,6 +366,43 @@ export class DocumentsPage {
     this.focusList();
   }
 
+  /**
+   * The sample button's action: the bundled runbook as a `File` goes through `addFile` like a picked one. A press while its add is out is
+   * ignored; on success focus goes to the list region, and on a refusal nothing moves.
+   */
+  protected readonly addSample = async (): Promise<void> => {
+    if (this.sampling()) {
+      return;
+    }
+    this.sampling.set(true);
+    try {
+      const file = new File([SAMPLE_RUNBOOK_TEXTS.text], SAMPLE_RUNBOOK_TEXTS.name, { type: 'text/markdown' });
+      if (await this.addFile(file)) {
+        this.focusList();
+      }
+    } finally {
+      this.sampling.set(false);
+    }
+  };
+
+  /** The guide asked for the sample: once the button is drawn it takes focus and is pressed; with the sample listed, focus goes to the list region. */
+  private handToSample(): void {
+    if (sampleListed(this.shown(), SAMPLE_RUNBOOK_TEXTS.name)) {
+      this.focusList();
+      return;
+    }
+    afterNextRender(
+      () => {
+        const control = this.sampleHost()?.nativeElement.querySelector('button');
+        if (control) {
+          control.focus();
+          control.click();
+        }
+      },
+      { injector: this.injector },
+    );
+  }
+
   /** Gives each file to the route, one after the other. */
   private async addFiles(files: readonly File[]): Promise<void> {
     for (const file of files) {
@@ -345,7 +410,8 @@ export class DocumentsPage {
     }
   }
 
-  private async addFile(file: File): Promise<void> {
+  /** Gives one file to the route and returns true when the route took it, false when it refused it or failed. */
+  private async addFile(file: File): Promise<boolean> {
     const id = (this.lastId += 1);
     this.local.update((list) => [{ id, kind: 'pending', name: file.name, size: file.size, at: new Date().toISOString() }, ...list]);
     try {
@@ -354,8 +420,10 @@ export class DocumentsPage {
       this.own.add(answer.ref);
       this.patch(id, { ref: answer.ref });
       this.fetch();
+      return true;
     } catch (error) {
       this.refuse(id, file, error);
+      return false;
     }
   }
 

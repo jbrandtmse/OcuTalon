@@ -22,6 +22,8 @@ const { DEVICE_TEXTS } = await import(app('devices', 'device-view.ts'));
 const { FEED_TEXTS } = await import(app('feed', 'break-feed-view.ts'));
 const { MESSAGE_TEXTS, PAGE_TEXTS } = await import(app('msg', 'catalog.ts'));
 const { ANSWER_SOURCES_TEXTS } = await import(app('chat', 'answer-sources-view.ts'));
+const { DOCUMENTS_TEXTS } = await import(app('documents', 'documents-view.ts'));
+const { SAMPLE_RUNBOOK_TEXTS } = await import(app('documents', 'sample-runbook-view.ts'));
 const { REQUEST_NAMES } = await import(app('phone', 'phone-view.ts'));
 const { DEMO_VIEW_TEXTS } = await import(app('header', 'demo-view-texts.ts'));
 
@@ -64,7 +66,7 @@ const RULED = {
     documents: {
       label: 'Ask about a document',
       lookFor:
-        'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the chip under the answer that names your file and its section.',
+        'On the Documents page, press Add the sample runbook, or add a short file of your own (nothing personal: Visual Trace on the demo is shared). When it reads Ready, ask in the chat "According to the runbook, what should I do when partner orders fail with a date error?", or ask about your own file, and look for the chip under the answer that names the document and its section.',
       button: 'Open the Documents page',
     },
     heartbeat: {
@@ -192,7 +194,10 @@ describe('(c) every quoted on-screen name equals its source', () => {
 
   it('names the Documents page as the header does', () => {
     has(items.documents.lookFor, 'On the Documents page');
-    has(items.documents.lookFor, 'look for the chip under the answer that names your file and its section');
+    has(items.documents.lookFor, `press ${DOCUMENTS_TEXTS.sample},`);
+    has(items.documents.lookFor, `When it reads ${DOCUMENTS_TEXTS.ready},`);
+    has(items.documents.lookFor, `"${SAMPLE_RUNBOOK_TEXTS.question}"`);
+    has(items.documents.lookFor, 'look for the chip under the answer that names the document and its section');
     has(items.documents.button, 'the Documents page');
     has(items.sources.button, 'the Documents page');
     assert.equal(items.sources.button, items.documents.button, 'the last item uses the existing control text');

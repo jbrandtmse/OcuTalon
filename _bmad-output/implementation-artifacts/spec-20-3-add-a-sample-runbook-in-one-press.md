@@ -2,9 +2,10 @@
 title: 'Story 20.3: Add a sample runbook in one press'
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '74770cc870a18d04b35778f82cbf7a35c2b06d4d'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-20-context.md'
   - '{project-root}/_bmad/custom/skill-rules.md'
@@ -76,23 +77,23 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Planner conditions (2026-11-09): (a) add a test (web unit test reading the class sources, or an IRIS test) that pins the runbook's facts: the runbook text's quoted error equals the demo's actual order-date error text in `src/ocutalon/cls/OcuTalon/Demo/Orders/**`, and PartnerOrdersIn, OrdersFromPartner and OrdersToWarehouse are item names in `Demo/Orders/Production.cls`; record its mutation. (b) README.md: change ONLY the last sentence of the existing "Answers from your own documents" bullet to exactly `Try it: More to try, *Ask about a document*, which adds a sample runbook if you have no file to hand.`; no new bullet; `docker/tests/test-readme.sh` passes.
-- [ ] Task 0 (measure, record as "Task 0 results (implement)" under Design Notes). (a) On the fresh sign-in stack, the e2e's real turn shows the citation on the target section, and the popover passage starts with "OrdersFromPartner accepts". (b) The fixture user the new e2e uses holds exactly `OcuTalonUser` (`Security.Users`, like sources.spec S0). (c) The time from the press to "Ready" on the developer machine.
-- [ ] `web/src/app/documents/sample-runbook-view.ts` (new, framework-free, imports nothing) -- `SAMPLE_RUNBOOK_TEXTS = {name, text, question}`, verbatim from `## Public Text`. The bundled runbook.
-- [ ] `web/src/app/documents/documents-view.ts` -- add `DOCUMENTS_TEXTS.sample`. Add `hasDocuments(server, live)` (`rows(server, live, []).length > 0`). Add `sampleListed(rows, name)`: true when a row has that name and is not the page's own refused row. Both extend `rows`. Update the header comment.
-- [ ] `web/src/app/documents/sample-runbook.ts` (new, `@Injectable({providedIn:'root'})`) -- `none: Signal<boolean>`: true only once the GET answered and `hasDocuments` is false over the GET and `live.store().documents`. The GET runs on creation and again on every snapshot reload, the same effect as `DocumentsPage`'s; an error leaves it unknown (false). Also `ask()` and `take()`, a one-shot request from the guide.
-- [ ] `web/src/app/documents/documents-page.ts` -- in `.bar` after **Add documents**, add `<app-server-button variant="secondary" [action]="addSample">` with the text `texts.sample`, shown while `loaded() && !sampleListed(shown(), name)`. `addSample` builds `new File([text], name, {type: 'text/markdown'})` and awaits `addFile`, which now returns success. On success, focus goes to the list region. On a refusal nothing moves. Hand-off: if `inject(SampleRunbook).take()` was set at construction, then once `loaded()` and after render, focus the sample button's native button and click it. If the sample is already listed, focus the list region instead. Update the class doc.
-- [ ] `web/src/app/guide/more-to-try.ts` -- inject `SampleRunbook` and `Router`. `sampleFirst = computed(() => sample.none() && items().some(i => i.id === 'documents'))`. Template: the link branch becomes `item.action === 'documents' && !sampleFirst()`. The one button shows `sampleFirst() && item.action === 'documents' ? DOCUMENTS_TEXTS.sample : item.button`. `press` case `'documents'`: `sample.ask(); void router.navigate(['/documents'])`. Keep the counts the source test pins, and update the component doc (items 6 and 8).
-- [ ] `web/src/app/guide/more-to-try-view.ts` -- item 6 `lookFor` as in `## Public Text` (one string changed, nothing else).
-- [ ] `ci/mock/scenarios/B/sample-runbook.json` (new) -- marker `sample-runbook`. Replies: toolUse `documents` with `input.query` equal to `SAMPLE_RUNBOOK_TEXTS.question`, then text "The CI mock answered from the sample runbook." (a CI fixture, not shipped).
-- [ ] `web/scripts/sample-runbook-view.test.mjs` (new) -- ASCII only. Ends with one newline. Has a `## When orders fail with a date error` section. Each `## ` section's paragraphs fit in 1,000 characters. The name ends `.md`. The `B/sample-runbook.json` documents query equals the question. Item 6's look-for holds `"<question>"`.
-- [ ] `web/scripts/documents-view.test.mjs` -- `hasDocuments` (empty, a server row, a live add, a live `removed`) and `sampleListed` (a server row in each state, an own pending add, an own refused row only, another name).
-- [ ] `web/scripts/more-to-try-view.test.mjs`, `more-to-try-sources.test.mjs`, `sources-docs.test.mjs`, `ux-strings.test.mjs`, `announce-focus-sources.test.mjs` -- item 6 oracle and `has()` checks (`press ${DOCUMENTS_TEXTS.sample}`, `"${question}"`, `reads ${DOCUMENTS_TEXTS.ready}`). Source rules: still no ApiClient or `addDocument` in `more-to-try.ts`, the documents press only `ask()`s and `navigate`s, and counts unchanged. Sources-docs: the EXPERIENCE item 6 line and the new controls sentence. Ux-strings: `IMPORTED` += `['documents/sample-runbook-view.ts', ['SAMPLE_RUNBOOK_TEXTS']]`, with each new string in `SOURCES` (`ux` once EXPERIENCE.md holds it verbatim, else `ruled` keyed by the 20.3 ruling id the lead records). Focus pin: `documents-page.ts` count and reason (the hand-off focus, for the user's own press in the guide).
-- [ ] `web/e2e/documents/sample.spec.ts` (new, chromium project) -- as the CHAT fixture user (`OcuTalonUser` only). Each case removes what it adds, also on failure: the document through the real `DELETE`, turns, AI sessions since the mark, and the keys restored. E0 role check. E1 is the demo-visible path. The precondition is no row named the sample. Delay the POST (`page.route` -> `continue` after about 1.5 s) to assert busy, the unchanged label and one POST after a second press. Check the body (`name`, `content` decodes to the text). Wait for the real row "Indexing…" -> "Ready" (up to 120 s); the button is gone and focus is on the list region. Then `pointKeys`, open the chat, send `${question} [[mock:sample-runbook]]`, and expect the reply text, then a chip named exactly "Sample runbook, section When orders fail with a date error" showing "Sample runbook § When orders fail with a date error". Its popover holds the passage. E2: a 501 (fulfilled) -> "Couldn't read it: this part of OcuTalon isn't built yet." on the page's row, announced once, button kept, with focus. E3: a seeded instance row named "Sample runbook.md" -> no button; after its `removed` event the button shows. E4: Tab reaches the button after **Add documents** and Enter presses it.
-- [ ] `web/e2e/guide/more-to-try-sample.spec.ts` (new, sign-in-3 project, the K3 setup) -- G1: with GET `/v1/documents` fulfilled `[]`, items 6 and 8 are buttons "Add the sample runbook". With one document, they are links (href `#/documents`). A published `document` event flips the buttons to links without a reload. G2: pressing item 6's button lands on `#/documents` with focus on the page's sample button and makes exactly one POST named "Sample runbook.md" (fulfilled 200), and the panel posts nothing itself. G3: Tab plus Enter does the same.
-- [ ] `web/e2e/guide/more-to-try.spec.ts` -- `ITEMS.documents.lookFor` oracle text. K3 fulfils GET `/v1/documents` with one document, so items 6 and 8 stay links (additive lines).
-- [ ] `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- Item 6 look-for, the controls sentence, the hand-off rule and the Step 3 sample bullet, as in `## Public Text`. Each gets `[AMENDED <commit date>, Story 20.3, Planner ruling <id>. It read: "...">]` where it changes existing text.
-- [ ] `README.md` -- only if the Planner rules Public Text 9 in: append it LAST under "New since 1.0.0", with L30's count unchanged.
+- [x] Planner conditions (2026-11-09): (a) add a test (web unit test reading the class sources, or an IRIS test) that pins the runbook's facts: the runbook text's quoted error equals the demo's actual order-date error text in `src/ocutalon/cls/OcuTalon/Demo/Orders/**`, and PartnerOrdersIn, OrdersFromPartner and OrdersToWarehouse are item names in `Demo/Orders/Production.cls`; record its mutation. (b) README.md: change ONLY the last sentence of the existing "Answers from your own documents" bullet to exactly `Try it: More to try, *Ask about a document*, which adds a sample runbook if you have no file to hand.`; no new bullet; `docker/tests/test-readme.sh` passes.
+- [x] Task 0 (measure, record as "Task 0 results (implement)" under Design Notes). (a) On the fresh sign-in stack, the e2e's real turn shows the citation on the target section, and the popover passage starts with "OrdersFromPartner accepts". (b) The fixture user the new e2e uses holds exactly `OcuTalonUser` (`Security.Users`, like sources.spec S0). (c) The time from the press to "Ready" on the developer machine.
+- [x] `web/src/app/documents/sample-runbook-view.ts` (new, framework-free, imports nothing) -- `SAMPLE_RUNBOOK_TEXTS = {name, text, question}`, verbatim from `## Public Text`. The bundled runbook.
+- [x] `web/src/app/documents/documents-view.ts` -- add `DOCUMENTS_TEXTS.sample`. Add `hasDocuments(server, live)` (`rows(server, live, []).length > 0`). Add `sampleListed(rows, name)`: true when a row has that name and is not the page's own refused row. Both extend `rows`. Update the header comment.
+- [x] `web/src/app/documents/sample-runbook.ts` (new, `@Injectable({providedIn:'root'})`) -- `none: Signal<boolean>`: true only once the GET answered and `hasDocuments` is false over the GET and `live.store().documents`. The GET runs on creation and again on every snapshot reload, the same effect as `DocumentsPage`'s; an error leaves it unknown (false). Also `ask()` and `take()`, a one-shot request from the guide.
+- [x] `web/src/app/documents/documents-page.ts` -- in `.bar` after **Add documents**, add `<app-server-button variant="secondary" [action]="addSample">` with the text `texts.sample`, shown while `loaded() && !sampleListed(shown(), name)`. `addSample` builds `new File([text], name, {type: 'text/markdown'})` and awaits `addFile`, which now returns success. On success, focus goes to the list region. On a refusal nothing moves. Hand-off: if `inject(SampleRunbook).take()` was set at construction, then once `loaded()` and after render, focus the sample button's native button and click it. If the sample is already listed, focus the list region instead. Update the class doc.
+- [x] `web/src/app/guide/more-to-try.ts` -- inject `SampleRunbook` and `Router`. `sampleFirst = computed(() => sample.none() && items().some(i => i.id === 'documents'))`. Template: the link branch becomes `item.action === 'documents' && !sampleFirst()`. The one button shows `sampleFirst() && item.action === 'documents' ? DOCUMENTS_TEXTS.sample : item.button`. `press` case `'documents'`: `sample.ask(); void router.navigate(['/documents'])`. Keep the counts the source test pins, and update the component doc (items 6 and 8).
+- [x] `web/src/app/guide/more-to-try-view.ts` -- item 6 `lookFor` as in `## Public Text` (one string changed, nothing else).
+- [x] `ci/mock/scenarios/B/sample-runbook.json` (new) -- marker `sample-runbook`. Replies: toolUse `documents` with `input.query` equal to `SAMPLE_RUNBOOK_TEXTS.question`, then text "The CI mock answered from the sample runbook." (a CI fixture, not shipped).
+- [x] `web/scripts/sample-runbook-view.test.mjs` (new) -- ASCII only. Ends with one newline. Has a `## When orders fail with a date error` section. Each `## ` section's paragraphs fit in 1,000 characters. The name ends `.md`. The `B/sample-runbook.json` documents query equals the question. Item 6's look-for holds `"<question>"`.
+- [x] `web/scripts/documents-view.test.mjs` -- `hasDocuments` (empty, a server row, a live add, a live `removed`) and `sampleListed` (a server row in each state, an own pending add, an own refused row only, another name).
+- [x] `web/scripts/more-to-try-view.test.mjs`, `more-to-try-sources.test.mjs`, `sources-docs.test.mjs`, `ux-strings.test.mjs`, `announce-focus-sources.test.mjs` -- item 6 oracle and `has()` checks (`press ${DOCUMENTS_TEXTS.sample}`, `"${question}"`, `reads ${DOCUMENTS_TEXTS.ready}`). Source rules: still no ApiClient or `addDocument` in `more-to-try.ts`, the documents press only `ask()`s and `navigate`s, and counts unchanged. Sources-docs: the EXPERIENCE item 6 line and the new controls sentence. Ux-strings: `IMPORTED` += `['documents/sample-runbook-view.ts', ['SAMPLE_RUNBOOK_TEXTS']]`, with each new string in `SOURCES` (`ux` once EXPERIENCE.md holds it verbatim, else `ruled` keyed by the 20.3 ruling id the lead records). Focus pin: `documents-page.ts` count and reason (the hand-off focus, for the user's own press in the guide).
+- [x] `web/e2e/documents/sample.spec.ts` (new, chromium project) -- as the CHAT fixture user (`OcuTalonUser` only). Each case removes what it adds, also on failure: the document through the real `DELETE`, turns, AI sessions since the mark, and the keys restored. E0 role check. E1 is the demo-visible path. The precondition is no row named the sample. Delay the POST (`page.route` -> `continue` after about 1.5 s) to assert busy, the unchanged label and one POST after a second press. Check the body (`name`, `content` decodes to the text). Wait for the real row "Indexing…" -> "Ready" (up to 120 s); the button is gone and focus is on the list region. Then `pointKeys`, open the chat, send `${question} [[mock:sample-runbook]]`, and expect the reply text, then a chip named exactly "Sample runbook, section When orders fail with a date error" showing "Sample runbook § When orders fail with a date error". Its popover holds the passage. E2: a 501 (fulfilled) -> "Couldn't read it: this part of OcuTalon isn't built yet." on the page's row, announced once, button kept, with focus. E3: a seeded instance row named "Sample runbook.md" -> no button; after its `removed` event the button shows. E4: Tab reaches the button after **Add documents** and Enter presses it.
+- [x] `web/e2e/guide/more-to-try-sample.spec.ts` (new, sign-in-3 project, the K3 setup) -- G1: with GET `/v1/documents` fulfilled `[]`, items 6 and 8 are buttons "Add the sample runbook". With one document, they are links (href `#/documents`). A published `document` event flips the buttons to links without a reload. G2: pressing item 6's button lands on `#/documents` with focus on the page's sample button and makes exactly one POST named "Sample runbook.md" (fulfilled 200), and the panel posts nothing itself. G3: Tab plus Enter does the same.
+- [x] `web/e2e/guide/more-to-try.spec.ts` -- `ITEMS.documents.lookFor` oracle text. K3 fulfils GET `/v1/documents` with one document, so items 6 and 8 stay links (additive lines).
+- [x] `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- Item 6 look-for, the controls sentence, the hand-off rule and the Step 3 sample bullet, as in `## Public Text`. Each gets `[AMENDED <commit date>, Story 20.3, Planner ruling <id>. It read: "...">]` where it changes existing text.
+- [x] `README.md` -- only if the Planner rules Public Text 9 in: append it LAST under "New since 1.0.0", with L30's count unchanged.
 
 **Acceptance Criteria:**
 - Given the Documents page with no sample listed, when the user presses **Add the sample runbook**, then the bundled runbook goes through `POST /api/v1/documents` exactly like a picked file (the same `addFile`), its row reaches Ready live, the button leaves, and no server class changed (FR-42, AD-21).
@@ -108,6 +109,44 @@ deferred: []
 - 2026-11-09 (lead): Planner rulings applied [AMENDED 2026-11-09, Contest Planner ruling]: Public Text 1-8 approved; 9 replaced by the README sentence change (see Design Notes); new task: the runbook-facts test (condition a).
 
 ## Review Triage Log
+
+### 2026-11-09 -- Review pass
+- verdicts: 34 findings -- high 0, medium 6, low 19, false 9, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: stale `ask()` flag after a cancelled navigation posts without a press -- the guide renders only on the main page (`app.ts` `onMain()`), the only route guard (`unsavedGuard`) is on Settings, so a press from the panel always reaches a new Documents page, which takes the flag at creation. A patch for it (a live-page counter, a withdraw on a failed navigate) was tried, found to be dead code (a G5 case showed the panel is absent on the Documents page), and reverted.
+  - `[low]` `[reject]` Blind: unguarded GET and a second copy of the list in `SampleRunbook` -- a stale reply needs two snapshots in flight; a fix adds a request counter for a flicker nobody meets.
+  - `[low]` `[reject]` Blind: a failed "Sample runbook.md" row hides the button -- the matrix says "any state"; Remove brings the button back; ruled text.
+  - `[low]` `[reject]` Blind: item 6's look-for does not match every state -- the string is ruled verbatim; item 8's text is unchanged by decision 4.
+  - `[low]` `[patch]` Blind: the test hard-codes the passage size 1000 -- `sample-runbook-view.test.mjs` now reads `MAXPASSAGE` from `Docs/Passages.cls` (read only).
+  - `[medium]` `[patch]` Blind: G2 reads the POST bodies without waiting -- now `expect.poll`. The fixed sleeps that prove a negative stay (a bounded wait is the only way to show "nothing more came").
+  - `[medium]` `[patch]` Blind: E2's `toBeGreaterThanOrEqual(0)` cannot fail -- the call is now a plain cleanup. A leftover `console.log` timing line and its variable in E1 are removed (patched). E1's swallowed cleanup error is rejected (low: the next case's own `removeSamples` repairs it). "made is never filled" is false: E3 fills it.
+  - `[low]` `[reject]` Blind: source-regex tests are brittle -- the spec and the existing `more-to-try-sources.test.mjs` pin the panel by source on purpose; the behaviour is G1-G4.
+  - `[false]` `[reject]` Blind: the Results-certificate section is unchecked/invented -- the runbook text is ruled verbatim and its fact is the Simulated mailbox's sample (EXPERIENCE :656).
+  - `[low]` `[reject]` Blind: the EXPERIENCE Sample bullet and README sentence are thin -- both are ruled verbatim.
+  - `[false]` `[reject]` Edge: stale flag after a cancelled navigation (same as the first row).
+  - `[false]` `[reject]` Edge: a press while the Documents page is already open is a no-op -- the panel is not rendered there (`onMain()`); G5 showed it.
+  - `[low]` `[reject]` Edge: refetch flicker and out-of-order replies (same as the second Blind row).
+  - `[false]` `[reject]` Edge: a null GET body throws -- `ApiClient.documents()` always returns the route's object.
+  - `[false]` `[reject]` Edge: `afterNextRender` may find no button -- the effect runs when `loaded()` is true, which draws the button first; G2-G4 pin it.
+  - `[low]` `[reject]` Edge: a failed page GET leaves a hand-off unanswered -- the flag is the page's own, nothing leaks, and the page shows its existing failure text.
+  - `[low]` `[reject]` Edge: a failed row hides the button (same as the third Blind row).
+  - `[low]` `[reject]` Edge: a missed `document` event leaves the guide control stale -- the next snapshot reload refetches.
+  - `[medium]` `[patch]` Verification gap: G1b's "stays a link" assertions pass before the GET answers -- the helper now waits for the GET's answer and two animation frames; mutation recorded (`error` handler sets `[]`, G1b red).
+  - `[medium]` `[patch]` Verification gap: the keyboard AC and the `sampleListed` hand-off branch have no mutation line -- both recorded (E4 red with the button before Add documents; G4 red without the early return).
+  - `[low]` `[reject]` Verification gap: G4's "posts nothing" half cannot fail alone -- the focus assertion in the same case carries the branch (the mutation above turns it red).
+  - `[medium]` `[patch]` Rule 19: E2's vacuous assertion (same as above).
+  - `[medium]` `[patch]` Rule 19: G2's synchronous read (same as above).
+  - `[low]` `[reject]` Rule 19: sleep-based negatives -- kept, see above.
+  - `[low]` `[patch]` Rule 19: no mutation line for the README sentence -- recorded (`sources-docs.test.mjs` red).
+  - `[low]` `[reject]` Rule 19: E3's return half and the redundant busy guard have no isolating mutation -- E3 still asserts both halves; the plain-button mutation covers the busy guard.
+  - `[low]` `[reject]` Rule 19: E1's swallowed cleanup (same as above).
+  - `[low]` `[reject]` Other: the source-regex case is a guard, not a behaviour test -- behaviour is covered by G2-G4.
+  - `[false]` `[reject]` Other: the service's GET at injection may break a load-time assertion -- the spec makes the GET happen on creation; `documents.spec.ts` (part 11/20, 13 passed) and the guide parts pass.
+  - `[low]` `[patch]` Other: `documents.spec.ts` was not run in the implement results -- part 11/20 now run: 13 passed.
+  - `[low]` `[reject]` Intent auditor: the chip rests on the mock's scripted `documents` call -- the spec accepts it (AD-22; "the model may not search" is the Planner's hands-on pass).
+  - `[false]` `[reject]` Intent auditor: the panel's creation triggers a GET -- the spec's decision (GET on creation); the panel's own file still holds no ApiClient.
+  - `[false]` `[reject]` Intent auditor: hand-off flag lifetime -- see the first row.
+  - `[low]` `[reject]` Intent auditor: online session ownership is not exercised -- the route decides ownership (34.2/34.3); no server change here.
 
 ## Design Notes
 
@@ -184,6 +223,18 @@ The runbook makes no claim about OcuTalon.
 | Is anything wrong right now? (Try it) | -0.0869 | -0.0651 | 0.0627 | -0.0635 |
 
 So at CITEFLOOR 0.4 the chosen question cites only passage 2. The other demo prompts cite nothing from the sample. "Sample runbook" in a question lifts the intro over the floor, which is why the chosen wording says "the runbook". Naming the runbook also invites the real model to call `documents` (inference; release hands-on pass).
+
+**Task 0 results (implement, 2026-11-09, lane-B fresh throwaway `e20s3i`, sign-in stack):**
+- (a) The real turn of `sample.spec.ts` E1 (the composer, the CI mock scenario `sample-runbook`, the real `documents` search of the real indexed runbook) ends with exactly one chip, named "Sample runbook, section When orders fail with a date error" and reading "Sample runbook \u00A7 When orders fail with a date error". Its popover holds one passage, which starts with "OrdersFromPartner accepts" (asserted by E1).
+- (b) E0 reads `Security.Users` for the CHAT fixture user (`ZzChat`) and finds exactly `OcuTalonUser`, as the stack's setup also printed (`PASS the fixture user ZzChat (roles OcuTalonUser) is created`).
+- (c) From the press to "Ready" on the developer machine: 6.5 s in the last run (this includes the 1.5 s the case holds the POST; so about 5 s of upload and indexing), and the whole E1 case took 12.8 s.
+
+**Decided in implement:**
+1. The page button stays in the DOM while its own add is out (`sampling`), although the page's own pending row already carries the name. Otherwise the pending row would hide the button at once and the busy state (spinner, aria-busy, repeat presses ignored) would never show. After the route answers, a success hides it (the pending row, then the server's row, carries the name) and a refusal keeps it (a refused row of the page's own does not count in `sampleListed`).
+2. The mutation of the facts test uses the runbook as the thing under change (the demo's classes are not edited): the reworded quoted error and a renamed item turn `sample-runbook-view.test.mjs` red.
+3. Ruling id for the new `ruled` entry in `ux-strings.test.mjs` is `planner-2026-11-09-20.3` (the pattern of 20.2's), and the three EXPERIENCE.md amendments and the item 6 look-for carry it. The button label, the file name, the question and item 6's look-for are `ux` strings (EXPERIENCE.md holds each verbatim); the runbook text is the one `ruled` string.
+4. K3 of `more-to-try.spec.ts` fulfils GET `/v1/documents` with one document so that items 6 and 8 stay links on a stack with an empty install list; the other cases of that file use the real list, where items 6 and 8 are the sample button, and none of them asserts the controls of those items.
+5. `more-to-try-sample.spec.ts` uses the real guide and the real `guide.features` (asserted to hold `documents` and `sources`) instead of a routed guide, and routes only GET `/v1/documents` and the POST, so it needs none of K3's guide copies.
 
 **Contended files (all additive or one-string):**
 - `guide/more-to-try.ts` (23.6): one computed, two injections, one template condition and one `press` case.
@@ -277,6 +328,23 @@ Run one command per tool call, sized to about 150 s. A fresh stack started in 25
 - `addSample` swallowing the error without `refuse` -> E2 red.
 - A ruled string changed by one word -> `ux-strings.test.mjs` / `sources-docs.test.mjs` red.
 
+**Mutation lines (Rule 19, implement 2026-11-09; each applied, observed red, reverted, tree byte-identical by `cmp` and `git status`):**
+- mutation: the sample `File` built from `['']` instead of the text -> `sample.spec.ts` E1 red (the real route answered 400 `bad_document`, reason `empty`).
+- mutation: `sampleListed` counting only the page's own rows (ignoring server rows) -> `documents-view.test.mjs` "lists the sample for a server row ..." and "... for a live row ..." red, and `sample.spec.ts` E3 red ("so there is no button").
+- mutation: `sampleFirst` forced false -> `more-to-try-sample.spec.ts` G1 red (the items hold the link, not the button); `SampleRunbook.none` reading `{}` in place of the live store's documents -> G1 red at the flip ("a document event turns the button into the link").
+- mutation: the guide press without `this.sample.ask()` -> `more-to-try-sample.spec.ts` G2, G3 and G4 red (the page's button is not focused or busy) and `more-to-try-sources.test.mjs` "offers the sample runbook only through SampleRunbook ..." red.
+- mutation: the scenario `sample-runbook.json` query changed to "How do I reset my password?" -> `sample.spec.ts` E1 red at the chip ("the answer ends with a chip that names the runbook and its section"), and `sample-runbook-view.test.mjs` "is the one that the CI mock's scenario asks ..." red.
+- mutation: the sample button's `<app-server-button>` replaced by a plain `<button>` -> `sample.spec.ts` E1 red at "the button is busy".
+- mutation: `addFile`'s catch returning false without `refuse` -> `sample.spec.ts` E2 red ("the page's own row").
+- mutation: one word of a ruled string changed (`DOCUMENTS_TEXTS.sample` -> "Add the sample runbooks") -> `ux-strings.test.mjs`, `documents-view.test.mjs` and `more-to-try-view.test.mjs` red; one word of the EXPERIENCE.md controls sentence changed -> `sources-docs.test.mjs` "says that, with no documents ..." red.
+- mutation: the runbook's quoted error reworded ("... in the expected form.") -> `sample-runbook-view.test.mjs` "quotes the error that the demo's order-date transform raises" red; `OrdersToWarehouse` renamed everywhere in the runbook -> "names the items of the Orders production ..." red.
+- mutation (review patch): `SampleRunbook.fetch`'s error handler setting `[]` in place of `undefined` -> `more-to-try-sample.spec.ts` G1b red (a failed list offers the sample button instead of the link; G1b now waits for the GET's answer and two frames before it asserts).
+- mutation (review patch): `handToSample` without its `sampleListed` early return -> `more-to-try-sample.spec.ts` G4 red at "focus on the list region".
+- mutation (review patch): the sample `<app-server-button>` placed before Add documents in `.bar` -> `sample.spec.ts` E4 red at "Tab reaches it" (the keyboard AC's order).
+- mutation (review patch): one word of the README's ruled sentence changed ("at hand" for "to hand") -> `sources-docs.test.mjs` "ends the documents bullet with the ruled sentence ..." red; `test-readme.sh` stays green.
+
+**Results (implement):** `node --test` of the seven web scripts 123 pass; `node --test ci/mock/test/` 134 pass; `npm --prefix web test` 1766 pass; `npm --prefix web run lint` and `run build` pass; `bash ci/checks.sh` all 32 scripts pass (`test-boundaries.sh`, `test-readme.sh` among them); `bash docker/tests/test-mock.sh` passes; e2e on `e20s3i`: `live sign-in --part 13/20` (`documents/sample.spec.ts`, 5 tests, and `frame/frame.spec.ts`) 25 pass, `live sign-in-3 --part 1/7` (`guide.spec.ts` and `more-to-try-sample.spec.ts`) 23 pass, `--part 2/7` (`more-to-try.spec.ts`) 96 pass.
+
 **Shared surfaces:**
 - The More to try controls of items 6 and 8 and item 6's look-for: `more-to-try-view.test.mjs`, `more-to-try-sources.test.mjs` counts, `more-to-try.spec.ts` ITEMS oracle and K3, `sources-docs.test.mjs`, EXPERIENCE.md.
 - `DOCUMENTS_TEXTS` and `IMPORTED`/`SOURCES`: `ux-strings.test.mjs`.
@@ -289,5 +357,23 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The Documents page gets **Add the sample runbook** (a `ServerButton`): it builds a `File` from the bundled runbook (`sample-runbook-view.ts`) and hands it to the page's own `addFile`, so the request, pending and refused rows and the announcement are a picked file's. `SampleRunbook` (new root service) tells More to try whether the visitor's own list is known and empty (GET overlaid with live `document` events) and carries the guide's one-shot request; items 6 and 8 show the same control while the list is empty and the `documents` item is listed, and the press asks, then opens the Documents page, which presses its own button (or focuses the list when the sample is listed). Item 6's look-for carries the measured question; a Lane B mock scenario answers it; README (last sentence only) and EXPERIENCE.md carry the ruled text. No server class changed.
+
+**Files changed.**
+- `web/src/app/documents/sample-runbook-view.ts`, `sample-runbook.ts` (new): the ruled name, text and question; the presence and hand-off service.
+- `web/src/app/documents/documents-view.ts`, `documents-page.ts`: `DOCUMENTS_TEXTS.sample`, `hasDocuments`, `sampleListed`; the button, `addSample`, the hand-off, `addFile` returns success.
+- `web/src/app/guide/more-to-try.ts`, `more-to-try-view.ts`: `sampleFirst`, the template condition, the `documents` press case; item 6's look-for.
+- `ci/mock/scenarios/B/sample-runbook.json` (new): the CI mock's scenario.
+- `web/scripts/*.test.mjs` (new `sample-runbook-view`, updated `documents-view`, `more-to-try-view`, `more-to-try-sources`, `sources-docs`, `ux-strings`, `announce-focus-sources`), `web/e2e/documents/sample.spec.ts` and `web/e2e/guide/more-to-try-sample.spec.ts` (new), `web/e2e/guide/more-to-try.spec.ts` (oracle string, K3 route lines).
+- `README.md` (the one ruled sentence), `EXPERIENCE.md` (item 6, controls sentence, hand-off clause, Step 3 Sample bullet), this spec.
+
+**Review.** 34 findings across four layers: patches applied 9 rows (by entry: 4 medium, 1 low group), deferred 0, rejected 25 with their reasons in the Review Triage Log. Patches: G2 waits with `expect.poll`; E2's vacuous assertion and E1's leftover `console.log` removed; G1b waits for the GET's answer; four mutation lines added (G1b, G4's listed branch, E4's Tab order, the README sentence); the passage size is read from `Docs/Passages.cls` in the facts test; `documents.spec.ts` run.
+
+**Follow-up review recommended: true.** Two or more medium entries were patched (4). The unverified risk: the new waits in G1b and G2 (a response listener plus two animation frames, and `expect.poll`) passed once each on the final run; a second pass should check they are not timing-sensitive under a loaded runner.
+
+**Verification.** Unit loop (7 scripts) 123 pass; `node --test ci/mock/test/` 134 pass; `npm --prefix web test` 1766 pass; lint and build pass; `bash ci/checks.sh` all scripts passed (test-boundaries, test-readme, test-mock included); e2e on `e20s3i`: sign-in part 13/20 (sample.spec.ts) 25 pass, sign-in-3 part 1/7 (more-to-try-sample.spec.ts) 23 pass, sign-in part 11/20 (documents.spec.ts) 13 pass, sign-in-3 part 2/7 (more-to-try.spec.ts) 96 pass (implement run; its sources are unchanged since). Mutations observed red and reverted. Throwaway torn down (0 leftovers).
+
+**Residual risks.** The cited answer online depends on the model calling `documents` (inference; the Planner's hands-on pass). The `ruled` id `planner-2026-11-09-20.3` in `ux-strings.test.mjs` was chosen by analogy because the rulings file records none. The guide's control hides after a failed sample row exists until that row is removed (as specified: any state).

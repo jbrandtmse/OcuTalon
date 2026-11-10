@@ -56,7 +56,7 @@ export const MORE_TO_TRY_TEXTS = {
     documents: {
       label: 'Ask about a document',
       lookFor:
-        'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the chip under the answer that names your file and its section.',
+        'On the Documents page, press Add the sample runbook, or add a short file of your own (nothing personal: Visual Trace on the demo is shared). When it reads Ready, ask in the chat "According to the runbook, what should I do when partner orders fail with a date error?", or ask about your own file, and look for the chip under the answer that names the document and its section.',
       button: 'Open the Documents page',
     },
     heartbeat: {
