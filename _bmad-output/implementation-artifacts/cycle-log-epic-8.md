@@ -276,3 +276,15 @@
 2026-10-28T16:15:26Z	Story 8.2	ci_resolved	story=8.2 sha=2f4daf2 runs=40713989310,40713989213 failed=none via=none result=success resolved_at=burndown note=attempt_1_red_only_GuideRefresh.TestHeldLock(flake,DW-349_occurrence);rerun_--failed_green(image_job)
 2026-10-28T16:15:26Z	Epic 8	integrated_forward	feature=ce66c6b head=75dc785 conflicts_resolved=sprint-status.yaml,ci/units.sh,Test/Core/CommandsInProduction.cls(merge_8d5f805_of_feature_289d47a,plain_unions);none(merge_75dc785_of_feature_ce66c6b,bookkeeping_only) suite=checks_pass(104s);shard_lane-a_70_pass(2_parts);shard_lane-b_71_pass(fwd+rev,2_parts_each);live_production_pass;live_demo-path_pass(after_ci/iris.sh_build);live_sign-in_2_parts_pass(96+126);CI_2f4daf2_green(40713989310_attempt_2,40713989213) reworks=8.6_x2(ReminderChat_selection;stale_local_bundle),8.2_x1(H1_fixture_check_not_due) feature_now=855c37e(bookkeeping_only_since_ce66c6b) model=claude-opus-5-5
 2026-10-28T16:15:26Z	Epic 8	epic_runner_complete	stories_completed=7 head_before_push=048737c+this_commit ready_for_merge=true retro=skipped(policy) applied=U-118,U-119 model=claude-opus-5-5
+2026-11-10T00:55:03Z	Epic 8	epic_branch_reopened	reason=story_8.8(DW-1018;1.0.6_HIGH;owner_via_Contest_Planner) from=f59fd609 note=branch_provisioned_by_orchestrator_off_feature_f59fd609
+2026-11-10T00:55:03Z	Epic 8	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=dispatch_epic_8_dw1018 lane=C slot=ocutalon-slot-c
+2026-11-10T00:55:03Z	Epic 8	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-10T00:55:03Z	Epic 8	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-10T00:55:03Z	Epic 8	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-10T00:55:03Z	Epic 8	epic_branch_checked_out	repos=. head=f59fd609 bootstrap_check=ok ci_expected=ci,lane-a
+2026-11-10T00:55:03Z	Epic 8	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-10T00:55:03Z	Epic 8	ledger_load	total=1033 open=0 routed=121 escalated=2 decision_pending=6 terminal=904 owner_unknown=0 burndown=100 reowned_none=0 epic8_owned=0 note=DW-1018_routed_to_8.8_after_insert
+2026-11-10T00:55:03Z	Epic 8	ledger_routed_planned	story=8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend entries=1 excess=0 by=load note=the_story_block_is_DW-1018
+2026-11-10T00:55:03Z	Epic 8	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen(sprint_plan.py_generate+validate);tracker_valid;8.8_added_backlog;dropped_orphans=none
+2026-11-10T00:55:03Z	Epic 8	retro_review_skipped	reason=skipped(policy) note=reopen_for_one_story;Epic_8_done_and_retro_reviewed_earlier(dispatch)
+2026-11-10T00:55:03Z	Epic 8	epic_status_reopened	epic-8=in-progress via=SC-5_reopen(epic_branch_reopened) stories=8.8 amendment=epics.md:Story_8.8_[ADDED_2026-11-10,DW-1018]

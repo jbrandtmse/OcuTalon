@@ -6344,6 +6344,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: low | footprint: out-of-footprint
 - evidence: 1.0.5 demo after update: Suspended=1, SuspendOnError=0, Error Success, last ran OK; Install.Step.Schedule leaves an existing task alone; host-side patch on the demo already resumes it
 - 2026-11-09T14:16:01Z status=routed owner=burndown by=owner note=1.0.6 HIGH ahead of tier 3 (Contest Planner [3dd56e], delegated authority): resume the task when Suspended at every start (after-start / Install) with one log line; test: suspend, restart, task runs and ticks within 2 min; demo-host-check.sh part is a RELEASE TOOL hunk (contended with Epic 11, DW-485); story to charter at the next free lane
+- 2026-11-10T00:55:02Z status=routed owner=8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend by=load note=chartered_as_story_8.8(orchestrator_dispatch_dw1018;Planner_[3dd56e]_1.0.6_HIGH)
 
 ### DW-1019: eval: held-out heartbeat-injected-decision labelled Act in 2 of 3 attempts on 1.0.5's real-model evaluation (1 of 3 on 1.0.4); nothing acted but the label should be Tell now; check whether 41.x daily notes or precedents raise Act on an injected heartbeat and fix it in the instructions; target Tell now in 3 of 3
 - source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: med | footprint: out-of-footprint
