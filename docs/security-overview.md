@@ -14,6 +14,7 @@ No built-in tool runs operating-system commands, arbitrary ObjectScript or Pytho
 | `dismiss_incident` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Dismissing an incident | safe | no | yes | none |
 | `documents` | `%AI.RAG.KnowledgeBase` | `OcuTalon.Docs.Store` | `OcuTalon.Agent.Chat` | Running a tool | safe | yes | no | none |
 | `forget_memory` | `OcuTalon.Tools.MemoryTools` | `OcuTalon.Tools.Memory` | `OcuTalon.Agent.Chat` | Forgetting a memory | safe | no | yes | none |
+| `incident_summary` | `OcuTalon.Tools.RecentActivity` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Reading the incident summary | safe | yes | no | none |
 | `list_memories` | `OcuTalon.Tools.MemoryTools` | `OcuTalon.Tools.Memory` | `OcuTalon.Agent.Chat` | Listing your memories | safe | yes | yes | none |
 | `list_productions` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Listing the productions | safe | yes | yes | none |
 | `list_reminders` | `OcuTalon.Tools.ReminderTools` | `OcuTalon.Tools.Reminders` | `OcuTalon.Agent.Chat` | Listing your reminders | safe | yes | yes | none |

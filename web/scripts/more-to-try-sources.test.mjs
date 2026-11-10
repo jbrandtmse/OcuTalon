@@ -7,11 +7,12 @@
 import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { sourceFiles } from './source-files.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
+const { MORE_TO_TRY_GROUPS } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts')).href);
 const files = sourceFiles(join(here, '..', 'src', 'app'), ['.ts']);
 const file = (name) => {
   const found = files.find((one) => one.name === name);
@@ -33,12 +34,23 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.doesNotMatch(code, /postMailboxSample|postBreakFeed|\bDemoView\b|\.set\(false\)|\.set\(true\)/);
   });
 
-  it('moves focus in one place, and sends once through the outbox with the text alone', () => {
+  it('moves focus in one place, and sends only the two prompts through the outbox, with the text alone', () => {
     assert.equal(count(code, /\.focus\(/g), 1);
     const sends = [...code.matchAll(/\boutbox\.send\(([^)]*)\)/g)];
-    assert.equal(sends.length, 1);
-    assert.equal(sends[0][1].trim(), 'MORE_TO_TRY_TEXTS.rememberPrompt');
+    assert.deepEqual(
+      sends.map((one) => one[1].trim()),
+      ['MORE_TO_TRY_TEXTS.rememberPrompt', 'MORE_TO_TRY_TEXTS.summaryPrompt'],
+      'the memory item sends its own, the incident summary item falls back to its prompt',
+    );
     assert.doesNotMatch(code, /fromGuide/);
+  });
+
+  it('presses the Dismiss of the newest resolved incident card through the page\'s own control (Story 23.6)', () => {
+    assert.match(code, /document\.querySelectorAll<HTMLElement>\(INCIDENT_CARD\)/);
+    assert.match(code, /querySelector\(RESOLVED_CHIP\)/);
+    assert.match(code, /resolved\[resolved\.length - 1\]\.querySelector<HTMLElement>\(DISMISS_BUTTON\)/);
+    assert.match(code, /case 'incidentSummary':\s+this\.closeIncident\(\);/);
+    assert.doesNotMatch(code, /dismiss\(|postDismiss|\/dismiss/i, 'it calls no Dismiss route of its own');
   });
 
   it('has native controls only: every button has type="button", and every action is in a (click)', () => {
@@ -63,10 +75,26 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.match(code, /case 'documents':\s*this\.sample\.ask\(\);\s*void this\.router\.navigate\(\['\/documents'\]\);\s*break;/);
   });
 
-  it('names no aria-label and no icon on a control, and no heading', () => {
+  it('names no aria-label and no icon, and its only heading is the group heading, which takes no focus', () => {
     const template = /template:\s*`([^`]*)`/.exec(code);
     assert.ok(template, 'the template is inline');
-    assert.doesNotMatch(template[1], /aria-label=|<app-icon|<h[1-6]\b/);
+    assert.doesNotMatch(template[1], /aria-label=|<app-icon/);
+    const headings = template[1].match(/<h[1-6]\b[^>]*>[^<]*<\/h[1-6]>/g) ?? [];
+    assert.deepEqual(headings, ['<h4 class="set-heading">{{ set.heading }}</h4>']);
+    assert.equal((template[1].match(/<h[1-6]\b/g) ?? []).length, 1, 'no other heading element, whatever it holds');
+    assert.doesNotMatch(headings[0], /tabindex|\bid=/);
+    assert.match(template[1], /@if \(set\.heading\) \{\s*<h4 class="set-heading">/, 'a set with no heading renders no heading element');
+    assert.match(template[1], /<p class="group-label" \[id\]="labelId">/, 'the panel label stays a paragraph');
+  });
+
+  it('holds none of the heading strings, and iterates the sets that groupsOf gives', () => {
+    for (const heading of MORE_TO_TRY_GROUPS) {
+      assert.ok(!code.includes(heading), `${heading} is not written in the component`);
+    }
+    assert.match(code, /protected readonly groups = computed\(\(\) => groupsOf\(this\.items\(\)\)\);/);
+    assert.match(code, /@for \(set of groups\(\); track set\.heading\) \{/);
+    assert.match(code, /@for \(item of set\.items; track item\.id\) \{/);
+    assert.doesNotMatch(/template:\s*`([^`]*)`/.exec(code)[1], /\bitems\(\)/, 'the template never iterates the flat list');
   });
 
   it('is a labelled group with a list, each control marked for the focus rule', () => {

@@ -272,7 +272,7 @@ Method TestSetRelative()
 	}
 	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
-		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,check_status,dismiss_incident,documents,forget_memory,list_memories,list_productions,list_reminders,propose_persona,recent_activity,save_memory,search_memories,send_digest,set_reminder,start_watch,stop_watch", "the second request offers the three reminder tools and, since Stories 5.1, 5.9, 5.7 and 5.13, the six watching tools, since Story 40.5, propose_persona and, since Story 17.6, send_digest and, since Story 19.3, the four memory tools")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,check_status,dismiss_incident,documents,forget_memory,incident_summary,list_memories,list_productions,list_reminders,propose_persona,recent_activity,save_memory,search_memories,send_digest,set_reminder,start_watch,stop_watch", "the second request offers the three reminder tools and, since Stories 5.1, 5.9, 5.7 and 5.13, the six watching tools, since Story 40.5, propose_persona and, since Story 17.6, send_digest and, since Story 19.3, the four memory tools and, since Story 23.6, incident_summary")
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 		Do $$$AssertEquals($ListLength(results), 1, "and carries one tool result")
 		If $ListLength(results) = 1 Do ..AssertObject($List(results, 1), ..SetAnswer(), "the model reads the answer of the owner")

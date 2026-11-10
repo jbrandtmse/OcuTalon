@@ -782,7 +782,7 @@ Ships in the first daily release after it merges (after 1.0.0). [AMENDED 2026-10
 ### Epic 23: Deeper IRIS watch (step 5)
 
 Incidents gain rerouting, suspend and resume and setting rollback as approved fixes, link failures to recent setting changes, page the on-call person with escalation, draft partner warnings sent only after approval, and close with a written summary; queue backlog and SQL query watches report between digests (Could).
-**Lane:** A. **Depends on:** Epic 36 (real: Story 36.1 (was 23.1)'s spine names and setting history, which Stories 23.2 to 23.8 build on; Story 36.2 (was 24.1)'s on-call keys and acknowledgement verb, which Story 23.4 uses, and its save-SQL-query-watch verb, which Story 23.8 handles); story-level: Story 23.2 needs Epic 14 merged (real: the overview's generated list shows the new kinds), Story 23.5 needs Epics 21 and 22 merged (real: `EmailOut` and the mock mail server, Story 21.2; the email fix path, Story 22.7), Story 23.7 needs Epic 17 merged (real: the `checks.thresholds.*` keys Story 17.5 seeds), and Story 23.8 needs Epic 14 merged (real: the security overview lists the read-only SQL user); Stories 23.4 and 23.6 also use the Watch area's purge (real: Story 30.2), which Epic 30 brings in before Epic 36 through Story 36.1's wait. Runner order: after Epic 22 on runner A. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 22; story-level: Story 23.4 needs Story 24.1 (the acknowledgement verb and the on-call keys), and Story 23.8 needs Story 24.1 (the save-SQL-query-watch verb)."; Epic 22 was real only for Story 23.5, now its story-level wait; Story 24.1 is now Story 36.2, which Epic 36 carries]
+**Lane:** A. **Depends on:** Epic 36 (real: Story 36.1 (was 23.1)'s spine names and setting history, which Stories 23.2 to 23.8 build on; Story 36.2 (was 24.1)'s on-call keys and acknowledgement verb, which Story 23.4 uses, and its save-SQL-query-watch verb, which Story 23.8 handles); story-level: Story 23.2 needs Epic 14 merged (real: the overview's generated list shows the new kinds), Story 23.5 needs Epics 21 and 22 merged (real: `EmailOut` and the mock mail server, Story 21.2; the email fix path, Story 22.7), Story 23.7 needs Epic 17 merged (real: the `checks.thresholds.*` keys Story 17.5 seeds), and Story 23.8 needs Epic 14 merged (real: the security overview lists the read-only SQL user); Stories 23.4 and 23.6 also use the Watch area's purge (real: Story 30.2), which Epic 30 brings in before Epic 36 through Story 36.1's wait. Runner order: after Epic 22 on runner A. [AMENDED 2026-11-09, owner re-plan, Contest Planner rulings (i) and (iii), recorded by the Epic 23 runner (the graph's epic-23 row carries them): the epic-level dependency on Epic 36 is lifted to story level (Story 23.3 waits on Story 36.1; Stories 23.4 and 23.8 on Story 36.2); Stories 23.6, 23.2 and 23.5 do not depend on Epic 36, and Story 23.5 no longer waits on Epics 21 and 22 (it sends through the SimMailbox channel; see its note)] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 22; story-level: Story 23.4 needs Story 24.1 (the acknowledgement verb and the on-call keys), and Story 23.8 needs Story 24.1 (the save-SQL-query-watch verb)."; Epic 22 was real only for Story 23.5, now its story-level wait; Story 24.1 is now Story 36.2, which Epic 36 carries]
 Ships in the first daily release after it merges (after 1.0.0). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "After 1.0.0 we'll move to daily releases of whatever features are complete."; it read "Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; …). Releases in between are patch releases."] [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-26, FR-27, FR-28, FR-29, FR-30, FR-33 (step 5 checks), FR-62 (setting-change incidents).
 **Also covers:** AD-15 (setting history), AD-16; UX-DR146 (Lane A's part).
@@ -1548,6 +1548,41 @@ So that I see what OcuTalon is and whether it is healthy before I read a word of
 **Given** the change
 **When** this story merges
 **Then** `bash docker/tests/test-readme.sh` passes every rule and every self-test, `docker/tests/test-boundaries.sh` passes, lane-a is green, and the header renders on GitHub (checked on the pushed branch's README page)
+
+### Story 0.22: The More to try panel shows its items under three group headings
+
+[ADDED 2026-11-10, More to try capacity ruling option (a), Contest Planner under the owner's delegation] SC-5 re-open of Epic 0 (lane C, after Story 8.8). The ruling (2026-11-10 ~01:30Z, with its ~01:40Z correction) fixes the three group headings verbatim and their order; any other new public string (an accessible name, the EXPERIENCE line, a fallback label) goes to the Contest Planner as PUBLIC TEXT at the spec gate, before the implement stage. In-flight items (incidentSummary from 23.6, reroute from 23.2, warnPartner from 23.5, memoryCard = pinMemory from 41.13, and 37.2's item) declare their own `group:` in their own stories, a plain union at their merges. Files: web/src/app/guide/more-to-try.ts, web/src/app/guide/more-to-try-view.ts, their unit tests under web/scripts/, web/e2e/guide/, and EXPERIENCE.md (one marked line).
+
+As a visitor opening the demo guide's More to try panel,
+I want its items shown under a few short headings,
+So that I can find the kind of thing I want to try without reading a long flat list.
+
+**Acceptance Criteria:**
+
+**Given** `MORE_TO_TRY_ITEMS` and its optional `group` field (added by Story 20.3)
+**When** this story merges
+**Then** every existing item declares its group, exactly as ruled: "Incidents and fixes" (rejectFix), "Memory and documents" (memory, documents, sources), "Safety and settings" (suspiciousEmail, heartbeat, persona, demoView)
+**And** the order of the groups is ruled ("Incidents and fixes", then "Memory and documents", then "Safety and settings") and kept in one exported constant; within a group, items keep their registry order; an item placed first in the registry by a later story (23.6's incidentSummary) stays first overall
+**And** no item's text changes, and no row of the registry changes except for its `group:` field
+
+**Given** the open More to try panel
+**When** it renders the items `itemsFor` returns
+**Then** each group with at least one present item shows its heading as a real heading inside the panel, at the level below the panel's label, followed by its items; the headings come from the registry data and the ordering constant, never from a hard-coded list of three, so a fourth group needs only data
+**And** a group with no present item (`itemsFor` filters by features) shows no heading
+**And** an item with no `group` (a later story that forgets it) still renders, in a place the spec decides and a unit test pins
+**And** keyboard focus still moves item by item (headings take no focus), and every item stays reachable in the compact band, where the panel scrolls
+
+**Given** the tests
+**When** this story merges
+**Then** unit tests cover the grouping, the group order, the empty-group suppression, the ungrouped fallback and the focus order, and read the registry, never a literal count
+**And** an e2e shows each group heading with its items in the open panel
+
+**Given** README.md and EXPERIENCE.md
+**When** this story merges
+**Then** both keep the TOTAL item count (the registry rule) and README.md is otherwise unchanged; EXPERIENCE.md gets one line, carrying this story's marker, that lists the three groups in order; no other text changes
+**And** EXPERIENCE.md's More to try entries are listed and renumbered by group: the three ruled headings, with the order inside each group, and the item numbers it cites elsewhere follow; the wording of the renumbering goes to the Contest Planner at the spec gate [AMENDED 2026-11-10, Contest Planner ruling]
+**And** no test pins a group's size or the number of groups as a literal (Story 37.2's `usage` item joins "Safety and settings" as its last item, with no fourth heading) [AMENDED 2026-11-10, Contest Planner ruling for Story 37.2]
+**And** `docker/tests/test-boundaries.sh` passes, and lane-a and ci are green
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
@@ -4121,6 +4156,39 @@ So that later stories can add sign-in tests without a run outgrowing the 10-minu
 
 - DW-314: `live sign-in` runs as two parts of the same script (part 1/2 and 2/2, split by spec file, as `ci/iris.sh shard --part k/n` splits classes), each about 4 to 5 minutes on the developer machine, together running every spec the whole unit runs, exactly once; CI's `browser` group still runs the whole unit; Rule 21's recipe says how to run the two parts (owner via Contest Planner: split live sign-in into two ~4-5 min runs) (ledger; chartered by burndown 2026-10-27)
 - DW-204: `web/e2e/api/api.spec.ts` reads the instance stream's status events against a baseline it takes itself, so it passes whether or not `heartbeat.spec.ts` ran before it, in either part and in the whole unit (ledger; chartered by burndown 2026-10-27)
+
+### Story 8.8: The heartbeat task resumes itself when it comes back Suspended
+
+[ADDED 2026-11-10, DW-1018, owner via Contest Planner (1.0.6 HIGH)] SC-5 re-open of Epic 8 for release 1.0.6, a Rule 5 tier-1 re-open story: it restores FR-32's promise (the heartbeat ticks every minute and catches up once after a restart, Story 8.1) on a start that leaves the task Suspended, and changes no product target. Scope owner-approved (Contest Planner [3dd56e], delegated authority, 2026-11-09). The resume's log line and any `release/demo-host-check.sh` output line go to the Contest Planner as PUBLIC TEXT at the spec gate, before the implement stage; the `release/demo-host-check.sh` hunk is a RELEASE TOOL hunk, ruled by the Planner before this story merges. Any new privilege, role, grant or resource the resume needs is named at the spec gate (veto window); the user role `OcuTalonUser` is never widened. Files: `src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls` (the Schedule area, Lane B), `OcuTalon.Schedule.*`, their tests under `OcuTalon.Test.Schedule`, one new live script under `docker/tests/`, Lane B's entries in `ci/units.sh`, `release/demo-host-check.sh` and `release/demo-host-checks.md`, and that script's existing checks under `docker/tests/`.
+
+As the operator of an OcuTalon instance, the online demo's included,
+I want the heartbeat task to resume itself when a stop and start leaves it Suspended,
+So that ticks, background checks, watches and the digest's coverage come back after every restart, with no hand fix on the host.
+
+**Acceptance Criteria:**
+
+**Given** the Task Manager task "OcuTalon heartbeat" exists and is Suspended, as after a stop or start that cut a run short (seen on the 1.0.5 online demo after an update: Suspended 1, SuspendOnError 0, its last run OK)
+**When** OcuTalon starts: the after-start script's installer steps, an IPM install's steps, or a production start that `ReconcileIn` reconciles (AD-23)
+**Then** the task is resumed and one log line names it, through `Install.Step.Warn` or the equivalent line the path already writes (FR-32, AD-18, AD-23)
+**And** no second task is created, and the task's schedule and every other property stay as they were: it is still the one task Story 8.1 declared (AD-19's seed rule, AD-23)
+
+**Given** the heartbeat task exists and is not Suspended
+**When** OcuTalon starts
+**Then** the task is left exactly as it was and no line is logged
+
+**Given** no heartbeat task exists
+**When** OcuTalon starts
+**Then** the outcome is what the installer does today: the Tasks step creates the task, and the resume path finds nothing to resume
+
+**Given** the heartbeat task has been suspended on a running instance
+**When** the instance is restarted
+**Then** within 2 minutes of the restart the task runs and the heartbeat ticks (a new tick in `OcuTalon.Data.StatusMark`), which a live unit checks; the unit runs in the CI group with the most headroom, never in `production`, `browser`, `install-fresh` or `install-upgrade` (FR-32, AD-22)
+**And** unit tests in `OcuTalon.Test.Schedule` cover the three cases above: not Suspended (unchanged, no line), Suspended (resumed, one line), missing (as today)
+
+**Given** `release/demo-host-check.sh` runs against the online demo host
+**When** the heartbeat's last tick is more than 3 minutes old, or the heartbeat task is Suspended
+**Then** the run reports a FAIL line for it and exits 1, the way the script reports every other failed check (AD-25)
+**And** the script stays read-only and opens no new public read on the host: the evidence comes the way `--zone` and `--demo-status` already bring theirs, unless the spec gate rules otherwise (veto window)
 
 ## Epic 9: Quality is measured: the evaluation set
 
@@ -7445,6 +7513,8 @@ So that I can contain or route around a failure with one approval and undo it th
 **Then** nothing happens, and a dry run leaves every item, setting, message and queue unchanged (AD-16, NFR-13)
 **And** the gate refuses each kind from an untrusted or tainted turn, the service user's privileges are checked against each kind's `RESOURCES` before it runs, and the security overview's generated list shows the new kinds as risky (FR-7, NFR-12, NFR-14, FR-61)
 
+- DW-823: A good-message refusal (Story 7.9, GOODCHANGED) reuses incident.noFix, whose 'None of my fixes applies to this' fits loosely when a fix exists but would also rewrite messages that went through; give it a precise line (Planner wording 2026-11-06) (ledger; routed by x0 2026-11-09)
+
 ### Story 23.3: Name the setting change behind an incident and offer its rollback
 
 As a production developer,
@@ -7575,6 +7645,8 @@ So that I can review or share what happened without rebuilding the timeline myse
 **Given** an incident that has just closed with its summary stored
 **When** `IncidentManager` records the summary
 **Then** it also sends one `Notification` carrying the summary to the session's channels (the web chat, the simulated phone in demo mode and the paired chat), rendered from the catalog key the step 5 wording fixes (FR-30, AD-32)
+
+- DW-877: Watch.Msg.Failure is not XML-enabled, so a FailureBatch body holding failures cannot be exported as XML (ERROR #6249); add %XML.Adaptor (one line, no storage change) (ledger; routed by x0 2026-11-09)
 
 ### Story 23.7: Watch queue backlogs between digests
 

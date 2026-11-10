@@ -584,7 +584,8 @@ XData Contracts [ MimeType = application/json ]
    "SampleError": "%String(MAXLEN=1000)",
    "RequestRefs": "%String(MAXLEN=)",
    "LaterSince": "%String(MAXLEN=20)",
-   "AskingSince": "%String(MAXLEN=20)"
+   "AskingSince": "%String(MAXLEN=20)",
+   "Summary": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
