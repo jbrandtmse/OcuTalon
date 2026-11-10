@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-11-09'
 status: 'done'
 baseline_revision: '640209992996aa10e1f98579b513a837e8347f33'
+baseline_commit: '640209992996aa10e1f98579b513a837e8347f33'
 review_loop_iteration: 0
 followup_review_recommended: true
 context: []
@@ -277,7 +278,11 @@ Paths are under `src/ocutalon/cls/OcuTalon/` (server) or `web/` (client) unless 
 - AC 7 (FR-73; findability): Given the card on the online demo, when it loads, then it shows the per-session rule (`e2e-online/memory-card.spec.ts`, MC18). Given the README, when this story updates it, then its memory bullet says what forgetting removes and that earlier messages aren't rewritten, New since 1.0.0 has the Memory card line, and line 30 says eight. Given More to try, when the panel opens, then it holds eight items with `memoryCard` after `memory`, and its button focuses the Memory heading (`TestIds`, `more-to-try-view.test.mjs`, `more-to-try.spec.ts`).
 - AC 8 (Rule 1 integration): Given LIVE with a seeded memory, when the card's Pin is pressed and Pinned opened, then the row and the held-arithmetic figure come back through the real route, `CommandsIn`, `MemoryOps.OnListPinned` and `Memory.CoreBlock` (MC13).
 
+- [ ] [Ruling] More to try groups (Planner 2026-11-10): add `group: 'Memory and documents'` to the `memoryCard` item in `MORE_TO_TRY_ITEMS` (`web/src/app/guide/more-to-try-view.ts`) as an additive field (an optional `group?: string` on the item type if the type needs it); no rendering change, no other item or text change; the web unit and lint checks stay green.
+
 ## Spec Change Log
+
+- 2026-11-10 (Contest Planner ruling on More to try capacity, verbatim in `.worktrees/.coordination/prompts/more-to-try-groups-ruling.md`, relayed by the orchestrator): three headed groups of four, rendered by Epic 0 Story 0.22 (lane C). This story's item (`memoryCard`, the ruling's "pinMemory") declares `group: "Memory and documents"` as an additive registry field and nothing else; the field is ignored until 0.22 lands; no other item text changes; the README L30 total count follows the registry. 41.13's part merge waits for 0.22 (the orchestrator holds it if 41.13 is green first). Added below as a [Ruling] item for code review to patch.
 
 - 2026-11-10 (orchestrator ruling, decide, contended with Epics 20 and 23 in flight): plain union. (1) `Demo/Features.cls` `Ids`, the More to try registry and `Test/Demo/Features:TestIds` are list appends: this story adds `memoryCard` right after `memory`; the second epic to merge fixes the order and the numbered "item N" doc lines from the merged registry. (2) Every More to try count (README.md:30, `SEVEN`-style constants in `web/e2e/guide/more-to-try.spec.ts`, `more-to-try-view.test.mjs`) is derived from the registry, never a literal; the README line's number is written from the registry at merge (the Planner may group items above ten; until then build to the registry rule). (3) README "New since 1.0.0": one appended bullet. (4) `web/src/app/documents/documents-page.ts`: change ONLY the dialog import and the open call (lines 14 and 224) to the shared `ConfirmDialog`; add no other lines there; keep `documents-view.ts`'s text constants in place (Epic 20's 20.2/20.3 add lines and a button there). (5) `Test/Web/Api.cls`: a one-route append in map order. (6) Anything at merge outside (1)-(5) comes back as a Clarification.
 
