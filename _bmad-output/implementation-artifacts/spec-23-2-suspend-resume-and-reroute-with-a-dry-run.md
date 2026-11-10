@@ -2,7 +2,7 @@
 title: 'Story 23.2: Suspend, resume and reroute with a dry run'
 type: 'feature'
 created: '2026-11-09'
-status: 'blocked'
+status: 'in-progress'
 baseline_revision: '2c6fff52198244b9d42d929e823cec855fbf452d'
 baseline_commit: '2c6fff52198244b9d42d929e823cec855fbf452d'
 review_loop_iteration: 0
@@ -198,11 +198,13 @@ Rejected:
 - reject (spec edit) — the QA list credits `web/scripts/sources-docs.test.mjs` to 23.2's QA, though it landed in 23.6's 3cc38259.
 
 - [ ] [Review] DW-1067 (HIGH, AD-15 'Results per request'): the incident card shows no result band for a suspend or resume request, nor for a reroute whose copies all completed — web/src/app/approvals/approval-view.ts resultView (Decided in-stage 7) — show the ruled result texts (result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted) in each request card's band. RULED (Planner ruling 1, option (a)): edit web/src/app/msg/catalog.ts and web/src/app/incidents/incident-card.ts (now on the AD-33 list), additive; a unit case per kind and the reroute band asserted in the e2e after Approve.
-- [ ] [Review] DW-1068 (Planner ruling 2, option (a)): `resume_item` for an item OcuTalon itself suspended, closed incidents included, under conditions (i) and (ii); a resume on a closed incident never moves its state; second-session isolation proof; online demo unchanged.
+- [ ] [Review] ON HOLD, build nothing (orchestrator 2026-11-10 ~06:32Z: the implement stage's estimate of about 5 h exceeded the ruling's 1.5 h bound; re-ruling pending with the Planner) — DW-1068 (Planner ruling 2, option (a)): `resume_item` for an item OcuTalon itself suspended, closed incidents included, under conditions (i) and (ii); a resume on a closed incident never moves its state; second-session isolation proof; online demo unchanged.
 - [ ] [Review] DW-1059 (Planner ruling 4): `Install/SecurityOverview.cls` generates the approved sentence verbatim; `docs/security-overview.md` regenerated; its regeneration check green.
 - [ ] [Review] DW-1069 (Planner ruling 3): record the four paths in this spec's AD-33 list (README.md ruled bullet only, docker/tests/lib-live.sh, web/e2e/support/iris.ts, Test/Core/CommandsRouting.cls); no code change.
 
 ## Spec Change Log
+
+- 2026-11-10 (runner): rework pass halted on DW-1068 (estimate about 5 h); per the orchestrator, DW-1068 is on hold (nothing built; result.itemSuspended unchanged; AD-15 line marked pending) and the rework re-dispatched on DW-1067, DW-1059 and DW-1069 only.
 
 - 2026-11-10 (runner): Planner rulings on DW-1067, DW-1068, DW-1069 and DW-1059 recorded [RULED 2026-11-10, Contest Planner]; rework iteration 1 items widened to the four.
 
