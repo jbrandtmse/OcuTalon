@@ -57,3 +57,4 @@
 2026-11-11T08:32:34Z	Story 25.2	ci_red_classified	run=42981966109 workflow=.github/workflows/ci.yml class=flake test=live:sign-in_row8(DW-1081),lane-a@Watch_GoodMessages(DW-675) ledger=occurrences
 2026-11-11T08:32:34Z	Story 25.2	ci_red_classified	run=42981966175 workflow=.github/workflows/lane-a.yml class=infra test=ipm-install_path_A_second_run(CPF_merge_zf-100_exit_7) note=orchestrator_files_infra_entry
 2026-11-11T08:32:34Z	Story 25.2	rework_opened	cycle_iteration=3 iteration=2 trigger=ci items=CI:history.spec_H12_error_after_Retry scope_baseline=f21137d1 cap=3 used_before=1
+2026-11-11T08:32:34Z	Story 25.2	stage_spawned	stage=implement spawn_at=2026-11-11T08:32:34Z model=sonnet agent_name=25-2-filter-past-decisions-and-incidents-on-the-history-page-implement-3 cycle_iteration=3 rework=2
