@@ -157,6 +157,14 @@ deferred: []
   - `Test/Mcp/Ops.cls` -- `TestRemove` asserts the cancel (count, state, audit), and `TestOnlineDemo` stays green.
 
 **Acceptance Criteria:**
+- [RULED 2026-11-11, Contest Planner condition 1] Given a pending MCP-free approval request created on a 1.0.7 install (the upgrade harness), when the install is upgraded to this build, then the request still reads, shows and resolves (both approve and reject), with `ToolFingerprint` empty.
+- [RULED 2026-11-11, condition 2(a)] Given a held MCP call whose tool then changes ONLY its description (same name, same input schema), when the approved request replays, then it is refused unrun (the fingerprint is SHA-256 hex over the canonical server id, tool name, input schema and description, from Story 22.8).
+- [RULED 2026-11-11, condition 2(b)] Given an approved MCP request, when it replays, then the fingerprint is checked against a fresh `tools/list` on the same connection (the same proxy client session) immediately before `tools/call`, with no model turn in between, and the arguments sent are byte-equal to the ones stored on the row and shown on the card (never regenerated).
+- [RULED 2026-11-11, condition 2(c)] Given a pending MCP request, when its server is removed and the request is then approved, then the approval is refused and no request goes out to any server; and cancelling the same request twice is a no-op (no second audit entry or event).
+- [RULED 2026-11-11, condition 2(d)] Given a cancelled MCP request, when its card is shown, then it uses only existing accepted wording; if none fits, the implement stage stops and the text goes to the Planner before commit.
+- [RULED 2026-11-11, condition 2(e)] Given an MCP call with no fingerprint, when the gate or `Raise` handles it, then it is refused (fail closed), never raised or run.
+- [RULED 2026-11-11, condition 3] Given an approved replay, when it goes out through Story 22.3's proxy, then 22.3's conditions (a)-(e) hold unchanged (no credential in any body, trace, log or audit entry; VerifyPeer on, plain http only to this computer; the result taints and is cut; audit holds server, tool and outcome only; stop if the wallet read is missing).
+- [RULED 2026-11-11, condition 4] Given a stored toolref that `ServerOf` does not know, or the default `ServerOf` returning "", when the call is classified or replayed, then it counts as unclassified: it is HELD and never auto-run (tested).
 - Given a user's turn calls an MCP tool that is risky or unclassified (natively, and as a direct `call_mcp_tool`), when the gate decides, then exactly one `tool_call` row exists holding the server's toolref, the tool, the canonical arguments and the tool's fingerprint with an empty DryRun, the model gets `HELD`, and the mock logs no `tools/call`. Mutation: Hold writes no ToolFingerprint → `TestHeldThenReplayed` red.
 - Given that request approved through `Approval.Answer`, when `ApprovalHold` replays it, then `Decide` routes a `tool` request to the runner that held it, the mock logs exactly one `tools/call` with the approved arguments, the row ends `done`, the agent's own manager still holds no MCP server and no proxy (`TestToolInventory` unchanged), and the next turn's `SystemNote` names the tool `done` while no reply, column or event holds the result text. Mutation: Replay calls `ExecuteTool(row.ToolName, …)` → red (`ToolNotFound`).
 - Given the tool's description (and, separately, its input schema) changed after the hold, when the approved request replays, then nothing reaches `tools/call`, the row ends failed, one `MCP` `refused` entry (outcome `changed`) exists, and the owner gets a result notice: `mcp.replayToolChanged` {tool, server} under R1, otherwise `toolCall.failed`. Mutation: the proxy compares with the classification row instead of the approved fingerprint → red.
@@ -166,6 +174,8 @@ deferred: []
 - Given an online-demo install, when the suite runs, then `Test.Mcp.Ops` `TestOnlineDemo` and the built-in approval tests are green, and no MCP row can be raised, because no server can be registered.
 
 ## Spec Change Log
+
+- 2026-11-11 (runner, rulings applied): the Contest Planner's 22.4 rulings (verbatim under Design Notes) are applied: veto items 1-4 accepted with conditions, each now an AC; the fingerprint redefinition moves into Story 22.8; the demo test already exists in 22.2.
 
 - 2026-11-11 (runner): R1 ruled by the orchestrator (both parts, verbatim under Design Notes); spine S15-S18 written; veto items still pending with the Contest Planner.
 
@@ -248,6 +258,23 @@ Their consumers in this story are the real `Replay`, `Gate`, `Mcp.Proxy` and `Mc
 5. No new privilege, role, grant, resource, route or web dependency.
 
 ## Clarification Needed
+
+**Contest Planner rulings (verbatim)** [RULED 2026-11-11 ~14:50Z, Contest Planner under the owner's delegation, relayed by the orchestrator; source `<coordination>/prompts/epic-22-rulings-224.md`]:
+
+> # Rulings, Story 22.4 (hold risky and unclassified MCP calls) spec gate (Contest Planner, 2026-11-11 ~14:50Z; owner's delegation; verbatim terms)
+> VETO 1-4 ACCEPTED with conditions; R1 and S15-S18 (orchestrator) NOTED.
+> 1. ToolFingerprint column: ACCEPTED. Condition: the upgrade harness creates a pending approval request on 1.0.7, then upgrades, and that request still reads, shows and resolves (approve and reject both) with the new column empty.
+> 2. Approval guarantees: ACCEPTED.
+>  (a) The fingerprint is SHA-256 hex over a canonical form of the server id, the tool name, its input schema AND its description. A test that changes only the description gets refused unrun.
+>  (b) The replay checks the fingerprint against a fresh tools/list on the same connection, immediately before tools/call, with no model turn in between. It sends exactly the arguments shown on the card (byte-equal, never regenerated).
+>  (c) CancelPending race: a test removes the server, then approves; the approval is refused and no call goes out. Cancelling twice is a no-op.
+>  (d) A cancelled card uses existing wording only. If no existing sentence fits, the text comes to the Planner before commit.
+>  (e) No fingerprint means refuse (fail closed).
+> 3. Outbound replay through 22.3's bounded proxy: ACCEPTED. All of 22.3's conditions (a)-(e) apply unchanged.
+> 4. McpServersClass.ServerOf: ACCEPTED. Condition: an unknown toolref, or the default implementation returning empty, is treated as unclassified, so it is HELD and never auto-run. Test it.
+> DEMO: MCP stays OFF on the online demo. If 22.2 doesn't already have one, add a demo-mode test showing that MCP server registration is refused.
+
+**How this spec applies them** (runner, 2026-11-11): each condition is an acceptance criterion below. Condition 2(a) changes the fingerprint's definition: `OcuTalon.Bridge.Context.ToolFingerprint` becomes SHA-256 hex (64 characters) over a canonical form of {server id, tool name, input schema, description}; because Story 22.8 implements first and compares fingerprints at call time, that change is made in Story 22.8 (task added to its spec), and 22.4 relies on it. DEMO: Story 22.2 already has the demo-mode refusal tests (`Test.Mcp.Ops` `TestOnlineDemo`, `TestOnlineDemoRealFlag`: add, remove and classify refused on the online demo), so no new test is needed.
 
 **R1 RULED** [ADDED 2026-11-11, orchestrator ruling R1 (cross-lane exception)]: "22.4's R1 is APPROVED, both parts. (a) FinishExecution accepts the new result "changed" (spine S18, AD-11). (b) A ruled lane exception: 22.4 may add ONE branch to Lane B's OcuTalon.Core.BridgeSink and ONE row to Test.Core.ToolCallNotices, as a plain union with Epic 21 (lane C). Re-check origin/OCT-epic21's diff on those files before implement; any overlapping hunk is a Clarification. Spine S15-S18 are approved as additive. 22.4's veto items are with the Planner." So the implement stage builds the R1 path (not the fallback) after the runner re-checks `git diff origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic21 -- src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls src/ocutalon/cls/OcuTalon/Test/Core/ToolCallNotices.cls` (an overlapping hunk stops it as a Clarification). Spine S15-S18 written. The veto items are still with the Contest Planner; the implement stage waits for that ruling.
 

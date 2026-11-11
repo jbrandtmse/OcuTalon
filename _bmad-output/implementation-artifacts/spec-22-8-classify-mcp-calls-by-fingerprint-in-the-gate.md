@@ -129,6 +129,7 @@ deferred: []
   - `Leaks` empty.
 
 **Acceptance Criteria:**
+- [RULED 2026-11-11, Contest Planner ruling on Story 22.4's veto, condition 2(a), applied here because 22.8 implements first] Given Story 22.2's `OcuTalon.Bridge.Context.ToolFingerprint`, when this story is done, then the fingerprint is SHA-256 hex (64 characters) over a canonical form (sorted keys) of the server id, the tool name, the input schema AND the description; the attach report, `ToolClassification.Fingerprint` and the turn map all use it; 22.2's tests that pin a 44-character value are updated to 64; and a test that changes ONLY a tool's description (same name, same schema) shows the classification cleared and the call held or denied. On an existing dev install every classified row reads as changed once and is cleared (no release carries 22.2's old form).
 - [RULED 2026-11-11, Contest Planner condition (1)] Given a tool classified `read-only` whose server then changes that tool's description (and, in a second case, its input schema) under the same name, when the next request calls it, then the call's fingerprint no longer matches the classification's, the row is `unclassified` (audited, one `mcp.toolChanged` notice per admin session), and the call is held for approval in a user's turn and denied in an untrusted or tainted turn; it never runs as read-only. (Rug-pull test, in `Test.Mcp.Attach` or `Test.Bridge.Gate`, with a named mutation: skip the call-time fingerprint comparison -> red.)
 - Given a runner turn composed with a registered server whose zz_lookup an admin classified `read-only`, when the model's call reaches the gate in an untrusted turn, then it runs and taints the turn, and zz_delete_ticket (unclassified) is denied.
 - Given a classified tool whose description the server changed after the build, when the next turn's map is built, then the row is `unclassified` with the new fingerprint, one Tool audit entry and one `mcp.toolChanged` notice per admin session exist, and a call to it in a user's turn is held.
@@ -138,6 +139,8 @@ deferred: []
 - Given Task 0's evidence file, when the reviewer reads it, then each MCP form is measured or marked unmeasured with why, and the gate recognises every measured form as MCP before `origin_class`.
 
 ## Spec Change Log
+
+- 2026-11-11 (runner): the Contest Planner's 22.4 ruling, condition 2(a), redefines the fingerprint (SHA-256 hex over server id, tool name, input schema and description); added here as an AC because 22.8 implements before 22.4 and compares fingerprints at call time. Source `<coordination>/prompts/epic-22-rulings-224.md`.
 
 - 2026-11-11 (runner, rulings applied): the Contest Planner's rulings (verbatim under Design Notes) are applied. Veto items accepted as AD-10 allows, with condition (1) added as an AC (call-time fingerprint match, rug-pull test) and condition (2) routed to Story 22.6's gate. `UNREGISTERED` approved verbatim: the implement stage uses it (not `FAILED`). Unknown or removed servers denied, not held: accepted. Spine S4-S7 written (AD-10 "MCP classification by fingerprint", AD-31 extension bullet).
 
