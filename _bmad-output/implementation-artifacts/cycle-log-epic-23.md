@@ -118,3 +118,6 @@
 2026-11-10T23:36:06Z	Epic 23	part_merge	story=23.2 head=f73a09d5 feature=9f7db82c by=orchestrator note=AD-12_line_inserted_at_merge_gate
 2026-11-10T23:38:05Z	Epic 23	slot_loaded	server=ocutalon-slot-d bridge=62 ocutalon=883 compile=clean classes=946 head=10db33ab(feature_9f7db82c_merged)
 2026-11-10T23:38:05Z	Story 23.5	stage_spawned	stage=implement spawn_at=2026-11-10T23:38:05Z model=sonnet effort=high agent_name=23-5-partner-delay-notice-implement-1 cycle_iteration=1 story_base=10db33ab
+2026-11-11T01:56:31Z	Story 23.5	dev_complete	spawn_at=2026-11-10T23:38:05Z model=sonnet effort=high build_sha=bac53d09 baseline_revision=10f53487 story_base=10db33ab review_loop_iteration=0 followup_review_recommended=true deferred=2(DW-1108_open_in-story_ruling,DW-1109_escalated_Lane_B) notdrafted_web_card=built(estimate_0.75h) self_review=41(7_patched,2_deferred,32_rejected) local=warm_loop+shared_pins,fresh:PartnerTurns,SimMailboxIn,live:cards(A13),sign-in-3_part1/2(K9c) left_to_ci=AC14/AC15_browser,ci/checks.sh more_to_try=twelve duration_min=138
+2026-11-11T01:56:31Z	Story 23.5	adr_verifications_complete	tool=none acs=none result=none_required
+2026-11-11T01:56:31Z	Story 23.5	stage_spawned	stage=qa spawn_at=2026-11-11T01:56:31Z model=sonnet effort=high agent_name=23-5-partner-delay-notice-qa-1 cycle_iteration=1

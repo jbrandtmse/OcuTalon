@@ -6717,3 +6717,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Dropping header_images from chk_readme_links' target stream keeps every rule green while the logo is tracked; only the AC4 untrack mutation shows it; chk_readme_links takes no tree-list argument, so a self-test cannot stub a missing logo; same limit existed with the relative src before 0.23
 - 2026-11-10T20:08:58Z status=wontfix-accepted owner=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute by=harvest note=reopen_if=chk_readme_links gains a tree-list argument, or the header logo goes missing on main without readme-links going red
 - 2026-11-10T20:20:54Z occurrence=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute
+
+### DW-1108: A partner request approved after its incident was closed is dropped with one log line: the row stays approved, nothing is sent and the user gets no result (the Telegram press answer still says it is sending)
+- source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: IncidentManager.Aside drops on a closed incident (spec: refuses on closed); a pending partner request does not block closing (MOVES 0), so ask, Dismiss, then Approve reaches it
+- 2026-11-11T01:56:30Z status=open owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=harvest note=needs_a_Planner_ruling_on_the_user-facing_outcome(cancel_pending_partner_requests_at_close,or_send_anyway,or_a_result_line)
+
+### DW-1109: Demo.Guide.Compute counts any approved request of the guide's incident for step 4, so a partner notice approved while the repair still waits marks step 4 done early
+- source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Demo/Guide.cls (Lane B, not in 23.5's AD-33 list); the finish still needs the incident resolved; fix is a one-line kind filter (leave MOVES 0 kinds out of step 4)
+- 2026-11-11T01:56:30Z status=escalated owner=burndown by=harvest note=AD-33_extension_request:Demo/Guide.cls_one-line_filter;orchestrator_or_Planner
