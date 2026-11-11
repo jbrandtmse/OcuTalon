@@ -60,3 +60,8 @@
 2026-11-11T14:27:51Z	Epic 22	hold_ordered	reason=owner_quota_96pct(orchestrator_HOLD_NOW) running_stage=none
 2026-11-11T14:27:51Z	Epic 22	hold_saved	story=none stage=none patch=none tree=clean note=no_story_mid-pipeline(22.2_committed+pushed_74798cbe;22.8,22.9,22.3,22.4_ready-for-dev_specs_committed)
 2026-11-11T14:27:51Z	Epic 22	hold_complete	shas=74798cbe(code,pushed,CI_orchestrator-owned)+bookkeeping_to_be_pushed_now
+2026-11-11T20:06:40Z	Epic 22	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=resume_after_switch_20261111 lane=A slot=ocutalon-slot-a model=claude-opus-5-5
+2026-11-11T20:06:59Z	Epic 22	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-11T20:06:59Z	Epic 22	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-11T20:06:59Z	Epic 22	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-11T20:07:07Z	Epic 22	integrated_forward	feature=e81cbf0d head=1ac0fba0 conflicts_resolved=none note=post_switch_hold(22.2_merged_a25fd0d3;delta=cycle-log-parallel.md,epic-dependencies.yaml)
