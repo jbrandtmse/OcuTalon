@@ -8,14 +8,7 @@ followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
 warnings: [oversized]
-deferred:
-  - summary: >-
-      After Reject, the status rail's Approval requests keeps listing the rejected request until the request's `approval` live event reaches the page; the press reply's payload updates only the pressed card. To ledger (ruling item 4: not a one-line refresh).
-    evidence: |-
-      The rail lists `pendingApprovals(store)` (web/src/app/rail/rail-view.ts:340), and the store's approvals change only through `approval` events (web/src/app/live/live-store.ts:188-189). The answer reply's payload goes only to the card's `AnswerPress.local` (web/src/app/approvals/answer-press.ts, `replied`; read by approval-request-card.ts:497 and phone/phone-request.ts), never to the store. The event is published asynchronously by `Core.BridgeSink.Approved` (BridgeSink.cls:144-162) after the answer, then read by the next poll (POLL_DELAY_MS 1000, web/src/app/live/live-state.ts:19). The lag is not measured (inference: about 1-3 s, inside EXPERIENCE's 5-second bar for every copy). The fix needs a new pure store function, a LiveState method and both press hosts (card and phone), in Epic 21's contended `approvals/**`, `phone/**` and `rail/**`, so it is not a one-line refresh. Suggested disposition (Rule 15, a LOW that is not a two-way door): wontfix-accepted, reopen_if=a browser test that presses Reject and reads the rail's Approval requests 5 s later still lists the request.
-    location: >-
-      web/src/app/approvals/answer-press.ts
-    severity: low
+deferred: []
 ---
 
 <intent-contract>
@@ -27,8 +20,8 @@ deferred:
 **Approach:** All four items are ruled (verbatim terms below).
 - (1) Rename the demo contact in the code fixture to "Orders Partner IT" <it@orders-partner.example>. It is already keyed to the Orders production.
 - (2) Add the incident's state to the draft's facts, and append the ruled sentence to the draft instruction. A new CI mock case shows a resolved incident's draft, and its test checks that the model's request carries both.
-- (3) Give `summary.fix` its full stop. The catalog's period rule already prevents a double full stop.
-- (4) The root cause is not a one-line refresh, so the rail lag goes to the ledger.
+- (3) Give `summary.fix` its full stop, and `summary.evidence` too (pre-approved by the Contest Planner, 2026-11-11T20:09:53Z: punctuation only, same rule as the Fix line). The catalog's period rule already prevents a double full stop.
+- (4) The root cause is not a one-line refresh, so the rail lag goes to the ledger (DW-1159, routed med, Contest Planner ruling).
 
 ## Boundaries & Constraints
 
@@ -36,7 +29,7 @@ deferred:
 - Use the ruled strings exactly:
   - the contact `"Orders Partner IT"` with `"it@orders-partner.example"`;
   - the instruction sentence "If the incident is resolved, say that the affected orders went through after the fix, and don't say that work is still going on or that updates will follow.";
-  - the summary line "Fix: {fix}.".
+  - the summary lines "Fix: {fix}." and "Evidence: {evidence}." (no other wording change).
 - The fixture stays demo-only, read-only, in code, with an example-domain address (Fix.PartnerContacts' contract). It keeps id 1 and `OcuTalon.Demo.Orders.Production`.
 - Facts still hold no message body, sample error, setting value or evidence (AD-16, Story 23.5). The state is a code-written value from the incident row.
 - Model-facing changes go on the Planner's next RC-eval checklist (Design Notes). CI proves only what the code sends to the model.
@@ -59,6 +52,7 @@ deferred:
 | Resolved draft (mock) | resolved incident, cause marker `[[mock:partner-notice-resolved]]`, the ask turn | one pending `partner_warning` request to contact 1; its notice has neither "looking into" nor "will share updates" (case-insensitive); the logged draft request holds "Incident state: resolved" and the ruled sentence | No error expected |
 | Old pending notice | a request raised before the upgrade (`to` it@results-partner.example), approved after | the existing re-check skips it with RECHECK "Orders Partner IT is no longer a partner contact of Orders"; nothing is sent | existing `result.partnerNotSent` |
 | Fix line | FixSummary "...after you approve" | "Fix: ...after you approve." | No error expected |
+| Evidence line | evidence "OrderDate 16/10/2026 in the sample" | "Evidence: OrderDate 16/10/2026 in the sample." | same own-stop rule as the Fix line |
 | Fix line, own stop | FixSummary ending "." / "?" / "!" / "…" | exactly one "." / the mark kept and no "." added | No error expected |
 | Sample email | the mailbox sample `partner-notice` | still from Results Partner IT <it@results-partner.example> | No error expected |
 
@@ -104,9 +98,10 @@ deferred:
   - `Facts`: right after the Production line, add `$Char(10)_"Incident state: "_$Translate(incident.State, "_", " ")`.
   - The class doc's Facts bullet names the state.
 - [ ] `ci/mock/scenarios/A/partner-notice-resolved.json` -- new marker scenario, the shape of `partner-notice.json`, with one reply text: "Orders sent from your feed failed because the date format of the orders changed. The fix has run, and the affected orders went through after it." Check that no B prompt (`grep '"prompt"' ci/mock/scenarios/B/*.json`) is contained in the new SYSTEMNOTE sentence or in the "Incident state:" line, so the keyless draft still matches only `partner-notice-draft`.
-- [ ] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` -- `summary.fix`:
-  - text `"Fix: {fix}."`;
-  - `source` gains "; full stop: Story 23.10, Contest Planner ruling 2026-11-11".
+- [ ] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` -- `summary.fix` and `summary.evidence`:
+  - texts `"Fix: {fix}."` and `"Evidence: {evidence}."`;
+  - each `source` gains "; full stop: Story 23.10, Contest Planner ruling 2026-11-11".
+  - Before editing pins, `grep -rn 'Evidence: ' src web` and update only the pins that render `summary.evidence` (expected: `Test/Msg/Catalog.cls:1657`, `Test/Watch/Summary.cls:141`). The `Evidence:` lines in `Test/Core/WebChatOut.cls:680`, `Test/Channel/TelegramOut.cls:679`, `Test/Demo/SimPhoneOut.cls:192` and `web/e2e/chat/notice.spec.ts:720` are expected to be self-contained escaping fixtures: confirm they do not render the catalog key, and leave them unchanged if so (if one does render it, update it and record it under Design Notes).
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerWarning.cls`, `PartnerDraft.cls`, `PartnerTurns.cls`:
   - replace every "Results Partner IT" with "Orders Partner IT", and every "it@results-partner.example" with "it@orders-partner.example";
   - PartnerWarning: the SYSTEMNOTE pin (100) gains the sentence; the `TestFacts` expected text gains "Incident state: open" after the Production line; add one assertion that a `resolved` incident's Facts hold `Incident state: resolved` and an `awaiting_approval` one's `Incident state: awaiting approval`;
@@ -117,9 +112,9 @@ deferred:
   - append `TestResolvedDraftSaysTheOrdersWentThrough` at the end of the class: take `LogMark`, then `Asked("resolved", ..., "partner-notice-resolved")`. Assert the request's `parameters.text` and its dry-run `notice` have no "looking into" and no "will share updates" (`$ZConvert(..., "L")`) and its recipient is "Orders Partner IT". Among the logged requests that `FindRequests` finds by "partner-notice-resolved", take the draft: the one whose `RunnerFixture.Messages` text holds "Write a short delay notice" (the ask turn's context may also carry the cause's marker). Assert that it holds "Incident state: resolved" and the ruled sentence, and assert that exactly one such draft request exists;
   - add one header bullet for the new test.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls`:
-  - Fixture 1659: text "Fix: repair the date and resend the orders.";
-  - add `TestSummaryFixFullStop`: render `summary.fix` on web and telegram with fix "Resend the 50 orders after you approve" → "...approve."; with "...orders." → exactly one "."; with "...now?" → ends "?" with no "." after it.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Watch/Summary.cls:141` -- "Fix: repair the date and resend the orders." in the expected lines.
+  - Fixture 1659: text "Fix: repair the date and resend the orders."; Fixture 1657: text "Evidence: OrderDate 16/10/2026 in the sample.";
+  - add `TestSummaryFixFullStop`: render `summary.fix` on web and telegram with fix "Resend the 50 orders after you approve" → "...approve."; with "...orders." → exactly one "."; with "...now?" → ends "?" with no "." after it. Also render `summary.evidence` with "OrderDate 16/10/2026 in the sample" → "...sample." and with a value ending "." → exactly one ".".
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Watch/Summary.cls:141` -- "Evidence: OrderDate 16/10/2026 in the sample." and "Fix: repair the date and resend the orders." in the expected lines.
 
 **Acceptance Criteria:**
 - AC1: Given demo mode on and an incident on the Orders production, when a partner warning is drafted, raised, approved and delivered, then every surface names "Orders Partner IT" <it@orders-partner.example>:
@@ -133,12 +128,12 @@ deferred:
 - AC3: Given an incident in each warnable state, when `Facts` builds the draft's input, then it holds exactly one line "Incident state: <state>" (underscores as spaces) after the Production line, and still no sample error, fix summary, element or evidence. (`Test.Fix.PartnerWarning:TestFacts`.)
 - AC4: Given a resolved incident, when the user asks to warn the partner, then the draft request the model receives holds "Incident state: resolved" and the ruled sentence verbatim. (`Test.Fix.PartnerDraft:TestDraftRequest`; the mock log in `PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough`; the SYSTEMNOTE pin.)
 - AC5 (the ruled mock case): Given a resolved incident whose draft the CI mock answers with `partner-notice-resolved`, when the request is raised, then the notice shown for approval contains neither "looking into" nor "will share updates", and the request is pending to contact 1. (`PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough`.)
-- AC6: Given a closed incident with a fix summary, when its summary renders on any channel, then the line reads "Fix: <fix>." with exactly one final full stop, and a fix that ends in "?", "!" or "…" keeps its mark with no "." added. (`Test.Msg.Catalog:TestSummaryFixFullStop` and the Fixture; `Test.Watch.Summary`.)
+- AC6: Given a closed incident with a fix summary and evidence, when its summary renders on any channel, then the lines read "Fix: <fix>." and "Evidence: <evidence>." with exactly one final full stop each, and a value that ends in "?", "!" or "…" keeps its mark with no "." added. (`Test.Msg.Catalog:TestSummaryFixFullStop` and the Fixture; `Test.Watch.Summary`.)
 
 ## Spec Change Log
 
 - 2026-11-11 (plan): Story inserted on 2026-11-11 from the Contest Planner's 1.0.7 demo-pass ruling (`.coordination/prompts/epic-23-story-2310-ruling.md`, ~14:30Z, under the owner's delegation). It runs after 23.7 and before 23.9 on lane D. Item 4 is planned as a ledger entry (frontmatter `deferred`), because its cause is not a one-line refresh.
-- 2026-11-11 (spec gate): the orchestrator's gate rulings recorded under Design Notes (contended hunks plain union; mock case accepted; item 4 a veto item, U-318).
+- 2026-11-11 (spec gate): the orchestrator's gate rulings recorded under Design Notes (contended hunks plain union; mock case accepted; item 4 a veto item, U-318), then the Contest Planner's: item 4 reversed to DW-1159 (routed med; frontmatter `deferred` emptied, the lead filed it), and the Evidence line's full stop added (pre-approved).
 
 ## Review Triage Log
 
@@ -165,18 +160,18 @@ No new line is proposed. The card, phone and mailbox show the renamed contact on
 4. The ruling's "eval or mock case" is met with a CI mock case (smaller). No eval kind drafts a partner notice today (the kinds are item, incident, digest, all-clear, command, documents, injection and user-turn), and adding one is new scope. A mock reply is canned, so the falsifiable part of AC4/AC5 is the logged model request: the state line and the sentence. The model's real behaviour is the Planner's RC-eval item below.
 5. The existing `partner-notice` and `partner-notice-draft` replies ("We are looking into it and will keep you informed.") stay unchanged. They are CI-only canned text. Editing them is a contended "other" hunk with no product effect, and `NOTICE` pins them byte for byte.
 6. Item 3 needs no new guard. `Msg.Catalog.SlotText` already drops a value's trailing "." before the text's "." and keeps "?", "!" or "…" (Code Map). `TestSummaryFixFullStop` pins it for this key.
-7. Item 4 goes to the ledger (frontmatter `deferred`, for the lead's harvest). The cause is that the rail reads only the live store, which only the asynchronously published `approval` event updates. The fix is a store function, a LiveState method and two hosts, not a one-line refresh.
+7. Item 4 goes to the ledger (filed by the lead at the spec gate as DW-1159, routed med owner=burndown, per the Contest Planner ruling below). The cause is that the rail reads only the live store, which only the asynchronously published `approval` event updates. The fix is a store function, a LiveState method and two hosts, not a one-line refresh.
 
 **Spec-gate rulings (orchestrator, 2026-11-11T20:09Z, `.coordination/prompts/epic-23-rulings-2310-gate.md`):**
 1. The contended "other" hunks listed below (Watch.cls `summary.fix`, `Test/Fix/PartnerWarning`, `PartnerDraft`, `PartnerTurns`, the new mock scenario) are approved as plain unions. Condition: the lead re-checks Epics 21, 22 and 35 right before the implement spawn. A new hunk on one of these files keeps both sides at integrate; a behaviour choice is a Clarification.
 2. Ruling item 2 met by the CI mock case: accepted (the RC-eval item goes to the Planner).
-3. Ruling item 4 (rail after Reject): decided as a veto item (inbox U-318): LOW, wontfix-accepted, reopen_if a browser test that presses Reject still sees the request on the rail 5 s later. A reversal becomes a routed entry for an Epic 21 story, not a 23.10 rework.
+3. Ruling item 4 (rail after Reject): first decided as a veto item (inbox U-318), then REVERSED by the Contest Planner (2026-11-11T20:09:53Z, owner's delegation): DW-1159, routed, med, owner=burndown until its follow-up story exists (approvals/phone/rail, dispatched by the orchestrator after 21.2 merges; acceptance: a browser test presses Reject and the request is gone from the rail within 5 s, web and phone). No 23.10 rework.
+5. Contest Planner, same ruling: the summary's "Evidence:" line gets its final full stop in 23.10 (pre-approved; punctuation only, same rule as the Fix line).
 4. The "Decided in-stage" items stand.
 
 **For the Planner's next RC-eval checklist (model-facing):** with the real model, on a guide incident that is resolved, ask "Warn the partner about the delay.". The drafted notice says the affected orders went through after the fix, addresses Orders Partner IT, and has no "looking into", "will share updates" or other words saying work is still going on.
 
 **Observations for the Planner (not in scope, no action taken):**
-- The summary's "Evidence:" line also has no final full stop ("Evidence: OrderDate 16/10/2026 in the sample"). The ruling names only "Fix:".
 - The suspicious sample email's sender "Order Partner Support <support@order-partner.example>" is now a lookalike of the real contact's domain (`orders-partner.example`). That fits its role as a suspicious email.
 
 **ONLINE-DEMO behaviour:** demo-visible text changes only:
@@ -205,7 +200,7 @@ Nothing new changes production state. There is no new route, setting or table. A
 No AC contradicts an AD Rule. No NFR is touched.
 
 **Contended touches (the orchestrator rules "other" hunks as plain unions):**
-- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` (Epics 22, 35): other. In `summary.fix`, the text literal `"Fix: {fix}"` → `"Fix: {fix}."`, and the `source` literal gains "; full stop: Story 23.10, Contest Planner ruling 2026-11-11" (2 lines).
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` (Epics 22, 35): other. In `summary.fix` and `summary.evidence`, the text literal gains its final ".", and each `source` literal gains "; full stop: Story 23.10, Contest Planner ruling 2026-11-11" (4 lines).
 - `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerWarning.cls` (Epic 22): other. String-literal renames (doc 5, 36, 112, 136, 169, 198-212, 236, 325, 332, 472), the SYSTEMNOTE pin literal (100), one added line in `TestFacts`' expected text (112) and two added assertions in `TestFacts`.
 - `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerDraft.cls` (Epic 22): other. String-literal renames (31, 142, 175-189, 569) and one condition added at 142.
 - `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerTurns.cls` (Epic 22): other. `ADDRESS` (22), the subject literal (83), `Asked`'s signature (181) and its call (189), `ResolvedIncident`'s signature and cause literal (216, 219), one header bullet. Appended block: the new test method at the end of the class.
@@ -213,9 +208,9 @@ No AC contradicts an AD Rule. No NFR is touched.
 
 Not contended: `Fix/PartnerContacts.cls`, `Fix/Kind/PartnerWarning.cls`, `Test/Msg/Catalog.cls`, `Test/Watch/Summary.cls`.
 
-**Public text and veto items:** Public text is only the ruled strings: the contact name and address, and the Fix full stop. Model-facing text is the ruled sentence plus the "Incident state:" label (agent text, never shown). The mock reply is CI-only. Veto items: none (no security, privilege, stored-data shape, guarantee or dependency change; the new mock case file is allowed).
+**Public text and veto items:** Public text is only the ruled strings: the contact name and address, and the Fix and Evidence full stops (Evidence pre-approved by the Contest Planner, 2026-11-11T20:09:53Z). Model-facing text is the ruled sentence plus the "Incident state:" label (agent text, never shown). The mock reply is CI-only. Veto items: none (no security, privilege, stored-data shape, guarantee or dependency change; the new mock case file is allowed).
 
-**Ledger inbox (Rule 17):** none owned by this story. To ledger at harvest: the rail lag (frontmatter `deferred`, LOW, suggested wontfix-accepted with its reopen_if probe).
+**Ledger inbox (Rule 17):** none owned by this story. The rail lag is DW-1159 (routed owner=burndown, filed at the spec gate).
 
 ## Verification
 
@@ -255,7 +250,7 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC3: `Facts` without the state line → `Test.Fix.PartnerWarning:TestFacts`.
 - AC4: `SYSTEMNOTE` without the ruled sentence → `PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough` (the logged request) and the SYSTEMNOTE pin.
 - AC5: the `partner-notice-resolved` reply given "We are looking into it." → `PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough`.
-- AC6: `summary.fix` text back to "Fix: {fix}" → `Test.Msg.Catalog:TestSummaryFixFullStop` and `Test.Watch.Summary`.
+- AC6: `summary.fix` text back to "Fix: {fix}" → `Test.Msg.Catalog:TestSummaryFixFullStop` and `Test.Watch.Summary`; `summary.evidence` back to "Evidence: {evidence}" → the same two.
 
 ## Auto Run Result
 
