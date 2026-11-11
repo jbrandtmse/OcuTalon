@@ -4,7 +4,7 @@
 /// reply text never holds the line, and the guard never sees it. Every renderer of the line (the chat.message payload for the page, TelegramOut and the
 /// eval report) shows exactly what Shown and Lines give, so that they cannot disagree.
 ///   - Fact(text) is the stored text as the line shows it: one trailing full stop (.) removed, then, when more than FACTMAX characters are left, the
-///     first FACTMAX - 1 characters and an ellipsis (U+2026), FACTMAX in all.
+///     first FACTMAX - 1 characters and an ellipsis (U+2026), FACTMAX in all (one fewer when the cut would split a UTF-16 surrogate pair, which stays whole).
 ///   - Said(replyText) is 1 when the reply already says "I'll remember" or "I will remember", with the reply guard's own matching (ReplyGuard.PatternOf:
 ///     case ignored, any white space, ' or U+2019, whole words). Such a reply gets no line, so that a learned save is never announced twice.
 ///   - Shown(learned, replyText) is the entries to show, as [{memoryRef, fact}, ...] in order: none when the reply says it (Said), when learned is not a
@@ -33,7 +33,11 @@ ClassMethod Fact(text As %String) As %String
 {
 	Set text = $Get(text)
 	If $Extract(text, $Length(text)) = "." Set text = $Extract(text, 1, $Length(text) - 1)
-	If $Length(text) > ..#FACTMAX Set text = $Extract(text, 1, ..#FACTMAX - 1)_$Char(8230)
+	If $Length(text) > ..#FACTMAX {
+		Set size = ..#FACTMAX - 1
+		If ($Ascii(text, size) >= 55296) && ($Ascii(text, size) <= 56319) Set size = size - 1
+		Set text = $Extract(text, 1, size)_$Char(8230)
+	}
 	Quit text
 }
 

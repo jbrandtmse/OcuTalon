@@ -41,6 +41,9 @@ Method TestFact()
 	Do $$$AssertEquals($ClassMethod(learned, "Fact", $Extract(long, 1, 200)_"."), exact, "201 characters ending in a stop are 200 once the stop is gone, and stay whole")
 	Do $$$AssertEquals($ClassMethod(learned, "Fact", $Extract(long, 1, 201)), $Extract(long, 1, 199)_ellipsis, "201 characters are cut")
 	Do $$$AssertEquals($ClassMethod(learned, "Fact", $Extract(long, 1, 201)_"."), $Extract(long, 1, 199)_ellipsis, "202 ending in a stop: the stop goes first, then the cut")
+	Set pair = $Char(55357, 56832)
+	Do $$$AssertEquals($ClassMethod(learned, "Fact", $Extract(long, 1, 198)_pair_$Extract(long, 1, 20)), $Extract(long, 1, 198)_ellipsis, "a surrogate pair the cut would split is left out whole")
+	Do $$$AssertEquals($ClassMethod(learned, "Fact", $Extract(long, 1, 197)_pair_$Extract(long, 1, 20)), $Extract(long, 1, 197)_pair_ellipsis, "a surrogate pair that ends at the cut stays whole")
 }
 
 Method TestSaid()

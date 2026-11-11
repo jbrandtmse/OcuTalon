@@ -160,16 +160,19 @@ ClassMethod Shown(rows As %DynamicArray, Output answer As %DynamicObject) [ Priv
 	Set answer = {"ok": true, "memories": (memories)}
 }
 
-/// Merges the rows into the member "memories" of the context's HostData as {memoryRef, text, savedAt}: the memories already there first, then the rows,
-/// each memoryRef once, at most SEARCHLIMIT. The member is not put when the merge is empty.
-ClassMethod Remember(rows As %DynamicArray) [ Private ]
+/// Merges the rows into the member of the context's HostData ("memories" when none is given) with the fields named ({memoryRef, text, savedAt} when none
+/// are given): the entries already there first, then the rows, each memoryRef once, at most cap (SEARCHLIMIT when none is given). The member is not put when
+/// the merge is empty.
+ClassMethod Remember(rows As %DynamicArray, member As %String = "memories", cap As %Integer = "", fields As %List = "") [ Private ]
 {
+	If cap = "" Set cap = ..#SEARCHLIMIT
+	If fields = "" Set fields = $ListBuild("memoryRef", "text", "savedAt")
 	Set merged = []
 	Kill seen
-	Set held = ##class(OcuTalon.Tools.HostData).Get("memories")
-	If $IsObject(held) && held.%IsA("%Library.DynamicArray") Do ..Merge(held, merged, .seen)
-	Do ..Merge(rows, merged, .seen)
-	If merged.%Size() Do ##class(OcuTalon.Tools.HostData).Put("memories", merged)
+	Set held = ##class(OcuTalon.Tools.HostData).Get(member)
+	If $IsObject(held) && held.%IsA("%Library.DynamicArray") Do ..Merge(held, merged, .seen, cap, fields)
+	Do ..Merge(rows, merged, .seen, cap, fields)
+	If merged.%Size() Do ##class(OcuTalon.Tools.HostData).Put(member, merged)
 }
 
 /// Takes the memory out of the member of the context's HostData ("memories" or "learned"), keeping the other entries in order; the member is removed when no entry is left.
@@ -201,36 +204,20 @@ ClassMethod Announce(memoryRef As %String, sessionRef As %String) [ Private ]
 		Quit
 	}
 	If '$IsObject(row) || (row.Source '= ##class(OcuTalon.Tools.MemorySource).#LEARNED) Quit
-	Set merged = []
-	Kill seen
-	Set held = ##class(OcuTalon.Tools.HostData).Get("learned")
-	If $IsObject(held) && held.%IsA("%Library.DynamicArray") Do ..MergeLearned(held, merged, .seen)
-	Do ..MergeLearned([{"memoryRef": (memoryRef), "text": (row.Text)}], merged, .seen)
-	If merged.%Size() Do ##class(OcuTalon.Tools.HostData).Put("learned", merged)
+	Do ..Remember([{"memoryRef": (memoryRef), "text": (row.Text)}], "learned", ##class(OcuTalon.Memory.Learned).#MAXENTRIES, $ListBuild("memoryRef", "text"))
 }
 
-/// Pushes the entries of the array that name a memoryRef not yet in seen onto merged, as {memoryRef, text}, until it holds Learned MAXENTRIES.
-ClassMethod MergeLearned(entries As %DynamicArray, merged As %DynamicArray, ByRef seen) [ Private ]
+/// Pushes the entries of the array that name a memoryRef not yet in seen onto merged, each cut down to the fields named (a list), until it holds cap.
+ClassMethod Merge(entries As %DynamicArray, merged As %DynamicArray, ByRef seen, cap As %Integer, fields As %List) [ Private ]
 {
 	Set iterator = entries.%GetIterator()
 	While iterator.%GetNext(, .entry) {
-		If merged.%Size() '< ##class(OcuTalon.Memory.Learned).#MAXENTRIES Quit
+		If merged.%Size() '< cap Quit
 		If $IsObject(entry) && (entry.memoryRef '= "") && '$Data(seen(entry.memoryRef)) {
 			Set seen(entry.memoryRef) = ""
-			Do merged.%Push({"memoryRef": (entry.memoryRef), "text": (entry.text)})
-		}
-	}
-}
-
-/// Pushes the entries of the array that name a memoryRef not yet in seen onto merged, as {memoryRef, text, savedAt}, until it holds SEARCHLIMIT.
-ClassMethod Merge(entries As %DynamicArray, merged As %DynamicArray, ByRef seen) [ Private ]
-{
-	Set iterator = entries.%GetIterator()
-	While iterator.%GetNext(, .entry) {
-		If merged.%Size() '< ..#SEARCHLIMIT Quit
-		If $IsObject(entry) && (entry.memoryRef '= "") && '$Data(seen(entry.memoryRef)) {
-			Set seen(entry.memoryRef) = ""
-			Do merged.%Push({"memoryRef": (entry.memoryRef), "text": (entry.text), "savedAt": (entry.savedAt)})
+			Set kept = {}
+			For i = 1:1:$ListLength(fields) Do kept.%Set($List(fields, i), entry.%Get($List(fields, i)))
+			Do merged.%Push(kept)
 		}
 	}
 }

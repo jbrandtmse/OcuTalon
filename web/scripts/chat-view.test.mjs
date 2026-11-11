@@ -5,6 +5,7 @@
 // holds only while it keeps to erasable syntax and imports only types.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -609,5 +610,20 @@ describe('liveRequest', () => {
 
   it('gives undefined for a result, even when the store holds the request', () => {
     assert.equal(liveRequest(result, { A1: pendingPayload }), undefined);
+  });
+});
+
+describe('the learned lines are plain text (Story 41.15, QA; AC 4)', () => {
+  // The page cannot be drawn in Node, so the guard reads the component's source: the fact comes from the person's words and must only ever be interpolated.
+  const source = readFileSync(join(here, '..', 'src', 'app', 'chat', 'learned-lines.ts'), 'utf8');
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  it('binds each line by interpolation in a paragraph, and never as HTML', () => {
+    assert.match(code, /<p class="learned">\{\{ line \}\}<\/p>/);
+    assert.doesNotMatch(code, /innerHTML|outerHTML|bypassSecurityTrust|insertAdjacentHTML|\[innerText\]|DomSanitizer/);
+  });
+
+  it('carries no label of its own (no aria-label, no heading, no title)', () => {
+    assert.doesNotMatch(code, /aria-label|aria-labelledby|<h[1-6]|\btitle=/);
   });
 });

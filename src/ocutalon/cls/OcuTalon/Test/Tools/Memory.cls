@@ -29,6 +29,8 @@
 ///     the same Ref adds none; four distinct Refs hold the first three, in order; the other members of HostData stay;
 ///   - TestLearnedNothing (Story 41.15): a told row, an old row (no Source), another session's row, a Ref that has no row, NOSESSION, an owner refusal and a failed submit add nothing to HostData, and the tool's
 ///     answer is what it was;
+///   - TestLearnedReadFailed (Story 41.15, QA): a saved memory whose row cannot be read back (the read answers an error status) adds nothing to HostData.learned, keeps the entries already there, and logs one
+///     warning of MemoryTools SaveMemory that holds the status text, and a row that can be read logs none;
 ///   - TestLearnedForgotten (Story 41.15): a learned memory that forget_memory forgets in the turn leaves HostData.learned, the other entries and members stay, the member goes when the last one is forgotten,
 ///     and a forget that the owner refuses changes nothing;
 ///   - TestListAnswer: list_memories answers the newest 20 and the total, in the same shape (a learned row and old rows told), touches no HostData member, and holds only the session's own;
@@ -456,6 +458,28 @@ Method TestLearnedNothing()
 	Set ^OcuTalonTest("CommandsDouble", "memoryRef") = "zzmtla3"
 	Do ##class(OcuTalon.Tools.MemoryTools).SaveMemory(text_" 3")
 	Do $$$AssertEquals(..LearnedOf(), [{"memoryRef": "zzmtla3", "text": (text_" 3")}].%ToJSON(), "control: the same learned row of the session does give its entry")
+}
+
+/// A saved memory whose row cannot be read back adds nothing and logs one warning (Story 41.15, QA; the I/O matrix row "Failed save"). The read of Ownership answers an error
+/// status for the Ref of the instance or of the eval session, which no context can hold (a context holds a 22-character Ref), so the private Announce is reached through Test.Tools.MemoryAnnouncer, a subclass of MemoryTools.
+Method TestLearnedReadFailed()
+{
+	If '..Ready() Quit
+	If '..Prepare() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	// An inherited method logs under the name of the class it runs in: the helper subclass.
+	Set tools = "OcuTalon.Test.Tools.MemoryAnnouncer"
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmtla1", "the Results partner's contact is Lee", "2026-11-05T10:00:01Z", , , "learned"), "A's learned memory is stored")
+	Do ..Begin(..#A, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Do ##class(OcuTalon.Tools.HostData).Put("learned", [{"memoryRef": "zzmtlheld", "text": "held"}])
+	Set mark = $ClassMethod(fixture, "EventMark")
+	Do ##class(OcuTalon.Test.Tools.MemoryAnnouncer).Run("zzmtla1", ##class(OcuTalon.Data.Ownership).#EVAL)
+	Do $$$AssertEquals($ClassMethod(fixture, "Warnings", mark, tools, "SaveMemory", $ListBuild("could not be read back", "A read needs the Ref of a session")), 1, "a read that fails logs one warning that holds the status text")
+	Do $$$AssertEquals(..LearnedOf(), [{"memoryRef": "zzmtlheld", "text": "held"}].%ToJSON(), "and adds nothing: the held entries are as they were")
+	Set mark = $ClassMethod(fixture, "EventMark")
+	Do ##class(OcuTalon.Test.Tools.MemoryAnnouncer).Run("zzmtla1", ..#A)
+	Do $$$AssertEquals($ClassMethod(fixture, "Warnings", mark, tools, "SaveMemory"), 0, "control: a row that can be read logs no warning")
+	Do $$$AssertEquals(..LearnedOf(), [{"memoryRef": "zzmtlheld", "text": "held"}, {"memoryRef": "zzmtla1", "text": "the Results partner's contact is Lee"}].%ToJSON(), "and its entry is added after the held one")
 }
 
 /// A learned memory that the turn forgets leaves HostData.learned (Story 41.15).

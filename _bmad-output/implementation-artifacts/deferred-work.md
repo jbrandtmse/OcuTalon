@@ -6619,3 +6619,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Dropping header_images from chk_readme_links' target stream keeps every rule green while the logo is tracked; only the AC4 untrack mutation shows it; chk_readme_links takes no tree-list argument, so a self-test cannot stub a missing logo; same limit existed with the relative src before 0.23
 - 2026-11-10T20:08:58Z status=wontfix-accepted owner=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute by=harvest note=reopen_if=chk_readme_links gains a tree-list argument, or the header logo goes missing on main without readme-links going red
 - 2026-11-10T20:20:54Z occurrence=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute
+
+### DW-1104: One 'I'll remember' anywhere in the reply suppresses every learned line of the turn, including one about another fact or an unrelated 'I'll remember to ...'
+- source: spec-41-15-learned-saves-are-announced-by-code.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Memory.Learned.Shown returns [] whenever Said(replyText); with 2-3 learned entries a reply naming one fact hides the rest (no test covers that mix)
+- 2026-11-11T01:26:25Z status=by-design owner=41-15-learned-saves-are-announced-by-code by=cr note=AC 5 and the ruling fix a per-turn check (any I'll remember -> no line); per-entry matching needs a spec amendment
+
+### DW-1105: Eval memory rule waives the whole missing key-phrase list when the learned line or Said holds, and never ties Learned to the saved step's memory
+- source: spec-41-15-learned-saves-are-announced-by-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Eval.Report.MemoryRule: announced = 'missing.%Size() || (learned && Announced(reply, turn)); LEARNEDCASES has one case with one keyPhrases group
+- 2026-11-11T01:26:25Z status=wontfix-theoretical owner=41-15-learned-saves-are-announced-by-code by=cr note=real when a LEARNEDCASES case gains a second keyPhrases group (e.g. the fact itself) or a turn saves two memories
+
+### DW-1106: Test/Eval/Report.cls edits MemoryReport/MemoryRight in place (3 '-' lines) where the spec says added lines only
+- source: spec-41-15-learned-saves-are-announced-by-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: git diff c79da26f -- src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls: helper signatures gain learned/fallback args the new tests need
+- 2026-11-11T01:26:25Z status=wontfix-accepted owner=41-15-learned-saves-are-announced-by-code by=cr note=reopen_if=the integrate-forward or a merge reports a conflict in Test/Eval/Report.cls MemoryReport or MemoryRight
+
+### DW-1107: The eval report still lists the 'I'll remember that' key phrase as missing for a memory-learned-save turn scored right by the line or by Said
+- source: spec-41-15-learned-saves-are-announced-by-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: MemoryRule keeps missing from the phrase rule (ruling 4: phrase rule unchanged, one call); the check row shows a missing phrase on a right row
+- 2026-11-11T01:26:25Z status=by-design owner=41-15-learned-saves-are-announced-by-code by=cr note=ruling 4 keeps the phrase rule and its output as they are; changing the report output needs a spec amendment

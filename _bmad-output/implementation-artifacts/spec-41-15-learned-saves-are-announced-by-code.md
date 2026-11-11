@@ -386,6 +386,33 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
 - **AC 8 (AD-7).** Given `Agent/Chat.cls` and every tool description, when this story ships, then they are byte-identical to `0eb14ea2` (`git diff 0eb14ea2 -- src/ocutalon/cls/OcuTalon/Agent/Chat.cls` is empty, and `Test.Tools.Memory:TestInstructions` passes).
 - **AC 9 (AD-22).** Given `memory-learned-save`, when it is scored, then it is right when the learned entry and the rendered line are both present (and not a fallback, with the save rule holding), and still right by the phrase rule, and [AMENDED 2026-11-11, Contest Planner spec-gate ruling 4, owner's delegation] also right when the save rule holds and the reply passes `Memory.Learned.Said` ("I'll remember Lee…" counts as announced). It stays report-only: SM-1 and `commands` are unchanged. Pinned by `Report:TestLearnedSaveByTheLine`, `Report:TestLearnedSaveBySaid` and `TestLearnedSaveReportOnly` (unchanged).
 
+### Review Findings
+
+Code review 2026-11-11 (first review; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, full-opus tier). 36 raw rows → 6 entries (high 0, med 3, low 3); 2 patched, 4 ledgered terminal, 30 rows rejected.
+
+- [x] [Review][Patch] `MemoryTools.MergeLearned` and `Announce`'s merge block were near-copies of `Merge`/`Remember` (Rule 2, med, fix-risk low: private, both paths pinned by `Tools.Memory`) [src/ocutalon/cls/OcuTalon/Tools/MemoryTools.cls:166] — fixed: `Remember` takes an optional member, cap and field list, `Merge` takes the cap and fields, `MergeLearned` is gone and `Announce` calls `Remember(..., "learned", Learned.#MAXENTRIES, $ListBuild("memoryRef","text"))`. `Tools.Memory`, `Eval.MemoryCases` passed warm after a production restart.
+- [x] [Review][Patch] `Memory.Learned.Fact` could cut a UTF-16 surrogate pair in half at position 199, leaving a lone high surrogate before the ellipsis (invalid UTF-8 for Telegram's sendMessage, which would lose the whole reply) (med, fix-risk low; same guard as `Telegram.Api.Split`) [src/ocutalon/cls/OcuTalon/Memory/Learned.cls:32] — fixed: the cut steps back one unit off a high surrogate; `Test.Memory.Learned:TestFact` gained two assertions (a split pair left out whole, a pair ending at the cut kept). `Memory.Learned`, `Live.Payloads` passed warm; `test-class-rules.sh` passed.
+- [x] [Review][Defer] One "I'll remember" anywhere in the reply suppresses every learned line of the turn [src/ocutalon/cls/OcuTalon/Memory/Learned.cls:55] — deferred: DW-1104 `by-design` (AC 5 and the ruling fix a per-turn check).
+- [x] [Review][Defer] The eval waiver covers the whole missing key-phrase list and does not tie `Learned` to the saved step [src/ocutalon/cls/OcuTalon/Eval/Report.cls:1142] — deferred: DW-1105 `wontfix-theoretical` (real when a learned case gains a second keyPhrases group).
+- [x] [Review][Defer] `Test/Eval/Report.cls` has 3 in-place lines where the spec says added lines only [src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls] — deferred: DW-1106 `wontfix-accepted`, reopen_if a merge conflict there.
+- [x] [Review][Defer] The eval report lists the "I'll remember that" phrase as missing on a learned turn scored right [src/ocutalon/cls/OcuTalon/Eval/Report.cls:1142] — deferred: DW-1107 `by-design` (ruling 4 keeps the phrase rule's output).
+
+Rejected:
+- false: the spec's triage log, Auto Run Result residual risks, file list and Shared surfaces count are stale (blind, edge, verification-gap) — the fix edits the spec under review; the Spec Change Log already records the lost triage rows.
+- false: `Test/Tools/MemoryAnnouncer.cls` ships an `%AI.Tool` subclass with a public method taking a session (blind, auditor) — it follows the `Test/Tools/RecentActivityUnread.cls` test-double precedent; no toolset names it, so no model can call it, and any caller able to run it can already call `Ownership.Memory` directly.
+- false: the new line is not in EXPERIENCE.md and splits the `pairing.*` block (blind) — the ruled line lives in `epics.md` (the `ux-strings.test.mjs` `ac` source exists for that), and Task 8 forces a mid-list insertion.
+- low: a fact of only zero-width characters renders an empty-quote line (edge) — not reachable in practice (the model saves the user's words; `OnSave` strips white space and control characters); a guard adds a branch.
+- low: `TelegramOut` ignores `Lines`' status (edge) — `Shown` filters every entry `Render` would refuse, so a render error is not reachable; a branch for it adds complexity.
+- low: the PANEL check in `api/memory.spec.ts` fails if PANEL ever had a learned turn (edge) — no test gives PANEL a learned turn, and the seeded LIVE turn is removed in `finally`.
+- false: `Memory.Learned`'s doc overstates that every renderer shows exactly what `Shown`/`Lines` give (edge) — the page shows `Shown`'s entries through the payload and the same generated catalog text.
+- false: AC pins without their own `mutation:` line (AC 1 forget, AC 2 fallbacks, AC 3 Payloads/S10/S12, AC 5 S11, AC 6 e2e, AC 7 S12, AC 9 report-only; 9 rows, verification-gap) — Rule 19 asks one demonstrated mutation per AC, and every AC has one.
+- false: AC 4's web mutation was observed only on a source-text guard, and `learned-lines.ts` has no local test host (verification-gap) — the spec names e2e S10 as the web pin (CI `live:sign-in`), and AC 4's Telegram mutation is demonstrated on `TelegramOut:TestLearnedLines`; Rule 3 is met by S10-S12 and `api/memory.spec.ts`.
+- false: the AC 6 e2e negatives could be vacuous when the 2025 seeded turn ranks out of the newest 100 (verification-gap) — under the `SessionRef` mutation LIVE's own `toBeDefined` check then goes red, so the test fails either way.
+- false: `TestShown`'s label "a reply of no text says nothing" contradicts its assertion (verification-gap) — "says nothing" means `Said` is 0, so the entry shows, which is what it asserts.
+- low: `TestLearnedReadFailed` sees the warning under the helper's class name; `TestStateLearned` cleans outside try/finally; `TestLearnedEntry` needs the production restart (verification-gap, 3 rows) — the test pins the warning's text and count; the class convention; the order is in `## Verification`.
+- false: the eval change is more than one call (auditor) — the entry-and-line rule is Task 12's own; ruling 4's addition is the one `Said` call.
+- false: QA files are uncommitted; the integrate-forward is pending (auditor, 2 rows) — the lead commits after the smoke gate; the Spec Change Log already carries the integrate-forward.
+
 ## Spec Change Log
 
 - 2026-11-11 (spec gate; Contest Planner rulings ~00:15Z under the owner's delegation, relayed by the orchestrator; verbatim terms, from the orchestrator's `prompts/epic-41-rulings-4115.md`, section "Spec-gate rulings"; implement may start):
@@ -590,6 +617,31 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC 7: `Cite` skips `learned` → `MemoryCases:TestLearnedEntry` red. S12 runs in CI.
 - AC 8: a bullet changed in `Chat.cls` → `Tools.Memory:TestInstructions` red.
 - AC 9: the "entry and line" rule removed → `Report:TestLearnedSaveByTheLine` red; the `Said` call removed → `Report:TestLearnedSaveBySaid` red.
+
+**Mutations demonstrated by the QA pass (Rule 19), on the warm stack `e41s15qw`.** Each was applied, observed red, reverted from a backup, and the tree was byte-identical afterwards (a hash of `git status --short`, `git diff` and the untracked files was the same before and after each).
+- mutation: AC 1, `MemoryTools.Announce` skips the `Source = learned` check (any `saved` is recorded) → `Tools.Memory:TestLearnedNothing` red (told, old and another session's row each added an entry).
+- mutation: AC 1 (QA gap 1, the failed row read), `Announce` logs the failed read as Info instead of a warning → `Tools.Memory:TestLearnedReadFailed` red.
+- mutation: AC 2, `Conversation.Sourced` never sets `turn.Learned` → `ConversationTurns:TestLearnedCarried`, `TestLearnedShape` and `TestLearnedSaid` red.
+- mutation: AC 3, `Learned.Fact` cuts to 200 characters plus "…" (201 in all) → `Memory.Learned:TestFact` and `TestLines` red.
+- mutation: AC 3, `Telegram.Out.OnOutbound` never appends the lines → `TelegramOut:TestLearnedLines` red.
+- mutation: AC 4 (Telegram), `SendPart` sets `parse_mode` HTML → `TelegramOut:TestLearnedLines` (and `TestPlainText`, `TestSummary`) red.
+- mutation: AC 4 (web, local stand-in), `learned-lines.ts` binds `[innerHTML]="line"` → `chat-view.test.mjs` "the learned lines are plain text" red (QA test; e2e S10 is the CI pin).
+- mutation: AC 5, `Learned.Said` returns 0 → `Memory.Learned:TestSaid` and `ConversationTurns:TestLearnedSaid` red.
+- mutation: AC 6, `Ownership.RecentTurns`' query loses its `SessionRef` term (`(SessionRef = ? OR 1 = 1)`) → `Web.Api:TestStateLearned` red (and `TestStateSections`). The edit to the contended file was reverted at once.
+- mutation: AC 7, `Eval.In.Cite` skips `learned` → `Eval.MemoryCases:TestLearnedEntry` red (production restarted before the run, and again after the revert).
+- mutation: AC 8, one character of the learned-save bullet in `Agent/Chat.cls` ("yoo") → `Tools.Memory:TestInstructions` red; reverted at once, and `git diff c79da26f -- Agent/Chat.cls` is empty.
+- mutation: AC 9, `Report.Announced` loses its entry-and-line rule → `Eval.Report:TestLearnedSaveByTheLine` red; the `Said` call removed → `Eval.Report:TestLearnedSaveBySaid` red.
+
+**Mutations demonstrated by the code review (Rule 19), on the warm stack `e41s15cw`.** Each was applied from a backup, observed red, reverted, the class was green again on the same stack, and a hash of `git status --short`, `git diff` and the untracked file was the same before and after.
+- mutation: AC 3 (review patch, the surrogate-safe cut), `Learned.Fact` loses its step back off a high surrogate → `Memory.Learned:TestFact` red ("a surrogate pair the cut would split is left out whole").
+- mutation: AC 1 (the cap of 3 after the review's `Remember` extension), `Announce` passes cap 5 instead of `Learned.#MAXENTRIES` → `Tools.Memory:TestLearnedHostData` red ("four distinct Refs hold the first three, in the order saved").
+
+**QA pass files (QA).**
+- `src/ocutalon/cls/OcuTalon/Test/Tools/Memory.cls` (QA): new `TestLearnedReadFailed` (the failed-row-read warning, I/O matrix "Failed save") and its class-doc bullet.
+- `src/ocutalon/cls/OcuTalon/Test/Tools/MemoryAnnouncer.cls` (QA, new): a helper subclass of `MemoryTools` that reaches the private `Announce` (no context accepts the Ref that makes the read fail); it is not a test class.
+- `web/scripts/chat-view.test.mjs` (QA): a source guard that `learned-lines.ts` interpolates and never binds HTML, and carries no label.
+
+**QA re-run (warm `e41s15qw`, after the review patches).** All 11 Verification classes passed, the four web unit files passed (chat-view 71 with the QA tests, catalog 66, payloads 20, ux-strings 13), `playwright --list` shows S10, S11, S12 and the new memory test, `test-class-rules.sh` and `test-boundaries.sh` passed.
 
 
 ## Auto Run Result
