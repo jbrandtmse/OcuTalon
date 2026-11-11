@@ -65,3 +65,4 @@
 2026-11-11T09:30:51Z	Story 25.2	protocol_violation	stage=code-review depth=1 agent=25-2-filter-past-decisions-and-incidents-on-the-history-page-code-review-3 violation=one_live_part_ran_without_lane_variables(tag_local,port_auto,default_lock_dir) consequence=none(own_run,lock_released,no_containers_left) detected_by=stage_self_report outcome=rerun_on_lane-C;not_counted
 2026-11-11T09:30:51Z	Story 25.2	smoke_complete	method=browser(stage-run_fresh_lane-C:history.spec_part_13/20_15/15_x2_by_implement(e25s2r2)_and_x2_by_reviewer(e25s2c3)_on_final_tree;npm_test_1910) result=pass iterations=3 defects_caught=0 note=rework_2_web-only;lead_time_box(push_by_10:00Z) model=claude-opus-5-5
 2026-11-11T09:30:51Z	Story 25.2	fresh_check	env=recipe(fresh_lane-C_stacks_e25s2c3) tests=history.spec_H1-H15(x2)+node_1910 result=pass order=forward,forward(repeat_for_race)
+2026-11-11T09:31:06Z	Story 25.2	committed	sha=db86baf6 fix_for=25.2 rework=2 ci=pending_at_push
