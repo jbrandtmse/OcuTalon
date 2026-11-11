@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-11-2026 03:07
+last_updated: 11-11-2026 03:57
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -60,7 +60,7 @@ development_status:
   0-22-the-more-to-try-panel-shows-its-items-under-three-group-head: done
   0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute: done
   0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i: done
-  0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti: in-progress
+  0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti: review
   epic-0-retrospective: optional
 
   epic-1: done

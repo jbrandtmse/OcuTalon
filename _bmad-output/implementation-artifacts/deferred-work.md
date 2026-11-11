@@ -6766,3 +6766,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: low | footprint: web/e2e/floor/keyboard.spec.ts
 - evidence: lane-B throwaway e37s2s3 on d282b2b7 2026-11-11 ~00:17Z: 1 failed/106 passed; rerun 107/107; 37.2 does not touch the decision strip or trace link
 - 2026-11-11T00:24:50Z status=routed owner=burndown by=harvest note=flake:keyboard.spec_K2_focus_after_link.focus();one_rerun_green
+
+### DW-1113: test-install-script-live.sh step 5 prints only the last 5 lines of the guard's output, so after a double-retry failure the FAIL web port line can scroll out of view behind the PORT holder lines
+- source: _bmad-output/implementation-artifacts/spec-0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: docker/tests/test-install-script-live.sh:153 tail -n 5 of plain_out; the step still fails on the exit status
+- 2026-11-11T03:57:02Z status=open owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=harvest note=two-way door; for the code review to patch
+
+### DW-1114: test-boundaries.sh keys rule hit the lead's own cycle-log line (story_created 0.25): a job id followed by a colon and 35 word characters matched the bot-token shape
+- source: _bmad-output/implementation-artifacts/spec-0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: cycle-log-epic-0.md story_created 0.25 note; reworded by the lead before any push
+- 2026-11-11T03:57:02Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=harvest note=lead reworded the line (job id in parentheses); test-boundaries passes
