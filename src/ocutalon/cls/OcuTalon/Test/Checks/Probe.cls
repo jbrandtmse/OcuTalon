@@ -12,7 +12,7 @@
 ///   - Due, Watching (a CheckNow's rows, Story 5.15) and Quiet keep only the Refs that the test lists in Only and OnlyIncidents (after the product's own
 ///     selection, so that its rules still run), because a warm stack holds other rows that a Tick must never touch. Watching throws instead while FailWatching is set,
 ///     as a failed read of the rows does.
-///   - KIND is zzprobe, so that Due selects only the rows of that Kind and a real Checks (Kind production) never runs a row of these tests.
+///   - KIND is zzprobe, so that Due selects only the rows of that Kind and a real Checks (Kind production) never runs a row of these tests. QUEUEKIND (Story 23.7) is zzprobequeues for the same reason.
 ///   - Quiet records the time it was given in SweptAt, then selects against QuietAt when that is set (a time that only the probe's tests reach), else against
 ///     the time it was given.
 ///   - Unclosed throws when FailUnclosed is set, as a failed read of the incidents does; a real failure of that read needs a database fault.
@@ -38,6 +38,9 @@ Class OcuTalon.Test.Checks.Probe Extends OcuTalon.Checks.Process
 
 /// The Kind of the rows that Due selects.
 Parameter KIND = "zzprobe";
+
+/// The Kind of the rows that QueueDue selects: none of a stack's rows has it, so that a Tick of this class never runs a queue-backlog row (Test.Checks.QueueProbe runs them).
+Parameter QUEUEKIND = "zzprobequeues";
 
 /// The Refs of the checks that Due keeps, comma-separated.
 Property Only As %String(MAXLEN = "") [ Transient ];

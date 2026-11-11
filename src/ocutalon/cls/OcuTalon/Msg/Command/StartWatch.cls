@@ -11,6 +11,9 @@ Property Production As %String(MAXLEN = 128);
 /// The name shown to the user.
 Property DisplayName As %String(MAXLEN = 128);
 
+/// The kind of watch: queues for the queue-backlog check, empty (or production) for a production watch.
+Property Kind As %String(MAXLEN = 32);
+
 Storage Default
 {
 <Data name="StartWatchDefaultData">
@@ -23,6 +26,9 @@ Storage Default
 </Value>
 <Value name="3">
 <Value>DisplayName</Value>
+</Value>
+<Value name="4">
+<Value>Kind</Value>
 </Value>
 </Data>
 <DefaultData>StartWatchDefaultData</DefaultData>

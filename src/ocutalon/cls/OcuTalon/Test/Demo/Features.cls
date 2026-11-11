@@ -1,6 +1,6 @@
 /// Tests of Demo.Features (Story 4.11; AD-12, AD-29): the feature catalog of the demo guide's "Other things to try" panel.
-///   - TestIds: the pure mapping from probe flags to ids: with no flag the six constants (incidentSummary, Story 23.6, first; reroute, Story 23.2, after rejectFix; partnerWarning, Story 23.5, after reroute) and usage and history, each flag alone adds exactly its id in its
-///     place (memory adds memory and memoryCard, in that order), all flags give the fourteen in order, sources only with memory or documents and usage then history always last, and a false or missing flag adds nothing;
+///   - TestIds: the pure mapping from probe flags to ids: with no flag the seven constants (incidentSummary, Story 23.6, first; reroute, Story 23.2, after rejectFix; partnerWarning, Story 23.5, after reroute; queueWatch, Story 23.7, after partnerWarning) and usage and history, each flag alone adds exactly its id in its
+///     place (memory adds memory and memoryCard, in that order), all flags give the fifteen in order, sources only with memory or documents and usage then history always last, and a false or missing flag adds nothing;
 ///   - TestPresentFollowsTheProbes: Present() equals Ids of the probes this test computes itself (the persona and heartbeat command
 ///     classes compiled; the memory and document operations compiled and not marked STUB = 1);
 ///   - TestStubsAreNotFeatures: while the memory and document operations carry STUB = 1 their ids are absent from Present(); once a
@@ -45,18 +45,18 @@ ClassMethod IdsOf(flags As %DynamicObject) As %String [ Private ]
 	Quit ..Text(##class(OcuTalon.Demo.Features).Ids(flags))
 }
 
-/// The catalog is a pure mapping: the six constants are always there, and each flag adds its own id in its place.
+/// The catalog is a pure mapping: the seven constants are always there, and each flag adds its own id in its place.
 Method TestIds()
 {
-	Set base = "incidentSummary,suspiciousEmail,rejectFix,reroute,partnerWarning,demoView"
-	Do $$$AssertEquals(..IdsOf({}), base_",usage,history", "no flag: the six constants, incidentSummary first, reroute (Story 23.2) after rejectFix and partnerWarning (Story 23.5) after reroute, then usage and history")
-	Do $$$AssertEquals(..IdsOf({"persona": 0, "memory": 0, "documents": 0, "heartbeat": 0}), base_",usage,history", "every flag false: the six constants, then usage and history")
-	Do $$$AssertEquals(..IdsOf({"persona": 1}), "incidentSummary,persona,suspiciousEmail,rejectFix,reroute,partnerWarning,demoView,usage,history", "persona alone follows incidentSummary and leads the rest")
+	Set base = "incidentSummary,suspiciousEmail,rejectFix,reroute,partnerWarning,queueWatch,demoView"
+	Do $$$AssertEquals(..IdsOf({}), base_",usage,history", "no flag: the seven constants, incidentSummary first, reroute (Story 23.2) after rejectFix, partnerWarning (Story 23.5) after reroute and queueWatch (Story 23.7) after partnerWarning, then usage and history")
+	Do $$$AssertEquals(..IdsOf({"persona": 0, "memory": 0, "documents": 0, "heartbeat": 0}), base_",usage,history", "every flag false: the seven constants, then usage and history")
+	Do $$$AssertEquals(..IdsOf({"persona": 1}), "incidentSummary,persona,suspiciousEmail,rejectFix,reroute,partnerWarning,queueWatch,demoView,usage,history", "persona alone follows incidentSummary and leads the rest")
 	Do $$$AssertEquals(..IdsOf({"memory": 1}), base_",memory,memoryCard,sources,usage,history", "memory alone follows the constants, with memoryCard right after it, then sources, then usage and history")
 	Do $$$AssertEquals(..IdsOf({"documents": 1}), base_",documents,sources,usage,history", "documents alone follows the constants, then sources, then usage and history")
 	Do $$$AssertEquals(..IdsOf({"heartbeat": 1}), base_",heartbeat,usage,history", "heartbeat alone follows the constants and brings no sources")
 	Do $$$AssertEquals(..IdsOf({"memory": 1, "heartbeat": 1}), base_",memory,memoryCard,heartbeat,sources,usage,history", "two flags keep the order, sources, usage and history last")
-	Do $$$AssertEquals(..IdsOf({"heartbeat": true, "documents": true, "memory": true, "persona": true}), "incidentSummary,persona,suspiciousEmail,rejectFix,reroute,partnerWarning,demoView,memory,memoryCard,documents,heartbeat,sources,usage,history", "all flags: the fourteen in order, whatever the order the flags were written in")
+	Do $$$AssertEquals(..IdsOf({"heartbeat": true, "documents": true, "memory": true, "persona": true}), "incidentSummary,persona,suspiciousEmail,rejectFix,reroute,partnerWarning,queueWatch,demoView,memory,memoryCard,documents,heartbeat,sources,usage,history", "all flags: the fifteen in order, whatever the order the flags were written in")
 	Do $$$AssertEquals(..IdsOf({"unknown": 1}), base_",usage,history", "a flag the catalog does not know adds nothing")
 }
 

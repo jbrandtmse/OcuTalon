@@ -5,7 +5,7 @@
 /// methods in this process, with a bridge context begun for the turn, as Test.Tools.Reminders does.
 ///   - TestDeclarations: Chat's TOOLSETS names both toolsets; Watching offers exactly start_watch, stop_watch, list_productions, dismiss_incident and
 ///     check_status of Tools.Names, each once, from WatchTools, (Story 5.13) recent_activity from RecentActivity and (Story 17.6) send_digest from DigestTools and (Story 23.6) incident_summary from RecentActivity; each has its own step label and the flags of the spec (all safe and trusted output but incident_summary, which is not trusted, and only
-///     list_productions, check_status, recent_activity and incident_summary read-only); the inputs are name (required) and namespace for start and stop, none for list, check_status and recent_activity, and incident
+///     list_productions, check_status, recent_activity and incident_summary read-only); the inputs are name (required), namespace and (Story 23.7) kind for start and stop, none for list, check_status and recent_activity, and incident
 ///     and production (none required) for dismiss, and none names a session, an owner or an origin;
 ///   - TestCheckStatus, TestCheckStatusHostData and TestCheckStatusNotRead (Story 5.7; matrix "check_status", "HostData kept", "Refused"): check_status gives the
 ///     session's own production rows by ID with the time in the instance zone, copies them to HostData with the UTC time, keeps the other members of a JSON
@@ -13,6 +13,11 @@
 ///     whole HostData, so a field added later fails;
 ///   - TestCheckStatusDescription (Story 5.7, QA; no production): the description of check_status for the model says when to call it, what a not_checked and an empty result mean, that OcuTalon
 ///     shows the results itself, and not to list them or say that everything passed;
+///   - TestQueueKind and TestUnknownKind (Story 23.7; matrix "Start", "Stop", "Unknown kind"): start_watch and stop_watch with kind queues skip the lookup of a production and submit
+///     a StartWatch or StopWatch whose only own field is Kind queues (origin tool, the session, the key <ItemId>:1), and answer the owner's outcome with check "Queue-backlog check";
+///     kind production is the default path, and any other kind answers unknown_kind with UNKNOWNKIND and submits nothing;
+///   - TestCheckStatusQueues (Story 23.7; AC8): check_status lists the session's queue-backlog row with the entry "Queue-backlog check", its result and finding as they are
+///     (a not_checked row is never shown as passed), and no row of another session;
 ///   - TestStart and TestStop (matrix "Start", "Stop"): one command with origin tool, the session of the turn, the key <ItemId>:1 and the namespace, the
 ///     production and (for a start) the display name, and no other field; the answer is the owner's message, ok, ref, the outcome and the production's name;
 ///   - TestNameForms: the name is trimmed, case-insensitive, may end in " production" and may be the class name, and the namespace argument narrows it;
@@ -63,8 +68,8 @@ Method TestDeclarations()
 {
 	Set names = "OcuTalon.Tools.Names"
 	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Chat", "TOOLSETS"), "OcuTalon.Tools.Reminders,"_..#TOOLSET_",OcuTalon.Tools.Persona,OcuTalon.Tools.Memory", "Chat's TOOLSETS names the reminder, watching, persona and memory toolsets")
-	Set want("start_watch") = $ListBuild("safe", 0, 1, "Starting a watch", "name,namespace", "name")
-	Set want("stop_watch") = $ListBuild("safe", 0, 1, "Stopping a watch", "name,namespace", "name")
+	Set want("start_watch") = $ListBuild("safe", 0, 1, "Starting a watch", "kind,name,namespace", "name")
+	Set want("stop_watch") = $ListBuild("safe", 0, 1, "Stopping a watch", "kind,name,namespace", "name")
 	Set want("list_productions") = $ListBuild("safe", 1, 1, "Listing the productions", "", "")
 	Set want("dismiss_incident") = $ListBuild("safe", 0, 1, "Dismissing an incident", "incident,production", "")
 	Set want("check_status") = $ListBuild("safe", 1, 1, "Reading the check results", "", "")
@@ -355,6 +360,72 @@ Method TestCheckStatus()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, {"checks": (kept)}.%ToJSON(), "HostData holds the rows of A's production watches, with the UTC time")
 	Do $$$AssertEquals(..Calls().%Size(), 0, "nothing is submitted")
 	Do $$$AssertEquals(..Rows(a).%Size(), 4, "and no row is written")
+}
+
+/// start_watch and stop_watch with kind queues (Story 23.7): the name is ignored and no production is looked up, the command carries Kind queues alone, and
+/// the answer is the owner's outcome with the name of the check.
+Method TestQueueKind()
+{
+	If '..Ready() Quit
+	If '..UseDouble() Quit
+	Set session = ..Session("queue-kind")
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Begin(session, itemId)
+	Set answer = ##class(OcuTalon.Tools.WatchTools).StartWatch("queue backlogs", , "queues")
+	Do ..AssertObject(answer, {"ok": true, "message": "The CI double started the watch.", "ref": ($Parameter(..#DOUBLE, "WATCHREF")), "outcome": "started", "check": "Queue-backlog check"}, "start_watch(kind queues)")
+	Set answer = ##class(OcuTalon.Tools.WatchTools).StopWatch("", , "queues")
+	Do ..AssertObject(answer, {"ok": true, "message": "The CI double stopped the watch.", "ref": ($Parameter(..#DOUBLE, "WATCHREF")), "outcome": "stopped", "check": "Queue-backlog check"}, "stop_watch(kind queues), whatever the name")
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 2, "the double recorded two commands, and no name was looked up")
+	If calls.%Size() = 2 {
+		Set call = calls.%Get(0)
+		Do $$$AssertEquals(call.class_"|"_call.origin_"|"_call.sessionRef_"|"_call.key, "OcuTalon.Msg.Command.StartWatch|tool|"_session_"|"_itemId_":1", "a StartWatch, origin tool, the session of the turn, the key <ItemId>:1")
+		Do $$$AssertEquals(..SortedKeys(call.fields), "IdempotencyKey,Kind,Origin,SessionRef", "it sets Kind and no namespace, production or display name")
+		Do $$$AssertEquals(call.fields.Kind, "queues", "the kind is queues")
+		Set call = calls.%Get(1)
+		Do $$$AssertEquals(call.class_"|"_call.key, "OcuTalon.Msg.Command.StopWatch|"_itemId_":2", "a StopWatch with the next key")
+		Do $$$AssertEquals(..SortedKeys(call.fields), "IdempotencyKey,Kind,Origin,SessionRef", "it sets Kind alone too")
+	}
+	Set answer = ##class(OcuTalon.Tools.WatchTools).StartWatch("Orders", , "production")
+	Do $$$AssertEquals(answer.outcome_"|"_answer.production, "started|Orders", "kind production is the production watch")
+	Set call = ..Calls().%Get(2)
+	Do $$$AssertEquals(..SortedKeys(call.fields), "DisplayName,IdempotencyKey,Namespace,Origin,Production,SessionRef", "and it sets no Kind")
+	Do $$$AssertEquals(..Rows(session).%Size(), 0, "the tool wrote no row")
+}
+
+/// A kind that is neither production nor queues answers unknown_kind and submits nothing (Story 23.7).
+Method TestUnknownKind()
+{
+	If '..Ready() Quit
+	If '..UseDouble() Quit
+	Set session = ..Session("unknown-kind")
+	Do ..Begin(session, ##class(OcuTalon.Bridge.Ids).NewRef())
+	For tool = "start", "stop" {
+		For kind = "sql", "Queues", "queue" {
+			Set answer = $Select(tool = "start": ##class(OcuTalon.Tools.WatchTools).StartWatch("Orders", , kind), 1: ##class(OcuTalon.Tools.WatchTools).StopWatch("Orders", , kind))
+			Do ..AssertObject(answer, {"ok": false, "outcome": "unknown_kind", "message": "That kind of watch is not one OcuTalon has, so nothing was done."}, tool_"_watch(kind "_kind_")")
+		}
+	}
+	Do $$$AssertEquals(..Calls().%Size(), 0, "nothing is submitted")
+}
+
+/// check_status lists the session's queue-backlog row (Story 23.7; AC8): the entry is its display name, the result and finding are the row's as they are.
+Method TestCheckStatusQueues()
+{
+	If '..Ready() Quit
+	If '..UseDouble() Quit
+	Set a = ..Session("queues-status-a")
+	Set b = ..Session("queues-status-b")
+	Set ranAt = "2030-01-01T10:00:00Z"
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Passed", {"DisplayName": "Orders", "Result": "passed", "LastRunAt": (ranAt), "NextDueAt": (..Ahead())})
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "", "", {"Kind": "queues", "DisplayName": "Queue-backlog check", "Result": "not_checked", "Finding": "Couldn't be read", "LastRunAt": (ranAt), "NextDueAt": (..Ahead())})
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(b, "", "", {"Kind": "queues", "DisplayName": "Queue-backlog check", "Result": "failed", "Finding": "1 queue over its threshold", "LastRunAt": (ranAt), "NextDueAt": (..Ahead())})
+	Do ..Begin(a, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+	Set checked = ##class(OcuTalon.Data.Time).ForMessage(ranAt)
+	Do ..AssertObject(answer, {"ok": true, "checks": [{"result": "passed", "entry": "Orders production", "finding": "", "checked": (checked)}, {"result": "not_checked", "entry": "Queue-backlog check", "finding": "Couldn't be read", "checked": (checked)}]}, "check_status() lists the queue-backlog check after the production")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, {"checks": [{"result": "passed", "entry": "Orders production", "finding": "", "checkedAt": (ranAt)}, {"result": "not_checked", "entry": "Queue-backlog check", "finding": "Couldn't be read", "checkedAt": (ranAt)}]}.%ToJSON(), "HostData holds both rows, the queue row not_checked as it is")
+	Do $$$AssertEquals(..Calls().%Size(), 0, "nothing is submitted")
 }
 
 /// check_status keeps HostData (matrix "HostData kept"): a JSON object keeps its other members, anything else becomes {"checks": ...}, and a second call

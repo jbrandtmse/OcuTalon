@@ -75,6 +75,14 @@
 ///     the check's Ref), is never retried (its finding is already in Reported), and the other findings still go.
 ///   - Event and log line: the row is opened again by Ref and published as a check event (Live.Payload.Check.FromRow) after the update's commit
 ///     (LOGPUBLISH on a failure), and one Type 4 line (LOGRAN) names the check's Ref, display name, result and finding in the Tick's session.
+///   - Queue rows (Story 23.7; AD-18; FR-33): after the production checks of a Tick, each row of Kind QUEUEKIND that is due (the same due rule, DueOf) runs once
+///     through RunQueues, each in its own Try (LOGRUN), the list read in a Try of its own (LOGDUE). A run reads, through Watch.Reader alone (ReadEntries, then
+///     ReadQueues for each entry: Failures with limit 0), the queues of every production that Reader.Productions lists, and sends one Item (CatalogKey KEYQUEUE,
+///     Channel system, Provenance untrusted, the row's SessionRef as owner, TEXTQUEUE or TEXTQUEUEONE) for each queue that Checks.Queues Crossings reports, with
+///     the limits of Checks.Coverage CurrentLimits. The row's Reported holds the crossings that Crossings keeps. A run that lists no production, cannot list
+///     them, or cannot read a listed namespace is not_checked with REASONREAD, REASONUNREADABLE or REASONNOTCURRENT (the first unread namespace in list order),
+///     never passed; the crossings of the namespaces that were read are still sent. Else the run is failed with FINDINGQUEUE or FINDINGQUEUES while any
+///     queue is above its limits, else passed. Record's row-count rule applies: a watch stopped meanwhile records, sends and publishes nothing.
 /// Nothing that decides "due" or "new" lives in memory (AD-5). The only namespace switch is in Watch.Reader (AD-3). This class is the only one that
 /// publishes the check event and the heartbeat event.
 Class OcuTalon.Checks.Process Extends Ens.BusinessProcess
@@ -225,6 +233,19 @@ Method Tick(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 		While iterator.%GetNext(, .row) {
 			Try {
 				Do ..Run(row, tickAt)
+			} Catch exception {
+				$$$LOGWARNING(..#LOGRUN_row.ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+			}
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGDUE_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	Try {
+		Set due = ..QueueDue(tickAt)
+		Set iterator = due.%GetIterator()
+		While iterator.%GetNext(, .row) {
+			Try {
+				Do ..RunQueues(row, tickAt)
 			} Catch exception {
 				$$$LOGWARNING(..#LOGRUN_row.ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 			}
@@ -485,16 +506,7 @@ Method SendQuiet(command As OcuTalon.Msg.IncidentCommand, Output answer As OcuTa
 /// "createdAt", "lastRunAt", "reported"}, in the order of the rows: those whose NextDueAt is empty or at most DUESLACKSECONDS after the tick time.
 Method Due(tickAt As %String) As %DynamicArray [ Private ]
 {
-	Set due = []
-	Set limit = ##class(OcuTalon.Watch.Mark).FailedAt(##class(OcuTalon.Watch.Mark).Shift(tickAt, ..#DUESLACKSECONDS))
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT "_..#ROWCOLUMNS_" FROM OcuTalon_Data.BackgroundCheck WHERE Kind = ? ORDER BY ID", ..#KIND)
-	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The checks could not be read: "_rs.%Message))
-	While rs.%Next() {
-		Set next = rs.%GetData(8)
-		If (next '= "") && (next ] limit) Continue
-		Do due.%Push(..RowOf(rs))
-	}
-	Quit due
+	Quit ..DueOf(tickAt, ..#KIND)
 }
 
 /// The rows of Kind production with the namespace and production whose scope includes the owner (InScope, with the online demo as it is now), as the
@@ -835,6 +847,130 @@ Method Read(namespace As %String, production As %String, from As %String, limit 
 Method SendFinding(item As OcuTalon.Msg.Item) As %Status [ Private ]
 {
 	Quit ..SendRequestAsync(..#INTAKE, item, 0)
+}
+
+/// The check of a queue-backlog row (see the class description).
+Parameter QUEUEKIND = "queues";
+
+/// The catalog key of a queue-backlog finding (Msg.Catalog.Watch).
+Parameter KEYQUEUE = "watch.queueBacklog";
+
+/// The text of a queue-backlog finding Item (public text; the first line becomes the item summary): {itemName} is the queue's item, {production} the
+/// production's display name, {count} the number of messages.
+Parameter TEXTQUEUE = "The {itemName} queue in the {production} production has {count} messages waiting.";
+
+Parameter TEXTQUEUEONE = "The {itemName} queue in the {production} production has 1 message waiting.";
+
+/// The finding of a queue-backlog row that has queues above their limits (public text; {count} is the number of queues).
+Parameter FINDINGQUEUE = "1 queue over its threshold";
+
+Parameter FINDINGQUEUES = "{count} queues over their threshold";
+
+/// The rows of the Kind that are due at the tick time, as a dynamic array of the row objects of RowOf, in the order of the rows: those whose NextDueAt is
+/// empty or at most DUESLACKSECONDS after the tick time.
+Method DueOf(tickAt As %String, kind As %String) As %DynamicArray [ Private ]
+{
+	Set due = []
+	Set limit = ##class(OcuTalon.Watch.Mark).FailedAt(##class(OcuTalon.Watch.Mark).Shift(tickAt, ..#DUESLACKSECONDS))
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT "_..#ROWCOLUMNS_" FROM OcuTalon_Data.BackgroundCheck WHERE Kind = ? ORDER BY ID", kind)
+	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The checks could not be read: "_rs.%Message))
+	While rs.%Next() {
+		Set next = rs.%GetData(8)
+		If (next '= "") && (next ] limit) Continue
+		Do due.%Push(..RowOf(rs))
+	}
+	Quit due
+}
+
+/// The queue-backlog checks that are due at the tick time (DueOf with QUEUEKIND).
+Method QueueDue(tickAt As %String) As %DynamicArray [ Private ]
+{
+	Quit ..DueOf(tickAt, ..#QUEUEKIND)
+}
+
+/// One run of a queue-backlog row (see the class description): the read of every listed production's queues, the crossings, the result and the record.
+Method RunQueues(row As %DynamicObject, tickAt As %String) [ Private ]
+{
+	Set runAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set nowSeconds = ##class(OcuTalon.Data.Time).Seconds(runAt)
+	Set reason = ""
+	Set entries = ""
+	Set readings = []
+	Try {
+		Set entries = ..ReadEntries()
+	} Catch exception {
+		Set entries = ""
+		Set reason = ..#REASONREAD
+		$$$LOGWARNING(..#LOGREAD_row.ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	If (reason = "") && ('$IsObject(entries) || 'entries.%Size()) Set reason = ..#REASONREAD
+	Set listed = (reason = "")
+	If listed {
+		Set iterator = entries.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			Set outcome = ""
+			Set queues = ""
+			Try {
+				Set outcome = ..ReadQueues(entry.namespace, entry.production, .queues)
+			} Catch exception {
+				Set outcome = ""
+				Set queues = ""
+				$$$LOGWARNING(..#LOGREAD_row.ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+			}
+			Set readOk = (outcome = "read") && $IsObject(queues) && queues.%IsA("%Library.DynamicArray")
+			If 'readOk && (reason = "") Set reason = $Case(outcome, "unreadable": ..#REASONUNREADABLE, "not_current": ..#REASONNOTCURRENT, : ..#REASONREAD)
+			Do readings.%Push({"namespace": (entry.namespace), "production": (entry.production), "displayName": (entry.displayName), "read": (readOk), "queues": ($Select(readOk: queues, 1: []))})
+		}
+	}
+	Set reported = row.reported
+	Set items = ##class(%ListOfObjects).%New()
+	Set above = 0
+	If listed {
+		Set limit = ##class(OcuTalon.Checks.Coverage).CurrentLimits()
+		Set found = ##class(OcuTalon.Checks.Queues).Crossings(row.reported, readings, limit, nowSeconds, .reported)
+		Set iterator = readings.%GetIterator()
+		While iterator.%GetNext(, .reading) {
+			Set queueIterator = reading.queues.%GetIterator()
+			While queueIterator.%GetNext(, .queue) {
+				If ##class(OcuTalon.Checks.Queues).Over(queue, limit, nowSeconds) Set above = above + 1
+			}
+		}
+		Set iterator = found.%GetIterator()
+		While iterator.%GetNext(, .one) {
+			Set oldestAt = $Select(##class(OcuTalon.Data.Time).Seconds(one.oldestAt) '= "": one.oldestAt, 1: runAt)
+			Set slots = {}
+			Do slots.%Set("itemName", one.item, "string")
+			Do slots.%Set("count", one.count, "number")
+			Do slots.%Set("oldestAt", oldestAt, "string")
+			Set text = $Replace($Select(one.count = 1: ..#TEXTQUEUEONE, 1: ..#TEXTQUEUE), "{count}", one.count)
+			Do items.Insert(..FindingItem({"sessionRef": (row.sessionRef), "displayName": (one.displayName)}, ..#KEYQUEUE, text, slots, runAt))
+		}
+	}
+	If reason '= "" {
+		Set result = "not_checked"
+		Set finding = reason
+	} ElseIf above {
+		Set result = "failed"
+		Set finding = ..Joined($ListBuild($Replace($Select(above = 1: ..#FINDINGQUEUE, 1: ..#FINDINGQUEUES), "{count}", above)))
+	} Else {
+		Set result = "passed"
+		Set finding = ""
+	}
+	Do ..Record(row, tickAt, runAt, result, finding, reported, items)
+}
+
+/// The productions whose queues a queue-backlog run reads: OcuTalon.Watch.Reader.Productions, a dynamic array of {"namespace", "production",
+/// "displayName"}. A seam for the tests.
+Method ReadEntries() As %DynamicArray [ Private ]
+{
+	Quit ##class(OcuTalon.Watch.Reader).Productions()
+}
+
+/// The queues of the production, as the dynamic array of {"name", "count", "oldestAt"} in queues ("" when they could not be read), and the outcome of
+/// the read (read, unreadable or not_current): OcuTalon.Watch.Reader.Failures with limit 0, which reads no failure. A seam for the tests.
+Method ReadQueues(namespace As %String, production As %String, Output queues As %DynamicArray) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Watch.Reader).Failures(namespace, production, "", 0, , , , , , .queues)
 }
 
 Storage Default

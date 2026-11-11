@@ -1,0 +1,22 @@
+{
+  "name": "watch-stop-queues",
+  "match": {
+    "marker": "watch-stop-queues"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "stop_watch",
+        "input": {
+          "name": "queue backlogs",
+          "kind": "queues"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I've stopped the queue-backlog check."
+    }
+  ]
+}

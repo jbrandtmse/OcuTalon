@@ -473,6 +473,9 @@ const SOURCES = {
     'This asks OcuTalon in the chat to warn the partner about an incident\'s delay, so it needs an incident that isn\'t closed: if you closed the guide\'s incident, do "Reject a fix" first. OcuTalon drafts a short notice from the incident\'s counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox.',
     'Ask for a partner warning',
     'Warn the partner about the delay.',
+    'Watch queue backlogs',
+    'This asks OcuTalon in the chat to watch the queue backlogs. Look for the Queue-backlog check under Background checks, with its schedule, last run and result. Every minute it reads the Orders production\'s queues, and when one holds more than 100 messages, or its oldest message has waited over 10 minutes, OcuTalon decides once whether to tell you. On a quiet demo it reads Passed. To stop, ask "Stop watching the queue backlogs."',
+    'Ask to watch queues',
     'See the page as on your own install',
     'The demo guide, Break the feed and the Simulated devices are hidden, as on your own install. Turn Demo view back on in the top bar to return.',
     'Show the page without the demo',
@@ -852,6 +855,10 @@ const SOURCES = {
     ],
     'Story 30.5 ruling U-182 (AD-16 as amended: the text of result.stoppedPartway, a resend that stops at the first copy that errs; the page renders the catalog\'s text)': [
       "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+    ],
+    'Story 23.7 ruling (Contest Planner, Public Text 2026-11-11, the queue-backlog check: the rail\'s schedule line of its row and the prompt that the More to try item sends; the item\'s label, look-for and control sit under ux, because EXPERIENCE.md holds them)': [
+      'A check every minute',
+      'Watch the queue backlogs.',
     ],
     'Story 23.2 ruling (Contest Planner, Public Text 2026-11-09, texts of the result.item* and result.rerouted catalog keys, result.itemSuspended as re-ruled on 2026-11-10 for DW-1068; its DW-1067 ruling of 2026-11-10 has the request card show them in its result band, rendered from the catalog)': [
       "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal.",

@@ -53,6 +53,7 @@ export const RAIL_TEXTS = {
   expires: 'expires {when}',
   checkTitle: '{name} production',
   checkSchedule: 'Live, plus a check every minute',
+  checkScheduleQueues: 'A check every minute',
   lastRun: 'Last run {when}',
   lastRunLate: 'Last run {when} (late)',
   titleWithCountdown: '{text}{separator}{countdown}',
@@ -71,6 +72,9 @@ export const DECISIONS_SHOWN = 20;
 
 /** The kind of the production check, which the rail names and schedules. */
 const PRODUCTION_KIND = 'production';
+
+/** The kind of the queue-backlog check, which the rail schedules. */
+const QUEUES_KIND = 'queues';
 
 /** The values the view reuses from the page's other modules. when and countdown are bound to the clock's now. */
 export interface RailFormat {
@@ -254,6 +258,8 @@ function checkRow(check: CheckPayload, format: RailFormat, late: boolean): RailR
   const row: RailRow = { key: `checks:${check.ref ?? ''}`, kind: 'check', title, lead: title, meta };
   if (check.kind === PRODUCTION_KIND) {
     row.detail = RAIL_TEXTS.checkSchedule;
+  } else if (check.kind === QUEUES_KIND) {
+    row.detail = RAIL_TEXTS.checkScheduleQueues;
   }
   return withTrace(row, check.traceUrl);
 }

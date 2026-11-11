@@ -1082,6 +1082,21 @@ XData Entries [ MimeType = application/json ]
    "time": "time"
   },
   "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Source stopped"
+ },
+ "watch.queueBacklog": {
+  "text": "The {itemName} queue in the {production} production had {count} messages waiting at {time}, the oldest since {oldestAt}.\nWhy now: you asked me to watch queue backlogs.",
+  "slots": {
+   "itemName": "text",
+   "production": "text",
+   "count": "count",
+   "time": "time",
+   "oldestAt": "time"
+  },
+  "source": "Story 23.7 (Queue-backlog check); text: Contest Planner Public Text ruling, 2026-11-11",
+  "one": {
+   "slot": "count",
+   "text": "The {itemName} queue in the {production} production had 1 message waiting at {time}, since {oldestAt}.\nWhy now: you asked me to watch queue backlogs."
+  }
  }
 }
 }

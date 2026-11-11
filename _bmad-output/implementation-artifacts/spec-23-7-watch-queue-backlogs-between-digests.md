@@ -2,13 +2,21 @@
 title: 'Story 23.7: Watch queue backlogs between digests'
 type: 'feature'
 created: '2026-11-11'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'a77f88b478586b2a9f6bc64ed5870e27b3f6156d'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      Ending a session does not stop its queue-backlog row, so the check keeps running and sending findings for the ended session, and Data.Purge.Keeps keeps the session because it still has a BackgroundCheck row.
+    evidence: |-
+      Core/SessionOps.EndWatches (about line 340) skips every row whose Kind is not production (`If check.Kind '= ##class(OcuTalon.Watch.Ops).#KIND Continue`) and builds the StopWatch without a Kind, so a Kind queues row survives EndSession. Checks.Process.RunQueues never re-checks that the row's session is still live. Data.Purge.Keeps retains any session with a BackgroundCheck row. The fix is about three lines in a Lane B file (Core/*), which the spec lists as not touched and the stage prompt does not list among the approved cross-lane edits: let the loop also accept #QUEUEKIND and set stop.Kind = check.Kind (WatchOps OnStop already handles Kind queues), plus a Test.Core session-end case.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/SessionOps.cls:340
+    severity: medium
 ---
 
 <intent-contract>
@@ -87,10 +95,10 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (implement, lane-D throwaway, before the live test is written): on a warm or fresh stack with the queue fixture installed, hold the sink, send 105 `Ens.StringRequest`s, then read `Reader.Failures(QUEUEFEED, <production>, "", 0, ...)`. Record the measured `queues` count (expected about 104 in Status 2; inference until measured), the time of the read, and the drain time after release, under `## Verification`. If held messages do not show as Status 2, HALT with an intent gap that names what was measured.
-- [ ] `src/ocutalon/cls/OcuTalon/Checks/Queues.cls` (new, Lane A, abstract, pure) -- `ClassMethod Over(queue As %DynamicObject, limit As %DynamicObject, nowSeconds As %Integer, Output byCount As %Boolean, Output waited As %Integer) As %Boolean`: byCount = count > `limit.queueMessages`. `waited` is the seconds since `oldestAt` when count > 0, the time is readable and that wait exceeds `limit.queueWaitMinutes`×60, else 0. `ClassMethod Crossings(previous As %String, readings As %DynamicArray, limit As %DynamicObject, nowSeconds As %Integer, Output reported As %String) As %DynamicArray`: readings is `[{"namespace", "production", "displayName", "read": 0|1, "queues": [...]}]`, and the result is `[{"namespace", "displayName", "item", "count", "oldestAt"}]` in reading order and queue order. A read namespace's new `above` is its queues that are `Over`. A finding is a name not in that namespace's previous list. An unread namespace keeps its previous list. Previous JSON that is empty or invalid is `{}` (no baseline: everything above is new). `reported` is the new JSON with only non-empty lists.
-- [ ] `src/ocutalon/cls/OcuTalon/Checks/Coverage.cls` -- (a) appended block: public `ClassMethod CurrentLimits() As %DynamicObject { Quit ..Limits() }`. (b) contended in-place edit: `Live`'s loop (370-378) takes `most`/`longest` from `Checks.Queues.Over(queue, limit, nowSeconds, .byCount, .waited)`, with the same results as today. The existing `Test.Digest.Coverage` queue cases pin it.
-- [ ] `src/ocutalon/cls/OcuTalon/Checks/Process.cls` -- contended in-place edits:
+- [x] Task 0 (implement, lane-D throwaway, before the live test is written): on a warm or fresh stack with the queue fixture installed, hold the sink, send 105 `Ens.StringRequest`s, then read `Reader.Failures(QUEUEFEED, <production>, "", 0, ...)`. Record the measured `queues` count (expected about 104 in Status 2; inference until measured), the time of the read, and the drain time after release, under `## Verification`. If held messages do not show as Status 2, HALT with an intent gap that names what was measured.
+- [x] `src/ocutalon/cls/OcuTalon/Checks/Queues.cls` (new, Lane A, abstract, pure) -- `ClassMethod Over(queue As %DynamicObject, limit As %DynamicObject, nowSeconds As %Integer, Output byCount As %Boolean, Output waited As %Integer) As %Boolean`: byCount = count > `limit.queueMessages`. `waited` is the seconds since `oldestAt` when count > 0, the time is readable and that wait exceeds `limit.queueWaitMinutes`×60, else 0. `ClassMethod Crossings(previous As %String, readings As %DynamicArray, limit As %DynamicObject, nowSeconds As %Integer, Output reported As %String) As %DynamicArray`: readings is `[{"namespace", "production", "displayName", "read": 0|1, "queues": [...]}]`, and the result is `[{"namespace", "displayName", "item", "count", "oldestAt"}]` in reading order and queue order. A read namespace's new `above` is its queues that are `Over`. A finding is a name not in that namespace's previous list. An unread namespace keeps its previous list. Previous JSON that is empty or invalid is `{}` (no baseline: everything above is new). `reported` is the new JSON with only non-empty lists.
+- [x] `src/ocutalon/cls/OcuTalon/Checks/Coverage.cls` -- (a) appended block: public `ClassMethod CurrentLimits() As %DynamicObject { Quit ..Limits() }`. (b) contended in-place edit: `Live`'s loop (370-378) takes `most`/`longest` from `Checks.Queues.Over(queue, limit, nowSeconds, .byCount, .waited)`, with the same results as today. The existing `Test.Digest.Coverage` queue cases pin it.
+- [x] `src/ocutalon/cls/OcuTalon/Checks/Process.cls` -- contended in-place edits:
   - (a) in `Tick`, right after the due-checks Try, a Try block that runs `..QueueDue(tickAt)` rows through `RunQueues` (each row in its own Try, `LOGRUN`; the list read in a Try, `LOGDUE`);
   - (b) `Due`'s body becomes `Quit ..DueOf(tickAt, ..#KIND)`;
   - (c) one bullet in the class description for queue rows.
@@ -103,25 +111,25 @@ deferred: []
   - the seams `ReadEntries()` and `ReadQueues(...)`.
 
   Extends `Run`/`Record`/`FindingItem`, never copies them.
-- [ ] `src/ocutalon/cls/OcuTalon/Msg/Command/StartWatch.cls`, `StopWatch.cls` -- append `Property Kind As %String(MAXLEN = 32)` (empty means production), with storage `Value` 4 / 3.
-- [ ] `src/ocutalon/cls/OcuTalon/Watch/Ops.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Msg/Command/StartWatch.cls`, `StopWatch.cls` -- append `Property Kind As %String(MAXLEN = 32)` (empty means production), with storage `Value` 4 / 3.
+- [x] `src/ocutalon/cls/OcuTalon/Watch/Ops.cls`:
   - add `QUEUEKIND` = "queues", `QUEUESNAME` = "Queue-backlog check", and model messages `MESSAGEALREADYQUEUES` ("The session already watches queue backlogs, so nothing was added.") and `MESSAGENOTWATCHINGQUEUES` ("The session does not watch queue backlogs, so nothing was removed.");
   - `OnStart`/`OnStop` branch on `request.Kind = QUEUEKIND`: no `Admits` and no online-demo refusal; natural key `SessionRef` + `Kind`; empty namespace and production; DisplayName `QUEUESNAME`; the same lock, answers and `Changed`;
   - `RefOf` gains `kind` and, for the queue kind, matches without namespace or production;
   - update the class description.
-- [ ] `src/ocutalon/cls/OcuTalon/Tools/WatchTools.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Tools/WatchTools.cls`:
   - `StartWatch`/`StopWatch` gain a trailing `kind As %String(DESCRIPTION = "production (the default) or queues: queues watches every queue OcuTalon can read for a backlog, and then name is ignored.") = ""`;
   - for `queues` they skip `Resolve`/`ResolveStop` and submit the command with `Kind` queues; the answer is `CommandCall.Answer(result)` plus `outcome` and `"check": "Queue-backlog check"`; any other non-empty kind answers `unknown_kind` (parameter `UNKNOWNKIND`: "That kind of watch is not one OcuTalon has, so nothing was done.");
   - the method doc comments say so.
-- [ ] `src/ocutalon/cls/OcuTalon/Tools/WatchAnswers.cls` -- `CheckResults` also lists rows of `Kind` queues, with entry = `DisplayName` (production rows unchanged). The doc comment says so.
-- [ ] `src/ocutalon/cls/OcuTalon/Tools/Watching.cls` -- the description sentence names queue-backlog watches. `src/ocutalon/cls/OcuTalon/Agent/Chat.cls` -- one rule after the start_watch rules (agent text): "If the user asks you to watch queue backlogs (queues that back up), call start_watch with kind queues and the user's words as name; to stop, call stop_watch with kind queues. With outcome started, say that OcuTalon now checks the queues every minute and looks at any queue that backs up past its threshold; with already_watching, say it already does."
-- [ ] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` -- append `watch.queueBacklog` (Design Notes text, `one` form on `count`, slots itemName text, production text, count count, time time, oldestAt time, `source` naming Story 23.7 and the Planner's Public Text ruling) as the last key.
-- [ ] `ci/mock/scenarios/A/watch-start-queues.json`, `watch-stop-queues.json` (new marker scenarios: `toolUse` start_watch/stop_watch `{"name": "queue backlogs", "kind": "queues"}`, then a text) and `ci/mock/scenarios/B/queue-watch-ask.json` (new; prompt "Watch the queue backlogs.", mockkey chat, the same toolUse, then a text).
-- [ ] `web/src/app/rail/rail-view.ts` -- contended in-place edit: `RAIL_TEXTS.checkScheduleQueues` = 'A check every minute', and in `checkRow` a row of kind `queues` gets that `detail`.
-- [ ] `web/src/app/guide/more-to-try-view.ts`, `more-to-try.ts` -- item `queueWatch` (texts in Design Notes, `group: 'Incidents and fixes'`) right after `partnerWarning` in the registry; `MORE_TO_TRY_TEXTS.queuePrompt` = 'Watch the queue backlogs.'; action `queueWatch` sends it like `partnerWarning` (aria-disabled while blocked); the header comment says fifteen. `src/ocutalon/cls/OcuTalon/Demo/Features.cls` -- `queueWatch` always, right after `partnerWarning`, with its doc line.
-- [ ] `README.md` -- line 40 "fourteen" → "fifteen"; append the Design Notes bullet LAST in `### New since 1.0.0`. `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- after the Planner's ruling only: line 245 "fourteen" → "fifteen", and the item bullet under "Incidents and fixes" with `[ADDED <date>, Story 23.7, Contest Planner ruling]`.
-- [ ] `src/ocutalon/cls/OcuTalon/Checks/Queues.cls` -- the flapping cooldown in `Crossings` exactly as Design Notes "Applying the rulings" describes (`told` per namespace and item, 3600 s, held-back queues stay out of `above`, old `told` entries dropped); `Over` is unchanged. [ADDED 2026-11-11, Story 23.7, Contest Planner ruling]
-- [ ] Tests (update every pin named under Shared surfaces first, then add):
+- [x] `src/ocutalon/cls/OcuTalon/Tools/WatchAnswers.cls` -- `CheckResults` also lists rows of `Kind` queues, with entry = `DisplayName` (production rows unchanged). The doc comment says so.
+- [x] `src/ocutalon/cls/OcuTalon/Tools/Watching.cls` -- the description sentence names queue-backlog watches. `src/ocutalon/cls/OcuTalon/Agent/Chat.cls` -- one rule after the start_watch rules (agent text): "If the user asks you to watch queue backlogs (queues that back up), call start_watch with kind queues and the user's words as name; to stop, call stop_watch with kind queues. With outcome started, say that OcuTalon now checks the queues every minute and looks at any queue that backs up past its threshold; with already_watching, say it already does."
+- [x] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` -- append `watch.queueBacklog` (Design Notes text, `one` form on `count`, slots itemName text, production text, count count, time time, oldestAt time, `source` naming Story 23.7 and the Planner's Public Text ruling) as the last key.
+- [x] `ci/mock/scenarios/A/watch-start-queues.json`, `watch-stop-queues.json` (new marker scenarios: `toolUse` start_watch/stop_watch `{"name": "queue backlogs", "kind": "queues"}`, then a text) and `ci/mock/scenarios/B/queue-watch-ask.json` (new; prompt "Watch the queue backlogs.", mockkey chat, the same toolUse, then a text).
+- [x] `web/src/app/rail/rail-view.ts` -- contended in-place edit: `RAIL_TEXTS.checkScheduleQueues` = 'A check every minute', and in `checkRow` a row of kind `queues` gets that `detail`.
+- [x] `web/src/app/guide/more-to-try-view.ts`, `more-to-try.ts` -- item `queueWatch` (texts in Design Notes, `group: 'Incidents and fixes'`) right after `partnerWarning` in the registry; `MORE_TO_TRY_TEXTS.queuePrompt` = 'Watch the queue backlogs.'; action `queueWatch` sends it like `partnerWarning` (aria-disabled while blocked); the header comment says fifteen. `src/ocutalon/cls/OcuTalon/Demo/Features.cls` -- `queueWatch` always, right after `partnerWarning`, with its doc line.
+- [x] `README.md` -- line 40 "fourteen" → "fifteen"; append the Design Notes bullet LAST in `### New since 1.0.0`. `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- after the Planner's ruling only: line 245 "fourteen" → "fifteen", and the item bullet under "Incidents and fixes" with `[ADDED <date>, Story 23.7, Contest Planner ruling]`.
+- [x] `src/ocutalon/cls/OcuTalon/Checks/Queues.cls` -- the flapping cooldown in `Crossings` exactly as Design Notes "Applying the rulings" describes (`told` per namespace and item, 3600 s, held-back queues stay out of `above`, old `told` entries dropped); `Over` is unchanged. [ADDED 2026-11-11, Story 23.7, Contest Planner ruling]
+- [x] Tests (update every pin named under Shared surfaces first, then add):
   - `Test/Checks/Queues.cls` (new; the pure `Over`/`Crossings` matrix, the admin threshold via `Data.Setting.Set` and restore, and run cases through `QueueProbe` for every matrix row from "First run" to "Online demo" except Online demo, plus `TestQueueFindingRenders`);
   - `Test/Checks/QueueProbe.cls` (new; extends `Test.Checks.Probe`, `QUEUEKIND` zzqueues, `QueueDue` keeps `Only`, seams from `^||ChecksProbe("entries"|"queues", ...)`);
   - `Test/Checks/Queue/Fixture.cls` (new; extends `Test.Eval.Feed.Fixture`: `NAMESPACE` QUEUEFEED, `DATABASE` QUEUEFEED_DATA, `RESOURCE` %DB_QUEUEFEED_DATA, `PRODUCTION` `OcuTalon.Test.Checks.Queue.Production`, `CODEPACKAGE` `OcuTalon.Test.Checks.Queue`; `Hold()`, `Release()`, `Fill(n)`, `Queued()`, `Snapshot()`), `Queue/Production.cls` (Description "Queue test [[mock:check-finding-tell-now]]"; items `QueueIn`, PoolSize 0, adapterless, and `QueueSink`, PoolSize 1), `Queue/In.cls`, `Queue/Sink.cls` (waits while `^OcuTalonTest.QueueHold` is set in its namespace, at most 120 s a message; reads and calls nothing outside its package);
@@ -156,6 +164,45 @@ deferred: []
 - 2026-11-11 (plan): Scope reopen of Epic 23 (the owner, 2026-11-11, via the Contest Planner). Story 23.7 is planned after 23.6, 23.2 and 23.5 merged. It reuses `Watch.Reader`'s queue read and `Checks.Coverage`'s thresholds, and it proposes the AD-18 row-type text below for the lead to raise.
 
 ## Review Triage Log
+
+### 2026-11-11 - Review pass
+- verdicts: 35 findings - high 0, medium 4, low 22, false 9, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Cooldown rule missing from README/EXPERIENCE/Chat text - the README's "again only after the queue has dropped below and backed up again" is true (a necessary condition), and every public string is ruled verbatim.
+  - `[low]` `[reject]` oldestAt falls back to the run time when a queue's oldest-message time is unreadable - a Status 2 header always has a creation time; theoretical, and the fix adds a catalog form.
+  - `[low]` `[patch]` check_status tool description still says "one per watched production" - added "and one for the queue-backlog check when the user watches queue backlogs" to `WatchTools.CheckStatus`'s doc comment.
+  - `[low]` `[reject]` Chat rule covers only start outcomes - the rule text is given verbatim by the spec, and the existing stop_watch rules already cover stopped/not_watching/any other message.
+  - `[low]` `[reject]` A failed finding send is never retried - the matrix row "Send fails" specifies it ("not retried").
+  - `[low]` `[reject]` Every session's queue row reads the same productions each minute - bounded by the demo's six visitors (spec inference); a per-tick cache is an optimisation, not a defect.
+  - `[low]` `[reject]` Guide look-for hard-codes the default thresholds - public text approved verbatim by the Planner.
+  - `[low]` `[reject]` EXPERIENCE item numbering - the Planner's ruling and the spec fix the exact edit ("the numbers of the items below stay as they are").
+  - `[low]` `[patch]` Minor indirection - `Queue/Fixture.Snapshot`'s dead `Set production = ""` removed; `CurrentLimits` is the spec's, and `Crossings` takes seconds so the pure rule has no clock.
+  - `[medium]` `[defer]` Ending a session leaves the queue row running (EndWatches skips non-production rows) - real; the fix is in `Core/SessionOps.cls`, outside the spec's footprint (Core/* not touched) and not an approved cross-lane edit; deferred in the frontmatter.
+  - `[medium]` `[defer]` RunQueues never re-checks that the row's session is live - same root cause as the previous row; the EndWatches fix closes it.
+  - `[low]` `[reject]` First run with many queues above sends one Item each - the AC and the Planner confirmed "a queue already over its threshold when the watch starts is reported once"; the cooldown covers flapping only.
+  - `[low]` `[reject]` Crossings/Over throwing on a malformed queue entry skips Record - Reader gives well-formed entries; Tick's catch logs it and the row is retried next Tick.
+  - `[low]` `[reject]` Serial namespace reads have no time budget - the same holds for every Reader read; no user-reachable case shown.
+  - `[low]` `[reject]` Send failure leaves the crossing marked as reported - duplicate of the "Send fails" row above.
+  - `[false]` `[reject]` Tool call omitting `name` fails validation - the Chat rule tells the model to pass the user's words as name, and the mock scenarios and `TestQueuesThroughTheAgent` do.
+  - `[low]` `[reject]` kind matching is case-sensitive - the Chat rule names the exact word `queues`; a mismatch answers unknown_kind, which is honest.
+  - `[low]` `[reject]` Chat prompt lacks stop/unknown_kind outcomes - duplicate of the Chat-rule row.
+  - `[low]` `[reject]` An unknown Kind on a non-tool StartWatch is handled as production - commands come only from the tool (AD-1), which refuses unknown kinds first.
+  - `[false]` `[reject]` Concurrent queue starts could duplicate the row - `OnStart` takes the session lock before `RefOf` and holds it through the save.
+  - `[low]` `[reject]` Empty queue name keys the lists with "" - Reader gives the item's configured name; theoretical.
+  - `[low]` `[reject]` `AddSeconds` returning "" would store an empty told time - nowSeconds always comes from `Time.Seconds` of a valid time; theoretical.
+  - `[low]` `[reject]` Stale `above` for a namespace that left the list - the spec says a namespace not read keeps its list, and the effect is only a silent re-baseline.
+  - `[low]` `[reject]` AC10's mutation line records a red never observed - K29 is a browser unit left to CI by the spec; the line now says "expected red, not observed".
+  - `[low]` `[patch]` K29 asserts neither aria-disabled nor fromGuide - K29 now records `fromGuide` and asserts false; the aria-disabled assertion is not added (the turn on the live stack may end before it is read, which would make K29 flaky). `wontfix-accepted`, reopen_if=K9-style stubbed case for queueWatch is wanted.
+  - `[medium]` `[patch]` `Test.Checks.QueueBacklog.OnAfterAllTests` skipped `##super()` - it now returns `##super()` so the Watch.Case clean-up runs.
+  - `[low]` `[reject]` Ops test assertions depend on whether a real Tick ran the row - the production watch tests use the same branch and log which one ran.
+  - `[medium]` `[patch]` `TestQueuesThroughTheAgent` silently skipped the repeat's already_watching check - the repeat's request carries two tool results (the first turn's and its own), so the guard `ListLength = 1` never held; now asserts two results and reads the last, and asserts the first turn's count.
+  - `[low]` `[reject]` TestTwoCrossings counts queues across every listed production - a fresh CI stack holds none elsewhere; theoretical on a polluted warm stack.
+  - `[false]` `[reject]` Intent audit, divergence A (cooldown vs the matrix's "Falls below, rises again") - the Planner's ADDED CONDITION extends that row (AC12); tests age `told` on purpose.
+  - `[false]` `[reject]` Intent audit, divergence B (`Reported` gains `told`) - same ruling.
+  - `[false]` `[reject]` Intent audit, divergence C (web guide, rail, README, EXPERIENCE) - listed in the spec's tasks and PUBLIC TEXT rulings.
+  - `[false]` `[reject]` Intent audit, divergence D (probe-driven run tests plus a throwaway-only live class) - what the spec's Verification prescribes.
+  - `[false]` `[reject]` Intent audit: the Item text differs from the catalog text - by design (summary versus rendered notice).
+  - `[false]` `[reject]` Intent audit: reason order for several unread namespaces - the spec fixes "first unread namespace in list order".
 
 ## Design Notes
 
@@ -230,6 +277,16 @@ deferred: []
 10. More to try position: after "Warn the partner", group "Incidents and fixes".
 11. The rail hint stays 'To stop, ask: "Stop watching Orders."'.
 12. Slot D cannot run `Reader.Productions()` (measured), so there is no plan-stage Task 0 there. Task 0 runs on a lane-D throwaway at implement.
+13. (implement) `Reported` always has an `above` member (only the non-empty lists), and a `told` member only when it has an entry: a run with nothing above stores `{"above":{}}`.
+14. (implement) A namespace that is not in the run's readings at all (not listed this time) keeps its previous `above` and its `told` times, like an unread one.
+15. (implement) A queue whose oldest message time is empty or unreadable (it cannot be above by age, but may be by count) puts the run time in the Item's `oldestAt` slot, because the catalog refuses a time slot that is not a UTC time.
+16. (implement) The held-back queue (cooldown) is not in `above` but is over its threshold now, so the row's finding still counts it ("1 queue over its threshold"), as `Coverage.Live` would.
+17. (implement) The two helpers of the tool answers, `KnownKind` and `Queued`, live in `Tools/WatchAnswers.cls` beside `Submitted`: `Test.Bridge.CodeRules:TestToolsReturnThroughResult` lets a tool provider return only through `..Return`.
+18. (implement) AC5's live test makes the queue's told time two hours old (`Test.Checks.Queues:Age`, an UPDATE of `Reported` by the test) between the drain and the second fill; without it the hourly cooldown (AC12) would hold the second crossing back, and AC12 is pinned in `Test.Checks.Queues`. The live test therefore proves two crossings an hour apart, not two within a minute.
+19. (implement) `Test.Checks.Probe` gains `QUEUEKIND = "zzprobequeues"`, so a Probe-based Tick never runs a stack's real queue-backlog rows; `QueueProbe` overrides it with `zzqueues`.
+20. (implement) Run cases that read two CheckRun reasons wait 1.1 s between runs (the trigger writes a CheckRun only when `LastRunAt` changes).
+21. (implement) `Test.Msg.Contracts` (the two command property pins) is updated for `Kind` (a shared surface the spec's list does not name).
+22. (implement) `Test.Checks.QueueBacklog:TestQueueRead` is the permanent form of Task 0: it logs the measured count, read time and drain time on every run.
 
 **Online demo:** the check is ON and read-only. Starting it is allowed for every visitor: `WatchOps` has no `only_orders` refusal for kind queues. Each run reads only the Orders production's queues, because the run's sole entry source is `Watch.Reader.Productions()`, which keeps only `Install.Step.Demo` NAMESPACE/PRODUCTION when `onlineDemo` is set (`Reader.cls:114-128`). Nothing changes production state, so no installer omission or refusal is needed. The six-visitor load is one `Productions()` and one `Failures` (limit 0) per visitor a minute (inference: well under a second on build 154). A finding goes to that visitor's own session only.
 
@@ -336,7 +393,42 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC11: README says fourteen → `more-to-try-view.test.mjs`.
 - AC12: `Crossings` ignores `told` (no cooldown) → `Test.Checks.Queues`.
 
+### Implement-stage results (2026-11-11, lane D, tags e23s7iw / e23s7i)
+
+**Task 0 (measured, `Test.Checks.QueueBacklog:TestQueueRead`, warm lane-D throwaway):** 105 `Ens.StringRequest`s sent to the held `QueueSink`; 104 in Status 2 (Queued) when the read began (the job holds the first one, so the expected "about 104" holds); `Reader.Failures(QUEUEFEED, OcuTalon.Test.Checks.Queue.Production, "", 0, ...)` gave `queues` = `[{"name": "QueueSink", "count": 104, "oldestAt": "2026-11-11T11:47:09Z"}]` and no failure rows; the read took 0.051 s; the queue drained 0.253 s after the release. Held messages show as Status 2, so no intent gap.
+
+**Passing runs (warm lane-D throwaway, one class per call):** `Test.Checks.Queues`, `Test.Checks.QueueBacklog` (all three tests), `Test.Checks.Runs`, `Test.Watch.Ops`, `Test.Watch.Tools`, `Test.Watch.Turns`, `Test.Digest.Coverage`, `Test.Msg.Catalog`, `Test.Msg.Contracts`, `Test.Demo.Features`, `Test.Agent.Instructions`, `Test.Bridge.CodeRules`. Also passing: the four web unit files, `npm --prefix web run lint`, `docker/tests/test-mock.sh`, `test-storage.sh`, `test-readme.sh`, `test-boundaries.sh`. Left to CI: K29, the fresh `Test.Checks.QueueBacklog`, the browser units, the shards, `ci/checks.sh`, the build.
+
+**Mutations (Rule 19), applied, observed red, reverted (the tracked diff was byte-identical afterwards):**
+- mutation: AC1 `OnStart` ignores `Kind` -> `Test.Watch.Turns:TestQueuesThroughTheAgent` red ("there is exactly one row")
+- mutation: AC2 `RunQueues` reads only the first entry -> `Test.Checks.Queues` red (`TestFirstRun`)
+- mutation: AC3 `Crossings` ignores the previous list -> `Test.Checks.Queues` red (`TestAdminThreshold`, `TestCooldown`)
+- mutation: AC4 an unread namespace counts as an empty queue list -> `Test.Checks.Queues` red (`TestCrossings`, `TestNamespaceUnread`)
+- mutation: AC5 the Item is sent on every run that finds the queue above (previous list and cooldown both ignored) -> `Test.Checks.QueueBacklog:TestTwoCrossings` red (3 Items, "not one for each run")
+- mutation: AC6 `Over` uses `'<` for the count -> `Test.Checks.Queues` red (`TestCrossings`) and `Test.Digest.Coverage` red (`TestLiveRead`, "100 messages queued: passed")
+- mutation: AC7 `ReadEntries` lists every namespace whatever the flag -> `Test.Checks.QueueBacklog:TestOnlineDemoReadsOnlyOrders` red (an Item and a `QUEUEFEED` key in `Reported`); `TestTwoCrossings` stayed green
+- mutation: AC8 `CheckResults` skips `queues` -> `Test.Watch.Tools` red (`TestCheckStatusQueues`)
+- mutation: AC9 no `detail` for queues -> `web/scripts/rail-view.test.mjs` red
+- mutation: AC10 the item sends nothing -> K29 expected red (not observed here: browser units run in CI only)
+- mutation: AC11 README says fourteen -> `web/scripts/more-to-try-view.test.mjs` red
+- mutation: AC12 `Crossings` ignores `told` (no cooldown) -> `Test.Checks.Queues` red (`TestCooldown`)
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The queue-backlog check (FR-33) is in: a chat request starts or stops a per-session `Kind` `queues` row through `StartWatch`/`StopWatch` (new `Kind` property) and `WatchOps`. On each `Tick`, `Checks.Process.RunQueues` reads the queues of every `Reader.Productions()` entry (limit-0 `Failures`), applies the one `Checks.Queues.Over` rule with `Coverage.CurrentLimits`, and sends one `watch.queueBacklog` Item per new crossing, with the once-an-hour per-queue cooldown (`told`) in `Checks.Queues.Crossings`. The run is recorded like every check, so the rail, `check_status` and the digest coverage show it. Task 0 measured 104 of 105 held messages in Status 2 (read 0.051 s, drain 0.253 s).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Checks/Queues.cls` (new): `Over` and `Crossings` with the cooldown.
+- `Checks/Process.cls`, `Checks/Coverage.cls`: `Tick` block, `DueOf`/`QueueDue`/`RunQueues` and seams; `Live` on `Over`, `CurrentLimits`.
+- `Watch/Ops.cls`, `Msg/Command/StartWatch.cls`, `StopWatch.cls`, `Tools/WatchTools.cls`, `WatchAnswers.cls`, `Watching.cls`, `Agent/Chat.cls`: the `queues` kind, `unknown_kind`, `check_status` lists the row.
+- `Msg/Catalog/Watch.cls`, `Demo/Features.cls`, three mock scenarios, `rail-view.ts`, the More to try item, README and EXPERIENCE edits with the approved texts.
+- Tests: `Test/Checks/Queues.cls`, `QueueProbe.cls`, `QueueBacklog.cls`, `Queue/*`, and updates to `Test/Watch/{Ops,Tools,Turns}`, `Test/Digest/Coverage`, `Test/Msg/{Catalog,Contracts}`, `Test/Demo/Features`, `Test/Checks/Probe`, the web unit files, `more-to-try.spec.ts` and the new K29 spec.
+
+**Review.** 35 findings: patches applied 5 (check_status description, Fixture dead assignment, `OnAfterAllTests` `##super`, `TestQueuesThroughTheAgent` assertions, K29 `fromGuide`), deferred 2 (one root cause: session end does not stop a queue row; fix is in `Core/SessionOps.cls`, outside the footprint), the rest rejected with their reasons in the triage log. Patched by verdict: medium 2, low 3. Follow-up review recommended: K29 has never been executed (browser units run in CI), and the `##super` clean-up now runs after the live class on the next fresh CI stack.
+
+**Verification performed.** On the lane-D warm throwaway after the last patch: `Test.Checks.Queues`, `QueueBacklog`, `Runs`, `Watch.Ops`, `Watch.Tools`, `Watch.Turns`, `Digest.Coverage`, `Msg.Catalog`, `Demo.Features`, `Agent.Instructions`, `Bridge.Gate`, `Bridge.CodeRules` all passed (the first set before the patches, `QueueBacklog`, `Turns`, `Watch.Tools`, `Gate`, `Instructions`, `CodeRules` after). `node --test` on the four web files (133 pass), `bash docker/tests/test-mock.sh`, `test-storage.sh`, `npm --prefix web run lint` (after the last patch), `test-boundaries.sh`, `test-ci-config.sh`, `test-readme.sh` pass. Mutations for AC1-AC9, AC11 and AC12 were observed red and reverted; AC10 (K29) is CI-only.
+
+**Residual risks.** Left to CI: K29, the fresh-stack `Test.Checks.QueueBacklog` inside `shard:lane-a@rest`, the `ITEMS` oracle edit, and the lead's forward/`--reverse` fresh-environment check. The deferred session-end gap above.

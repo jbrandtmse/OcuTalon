@@ -9,7 +9,7 @@ Class OcuTalon.Tools.Watching Extends %AI.ToolSet [ DependsOn = (OcuTalon.Tools.
 XData Definition [ MimeType = application/xml ]
 {
 <ToolSet Name="OcuTalonWatching">
-  <Description>Tools that start and stop the watch of a production for the user in this conversation, list the productions that can be watched, dismiss one of the user's incidents, read the latest results of the user's background checks, tell what happened in the user's recent incidents, give the summary of the user's latest closed incident, ask for approval of a suspend, a resume or a reroute that the user asked for, ask for a delay notice to the partner to be drafted for approval, and send the user's digest now.</Description>
+  <Description>Tools that start and stop the watch of a production, or the queue-backlog watch, for the user in this conversation, list the productions that can be watched, dismiss one of the user's incidents, read the latest results of the user's background checks, tell what happened in the user's recent incidents, give the summary of the user's latest closed incident, ask for approval of a suspend, a resume or a reroute that the user asked for, ask for a delay notice to the partner to be drafted for approval, and send the user's digest now.</Description>
   <Tool Name="start_watch" Class="OcuTalon.Tools.WatchTools" Method="StartWatch"/>
   <Tool Name="stop_watch" Class="OcuTalon.Tools.WatchTools" Method="StopWatch"/>
   <Tool Name="list_productions" Class="OcuTalon.Tools.WatchTools" Method="ListProductions"/>

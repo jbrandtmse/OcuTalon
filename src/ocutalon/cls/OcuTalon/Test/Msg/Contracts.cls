@@ -288,7 +288,8 @@ XData Contracts [ MimeType = application/json ]
    "SessionRef": "%String(MAXLEN=22)",
    "Namespace": "%String(MAXLEN=128)",
    "Production": "%String(MAXLEN=128)",
-   "DisplayName": "%String(MAXLEN=128)"
+   "DisplayName": "%String(MAXLEN=128)",
+   "Kind": "%String(MAXLEN=32)"
   }
  },
  "OcuTalon.Msg.Command.StopWatch": {
@@ -298,7 +299,8 @@ XData Contracts [ MimeType = application/json ]
    "IdempotencyKey": "%String(MAXLEN=128)",
    "SessionRef": "%String(MAXLEN=22)",
    "Namespace": "%String(MAXLEN=128)",
-   "Production": "%String(MAXLEN=128)"
+   "Production": "%String(MAXLEN=128)",
+   "Kind": "%String(MAXLEN=32)"
   }
  },
  "OcuTalon.Msg.Command.Dismiss": {
