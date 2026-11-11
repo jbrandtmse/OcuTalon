@@ -2,9 +2,9 @@
 title: 'Story 37.2: See tokens and cost over time on the Usage page'
 type: 'feature'
 created: '2026-11-09'
-status: 'in-progress'
-baseline_revision: '2a04c65a3377f847ab8c99b68b436f37419591aa'
-baseline_commit: '2a04c65a3377f847ab8c99b68b436f37419591aa'
+status: 'done'
+baseline_revision: 'de23e9297b05b8136f0e08348c133667345a907c'
+baseline_commit: 'de23e9297b05b8136f0e08348c133667345a907c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -194,7 +194,7 @@ deferred:
 
 
 **Rework iteration 3 (trigger: a CI red on this story's head 9848c3ec, ci run 42907226080, job `iris (shards-3)`, unit `live:floor`; the LAST iteration the cap allows; scope: this item only):**
-- [ ] [CI] live:floor `web/e2e/floor/layout.spec.ts` at "200%: 640x360 at device scale 2": G4 (:572, "after scrolling to the bottom the header is still at the top": received 2909) and G5 (:647, "the header writes its measured block size to the root (0px against 121)") are red. Cause (lead's reading, to confirm by measurement): the fourth header link (Usage) wraps the compact header's navigation to a taller header (121px) at 640x360, over the quarter-of-the-window line, so the header stops sticking and writes 0. Fix it inside `web/src/app/header/**` so that at 640x360 (and every window the floor's layout cases cover) the header with all four links stays within the size it must keep to stay sticky, as with three links before this story: e.g. tighter navigation spacing or item padding below 1024px, as the drawer band already does. Never hide or drop a link, never add sideways scroll, never change the quarter-of-the-window rule or the floor tests, and keep the 1024px one-line header (frame F3) and the 305px case (more-to-try K22/K23). Run `live:floor` locally (the whole unit, or the floor project's layout cases if the unit splits) on a fresh lane-B stack, plus `frame.spec.ts`'s part and `sign-in-3 --part 1/2`; the floor unit takes ~12 minutes, so start it writing to a file and poll it in bounded calls. If no spacing change keeps the header under the line without hiding a link, HALT with an intent gap naming the measurement.
+- [x] [CI] live:floor `web/e2e/floor/layout.spec.ts` at "200%: 640x360 at device scale 2": G4 (:572, "after scrolling to the bottom the header is still at the top": received 2909) and G5 (:647, "the header writes its measured block size to the root (0px against 121)") are red. Cause (lead's reading, to confirm by measurement): the fourth header link (Usage) wraps the compact header's navigation to a taller header (121px) at 640x360, over the quarter-of-the-window line, so the header stops sticking and writes 0. Fix it inside `web/src/app/header/**` so that at 640x360 (and every window the floor's layout cases cover) the header with all four links stays within the size it must keep to stay sticky, as with three links before this story: e.g. tighter navigation spacing or item padding below 1024px, as the drawer band already does. Never hide or drop a link, never add sideways scroll, never change the quarter-of-the-window rule or the floor tests, and keep the 1024px one-line header (frame F3) and the 305px case (more-to-try K22/K23). Run `live:floor` locally (the whole unit, or the floor project's layout cases if the unit splits) on a fresh lane-B stack, plus `frame.spec.ts`'s part and `sign-in-3 --part 1/2`; the floor unit takes ~12 minutes, so start it writing to a file and poll it in bounded calls. If no spacing change keeps the header under the line without hiding a link, HALT with an intent gap naming the measurement.
 
 **Acceptance Criteria:**
 - Given this story's change, when the spine is read, then the REST table has the `GET /api/v1/usage` row and the cross-area table has the `Ownership.Usage` and header-navigation Usage rows, each marked `[ADDED 2026-11-10, Story 37.2]`. It has no History, file upload, private file table or Roles row. `lint_spine.py` reports the same 10 low `placeholder` findings at lines 478, 1017 (x2), 1086, 1099 (x2), 1165 (x3) and 1176 as before.
@@ -372,6 +372,24 @@ Rejected:
   - `[medium]` `[patch]` Gap: the DW-1090 marker on EXPERIENCE.md Item 9 is pinned by no test — patched: `usage-docs.test.mjs` "carries the DW-1090 amendment marker"; the mutation (marker removed) is red.
   - `[low]` `[patch]` Gap: no `mutation:` line for that marker — patched: the line is in `## Verification`.
   - Intent alignment: descriptive only, no finding; it noted the `=== 0` test runs after `roundCost` and that the largest-request clause left the look-for as the ruling words it.
+
+### 2026-11-10 — Review pass (rework iteration 3, the [CI] item)
+- verdicts: 13 findings — high 0, medium 0, low 10, false 3, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind: the frame, usage and more-to-try runs the item asked for are not recorded — patched: the lead's runs (frame/documents part 3/4, usage part 4/4, sign-in-3 part 1/2, F3, U8, K22 and K23 inside them) are in `## Verification`.
+  - `[false]` `[reject]` Blind: no automated test pins the fix — G4 and G5 in `web/e2e/floor/layout.spec.ts` are the pinning cases (red on CI run 42907226080, green here, 107 passed) and the `mutation (rework 3):` line is written; a stylesheet value has no unit host.
+  - `[low]` `[reject]` Blind: the slack is thin (about 19px at 640px) and unguarded — measured again at 625 (sticky) and 620 (static); G4 and G5 are the guard and the CI runs the same bundled font; wontfix-accepted, reopen_if=G4 or G5 red on a runner at 640x360.
+  - `[low]` `[reject]` Blind: the README admin in demo mode at 640x360 stays over the quarter line and the comment names only the non-admin — the header's contract is to scroll with the page there; the case was 121px before this story with three links and the comment names the non-admin group exactly (wontfix-accepted, reopen_if=a floor case for the admin header).
+  - `[low]` `[reject]` Blind: 4px and 6px are written in two comments as well as the CSS — they state the contract the CSS implements; a drift would show as G4 and G5 red, not as a wrong claim for long.
+  - `[low]` `[patch]` Blind: the spec's rework block carried the placeholder time "~23:3xZ" — patched (the date only).
+  - `[false]` `[reject]` Blind: `review_loop_iteration` is still 0 — it counts bad_spec loopbacks of the review, not rework iterations.
+  - `[low]` `[reject]` Edge: nothing keeps the left group on one row if the font or the badge differ — the same root cause as the slack finding above.
+  - `[low]` `[reject]` Edge: the admin header in demo mode is 121px at 640x360 — the same as the admin finding above (pre-existing, by the contract).
+  - `[low]` `[reject]` Edge: windows narrower than 640px and short (about 305 to 620px wide) still wrap the left group and stop sticking, with no floor case — by the contract the header then scrolls with the page, no link is hidden and no sideways scroll arises; measured: sticky down to 625px, static at 620px; this is the quarter rule's designed fallback, not a defect (wontfix-accepted, reopen_if=a floor case at a window of 560 to 620px width, or a user blocked by the scrolling header there).
+  - `[false]` `[reject]` Edge: the slack arithmetic is wrong (616px row, so about 7px) — the threshold was measured by window width (sticky at 625px, static at 620px), which does not depend on the padding arithmetic.
+  - `[low]` `[reject]` Gap: the mutation line's red values come from the stub measurement, not from a G4 and G5 run on the mutant — the CI run on the pre-fix head is the observed red of the same CSS (the lead's override (c) accepts it); the mutant is the same two lines removed.
+  - `[low]` `[reject]` Gap: removing only one of the two lines stays green — each line alone is inside the slack; the pair is the fix and the line's mutation removes the pair (wontfix-accepted).
+  - Intent alignment: descriptive only, no finding; it named the admin case (R3 not met, stated openly) and that the spacing applies to every window below 1024px with only 640x360 under an automated case.
 
 ## Design Notes
 
@@ -619,6 +637,16 @@ R5 measurement: K16, K16b and K17 now open with `BAND_IDS` (the four ids plus `m
 **Code review pass, rework re-review (2026-11-10):** the two patches change comments and a test title only: `node --test web/scripts/sources-docs.test.mjs` 15/15, `npm --prefix web test` 1821/1821 and `npm --prefix web run lint` (tsc over the e2e specs) pass. No e2e re-run: no executable line of a spec changed, so the implement stage's fresh-stack runs (`e37s2r`: sign-in-3 part 1/2 126/126, sign-in part 4/4 58/58) stand. No `mutation:` line is added or changed (no pinning test changed).
 
 
+**Rework iteration 3 (the [CI] item, 2026-11-10):** measured with the built bundle in Chromium, the page's `/state` answered by a stub (so the numbers are layout only): the floor stack is in demo mode, so the floor user (OcuTalonUser, not an admin) sees the badge "Demo mode", the Demo view switch and the links Chat, Documents and Usage. The quarter line is `window.innerHeight / 4` (`header.ts` measure: `scrolls` when the stacked header is taller than that), 90px at 640x360.
+- Floor user, demo mode, 640x360 at device scale 2: before this story (Chat, Documents; Usage hidden) header 77px, sticky, writes 77px; after this story, before the fix (Chat, Documents, Usage) 121px, `scrolls` (static), writes 0px = the CI red (G4 "after scrolling to the bottom the header is still at the top"; G5 "0px against 121"); after the fix 77px, sticky, writes 77px. Cause: the left group (mark, badge, Demo view switch, nav) needed 629px of the 628px row, so the nav wrapped to its own row and the right group to a third.
+- Fix, `web/src/app/header/header.ts` stacked band: `.side` sets `--header-nav-gap: var(--space-1)` (4px, was 8px) and `--header-nav-item-inline: 6px` (was 8px); the nav shrinks 216px -> 196px, and the one-row left group now holds down to a 621px window (about 19px of slack at 640px). Header comments state it (`header.ts`, `header-nav.ts`).
+- Other widths with the fix: 1024x768 unchanged, 56px for the floor user and for the README admin in demo mode (nav 176px and 240px, one line, F3's case); 305x600 no sideways scroll (scrollWidth 305 = clientWidth 305; admin nav wraps to two rows, 281px wide); 320x180 header over its quarter (G4's control) as before.
+- README admin in demo mode at 640x360 (Chat, Settings, Documents, Usage, the widest case): 121px before this story with three links and 121px with four, with or without the fix; it is over the quarter line (90px) already on the baseline, so that case scrolls with the page both before and after and no floor case covers it. The fix does not change that figure.
+- `$LANE OCUTALON_RUN_TAG=e37s2r3 ci/iris.sh live floor` (fresh stack, `ci/iris.sh build` first): 107 passed in 3.5 min (Chromium, Firefox and WebKit; layout.spec.ts G1-G7 included); `ci/iris.sh teardown` removed the tag (0 left). `npm --prefix web test` 1846/1846. Not run here: the pre-fix floor unit on the local stack (the red is the CI run 42907226080's; the stub measurement above reproduces its 121px and 0px).
+mutation (rework 3): the two lines `--header-nav-gap: var(--space-1);` and `--header-nav-item-inline: 6px;` removed from the stacked `.side` of `header.ts` (the bundle rebuilt) -> the 640x360@2 floor-user header measures 121px, static, root property 0px (the G5 "0px against 121" and G4 values of CI run 42907226080; measured with the stub, not by re-running the floor unit); the fixed `header.ts` restored byte-identical (`cmp`), the bundle rebuilt, 77px and sticky again, and the floor unit above green on it.
+Rework 3, lead's verification on fresh lane-B stacks (tag `e37s2r3`, `ci/iris.sh build` first; every stack torn down, 0 containers left): `live floor` 107 passed (3.5 min; G4 and G5 included, Chromium, Firefox and WebKit); `live sign-in --part 3/4` (frame.spec.ts with F3, documents.spec.ts) 59 passed; `live sign-in --part 4/4` (usage.spec.ts with U8) 58 passed; `live sign-in-3 --part 1/2` (more-to-try.spec.ts with K22 and K23) 126 passed; `npm --prefix web test` 1846/1846; `npm --prefix web run lint` clean; `bash docker/tests/test-boundaries.sh` passed. Slack re-measured on the built bundle (floor user, demo mode, four links, stub `/state`): the header is 77px and sticky at 640, 630 and 625px wide and 121px and static at 620 and 610px (height 360, device scale 2), so the one-row threshold lies between 620 and 625px and the slack at 640px is about 15 to 19px. Below it the header wraps and scrolls with the page (the quarter rule's fallback); G4's control case at 320x180 is unchanged.
+
+
 ## Auto Run Result
 
 Status: done
@@ -668,6 +696,23 @@ Follow-up review recommended: false (this follow-up pass patched no high).
 Verification performed: `node --test` of `usage-view`, `more-to-try-view`, `ux-strings` and `usage-docs` (89 pass); `npm --prefix web test` 1825/1825; `npm --prefix web run lint` clean; `bash docker/tests/test-boundaries.sh` passed; on fresh lane-B stacks (tag e37s2r2, after `ci/iris.sh build`) `live sign-in --part 4/4` (58 passed, with U2 and U3 on `$0`) and `live sign-in-3 --part 1/2` (126 passed, with K3 on the new look-for). Mutations (Rule 19) are in `## Verification`; each was observed red and reverted byte-identical.
 
 Residual risks: the zero-cost entry in the frontmatter `deferred:` (DW-1089) is now resolved by R6 and the lead closes its ledger entry; the AC 5 sentence still names `<$0.0001` for zero (R6 carries the ruling).
+
+Status: done
+Blocking condition: none
+
+**Rework iteration 3 (the [CI] item) -- this pass only.**
+
+Summary: at 640x360 (device scale 2) the floor user's header (mark, "Demo mode" badge, Demo view switch, Chat, Documents, Usage) wrapped to 121px, over the quarter-of-the-window line (90px), so it stopped sticking and wrote 0px (G4 and G5 red on CI). The stacked band's `.side` now sets `--header-nav-gap: var(--space-1)` (4px, was 8px) and `--header-nav-item-inline: 6px` (was 8px): the navigation is 196px instead of 216px, the left group stays on one row down to a window of about 621px, and the header is 77px, sticky, writing 77px (it was 77px with two links before this story). No link is hidden or moved; the quarter rule, the floor tests and every text are unchanged. Measurements (before this story 77px; after it, unfixed 121px; fixed 77px; 1024x768 unchanged 56px; 305px no sideways scroll) are under `## Verification`.
+
+Files changed: `web/src/app/header/header.ts` (the two properties and the contract comment), `web/src/app/header/header-nav.ts` (the contract comment), this spec.
+
+Review findings (13 from four layers: high 0, medium 0, low 10, false 3): patched 2 low (the unrecorded runs, a placeholder time); rejected 11, each with its reason in the triage log; none deferred.
+
+Follow-up review recommended: false (this follow-up pass patched no high).
+
+Verification performed: on fresh lane-B stacks (tag `e37s2r3`, `ci/iris.sh build` first) `live floor` 107 passed (G4 and G5 among them), `live sign-in --part 3/4` 59 passed (F3), `live sign-in --part 4/4` 58 passed (U8), `live sign-in-3 --part 1/2` 126 passed (K22, K23); `npm --prefix web test` 1846/1846; `npm --prefix web run lint` clean; `test-boundaries.sh` passed. Mutation (Rule 19) in `## Verification`; the observed red of G4 and G5 is CI run 42907226080 on the identical CSS, and the stub measurement of the mutant reproduces its 121px and 0px. All stacks torn down.
+
+Residual risks: (1) the README admin in demo mode at 640x360 (Chat, Settings, Documents, Usage) is 121px, over the line, as it was before this story with three links, so that header scrolls with the page (the header's contract) and no floor case covers it; (2) windows about 305 to 620px wide and short wrap the left group and the header scrolls with the page, with no case at those sizes; (3) the one-row slack at 640px is about 15 to 19px.
 
 Status: done
 Blocking condition: none

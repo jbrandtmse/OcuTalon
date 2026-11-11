@@ -8,7 +8,8 @@ import { CurrentPage } from './current-page';
  * The header navigation (Stories 33.2, 34.2 and 37.2; UX-DR21): a navigation landmark named "Pages" with "Chat", for an admin "Settings", and "Documents" and
  * "Usage" for every signed-in user (steps 3 and 6), each a link
  * (header-nav-item) whose current page is marked aria-current="page". The header sets --header-nav-gap and --header-nav-item-inline in the drawer
- * band (1024 to 1279px), where the links sit closer together so that the header fits on one line. Whether the user is an admin is the snapshot's `admin`; it only decides the
+ * band (1024 to 1279px), where the links sit closer together so that the header fits on one line, and below 1024px (4px apart, 6px of inline
+ * padding), where the left group of the header must fit one row at 640px so that the header stays within a quarter of a short window. Whether the user is an admin is the snapshot's `admin`; it only decides the
  * link, since the settings API refuses anyone else (403 not_admin). The links wrap onto a second line when the window is too narrow for them in a row, so
  * no link is hidden and the page never scrolls sideways. It sits after the Demo view switch.
  */
