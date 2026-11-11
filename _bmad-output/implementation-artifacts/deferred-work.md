@@ -2931,7 +2931,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 - 2026-11-04T04:29:11Z occurrence=10ce26ac by=merge_gate note=run 41769982647 attempt 1 live:online-allowance D1 (feature head)
 - 2026-11-10T17:42:07Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980616882 iris(shards) live:online-allowance D1 S1 daily-cap banner not found 60s; OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
+- 2026-11-11T05:58:07Z occurrence=23-5 by=orchestrator note=run 42963531773 job 130335378855 iris(shards) live:online-allowance D1 S1 daily-cap banner not found (ci-10); OCT-epic23 52db267d
 - 2026-11-11T05:58:31Z occurrence=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva note=CI run 42963531773 (52db267d) iris (shards) live:online-allowance D1 S1 the daily cap banner shows (ci-10); classified FLAKE by the orchestrator
+- 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625133 iris(shards) live:online-allowance D1 daily-cap banner (ci-13); OCT-epic25 4af29b25; rerun of failed jobs
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3723,6 +3725,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner host check on 01bb86fc (demo public 2026-11-02T07:33Z) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: public demo host on 01bb86fc: incident card header vs body; reminder reply vs phone notification; every time is labelled, so nothing is wrong, but a judge sees two zones on one card
 - 2026-11-02T07:34:35Z status=routed owner=burndown by=merge_gate note=Planner: after 1.0.0 unless a cheap fix appears; one zone per card (instance zone with its label, or the viewer's zone throughout); first daily release
+- 2026-11-11T05:13:08Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page
 
 ### DW-583: Story 11.19 AC3 (sign-in unit integration evidence) has no demonstrated mutation: the overwrite it guards depends on a heartbeat tick landing inside a case, so one green run cannot show red on demand
 - source: spec-11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c.md | severity: low | fix-risk: med | footprint: in-story
@@ -4411,6 +4414,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T22:41:17Z occurrence=OCT-epic41-ef38622e by=orchestrator note=run 42525785483: iris(shards) lane-a@Checks,Install,Watch,Eval Test.Watch.GoodMessages TestFewerThanTwentyGood (Ens.ScheduleService header); head predates 7.11 on feature (integrated onto c25902c3): inherited, fixed by the integrate-forward
 - 2026-11-11T02:45:31Z occurrence=41-15 by=orchestrator note=run 42943118887 job 130269395326 iris(shards-11) lane-a@Fix Test.Fix.DryRun TestFiftyOrdersChangeNothing ('OCUTALON headers 117 changed'); OCT-epic41 94af9e02
 - 2026-11-11T02:47:30Z occurrence=41-15-learned-saves-are-announced-by-code by=runner note=run_42943118887_iris(shards-11)_lane-a@Fix_Test.Fix.DryRun_TestFiftyOrdersChangeNothing(OCUTALON_headers_117_changed);head_94af9e02;41.15_changes_no_Fix_code
+- 2026-11-11T08:31:54Z occurrence=25-2 by=orchestrator note=run 42981966109 job 130394214728 iris(shards-8) lane-a@Watch Test.Watch.GoodMessages TestFewerThanTwentyGood 'OCUTALON queues Ens.ScheduleHandler changed' (ci-17), same ScheduleService/Handler family
+- 2026-11-11T08:32:34Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page note=OCT-epic25 f21137d1 ci run 42981966109 iris (shards-8) lane-a@Watch Test.Watch.GoodMessages TestFewerThanTwentyGood (OCUTALON queues Ens.ScheduleHandler changed); ScheduleService/ScheduleHandler family; orchestrator-classified flake
 
 ### DW-698: flake: lane-a@rest Tools.RecentActivity and RecentActivityTurn saw a leaked resolved Orders/OrdersFromPartner incident (count 50, approved on web, 50 resent); TestPoisoned hit INVALID OREF in Test.Watch.Case.SortedKeys
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6429,6 +6434,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T21:55:44Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_594a66af_run_42702099695_browser_live:demo-path_06-trace:35_finish_not_found_after_navigation_to_?signedOut=1;one_rerun_of_the_failed_job
 - 2026-11-10T07:54:01Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_b99d6529_run_42768243726_browser_06-trace_signedOut;one_rerun
 - 2026-11-10T17:42:06Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980616591 iris(browser) live:demo-path 06-trace .finish-done not found after navigation to ?signedOut=1; OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
+- 2026-11-11T07:02:27Z occurrence=feature-c241f87c by=orchestrator note=run 42969082500 job 130353082261 iris(browser) live:demo-path 06-trace 'the run total' not found after navigation to ?signedOut=1 (ci-4); rerun of failed jobs
 
 ### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -6695,6 +6701,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-parallel.md (OCT-epic41 4612eb5c, ci.yml run 42777878916) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (shards-10) job 129700562519 at 08:03:16Z, unit live:sign-in 857s; the same group passed on 28229232 (run 42767697005); 28229232..4612eb5c changes no product code
 - 2026-11-10T14:48:46Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); not rerun, as above; rerun once per occurrence
+- 2026-11-11T08:31:54Z occurrence=25-2 by=orchestrator note=run 42981966109 job 130394215010 iris(shards-10) live:sign-in row 8 empty chat panel (ci-9); OCT-epic25 f21137d1
+- 2026-11-11T08:32:34Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page note=OCT-epic25 f21137d1 ci run 42981966109 iris (shards-10) live:sign-in row 8; orchestrator-classified flake
 ### DW-1084: More to try: the panel's render of an ungrouped set (first, no h4) is pinned only by groupsOf unit tests and a template source-text match; no executed render covers it
 - source: spec-0-22-the-more-to-try-panel-shows-its-items-under-three-group-head.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web has no component test host and every registry row declares a ruled group (the typo-guard unit test fails otherwise), so no e2e can render an ungrouped set; a template rewrite that keeps the @if regex green could misrender it
@@ -6720,12 +6728,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (shards-6) lane-b@rest; green on one rerun
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the Data.Purge entry filed alongside (Planner's unverified guess); no fix work now
 - 2026-11-10T19:46:28Z note=see also DW-1095 (possible shared cause: before/after session-row comparisons)
+- 2026-11-11T06:26:54Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page note=OCT-epic25 284e8904 ci run 42966931010 iris (shards-6) lane-b@rest TestOnlyTheMarkerChanges/TestRunAgain; classified flake by the orchestrator; no rework
+- 2026-11-11T06:26:39Z occurrence=25-2 by=orchestrator note=run 42966931010 job 130346188889 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges + TestRunAgain (ci-12); OCT-epic25 284e8904
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (image) lane-b@Contract,Core,Data,Live; green on one rerun
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the GuideApi entry filed alongside (unverified); no fix work now
 - 2026-11-10T19:46:28Z note=see also DW-1094 (possible shared cause)
+- 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625167 iris(image) lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows (pending reminder, watch, open approval) (ci-8); OCT-epic25 4af29b25; rerun of failed jobs
 
 ### DW-1098: post-contest idea: admins see instance-owned incident usage on the Usage page (today a local install counts only the session's own rows, by design)
 - source: Contest Planner ruling on DW-1090 (Story 37.2), 2026-11-10 | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -6818,6 +6829,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 37.2 rework 3 measured the floor-user header sticky at 625px and static at 620px (640x360@2, stub /state); Story 25.2 (epics.md) opens History from the header navigation, a fifth link for the floor user, so its own G4/G5 will be red unless it plans the compact header's room (web/src/app/header/header.ts stacked .side).
 - 2026-11-11T00:09:01Z status=routed owner=25-2-filter-past-decisions-and-incidents-on-the-history-page by=cr note=plan the compact header at 640x360 with the History link; G4/G5 guard it; epics.md DW bullet under 25.2 is the orchestrator's post-merge
 - 2026-11-11T01:23:44Z status=routed owner=25-2-filter-past-decisions-and-incidents-on-the-history-page by=merge_gate note=Story 37.2 merge gate: epics.md Story 25.2 gains the [ADDED 2026-11-10, DW-1102] AC (History link fits the compact header at 640x360; live:floor G4/G5 green); 25.2's implement must plan the fit (37.2 left 15-19px)
+- 2026-11-11T05:14:42Z status=resolved-by:25-2-filter-past-decisions-and-incidents-on-the-history-page by=adjudication note=caee660f header.ts stacked-band fit K (spacing only; 640x360@2 floor user 77px sticky, slack ~18px measured); live floor 107/107 then 110/110 green in Chromium Firefox WebKit with G4/G5 unedited (implement and QA runs); mutation recorded in the spec Verification (fit K reverted -> G4/G5 red)
 
 ### DW-1103: flake: live:floor web/e2e/floor/keyboard.spec.ts:237 K2 (Esc closes the Trace help of a reply strip): 'focus is back on the link' (expect toBeFocused, received inactive within 10 s) red once locally, passed on one unchanged rerun
 - source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: low | footprint: web/e2e/floor/keyboard.spec.ts
@@ -6853,3 +6865,22 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: grep: both planning lines say ss -ltn; lib-live.sh live_port_listed runs ss -tan; the ruling is recorded only in the 0.25 spec's Design Notes
 - 2026-11-11T04:21:49Z status=wontfix-accepted owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=cr note=reopen_if=a later spec or retro cites the ss -ltn wording to change live_port_listed back to listeners only
 - 2026-11-11T04:26:27Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=adjudication note=epics.md_Story_0.25_AC_amended_with_marker(ss,_every_state_but_TIME-WAIT);epic-0-context.md_is_a_regenerated_cache
+
+### DW-1119: infra: CI lane-a ipm-install path A second run failed with 'ERROR! Error merging CPF file. $zf(-100) exited with 7' (Initialize FAILURE in OCUTALON)
+- source: OCT-epic25 f21137d1 (Story 25.2), lane-a run 42981966175 job 130394214504 on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 07:52:08Z: the first-run-in-USER checks passed; the second run in OCUTALON took 126 s and failed at Initialize with the CPF merge error; 25.2 changes no install, Install or IPM file
+- 2026-11-11T08:31:54Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence): an IRIS CPF merge ((-100)) failed during the IPM install; one rerun per occurrence; real if it recurs on an install-touching head
+### DW-1120: UsagePage announces its failed read and never withdraws it, so a stale error can be spoken after a successful Retry
+- source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: usage-page.ts:474 announces USAGE_TEXTS.error on every failure through the shared Announcer; nothing withdraws it on the next answer. Same root as 25.2's H12 CI red, fixed for History only by Announcer.retract (25.2 rework 2).
+- 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=apply HistoryPage.arrived's retract pattern to UsagePage with a frozen-clock browser pin like H15
+
+### DW-1121: Announcer.retract's lastSpoken guard, which keeps it from emptying another page's announcement, has only a source-regex pin
+- source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: in-story
+- evidence: announce-focus-sources.test.mjs pins the guard by regex; announcer.ts cannot be imported by node (inject). Removing the lastSpoken check would keep H9, H12 and H15 green.
+- 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=behavioural pin: retract after a different text was spoken leaves the region alone (browser case, or bookkeeping in AnnounceQueue)
+
+### DW-1122: H15 presses Retry a second time with no page-side signal that the second failure was handled; a reversed order would pass without exercising the queued case
+- source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: in-story
+- evidence: The page shows nothing new for a second failure; the press waits only for the route fulfil. Observed in order in the no-retract mutation run (H15 red, 2 announcements), not guaranteed.
+- 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=give H15 an observed precondition (a page-side marker of the refused read) and a mutation line

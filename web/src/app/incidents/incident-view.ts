@@ -188,7 +188,7 @@ const STATES: Readonly<Record<string, { chip: IncidentChip; text: string; bar: I
 };
 
 /** The state's entry, or undefined for a state the page does not know. */
-function stateOf(state: string | undefined): (typeof STATES)[string] | undefined {
+export function stateOf(state: string | undefined): (typeof STATES)[string] | undefined {
   return state !== undefined && Object.hasOwn(STATES, state) ? STATES[state] : undefined;
 }
 
@@ -221,7 +221,7 @@ function nounFor(noun: ItemNoun | undefined, count: number): string {
 }
 
 /** The headline: "50 orders failed since 14:12"; without a readable first time, "50 orders failed". */
-function headlineOf(payload: IncidentPayload, ctx: IncidentContext): string {
+export function headlineOf(payload: Pick<IncidentPayload, 'count' | 'itemNoun' | 'firstAt'>, ctx: Pick<IncidentContext, 'messageTime' | 'nowMs'>): string {
   const count = numberOf(payload.count) ?? 0;
   const slots = { count: String(count), noun: nounFor(payload.itemNoun, count) };
   const time = ctx.messageTime(payload.firstAt ?? '', ctx.nowMs);

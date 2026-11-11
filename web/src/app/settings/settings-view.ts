@@ -134,11 +134,14 @@ export function sectionLabel(slug: string): string {
   return SETTINGS_SECTIONS.find((section) => section.slug === slug)?.label ?? SETTINGS_SECTIONS[0].label;
 }
 
-/** Which page an address (the part after the hash, such as /settings/budgets?x=1) is: settings, documents (Story 34.2), usage (Story 37.2) or the chat. */
-export function pageOf(address: string): 'settings' | 'documents' | 'usage' | 'chat' {
+/** Which page an address (the part after the hash, such as /settings/budgets?x=1) is: settings, documents (Story 34.2), history (Story 25.2), usage (Story 37.2) or the chat. */
+export function pageOf(address: string): 'settings' | 'documents' | 'history' | 'usage' | 'chat' {
   const path = address.replace(/^#/, '').split(/[?#;]/)[0];
   if (path === '/documents') {
     return 'documents';
+  }
+  if (path === '/history') {
+    return 'history';
   }
   if (path === '/usage') {
     return 'usage';

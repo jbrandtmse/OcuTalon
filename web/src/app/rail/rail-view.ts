@@ -280,7 +280,8 @@ function reminderRow(reminder: ReminderPayload, format: RailFormat): RailRow {
   return withTrace(row, reminder.traceUrl);
 }
 
-function decisionRow(decision: DecisionPayload, format: RailFormat): RailRow {
+/** The row of one decision payload, which the rail lists and the History page lists too. */
+export function decisionRow(decision: DecisionPayload, format: RailFormat): RailRow {
   const fallback = decision.fallback === true;
   const sentence = fallback ? format.fallbackSentence(decision.fallbackReason ?? '') : undefined;
   const meta: string[] = [];

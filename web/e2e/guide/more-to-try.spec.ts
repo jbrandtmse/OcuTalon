@@ -15,6 +15,7 @@ import { blockLiveSocket } from '../support/socket';
  * features it names) and keeps it by dropping guide.state from the page's polls; the POSTs of items 2, 3 and 5 are routed and counted,
  * because their downstream flows are pinned by the demo-path specs. K5 uses the real Persona card, and collapses it again.
  *   - K2 (matrix 1): the routed finish: the panel is open after the links and before Try it yourself, items 1 to 4 in order;
+ *   - K28 (Story 25.2): the link of the history item opens the History page;
  *   - K3 (matrix 3, 10): every id of the registry: its items in order with their look-for lines, links to the Documents page for the documents and sources items, the link to the Usage page for the usage item, the Memory heading focused by the Memory card item and the Heartbeat checklist heading by the heartbeat item;
  *   - K4 (matrix 2): step 1: no panel, the link in the Tab order, Enter opens and Space closes it, focus stays on the link;
  *   - K5 (matrix 5): item 1 opens the Persona card's Change and focuses it, also in the drawer band, where the drawer opens first;
@@ -155,6 +156,13 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
       'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
     button: 'Open the Usage page',
   },
+  // mutation: the registry's history look-for drops its last sentence ("If it reads "No decisions yet.", run the guide first.") -> K3 (the history item's look-for text) red.
+  history: {
+    label: 'Look back at past decisions',
+    lookFor:
+      'On the History page, filter the Decisions tab by outcome, channel, date or fallback, and open a decision to read its reasons, with a link to its trace. The Incidents tab lists your incidents with their state and, once an incident has closed, its summary. If it reads "No decisions yet.", run the guide first.',
+    button: 'Open the History page',
+  },
 };
 const REMEMBER = "Remember that the Results partner's contact is Lee.";
 const REROUTE = 'Reroute the failed orders to OrdersForReview.';
@@ -164,7 +172,7 @@ const guideRegion = (page: Page): Locator => page.getByRole('region', { name: 'D
 const linkOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'More to try', exact: true });
 const panelOf = (page: Page): Locator => guideRegion(page).getByRole('group', { name: 'Other things to try', exact: true });
 const itemOf = (page: Page, id: string): Locator => panelOf(page).getByRole('listitem').filter({ has: page.getByText(ITEMS[id]!.label, { exact: true }) });
-const controlOf = (page: Page, id: string): Locator => itemOf(page, id).getByRole(id === 'documents' || id === 'sources' || id === 'usage' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
+const controlOf = (page: Page, id: string): Locator => itemOf(page, id).getByRole(id === 'documents' || id === 'sources' || id === 'usage' || id === 'history' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
 const switchOf = (page: Page): Locator => page.getByRole('switch', { name: 'Demo view', exact: true });
 const breakButton = (page: Page): Locator => page.locator('app-break-feed-box app-server-button button');
 const hideOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'Hide guide', exact: true });
@@ -339,6 +347,7 @@ test('K3: every id shows its item in order, the documents and sources items are 
   await expect(documents, 'the documents item is a link').toHaveAttribute('href', /#\/documents$/);
   await expect(controlOf(page, 'sources'), 'the sources item is a link to the same page').toHaveAttribute('href', /#\/documents$/);
   await expect(controlOf(page, 'usage'), 'the usage item is a link to the Usage page').toHaveAttribute('href', /#\/usage$/);
+  await expect(controlOf(page, 'history'), 'the history item is a link to the History page').toHaveAttribute('href', /#\/history$/);
   await expect(controlOf(page, 'memoryCard')).toHaveAttribute('type', 'button');
   await controlOf(page, 'memoryCard').click();
   await expect(page.locator('#rail-heading-memory'), 'the Memory card item puts focus on the Memory heading').toBeFocused();
@@ -354,6 +363,18 @@ test('K3b: the link of the usage item opens the Usage page', async ({ page }) =>
   await controlOf(page, 'usage').click();
   await expect(page, 'at the address #/usage').toHaveURL(/#\/usage$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Usage', exact: true }), 'the Usage page').toBeVisible();
+});
+
+/** K28 (routed finish, every id): pressing the history item's link opens the History page by navigation, "Open the History page", and the page is titled and headed History. */
+test('K28: the link of the history item opens the History page', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.route('**/ocutalon/api/v1/history/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ page: 1, pages: 1, decisions: [] }) }));
+  await openWith(page, finished(ALL));
+  await expect(controlOf(page, 'history'), 'its control is named by its visible text').toHaveText('Open the History page');
+  await controlOf(page, 'history').click();
+  await expect(page, 'at the address #/history').toHaveURL(/#\/history$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'History', exact: true }), 'the History page').toBeVisible();
+  await expect(page, 'titled History').toHaveTitle('History \u00B7 OcuTalon');
 });
 
 /**
@@ -1645,6 +1666,8 @@ test('K27: the panel shows its items under the ruled group headings, each follow
   const expected = RULED_HEADINGS.map((group): [string, string[]] => [group, ALL.filter((id) => groupOf(id) === group)]).filter(([, ids]) => ids.length > 0);
   expect(MORE_TO_TRY_GROUPS, 'the page\'s constant is the ruled order').toEqual(RULED_HEADINGS);
   expect(groupOf('usage'), 'the usage item is in the fourth group').toBe(RULED_HEADINGS[3]);
+  expect(groupOf('history'), 'the history item is in the fourth group too, after usage').toBe(RULED_HEADINGS[3]);
+  expect(ALL.slice(-2), 'usage then history are the last two items').toEqual(['usage', 'history']);
 
   const headings = panel.getByRole('heading', { level: 4 });
   await expect(headings, 'the groups that have items, in order').toHaveText(expected.map(([group]) => group));
@@ -1658,5 +1681,6 @@ test('K27: the panel shows its items under the ruled group headings, each follow
     await expect(heading.locator('xpath=following-sibling::ul[1]').locator('.item-label'), `${group}: its labels, in registry order`).toHaveText(ids.map((id) => ITEMS[id]!.label));
   }
   await expect(headings.last().locator('xpath=following-sibling::ul[1]'), 'the fourth heading holds the usage item').toContainText(ITEMS['usage']!.label);
+  await expect(headings.last().locator('xpath=following-sibling::ul[1]').locator('.item-label'), 'then the history item').toHaveText([ITEMS['usage']!.label, ITEMS['history']!.label]);
   await expect(panel.locator('.item-label'), 'every item once').toHaveCount(ALL.length);
 });

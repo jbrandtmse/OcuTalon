@@ -3421,3 +3421,24 @@
 - 2026-11-11T05:57Z orchestrator merge_gate epic=0 part=0.25 head=a179b616 base=b5bd74c5 conflicts=sprint-status.yaml(ours+regenerate+set 0-25=done, epic-0=done) test-lib-live/test-boundaries pass on merged tree; spine baseline; DW-1099 resolved-by 0.25 (+ host fix)
 - 2026-11-11T05:57Z orchestrator epic_merged_to_feature epic=0 part=0.25 note=feature CI runs (combination with 41.15)
 - 2026-11-11T05:57Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=0.25 insert via merge
+- 2026-11-11T05:58Z orchestrator ci_red head=52db267d branch=OCT-epic23 story=23.5 run=42963531773 red=image TestContracts dry-run keys (story-likely) + shards DW-432 flake; lane-a green; runner D to rework + integrate onto c241f87c
+- 2026-11-11T05:58:30Z orchestrator epic_runner_complete epic=0 part=0.25 runner=a07f812be26990961 head=e26d2142 (records only) ci_cancelled_record_only=42969161284,42969161281, lane_B=idle (scope closed)
+- 2026-11-11T06:11Z orchestrator runner_clarification epic=23 story=23.5 kind=CI_WAIT head=81b1ba8a base=c241f87c runs=42970585049,42970585121 rework_iter=3 (cap used); TestContracts pin extended to 14 keys (no product change); merge directly on green
+- 2026-11-11T06:26Z orchestrator ci_red head=284e8904 branch=OCT-epic25 story=25.2 run=42966931010 red=shards-10 usage.spec U8 nav-link pin (History added; story/test-pin) + shards-6 DW-1094 flake; lane-a green; runner C: [CI] rework + integrate (with 23.5 if landed; counts 14)
+- 2026-11-11T07:02Z orchestrator ci_red_classified head=c241f87c branch=feature run=42969082500 red=iris(browser) DW-1026 (demo-path 06-trace signedOut) action=rerun --failed
+- 2026-11-11T07:22Z orchestrator ci_green_verified branch=OCT-epic23 head=81b1ba8a runs=42970585049,42970585121 missing=none story=23.5
+- 2026-11-11T07:22Z orchestrator merge_gate epic=23 part=23.5 head=81b1ba8a base=c241f87c(ancestor) conflicts=none code_identical_to_epic_head=yes spine_lint=baseline tracker=valid more_to_try=13; DW-1108/DW-1109 resolved by 23.5; post-contest DW-1117, DW-1118
+- 2026-11-11T07:22Z orchestrator epic_merged_to_feature epic=23 part=23.5 note=green by identity; feature CI cancelled as record-only; Epic 23 re-plan set 23.6/23.2/23.5 complete
+- 2026-11-11T07:22Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=23.5 via merge
+- 2026-11-11T07:22Z orchestrator ci_cancelled_record_only head=51a53f69 runs=42979053632,42979053675, reason=green_by_identity(code = 81b1ba8a)
+- 2026-11-11T07:23Z orchestrator ci_cancelled head=c241f87c run=42969082500 reason=superseded: 81b1ba8a (contains c241f87c) green on both workflows; feature 51a53f69 green by identity
+- 2026-11-11T07:23:39Z orchestrator epic_runner_complete epic=23 part=23.6,23.2,23.5 runner=a990d801cc3f24f03 head=b79350d1 (records only) ci_cancelled_record_only=42979149086,42979149090, lane_D=idle (scope closed)
+- 2026-11-11T07:49Z orchestrator runner_clarification epic=25 story=25.2 kind=PART_READY(CI pending) head=f21137d1 base=51a53f69 runs=42981966109,42981966175; U8/U1 nav pin -> shared header-nav list (rework 1 of 3); integrated with 23.5 (registry 14); merge directly on green (base = feature head)
+- 2026-11-11T08:31Z orchestrator ci_red head=f21137d1 branch=OCT-epic25 story=25.2 red=history.spec H12 (story: error text not cleared after Retry) + DW-1081 + DW-675 family + ipm-install CPF merge (DW-1119 infra); runner C rework 2 of 3; park if not pushed by ~10:00Z
+- 2026-11-11T09:31Z orchestrator runner_clarification epic=25 story=25.2 kind=PART_READY(CI pending) head=4af29b25 (code db86baf6) base=51a53f69 runs=42995845667,42995845639; H12 fix = Announcer.retract (shared/ footprint ext); rework 2 of 3; DW-1120..1122 burndown; plan: merge directly on green before 11:30Z hold
+- 2026-11-11T10:15Z orchestrator ci_red_classified head=4af29b25 branch=OCT-epic25 story=25.2 run=42995845667 red=shards DW-432 + image DW-1095 (both ledgered flakes); lane-a green; action=rerun --failed (~10:50Z)
+- 2026-11-11T10:40Z orchestrator owner_decision via=contest_planner item=hold moved: no 11:30Z hold (quota 80%); hold = owner's account switch ~13:00Z or earlier on Planner 'HOLD NOW'; self-reminder cron 65290dec deleted
+- 2026-11-11T10:42Z orchestrator ci_green_verified branch=OCT-epic25 head=4af29b25 runs=42995845667(attempt 2; DW-432 + DW-1095),42995845639 missing=none story=25.2
+- 2026-11-11T10:42Z orchestrator merge_gate epic=25 part=25.2 head=4af29b25 base=51a53f69(ancestor) conflicts=none code_identical_to_epic_head=yes spine_lint=baseline tracker=valid more_to_try=14; DW-1102 resolved by 25.2
+- 2026-11-11T10:42Z orchestrator epic_merged_to_feature epic=25 part=25.2 note=green by identity; feature CI cancelled as record-only; ALL FIVE scope-closed stories merged (37.2, 25.2, 23.5, 41.15, 0.24) + 0.25
+- 2026-11-11T10:42Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=25.2 via merge

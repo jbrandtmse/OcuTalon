@@ -84,12 +84,13 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  * button holds focus, the button leaves and focus goes to the main region without scrolling, through the page's focus rule. This band is
  * the narrowest one where the header stays on one line, so it takes less space between and inside its items (12px inline padding, 8px
  * between the left group's items, 4px between the right group's and inside its buttons; the navigation and the reset countdown do the
- * same), which keeps the mark, the context badge, the Demo view switch, the four navigation links, the Status button, the reset
+ * same), which keeps the mark, the context badge, the Demo view switch, the five navigation links, the Status button, the reset
  * countdown and the menus inside the window at 1024px.
  *
- * Below 1024px the header is the page's one sticky element and is compact (48px minimum, 12px inline padding, may wrap). Its navigation
- * links sit 4px apart with 6px of inline padding, so that the left group (mark, context badge, Demo view switch and the links of a signed-in
- * user who is not an admin) fits one row at 640px and the header stays within its two rows. It writes its
+ * Below 1024px the header is the page's one sticky element and is compact (48px minimum, 8px inline padding, may wrap). Its left group (the mark
+ * and wordmark 8px apart, the context badge, the Demo view switch and the navigation links) sits 4px apart, and the links touch with 4px of inline
+ * padding each, so that the left group of a signed-in user who is not an admin (Chat, Documents, History and Usage) fits one row at 640px and the header
+ * stays within its two rows. It writes its
  * measured block size to --app-header-block-size on the root element, which the stacked layout's scroll-padding-top reads, so that
  * the focused element is never scrolled under it. Where its wrapped height passes a quarter of the window's height (a very short
  * window), it would cover too much of the page, so it takes the host class `scrolls`: it scrolls away with the page (position
@@ -332,12 +333,18 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
         flex-wrap: wrap;
         gap: var(--space-1) var(--space-3);
         min-height: var(--space-12);
-        padding: var(--space-1) var(--space-3);
+        padding: var(--space-1) var(--space-2);
       }
       .side {
         flex-wrap: wrap;
-        --header-nav-gap: var(--space-1);
-        --header-nav-item-inline: 6px;
+      }
+      .side:not(.right) {
+        gap: var(--space-1);
+        --header-nav-gap: 0px;
+        --header-nav-item-inline: var(--space-1);
+      }
+      .home {
+        gap: var(--space-2);
       }
     }
     .reason {
