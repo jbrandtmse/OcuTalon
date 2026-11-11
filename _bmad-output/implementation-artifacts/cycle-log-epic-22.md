@@ -9,3 +9,5 @@
 2026-11-11T10:55:59Z	Epic 22	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true warnings=none_new note=21.4_route_wiring_seam_recorded(DW-1041,ACs)
 2026-11-11T10:55:59Z	Epic 22	retro_review_skipped	reason=no_x0_input_in_authority sources=ledger_owned_epic22:5(all_routed_to_22.2/22.6_as_story_inbox),burndown:110(none_in_epic22_authority:DW-606_FR-9_bridge_setting_scope_call,DW-637_build_watch,DW-575/DW-1021_decision-pending_owner),to_x0:0,action_items:8_user_or_owner_owned,retro:none(gates.retrospective=skip) dispatch=first_dispatch_reopen
 2026-11-11T10:58:37Z	Epic 22	epic_context_compiled	reason=initial model=opus words=1714 note=context_flags_mcp_entry_write_owner(DW-1041_ruling:Story_21.4_moves_wallet+Config_Store_write_into_McpOps)
+2026-11-11T11:00:53Z	Epic 22	slot_loaded	server=ocutalon-slot-a build=154U bridge=62 ocutalon=900 compile=clean classes=962(non-generated,equals_disk) head=ec512800
+2026-11-11T11:00:53Z	Story 22.2	stage_spawned	stage=plan spawn_at=2026-11-11T11:00:53Z model=opus agent_name=22-2-classify-mcp-tools-by-server-and-name-plan-1 cycle_iteration=1 effort=high
