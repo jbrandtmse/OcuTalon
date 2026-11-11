@@ -1,7 +1,8 @@
 /**
- * The header navigation's links in their order (web/src/app/header/header-nav.ts), the one list that the specs which pin the navigation share.
- * A signed-in user has Chat, Documents, History and Usage; an admin also has Settings, after Chat. A spec that expects the links
- * reads them from here, and the admin list is the user list with Settings inserted, so a link added to the header changes one list.
+ * The header navigation's links in their order (web/src/app/header/header-nav.ts), the list that the specs which pin the whole link list share.
+ * A signed-in user has Chat, Documents, History and Usage; an admin also has Settings, after Chat. A spec that expects the whole list
+ * reads it from here, and the admin list is the user list with Settings inserted. Tests that reach each link by name (a Tab walk, a
+ * box-by-box order) name their links themselves.
  */
 
 /** The links of a signed-in user who is not an admin. */

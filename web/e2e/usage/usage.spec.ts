@@ -343,6 +343,7 @@ test('U8: below 1024px the regions stack, and the page does not scroll sideways 
     await expect(link, 'each link is shown at 305px').toBeVisible();
     const box = (await link.boundingBox())!;
     expect(box.x >= 0 && box.x + box.width <= 305.5, `${await link.textContent()} is inside the 305px window`).toBe(true);
+    expect(box.y >= 0 && box.y + box.height <= 700.5, `${await link.textContent()} is inside the window's height`).toBe(true);
   }
 
   await page.setViewportSize({ width: 1280, height: 720 });
