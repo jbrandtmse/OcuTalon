@@ -4,7 +4,7 @@
 
 ## Goal
 
-Make OcuTalon watch IRIS more deeply and act on incidents more usefully: approved fixes beyond repair and resend (suspend, resume, reroute, setting rollback), a written summary when an incident closes, partner delay notices sent only after approval, and (Could) background checks that report between digests. This compile serves a scope reopen for two stories, in this order: 23.7, which adds a queue-backlog background check so a stuck queue is reported between digests rather than waiting for the next digest; then 23.9, which gives a suspend OcuTalon made a governed way back after its incident has closed, so an item is never left disabled with no path to resume it. Stories 23.6, 23.2 and 23.5 are done and merged. Stories 23.3, 23.4 and 23.8 wait on Epic 36 and are out of scope.
+Make OcuTalon watch IRIS more deeply and act on incidents more usefully: approved fixes beyond repair and resend (suspend, resume, reroute), partner delay notices sent only after approval, a written summary when an incident closes, and (Could) background checks that report between digests. Stories 23.2, 23.5, 23.6 and 23.7 are done. This compile serves the next two, in order: 23.10, judge-visible polish from the Contest Planner's hands-on pass of release 1.0.7 on the live demo (right partner on the demo notice, a notice that matches a resolved incident, the summary's "Fix:" full stop, the rail after Reject); then 23.9, which gives a suspend OcuTalon made a governed way back after its incident has closed, so an item is never left disabled with no path to resume it. Stories 23.3, 23.4 and 23.8 wait on Epic 36 and are out of scope.
 
 ## Stories
 
@@ -13,115 +13,108 @@ Make OcuTalon watch IRIS more deeply and act on incidents more usefully: approve
 - Story 23.4: Paging and escalation (waits on Story 36.2)
 - Story 23.5: Partner delay notices sent only after approval (done)
 - Story 23.6: Incident summary when an incident closes (done)
-- Story 23.7: Watch queue backlogs between digests (in scope, first; Could)
+- Story 23.7: Watch queue backlogs between digests (done)
 - Story 23.8: Saved SQL query watch (waits on Story 36.2)
-- Story 23.9: Resume a suspended item after its incident closes (in scope, second)
+- Story 23.10: Partner notice and summary polish from the 1.0.7 demo pass (next)
+- Story 23.9: Resume a suspended item after its incident closes (after 23.10)
 
 ## Requirements & Constraints
 
-**Queue-backlog watch (23.7)**
-- Starting and stopping it are chat requests. Starting or stopping a background check the user asked for is a safe action: it needs no approval, and it goes through a tool that submits a command, never a direct table write.
-- The check is a row in the one background-check table, owned by the session. Like every check it shows its schedule, last run and last result in the background-check list. Asking to stop removes the row.
-- Each run reads every queue in each namespace whose data database the service user may read. On the online demo that is only the Orders production's queues.
-- A queue is above its threshold when it holds more than 100 messages, or when its oldest message has waited more than 10 minutes. Admins can change both values, and they are the same thresholds the digest's coverage uses.
-- Each queue above its threshold becomes one finding Item sent to `Intake`, where it gets one attention decision.
-- No finding is reported twice. A queue already reported is not reported again until it has fallen below the threshold and then risen above it again: one finding per crossing.
-- A run that fails, or that can't read a namespace, records "not checked" with the reason. It never records "passed", and it never feeds an all-clear.
-- The check changes nothing on the instance (read-only, and no data-changing SQL).
-- Tests live in `OcuTalon.Test.Checks`. Fill a test production's queue past its threshold and drain it twice: exactly one finding per crossing, each one with a decision.
+**Partner notice and summary polish (23.10)**. All four items are ruled; wording below is public or model-facing text and must be used exactly.
+1. **Wrong partner on the demo.** The guide's incident is the Orders feed, but the demo's one partner contact is named for Results, so the model wrote "Orders from Results Partner IT are delayed…". Rename the demo contact to `"Orders Partner IT" <it@orders-partner.example>`. The fixture already keys it to the Orders production. Update every test that pins the old name or address, and any README or EXPERIENCE line that names the recipient. Today neither names it: README's "Partner delay notices" bullet and EXPERIENCE's "Warn the partner" guide item say only "simulated contacts". Report the final README and EXPERIENCE lines in the PART READY report.
+   - **Do not rename** the other "Results Partner IT <it@results-partner.example>". That is the *sample incoming email* about a certificate change (`Channel.SimMailbox.In` `PARTNERFROM`/`PARTNERBODY`, the mailbox's `fromPrefill`, `eval/mail-partner-notice`, the EXPERIENCE sample-email table). It is a different fixture and correctly belongs to the Results partner.
+2. **Notice on a resolved incident.** The notice said "We are looking into a fix and will share updates." after the fix had already run. Two changes:
+   - the draft's facts gain the incident's state;
+   - the draft instruction gains this sentence, verbatim: "If the incident is resolved, say that the affected orders went through after the fix, and don't say that work is still going on or that updates will follow."
+   Add an eval or CI mock case that shows a resolved incident's draft without "looking into" or "will share updates". This is model-facing, so it goes on the Planner's next RC-eval checklist.
+3. **Summary "Fix:" line.** It lacks its final full stop ("…after you approve"). Add the full stop and update the pin that holds the old text.
+4. **Rail after Reject (LOW).** After Reject, the status rail's Approval requests briefly still listed the rejected request. Fix it in 23.10 if the cause is a one-line refresh; otherwise file the gap in the ledger with its cause.
 
 **Resume after close (23.9)**
-- Applies to an item that OcuTalon suspended through an executed `suspend_item` request of an incident the user can see, after that incident has closed.
+- It applies to an item that OcuTalon suspended through an executed `suspend_item` request of an incident the user can see, after that incident has closed.
 - The spec must choose between two options, and the Contest Planner leans to (b):
-  - (a) a resume request raised on the closed incident that never moves the incident's state;
+  - (a) a resume raised on the closed incident, which never moves the incident's state;
   - (b) an incident with an active suspend stays open until a resume or Dismiss.
-- Either way, the user gets exactly one approval request with its own dry run, the item is re-checked before the resume runs, and nothing changes until the request is approved.
-- A second session, or a user outside the incident's ownership scope, cannot resume the item.
-- Background (DW-1068, owned by 23.9):
-  - `propose_fix` resolves only `open` and `resolved` incidents (`WatchTools` `FIXABLE`), so after close it answers `no_incident`.
-  - `Fix.Run.Suspended` ignores incident state, so `Checks` keeps treating the item as "ours" and never reports it as disabled.
-  - The ruled `result.itemSuspended` text limits the undo to while the incident is open and points to the Management Portal after it closes. Any change to that text, the README sentence, or the `Agent/Chat.cls` resume line is public text and needs a ruled wording.
-- On the online demo, suspend and resume are refused for every item (`ONLINESHARED`), because every visitor shares the Orders production. Only reroute is offered there.
+- Either way:
+  - exactly one approval request with its own dry run is raised;
+  - the item is re-checked before the resume runs;
+  - nothing changes until approval;
+  - a second session, or a user outside the incident's ownership scope, cannot resume it.
+- Background (DW-1068): `propose_fix` resolves only `open` and `resolved` incidents (`WatchTools` `FIXABLE`; partner warnings use `WARNABLE`), so after close it answers `no_incident`. `Fix.Run.Suspended` ignores incident state.
+- The ruled `result.itemSuspended` text limits the undo to "while this incident is open" and points to the Management Portal after the incident closes. Any change to that text, the README sentence or the `Agent/Chat.cls` resume line is public text and needs a ruled wording.
+- On the online demo, suspend and resume are refused for every item (`ONLINESHARED`) because every visitor shares the Orders production. Only reroute is offered there.
 
-**Rules for every story in the epic**
-- No risky action runs without an approved request. Resume is risky.
+**Rules for every story**
+- No risky action runs without an approved request, and resume is risky.
 - A rejected or expired request changes nothing, and the user is told.
-- Requests expire after 24 hours.
-- The first answer from any channel wins.
+- Requests expire after 24 hours. The first answer from any channel wins.
 
 ## Technical Decisions
 
-**Every command is a production message.**
-- State changes enter through `CommandsIn` via `Commands.Submit`, which sets the origin. Origin `tool` is accepted only for listed verbs, and "start or stop a watch" is one of them.
-- A tool's command carries an `IdempotencyKey`, and its owner ignores a repeat.
-- `WatchOps` (`OcuTalon.Watch.Ops`) is the one creator of `BackgroundCheck` rows. It sends `Checks.Msg.CheckChanged` after a start or stop. `Checks` is the only writer of the run fields and the only publisher of the `check` live event. Lane A owns `BackgroundCheck`.
+**Partner-warning design (Story 23.5).** `partner_warning` is a fix kind (`Fix.Kind.PartnerWarning`) with these traits:
+- It is asked for in the chat only and never named by a diagnosis: `ASKED` 1, `DIAGNOSED` 0.
+- Its text is model-drafted (`DRAFTED` 1), it needs no IRIS resources, and its targets are contact ids (`TARGETTYPE` contact).
+- It never moves the incident's state (`MOVES` 0). Raising, approving, rejecting or expiring the request changes no state and is not a fact of the transition table.
+- It is answered in every state but `closed`.
 
-**Namespaces and reads.**
-- Only `OcuTalon.Watch.Reader` reads other namespaces (headers, event log, settings, queues, vital signs), in one `New $NAMESPACE` method.
-- It reads a namespace only if the service user holds read access on that namespace's data database.
-- Pointer: `Watch.Reader.Failures(...)` already returns `queues`, one `{name, count, oldestAt}` per item with Status-2 (Queued) messages. It returns `""` instead of an array when the queues could not be read, so a caller never mistakes an unread queue for an empty one.
-- Only `Fix.Executor` switches namespace to change an item, through `Ens.Director.EnableConfigItem`.
+Code pointers:
+- **Contacts:** `Fix.PartnerContacts`, a read-only fixture in code (XData `Contacts`, a JSON array of `{id, production, name, address}`).
+  - It has no table, no global and no setting, and it works in demo mode only: `For` returns `[]` with demo mode off, so an own install drafts nothing.
+  - The one contact is id 1, keyed to `OcuTalon.Demo.Orders.Production`. Addresses must stay example-domain and fictional.
+- **Drafting:**
+  - `IncidentManager.AskedDraft` checks for refusals first: `NOITEM`, `NOCONTACTS`, `ALLOWANCE`, and `already_asked` (a request of the kind already waiting).
+  - `StartDraft` then self-sends an async `Watch.Msg.Draft`, and a `Decide` turn runs with completion key `DRAFTKEY`. The turn is untrusted, fresh and owned by the asking session. Its input is `PartnerWarning.Facts(incident)` and its instruction is the kind's `SystemNote`.
+  - `Drafted` normalises the reply to one line (at most `NOTICEMAX`), gets the dry run and raises one request.
+  - A failure tells the user `result.partnerNotDrafted`.
+- **Facts:** partner names, production, failed items, count with noun, first and last failure, and the plain cause. Never a message body, sample error, setting value or evidence. 23.10 adds the state line here; 23.10's instruction sentence goes into `SystemNote`.
+- **Dry run:** keys `notice`, `recipients: [{name, address}]` and `simulated: 1`. `Recheck`/`Execute` re-read each target against the fixture and skip a contact that changed. `Ready` is 0 with `NOTSETUP` when demo mode is off, so an approved notice is kept as an approved draft with a plain line and never dropped silently.
+- **Delivery:** `Fix.Executor.Deliver` sends one `Fix.Msg.PartnerNotice` per recipient session to `SimMailboxOut`, with the row's approved text byte for byte. It never goes through `EmailOut`; real email is a parked Epic 21 follow-up. No public text may say or imply that a real email was sent.
+- **Tests and mocks:** `Test.Fix.PartnerWarning`, `Test.Fix.PartnerDraft` (the IncidentManager probe; draft request and Facts exclusion) and `Test.Fix.PartnerTurns`, among others. Mock scenarios are `ci/mock/scenarios/B/partner-notice-draft.json` and `partner-warning-ask.json`, and `A/partner-warning*.json`. Web: `web/scripts/approval-view.test.mjs`, `web/e2e/cards/approval-card.spec.ts`. Grep `results-partner` to find every pin, then leave out the sample-email ones listed above.
 
-**Background checks (`Checks`).**
-- `OcuTalon.Data.BackgroundCheck` is the one table for all checks. Each row has a `Kind`. Readers that filter on `Kind` `production` must keep working when a new kind is added.
-- On each one-minute heartbeat `Tick`, `Checks` runs every due check once, even if it missed several runs. Each run records its last run, result and trace header id. Each run also INSERTs one `Digest.Data.CheckRun` row, which feeds the digest's coverage.
-- Only new findings become Items.
-- Pointer: production-watch findings already follow this pattern in `Checks.Process`. Each finding is an `OcuTalon.Msg.Item` with:
-  - channel `system` and provenance `untrusted`;
-  - the row's `SessionRef` as owner;
-  - a catalog key and slots, because producers never render text;
-  - its own trace session, with the session's `TraceRef` as `SuperSession`.
-- Pointer: the crossing memory for production watches lives in `BackgroundCheck.Reported` (JSON).
-- The spine names no queue-backlog row type yet; Story 36.1 was meant to add it. 23.7 must add it to the spine's background-check rule in the same change, as Story 35.1 did for source polls (columns appended, one creator class).
+**Incident summary (Story 23.6).**
+- On every move into `closed`, `IncidentManager` composes the summary in code (`Watch.Summary`) with no model call. It stores the summary on the row in the same save and sends one `summary` notification.
+- Lines are `Msg.Catalog.Watch` keys `summary.*`, among them `title`, the timeline keys (`requested*`, `approved(By)`, `rejected(By)`, `expired`, `fixStarted/Ended/Interrupted`, `closed*`), `cause`, `element`, `noCause`, `evidence`, `sampleError`, `fix`, `noFixRan`, `groups`, `messages`, `cost`/`costUnknown`, `item*`, and `partnerSent/Kept/NotSent`.
+- `summary.fix` is `"Fix: {fix}"`, with a `sentence` slot filled from `incident.FixSummary`. The catalog skips a following period only when the value ends in "?", "!" or "…", so check how a fix summary that already ends in "." renders.
+- Pins live in `Test.Msg.Catalog` (the `summary.fix` fixture) and `Test.Watch.Summary`.
+- A partner-notice run is not a fix: it adds no `summary.fix` line and does not remove `noFixRan`.
 
-**Thresholds.**
-- The digest's install step seeds `checks.thresholds.*` in `OcuTalon.Data.Setting`. Checks read them through `Data.Setting.Get` on every run, so an admin's change takes effect after the 60-second cache expires.
-- Pointer: `OcuTalon.Checks.Coverage` already carries `queueMessages=100` and `queueWaitMinutes=10` (`THRESHOLDS`) and the finding text "{count} messages queued". The digest's per-production entry already includes queue backlog over threshold. 23.7 should reuse these and must not fork them.
+**Status rail approvals.**
+- `web/src/app/rail/rail-view.ts` `railView` lists the store's *pending* approvals. The store keeps every request, and the view filters it.
+- `live-store.ts` applies each `approval` live event by `ref`.
+- `approvals/answer-press.ts` handles the web press.
+- When looking for the cause of the lag after Reject, start from where the rejected state reaches the store: the live event or the answer response.
 
-**The all-clear comes only from code.**
-- Check results are passed, failed with the finding, or not checked with the reason, and they come only from `OcuTalon.Checks`.
-- `Checks.Render` and `Coverage.Build` alone decide an all-clear. Each background check of the session is an entry in the coverage list.
-- An entry counts as checked only if it ran successfully throughout the window.
+**Incidents and fixes (AD-15, AD-16) for 23.9.**
+- `IncidentManager` is the only writer of `Incident` and `FailureGroup` rows and the only publisher of `incident` events. Others reach it through `IncidentCommand`, `ApprovalOutcome`, `FixResult` or `ProposeFix`.
+- Every state move goes through one transition table (`Watch.Transitions`). Its unit test covers every row and every refused move. Today "anything on a closed incident" is refused, and `resolved` goes to `closed` on `closeQuiet`, `dismiss` or `closeForReplay`.
+  - Option (b) changes the close rows: `Checks`' 15-minute `closeQuiet` and replay for an incident with an active suspend.
+  - Option (a) is a closed-incident request, using the `MOVES` 0 precedent of the partner warning.
+  - Either is a ruled change to the table, its test and the spine's AD-15 text, in the same change.
+- A chat-asked fix arrives as `ProposeFix`. `IncidentManager` runs one synchronous dry run, then `Approval.Raise`.
+- Fix kinds sit under `Fix.Kind` with `DryRun`, `Recheck`, `Execute`, a parameter schema and `RESOURCES`. The item kinds need `%Ens_ConfigItemRun:U`, and their dry-run keys are `item`, `before` and `after`.
+- `FixExecutor` runs only from an approved, unexpired row that is not already executing (set atomically). It re-checks each target and skips and reports one that changed. It switches namespace only in its one method and calls `Ens.Director.EnableConfigItem`.
+- Every action is audited through `Bridge.Audit`. Undoing a suspend raises exactly one `resume_item` request (the `already_asked` rule).
+- A suspend OcuTalon made is attributed to its fix and never reported as a new state change: `Checks.Process.Findings` uses `Fix.Run.Suspended(namespace, production, since, .fresh)`.
+- Item result keys come from `Watch.Notice.ResultKey`. The summary's item lines are `summary.itemSuspended/Resumed/NotChanged`.
 
-**Incidents.**
-- `IncidentManager` is the only writer of `Incident` and `FailureGroup` rows and the only publisher of `incident` events. Other code reaches it through `IncidentCommand`, `ApprovalOutcome`, `FixResult` or `ProposeFix`.
-- Every state move goes through the one transition table. Anything on a closed incident is refused today, so option (b) or a closed-incident request in option (a) is a ruled change to that table and its unit test.
-- A partner-warning request already shows the precedent of a request that never moves state (its kind has `MOVES` 0).
-- On every move into `closed`, the incident summary is composed and stored.
-- A failure of a copy that a fix registered is attributed to that fix, never to a failure group. A suspend that OcuTalon made never shows up as a new state change.
-
-**Fixes.**
-- Fixes come from a fixed set of kinds under `OcuTalon.Fix.Kind`: `DryRun`, `Recheck`, `Execute`, a parameter schema and declared `RESOURCES` (`%Ens_ConfigItemRun:U` for the item kinds).
-- The dry run is stored on the `ApprovalRequest` row. Item kinds use the keys `item`, `before` and `after`.
-- `FixExecutor` runs only from an approved row that has not expired and is not already executing. It re-checks the target and skips it, with a report, if it changed.
-- Each action is audited through `Bridge.Audit`, the only writer to the audit log.
-- Undoing a suspend raises exactly one `resume_item` request (the `already_asked` rule).
-- Pointers: `Fix.Run.Suspended(namespace, production, since, .fresh)` and `Watch.Notice.ResultKey` (the item result keys).
-
-**Ownership and retention.**
-- A session sees only its own incidents. On the online demo only the Orders production can be watched.
+**Background checks (AD-18), as Story 23.7 left them.**
+- A queue-backlog row (`Kind` `queues`, one per session) is created and removed by `WatchOps`. On each `Tick`, `Checks` reads it through `Watch.Reader` only, applies `Checks.Queues.Over` against `checks.thresholds.*`, and sends one `watch.queueBacklog` finding per crossing (at most once an hour per queue). An unreadable namespace makes the run `not_checked`.
 - A new item, table, row type or event type goes into the spine's ownership tables in the same change.
-- Rows are purged through the standard purge task.
 
 ## UX & Interaction Patterns
 
-**Background-check row.** One row per check in the status rail's "Background checks (n)" section: the check's name, its schedule, last run, last result, and a trace link to the latest run. The rows are read-only, with a stop hint ("To stop, ask: …"). While the heartbeat is stalled, the row reads "Last run {time} (late)". A queue-backlog check gets a row like every other check.
-
-**Findings and decisions.**
-- A finding Item gets one attention decision: ignore, digest, tell now or act. Tell now goes to the web chat, the simulated phone in demo mode, and the paired chat.
-- Items that the user didn't send can on their own lead only to read-only checks, notifying the user, or saving for the digest.
-- The newest decisions appear as decision rows with their reasons, cost and a trace link.
-- Digest coverage wording follows the existing "Failed: {entry} ({finding}, at {time})" and "Not checked: {entry} (…)" lines. Only code ever says that everything passed, and the reserved all-clear sentences are never model-written.
-
-**Approvals with dry runs.**
-- Suspend, resume and reroute use the approval request card with their own dry run. For item kinds, the dry run shows the item and its state before and after, and ends "Nothing has changed yet." while pending.
-- The card carries the fixed-targets line, the expiry, Approve and Reject (one press each), and its answered status, for example "Approved from {channel} at {time}" or "Rejected … Nothing was changed."
-- Each approved request card in the incident card carries its own result band, followed by "Recorded in the IRIS audit log."
-- A closed incident card is compacted to its headline and each request's result. If 23.9 chooses option (a), a resume raised on a closed incident has to fit this compact card. If it chooses option (b), the incident stays open and shows Dismiss.
+- **Partner request card:** an extra approval request in the incident card. It shows the exact text and every recipient; on the demo the recipients are simulated contacts and the notice goes to the Simulated mailbox. Its rail title is the partner-warning title from `rail-view.ts` `approvalTitle`. The guide's "Warn the partner" item needs an incident that isn't closed.
+- **Answered states:** "Approved from {channel} at {time}" and "Rejected from {channel} at {time}. Nothing was changed." The first answer wins. Within 5 seconds every copy (the chat card, the rail row, the phone, Telegram) shows the answer or leaves its list, which is the bar 23.10 item 4 measures against. An empty rail section reads "None waiting."
+- **Summary:** it arrives in the chat, on the Simulated phone and in the paired chat. "Show me the incident summary" gets it again, and the guide's "Read the incident summary" item closes the resolved incident.
+- **Closed incident card:** compacted to its headline and each request's result. Under option (a), a resume raised on a closed incident must fit this compact card. Under option (b), the incident stays open and shows Dismiss.
+- **Suspend, resume and reroute:** each uses the approval request card with its own dry run (item state before and after), ending "Nothing has changed yet." while pending. Each approved request gets a result band, followed by "Recorded in the IRIS audit log."
 
 ## Cross-Story Dependencies
 
-- 23.7 needs Epic 17's `checks.thresholds.*` keys (Epic 17 is done) and the admin Check thresholds section from Story 33.2. It does not wait on Epic 36, but it has to write the queue-backlog row type into the spine itself.
-- At spec time, judge how much of 23.7 overlaps the queue reads already delivered in `Watch.Reader` and `Checks.Coverage`.
-- 23.9 builds on 23.2's kinds, `propose_fix`, `Fix.Run.Suspended`, the attribution of OcuTalon's suspends in `Checks.Process.Findings`, and the ruled `result.itemSuspended` text. It also touches 23.6's summary, which is composed on every move into `closed`. The choice between (a) and (b) goes to the Contest Planner at the spec stage.
-- 23.3 waits on Story 36.1. 23.4 and 23.8 wait on Story 36.2.
+- 23.10 runs first (ruling: straight after 23.7, before 23.9) in this worktree. It touches 23.5's fixture, draft and tests, 23.6's `summary.fix` catalog entry and pins, and the web rail.
+- 23.9 builds on:
+  - 23.2's kinds, `propose_fix`, `Fix.Run.Suspended`, the attribution in `Checks.Process.Findings` and the ruled `result.itemSuspended` text;
+  - 23.6's summary, composed on every move into `closed` (option (b) delays that move);
+  - 23.7's `Checks` tick, which also sends `closeQuiet`.
+- The (a)/(b) choice goes to the Contest Planner at the spec stage.
+- 23.3 waits on Story 36.1. 23.4 and 23.8 wait on Story 36.2. 24.2's partner-contact table will later replace the 23.5 fixture.
