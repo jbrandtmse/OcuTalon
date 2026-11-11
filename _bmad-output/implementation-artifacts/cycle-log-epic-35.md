@@ -121,3 +121,4 @@
 2026-11-11T10:53:40Z	Epic 35	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_U8;in_sync;validate_ok;warning=35.3_demo_behaviour_to_spec_gate
 2026-11-11T10:55:17Z	Epic 35	slot_loaded	server=ocutalon-slot-b ns=OCUTALON head=faa4c506 bridge=62 ocutalon=900 preload=1 compiled=clean(ck-d,CompilePackage_OcuTalon) server_classes=963 files=963 stale=0 identity=container_e1eb699cd4fc
 2026-11-11T10:55:20Z	Epic 35	stage_spawned	stage=epic-context spawn_at=2026-11-11T10:55:20Z model=opus effort=high agent_name=35-context-3 reason=planning_artifact_newer(feature_merge;35.3_un-park_marker)
+2026-11-11T10:57:31Z	Epic 35	epic_context_compiled	spawn_at=2026-11-11T10:55:20Z sha=pending_commit reason=planning_artifact_newer model=opus lines=77
