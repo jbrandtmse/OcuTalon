@@ -6884,3 +6884,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: in-story
 - evidence: The page shows nothing new for a second failure; the press waits only for the route fulfil. Observed in order in the no-retract mutation run (H15 red, 2 announcements), not guaranteed.
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=give H15 an observed precondition (a page-side marker of the refused read) and a mutation line
+
+### DW-1124: Ending a session does not stop its queue-backlog row: Core/SessionOps.EndWatches skips non-production kinds, so the check keeps running for the ended session and Data.Purge.Keeps keeps the session
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-epic(Core/SessionOps.cls,not_contended)
+- evidence: SessionOps.cls:332-345 EndWatches skips Kind<>production and builds StopWatch without Kind; WatchOps.OnStop handles Kind queues
+- 2026-11-11T12:25:12Z status=open owner=23-7-watch-queue-backlogs-between-digests by=harvest note=fix now at 23.7 code review: accept QUEUEKIND in EndWatches, set stop.Kind=check.Kind, plus a Test.Core session-end case; footprint extension (no in-flight epic owns SessionOps.cls)
