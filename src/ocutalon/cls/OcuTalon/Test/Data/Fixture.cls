@@ -288,6 +288,18 @@ ClassMethod Pairing(sessionRef As %String, displayName As %String = "Zz chat") A
 	Quit ..Keep(row)
 }
 
+/// A webhook of the session (Data.Webhook) with the name, whose secret is the given one (a fixed test secret by default). Returns its Ref.
+ClassMethod Webhook(sessionRef As %String, name As %String, secret As %String = "zz-fixture-secret-0123456789") As %String
+{
+	Set row = ##class(OcuTalon.Data.Webhook).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Name = name
+	Set row.SessionRef = sessionRef
+	Set row.SecretHash = ##class(OcuTalon.Data.Webhook).HashSecret(secret)
+	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Quit ..Keep(row)
+}
+
 /// A document of the owner (a session's Ref, or instance); the state defaults to indexing, the type to markdown, the size to the length of the
 /// name and AddedAt to now. fields, an object of property names and values, is set after the defaults.
 ClassMethod Document(ownerRef As %String, name As %String, fields As %DynamicObject = "") As %String

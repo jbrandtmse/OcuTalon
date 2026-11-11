@@ -8,7 +8,7 @@ Include %cspBuild
 ///   - Sessions: a Session row goes only when it was created before the cutoff, has no Turn, Delivery or Decision at or after the cutoff, holds no
 ///     memory and no document, and is not current: never by age alone. Current means any one of: a live CSP session holding its Ref (signed in,
 ///     OcuTalon.Data.Ownership SESSIONKEY), a Telegram pairing, an approval request that is pending, approved or executing, a background check (a watch),
-///     or a pending reminder. The checks run again for each session right before it is deleted;
+///     a webhook that it owns (Data.Webhook; a webhook has no removal, so its session is kept for good), or a pending reminder. The checks run again for each session right before it is deleted;
 ///   - With a session go its GuideState, SimMessage, BreakFeedRun and finished (fired or cancelled) Reminder rows, and its conversation links
 ///     (OcuTalon.Bridge.Purge.DropLinks), so that the bridge's purge frees the AI sessions they named. When one of these deletes fails, the Session row
 ///     stays and a later run retries it. Memories and documents are never deleted by this class: a session that holds one is kept.
@@ -127,6 +127,7 @@ ClassMethod Keeps(ref As %String, cutoff As %String, store As %String, Output ch
 	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Data.Memory WHERE SessionRef = ?", .check, ref) Quit 1
 	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Data.Document WHERE OwnerRef = ?", .check, ref) Quit 1
 	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Data.Pairing WHERE SessionRef = ?", .check, ref) Quit 1
+	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Data.Webhook WHERE SessionRef = ?", .check, ref) Quit 1
 	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ? AND State IN ('pending', 'approved', 'executing')", .check, ref) Quit 1
 	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?", .check, ref) Quit 1
 	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Data.Reminder WHERE SessionRef = ? AND State = 'pending'", .check, ref) Quit 1

@@ -8,20 +8,21 @@ import { README_URL } from '../links';
 import { RAIL_TEXTS, readmeSection, TELEGRAM_ANCHOR } from '../rail/rail-view';
 import { TELEGRAM_CARD_TEXTS, telegramCardView } from '../rail/telegram-card/telegram-card-view';
 import { channelsView, SETTINGS_TEXTS } from './settings-view';
+import { WebhooksSection } from './webhooks-section';
 
 /**
  * The Channels section (Story 18.2; FR-21, FR-22): the state of Telegram, read from the snapshot's Telegram block and the live status conditions that the
- * status rail's card reads (telegramCardView), and nothing else. It has no form, no Save button and no field for the bot token, which this page never shows
+ * status rail's card reads (telegramCardView). Its Telegram part has no form, no Save button and no field for the bot token, which this page never shows
  * or asks for:
  *   - not set up (the bot is off or was rejected): "Telegram not set up" and the link "How to set it up" to the README's Telegram section, in a new tab;
  *   - paused: "Telegram paused" and "Trying again at {time}", the time in the browser's zone;
  *   - otherwise (on): "Telegram on";
  *   - a release that does not include Telegram: no Telegram block.
- * The state follows the live updates, as the rail's card does.
+ * The state follows the live updates, as the rail's card does. The Webhooks group (Story 35.3) follows it: app-webhooks-section.
  */
 @Component({
   selector: 'app-channels-section',
-  imports: [Icon],
+  imports: [Icon, WebhooksSection],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @switch (view().kind) {
@@ -45,6 +46,7 @@ import { channelsView, SETTINGS_TEXTS } from './settings-view';
         </div>
       }
     }
+    <app-webhooks-section />
   `,
   styles: `
     :host {

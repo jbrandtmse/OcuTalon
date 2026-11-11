@@ -2,14 +2,57 @@
 title: 'Story 35.3: Send events to OcuTalon through a webhook'
 type: 'feature'
 created: '2026-11-11'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0fbbd3d3fdbb9334368d4dbd4e67c24da7aa3f32'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-35-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The Settings audit entry of a secret replacement shows [redacted] for from and to, where the spec says empty strings.
+    evidence: |-
+      Bridge.Audit.Record blanks from and to of a Settings entry whose setting Redact.SensitiveKey flags, and the setting webhook.<Ref>.secret ends in secret. The entry names the Ref and carries neither the secret nor the hash, which is the point; only the placeholder text differs from C3's wording.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:SetWebhookSecret
+    severity: low
+  - summary: >-
+      R6's W8 wording expects 404 with no body for a literal dot-segment path, which the web server resolves before it chooses an application.
+    evidence: |-
+      Measured on the stack: /ocutalon/hook/../api/v1/state and /ocutalon/hook/%2e%2e/api/v1/state reach the API as /ocutalon/api/v1/state (401 signed_out), and an encoded slash gets the web server's stock 404 page. The safety property holds (nothing reaches the hook, nothing is a 2xx); W8 asserts the measured answers. Needs the Planner's view only if the stricter wording must hold.
+    location: >-
+      web/e2e/api/webhooks.spec.ts:W8
+    severity: low
+  - summary: >-
+      A failed load of the webhook list shows the create form and an empty list, so an admin cannot tell that existing webhooks failed to load.
+    evidence: |-
+      webhooks-section.ts stateOf returns ready for any error other than 403 and 409. A load-failure state needs a text that has not been accepted (the existing failed text says Couldn't save), so it is not shipped here.
+    location: >-
+      web/src/app/settings/webhooks-section.ts:stateOf
+    severity: low
+  - summary: >-
+      Install.Step.Web.Run deletes a stale /ocutalon/hook application on the online demo, and no test runs Run with the flag set and a stand-in application present.
+    evidence: |-
+      Test.Web.Install.TestRemoveHook calls RemoveHook on a fixture application; the call from Run is unpinned. A fresh online-demo stack never had the application, so live online-demo row 11 does not reach it.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Install/Step/Web.cls:Run
+    severity: low
+  - summary: >-
+      A local install switched to the online demo keeps a stale OcuTalonWebhook role (no application, no user holds it).
+    evidence: |-
+      Step.Web declares the role off the demo only, and the Roles step (Lane A, Epic 22) creates roles but this story does not remove one. The role grants only the three database permissions and no user holds it.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Install/Step/Web.cls:GrantsFor
+    severity: low (unverified)
+  - summary: >-
+      The 503 answer with the real Hand (production not running) is not exercised at the live surface; only the probe's Hand override and a throwing override are.
+    evidence: |-
+      Test.Web.Hook drives the 503 and the throw through Test.Web.HookProbe; W2 covers the real Hand on the success path only.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Web/Hook.cls:Hand
+    severity: low
 ---
 
 <intent-contract>
@@ -190,6 +233,56 @@ deferred: []
 - 2026-11-11 (lead, spec gate): L2 applied as a Rule 5 tier-1 amendment (epics.md:9404, `[AMENDED 2026-11-11, Story 35.3 spec gate ...]`). SECURITY 1-13, STORED DATA, ONLINE DEMO, PUBLIC TEXT T1-T9, L3 and spine amendments S1/S3/S4 sent to the Contest Planner through the orchestrator; L1 (Lane A SecurityOverview heading and pin, contended with Epic 22) sent to the orchestrator as a cross-epic item. Implement waits for the rulings, which the lead records here and in Design Notes.
 
 ## Review Triage Log
+
+### 2026-11-11 -- Review pass
+- verdicts: 46 findings -- high 0, medium 8, low 33, false 5, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` (Blind) A 503 leaves the hour's accepted count raised (Blind, Edge, Intent) -- verified in Receive: Accept runs before Hand and nothing gives it back; fixed with Data.Webhook Unaccept on the 503 path, pinned by TestUnavailable
+  - `[low]` `[reject]` (Blind) SetWebhookSecret writes its audit entry before the save and never undoes it -- audit-first is the sibling Settings behaviour (CreateWebhook undoes only because a name collision is a reachable save failure); wontfix-accepted, reopen_if a Webhook %Save is seen failing after the audit write
+  - `[low]` `[reject]` (Blind) test-online-demo POST check passes for any status but 202 -- the "exactly five applications" and "role does not exist" checks right above pin the absence; a stricter status needs a live measurement; wontfix-accepted, reopen_if a hook application ever reaches a demo stack
+  - `[low]` `[defer]` (Blind) A failed webhook list load shows an empty ready state -- real, but a load-failure text is not accepted; deferred (frontmatter)
+  - `[low]` `[reject]` (Blind) Saved message says "Applies within a minute" and rotation has no warning -- the message is 35.2's accepted text (a bound the immediate effect satisfies) and a warning would be new public text; by-design
+  - `[low]` `[reject]` (Blind) A webhook can be neither removed nor disabled and keeps its session from purge -- a delete route is in the spec's Never list and the purge keep was approved at the gate; by-design
+  - `[low]` `[reject]` (Blind) Wrong secrets are audited but not throttled, and secret strength is only 16-256 printable characters -- the rules are the spec's (and a stronger rule is a security-posture change); by-design
+  - `[low]` `[reject]` (Blind) SecretHandoff can leak a resource if the REST process is killed between Put and Discard -- Discard runs on every reachable path (now pinned for failure and throw); shared memory is freed at restart; wontfix-theoretical
+  - `[low]` `[reject]` (Blind) The 64 KB cap is judged after CSP buffered the body -- Task 0(b) measured the size before any read and the spec rules "by the size alone"; by-design
+  - `[low]` `[reject]` (Blind) Name text is wrong for a control character -- webhookBadName is 35.2's accepted key; by-design
+  - `[low]` `[reject]` (Blind) security-overview.md has no note that the hook exists on a local install only -- a hand-written line is new public text and the table is generated under L1; wontfix-accepted
+  - `[medium]` `[patch]` (Edge) The SuperSession response header set by WebhookIn's hand-over in the CSP process shows the owner's TraceRef on the 202 -- confirmed in Ens.BusinessService (SetHeader when %OutsideCreated); the header is now deleted from every answer, pinned by TestNoProductionHeader and W2
+  - `[medium]` `[patch]` (Edge) An exception thrown by CreateBusinessService or ProcessInput escapes Receive: 500, nothing logged, count raised -- real (Hand had no Try); Try/Catch added, answers 503 with the count given back, pinned by TestUnavailable
+  - `[medium]` `[patch]` (Edge) Accept before Hand (same root cause as the 503 count) -- fixed with the first row
+  - `[low]` `[reject]` (Edge) SetWebhookSecret audit without compensation (same as the Blind finding) -- wontfix-accepted as above
+  - `[low]` `[reject]` (Edge) Rejection counts are lost when the audit write fails after Flush marked the slot written -- the failure is logged and only counts of an already failing audit log are lost; wontfix-accepted, reopen_if audit failures are seen
+  - `[low]` `[reject]` (Edge) Lock +slot:2 can block a CSP job for 2 s on the "?" slot -- the critical section is a few global operations; a 2 s wait needs a stuck holder; wontfix-theoretical
+  - `[low]` `[reject]` (Edge) BodySize counts characters for a chunked character stream -- a declared CONTENT_LENGTH is bytes and wins; only a chunked multibyte body can be up to four times the cap in memory, and nothing is stored; wontfix-accepted, reopen_if a chunked client is supported
+  - `[low]` `[reject]` (Edge) Invalid UTF-8 decodes leniently and can parse as JSON -- the body is untrusted text by contract and the JSON parse decides; wontfix-theoretical
+  - `[false]` `[reject]` (Edge) Timing of a known versus an unknown Ref -- RefIndexExists is behind && after Matches, so it runs only for a right secret; every refusal does the same work
+  - `[low]` `[defer]` (Edge) Failed list load shown as empty (same as the Blind finding) -- deferred with it
+  - `[low]` `[reject]` (Edge) Security overview labels any AutheEnabled other than 64 as password -- Step.Web.Definitions sets only 32 or 64 for the applications it lists; wontfix-theoretical
+  - `[low]` `[defer]` (Edge) A local install switched to the online demo keeps a stale OcuTalonWebhook role -- the role is the Lane A Roles step's; deferred (frontmatter)
+  - `[low]` `[reject]` (Edge) Hand's exception path (same as the exception row above) -- fixed with it
+  - `[medium]` `[patch]` (Verification gap) Hand's Discard has no failing-path test -- verified (TestSecretNeverStored only runs successes); Web.HookSettings.Submit seam added and TestHandoffDiscardedOnFailure pins create and rotate with a failing and a throwing submit
+  - `[medium]` `[patch]` (Verification gap) SettingsOps webhook guards (audit first, owner check, online demo, no secret) were tested only through the REST route -- Test.Core.SettingsWebhooks added with a mutation each
+  - `[medium]` `[patch]` (Verification gap) The daily purge wiring of PurgeCounters is unpinned -- Test.Web.Install TestPurgeWebhookCounters added
+  - `[low]` `[defer]` (Verification gap) Install.Step.Web.Run removing a stale hook application on the demo is unpinned -- deferred (frontmatter)
+  - `[low]` `[reject]` (Verification gap) test-online-demo POST check cannot fail alone -- same as the Blind finding
+  - `[low]` `[reject]` (Verification gap) TestMatchesHasNoEarlyExit and TestObjectAccess read source text -- the spec asks for both and the early-exit mutation turns the first red; false
+  - `[low]` `[patch]` (Verification gap) TestFailuresAreAlike claims an expired wait it never builds -- header and an unused variable corrected
+  - `[low]` `[patch]` (Verification gap) TestAccept header says no audit entry is written but asserts the rejection counter only -- header corrected
+  - `[medium]` `[patch]` (Verification gap) TestFlushAndPurge asserts Flush returns 0 for every slot -- it failed in this pass on a leftover pending slot of another test; now it asserts only its own slots; TestPurgeWebhookCounters cleans up on every path
+  - `[low]` `[patch]` (Verification gap) W3 429 check can straddle an hour boundary -- the next hour is set to the limit too
+  - `[low]` `[reject]` (Verification gap) Clauses without a mutation of their own (413/400/429 statuses, 403 gate, application properties, More to try link) -- Rule 19 asks one mutation per AC pinning test and each of AC1-AC11 has one; wontfix-accepted
+  - `[low]` `[patch]` (Verification gap) Test.Core.SecretHandoff is not in the (loop) list and has no mutation line -- added to the loop list; Discard mutation recorded
+  - `[low]` `[defer]` (Intent alignment) The 503 path with the real Hand is not run at the live surface -- deferred (frontmatter); the probe and throw paths are pinned
+  - `[low]` `[reject]` (Intent alignment) The rejection audit entry is not asserted over HTTP -- Measured (d) recorded a real call and TestRejectionAudit uses the real Audit.Record; wontfix-accepted, reopen_if the audit writer changes
+  - `[low]` `[reject]` (Intent alignment) No automated scan of the console log and all globals for the secret -- W9 scans the automated surfaces and the 60-million-node scan is recorded under Measured (c); a per-run scan of every global is not feasible; wontfix-accepted
+  - `[false]` `[reject]` (Intent alignment) Settings routes tested with stand-in objects -- W1 and WS1-WS3 run the routes over a real signed-in session as the README admin and the LIVE user
+  - `[false]` `[reject]` (Intent alignment) The More to try item's absence on the demo is a unit and view test, not a demo-stack browser run -- Demo.Features, the view tests and live online-demo row 11 cover it; no behaviour differs
+  - `[low]` `[defer]` (Intent alignment) C3 shows [redacted] for from and to where the spec says empty -- already in the deferred list
+  - `[low]` `[defer]` (Intent alignment) W8 literal dot-segment answers differ from the R6 wording -- already in the deferred list
+  - `[false]` `[reject]` (Intent alignment) Test/Install/SecurityOverview.cls is a Lane A file -- the R5 one-time exception names exactly this file
+  - `[false]` `[reject]` (Intent alignment) Additions beyond the named list (Channel.Webhook.Event, Web.Public.HookBase, Core.SecretHandoff) -- Design Notes name them as footprint extensions and the shared handoff
+  - `[low]` `[reject]` (Intent alignment) README gets one bullet plus the count edits -- the counts follow from AC11 (fifteen, fourteen on the online demo); false
 
 ## Design Notes
 
@@ -435,7 +528,20 @@ Measured: (see this spec's Task 0 (c); the lead copies the result to the shared 
 - `web/src/app/{guide,api}/**`, `web/scripts/*.test.mjs`, `web/e2e/{api,settings,guide,support}/**`.
 - `README.md`, EXPERIENCE.md, the spine, and `docs/security-overview.md` (after L1).
 
-**Measured:** (implement stage, Task 0)
+**Measured:** (implement stage, Task 0; fresh throwaway stack of lane B, tag `e35s3iw`, 2026-11-11, the hook called over HTTP from inside the container; nothing here is inference any more)
+- (a) **Least grants of `OcuTalonWebhook`: exactly `%DB_OCUTALON_CODE:R`, `%DB_OCUTALON_DATA:RW`, `%DB_OCUTALON_PRIVATE:RW`; no `%All`, no `%Ens_*`, nothing else (R3 does not trigger).** Each removal of one grant from that start broke the hook: without the code database the dispatch class is unreadable (the web server answers 200 with its fallback page); with data `R` only the event cannot be sent (503, `CreateBusinessService`/`ProcessInput` cannot write the message); with private `R` only the counters fail (500 on a valid event; the rejection counter is not written); without data the valid event is 500; without private the webhook row is unreadable (every secret is 401). The audit write from the hook process (UnknownUser holding the role) worked with the three grants.
+- (b) `%request.Content.Size` before any read: 65,536 bytes gives 65536 and 65,537 gives 65537, with `Content-Type: application/json` and with none (CSP then reports `text/html`), so the cap is judged on the size alone. For `application/x-www-form-urlencoded` there is no `%request.Content` object (CSP parses the form into `%request.Data`); `CONTENT_LENGTH` holds the size (65,536 and 65,537 measured), so `BodySize` takes the larger of the two.
+- (c) **Event handoff across processes: works** (R2's fallback is not used). A terminal process (the REST process's stand-in) `Put` the secret, submitted `CreateWebhook` through `Commands.Submit`, the `SettingsOps` job `Take`-n it and wrote the row; the new secret then gets 202 and the old one 401; a second `Take` of the uri fails; a scan of every global of the namespace (60 million nodes) found neither secret. The CSP-process half is proved by W1/W4 (the README admin's real session). This is the shared evidence for Story 21.2.
+- (d) `Bridge.Audit.Record` from the hook process writes the `webhook_rejected` Action entry (`user=UnknownUser`).
+- (e) 202 latency over 20 requests, measured from a client in the same container: median 1 ms, maximum 2 ms (the e2e W2 asserts under 1000 ms on the CI stack).
+- (f) `$SYSTEM.License.InstanceConnections()` before 1, 5 s after 10 hook requests 1: the hook holds no unit.
+- (g) The History channel of a webhook item's decision is `webhook` on a stack whose runners point at the CI mock (W2). On a stack with no model key the decision is a fallback and has no usage row, so its channel is empty.
+- OPTIONS: the web server dispatches `OPTIONS` as a login before the application's role applies, so a class in the code database cannot answer it (the stock answer was 401). `OcuTalon.Web.Public.HookBase` (OCUTALON_PUBLIC, like `Web.Public.ApiBase`) answers 404 with no body and no Allow header; `Web.Hook` extends it.
+- Path traversal (R6 W8): the web server resolves a literal or `%2e%2e` dot-segment path (`/ocutalon/hook/../api/v1/state`) before it chooses an application, so that request is the unauthenticated request for `/ocutalon/api/v1/state` and the API answers 401 `signed_out` (never a 2xx, never the hook). Paths with an encoded slash (`..%2f..%2fapi/v1/state`) are refused by the web server itself with its stock 404 page (no OcuTalon text). Every other probe (`/<ref>/anything`, other methods on `/<ref>`) is the hook's bare 404. W8 asserts these measured answers; the R6 wording "all 404 with no body" holds for everything the hook can see.
+- `OPTIONS /ocutalon/public/*` answers 200 with `Allow: GET,OPTIONS` and no body (the product's existing status application); W6 allows that bodiless preflight.
+- `Bridge.Audit.Record` replaces `from` and `to` of a Settings entry whose setting is sensitive by `[redacted]`, and `webhook.<Ref>.secret` ends in `secret`, so a rotation's entry reads `[redacted]` for both, not an empty string; the create entry (`webhook.<Ref>`) keeps the name.
+- Index keys: `EXACT`-collated properties are indexed without a leading space (`^OcuTalonP.WebhookI("SessionRefIndex", <ref>, <id>)`), the default-collation `Name` with one.
+- A production job keeps the code it started with: a changed `SettingsOps` reaches the job only after `Ens.Director.TempStopConfigItem` stops and starts the item with `pDoUpdate` 1 (relevant to mutation runs on a warm stack).
 
 ## Verification
 
@@ -443,7 +549,7 @@ Measured: (see this spec's Task 0 (c); the lead copies the result to the shared 
 
 **Commands:**
 - (once) `$LANE OCUTALON_RUN_TAG=e35s3iw ci/warm.sh up`; at the end `ci/warm.sh down` with the same tag, also after a failure.
-- (loop) `$LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s3iw ci/iris.sh class <C>`, one call each, for `OcuTalon.Test.Data.Webhook`, `.Test.Web.Hook`, `.Test.Web.WebhookIn`, `.Test.Web.HookSettingsApi`, `.Test.Web.Install`, `.Test.Core.CommandsStep4`, `.Test.Core.CommandsPrecedent`, `.Test.Msg.Contracts`, `.Test.Msg.Catalog`, `.Test.Data.Tables`, `.Test.Data.Purge`, `.Test.Demo.Features`, `.Test.Web.SettingsApi` and `.Test.Web.DocumentsApi` -- expected: `CLASS ... passed` for each.
+- (loop) `$LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s3iw ci/iris.sh class <C>`, one call each, for `OcuTalon.Test.Data.Webhook`, `.Test.Web.Hook`, `.Test.Web.WebhookIn`, `.Test.Web.HookSettingsApi`, `.Test.Core.SettingsWebhooks`, `.Test.Core.SecretHandoff`, `.Test.Web.Install`, `.Test.Core.CommandsStep4`, `.Test.Core.CommandsPrecedent`, `.Test.Msg.Contracts`, `.Test.Msg.Catalog`, `.Test.Data.Tables`, `.Test.Data.Purge`, `.Test.Demo.Features`, `.Test.Web.SettingsApi` and `.Test.Web.DocumentsApi` -- expected: `CLASS ... passed` for each.
 - (once) `$LANE OCUTALON_RUN_TAG=e35s3i ci/iris.sh class OcuTalon.Test.Install.Production` -- expected: passed (lane B oracle row).
 - (once, after L1 only) the same for `OcuTalon.Test.Install.SecurityOverview`, then `bash docker/tests/test-security-overview.sh --write` and a compare run -- expected: PASS.
 - (once) Task 0 on a fresh stack: `$LANE OCUTALON_RUN_TAG=e35s3i ci/iris.sh build`, then the measurements through the stack's `iris session` and `curl` -- each result is recorded under "Measured".
@@ -471,6 +577,33 @@ Measured: (see this spec's Task 0 (c); the lead copies the result to the shared 
 - AC10: `Keeps` drops the Webhook line. Red: `Test.Data.Purge`.
 - AC11: `Ids` drops `webhooks`. Red: `Test.Demo.Features` and K29.
 
+**Mutations observed (Rule 19; each applied, red seen, reverted byte-identical; 2026-11-11):**
+- AC1: `Web.HookSettings.Create` puts the secret into the command (`Set command.Name = body.name_" "_body.secret`, the property variant of "a `Secret` property filled by the route") -> mutation: the secret travels in `CreateWebhook` -> `Test.Web.HookSettingsApi` `TestSecretNeverStored` red ("no command or result message holds it").
+- AC2: `Data.Webhook` `SECRETMIN` 16 -> 15 -> mutation: a 15-character secret is acceptable -> `Test.Data.Webhook` `TestFieldProblems` red ("15 are not").
+- AC3 (latency): `Web.Hook.Hand` waits 1.2 s before it creates the service (stands in for "sends synchronously and waits") -> `api/webhooks.spec.ts` W2 red (202 not under 1000 ms).
+- AC3 (own trace session): `Channel.Webhook.In` drops `Set ..%SuperSession = session.TraceRef` -> `Test.Web.WebhookIn` `TestItem` and `TestOwnTraceSession` red.
+- AC4 (dummy compare): `Web.Hook.Receive` answers 401 for an unknown Ref before it compares -> `Test.Web.Hook` `TestUnauthorized` red ("one comparison, whatever the reason").
+- AC4 (constant time): `Data.Webhook.Matches` gains `If diff Quit` inside its loop -> `Test.Data.Webhook` `TestMatchesHasNoEarlyExit` red ("no exit inside it").
+- AC4 (audit cap): `Data.Webhook.Reject` due on every call -> `Test.Web.Hook` `TestRejectionAudit` red (five rejections write five entries).
+- AC5: the hook gains `GET /status` that answers 200 with no session -> `api/webhooks.spec.ts` W6 red ("nothing but the sign-in page, its images and the public status was accepted"). This replaces the spec's "/v1/usage Map allows no session", which needs a fixture subclass; the sweep is the same.
+- AC6: `Web.HookSettings.Rotate` and `SettingsOps.SetWebhookSecret` both drop the owning-session comparison (either layer alone leaves the other refusing; the job was restarted so it ran the changed code) -> `Test.Web.HookSettingsApi` `TestIsolation` red (B's rotation of A's Ref is 404).
+- AC7: `SettingsOps.SetWebhookSecret` keeps the old hash -> `Test.Web.HookSettingsApi` `TestRotate` red, and `api/webhooks.spec.ts` W4 red (the old secret still gets 202; W9, which rotates and then posts, goes red with it).
+- AC8: `Install.Step.Web.Definitions` ignores the online-demo flag (`If 1` for the hook) -> `Test.Web.Install` `TestOnlineDemoNoHook` red.
+- AC9: `Install.Step.Web.GrantsFor` adds `%Ens_Portal:U` to the webhook role -> `Test.Web.Install` `TestGrants` red (no `%Ens_` resource, nine grants).
+- AC10: `Data.Purge.Keeps` drops the Webhook line -> `Test.Data.Purge` `TestSessionKeptWhileActiveOrCurrent` red ("a session with a webhook is kept").
+- AC11: `Demo.Features.Ids` drops `webhooks` -> `Test.Demo.Features` `TestIds` and `TestWebhooksOffOnDemo` red.
+
+**Mutations observed in the review pass (Rule 19; each applied, red seen, reverted byte-identical; 2026-11-11):**
+- Review patch, 503 gives the count back: `Web.Hook.Receive` drops the `Unaccept` call -> mutation: a failed hand-over keeps the hour's count -> `Test.Web.Hook` `TestUnavailable` red ("the hour's accepted count is given back").
+- Review patch, no production header: `Web.Hook.Receive` drops `DeleteHeader` -> mutation: the SuperSession header set by the hand-over reaches the answer -> `Test.Web.Hook` `TestNoProductionHeader` red (202 and 503).
+- Review patch, a throwing hand-over is 503: the Try/Catch around `Hand` removed -> `Test.Web.Hook` `TestUnavailable` red (the throw escapes `Receive`).
+- AC1/AC4 (handoff discarded on every path): `Web.HookSettings.Hand` drops the `Discard` call -> `Test.Web.HookSettingsApi` `TestHandoffDiscardedOnFailure` red (all four create/rotate, fail/throw cases).
+- AC4 (purge wiring): `Install.Step.Web.Purge` no longer calls `PurgeCounters` -> `Test.Web.Install` `TestPurgeWebhookCounters` red (old window kept, no audit entry).
+- AC6 (second layer): `SettingsOps.SetWebhookSecret` drops the owning-session comparison alone -> `Test.Core.SettingsWebhooks` `TestRotateOfAnotherSession` red.
+- AC1/C1 (audit first): `SettingsOps.CreateWebhook` ignores a failed audit write -> `Test.Core.SettingsWebhooks` `TestCreateAuditsFirst` red.
+- AC8 (operation): `SettingsOps.CreateWebhook` drops the online-demo check -> `Test.Core.SettingsWebhooks` `TestOnlineDemo` red.
+- `Core.SecretHandoff.Discard` does nothing -> `Test.Core.SecretHandoff` `TestDiscard` red ("the event is gone").
+
 **Shared surfaces:**
 - The `/ocutalon*` application list: `Test.Web.Install.TestDefinitions`, `lib-live.sh` `check_security`, `test-online-demo.sh` row 11 (unchanged on the demo), and Lane A's `Test.Install.SecurityOverview` with `docs/security-overview.md` (L1).
 - The role grants: `Test.Web.Install.TestGrants`, the Roles composition, and the security overview's roles table.
@@ -487,10 +620,30 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan stage summary.** The spec plans one story. Before implement, the gate needs:
+**Implemented.** The webhook end to end on 35.2's B2-B4, B7, B8 and B10 (see Design Notes "Measured" for Task 0, including (c), the cross-process handoff evidence for Story 21.2: the REST-process stand-in `Put` the secret, `CreateWebhook` was submitted through `Commands.Submit`, and the production job `Take`-n it and wrote the row; passed, no R2 fallback needed; the CSP-process half is proved by W1 and W4): `Data.Webhook`, `Core.SecretHandoff` (R1 interface), the verbs `CreateWebhook` and `SetWebhookSecret` with their `SettingsOps` block, `Web.HookSettings` routes (one Map row in `Web.Api`), `Web.Hook` with `Web.Public.HookBase`, the `WebhookIn` service, the install step (application and role off the online demo, `RemoveHook`), the Settings > Channels Webhooks group, the More to try item and README line, the three R5 Lane A paths, the spine edits S1-S8 and the live-check updates.
+
+**Files changed (grouped).**
+- `src/ocutalon/cls/OcuTalon/{Data/Webhook,Core/SecretHandoff,Web/Hook,Web/HookSettings,Web/Public/HookBase,Channel/Webhook/*,Msg/Command/{CreateWebhook,SetWebhookSecret}}.cls`: the product classes.
+- `Core/{CommandsIn,SettingsOps}.cls`, `Web/Api.cls`, `Production.cls`, `Install/Step/Web.cls`, `Data/Purge.cls`, `Demo/Features.cls`, `Msg/Catalog/Core.cls`, `src/short-names.tsv`: allowed edits.
+- `Install/SecurityOverview.cls`, `Test/Install/SecurityOverview.cls`, `docs/security-overview.md`: the R5 exception.
+- `web/src/app/{settings,api,guide}/**`, `web/e2e/{api,settings,guide}/**`, `web/scripts/*.test.mjs`: the UI, the specs and the view tests.
+- `Test/{Data,Core,Web,Msg,Demo}/**`: unit tests, including the review pass's `Test/Core/SettingsWebhooks.cls`.
+- `docker/tests/{lib-live,test-online-demo}.sh`, `README.md`, the spine and `EXPERIENCE.md`.
+
+**Review pass.** 4 layers, 46 findings: high 0, medium 8, low 33, false 5. Patches applied (12 rows, medium at the highest): the 503 gives the accepted count back; a throwing hand-over is 503; the SuperSession response header is deleted from every answer; Discard is pinned on failing submits; `SettingsOps` guards, the purge wiring and `Test.Core.SecretHandoff` get their own tests with mutations; `TestFlushAndPurge` no longer depends on other slots; two test headers and the W3 hour boundary corrected. Deferred (frontmatter): the C3 `[redacted]` text, the W8 wording, the list-load failure state (needs an accepted text), the unpinned `Run` removal of a stale hook application, the stale role after a mode switch, the real-Hand 503 at the live surface. Every other finding is rejected with its reason in the triage log. `followup_review_recommended: true`: the patches to `Web.Hook.Receive` (Try/Catch, header delete, `Unaccept`) and the new `Test.Core.SettingsWebhooks` ran on the warm stack and the W2/W3 part (`live sign-in --part 4/22`) and the settings part (`live sign-in-2 --part 6/6`) after the patches, but the whole `lane-a`/`lane-b` shards and `live online-demo` were not re-run after them.
+
+**Verification after the last patch.** Warm classes green (Data.Webhook, Web.Hook, Web.HookSettingsApi, Core.SettingsWebhooks, Core.SecretHandoff, Web.Install, Web.WebhookIn, CommandsStep4, CommandsPrecedent, Msg.Contracts, Msg.Catalog, Data.Tables, Data.Purge, Demo.Features, Web.SettingsApi, Web.DocumentsApi, Core.SettingsSave); `Install.Production` passed on a fresh stack; `live sign-in --part 4/22` 28 passed and `live sign-in-2 --part 6/6` 29 passed; test-storage, test-class-rules, test-boundaries and test-readme pass; `npm --prefix web run lint` passes and the node tests pass. `live online-demo`, `live sign-in-3 --part 2/8` and the spine lint ran in the implement pass before the review patches, which touch none of their inputs (the lint's baseline findings only). Warm stack `e35s3iw` is down and `ci/iris.sh teardown` ran for `e35s3i`.
+
+**CI.** `new_units: none`, `ci_groups: none changed` (`ci/units.sh` untouched; `Test.Core.SettingsWebhooks` joins the existing Core area of `lane-a`). Footprint extensions: `Web/Public/HookBase.cls`, `Install/SecurityOverview.cls`, `Test/Install/SecurityOverview.cls`, `docs/security-overview.md`, `Test/Data/Fixture.cls`. Contended-file edits are only the allowed kinds.
+
+**Residual risks.** The deferred items above; `Web.Hook` answers a throwing hand-over 503 but the real failing `Hand` is not run at a live surface; the SuperSession header deletion is proved at the unit seam and by W2's header assertion, not by a before/after measurement.
+
+---
+
+**Earlier stage notes.** **Plan stage summary.** The spec plans one story. Before implement, the gate needs:
 - the Planner's rulings on the SECURITY, STORED DATA, PUBLIC TEXT (T1-T9) and ONLINE DEMO blocks, which include L3 (the 120-per-hour limit and the event-resource handoff) and the AD amendments S1, S3 and S4;
 - L1, a cross-epic Lane A change to the security overview's application-roles heading and its pin in `Test.Install.SecurityOverview`, which this story cannot edit;
 - L2, the lead's tier-1 restatement of the unauthenticated-path criterion.

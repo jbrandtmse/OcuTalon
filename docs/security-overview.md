@@ -67,6 +67,9 @@ On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so O
 | `OcuTalonTraceViewer` | `%Ens_MessageTrace` | U | `Web` |
 | `OcuTalonTraceViewer` | `%Ens_Portal` | U | `Web` |
 | `OcuTalonUser` | none | - | `Users` |
+| `OcuTalonWebhook` | `%DB_OCUTALON_CODE` | R | `Web` |
+| `OcuTalonWebhook` | `%DB_OCUTALON_DATA` | RW | `Web` |
+| `OcuTalonWebhook` | `%DB_OCUTALON_PRIVATE` | RW | `Web` |
 
 ### With demo mode on
 
@@ -91,10 +94,11 @@ On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so O
 
 ### Application roles
 
-| Web application | Roles added for every signed-in user |
-| --- | --- |
-| `/ocutalon` | `%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE` |
-| `/ocutalon/api` | `%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE` |
+| Web application | Sign-in | Roles added to its requests |
+| --- | --- | --- |
+| `/ocutalon` | password | `%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE` |
+| `/ocutalon/api` | password | `%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE` |
+| `/ocutalon/hook` | none (unauthenticated) | `OcuTalonWebhook` |
 
 <!-- END GENERATED privileges -->
 

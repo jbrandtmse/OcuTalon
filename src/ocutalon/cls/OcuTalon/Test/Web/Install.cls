@@ -1,6 +1,6 @@
-/// Tests of the Web step's declarations (matrix rows 17, 20 and 21): the application table, the trace application of a
-/// namespace, the trace role's grants, Apply, BundleCheck, the removal of the old bundle's files and the trace
-/// role's SQL privilege. The real applications, roles, user and bundle folders are never touched: Apply and the SQL
+/// Tests of the Web step's declarations (matrix rows 17, 20 and 21; Story 35.3): the application table (five applications off the online demo, four
+/// on it), the webhook application's properties, the trace application of a namespace, the trace role's and the webhook role's grants (none of the
+/// latter on the online demo), Apply, BundleCheck, the removal of the old bundle's files and the trace role's SQL privilege. The real applications, roles, user and bundle folders are never touched: Apply and the SQL
 /// grant run on fixtures (ZzWeb<n>), and the bundle tests on folders under the fixture folder (zzbundle<n>), which
 /// OnAfterAllTests removes.
 Class OcuTalon.Test.Web.Install Extends %UnitTest.TestCase
@@ -37,36 +37,84 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// The application table of the Web step, key by key: four applications, every key passed, an empty CORS list, and the
-/// session event class OcuTalon.Web.SessionEvents on /ocutalon alone.
+/// The application table of the Web step, key by key, off the online demo: five applications, every key passed, an empty CORS list, the
+/// session event class OcuTalon.Web.SessionEvents on /ocutalon alone, and /ocutalon/hook unauthenticated and outside the sign-in group with the role OcuTalonWebhook.
+/// The online-demo flag is put back, also after a failure.
 Method TestDefinitions()
 {
-	Set sc = ##class(OcuTalon.Install.Step.Web).Definitions(.apps)
-	Do $$$AssertStatusOK(sc, "Definitions")
-	Set names = ""
-	Set name = ""
-	For {
-		Set name = $Order(apps(name))
-		Quit:name=""
-		Set names = names_$Select(names = "": "", 1: ",")_name
-	}
-	Do $$$AssertEquals(names, "/ocutalon,/ocutalon/api,/ocutalon/public,/ocutalon/trace/ocutalon", "the four applications")
-	For name = "/ocutalon", "/ocutalon/api", "/ocutalon/public", "/ocutalon/trace/ocutalon" {
-		Kill expected
-		Do ..Expected(name, .expected)
-		Set key = ""
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set error = ""
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Set sc = ##class(OcuTalon.Install.Step.Web).Definitions(.apps)
+		Do $$$AssertStatusOK(sc, "Definitions")
+		Set names = ""
+		Set name = ""
 		For {
-			Set key = $Order(expected(key))
-			Quit:key=""
-			Do $$$AssertEquals($Get(apps(name, key), "<undefined>"), expected(key), name_" "_key)
+			Set name = $Order(apps(name))
+			Quit:name=""
+			Set names = names_$Select(names = "": "", 1: ",")_name
 		}
-		Set key = ""
-		For {
-			Set key = $Order(apps(name, key))
-			Quit:key=""
-			Do $$$AssertTrue($Data(expected(key)), name_" "_key_" is in the table")
+		Do $$$AssertEquals(names, "/ocutalon,/ocutalon/api,/ocutalon/hook,/ocutalon/public,/ocutalon/trace/ocutalon", "the five applications")
+		For name = "/ocutalon", "/ocutalon/api", "/ocutalon/hook", "/ocutalon/public", "/ocutalon/trace/ocutalon" {
+			Kill expected
+			Do ..Expected(name, .expected)
+			Set key = ""
+			For {
+				Set key = $Order(expected(key))
+				Quit:key=""
+				Do $$$AssertEquals($Get(apps(name, key), "<undefined>"), expected(key), name_" "_key)
+			}
+			Set key = ""
+			For {
+				Set key = $Order(apps(name, key))
+				Quit:key=""
+				Do $$$AssertTrue($Data(expected(key)), name_" "_key_" is in the table")
+			}
 		}
+	} Catch exception {
+		Set error = exception.DisplayString()
 	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
+/// The online demo has no webhook (Story 35.3, AD-25): with the flag on, Definitions lists the four applications and no /ocutalon/hook, Grants declares
+/// only the trace role's six grants, so the Roles step never creates OcuTalonWebhook there, and GrantsFor(0) declares the webhook role's three grants besides.
+/// The flag is put back, also after a failure.
+Method TestOnlineDemoNoHook()
+{
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set error = ""
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Definitions(.apps), "Definitions with the flag on")
+		Do $$$AssertEquals($Data(apps("/ocutalon/hook")), 0, "no /ocutalon/hook application on the online demo")
+		Set names = ""
+		Set name = ""
+		For {
+			Set name = $Order(apps(name))
+			Quit:name=""
+			Set names = names_$Select(names = "": "", 1: ",")_name
+		}
+		Do $$$AssertEquals(names, "/ocutalon,/ocutalon/api,/ocutalon/public,/ocutalon/trace/ocutalon", "the four applications")
+		Set grants = ##class(OcuTalon.Install.Step.Web).Grants()
+		Do $$$AssertEquals(grants.%Size(), 6, "six grants on the online demo")
+		Set webhook = 0
+		For i = 0:1:grants.%Size() - 1 {
+			If grants.%Get(i).role = ##class(OcuTalon.Install.Step.Web).#HOOKROLE Set webhook = webhook + 1
+		}
+		Do $$$AssertEquals(webhook, 0, "no grant of the webhook role on the online demo")
+		Set all = ##class(OcuTalon.Install.Step.Web).GrantsFor(0)
+		Do $$$AssertEquals(all.%Size(), 9, "GrantsFor(0) adds the webhook role's three")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Set local = ##class(OcuTalon.Install.Step.Web).Grants()
+		Do $$$AssertEquals(local.%Size(), 9, "nine grants off the online demo")
+	} Catch exception {
+		Set error = exception.DisplayString()
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
 }
 
 /// The CSP session timeout (Story 16.4, matrix row 1): with the online-demo flag on, /ocutalon, /ocutalon/api and the OCUTALON trace
@@ -184,6 +232,33 @@ Method TestPurgeUploads()
 	}
 }
 
+/// The Web area's purge also runs the webhook counters' purge (AD-27, Story 35.3): Purge(90) deletes an accepted-event window three hours old, keeps the
+/// current one, and writes the rejections that are still pending after 60 seconds as one audit entry. The purge is at the real clock and takes the
+/// counters of every webhook, so this class runs only on a throwaway (Rule 21).
+Method TestPurgeWebhookCounters()
+{
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef(), slot = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set old = $Extract(##class(OcuTalon.Data.Time).AddSeconds(now, -10800), 1, 13)
+	Set current = $Extract(now, 1, 13)
+	Set ^OcuTalonP.WebhookC("a", ref, old) = 5
+	Set ^OcuTalonP.WebhookC("a", ref, current) = 6
+	Set ^OcuTalonP.WebhookC("r", slot) = $ListBuild(##class(OcuTalon.Data.Time).AddSeconds(now, -120), 3)
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Try {
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Purge(90), "the Web area's Purge")
+		Do $$$AssertEquals($Data(^OcuTalonP.WebhookC("a", ref, old)), 0, "the window three hours old is deleted")
+		Do $$$AssertEquals($Data(^OcuTalonP.WebhookC("a", ref, current)), 1, "the current window is kept")
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Action", "Action", slot)
+		Do $$$AssertEquals(entries.%Size(), 1, "the pending rejections are written as one audit entry")
+		If entries.%Size() Do $$$AssertEquals(entries.%Get(0).data.counts.rejected, 3, "with their count")
+		Do $$$AssertEquals($ListGet(^OcuTalonP.WebhookC("r", slot), 2), 0, "and none stays pending")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the purge's checks ran: "_exception.DisplayString())
+	}
+	Kill ^OcuTalonP.WebhookC("a", ref), ^OcuTalonP.WebhookC("r", slot)
+}
+
 /// An upload of the session made the given number of seconds ago; returns its Ref, or "" when it could not be stored.
 ClassMethod UploadRef(session As %String, secondsAgo As %Integer) As %String [ Private ]
 {
@@ -235,14 +310,35 @@ Method TestTraceApp()
 }
 
 /// The trace role: exactly Use on four Ens resources and Read on the data and code databases, and none of the
-/// resources that AD-24 forbids to every OcuTalon role. The Users step adds two roles without a resource.
+/// resources that AD-24 forbids to every OcuTalon role. The webhook role (Story 35.3, off the online demo) holds exactly Read on the code database and
+/// Read and Write on the data and private databases, the least set that Task 0 measured, and never %All or an %Ens_* resource. The Users step adds two roles without a resource.
 Method TestGrants()
 {
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set error = ""
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Do ..CheckGrants()
+	} Catch exception {
+		Set error = exception.DisplayString()
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
+Method CheckGrants() [ Private ]
+{
 	Set grants = ##class(OcuTalon.Install.Step.Web).Grants()
-	Do $$$AssertEquals(grants.%Size(), 6, "six grants")
-	Set seen = ""
+	Do $$$AssertEquals(grants.%Size(), 9, "nine grants: the trace role's six and the webhook role's three")
+	Set hook = ##class(OcuTalon.Install.Step.Web).#HOOKROLE
+	Set seen = "", hookSeen = ""
 	For i = 0:1:grants.%Size() - 1 {
 		Set grant = grants.%Get(i)
+		If grant.role = hook {
+			Set hookSeen(grant.resource) = grant.permission
+			Do $$$AssertTrue(($Extract(grant.resource, 1, 5) '= "%Ens_") && (grant.resource '= "%All"), "the webhook role holds no %All and no %Ens_ resource ("_grant.resource_")")
+			Continue
+		}
 		Do $$$AssertEquals(grant.role, "OcuTalonTraceViewer", "the grant "_i_" is the trace role's")
 		Set seen(grant.resource) = grant.permission
 		Do $$$AssertTrue(..Forbidden(grant.resource) = 0, grant.resource_" is not a forbidden resource")
@@ -253,10 +349,20 @@ Method TestGrants()
 	Do $$$AssertEquals($Get(seen("%Ens_MessageContent")), "U", "Use on %Ens_MessageContent")
 	Do $$$AssertEquals($Get(seen("%DB_OCUTALON_DATA")), "R", "Read on the data database")
 	Do $$$AssertEquals($Get(seen("%DB_OCUTALON_CODE")), "R", "Read on the code database")
+	Do $$$AssertEquals($Get(hookSeen("%DB_OCUTALON_CODE")), "R", "the webhook role: Read on the code database")
+	Do $$$AssertEquals($Get(hookSeen("%DB_OCUTALON_DATA")), "RW", "the webhook role: Read and Write on the data database")
+	Do $$$AssertEquals($Get(hookSeen("%DB_OCUTALON_PRIVATE")), "RW", "the webhook role: Read and Write on the private database")
+	Set hookCount = 0, name = ""
+	For {
+		Set name = $Order(hookSeen(name))
+		Quit:name=""
+		Set hookCount = hookCount + 1
+	}
+	Do $$$AssertEquals(hookCount, 3, "and nothing else")
 
 	Set sc = ##class(OcuTalon.Install.Registry).Declared("Grants", .declared)
 	Do $$$AssertStatusOK(sc, "the declarations of all the areas")
-	Set holds = 0
+	Set holds = 0, webhook = 0
 	Set user = 0
 	Set n = ""
 	For {
@@ -264,16 +370,32 @@ Method TestGrants()
 		Quit:n=""
 		Set role = declared(n).role
 		If role = "OcuTalonTraceViewer" Set holds = holds + 1
+		If role = hook Set webhook = webhook + 1
 		If (role = "OcuTalonUser") || (role = "OcuTalonAdmin") {
 			Set user = user + 1
 			Do $$$AssertEquals(declared(n).resource, "", role_" holds no resource")
 		}
-		If $Extract(role, 1, 8) = "OcuTalon" {
+		If ($Extract(role, 1, 8) = "OcuTalon") && (role '= hook) {
 			Do $$$AssertTrue(..Forbidden(declared(n).resource) = 0, "no OcuTalon role holds the forbidden "_declared(n).resource)
 		}
 	}
 	Do $$$AssertEquals(holds, 6, "the registry sees the trace role's six grants")
+	Do $$$AssertEquals(webhook, 3, "the registry sees the webhook role's three grants")
 	Do $$$AssertEquals(user, 2, "the registry sees the two roles without a resource")
+}
+
+/// RemoveHook, which Run calls on the online demo, deletes an application that exists and is no error for one that does not. The test uses the fixture
+/// application, never the real /ocutalon/hook.
+Method TestRemoveHook()
+{
+	Do ..RemoveApplication()
+	Do ##class(OcuTalon.Install.Step.Web).TraceApp("OCUTALON", .props)
+	Set props("CookiePath") = ..Application_"/"
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Apply(..Application, .props), "a stand-in application is made")
+	Do $$$AssertEquals(..Application(.stored), 1, "it exists")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveHook(..Application), "RemoveHook deletes it")
+	Do $$$AssertEquals(..Application(.stored), 0, "and it is gone")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveHook(..Application), "an application that is not there is no error")
 }
 
 /// Apply creates an application with the given properties and, when it exists, modifies it back to them.
@@ -516,6 +638,17 @@ ClassMethod Expected(name As %String, Output expected) [ Private ]
 		Set expected("CookiePath") = "/ocutalon/trace/ocutalon/"
 		Set expected("MatchRoles") = ""
 		Set expected("PermittedClasses") = ..SevenClasses()
+		Quit
+	}
+	If name = "/ocutalon/hook" {
+		Set expected("AutheEnabled") = 64
+		Set expected("GroupById") = ""
+		Set expected("DispatchClass") = "OcuTalon.Web.Hook"
+		Set expected("Path") = ""
+		Set expected("ServeFiles") = 0
+		Set expected("CookiePath") = "/ocutalon/hook/"
+		Set expected("MatchRoles") = ":OcuTalonWebhook"
+		Set expected("PermittedClasses") = ""
 		Quit
 	}
 	If name = "/ocutalon/public" {

@@ -79,6 +79,8 @@ let panels = 0;
               <p class="look-for">{{ item.lookFor }}</p>
               @if (item.action === 'documents' && !sampleFirst()) {
                 <a class="button button-secondary" routerLink="/documents" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
+              } @else if (item.action === 'webhooks') {
+                <a class="button button-secondary" routerLink="/settings/channels" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
               } @else if (item.action === 'usage' || item.action === 'history') {
                 <a class="button button-secondary" [routerLink]="'/' + item.action" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
               } @else {

@@ -760,21 +760,26 @@ security_app_props() {
 #     OCUORDERS (the Demo step's, Story 0.10: the check assumes demo mode on);
 #   - user ocutalon holds the three roles, with a password that never expires, no forced change and an account that
 #     never expires, enabled; InvalidLoginAction is 0;
-#   - the four web applications have exactly the properties of the Web step, the OCUORDERS trace application has the
+#   - OcuTalonWebhook (Story 35.3, a local install) holds exactly Read on the code database and Read and Write on the data and private
+#     databases, and no user holds it; /ocutalon/hook is unauthenticated (64), outside the sign-in group, and adds that role alone;
+#   - the five web applications have exactly the properties of the Web step, the OCUORDERS trace application has the
 #     same properties as OCUTALON's in its own namespace, and no application has a CORS list. The bundle folder is the
 #     durable csp/ocutalon-web/ (DW-5), and /ocutalon/public is outside the sign-in group, with no password.
 check_security() {
-  local label=$1 permitted shell_props api_props public_props trace_props orders_props
+  local label=$1 permitted shell_props api_props public_props hook_props trace_props orders_props
   permitted='1(1"%CSP.Broker",1"EnsPortal.VisualTrace",1"EnsPortal.SVG.VisualTrace",1"EnsPortal.VisualTraceLegend",1"EnsPortal.SVG.TraceLegend",1"EnsPortal.MessageContents",1"EnsPortal.MessageViewer")'
   shell_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Public.Shell ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' /durable/iris/csp/ocutalon-web/ '' 3 32 OcuTalon OCUTALON OcuTalon.Web.SessionEvents)
   api_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Api ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' '' '' 0)
   public_props=$(security_app_props 1 /ocutalon/public/ OcuTalon.Web.Public.Status '' '' '' 0 64 '')
+  hook_props=$(security_app_props 1 /ocutalon/hook/ OcuTalon.Web.Hook ':OcuTalonWebhook' '' '' 0 64 '')
   trace_props=$(security_app_props 1 /ocutalon/trace/ocutalon/ '' '' '' "$permitted" 1)
   orders_props=$(security_app_props 1 /ocutalon/trace/ocuorders/ '' '' '' "$permitted" 1 32 OcuTalon OCUORDERS)
   check_session "$label: roles, README account, sign-in policy and applications" %SYS \
     "CHK|role-OcuTalonUser|
 CHK|role-OcuTalonAdmin|
 CHK|role-OcuTalonTraceViewer|%DB_OCUORDERS_CODE:R,%DB_OCUORDERS_DATA:R,%DB_OCUTALON_CODE:R,%DB_OCUTALON_DATA:R,%Ens_MessageContent:U,%Ens_MessageHeader:U,%Ens_MessageTrace:U,%Ens_Portal:U
+CHK|role-OcuTalonWebhook|%DB_OCUTALON_CODE:R,%DB_OCUTALON_DATA:RW,%DB_OCUTALON_PRIVATE:RW
+CHK|webhook-holders|0
 CHK|trace-sql-select|1
 CHK|trace-sql-select-orders|1
 CHK|user|OcuTalonAdmin,OcuTalonTraceViewer,OcuTalonUser|1|0|1|1
@@ -782,15 +787,17 @@ CHK|invalid-login-action|0
 CHK|app|/ocutalon|$shell_props
 CHK|app|/ocutalon/api|$api_props
 CHK|app|/ocutalon/public|$public_props
+CHK|app|/ocutalon/hook|$hook_props
 CHK|app|/ocutalon/trace/ocutalon|$trace_props
 CHK|app|/ocutalon/trace/ocuorders|$orders_props" \
-    'For r="OcuTalonUser","OcuTalonAdmin","OcuTalonTraceViewer" { Set sc=##class(Security.Roles).Get(r,.p) Write !,"CHK|role-",r,"|",$Select($SYSTEM.Status.IsOK(sc):$Get(p("Resources")),1:"<missing>") }' \
+    'For r="OcuTalonUser","OcuTalonAdmin","OcuTalonTraceViewer","OcuTalonWebhook" { Set sc=##class(Security.Roles).Get(r,.p) Write !,"CHK|role-",r,"|",$Select($SYSTEM.Status.IsOK(sc):$Get(p("Resources")),1:"<missing>") }' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) c FROM Security.Users WHERE Roles [ ?","OcuTalonWebhook") Do rs.%Next() Write !,"CHK|webhook-holders|",rs.%Get("c")' \
     'Write !,"CHK|trace-sql-select|",$SYSTEM.SQL.Security.CheckPrivilege("OcuTalonTraceViewer",1,"Ens.MessageHeader","s","OCUTALON")' \
     'Write !,"CHK|trace-sql-select-orders|",$SYSTEM.SQL.Security.CheckPrivilege("OcuTalonTraceViewer",1,"Ens.MessageHeader","s","OCUORDERS")' \
     'If ##class(Security.Users).Exists("ocutalon",.u) { Set rl="" For i=1:1:u.Roles.Count() { Set rl=rl_$Select(rl="":"",1:",")_u.Roles.GetAt(i) } Write !,"CHK|user|",rl,"|",u.Enabled,"|",u.ChangePassword,"|",u.PasswordNeverExpires,"|",u.AccountNeverExpires } Else { Write !,"CHK|user|<missing>" }' \
     'Set sc=##class(Security.System).Get("SYSTEM",.sp) Write !,"CHK|invalid-login-action|",$Get(sp("InvalidLoginAction"))' \
     'Set keys=$ListBuild("AutheEnabled","AutoCompile","CSPZENEnabled","CookiePath","CorsAllowlist","DispatchClass","Enabled","EventClass","GroupById","InbndWebServicesEnabled","IsNameSpaceDefault","LoginPage","MatchRoles","NameSpace","Path","PermittedClasses","ServeFiles","SessionScope","Timeout")' \
-    'For app="/ocutalon","/ocutalon/api","/ocutalon/public","/ocutalon/trace/ocutalon","/ocutalon/trace/ocuorders" { Kill p Set sc=##class(Security.Applications).Get(app,.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|",app,"|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>") }' \
+    'For app="/ocutalon","/ocutalon/api","/ocutalon/public","/ocutalon/hook","/ocutalon/trace/ocutalon","/ocutalon/trace/ocuorders" { Kill p Set sc=##class(Security.Applications).Get(app,.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|",app,"|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>") }' \
     'Halt'
 }
 

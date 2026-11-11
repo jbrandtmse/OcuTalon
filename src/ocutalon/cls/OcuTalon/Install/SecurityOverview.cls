@@ -68,8 +68,8 @@ Parameter SQLOBJECT = "Ens.MessageHeader";
 ///   - demoOnly: the {"role","resource","permission"} that demo mode adds to the service role and the trace role;
 ///   - sql: the {"role","privilege","object","namespace","when"} of the trace role, when being always or demo mode on;
 ///   - serviceUser: {"user","roles","login"};
-///   - applications: one {"name","roles"} per web application of Install.Step.Web.Definitions whose MatchRoles adds roles for every signed-in
-///     user, sorted by name, where roles is the array of those roles.
+///   - applications: one {"name","signIn","roles"} per web application of Install.Step.Web.Definitions whose MatchRoles adds roles to its requests,
+///     sorted by name, where signIn is "password" or "none (unauthenticated)" (its AutheEnabled, 32 or 64) and roles is the array of those roles.
 /// Throws a status when a fact cannot be read.
 ClassMethod Model() As %DynamicObject
 {
@@ -311,9 +311,9 @@ ClassMethod ServiceUser() As %DynamicObject
 	Quit {"user": (##class(OcuTalon.Install.Step.Users).#SERVICEUSER), "roles": [(##class(OcuTalon.Install.Step.Users).#SERVICEROLE)], "login": "disabled"}
 }
 
-/// The web applications of the Web step (Install.Step.Web.Definitions) that add roles for every signed-in user, and those roles: an application
-/// whose MatchRoles is not empty. Throws a status that names the application when its MatchRoles is not of the form :role[:role...], which
-/// adds the roles for every signed-in user; a match role would make that claim untrue.
+/// The web applications of the Web step (Install.Step.Web.Definitions) that add roles to their requests, how each signs its users in, and those roles: an
+/// application whose MatchRoles is not empty. Throws a status that names the application when its MatchRoles is not of the form :role[:role...], which
+/// adds the roles to every request of the application; a match role would make that claim untrue.
 ClassMethod Applications() As %DynamicArray
 {
 	$$$ThrowOnError(##class(OcuTalon.Install.Step.Web).Definitions(.apps))
@@ -331,7 +331,7 @@ ClassMethod Applications() As %DynamicArray
 		For i = 2:1:$Length(matched, ":") {
 			If $Piece(matched, ":", i) '= "" Do roles.%Push($Piece(matched, ":", i))
 		}
-		Do result.%Push({"name": (name), "roles": (roles)})
+		Do result.%Push({"name": (name), "signIn": ($Select($Get(apps(name, "AutheEnabled")) = 64: "none (unauthenticated)", 1: "password")), "roles": (roles)})
 	}
 	Quit result
 }
@@ -422,10 +422,10 @@ ClassMethod PrivilegesText(model As %DynamicObject) As %String
 	}
 	Set text = text_lf_"### Service user"_lf_lf_"| User | Roles | Login |"_lf_"| --- | --- | --- |"_lf
 	Set text = text_"| "_..Code(model.serviceUser.user)_" | "_..CodeList(model.serviceUser.roles)_" | "_model.serviceUser.login_" |"_lf
-	Set text = text_lf_"### Application roles"_lf_lf_"| Web application | Roles added for every signed-in user |"_lf_"| --- | --- |"_lf
+	Set text = text_lf_"### Application roles"_lf_lf_"| Web application | Sign-in | Roles added to its requests |"_lf_"| --- | --- | --- |"_lf
 	Set iterator = model.applications.%GetIterator()
 	While iterator.%GetNext(, .app) {
-		Set text = text_"| "_..Code(app.name)_" | "_..CodeList(app.roles)_" |"_lf
+		Set text = text_"| "_..Code(app.name)_" | "_app.signIn_" | "_..CodeList(app.roles)_" |"_lf
 	}
 	Quit text_lf
 }

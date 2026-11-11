@@ -471,6 +471,30 @@ check_session "row 11: the /ocutalon* applications in IRIS are exactly the five"
   'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT Name FROM Security.Applications WHERE Name LIKE ? ORDER BY Name","/ocutalon%") Set l="" While rs.%Next() { Set l=l_$Select(l="":"",1:",")_rs.%Get("Name") } Write !,"CHK|apps|",l' \
   'Halt'
 
+# Story 35.3: the online demo has no webhook. The role does not exist, and a POST to a hook address with a secret header gets no 202 and creates no
+# WebhookIn message.
+check_session "row 11 (Story 35.3): the role OcuTalonWebhook does not exist on the online demo" %SYS \
+  "CHK|webhook-role|0" \
+  'Write !,"CHK|webhook-role|",##class(Security.Roles).Exists("OcuTalonWebhook")' \
+  'Halt'
+hook_headers() {
+  printf '%s\n' 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) c FROM Ens.MessageHeader WHERE SourceConfigName=?","WebhookIn") Do rs.%Next() Write !,"CHK|hookheaders|",rs.%Get("c")' 'Halt' | session_value OCUTALON hookheaders
+}
+hook_before=$(hook_headers)
+next_probe
+hook_code=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H 'X-OcuTalon-Webhook-Secret: zz-demo-hook-secret-0123456789' --data '{"a":1}' "$base/ocutalon/hook/zzzzzzzzzzzzzzzzzzzzzz?probe=$probes")
+hook_after=$(hook_headers)
+if [ -n "$hook_code" ] && [ "$hook_code" != 202 ]; then
+  pass "row 11 (Story 35.3): a POST to /ocutalon/hook/<ref> with a secret header gets '$hook_code', not 202"
+else
+  fail "row 11 (Story 35.3): a POST to /ocutalon/hook/<ref> gets '$hook_code'"
+fi
+if [ -n "$hook_before" ] && [ "$hook_before" = "$hook_after" ]; then
+  pass "row 11 (Story 35.3): and creates no WebhookIn message ($hook_before before and after)"
+else
+  fail "row 11 (Story 35.3): WebhookIn messages before '$hook_before', after '$hook_after'"
+fi
+
 bundle_main=$(dc exec -T iris sh -c "ls /durable/iris/csp/ocutalon-web" 2>/dev/null | tr -d '\r' | grep -E '^main-[A-Za-z0-9]+\.js$' | head -n 1)
 if [ -z "$bundle_main" ]; then
   fail "row 11: no main-<hash>.js bundle file in the stack's web folder"

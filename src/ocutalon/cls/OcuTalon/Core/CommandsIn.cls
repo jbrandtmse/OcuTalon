@@ -27,6 +27,8 @@
 ///     only for the session user's own mailbox: inside a bridge context its SessionRef must be the context's OwnerRef, the product key
 ///     email.owner must be the SessionRef, and the product key email.address must be set and equal, ignoring case and surrounding
 ///     spaces, every comma-separated recipient (an empty list is refused). Otherwise the refusal is not_allowed and nothing is sent;
+///   - step 4 webhooks (Story 35.3, AD-1, AD-19): CreateWebhook and SetWebhookSecret go to SettingsOps from web_admin only; neither is a tool verb, and the
+///     secret is never in the command, only the uri of its SecretHandoff;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
 ///     not_found or unknown_command) and a plain-English Message;
 ///   - an accepted command is sent synchronously to its owner in the right trace session (AD-26): inside a turn the session
@@ -300,6 +302,8 @@ XData Routes [ MimeType = application/json ]
  {"verb": "SetSourcePoll", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "RemoveSourcePoll", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "SendEmail", "owner": "EmailOut", "origins": "tool,system"},
+ {"verb": "CreateWebhook", "owner": "SettingsOps", "origins": "web_admin"},
+ {"verb": "SetWebhookSecret", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "ProposeFix", "owner": "IncidentManager", "origins": "tool"},
  {"verb": "ListPinnedMemories", "owner": "MemoryOps", "origins": "web_user"}
 ]

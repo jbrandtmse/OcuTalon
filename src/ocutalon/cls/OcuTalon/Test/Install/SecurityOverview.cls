@@ -296,8 +296,8 @@ Method TestFixKindRows()
 
 /// DW-213: the grants that only demo mode adds are listed apart: the service role Read on the OCUORDERS data database, and the trace role Read
 /// on its code and data databases. The trace role's SQL SELECT on Ens.MessageHeader is listed in OCUTALON, and in OCUORDERS with demo mode on. The
-/// service user holds exactly the service role with login disabled, and /ocutalon and /ocutalon/api, alone of the Web step's applications, add the
-/// roles of Web.APPLICATIONROLES.
+/// service user holds exactly the service role with login disabled, and /ocutalon and /ocutalon/api, alone of the Web step's applications but for the
+/// webhook application /ocutalon/hook (off the online demo, with Web.HOOKROLE and no sign-in), add roles to their requests: the roles of Web.APPLICATIONROLES.
 Method TestDemoOnlyGrantsListed()
 {
 	Set model = $ClassMethod(..#GENERATOR, "Model")
@@ -323,7 +323,14 @@ Method TestDemoOnlyGrantsListed()
 		Set shown = shown _ $Select(shown = "": "", 1: ";") _ app.name_"=:"_..List(app.roles, ":")
 	}
 	Set roles = ##class(OcuTalon.Install.Step.Web).#APPLICATIONROLES
-	Do $$$AssertEquals(shown, "/ocutalon="_roles_";/ocutalon/api="_roles, "/ocutalon and /ocutalon/api add the roles of Web.APPLICATIONROLES, and no other application of the Web step adds a role")
+	Set hook = $Select(##class(OcuTalon.Data.Public.Settings).Get("onlineDemo") = "1": "", 1: ";/ocutalon/hook=:"_##class(OcuTalon.Install.Step.Web).#HOOKROLE)
+	Do $$$AssertEquals(shown, "/ocutalon="_roles_";/ocutalon/api="_roles_hook, "/ocutalon and /ocutalon/api add the roles of Web.APPLICATIONROLES, /ocutalon/hook adds only the webhook role off the online demo, and no other application of the Web step adds a role")
+	Set signIn = ""
+	Set iterator = model.applications.%GetIterator()
+	While iterator.%GetNext(, .app) {
+		Set signIn = signIn _ $Select(signIn = "": "", 1: ";") _ app.name_"="_app.signIn
+	}
+	Do $$$AssertEquals(signIn, "/ocutalon=password;/ocutalon/api=password"_$Select(hook = "": "", 1: ";/ocutalon/hook=none (unauthenticated)"), "each application's sign-in is read from its AutheEnabled")
 	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
 	Set text = sections("privileges")
 	Do $$$AssertTrue(..HasLine(text, "| `OcuTalonServiceRole` | `%DB_OCUORDERS_DATA` | R |"), "the privilege section lists the service role's demo-only grant")
@@ -632,7 +639,7 @@ Method TestPrivilegesMatchSecurityRecords()
 	For {
 		Set name = $Order(apps(name))
 		Quit:name=""
-		Do $$$AssertEquals(..MatchRoles(name), $Get(listed(name)), name_$Select($Data(listed(name)): " adds the listed roles for every signed-in user", 1: " adds no role, as it is not listed"))
+		Do $$$AssertEquals(..MatchRoles(name), $Get(listed(name)), name_$Select($Data(listed(name)): " adds the listed roles to its requests", 1: " adds no role, as it is not listed"))
 	}
 }
 

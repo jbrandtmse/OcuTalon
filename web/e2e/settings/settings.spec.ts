@@ -689,8 +689,9 @@ test('S12: the Channels section shows the state of Telegram, read only', async (
   const telegram = state.telegram;
   const pausedNow = state.status.some((one) => one.condition === 'telegramPaused' && one.active === true);
   await expect(page.getByText("This part of OcuTalon isn't built yet."), 'the section is built').toHaveCount(0);
-  await expect(saveButton(page), 'it has no Save button').toHaveCount(0);
-  await expect(page.getByRole('textbox'), 'and no field, so no token can be entered').toHaveCount(0);
+  const telegramPart = page.locator('app-channels-section div.telegram');
+  await expect(telegramPart.getByRole('button'), 'the Telegram part has no Save button').toHaveCount(0);
+  await expect(telegramPart.getByRole('textbox'), 'and no field, so no token can be entered').toHaveCount(0);
   const notSetUp = page.getByText('Telegram not set up', { exact: true });
   const paused = page.getByText('Telegram paused', { exact: true });
   const on = page.getByText('Telegram on', { exact: true });
