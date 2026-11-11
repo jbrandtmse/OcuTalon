@@ -180,6 +180,7 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 - [ ] `web/src/app/rail/rail-view.ts` and `web/src/app/rail/status-rail.ts` -- export `decisionRow` and `formatAt` with no behaviour change.
 - [ ] `web/src/app/app.config.ts` and `web/src/app/settings/settings-view.ts` -- add the route `{ path: 'history', component: HistoryPage, title: HISTORY_TEXTS.title }` before 37.2's `usage` route, and give `pageOf` a `'history'` branch for `/history`.
 - [ ] `web/src/app/header/header-nav.ts` -- add the `History` link (`routerLink="/history"`, `aria-current` from `page.page() === 'history'`) between Documents and Usage (EXPERIENCE :77 order). Update 37.2's doc comment and `header.ts`'s "four navigation links" comment to five.
+- [ ] DW-1102 (routed to this story by 37.2's code review and merge gate; epics.md 25.2 `[ADDED 2026-11-10, DW-1102 …]` AC): `web/src/app/header/header.ts` -- in the stacked band (`@media ${LAYOUT_QUERIES.stacked}`) apply the measured spacing-only fit K (Design Notes → HEADER FIT): `.header` inline padding `var(--space-2)` (12 → 8px); the LEFT `.side` only (`.side:not(.right)`, or restore `.right`'s gap after it) `gap: var(--space-1)` (12 → 4px), `--header-nav-gap: 0px` (4 → 0) and `--header-nav-item-inline: var(--space-1)` (6 → 4px, the drawer band's own nav values); `.home` `gap: var(--space-2)` (mark to wordmark 12 → 8px). Nothing else in the header changes (no hidden link, no label, font, group or behaviour change: any such change is a PLANNER REPORT first). Update the header comment (:90-96) and `header-nav.ts`'s comment to the new values and the four-link floor user. Acceptance: at 640x360@2 the floor user's header (Chat, Documents, History, Usage) is 77px and sticky, writes 77px, no sideways scroll; `live:floor` G4 and G5 green in Chromium, Firefox and WebKit. -- Rationale: 37.2 left about 19px; History needs about 65px; K was measured to leave about 18px.
 - [ ] `web/src/app/guide/more-to-try-view.ts` and `more-to-try.ts` -- add `MORE_TO_TRY_TEXTS.items.history` (PUBLIC TEXT), the action `'history'`, and the registry entry `{ id: 'history', …, action: 'history', group: 'Usage and history' }` appended last (the Planner's ruling: the fourth heading that 37.2 adds, usage then history). Extend 37.2's usage link branch so it serves both page links (one `<a>`, path from the action) and add `case 'history'` to the navigate switch. The header comment's count word follows the registry.
 - [ ] `src/ocutalon/cls/OcuTalon/Demo/Features.cls` -- `Ids` appends `history` unconditionally after `usage`. Update the doc line so it no longer says "usage … last".
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Data/OwnershipHistory.cls` (new; extends `OcuTalon.Test.Bridge.ZoneCase` like 37.2's `OwnershipUsage`) -- tests every I/O matrix row at the Ownership level:
@@ -211,7 +212,7 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
   - a second session's fixture rows never appear (a PANEL session seeded at the same time);
   - keyboard only.
 - [ ] Shared tests (Rule 19) -- update these:
-  - `frame.spec.ts`: the Tab order gains History before Usage, and 37.2's 1024px test becomes five links. Measure it first; see Design Notes → HEADER RISK.
+  - `frame.spec.ts`: the Tab order gains History before Usage, and 37.2's 1024px test (F3) becomes five links (its title and its `toHaveText` list gain History; measured: it fits unchanged, 56px, one line). `web/e2e/floor/layout.spec.ts` G4/G5 are NOT edited: they must pass unchanged with the History link and the fit K (DW-1102).
   - `settings.spec.ts:68` → `['Chat','Settings','Documents','History','Usage']`; `documents.spec.ts:338` → `['Chat','Documents','History','Usage']`.
   - `more-to-try.spec.ts`: `ITEMS`, `controlOf`, K3's href for the history item, the group-heading oracle (K27) gains history under "Usage and history", and the new **K28** "the link of the History item opens the History page". K16 and K17 (the compact band at 1280x650 and 1280x600) must stay green unchanged (the Planner's condition).
   - `settings-view.test.mjs`: `pageOf` `history` cases, the same set as 37.2's usage cases.
@@ -230,10 +231,12 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 - Given the Incidents tab, when it loads, then each incident shows its state chip, headline, noticed (and closed) time, its stored 23.6 summary as text (or the no-summary text), and a trace link to its diagnosis session.
 - Given two signed-in sessions with their own fixture decisions and incidents (plus eval and instance rows), when each reads either tab or route with any filters, then it sees only its own rows (and on a local install the instance incidents of productions it watches), never the other's. The tabs use `aria-selected` and work by keyboard alone.
 - Given the History item in More to try, when the user presses its control "Open the History page", then the History page opens. `Demo.Features` lists `history` after `usage`.
+- (DW-1102) Given the floor user (not an admin, demo mode) at 640x360 (200%), when the header shows Chat, Documents, History and Usage, then the header stays sticky (at most a quarter of the window), hides no link and needs no sideways scroll, with only the stacked band's spacing changed (fit K), and `live:floor` layout G4 and G5 pass unchanged.
 
 ## Spec Change Log
 
 - 2026-11-10 (lead, spec gate): Design Notes gained the lead note on DW-941. The PUBLIC TEXT, SECURITY and MORE TO TRY GROUP sections go to the Contest Planner; the rulings are written here before implement.
+- 2026-11-11 ~01:45Z (lead, re-dispatch after 37.2 merged as 878da0d2): DW-1102 routed to this story (AC added at 37.2's merge gate); measured the compact header (Design Notes → HEADER FIT) and planned the spacing-only fit K as a Tasks & Acceptance item; F3 updated to five links; G4/G5 unchanged. Lead pre-check of Task 0: 37.2 shipped the fourth heading "Usage and history" (`more-to-try-view.ts:158`, usage in it :146, EXPERIENCE :260/:265), `/v1/usage` forwarding (`Web/Api.cls:266`), `Demo.Features` usage last; the registry is at twelve, history makes thirteen. The implement stage still does Task 0 in full.
 - 2026-11-10 ~19:15Z (lead): the Planner's rulings written in verbatim (Design Notes, "Planner rulings at the spec gate"). PUBLIC TEXT approved as proposed, with the no-channel condition. SECURITY accepted; real-HTTP case 7 (page beyond the last → 200, empty list) added. GROUP changed to the fourth heading "Usage and history" (37.2 adds it; 25.2 appends history; K16/K17 stay green, else fallback "Safety and settings"). Tasks, Shared tests and the registry task updated to match.
 
 ## Review Triage Log
@@ -276,7 +279,7 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
   - Incident rows reuse the state map and headline. They do not use `incidentView`, whose closed card drops the diagnosis link and needs the chat's decision store.
   - The incident JSON is built from the row, not through `Live.Payload.Incident.FromRow`, because FromRow reads failure groups and approval requests that the History row does not show and the allow-list would drop.
 
-**Ledger inbox:** no entries are owned by this story.
+**Ledger inbox:** DW-1102 (routed 2026-11-11 by 37.2's code review and merge gate) is addressed by the DW-1102 task under Tasks & Acceptance and its epics.md AC.
 
 **Story 23.6 is merged** on this branch (sprint-status :331 `done`, merge `b896ef39`, `Watch/Summary.cls`, `IncidentManager.cls:1109`). The tests therefore use fixture incidents whose `Summary` holds a stored summary object, rendered by the real `Watch.Summary.Text`. That satisfies the AC's "summary fields" clause through the real renderer.
 
@@ -304,7 +307,19 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 
 **Lead note at the spec gate (2026-11-10):** Decided in-stage 4's gap is the same root cause as the ledger's DW-941 (routed, owner `burndown`: a decision with no model call has no channel because the bridge `Decision` row has no `Channel`; the fix is a Lane A column). This story neither owns nor closes DW-941 and does not depend on it being decided (it is `routed`, not `decision-pending`); the History page states the gap honestly by leaving such a decision's channel out. If DW-941 lands first, the channel EXISTS clause can switch to the column in a later story.
 
-**HEADER RISK.** Five links at 1024px. 37.2's ruling holds: never hide a link. If the five links do not fit on one line in a header of 64px or less at 1024px (measured in `frame.spec.ts` F3), stop with `## Clarification Needed` and do not restyle the header ad hoc.
+**HEADER FIT (DW-1102; measured 2026-11-11 by the lead's Task 0, Chromium, the built bundle with `/state` stubbed, floor user ZzFloor in demo mode, `admin: false`; the floor user has 3 links today, so History makes 4: Chat, Documents, History, Usage; script and screenshots in the lead's scratch `e25s2fit/`):**
+
+| State at 640x360@2 | Header | Sticky | Row slack | Narrowest sticky width (h 360) |
+|---|---|---|---|---|
+| Baseline (3 links, 37.2's values) | 77px | sticky | +19.45px | 625 (static at 620) |
+| History added, no change | 121px | static (`scrolls`, writes 0px: the G4/G5 red) | −45.69px | — |
+| nav gap 0, link padding 4 only | 121px | static | −17.69px | — |
+| F: nav 2, link 4, side 4 (smallest fit) | 77px | sticky | +0.31px | 640 (too fragile) |
+| **K: nav 0, link 4, left side gap 4, header inline padding 8, mark-to-wordmark 8** | **77px** | **sticky, writes 77px** | **+18.31px** | **625 (static at 620), as today** |
+
+K is spacing-only (no link hidden, no label, font, group or behaviour change); every link stays at least 37.9x32 CSS px (WCAG 2.5.8); `scrollWidth` = `clientWidth` everywhere. The one visible effect: 4px instead of 12px between the wordmark, the "Demo mode" pill and the switch, and link texts 8px apart (as in the drawer band at 1024-1279px). K at the other floor sizes (floor user with History): 1000x800 and 1023x768 48px sticky, one row; 320x180 145px `scrolls` (G4's quarter control still holds); 320x900 145px sticky; 305x600 no sideways scroll. The README admin at 640x360 (five links) is 121px static before and after (113px with K), as 37.2 recorded: no floor case covers it and scrolling with the page is the header's designed fallback. Drawer band at 1024x768, admin, five links: 56px, one line, account button ends at 1012, no sideways scroll: F3's checks hold with no change.
+
+**HEADER RISK (updated).** If the floor run (any browser) shows G4 or G5 red with K, do not tighten further ad hoc and never hide a link: stop with `## Clarification Needed` (the lead sends a PLANNER REPORT). At 1024px five links fit (measured above).
 
 **CONTENDED FILES (each edit is a plain union):**
 - `Web/Api.cls`: one Map line after `/v1/usage`, and one doc bullet appended.
