@@ -6611,3 +6611,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Dropping header_images from chk_readme_links' target stream keeps every rule green while the logo is tracked; only the AC4 untrack mutation shows it; chk_readme_links takes no tree-list argument, so a self-test cannot stub a missing logo; same limit existed with the relative src before 0.23
 - 2026-11-10T20:08:58Z status=wontfix-accepted owner=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute by=harvest note=reopen_if=chk_readme_links gains a tree-list argument, or the header logo goes missing on main without readme-links going red
 - 2026-11-10T20:20:54Z occurrence=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute
+
+### DW-1102: The compact header's left group fits one row at 640px with about 15-19px to spare (floor user: mark, badge, Demo view switch, Chat, Documents, Usage); Story 25.2's History link will wrap it and turn live:floor G4/G5 red again
+- source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md code review (rework 3) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 37.2 rework 3 measured the floor-user header sticky at 625px and static at 620px (640x360@2, stub /state); Story 25.2 (epics.md) opens History from the header navigation, a fifth link for the floor user, so its own G4/G5 will be red unless it plans the compact header's room (web/src/app/header/header.ts stacked .side).
+- 2026-11-11T00:09:01Z status=routed owner=25-2-filter-past-decisions-and-incidents-on-the-history-page by=cr note=plan the compact header at 640x360 with the History link; G4/G5 guard it; epics.md DW bullet under 25.2 is the orchestrator's post-merge
