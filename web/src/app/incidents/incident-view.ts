@@ -253,6 +253,9 @@ function evidenceLineOf(payload: IncidentPayload): string {
 /** The fix kinds the user asks for in the chat (Story 23.2): a request of one has its own fix and fixing sentences. */
 const CHAT_KINDS: ReadonlySet<string> = new Set(['suspend_item', 'resume_item', 'reroute']);
 
+/** True for a request that is about the incident's fix: a partner delay notice (Story 23.5) is not, so it gives no fix or fixing sentence. */
+const aboutFix = (request: IncidentRequest | undefined): boolean => request?.fixKind !== 'partner_warning';
+
 /** The sentence of a request of a kind the chat asks for ("I can suspend X." or, with the fixing form, "Suspending X\u2026"), "" for any other request. */
 function chatSentenceOf(request: IncidentRequest | undefined, payload: IncidentPayload, fixing: boolean): string {
   const kind = textOf(request?.fixKind);
@@ -270,7 +273,7 @@ function chatSentenceOf(request: IncidentRequest | undefined, payload: IncidentP
 
 /** The fix sentence "I can repair and resend all 50.", without the message's closing "Approve?"; "" when there is no fix. The pending request of a kind the chat asks for gives its own. */
 function fixSentenceOf(payload: IncidentPayload): string {
-  const pending = listOf(payload.requests).find((request) => request?.state === 'pending');
+  const pending = listOf(payload.requests).find((request) => request?.state === 'pending' && aboutFix(request));
   const own = chatSentenceOf(pending, payload, false);
   if (own !== '') {
     return own;
@@ -295,7 +298,7 @@ function fixingLineOf(payload: IncidentPayload): string {
   if (payload.state !== 'fixing') {
     return '';
   }
-  const running = listOf(payload.requests).find((request) => request?.state === 'approved' || request?.state === 'executing');
+  const running = listOf(payload.requests).find((request) => (request?.state === 'approved' || request?.state === 'executing') && aboutFix(request));
   const own = chatSentenceOf(running, payload, true);
   if (own !== '') {
     return own;

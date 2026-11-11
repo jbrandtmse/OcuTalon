@@ -718,7 +718,8 @@ function properties(values: Record<string, string | undefined>): Record<string, 
  * empty example unless given). null gives a request with no dry run.
  */
 export interface SeedDryRun {
-  affected: number;
+  /** The number of messages: a partner delay notice's dry run (Story 23.5) has none, and holds the notice and its recipients instead. */
+  affected?: number;
   itemNoun?: { one: string; other: string };
   resend?: number;
   field?: string;
@@ -728,6 +729,10 @@ export interface SeedDryRun {
   from?: string;
   to?: string;
   example?: string;
+  /** A partner delay notice's dry run (Story 23.5): the exact text, each recipient as a name and an address, and simulated. */
+  notice?: string;
+  recipients?: ReadonlyArray<{ name: string; address: string }>;
+  simulated?: boolean;
 }
 
 /**
@@ -739,7 +744,7 @@ export interface ApprovalFields {
   /** The request's Ref (a new one unless given): a case that names the Ref in its incident's RequestRefs gives it before the request exists. */
   ref?: string;
   kind?: string;
-  /** The request's FixKind (repair_resend, suspend_item, resume_item or reroute). */
+  /** The request's FixKind (repair_resend, suspend_item, resume_item, reroute or partner_warning). */
   fixKind?: string;
   state?: string;
   incidentRef?: string;
@@ -769,7 +774,9 @@ export async function seedApproval(user: string, fields: ApprovalFields = {}, ow
       ? undefined
       : fields.dryRun === null
         ? ''
-        : JSON.stringify({
+        : fields.dryRun.notice !== undefined
+          ? JSON.stringify({ notice: fields.dryRun.notice, recipients: fields.dryRun.recipients ?? [], simulated: fields.dryRun.simulated ? 1 : 0 })
+          : JSON.stringify({
             affected: fields.dryRun.affected,
             resend: fields.dryRun.resend ?? fields.dryRun.affected,
             leftOut: 0,

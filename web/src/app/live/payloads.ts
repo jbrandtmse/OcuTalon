@@ -35,6 +35,9 @@ export interface DryRun {
   from?: string;
   to?: string;
   example?: string;
+  notice?: string;
+  recipients?: string[];
+  simulated?: boolean;
   eitherWay?: boolean;
   reading?: string;
 }

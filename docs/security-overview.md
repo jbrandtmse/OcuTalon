@@ -40,6 +40,7 @@ One tool has no class of its own: `documents`, the search over your added docume
 
 | Class | Name | Classification | Resources |
 | --- | --- | --- | --- |
+| `OcuTalon.Fix.Kind.PartnerWarning` | `partner_warning` | risky | none |
 | `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | risky | `%Ens_MessageResend:U` |
 | `OcuTalon.Fix.Kind.Reroute` | `reroute` | risky | `%Ens_MessageResend:U` |
 | `OcuTalon.Fix.Kind.ResumeItem` | `resume_item` | risky | `%Ens_ConfigItemRun:U` |

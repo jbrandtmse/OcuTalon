@@ -8,7 +8,7 @@
 ///     request is approved on the channel telegram by the session's IRIS user; the audit entry names the channel and holds neither the chat id
 ///     nor the chat's name; no Turn is made and no chat message is sent;
 ///   - TestApproveKinds (Story 23.2): the Approve of a suspend, a resume and a reroute is answered "Approved. Suspending {item}.", "Approved. Resuming {item}." and
-///     "Approved. Rerouting {count} {itemNoun} to {to}.";
+///     "Approved. Rerouting {count} {itemNoun} to {to}."; Story 23.5: that of a partner delay notice is answered "Approved. Sending the delay notice to the Simulated mailbox.";
 ///   - TestReject: reject:<Ref> is answered "Rejected. Nothing was changed." and the request is rejected;
 ///   - TestLate: a press after another channel answered is an alert "Already answered: approved from the web chat at <time>." (the winner's
 ///     action and channel, also rejected from the simulated phone), and both requests stay as they were;
@@ -411,7 +411,8 @@ Method TestApproveKinds()
 		Set cases = $ListBuild(
 			$ListBuild("suspend_item", "{""item"":""OrdersToWarehouse"",""before"":""enabled"",""after"":""disabled""}", "Approved. Suspending OrdersToWarehouse."),
 			$ListBuild("resume_item", "{""item"":""OrdersToWarehouse"",""before"":""disabled"",""after"":""enabled""}", "Approved. Resuming OrdersToWarehouse."),
-			$ListBuild("reroute", "{""affected"":50,""resend"":50,""leftOut"":0,""itemNoun"":{""one"":""order"",""other"":""orders""},""from"":""OrdersFromPartner"",""to"":""OrdersForReview"",""example"":""1234""}", "Approved. Rerouting 50 orders to OrdersForReview."))
+			$ListBuild("reroute", "{""affected"":50,""resend"":50,""leftOut"":0,""itemNoun"":{""one"":""order"",""other"":""orders""},""from"":""OrdersFromPartner"",""to"":""OrdersForReview"",""example"":""1234""}", "Approved. Rerouting 50 orders to OrdersForReview."),
+			$ListBuild("partner_warning", "{""notice"":""Orders failed."",""recipients"":[{""name"":""Results Partner IT"",""address"":""it@results-partner.example""}],""simulated"":1}", "Approved. Sending the delay notice to the Simulated mailbox."))
 		Set position = 0
 		While $ListNext(cases, position, case) {
 			Set request = ..Request(session, {"FixKind": ($List(case, 1)), "DryRun": ($List(case, 2))})

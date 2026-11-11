@@ -56,12 +56,20 @@ Include (EnsConstants, EnsErrors)
 ///     start and which marks (Mark) each run that was cut short by the restart and closes its request; and Fix.Run.Sweep, which Checks calls on each heartbeat Tick, and which
 ///     ends a marked run with its counts as interrupted and a run that no waiter ended (below). Only the job whose End wrote closes the request, writes the entry and builds the
 ///     FixResult; Finish, when End refuses the run, does none of that and logs one Type 4 line (LOGENDED). Waiting leaves out a marked run, so that nothing resumes it.
+///   - A kind whose targets are contacts (TARGETTYPE contact, Story 23.5: partner_warning) takes its own branch of the run. The production's running state is not read; the kind's Ready is
+///     asked first, and a kind that is not ready ends the run as could not start with the kind's reason (NOTSETUP: demo mode is off, so the approved notice is kept as the row's DryRun
+///     text and nothing is sent). A row whose FixParameters text is not its DryRun's notice (the text the approver was shown) also could not start, with the kind's NOSTART, and
+///     sends nothing (AsApproved). Otherwise Recheck and Execute run as for any kind, and Deliver then sends the approved text, from the row's FixParameters byte for byte, to
+///     SimMailboxOut (a Fix.Msg.PartnerNotice, synchronously) once for each delivery and each session of the incident's recipients; a recipient counts as sent when at least one
+///     copy was saved. The run ends done through Finish with Total the number of targets, Resent 0, Completed the recipients sent, FailedAgain 0 and Skipped the rest (the first reason
+///     is the lowest skipped target's), and as could not start with the kind's NOSTART when nothing was sent and a send erred. The Action entry's target is "<n> partner contacts
+///     (<their ids>) of <production> (simulated)": the ids, never the addresses.
 ///   - A waiter that stops (the job should quiesce or terminate, or its item is stopped) leaves its runs, with a ResentAt and no EndedAt, to Sweep (DW-395): a run whose copies
 ///     were all done inside its WAITSECONDS ends there, with the waiter's own counts and result, only later.
 ///   - One waiter (DW-381): Wait takes the lock WAITLOCK without waiting; the job that holds it makes a pass every WAITPAUSE seconds over every waiting run (Waiting:
 ///     ResentAt set, EndedAt empty, not marked as interrupted, the request executing, inside its WAITSECONDS) and ends each whose copies are done, so a job that finds the lock taken returns at
 ///     once and the holder finishes its run too. The holder stops when no run waits or when the job should quiesce or terminate, and looks once more after it unlocks.
-///   - Resend is the only method of the executor that switches namespace (AD-3, AD-16): it opens the original header and body in the production's namespace,
+///   - InProduction is the only method of the executor that switches namespace (AD-3, AD-16): it opens the original header and body in the production's namespace,
 ///     calling no OcuTalon class there, and resends each copy with Ens.MessageHeader.ResendDuplicatedMessage. The wait reads through Watch.Reader.
 ///   - The seams SendResult (the send to IncidentManager), Start (StartExecution), Missing (the resources check), Check (the kind's Recheck), Carry (the kind's Execute),
 ///     Statuses (the read of the copies), Waiting (the waiting runs) and WriteAudit (the audit write) are private methods that a test subclass overrides
@@ -73,6 +81,11 @@ Class OcuTalon.Fix.Executor Extends Ens.BusinessOperation
 
 /// The item that receives the FixResult (AD-16).
 Parameter MANAGER = "IncidentManager";
+
+/// The item that saves a delay notice in a session's Simulated mailbox (Story 23.5), and the catalog key of its subject.
+Parameter MAILBOX = "SimMailboxOut";
+
+Parameter KEYPARTNERSUBJECT = "partner.subject";
 
 /// The reasons of a run that cannot start, besides the kind's NOTALLOWED (no resources): the row cannot be used, and the failed messages cannot be read.
 /// They render as "Nothing was resent: {reason}. Nothing was changed." (public text, veto U-141).
@@ -126,6 +139,8 @@ Parameter LOGLOOK = "FixExecutor could not read the copies of request ";
 Parameter LOGENDED = "FixExecutor left the run of request ";
 
 Parameter LOGPARTWAY = "FixExecutor stopped the resend of request ";
+
+Parameter LOGDELIVER = "FixExecutor could not deliver the notice of request ";
 
 /// The lock of one run's end (a subscript of it is the FixRun's id), and the longest a job waits for it, in seconds (see End and Mark).
 Parameter RUNLOCK = "^OcuTalon.Fix.Run";
@@ -319,20 +334,32 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 	Set failed = ""
 	Set skipped = []
 	Set notRunning = 0
+	Set unready = ""
+	Set sent = 0
 	Set unreached = 0
 	Set first = ""
 	Set firstId = ""
+	Set targetType = ..KindReason(class, "TARGETTYPE", "message")
 	Try {
 		Set run = ##class(OcuTalon.Data.FixRun).%New()
 		Set run.ApprovalRef = row.Ref
 		Set run.IncidentRef = row.IncidentRef
 		Set run.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
 		$$$ThrowOnError(run.%Save())
-		Set notRunning = ..NotRunning(incident)
-		If 'notRunning {
+		If targetType = "contact" {
+			Do $ClassMethod(class, "Ready", incident, .unready)
+			If (unready = "") && '..AsApproved(row, parameters) {
+				$$$LOGWARNING(..#LOGDELIVER_row.Ref_": its text is not the notice of its dry run")
+				Set unready = ..KindReason(class, "NOSTART", ..#NOSTART)
+			}
+		} Else {
+			Set notRunning = ..NotRunning(incident)
+		}
+		If 'notRunning && (unready = "") {
 			$$$ThrowOnError(..Check(class, incident, parameters, row.FixTargets, .passed, .skipped))
 			If passed '= "" {
 				$$$ThrowOnError(..Carry(class, incident, parameters, passed, .result, run))
+				If targetType = "contact" Do ..Deliver(row, class, incident, parameters.%Get("text"), result.deliveries, skipped, .sent, .unreached)
 				If $IsObject($Get(result)) && $IsObject(result.skipped) {
 					Set iterator = result.skipped.%GetIterator()
 					While iterator.%GetNext(, .entry) {
@@ -353,6 +380,10 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		Do ..CouldNotStart(row, total, ..#NOTRUNNING, 1)
 		Quit
 	}
+	If (unready '= "") && (failed = "") {
+		Do ..CouldNotStart(row, total, unready, 1)
+		Quit
+	}
 	Set copies = $Select($IsObject(run): run.Copies.Count(), 1: 0)
 	If failed '= "" {
 		$$$LOGWARNING(..#LOGRECHECK_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(failed)))
@@ -363,8 +394,8 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		Set unreached = $Length($Get(passed), ",") - copies
 		If unreached < 0 Set unreached = 0
 	}
-	If (failed = "") && (passed '= "") && (..KindReason(class, "TARGETTYPE", "message") = "item") {
-		Set changed = $Select($IsObject($Get(result)): +result.changed, 1: 0)
+	If (failed = "") && (passed '= "") && (targetType '= "message") {
+		Set changed = $Select(targetType = "contact": sent, $IsObject($Get(result)): +result.changed, 1: 0)
 		If (changed = 0) && (unreached > 0) {
 			Do ..CouldNotStart(row, total, ..KindReason(class, "NOSTART", ..#NOSTART), 1)
 			Quit
@@ -391,6 +422,65 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		Quit
 	}
 	Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (total), "reason": (..FirstReason(skipped))})
+}
+
+/// Delivers the approved notice of a request whose kind's targets are contacts (TARGETTYPE contact): for each delivery the kind's Execute gave, one PartnerNotice to
+/// SimMailboxOut for each session of the incident's recipients (Session.Recipients), with the subject partner.subject for "Name <address>" and the text as the row has it, byte
+/// for byte (SendNotice, a seam for the tests). A recipient counts as sent when at least one of its copies was saved. A copy whose send errs is logged (LOGDELIVER, redacted);
+/// a recipient with no copy saved is not sent: it counts in unreached and is pushed on skipped with the kind's NOSTART reason. sent is the number of recipients sent.
+Method Deliver(row As OcuTalon.Bridge.Data.ApprovalRequest, class As %String, incident As OcuTalon.Data.Incident, text As %String, deliveries As %DynamicArray, skipped As %DynamicArray, Output sent As %Integer, Output unreached As %Integer) [ Private ]
+{
+	Set sent = 0
+	Set unreached = 0
+	Set sessions = ##class(OcuTalon.Data.Session).Recipients(incident.OwnerRef, incident.Ref, .sc)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGDELIVER_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Set sessions = ""
+	}
+	Set iterator = deliveries.%GetIterator()
+	While iterator.%GetNext(, .delivery) {
+		Set saved = 0
+		Set position = 0
+		While $ListNext(sessions, position, session) {
+			Set notice = ##class(OcuTalon.Fix.Msg.PartnerNotice).%New()
+			Set notice.SessionRef = session
+			Set notice.ApprovalRef = row.Ref
+			Set notice.IncidentRef = incident.Ref
+			Set notice.CatalogKey = ..#KEYPARTNERSUBJECT
+			Set notice.Slots = {"recipient": (delivery.name_" <"_delivery.address_">")}.%ToJSON()
+			Set notice.Text = text
+			Set sc = ..SendNotice(notice)
+			If $$$ISOK(sc) {
+				Set saved = 1
+			} Else {
+				$$$LOGWARNING(..#LOGDELIVER_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			}
+		}
+		If saved {
+			Set sent = sent + 1
+		} Else {
+			Set unreached = unreached + 1
+			Do skipped.%Push({"id": (delivery.id), "reason": (..KindReason(class, "NOSTART", ..#NOSTART))})
+		}
+	}
+}
+
+/// 1 when the text that a contact kind would send (the parameters' text) is the notice of the row's dry run, the text that the approver was shown, character for character.
+ClassMethod AsApproved(row As OcuTalon.Bridge.Data.ApprovalRequest, parameters As %DynamicObject) As %Boolean [ Private ]
+{
+	Try {
+		Set dryRun = {}.%FromJSON(row.DryRun)
+		Set same = $IsObject(dryRun) && dryRun.%IsA("%Library.DynamicObject") && (dryRun.%Get("notice") '= "") && (dryRun.%Get("notice") = parameters.%Get("text"))
+	} Catch {
+		Set same = 0
+	}
+	Quit same
+}
+
+/// Sends the notice to SimMailboxOut and waits for it (a seam for the tests): its status is OK when the mail was saved.
+Method SendNotice(notice As OcuTalon.Fix.Msg.PartnerNotice) As %Status [ Private ]
+{
+	Quit ..SendRequestSync(..#MAILBOX, notice, .response)
 }
 
 /// The kind's own value of the class parameter (NOSTART, NOREAD or TARGETTYPE), else the default given.
@@ -621,6 +711,7 @@ ClassMethod ActionTarget(row As OcuTalon.Bridge.Data.ApprovalRequest, incident A
 	}
 	If (class = "") || '$IsObject(parameters) Quit target
 	If $Parameter(class, "TARGETTYPE") = "item" Quit parameters.%Get("item")_" in "_target
+	If $Parameter(class, "TARGETTYPE") = "contact" Quit $Length(row.FixTargets, ",")_" partner contact"_$Select($Length(row.FixTargets, ",") = 1: "", 1: "s")_" ("_row.FixTargets_") of "_incident.Production_" (simulated)"
 	If parameters.%Get("target") '= "" Quit target_" to "_parameters.%Get("target")
 	Quit target
 }

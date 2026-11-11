@@ -367,6 +367,47 @@ Method TestFromRowRequestKinds()
 	Do $ClassMethod(fixture, "Clean", reroute_","_suspend_","_repair_","_row.Ref)
 }
 
+/// A partner delay notice (Story 23.5; AC2, AC14): FromRow gives the dry run part the notice (with its line breaks), every recipient as "Name <address>" and simulated; no repair key is set, the exported JSON
+/// holds notice, recipients and simulated true and none of the repair keys, and a request of another kind has none of the three. The incident payload lists the request with its fixKind and no item or count.
+Method TestApprovalPartnerNotice()
+{
+	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set request.Ref = "ZzPartnerRef"_..Number
+	Set request.Kind = "fix"
+	Set request.State = "pending"
+	Set request.FixKind = "partner_warning"
+	Set request.FixParameters = {"text": "Orders failed.", "to": "it@results-partner.example,b@results-partner.example"}.%ToJSON()
+	Set notice = "Orders from your feed failed."_$Char(10)_"We are looking into it."
+	Set request.DryRun = {"notice": (notice), "recipients": [{"name": "Results Partner IT", "address": "it@results-partner.example"}, {"name": "B", "address": "b@results-partner.example"}], "simulated": 1}.%ToJSON()
+	Set stored = request.DryRun
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals(payload.FixKind, "partner_warning", "the payload names the kind")
+	Do $$$AssertTrue(payload.DryRun.Notice = notice, "the dry run part holds the notice, line break included")
+	Do $$$AssertEquals(payload.DryRun.Recipients.Count()_"|"_payload.DryRun.Recipients.GetAt(1)_"|"_payload.DryRun.Recipients.GetAt(2), "2|Results Partner IT <it@results-partner.example>|B <b@results-partner.example>", "and every recipient as Name <address>, in order")
+	Do $$$AssertEquals(payload.DryRun.Simulated, 1, "and simulated")
+	Do $$$AssertEquals(payload.DryRun.Affected_"|"_payload.DryRun.Resend_"|"_payload.DryRun.Field_"|"_payload.DryRun.EitherWay_"|"_payload.DryRun.Reading, "|||0|", "no repair key is set")
+	Do $$$AssertEquals(request.DryRun, stored, "the row's stored dry run is unchanged")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json).dryRun
+	Do $$$AssertTrue(exported.notice = notice, "the JSON has the notice")
+	Do $$$AssertEquals(exported.recipients.%Size()_"|"_exported.recipients.%Get(0)_"|"_exported.simulated_"|"_exported.%GetTypeOf("simulated"), "2|Results Partner IT <it@results-partner.example>|1|boolean", "the recipients and simulated true")
+	Do $$$AssertEquals(exported.%IsDefined("affected")_"|"_exported.%IsDefined("field")_"|"_exported.%IsDefined("before"), "0|0|0", "and none of the repair keys")
+	Set request.DryRun = {"affected": 3, "resend": 3, "leftOut": 0, "field": "OrderDate", "before": "10/16/2026", "after": "2026-10-16"}.%ToJSON()
+	Set request.FixKind = "repair_resend"
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals(payload.DryRun.Notice_"|"_payload.DryRun.Recipients.Count()_"|"_payload.DryRun.Simulated, "|0|0", "a repair request has no notice, no recipient and is not simulated")
+	// the incident payload lists the request
+	Set owner = "ZzPay"_..Number_"pn"
+	Set row = ..Incident(owner)
+	Set ref = $ClassMethod("OcuTalon.Test.Data.Fixture", "Approval", owner, row.Ref, "pending", , {"FixKind": "partner_warning", "FixParameters": (request.FixParameters), "DryRun": (stored)})
+	Set row.RequestRefs = ref
+	Do $$$AssertStatusOK(row.%Save(), "the fixture row lists the request")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Payload.Incident).FromRow(row).%JSONExportToString(.incidentJson), "the incident payload exports")
+	Set one = ##class(%DynamicObject).%FromJSON(incidentJson).requests.%Get(0)
+	Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.%IsDefined("item")_"|"_one.%IsDefined("count"), ref_"|partner_warning|0|0", "it carries the fixKind and no item or count")
+	Do $ClassMethod("OcuTalon.Test.Data.Fixture", "Clean", ref_","_row.Ref)
+}
+
 /// A saved FixRun of the request (the Ref) and the incident, with the properties of fields (an object) set. Fixture.FixRun ends the
 /// run unless fields gives EndedAt ("" is a run that has not ended).
 Method Run(incident As %String, request As %String, fields As %DynamicObject)
@@ -1457,6 +1498,9 @@ XData Contracts [ MimeType = application/json ]
    "From": "%String(%JSONFIELDNAME=from,MAXLEN=128)",
    "To": "%String(%JSONFIELDNAME=to,MAXLEN=128)",
    "Example": "%String(%JSONFIELDNAME=example,MAXLEN=32)",
+   "Notice": "%String(%JSONFIELDNAME=notice,MAXLEN=)",
+   "Recipients": "list Of %String(%JSONFIELDNAME=recipients,MAXLEN=300)",
+   "Simulated": "%Boolean(%JSONFIELDNAME=simulated)",
    "EitherWay": "%Boolean(%JSONFIELDNAME=eitherWay)",
    "Reading": "%String(%JSONFIELDNAME=reading,MAXLEN=32)"
   }
