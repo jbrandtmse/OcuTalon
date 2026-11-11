@@ -1,0 +1,58 @@
+# Epic 22 Context: Extend OcuTalon with MCP servers, governed like built-in tools (step 4)
+
+<!-- Generated from planning artifacts. Regenerate with compile-epic-context if planning docs change. -->
+
+## Goal
+
+Make tools from an admin-added MCP server into OcuTalon tools under the same governance as built-in ones: one gate, admin classification keyed by (server, tool name), approval for anything risky or unclassified, and an audit entry and agent step for every call. Unclassified counts as risky, and a tool whose description or inputs change loses its classification. A read-only MCP tool can also be polled as a source, so new results become items and the source shows on the digest's coverage list. The epic ships a worked Jira example and an updated security overview, and adds a built-in email tool that sends to the user's own address without approval and holds any other recipient for approval. Adding an MCP server must never open a path around OcuTalon's governance.
+
+## Stories
+
+- Story 22.2: Classify MCP tools by server and name
+- Story 22.3: Call MCP tools only through the governed proxy
+- Story 22.4: Hold risky and unclassified MCP calls for approval
+- Story 22.5: Poll a read-only MCP tool as a source
+- Story 22.6: Document a worked Jira example and MCP governance
+- Story 22.7: Send email from the chat, safe to you and approved for anyone else
+
+## Requirements & Constraints
+
+- **Online demo (standing Contest Planner rule):** real MCP servers never run on the online demo. Every MCP admin surface and every new kind is off on an online-demo install and refused with a plain reason. Nobody adds a server there; only the installer's allow-listed servers exist.
+- Only admins add, remove or classify servers and tools, and only from the settings page (origin `web_admin`). No chat request, agent tool, item content, model output or tool result can do any of these. `McpOps` re-checks the origin behind `CommandsIn`'s refusal of origin `tool`.
+- A new server's tools arrive Unclassified. Removing a server removes its tools at once (the gate denies them) and cancels their pending approval requests. Every add, remove and classification change is audited.
+- Every MCP call, read-only ones included, gets an IRIS permission check, the pinned AI Hub policies, classification, approval when needed, an audit entry and an agent step. An automated test shows a risky MCP tool does not run without approval even when no platform policy covers it.
+- MCP results are untrusted. They taint the turn (after that only read-only tools run), quarantine the next turn, and can never approve, classify, change settings or add servers.
+- An approved call runs exactly once, as approved. A replay with a changed fingerprint is refused and reported.
+- All tool results of one model step together stay within 10,000 tokens, cut and marked as cut.
+- MCP servers are reached only over `https://` (or loopback for development). A credential is stored only as a `secret://` IRIS Wallet reference. No command, log, test output, audit entry or record ever carries a secret value.
+- Coverage: a source counts as checked only if its poll succeeded in the window; otherwise it shows as not checked with its reason (unreachable, error, timeout), and the digest gives no all-clear. Fixture wording: "Not checked: Jira (unreachable since 02:10). Everything else I checked passed."
+- Documentation must say, in the same words in the worked example and the security overview, that an MCP tool that runs operating-system commands or arbitrary code must be classified risky.
+
+## Technical Decisions
+
+- **Contracts already fixed (Epic 35, merged):** the verbs `AddMcpServer`, `RemoveMcpServer`, `ClassifyTool`, `SetSourcePoll` and `RemoveSourcePoll` are routed by `CommandsIn` to `McpOps`, and none carries a secret. `OcuTalon.Mcp.Server` holds `Name`, `CreatedAt`, `AttachStatus`, `AttachReason`, `AttachedAt` and `RefusedTools`. The runner attaches servers in `OnAfterAgentInit` as `mcp:remote:@{config:AI.MCP.OcuTalon_<server>}` through `McpServersClass` (`OcuTalon.Mcp.Attach`), and `McpOps` records each attach report on the row. Story 22.2 replaces the `Tools(server)` stub: an unknown server is an error; `status` is `unavailable` while `AttachStatus` is unavailable and `refused` when the name is in `RefusedTools`. Also in place: the mock MCP server, which binds loopback only, and `SettingsOps.RestartRunners()`.
+- **Writes:** `McpOps` writes the `Mcp.Server` row, the `ToolClassification` rows and the `OcuTalon_MCP_<server>` resource granted to the service user, then calls `RestartRunners()`. `SettingsOps.SaveMcpEntry` and `RemoveMcpEntry` write the wallet secret and the `AI.MCP.OcuTalon_<server>` Config Store entry. Those writes never happen in the REST process: a later ruling has them run from `McpOps`'s production job, delivered with Lane B's Story 21.4, and until then the routes are stubs. Check the current spine before choosing the call site.
+- **Attach timeout (Story 22.2 amendment):** attaching gets a bounded timeout with a clear error, so a server that accepts the connection and never answers cannot block `AddTool` or the listing. Measure rmcp's own timeout on a throwaway first. A failed attach's error text can contain the resolved credential, so it is used only to pick a reason word and is never logged or stored.
+- **Gate (`OcuTalon.Bridge.Policy.Gate`):** it recognises an MCP call first, by a `toolref` starting `mcp:`, before `metadata.origin_class`, so a tool that shadows a built-in never takes the built-in's class. Annotations such as `readOnlyHint` are ignored. Classification goes through `ClassificationClass`. Before `Chat`, the runner fingerprints each MCP tool (description plus canonical input schema) from `ToolManager.%Discover()` and keeps the map in the bridge context; a tool that is missing, unclassified or changed counts as risky. The gate fails closed (a missing context, an exception or a lock timeout means deny) and catches its own exceptions. Open risk DW-174: the `mcp:` toolref form is unmeasured, so measure a real MCP tool's toolref and metadata in `%CanExecute`.
+- **Permissions:** the gate checks the service user's permission on `OcuTalon_MCP_<server>` with `$SYSTEM.Security.CheckUserPermission`.
+- **Governed proxy:** the gate rewrites every allowed MCP call into `call_mcp_tool(server, tool, arguments)`, OcuTalon's minimal Streamable HTTP client (`initialize`, `tools/call`). Its result goes through `OcuTalon.Tools.Result`. A direct call to `call_mcp_tool` is classified by its (server, tool) arguments. Add `call_mcp_tool` and the email tool to `OcuTalon.Tools.Names` and to the CI mock's scripts.
+- **Approval:** the request is `Approval.Raise` kind `tool_call` with the exact call (server, tool, canonical arguments) plus the fingerprint, and no dry run. The model gets a plain denial sentence that reads well after AI Hub's prefix. On approval, `ApprovalHold` sends a `tool` request through `Decide` to the runner that made the call, which runs `StartExecution`, sets a one-use grant, calls `ExecuteTool` through the full policy chain, routes the call to `call_mcp_tool` and records `FinishExecution`. A replay with no grant, or a second replay, gets `ToolAccessDenied`. The conversation gets a code-written note on its next turn, never the result text. Row state changes only through the Approval API, and removal cancels pending requests with `Approval.Cancel`.
+- **Source polls:** a source poll is a `BackgroundCheck` row of `Kind` `source`, owned by the admin's session, holding the server, tool, arguments (JSON), interval and `DisplayName`. It is created and removed only through `OcuTalon.Watch.Ops`'s row methods, which `McpOps` calls after refusing a tool that is not read-only, and `McpOps` then sends `CheckChanged`. `Checks` stays the writer of the run fields (last run, result, trace header id) and publishes `check` events. A poll runs as a `tool` request through `Decide` with no model. New results become untrusted Items to `Intake`, de-duplicated. A tool that becomes unclassified or risky stops polling.
+- **Email tool (Story 22.7):** classification comes from a `Classify(arguments)` class method that the gate calls in place of the class parameters (this extends the spine's tool-classification convention). A safe call submits `SendEmail` through `Commands.Submit` (origin `tool`, idempotency key), and `CommandsIn` itself checks that every recipient is the session's `email.address`. A risky call raises fix kind `OcuTalon.Fix.Kind.Email` (DryRun keys `to`, `subject`, `text`; target `EmailOut`; no `IncidentRef`; `ResultTarget` `FixExecutor`). `FixExecutor` sends once with origin `system` from the approved row only and sends no `FixResult` to `IncidentManager`.
+- **Audit:** `OcuTalon.Bridge.Audit` is the only writer, and entries pass the redactor. Tests read entries back from the IRIS audit log with polling.
+- **Notices:** producers never render text. Admin notices use catalog keys in `OcuTalon.Msg.Catalog.Watch` (`mcp.serverUnavailable`, `mcp.toolShadowsBuiltIn`, the changed-tool key accepted from Story 35.1) and reach `Ownership.AdminSessions()`, with no run-time `%SYS` read. The email fix's notices come from `OcuTalon.Core.BridgeSink`.
+- **Lane A owns** `OcuTalon.Mcp`, `.Tools`, `.Watch`, `.Fix`, `.Checks`, `.Digest`, the bridge, `ci/mock/scenarios/A/`, and in `docs/` the security overview. Tests are `%UnitTest` classes under `OcuTalon.Test.<Area>` against the loopback mock MCP server.
+
+## UX & Interaction Patterns
+
+- Settings › Tools and MCP servers (Lane B builds it) shows each tool as Unclassified (risky), Read-only or Risky, saved at once and audited. A changed tool reverts to Unclassified and the admins get a notice card. Only read-only tools can be source polls.
+- A tool-call approval card reads "Run {tool} on {server}" with the exact inputs, plus the no-dry-run sentence. An email fix's dry run shows the exact text and every recipient.
+- In an untrusted or tainted turn, a non-read-only suggestion (including an email) is described to the user as an offer and is never raised as a request.
+- The agent step label names the server and tool, never the arguments.
+
+## Cross-Story Dependencies
+
+- Epic 35 (Stories 35.1 and 35.2) is merged on this branch and supplies the contracts above. Epics 14, 17, 30 and 31 are done: they supply the security overview, the digest coverage list, the `tool` request and replay path, and the tool-call notices.
+- Epic 21 (Lane B) is in the backlog. Story 21.4 owns the MCP settings routes and the move of the wallet and Config Store write. Story 21.2 owns `EmailOut` routing and `email.address`, so Story 22.7 uses a fixture `EmailOut` until then. Story 21.5 owns `BridgeSink`'s email-fix notices, so until it merges Story 22.7 checks only that the request has no `IncidentRef` and that `IncidentManager` sends nothing. Story 22.5 uses fixture mailbox poll outcomes until Story 21.2 merges.
+- Inside the epic: Story 22.2 (classification, fingerprints, `Tools`) comes before 22.3 (proxy), which comes before 22.4 (approval replay through the proxy). Story 22.5 needs 22.2's read-only classification and 22.3's proxy. Story 22.6 documents 22.2 to 22.5. Story 22.7 is independent of the MCP stories but shares the gate.
+- Story 22.6 supplies the worked example's path under `docs/`. Lane B's Story 36.2 adds the README link and copies the classification sentence into the README.
