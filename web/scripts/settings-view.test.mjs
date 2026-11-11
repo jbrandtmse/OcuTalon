@@ -95,8 +95,14 @@ describe('the page of an address', () => {
     }
   });
 
+  it('is usage for /usage, whatever the query, the matrix parameters or the hash mark (Story 37.2)', () => {
+    for (const address of ['/usage', '#/usage', '/usage;x=1', '/usage?x=1', '/usage#top']) {
+      assert.equal(pageOf(address), 'usage', address);
+    }
+  });
+
   it('is the chat for every other address', () => {
-    for (const address of ['', '/', '#/', '/settingsx', '/Settings', '/other/settings', '/chat', '#', '/documentsx', '/Documents', '/other/documents', '/documents/x']) {
+    for (const address of ['', '/', '#/', '/settingsx', '/Settings', '/other/settings', '/chat', '#', '/documentsx', '/Documents', '/other/documents', '/documents/x', '/usagex', '/Usage', '/other/usage', '/usage/x']) {
       assert.equal(pageOf(address), 'chat', address);
     }
     assert.equal(pageOf('/settings/documents'), 'settings', 'a section named documents is still the settings page');

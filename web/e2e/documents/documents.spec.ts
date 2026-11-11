@@ -343,7 +343,7 @@ test('D12: a 404 answer to a remove closes the dialog and the row leaves', async
 test('D13: a user who is not an admin has Documents in the header and opens the page', async ({ page }) => {
   const { user, password } = fixtureUser('LIVE');
   await loadedAfter(page, () => signIn(page, user, password));
-  await expect(pagesNav(page).getByRole('link'), 'the header navigation holds Chat and Documents, and no Settings').toHaveText(['Chat', 'Documents']);
+  await expect(pagesNav(page).getByRole('link'), 'the header navigation holds Chat, Documents and Usage, and no Settings').toHaveText(['Chat', 'Documents', 'Usage']);
   await documentsLink(page).click();
   expect(new URL(page.url()).hash, 'at the address #/documents').toBe('#/documents');
   await expect(page.getByRole('heading', { level: 1 }), 'the page opens').toHaveText('Documents');
