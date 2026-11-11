@@ -31,8 +31,8 @@ const BLANK: RowState = { secretError: '', formError: false, done: false };
  *   - 403: "Only OcuTalon admins can open settings." shows in the group in place of the form (the page is not told);
  *   - 409 `not_available` (the online demo): the group shows its own text in place of the form;
  *   - any other failure: "Couldn't save. Nothing was changed." under the button, read once by the announcer.
- * A list that fails to load for any reason but 403 and 409 shows the accepted load error (LOAD_FAILED, "Couldn't load your session.") with Retry in place of the
- * form, as the page does for its own load, and the announcer reads it once; Retry asks for the list again.
+ * A list that fails to load for any reason but 403 and 409 `not_available` shows the accepted load error (LOAD_FAILED, "Couldn't load your session.") with Retry in
+ * place of the form, as the page does for its own load, and the announcer reads it once; Retry asks for the list again.
  * Typing in a field clears its error and the saved line. The group takes no part in the page's unsaved guard: a typed secret is not kept on leaving.
  */
 @Component({

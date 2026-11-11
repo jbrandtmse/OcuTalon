@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-11-2026 15:04
+last_updated: 11-11-2026 21:04
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -424,7 +424,7 @@ development_status:
   epic-35: in-progress
   35-1-fix-step-4-s-contracts-and-register-mcp-servers: done
   35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th: done
-  35-3-send-events-to-ocutalon-through-a-webhook: review
+  35-3-send-events-to-ocutalon-through-a-webhook: done
   epic-35-retrospective: optional
 
   epic-36: backlog

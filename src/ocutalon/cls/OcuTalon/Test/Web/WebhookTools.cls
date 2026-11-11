@@ -57,14 +57,6 @@ ClassMethod WaitSettled(sessionId As %String, seconds As %Integer = 60) As %Bool
 	}
 }
 
-/// The number of message headers of the trace session.
-ClassMethod SessionHeaders(sessionId As %String) As %Integer
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ?", sessionId)
-	If 'result.%Next() Quit 0
-	Quit +result.%GetData(1)
-}
-
 /// The id of the newest event log row, 0 when there is none.
 ClassMethod LastLog() As %Integer
 {

@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { signInReadmeLoaded } from '../support/floor';
 import { chk, irisScript, quoted } from '../support/iris';
+import { announcements, recordAnnouncements } from '../support/page';
 
 /**
  * Story 35.3, the Webhooks group of Settings > Channels in a real browser, signed in as the README admin (WS1 and WS2; the sign-in-2 unit):
@@ -12,7 +13,8 @@ import { chk, irisScript, quoted } from '../support/iris';
  *        replaced secret shows the saved line and empties the field, and the row then holds the new secret and not the old;
  *   WS2  an online-demo answer (409 not_available, fulfilled by the test) shows the ruled text in place of the form;
  *   WS3  a 403 shows the denied text in the group, and a failed create shows the form error under the button;
- *   WS4  a list that fails to load (500, fulfilled by the test) shows the accepted load error with Retry in place of the form, and Retry then loads the form.
+ *   WS4  a list that fails to load (500, fulfilled by the test) shows the accepted load error with Retry in place of the form, announced once, and Retry then
+ *        loads the form.
  * The texts are written out here as the oracle. Every case removes its `zz` webhooks.
  */
 const SETTINGS = '/ocutalon/api/v1/settings/channels/webhooks';
@@ -168,8 +170,10 @@ test('WS4: a list that fails to load shows the load error with Retry in place of
       await route.fallback();
     }
   });
+  await recordAnnouncements(page);
   const group = await openWebhooks(page);
   await expect(group.getByText(LOAD_FAILED, { exact: true }), 'the group shows the load error').toBeVisible();
+  await expect.poll(() => announcements(page, LOAD_FAILED), 'and the announcer reads it once').toBe(1);
   await expect(group.getByRole('button', { name: 'Retry', exact: true }), 'with Retry').toBeVisible();
   await expect(group.getByRole('button', { name: 'Create webhook', exact: true }), 'in place of the form').toHaveCount(0);
   await expect(group.getByRole('textbox'), 'with no field').toHaveCount(0);

@@ -6896,6 +6896,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: measured on e35s3iw; nothing reaches the hook, nothing 2xx; the web server resolves dot segments before choosing an application
 - 2026-11-11T13:32:00Z status=decision-pending owner=burndown by=harvest note=planner: confirm the measured answers satisfy R6(b)
 - 2026-11-11T20:07:22Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=owner note=ruled by the Contest Planner (owner delegation) 2026-11-11: R6(b) reading accepted; W8 conditions (i)-(iii); rides code review 2
+- 2026-11-11T21:05:08Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=adjudication note=W8 (web/e2e/api/webhooks.spec.ts) pins the ruled conditions: (i) ^OcuTalonP.WebhookC and WebhookIn messages unchanged across every traversal request; (ii) 401 body equals the signed_out envelope exactly; (iii) traversal with the valid hook secret still 401; each with a mutation line (Verification, code review 2), red seen and reverted; green live sign-in part 4/22 28/28 on fresh lane-B throwaway e35s3c2
 
 ### DW-1129: 35.3: failed webhook-list load shows the create form and an empty list
 - source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
