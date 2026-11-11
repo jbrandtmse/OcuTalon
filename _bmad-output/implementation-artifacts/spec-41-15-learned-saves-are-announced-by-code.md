@@ -414,6 +414,17 @@ Rejected:
 - false: QA files are uncommitted; the integrate-forward is pending (auditor, 2 rows) — the lead commits after the smoke gate; the Spec Change Log already carries the integrate-forward.
 - [x] [CI] iris (shards-2) shard:lane-a@rest and iris (shards-4) live:memory-offline, run 42943118887 (https://github.com/jbrandtmse/OcuTalon/actions/runs/42943118887): `OcuTalon.Test.Memory.Turns:TestSaveRecallListThroughTheAgent` fails "the reply is not tainted and carries no HostData" (`Test/Memory/Turns.cls:253`). Cause: this test sends the turn straight to the Chat agent job, so no `Data.Turn` exists and `Memory.Ops.Source` reads the save as `learned` (41.8's rule, unchanged), and this story then correctly records it in HostData `learned`. Fix (lead decision, decide-level; the reply guard, taint and 41.8's source rule do not change): update the pin, not the data. Assert `answer.Tainted` = 0 and that `answer.HostData` is exactly `{"learned":[{"memoryRef":<the saved Ref>,"text":<the saved text>}]}` (no `memories` member), with a one-line comment saying why the save is learned on this path; update the class doc line for this method (`Turns.cls:7`) to say so. Keep every other assertion. Add `Test.Memory.Turns` (the HostData pins of its save and list turns) to the spec's `Shared surfaces:` line under `## Verification`, and a `mutation:` line for the new pin (e.g. `Announce` skips the `Remember` call -> `Memory.Turns:TestSaveRecallListThroughTheAgent` red). Run `OcuTalon.Test.Memory.Turns` (it needs the CI mock reachable: run it on the lane-A warm stack after `ci/mock/scenarios/A/memory-learned-line.json` is in place) and every other `OcuTalon.Test.Memory.*` class, one per call.
 
+Re-review (CI rework iteration 1, code-review stage, 2026-11-11, scope `2da790c8..HEAD`; checklist: the `[CI]` item is fixed, the new pin is exact and its `mutation:` line names a real mutation; in the product path `Conversation.Take` saves the `Data.Turn` before `Begin`/`Ask` send its ItemId, `Ownership.TurnOfItem` has no state filter and `Ops.TurnOf` also finds a retry ItemId on a queued or running turn, so "Remember that ..." stays `told` and `Announce` quits on a non-learned row (e2e S7 pins "a told save is not announced"); no other test pins an empty HostData after a successful save with no `Data.Turn`):
+- [x] [Review][Patch] `## Verification`'s class loop did not run `OcuTalon.Test.Memory.Turns`, the surface that went red in CI run 42943118887 (low, fix-risk low: one list line) [_bmad-output/implementation-artifacts/spec-41-15-learned-saves-are-announced-by-code.md:632] — fix
+
+Rejected (re-review):
+- low: the rework triage rows say `TestToldAndLearnedThroughTheAgent` pins the told path (blind, auditor) — it pins the told and learned `Source` only and makes no HostData assertion; the no-announcement pins are `Tools.Memory:TestLearnedNothing` and e2e S7 (`web/e2e/chat/sources.spec.ts`), and the rejections stand on those.
+- low: "`Memory.Turns` ran to its pin" does not say the whole class passed (blind, verification-gap) — the class's other methods were green in CI run 42943118887 on the same production code; the rework changed one assertion.
+- low: AC 1's "Pinned by" omits `Memory.Turns` (verification-gap) — the fix edits the AC text; `## Verification` carries the pin's `mutation:` line and its Shared surfaces entry.
+- low: the Auto Run Result does not record the `e41s15rw` teardown (blind) — the cycle log's `dev_complete` records it; no lane-a lock remains.
+- false: the frontmatter baselines were moved to `2da790c8` (blind) — the lead's rework protocol sets the rework baseline; `c79da26f` stays in the Auto Run Result and the cycle log.
+- false: the implement pass's self-review reads as this review, and `status: 'done'` precedes it (blind, verification-gap, auditor) — `bmad-build-auto` writes its own review pass and frontmatter status (cycle log `self_review=7_low_rejected`); this stage's verdict is this block and the sprint-status sync.
+
 ## Spec Change Log
 
 - 2026-11-11 (spec gate; Contest Planner rulings ~00:15Z under the owner's delegation, relayed by the orchestrator; verbatim terms, from the orchestrator's `prompts/epic-41-rulings-4115.md`, section "Spec-gate rulings"; implement may start):
@@ -449,6 +460,19 @@ Rejected:
   - `[low]` `[reject]` Blind: nothing checks the `learned` entry does not leak into the later recall and list turns - HostData is built per turn, and the list turn still pins no HostData at all.
   - `[low]` `[reject]` Intent: the pin asserts an announcement on a path with no `Data.Turn`, where the real path would read the same words as told - the lead's recorded decision (update the pin, not the data; 41.8's source rule unchanged); `TestToldAndLearnedThroughTheAgent` pins the told path.
 - Edge Case Hunter and Verification Gap reported nothing.
+
+### 2026-11-11 - Code-review stage (CI rework iteration 1, re-review of `2da790c8..HEAD`)
+- verdicts: 8 findings - high 0, medium 0, low 5, false 3, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Verification Gap: the `## Verification` class loop does not run `OcuTalon.Test.Memory.Turns` - added (after the production restart).
+  - `[low]` `[reject]` Blind+Auditor: the rework triage rows say `TestToldAndLearnedThroughTheAgent` pins the told path - it asserts `Source` only; `Tools.Memory:TestLearnedNothing` and e2e S7 pin no announcement.
+  - `[low]` `[reject]` Blind+Verification Gap: "ran to its pin" is ambiguous - the other methods were green in CI run 42943118887 on the same production code.
+  - `[low]` `[reject]` Verification Gap: AC 1's "Pinned by" omits `Memory.Turns` - an AC-text edit; `## Verification` carries the mutation line.
+  - `[low]` `[reject]` Blind: the Auto Run Result omits the `e41s15rw` teardown - the cycle log records it; no lane-a lock remains.
+  - `[false]` `[reject]` Blind: the baselines moved to `2da790c8` - the rework protocol's baseline.
+  - `[false]` `[reject]` Blind+Verification Gap: the implement pass's self-review reads as this review - `bmad-build-auto`'s own pass (cycle log `self_review=7_low_rejected`).
+  - `[false]` `[reject]` Auditor: frontmatter `done` vs sprint-status `review` - the frontmatter is `bmad-build-auto`'s; sprint-status is synced by this stage.
+- Edge Case Hunter reported nothing. Rule 3: S7 and S12 (`web/e2e/chat/sources.spec.ts`) remain the real-runtime pins; this rework touched one test assertion only.
 
 ## Design Notes
 
@@ -605,6 +629,7 @@ Every test added or changed passes on a fresh environment, in either order.
   - `OcuTalon.Test.Msg.Catalog`
   - `OcuTalon.Test.Eval.Report`
   - `OcuTalon.Test.Eval.MemoryCases` (after the production restart)
+  - `OcuTalon.Test.Memory.Turns` (after the production restart; through the Chat agent job)
 - (loop) `cd web && node --test scripts/<file>.test.mjs`, one file each. Expected: pass.
   - `chat-view`
   - `catalog`
