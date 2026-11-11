@@ -85,7 +85,10 @@ export interface HistoryState {
   page: number;
 }
 
-/** True for a YYYY-MM-DD that names a real calendar date. */
+/** The earliest year of a day the server reads in every zone: IRIS dates start at 1840-12-31 (Data.Time.FromLocal). */
+const FIRST_YEAR = 1841;
+
+/** True for a YYYY-MM-DD that names a real calendar date from FIRST_YEAR on. */
 export function isDay(value: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (match === null) {
@@ -94,7 +97,7 @@ export function isDay(value: string): boolean {
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
   const date = new Date(0);
   date.setUTCFullYear(year, month - 1, day);
-  return year >= 1 && date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  return year >= FIRST_YEAR && date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 /** A page number: digits with no leading zero, 1 to MAX_PAGE; anything else is 1. */

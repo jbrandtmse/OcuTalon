@@ -3722,6 +3722,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner host check on 01bb86fc (demo public 2026-11-02T07:33Z) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: public demo host on 01bb86fc: incident card header vs body; reminder reply vs phone notification; every time is labelled, so nothing is wrong, but a judge sees two zones on one card
 - 2026-11-02T07:34:35Z status=routed owner=burndown by=merge_gate note=Planner: after 1.0.0 unless a cheap fix appears; one zone per card (instance zone with its label, or the viewer's zone throughout); first daily release
+- 2026-11-11T05:13:08Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page
 
 ### DW-583: Story 11.19 AC3 (sign-in unit integration evidence) has no demonstrated mutation: the overwrite it guards depends on a heartbeat tick landing inside a case, so one green run cannot show red on demand
 - source: spec-11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c.md | severity: low | fix-risk: med | footprint: in-story
@@ -6757,6 +6758,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 37.2 rework 3 measured the floor-user header sticky at 625px and static at 620px (640x360@2, stub /state); Story 25.2 (epics.md) opens History from the header navigation, a fifth link for the floor user, so its own G4/G5 will be red unless it plans the compact header's room (web/src/app/header/header.ts stacked .side).
 - 2026-11-11T00:09:01Z status=routed owner=25-2-filter-past-decisions-and-incidents-on-the-history-page by=cr note=plan the compact header at 640x360 with the History link; G4/G5 guard it; epics.md DW bullet under 25.2 is the orchestrator's post-merge
 - 2026-11-11T01:23:44Z status=routed owner=25-2-filter-past-decisions-and-incidents-on-the-history-page by=merge_gate note=Story 37.2 merge gate: epics.md Story 25.2 gains the [ADDED 2026-11-10, DW-1102] AC (History link fits the compact header at 640x360; live:floor G4/G5 green); 25.2's implement must plan the fit (37.2 left 15-19px)
+- 2026-11-11T05:14:42Z status=resolved-by:25-2-filter-past-decisions-and-incidents-on-the-history-page by=adjudication note=caee660f header.ts stacked-band fit K (spacing only; 640x360@2 floor user 77px sticky, slack ~18px measured); live floor 107/107 then 110/110 green in Chromium Firefox WebKit with G4/G5 unedited (implement and QA runs); mutation recorded in the spec Verification (fit K reverted -> G4/G5 red)
 
 ### DW-1103: flake: live:floor web/e2e/floor/keyboard.spec.ts:237 K2 (Esc closes the Trace help of a reply strip): 'focus is back on the link' (expect toBeFocused, received inactive within 10 s) red once locally, passed on one unchanged rerun
 - source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: low | footprint: web/e2e/floor/keyboard.spec.ts

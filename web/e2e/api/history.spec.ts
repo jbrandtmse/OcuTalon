@@ -2,7 +2,7 @@ import { expect, test, type APIRequestContext, type APIResponse } from '../suppo
 
 import { expectError, signInOverHttp } from '../sign-in/helpers';
 import { cleanFixtureRows, fixtureUser, seedIncident } from '../support/iris';
-import { cleanHistory, localDate, seedHistoryDecisions, type HistoryDecisionSeed } from '../support/history';
+import { localDate, seedHistoryDecisions, type HistoryDecisionSeed } from '../support/history';
 import { sessionRefOfUser } from '../support/memory';
 
 /**
@@ -227,7 +227,7 @@ test('the history routes: signed out, the filters, paging, the key allow-list, t
     expect(await summaries(second, `day=${d42}&channel=slack`), 'and none of the first session\'s 26').toEqual([]);
     const liveIncidents = (await allIncidents(request)).map((one) => one.ref);
     const theirIncidents = (await allIncidents(second)).map((one) => one.ref);
-    expect(liveIncidents, 'the LIVE session sees none of the other incidents').toEqual(expect.arrayContaining([closed, open]));
+    expect(liveIncidents, 'the LIVE session sees its own incidents').toEqual(expect.arrayContaining([closed, open]));
     for (const ref of [theirIncident, evalIncident, instanceIncident, unnoticed]) expect(liveIncidents, `the LIVE session does not list ${ref}`).not.toContain(ref);
     expect(theirIncidents, 'the second session sees its own incident').toContain(theirIncident);
     for (const ref of [closed, open, evalIncident, instanceIncident]) expect(theirIncidents, `the second session does not list ${ref}`).not.toContain(ref);
@@ -240,8 +240,40 @@ test('the history routes: signed out, the filters, paging, the key allow-list, t
   } finally {
     await anonymous.dispose();
     await second.dispose();
-    await cleanHistory(refs);
     await cleanFixtureRows(refs);
+  }
+});
+
+/**
+ * The Planner's case 7 for both routes, as the LIVE user and with no seeded row: a page past the last is a 200 with the page asked for, the page count and an empty
+ * list, never an error. The incidents route has its own case here (the first test pages the decisions only); an empty day has one page whatever the page asked.
+ * It reads only what its own request asks for and creates nothing, so no other case's rows or order change it. The day is 60 days ago, which no case seeds.
+ */
+test('the history routes: a page past the last is 200 with an empty list and the page count, on both routes', async ({ request }) => {
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
+  const empty = await localDate(60);
+  const cases: Array<{ url: string; list: 'decisions' | 'incidents'; query: string; pages?: number }> = [
+    { url: DECISIONS, list: 'decisions', query: `day=${empty}`, pages: 1 },
+    { url: DECISIONS, list: 'decisions', query: '' },
+    { url: INCIDENTS, list: 'incidents', query: '' },
+  ];
+  for (const { url, list, query, pages } of cases) {
+    const first = await read<Decision | Incident>(await request.get(`${url}?${query}`), list);
+    expect(first.page, `${list} ${query}: page 1`).toBe(1);
+    expect(first.pages, `${list} ${query}: at least one page`).toBeGreaterThanOrEqual(1);
+    for (const page of [first.pages + 1, 9999]) {
+      const response = await request.get(`${url}?${query}${query ? '&' : ''}page=${page}`);
+      expect(response.status(), `${list} ${query} page ${page}: not an error: ${await response.text()}`).toBe(200);
+      const body = (await response.json()) as Record<string, unknown>;
+      expect(Object.keys(body).sort(), `${list} page ${page}: the top level`).toEqual(['page', 'pages', list].sort());
+      expect(body['page'], `${list} page ${page}: the page asked for`).toBe(page);
+      expect(body[list], `${list} page ${page}: an empty list`).toEqual([]);
+      const count = body['pages'] as number;
+      expect(count, `${list} page ${page}: the page count is before the page asked for`).toBeLessThan(page);
+      expect(count).toBeGreaterThanOrEqual(1);
+      if (pages !== undefined) expect(count, `${list} ${query}: one page`).toBe(pages);
+    }
   }
 });
 

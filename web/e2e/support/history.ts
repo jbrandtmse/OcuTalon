@@ -1,8 +1,8 @@
-import { chk, cleanFixtureRows, irisScript, quoted } from './iris';
+import { chk, irisScript, quoted } from './iris';
 
 /**
  * Fixtures of the History specs (Story 25.2 api/history.spec.ts and history/history.spec.ts): the decide Decision rows (and their Usage rows, which give a
- * decision its channel) that a case seeds directly through irisScript with the product's test fixture (Test.Data.Fixture.Decision and Usage), and the clean-up.
+ * decision its channel) that a case seeds directly through irisScript with the product's test fixture (Test.Data.Fixture.Decision and Usage); support/iris.ts cleanFixtureRows removes them by their Refs.
  * Product code writes a decision only in the bridge; a fixture may save and delete rows itself. A case reads its own rows by a day that no other case uses.
  */
 
@@ -29,7 +29,7 @@ export interface HistoryDecisionSeed {
   traceSessionId?: number;
 }
 
-/** What seedHistoryDecisions made for a row: the Ref (for cleanHistory) and the local date it was recorded on. */
+/** What seedHistoryDecisions made for a row: the Ref (for cleanFixtureRows, which removes its usage rows with it) and the local date it was recorded on. */
 export interface SeededDecision {
   ref: string;
   date: string;
@@ -89,9 +89,4 @@ export async function seedHistoryDecisions(owner: HistoryOwner, rows: HistoryDec
     if (!ref || !date) throw new Error(`a decision could not be seeded (${lines.join(' ')})`);
     return { ref, date };
   });
-}
-
-/** Deletes the decisions seeded under these Refs, their usage rows with them (Test.Data.Fixture.Clean), and no row that another test made. */
-export async function cleanHistory(refs: string[]): Promise<void> {
-  await cleanFixtureRows(refs);
 }

@@ -6,7 +6,7 @@ import { ApiClient } from '../api/api-client';
 import type { HistoryDecisionsResponse, HistoryFallback, HistoryFilters, HistoryIncidentsResponse, HistoryOutcome } from '../api/history-types';
 import { CHAT_TEXTS } from '../chat/chat-view';
 import { FallbackFlag } from '../chat/fallback-flag';
-import { messageTime, pageWhen } from '../chat/page-time';
+import { messageTime, pageWhenBeside } from '../chat/page-time';
 import { IncidentStateChip } from '../incidents/incident-state-chip';
 import { headlineOf, INCIDENT_TEXTS, stateOf } from '../incidents/incident-view';
 import { LiveState } from '../live/live-state';
@@ -26,6 +26,7 @@ import {
   filtered,
   incidentTimes,
   isCanonical,
+  isDay,
   mergeQueryOf,
   noSummaryText,
   otherTab,
@@ -467,7 +468,7 @@ export class HistoryPage {
         chip: stateOf(incident.state),
         fallback: incident.fallback,
         headline: headlineOf(incident, { nowMs: now, messageTime: (iso, at) => messageTime(iso, at, zone, online) }),
-        times: incidentTimes(incident, (iso) => pageWhen(iso, now)),
+        times: incidentTimes(incident, (iso) => pageWhenBeside(iso, now, zone)),
         lines,
         noSummary: lines.length === 0 ? noSummaryText(incident.state) : '',
         traceUrl: incident.traceUrl,
@@ -585,9 +586,15 @@ export class HistoryPage {
     this.go({ ...this.state(), [name]: value, page: 1 });
   }
 
-  /** A change of the date: a readable date is the filter, an emptied input clears it. */
+  /**
+   * A change of the date: a readable date is the filter, an emptied input clears it, and any other value (such as the year 0002 that Chromium's
+   * input reports while a year is typed digit by digit) changes nothing, so typing a date adds one history entry and one read.
+   */
   protected pickDay(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
+    if (value !== '' && !isDay(value)) {
+      return;
+    }
     this.go({ ...this.state(), day: value, page: 1 });
   }
 

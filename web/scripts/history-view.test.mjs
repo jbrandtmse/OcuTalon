@@ -141,6 +141,12 @@ describe('the address', () => {
     for (const day of ['2025-02-29', '1900-02-29', '2026-04-31', '2026-00-10', '2026-11-00', '0000-01-01']) assert.equal(isDay(day), false, day);
   });
 
+  it('takes no day before 1841, which the server cannot read: the years that a typed year passes through are not days', () => {
+    assert.equal(isDay('1841-01-01'), true);
+    for (const day of ['1840-12-31', '1800-01-01', '0002-11-10', '0020-11-10', '0202-11-10']) assert.equal(isDay(day), false, day);
+    assert.equal(paramsOf(map({ day: '1800-01-01' })).day, '', 'an address with such a day is cleaned');
+  });
+
   it('reads page as digits with no leading zero, 1 to 9999', () => {
     assert.deepEqual(['1', '2', '25', '9999'].map(pageOf), [1, 2, 25, 9999]);
     assert.deepEqual([null, '0', '00', '09', '10000', 'x'].map(pageOf), [1, 1, 1, 1, 1, 1]);

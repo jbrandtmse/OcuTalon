@@ -3,7 +3,7 @@
 /// removed after every test.
 ///   - TestDispatch: Web.Api forwards /v1/history to Web.History, whose routes are GET /decisions and GET /incidents; /v1/historyx is no route, POST is no route,
 ///     and the whole chain from Web.Api is refused 403 no_role by the forwarded dispatch in a process that lacks the OcuTalon user role;
-///   - TestBadParams: every bad value of a known parameter is 404 not_found with the notes route's body and nothing is read; unknown parameters are ignored;
+///   - TestBadParams: every bad value of a known parameter is 404 not_found with the notes route's body; unknown parameters are ignored;
 ///   - TestDecisionsShape: 200 application/json; the top-level keys are exactly page, pages and decisions, every decision's keys are the contract's, and no
 ///     SessionRef, user name, row id, ownerRef, itemId, traceHeaderId or kind is in the body; a decision with no usage row has the channel "";
 ///   - TestFilters: the filters through the route, a second page of 26 rows, a page past the last (200 with an empty list), the order;

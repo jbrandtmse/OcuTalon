@@ -2,13 +2,13 @@ import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
 import { loadedAfter } from '../support/floor';
-import { cleanHistory, localDate, seedHistoryDecisions, type HistoryDecisionSeed } from '../support/history';
+import { localDate, seedHistoryDecisions, type HistoryDecisionSeed } from '../support/history';
 import { cleanFixtureRows, fixtureUser, seedIncident } from '../support/iris';
 import { sessionRefOfUser } from '../support/memory';
 import { helpSeen, stubTraces } from '../support/trace';
 
 /**
- * Story 25.2, the History page (H1 to H11), in a real browser against a real stack, signed in as the LIVE fixture user (OcuTalonUser only, the online demo visitors'
+ * Story 25.2, the History page (H1 to H14), in a real browser against a real stack, signed in as the LIVE fixture user (OcuTalonUser only, the online demo visitors'
  * role). The cases read rows that this file seeds once, on local days that no other case uses (45 to 47 days ago, so an address names its day), through the
  * product's test fixture, with a second session's (PANEL) rows beside them that must never show:
  *
@@ -21,7 +21,7 @@ import { helpSeen, stubTraces } from '../support/trace';
  *   P01..P26  46  act  slack     no        26 rows, the second page holds P01
  *
  * and two incidents (noticed in 2031, so they head the list): one closed with a stored summary, a count of 4 and a diagnosis trace, one open with no summary.
- * The texts are written out here, as the independent oracle of the page's own.
+ * The texts are written out here, as the independent oracle of the page's own. H9 and H12 stub the history routes in the browser and read no row.
  */
 const TITLE = 'History \u00B7 OcuTalon';
 const SIGN_IN_NAME = 'Open in Visual Trace (shows sign-in help first)';
@@ -71,7 +71,6 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await cleanHistory(made);
   await cleanFixtureRows(made);
 });
 
@@ -170,6 +169,9 @@ test('H2: every filter changes the address, the list follows, and a reload and a
   await expect(rowsOf(copy).first()).toContainText(`${tag} U4`);
   await copy.close();
 
+  await control(page, 'Date').fill('');
+  await expect(page, 'an emptied date input clears the day').not.toHaveURL(/day=/);
+  await expect(page).toHaveURL(/outcome=act/);
   await control(page, 'Date').fill(d46);
   await expect(page).toHaveURL(new RegExp(`day=${d46}`));
   await expect(page.getByText('No decisions match these filters.', { exact: true })).toBeVisible();
@@ -207,18 +209,37 @@ test('H3: 26 decisions page 25 and 1, with Previous and Next, a page past the la
   await expect(page).toHaveURL(/page=2/);
   await expect(rowsOf(page)).toHaveCount(1);
 
+  await visit(page, `?day=${d45}`);
+  await expect(rowsOf(page)).toHaveCount(5);
   await visit(page, `?day=${d46}&channel=slack&page=9999`);
   await expect(page).toHaveURL(/page=2(?:&|$)/);
   await expect(page).not.toHaveURL(/page=9999/);
   await expect(rowsOf(page)).toHaveCount(1);
   await expect(page.getByText('Page 2 of 2', { exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page, 'the last page replaced the stale address, so Back goes to the address before it').toHaveURL(new RegExp(`day=${d45}$`));
+  await expect(rowsOf(page)).toHaveCount(5);
   await visit(page, `?day=${d46}&channel=slack&outcome=foo&page=01`);
   await expect(page).not.toHaveURL(/outcome=foo|page=01/);
   await expect(rowsOf(page)).toHaveCount(25);
   await expect(pager(page, 'Decision pages')).toBeVisible();
-  await visit(page, `?day=${d45}`);
+  await page.goBack();
+  await expect(page, 'the cleaned address replaced the hand-edited one too').toHaveURL(new RegExp(`day=${d45}$`));
   await expect(rowsOf(page)).toHaveCount(5);
   await expect(pager(page, 'Decision pages')).toHaveCount(0);
+
+  await visit(page, `?day=${d46}&channel=slack&page=2`);
+  await expect(rowsOf(page)).toHaveCount(1);
+  await control(page, 'Outcome').selectOption({ label: 'Act' });
+  await expect(page).toHaveURL(/outcome=act/);
+  await expect(page, 'a filter change goes back to page 1').not.toHaveURL(/page=/);
+  await expect(rowsOf(page)).toHaveCount(25);
+  await expect(rowsOf(page).first()).toContainText(`${tag} P26`);
+  await visit(page, `?day=${d46}&channel=slack&page=2`);
+  await expect(rowsOf(page)).toHaveCount(1);
+  await tabOf(page, 'Incidents').click();
+  await expect(page).toHaveURL(/tab=incidents/);
+  await expect(page, 'a tab change goes back to page 1').not.toHaveURL(/page=/);
 });
 
 test('H4: a decision row expands its reasons in place, with its trace link beside the button that opens a new tab', async ({ page, context }) => {
@@ -392,4 +413,95 @@ test('H11: the page works by keyboard alone: the link, a filter, a row and Clear
   await page.keyboard.press('Enter');
   await expect(page).not.toHaveURL(/outcome=|day=/);
   await expect(control(page, 'Outcome')).toBeFocused();
+});
+
+test('H12: the Incidents tab shows the Fallback flag, the no-summary text of a closed incident, its own pager, and its own failed read with Retry', async ({ page }) => {
+  await openApp(page);
+  const incidentOf = (index: number, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    ref: `ZzH12Ref${String(index).padStart(4, '0')}`,
+    state: 'open',
+    fallback: false,
+    count: 1,
+    firstAt: '2031-03-01T09:00:00Z',
+    noticedAt: '2031-03-01T09:30:00Z',
+    closedAt: '',
+    summary: '',
+    ...extra,
+  });
+  let failing = false;
+  await page.route(INCIDENTS, (route) => {
+    if (failing) return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'x' } }) });
+    const second = new URL(route.request().url()).searchParams.get('page') === '2';
+    const incidents = second
+      ? [incidentOf(26)]
+      : [incidentOf(1, { fallback: true }), incidentOf(2, { state: 'closed', closedAt: '2031-03-01T11:00:00Z' }), ...Array.from({ length: 23 }, (_one, index) => incidentOf(index + 3))];
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ page: second ? 2 : 1, pages: 2, incidents }) });
+  });
+  await visit(page, '?tab=incidents');
+  await expect(incidentsOf(page)).toHaveCount(25);
+  await expect(incidentsOf(page).nth(0).locator('.chip-row app-fallback-flag'), 'a fallback incident shows the Fallback flag by its chip').toHaveCount(1);
+  await expect(incidentsOf(page).nth(2).locator('app-fallback-flag'), 'and one with no fallback none').toHaveCount(0);
+  await expect(incidentsOf(page).nth(1).locator('app-incident-state-chip')).toHaveText('Closed');
+  await expect(incidentsOf(page).nth(1), 'a closed incident with no summary says none was written').toContainText('No summary was written for this incident.');
+  await expect(incidentsOf(page).nth(0)).toContainText('No summary yet. OcuTalon writes one when the incident closes.');
+
+  const incidentPager = pager(page, 'Incident pages');
+  await expect(incidentPager).toBeVisible();
+  await expect(pager(page, 'Decision pages')).toHaveCount(0);
+  await expect(incidentPager.getByText('Page 1 of 2', { exact: true })).toBeVisible();
+  await incidentPager.getByRole('button', { name: 'Next page', exact: true }).click();
+  await expect(page).toHaveURL(/page=2/);
+  await expect(incidentsOf(page)).toHaveCount(1);
+  await expect(page.getByText('Page 2 of 2', { exact: true })).toBeVisible();
+  await expect(page.locator('main.history'), 'an incident page turn keeps keyboard focus on the page').toBeFocused();
+
+  failing = true;
+  await incidentPager.getByRole('button', { name: 'Previous page', exact: true }).click();
+  await expect(page.getByText("Couldn't load your history.", { exact: true })).toBeVisible();
+  await expect(incidentsOf(page)).toHaveCount(0);
+  failing = false;
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(incidentsOf(page)).toHaveCount(25);
+  await expect(page.getByText("Couldn't load your history.", { exact: true })).toHaveCount(0);
+});
+
+test.describe('in en-US', () => {
+  test.use({ locale: 'en-US' });
+
+  /** Chromium's date input reports a value for each digit of a year typed in (0002, 0020, 0202, 2026): only a readable day is a filter change. */
+  test('H13: a date typed into the Date filter digit by digit is one filter change: one history entry, one read, no error', async ({ page }) => {
+    await openApp(page);
+    await visit(page, '');
+    const asked: string[] = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/api/v1/history/decisions') && request.url().includes('day=')) asked.push(request.url());
+    });
+    const before = await page.evaluate(() => window.history.length);
+    const [year, month, day] = d45.split('-');
+    await control(page, 'Date').focus();
+    await page.keyboard.type(`${month}${day}${year}`, { delay: 50 });
+    await expect(page).toHaveURL(new RegExp(`day=${d45}`));
+    await expect(rowsOf(page)).toHaveCount(5);
+    expect(asked, 'one read, with the typed day').toHaveLength(1);
+    expect((await page.evaluate(() => window.history.length)) - before, 'one history entry').toBe(1);
+    await expect(page.getByText("Couldn't load your history.", { exact: true })).toHaveCount(0);
+    await page.goBack();
+    await expect(page).not.toHaveURL(/day=/);
+  });
+});
+
+test.describe('in Europe/Berlin', () => {
+  test.use({ timezoneId: 'Europe/Berlin', locale: 'en-GB' });
+
+  /** The stack is in UTC: beside the headline, a time in the instance zone, the page times name the browser zone (EXPERIENCE: Formats). */
+  test('H14: an incident row\'s Noticed and Closed times name the browser zone, and its headline time does not', async ({ page }) => {
+    await openApp(page);
+    await visit(page, '?tab=incidents');
+    const closed = incidentsOf(page).filter({ hasText: 'No fix ran, so nothing was changed.' });
+    await expect(closed).toHaveCount(1);
+    await expect(closed.locator('.meta')).toContainText(/Noticed [^\n]*10:30[^\n]* CET/);
+    await expect(closed.locator('.meta')).toContainText(/Closed [^\n]*12:00[^\n]* CET/);
+    await expect(closed.locator('.headline')).toHaveText(/^4 orders failed since /);
+    await expect(closed.locator('.headline')).not.toContainText('CET');
+  });
 });
