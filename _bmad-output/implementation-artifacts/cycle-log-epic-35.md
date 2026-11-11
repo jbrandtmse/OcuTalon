@@ -107,3 +107,15 @@
 2026-11-09T21:37:52Z	Story 35.2	story_cycle	implement_passes=2 reviews=2 rework=1(fix_pack:Planner_DW-1041_condition) first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-09T21:37:52Z	Epic 35	integrated_forward	feature=52cf70f6 head=c7367f5f conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml
 2026-11-09T21:37:52Z	Epic 35	epic_runner_complete	stories_completed=2 part_merge=35.1,35.2 parked=35.3(owner_replan)
+2026-11-11T10:53:16Z	Epic 35	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-11T10:53:16Z	Epic 35	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-11T10:53:16Z	Epic 35	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-11T10:53:16Z	Epic 35	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_35_3 lane=B slot=ocutalon-slot-b port=52802
+2026-11-11T10:53:16Z	Epic 35	integrated_forward_start	feature=5ed39411 head=5ed39411 mode=fast_forward(epic_head_1c9c90b5_already_on_feature) conflicts_resolved=none note=feature_ci_cancelled_on_merge_commit;green_by_identity_per_dispatch(1.0.7_cut_base)
+2026-11-11T10:53:16Z	Epic 35	epic_branch_checked_out	repos=. head=5ed39411 ci=gh workflows=ci,lane-a note=reopen_dispatch_20261111
+2026-11-11T10:53:16Z	Epic 35	epic_reopened	reason=scope_reopened_20261111(owner_via_Contest_Planner) tracker=epic-35:in-progress(kept_since_part_merge) branch=OCT-epic35(never_deleted;SC-5_checkout_as-is)
+2026-11-11T10:53:16Z	Story 35.3	story_unparked	story=35-3-send-events-to-ocutalon-through-a-webhook via=dispatch(scope_reopened_20261111) story_base=none stage=backlog(no_spec) amendment=epics.md:9384(un-parked_marker)
+2026-11-11T10:53:16Z	Epic 35	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-11T10:53:16Z	Epic 35	ledger_load	total=1117 open=0 routed=124 escalated=2 decision_pending=6 terminal=985 status_unknown=0 owner_unknown=0 burndown_owned_epic35=0 reowned_none=0
+2026-11-11T10:53:16Z	Epic 35	retro_review_skipped	reason=skipped(policy) note=recorded_at_first_dispatch_2026-11-09T05:51Z;ledger_slice_35-3_empty;gates.retrospective=skip
+2026-11-11T10:53:40Z	Epic 35	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_U8;in_sync;validate_ok;warning=35.3_demo_behaviour_to_spec_gate

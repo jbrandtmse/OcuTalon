@@ -9381,6 +9381,8 @@ So that other systems can tell OcuTalon what happened and it decides what needs 
 
 [AMENDED 2026-11-09, parked: owner re-plan 2026-11-09 (voting week), relayed by the Contest Planner and the orchestrator: no plan or implement until after voting; Epic 35 merges Stories 35.1 and 35.2 as a part merge and stays in progress; the story's criteria, and the roles-heading and public-path test items Story 35.2's plan found for it, are unchanged]
 
+[AMENDED 2026-11-11, un-parked: scope reopened by the owner via the Contest Planner]
+
 As an admin,
 I want to create webhooks, each with its own secret, that turn any JSON event into an item,
 So that other systems can tell OcuTalon what happened and it decides what needs me.
