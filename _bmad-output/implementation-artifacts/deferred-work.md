@@ -4413,6 +4413,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T22:41:17Z occurrence=OCT-epic41-ef38622e by=orchestrator note=run 42525785483: iris(shards) lane-a@Checks,Install,Watch,Eval Test.Watch.GoodMessages TestFewerThanTwentyGood (Ens.ScheduleService header); head predates 7.11 on feature (integrated onto c25902c3): inherited, fixed by the integrate-forward
 - 2026-11-11T02:45:31Z occurrence=41-15 by=orchestrator note=run 42943118887 job 130269395326 iris(shards-11) lane-a@Fix Test.Fix.DryRun TestFiftyOrdersChangeNothing ('OCUTALON headers 117 changed'); OCT-epic41 94af9e02
 - 2026-11-11T02:47:30Z occurrence=41-15-learned-saves-are-announced-by-code by=runner note=run_42943118887_iris(shards-11)_lane-a@Fix_Test.Fix.DryRun_TestFiftyOrdersChangeNothing(OCUTALON_headers_117_changed);head_94af9e02;41.15_changes_no_Fix_code
+- 2026-11-11T08:32:34Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page note=OCT-epic25 f21137d1 ci run 42981966109 iris (shards-8) lane-a@Watch Test.Watch.GoodMessages TestFewerThanTwentyGood (OCUTALON queues Ens.ScheduleHandler changed); ScheduleService/ScheduleHandler family; orchestrator-classified flake
 
 ### DW-698: flake: lane-a@rest Tools.RecentActivity and RecentActivityTurn saw a leaked resolved Orders/OrdersFromPartner incident (count 50, approved on web, 50 resent); TestPoisoned hit INVALID OREF in Test.Watch.Case.SortedKeys
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6698,6 +6699,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-parallel.md (OCT-epic41 4612eb5c, ci.yml run 42777878916) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (shards-10) job 129700562519 at 08:03:16Z, unit live:sign-in 857s; the same group passed on 28229232 (run 42767697005); 28229232..4612eb5c changes no product code
 - 2026-11-10T14:48:46Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); not rerun, as above; rerun once per occurrence
+- 2026-11-11T08:32:34Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page note=OCT-epic25 f21137d1 ci run 42981966109 iris (shards-10) live:sign-in row 8; orchestrator-classified flake
 ### DW-1084: More to try: the panel's render of an ungrouped set (first, no h4) is pinned only by groupsOf unit tests and a template source-text match; no executed render covers it
 - source: spec-0-22-the-more-to-try-panel-shows-its-items-under-three-group-head.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web has no component test host and every registry row declares a ruled group (the typo-guard unit test fails otherwise), so no e2e can render an ungrouped set; a template rewrite that keeps the @if regex green could misrender it
