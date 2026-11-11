@@ -12,7 +12,8 @@
  *   - Otherwise, with two or more waiting, the text is NEW_UPDATES with n the number waiting.
  *   - Otherwise (one waiting, `recent` at least ANNOUNCE_MERGE_ABOVE) the queue waits until ANNOUNCE_WINDOW_MS after the newest
  *     spoken text, and flushes again; whatever arrives meanwhile joins that flush.
- * - Every pushed message is spoken once, alone, joined or counted: nothing is spoken twice and nothing is dropped.
+ * - Every pushed message is spoken once, alone, joined or counted: nothing is spoken twice and nothing is dropped, except a message that
+ *   retract() withdraws while it still waits.
  * - dispose() clears the timer and the waiting list; a push after it does nothing.
  */
 
@@ -70,6 +71,16 @@ export class AnnounceQueue {
     this.waiting.push(text);
     if (this.timer === undefined) {
       this.arm(Math.max(0, this.lastAt() + ANNOUNCE_MIN_GAP_MS - this.options.now()));
+    }
+  }
+
+  /** Withdraws the waiting messages that equal this one (after trimming), so that an answer that arrived since is not contradicted; a message already spoken is not recalled. */
+  retract(message: string): void {
+    const text = message.trim();
+    for (let index = this.waiting.length - 1; index >= 0; index -= 1) {
+      if (this.waiting[index] === text) {
+        this.waiting.splice(index, 1);
+      }
     }
   }
 

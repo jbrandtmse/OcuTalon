@@ -7929,7 +7929,7 @@ So that I can look back at what OcuTalon decided and handled.
 
 **Given** a signed-in user
 **When** they open History from the header navigation
-**Then** the page, titled "History · OcuTalon", has two tabs, Decisions and Incidents, read from OcuTalon's and the bridge's tables through the ownership API, never from production messages (FR-53, AD-27, AD-31, UX-DR21, UX-DR22, UX-DR147)
+**Then** the page, titled "History · OcuTalon", has two tabs, Decisions and Incidents, read from OcuTalon's and the bridge's tables through the ownership API, never from production messages; and the spine's REST table and ownership tables gain this story's own step-6 additions in the same change: the history read and the header navigation's History entry, which the header shows from this story on; the file upload route, the private file table and the Roles section's routes come with the stories that build them (25.3, 25.4 and 25.5, 37.1) (FR-53, AD-27, AD-29, AD-31, AD-33, UX-DR21, UX-DR22, UX-DR147) [AMENDED 2026-11-10, decided by the Contest Planner under the owner's delegation: each story adds its own step-6 spine rows; the step-pairing rule no longer applies after the owner's re-plan; it read "the page, titled "History · OcuTalon", has two tabs, Decisions and Incidents, read from OcuTalon's and the bridge's tables through the ownership API, never from production messages (FR-53, AD-27, AD-31, UX-DR21, UX-DR22, UX-DR147)"]
 
 **Given** the Decisions tab
 **When** the user filters by outcome, channel, date and fallback

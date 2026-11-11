@@ -116,6 +116,12 @@ const RULED = {
         'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
       button: 'Open the Usage page',
     },
+    history: {
+      label: 'Look back at past decisions',
+      lookFor:
+        'On the History page, filter the Decisions tab by outcome, channel, date or fallback, and open a decision to read its reasons, with a link to its trace. The Incidents tab lists your incidents with their state and, once an incident has closed, its summary. If it reads "No decisions yet.", run the guide first.',
+      button: 'Open the History page',
+    },
   },
 };
 
@@ -141,6 +147,7 @@ const GROUP_OF = {
   persona: 'Safety and settings',
   demoView: 'Safety and settings',
   usage: 'Usage and history',
+  history: 'Usage and history',
 };
 const idsOf = (items) => items.map((item) => item.id);
 
@@ -163,10 +170,11 @@ describe('(a) the fixed strings', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS.map((id) => ACTION_OF[id] ?? id));
   });
 
-  it('give every entry its ruled group, with usage the last item of Usage and history and the last registry entry', () => {
+  it('give every entry its ruled group, with usage then history the last items of Usage and history and the last registry entries', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => [item.id, item.group]), IDS.map((id) => [id, GROUP_OF[id]]));
-    assert.equal(MORE_TO_TRY_ITEMS.filter((item) => item.group === 'Usage and history').at(-1)?.id, 'usage', 'usage is the last item of Usage and history');
-    assert.equal(MORE_TO_TRY_ITEMS.at(-1)?.id, 'usage', 'and the last registry entry');
+    assert.deepEqual(MORE_TO_TRY_ITEMS.filter((item) => item.group === 'Usage and history').map((item) => item.id), ['usage', 'history'], 'usage then history in Usage and history');
+    assert.deepEqual(IDS.slice(-2), ['usage', 'history'], 'and the last two registry entries');
+    assert.equal(MORE_TO_TRY_ITEMS.at(-1)?.action, 'history', 'the history item hands off to the History page');
   });
 
   it('use straight ASCII quotes and no other non-ASCII character', () => {
@@ -360,12 +368,12 @@ describe('(c) every quoted on-screen name equals its source', () => {
 
   it('counts the items by the registry: the header comment of the module says how many there are', () => {
     const header = readFileSync(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts'), 'utf8');
-    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen'];
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen'];
     assert.match(header, new RegExp(`the registry of\\s+\\*\\s+its ${words[MORE_TO_TRY_ITEMS.length]} items`), `the header comment says ${words[MORE_TO_TRY_ITEMS.length]} items`);
   });
 
   it('counts the items by the registry in the README (line 30) and in EXPERIENCE.md, whatever the number is after the merges (Story 23.6, AC 18)', () => {
-    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen'];
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen'];
     const word = words[MORE_TO_TRY_ITEMS.length];
     const readme = readFileSync(join(here, '..', '..', 'README.md'), 'utf8');
     assert.match(readme, new RegExp(`its More to try panel has ${word} more things to try`), `the README says ${word} more things to try`);

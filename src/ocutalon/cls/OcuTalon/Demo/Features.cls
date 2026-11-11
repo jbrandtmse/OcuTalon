@@ -10,7 +10,8 @@
 ///   - documents: the documents operation is compiled and is not a stub; the Documents page does not count;
 ///   - heartbeat: the class of the Run now command is compiled (Epic 39);
 ///   - sources: when memory or documents is listed, because a cited answer or a From memory chip needs one of them.
-///   - usage: always, last, because the Usage page ships in the same package as this class.
+///   - usage: always, because the Usage page ships in the same package as this class;
+///   - history (Story 25.2): always, last, because the History page ships in the same package as this class.
 Class OcuTalon.Demo.Features Extends %RegisteredObject
 {
 
@@ -49,7 +50,7 @@ ClassMethod Ids(has As %DynamicObject) As %List
 	If has.%Get("documents") Set ids = ids _ $ListBuild("documents")
 	If has.%Get("heartbeat") Set ids = ids _ $ListBuild("heartbeat")
 	If has.%Get("memory") || has.%Get("documents") Set ids = ids _ $ListBuild("sources")
-	Set ids = ids _ $ListBuild("usage")
+	Set ids = ids _ $ListBuild("usage", "history")
 	Quit ids
 }
 

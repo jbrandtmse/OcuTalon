@@ -71,6 +71,7 @@ const IMPORTED = [
   ['chat/noise-view.ts', ['NOISE_TEXTS']],
   ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS', 'ANSWER_WORDS']],
   ['usage/usage-view.ts', ['USAGE_TEXTS']],
+  ['history/history-view.ts', ['HISTORY_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -174,6 +175,15 @@ for (const [name, text] of [...imported, ...fromSource, ...fromTemplates]) {
  */
 const SOURCES = {
   ux: [
+    'History',
+    'Decisions',
+    'Incidents',
+    'Outcome',
+    'Date',
+    'No decisions match these filters.',
+    'Look back at past decisions',
+    'On the History page, filter the Decisions tab by outcome, channel, date or fallback, and open a decision to read its reasons, with a link to its trace. The Incidents tab lists your incidents with their state and, once an incident has closed, its summary. If it reads "No decisions yet.", run the guide first.',
+    'Open the History page',
     'Usage',
     'See tokens and cost',
     'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
@@ -666,9 +676,29 @@ const SOURCES = {
     ],
     'Story 34.2: Add and remove documents on a Documents page (the page title "Documents \u00b7 OcuTalon")': ['Documents \u00b7 OcuTalon'],
     'Story 37.2: See tokens and cost over time on the Usage page (the page title "Usage \u00b7 OcuTalon", epics.md)': ['Usage \u00b7 OcuTalon'],
+    'Story 25.2: Filter past decisions and incidents on the History page (AC 1, UX-DR22: the page title "History \u00b7 OcuTalon")': ['History \u00b7 OcuTalon'],
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 25.2 rulings at the spec gate 2026-11-10 (the Contest Planner under the owner\'s delegation, spec gate of Story 25.2, relayed by the orchestrator: PUBLIC TEXT approved as proposed: the Any outcome and Any channel options, the three Fallback options, Clear filters, the Noticed and Closed times, the two no-summary lines, the pager texts and the names of the two pagers, the empty line of no incidents, and the error line; the tab names, the Outcome and Date labels, the two empty lines of decisions and the More to try item sit under ux, because EXPERIENCE.md holds them)': [
+      'Any outcome',
+      'Any channel',
+      'All decisions',
+      'Fallback only',
+      'Without fallback',
+      'Clear filters',
+      'Noticed {time}',
+      'Closed {time}',
+      'No summary yet. OcuTalon writes one when the incident closes.',
+      'No summary was written for this incident.',
+      'Previous page',
+      'Next page',
+      'Page {page} of {pages}',
+      'Decision pages',
+      'Incident pages',
+      'No incidents yet.',
+      "Couldn't load your history.",
+    ],
     'Story 37.2 rulings at the spec gate 2026-11-10 (the Contest Planner under the owner\'s delegation, prompts/epic-37-rulings-372.md: the Usage page\'s Range and Group by labels, the range options, the Day grouping, the Tokens and cost, Largest request per day and Largest request (estimated) headings, the largest-request cell, the error line, the agent name Chat summaries, the channel names Web chat and Slack, and the includes estimates marker; the More to try item\'s label, look-for and control sit under ux, because EXPERIENCE.md holds them)': [
       'Range',
       'Last 7 days',
