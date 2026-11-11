@@ -7575,7 +7575,7 @@ So that email to me just goes and email to anyone else waits for my approval.
 
 [AMENDED 2026-11-11, Story 22.2 spec gate, runner ruling (split, unattended decide U5): split from Story 22.2, planned next after it; these criteria and entries are Story 22.2's, moved whole or in the part named, with their wording kept]
 
-> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1013; moved here from Story 22.2 by the 2026-11-11 split] Attaching an MCP server gets a bounded timeout with a clear error, so a server that accepts the connection and never answers cannot block `AddTool` or the manager's listing (measure rmcp's own timeout on a throwaway first).
+[AMENDED 2026-11-11, Story 22.8 spec gate, runner ruling (split, unattended decide U5): the DW-1013 attach timeout (the amendment that stood here and the DW-1013 entry) moved whole to Story 22.9, planned after this story]
 
 As an admin,
 I want every MCP call classified by the gate from my classification of that tool, as it is now,
@@ -7597,7 +7597,24 @@ So that a new or changed tool can never act without my say.
 
 - DW-174: Whether AI Hub gives an MCP tool a toolref that starts `mcp:` is unmeasured; another form (the JSON configuration form of `%AI.Tool.Resolver`) would take `metadata.origin_class` as the source, so a shadowing MCP tool could take a built-in's classification. Measure a real MCP tool's toolref and metadata in `%CanExecute` (stdio, remote, JSON configuration) when step 4 registers MCP servers (ledger; routed by harvest 2026-10-24; moved from Story 22.2 by the 2026-11-11 split)
 - DW-724: `Decide.ToolsReadOnly` judges only an agent's compiled TOOLSETS, so MCP servers attached at step 4 (AD-21) are invisible to the U-282 rule; when MCP servers are attached to an agent, `ToolsReadOnly` must count them (an unclassified or non-read-only server's tool means not read-only) (ledger; routed by harvest 2026-11-05; moved from Story 22.2 by the 2026-11-11 split)
-- DW-1013: An attached MCP server that accepts the connection and never answers may block `AddTool` and the manager's listing with no deadline, at the build and in every request: the bounded attach timeout above (ledger; routed by merge_gate 2026-11-09; moved from Story 22.2 by the 2026-11-11 split)
+
+### Story 22.9: Bound MCP attach and listing with a timeout
+
+[AMENDED 2026-11-11, Story 22.8 spec gate, runner ruling (split, unattended decide U5): split from Story 22.8 (itself split from Story 22.2), planned after Story 22.8; it carries the Contest Planner's DW-1013 ruling whole]
+
+> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1013; moved here from Story 22.2 through Story 22.8 by the 2026-11-11 splits] Attaching an MCP server gets a bounded timeout with a clear error, so a server that accepts the connection and never answers cannot block `AddTool` or the manager's listing (measure rmcp's own timeout on a throwaway first).
+
+As an admin,
+I want an MCP server that stops answering to be given up on in bounded time, with a clear error,
+So that one hung server can never hold OcuTalon's runners.
+
+**Acceptance Criteria:**
+
+**Given** a registered MCP server that accepts the connection and never answers
+**When** a runner attaches it at a build, or lists its tools for a request
+**Then** the attach or the listing gives up within a bounded time with a clear error, the server is reported unavailable as Story 35.1's attach report records it, and the runner and the turn go on without that server's tools (FR-47, AD-21, AD-31)
+
+- DW-1013: An attached MCP server that accepts the connection and never answers may block `AddTool` and the manager's listing with no deadline, at the build and in every request (ledger; routed by merge_gate 2026-11-09; moved from Story 22.2 through Story 22.8 by the 2026-11-11 splits)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 
