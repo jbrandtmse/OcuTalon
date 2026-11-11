@@ -2,7 +2,7 @@
 title: 'Story 23.5: Draft partner delay notices that are sent only after approval'
 type: 'feature'
 created: '2026-11-09'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '931f012400ec1fc4667ca0251cb64b3772faee5a'
 baseline_commit: '4e7cb8e7c695f5f8b6c71452ff057f57f95599a2'
 review_loop_iteration: 0
@@ -247,6 +247,10 @@ Rejected or closed (appendix):
   - mutation: the approved branch of `Closed` made unreachable (`event = ..#APPROVED` -> `event = "never"`) -> `Test.Fix.PartnerDraft:TestStateNeverMoves` red ("an approval is told once", "told as a result that did not send", "with the kind's NOSTART as the reason"); and `Closed` also calling `Execute` on approved -> the same method red ("an approval is told once and sends no Execute"); each restored byte-identical (`cmp` against the saved copy), class green again.
   - Review patch: `TestStateNeverMoves` also pins the reason of the after-close final result (the executor's `UNUSABLE`), a sent final result (`result.partnerSent`, told as it came) and a progress result (told to nobody). mutation: `Closed`'s `ElseIf event '= FINISHED` made `ElseIf 0` (every event passes its notice through) -> `TestStateNeverMoves` red ("a result still in progress after the close tells nobody", "a rejection and an expiry after the close tell nobody and send no Execute"); and made `ElseIf 1` (every notice dropped) -> red ("a final result after the close is told once", "with the reason it came with", "a final result that sent after the close is told as it came"); each restored byte-identical (`cmp`), `Test.Fix.PartnerDraft` green again (10 methods).
 
+**CI rework (iteration 3; CI run 42963531773 on 52db267d):**
+- [ ] [CI] `OcuTalon.Test.Data.Tables:TestContracts` fails in CI (iris (image), shard lane-b@Contract,Core,Data,Live): "the dry run keys (item, from, to and example since Story 23.2)". This story extended `Bridge.Data.ApprovalRequest` `DRYRUNKEYS` with `notice,recipients,simulated` (Code Map, AD-16) but did not move this shared-surface pin. Extend the pin additively to the parameter's full value (keep every earlier key and its order; message names Story 23.5's three keys); no product change. Demonstrated `mutation:` line.
+
+
 
 ### Review Findings (rework iteration 1, smoke: code review)
 
@@ -293,6 +297,7 @@ Rejected (appendix):
 
 - 2026-11-11 (runner): lead smoke found the TelegramChat TestNotices shared-surface pin red; spec re-opened for rework iteration 1 with that [Smoke] item.
 - 2026-11-11 (runner): Contest Planner merge-time rulings on DW-1109 (fix now; Demo/Guide.cls joins the AD-33 list) and DW-1108 (option (a), bounded at about 1 h); spec re-opened for rework iteration 2 with the two [Rework] items.
+- 2026-11-11 (runner): CI red on 52db267d (Test.Data.Tables DRYRUNKEYS pin, story-class); spec re-opened for rework iteration 3 (the last under the cap) with that [CI] item.
 
 - 2026-11-10 (runner): lead note before implement: 23.2 delivered (build on its code), More to try groups and count twelve, 37.2 interplay, spine lines written.
 

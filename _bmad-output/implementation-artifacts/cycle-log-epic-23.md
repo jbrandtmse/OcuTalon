@@ -142,3 +142,6 @@
 2026-11-11T05:06:07Z	Story 23.5	smoke_complete	method=other(rework2:warm_e23s5hw:Test.Fix.PartnerTurns_real_production_path_pass;Demo.Guide_step4_and_PartnerDraft_after-close_pins_pass) result=pass iterations=1 defects_caught=0
 2026-11-11T05:06:07Z	Story 23.5	fresh_check	env=recipe(warm_e23s5hw) tests=11 result=pass order=forward,reverse story_base=ce01d4be torn_down=e23s5hw
 2026-11-11T05:06:07Z	Story 23.5	integrated	onto=b5bd74c5(41.15) conflicts=sprint-status,Test/Msg/Catalog.cls resolution=plain_union(Core_140=138+press.approvedPartner+memory.learnedSaved;Watch_116) checks=web_units_1874/1874,lint,test-readme,test-boundaries,test-ci-config,test-class-rules
+2026-11-11T05:58:39Z	Story 23.5	ci_failed	sha=52db267d runs=42963531773(fail),42963531772(pass) story=Test.Data.Tables:TestContracts_DRYRUNKEYS_pin flake=live:online-allowance_D1_S1(DW-432_occurrence)
+2026-11-11T05:58:39Z	Story 23.5	rework_opened	iteration=3(cap_last) source=ci item=[CI]_Test.Data.Tables_DRYRUNKEYS_pin
+2026-11-11T05:58:39Z	Story 23.5	stage_spawned	stage=implement spawn_at=2026-11-11T05:58:39Z model=sonnet effort=high agent_name=23-5-ci-rework cycle_iteration=4 rework=3 baseline=52db267d
