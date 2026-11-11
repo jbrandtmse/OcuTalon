@@ -1,0 +1,163 @@
+---
+title: 'Story 21.6: Send email over SMTP'
+type: 'feature'
+created: '2026-11-11'
+status: 'ready-for-dev'
+review_loop_iteration: 0
+followup_review_recommended: false
+context:
+  - '{project-root}/_bmad-output/implementation-artifacts/epic-21-context.md'
+  - '{project-root}/_bmad-output/implementation-artifacts/spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md'
+warnings: ['oversized']
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** OcuTalon cannot send email: `CommandsIn` routes `SendEmail` (Story 35.2) to `EmailOut`, but no `EmailOut` item exists, the Email form has no outgoing (SMTP) server, and nothing writes `EmailOut`'s host settings. Lane A's email tool (22.7) and the digest by email (21.7) wait on it. Also, an identical re-save after a failed production update never restarts the email items (DW-1139).
+
+**Approach:** Settings > Channels > Email gains "Outgoing mail server (SMTP)" (accepted key `settings.emailOutgoing`). `SettingsOps.SaveEmail` writes `EmailOut`'s System Default Settings with the same credential `OcuTalonMail` and the installer's `OcuTalonClient` (server identity checked), and every successful save runs the detached production update. New `EmailOut` (`OcuTalon.Channel.Email.Out`, own adapter subclass of `EnsLib.EMail.OutboundAdapter`) validates and sends one `SendEmail` from the user's own address, records a `Delivery`, and answers a `CommandResult`. The CI mock gains an SMTP stub; no real email is ever sent.
+
+## Boundaries & Constraints
+
+**Always:** Lane B files only; contended files get small, self-contained edits (Design Notes, "Contended files"). The password stays exactly as 21.2 handles it (`SecretHandoff`, never in a command, message, log, trace, global or GET). `SettingsOps` is the only writer of `EmailOut`'s settings rows; REST writes none (AD-1, AD-19). Any value holding `@{` is refused and nothing changes. TLS always: `OcuTalonClient` (VerifyPeer on) with the server identity checked; no plain SMTP, no accept-any-certificate option (V7). `EmailOut` logs counts and outcomes only, never an address, subject, text, server text or credential. Online demo: no email settings show, the route refuses, `EmailOut` stays disabled and refuses if ever reached. Tool `SendEmail` reaches `EmailOut` only for the session user's own address (35.2's `CommandsIn.OwnAddressOnly`, unchanged). ASCII-only source; comments state the contract.
+
+**Never:** a Lane A file (`Mcp/**`, `Tools/Email*`, `Bridge/**`, `Fix/**`, `Digest/**`, `Install/**`, `src/bridge/**`, Lane A tests); the digest by email, the `email` render channel or a Notify branch (21.7); OAuth2 (21.3); a Disconnect control or a separate SMTP user/password; `Ens.Director.EnableConfigItem` or any save of the production definition; a real mail server, address or credential in any test or CI run; a new role, grant, resource, web application, route, table, `ci/units.sh` unit or group; README text.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| First SMTP save | admin, local install; the mailbox body plus `outgoing` `smtp.example.com` | 200 done; `EmailOut` SDS rows `SMTPServer`, `SMTPPort` 587, `Credentials` `OcuTalonMail`, `SSLConfig` `OcuTalonClient*`, `SSLCheckServerIdentity` 1, `Enabled` 1; `EmailOut` runs within 60 s; one Settings audit entry `email.outgoing` "" -> host (host:port off 587); `EmailIn` rows untouched | -- |
+| TLS by port | `outgoing` `host:465` / `host:25` or any other port | 465: `SSLConfig` `OcuTalonClient` (implicit TLS); any other: `OcuTalonClient*` (STARTTLS) | a server without STARTTLS fails the send (Task 0 b), never plain |
+| Outgoing cleared | `outgoing` "" or absent, an SMTP server saved | `EmailOut` `Enabled` row 0, `SMTPServer`/`SMTPPort` rows deleted, audited host -> ""; mailbox kept | none saved: no SMTP change |
+| Refused outgoing | `@{`, a control char, not `host`/`host:port`, port 0 or > 65535, not a JSON string | 400 `bad_settings` `["outgoing"]` (with any other refused field); nothing written; offered secret withdrawn; nothing audited | -- |
+| Re-save after a failed update (DW-1139) | rows as saved, `EmailOut` (or `EmailIn`) not running because the update never ran; identical body | done; no row or audit change; the detached update runs and the item runs within 60 s | -- |
+| Non-admin / online demo | LIVE fixture user; `onlineDemo` 1 | 403 `not_admin`; 409 `not_available` (P2); GET has no `channels`; `EmailOut` disabled | -- |
+| Tool email | owner session in a bridge context, `SendEmail` to the saved address, SMTP saved | real `CommandsIn` -> `EmailOut`: the stub receives one mail, From and To the address, subject and text as sent (UTF-8 kept); `Delivery` row (owner, channel `email`, a new Ref); Ok 1 `sent` (Q1) | other address or session: `not_allowed`, stub receives nothing |
+| System email | origin `system` (FixExecutor's path), valid recipients | sent as above to those recipients | -- |
+| Bad values at `EmailOut` | no recipient, > 20, one not an address; subject empty, > 200, or with CR, LF or another control char; text empty or > 100,000 chars | Ok 0 `refused` (Q2), Data `{"fields": [...]}`; stub gets no connection | -- |
+| Not connected | `EmailOut` not running (no SMTP saved), or `email.address` empty | Ok 0 `not_connected` (Q3); nothing sent | `CommandsIn` maps the not-registered dispatch error (Task 0 a) |
+| Send fails | connect refused, TLS failure, STARTTLS missing; AUTH refused; RCPT or DATA rejected | Ok 0 `failed`: P1a; P1b; Q4; one try, no retry, no partial send; no `Delivery` row | -- |
+| Online demo at `EmailOut` | flag set, a command reaches it | Ok 0 `not_available` (P2); nothing sent | -- |
+
+</intent-contract>
+
+## Code Map
+
+- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` -- class doc :1-76 (email paragraph :60-65); `MAILITEM` :797, `ROWDESCRIPTION` :800, `DEFAULTPORT`/`STARTTLSPORT` :806-808; `XData Sections` channels row :853-858; `Values` :885 (channels via `EmailValues` :1630); `Save` :952 -> `SaveEmail` :1411 (todo audits, transaction, then credential, `WriteItemSettings`, and `StartItem` only `If applied` :1478 -- DW-1139); `EmailShape` :1497 (address regex :1514; add `outgoing`); `IncomingForm` :1558, `SslFor` :1566, `ItemRows` :1572, `WriteItemSettings` :1579, `PutBackEmail` :1601 (rows are EmailIn-only today), `ItemSettingId`..`DeleteItemSetting` :1678-1710 (hard-wired to `MAILITEM`), `StartItem` :1716, `UpdateIn` :1725 (logs one error after UPDATETRIES).
+- `src/ocutalon/cls/OcuTalon/Test/Core/SettingsEmailProbe.cls` -- overrides the item-setting seams by name only (`^||OcuTalonSettingsEmailProbe("sds", name)`) and `StartItem` ("start"); must gain the item argument. `Test/Core/SettingsEmail.cls` -- `TestFirstSave` :81, `TestTlsFollowsThePort` :107, `TestNothingChanged` :291 (pins no start on an identical save -- flips for DW-1139), `TestAllOrNothing` :302, `TestValues` :335, `TestNoSecretAnywhere` :349.
+- `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls` -- `Carry` send/error branch :120-128 (`IsStub` :248; add the not-registered mapping for `EmailOut`); `OwnAddressOnly` :136 (unchanged); `MESSAGE*` :65-79; route row `SendEmail` :310.
+- `src/ocutalon/cls/OcuTalon/Msg/Command/SendEmail.cls` -- `Recipients` (MAXLEN 2000), `Subject` (200), `Text`; unchanged. `Msg.CommandResult` (`Ok`, `Outcome`, `Message`, `Data`).
+- `src/ocutalon/cls/OcuTalon/Channel/SimMailbox/Out.cls`, `Channel/Operation.cls` -- sibling operation and base (`OcuTalon.Channel.Operation Extends Ens.BusinessOperation`); `Channel/Email/Adapter.cls` -- 21.2's inbound subclass (TLS rule, counts-only logging, OAuth2 lines kept for 21.3).
+- `src/ocutalon/cls/OcuTalon/Data/Delivery.cls:Record(ownerRef, channel, channelMessageId, approvalRef, ...)` -- refuses an empty owner; `Msg.Enum` CHANNEL has `email`. `Data/Setting.cls` `Fresh(key)` -- uncached row read (21.2).
+- `src/ocutalon/cls/OcuTalon/Production.cls` -- lane B region; `EmailIn` item :75-77; add `EmailOut` right after it (35.3 appends `WebhookIn` at the region's end). `Test/Core/ProductionItems.cls` -- the `EmailIn` oracle row; add `EmailOut`'s right after it. Readers: `Test/Install/Production.cls`, `Test/Core/Routing.cls`.
+- IRIS (read, never load): `irislib/EnsLib/EMail/OutboundAdapter.cls` -- `SSLCheckServerIdentity` default 0 :50 (must be 1), `ContinueAfterBadSend` default 1 :54, `CredentialsSet` :81, `OnInit` :111 (`*` suffix = STARTTLS :117-124), `SendMail` :145-200 (logs every failed recipient address :186, sets `Retry` on connect errors :190, OAuth2 token block :165-182 to keep for 21.3). `irislib/%Net/SMTP.cls` -- `Send` :360 (rejects CR/LF in headers and addresses before connecting), `Login` :583 (STARTTLS required when `UseSTARTTLS`, else error -- no plain fallback :600-612; identity check :618-636; no AUTH advertised is an error :650-656).
+- Web: `web/src/app/settings/email-view.ts` (`EMAIL_TEXTS`, `EMAIL_FIELDS`, `emailTextsOf`, `emailBody`, `isEmailDirty`), `email-section.ts` (field block :62-76 to copy for the new field), `web/src/app/api/api-types.ts:242` `EmailValues`; `web/scripts/email-view.test.mjs`; `web/scripts/ux-strings.test.mjs:228` (row 'Incoming mail server (POP3)'); `web/e2e/settings/email.spec.ts` E1 :90, E2 :106, E4 :182; `web/e2e/settings/settings.spec.ts:695` (counts 4 fields of the section).
+- Route: `src/ocutalon/cls/OcuTalon/Web/Api.cls:915` `SaveChannels` passes every body member but the password through to SettingsOps, so no `Web/Api.cls` change is needed. `Test/Web/SettingsApi.cls` `TestGetShape` :153, `TestChannelsRoute` :526.
+- Mock: `ci/mock/mail.mjs` (POP3 stub: `createMail()` API, control under `/_mock/mail/`, header comment as the contract), `ci/mock/server.mjs:2-5,23-37,71-92` (`--pop3-port` option, the control routing and the start block to mirror), `ci/mock/test/mail.test.mjs`.
+- Live test base: `src/ocutalon/cls/OcuTalon/Test/Channel/EmailLive.cls` (Extends `Test.Core.InProduction`; `Connect` :151, `PlainStub` :172, `Disconnect` :264, `Control`/`StubState` :105-121, `STUBHOST` mock, `CONTROLPORT` 8080). Bridge-context fixture: `Test/Core/CommandsStep4.cls:118-129` (`Bridge.Context.Begin`/`End`); `TestSendEmailAfterSave` :201.
+
+## Tasks & Acceptance
+
+**Execution:**
+- Task 0 (measure first on the lane-C warm stack; record under Design Notes "Measured"; label anything unmeasured (inference)): (a) what `CommandsIn`'s synchronous send to a definition-disabled `EmailOut` returns (error code, how fast); (b) `%Net.SMTP` through the new adapter against the plain stub: the AUTH mechanism it picks, and the error codes of a refused connection, a refused AUTH, a rejected RCPT, a rejected DATA, and a server that does not offer STARTTLS while `SSLConfig` ends in `*` (must fail, never send plain), to classify P1a / P1b / Q4; (c) implicit TLS (465-style) and STARTTLS (587-style) against a scratch-only TLS front of the stub with a scratch certificate and a scratch SSL configuration (files only in the session scratch folder, never committed; removed after), with the identity checked, `OcuTalonClient` refusing the scratch certificate, and a wrong host name failing; (d) the headers and transfer encoding `%Net.SMTP` writes for a UTF-8 subject and text, so the stub decodes them; (e) an `Enabled` 1 row plus the detached `UpdateIn` starts `EmailOut`, and a changed row restarts it (cite 21.2 Task 0 b; re-measure for `EmailOut`). The V5 grant is 21.2's measured (f) (same table, same job, no new kind of write): re-measure only if implementation writes anything else.
+- `src/ocutalon/cls/OcuTalon/Channel/Email/Sender.cls` -- new, `Extends EnsLib.EMail.OutboundAdapter`: `OnInit` forces `SSLCheckServerIdentity` 1 and `ContinueAfterBadSend` 0 after the parent's; `SendMail` replaces the parent's (one try, never sets `BusinessHost.Retry`, logs no address; keeps the parent's OAuth2 token lines for 21.3) and answers the status for `EmailOut` to classify.
+- `src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls` -- new `EmailOut` (`Extends OcuTalon.Channel.Operation`, `ADAPTER` Sender, MessageMap `SendEmail`): online demo -> `not_available` (P2); validate (matrix "Bad values"; the address rule shared with `SettingsOps`, below); From = `email.address` (`Setting.Fresh`), empty -> `not_connected`; build a `%Net.MailMessage` (UTF-8, plain text, To = the recipients) and send once; classify a failure to P1a / P1b / Q4 (Task 0 b); on success `Delivery.Record(SessionRef or "instance", "email", a new `Bridge.Ids.NewRef` Ref, "")` and Ok 1 `sent` (Q1). Answers a `CommandResult` on every path, never an error status. Messages are class parameters equal to the Public text rows.
+- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` -- channels section gains field `outgoing` (optional); `EmailShape` validates it like `incoming` (default port 587); the address regex becomes a public `ClassMethod IsAddress(text)` that `EmailShape` and `EmailOut` call; the item-setting seams (`ItemSettingId`, `ItemSettingExists`, `ReadItemSetting`, `WriteItemSetting`, `DeleteItemSetting`, `WriteItemSettings`) take the item name (`MAILITEM` / new `SENDITEM` "EmailOut"); `OutRows(host, port)` gives the `EmailOut` rows; a cleared outgoing writes `Enabled` 0 and deletes the server rows; `todo` gains the `email.outgoing` audit (host:port off 587, as `IncomingForm`); `PutBackEmail` restores both items' rows; DW-1139: `StartItem` runs after every successful save, not only when a row changed (its doc says why: `UpdateProduction` changes nothing when nothing differs, and starts an item that is not running as saved); `EmailValues` adds `outgoing`; class doc paragraph updated.
+- `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls` -- in `Carry`'s send-error branch only: a `SendEmail` whose send fails with the not-registered dispatch error (Task 0 a) answers Ok 0 `not_connected` with `EmailOut`'s Q3 message; doc line added. No route or origin change.
+- `src/ocutalon/cls/OcuTalon/Production.cls` -- lane B region, right after `EmailIn`: `<Item Name="EmailOut" ClassName="OcuTalon.Channel.Email.Out" PoolSize="1" Enabled="false"/>`. `Test/Core/ProductionItems.cls` -- its oracle row right after `EmailIn`'s (`pool` 1, `enabled` 0, `stub` 0, `settings` []).
+- `web/src/app/settings/email-view.ts` -- `EMAIL_TEXTS.outgoing` = "Outgoing mail server (SMTP)"; `EMAIL_FIELDS` `address, incoming, outgoing, user, password`; `emailTextsOf`, `emailBody` (always sends `outgoing`), `isEmailDirty` cover it. `email-section.ts` -- the field after Incoming, same pattern (id `email-outgoing`, field error). `web/src/app/api/api-types.ts` -- `EmailValues.outgoing: string`. `web/scripts/email-view.test.mjs`, `web/scripts/ux-strings.test.mjs` (one row) updated.
+- `ci/mock/smtp.mjs` -- new SMTP stub (plain TCP; EHLO advertising AUTH PLAIN LOGIN and never STARTTLS, so a `*` SSLConfig against it is the STARTTLS-missing case; AUTH accepted and the password discarded at once, user name kept; MAIL, RCPT, DATA, RSET, NOOP, QUIT; failure modes `none|refuse|auth|reject|error`); control on the HTTP port under `/_mock/smtp/`: `failure`, `reset`, `state` (`{messages:[{from,to,subject,text}],connections,logins,user,failure,commands}`); contract in its header comment like `mail.mjs`. `ci/mock/server.mjs` -- `--smtp-port` (default 1025; unavailable is no start failure) and one routing and start block. `ci/mock/test/smtp.test.mjs` -- new.
+- Tests: `src/ocutalon/cls/OcuTalon/Test/Channel/EmailOut.cls` (new; the operation against a stand-in adapter subclass: every "Bad values" row, `not_connected`, the online demo, each failure class, Delivery written only on success, no address in `Ens.Util.Log`); `Test/Channel/EmailLive.cls` gains SMTP cases (real save with `outgoing` `mock:1025`, rows and audit, `EmailOut` running within 60 s; tool `SendEmail` of the owner in a bridge context and a `system` one through real `CommandsIn` reach the stub and record a Delivery; another address refused with nothing at the stub; send failures by stub mode; the DW-1139 re-save starts a stopped item; the stub host guard; restores all, `SSLConfig` blanked as a fixture only); `Test/Core/SettingsEmail.cls` + probe (outgoing rows, TLS by port, cleared, refused, audit, start on every save, all-or-nothing across both items, values); `Test/Core/CommandsStep4.cls` (`not_connected` mapping); `Test/Web/SettingsApi.cls` (`TestGetShape` and `TestChannelsRoute` with `outgoing`).
+- `web/e2e/settings/email.spec.ts` -- E2 fills Outgoing `mock:1025`, asserts the saved text, GET `outgoing` and `passwordSet` with no password, and the second session's 403 and isolation as today; E4 unchanged; restores. `web/e2e/settings/settings.spec.ts:695` -- 4 -> 5 fields (one line).
+- After the gate rulings: spine S1-S4 (Design Notes) with `[ADDED 2026-11-11, Story 21.6]` markers, memlog line, lint; `EXPERIENCE.md` Message Catalog rows for the accepted Q1-Q4.
+
+**Acceptance Criteria:**
+- Given an admin on a local install with a mailbox connected, when they type an outgoing server in Settings > Channels > Email and save, then the page shows "Saved. Applies within a minute. Recorded in the audit log.", matrix rows 1-4 hold on the HTTP answer, the SDS rows, the credential and the recorded audit data, and `EmailOut` runs within 60 s.
+- Given the saved mailbox and SMTP server on the CI stub, when a tool turn of the owner session submits `SendEmail` to the saved address through `Commands.Submit`, then real `CommandsIn` routes it to real `EmailOut`, the stub holds exactly that mail and a `Delivery` row of channel `email` is recorded; a second session's or another address's identical command is refused and the stub receives nothing (Integration AC; Lane A's 22.7 relies on it).
+- Given the dummy password of `EmailLive`, when the save and a send have run, then no `SaveSettings` body, `SendEmail` message, `Ens.Util.Log` row, audit entry, CommandResult, stub state or `^OcuTalon*` global holds it, and no log row holds the address or the subject.
+- Given the LIVE fixture user, when it POSTs `/api/v1/settings/channels` with `outgoing`, then 403 and nothing written; given the online demo, the route answers 409, no email settings show, `EmailOut` stays disabled, and a `SendEmail` reaching `EmailOut` is refused `not_available`.
+- Given CI, when the email tests run, then every send goes to the mock's SMTP stub (each live test asserts `EmailOut`'s `SMTPServer` row is `mock` before it sends) and no real email is sent.
+- Given an `EmailOut` or `EmailIn` whose rows are saved but which is not running (the update never ran), when the admin re-saves the identical form, then the item runs within 60 s (DW-1139).
+- Given `SSLConfig` ending in `*` and a server that offers no STARTTLS, when `EmailOut` sends, then it fails with P1a and sends nothing in plain; and Design Notes "Measured" records implicit TLS and STARTTLS with the server identity checked (Task 0 c, V7).
+- Given the finished diff, when its paths are listed, then no Lane A path or Never-list item appears, each contended-file touch is the one Design Notes names, and no new grant, role or resource was added (V5).
+
+## Spec Change Log
+
+## Review Triage Log
+
+## Design Notes
+
+**Governing ADs (Rule 6):** AD-1 (`SendEmail` from `tool` only to the own address, from `system` for the fix; REST writes no settings; "only business operations send outbound channel traffic"), AD-5 (SDS hold changing values), AD-13 (admin-checked settings route), AD-14 (`EmailOut` as the Email channel's operation; each `*Out` records its `Delivery`), AD-16 (the email fix kind's target is `EmailOut`, 22.7), AD-17 (audit without secrets or identities), AD-19 (mail credentials in Interoperability credentials, `SettingsOps` the only writer, `@{` refused, the 21.2 hand-off and detached update), AD-22 (CI mock behaviour is Lane B's), AD-24 (production jobs run as the Interoperability system user), AD-25 (online demo), AD-29 / AD-33 (lanes; one owner per item). No AC contradicts an AD Rule; S1-S4 are additive (veto items).
+
+**Measured:** (implement stage, Task 0; empty until then).
+
+**Decided in-stage:** (1) One credential for POP3 and SMTP (`OcuTalonMail`, the form's one user name and password), as 21.2's split note said ("same credential"); no separate SMTP user field. (2) TLS rule: port 465 implicit TLS, any other port STARTTLS (`OcuTalonClient*`), default 587; no plain choice; `SSLCheckServerIdentity` forced to 1 in the adapter and written as a row. (3) An empty `outgoing` removes the SMTP server (`EmailOut` disabled), the mailbox stays; no Disconnect control in 21.6 (not in its criteria, and it would need new text): 21.2's proposed-split mention of "a Disconnect" is declined here. (4) DW-1139: every successful email save runs the detached update; `Ens.Director.UpdateProduction` changes nothing when nothing differs, so no running-state probe is needed. (5) One try per send, no adapter retry (a retry after DATA could send twice), `ContinueAfterBadSend` 0 (no partial send). (6) Limits: 1-20 recipients (the address rule of the form), subject 1-200 characters with no control character, text 1-100,000 characters (line breaks allowed). (7) From is `email.address`; the `Delivery` owner is the command's `SessionRef`, or `instance` when empty; `ChannelMessageId` a new Ref; no text or approval Ref on the row (22.7 may add the approval link). (8) No audit entry per send: the trace holds the command, and FixExecutor audits an approved fix run (22.7). (9) No README text: nothing user-facing sends email until 21.7 / 22.7, which add their own. (10) The online-demo refusal at `EmailOut` reuses P2. (11) SMTP live cases extend `Test.Channel.EmailLive` (its fixtures connect, blank `SSLConfig` and restore); the operation's unit class is new. The stub is a new `ci/mock/smtp.mjs` beside `mail.mjs` (another protocol, same `createX`/control shape), port 1025, control `/_mock/smtp/`. (12) CI placement: `Test.Channel.EmailOut` and `EmailLive` in `lane-a@Channel` (group `production`; adds about 1 minute on the runner, inference), `Test.Core.SettingsEmail` in `lane-b@Contract,Core,Data,Live` (group `image`), `settings/email.spec.ts` in `live:sign-in-2` (group `shards-4`), `ci/mock/test/smtp.test.mjs` in the hosted `web` job; no new unit or group.
+
+**Ledger (Rule 17):** DW-1139 addressed: the `SettingsOps` task (StartItem after every successful save), matrix row "Re-save after a failed update", the DW-1139 AC, and the `EmailLive` case.
+
+**Integration ACs (Rule 1):** real `CommandsIn` -> real `EmailOut` -> the SMTP stub holds the mail and a `Delivery` row exists (`EmailLive`, AC 2). Lane A's email tool and fix kind are the first product consumers (Story 22.7); the digest by email next (Story 21.7).
+**Consumed-by:** 22.7 (tool `SendEmail` to the own address; `FixExecutor`'s `system` send and its plain failure reasons), 21.7 (Notify's email branch reaches `EmailOut`), 21.3 (`Sender`'s OAuth2 settings, the form).
+**Consumes:** 21.2's `SaveEmail` apply path, `OcuTalonMail`, `email.address`/`email.owner`, `SecretHandoff`, the Email form; `CommandsIn`, `Commands.Submit`, `Data.Delivery.Record`, `Setting.Fresh`, `Bridge.Ids.NewRef`, `Ens.Config.Credentials`, `EnsLib.EMail.OutboundAdapter`, `%Net.SMTP` -- real instances in `EmailLive` and the e2e spec.
+
+**Extend, don't copy (Rule 2):** `SaveEmail`, `EmailShape`, `EmailValues`, `PutBackEmail`, `StartItem`/`UpdateIn` and the item-setting seams are extended with the item name, not copied for `EmailOut`; the address rule becomes one `IsAddress` used by both writers. `Sender` extends `EnsLib.EMail.OutboundAdapter` and replaces only `SendMail` (the parent logs each failed recipient's address and sets `Retry`), copying its OAuth2 token lines (about 15) for 21.3, as 21.2's inbound adapter did. `EmailOut` extends `Channel.Operation` like `SimMailboxOut`. The SMTP stub is a new file (another protocol) following `mail.mjs`'s API and control routing; the form field copies the Incoming field's block; SMTP live cases extend `EmailLive`; the probe extends `SettingsEmailProbe`.
+
+**Contended files (check the in-flight diffs of `origin/OCT-epic35` first):** `Core/SettingsOps.cls` (35.3 adds webhook methods and parameters; 21.6 edits only the email methods and the channels row), `Core/CommandsIn.cls` (35.3: two route rows and a doc bullet; 21.6: the send-error branch and one doc line), `Production.cls` and `Test/Core/ProductionItems.cls` (35.3 appends `WebhookIn` at the region's end; 21.6 inserts right after `EmailIn`), `web/e2e/settings/settings.spec.ts` (35.3 rescopes S12 near :689-693; 21.6 changes :695's count only), `web/src/app/api/api-types.ts` (one member). Not touched: `Core/SecretHandoff.cls`, `Web/Api.cls`, `channels-section.ts`, `settings-view.ts`. New files in contended folders: `ci/mock/smtp.mjs`, `Channel/Email/{Sender,Out}.cls`, `Test/Channel/EmailOut.cls`. **Footprint extensions:** none beyond 21.2's.
+
+**Spine edits (after the gate; plain unions):** S1 AD-14 Email sub-bullet: `EmailOut` (adapter `Channel.Email.Sender`; From the own address; TLS rule; identity checked; one try; outcomes `sent`, `refused`, `not_connected`, `failed`, `not_available`; counts-only logging; a `Delivery` row per sent email). S2 AD-19 sub-bullet: `EmailOut`'s SDS rows written only by `SettingsOps` with the same `OcuTalonMail`; an empty outgoing disables it; every save runs the detached update (DW-1139). S3 AD-1 sub-bullet: `CommandsIn` answers `not_connected` when `EmailOut` is not running. S4 AD-22 sub-bullet: the mock's SMTP side (port 1025, `/_mock/smtp/`, keeps no password, a test fixture only).
+
+## Veto items
+
+| # | Item | Recommended | Online demo |
+| --- | --- | --- | --- |
+| W1 | Outward action: `EmailOut` sends email over SMTP with TLS (VerifyPeer, identity checked) from the user's own address; from `tool` only to that address, from `system` only `FixExecutor`'s approved fix (22.7) | approve | never: `EmailOut` disabled and refuses `not_available` |
+| W2 | Credential handling: SMTP uses the existing `OcuTalonMail` credential; no new secret, field or store | approve | never written |
+| W3 | Run-time SDS rows of `EmailOut` (`SMTPServer`, `SMTPPort`, `Credentials`, `SSLConfig`, `SSLCheckServerIdentity`, `Enabled`) by `SettingsOps`; a cleared server disables the item | approve | none written |
+| W4 | Changed route: `POST /api/v1/settings/channels` takes `outgoing`; `GET /api/v1/settings` channels adds `outgoing` (admin-only, existing gate) | approve | 409 `not_available`; no channels in GET |
+| W5 | Stored data: `Delivery` rows of channel `email` (owner, new Ref; no text, no address) in the existing table and its existing retention | approve | none (nothing sends) |
+| W6 | Audit content: `email.outgoing` from/to as host:port | approve | none |
+| W7 | DW-1139: every successful email save runs the detached production update | approve | none (save refused) |
+| W8 | `CommandsIn` outcome `not_connected` for `SendEmail` when `EmailOut` is not running (no new verb or origin) | approve | the outcome a `system` send meets there |
+| W9 | No plain SMTP; CI's plain stub is a test-only fixture (tests blank `SSLConfig` and restore it) | approve | n/a |
+| W10 | Grants: none new; `EmailOut`'s and `SettingsOps`' jobs run as the Interoperability system user (21.2 Task 0 f) | approve | n/a |
+
+## Public text
+
+Not in UX, PRD or epics (the `CommandResult.Message` of `EmailOut`, which Lane A's email tool and `FixExecutor` show, 22.7):
+- Q1 sent: "The email was sent."
+- Q2 refused values: "The email wasn't sent: a recipient, the subject or the text isn't acceptable."
+- Q3 not connected (`EmailOut` and `CommandsIn`): "No outgoing mail server is connected, so the email wasn't sent."
+- Q4 rejected by the server: "The mail server didn't accept the email, so it wasn't sent."
+
+Reused accepted text: the field label `settings.emailOutgoing` "Outgoing mail server (SMTP)"; P1a "OcuTalon couldn't reach the mail server." and P1b "The mail server refused the user name or password." as the send-failure messages; P2 for the online demo; `SETTINGS_TEXTS` `saved`, `failed`; `refusedExpansion`.
+
+## Verification
+
+Run every command from the worktree root. `<vars>` = `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=21 stage=implement'`; warm tag `e21s6iw`, fresh tag `e21s6i`. One command per foreground call (`timeout: 600000`), each sized to about 150 s; never two test runs in one message; one `iris_execute_tests` per message, with `server` and `namespace` named. A fresh `ci/warm.sh up` takes about 150-195 s by itself: if the harness moves it to the background, wait for it in bounded foreground polls (its lock file and ready line) and never restart it.
+
+**Commands:**
+- `<vars> OCUTALON_RUN_TAG=e21s6iw ci/warm.sh up` (once) -- warm stack ready.
+- `<vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e21s6iw ci/iris.sh class OcuTalon.Test.Channel.EmailOut` (loop) -- pass. mutation: `Sender.OnInit` leaves `SSLCheckServerIdentity` 0 -> red; the subject control-character check removed -> red.
+- `... class OcuTalon.Test.Core.SettingsEmail` (loop) -- pass. mutation: `StartItem` only when a row changed -> the DW-1139 case red; `SslFor` for SMTP returns no star -> TLS case red.
+- `... class OcuTalon.Test.Channel.EmailLive` (loop) -- pass. mutation: `EmailOut` skips `Delivery.Record` -> red; `CommandsIn` without the not-connected mapping -> red.
+- `... class OcuTalon.Test.Core.CommandsStep4` (loop) -- pass.
+- `... class` for `OcuTalon.Test.Web.SettingsApi`, `OcuTalon.Test.Core.SettingsSave`, `OcuTalon.Test.Core.Routing`, `OcuTalon.Test.Data.Setting` (once each, one per call) -- pass (shared surfaces).
+- `node --test ci/mock/test/` (once) and `node --test web/scripts/` (once) -- pass.
+- `cd web && npx tsc -p tsconfig.e2e.json --noEmit` and `cd web && npm run build` (once each) -- clean.
+- `<vars> OCUTALON_RUN_TAG=e21s6i ci/iris.sh build` (once), then `<vars> OCUTALON_RUN_TAG=e21s6i ci/iris.sh live sign-in-2 --part k/n` for the part whose PART line lists `settings/email.spec.ts` (once; 21.2's QA used 13/15; raise n if the call nears 150 s) -- pass. mutation: `EmailValues` without `outgoing` -> E2 red.
+- `<vars> OCUTALON_RUN_TAG=e21s6i ci/iris.sh class OcuTalon.Test.Install.Production` (once, fresh: the production's items as started) -- pass.
+- `<vars> OCUTALON_RUN_TAG=e21s6iw ci/warm.sh down` (once, also after a failure); `<vars> OCUTALON_RUN_TAG=e21s6i ci/iris.sh teardown` (once).
+- `bash docker/tests/test-class-rules.sh`, `bash docker/tests/test-boundaries.sh`, `bash docker/tests/test-ci-config.sh` (once each) -- pass.
+- `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` (once) -- no new finding: the baseline is `"ok": false` with exactly 10 low `placeholder` findings (the spine's own `{time}`-style text), which stay as they are (lead note at the spec gate).
+
+**Shared surfaces:** the production's lane B items (`Test.Core.ProductionItems`, `Test.Install.Production`, `Test.Core.Routing`; `EmailOut` disabled, so "every enabled item runs" checks are unchanged); `SettingsOps.Values()` channels shape (`Test.Web.SettingsApi` `TestGetShape`, `Test.Core.SettingsEmail` `TestValues`, `api-types.ts`, `email.spec.ts`); the channels section's fields (`web/e2e/settings/settings.spec.ts:695`, `email-view.test.mjs`); `SettingsEmail` `TestNothingChanged` (start on every save); the mock's ports and control routes (`ci/mock/test/server.test.mjs`); the `ux-strings.test.mjs` inventory; the spine lint baseline. Standing criterion: every test added or changed passes on a fresh environment, in either order.
+
+## Auto Run Result
+
+Status: ready-for-dev
+Blocking condition: none
+
+Planned only (halt after planning). Veto items W1-W10 and Public text Q1-Q4 go to the Contest Planner through the lead before the implement spawn; they do not block the plan. Ledger inbox: DW-1139 addressed (SettingsOps task, matrix row, AC, EmailLive case).
