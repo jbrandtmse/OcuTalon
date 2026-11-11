@@ -150,3 +150,6 @@
 2026-11-11T06:05:20Z	Story 23.5	cr_complete	model=opus effort=high cycle_iteration=4 rework_rereview=3 resolved=0 deferred=0 dismissed=3 high=0 med=0 low=3 rows=0 unresolved_high_med=0 tracker=done
 2026-11-11T06:10:25Z	Story 23.5	fresh_check	env=fresh_class_stack_e23s5v3 tests=1(Test.Data.Tables) result=pass order=forward story_base=36f98521 torn_down=e23s5v3
 2026-11-11T06:10:25Z	Story 23.5	integrated	onto=c241f87c(0.25) conflicts=sprint-status(last_updated_only) resolution=plain_union checks=test-boundaries,test-ci-config,test-lib-live
+2026-11-11T07:23:15Z	Story 23.5	ci_resolved	story=23.5 sha=81b1ba8a runs=42970585049(success),42970585121(success) result=success resolved_at=part_merge
+2026-11-11T07:23:15Z	Epic 23	part_merge	story=23.5 head=81b1ba8a feature=51a53f69 by=orchestrator note=green_by_identity
+2026-11-11T07:23:15Z	Epic 23	epic_runner_complete	part_merge=23.6,23.2,23.5 epic_status=in-progress parked=23.3,23.4,23.7,23.8,23.9(closed_scope) lane=D_idle
