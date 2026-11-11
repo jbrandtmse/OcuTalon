@@ -2,7 +2,7 @@
 title: 'Story 23.7: Watch queue backlogs between digests'
 type: 'feature'
 created: '2026-11-11'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'a77f88b478586b2a9f6bc64ed5870e27b3f6156d'
 baseline_commit: 'a77f88b478586b2a9f6bc64ed5870e27b3f6156d'
 review_loop_iteration: 0
@@ -145,6 +145,9 @@ deferred:
   - `web/e2e/guide/more-to-try.spec.ts` (`ITEMS` oracle entry only);
   - `web/e2e/guide/more-to-try-queues.spec.ts` (new, K29).
 
+- [ ] [CI] web (run 43026811791, job 130543466679): `web/scripts/sources-docs.test.mjs` fails "15 items need a word in WORDS" and every count check that reads the registry (README "its More to try panel has undefined more things to try", EXPERIENCE.md "There are undefined items, in this order", the registry's comments, "the entries are the panel's items, in its order") -- https://github.com/jbrandtmse/OcuTalon/actions/runs/43026811791/job/130543466679 -- add "fifteen" and "sixteen" (Story 35.3 lands next) to `WORDS` wherever it lives (`sources-docs.test.mjs`, and any other web test file with its own number-word list that the registry count reaches); then run the WHOLE web unit suite (`npm --prefix web test`, every `web/scripts/*.test.mjs`), never only the four files, and fix any other red it shows.
+- [ ] [CI] iris (shards-5), live:sign-in-3 (run 43026811791, job 130543466970): K29 `web/e2e/guide/more-to-try-queues.spec.ts` fails at its first line with "OCUTALON_FLOOR_USER must be set by the e2e unit's script": it calls `fixtureUser('FLOOR')` and `openFloor`, which only the floor unit's script sets, but `guide/` runs in the sign-in-3 project (docker/tests/test-sign-in-3.sh) -- https://github.com/jbrandtmse/OcuTalon/actions/runs/43026811791/job/130543466970 -- sign in with the sign-in-3 unit's own fixture user and helpers as the sibling `guide/more-to-try.spec.ts` does (`fixtureUser('NOTICE')`, `signIn` from `../sign-in/helpers`, `loadedAfter`), keeping K29's assertions; then run live sign-in-3 locally on a lane-D throwaway (`docker/tests/test-sign-in-3.sh --part k/n` for the part that holds `guide/more-to-try-queues.spec.ts`, each call in the foreground, polling if the harness backgrounds it) and record the K29 result and its mutation line.
+
 **Acceptance Criteria:**
 - AC1 (Integration): Given a session that asks in the chat to watch queue backlogs, when the Chat turn calls `start_watch` with kind queues, then `WatchOps` writes one `Kind` queues row for the session and the session's stream gets its `check` event. A repeat adds no row. Asking to stop removes the row and publishes the stop event. (`Test.Watch.Turns:TestQueuesThroughTheAgent` through the `watch-start-queues`/`watch-stop-queues` markers, real `CommandsIn` and `WatchOps`; `Test.Watch.Ops`.)
 - AC2: Given a due queue row, when `Checks` runs it, then it reads the queues of every entry of `Watch.Reader.Productions()` through `Reader.Failures` (limit 0) and nothing else. Each queue above the threshold that is not in the namespace's previous `above` becomes exactly one `watch.queueBacklog` Item sent to `Intake`, with the fields under Always. (`Test.Checks.Queues` via `QueueProbe`.)
@@ -190,6 +193,7 @@ Rejected:
 
 ## Spec Change Log
 
+- 2026-11-11 (CI rework 1, lead): CI on f78e6236 red in two story-class jobs (web WORDS count words stop at fourteen; K29 used the floor unit's user under sign-in-3). Re-opened with two [CI] items; scoped re-review follows.
 - 2026-11-11 (spec gate, lead): Contest Planner rulings and the orchestrator's U7 ruling recorded verbatim under Design Notes. PUBLIC TEXT a-h and veto items 1-6 approved/accepted; design 7 confirmed; ADDED CONDITION: a per-queue once-an-hour reporting cooldown (task, AC12, mutation added; it extends the intent's crossing-memory line and its "Falls below, rises again" row). AD-18 bullet and Conventions clause written to the spine with `[ADDED 2026-11-11, Story 23.7]`. Contended plain unions approved; no overlap with Epics 21/22 at re-check.
 - 2026-11-11 (plan): Scope reopen of Epic 23 (the owner, 2026-11-11, via the Contest Planner). Story 23.7 is planned after 23.6, 23.2 and 23.5 merged. It reuses `Watch.Reader`'s queue read and `Checks.Coverage`'s thresholds, and it proposes the AD-18 row-type text below for the lead to raise.
 
