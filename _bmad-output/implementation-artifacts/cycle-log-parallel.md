@@ -3448,3 +3448,8 @@
 - 2026-11-11T10:44Z orchestrator final_handoff written=.worktrees/.coordination/FINAL-HANDOFF-20261111.md all_lanes_closed feature=5ed39411 (green) half_done=Epic 11 part 2 (a5c7d245, parked) recovery_refs=4 (safe to delete)
 - 2026-11-11T10:44Z orchestrator planner_message item=1.0.7 cut started from 5ed39411 (last feature release); no product pushes to feature during the cut; orchestrator holds its records commit locally until the release merge-back lands
 - 2026-11-11T10:45Z orchestrator owner_decision via=contest_planner item=DW-1052 closed (OEX renders the header); other 7 decision items left for the post-contest revisit; spin-down waits for the owner's word
+- 2026-11-11T10:51:56Z orchestrator owner_decision via=contest_planner item=SCOPE REOPENED (steps 4-7 + fixes; release freeze until RELEASE DONE; online-demo safety standing rule) ref=prompts/scope-reopened-20261111.md
+- 2026-11-11T10:51:56Z orchestrator runner_dispatched epic=35 story=35.3 lane=B slot=ocutalon-slot-b agent=a9108dfee624326fc prompt=prompts/dispatch-epic-35-353.md
+- 2026-11-11T10:51:56Z orchestrator runner_dispatched epic=23 stories=23.7,23.9 lane=D slot=ocutalon-slot-d agent=a308f8fd93815104a prompt=prompts/dispatch-epic-23-reopen.md
+- 2026-11-11T10:51:56Z orchestrator dispatch_blocked lanes=A,C epics=22,21 reason=epic-level depends_on epic-35 (35.3 unmerged); story-level lift to 35.1/35.2 asked of contest_planner
+- 2026-11-11T10:52Z orchestrator owner_decision via=contest_planner item=lift epic-35 edges of Epics 21, 22, 27 to story level (35.1/35.2 merged 1d3cc767); epic-dependencies.yaml amended with marker; lane A Epic 22 (22.2), lane C Epic 21 (21.2); 25.3 next free lane; Epic 27 waits (step 7)
