@@ -2,8 +2,8 @@
 title: 'Story 23.5: Draft partner delay notices that are sent only after approval'
 type: 'feature'
 created: '2026-11-09'
-status: 'in-progress'
-baseline_revision: '931f012400ec1fc4667ca0251cb64b3772faee5a'
+status: 'done'
+baseline_revision: '6943545e321320a7f33e35ffaa1933eeef75b895'
 baseline_commit: '4e7cb8e7c695f5f8b6c71452ff057f57f95599a2'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -248,7 +248,9 @@ Rejected or closed (appendix):
   - Review patch: `TestStateNeverMoves` also pins the reason of the after-close final result (the executor's `UNUSABLE`), a sent final result (`result.partnerSent`, told as it came) and a progress result (told to nobody). mutation: `Closed`'s `ElseIf event '= FINISHED` made `ElseIf 0` (every event passes its notice through) -> `TestStateNeverMoves` red ("a result still in progress after the close tells nobody", "a rejection and an expiry after the close tell nobody and send no Execute"); and made `ElseIf 1` (every notice dropped) -> red ("a final result after the close is told once", "with the reason it came with", "a final result that sent after the close is told as it came"); each restored byte-identical (`cmp`), `Test.Fix.PartnerDraft` green again (10 methods).
 
 **CI rework (iteration 3; CI run 42963531773 on 52db267d):**
-- [ ] [CI] `OcuTalon.Test.Data.Tables:TestContracts` fails in CI (iris (image), shard lane-b@Contract,Core,Data,Live): "the dry run keys (item, from, to and example since Story 23.2)". This story extended `Bridge.Data.ApprovalRequest` `DRYRUNKEYS` with `notice,recipients,simulated` (Code Map, AD-16) but did not move this shared-surface pin. Extend the pin additively to the parameter's full value (keep every earlier key and its order; message names Story 23.5's three keys); no product change. Demonstrated `mutation:` line.
+- [x] [CI] `OcuTalon.Test.Data.Tables:TestContracts` fails in CI (iris (image), shard lane-b@Contract,Core,Data,Live): "the dry run keys (item, from, to and example since Story 23.2)". This story extended `Bridge.Data.ApprovalRequest` `DRYRUNKEYS` with `notice,recipients,simulated` (Code Map, AD-16) but did not move this shared-surface pin. Extend the pin additively to the parameter's full value (keep every earlier key and its order; message names Story 23.5's three keys); no product change. Demonstrated `mutation:` line.
+  - Done (slot D): `Test.Data.Tables` `TestContracts` now pins `DRYRUNKEYS` at the parameter's full value (`...,example,notice,recipients,simulated`), its message naming Story 23.5's three keys; no product change. `Test.Data.Tables` passed (5 methods). `Test.Fix.DryRun` and `Test.Watch.GoodMessages` read RepairResend's own `DRYRUNKEYS`, and `Test.Fix.PartnerWarning` already pins the full value, so none needed a change.
+  - mutation: `simulated` dropped from `ApprovalRequest` `DRYRUNKEYS` -> `Test.Data.Tables:TestContracts` red; restored byte-identical (`cmp`, `git status --short` and `git diff --stat` unchanged), class green again.
 
 
 
@@ -390,6 +392,14 @@ Rejected (appendix):
   - `[low]` `[reject]` (intent 4) the Telegram press answer is untouched - same as blind 3.
   - `[low]` `[reject]` (intent 5) Move re-emits the incident event - same as edge 7.
   - `[low]` `[reject]` (intent 6) the result notice replaces the answered notice for an approval on a closed incident - the intended telling (one result, not two).
+
+### 2026-11-11 - Review pass (rework iteration 3, CI)
+- verdicts: 3 findings - high 0, medium 0, low 3, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (blind 1) the full `DRYRUNKEYS` string is hard-coded in `Test.Data.Tables` and `Test.Fix.PartnerWarning` - the shared-surface rule is a literal, never loosened or computed pin; the second pin is the story's own, and merging them is more than a direct correction.
+  - `[low]` `[reject]` (blind 2) no green CI re-run is recorded - the re-run follows the lead's push, which this pass never makes; the item asks for the pin and a mutation, both recorded.
+  - `[low]` `[reject]` (blind 3) the Done line is thinner than its neighbours - it names the pins checked and the result; more detail adds nothing to an oversized spec.
+- edge-case, verification-gap and intent-alignment layers: no findings (the intent-alignment report is descriptive: the diff touches the contract surface of the intent's `DryRun {notice, recipients, simulated}`, and the behaviours are pinned by classes this pass does not touch).
 
 ## Design Notes
 
@@ -695,3 +705,18 @@ Review: 23 findings from four layers. Patched 4 (1 medium: the filter's finished
 Verification: `Test.Demo.Guide` (26 methods) and `Test.Fix.PartnerDraft` (10) passed on slot D after the patches; before them, on slot D and warm `e23s5qw`: `Test.Fix.PartnerWarning`, `Test.Watch.Transitions`, `Closing`, `Notices`, `Incidents`, `Summary`, `Fix.Kind` and `Fix.Refused` passed (one slot-D `Test.Watch.Summary:TestProductionName` environment error, "Item Decide not found in Production", passed warm), and `Test.Fix.PartnerTurns` passed fresh. `test-boundaries` and `test-class-rules` pass. mutation: see the two items (four mutations, each red and reverted byte-identical).
 
 Residual risks: the request row of a partner notice approved after the close stays `approved` (ending it needs a lifecycle call outside this item); the Telegram press answer still says it is sending, and `result.partnerNotSent` follows it; the after-close final result reads "OcuTalon couldn't read the approved fix" (existing text).
+
+### Rework iteration 3 (CI)
+
+Status: done
+Blocking condition: none
+
+Summary: `Test.Data.Tables:TestContracts` pins `ApprovalRequest` `DRYRUNKEYS` at its full value (`...,example,notice,recipients,simulated`), and its message names Story 23.5's three keys. No product change. `Test.Fix.PartnerWarning` already pinned the full value; `Test.Fix.DryRun` and `Test.Watch.GoodMessages` read RepairResend's own `DRYRUNKEYS`, so none needed an edit.
+
+Files changed: `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls`; this spec.
+
+Review: 3 findings from four layers (three layers returned none). Patched 0, deferred 0, rejected 3 (3 low), each with its reason in the triage log. Follow-up review recommended: false (this follow-up pass patched no `high`).
+
+Verification: `Test.Data.Tables` passed (5 methods) on slot D; `test-boundaries` and `test-class-rules` pass. mutation: `simulated` dropped from `ApprovalRequest` `DRYRUNKEYS` -> `Test.Data.Tables:TestContracts` red; restored byte-identical, class green again.
+
+Residual risks: slot D's `OcuTalon.Data.Turn` was stale and was reloaded from the worktree; the CI re-run is the lead's.
