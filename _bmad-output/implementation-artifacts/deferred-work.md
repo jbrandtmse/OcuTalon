@@ -6722,8 +6722,25 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: IncidentManager.Aside drops on a closed incident (spec: refuses on closed); a pending partner request does not block closing (MOVES 0), so ask, Dismiss, then Approve reaches it
 - 2026-11-11T01:56:30Z status=open owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=harvest note=needs_a_Planner_ruling_on_the_user-facing_outcome(cancel_pending_partner_requests_at_close,or_send_anyway,or_a_result_line)
+- 2026-11-11T03:04:14Z occurrence=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva
+- 2026-11-11T03:04:14Z status=decision-pending owner=burndown by=cr note=also approve-then-close (Execute refused as closed, or result dropped by Aside); rec: Aside tells result on closed, no new text
 
 ### DW-1109: Demo.Guide.Compute counts any approved request of the guide's incident for step 4, so a partner notice approved while the repair still waits marks step 4 done early
 - source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Demo/Guide.cls (Lane B, not in 23.5's AD-33 list); the finish still needs the incident resolved; fix is a one-line kind filter (leave MOVES 0 kinds out of step 4)
 - 2026-11-11T01:56:30Z status=escalated owner=burndown by=harvest note=AD-33_extension_request:Demo/Guide.cls_one-line_filter;orchestrator_or_Planner
+
+### DW-1110: Fix.Kind.PartnerWarning.Plan reads the address at the target's position in the targets it is given, so an Execute of a Recheck-passed subset compares later contacts with the wrong address
+- source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Executor.Run passes Recheck's passed ids to Carry/Execute; Plan indexes to by the position in that subset, not in FixTargets. Fix.PartnerContacts holds one contact, so no subset can shift a position today.
+- 2026-11-11T03:04:14Z status=wontfix-theoretical owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=cr note=real once a production has two or more contacts (Stories 36.2/24.2's contact table): key the to position on the row's FixTargets
+
+### DW-1111: An interrupted partner_warning run (restart inside Deliver) would read result.interrupted, the resend's wording
+- source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Notice.ResultKey checks Interrupted before the contact branch; Deliver is a few synchronous SimMailboxOut sends, so a restart must land inside them. The summary side no longer says a fix started or was interrupted for a notice run (review patch).
+- 2026-11-11T03:04:14Z status=wontfix-theoretical owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=cr note=real if a run of kind partner_warning is ever marked interrupted by Fix.Run.Mark (FixRun Interrupted>0 with a contact kind)
+
+### DW-1112: The incident summary's model cost leaves out the cost of drafting a delay notice
+- source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Watch.Summary costs Usage.Totals(incident.DecisionRef) only; the draft is a separate Decide turn owned by the asking session (OwnerRef), counted on its Usage like the chat turn that asked for it; no column links it to the incident.
+- 2026-11-11T03:04:14Z status=wontfix-accepted owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=cr note=reopen_if=the owner rules that a session-asked draft's cost belongs to the incident summary (needs a stored link: veto item)
