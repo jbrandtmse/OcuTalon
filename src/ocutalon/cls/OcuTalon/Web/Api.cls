@@ -88,6 +88,8 @@
 ///     server_error. MemoryOps matches the ref to the session's own rows, so another session's ref is 404 not_found and the row is kept.
 ///   - The documents routes (Story 34.2; GET and POST /v1/documents, DELETE /v1/documents/:ref) are OcuTalon.Web.Documents', forwarded by
 ///     the map at the end of the URL map.
+///   - The usage route (Story 37.2; GET /v1/usage?days=1|7|30) is OcuTalon.Web.Usage's, forwarded by its own map: the CSP session's own token and cost
+///     buckets by local day, agent, channel, model and Estimated, with the request-size limit.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -261,6 +263,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/settings/check-thresholds" Method="POST" Call="SaveCheckThresholds"/>
 <Route Url="/v1/settings/demo-mode" Method="POST" Call="SaveDemoMode"/>
 <Map Prefix="/v1/documents" Forward="OcuTalon.Web.Documents"/>
+<Map Prefix="/v1/usage" Forward="OcuTalon.Web.Usage"/>
 </Routes>
 }
 

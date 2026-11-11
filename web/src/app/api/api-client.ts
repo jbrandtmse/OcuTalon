@@ -175,6 +175,11 @@ export class ApiClient {
     return this.http.get<DocumentsList>(`${BASE}/documents`);
   }
 
+  /** The session's own usage over the last 1, 7 or 30 local days, summed into buckets (Story 37.2): the Usage page's read. */
+  usage(days: import('./usage-types').UsageDays): Observable<import('./usage-types').UsageResponse> {
+    return this.http.get<import('./usage-types').UsageResponse>(`${BASE}/usage`, { params: { days } });
+  }
+
   /**
    * Adds one document: a POST of {name, content}, the file's bytes in base64 (the session is the caller's, never in the body). The answer is
    * {result: 'done', ref}; a 400 `bad_document` (with its `reason`), a 413, a 501 and a 500 fail as an HttpErrorResponse whose `error` is
