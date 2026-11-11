@@ -1614,6 +1614,35 @@ Why: Open Exchange's README import mangles relative HTML image paths (another en
 **When** this story merges
 **Then** `bash docker/tests/test-readme.sh` passes every rule and every self-test, `docker/tests/test-boundaries.sh` passes, and CI is green
 
+### Story 0.24: A test stack's web port can never collide with a port that is still being released
+
+[ADDED 2026-11-10, DW-1099, Contest Planner ruling] SC-5 re-open of Epic 0 (lane C), after Story 0.23. A CI-tooling story; the scope below is the Contest Planner's ruling of 2026-11-10 (~22:45Z, owner delegation). Findings (read-only on the CI hosts; ci-b holds runners 3-8, ci-c 9-14, ci-d 15-20): CI failed with "failed to bind host port 127.0.0.1:52816/tcp: address already in use" (also logged as "driver failed programming external connectivity"); 52816 is runner 6's own fixed web port (`ci/iris.sh`: 52810 + n), and no orphan container held it. Both failures in lane-a run 42907226019 were on the same port 6 s apart (path B's second stack, then part p), and ci run 42894860855 (live:online-demo) failed the same way. Most likely (inference): the previous stack's port is not yet free when the next stack of the same job starts (Docker's port proxy releases it a moment after `compose down`). No test-logic change, and no workflow-file change beyond what the port needs: any `.github/workflows/*.yml` or `release/**` hunk is a RELEASE TOOL item for the Contest Planner before it merges. CI log message text is internal (no PUBLIC TEXT gate).
+
+As the owner of the CI pipeline,
+I want every throwaway test stack to publish its web port on a host port that cannot collide with one still being released,
+So that no CI job fails with "address already in use" before a single test runs.
+
+**Acceptance Criteria:**
+
+**Given** `docker/tests/lib-live.sh` (`live_web_port`) and `ci/iris.sh` (the per-runner fixed port scheme 52810 + n / 52819 - n)
+**When** this story merges
+**Then** one of the two ruled fixes is in place, and the spec says which one and why, with the list of files it touches
+**And** (1) preferred: the web port is published as `127.0.0.1::52773`, so Docker picks a free ephemeral host port, and it is read back with `docker compose port` after the stack starts; this replaces the fixed per-runner scheme in `ci/iris.sh` and the probe in `lib-live.sh`, and every web client (each live script's `base`, the Playwright configs and `web/e2e/support`, `ci/**`, the release harnesses) uses the read-back port; OR (2) fallback, if (1) touches too much (more than about 2-3 hours of work): before each stack start, wait up to 20 s for the chosen port to be free (`ss -ltn` on Linux, an equivalent such as `lsof -iTCP:<port> -sTCP:LISTEN` for local macOS runs), and retry the start exactly once on exactly this bind error ("address already in use" / "failed programming external connectivity"), failing loudly after the retry
+**And** `OCUTALON_TEST_WEB_PORT` keeps working as an explicit override (the lanes' dev slot ports 52801-52804 and the lanes' throwaways depend on it; every local caller is checked), the web port stays bound to 127.0.0.1 only, and the forbidden ports stay refused
+
+**Given** `docker/tests/test-ci-config.sh`, `docker/tests/test-ci-changes.sh` and `docker/tests/test-lib-live.sh`
+**When** this story merges
+**Then** they pass with `docker/tests/test-boundaries.sh`, every pin of the old port scheme that changes moves to the new one, and none is deleted or weakened beyond what the chosen fix replaces
+**And** a self-test or unit covers the new port logic: for (1), an ephemeral port is read back and every web client uses it; for (2), a held port is waited for, and the bind error is retried once and then fails loudly
+
+**Given** a lane-C throwaway
+**When** two stacks are started back to back, the way `release/ipm-install.sh` path B and part p do
+**Then** the second stack starts and answers on its web port with no bind error, and DW-1099 is resolved by this story
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.

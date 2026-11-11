@@ -1524,6 +1524,7 @@ live_port_checks() {
   (
     unset OCUTALON_TEST_WEB_PORT
     . ci/iris.sh
+    LIVE_PORT_WAIT=0 # the held ports below stay held, so live_web_port must not wait for them
     OCUTALON_RUN_TAG=abc-1
     tmp="$tmp/live-port"
     mkdir -p "$tmp"
