@@ -162,3 +162,4 @@
 2026-11-11T22:46:13Z	Story 35.3	ci_red_classified	run=43109525022 workflow=.github/workflows/ci.yml job=iris(shards-10) class=story test=live:sign-in(suite_budget_848s;33_did_not_run;unit_1198s) note=api/webhooks.spec.ts_adds_~270s;feature_unit_985s
 2026-11-11T22:46:13Z	Story 35.3	ci_resolved	story=35.3 sha=ad468c6b runs=43109525022,43109524998 failed=.github/workflows/ci.yml(shards-6,shards-10) via=none result=failure resolved_at=commit_check note=lane-a_still_running(2/4)
 2026-11-11T22:46:13Z	Story 35.3	rework_opened	cycle_iteration=3 iteration=2 trigger=ci items=CI-shards-6(LeavingThePage),CI-shards-10(live:sign-in_budget) scope_baseline=pending tracker=done->in-progress(sanctioned_rework_reopen)
+2026-11-11T22:46:25Z	Story 35.3	stage_spawned	stage=implement spawn_at=2026-11-11T22:46:25Z model=sonnet effort=high agent_name=35-3-implement-3 cycle_iteration=3 rework=2 rework_commit=47efb56c
