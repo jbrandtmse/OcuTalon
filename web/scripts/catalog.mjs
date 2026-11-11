@@ -14,8 +14,9 @@
 // sentences checks.allPassed, checks.everythingElsePassed, checks.nothingWatched, checks.notEverything and
 // checks.notEverythingRestPassed, the ten banner.* texts, the four bannerAction.* texts the page renders (installYourself,
 // howToSetKey, budgets and setUpBot), the nine answered.* texts (approved, approvedBy, rejected, rejectedBy, expired, alreadyApproved,
-// alreadyRejected, alreadyApprovedBy and alreadyRejectedBy), the eight result.* texts (allThrough, failedAgain, skipped,
-// failedAndSkipped, stillResending, interrupted, couldNotStart and stoppedPartway), audit.recorded, incident.eitherWayLine, the Got it
+// alreadyRejected, alreadyApprovedBy and alreadyRejectedBy), the thirteen result.* texts (allThrough, failedAgain, skipped,
+// failedAndSkipped, stillResending, interrupted, couldNotStart, stoppedPartway and, for a fix the user asks for in the chat, itemSuspended,
+// itemResumed, itemSkipped, itemNotChanged and rerouted), audit.recorded, incident.eitherWayLine, the Got it
 // button text button.gotIt, the line handled.marked (slot time) that a handled tell-now notice ends with, and every fallbackReason.*. An entry's web text is used, else its text.
 //
 // incident.eitherWayLine is a page key only: no catalog class holds it. It is the either-way sentence of the dry run that the
@@ -34,11 +35,15 @@
 // CHANNEL_NAMES renders as given); a time, count, cost or text slot takes the string the caller formatted (the page formats times,
 // costs and counts itself, AD-32), cleaned like any string slot. A text slot is allowed for the keys of TEXT_SLOT_KEYS only: the
 // whatFailed of checks.notEverything and checks.notEverythingRestPassed (built by the page from the check rows, DW-90), the user of
-// the four answered.*By texts, the failReason of result.failedAgain and result.failedAndSkipped, and the reason of
-// result.couldNotStart.
+// the four answered.*By texts, the failReason of result.failedAgain and result.failedAndSkipped, the reason of
+// result.couldNotStart, and the item, production and to of result.itemSuspended, itemResumed, itemSkipped and rerouted. A sentence
+// slot (a plain sentence that the text follows with a full stop) is allowed for the keys of SENTENCE_SLOT_KEYS only, the reason of
+// result.itemSkipped and result.itemNotChanged; it renders as a text slot does, except that the full stop after it is not doubled
+// when the sentence ends with one, and is left out when the sentence ends with "?", "!" or an ellipsis, as the server's renderer does.
 //
 // It fails closed (exit 1, with the file) on a listed key that is missing from both files, a listed key with a slot of a type
-// other than fallbackReason, time, count, cost, channel or noun (text for the keys of TEXT_SLOT_KEYS only) or with a placeholder
+// other than fallbackReason, time, count, cost, channel or noun (text for the keys of TEXT_SLOT_KEYS only, sentence for the keys of
+// SENTENCE_SLOT_KEYS only) or with a placeholder
 // that is not a declared slot, a fallbackReason.* text with a slot of a type other than fallbackReason, a listed key with a one
 // form that does not name a declared count slot or has no text of its own, a listed key with both a web form and a one form, a
 // noun slot in an entry with no count slot, a reason value whose fallbackReason.* key is missing, a key that both catalogs
@@ -98,6 +103,11 @@ export const LISTED_KEYS = [
   'result.interrupted',
   'result.couldNotStart',
   'result.stoppedPartway',
+  'result.itemSuspended',
+  'result.itemResumed',
+  'result.itemSkipped',
+  'result.itemNotChanged',
+  'result.rerouted',
   'audit.recorded',
   'incident.eitherWayLine',
   'button.gotIt',
@@ -110,12 +120,13 @@ const LINE_PARENTS = ['incident.withFixEitherWay', 'incident.laterRequestEitherW
 const LINE_START = 'becomes {after}. ';
 const LINE_END = " I'll resend";
 export const REASON_PREFIX = 'fallbackReason.';
-/** The slot types that every listed key may declare (a key of TEXT_SLOT_KEYS may also declare text): a fallbackReason slot gives its reason text, a channel slot the channel's name, a noun slot the form of {one, other} that the count slot chooses, the others take the caller's formatted string. */
+/** The slot types that every listed key may declare (a key of TEXT_SLOT_KEYS may also declare text, a key of SENTENCE_SLOT_KEYS sentence): a fallbackReason slot gives its reason text, a channel slot the channel's name, a noun slot the form of {one, other} that the count slot chooses, the others take the caller's formatted string. */
 const SLOT_TYPES = ['fallbackReason', 'time', 'count', 'cost', 'channel', 'noun'];
 /**
  * The keys that may also declare a text slot, which takes the caller's formatted string: the whatFailed that the page fills from
  * the check rows (DW-90), the user of the four answered.*By texts, the failReason of result.failedAgain and result.failedAndSkipped,
- * the reason of result.couldNotStart, the reading and item of incident.eitherWayLine, and the fact of memory.learnedSaved. Every other key refuses it.
+ * the reason of result.couldNotStart, the item, production and to of the four result texts of a fix the user asks for in the chat that
+ * name them, the reading and item of incident.eitherWayLine, and the fact of memory.learnedSaved. Every other key refuses it.
  */
 export const TEXT_SLOT_KEYS = [
   'checks.notEverything',
@@ -127,10 +138,17 @@ export const TEXT_SLOT_KEYS = [
   'result.failedAgain',
   'result.failedAndSkipped',
   'result.couldNotStart',
+  'result.itemSuspended',
+  'result.itemResumed',
+  'result.itemSkipped',
+  'result.rerouted',
   'incident.eitherWayLine',
   'memory.learnedSaved',
 ];
 const TEXT_SLOT_TYPE = 'text';
+/** The keys that may also declare a sentence slot, a plain sentence that the text follows with a full stop: the reason of the two result texts that say why an item was not changed. */
+export const SENTENCE_SLOT_KEYS = ['result.itemSkipped', 'result.itemNotChanged'];
+const SENTENCE_SLOT_TYPE = 'sentence';
 /** The one slot type a fallbackReason.* text may declare: the page renders a reason text as it is, with no slot filled. */
 const REASON_SLOT_TYPE = 'fallbackReason';
 
@@ -211,7 +229,7 @@ function pageText(key, entry, file) {
   const slots = entry.slots;
   if (slots === null || typeof slots !== 'object' || Array.isArray(slots)) throw new CatalogError(file, 0, `the entry '${key}' declares no slots object`);
   for (const [name, type] of Object.entries(slots)) {
-    const allowed = TEXT_SLOT_KEYS.includes(key) ? [...SLOT_TYPES, TEXT_SLOT_TYPE] : SLOT_TYPES;
+    const allowed = [...SLOT_TYPES, ...(TEXT_SLOT_KEYS.includes(key) ? [TEXT_SLOT_TYPE] : []), ...(SENTENCE_SLOT_KEYS.includes(key) ? [SENTENCE_SLOT_TYPE] : [])];
     if (!allowed.includes(type)) {
       throw new CatalogError(file, 0, `the entry '${key}' has the slot '${name}' of type '${String(type)}', which the page does not render (only ${allowed.join(', ')})`);
     }
@@ -352,6 +370,12 @@ function slotText(types: Readonly<Record<string, string>>, name: string, slots: 
   return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : type === 'noun' ? nounText(value, slots) : cleanSlot(value);
 }
 
+/** The text of a slot and the full stop that follows it in the template (empty when none does): a sentence slot never doubles the stop (a sentence that ends with one keeps that one), and a sentence that ends with "?", "!" or an ellipsis takes none. */
+function slotWithStop(types: Readonly<Record<string, string>>, name: string, piece: string, stop: string): string {
+  if (stop === '' || types[name] !== 'sentence' || piece === '') return piece + stop;
+  return '.?!\\u2026'.includes(piece.slice(-1)) ? piece : piece + stop;
+}
+
 /** The text of a key in page form: its count-of-one form when it has one and the form's count slot is "1", else its PAGE_TEXTS text. */
 function pageTemplate(key: string, slots: PageSlots): string | undefined {
   const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
@@ -373,7 +397,7 @@ export function renderPageText(key: string, slots: PageSlots = {}): string {
   const template = pageTemplate(key, slots);
   if (template === undefined) throw new Error("The page has no catalog text for '" + key + "'");
   const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
-  return template.replace(/\\{([^{}]*)\\}/g, (_placeholder: string, name: string) => slotText(types, name, slots));
+  return template.replace(/\\{([^{}]*)\\}(\\.?)/g, (_placeholder: string, name: string, stop: string) => slotWithStop(types, name, slotText(types, name, slots), stop));
 }
 
 /**
@@ -388,13 +412,13 @@ export function renderMessageText(key: string, slots: PageSlots = {}): string {
   const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
   let out = '';
   let position = 0;
-  for (const match of template.matchAll(/\\{([^{}]*)\\}/g)) {
+  for (const match of template.matchAll(/\\{([^{}]*)\\}(\\.?)/g)) {
     const name = match[1] ?? '';
     const piece = slotText(types, name, slots);
     out += template.slice(position, match.index);
     const dated = types[name] === 'time' && !/^\\d\\d:\\d\\d$/.test(piece.replace(/ ET$/, ''));
     if (dated && /(^| )at $/.test(out)) out = out.slice(0, -3) + 'on ';
-    out += piece;
+    out += slotWithStop(types, name, piece, match[2] ?? '');
     position = (match.index ?? 0) + match[0].length;
   }
   return out + template.slice(position);
@@ -469,7 +493,7 @@ export function generate(opts) {
     '/** The text form of each listed key that has a web form: the wording of a message, which the phone shows. */',
     `export const MESSAGE_TEXTS: Readonly<Record<string, string>> = {\n${messageLines.join('\n')}\n};`,
     '',
-    '/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel\'s name, noun the form that the count slot chooses, the others (time, count, cost and text) take the formatted string the caller passes. */',
+    '/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel\'s name, noun the form that the count slot chooses, the others (time, count, cost, text and sentence) take the formatted string the caller passes. */',
     `export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {\n${slotLines.join('\n')}\n};`,
     '',
     '/** The count-of-one form of each listed key that has one: the count slot that decides it, and the text used when that slot is "1". */',

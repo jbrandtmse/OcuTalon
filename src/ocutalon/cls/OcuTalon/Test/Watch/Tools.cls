@@ -67,10 +67,11 @@ Method TestDeclarations()
 	Set want("check_status") = $ListBuild("safe", 1, 1, "Reading the check results", "", "")
 	Set want("recent_activity") = $ListBuild("safe", 1, 1, "Reading recent activity", "", "")
 	Set want("send_digest") = $ListBuild("safe", 0, 1, "Sending your digest", "", "")
+	Set want("propose_fix") = $ListBuild("safe", 0, 1, "Asking to approve a fix", "incident,item,kind,production", "kind,item")
 	Set want("incident_summary") = $ListBuild("safe", 1, 0, "Reading the incident summary", "", "")
-	Set expected = $ListBuild($Parameter(names, "STARTWATCH"), $Parameter(names, "STOPWATCH"), $Parameter(names, "LISTPRODUCTIONS"), $Parameter(names, "DISMISSINCIDENT"), $Parameter(names, "CHECKSTATUS"), $Parameter(names, "RECENTACTIVITY"), $Parameter(names, "DIGESTTOOLS"), $Parameter(names, "INCIDENTSUMMARY"))
+	Set expected = $ListBuild($Parameter(names, "STARTWATCH"), $Parameter(names, "STOPWATCH"), $Parameter(names, "LISTPRODUCTIONS"), $Parameter(names, "DISMISSINCIDENT"), $Parameter(names, "CHECKSTATUS"), $Parameter(names, "RECENTACTIVITY"), $Parameter(names, "DIGESTTOOLS"), $Parameter(names, "INCIDENTSUMMARY"), $Parameter(names, "PROPOSEFIX"))
 	Set tools = $ClassMethod(..#TOOLSET, "%New").%Discover().tools
-	Do $$$AssertEquals(tools.%Size(), 8, "the toolset offers eight tools")
+	Do $$$AssertEquals(tools.%Size(), 9, "the toolset offers nine tools")
 	Set found = ""
 	Set iterator = tools.%GetIterator()
 	While iterator.%GetNext(, .tool) {
@@ -79,7 +80,7 @@ Method TestDeclarations()
 		Set provider = $Select((name = $Parameter(names, "RECENTACTIVITY")) || (name = $Parameter(names, "INCIDENTSUMMARY")): "OcuTalon.Tools.RecentActivity", name = $Parameter(names, "DIGESTTOOLS"): "OcuTalon.Tools.DigestTools", 1: ..#TOOLS)
 		Do $$$AssertEquals(tool.provider, provider, name_" is a method of "_provider)
 		If '$Data(want(name)) {
-			Do $$$AssertTrue(0, name_" is not one of the eight tools")
+			Do $$$AssertTrue(0, name_" is not one of the nine tools")
 			Continue
 		}
 		Set upper = $ZConvert($Translate(name, "_-"), "U")
@@ -122,7 +123,7 @@ Method TestDeclarations()
 	While iterator.%GetNext(, .tool) {
 		Set ownNames = ownNames _ $ListBuild(tool.name)
 	}
-	Do $$$AssertEquals($ListToString(##class(OcuTalon.Test.Agent.Runners).Sorted(ownNames)), "CheckStatus,DismissIncident,ListProductions,StartWatch,StopWatch", ..#TOOLS_" offers its five methods and none of Result's")
+	Do $$$AssertEquals($ListToString(##class(OcuTalon.Test.Agent.Runners).Sorted(ownNames)), "CheckStatus,DismissIncident,ListProductions,ProposeFix,StartWatch,StopWatch", ..#TOOLS_" offers its six methods and none of Result's")
 	Set definition = ##class(%Dictionary.XDataDefinition).%OpenId(..#TOOLSET_"||Definition")
 	Set xml = $Select($IsObject(definition): definition.Data.Read(32000), 1: "")
 	Do $$$AssertTrue(xml '= "", "the toolset has its Definition")

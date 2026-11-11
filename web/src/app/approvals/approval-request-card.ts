@@ -442,6 +442,8 @@ export class ApprovalRequestCard {
   readonly result = input<IncidentRequest | undefined>(undefined);
   /** The incident's item noun, which the band's text names the items by. */
   readonly itemNoun = input<ItemNoun | undefined>(undefined);
+  /** The incident's production, which the band of a suspend or resume names the item in. */
+  readonly production = input('');
   /** Dismiss, on the last request card of a resolved or open incident: at the band's right end, else at the end of the answer row; undefined for none. */
   readonly dismiss = input<DismissTarget | undefined>(undefined);
 
@@ -478,7 +480,7 @@ export class ApprovalRequestCard {
   protected readonly band = computed(() => {
     const request = this.result();
     const ctx = this.ctx();
-    return request === undefined ? undefined : resultView(request, this.itemNoun(), (key, slots) => ctx.render(key, slots));
+    return request === undefined ? undefined : resultView(request, this.itemNoun(), (key, slots) => ctx.render(key, slots), this.production());
   });
 
   /** True while a press is out: both buttons are busy. */
@@ -502,7 +504,7 @@ export class ApprovalRequestCard {
 
   /** A press of Approve or Reject: one call for both buttons; a press while a call is out is ignored. */
   protected press(action: 'approve' | 'reject'): void {
-    this.answer.press(this.view().ref, action);
+    this.answer.press(this.view().ref, action, this.approval().fixKind ?? '');
   }
 
   /**

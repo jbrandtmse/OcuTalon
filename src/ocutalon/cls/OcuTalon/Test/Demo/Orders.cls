@@ -5,7 +5,7 @@
 ///     OCUTALON with no production, converts a YYYY-MM-DD order date and fails with the error text for anything else;
 ///   - TestBatch: Partner.Orders builds the orders of a batch of 1 to 1000, in the batch's format, and refuses a bad batch with an error
 ///     that names the value, building nothing;
-///   - TestProductionDefinition: the compiled definition of OcuTalon.Demo.Orders.Production holds exactly the three items,
+///   - TestProductionDefinition: the compiled definition of OcuTalon.Demo.Orders.Production holds exactly the four items,
 ///     read through %XML.Reader as an Ens.Config.Production.
 /// It starts and stops nothing, writes no row and creates no namespace.
 Class OcuTalon.Test.Demo.Orders Extends OcuTalon.Test.Contract
@@ -114,7 +114,7 @@ Method TestBatch()
 	}
 }
 
-/// The compiled XData of the production holds exactly its three items, read as an Ens.Config.Production.
+/// The compiled XData of the production holds exactly its four items, read as an Ens.Config.Production.
 Method TestProductionDefinition()
 {
 	Set xdata = ##class(%Dictionary.CompiledXData).%OpenId(..#PRODUCTION_"||ProductionDefinition")
@@ -132,8 +132,9 @@ Method TestProductionDefinition()
 	Set expected = $ListBuild(
 		"PartnerOrdersIn|OcuTalon.Demo.Orders.Partner|0|1|Host:TargetConfigName=OrdersFromPartner",
 		"OrdersFromPartner|OcuTalon.Demo.Orders.Translator|1|1|Host:TargetConfigName=OrdersToWarehouse",
-		"OrdersToWarehouse|OcuTalon.Demo.Orders.Warehouse|1|1|")
-	Do $$$AssertEquals(production.Items.Count(), $ListLength(expected), "the production has exactly three items")
+		"OrdersToWarehouse|OcuTalon.Demo.Orders.Warehouse|1|1|",
+		"OrdersForReview|OcuTalon.Demo.Orders.Review|1|1|")
+	Do $$$AssertEquals(production.Items.Count(), $ListLength(expected), "the production has exactly four items")
 	For i = 1:1:production.Items.Count() {
 		Set item = production.Items.GetAt(i)
 		Set settings = ""

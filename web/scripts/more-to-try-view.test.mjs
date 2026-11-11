@@ -37,6 +37,7 @@ const RULED = {
   label: 'Other things to try',
   rememberPrompt: "Remember that the Results partner's contact is Lee.",
   summaryPrompt: 'Show me the incident summary',
+  reroutePrompt: 'Reroute the failed orders to OrdersForReview.',
   items: {
     incidentSummary: {
       label: 'Read the incident summary',
@@ -61,6 +62,12 @@ const RULED = {
       lookFor:
         'This presses Break the feed again. OcuTalon usually notices within a minute. When the fix waits for your approval, press Reject in the chat or on the Simulated phone, and look for "Nothing was changed."',
       button: 'Break it again',
+    },
+    reroute: {
+      label: 'Reroute the failed orders',
+      lookFor:
+        'First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way.',
+      button: 'Ask to reroute',
     },
     demoView: {
       label: 'See the page as on your own install',
@@ -109,6 +116,7 @@ const ACTION_OF = { sources: 'documents' };
 const GROUP_OF = {
   incidentSummary: 'Incidents and fixes',
   rejectFix: 'Incidents and fixes',
+  reroute: 'Incidents and fixes',
   memory: 'Memory and documents',
   memoryCard: 'Memory and documents',
   documents: 'Memory and documents',
@@ -271,6 +279,14 @@ describe('(c) every quoted on-screen name equals its source', () => {
     has(answered, 'Nothing was changed.');
     has(items.rejectFix.lookFor, '"Nothing was changed."');
     assert.equal(BREAK_FEED_BUTTON, 'app-break-feed-box app-server-button button');
+  });
+
+  it('names Reject a fix, the review item and the prompt that the reroute item sends as the page does (Story 23.2)', () => {
+    has(items.reroute.lookFor, `First do "${items.rejectFix.label}"`);
+    has(items.reroute.lookFor, 'to reroute them to OrdersForReview, the review queue');
+    has(items.reroute.lookFor, 'press Trace to see the copies go to OrdersForReview');
+    assert.equal(MORE_TO_TRY_TEXTS.reroutePrompt, RULED.reroutePrompt);
+    assert.ok(RULED.reroutePrompt.includes('OrdersForReview'));
   });
 
   it('names the Simulated devices and the Demo view switch as the page does', () => {

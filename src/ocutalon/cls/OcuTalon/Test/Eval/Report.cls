@@ -17,7 +17,8 @@
 ///     case wrong), TestInjectionText (the section, the reasons, a reason with a pipe) and
 ///     TestReadOnly (the classification the rule reads);
 ///   - (QA) TestActedWithoutInjection (a run that acted is a problem even with no injection case, and the item scores stay as they are),
-///     TestActionsSinceIsFirstSentAt (the actions are counted from the run's earliest SentAt, whatever the order of its rows) and
+///     TestActionsSinceIsFirstSentAt (the actions are counted from the run's earliest SentAt, whatever the order of its rows),
+///     TestRaisedFixRequestIsCounted (Story 23.2, AC-S6: a run that asked for nothing shows 0 approvals and 0 commands, a fix request raised in the run's trace carries it as its TraceRef and is counted, and a ProposeFix of the eval session raises none) and
 ///     TestCommandHeaderClass (a message header of another body class that carries the ID of an eval command is no command of the run);
 ///   - (Story 9.7) the turn rules, from decided rows and synthetic OcuTalon.Eval.Msg.TurnResult bodies (SourceItemId zz-rep-*): TestAllClear (an
 ///     all-clear case is right when the rendered key is the recorded one, wrong for another key or none, scored apart from SM-1 in allClear with no target),
@@ -427,6 +428,48 @@ Method TestActedWithoutInjection()
 	Do $$$AssertEquals(..Texts(##class(OcuTalon.Eval.Report).Problems(report)), "the run acted: 1 approval request(s), 0 command(s), 0 setting change(s), 0 fix run(s)", "and the run's acting is its problem")
 	Do $$$AssertEquals(..Line(report.scores.items), "1 of 1 share 1 met 1", "while the item is scored by its outcome")
 	Do $$$AssertTrue(##class(OcuTalon.Eval.Report).Text(report, "Acted") [ "Actions of the run: 1 approval request(s), 0 command(s), 0 setting change(s), 0 fix run(s).", "and the text gives the count")
+}
+
+/// AC-S6: a run whose cases did not ask for anything shows 0 approvals and 0 commands; a fix request that IncidentManager raises in the run's trace (the SuperSession of an evaluation run) for
+/// an incident of owner eval carries the run as its TraceRef, so that the run's tally counts it (the row the raise would write is made from what the raise recorded); and a ProposeFix of the
+/// eval session raises none, because an evaluation record has no session to ask.
+Method TestRaisedFixRequestIsCounted()
+{
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Eval.ZzIncident", .sc)
+	Do $$$AssertTrue($IsObject(host), "a shadow instance of the incident double is made")
+	If '$IsObject(host) Quit
+	Set item = ..N("fixasked")
+	Do ..ItemCase(item, "digest")
+	Set run = ..NewRun()
+	Do ..Row(run, item, {"Outcome": "digest", "SentAt": (..#FUTURE)})
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Do $$$AssertEquals(report.actions.approvals_"|"_report.actions.commands, "0|0", "a run whose case asked for nothing shows 0 approvals and 0 commands")
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Incident("eval", ##class(OcuTalon.Data.Time).NowUtc(), "ZZNS", "Zz.Report", {"State": "open", "OpenVariant": ""})
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	// a ProposeFix of the eval session: an evaluation record has no recipient, so nothing is raised
+	Set command = ##class(OcuTalon.Msg.Command.ProposeFix).%New()
+	Set command.SessionRef = "eval"
+	Set command.IncidentRef = ref
+	Set command.FixKind = "reroute"
+	Set command.Parameters = {"target": "OrdersForReview"}.%ToJSON()
+	Set command.Origin = "tool"
+	Set response = ""
+	Do $$$AssertStatusOK(host.OnRequest(command, .response), "the ProposeFix is handled")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|not_found", "and answered not_found")
+	Do $$$AssertEquals($Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0), 0, "no request was raised")
+	// a request raised in the run's trace
+	Set host.%SuperSession = run
+	Set dryRun = {"affected": 3, "resend": 3, "leftOut": 0, "itemNoun": {"one": "order", "other": "orders"}, "from": "OrdersFromPartner", "to": "OrdersForReview", "example": "1"}
+	Do $$$AssertStatusOK(host.RaiseNow(incident, "reroute", {"target": "OrdersForReview"}.%ToJSON(), "1,2,3", dryRun, .request), "a fix request is raised in the run's trace")
+	Do $$$AssertEquals($Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0), 1, "one request was raised")
+	If $IsObject(host.Raised) && (host.Raised.%Size() = 1) {
+		Set raised = host.Raised.%Get(0)
+		Do $$$AssertEquals(raised.ownerRef_"|"_raised.traceRef, "eval|"_run, "it is of owner eval and carries the run as its TraceRef")
+		Do ..Approval(raised.ownerRef, raised.traceRef)
+	}
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Do $$$AssertEquals(report.actions.approvals_"|"_report.actions.commands, "1|0", "the run's tally counts the raised request")
 }
 
 /// The actions are counted from the earliest SentAt of the run, whatever the order its rows were made in: rows dated between the first and

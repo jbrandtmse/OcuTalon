@@ -795,6 +795,29 @@ XData Entries [ MimeType = application/json ]
    "server": "text"
   },
   "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Canceled"
+ },
+ "press.approvedSuspend": {
+  "text": "Approved. Suspending {item}.",
+  "slots": {
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
+ },
+ "press.approvedResume": {
+  "text": "Approved. Resuming {item}.",
+  "slots": {
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
+ },
+ "press.approvedReroute": {
+  "text": "Approved. Rerouting {count} {itemNoun} to {to}.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "to": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
  }
 }
 }

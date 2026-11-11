@@ -1,11 +1,11 @@
 /**
  * The demo guide's "Other things to try" panel (Story 4.11; EXPERIENCE: Demo guide and controls): its fixed strings, the registry of
- * its ten items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
+ * its eleven items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
  * as it is and the strings test reads it.
  *
  * The catalog is the server's (AD-12): `guide.features` is the list of feature ids that Demo.Features.Present gives, in the guide's
  * payload. The page decides nothing about which epics are merged.
- * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompts that the memory item and the incident summary item (when there is no resolved incident to close) send.
+ * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompts that the memory item, the reroute item and the incident summary item (when there is no resolved incident to close) send.
  * - MORE_TO_TRY_ITEMS is the registry: one entry for each feature id, in the order the panel shows them. `action` names the hand-off
  *   that the button makes (more-to-try.ts): each one uses a control that the page already has.
  * - itemsFor(features) is the registry entries whose id the list holds, in registry order. An id the registry does not know is
@@ -25,6 +25,7 @@ export const MORE_TO_TRY_TEXTS = {
   label: 'Other things to try',
   rememberPrompt: "Remember that the Results partner's contact is Lee.",
   summaryPrompt: 'Show me the incident summary',
+  reroutePrompt: 'Reroute the failed orders to OrdersForReview.',
   items: {
     incidentSummary: {
       label: 'Read the incident summary',
@@ -49,6 +50,12 @@ export const MORE_TO_TRY_TEXTS = {
       lookFor:
         'This presses Break the feed again. OcuTalon usually notices within a minute. When the fix waits for your approval, press Reject in the chat or on the Simulated phone, and look for "Nothing was changed."',
       button: 'Break it again',
+    },
+    reroute: {
+      label: 'Reroute the failed orders',
+      lookFor:
+        'First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way.',
+      button: 'Ask to reroute',
     },
     demoView: {
       label: 'See the page as on your own install',
@@ -101,9 +108,12 @@ export const RESOLVED_CHIP = '.chip-resolved';
 export const DISMISS_BUTTON = 'app-incident-dismiss button';
 
 /** The hand-off that an item's control makes. */
-export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat';
+export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat';
 
-/** One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off. */
+/**
+ * One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off,
+ * and, optionally, the heading of the group it belongs to (the panel does not render groups yet).
+ */
 export interface MoreToTryItem {
   readonly id: string;
   readonly label: string;
@@ -120,6 +130,7 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'persona', ...MORE_TO_TRY_TEXTS.items.persona, action: 'persona', group: 'Safety and settings' },
   { id: 'suspiciousEmail', ...MORE_TO_TRY_TEXTS.items.suspiciousEmail, action: 'suspiciousEmail', group: 'Safety and settings' },
   { id: 'rejectFix', ...MORE_TO_TRY_TEXTS.items.rejectFix, action: 'rejectFix', group: 'Incidents and fixes' },
+  { id: 'reroute', ...MORE_TO_TRY_TEXTS.items.reroute, action: 'reroute', group: 'Incidents and fixes' },
   { id: 'demoView', ...MORE_TO_TRY_TEXTS.items.demoView, action: 'demoView', group: 'Safety and settings' },
   { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory', group: 'Memory and documents' },
   { id: 'memoryCard', ...MORE_TO_TRY_TEXTS.items.memoryCard, action: 'memoryCard', group: 'Memory and documents' },
