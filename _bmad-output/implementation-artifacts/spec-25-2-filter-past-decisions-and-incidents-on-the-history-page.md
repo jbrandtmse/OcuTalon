@@ -2,12 +2,12 @@
 title: 'Story 25.2: Filter past decisions and incidents on the History page'
 type: 'feature'
 created: '2026-11-10'
-status: 'in-progress'
-baseline_revision: '9d978686497c5a91a18b6cc71663500f8e7946fa'
+status: 'done'
+baseline_revision: '22e03497092a8e3d52f5bd30f9a743275659d94a'
 baseline_commit: '9d978686497c5a91a18b6cc71663500f8e7946fa'
 planned_against: 'Story 37.2 at OCT-epic37 7ef82a4671cb4ceec2a0ae2192e3d8f657488a1a (not merged)'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-25-context.md'
   - '{project-root}/_bmad/custom/skill-rules.md'
@@ -225,7 +225,7 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 - [x] `README.md` -- append the History bullet last in "New since 1.0.0" and update :40's count word. `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- add the More to try entry under 37.2's "Usage and history" heading, after usage, with the next item number, plus "Item N's control is a link to the History page.", and update the "There are … items" count word. Both carry `[ADDED <date>, Story 25.2, Contest Planner ruling …]`.
 - [x] `ARCHITECTURE-SPINE.md` -- append the three rows in Design Notes → SPINE ROWS after 37.2's rows. Refresh `updated:`, run `memlog.py append --type decision` and lint (Rule 20).
 
-- [ ] [CI] iris (shards-10) live:sign-in, ci run 42966931010 job 130346188773 on 284e8904: `web/e2e/usage/usage.spec.ts:328` U8 failed at :339 "at 305px the header navigation still holds every link" (expected `['Chat','Documents','Usage']`; the History link is now in the nav) -- a shared-surface pin (Rule 19) of 37.2 that this story's History link changes. Fix: update the pin at :339, and ALSO U1 at `usage.spec.ts:197` ("…and no Settings or History", same literal list: History now shows, so its message and list change), preferably by reading the expected list from one shared source instead of a literal (e.g. a small exported list in `web/e2e/support/` that the nav specs share, or deriving it from the nav source as the other nav specs do); grep every spec that pins the header link list (`git grep -n "'Chat', *'" web/e2e`: frame, documents, settings, history, usage, floor) and make each consistent. The U8 305px case must still hold with four links (every link visible and inside the window); if the 305px window cannot hold History without hiding or overflowing, STOP with a clarification (never hide a link; never change the header beyond the ruled fit K). Verify on a lane-C fresh stack: the part holding `usage/usage.spec.ts` and the part holding `history/history.spec.ts` (`live sign-in --part k/20`, via `e2e-part.mjs`), `live sign-in-3 --part 1/2` (more-to-try), node (`npm --prefix web test`). Write the mutation line (Rule 19) for the changed pin.
+- [x] [CI] iris (shards-10) live:sign-in, ci run 42966931010 job 130346188773 on 284e8904: `web/e2e/usage/usage.spec.ts:328` U8 failed at :339 "at 305px the header navigation still holds every link" (expected `['Chat','Documents','Usage']`; the History link is now in the nav) -- a shared-surface pin (Rule 19) of 37.2 that this story's History link changes. Fix: update the pin at :339, and ALSO U1 at `usage.spec.ts:197` ("…and no Settings or History", same literal list: History now shows, so its message and list change), preferably by reading the expected list from one shared source instead of a literal (e.g. a small exported list in `web/e2e/support/` that the nav specs share, or deriving it from the nav source as the other nav specs do); grep every spec that pins the header link list (`git grep -n "'Chat', *'" web/e2e`: frame, documents, settings, history, usage, floor) and make each consistent. The U8 305px case must still hold with four links (every link visible and inside the window); if the 305px window cannot hold History without hiding or overflowing, STOP with a clarification (never hide a link; never change the header beyond the ruled fit K). Verify on a lane-C fresh stack: the part holding `usage/usage.spec.ts` and the part holding `history/history.spec.ts` (`live sign-in --part k/20`, via `e2e-part.mjs`), `live sign-in-3 --part 1/2` (more-to-try), node (`npm --prefix web test`). Write the mutation line (Rule 19) for the changed pin.
 
 **Acceptance Criteria:**
 - Given a signed-in user on any page, when they press History in the header navigation, then `#/history` opens titled "History · OcuTalon", with History marked `aria-current="page"` between Documents and Usage, and the tabs Decisions and Incidents are read from `/api/v1/history/*`, which read only OcuTalon's and the bridge's tables (Decision, Usage and Incident, plus Turn and BackgroundCheck through the reused `FromRow` and `INCIDENTVISIBLE`) through `Ownership`, never a production message. The spine's REST and ownership tables carry this story's three rows.
@@ -317,6 +317,23 @@ Rejected:
   - `[false]` `reject` (verification-gap) `web/test-results/**` files exist — gitignored run output, not part of the change.
   - `[low]` `reject` (intent-alignment) a failed `Rows` read is not tested at the route — `TestNoSession` covers the 500 path that `ServerError` serves for both failures.
   - `[false]` `reject` (intent-alignment) reuse by extraction is a wider footprint than "reuses" — the spec's Tasks name each extraction and export.
+
+### 2026-11-11 — Review pass (rework 1, follow-up)
+- verdicts: 13 findings — high 0, medium 2, low 9, false 2, maybe-false 0 (the intent-alignment layer reported no finding, only readings)
+- findings:
+  - `[low]` `reject` (blind) titles and messages still name the link counts or positions -- F3's "five links", S1's "Chat and Settings" and H1's "between Documents and Usage" are true of the header; not a defect.
+  - `[low]` `patch` (blind) nothing ties the two lists to the header and the helper comment overstated "one list" -- `NAV_LINKS_ADMIN` is now the user list with Settings after Chat, and the comment says so; the specs run against the real header, so a drift is red (it was, in this CI run).
+  - `[low]` `reject` (blind) the reworded messages no longer name the links -- the list is one click away in the helper and the assertion prints the received and expected arrays.
+  - `[low]` `patch` (blind) U1's `main.usage` scope couples to a class and passes if absent -- the same patch as the next row (a count of 1 on `main.usage` first); U8 already queries `main.usage`.
+  - `[medium]` `patch` (edge) U1's History check is vacuous when `main.usage` is missing -- `toHaveCount(1)` on `main.usage` added before the scoped link check; `--part 19/20` green.
+  - `[false]` `reject` (edge) U8 at 305px with four links is unverified in the diff -- U8 passed on a fresh stack (`--part 19/20`, 19 passed) with each link visible and inside the window.
+  - `[low]` `patch` (edge) the two lists are hand-written copies -- the same patch as the second row.
+  - `[low]` `patch` (edge) the same claim as the second row, against the spec's "one shared source" -- the admin list now derives from the user list.
+  - `[false]` `reject` (edge) the diff has no mutation line -- the diff excludes the spec; the Rework 1 block in `## Verification` has it.
+  - `[low]` `patch` (gap) F3 and S1 (`NAV_LINKS_ADMIN`) have no `mutation:` line -- the line now names F3 red and S1 red.
+  - `[medium]` `patch` (gap) U1's History check can pass without observing anything -- the same root cause as the fifth row.
+  - `[low]` `reject` (gap) U1's title says "and no Settings" with no separate assertion -- the exact-list `toHaveText` covers it; wording only.
+  - `[low]` `patch` (gap) two independent literals -- the same patch as the second row.
 
 ## Design Notes
 
@@ -587,6 +604,10 @@ Mutations (QA, in addition to the implement stage's):
 - mutation (three at once, each aimed at one new test): the `pickDay` guard removed, the incident row's `<app-fallback-flag />` removed, and `pageWhenBeside` replaced by `pageWhen` in `history-page.ts` -> `live sign-in --part 13/20` 3 failed, 11 passed: H12 red (the Fallback flag by the chip), H13 red ("one history entry": 4 entries), H14 red (no " CET" after the Noticed time); reverted, `cmp` identical.
 - Green on the final tree: `live sign-in --part 13/20` (`history/history.spec.ts`, 14 passed), `live sign-in --part 2/20` (`api/history.spec.ts` with `body-limit` and `memory`, 11 passed), `npm --prefix web test` (1893 passed), `npm --prefix web run lint`, `ci/iris.sh build` (the production bundle), `test-boundaries.sh`; `Test.Web.HistoryApi` (doc line only) compiled on slot C.
 
+**Rework 1 (CI, run 42966931010 on 284e8904): the nav pins of the shared surfaces read one list, `web/e2e/support/header-nav.ts` (`NAV_LINKS_USER`; `NAV_LINKS_ADMIN` is it with Settings after Chat), in U1, U8, D13, H1, F3 and S1.**
+- mutation: History removed from `NAV_LINKS_USER` -> `live sign-in --part 19/20` U1 and U8 red (17 passed), `--part 12/20` F3 red (20 passed), `live sign-in-2 --part 6/6` S1 red (25 passed); each reverted, `git status --short` and `cmp` identical.
+- Green on the final tree, fresh lane-C stacks: `live sign-in --part 19/20` (19 passed, U8's four links visible and inside the 305px window), and on the tree before the review patches `--part 13/20` (history), `--part 12/20` (frame), `--part 10/20` (documents) and `live sign-in-2 --part 6/6` (settings), all `all checks passed`; `npm --prefix web test` (1896) and `npm --prefix web run lint`.
+
 QA runs, green on the unmutated tree: `live sign-in --part 2/20` (`api/history.spec.ts` 3 tests with `body-limit` and `memory`, 11 passed), `live floor` (110 passed: 107 plus E4 in each of Chromium, Firefox and WebKit, G4 and G5 unedited), `npm --prefix web test` (1892 passed), `npm --prefix web run lint`, `test-boundaries.sh`, `test-ci-config.sh`, `test-class-rules.sh`. Rule 8: `history-docs.test.mjs` matches `scripts/*.test.mjs`; the API test is in the chromium project's `api/` folder and E4 in `e2e/floor/`, both inside their projects' globs and tagged for the default run.
 
 ## Auto Run Result
@@ -622,3 +643,5 @@ Blocking condition: none
 - Decided in-stage 12 (implement): on build 154 an empty bound value is NULL in dynamic SQL, so the filter statements test `? IS NULL` where the spec text said `? = ''`.
 - The spine memlog append (`memlog.py append --type decision`, Rule 20) did not run: the spine folder has no `.memlog.md`. The lead records the decision.
 - DW-941 (a decision no model call served has no channel) is unchanged and stays with the burn-down.
+
+**Rework 1 (CI red, run 42966931010 on 284e8904).** The History link made U1 and U8 of `usage.spec.ts` stale (they pinned the header links without History). The specs that pin the header links (U1, U8, D13, H1, F3, S1) now read `web/e2e/support/header-nav.ts` (new; `NAV_LINKS_ADMIN` is `NAV_LINKS_USER` with Settings after Chat), and U1's "no History link" check is scoped to the Usage page (`main.usage`, count 1 first). The header is unchanged; U8's 305px case holds four visible links inside the window. Review of this pass: 13 findings, high 0, medium 2 (one root cause, patched), low 9; patches 8 entries, no deferral, rejected rows carry their reasons in the Review Triage Log. Follow-up review recommended: false (no high patched). Verification: the lane-C parts and node run in `## Verification`, `npm --prefix web test` 1896 passed, `npm --prefix web run lint` passed, mutation observed red and reverted identical.

@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page, type Response } from '../support
 
 import { README_ACCOUNT, signInReadme, watchViolations } from '../sign-in/helpers';
 import { signInReadmeLoaded } from '../support/floor';
+import { NAV_LINKS_ADMIN } from '../support/header-nav';
 import { changeSnapshot } from '../support/api';
 
 /**
@@ -201,7 +202,7 @@ test('F3: at 1024px the header holds the five navigation links on one line', asy
   await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const nav = page.getByRole('navigation', { name: 'Pages', exact: true });
-  await expect(nav.getByRole('link'), 'the five links are all there').toHaveText(['Chat', 'Settings', 'Documents', 'History', 'Usage']);
+  await expect(nav.getByRole('link'), 'the five links are all there').toHaveText(NAV_LINKS_ADMIN);
   await expect(page.locator('app-header .context-badge')).toHaveText('Demo mode');
 
   const header = (await page.locator('app-header header').boundingBox())!;

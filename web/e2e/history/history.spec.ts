@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
 import { loadedAfter } from '../support/floor';
+import { NAV_LINKS_USER } from '../support/header-nav';
 import { localDate, seedHistoryDecisions, type HistoryDecisionSeed } from '../support/history';
 import { cleanFixtureRows, fixtureUser, seedIncident } from '../support/iris';
 import { sessionRefOfUser } from '../support/memory';
@@ -106,7 +107,7 @@ async function metaOf(row: Locator): Promise<string[]> {
 test('H1: History is in the header between Documents and Usage, opens #/history titled History, and is the current page', async ({ page }) => {
   await openApp(page);
   const links = nav(page).getByRole('link');
-  await expect(links).toHaveText(['Chat', 'Documents', 'History', 'Usage']);
+  await expect(links).toHaveText(NAV_LINKS_USER);
   await links.filter({ hasText: 'History' }).click();
   await expect(page).toHaveTitle(TITLE);
   expect(hashOf(page)).toBe('#/history');
