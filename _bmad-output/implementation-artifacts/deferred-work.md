@@ -6921,3 +6921,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Mcp/Ops.cls MessageMap maps only the three verbs; CommandsIn.IsStub maps only code 5003 to not_built; spec Design Notes 17 records it
 - 2026-11-11T13:50:48Z status=by-design owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=spec Design Notes 17 states it; no UI sends them before 22.5, which adds the handlers
+
+### DW-1157: flake: lane-a@rest Test.Checks.BeatOutcomes TestAct 'the person's row is made' failed with ERROR #5808 Key not unique OcuTalon.Data.HeartbeatBeat:SessionRefIndex (a leftover beat row for the test session)
+- source: OCT-epic23 96bc4b28 (Story 23.7 CI rework), ci run 43037078949 job 130578626759 on ocutalon-ci-20 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the same 23.7 code (Checks/Process.cls Tick) passed shards-2 on f78e6236 (run 43026811791); f78e6236..96bc4b28 changes only web tests and K29
+- 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): likely test isolation (a beat row left by an earlier method or class for the same session); one rerun per occurrence; rerun deferred: the owner's quota HOLD forbids CI reruns until RESUME
+- 2026-11-11T20:06:36Z status=routed owner=burndown by=owner note=Contest Planner ruling (owner delegation) 2026-11-11T20Z: if it recurs anywhere it is a test-isolation bug; fix it (clear or unique-ify HeartbeatBeat rows in the test setup), never rerun again
+
+### DW-1158: flake: live:sign-in-2 e2e/live/live.spec.ts:86 L1 '/state is requested once, and polls come every 1 to 2 seconds' failed at 'the interval before poll 1' (timing)
+- source: OCT-epic23 96bc4b28, ci run 43037078949 job 130578626990 on ocutalon-ci-16 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: timing assert on the poll interval under CI load; 23.7 changes no live/poll code
+- 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); one rerun per occurrence; rerun deferred until RESUME (HOLD)
