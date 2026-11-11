@@ -5,6 +5,7 @@
 // holds only while it keeps to erasable syntax and imports only types.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -339,6 +340,14 @@ describe('the decision strip of a turn', () => {
     }
   });
 
+  it('carries the learned saves of the chat.message as served, and leaves them out when it has none (Story 41.15)', () => {
+    const learned = [{ memoryRef: 'M1', fact: 'The Results partner\'s contact is Lee' }, { memoryRef: 'M2', fact: 'Lee works in Boston' }];
+    const [some, none, empty] = chatView([turn('A', { learned }), turn('B'), turn('C', { learned: [] })], [], NO_RUNNING, NOW);
+    assert.deepEqual(some.learned, learned);
+    assert.equal(none.learned, undefined);
+    assert.equal(empty.learned, undefined);
+  });
+
   it('leaves them out when the chat.message has none', () => {
     const [view] = chatView([turn('A')], [], NO_RUNNING, NOW);
     for (const field of ['decision', 'turnCost', 'fallbackReason', 'checkKey', 'checks', 'traceUrl']) {
@@ -609,5 +618,20 @@ describe('liveRequest', () => {
 
   it('gives undefined for a result, even when the store holds the request', () => {
     assert.equal(liveRequest(result, { A1: pendingPayload }), undefined);
+  });
+});
+
+describe('the learned lines are plain text (Story 41.15, QA; AC 4)', () => {
+  // The page cannot be drawn in Node, so the guard reads the component's source: the fact comes from the person's words and must only ever be interpolated.
+  const source = readFileSync(join(here, '..', 'src', 'app', 'chat', 'learned-lines.ts'), 'utf8');
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  it('binds each line by interpolation in a paragraph, and never as HTML', () => {
+    assert.match(code, /<p class="learned">\{\{ line \}\}<\/p>/);
+    assert.doesNotMatch(code, /innerHTML|outerHTML|bypassSecurityTrust|insertAdjacentHTML|\[innerText\]|DomSanitizer/);
+  });
+
+  it('carries no label of its own (no aria-label, no heading, no title)', () => {
+    assert.doesNotMatch(code, /aria-label|aria-labelledby|<h[1-6]|\btitle=/);
   });
 });

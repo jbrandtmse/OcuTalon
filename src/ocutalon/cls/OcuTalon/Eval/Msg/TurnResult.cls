@@ -49,6 +49,9 @@ Property Citations As %String(MAXLEN = "");
 /// The memories of the Reply's HostData (the memories array that the memory tools merge in) as a JSON array, for a session case (Story 41.14); empty when the Reply carried none.
 Property Memories As %String(MAXLEN = "");
 
+/// The learned saves of the Reply's HostData (the learned array that save_memory merges in, Story 41.15) as a JSON array of {memoryRef, text}; empty when the Reply carried none.
+Property Learned As %String(MAXLEN = "");
+
 Storage Default
 {
 <Data name="TurnResultDefaultData">
@@ -88,6 +91,9 @@ Storage Default
 </Value>
 <Value name="12">
 <Value>Memories</Value>
+</Value>
+<Value name="13">
+<Value>Learned</Value>
 </Value>
 </Data>
 <DefaultData>TurnResultDefaultData</DefaultData>

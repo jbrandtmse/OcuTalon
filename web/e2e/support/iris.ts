@@ -283,13 +283,19 @@ export interface SeedMemory {
   savedAt: string;
 }
 
+/** One learned save that a turn's reply announces (Story 41.15): what Turn.Learned holds, the stored text as MemoryTools put it in HostData. */
+export interface SeedLearned {
+  memoryRef: string;
+  text: string;
+}
+
 /**
  * A turn for seedTurns: when it was created (UTC, to the second), its text and reply, and where it came from. A fallback
  * reply carries the catalog key the server answered with and its reason (Turn.ReplyCatalogKey and Turn.FallbackReason); both
  * are empty for a reply of the model's own words. state is done unless it is running (a running turn has no reply). triage and
  * turn are the turn's decisions (the Decision rows are made and their Refs kept on the turn), usage its usage rows, and
  * checkKey and checks the key and rows that Checks.Render made for the reply, and citations and memories the sources that the reply's
- * HostData carried (Story 20.2).
+ * HostData carried (Story 20.2), and learned the learned saves that the reply announces (Story 41.15).
  */
 export interface SeedTurn {
   createdAt: string;
@@ -309,6 +315,7 @@ export interface SeedTurn {
   checks?: SeedCheck[];
   citations?: SeedCitation[];
   memories?: SeedMemory[];
+  learned?: SeedLearned[];
 }
 
 /**
@@ -445,6 +452,7 @@ export async function seedTurns(user: string, turns: SeedTurn[], publish = false
     if (turn.checks) lines.push(`Set t.CheckRows=${quoted(JSON.stringify(turn.checks))}`);
     if (turn.citations) lines.push(`Set t.Citations=${quoted(JSON.stringify(turn.citations))}`);
     if (turn.memories) lines.push(`Set t.Memories=${quoted(JSON.stringify(turn.memories))}`);
+    if (turn.learned) lines.push(`Set t.Learned=${quoted(JSON.stringify(turn.learned))}`);
     lines.push('Set sc=t.%Save()', 'If $System.Status.IsError(sc) Set bad=1', 'If $System.Status.IsOK(sc) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(t)', `Write !,"CHK|ref|${i}|",t.Ref,"|",'bad`, `Write !,"CHK|dec|${i}|",dt,"|",dr`);
     if (publish) {
       lines.push(

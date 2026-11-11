@@ -7,7 +7,7 @@ paradigm: 'Message-driven Interoperability production (pipes and filters) with p
 scope: 'OcuTalon: the 1.0.0 kit and release, build steps 2 to 6, the personality epics (39 to 41), and step 7 after the contest'
 status: final
 created: '2026-10-16'
-updated: '2026-11-09'
+updated: '2026-11-10'
 binds: [FR-1..FR-74, NFR-1..NFR-28, CON-1..CON-5, REL-1..REL-11, UJ-1, UJ-2]
 sources:
   - _bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md
@@ -741,6 +741,7 @@ From step 3, `OcuTalon.Tools` may call `OcuTalon.Memory.Search` and `OcuTalon.Me
       - Code decides the source. A memory is `told` when the person's own text in that turn asks OcuTalon to remember; a fixed list of phrases in `OcuTalon.Tools` decides that. Every other memory is `learned`.
       - The Chat agent may save a fact on its own only in a turn with provenance `user` that no tool result has tainted. The gate already refuses saving in an untrusted or tainted turn (AD-10, Story 19.3). So no email, webhook, message body, document or MCP result can become a memory.
       - **Forgetting really forgets:** it deletes the row, its vector and its keyword entry and any pin at once, so search, the core memory and every later session start lose it. The current conversation's earlier messages aren't rewritten (U-195).
+      - **Learned saves are announced (Story 41.15).** When `save_memory` answers `saved` and the stored row's `Source` is `learned` (read through `Ownership.Memory`), `MemoryTools` puts `{memoryRef, text}` into the HostData member `learned`: each memoryRef once, at most 3, and taken out again when the turn forgets it. A told, refused or failed save adds nothing. `Conversation` keeps a usable reply's entries on the `Turn` as `Learned` (JSON, at most 3, malformed entries dropped, absent when none) and on the `Outbound`. `chat.message` and the `/v1/state` chat items carry the entries to show as `learned` (`Live.Payload.Part.Learned`, `{memoryRef, fact}`). `Eval.Msg.TurnResult` keeps `HostData.learned`. [ADDED 2026-11-10, Story 41.15]
     - **At compaction** (optional; it needs a HostSink event that AD-31 doesn't have, and that amendment is decided at Epic 41's re-open (U-195); Stories 41.10 and 41.11 stay optional until then).
       - Compaction may cover a link that has had a tainted turn only if that turn rotated it, which AD-10 3a makes always true. After a guarded compaction (AD-20) of such a link, the runner would report the summary's `decisions`, and those `facts_learned` entries that carry no tool name or call id. Tool results never become memories.
       - `BridgeSink` would submit each entry as a save, with source `learned` and origin `system`, deduplicated against the owner's memories.
@@ -1008,6 +1009,7 @@ From step 3, `OcuTalon.Tools` may call `OcuTalon.Memory.Search` and `OcuTalon.Me
   - The guard runs exactly once, as the bridge's `ReplyFilterClass` (AD-31), on every model-written text before a result leaves `Decide`. It is `OcuTalon.Checks.ReplyGuard`, and it removes all-clear wording (the reserved sentences and the UX's closed list of banned phrases).
   - When a turn asks whether things are fine, the read-only `check_status` tool puts the results in the context's `HostData`, which reaches `Conversation` on the `Reply` (AD-6). `Conversation` calls `Checks.Render` and puts its catalog key and rows on the outbound reply and on `chat.message`, after the guard has run.
   - **The digest's rows and its all-clear.** A digest's check rows come only from `Checks.Coverage.Build` and its all-clear key only from `Checks.Render`: over every row when the session watches a production, a background check or a source; over an empty array (`checks.nothingWatched`, never an all-clear) when it watches none, the vital signs then reported in their own part. "Your IRIS system is healthy" appears only when every vital-sign row passed. [AMENDED 2026-11-03, Story 33.1, orchestrator unattended ruling, veto U-246]
+  - **The learned-save line (Story 41.15).** One line per `Learned` entry follows the reply on the web chat and on Telegram. It is the catalog key `memory.learnedSaved`, whose `fact` slot comes from `OcuTalon.Memory.Learned` (the stored text with one trailing full stop removed, cut to 200 characters with "…"). The page and `TelegramOut` render it as plain text. No line is shown when the guarded reply already says "I'll remember" or "I will remember" (`ReplyGuard.PatternOf`). The guard never sees the line, and the reply text is never changed. [ADDED 2026-11-10, Story 41.15]
 
 ### AD-29: Two lanes, and a walking skeleton that creates the shared contracts
 

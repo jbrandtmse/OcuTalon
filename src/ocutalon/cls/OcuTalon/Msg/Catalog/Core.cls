@@ -19,6 +19,13 @@ XData Entries [ MimeType = application/json ]
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Pairing (Telegram) / Valid code"
  },
+ "memory.learnedSaved": {
+  "text": "I'll remember this: \"{fact}\". You can tell me to forget it.",
+  "slots": {
+   "fact": "text"
+  },
+  "source": "Story 41.15 AC (Contest Planner ruling 2026-11-10)"
+ },
  "pairing.badCode": {
   "text": "That code didn't work. Open the OcuTalon page and scan the QR code there for a new one.",
   "slots": {},

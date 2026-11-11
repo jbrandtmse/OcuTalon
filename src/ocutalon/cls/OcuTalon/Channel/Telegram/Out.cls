@@ -16,6 +16,9 @@
 ///     becomes "on" before a dated time, as the catalog renderer does. When no row is left, or the key is any other, or the sentence
 ///     cannot be rendered, the sentence is "" (one warning for the last two) and the reply goes alone. Only the key can say that
 ///     everything passed;
+///   - the learned saves (Story 41.15, AD-21, AD-28): after the reply and its check sentence, an Outbound whose Learned entries OcuTalon.Memory.Learned
+///     shows (Lines, for the channel telegram: one catalog line per entry, none when the reply text already says "I'll remember" or "I will remember")
+///     goes on with a blank line and the lines, one per line, as plain text like the rest;
 ///   - the text goes as plain text, exactly as written, with no parse mode and no entities, as sendMessage parts of at most 4,096
 ///     UTF-16 units (Api.Split), in order. A 429 waits retry_after seconds (at least 1) and sends the same part again, at most TRIES
 ///     tries for one part, and a part that was sent is never sent twice. Any other failure is an error status with a safe text, and the
@@ -160,7 +163,20 @@ Method OnOutbound(request As OcuTalon.Msg.Outbound, Output response As Ens.Respo
 	}
 	Set sentence = ..CheckSentence(request.CheckKey, request.CheckRows)
 	If sentence '= "" Set text = text_$Char(10, 10)_sentence
+	Set lines = ##class(OcuTalon.Memory.Learned).Lines(request.Learned, request.Text, ..#TEXTCHANNEL)
+	If lines.%Size() Set text = text_$Char(10, 10)_..Joined(lines)
 	Quit ..Deliver(request.SessionRef, chatRef, chatId, text, "", "", request.DecisionRef)
+}
+
+/// The lines of a dynamic array of text, one per line (LF).
+ClassMethod Joined(lines As %DynamicArray) As %String [ Private ]
+{
+	Set joined = ""
+	Set iterator = lines.%GetIterator()
+	While iterator.%GetNext(, .line) {
+		Set joined = joined_$Select(joined = "": "", 1: $Char(10))_line
+	}
+	Quit joined
 }
 
 /// A notification of a kind the chat gets: the rendering of its catalog key goes to the chat, with the buttons for a request. An

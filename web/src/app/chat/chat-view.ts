@@ -30,6 +30,7 @@ import type {
   Cost,
   DecisionPayload,
   IncidentPayload,
+  Learned,
   Memory,
   NotificationPayload,
   TurnStepPayload,
@@ -138,6 +139,8 @@ export interface TurnView {
   citations?: readonly Citation[];
   /** The memories the reply recalled, as its chat.message carries them; absent when it has none. */
   memories?: readonly Memory[];
+  /** The learned saves the reply announces, as its chat.message carries them (the server decided which show); absent when it has none. */
+  learned?: readonly Learned[];
   /** Where the turn's trace opens, as the chat.message served it; absent when the message has none. */
   traceUrl?: string;
 }
@@ -408,6 +411,9 @@ export function chatView(
     }
     if (message.memories !== undefined && message.memories.length > 0) {
       view.memories = message.memories;
+    }
+    if (message.learned !== undefined && message.learned.length > 0) {
+      view.learned = message.learned;
     }
     if (message.traceUrl) {
       view.traceUrl = message.traceUrl;
