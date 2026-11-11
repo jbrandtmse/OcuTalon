@@ -6510,6 +6510,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: GitHub markdown API renders it (measured); Open Exchange rendering of the README's HTML cannot be seen from the repository
 - 2026-11-09T23:43:20Z status=decision-pending owner=burndown by=harvest note=human=open the Open Exchange listing once it shows the 1.0.6 README and confirm title+logo render; outward listing, owner/Planner only
 - 2026-11-10T00:47:25Z status=decision-pending owner=burndown by=merge_gate note=Contest Planner (owner delegation) owns it: checks the Open Exchange listing render after 1.0.6 is live; a Markdown fallback follow-up is routed then if needed; no action now
+- 2026-11-11T10:45:03Z status=dropped owner=burndown by=owner note=RESOLVED per the Contest Planner (owner's delegation), 2026-11-11: on the 1.0.6 Open Exchange listing the README header renders (logo rewritten to a working GitHub raw URL, 200 image/png; the h1 and badges come through); the concern did not occur; Story 0.23 also made the logo src absolute; the Planner re-checks at 1.0.7
 
 ### DW-1062: Test.Schedule.TaskResume copies Lane A's private Test.Install.ReconcileIn LastRow and Rows (the Event Log row count of ReconcileIn by job, type and text), forced by AD-29; a change to how ReconcileIn logs must be repeated in both
 - source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: med | fix-risk: low | footprint: out-of-footprint

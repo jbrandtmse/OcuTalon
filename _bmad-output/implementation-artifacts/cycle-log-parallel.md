@@ -3447,3 +3447,4 @@
 - 2026-11-11T10:43:23Z orchestrator epic_runner_complete epic=25 part=25.2 runner=aa3689d1fffaac0bf head=3361af6e (records only) ci_cancelled_record_only=43005919941,43005919881, lane_C=idle; ALL LANES CLOSED
 - 2026-11-11T10:44Z orchestrator final_handoff written=.worktrees/.coordination/FINAL-HANDOFF-20261111.md all_lanes_closed feature=5ed39411 (green) half_done=Epic 11 part 2 (a5c7d245, parked) recovery_refs=4 (safe to delete)
 - 2026-11-11T10:44Z orchestrator planner_message item=1.0.7 cut started from 5ed39411 (last feature release); no product pushes to feature during the cut; orchestrator holds its records commit locally until the release merge-back lands
+- 2026-11-11T10:45Z orchestrator owner_decision via=contest_planner item=DW-1052 closed (OEX renders the header); other 7 decision items left for the post-contest revisit; spin-down waits for the owner's word
