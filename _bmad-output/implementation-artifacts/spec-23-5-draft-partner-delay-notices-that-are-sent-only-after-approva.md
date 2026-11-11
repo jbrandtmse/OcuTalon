@@ -2,7 +2,7 @@
 title: 'Story 23.5: Draft partner delay notices that are sent only after approval'
 type: 'feature'
 created: '2026-11-09'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '4e7cb8e7c695f5f8b6c71452ff057f57f95599a2'
 baseline_commit: '4e7cb8e7c695f5f8b6c71452ff057f57f95599a2'
 review_loop_iteration: 0
@@ -147,7 +147,7 @@ deferred:
     - A refused dry run or a failed raise also fails the draft.
     - A failed draft sends `result.partnerNotDrafted` (kind result, no ApprovalRef) to the recipients.
   - `Event`: when the own request's kind has `MOVES` 0, call `Aside(incident, event, own, notification)` instead of `Apply`.
-    - `Aside` refuses on `closed` (`Drop`).
+    - `Aside` refuses on `closed` (`Drop`). [AMENDED 2026-11-11, Contest Planner merge-time ruling 2 on DW-1108, option (a): an approved event of a request on a closed incident is not dropped silently: the request's recipients are told `result.partnerNotSent` with an existing refusal reason, through `Aside`, and nothing is sent. Options (b) and (c) are declined.]
     - Otherwise, on approved it calls `Execute(incident, own)` at once. On every event it calls `Move` to the same state with the notification.
   - `Facts` skips requests whose kind has `MOVES` 0.
   - Update the description.
@@ -250,6 +250,11 @@ Rejected or closed (appendix):
   - Done (warm tag `e23s5rw`): the pins are now 34 Watch notice keys, 40 Delivery rows, 41 notifications handled by TelegramOut (40 and the answered one) and 41 web rows (the 40 and the answered one, which WebChatOut also records; the drain guard read 40 until the code review); `incident.partnerRequest` joins the `approval` rows and the five `result.partner*` keys send as `result` rows. `Test.Channel.TelegramChat` passed (all of it, 39 s).
   - mutation: `result.partnerKept` deleted from `Msg/Catalog/Watch.cls` `Entries` (the product catalog) -> `Test.Channel.TelegramChat:TestNotices` red ("there are 34 Watch notice keys", "there are 40 of them", "TelegramOut has handled all 40 notifications and the answered one", "WebChatOut has handled all 40 notifications and the answered one"); restored byte-identical (`cmp`, `git status --short` and `git diff --stat` unchanged), the class green again on the same warm stack (`e23s5dw`, code review).
 
+**Merge-time rework (iteration 2; Contest Planner merge-time rulings, prompts/epic-23-rulings-235.md):**
+- [ ] [Rework] DW-1109 (ruling 1, fix now): `Demo.Guide.Compute` counts any answered or approved request of the guide's incident for step 4, so a partner notice approved while the repair still waits marks step 4 done early. Add the one-line kind filter in `Demo/Guide.cls` (now on the AD-33 list): a request whose kind never moves the incident (`MOVES` 0, `Fix.Kind`) counts for neither `answered` nor `fixApproved`. Test (in `Test.Demo.Guide`): a partner notice approved while the repair request still waits leaves step 4 not done (and the repair's approval still marks it done). Demonstrated `mutation:` line.
+- [ ] [Rework] DW-1108 (ruling 2, option (a), bounded at about 1 h; existing text verbatim, no new public text): a partner request approved after its incident was closed is no longer dropped silently. Through `IncidentManager.Aside`, the request's recipients are told `result.partnerNotSent` with an EXISTING refusal reason (prefer the kind's own `NOSTART`, "OcuTalon couldn't deliver the delay notice"; never a new sentence), and nothing is sent (no Execute, no PartnerNotice, no SimMailbox row). The same telling covers a partner result that comes back after the incident closed (approve-then-close), if it falls out of the same change. Test: ask, close, approve: one `result.partnerNotSent` told with that reason, nothing sent. Demonstrated `mutation:` line. If this cannot be done within about 1 h, or needs a new sentence, stop: leave the item unchecked, keep the frontmatter `deferred:` entry, and record "deferred to 1.0.8 per ruling 2" in `## Auto Run Result`.
+
+
 ### Review Findings (rework iteration 1, smoke: code review)
 
 Scope: the rework diff since `4e7cb8e7`. Four layers (blind, edge case, verification gap, acceptance); 6 findings: high 0, medium 0, low 5, false 1. Patched 2, rejected 4. Checklist: the `[Smoke]` item is fixed. The catalog holds 34 `incident.`/`result.` keys (28 plus this story's six), 34 + 6 core keys = 40 Delivery rows, TelegramOut handles 41, the operators are unchanged (no pin loosened), and `incident.partnerRequest` is an `approval` row as the product sends it.
@@ -266,6 +271,7 @@ Rejected (appendix):
 ## Spec Change Log
 
 - 2026-11-11 (runner): lead smoke found the TelegramChat TestNotices shared-surface pin red; spec re-opened for rework iteration 1 with that [Smoke] item.
+- 2026-11-11 (runner): Contest Planner merge-time rulings on DW-1109 (fix now; Demo/Guide.cls joins the AD-33 list) and DW-1108 (option (a), bounded at about 1 h); spec re-opened for rework iteration 2 with the two [Rework] items.
 
 - 2026-11-10 (runner): lead note before implement: 23.2 delivered (build on its code), More to try groups and count twelve, 37.2 interplay, spine lines written.
 
@@ -496,7 +502,7 @@ EXPERIENCE.md (marked, after the ruling):
   - AD-20: `MailAllowed` counts partner notices.
   - AD-32: new keys, the `partner.` prefix in `Catalog.Watch`, and `press.approvedPartner` in `Catalog.Core`. The notice body is approved model text, never a catalog template.
 - **AD-33 cross-lane exception request (Lane B files, additive branches only):**
-  - Classes: `Channel/SimMailbox/Out.cls`, `Data/SimMessage.cls` (doc), `Core/Allowance.cls`, `Data/Ownership.cls` (new query), `Live/Payload/Approval.cls`, `Live/Payload/Part/DryRun.cls`, `Live/Payload/Incident.cls` (if needed), `Demo/Features.cls`.
+  - Classes: `Channel/SimMailbox/Out.cls`, `Data/SimMessage.cls` (doc), `Core/Allowance.cls`, `Data/Ownership.cls` (new query), `Live/Payload/Approval.cls`, `Live/Payload/Part/DryRun.cls`, `Live/Payload/Incident.cls` (if needed), `Demo/Features.cls`. `Demo/Guide.cls` (the one-line kind filter for step 4) [ADDED 2026-11-11, Contest Planner merge-time ruling 1 on DW-1109 (prompts/epic-23-rulings-235.md)]
   - Web: `web/src/app/{live/payloads.ts, approvals/*, rail/rail-view.ts, incidents/incident-view.ts, phone/phone-request.ts, guide/*}`.
   - Their tests: `Test/Core/Allowance.cls`, `Test/Demo/{Features,Guide,SimMailboxOut}.cls`, `Test/Live/Payloads.cls`, `web/scripts/*`, `web/e2e/cards/approval-card.spec.ts` and `web/e2e/guide/more-to-try.spec.ts`.
 - **Public text:** every string of `## Public Text`.

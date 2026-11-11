@@ -6749,11 +6749,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T01:56:30Z status=open owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=harvest note=needs_a_Planner_ruling_on_the_user-facing_outcome(cancel_pending_partner_requests_at_close,or_send_anyway,or_a_result_line)
 - 2026-11-11T03:04:14Z occurrence=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva
 - 2026-11-11T03:04:14Z status=decision-pending owner=burndown by=cr note=also approve-then-close (Execute refused as closed, or result dropped by Aside); rec: Aside tells result on closed, no new text
+- 2026-11-11T04:08:20Z status=routed owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=planner note=Merge-time ruling 2 option (a), only if about 1 h or less with existing text verbatim: a request approved after its incident closed gets result.partnerNotSent with an existing refusal reason through IncidentManager.Aside, nothing sent; else ledger for 1.0.8; (b) and (c) declined
 
 ### DW-1109: Demo.Guide.Compute counts any approved request of the guide's incident for step 4, so a partner notice approved while the repair still waits marks step 4 done early
 - source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Demo/Guide.cls (Lane B, not in 23.5's AD-33 list); the finish still needs the incident resolved; fix is a one-line kind filter (leave MOVES 0 kinds out of step 4)
 - 2026-11-11T01:56:30Z status=escalated owner=burndown by=harvest note=AD-33_extension_request:Demo/Guide.cls_one-line_filter;orchestrator_or_Planner
+- 2026-11-11T04:08:20Z status=routed owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=planner note=Merge-time ruling 1 (prompts/epic-23-rulings-235.md): fix now in 23.5; Demo/Guide.cls joins the AD-33 list (one-line kind filter, MOVES 0 kinds do not count for step 4) plus a test
 
 ### DW-1110: Fix.Kind.PartnerWarning.Plan reads the address at the target's position in the targets it is given, so an Execute of a Recheck-passed subset compares later contacts with the wrong address
 - source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: low | fix-risk: low | footprint: in-story
