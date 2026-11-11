@@ -23,3 +23,4 @@
 2026-11-11T01:26:35Z	Story 25.2	story_unwaited	story=25.2 on=37.2 merged_as=878da0d2 via=orchestrator_message
 2026-11-11T01:33:52Z	Story 25.2	ledger_routed_planned	story=25-2-filter-past-decisions-and-incidents-on-the-history-page entries=1(DW-1102) excess=0 by=merge_gate note=epics.md_AC_added_by_orchestrator;spec_task_and_AC_added_by_lead
 2026-11-11T01:33:52Z	Story 25.2	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-4,AD-13,AD-20,AD-26,AD-27,AD-29,AD-31,AD-33 decision_dependency=none owned_ledger=DW-1102 addressed=1 declined=0 mutates_shared_runtime=false header_fit=K_spacing_only_measured(640x360@2_floor:77px_sticky_slack18.31;1024_admin_5links_56px_one_line) planner_report=not_needed(spacing_only) cycle_iteration=2 model=claude-opus-5-5
+2026-11-11T01:36:05Z	Epic 25	slot_loaded	slot=ocutalon-slot-c ns=OCUTALON bridge=62 ocutalon=886 preload=1 compile=ok stale_deleted=0 source_classes=949_match identity=build154
