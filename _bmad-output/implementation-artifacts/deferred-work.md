@@ -6635,6 +6635,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340184 shards-10; first-start timeout is DW-999's; the park step is a new signature; the 23.2 rework checks it for a story cause
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:reminder-restart_telegram_park;one_rerun_with_the_next_push
+- 2026-11-11T00:03:57Z occurrence=feature-9f7db82c by=orchestrator note=run 42924654980 job 130207908005 iris(shards) on ocutalon-ci-15, unit live:online-allowance: 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then 'the first start did not end ready within 400 s'; same signature as the reminder-restart one, now in another unit; rerun of failed jobs
 ### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
@@ -6712,6 +6713,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T21:01:35Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence, likely a port still held on the self-hosted runner from an earlier job); rerun of failed jobs; reopen as real only if it recurs on a quiet runner
 - 2026-11-10T22:32:50Z occurrence=37-2 by=orchestrator note=lane-a run 42907226019 job 130148282085 ipm-install-p on runner ocutalon-ci-6: 'failed to set up container networking: driver failed programming external connectivity' for the second stack (path B) and part p; first occurrence was on ocutalon-ci-11; two runners in two hours: possibly concurrent jobs on one droplet colliding on a published port; rerun of failed jobs; flagged to the Contest Planner (owns the runners)
 - 2026-11-10T22:53:15Z occurrence=feature-d35efc22 by=orchestrator note=run 42902128153 job 130130553943 iris(browser) on ocutalon-ci-6 at 22:21Z: live:demo-path and live:online-demo both refused (driver failed programming external connectivity) 6 s apart, no test ran; third occurrence; fix in flight as Story 0.24; rerun of failed jobs
+- 2026-11-10T22:37:05Z status=routed owner=0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=load note=Contest_Planner_ruling_2026-11-10_~22:45Z:_Story_0.24_fixes_the_web-port_collision_(recurred:_lane-a_run_42907226019_runner_6_port_52816_twice)
+- 2026-11-11T00:09:51Z status=resolved-by:0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=adjudication note=docker/tests/lib-live.sh_live_port_guard(dc_up/start/restart:wait<=20s,one_retry_on_the_bind_error,loud_FAIL);hermetic_rows_in_test-lib-live.sh;live_proofs_on_lane-C(real_Docker_bind_error_retried_once;IRIS_stacks_back_to_back)
 ### DW-1097: test-readme.sh: no permanent self-test pins that chk_readme_links feeds the header logo (header_images) into its existence check
 - source: _bmad-output/implementation-artifacts/spec-0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: Dropping header_images from chk_readme_links' target stream keeps every rule green while the logo is tracked; only the AC4 untrack mutation shows it; chk_readme_links takes no tree-list argument, so a self-test cannot stub a missing logo; same limit existed with the relative src before 0.23
@@ -6737,3 +6740,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-15-learned-saves-are-announced-by-code.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: MemoryRule keeps missing from the phrase rule (ruling 4: phrase rule unchanged, one call); the check row shows a missing phrase on a right row
 - 2026-11-11T01:26:25Z status=by-design owner=41-15-learned-saves-are-announced-by-code by=cr note=ruling 4 keeps the phrase rule and its output as they are; changing the report output needs a spec amendment
+### DW-1100: The port guard's loud failure (FAIL web port / PORT still in use) does not name what holds the port, so a recurrence of DW-1099 gives no more diagnosis than the first
+- source: spec-0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: docker/tests/lib-live.sh live_port_guard: the FAIL line carries only 127.0.0.1:<p> and the bind error line; no docker ps --filter publish or ss/lsof line
+- 2026-11-10T23:52:05Z status=wontfix-accepted owner=0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=cr note=reopen_if=a CI log shows 'FAIL web port: 127.0.0.1:' and the occupant cannot be identified from that job's log
+
+### DW-1101: test-install-script-live.sh step 5's use of live_port_guard is pinned hermetically only by a grep of the script's text; the executed check is the live install-script-live unit
+- source: spec-0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: docker/tests/test-lib-live.sh greps '^plain_out=$(live_port_guard env ' in test-install-script-live.sh; the step-5-shaped row runs a look-alike command, not the script
+- 2026-11-10T23:52:05Z status=wontfix-accepted owner=0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=cr note=reopen_if=live:install-script-live shows 'address already in use' or 'failed programming external connectivity' at step 5 with no 'PORT retry' line before it
