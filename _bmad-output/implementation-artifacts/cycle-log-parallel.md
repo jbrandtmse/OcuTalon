@@ -3545,3 +3545,4 @@
 2026-11-11T23:31:17Z	Epic 22	ci_red_classified	sha=7e01fbc7 run=43113562220 job=iris(browser) test=e2e-online/resume.spec.ts:84_R1 class=flake(DW-549;1s_off) action=rerun_failed_once(orchestrator) lane-a=success
 2026-11-11T23:58:18Z	Epic 22	ci_green_verified	branch=OCT-epic22 head=7e01fbc7 runs=43113562220(att2;DW-549_rerun),43113562177 result=success story=22.8
 2026-11-11T23:58:18Z	Epic 22	merge_enqueued	part=22.8 head=7e01fbc7 by=orchestrator amendment_verified=spine_AD-10/AD-21_[AMENDED_2026-11-11,_Story_22.8]
+2026-11-11T23:58:36Z	Epic 22	merge_gate	part=22.8 head=7e01fbc7 conflicts=sprint-status.yaml(ours+regenerate+set_22-8=done;valid) spine=auto-merged lint=baseline deps_hash=unchanged
