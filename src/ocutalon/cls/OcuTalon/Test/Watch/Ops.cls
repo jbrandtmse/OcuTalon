@@ -17,6 +17,13 @@
 ///     no_session for a start and for a stop, with no row;
 ///   - Story 5.6: the shadow is a Test.Watch.OpsProbe, which records the CheckChanged that WatchOps sends to Checks. A start sends one (the Ref, the session,
 ///     Stopped 0), a stop one (Stopped 1, with the row's kind, namespace, production and display name), and no other answer sends any;
+///   - TestQueuesStartRepeatStop and TestQueuesOnlineDemo (Story 23.7; matrix "Start", "Start again", "Stop"): a StartWatch whose Kind is queues writes the session's one row of Kind queues
+///     (empty namespace and production, the display name "Queue-backlog check", the session's IrisUser as AskedBy, CreatedAt and NextDueAt the same time) with no
+///     Admits, answers started and sends one CheckChanged of Kind queues; a repeat answers already_watching with the same Ref, the queue-specific message and no second
+///     row and no message, beside a production watch of the same session; a StopWatch of Kind queues removes that row alone (not the production's, not another session's), sends
+///     Stopped 1 with the row's kind and display name, and answers not_watching with the queue-specific message when there is none; the online demo allows it;
+///   - TestQueuesEndSession (DW-1124; AD-4): an EndSession through the production removes the session's queue row as well as its production watch, and leaves another
+///     session's queue row unchanged;
 ///   - TestChangedSendFails (Story 5.6): a failed send logs one warning for the start and one for the stop, and each answer stays started or stopped;
 ///   - TestThroughTheProduction: the item answers a StartWatch and a StopWatch with a CommandResult and writes and removes the row;
 ///   - TestLockTimeout (QA, DW-218): another job holds the session's lock (^OcuTalon.Watch(session)); a start and a stop wait about 5 seconds and
@@ -309,6 +316,111 @@ Method TestFailedSave()
 	Do $$$AssertEquals(..LockFree(session), 1, "and the lock is free")
 }
 
+/// The queue-backlog check (Story 23.7): start, repeat, stop and not_watching, with the other watches and the other session left alone.
+Method TestQueuesStartRepeatStop()
+{
+	If '..Ready() Quit
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Session("queuesA")
+	Set b = ..Session("queuesB")
+	Set user = ##class(OcuTalon.Data.Session).RefIndexOpen(a).IrisUser
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(host.OnStart(..QueueStart(a, "zzqkey1"), .first), "the start is answered")
+	Set after = ##class(OcuTalon.Data.Time).NowUtc()
+	If '..AssertResult(first, 1, "started", "queue start") Quit
+	Set rows = ..Rows(a)
+	Do $$$AssertEquals(rows.%Size(), 1, "there is one row")
+	If rows.%Size() '= 1 Quit
+	Set row = rows.%Get(0)
+	Do $$$AssertEquals(row.ref, first.Ref, "its Ref is the answer's")
+	Do $$$AssertEquals(row.kind_"|"_row.namespace_"|"_row.production_"|"_row.displayName, "queues|||Queue-backlog check", "Kind queues, no namespace, no production, the display name Queue-backlog check")
+	Do $$$AssertEquals(row.askedBy, user, "AskedBy is the IrisUser of the session")
+	If row.lastRunAt = "" {
+		Do $$$AssertEquals(row.createdAt, row.nextDueAt, "CreatedAt and NextDueAt are the creation time")
+		Do $$$AssertEquals(row.lastRunAt_"|"_row.result, "|", "it has not run yet")
+	} Else {
+		Do $$$LogMessage("A real Tick ran the row before it was read (LastRunAt "_row.lastRunAt_"): only the fields of WatchOps are checked")
+	}
+	Do $$$AssertTrue('(before ] row.createdAt) && '(row.createdAt ] after) && (row.createdAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z"), "CreatedAt is the creation time, UTC to the second: "_row.createdAt)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(a).Count(), 1, "Ownership.Checks lists it")
+	Do $$$AssertEquals(..Sent(host), 1, "one CheckChanged was sent")
+	Set change = host.Changes.%Get(0)
+	Do $$$AssertEquals(change.checkRef_"|"_change.sessionRef_"|"_change.stopped_"|"_change.kind_"|"_change.namespace_"|"_change.production_"|"_change.displayName, first.Ref_"|"_a_"|0|queues|||Queue-backlog check", "for the new row, Stopped 0, Kind queues")
+
+	Do $$$AssertStatusOK(host.OnStart(..QueueStart(a, "zzqkey2"), .again), "a repeat is answered")
+	Do $$$AssertEquals(again.Ok_"|"_again.Outcome_"|"_again.Ref, "1|already_watching|"_first.Ref, "already_watching with the existing Ref")
+	Do $$$AssertEquals(again.Message, ##class(OcuTalon.Watch.Ops).#MESSAGEALREADYQUEUES, "and the queue-specific sentence")
+	Do $$$AssertEquals(..Rows(a).%Size(), 1, "no second row")
+	Do $$$AssertEquals(..Sent(host), 1, "and no message")
+
+	Do $$$AssertStatusOK(host.OnStart(..Start(a, "zzqkey3"), .production), "a production watch of the same session is answered")
+	Do $$$AssertEquals(production.Outcome, "started", "it is a watch of its own")
+	Do $$$AssertStatusOK(host.OnStart(..QueueStart(a, "zzqkey4"), .third), "the queue start again")
+	Do $$$AssertEquals(third.Outcome_"|"_third.Ref, "already_watching|"_first.Ref, "is still already_watching, found by session and kind alone")
+	Do $$$AssertStatusOK(host.OnStart(..QueueStart(b, "zzqkey5"), .other), "another session's queue start is answered")
+	Do $$$AssertEquals(other.Outcome, "started", "it is a new watch")
+	Do $$$AssertTrue(other.Ref '= first.Ref, "with a Ref of its own")
+	Set rowB = ..Rows(b, 0).%ToJSON()
+	Set sent = ..Sent(host)
+
+	Do $$$AssertStatusOK(host.OnStop(..QueueStop(a, "zzqkey6"), .stopped), "the stop is answered")
+	Do ..AssertResult(stopped, 1, "stopped", "queue stop")
+	Do $$$AssertEquals(stopped.Ref, first.Ref, "for the queue row's Ref")
+	Do $$$AssertEquals(..Sent(host), sent + 1, "it sent one more CheckChanged")
+	Set change = host.Changes.%Get(sent)
+	Do $$$AssertEquals(change.checkRef_"|"_change.sessionRef_"|"_change.stopped_"|"_change.kind_"|"_change.displayName, first.Ref_"|"_a_"|1|queues|Queue-backlog check", "with Stopped 1 and the row's kind and display name")
+	Set left = ..Rows(a)
+	Do $$$AssertEquals(left.%Size(), 1, "the session keeps one row")
+	If left.%Size() = 1 Do $$$AssertEquals(left.%Get(0).kind, "production", "the production watch")
+	Do $$$AssertEquals(..Rows(b, 0).%ToJSON(), rowB, "and the other session's queue row is unchanged")
+	Do $$$AssertStatusOK(host.OnStop(..QueueStop(a, "zzqkey7"), .none), "a second stop is answered")
+	Do $$$AssertEquals(none.Ok_"|"_none.Outcome_"|"_none.Ref, "0|not_watching|", "not_watching, Ok 0")
+	Do $$$AssertEquals(none.Message, ##class(OcuTalon.Watch.Ops).#MESSAGENOTWATCHINGQUEUES, "with the queue-specific sentence")
+	Do $$$AssertEquals(..Sent(host), sent + 1, "and sent nothing")
+	Do $$$AssertEquals(..Rows(a).%Size(), 1, "and removed nothing")
+}
+
+/// The online demo allows the queue-backlog check (Story 23.7): no only_orders, one row for the session.
+Method TestQueuesOnlineDemo()
+{
+	If '..Ready() Quit
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Do ..SetOnlineDemo(1)
+	Set session = ..Session("queuesDemo")
+	Do $$$AssertStatusOK(host.OnStart(..QueueStart(session, "zzqdemo1"), .response), "the start is answered")
+	Do ..AssertResult(response, 1, "started", "queue start on the online demo")
+	Set rows = ..Rows(session)
+	Do $$$AssertEquals(rows.%Size(), 1, "one row")
+	If rows.%Size() = 1 Do $$$AssertEquals(rows.%Get(0).kind_"|"_rows.%Get(0).namespace_"|"_rows.%Get(0).production, "queues||", "of Kind queues with no namespace and production")
+	Do $$$AssertEquals(..Sent(host), 1, "and one CheckChanged")
+}
+
+/// Ending a session stops its queue-backlog check (DW-1124; AD-4: SessionOps.End stops watches through WatchOps): the session's production watch and its
+/// queue row are both gone after an EndSession through the production, and another session's queue row is unchanged.
+Method TestQueuesEndSession()
+{
+	If '..Ready() Quit
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set session = ..Session("queuesEnd")
+	Set other = ..Session("queuesEndOther")
+	Do $$$AssertStatusOK(host.OnStart(..QueueStart(session, "zzqend1"), .queued), "the queue start is answered")
+	Do ..AssertResult(queued, 1, "started", "queue start")
+	Do $$$AssertStatusOK(host.OnStart(..Start(session, "zzqend2"), .watched), "the production start is answered")
+	Do ..AssertResult(watched, 1, "started", "production start")
+	Do $$$AssertStatusOK(host.OnStart(..QueueStart(other, "zzqend3"), .kept), "another session's queue start is answered")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(session).Count(), 2, "the session has its production watch and its queue row")
+	Set otherRow = ..Rows(other, 0).%ToJSON()
+	Set end = ##class(OcuTalon.Msg.Command.EndSession).%New()
+	Set end.SessionRef = session
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.Commands).Submit(end, "web_user", .result), "Submit returns OK")
+	Do $$$AssertEquals($Select($IsObject(result): result.Ok_"|"_result.Outcome, 1: ""), "1|ended", "EndSession is Ok 1, ended")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(session).Count(), 0, "both of the session's rows are gone, the queue row too")
+	Do $$$AssertEquals(..Rows(other, 0).%ToJSON(), otherRow, "and the other session's queue row is unchanged")
+}
+
 /// --- helpers ---
 
 
@@ -336,6 +448,28 @@ ClassMethod Start(session As %String, key As %String) As OcuTalon.Msg.Command.St
 	Set command.Namespace = ..#ORDERS
 	Set command.Production = ..#ORDERSPRODUCTION
 	Set command.DisplayName = "Orders"
+	Quit command
+}
+
+/// A StartWatch of Kind queues for the session: no namespace, no production.
+ClassMethod QueueStart(session As %String, key As %String) As OcuTalon.Msg.Command.StartWatch [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.StartWatch).%New()
+	Set command.SessionRef = session
+	Set command.IdempotencyKey = key
+	Set command.Origin = "tool"
+	Set command.Kind = ##class(OcuTalon.Watch.Ops).#QUEUEKIND
+	Quit command
+}
+
+/// A StopWatch of Kind queues for the session.
+ClassMethod QueueStop(session As %String, key As %String) As OcuTalon.Msg.Command.StopWatch [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.StopWatch).%New()
+	Set command.SessionRef = session
+	Set command.IdempotencyKey = key
+	Set command.Origin = "tool"
+	Set command.Kind = ##class(OcuTalon.Watch.Ops).#QUEUEKIND
 	Quit command
 }
 

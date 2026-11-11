@@ -4,7 +4,7 @@
 /// The ids, in this order, each listed only when its condition holds:
 ///   - incidentSummary (Story 23.6): always, first, because it closes the guide's incident and shows its summary, a control of this demo shipped in the same package;
 ///   - persona: the class of the Set persona command is compiled (Epic 40);
-///   - suspiciousEmail, rejectFix, reroute (Story 23.2), partnerWarning (Story 23.5), demoView: always, because they are this demo's own controls, shipped in the same package as this class;
+///   - suspiciousEmail, rejectFix, reroute (Story 23.2), partnerWarning (Story 23.5), queueWatch (Story 23.7), demoView: always, because they are this demo's own controls, shipped in the same package as this class;
 ///   - memory: the memory operation is compiled and is not a stub (its STUB parameter, AD-29, is not 1);
 ///   - memoryCard (Story 41.13): the same condition as memory, listed right after it;
 ///   - documents: the documents operation is compiled and is not a stub; the Documents page does not count;
@@ -49,7 +49,7 @@ ClassMethod Ids(has As %DynamicObject) As %List
 {
 	Set ids = $ListBuild("incidentSummary")
 	If has.%Get("persona") Set ids = ids _ $ListBuild("persona")
-	Set ids = ids _ $ListBuild("suspiciousEmail", "rejectFix", "reroute", "partnerWarning", "demoView")
+	Set ids = ids _ $ListBuild("suspiciousEmail", "rejectFix", "reroute", "partnerWarning", "queueWatch", "demoView")
 	If has.%Get("memory") Set ids = ids _ $ListBuild("memory")
 	If has.%Get("memory") Set ids = ids _ $ListBuild("memoryCard")
 	If has.%Get("documents") Set ids = ids _ $ListBuild("documents")

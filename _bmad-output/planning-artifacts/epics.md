@@ -7386,7 +7386,7 @@ Tools from an added MCP server become OcuTalon's tools under the same gate, clas
 
 ### Story 22.2: Classify MCP tools by server and name
 
-> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1013] Attaching an MCP server gets a bounded timeout with a clear error, so a server that accepts the connection and never answers cannot block `AddTool` or the manager's listing (measure rmcp's own timeout on a throwaway first).
+> [AMENDED 2026-11-11, Story 22.2 spec gate, runner ruling (split, unattended decide U5; product default 6): Story 22.2 is split in two. This story keeps the add, remove and classify commands, `Tools(server)`, the per-server resource, the classification rows and their fingerprints from the attach report, the changed-tool clear found at an attach, and the admin notices. Story 22.8, planned next, takes the gate half: the turn's fingerprint map and the gate's classification (the criterion "Given a turn starting"), the clause "the gate denies any call to them" of the remove criterion, the changed-tool clear for a change found during a turn, the DW-1013 attach timeout (the amendment that stood here, moved whole to Story 22.8) and DW-174. No criterion is dropped.]
 
 [AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1 on Story 35.1, relayed by the orchestrator: (1) the admin chat notices for an unavailable MCP server and for a refused tool whose name shadows a built-in move here from Story 35.1's attach criterion, beside the changed-tool notice this story already sends; they use the accepted texts `mcp.serverUnavailable` and `mcp.toolShadowsBuiltIn` in `OcuTalon.Msg.Catalog.Watch`, read the attach report Story 35.1 records on the `OcuTalon.Mcp.Server` row, and reach the sessions whose user held `OcuTalonAdmin` at their latest sign-in through Story 35.2's read API (no run-time `%SYS` read, no AD-3 exception); (2) `OcuTalon.Core.SettingsOps` writes the server's Config Store entry `AI.MCP.OcuTalon_<server>` and its IRIS Wallet secret, called from Lane B's MCP settings route (Story 35.2), and `McpOps` writes only the `OcuTalon.Mcp.Server` row and calls `RestartRunners()`, so where the criteria below have `McpOps` write the Config Store entry, `SettingsOps` writes it; no command, log, test output or record ever carries a secret value, only a `secret://` reference]
 
@@ -7402,7 +7402,7 @@ So that a new or changed tool can never act without my say.
 
 **Given** a remove command
 **When** `McpOps` handles it
-**Then** the server's tools go at once: the gate denies any call to them, the runners restart without the server through `RestartRunners()`, its entry, row, classifications and resource are removed, and the removal is audited (FR-47, FR-9, AD-21)
+**Then** the server's tools go at once: the gate denies any call to them [AMENDED 2026-11-11, split: this clause is delivered by Story 22.8], the runners restart without the server through `RestartRunners()`, its entry, row, classifications and resource are removed, and the removal is audited (FR-47, FR-9, AD-21)
 
 **Given** a registered server whose tools the runners discovered
 **When** Lane B's settings page calls `OcuTalon.Mcp.Ops.Tools(server)`, which this story builds in place of Story 35.1 (was 22.1)'s stub
@@ -7417,12 +7417,10 @@ So that a new or changed tool can never act without my say.
 **When** `McpOps` handles it
 **Then** `OcuTalon.Mcp.ToolClassification` stores read-only or risky for (server, tool name) with a fingerprint of the tool's description and canonical input schema, and the change is audited (FR-48, FR-9, AD-17, AD-21)
 
-**Given** a turn starting
-**When** the runner prepares it
-**Then** it fingerprints each MCP tool from `ToolManager.%Discover()` before `Chat` and keeps the map in the bridge context, and the gate, through OcuTalon's `ClassificationClass`, treats a tool missing from the map, without a classification, or with a changed fingerprint as unclassified, which counts as risky (FR-48, AD-10, AD-31)
+[AMENDED 2026-11-11, split: the criterion "Given a turn starting" (the turn's fingerprint map and the gate's classification) moved whole to Story 22.8]
 
 **Given** a classified tool whose description or inputs changed
-**When** the change is found
+**When** the change is found [AMENDED 2026-11-11, split: at an attach here; a change found during a turn is Story 22.8's, through the clear this story builds]
 **Then** its classification is cleared, the change is audited, and each admin's chat gets a notice card, in the wording the author accepted from Story 35.1 (was 22.1)'s proposal, so the settings page shows the tool Unclassified (FR-48, FR-9, AD-32, UX-DR145)
 
 **Given** an MCP tool with the same name as a built-in tool, or one carrying annotations such as `readOnlyHint`
@@ -7432,7 +7430,7 @@ So that a new or changed tool can never act without my say.
 **Given** the model, an item's content or a tool result
 **When** it tries to classify a tool
 **Then** nothing changes: no tool can classify, and `McpOps` accepts a classify command only with origin `web_admin`, behind `CommandsIn`'s refusal of origin `tool` (Lane B's Story 21.4) (FR-7, FR-49, NFR-14, AD-1)
-- DW-174: Whether AI Hub gives an MCP tool a toolref that starts `mcp:` is unmeasured; another form (the JSON configuration form of `%AI.Tool.Resolver`) would take `metadata.origin_class` as the source, so a shadowing MCP tool could take a built-in's classification. Measure a real MCP tool's toolref and metadata in `%CanExecute` (stdio, remote, JSON configuration) when step 4 registers MCP servers (ledger; routed by harvest 2026-10-24)
+- DW-1038: flake family in `OcuTalon.Test.Mcp.Attach` (TestShadow, TestAttach, TestRequestServerDown red under CI load): make the mock-dependent attach tests robust (ledger; routed by burndown 2026-11-09)
 
 ### Story 22.3: Call MCP tools only through the governed proxy
 
@@ -7446,6 +7444,7 @@ So that adding an MCP server never opens a path around OcuTalon's governance.
 **When** it runs
 **Then** the gate rewrites it into the governed proxy tool `call_mcp_tool(server, tool, arguments)`, which calls the server with OcuTalon's minimal Streamable HTTP client (`initialize`, `tools/call`) and returns the result through `OcuTalon.Tools.Result`, cut and marked as cut so that all results of one model step pass at most 10,000 tokens (FR-49, NFR-3, AD-10, AD-21)
 **And** a direct call to `call_mcp_tool` is classified by its (server, tool) arguments the same way (AD-21)
+**And** [AMENDED 2026-11-11, Contest Planner ruling on Story 22.8's veto, condition (1): the fingerprint must match the classification at call time] just before `tools/call`, the proxy lists the tool with its own client and refuses the call, unrun, when the tool's fingerprint (Story 22.2's `ToolFingerprint`) no longer matches the one its classification was given for, so a tool changed between the turn's listing and the call is caught (FR-48, AD-10)
 **And** `call_mcp_tool`'s name is added to `OcuTalon.Tools.Names` and to the CI mock's scripts (AD-22) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L5]
 
 **Given** any MCP call
@@ -7538,6 +7537,10 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the worked example **When** it is followed in step 4's hands-on pass on a clean local install with a real Jira MCP server **Then** the tools appear unclassified, a read-only search runs, a risky call waits for approval, and new tickets assigned to the user become items with decisions in Visual Trace (FR-50, FR-49, REL-7)"]
 
+**Given** the governance documentation [AMENDED 2026-11-11, Contest Planner rulings on Stories 22.8 and 22.9]
+**When** it describes Read-only MCP tools and the attach bound
+**Then** it says plainly that a Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so an admin classifies a tool Read-only only when they trust its server with what OcuTalon reads (the sentence goes to the Contest Planner at this story's spec gate), and it documents Story 22.9's residual: a server that stops answering after its probe passed, within one request, holds that runner until it closes the connection, until Story 22.10 lands (FR-48, FR-61, AD-10, AD-21)
+
 **Given** the worked example's guidance on classifying MCP tools, which the README's admin section (the admin guide) repeats
 **When** it describes classifying MCP tools
 **Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.2 (was 24.1) copies that sentence into the README's admin section with the link (FR-10, FR-61)
@@ -7572,6 +7575,66 @@ So that email to me just goes and email to anyone else waits for my approval.
 **Given** the tests with the mocked model
 **When** they run
 **Then** email to the user reaches `EmailOut` without approval, email to anyone else doesn't reach it without an approved request and reaches it exactly once after approval, one test sends `Execute` with no approved row and expects nothing, and the tool inventory and security overview list the tool with its classification (FR-44, FR-7, FR-61, NFR-13, AD-16)
+
+### Story 22.8: Classify MCP calls by fingerprint in the gate
+
+[AMENDED 2026-11-11, Story 22.2 spec gate, runner ruling (split, unattended decide U5): split from Story 22.2, planned next after it; these criteria and entries are Story 22.2's, moved whole or in the part named, with their wording kept]
+
+[AMENDED 2026-11-11, Story 22.8 spec gate, runner ruling (split, unattended decide U5): the DW-1013 attach timeout (the amendment that stood here and the DW-1013 entry) moved whole to Story 22.9, planned after this story]
+
+As an admin,
+I want every MCP call classified by the gate from my classification of that tool, as it is now,
+So that a new or changed tool can never act without my say.
+
+**Acceptance Criteria:**
+
+**Given** a turn starting
+**When** the runner prepares it
+**Then** it fingerprints each MCP tool from `ToolManager.%Discover()` before `Chat` and keeps the map in the bridge context, and the gate, through OcuTalon's `ClassificationClass`, treats a tool missing from the map, without a classification, or with a changed fingerprint as unclassified, which counts as risky (FR-48, AD-10, AD-31)
+
+**Given** a server removed by Story 22.2's remove command
+**When** a call to one of its tools reaches the gate
+**Then** the gate denies it at once (FR-47, FR-9, AD-21)
+
+**Given** a classified tool whose description or inputs changed
+**When** the change is found during a turn
+**Then** its classification is cleared through Story 22.2's `McpOps.ClearChanged`, the change is audited, and each admin's chat gets the `mcp.toolChanged` notice card, so the settings page shows the tool Unclassified (FR-48, FR-9, AD-32, UX-DR145)
+
+- DW-174: Whether AI Hub gives an MCP tool a toolref that starts `mcp:` is unmeasured; another form (the JSON configuration form of `%AI.Tool.Resolver`) would take `metadata.origin_class` as the source, so a shadowing MCP tool could take a built-in's classification. Measure a real MCP tool's toolref and metadata in `%CanExecute` (stdio, remote, JSON configuration) when step 4 registers MCP servers (ledger; routed by harvest 2026-10-24; moved from Story 22.2 by the 2026-11-11 split)
+- DW-724: `Decide.ToolsReadOnly` judges only an agent's compiled TOOLSETS, so MCP servers attached at step 4 (AD-21) are invisible to the U-282 rule; when MCP servers are attached to an agent, `ToolsReadOnly` must count them (an unclassified or non-read-only server's tool means not read-only) (ledger; routed by harvest 2026-11-05; moved from Story 22.2 by the 2026-11-11 split)
+
+### Story 22.9: Bound MCP attach and listing with a timeout
+
+[AMENDED 2026-11-11, Story 22.8 spec gate, runner ruling (split, unattended decide U5): split from Story 22.8 (itself split from Story 22.2), planned after Story 22.8; it carries the Contest Planner's DW-1013 ruling whole]
+
+> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1013; moved here from Story 22.2 through Story 22.8 by the 2026-11-11 splits] Attaching an MCP server gets a bounded timeout with a clear error, so a server that accepts the connection and never answers cannot block `AddTool` or the manager's listing (measure rmcp's own timeout on a throwaway first).
+
+As an admin,
+I want an MCP server that stops answering to be given up on in bounded time, with a clear error,
+So that one hung server can never hold OcuTalon's runners.
+
+**Acceptance Criteria:**
+
+**Given** a registered MCP server that accepts the connection and never answers
+**When** a runner attaches it at a build, or lists its tools for a request
+**Then** the attach or the listing gives up within a bounded time with a clear error, the server is reported unavailable as Story 35.1's attach report records it, and the runner and the turn go on without that server's tools (FR-47, AD-21, AD-31)
+
+- DW-1013: An attached MCP server that accepts the connection and never answers may block `AddTool` and the manager's listing with no deadline, at the build and in every request (ledger; routed by merge_gate 2026-11-09; moved from Story 22.2 through Story 22.8 by the 2026-11-11 splits)
+
+### Story 22.10: List and offer MCP tools through OcuTalon's own bounded client
+
+[AMENDED 2026-11-11, Contest Planner ruling on Story 22.9's residual, option (a): a new story in Epic 22's backlog, after Story 22.7; it amends AD-21]
+
+As an admin,
+I want OcuTalon to list and offer an MCP server's tools through its own bounded client, rather than AI Hub's MCP client,
+So that a server that stops answering in the middle of a request can never hold a runner.
+
+**Acceptance Criteria:**
+
+**Given** a registered MCP server that answers its probe and then stops answering within the same request
+**When** the runner lists its tools or the model calls one of them
+**Then** OcuTalon's own Streamable HTTP client (Story 22.3's, with Story 22.9's bounds) does the listing and the call, both give up within a bounded time with a clear error, and the turn goes on without that server's tools; AI Hub's MCP client is no longer used for listing or calling, and the gate, classification by fingerprint, approval and audit apply exactly as before (FR-47, FR-48, FR-49, AD-10, AD-21, AD-31)
+**And** AD-21's "AI Hub lists, OcuTalon calls" rule and its Story 22.9 residual note are amended to match (AD-21)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 
@@ -7802,7 +7865,7 @@ So that I can watch a data condition without giving OcuTalon any way to change d
 
 ### Story 23.9: Resume a suspended item after its incident closes
 
-[ADDED 2026-11-10, Contest Planner ruling (DW-1068 re-ruling), PARKED until after voting; not for 1.0.6 or 1.0.7] Split from Story 23.2, whose `result.itemSuspended` text limits the undo to while the incident is open and points to the Management Portal after it closes.
+[ADDED 2026-11-10, Contest Planner ruling (DW-1068 re-ruling), PARKED until after voting; not for 1.0.6 or 1.0.7] [AMENDED 2026-11-11, un-parked: scope reopened by the owner via the Contest Planner - see the story change log] Split from Story 23.2, whose `result.itemSuspended` text limits the undo to while the incident is open and points to the Management Portal after it closes.
 
 As a production developer,
 I want to undo a suspend OcuTalon made even after its incident has closed,
@@ -7814,6 +7877,32 @@ So that a suspended item is never left disabled without a governed way back.
 **When** the user asks OcuTalon to resume the item
 **Then** the spec chooses between (a) a resume raised on the closed incident, which never moves its state, and (b) an incident with an active suspend stays open until a resume or Dismiss (the Planner leans to (b)); either way exactly one approval request with its own dry run is raised, the item is re-checked before running, and a second session or a user outside the incident's ownership scope cannot resume it (FR-26, AD-15, AD-16)
 - DW-1068: After a suspend's incident closes the user cannot ask to resume the item (ledger; routed by merge_gate 2026-11-10)
+
+### Story 23.10: Partner notice and summary polish from the 1.0.7 demo pass
+
+[ADDED 2026-11-11, Contest Planner ruling from the 1.0.7 demo pass] From the Contest Planner's hands-on pass of 1.0.7 on the live demo (ruling text: the orchestrator's `prompts/epic-23-story-2310-ruling.md`). Judge-visible; it runs after Story 23.7 and before Story 23.9.
+
+As a production developer watching the demo's Orders feed,
+I want the partner notice to name the right partner and to match the incident's state, and the incident summary and the status rail to read cleanly,
+So that what OcuTalon drafts and shows is accurate.
+
+**Acceptance Criteria:**
+
+**Given** the online demo's partner contact fixture (Story 23.5)
+**When** the guide's Orders incident drafts a partner notice
+**Then** its recipient is "Orders Partner IT" <it@orders-partner.example> (ruled public text), keyed to the Orders production if the fixture keys contacts by production; the README and EXPERIENCE.md lines that name the recipient and the tests say the same (FR-29)
+
+**Given** an incident that is resolved when its partner notice is drafted
+**When** the draft is written
+**Then** the draft's facts include the incident's state, and the draft instruction carries, verbatim: "If the incident is resolved, say that the affected orders went through after the fix, and don't say that work is still going on or that updates will follow."; an eval or CI mock case shows a resolved incident's draft without "looking into" or "will share updates" (FR-29, AD-16)
+
+**Given** an incident summary (Story 23.6)
+**When** its "Fix:" line is rendered
+**Then** the line ends with its full stop, and its pin says so (FR-30, AD-32)
+
+**Given** an approval request the user rejects
+**When** the status rail's Approval requests refresh
+**Then** the rejected request leaves the rail at once if the cause is a one-line refresh; otherwise the gap is filed in the ledger with its cause (LOW, FR-8)
 
 ## Epic 24: On-call, partner and check settings (step 5)
 
@@ -9579,6 +9668,7 @@ So that what the automated tests can't see is found and fixed before the first r
 - DW-299: Story 6.2's AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds with the demo guide open: the guide reaches DESIGN's 56 px compact form while its Break the feed box shows, and 6.2's A6 check runs without Hide guide (ledger; routed by merge_gate 2026-10-28)
 - DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
 - DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend (ledger; routed by merge_gate 2026-10-30)
+- DW-1125: Real-model check of Story 23.7's queue watch: for "Watch the queue backlogs." the model calls start_watch with kind queues, and for its stop calls stop_watch with kind queues (only the CI mock scripts it today) (ledger; routed by cr 2026-11-11)
 
 ### Story 38.2: The clean-machine rehearsal runs on the author's hosts and times the demo path on the real model
 

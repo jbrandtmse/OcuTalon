@@ -5,6 +5,8 @@
 ///     (each match's name and namespace). Nothing is submitted for a refusal.
 ///   - ResolveStop is Resolve for stop_watch: the session's own watches come first (read through the ownership API, DW-222), so that a watch on a
 ///     production that the reader no longer lists can still be stopped. One own match is the one; several are ambiguous; none falls back to Resolve.
+///   - KnownKind says whether the kind of a start_watch or stop_watch call is production or empty (queues is handled before it), and Queued is the answer of a queue-backlog start
+///     or stop that the owner answered: CommandCall.Answer with the owner's outcome and the name of the check (Story 23.7).
 ///   - Submitted is the answer of a command that the owner answered: CommandCall.Answer with the owner's outcome and the production's display name.
 ///   - ResolveIncident is the resolution of dismiss_incident: the session's noticed open or resolved incidents (read through the ownership API) are the
 ///     candidates and its awaiting_approval or fixing ones the busy ones, each as an entry {"ref", "production", "state", "openVariant", "since", "count"}
@@ -14,7 +16,8 @@
 ///   - Dismissed is the answer of the Dismiss that the owner answered: CommandCall.Answer with the owner's outcome, the entry's production and ref, and the
 ///     state and openVariant that the owner's Data holds.
 ///   - CheckResults is the source of the results that check_status gives for a session: the session's own Kind production
-///     watches (read through the ownership API, by ID), each as {"result", "entry" (ENTRY with the display name), "finding", "checkedAt"} copied from
+///     watches and its Kind queues row (Story 23.7: the queue-backlog check; read through the ownership API, by ID), each as {"result", "entry" (ENTRY with the
+///     display name for a production, the display name itself for the queue-backlog check), "finding", "checkedAt"} copied from
 ///     the row's Result, Finding and LastRunAt, so the tool never decides a result (AD-28). Rows of another Kind are left out. A read that fails
 ///     answers {"ok": false, "message": CHECKSNOTREAD}. It refuses the owner eval (CHECKSNOTREAD).
 ///   - EvalCheckResults is the eval branch of check_status (Story 9.7, AD-22): it answers 1, with the case's recorded rows in results, only when
@@ -198,6 +201,21 @@ ClassMethod Submitted(result As OcuTalon.Msg.CommandResult, match As %DynamicObj
 	Quit answer
 }
 
+/// 1 when the kind of a start_watch or stop_watch call is one that OcuTalon has besides queues: empty, or production.
+ClassMethod KnownKind(kind As %String) As %Boolean
+{
+	Quit (kind = "") || (kind = ..#KIND)
+}
+
+/// The answer for the model to a queue-backlog start or stop that the owner answered: CommandCall.Answer, with the outcome of the owner's result and the name of the check.
+ClassMethod Queued(result As OcuTalon.Msg.CommandResult) As %DynamicObject
+{
+	Set answer = ##class(OcuTalon.Tools.CommandCall).Answer(result)
+	Set answer.outcome = result.Outcome
+	Set answer.check = ##class(OcuTalon.Watch.Ops).#QUEUESNAME
+	Quit answer
+}
+
 /// The results of the session's production watches for check_status: "" and the results in results ([{"result", "entry", "finding", "checkedAt"}, ...], by
 /// ID, copied from the rows), or {"ok": false, "message": CHECKSNOTREAD} when they cannot be read (results is then []).
 ClassMethod CheckResults(sessionRef As %String, Output results As %DynamicArray) As %DynamicObject
@@ -207,8 +225,9 @@ ClassMethod CheckResults(sessionRef As %String, Output results As %DynamicArray)
 	If $$$ISERR(sc) || '$IsObject(checks) Quit {"ok": false, "message": (..#CHECKSNOTREAD)}
 	For i = 1:1:checks.Count() {
 		Set check = checks.GetAt(i)
-		If check.Kind '= ..#KIND Continue
-		Do results.%Push({"result": (check.Result), "entry": ($Replace(..#ENTRY, "{name}", check.DisplayName)), "finding": (check.Finding), "checkedAt": (check.LastRunAt)})
+		Set queues = (check.Kind = ##class(OcuTalon.Watch.Ops).#QUEUEKIND)
+		If (check.Kind '= ..#KIND) && 'queues Continue
+		Do results.%Push({"result": (check.Result), "entry": ($Select(queues: check.DisplayName, 1: $Replace(..#ENTRY, "{name}", check.DisplayName))), "finding": (check.Finding), "checkedAt": (check.LastRunAt)})
 	}
 	Quit ""
 }

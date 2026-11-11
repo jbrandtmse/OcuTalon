@@ -1,11 +1,11 @@
 /**
  * The demo guide's "Other things to try" panel (Story 4.11; EXPERIENCE: Demo guide and controls): its fixed strings, the registry of
- * its fifteen items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
+ * its sixteen items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
  * as it is and the strings test reads it.
  *
  * The catalog is the server's (AD-12): `guide.features` is the list of feature ids that Demo.Features.Present gives, in the guide's
  * payload. The page decides nothing about which epics are merged.
- * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompts that the memory item, the reroute item, the partner warning item and the incident summary item (when there is no resolved incident to close) send.
+ * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompts that the memory item, the reroute item, the partner warning item, the queue watch item and the incident summary item (when there is no resolved incident to close) send.
  * - MORE_TO_TRY_ITEMS is the registry: one entry for each feature id, in the order the panel shows them. `action` names the hand-off
  *   that the button makes (more-to-try.ts): each one uses a control that the page already has.
  * - itemsFor(features) is the registry entries whose id the list holds, in registry order. An id the registry does not know is
@@ -27,6 +27,7 @@ export const MORE_TO_TRY_TEXTS = {
   summaryPrompt: 'Show me the incident summary',
   reroutePrompt: 'Reroute the failed orders to OrdersForReview.',
   partnerPrompt: 'Warn the partner about the delay.',
+  queuePrompt: 'Watch the queue backlogs.',
   items: {
     incidentSummary: {
       label: 'Read the incident summary',
@@ -63,6 +64,12 @@ export const MORE_TO_TRY_TEXTS = {
       lookFor:
         'This asks OcuTalon in the chat to warn the partner about an incident\'s delay, so it needs an incident that isn\'t closed: if you closed the guide\'s incident, do "Reject a fix" first. OcuTalon drafts a short notice from the incident\'s counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox.',
       button: 'Ask for a partner warning',
+    },
+    queueWatch: {
+      label: 'Watch queue backlogs',
+      lookFor:
+        'This asks OcuTalon in the chat to watch the queue backlogs. Look for the Queue-backlog check under Background checks, with its schedule, last run and result. Every minute it reads the Orders production\'s queues, and when one holds more than 100 messages, or its oldest message has waited over 10 minutes, OcuTalon decides once whether to tell you. On a quiet demo it reads Passed. To stop, ask "Stop watching the queue backlogs."',
+      button: 'Ask to watch queues',
     },
     demoView: {
       label: 'See the page as on your own install',
@@ -133,7 +140,7 @@ export const RESOLVED_CHIP = '.chip-resolved';
 export const DISMISS_BUTTON = 'app-incident-dismiss button';
 
 /** The hand-off that an item's control makes. */
-export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'partnerWarning' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat' | 'webhooks' | 'usage' | 'history';
+export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'partnerWarning' | 'queueWatch' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat' | 'webhooks' | 'usage' | 'history';
 
 /**
  * One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off,
@@ -157,6 +164,7 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'rejectFix', ...MORE_TO_TRY_TEXTS.items.rejectFix, action: 'rejectFix', group: 'Incidents and fixes' },
   { id: 'reroute', ...MORE_TO_TRY_TEXTS.items.reroute, action: 'reroute', group: 'Incidents and fixes' },
   { id: 'partnerWarning', ...MORE_TO_TRY_TEXTS.items.partnerWarning, action: 'partnerWarning', group: 'Incidents and fixes' },
+  { id: 'queueWatch', ...MORE_TO_TRY_TEXTS.items.queueWatch, action: 'queueWatch', group: 'Incidents and fixes' },
   { id: 'demoView', ...MORE_TO_TRY_TEXTS.items.demoView, action: 'demoView', group: 'Safety and settings' },
   { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory', group: 'Memory and documents' },
   { id: 'memoryCard', ...MORE_TO_TRY_TEXTS.items.memoryCard, action: 'memoryCard', group: 'Memory and documents' },

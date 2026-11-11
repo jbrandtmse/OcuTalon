@@ -16,7 +16,7 @@ import { blockLiveSocket } from '../support/socket';
  * because their downstream flows are pinned by the demo-path specs. K5 uses the real Persona card, and collapses it again.
  *   - K2 (matrix 1): the routed finish: the panel is open after the links and before Try it yourself, items 1 to 4 in order;
  *   - K28 (Story 25.2): the link of the history item opens the History page;
- *   - K29 (Story 35.3): the link of the webhooks item opens Settings, Channels;
+ *   - K30 (Story 35.3): the link of the webhooks item opens Settings, Channels;
  *   - K3 (matrix 3, 10): every id of the registry: its items in order with their look-for lines, links to the Documents page for the documents and sources items, the link to the Usage page for the usage item, the Memory heading focused by the Memory card item and the Heartbeat checklist heading by the heartbeat item;
  *   - K4 (matrix 2): step 1: no panel, the link in the Tab order, Enter opens and Space closes it, focus stays on the link;
  *   - K5 (matrix 5): item 1 opens the Persona card's Change and focuses it, also in the drawer band, where the drawer opens first;
@@ -116,6 +116,12 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
     lookFor:
       'This asks OcuTalon in the chat to warn the partner about an incident\'s delay, so it needs an incident that isn\'t closed: if you closed the guide\'s incident, do "Reject a fix" first. OcuTalon drafts a short notice from the incident\'s counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox.',
     button: 'Ask for a partner warning',
+  },
+  queueWatch: {
+    label: 'Watch queue backlogs',
+    lookFor:
+      'This asks OcuTalon in the chat to watch the queue backlogs. Look for the Queue-backlog check under Background checks, with its schedule, last run and result. Every minute it reads the Orders production\'s queues, and when one holds more than 100 messages, or its oldest message has waited over 10 minutes, OcuTalon decides once whether to tell you. On a quiet demo it reads Passed. To stop, ask "Stop watching the queue backlogs."',
+    button: 'Ask to watch queues',
   },
   demoView: {
     label: 'See the page as on your own install',
@@ -385,8 +391,8 @@ test('K28: the link of the history item opens the History page', async ({ page }
   await expect(page, 'titled History').toHaveTitle('History \u00B7 OcuTalon');
 });
 
-/** K29 (Story 35.3; routed finish, every id): the webhooks item is in "Safety and settings" right after the heartbeat item, and its link opens Settings > Channels. */
-test('K29: the link of the webhooks item opens Settings, Channels', async ({ page }) => {
+/** K30 (Story 35.3; routed finish, every id): the webhooks item is in "Safety and settings" right after the heartbeat item, and its link opens Settings > Channels. */
+test('K30: the link of the webhooks item opens Settings, Channels', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await openWith(page, finished(ALL));
   const safety = ALL.filter((id) => MORE_TO_TRY_ITEMS.find((item) => item.id === id)!.group === 'Safety and settings');

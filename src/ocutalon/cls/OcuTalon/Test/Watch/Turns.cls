@@ -10,6 +10,10 @@
 ///     and the fields of WatchOps instead of NextDueAt and the empty result;
 ///   - TestStopLeavesTheOtherSession: with sessions A and B both watching Orders, "Stop watching Orders" for A (watch-stop-orders) removes A's row, which
 ///     Ownership.Checks no longer lists, and leaves B's row as it was (the rows are due a day ahead, so no real Tick changes them);
+///   - TestQueuesThroughTheAgent (Story 23.7, Integration AC1): "Watch the queue backlogs." with [[mock:watch-start-queues]] (start_watch with kind queues), through the REAL CommandsIn and
+///     WatchOps, makes exactly one row of Kind queues for the session (no namespace, no production, the display name Queue-backlog check, AskedBy the session's IrisUser), the model's next
+///     request carries ok, started and the check's name, the session's stream gets one check event of Kind queues, and a repeat of the turn adds no row and reads already_watching;
+///     [[mock:watch-stop-queues]] removes the row and publishes the stop event (stopped true); another session's queue row is untouched;
 ///   - TestUnknownName: [[mock:watch-start-unknown]] writes no row, and the model's next request carries unknown_production with the name Billing and
 ///     the list Orders; the scenario's reply is the catalog's watch.unknownProduction text with those values;
 ///   - TestInjectedStop (NFR-14): in an untrusted turn (watch-injected-stop) the stop_watch step is denied with UNTRUSTED, no command reaches WatchOps and
@@ -172,7 +176,80 @@ Method TestInjectedDismiss()
 	Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_row.ClosedAt, "open|rejected|", "the incident stays open, unchanged")
 }
 
+Method TestQueuesThroughTheAgent()
+{
+	If '..Ready() Quit
+	If '..PointKeys() Quit
+	Set session = ..Session("queues")
+	Set other = ..Session("queuesOther")
+	Set user = ##class(OcuTalon.Data.Session).RefIndexOpen(session).IrisUser
+	Set otherRef = ##class(OcuTalon.Test.Data.Fixture).Check(other, "", "", {"Kind": "queues", "DisplayName": "Queue-backlog check", "NextDueAt": (..Ahead())})
+	Set otherRow = ..Rows(other).%ToJSON()
+	Set sc = ..Turn("user", "Watch the queue backlogs. [[mock:watch-start-queues]]", session, .request, .answer, .turnSession, .requests)
+	If '..AssertTurn(sc, answer, request, "OcuTalon now checks the queues every minute and looks at any queue that backs up past its threshold.") Quit
+	Set rows = ..Rows(session)
+	Do $$$AssertEquals(rows.%Size(), 1, "there is exactly one row")
+	If rows.%Size() '= 1 Quit
+	Set row = rows.%Get(0)
+	Do $$$AssertEquals(row.kind_"|"_row.namespace_"|"_row.production_"|"_row.displayName, "queues|||Queue-backlog check", "Kind queues, no namespace, no production, the display name Queue-backlog check")
+	Do $$$AssertEquals(row.askedBy, user, "AskedBy is the IrisUser of the session")
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
+	If requests.%Size() = 2 {
+		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
+		Do $$$AssertEquals($ListLength(results), 1, "the model's next request carries one tool result")
+		If $ListLength(results) = 1 {
+			Set seen = {}.%FromJSON($List(results, 1))
+			Do $$$AssertEquals(seen.ok_"|"_seen.outcome_"|"_seen.check_"|"_seen.ref, "1|started|Queue-backlog check|"_row.ref, "the model reads ok, started, the check's name and the ref of the row")
+		}
+	}
+	Do ..AssertSteps(answer, turnSession, "Starting a watch", "start_watch")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "check", 1, ..#WAITINCIDENT)
+	Do $$$AssertTrue(events.%Size() > 0, "the session's stream holds a check event")
+	If events.%Size() > 0 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.ref_"|"_payload.kind_"|"_payload.displayName, row.ref_"|queues|Queue-backlog check", "of the new row, Kind queues")
+	}
+	Set sc = ..Turn("user", "Watch the queue backlogs. [[mock:watch-start-queues]]", session, .request, .answer, .turnSession, .requests)
+	Do $$$AssertStatusOK(sc, "the repeat's turn ran")
+	Do $$$AssertEquals(..Rows(session).%Size(), 1, "a repeat adds no row")
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests for the repeat")
+	If requests.%Size() = 2 {
+		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
+		Do $$$AssertEquals($ListLength(results), 2, "the repeat's next request carries the first turn's tool result and its own")
+		If $ListLength(results) = 2 Do $$$AssertEquals({}.%FromJSON($List(results, 2)).outcome, "already_watching", "and the model reads already_watching")
+	}
+	Do $$$AssertEquals(..Announced(session, row.ref, 0), 1, "and the start was announced once: a repeat publishes no event (a real Tick's run events are not counted)")
+	Set sc = ..Turn("user", "Stop watching the queue backlogs. [[mock:watch-stop-queues]]", session, .request, .answer, .turnSession, .requests)
+	If '..AssertTurn(sc, answer, request, "I've stopped the queue-backlog check.") Quit
+	Do $$$AssertEquals(..Rows(session).%Size(), 0, "stopping removes the row")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(session).Count(), 0, "and Ownership.Checks no longer lists it")
+	Do $$$AssertEquals(..Announced(session, row.ref, 1, ..#WAITINCIDENT), 1, "the stop is published once, as a check event with stopped true")
+	Do $$$AssertEquals(..Rows(other).%ToJSON(), otherRow, "another session's queue row is unchanged")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(other).Count(), 1, "and still listed")
+}
+
 /// --- helpers ---
+
+/// The number of check events on the session's stream for the row that announce its start (stopped 0, no run yet) or its stop (stopped 1), waiting up to seconds
+/// for at least one.
+ClassMethod Announced(session As %String, ref As %String, stopped As %Boolean, seconds As %Integer = 0) As %Integer [ Private ]
+{
+	Set end = $ZHorolog + seconds
+	For {
+		Set count = 0
+		Set iterator = ##class(OcuTalon.Test.Core.Observe).Events(session, "check").%GetIterator()
+		While iterator.%GetNext(, .event) {
+			Set payload = event.payload
+			If payload.ref '= ref Continue
+			If stopped && payload.stopped Set count = count + 1
+			If 'stopped && 'payload.stopped && (payload.lastRunAt = "") Set count = count + 1
+		}
+		If count || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit count
+}
+
 /// An incident of the session (noticed now, open, variant rejected, on ZZNS), kept for the clean-up: its Ref.
 Method Incident(session As %String) As %String [ Private ]
 {

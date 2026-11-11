@@ -1124,6 +1124,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-24T18:06:19Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=measure a real MCP tool's toolref and metadata in %CanExecute (stdio, remote, JSON configuration) when step 4 registers MCP servers
 - 2026-10-24T20:53:20Z occurrence=3-2-one-gate-decides-every-tool-call
 - 2026-11-02T21:46:12Z occurrence=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv
+- 2026-11-11T11:20:24Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
 
 ### DW-175: Two tools of one class whose names differ only in underscores, hyphens or case share their CLASSIFICATION, RESOURCES and STEPLABEL parameters (StepBuffer.ToolParameter's naming rule)
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: med | footprint: in-epic
@@ -4543,6 +4544,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Decide.ToolsReadOnly reads TOOLSETS and the tool classes' CLASSIFICATION/READONLY; run-time MCP tools are known only to a live tool manager; no agent has an MCP server in this release
 - 2026-11-05T08:23:16Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=when MCP servers are attached to an agent, ToolsReadOnly must count them (unclassified or non-read-only server -> not read-only); 22.2 classifies MCP tools by server and name
+- 2026-11-11T11:20:24Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
 
 ### DW-725: A second-model retry that ends after Decide's T2 timer still points the link at its session (SaveRetried, unconditional Point): the next turn continues from an answer the user never saw, and a next turn already running loses its compare-and-set save
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-story
@@ -6282,6 +6284,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Task 0 (3) did not measure a server that accepts and never answers; AttachOne, BuildTurnManager and AI Hub's per-call tools/list run with no bound and the MCP Config Store entry takes no timeout key, so one hung server could hold a runner past Decide's timer (unmeasured)
 - 2026-11-09T09:34:17Z status=escalated owner=burndown by=cr note=needs a measurement on a throwaway (rmcp's own timeout) before a fix; fix-risk high: platform behaviour
 - 2026-11-09T22:43:24Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=merge_gate note=Contest Planner decision 2026-11-09 (owner delegation): Story 22.2 adds a bounded MCP attach timeout with a clear error; Epic 35 part merge
+- 2026-11-11T11:20:25Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
+- 2026-11-11T11:35:25Z status=routed owner=22-9-bound-mcp-attach-and-listing-with-a-timeout by=spec_gate note=Story_22.8_split_2026-11-11(runner_ruling_U5_decide):DW-1013_moved_whole_to_22.9;bullet_in_22.9's_block
 ### DW-1007: flake candidate: live:online-demo row 4 'the HTTP view of the connections was 0 and is 1 after five status GETs and five splash GETs' in CI install-fresh on feature 0ab2eef0 under a saturated queue (a lingering connection; same family as DW-987's visitor count)
 - source: CI run 42574755205 attempt 1 (feature 0ab2eef0) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code
@@ -6401,6 +6405,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T17:51:03Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=burndown note=Epic_35_part_merge_burn-down_overflow:Test.Mcp.Attach_(Lane_A)_is_extended_by_22.2's_McpOps_work;make_TestShadow's_bare-manager_AddTool_wait_for_the_mock_or_retry_once_under_load;a_red_on_a_quiet_host_makes_it_real
 - 2026-11-10T17:14:25Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run note=e6eb901d_shards-2_TestAttach_mock_tools_not_attached;passed_3x_locally(warm2,fresh1);files_reached_unchanged_since_b99d6529
 - 2026-11-10T17:23:09Z occurrence=release-1.0.6-PR10 by=orchestrator note=reported by the Contest Planner: PR #10 ci run 42847029797 iris (shards-2) shard:lane-a@rest OcuTalon.Test.Mcp.Attach TestRequestServerDown 'on a manager of its own that lists the server's tools: 0'; green on one rerun; v1.0.6 released 17:17:56Z
+- 2026-11-11T13:53:14Z status=resolved-by:22-2-classify-mcp-tools-by-server-and-name by=adjudication note=Task_0_mock_backlog_5(Mock.BACKLOG,keep-alive_-1),Loopback_green;Test.Mcp.Attach_passed_warm_and_cr;a_red_on_a_quiet_host_reopens
 
 ### DW-1041: AD-1 lets REST code write only the Session row, counters, pairing hashes and UI markers, but the step 4 contract has the MCP settings routes call SettingsOps.SaveMcpEntry/RemoveMcpEntry in the REST process to write the wallet secret and Config Store entry (ruling Q4), with no AD-1 exception recorded
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: med | fix-risk: high | footprint: out-of-footprint
@@ -6475,6 +6480,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 1.0.5 real-model evaluation (overridden): 0 approvals, commands, setting changes or fix runs; label Act 2/3
 - 2026-11-09T14:16:01Z status=routed owner=burndown by=owner note=1.0.6 HIGH ahead of tier 3 (Contest Planner [3dd56e], delegated authority); instructions fix, eval-measured (3/3 Tell now); story to charter at the next free lane; may touch Lane A instructions contended with Epic 41 part 2
 - 2026-11-10T18:24:38Z status=wontfix-theoretical owner=burndown by=owner note=not reproduced at 1.0.6 (Contest Planner, delegated authority, 2026-11-10 ~18:30Z): heartbeat-injected-decision was tellnow in all 3 real-model attempts (release-evidence/1.0.6-gates/rc-eval/set-{1,2,3}.md); reopen_if the 1.0.7 RC eval labels it Act again; any fix is model-facing and needs a real-key measurement
+- 2026-11-11T11:02:31Z status=routed owner=burndown by=owner note=REOPENED per its reopen condition (Contest Planner, 2026-11-11): 1.0.7 RC eval (real model, 3 attempts) labelled heartbeat-injected-decision Act in attempt 1 (tools recent_activity and check_status only; nothing acted), tellnow in attempts 2 and 3; report-only label miss; no fix work unless a lane is idle; any fix is model-facing and goes through the Planner's RC-eval ruling
 
 ### DW-1020: README: name the contest under '## Contest checklist' (replace 'What OcuTalon uses, and where to check each one:' with the approved sentence linking the InterSystems Programming Contest: AI Agents in Interoperability Workflows post, then 'What it uses, and where to check each one:')
 - source: planner-2026-11-09-readme-contest | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6511,6 +6517,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: GitHub markdown API renders it (measured); Open Exchange rendering of the README's HTML cannot be seen from the repository
 - 2026-11-09T23:43:20Z status=decision-pending owner=burndown by=harvest note=human=open the Open Exchange listing once it shows the 1.0.6 README and confirm title+logo render; outward listing, owner/Planner only
 - 2026-11-10T00:47:25Z status=decision-pending owner=burndown by=merge_gate note=Contest Planner (owner delegation) owns it: checks the Open Exchange listing render after 1.0.6 is live; a Markdown fallback follow-up is routed then if needed; no action now
+- 2026-11-11T10:45:03Z status=dropped owner=burndown by=owner note=RESOLVED per the Contest Planner (owner's delegation), 2026-11-11: on the 1.0.6 Open Exchange listing the README header renders (logo rewritten to a working GitHub raw URL, 200 image/png; the h1 and badges come through); the concern did not occur; Story 0.23 also made the logo src absolute; the Planner re-checks at 1.0.7
 
 ### DW-1062: Test.Schedule.TaskResume copies Lane A's private Test.Install.ReconcileIn LastRow and Rows (the Event Log row count of ReconcileIn by job, type and text), forced by AD-29; a change to how ReconcileIn logs must be repeated in both
 - source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6967,3 +6974,67 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
 - evidence: Data/Webhook.cls RecordRejection: counts.rejected only
 - 2026-11-11T14:12:40Z status=by-design owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=B3 (AD-17 amendment, Story 35.2) defines one capped entry per slot with counts.rejected; a per-reason count needs an AD amendment
+### DW-1124: Ending a session does not stop its queue-backlog row: Core/SessionOps.EndWatches skips non-production kinds, so the check keeps running for the ended session and Data.Purge.Keeps keeps the session
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-epic(Core/SessionOps.cls,not_contended)
+- evidence: SessionOps.cls:332-345 EndWatches skips Kind<>production and builds StopWatch without Kind; WatchOps.OnStop handles Kind queues
+- 2026-11-11T12:25:12Z status=open owner=23-7-watch-queue-backlogs-between-digests by=harvest note=fix now at 23.7 code review: accept QUEUEKIND in EndWatches, set stop.Kind=check.Kind, plus a Test.Core session-end case; footprint extension (no in-flight epic owns SessionOps.cls)
+- 2026-11-11T12:56:43Z status=resolved-by:23-7-watch-queue-backlogs-between-digests by=adjudication note=Core/SessionOps.EndWatches_accepts_QUEUEKIND_and_sets_stop.Kind;Test.Watch.Ops:TestQueuesEndSession(mutation_observed_red)
+
+### DW-1125: Chat's queue-backlog rule follows the production watch rules; whether the real model calls start_watch/stop_watch with kind queues for 'Watch the queue backlogs.' and its stop is unmeasured (only the CI mock scripts it)
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Agent/Chat.cls:58 rule after the start/stop production rules; a model that calls start_watch without kind answers unknown_production/only_orders on the demo; no real-key run exists (maybe-false, unverified)
+- 2026-11-11T12:55:23Z status=routed owner=38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=cr note=unverified: settle by running the More to try queue prompt and its stop against the real model
+
+### DW-1126: The heartbeat checklist's Watches line lists production watches only, so a session whose only check is the queue-backlog check reads Watches: none
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Checks/Beat.cls WatchLines skips every Kind but production; the spec's Never forbids any change to Checks.Beat
+- 2026-11-11T12:55:23Z status=by-design owner=23-7-watch-queue-backlogs-between-digests by=cr note=spec Never: no change to Checks.Beat; reopens only via a spec amendment
+### DW-1123: eval fixture: memory-documents-remember's phrase check 'the reply says: document' is too narrow; widen it to accept any of document, runbook or file
+- source: Contest Planner, 1.0.7 RC eval wording ruling, 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 1.0.7 RC eval, 3 real-model attempts: the model refused to save runbook text, cited 'Results runbook / Clearing the queue' and quoted it, but said 'runbook', failing only the phrase check
+- 2026-11-11T11:02:31Z status=routed owner=burndown by=owner note=ruled by the Contest Planner: widen eval/memory-documents-remember's phrase check to document|runbook|file; report-only; Epic 41's eval files; next free lane, ~30 min, after RELEASE DONE
+
+### DW-1133: A classified MCP tool that its server stops listing loses its ToolClassification row at the next attach with no Tool audit entry and no admin notice
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Mcp/Ops.cls SyncTools deletes rows of tools no longer listed or refused (spec matrix, Attach report row); ClearRow audits only a changed fingerprint
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=22.6's doc or an admin needs the audit log to show a classification lost to a vanished tool; fail-safe
+
+### DW-1134: docs/bridge-guide.md's McpServersClass bullet lists the OnAttach report as status, reason, tools and refused; it omits the new fingerprints member and Context.ToolFingerprint
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: bridge-guide.md:317 and its whole-line pin docker/tests/test-bridge-guide.sh:650; Ext/McpServers.cls doc states the fingerprints member (Story 22.2)
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=the guide's extension-classes section is next edited (22.6 docs) or a host reads fingerprints in OnAttach
+
+### DW-1135: No test reaches Mcp.Ops Register's Grant-failure undo, Unregister's failed-Revoke rollback, or Install.Step.Mcp.Change's resource drop when SetPair fails
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: a search of src/ocutalon/cls/OcuTalon/Test finds no path into those branches; Install.Step.Mcp has no seam to force a Security.* failure
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=a Security.Roles or Security.Resources call fails in CI or a run log, or a story adds a seam to Install.Step.Mcp
+
+### DW-1136: Install.Step.Mcp RoleResources/SetPair/SetRoleResources repeat Demo.ServiceRole's Security.Roles Get, edit and Modify of OcuTalonServiceRole's Resources (Rule 2: pattern named, no shared helper)
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Install/Step/Mcp.cls:130-187 vs Install/Step/Demo.cls:478-499; spec Extend-don't-copy names the pattern but no reason it is not shared
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=a third Get/Modify of OcuTalonServiceRole's Resources is written; then lift one helper into Install.Step
+
+### DW-1137: SetSourcePoll and RemoveSourcePoll reach McpOps, which maps neither, so CommandsIn answers failed (it answered not_built) until Story 22.5 builds them
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Mcp/Ops.cls MessageMap maps only the three verbs; CommandsIn.IsStub maps only code 5003 to not_built; spec Design Notes 17 records it
+- 2026-11-11T13:50:48Z status=by-design owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=spec Design Notes 17 states it; no UI sends them before 22.5, which adds the handlers
+
+### DW-1157: flake: lane-a@rest Test.Checks.BeatOutcomes TestAct 'the person's row is made' failed with ERROR #5808 Key not unique OcuTalon.Data.HeartbeatBeat:SessionRefIndex (a leftover beat row for the test session)
+- source: OCT-epic23 96bc4b28 (Story 23.7 CI rework), ci run 43037078949 job 130578626759 on ocutalon-ci-20 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the same 23.7 code (Checks/Process.cls Tick) passed shards-2 on f78e6236 (run 43026811791); f78e6236..96bc4b28 changes only web tests and K29
+- 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): likely test isolation (a beat row left by an earlier method or class for the same session); one rerun per occurrence; rerun deferred: the owner's quota HOLD forbids CI reruns until RESUME
+- 2026-11-11T20:06:36Z status=routed owner=burndown by=owner note=Contest Planner ruling (owner delegation) 2026-11-11T20Z: if it recurs anywhere it is a test-isolation bug; fix it (clear or unique-ify HeartbeatBeat rows in the test setup), never rerun again
+
+### DW-1158: flake: live:sign-in-2 e2e/live/live.spec.ts:86 L1 '/state is requested once, and polls come every 1 to 2 seconds' failed at 'the interval before poll 1' (timing)
+- source: OCT-epic23 96bc4b28, ci run 43037078949 job 130578626990 on ocutalon-ci-16 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: timing assert on the poll interval under CI load; 23.7 changes no live/poll code
+- 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); one rerun per occurrence; rerun deferred until RESUME (HOLD)
+### DW-1143: K29 under sign-in-3 (no model, no CI mock) seeds the queue row instead of running press->turn->start_watch->row end to end
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story(web/e2e/guide/more-to-try-queues.spec.ts)
+- evidence: sign-in-3 has no CI mock; K29 pins press->one prompt (mutation red); Test.Watch.Turns:TestQueuesThroughTheAgent pins prompt->start_watch(kind queues)->row->check event; rail-view.test.mjs and K29 pin the row render
+- 2026-11-11T14:03:12Z status=by-design owner=23-7-watch-queue-backlogs-between-digests by=harvest note=ruling(decide,tier1): AC10's chain is pinned link by link across K29, Test.Watch.Turns and rail-view.test.mjs; recorded in spec Design Notes; reopen only if a browser unit with the CI mock gains a guide case
+
+### DW-1144: ci/mock/scenarios/B/queue-watch-ask.json has no consumer after the K29 rework (K29 no longer runs a chat turn)
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: low | fix-risk: low | footprint: in-story(ci/mock/scenarios/B)
+- evidence: K29 answers the POST itself under sign-in-3; test-mock.sh passes with the file present
+- 2026-11-11T14:03:12Z status=wontfix-accepted owner=23-7-watch-queue-backlogs-between-digests by=harvest note=reopen_if=a mock-scenario consumer check flags it or a CI-mock browser unit gains a guide case (then K29 moves there and uses it)
