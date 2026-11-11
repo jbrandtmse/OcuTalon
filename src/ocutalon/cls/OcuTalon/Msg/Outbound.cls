@@ -37,6 +37,10 @@ Property Citations As %String(MAXLEN = "");
 /// The memories the reply recalled, as a JSON array of {memoryRef, text, savedAt}. Empty for a reply with none.
 Property Memories As %String(MAXLEN = "");
 
+/// The learned saves of the reply (Story 41.15), as a JSON array of {memoryRef, text}: for the trace and for TelegramOut, which shows them as lines under the
+/// reply (OcuTalon.Memory.Learned). Empty for a reply with none.
+Property Learned As %String(MAXLEN = "");
+
 Storage Default
 {
 <Data name="OutboundDefaultData">
@@ -73,6 +77,9 @@ Storage Default
 </Value>
 <Value name="11">
 <Value>Memories</Value>
+</Value>
+<Value name="12">
+<Value>Learned</Value>
 </Value>
 </Data>
 <DefaultData>OutboundDefaultData</DefaultData>

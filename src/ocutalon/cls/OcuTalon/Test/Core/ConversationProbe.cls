@@ -41,6 +41,7 @@ Method Send(target As %String, request As %Library.Persistent, responseRequired 
 		Set @call@("checkRows") = request.CheckRows
 		Set @call@("citations") = request.Citations
 		Set @call@("memories") = request.Memories
+		Set @call@("learned") = request.Learned
 	} ElseIf request.%Extends("OcuTalon.Core.Msg.RunTurns") {
 		Set @call@("sessionRef") = request.SessionRef
 	}

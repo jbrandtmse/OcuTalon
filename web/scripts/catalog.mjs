@@ -102,6 +102,7 @@ export const LISTED_KEYS = [
   'incident.eitherWayLine',
   'button.gotIt',
   'handled.marked',
+  'memory.learnedSaved',
 ];
 /** The page key of the either-way line, the two entries it is cut from, and the words that bound it in each of their texts. */
 const LINE_KEY = 'incident.eitherWayLine';
@@ -114,7 +115,7 @@ const SLOT_TYPES = ['fallbackReason', 'time', 'count', 'cost', 'channel', 'noun'
 /**
  * The keys that may also declare a text slot, which takes the caller's formatted string: the whatFailed that the page fills from
  * the check rows (DW-90), the user of the four answered.*By texts, the failReason of result.failedAgain and result.failedAndSkipped,
- * the reason of result.couldNotStart, and the reading and item of incident.eitherWayLine. Every other key refuses it.
+ * the reason of result.couldNotStart, the reading and item of incident.eitherWayLine, and the fact of memory.learnedSaved. Every other key refuses it.
  */
 export const TEXT_SLOT_KEYS = [
   'checks.notEverything',
@@ -127,6 +128,7 @@ export const TEXT_SLOT_KEYS = [
   'result.failedAndSkipped',
   'result.couldNotStart',
   'incident.eitherWayLine',
+  'memory.learnedSaved',
 ];
 const TEXT_SLOT_TYPE = 'text';
 /** The one slot type a fallbackReason.* text may declare: the page renders a reason text as it is, with no slot filled. */

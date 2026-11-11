@@ -332,6 +332,14 @@ describe('the decision strip of a turn', () => {
     }
   });
 
+  it('carries the learned saves of the chat.message as served, and leaves them out when it has none (Story 41.15)', () => {
+    const learned = [{ memoryRef: 'M1', fact: 'The Results partner\'s contact is Lee' }, { memoryRef: 'M2', fact: 'Lee works in Boston' }];
+    const [some, none, empty] = chatView([turn('A', { learned }), turn('B'), turn('C', { learned: [] })], [], NO_RUNNING, NOW);
+    assert.deepEqual(some.learned, learned);
+    assert.equal(none.learned, undefined);
+    assert.equal(empty.learned, undefined);
+  });
+
   it('leaves them out when the chat.message has none', () => {
     const [view] = chatView([turn('A')], [], NO_RUNNING, NOW);
     for (const field of ['decision', 'turnCost', 'fallbackReason', 'checkKey', 'checks', 'traceUrl']) {

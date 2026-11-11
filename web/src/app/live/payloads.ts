@@ -102,6 +102,11 @@ export interface ItemNoun {
   other?: string;
 }
 
+export interface Learned {
+  memoryRef?: string;
+  fact?: string;
+}
+
 export interface Memory {
   memoryRef?: string;
   text?: string;
@@ -141,6 +146,7 @@ export interface ChatMessagePayload {
   checks?: CheckRow[];
   citations?: Citation[];
   memories?: Memory[];
+  learned?: Learned[];
   traceUrl?: string;
 }
 

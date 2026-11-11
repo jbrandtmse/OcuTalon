@@ -2,7 +2,8 @@
 title: "Story 41.15: Learned saves are announced by code"
 type: 'feature'
 created: '2026-11-10'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'c79da26fcbaf0852ec765aebf37c9970e5da1da9'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -396,189 +397,27 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
 
 ## Review Triage Log
 
-## Design Notes
+### 2026-11-10 - Review pass
+- verdicts: 25 findings - high 0, medium 1, low 19, false 5, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: whitespace around the fact is not trimmed before shaping - `Memory.Ops.OnSave` stores `$ZStrip(text,"<>WC")`, so a stored text never ends in white space and is never white-space only; `Shown` already drops an entry whose fact is empty once shaped.
+  - `[low]` `[reject]` Blind: a catalog failure drops the Telegram line with no warning - `Shown` filters every entry the catalog would refuse (non-empty slot), so a render failure is not reachable; a guard would add a branch for it.
+  - `[low]` `[reject]` Blind: the cap of 3 is defined in `Conversation` and in `Memory.Learned` - Task 5 names `Conversation.MAXLEARNED`; the spec fixes it.
+  - `[low]` `[reject]` Blind: an announcement outlives a later forget in another turn - the spec scopes removal to a forget in the same turn; the memory chips behave the same.
+  - `[low]` `[reject]` Blind: the web and live-HTTP pieces were not run - the spec leaves S10-S12 and `api/memory.spec.ts` to CI `live:sign-in`; `--list` was run.
+  - `[false]` `[reject]` Blind: the spec's status is inconsistent - the frontmatter and `## Auto Run Result
 
-**ADs:**
-- AD-21: memory, `Source`, HostData.
-- AD-28: code-written lines, the guard, catalog keys rendered by the `*Out` operations and the page.
-- AD-6: HostData reaches Conversation on the Reply.
-- AD-4: session ownership; the second-session check.
-- AD-12: chat.message and the snapshot.
-- AD-13: the web page.
-- AD-14: Outbound routing.
-- AD-31: the guard as ReplyFilterClass.
-- AD-7: Chat is unchanged.
-- AD-10: gate refusals.
-- AD-22: eval.
-- AD-5: storage appended.
-- AD-29 and AD-33: lanes and owners.
-- Conventions rows: "HostData", "Citations and memories", "Citations and memories on the page", "Text OcuTalon sends".
-
-No AC contradicts an AD's Rule.
-
-**Spine lines (Task 14, accepted veto items):**
-- **AD-21**, under "Told and learned":
-  > **Learned saves are announced (Story 41.15).** When `save_memory` answers `saved` and the stored row's `Source` is `learned` (read through `Ownership.Memory`), `MemoryTools` puts `{memoryRef, text}` into the HostData member `learned`: each memoryRef once, at most 3, and taken out again when the turn forgets it. A told, refused or failed save adds nothing. `Conversation` keeps a usable reply's entries on the `Turn` as `Learned` (JSON, at most 3, malformed entries dropped, absent when none) and on the `Outbound`. `chat.message` and the `/v1/state` chat items carry the entries to show as `learned` (`Live.Payload.Part.Learned`, `{memoryRef, fact}`). `Eval.Msg.TurnResult` keeps `HostData.learned`. [ADDED 2026-11-10, Story 41.15]
-- **AD-28**:
-  > **The learned-save line (Story 41.15).** One line per `Learned` entry follows the reply on the web chat and on Telegram. It is the catalog key `memory.learnedSaved`, whose `{fact}` comes from `OcuTalon.Memory.Learned` (the stored text with one trailing full stop removed, cut to 200 characters with "…"). The page and `TelegramOut` render it as plain text. No line is shown when the guarded reply already says "I'll remember" or "I will remember" (`ReplyGuard.PatternOf`). The guard never sees the line, and the reply text is never changed. [ADDED 2026-11-10, Story 41.15]
-
-**Decided in-stage:**
-- **Where the doubling rule sits.** The no-doubling check runs where the line is rendered, in one ObjectScript method, `Memory.Learned.Shown`. `ChatMessage.FromRow` (for both the page and `/v1/state`), `TelegramOut` and `Eval.Report` all use it against the guarded reply text (`Turn.ReplyText`, which is also `Outbound.Text`).
-  - The Turn always keeps the entries, so the record and the trace are complete.
-  - No `announced` member is stored, and the web holds no copy of the rule. The ruling fixes "no line rendered", and this meets it with one decision point.
-- **The fact is shaped on the server.** The payload's `learned` carries `fact` (shaped by `Learned.Fact`), not the raw text. The page only fills the slot, so the shaping is not copied into TypeScript.
-- **The 200-character cut** gives 199 characters plus "…", 200 in all. This follows the IRIS convention of `Conversation.Cut` and `Summary` (`Conversation.cls:402-407`, `:835-839`). The full stop is removed before the cut. Only an ASCII `.` is removed, and only once. `Catalog.Render`'s `Clean` then runs on the slot as for every slot.
-- **The Source is read back through `Ownership.Memory`**, the tools' row-read API, after `saved`. `MemoryOps` does not change. The ruled Lane A scope is `MemoryTools` only, and a repeat (the first row's Ref) is covered for free. A failed read logs a warning and adds nothing: a save that cannot be shown to be learned is not announced.
-- **A forgotten memory leaves `learned`**, as it leaves `memories`, so a turn never announces a fact that it deleted.
-- **Usable replies only.** `learned` is read only from a usable reply, which is Conversation's existing rule for citations and memories. A fallback turn has no model reply to sit under and shows no line. The memory still shows as Learned in the Memory card.
-- **Placement.**
-  - The page: reply, check rows, learned lines, source chips.
-  - Telegram: reply, blank line, check sentence (when there is one), blank line, then the lines one per line.
-- **The phone.** The simulated phone never shows a turn reply. Notify's Outbound rule targets `WebChatOut` and `TelegramOut` only, `SimPhone/Out.cls` maps `Notification` only, and no Turn has channel `phone`. So the line follows the reply on every channel that shows one, which is the web chat and Telegram. Nothing is added for the phone.
-- **The eval rule.** `memory-learned-save` stays right by its phrase rule, and is now also right by "entry and line". `case.json` and its pins in `Test/Eval/Cases.cls` are unchanged.
-  - On the mock the reply says "I'll remember that", so the line is suppressed and the phrase rule scores it.
-  - ~~Edge (inference; report-only): a real reply that says "I'll remember Lee …" without "that" suppresses the line and misses the phrase rule, so it scores wrong.~~ RULED (spec-gate ruling 4): such a reply passes `Memory.Learned.Said` and scores right.
-- **The catalog entry goes in `Core.cls`.** That is Lane B's class, and the catalog is in Lane B's ruled scope. The entry is inserted between existing entries, so the edit is plain added lines. It has no `web` variant, so the "ten web wordings" pin stays.
-- **e2e placement.** The real-turn test joins S7's describe, reusing its `wipe`, `send` and keys. The seeded tests join `sources.spec.ts` (the 20.2 sibling). The second-session test joins `api/memory.spec.ts` (the LIVE/PANEL idiom). One new mock scenario, A/`memory-learned-line.json`, is added because no existing scenario saves a learned fact with a silent reply.
-
-**Spec-gate items (for the lead; veto window or footprint, ruled before implement as at 41.14):** RULED 2026-11-11 by the Contest Planner (see the Spec Change Log): item 1 ACCEPTED (both properties); scope web chat and Telegram only CONFIRMED; the 199 + "…" cut ACCEPTED; the eval also counts a reply that passes `Memory.Learned.Said`.
-1. **Stored data beyond the ruled `Turn.Learned` (veto window item 3).** Both are needed for ruled ACs. Both are nullable JSON strings, appended to storage, and need no migration.
-   - `Msg.Outbound.Learned`: `TelegramOut` renders from the Outbound, and the trace shows the Turn's `Learned` through the Outbound body. This is Story 20.2's precedent for `Citations`/`Memories`.
-   - `Eval.Msg.TurnResult.Learned`: the eval ruling scores on the learned entry, and the eval path never reads the Turn (`In.cls:176`). This is the 19.4 and 41.14 precedent for `Citations`/`Memories`.
-2. **Contended paths, additive edits only:**
-   - `Msg/Catalog/Core.cls`: one inserted entry.
-   - `web/src/app/msg/catalog.ts`: regenerated, two inserted lines.
-   - `Live/Payload/ChatMessage.cls`: one property and the `FromRow` lines inserted.
-   - `Live/Payload/Part/Learned.cls`: a new file.
-
-   `Agent/Chat.cls`, `Web/Api.cls` and `Data/Ownership.cls` do not change.
-
-   Count lines edited in place in test files that are not on the contended list:
-   - `Test/Msg/Catalog.cls`: 135 → 136.
-   - `Test/Live/Payloads.cls`: 34 → 35.
-   - `catalog.test.mjs`: 54 → 55, plus the lists.
-   - `payloads.test.mjs`: the tail regex.
-
-   The second epic to merge sums the counts. This is the plain-union pattern of the orchestrator's 41.13 ruling.
-3. **Footprint extensions (Rule 11; none contended beyond item 2):**
-   - `Data/Turn.cls`
-   - `Msg/Outbound.cls`
-   - `Channel/Telegram/Out.cls` (Lane A; Epic 17's footprint, merged)
-   - `Eval/{In,Report}.cls`
-   - `Eval/Msg/TurnResult.cls`
-   - `Test/{Core/ConversationTurns,Core/ConversationProbe,Live/Payloads,Msg/Contracts,Data/Tables,Web/Api,Channel/TelegramOut,Msg/Catalog,Eval/MemoryCases,Tools/CommandsDouble}.cls`
-   - `web/src/app/chat/**`
-   - `web/src/app/live/payloads.ts`
-   - `web/scripts/{catalog.mjs,*.test.mjs}`
-   - `web/e2e/{chat/sources.spec.ts,api/memory.spec.ts,support/iris.ts}`
-   - `ci/mock/scenarios/A/memory-learned-line.json`
-
-**Extend, don't copy:**
-- `MemoryTools`' learned merge follows `Remember`/`Merge`. `Unremember` is extended with the member name.
-- `Conversation.Kept` gains a cap argument.
-- `Part.Learned` follows `Part.Memory`.
-- The doubling match reuses `ReplyGuard.PatternOf`.
-- `Learned.Lines` reuses `Catalog.Render`.
-- The page reuses `renderPageText` and the `.sentence` styling.
-- `TelegramOut` follows its `CheckSentence` join.
-- The eval follows `Cite`'s memories copy.
-- The tests follow `TestSourcesCarried`/`Shape`/`NotOnFallbacks`, `TestStateChatDecision`, `TestCheckSentence`, `TestHostDataMerge`, S7, and `memory.spec.ts`'s second session.
-- A stated copy: `Memory.Learned` is a new class, not an addition to `MemorySource`. `MemorySource` decides the source; this class shapes and gates the announcement, and four callers in three areas share it.
-
-**Integration ACs:** AC 7.
-- `Conversation` reads `MemoryTools`' HostData `learned` and produces the Turn's `Learned`.
-- The page, through `chat.message` and `/v1/state`, and `TelegramOut`, through the Outbound, produce the line.
-- `Eval.Report` reads `TurnResult.Learned`.
-
-**Consumes:**
-- 41.8's `Source`.
-- 20.2's citations and memories path.
-- Epic 5's catalog, check-row rendering and `ReplyGuard`.
-- 41.14's session case for `memory-learned-save`.
-
-**Consumed-by:** no later story in Epic 41 (this is its last). The 1.0.7+ RC eval (REL-5) reads the report-only line.
-
-**Ledger inbox:** none.
-
-## Verification
-
-Run every command from the worktree root, one per call, with `timeout: 600000`, each sized to about 150 s.
-
-Prefix every `ci/` call with:
-```
-OCUTALON_LOCK_DIR=<lock-dir>/lane-a OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=41 stage=<stage>'
-```
-The fresh tag is `e41s15i` and the warm tag is `e41s15iw`.
-
-Rules for the runs:
-- Never run two tests in one message.
-- Every IRIS MCP call names `server` `ocutalon-slot-a` and `namespace` `OCUTALON`, after one `iris_server_info` identity check.
-- Use no real key and no Telegram bot.
-- Write `ci/mock/scenarios/A/memory-learned-line.json` before `warm.sh up`.
-- After recompiling a class that a production job runs, restart the warm stack's production before an in-production class. Those classes are `MemoryTools`, `Conversation`, `Telegram.Out`, `Eval.In`, `Memory.Learned` and `ChatMessage`.
-
-**Shared surfaces:**
-- The catalog key count and lists:
-  - `Test.Msg.Catalog` `TestEntries`/`Keys`/`Fixtures`;
-  - `catalog.test.mjs` `PAGE_TEXTS`/`PAGE_SLOTS`/`TEXT_SLOT_KEYS`;
-  - `ux-strings.test.mjs` `SOURCES`.
-- Turn's property list (`Test.Data.Tables`).
-- Outbound's (`Test.Msg.Contracts`, `ConversationProbe`).
-- `TurnResult`, `Turn` and `Outbound` storage (`test-storage.sh`).
-- The ChatMessage payload shape:
-  - `Test.Live.Payloads` contracts and the count of 34;
-  - `payloads.test.mjs`, `payloads.ts`, `chat-view.test.mjs`;
-  - `Test.Web.Api`'s state items.
-- The HostData members (`Test.Tools.Memory`).
-- Telegram's sent text (`Test.Channel.TelegramOut`).
-- The eval `learnedSave` tally (`Test.Eval.Report`).
-- The mock scenario set (`ci/mock/test/scenarios.test.mjs`).
-
-Every test added or changed passes on a fresh environment, in either order.
-
-**Commands:**
-- (once) `OCUTALON_RUN_TAG=e41s15iw ci/warm.sh up`. Expected: ready.
-- (loop) `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e41s15iw ci/iris.sh class <Class>`, one class per call. Expected: passed.
-  - `OcuTalon.Test.Memory.Learned`
-  - `OcuTalon.Test.Tools.Memory`
-  - `OcuTalon.Test.Core.ConversationTurns`
-  - `OcuTalon.Test.Live.Payloads`
-  - `OcuTalon.Test.Msg.Contracts`
-  - `OcuTalon.Test.Data.Tables`
-  - `OcuTalon.Test.Web.Api`
-  - `OcuTalon.Test.Channel.TelegramOut`
-  - `OcuTalon.Test.Msg.Catalog`
-  - `OcuTalon.Test.Eval.Report`
-  - `OcuTalon.Test.Eval.MemoryCases` (after the production restart)
-- (loop) `cd web && node --test scripts/<file>.test.mjs`, one file each. Expected: pass.
-  - `chat-view`
-  - `catalog`
-  - `payloads`
-  - `ux-strings`
-- (once) `cd web && node scripts/catalog.mjs --check && node scripts/payloads.mjs --check`, then `npm run lint`, then `npx playwright test --list e2e/chat/sources.spec.ts e2e/api/memory.spec.ts`. Expected: exit 0, and S10-S12 and the new memory test listed.
-- (once) `cd web && npx ng build`. Expected: success.
-- (once) `bash docker/tests/test-mock.sh`, then `bash docker/tests/test-storage.sh`, then `bash docker/tests/test-class-rules.sh`, then `bash docker/tests/test-boundaries.sh`. Expected: pass.
-- (once) `git diff 0eb14ea2 -- src/ocutalon/cls/OcuTalon/Agent/Chat.cls web/src/app/msg/catalog.ts`. Expected: Chat empty, and only `+` lines in `catalog.ts`.
-- (once) `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16`. Expected: the baseline (`"ok": false`, the 10 low `placeholder` findings, nothing new).
-- (once) `OCUTALON_RUN_TAG=e41s15iw ci/warm.sh down`, then `OCUTALON_RUN_TAG=e41s15i ci/iris.sh teardown`.
-- **Left to CI** (each over 150 s locally):
-  - `live:sign-in` (`sources.spec.ts` S10-S12, `api/memory.spec.ts`);
-  - the shards;
-  - `bash ci/checks.sh`;
-  - the lead's fresh-environment check.
-
-**Mutations (Rule 19), one per AC.** Apply each on the warm stack (or the web unit), observe red, revert, and confirm the tree is byte-identical (`git status --short`, `git diff --stat`). Record each as `mutation: … → … red`.
-- AC 1: `SaveMemory` skips the `Source` check (any `saved` is recorded) → `Tools.Memory:TestLearnedNothing` red.
-- AC 2: `Sourced` skips `learned` → `ConversationTurns:TestLearnedCarried` red.
-- AC 3: `Fact` cuts to 200 plus "…" → `Memory.Learned:TestFact` red. `OnOutbound` skips the lines → `TelegramOut:TestLearnedLines` red.
-- AC 4: the stand-in is `learned-lines.ts` binding `[innerHTML]` → e2e S10 red (CI). Locally, `TelegramOut` sets `parse_mode` HTML → `TestLearnedLines` red.
-- AC 5: `Said` returns 0 → `Memory.Learned:TestSaid` and `ConversationTurns:TestLearnedSaid` red.
-- AC 6: drop the `SessionRef` term from `Ownership.RecentTurns`' query. This is a temporary edit to a contended file and is reverted at once. Then `Web.Api:TestStateLearned` is red: `theirs` sees `mine`'s `learned`. The real-HTTP test (`api/memory.spec.ts`) runs in CI.
-- AC 7: `Cite` skips `learned` → `MemoryCases:TestLearnedEntry` red. S12 runs in CI.
-- AC 8: a bullet changed in `Chat.cls` → `Tools.Memory:TestInstructions` red.
-- AC 9: the "entry and line" rule removed → `Report:TestLearnedSaveByTheLine` red; the `Said` call removed → `Report:TestLearnedSaveBySaid` red.
-
-## Auto Run Result
-
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: code, not the model, announces a learned save. `MemoryTools` reads the saved row back and records `{memoryRef, text}` in HostData `learned` for a `learned` source (told, old, refused and failed saves add nothing; a forget in the same turn removes it). `Conversation` keeps a usable reply's entries as `Turn.Learned` and `Outbound.Learned`; `chat.message` and `/v1/state` carry the entries to show (`Part.Learned`, `{memoryRef, fact}`) through the one method `Memory.Learned.Shown`, which also applies the no-doubling check. The web chat (`app-learned-lines`) and Telegram show the ruled line `memory.learnedSaved` as plain text; the eval also scores `memory-learned-save` right by the entry-and-line rule or by the one-call `Learned.Said` reuse (report-only). The spine's AD-21 and AD-28 have the two accepted bullets. `Agent/Chat.cls`, `Web/Api.cls` and `Data/Ownership.cls` are unchanged.
+
+Files changed: see the commit; new files are `Memory/Learned.cls`, `Live/Payload/Part/Learned.cls`, `Test/Memory/Learned.cls`, `web/src/app/chat/learned-lines.ts` and `ci/mock/scenarios/A/memory-learned-line.json`; stored data appended to `Data.Turn` (slot 26), `Msg.Outbound` (slot 12) and `Eval.Msg.TurnResult` (slot 13); `Msg/Catalog/Core.cls`, `Live/Payload/ChatMessage.cls`, `web/src/app/msg/catalog.ts` and `web/src/app/live/payloads.ts` have added lines only.
+
+Review: 25 findings; 2 patched (`TestLearnedLines` count assertions before its guards, medium; `TestLearnedHostData` stored text versus the call's text, low); 0 deferred; 23 rejected with the reasons in the Review Triage Log.
+
+Follow-up review recommended: false (no patched high; one patched medium).
+
+Verification: on the warm stack (tag `e41s15iw`) every class in the Verification list passed after the implement pass, and `Tools.Memory` and `Channel.TelegramOut` passed again after the two review patches; the four web unit files, `catalog.mjs --check`, `payloads.mjs --check`, `npm run lint`, `ng build`, `test-mock.sh`, `test-storage.sh` passed in the implement pass; `test-class-rules.sh` and `test-boundaries.sh` and the spine lint (baseline: `"ok": false`, 10 findings) were re-run after the patches; `git diff 0eb14ea2 -- Agent/Chat.cls` is empty and `catalog.ts` shows only `+` lines. All nine AC mutations were observed red and reverted (AC 8 is held by the empty diff and `TestInstructions`). The warm stack and its lock are removed.
+
+Residual risks: e2e S10-S12 and `api/memory.spec.ts` (real HTTP, second session) and the web `[innerHTML]` mutation run in CI `live:sign-in` only; the failed-row-read warning in `MemoryTools.Announce` has no unit test; the count lines (Catalog 135 to 136, Payloads 34 to 35, `catalog.test.mjs` 54 to 55) are summed with Story 23.2's at the integrate-forward.

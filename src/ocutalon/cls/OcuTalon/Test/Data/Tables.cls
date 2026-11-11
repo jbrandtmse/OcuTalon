@@ -404,7 +404,8 @@ XData Contracts [ MimeType = application/json ]
    "CheckKey": "%String(MAXLEN=128)",
    "CheckRows": "%String(MAXLEN=)",
    "Citations": "%String(MAXLEN=)",
-   "Memories": "%String(MAXLEN=)"
+   "Memories": "%String(MAXLEN=)",
+   "Learned": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
