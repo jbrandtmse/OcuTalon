@@ -6901,6 +6901,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: webhooks-section.ts stateOf returns ready for errors other than 403/409; a load-failure text is not accepted
 - 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA/CR: reuse an existing accepted load-failure text if one exists, else wontfix with probe
 - 2026-11-11T14:12:19Z note=cr decision: reusing the accepted LOAD_FAILED text with Retry (live-state.ts:30, as settings-page.ts:111-113 does for the Settings load) in webhooks-section.ts stateOf is a correct, honest reuse; patch with an e2e pin is a rework item of this story (story back to in-progress)
+- 2026-11-11T15:04:01Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=adjudication note=rework1_dfa9a7d0:webhooks-section.ts_LOAD_FAILED+Retry;e2e_WS4
 
 ### DW-1130: 35.3: Install.Step.Web.Run's removal of a stale /ocutalon/hook on the online demo is not pinned from Run
 - source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
