@@ -129,6 +129,7 @@ deferred: []
   - `Leaks` empty.
 
 **Acceptance Criteria:**
+- [RULED 2026-11-11, Contest Planner condition (1)] Given a tool classified `read-only` whose server then changes that tool's description (and, in a second case, its input schema) under the same name, when the next request calls it, then the call's fingerprint no longer matches the classification's, the row is `unclassified` (audited, one `mcp.toolChanged` notice per admin session), and the call is held for approval in a user's turn and denied in an untrusted or tainted turn; it never runs as read-only. (Rug-pull test, in `Test.Mcp.Attach` or `Test.Bridge.Gate`, with a named mutation: skip the call-time fingerprint comparison -> red.)
 - Given a runner turn composed with a registered server whose zz_lookup an admin classified `read-only`, when the model's call reaches the gate in an untrusted turn, then it runs and taints the turn, and zz_delete_ticket (unclassified) is denied.
 - Given a classified tool whose description the server changed after the build, when the next turn's map is built, then the row is `unclassified` with the new fingerprint, one Tool audit entry and one `mcp.toolChanged` notice per admin session exist, and a call to it in a user's turn is held.
 - Given a server removed through `McpOps` while a runner still lists its tools, when a call to one of them reaches the gate (a replay included), then it is denied with `UNREGISTERED`, no approval row or step exists, and the server gets no `tools/call`.
@@ -137,6 +138,8 @@ deferred: []
 - Given Task 0's evidence file, when the reviewer reads it, then each MCP form is measured or marked unmeasured with why, and the gate recognises every measured form as MCP before `origin_class`.
 
 ## Spec Change Log
+
+- 2026-11-11 (runner, rulings applied): the Contest Planner's rulings (verbatim under Design Notes) are applied. Veto items accepted as AD-10 allows, with condition (1) added as an AC (call-time fingerprint match, rug-pull test) and condition (2) routed to Story 22.6's gate. `UNREGISTERED` approved verbatim: the implement stage uses it (not `FAILED`). Unknown or removed servers denied, not held: accepted. Spine S4-S7 written (AD-10 "MCP classification by fingerprint", AD-31 extension bullet).
 
 - 2026-11-11 (runner, spec gate): the split proposal is accepted (unattended decide U5): Story 22.9 "Bound MCP attach and listing with a timeout" is inserted in epics.md, planned after this story, and DW-1013 is re-owned to it. The Veto items, the proposed `UNREGISTERED` text and spine updates S4-S7 go to the Contest Planner (via the orchestrator) before the implement stage; this story implements only after Story 22.2 is committed.
 
@@ -205,6 +208,26 @@ deferred: []
 - S5 (AD-31, AD-8): `McpServersClass` gains `ToolsReadOnly(server) As %Boolean` (default 0). `Decide.ToolsReadOnly` requires it for every listed server (DW-724).
 - S6 (AD-10 rule 1): the context node `mcp` holds the turn's map, built in `ComposeTurnTools` from the serving manager. A tool missing from the map is unclassified. An admin's `read-only` is safe with readOnly 1 and never trusted output.
 - S7 (AD-10, AD-21 Changes): a toolref whose server the host does not register is denied with `UNREGISTERED` before every other step, replays included. A changed fingerprint is found at turn start (and again at the gate) and cleared through `McpOps.ClearChanged`.
+
+
+**Contest Planner rulings (verbatim)** [RULED 2026-11-11 ~13:40Z, Contest Planner under the owner's delegation, relayed by the orchestrator; source `<coordination>/prompts/epic-22-rulings-222-228-229.md`]:
+
+> # Rulings, Epic 22 spec gate: 22.2, 22.8, 22.9 (2026-11-11 ~13:40Z; Contest Planner under the owner's delegation; verbatim terms)
+> SPLIT ACCEPTED (22.8, 22.9 new; order 22.2, 22.8, 22.9, 22.3-22.7; DW-1041 respected). No More to try or README line (no UI, MCP off on the demo); 22.6's governance doc carries the public explanation later.
+> PUBLIC TEXT 1-9: APPROVED verbatim.
+> VETO 22.2: ACCEPTED: ToolClassification (no URL, secret or user), McpOps present on the demo refusing every MCP verb, the admin notices.
+> CONDITION on the run-time resource OcuTalon_MCP_<server> and its U grant: state in the spec exactly which process creates the resource and grant, and with what privilege. The service role (and McpOps' job) must NOT gain %Admin_Secure, %All or any security-administration privilege to do it. Acceptable: the installer step declares them at start, or one fixed privileged entry point that can only create/grant/remove OcuTalon_MCP_* resources and is unit-tested to refuse any other name. If the design needs a broader privilege on a production job, STOP for a ruling before implementing.
+> VETO 22.8: ACCEPTED as AD-10 already allows it, with two conditions:
+> (1) the tool's fingerprint must match its classification at call time (a changed fingerprint makes it Unclassified, so it's held or denied as such); test that a rug-pull (same name, changed schema or description) is caught.
+> (2) 22.6's governance doc must say plainly that a Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so classify a tool Read-only only when you trust its server with what OcuTalon reads. Bring that sentence to the Planner at 22.6's gate.
+> Unknown/removed servers denied, not held: ACCEPTED.
+> VETO 22.9: ACCEPTED (2 s initialize probe to admin-registered servers only, the 60 s rest, no MCP server on the agent's own manager, side effects as listed).
+> RESIDUAL: (a). Accept it now; 22.6 documents it; the AD-21 amendment (OcuTalon lists and offers MCP tools through its own bounded client) becomes a NEW story in Epic 22's backlog, after 22.7.
+> GRAPH: lift 36.1's epic-22 wait entirely, plain-union rule for the Checks and BackgroundCheck files 22.5 also touches, marker [AMENDED 2026-11-11, Contest Planner ruling: footprint only, not a real dependency].
+> NEXT-FREE-LANE ORDER: (1) the memory-documents-remember phrase fix (DW-1123, ~30 min), (2) 36.1, then the step-5 chain (36.2, 37.1, 24, 23.4, 23.8; 23.3's plan to the Planner first), (3) 25.3.
+> ORCHESTRATOR U7 spine wording S1-S11: fine under these conditions.
+
+**How this spec meets the 22.8 conditions** (runner, 2026-11-11): (1) the gate checks at EVERY MCP call, through `ClassifyMcp`, that the call's fingerprint (the turn map's, from the listing of the manager that serves this request) equals the fingerprint the row's classification was given for; any mismatch is unclassified, so the call is held in a user's turn or denied in an untrusted/tainted one. A rug-pull test (same tool name, changed description, and separately changed input schema, between two requests) shows the row cleared and the call held or denied. A change inside one request, between the listing and the call, is caught by Story 22.3's governed proxy, which re-lists the tool with its own client just before `tools/call` and refuses a changed fingerprint (added to Story 22.3's block in epics.md by this ruling). (2) The sentence that a Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, is Story 22.6's, brought to the Planner at 22.6's gate (noted in 22.6's block). `UNREGISTERED` (text 9) is approved verbatim.
 
 ## Veto items
 

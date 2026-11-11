@@ -7444,6 +7444,7 @@ So that adding an MCP server never opens a path around OcuTalon's governance.
 **When** it runs
 **Then** the gate rewrites it into the governed proxy tool `call_mcp_tool(server, tool, arguments)`, which calls the server with OcuTalon's minimal Streamable HTTP client (`initialize`, `tools/call`) and returns the result through `OcuTalon.Tools.Result`, cut and marked as cut so that all results of one model step pass at most 10,000 tokens (FR-49, NFR-3, AD-10, AD-21)
 **And** a direct call to `call_mcp_tool` is classified by its (server, tool) arguments the same way (AD-21)
+**And** [AMENDED 2026-11-11, Contest Planner ruling on Story 22.8's veto, condition (1): the fingerprint must match the classification at call time] just before `tools/call`, the proxy lists the tool with its own client and refuses the call, unrun, when the tool's fingerprint (Story 22.2's `ToolFingerprint`) no longer matches the one its classification was given for, so a tool changed between the turn's listing and the call is caught (FR-48, AD-10)
 **And** `call_mcp_tool`'s name is added to `OcuTalon.Tools.Names` and to the CI mock's scripts (AD-22) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L5]
 
 **Given** any MCP call
@@ -7536,6 +7537,10 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the worked example **When** it is followed in step 4's hands-on pass on a clean local install with a real Jira MCP server **Then** the tools appear unclassified, a read-only search runs, a risky call waits for approval, and new tickets assigned to the user become items with decisions in Visual Trace (FR-50, FR-49, REL-7)"]
 
+**Given** the governance documentation [AMENDED 2026-11-11, Contest Planner rulings on Stories 22.8 and 22.9]
+**When** it describes Read-only MCP tools and the attach bound
+**Then** it says plainly that a Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so an admin classifies a tool Read-only only when they trust its server with what OcuTalon reads (the sentence goes to the Contest Planner at this story's spec gate), and it documents Story 22.9's residual: a server that stops answering after its probe passed, within one request, holds that runner until it closes the connection, until Story 22.10 lands (FR-48, FR-61, AD-10, AD-21)
+
 **Given** the worked example's guidance on classifying MCP tools, which the README's admin section (the admin guide) repeats
 **When** it describes classifying MCP tools
 **Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.2 (was 24.1) copies that sentence into the README's admin section with the link (FR-10, FR-61)
@@ -7615,6 +7620,21 @@ So that one hung server can never hold OcuTalon's runners.
 **Then** the attach or the listing gives up within a bounded time with a clear error, the server is reported unavailable as Story 35.1's attach report records it, and the runner and the turn go on without that server's tools (FR-47, AD-21, AD-31)
 
 - DW-1013: An attached MCP server that accepts the connection and never answers may block `AddTool` and the manager's listing with no deadline, at the build and in every request (ledger; routed by merge_gate 2026-11-09; moved from Story 22.2 through Story 22.8 by the 2026-11-11 splits)
+
+### Story 22.10: List and offer MCP tools through OcuTalon's own bounded client
+
+[AMENDED 2026-11-11, Contest Planner ruling on Story 22.9's residual, option (a): a new story in Epic 22's backlog, after Story 22.7; it amends AD-21]
+
+As an admin,
+I want OcuTalon to list and offer an MCP server's tools through its own bounded client, rather than AI Hub's MCP client,
+So that a server that stops answering in the middle of a request can never hold a runner.
+
+**Acceptance Criteria:**
+
+**Given** a registered MCP server that answers its probe and then stops answering within the same request
+**When** the runner lists its tools or the model calls one of them
+**Then** OcuTalon's own Streamable HTTP client (Story 22.3's, with Story 22.9's bounds) does the listing and the call, both give up within a bounded time with a clear error, and the turn goes on without that server's tools; AI Hub's MCP client is no longer used for listing or calling, and the gate, classification by fingerprint, approval and audit apply exactly as before (FR-47, FR-48, FR-49, AD-10, AD-21, AD-31)
+**And** AD-21's "AI Hub lists, OcuTalon calls" rule and its Story 22.9 residual note are amended to match (AD-21)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 

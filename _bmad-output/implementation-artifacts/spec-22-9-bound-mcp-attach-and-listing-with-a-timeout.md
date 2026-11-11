@@ -164,6 +164,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-11 (runner, rulings applied): the Contest Planner's rulings (verbatim under Design Notes) are applied: veto items accepted; residual (a), with Story 22.10 filed after 22.7 for the AD-21 amendment; spine S8-S11 written.
+
 - 2026-11-11 (runner, spec gate): validated. The Veto items, spine updates S8-S11 and the mid-request residual (options (a)/(b) under Design Notes) go to the Contest Planner (via the orchestrator) before the implement stage; this story implements only after Stories 22.2 and 22.8 are committed.
 
 ## Review Triage Log
@@ -243,6 +245,26 @@ deferred: []
 - No split: four source classes and three test classes.
 - Online demo: no server can be registered, so nothing changes.
 - DW-1038: the silent mode is off by default, binds the loopback only (the same `Serve`), and is cleared by `Stop`/`Forget`.
+
+
+**Contest Planner rulings (verbatim)** [RULED 2026-11-11 ~13:40Z, Contest Planner under the owner's delegation, relayed by the orchestrator; source `<coordination>/prompts/epic-22-rulings-222-228-229.md`]:
+
+> # Rulings, Epic 22 spec gate: 22.2, 22.8, 22.9 (2026-11-11 ~13:40Z; Contest Planner under the owner's delegation; verbatim terms)
+> SPLIT ACCEPTED (22.8, 22.9 new; order 22.2, 22.8, 22.9, 22.3-22.7; DW-1041 respected). No More to try or README line (no UI, MCP off on the demo); 22.6's governance doc carries the public explanation later.
+> PUBLIC TEXT 1-9: APPROVED verbatim.
+> VETO 22.2: ACCEPTED: ToolClassification (no URL, secret or user), McpOps present on the demo refusing every MCP verb, the admin notices.
+> CONDITION on the run-time resource OcuTalon_MCP_<server> and its U grant: state in the spec exactly which process creates the resource and grant, and with what privilege. The service role (and McpOps' job) must NOT gain %Admin_Secure, %All or any security-administration privilege to do it. Acceptable: the installer step declares them at start, or one fixed privileged entry point that can only create/grant/remove OcuTalon_MCP_* resources and is unit-tested to refuse any other name. If the design needs a broader privilege on a production job, STOP for a ruling before implementing.
+> VETO 22.8: ACCEPTED as AD-10 already allows it, with two conditions:
+> (1) the tool's fingerprint must match its classification at call time (a changed fingerprint makes it Unclassified, so it's held or denied as such); test that a rug-pull (same name, changed schema or description) is caught.
+> (2) 22.6's governance doc must say plainly that a Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so classify a tool Read-only only when you trust its server with what OcuTalon reads. Bring that sentence to the Planner at 22.6's gate.
+> Unknown/removed servers denied, not held: ACCEPTED.
+> VETO 22.9: ACCEPTED (2 s initialize probe to admin-registered servers only, the 60 s rest, no MCP server on the agent's own manager, side effects as listed).
+> RESIDUAL: (a). Accept it now; 22.6 documents it; the AD-21 amendment (OcuTalon lists and offers MCP tools through its own bounded client) becomes a NEW story in Epic 22's backlog, after 22.7.
+> GRAPH: lift 36.1's epic-22 wait entirely, plain-union rule for the Checks and BackgroundCheck files 22.5 also touches, marker [AMENDED 2026-11-11, Contest Planner ruling: footprint only, not a real dependency].
+> NEXT-FREE-LANE ORDER: (1) the memory-documents-remember phrase fix (DW-1123, ~30 min), (2) 36.1, then the step-5 chain (36.2, 37.1, 24, 23.4, 23.8; 23.3's plan to the Planner first), (3) 25.3.
+> ORCHESTRATOR U7 spine wording S1-S11: fine under these conditions.
+
+**Applied** (runner, 2026-11-11): veto items accepted as listed (the 2 s `initialize` probe to admin-registered servers only, the 60 s rest, no MCP server on the agent's own manager, the side effects). The residual is option (a): accepted now; Story 22.6 documents it; the AD-21 amendment (OcuTalon lists and offers MCP tools through its own bounded client) is the new Story 22.10, inserted after 22.7. Spine S8-S11 written (AD-21 "Step 4 build", AD-31 extension bullet).
 
 ## Veto items
 
