@@ -221,3 +221,5 @@
 2026-11-11T23:24:27Z	Story 23.10	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none model=claude-opus-5-5 note=no_AD_commits_a_tool_stack_for_23.10_ACs(AD-22_mock=CI)
 2026-11-11T23:24:43Z	Epic 23	integrated	onto=c33e0916(23.7_merged_e85f53bf;green) head=f9962114 conflicts_resolved=sprint-status.yaml(feature_side,regenerated,re-set_23-10=review) note=push_deferred_to_23.10_committed(one_CI_run_per_code_head;b8415822_in_history)
 2026-11-11T23:25:19Z	Story 23.10	stage_spawned	stage=qa spawn_at=2026-11-11T23:25:19Z model=sonnet effort=high agent_name=23-10-partner-notice-polish-qa-1 cycle_iteration=1
+2026-11-11T23:40:03Z	Story 23.10	qa_complete	spawn_at=2026-11-11T23:25:19Z model=sonnet effort=high tests_added=0 mutations_demonstrated=6 first_run_failures=0 clarifications=0 closing_sections_present=true note=no_gaps;PartnerTurns_whole-instruction_assert_tautological(covered_by_verbatim+TestContract)
+2026-11-11T23:40:03Z	Story 23.10	stage_spawned	stage=code-review spawn_at=2026-11-11T23:40:03Z model=opus effort=high agent_name=23-10-partner-notice-polish-cr-1 cycle_iteration=1 baseline=0f105f8c

@@ -284,6 +284,14 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: the `partner-notice-resolved` reply given "We are looking into it." -> `PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough` red (the "looking into" assertions)
 - mutation: `summary.fix` and `summary.evidence` text back to "Fix: {fix}" / "Evidence: {evidence}" -> `Test.Msg.Catalog` red (`TestSummaryFixFullStop` and `TestEveryKeyOnEveryChannel`) and `Test.Watch.Summary:TestFixedDismissed` red
 
+**QA (Rule 19), mutations re-observed on lane-D throwaways (QA):** no new test file and no gap found; every AC and matrix row already has a pin.
+- (QA) mutation: `partner-notice-resolved` reply given "We are looking into it." and `SYSTEMNOTE` without the ruled sentence (one run) -> `PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough` red (both "looking into" assertions for AC5; "with the sentence for a resolved incident" for AC4). Note: its "and the whole instruction" assertion reads the Parameter, so it stays green; the verbatim-literal assertion and the `TestContract` pin carry AC4.
+- (QA) mutation: fixture back to "Results Partner IT" -> `Test.Fix.PartnerWarning` red (`TestNoContacts`, `TestParametersAndDryRun`, `TestRecheck`, `TestApprovedNoticeIsSentByteForByte`, ...) for AC1.
+- (QA) mutation: `Facts` without the state line -> `Test.Fix.PartnerWarning:TestFacts` red (exact lines and the resolved, awaiting_approval and fixing assertions) for AC3; `SYSTEMNOTE` without the sentence -> `TestContract` "the draft instruction" red.
+- (QA) mutation: `summary.fix` and `summary.evidence` text without the full stop -> `Test.Msg.Catalog` red (`TestSummaryFixFullStop`, `TestEveryKeyOnEveryChannel`, `TestLocalInstallEveryKey`) and `Test.Watch.Summary:TestFixedDismissed` red for AC6.
+- (QA) mutation: `SimMailbox.In` `PARTNERFROM` set to the Orders contact -> `Test.Demo.SimMailboxIn:TestSamples` red for AC2.
+- Each mutation was reverted and `git status --short` was empty afterwards; `Test.Fix.PartnerTurns` passed on a fresh stack on the clean tree.
+
 **Found at implement:** three Test classes outside the Code Map render the `summary.evidence` key (not self-contained, contrary to the expectation under Tasks), so their Evidence line gains its full stop: `Test/Core/WebChatOut.cls`, `Test/Channel/TelegramOut.cls`, `Test/Demo/SimPhoneOut.cls`. `web/e2e/chat/notice.spec.ts` N20 (line ~720) also renders it and pins 'Evidence: OrderDate was <i>16/10/2026</i>' with `toEqual`; it is a Playwright spec (a test file, no web source), updated by the lead in this pass to 'Evidence: OrderDate was <i>16/10/2026</i>.' as Tasks step 4 directs when a pin renders the key.
 
 ## Auto Run Result
