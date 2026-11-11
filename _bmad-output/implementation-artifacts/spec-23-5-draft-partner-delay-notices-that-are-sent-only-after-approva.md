@@ -193,6 +193,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-10 (runner): More to try groups ruling recorded [AMENDED 2026-11-10, Contest Planner ruling].
+
 - 2026-11-09 (runner): Contest Planner rulings on 23.5 recorded [AMENDED 2026-11-09, Contest Planner ruling]: three text edits, the no-open-incident answer, the web-chat condition replacing the residual, S6 for partner_warning; press.* keys in Catalog.Core.
 
 ## Review Triage Log
@@ -257,6 +259,8 @@ This story adds per-kind tests for each.
 - CONDITION, replacing the accepted residual: `result.partnerNotDrafted` must reach the web chat too, as a notice card like the other notifications, with a test. The implement stage estimates it first: if it costs more than about an hour of work, HALT with an intent gap naming the estimate (the lead reports to the Planner) before accepting the residual.
 - Approved as drafted: the other catalog keys, the refusal reasons, the command result, the draft instruction, the `Agent/Chat.cls` line and the web texts; `press.approvedPartner` (and 23.2's `press.*` keys) in `Msg/Catalog/Core.cls`, appended as a plain union with Epic 35's keys; the fixture "Results Partner IT" <it@results-partner.example>, demo mode only; the README bullet appended last with the count following the registry rule; the EXPERIENCE lines with edit 2; the veto items (the `partner_warning` kind; no privilege, role or grant; the DryRun keys; `PartnerNotice` and `Draft`; `Fix.PartnerContacts`; the allowance count; the payload fields with LIVE fixture user plus second-session tests); the behaviour readings (chat-only; the contacts note supersedes "no warning on the online demo"); the spine notes AD-14, AD-15 (a warning request never moves incident state), AD-16, AD-20, AD-32 (the runner writes them with the marker [ADDED 2026-11-09, Story 23.5, Contest Planner ruling] before implement); the AD-33 cross-lane list, additive only, plain union.
 - S6 extends to this kind: the release evaluation shows no `partner_warning` request raised where the user didn't ask, injection cases included.
+
+**More to try groups [AMENDED 2026-11-10, Contest Planner ruling] (Planner ruling 2026-11-10 ~01:30Z with its ~01:40Z correction, `prompts/more-to-try-groups-ruling.md`):** three headed groups, rendered by Epic 0 Story 0.22 (lane C, a separate story). In-flight stories only declare their group as an additive registry field, a plain union: incidentSummary (23.6), rejectFix, reroute (23.2) and warnPartner (23.5) declare `group: 'Incidents and fixes'`; 23.6's item stays FIRST overall. This story's item (warnPartner) declares `group: 'Incidents and fixes'` at implement. README line 30 and EXPERIENCE keep the TOTAL count per the registry rule; no other item text changes. Merge gate: 23.2 (the 10th item) merges as soon as it is green, its group field ignored until 0.22 lands; 23.5 (the 11th) does not merge to feature before 0.22 lands.
 
 ## Public Text
 

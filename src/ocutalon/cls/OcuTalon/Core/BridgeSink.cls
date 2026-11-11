@@ -127,10 +127,11 @@ ClassMethod OnEvent(type As %String, ownerRef As %String, payload As %DynamicObj
 	Quit $$$OK
 }
 
-/// 1 when ownerRef is a session's Ref: a stream name that is not the instance stream.
+/// 1 when ownerRef is a session's Ref: a stream name that is not the instance stream, and not an evaluation session's (Data.Session.IsEval, Story 41.14): an evaluation
+/// run's session turns publish no live event and send no Notification (AD-22).
 ClassMethod IsSession(ownerRef As %String) As %Boolean [ Private ]
 {
-	Quit ##class(OcuTalon.Live.Publish).IsStream(ownerRef) && (ownerRef '= ##class(OcuTalon.Live.Publish).#INSTANCE)
+	Quit ##class(OcuTalon.Live.Publish).IsStream(ownerRef) && (ownerRef '= ##class(OcuTalon.Live.Publish).#INSTANCE) && '##class(OcuTalon.Data.Session).IsEval(ownerRef)
 }
 
 /// 1 when type is one of the five approval.* event types.

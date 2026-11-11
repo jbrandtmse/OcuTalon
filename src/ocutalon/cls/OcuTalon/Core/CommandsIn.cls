@@ -49,10 +49,10 @@ Class OcuTalon.Core.CommandsIn Extends Ens.BusinessService
 /// The package of the verb classes; the rest of a command's class name is its verb.
 Parameter VERBPACKAGE = "OcuTalon.Msg.Command.";
 
-/// The verbs that origin tool may send (AD-1, FR-24, NFR-14). Dismiss is further limited to an incident the session can see.
+/// The verbs that origin tool may send (AD-1, FR-24, NFR-14). Dismiss and ProposeFix are further limited to an incident the session can see.
 /// ProposePersona is the one settings verb among them, and a tool is the only origin that may send it. SendEmail is limited to the
 /// session user's own mailbox address (Carry). No MCP verb is among them.
-Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest,SaveMemory,ForgetMemory,ProposePersona,SendEmail";
+Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest,SaveMemory,ForgetMemory,ProposePersona,SendEmail,ProposeFix";
 
 /// How long the gate waits for the owner's answer, in seconds.
 Parameter TIMEOUT = 120;
@@ -102,6 +102,11 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	}
 	If (origin = "tool") && (verb = "ProposePersona") && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	If (origin = "tool") && (verb = "Dismiss") {
+		If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
+		Set incident = ##class(OcuTalon.Data.Ownership).Incident(command.IncidentRef, command.SessionRef, .sc)
+		If '$IsObject(incident) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
+	}
+	If (origin = "tool") && (verb = "ProposeFix") {
 		If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 		Set incident = ##class(OcuTalon.Data.Ownership).Incident(command.IncidentRef, command.SessionRef, .sc)
 		If '$IsObject(incident) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
@@ -295,6 +300,7 @@ XData Routes [ MimeType = application/json ]
  {"verb": "SetSourcePoll", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "RemoveSourcePoll", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "SendEmail", "owner": "EmailOut", "origins": "tool,system"},
+ {"verb": "ProposeFix", "owner": "IncidentManager", "origins": "tool"},
  {"verb": "ListPinnedMemories", "owner": "MemoryOps", "origins": "web_user"}
 ]
 }

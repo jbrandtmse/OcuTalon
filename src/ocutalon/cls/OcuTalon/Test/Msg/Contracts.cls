@@ -39,7 +39,7 @@ Method TestContracts()
 Method TestVerbsInheritTheCommonFields()
 {
 	Set classes = $ListBuild("IncidentCommand")
-	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession", "SetHeartbeat", "RunHeartbeat", "MarkNoise", "ForgetPrecedent", "AddMcpServer", "RemoveMcpServer", "ClassifyTool", "SetSourcePoll", "RemoveSourcePoll", "SendEmail")
+	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession", "SetHeartbeat", "RunHeartbeat", "MarkNoise", "ForgetPrecedent", "AddMcpServer", "RemoveMcpServer", "ClassifyTool", "SetSourcePoll", "RemoveSourcePoll", "SendEmail", "ProposeFix")
 	Set position = 0
 	While $ListNext(verbs, position, verb) {
 		Set classes = classes _ $ListBuild("Command."_verb)
@@ -307,6 +307,17 @@ XData Contracts [ MimeType = application/json ]
    "IdempotencyKey": "%String(MAXLEN=128)",
    "SessionRef": "%String(MAXLEN=22)",
    "IncidentRef": "%String(MAXLEN=22)"
+  }
+ },
+ "OcuTalon.Msg.Command.ProposeFix": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "IncidentRef": "%String(MAXLEN=22)",
+   "FixKind": "%String(MAXLEN=64)",
+   "Parameters": "%String(MAXLEN=1000)"
   }
  },
  "OcuTalon.Msg.Command.SetDemoMode": {

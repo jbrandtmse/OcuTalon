@@ -502,7 +502,8 @@ ClassMethod ServiceRole(on As %Boolean) As %Status [ Private ]
 /// revokes the grant (off). Runs in OCUORDERS, where only OcuTalon.Demo.Orders, Ens, EnsLib and % classes resolve, so it calls
 /// no method of this class there. The state machine and the item-run predicate are Install.Step.Production's (Start,
 /// NotRunning), restated for this namespace.
-///   - on: a running production of this name is left; Troubled is recovered and started; Stopped or Suspended is started,
+///   - on: a running production of this name is left, unless its definition lacks an item of the class's (an upgrade added one, Story 23.2): then the definition is loaded
+///     from the class again and the production is updated (Ens.Director.UpdateProduction); Troubled is recovered and started; Stopped or Suspended is started,
 ///     after its definition is loaded from the class (the class is compiled in OCUTALON, so this namespace has no
 ///     definition of its own); another production that is running, Troubled or Suspended is an error and nothing is stopped.
 ///     Then it polls once a second, up to WAITSECONDS, until the production runs and every enabled item with a pool has an
@@ -538,7 +539,30 @@ ClassMethod Orders(on As %Boolean, Output kept As %String, Output what As %Strin
 			Set sc = $SYSTEM.SQL.Security.GrantPrivilege("SELECT", "Ens.MessageHeader", "TABLE", role)
 			If $$$ISERR(sc) Quit sc
 		}
-		If '((state = $$$eProductionStateRunning) && (name = production)) {
+		If (state = $$$eProductionStateRunning) && (name = production) {
+			// a running production that lacks an item of its class definition (an upgrade added one) gets the definition again and is updated
+			Set lacks = 0
+			Set xdata = ##class(%Dictionary.CompiledXData).%OpenId(production_"||ProductionDefinition")
+			Set definition = ##class(Ens.Config.Production).%OpenId(production)
+			If $IsObject(xdata) && $IsObject(definition) {
+				For i = 1:1:definition.Items.Count() Set known(definition.Items.GetAt(i).Name) = ""
+				Set reader = ##class(%XML.Reader).%New()
+				If $$$ISOK(reader.OpenStream(xdata.Data)) {
+					Do reader.Correlate("Production", "Ens.Config.Production")
+					If reader.Next(.fromClass) {
+						For i = 1:1:fromClass.Items.Count() {
+							If '$Data(known(fromClass.Items.GetAt(i).Name)) Set lacks = 1
+						}
+					}
+				}
+			}
+			If lacks {
+				Set sc = ##class(Ens.Config.Production).LoadFromClass(production)
+				If $$$ISERR(sc) Quit sc
+				Set sc = ##class(Ens.Director).UpdateProduction()
+				If $$$ISERR(sc) Quit sc
+			}
+		} Else {
 			If state = $$$eProductionStateTroubled {
 				Set sc = ##class(Ens.Director).RecoverProduction()
 				If $$$ISERR(sc) Quit sc

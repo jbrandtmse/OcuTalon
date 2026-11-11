@@ -31,20 +31,22 @@ ClassMethod ReconcileWith(class As %String) As %Status
 	Quit sc
 }
 
-/// The service user's role gets a grant for each resource that a registered fix kind declares.
+/// The service user's role gets a grant for each resource that a registered fix kind declares. On an online-demo install (the public flag onlineDemo, written by the Public
+/// step before the Roles step composes the grants) a kind whose ONLINEGRANT is 0 declares none (AD-24, Story 23.2).
 ClassMethod Grants() As %DynamicArray
 {
-	Quit ..GrantsOf(##class(OcuTalon.Fix.Kind).Classes())
+	Quit ..GrantsOf(##class(OcuTalon.Fix.Kind).Classes(), +##class(OcuTalon.Data.Public.Settings).Get("onlineDemo") = 1)
 }
 
 /// The grants of the service role for a list of kind classes: one {"role","resource","permission"} for each pair that a kind's RESOURCES declares, each
-/// pair once. A malformed value throws a status that names the kind.
-ClassMethod GrantsOf(kinds As %List) As %DynamicArray
+/// pair once. With online 1 a kind whose ONLINEGRANT is 0 declares none; a pair that another kind declares stays. A malformed value throws a status that names the kind.
+ClassMethod GrantsOf(kinds As %List, online As %Boolean = 0) As %DynamicArray
 {
 	Set role = ##class(OcuTalon.Install.Step.Users).#SERVICEROLE
 	Set grants = []
 	Set position = 0
 	While $ListNext(kinds, position, kind) {
+		If online && '$Parameter(kind, "ONLINEGRANT") Continue
 		Set pairs = ##class(OcuTalon.Install.Step.Tools).Parse($Parameter(kind, "RESOURCES"), kind)
 		Set iterator = pairs.%GetIterator()
 		While iterator.%GetNext(, .pair) {

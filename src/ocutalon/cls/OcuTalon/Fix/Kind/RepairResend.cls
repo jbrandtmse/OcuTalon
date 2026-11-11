@@ -38,6 +38,9 @@ Parameter PARAMETERS = "field,sourceFormat,targetFormat";
 
 Parameter RESOURCES = "%Ens_MessageResend:U";
 
+/// The keys of the dry run of this kind: the keys of OcuTalon.Bridge.Data.ApprovalRequest DRYRUNKEYS that a repair and resend fills.
+Parameter DRYRUNKEYS = "affected,resend,leftOut,field,before,after,itemNoun";
+
 /// The days, either way, between a reading and the UTC date a message arrived within which the reading matches that arrival (a partner's own date can differ
 /// from the UTC date by up to a day either side).
 Parameter ARRIVALDAYS = 1;
@@ -47,9 +50,6 @@ Parameter NOTALLOWED = "OcuTalon isn't allowed to resend messages in that produc
 
 /// The reason of a dry run that has no evidence for the source reading of its dates.
 Parameter NOEVIDENCE = "The dates read as valid dates both month first and day first, and nothing shows which: no date has a day above 12, and the dates do not all match, within a day, the day their message arrived";
-
-/// The status text of a message that failed, as Reader.Evidence gives it.
-Parameter ERRORSTATUS = "Error";
 
 /// The most good messages the dry run reads for each source of its targets (the newest ones, Reader.Good).
 Parameter GOODMAX = 20;
@@ -136,41 +136,14 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 	Set targets = ""
 	Set dryRun = ""
 	Set groups = ##class(OcuTalon.Data.FailureGroup).OfIncident(incident.Ref)
-	Kill scoped
+	Set sc = ..Failed(incident, 0, .scoped, .unlisted, .classes, .arrived, .origin)
+	If $$$ISERR(sc) Quit sc
 	Set (before, after) = ""
 	Set haveExample = 0
-	Set unlisted = 0
 	Set sourceFormat = parameters.%Get("sourceFormat")
 	Set orderFormat = (##class(OcuTalon.Fix.Reformat).OtherOrder(sourceFormat) '= "")
 	Set values = []
 	Set (oneWayFound, differFound) = 0
-	For g = 1:1:groups.Count() {
-		Set group = groups.GetAt(g)
-		Set dropped = group.Unlisted(.known)
-		If 'known Return $$$ERROR($$$GeneralError, "The failed messages of "_group.ItemName_" that this request covers are no longer all listed, so they can't be counted")
-		Set unlisted = unlisted + dropped
-		Set keys = ""
-		Set asked = group.AskedKeys()
-		For i = 1:1:$Length(asked, ",") {
-			Set key = $Piece(asked, ",", i)
-			If key ? 1"h".N Set keys = keys _ $Select(keys = "": "", 1: ",") _ key
-		}
-		If keys = "" Continue
-		Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(incident.Namespace, incident.Production, group.ItemName, keys, .snapshot)
-		If outcome '= "read" {
-			Return $$$ERROR($$$GeneralError, "The failed messages of "_incident.Production_" in "_incident.Namespace_" could not be read: "_$Select(outcome = "unreadable": "the service user cannot read the namespace", outcome = "not_current": "the production is not the one that runs there", 1: outcome))
-		}
-		For i = 0:1:snapshot.failures.%Size() - 1 {
-			Set failure = snapshot.failures.%Get(i)
-			If ..Standing(failure, incident) '= "" Continue
-			Set id = +failure.headerId
-			If $Data(scoped(id)) Continue
-			Set scoped(id) = $Select($IsObject(failure.body) && failure.body.%IsA("%Library.DynamicObject"): failure.body, 1: {})
-			Set classes(id) = failure.bodyClass
-			Set arrived(id) = failure.timeCreated
-			Set origin(id) = $ListBuild(failure.sourceConfigName, failure.targetConfigName, failure.bodyClass, failure.superSession)
-		}
-	}
 	Set first = $Order(scoped(""))
 	If first = "" Quit $$$ERROR($$$GeneralError, "The incident has no failed message of its scope to repair")
 	Set sample = first
@@ -242,15 +215,7 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 		}
 		If goodChanged > 0 Quit $$$ERROR($$$GeneralError, $Replace($Replace(..#GOODCHANGED, "{changed}", goodChanged), "{checked}", goodChecked))
 	}
-	Set noun = ""
-	If incident.ItemNoun '= "" {
-		Try {
-			Set noun = {}.%FromJSON(incident.ItemNoun)
-		} Catch {
-			Set noun = ""
-		}
-	}
-	If '$IsObject(noun) || 'noun.%IsA("%Library.DynamicObject") || (noun.one = "") || (noun.other = "") Set noun = {}.%FromJSON(##class(OcuTalon.Watch.ItemNoun).For(classes(first)))
+	Set noun = ..ItemNounOf(incident, classes(first))
 	Set resend = $Select(targets = "": 0, 1: $Length(targets, ","))
 	Set out("affected") = affected
 	Set out("resend") = resend
@@ -259,7 +224,7 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 	Set out("before") = before
 	Set out("after") = after
 	Set dryRun = {}
-	Set keyNames = $Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")
+	Set keyNames = ..#DRYRUNKEYS
 	For i = 1:1:$Length(keyNames, ",") {
 		Set key = $Piece(keyNames, ",", i)
 		If key = "itemNoun" {
@@ -375,21 +340,8 @@ ClassMethod Plan(incident As OcuTalon.Data.Incident, parameters As %DynamicObjec
 	Set field = $Select($IsObject(parameters): parameters.%Get("field"), 1: "")
 	Set sc = ..CheckParameters(parameters, [(field)])
 	If $$$ISERR(sc) Quit sc
-	Set groups = ##class(OcuTalon.Data.FailureGroup).OfIncident(incident.Ref)
-	If groups.Count() = 0 Quit $$$ERROR($$$GeneralError, "The incident "_incident.Ref_" has no failure group to read")
-	Set keys = ""
-	For i = 1:1:$Length(targets, ",") {
-		Set id = $Piece(targets, ",", i)
-		If id ? 1.N Set keys = keys _ $Select(keys = "": "", 1: ",") _ "h" _ id
-	}
-	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(incident.Namespace, incident.Production, groups.GetAt(1).ItemName, keys, .snapshot, 1)
-	If outcome '= "read" {
-		Quit $$$ERROR($$$GeneralError, "The failed messages of "_incident.Production_" in "_incident.Namespace_" could not be read: "_$Select(outcome = "unreadable": "the service user cannot read the namespace", outcome = "not_current": "the production is not the one that runs there", 1: outcome))
-	}
-	For i = 0:1:snapshot.failures.%Size() - 1 {
-		Set failure = snapshot.failures.%Get(i)
-		Set found(+failure.headerId) = failure
-	}
+	Set sc = ..Targeted(incident, targets, .found)
+	If $$$ISERR(sc) Quit sc
 	For i = 1:1:$Length(targets, ",") {
 		Set id = +$Piece(targets, ",", i)
 		If '$Data(found(id)) {
@@ -409,15 +361,6 @@ ClassMethod Plan(incident As OcuTalon.Data.Incident, parameters As %DynamicObjec
 	Quit $$$OK
 }
 
-/// "" when the failed message is one of the incident's: its status is still ERRORSTATUS and its scope (FailurePoller Scope of its SuperSession) is the incident's
-/// owner; else status or scope, the first test it fails. The part of the target test that DryRun, Recheck and Execute share.
-ClassMethod Standing(failure As %DynamicObject, incident As OcuTalon.Data.Incident) As %String [ Private ]
-{
-	If failure.status '= ..#ERRORSTATUS Quit "status"
-	If ##class(OcuTalon.Watch.FailurePoller).Scope(failure.superSession) '= incident.OwnerRef Quit "scope"
-	Quit ""
-}
-
 /// "" when the field reads in the source format: the body (a dynamic object of the stored datatype properties of the message body, as Reader.Evidence reads
 /// it) has members, the field is one of them and its value converts (Fix.Reformat Convert); current is the value and repaired its repair. Else body, field or
 /// value, the first test it fails. The part of the target test that DryRun, Recheck and Execute share.
@@ -435,12 +378,10 @@ ClassMethod Readable(body As %DynamicObject, parameters As %DynamicObject, Outpu
 /// The plain reason, naming the message, that a target is skipped for the code of the test it failed (missing, status, scope, resent, body, field or value).
 ClassMethod Reason(code As %String, id As %String, parameters As %DynamicObject) As %String [ Private ]
 {
+	Set text = ..MessageReason(code, id)
+	If text '= "" Quit text
 	Set name = "message "_id
 	Set words = ..FieldWords(parameters.%Get("field"))
-	If code = "missing" Quit name_" is no longer in the production"
-	If code = "status" Quit name_" is no longer in the error status"
-	If code = "scope" Quit name_" is not one of this request's failed messages any more"
-	If code = "resent" Quit name_" has been resent already"
 	If code = "body" Quit name_" has no body that can be read any more"
 	If code = "field" Quit "the "_words_" is no longer a stored field of "_name
 	Quit "the "_words_" of "_name_" no longer reads as "_parameters.%Get("sourceFormat")

@@ -7732,6 +7732,22 @@ So that I can watch a data condition without giving OcuTalon any way to change d
 **Then** the statement fails with a privilege error, no data changes, and the run is not checked (FR-33, FR-10)
 **And** the tool inventory test still finds no tool that runs data-changing SQL (FR-10)
 
+
+### Story 23.9: Resume a suspended item after its incident closes
+
+[ADDED 2026-11-10, Contest Planner ruling (DW-1068 re-ruling), PARKED until after voting; not for 1.0.6 or 1.0.7] Split from Story 23.2, whose `result.itemSuspended` text limits the undo to while the incident is open and points to the Management Portal after it closes.
+
+As a production developer,
+I want to undo a suspend OcuTalon made even after its incident has closed,
+So that a suspended item is never left disabled without a governed way back.
+
+**Acceptance Criteria:**
+
+**Given** an item that OcuTalon suspended through an executed `suspend_item` request of an incident the user can see, and that incident has closed
+**When** the user asks OcuTalon to resume the item
+**Then** the spec chooses between (a) a resume raised on the closed incident, which never moves its state, and (b) an incident with an active suspend stays open until a resume or Dismiss (the Planner leans to (b)); either way exactly one approval request with its own dry run is raised, the item is re-checked before running, and a second session or a user outside the incident's ownership scope cannot resume it (FR-26, AD-15, AD-16)
+- DW-1068: After a suspend's incident closes the user cannot ask to resume the item (ledger; routed by merge_gate 2026-11-10)
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.

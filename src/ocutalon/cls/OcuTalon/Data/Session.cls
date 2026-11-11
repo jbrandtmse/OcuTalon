@@ -13,6 +13,8 @@
 /// property, so that raising it is atomic, takes no row lock and changes no storage. Web.SessionEvents.OnLogout raises it
 /// (MarkSignedOut) when a CSP session signs out off the online demo; the live WebSocket (Web.Live) reads it (SignOuts) on each loop
 /// and ends when it has changed since the socket opened. A session that never signed out reads 0.
+/// An evaluation session row (Story 41.14) is the third kind: ForEval makes it for one case of an evaluation run, with no IrisUser and no ResumeHash, Eval.In drops it
+/// (DropEval) at the run's Finish or, when a run did not finish, at the next run's Start, and IsEval tells it apart, so that BridgeSink publishes and notifies nothing for it (AD-22).
 Class OcuTalon.Data.Session Extends %Persistent
 {
 
@@ -125,6 +127,60 @@ ClassMethod NewRow(irisUser As %String) As OcuTalon.Data.Session [ Private ]
 	Set session.IrisUser = irisUser
 	Set session.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Quit session
+}
+
+/// A new session row for one evaluation case (Story 41.14; AD-4, AD-22), made only while OCUTALON_EVAL is the text 1 and called only by Eval.In: a new Ref,
+/// TraceRef and Epoch, CreatedAt, and no IrisUser and no ResumeHash, so that ForUser, ForResume and the sign-in cannot reach it and no person ever owns it.
+/// With OCUTALON_EVAL unset or anything but 1 it creates nothing, and sc holds the error status; the result is then "". Eval.In.Finish and Eval.In.Start
+/// remove the row again (DropEval).
+ClassMethod ForEval(Output sc As %Status) As OcuTalon.Data.Session
+{
+	Set sc = $SYSTEM.Status.OK()
+	If $SYSTEM.Util.GetEnviron("OCUTALON_EVAL") '= "1" {
+		Set sc = $SYSTEM.Status.Error(5001, "An evaluation session needs OCUTALON_EVAL=1")
+		Quit ""
+	}
+	Set session = ""
+	Try {
+		Set session = ..NewRow("")
+		Set sc = session.%Save()
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Quit session
+}
+
+/// 1 when ref is the Ref of an evaluation session row (ForEval's: a row with no IrisUser), else 0; an unknown or empty Ref is 0. A read only, with no lock: BridgeSink asks it so
+/// that an evaluation run's session turns publish no live event and send no Notification (AD-22).
+ClassMethod IsEval(ref As %String) As %Boolean
+{
+	If ref = "" Quit 0
+	Set row = ..RefIndexOpen(ref, 0)
+	Quit $IsObject(row) && (row.IrisUser = "")
+}
+
+/// Deletes the evaluation session row of the Ref (ForEval's), and only such a row: a row that has an IrisUser (a person's, a visitor's), an unknown Ref and
+/// an empty Ref answer an error status and change nothing. Called only by Eval.In. Its memories are not touched: Eval.In drops them first (Memory.DropSession).
+ClassMethod DropEval(ref As %String) As %Status
+{
+	If ref = "" Quit $SYSTEM.Status.Error(5001, "An evaluation session needs its Ref")
+	Set sc = $SYSTEM.Status.OK()
+	Try {
+		Set row = ..RefIndexOpen(ref)
+		If '$IsObject(row) {
+			Set sc = $SYSTEM.Status.Error(5001, "There is no session with that Ref")
+		} ElseIf row.IrisUser '= "" {
+			Set sc = $SYSTEM.Status.Error(5001, "That session belongs to a user, and only an evaluation session is dropped here")
+		} Else {
+			Set id = row.%Id()
+			Set row = ""
+			Set sc = ..%DeleteId(id)
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
 }
 
 /// Raises the sign-out mark of the session ref by one: atomic, no row lock. An empty ref raises nothing.
