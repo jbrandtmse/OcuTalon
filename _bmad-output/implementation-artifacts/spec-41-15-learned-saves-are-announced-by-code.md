@@ -2,8 +2,8 @@
 title: "Story 41.15: Learned saves are announced by code"
 type: 'feature'
 created: '2026-11-10'
-status: 'in-progress'
-baseline_revision: 'c79da26fcbaf0852ec765aebf37c9970e5da1da9'
+status: 'done'
+baseline_revision: '2da790c8b7376e7385eab8aadc5a6f03d9b2ee56'
 baseline_commit: 'c79da26fcbaf0852ec765aebf37c9970e5da1da9'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -412,7 +412,7 @@ Rejected:
 - low: `TestLearnedReadFailed` sees the warning under the helper's class name; `TestStateLearned` cleans outside try/finally; `TestLearnedEntry` needs the production restart (verification-gap, 3 rows) — the test pins the warning's text and count; the class convention; the order is in `## Verification`.
 - false: the eval change is more than one call (auditor) — the entry-and-line rule is Task 12's own; ruling 4's addition is the one `Said` call.
 - false: QA files are uncommitted; the integrate-forward is pending (auditor, 2 rows) — the lead commits after the smoke gate; the Spec Change Log already carries the integrate-forward.
-- [ ] [CI] iris (shards-2) shard:lane-a@rest and iris (shards-4) live:memory-offline, run 42943118887 (https://github.com/jbrandtmse/OcuTalon/actions/runs/42943118887): `OcuTalon.Test.Memory.Turns:TestSaveRecallListThroughTheAgent` fails "the reply is not tainted and carries no HostData" (`Test/Memory/Turns.cls:253`). Cause: this test sends the turn straight to the Chat agent job, so no `Data.Turn` exists and `Memory.Ops.Source` reads the save as `learned` (41.8's rule, unchanged), and this story then correctly records it in HostData `learned`. Fix (lead decision, decide-level; the reply guard, taint and 41.8's source rule do not change): update the pin, not the data. Assert `answer.Tainted` = 0 and that `answer.HostData` is exactly `{"learned":[{"memoryRef":<the saved Ref>,"text":<the saved text>}]}` (no `memories` member), with a one-line comment saying why the save is learned on this path; update the class doc line for this method (`Turns.cls:7`) to say so. Keep every other assertion. Add `Test.Memory.Turns` (the HostData pins of its save and list turns) to the spec's `Shared surfaces:` line under `## Verification`, and a `mutation:` line for the new pin (e.g. `Announce` skips the `Remember` call -> `Memory.Turns:TestSaveRecallListThroughTheAgent` red). Run `OcuTalon.Test.Memory.Turns` (it needs the CI mock reachable: run it on the lane-A warm stack after `ci/mock/scenarios/A/memory-learned-line.json` is in place) and every other `OcuTalon.Test.Memory.*` class, one per call.
+- [x] [CI] iris (shards-2) shard:lane-a@rest and iris (shards-4) live:memory-offline, run 42943118887 (https://github.com/jbrandtmse/OcuTalon/actions/runs/42943118887): `OcuTalon.Test.Memory.Turns:TestSaveRecallListThroughTheAgent` fails "the reply is not tainted and carries no HostData" (`Test/Memory/Turns.cls:253`). Cause: this test sends the turn straight to the Chat agent job, so no `Data.Turn` exists and `Memory.Ops.Source` reads the save as `learned` (41.8's rule, unchanged), and this story then correctly records it in HostData `learned`. Fix (lead decision, decide-level; the reply guard, taint and 41.8's source rule do not change): update the pin, not the data. Assert `answer.Tainted` = 0 and that `answer.HostData` is exactly `{"learned":[{"memoryRef":<the saved Ref>,"text":<the saved text>}]}` (no `memories` member), with a one-line comment saying why the save is learned on this path; update the class doc line for this method (`Turns.cls:7`) to say so. Keep every other assertion. Add `Test.Memory.Turns` (the HostData pins of its save and list turns) to the spec's `Shared surfaces:` line under `## Verification`, and a `mutation:` line for the new pin (e.g. `Announce` skips the `Remember` call -> `Memory.Turns:TestSaveRecallListThroughTheAgent` red). Run `OcuTalon.Test.Memory.Turns` (it needs the CI mock reachable: run it on the lane-A warm stack after `ci/mock/scenarios/A/memory-learned-line.json` is in place) and every other `OcuTalon.Test.Memory.*` class, one per call.
 
 ## Spec Change Log
 
@@ -437,6 +437,18 @@ Rejected:
   - `[low]` `[reject]` Blind: an announcement outlives a later forget in another turn - the spec scopes removal to a forget in the same turn; the memory chips behave the same.
   - `[low]` `[reject]` Blind: the web and live-HTTP pieces were not run - the spec leaves S10-S12 and `api/memory.spec.ts` to CI `live:sign-in`; `--list` was run.
   - `[false]` `[reject]` Blind: the spec's status is inconsistent - the frontmatter and `## Auto Run Result` (line truncated by the implement pass's spec write; the remaining triage rows of the 25 were lost with it, see the Spec Change Log)
+
+### 2026-11-11 - Review pass (CI rework iteration 1, follow-up pass)
+- verdicts: 7 findings - high 0, medium 0, low 7, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: the new pin does not assert the saved row's `Source` - `TestToldAndLearnedThroughTheAgent` already pins that a save with no `Data.Turn` reads as learned, and the pin's own comment names the cause; an extra column and assertion would add no new failure case.
+  - `[low]` `[reject]` Blind: whole-string compare couples the pin to key and member order - the lead's decision fixes the pin as "exactly" `{"learned":[{"memoryRef","text"}]}`, and `Announce` fixes that order; spec-bound.
+  - `[low]` `[reject]` Blind: `TestToldAndLearnedThroughTheAgent` asserts no HostData for the told and learned-with-turn paths - outside the `[CI]` item; `Tools.Memory:TestLearnedNothing` and `Tools.Memory:TestLearnedHostData` pin those at the tool.
+  - `[low]` `[reject]` Blind: no end-to-end test of forget removal, the cap of 3 or `Turn.Learned` and `Outbound.Learned` - already pinned by `Tools.Memory` and `ConversationTurns` (`TestLearnedCarried`); the item scopes this pass to the one pin.
+  - `[low]` `[reject]` Blind: the class-doc bullet is awkwardly wrapped and the comment says `Memory.Ops.Source` - cosmetic; the short class name is the one the class doc uses throughout.
+  - `[low]` `[reject]` Blind: nothing checks the `learned` entry does not leak into the later recall and list turns - HostData is built per turn, and the list turn still pins no HostData at all.
+  - `[low]` `[reject]` Intent: the pin asserts an announcement on a path with no `Data.Turn`, where the real path would read the same words as told - the lead's recorded decision (update the pin, not the data; 41.8's source rule unchanged); `TestToldAndLearnedThroughTheAgent` pins the told path.
+- Edge Case Hunter and Verification Gap reported nothing.
 
 ## Design Notes
 
@@ -575,6 +587,7 @@ Rules for the runs:
 - Telegram's sent text (`Test.Channel.TelegramOut`).
 - The eval `learnedSave` tally (`Test.Eval.Report`).
 - The mock scenario set (`ci/mock/test/scenarios.test.mjs`).
+- The HostData of the memory turns through the agent (`Test.Memory.Turns`): the save turn pins HostData exactly `{"learned":[{memoryRef,text}]}`, the list turn pins no HostData.
 
 Every test added or changed passes on a fresh environment, in either order.
 
@@ -638,6 +651,9 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: AC 3 (review patch, the surrogate-safe cut), `Learned.Fact` loses its step back off a high surrogate → `Memory.Learned:TestFact` red ("a surrogate pair the cut would split is left out whole").
 - mutation: AC 1 (the cap of 3 after the review's `Remember` extension), `Announce` passes cap 5 instead of `Learned.#MAXENTRIES` → `Tools.Memory:TestLearnedHostData` red ("four distinct Refs hold the first three, in the order saved").
 
+**Mutation demonstrated by the CI rework (Rule 19), on the warm stack `e41s15rw`.** Applied from a backup, observed red, reverted, `Memory.Turns` green again, and a hash of `git status --short`, `git diff` and the untracked files was the same before and after.
+- mutation: AC 1 (the save turn through the agent job, no `Data.Turn`, so the save reads as learned), `MemoryTools.Announce` quits before the `Remember` call (the saved learned memory is not recorded in HostData `learned`) → `Memory.Turns:TestSaveRecallListThroughTheAgent` red ("the reply is not tainted and its HostData is exactly the learned entry {memoryRef, text} of the saved memory"). The old pin (HostData empty) was observed red on the unchanged code first.
+
 **QA pass files (QA).**
 - `src/ocutalon/cls/OcuTalon/Test/Tools/Memory.cls` (QA): new `TestLearnedReadFailed` (the failed-row-read warning, I/O matrix "Failed save") and its class-doc bullet.
 - `src/ocutalon/cls/OcuTalon/Test/Tools/MemoryAnnouncer.cls` (QA, new): a helper subclass of `MemoryTools` that reaches the private `Announce` (no context accepts the Ref that makes the read fail); it is not a test class.
@@ -662,3 +678,5 @@ Follow-up review recommended: false (no patched high; one patched medium).
 Verification: on the warm stack (tag `e41s15iw`) every class in the Verification list passed after the implement pass, and `Tools.Memory` and `Channel.TelegramOut` passed again after the two review patches; the four web unit files, `catalog.mjs --check`, `payloads.mjs --check`, `npm run lint`, `ng build`, `test-mock.sh`, `test-storage.sh` passed in the implement pass; `test-class-rules.sh` and `test-boundaries.sh` and the spine lint (baseline: `"ok": false`, 10 findings) were re-run after the patches; `git diff 0eb14ea2 -- Agent/Chat.cls` is empty and `catalog.ts` shows only `+` lines. All nine AC mutations were observed red and reverted (AC 8 is held by the empty diff and `TestInstructions`). The warm stack and its lock are removed.
 
 Residual risks: e2e S10-S12 and `api/memory.spec.ts` (real HTTP, second session) and the web `[innerHTML]` mutation run in CI `live:sign-in` only; the failed-row-read warning in `MemoryTools.Announce` has no unit test; the count lines (Catalog 135 to 136, Payloads 34 to 35, `catalog.test.mjs` 54 to 55) are summed with Story 23.2's at the integrate-forward.
+
+CI rework iteration 1 (this pass only): `Test.Memory.Turns:TestSaveRecallListThroughTheAgent` now pins the save turn's reply as untainted with HostData exactly `{"learned":[{memoryRef,text}]}` (the turn goes straight to the agent job, so no `Data.Turn` holds its ItemId and the save reads as learned). Only `src/ocutalon/cls/OcuTalon/Test/Memory/Turns.cls` changed; no production class, data or other test. Review: 7 findings, all low, all rejected with reasons in the Review Triage Log; 0 patched, 0 deferred. Follow-up review recommended: false (no patched high). Verification on the warm stack `e41s15rw`: the old pin was red, the new pin is green, `Memory.Turns` ran to its pin; every other `OcuTalon.Test.Memory.*` class passed (`Diagnostics`, `Drop`, `Embedding`, `Install`, `Learned`, `Offline`, `Ops`, `Pins`, `Search`; `Volume` skips by design outside `live:memory-offline`); the mutation is in `## Verification`; `test-boundaries.sh` and `test-class-rules.sh` passed. Residual risk: CI shards-2 and shards-4 re-run is the remaining confirmation.
