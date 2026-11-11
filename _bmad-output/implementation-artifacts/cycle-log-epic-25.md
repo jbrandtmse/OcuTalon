@@ -66,3 +66,8 @@
 2026-11-11T09:30:51Z	Story 25.2	smoke_complete	method=browser(stage-run_fresh_lane-C:history.spec_part_13/20_15/15_x2_by_implement(e25s2r2)_and_x2_by_reviewer(e25s2c3)_on_final_tree;npm_test_1910) result=pass iterations=3 defects_caught=0 note=rework_2_web-only;lead_time_box(push_by_10:00Z) model=claude-opus-5-5
 2026-11-11T09:30:51Z	Story 25.2	fresh_check	env=recipe(fresh_lane-C_stacks_e25s2c3) tests=history.spec_H1-H15(x2)+node_1910 result=pass order=forward,forward(repeat_for_race)
 2026-11-11T09:31:06Z	Story 25.2	committed	sha=db86baf6 fix_for=25.2 rework=2 ci=pending_at_push
+2026-11-11T10:42:42Z	Story 25.2	ci_red_classified	run=42995845667 workflow=.github/workflows/ci.yml class=flake test=shards_online-allowance_D1(DW-432),image_Data.Purge_TestCurrentSessionLosesNoRows(DW-1095) ledger=occurrences_appended_by_orchestrator rerun=attempt_2
+2026-11-11T10:42:42Z	Story 25.2	ci_resolved	story=25.2 sha=4af29b25 runs=42995845667(attempt_2),42995845639 result=success failed=none via=none resolved_at=merge_gate
+2026-11-11T10:42:42Z	Story 25.2	story_cycle	plan_to_commit_min=971 implement_passes=3 reviews=3 rework=2(ci,ci) first_ci=story models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=includes_~6h_wait_on_37.2
+2026-11-11T10:42:42Z	Epic 25	part_merge	story=25.2 head=4af29b25 feature=5ed39411(51a53f69+25.2) ci=success(42995845667_attempt_2,42995845639) merged_by=orchestrator more_to_try=fourteen epic_25=in-progress parked=25.3,25.4,25.5(scope_closed_by_owner) burndown_gate=not_run
+2026-11-11T10:42:42Z	Epic 25	epic_runner_complete	stories_completed=1(25.2) part_merge=25.2 epic_open=true
