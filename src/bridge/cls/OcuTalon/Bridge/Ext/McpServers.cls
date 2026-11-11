@@ -5,11 +5,12 @@
 ///   - Servers lists the servers to attach, each as {"server", "config"}: the host's name for the server and the name of its Config Store entry
 ///     (AI.MCP. followed by letters, digits and underscores). The runner attaches the entry as mcp:remote:@{config:<config>}, so the entry's url and
 ///     its credentials stay in the Config Store, and a name that does not match is reported as invalid and never attached.
-///   - OnAttach receives one report per server, after that server was tried and before the next one: {"status", "reason", "tools", "refused"}.
-///     status is attached or unavailable. reason is empty for an attached server and unreachable, failed or invalid for an unavailable one. tools
-///     lists the names of the server's tools that were attached, and refused lists the names that were refused because a tool with that name was
-///     already on the agent's manager. The report holds code words and tool names only, never AI Hub's error text, which can name a URL or hold a
-///     credential.
+///   - OnAttach receives one report per server, after that server was tried and before the next one: {"status", "reason", "tools", "refused"} and,
+///     for an attached server, "fingerprints". status is attached or unavailable. reason is empty for an attached server and unreachable, failed or
+///     invalid for an unavailable one. tools lists the names of the server's tools that were attached, and refused lists the names that were refused
+///     because a tool with that name was already on the agent's manager. fingerprints is an object from each attached tool's name to its fingerprint
+///     (OcuTalon.Bridge.Context ToolFingerprint of the tool's description and input schema), so that a host can tell that a tool changed. The report
+///     holds code words, tool names and fingerprints only, never AI Hub's error text, which can name a URL or hold a credential.
 ///   - A failed or unavailable server never fails the build, and neither does an error from OnAttach: the runner logs it and goes on with the next server.
 Class OcuTalon.Bridge.Ext.McpServers
 {

@@ -1,23 +1,30 @@
 /// The attach of the registered MCP servers to a runner's agent (Story 35.1; AD-6, AD-10, AD-19, AD-21, AD-31). THESE TESTS RUN IN THROWAWAY STACKS AND IN CI ONLY
 /// (Rule 21): they build an agent of a shadow runner of the test adapter OcuTalon.Test.Bridge.ZzTurnAdapter, so they need the CI override's environment and the
 /// running production (RunnerFixture GuardReason, RunningReason), and they put the McpServersClass setting of the Decide item to the class a test needs and back.
-/// Each test makes its own fixtures and removes them in OnAfterOneTest, whether it passed or failed: the row zzmcp<n> of OcuTalon.Mcp.Server, the Config Store entry
+/// Each test makes its own fixtures and removes them in OnAfterOneTest, whether it passed or failed: the row zzmcp<n> of OcuTalon.Mcp.Server and its tool rows, its resource
+/// and grant, a fixture admin session (a Session row with AdminAtSignIn 1), the Config Store entry
 /// AI.MCP.OcuTalon_zzmcp<n> (url = the loopback mock, auth = a header whose value is a secret:// reference), the wallet collection and secret that the reference names
 /// (a random value of this run, written by the test and deleted by it), and the mock of OcuTalon.Test.Mcp.Mock. Afterwards the test asserts that none is left, and
 /// that no result the test manager logged for the test holds the secret. No assertion message, Write or log line holds the secret: a check of where the value
 /// shows names places only.
 ///   - TestAttach (matrix rows 1 and 3): the manager of the agent lists the agent's own tools, the tool of the fixture toolset and the mock's zz_lookup and
 ///     zz_delete_ticket; Attached holds mcp:remote:@{config:AI.MCP.OcuTalon_<server>}; the row says attached, with no reason, the time and no refused tool; every request
-///     of the mock carried the header; the gate classifies both tools as unclassified by their toolref and denies them in an untrusted turn; the secret shows nowhere;
+///     of the mock carried the header; the gate classifies both tools as unclassified by their toolref and denies them in an untrusted turn; the tool rows are unclassified,
+///     hold the fingerprint of each tool's description and input schema, and are listed by Tools as available; the secret shows nowhere;
+///   - TestChangedTool (Story 22.2): a classified tool whose description the mock changes between two builds is unclassified with the new fingerprint after the second build,
+///     a Tool entry is audited, and each admin session gets one mcp.toolChanged notice;
+///   - TestCommands (Story 22.2): through Commands.Submit and CommandsIn with the production running, an AddMcpServer makes the row, the resource, the grant and the audit entry
+///     and restarts the runner jobs, whose build then lists the tools; a ClassifyTool keeps the fingerprint and is audited; a ClassifyTool of origin tool is refused; a
+///     RemoveMcpServer removes the rows, the resource and the grant;
 ///   - TestTurnManager (row 2): the manager that a request with turn tools composes lists the mock's tools too;
 ///   - TestTurnServerDown: the server is down when a request composes its manager: the request still gets it, without the server's tools;
 ///   - TestRequestServerDown: a request with no tools of its own gets a manager of its own while a server is attached, with the server's tools while it is up and
 ///     without them once it is down (AI Hub's listing of the agent's own manager throws while that manager holds a server that does not answer);
 ///   - TestTurnShadow: a tool of the mock with the name of a tool of the request: the request's tool keeps the name and the mock's copy is not listed;
 ///   - TestUnavailable (row 4): the mock is down, the build is OK, the manager has no mock tool and no mcp spec is recorded, the row says unavailable (unreachable),
-///     and the secret, which AI Hub's error text holds, shows nowhere;
-///   - TestShadow (row 5): a tool of the mock with the name of one of the agent's own tools is refused: the row holds its name, the manager lists the name once, and a bare
-///     manager of the same shape runs the agent's tool and not the mock's;
+///     each admin session gets one mcp.serverUnavailable notice, and the secret, which AI Hub's error text holds, shows nowhere;
+///   - TestShadow (row 5): a tool of the mock with the name of one of the agent's own tools is refused: the row holds its name, the manager lists the name once, each admin
+///     session gets one mcp.toolShadowsBuiltIn notice, and a bare manager of the same shape runs the agent's tool and not the mock's;
 ///   - TestBridgeAlone (row 6): the base class attaches nothing and the mock sees no request; TestFreshInstall: with no Mcp.Server row the build attaches nothing
 ///     (the rows are removed in a transaction that is rolled back, so rows the test did not make are kept);
 ///   - TestWrongClass (row 7): a McpServersClass that is missing or does not extend the base fails the build with an error that names the setting;
@@ -35,6 +42,13 @@ Parameter FIXTURE = "OcuTalon.Test.Agent.RunnerFixture";
 Parameter TURNTOOLS = "OcuTalon.Test.Bridge.ZzTurnTools";
 
 Parameter ATTACH = "OcuTalon.Mcp.Attach";
+
+/// The McpServersClass of the tests that read the admin notices.
+Parameter PROBEATTACH = "OcuTalon.Test.Mcp.ZzProbeAttach";
+
+Parameter PROBE = "OcuTalon.Test.Mcp.OpsProbe";
+
+Parameter USER = "zzmcpadmin";
 
 Parameter SERVERS = "OcuTalon.Test.Mcp.ZzServers";
 
@@ -65,13 +79,17 @@ Property Port As %Integer [ InitialExpression = 0 ];
 
 Property Secret As %String(MAXLEN = "") [ Transient ];
 
+/// The Ref of the fixture admin session, "" when the test made none.
+Property AdminRef As %String;
+
 /// The port of the mock the test started, kept after the mock is stopped so that Leftovers can look for its nodes.
 Property UsedPort As %Integer [ InitialExpression = 0 ];
 
 Method OnBeforeOneTest(testname As %String) As %Status
 {
-	Kill ^||ZzTurn, ^||ZzMcp, ^OcuTalonTest("TurnTools")
+	Kill ^||ZzTurn, ^||ZzMcp, ^||ZzOps, ^OcuTalonTest("TurnTools")
 	Set ..Saved = ""
+	Set ..AdminRef = ""
 	Set ..Port = 0
 	Set ..UsedPort = 0
 	Set ..Number = $Increment(^OcuTalonTest("Mcp", "n"))
@@ -91,7 +109,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do $$$AssertEquals(leftovers, "", "the test leaves no fixture behind")
 	Do $$$AssertEquals(..LoggedSecret(), 0, "no result that the test manager logged for the test holds the secret")
 	Set ..Secret = ""
-	Kill ^||ZzTurn, ^||ZzMcp, ^OcuTalonTest("TurnTools")
+	Kill ^||ZzTurn, ^||ZzMcp, ^||ZzOps, ^OcuTalonTest("TurnTools")
 	If ..Saved '= "" {
 		Set saved = ##class(%DynamicAbstractObject).%FromJSON(..Saved)
 		For i = saved.%Size() - 1:-1:0 Do $ClassMethod(..#FIXTURE, "RestoreItemSetting", "Decide", saved.%Get(i))
@@ -136,6 +154,23 @@ Method TestAttach()
 		Do $$$AssertEquals(result.classification _ "|" _ result.by, "|", name _ " is unclassified by its toolref, so the annotations of the mock change nothing")
 		Do $$$AssertEquals(..UntrustedSentence(spec, name), $Parameter(gate, "UNTRUSTED"), name _ " is denied in an untrusted turn")
 	}
+	// the tool rows: unclassified, with the fingerprint of the description and the canonical input schema, listed as available
+	Set expected("zz_lookup") = ##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket.", {"type": "object", "properties": {"id": {"type": "string"}}})
+	Set expected("zz_delete_ticket") = ##class(OcuTalon.Bridge.Context).ToolFingerprint("Deletes a ticket.", {"type": "object", "properties": {"id": {"type": "string"}}})
+	For name = "zz_lookup", "zz_delete_ticket" {
+		Set tool = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, name)
+		Do $$$AssertTrue($IsObject(tool), name _ " has a row")
+		If '$IsObject(tool) Continue
+		Do $$$AssertEquals(tool.Classification _ "|" _ $Length(tool.Fingerprint), "unclassified|44", name _ " is unclassified, with a 44-character fingerprint")
+		Do $$$AssertEquals(tool.Fingerprint, expected(name), name _ " holds the fingerprint of its description and input schema")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Mcp.Ops).Tools(..Server, .tools), "Tools lists the server")
+	Set listed = ""
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		Set listed = listed _ $Select(listed = "": "", 1: ",") _ tool.name _ "|" _ tool.classification _ "|" _ tool.status
+	}
+	Do $$$AssertEquals(listed, "zz_delete_ticket|unclassified|available,zz_lookup|unclassified|available", "both tools as unclassified and available")
 	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
 }
 
@@ -160,7 +195,8 @@ Method TestTurnManager()
 Method TestUnavailable()
 {
 	If ..Guard() Quit
-	Do ..Use("McpServersClass", ..#ATTACH)
+	Do ..Use("McpServersClass", ..#PROBEATTACH)
+	Set admin = ..MakeAdmin()
 	Do ..Register(, 0)
 	Set host = ..Runner()
 	Set adapter = host.Adapter
@@ -171,13 +207,16 @@ Method TestUnavailable()
 	Do $$$AssertEquals(adapter.AttachedCount(), 1, "no mcp spec is recorded")
 	Set row = ..Row()
 	Do $$$AssertEquals(row.AttachStatus _ "|" _ row.AttachReason _ "|" _ row.AttachedAt _ "|" _ $ListToString(row.RefusedTools), "unavailable|unreachable||", "the row says unavailable, unreachable, with no time and no refused tool")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "NoticeCount", admin, "mcp.serverUnavailable"), 1, "the admin session gets one mcp.serverUnavailable notice")
+	Do $$$AssertEquals(..NoticesFor(admin), 1, "and no other notice")
 	Do $$$AssertEquals(..Leaks(adapter), "", "the secret, which AI Hub's error text holds, shows in none of the places that are checked")
 }
 
 Method TestShadow()
 {
 	If ..Guard() Quit
-	Do ..Use("McpServersClass", ..#ATTACH)
+	Do ..Use("McpServersClass", ..#PROBEATTACH)
+	Set admin = ..MakeAdmin()
 	Do ..Register($ListBuild("zz_steps_note"), 1)
 	Set host = ..Runner()
 	Set adapter = host.Adapter
@@ -188,6 +227,9 @@ Method TestShadow()
 	Do $$$AssertEquals(..Listed(adapter.Agent.ToolManager, "zz_steps_note"), 1, "and lists zz_steps_note once")
 	Set row = ..Row()
 	Do $$$AssertEquals(row.AttachStatus _ "|" _ row.AttachReason _ "|" _ $ListToString(row.RefusedTools), "attached||zz_steps_note", "the row says attached and holds the refused name")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "NoticeCount", admin, "mcp.toolShadowsBuiltIn"), 1, "the admin session gets one mcp.toolShadowsBuiltIn notice")
+	Do $$$AssertEquals(..NoticesFor(admin), 1, "and no other notice")
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_steps_note").Fingerprint _ "|" _ ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexExists(..Server, "zz_lookup"), "|1", "the refused tool has a row with no fingerprint, and so has a listed one")
 	// a bare manager of the same shape: the agent's tool runs, the mock's copy never does
 	Set manager = ##class(%AI.ToolMgr).%New()
 	Do ..Ok(manager.RegisterToolSet("OcuTalon.Test.Bridge.StepsTools"), "a bare manager takes the agent's toolset")
@@ -197,6 +239,128 @@ Method TestShadow()
 	Do $$$AssertEquals(result.value.topic _ "|" _ result.value.note, "zzmcp|All systems normal.", "zz_steps_note runs the agent's tool")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.Mock).Calls(..Port, "zz_steps_note"), 0, "and the mock is not called for it")
 	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
+}
+
+/// A classified tool whose description changes between two builds: the second build clears it, audits it and tells the admin session once.
+Method TestChangedTool()
+{
+	If ..Guard() Quit
+	Do ..Use("McpServersClass", ..#PROBEATTACH)
+	Set admin = ..MakeAdmin()
+	Do ..Register(, 1)
+	Set host = ..Runner()
+	Set adapter = host.Adapter
+	Do ..Ok(adapter.BuildAgent(), "the first build attaches the server")
+	Set lookup = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_lookup")
+	Set delete = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_delete_ticket")
+	If '$IsObject(lookup) || '$IsObject(delete) {
+		Do $$$AssertTrue(0, "the first build wrote the tool rows")
+		Quit
+	}
+	Set first = lookup.Fingerprint
+	Set lookup.Classification = "read-only"
+	Set delete.Classification = "risky"
+	Do ..Ok(lookup.%Save(), "zz_lookup is classified read-only")
+	Do ..Ok(delete.%Save(), "and zz_delete_ticket risky")
+	Do $$$AssertEquals(..NoticesFor(admin), 0, "no notice was sent so far")
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Do ##class(OcuTalon.Test.Mcp.Mock).Describe(..Port, "Looks up a ticket by its id.")
+	Set second = ..Runner()
+	Do ..Ok(second.Adapter.BuildAgent(), "the second build attaches the server with the changed description")
+	Set lookup = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_lookup")
+	Set delete = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_delete_ticket")
+	Set changed = ##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket by its id.", {"type": "object", "properties": {"id": {"type": "string"}}})
+	Do $$$AssertEquals(lookup.Classification _ "|" _ (lookup.Fingerprint = changed) _ "|" _ (lookup.Fingerprint '= first), "unclassified|1|1", "zz_lookup is unclassified with the new fingerprint")
+	Do $$$AssertEquals(delete.Classification, "risky", "and zz_delete_ticket, which did not change, keeps its classification")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Tool", "Tool", ..Server)
+	Do $$$AssertEquals(entries.%Size(), 1, "one Tool entry is audited")
+	If entries.%Size() {
+		Set data = entries.%Get(0).data
+		Do $$$AssertEquals(data.tool _ "|" _ data.classification _ "|" _ data.readOnly _ "|" _ data.channel, "zz_lookup|unclassified|0|system", "it says unclassified for zz_lookup on the system channel")
+	}
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "NoticeCount", admin, "mcp.toolChanged"), 1, "the admin session gets one mcp.toolChanged notice")
+	Do ..Ok(..Runner().Adapter.BuildAgent(), "a third build with no change")
+	Do $$$AssertEquals(..NoticesFor(admin), 1, "sends no further notice")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Tool", "Tool", ..Server).%Size(), 1, "and audits nothing more")
+	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
+}
+
+/// The three verbs through Commands.Submit and CommandsIn, with the production running and its McpOps item, and the runners that the add restarts.
+Method TestCommands()
+{
+	If ..Guard() Quit
+	If ..McpOpsReason() '= "" {
+		Do $$$AssertTrue(0, ..McpOpsReason())
+		Quit
+	}
+	Do ..Entry(, 1)
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set before = ..RunnerJobs()
+	Set command = ##class(OcuTalon.Msg.Command.AddMcpServer).%New()
+	Set command.Server = ..Server
+	Set command.Url = "http://127.0.0.1:" _ ..Port _ "/mcp"
+	Set command.ActingUser = ..#USER
+	Do ..Ok(##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result), "the add reaches CommandsIn")
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "1|added|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGEADDED, "the add is answered added")
+	Set row = ..Row()
+	Do $$$AssertTrue($IsObject(row), "the row exists")
+	Set resource = "OcuTalon_MCP_" _ ..Server
+	Do $$$AssertEquals(..ResourceHeld(resource), "1|1", "the resource exists and OcuTalonServiceRole holds it with U")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..Server)
+	Do $$$AssertEquals(entries.%Size(), 1, "one MCP entry names the server")
+	If entries.%Size() Do $$$AssertEquals(entries.%Get(0).data.change _ "|" _ entries.%Get(0).data.irisUser, "added|" _ ..#USER, "it says added and names the acting user")
+	Set after = ..RunnerJobs()
+	Do $$$AssertTrue(after '= before, "the runner items have new jobs")
+	Do $$$AssertEquals(..Overlap(before, after), "", "none of the runner jobs of before is still alive")
+	// a runner builds its agent on its first request, so a shadow runner stands in for the first request: its build lists the tools of the mock
+	Do ..Use("McpServersClass", ..#ATTACH)
+	Set host = ..Runner()
+	Do ..Ok(host.Adapter.BuildAgent(), "the build of a runner attaches the server that the command added")
+	Set listed = ..ToolsText()
+	Do $$$AssertEquals(listed, "zz_delete_ticket|unclassified|available,zz_lookup|unclassified|available", "as unclassified and available")
+	Set fingerprint = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_lookup").Fingerprint
+	Do $$$AssertEquals($Length(fingerprint), 44, "zz_lookup has a fingerprint")
+	// a classification keeps the fingerprint and is audited
+	Set classify = ##class(OcuTalon.Msg.Command.ClassifyTool).%New()
+	Set classify.Server = ..Server
+	Set classify.Tool = "zz_lookup"
+	Set classify.Classification = "read-only"
+	Set classify.ActingUser = ..#USER
+	Do ..Ok(##class(OcuTalon.Core.Commands).Submit(classify, "web_admin", .result), "the classification reaches CommandsIn")
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "1|saved|Saved", "it is saved")
+	Set tool = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_lookup")
+	Do $$$AssertEquals(tool.Classification _ "|" _ (tool.Fingerprint = fingerprint), "read-only|1", "zz_lookup is read-only and keeps its fingerprint")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Tool", "Tool", ..Server)
+	Do $$$AssertEquals(entries.%Size(), 1, "one Tool entry names the server")
+	If entries.%Size() Do $$$AssertEquals(entries.%Get(0).data.tool _ "|" _ entries.%Get(0).data.classification _ "|" _ entries.%Get(0).data.readOnly, "zz_lookup|safe|1", "it says safe with readOnly 1")
+	// origin tool is refused
+	Set classify = ##class(OcuTalon.Msg.Command.ClassifyTool).%New()
+	Set classify.Server = ..Server
+	Set classify.Tool = "zz_delete_ticket"
+	Set classify.Classification = "read-only"
+	Set classify.ActingUser = ..#USER
+	Do ..Ok(##class(OcuTalon.Core.Commands).Submit(classify, "tool", .result), "a classification of origin tool reaches CommandsIn")
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "0|not_allowed|" _ ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTFROMTOOL, "and is refused")
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_delete_ticket").Classification, "unclassified", "zz_delete_ticket is still unclassified")
+	// the remove
+	Set remove = ##class(OcuTalon.Msg.Command.RemoveMcpServer).%New()
+	Set remove.Server = ..Server
+	Set remove.ActingUser = ..#USER
+	Do ..Ok(##class(OcuTalon.Core.Commands).Submit(remove, "web_admin", .result), "the remove reaches CommandsIn")
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "1|removed|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGEREMOVED, "the remove is answered removed")
+	Do $$$AssertEquals(..Leftovers(), "the Config Store entry, the wallet secret, the wallet collection, a mock node or job", "the row, the tool rows, the resource and the grant are gone")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Mcp.Ops).Tools(..Server, .tools), "Tools of the server is an error")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..Server, , 2)
+	Set changes = ""
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set changes = changes _ $ListBuild(entry.data.change)
+	}
+	Do $$$AssertEquals($ListToString(changes), "added,removed", "and the removal is audited")
+	Set address = "127.0.0.1:" _ ..Port
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", , , address).%Size() + ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", , , ..Secret).%Size(), 0, "no OcuTalon audit entry holds the mock's address or the secret")
+	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "LogRowsHolding", ..LogMark, address) + $ClassMethod(..#FIXTURE, "LogRowsHolding", ..LogMark, ..Secret), 0, "and neither does the event log")
+	Do $$$AssertEquals(..WaitRunners(), 1, "the production runs every item again")
 }
 
 Method TestBridgeAlone()
@@ -296,7 +460,8 @@ Method TestReports()
 	Do $$$AssertEquals(+$Get(^||ZzMcp("report")), 3, "and every server got its report, in order")
 	Do $$$AssertEquals($Get(^||ZzMcp("report", 1)), "zzbad|{""status"":""unavailable"",""reason"":""invalid"",""tools"":[],""refused"":[]}", "an invalid name")
 	Do $$$AssertEquals($Get(^||ZzMcp("report", 2)), "zznone|{""status"":""unavailable"",""reason"":""failed"",""tools"":[],""refused"":[]}", "an entry that does not exist is failed, although its name holds a word that marks an unreachable server")
-	Do $$$AssertEquals($Get(^||ZzMcp("report", 3)), ..Server _ "|{""status"":""attached"",""reason"":"""",""tools"":[""zz_delete_ticket"",""zz_lookup""],""refused"":[""zz_steps_card""]}", "a live server lists its tools and the refused one")
+	Set fingerprints = {"zz_delete_ticket": (##class(OcuTalon.Bridge.Context).ToolFingerprint("Deletes a ticket.", {"type": "object", "properties": {"id": {"type": "string"}}})), "zz_lookup": (##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket.", {"type": "object", "properties": {"id": {"type": "string"}}}))}
+	Do $$$AssertEquals($Get(^||ZzMcp("report", 3)), ..Server _ "|{""status"":""attached"",""reason"":"""",""tools"":[""zz_delete_ticket"",""zz_lookup""],""refused"":[""zz_steps_card""],""fingerprints"":" _ fingerprints.%ToJSON() _ "}", "a live server lists its tools, the refused one and the fingerprints of the listed ones")
 	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
 	// the same with an OnAttach that throws, and a Servers that fails
 	Kill ^||ZzMcp("report")
@@ -423,14 +588,20 @@ Method Guard() As %Boolean [ Private ]
 	Quit 1
 }
 
-/// The fixtures of the registered server: the row, the mock (with the names of extra tools to offer too), the wallet entries and the Config Store entry. live 0 stops
-/// the mock again, so that the entry names a port with no listener.
+/// The fixtures of the registered server: the row, then Entry. live 0 stops the mock again, so that the entry names a port with no listener.
 Method Register(extra As %List = "", live As %Boolean = 1) [ Private ]
 {
 	Set row = ##class(OcuTalon.Mcp.Server).%New()
 	Set row.Name = ..Server
 	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Do ..Ok(row.%Save(), "the fixture row " _ ..Server _ " is saved")
+	Do ..Entry(extra, live)
+}
+
+/// The fixtures of the server that the Config Store and the mock need, without the row: the mock (with the names of extra tools to offer too), the wallet entries and
+/// the Config Store entry. live 0 stops the mock again, so that the entry names a port with no listener.
+Method Entry(extra As %List = "", live As %Boolean = 1) [ Private ]
+{
 	Do ..Ok(##class(OcuTalon.Test.Mcp.Mock).Start(.port, extra, ..#HEADER, ..Secret), "the mock starts")
 	Set ..Port = port
 	Set ..UsedPort = port
@@ -452,7 +623,11 @@ Method Remove() [ Private ]
 	If ##class(%ConfigStore.Configuration).Exists(entry) Do ##class(%ConfigStore.Configuration).Delete(entry)
 	If ##class(%Wallet.Secret).Exists(..Collection() _ ".Key") Do ##class(%Wallet.KeyValue).Delete(..Collection() _ ".Key")
 	If ##class(%Wallet.Collection).Exists(..Collection()) Do ##class(%Wallet.Collection).Delete(..Collection())
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", ..Server)
 	If ##class(OcuTalon.Mcp.Server).NameIndexExists(..Server, .id) Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
+	Do ##class(OcuTalon.Install.Step.Mcp).Revoke(..Server)
+	If ..AdminRef '= "", ##class(OcuTalon.Data.Session).RefIndexExists(..AdminRef, .session) Do ##class(OcuTalon.Data.Session).%DeleteId(session)
+	Set ..AdminRef = ""
 }
 
 /// What is left of the fixtures, as a text of places ("" when nothing): the row, the entry, the wallet secret and collection, the mock's job and its log.
@@ -460,6 +635,9 @@ Method Leftovers() As %String [ Private ]
 {
 	Set places = ""
 	If ##class(OcuTalon.Mcp.Server).NameIndexExists(..Server) Set places = places _ $ListBuild("the row")
+	If ..ToolRowCount() Set places = places _ $ListBuild("the tool rows")
+	If ..ResourceHeld("OcuTalon_MCP_" _ ..Server) '= "0|0" Set places = places _ $ListBuild("the resource or the grant")
+	If ..AdminRef '= "", ##class(OcuTalon.Data.Session).RefIndexExists(..AdminRef) Set places = places _ $ListBuild("the admin session")
 	If ##class(%ConfigStore.Configuration).Exists("AI.MCP.OcuTalon_" _ ..Server) Set places = places _ $ListBuild("the Config Store entry")
 	If ##class(%Wallet.Secret).Exists(..Collection() _ ".Key") Set places = places _ $ListBuild("the wallet secret")
 	If ##class(%Wallet.Collection).Exists(..Collection()) Set places = places _ $ListBuild("the wallet collection")
@@ -491,6 +669,97 @@ Method RowCount() As %Integer [ Private ]
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Mcp.Server")
 	Do result.%Next()
 	Quit +result.%GetData(1)
+}
+
+/// The fixture admin session (a Session row with AdminAtSignIn 1), made once for the test. Returns its Ref.
+Method MakeAdmin() As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Session).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.TraceRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Epoch = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.IrisUser = "zzmcp" _ ..Number
+	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set row.AdminAtSignIn = 1
+	Do ..Ok(row.%Save(), "the fixture admin session is saved")
+	Set ..AdminRef = row.Ref
+	Quit row.Ref
+}
+
+/// How many notices the probe recorded for the session, whatever their key.
+Method NoticesFor(session As %String) As %Integer [ Private ]
+{
+	Set count = 0
+	Set iterator = $ClassMethod(..#PROBE, "Notices").%GetIterator()
+	While iterator.%GetNext(, .notice) {
+		If notice.session = session Set count = count + 1
+	}
+	Quit count
+}
+
+/// The number of ToolClassification rows of the fixture server.
+Method ToolRowCount() As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", ..Server)
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// "<1 when the resource exists>|<1 when OcuTalonServiceRole holds it with U>", read in %SYS.
+Method ResourceHeld(resource As %String) As %String [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set exists = ''##class(Security.Resources).Exists(resource)
+	Kill properties
+	Do ##class(Security.Roles).Get("OcuTalonServiceRole", .properties)
+	Quit exists _ "|" _ (("," _ $Get(properties("Resources")) _ ",") [ ("," _ resource _ ":U,"))
+}
+
+/// "" when the production runs the McpOps item, else the reason.
+Method McpOpsReason() As %String [ Private ]
+{
+	If $ClassMethod(..#FIXTURE, "Jobs", "McpOps") = "" Quit "the production has no running McpOps item"
+	Quit ""
+}
+
+/// The alive jobs of the agent runner items, as a list of job ids.
+Method RunnerJobs() As %List [ Private ]
+{
+	Set jobs = ""
+	For item = "TriageAgent", "DiagnosisAgent", "ChatAgent", "TriageAgentRetry", "DiagnosisAgentRetry", "ChatAgentRetry" {
+		Set jobs = jobs _ $ClassMethod(..#FIXTURE, "Jobs", item)
+	}
+	Quit jobs
+}
+
+/// The job ids that are in both lists, comma-separated.
+Method Overlap(first As %List, second As %List) As %String [ Private ]
+{
+	Set both = ""
+	Set position = 0
+	While $ListNext(first, position, job) {
+		If $ListFind(second, job) Set both = both _ $ListBuild(job)
+	}
+	Quit $ListToString(both)
+}
+
+/// The tools of the fixture server as "name|classification|status" joined by commas.
+Method ToolsText() As %String [ Private ]
+{
+	Set text = ""
+	If $$$ISERR(##class(OcuTalon.Mcp.Ops).Tools(..Server, .tools)) Quit text
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		Set text = text _ $Select(text = "": "", 1: ",") _ tool.name _ "|" _ tool.classification _ "|" _ tool.status
+	}
+	Quit text
+}
+
+/// Waits until every item of the production runs. 1 when they do.
+Method WaitRunners() As %Boolean [ Private ]
+{
+	Quit $ClassMethod(..#FIXTURE, "WaitAllRun")
 }
 
 /// The names of the tools the manager lists, sorted and comma-separated.
@@ -564,7 +833,7 @@ Method LoggedSecret() As %Boolean [ Private ]
 
 /// Where the secret shows, as a text of the places ("" when nowhere). The value is looked for by containment and is never part of the text: the event log after the
 /// mark of the test, the stores of the key scan, the audit entries since the mark, the specs recorded as attached, the statuses and the catalog of the agent's manager,
-/// the fields of the fixture row and the request log of the mock. With manager 0 the agent's own manager is not asked (it lists a server that is down).
+/// the fields of the fixture row, the request log of the mock and the notices that the probe recorded. With manager 0 the agent's own manager is not asked (it lists a server that is down).
 Method Leaks(adapter As OcuTalon.Test.Bridge.ZzTurnAdapter, manager As %Boolean = 1) As %String [ Private ]
 {
 	Set secret = ..Secret
@@ -581,6 +850,8 @@ Method Leaks(adapter As OcuTalon.Test.Bridge.ZzTurnAdapter, manager As %Boolean 
 	Set row = ..Row()
 	If $IsObject(row), (row.Name _ row.CreatedAt _ row.AttachStatus _ row.AttachReason _ row.AttachedAt _ $ListToString(row.RefusedTools)) [ secret Set places = places _ $ListBuild("the row")
 	If ..Port, ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%ToJSON() [ secret Set places = places _ $ListBuild("the request log of the mock")
+	If $ClassMethod(..#PROBE, "Notices").%ToJSON() [ secret Set places = places _ $ListBuild("a notice")
+	If ..Port, $ClassMethod(..#PROBE, "Notices").%ToJSON() [ ("127.0.0.1:" _ ..Port) Set places = places _ $ListBuild("a notice, by the mock's address")
 	Quit $ListToString(places, ", ")
 }
 

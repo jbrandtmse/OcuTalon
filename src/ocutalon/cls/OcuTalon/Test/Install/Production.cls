@@ -923,7 +923,8 @@ XData Items [ MimeType = application/json ]
  {"lane": "A", "name": "Digest", "class": "OcuTalon.Digest.Process", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "ReconcileIn", "class": "OcuTalon.Install.ReconcileIn", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "CallInterval", "value": "5"}]},
  {"lane": "A", "name": "MemoryOps", "class": "OcuTalon.Memory.Ops", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
- {"lane": "A", "name": "DocumentOps", "class": "OcuTalon.Docs.Ops", "pool": 1, "enabled": 1, "stub": 0, "settings": []}
+ {"lane": "A", "name": "DocumentOps", "class": "OcuTalon.Docs.Ops", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
+ {"lane": "A", "name": "McpOps", "class": "OcuTalon.Mcp.Ops", "pool": 1, "enabled": 1, "stub": 0, "settings": []}
 ]
 }
 

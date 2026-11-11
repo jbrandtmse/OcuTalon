@@ -1124,6 +1124,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-24T18:06:19Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=measure a real MCP tool's toolref and metadata in %CanExecute (stdio, remote, JSON configuration) when step 4 registers MCP servers
 - 2026-10-24T20:53:20Z occurrence=3-2-one-gate-decides-every-tool-call
 - 2026-11-02T21:46:12Z occurrence=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv
+- 2026-11-11T11:20:24Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
 
 ### DW-175: Two tools of one class whose names differ only in underscores, hyphens or case share their CLASSIFICATION, RESOURCES and STEPLABEL parameters (StepBuffer.ToolParameter's naming rule)
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: med | footprint: in-epic
@@ -4543,6 +4544,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Decide.ToolsReadOnly reads TOOLSETS and the tool classes' CLASSIFICATION/READONLY; run-time MCP tools are known only to a live tool manager; no agent has an MCP server in this release
 - 2026-11-05T08:23:16Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=when MCP servers are attached to an agent, ToolsReadOnly must count them (unclassified or non-read-only server -> not read-only); 22.2 classifies MCP tools by server and name
+- 2026-11-11T11:20:24Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
 
 ### DW-725: A second-model retry that ends after Decide's T2 timer still points the link at its session (SaveRetried, unconditional Point): the next turn continues from an answer the user never saw, and a next turn already running loses its compare-and-set save
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-story
@@ -6281,6 +6283,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Task 0 (3) did not measure a server that accepts and never answers; AttachOne, BuildTurnManager and AI Hub's per-call tools/list run with no bound and the MCP Config Store entry takes no timeout key, so one hung server could hold a runner past Decide's timer (unmeasured)
 - 2026-11-09T09:34:17Z status=escalated owner=burndown by=cr note=needs a measurement on a throwaway (rmcp's own timeout) before a fix; fix-risk high: platform behaviour
 - 2026-11-09T22:43:24Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=merge_gate note=Contest Planner decision 2026-11-09 (owner delegation): Story 22.2 adds a bounded MCP attach timeout with a clear error; Epic 35 part merge
+- 2026-11-11T11:20:25Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
+- 2026-11-11T11:35:25Z status=routed owner=22-9-bound-mcp-attach-and-listing-with-a-timeout by=spec_gate note=Story_22.8_split_2026-11-11(runner_ruling_U5_decide):DW-1013_moved_whole_to_22.9;bullet_in_22.9's_block
 ### DW-1007: flake candidate: live:online-demo row 4 'the HTTP view of the connections was 0 and is 1 after five status GETs and five splash GETs' in CI install-fresh on feature 0ab2eef0 under a saturated queue (a lingering connection; same family as DW-987's visitor count)
 - source: CI run 42574755205 attempt 1 (feature 0ab2eef0) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code
@@ -6400,6 +6404,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T17:51:03Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=burndown note=Epic_35_part_merge_burn-down_overflow:Test.Mcp.Attach_(Lane_A)_is_extended_by_22.2's_McpOps_work;make_TestShadow's_bare-manager_AddTool_wait_for_the_mock_or_retry_once_under_load;a_red_on_a_quiet_host_makes_it_real
 - 2026-11-10T17:14:25Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run note=e6eb901d_shards-2_TestAttach_mock_tools_not_attached;passed_3x_locally(warm2,fresh1);files_reached_unchanged_since_b99d6529
 - 2026-11-10T17:23:09Z occurrence=release-1.0.6-PR10 by=orchestrator note=reported by the Contest Planner: PR #10 ci run 42847029797 iris (shards-2) shard:lane-a@rest OcuTalon.Test.Mcp.Attach TestRequestServerDown 'on a manager of its own that lists the server's tools: 0'; green on one rerun; v1.0.6 released 17:17:56Z
+- 2026-11-11T13:53:14Z status=resolved-by:22-2-classify-mcp-tools-by-server-and-name by=adjudication note=Task_0_mock_backlog_5(Mock.BACKLOG,keep-alive_-1),Loopback_green;Test.Mcp.Attach_passed_warm_and_cr;a_red_on_a_quiet_host_reopens
 
 ### DW-1041: AD-1 lets REST code write only the Session row, counters, pairing hashes and UI markers, but the step 4 contract has the MCP settings routes call SettingsOps.SaveMcpEntry/RemoveMcpEntry in the REST process to write the wallet secret and Config Store entry (ruling Q4), with no AD-1 exception recorded
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: med | fix-risk: high | footprint: out-of-footprint
@@ -6916,3 +6921,27 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: low | fix-risk: low | footprint: in-story(ci/mock/scenarios/B)
 - evidence: K29 answers the POST itself under sign-in-3; test-mock.sh passes with the file present
 - 2026-11-11T14:03:12Z status=wontfix-accepted owner=23-7-watch-queue-backlogs-between-digests by=harvest note=reopen_if=a mock-scenario consumer check flags it or a CI-mock browser unit gains a guide case (then K29 moves there and uses it)
+### DW-1133: A classified MCP tool that its server stops listing loses its ToolClassification row at the next attach with no Tool audit entry and no admin notice
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Mcp/Ops.cls SyncTools deletes rows of tools no longer listed or refused (spec matrix, Attach report row); ClearRow audits only a changed fingerprint
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=22.6's doc or an admin needs the audit log to show a classification lost to a vanished tool; fail-safe
+
+### DW-1134: docs/bridge-guide.md's McpServersClass bullet lists the OnAttach report as status, reason, tools and refused; it omits the new fingerprints member and Context.ToolFingerprint
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: bridge-guide.md:317 and its whole-line pin docker/tests/test-bridge-guide.sh:650; Ext/McpServers.cls doc states the fingerprints member (Story 22.2)
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=the guide's extension-classes section is next edited (22.6 docs) or a host reads fingerprints in OnAttach
+
+### DW-1135: No test reaches Mcp.Ops Register's Grant-failure undo, Unregister's failed-Revoke rollback, or Install.Step.Mcp.Change's resource drop when SetPair fails
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: a search of src/ocutalon/cls/OcuTalon/Test finds no path into those branches; Install.Step.Mcp has no seam to force a Security.* failure
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=a Security.Roles or Security.Resources call fails in CI or a run log, or a story adds a seam to Install.Step.Mcp
+
+### DW-1136: Install.Step.Mcp RoleResources/SetPair/SetRoleResources repeat Demo.ServiceRole's Security.Roles Get, edit and Modify of OcuTalonServiceRole's Resources (Rule 2: pattern named, no shared helper)
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Install/Step/Mcp.cls:130-187 vs Install/Step/Demo.cls:478-499; spec Extend-don't-copy names the pattern but no reason it is not shared
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=a third Get/Modify of OcuTalonServiceRole's Resources is written; then lift one helper into Install.Step
+
+### DW-1137: SetSourcePoll and RemoveSourcePoll reach McpOps, which maps neither, so CommandsIn answers failed (it answered not_built) until Story 22.5 builds them
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Mcp/Ops.cls MessageMap maps only the three verbs; CommandsIn.IsStub maps only code 5003 to not_built; spec Design Notes 17 records it
+- 2026-11-11T13:50:48Z status=by-design owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=spec Design Notes 17 states it; no UI sends them before 22.5, which adds the handlers

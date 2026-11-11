@@ -131,7 +131,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "a0c14c1c15dbc8e1aaafa253447273469c7b25b9b63ceb18fcef69d209d5d559"
+epics_md_hash: "951a0500de9186607ac5d6d41885d2f47a750090c569416fbe2e0ec298458108"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
@@ -370,7 +370,8 @@ epics:
   # [AMENDED 2026-11-11, Contest Planner ruling under the owner's delegation: real dependency is 35.1/35.2; 35.3 is independent] epic-level edge on epic-35 lifted to story level: 35.1 and 35.2 merged at 1d3cc767
   epic-22: {lane: A, depends_on: [], submodules: [],                           # real: 35.1's names; 35.2's verbs (22.2, and 22.5 and 22.7, M3); "Epic 19" is footprint only, carried by 35.1's wait
             paths_hint: ["src/ocutalon/cls/OcuTalon/Mcp/**", "src/bridge/cls/OcuTalon/Bridge/{Adapter,Policy}/**", "src/bridge/cls/OcuTalon/Bridge/{Context,Approval}.cls", "src/ocutalon/cls/OcuTalon/Tools/{CallMcp*,Email*,Result,Names}.cls", "src/ocutalon/cls/OcuTalon/Checks/**", "src/ocutalon/cls/OcuTalon/Data/BackgroundCheck.cls", "src/ocutalon/cls/OcuTalon/Fix/{Executor*,Kind/Email*}", "src/ocutalon/cls/OcuTalon/Install/Step/{Mcp,Roles}*.cls", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls", "src/ocutalon/cls/OcuTalon/Test/{Mcp,Bridge,Tools,Checks,Fix}/**", "docs/**", "ci/mock/scenarios/A/**"],
-            story_waits: {"22.4": epic-30,                  # real: the approved tool-call replay moved from 3.6 to Story 30.3 (M2)
+            story_waits: {"22.8": [], "22.9": [], "22.10": [],   # [ADDED 2026-11-11, split of 22.2 into 22.2/22.8/22.9 (runner U5) and 22.10 (Planner ruling, after 22.7); no outstanding waits]
+                          "22.4": epic-30,                  # real: the approved tool-call replay moved from 3.6 to Story 30.3 (M2)
                           "22.5": [epic-17, epic-30],       # real: the coverage list's sources section and digest; the `tool` request path, 30.3 (M2)
                           "22.6": epic-14,                  # real: regenerates Epic 14's security overview
                           "22.7": epic-14}}                 # real: the overview lists the email tool
