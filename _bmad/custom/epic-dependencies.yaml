@@ -400,14 +400,19 @@ epics:
                           "26.3": epic-19,                  # real: the save-memory command and memory
                           "26.4": [epic-14, epic-23, epic-25]}}   # real: the overview; step 5's approval kinds; AnswersIn's not_allowed, 25.5
 
-# Step 7 (Could), after the contest (owner, 2026-10-31, U-195: "so we can ship them as soon as possible"). Kept verbatim for
-# after the contest; never dispatched in this run. The orchestrator reads candidates from epics: only.
-post_contest:
+  # [AMENDED 2026-11-11, owner: "continue steps 4-7"; Contest Planner ruling] Epics 27 and 28 moved from post_contest: into epics:;
+  # priority last (after steps 4-6) unless a lane would otherwise idle; edges at story level:
+  #   27.1, 27.2 (Slack): no epic edge (epic-35 lifted to 35.1/35.2, merged 1d3cc767). Slack never runs on the online demo.
+  #   28.1: creates its own DraftTransform verb (as 23.2 created ProposeFix), so it no longer waits on 27.1; real deps = merged diagnosis and incident stories.
+  #   28.2: no edge beyond merged memory (epic-19 recall, merged).
+  #   28.3: waits only on the merged 35.1 Mcp names (was [epic-14, epic-22]); its new web application, role and resource are a veto item; OFF on the online demo.
+  #   epic-28 epic-level edge on epic-23 lifted to story level: 23.6 (incident summary) merged at b896ef39.
   # [AMENDED 2026-11-11, Contest Planner ruling under the owner's delegation: real dependency is 35.1/35.2; 35.3 is independent] epic-level edge on epic-35 lifted to story level: 35.1 and 35.2 merged at 1d3cc767
   epic-27: {lane: pool, depends_on: [], submodules: [],                        # Lane B's files; real: the /ocutalon/hook application, 35.2 (was 21.1); "Epic 25" was order only
             paths_hint: ["src/ocutalon/cls/OcuTalon/Channel/Slack/**", "src/ocutalon/cls/OcuTalon/Web/Hook*.cls", "src/ocutalon/cls/OcuTalon/Core/Rule/Notify*.cls", "src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls", "src/ocutalon/cls/OcuTalon/Msg/Command/DraftTransform*.cls", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls", "web/src/app/settings/**", "ci/mock/mock.mjs", "ci/mock/scenarios.mjs", "ci/mock/scenarios/B/**", "ci/mock/test/**", "ci/compose.ci.yml", "README.md", ".env.example", "src/ocutalon/cls/OcuTalon/Test/{Channel,Core}/**"]}   # v2: 27.1 creates the DraftTransform verb (L3); v3: ci/mock/** narrowed to 27.2's Slack API mock: the mock's routing (mock.mjs), a slack match type (scenarios.mjs), B scenarios, the mock's tests and the CI override's Slack base URL (inference)
-  epic-28: {lane: A, depends_on: [epic-23], submodules: [],                           # real: the incident summary, 23.6; "Epic 26" was order only; pool-eligible (inference)
+  epic-28: {lane: A, depends_on: [], submodules: [],                           # real: the incident summary, 23.6; "Epic 26" was order only; pool-eligible (inference)
             paths_hint: ["src/ocutalon/cls/OcuTalon/Watch/**", "src/ocutalon/cls/OcuTalon/Fix/Draft*.cls", "src/ocutalon/cls/OcuTalon/Memory/**", "src/ocutalon/cls/OcuTalon/Data/Memory.cls", "src/ocutalon/cls/OcuTalon/Mcp/Service*.cls", "src/ocutalon/cls/OcuTalon/Install/{Step/Mcp,Task}*", "src/ocutalon/cls/OcuTalon/Test/{Fix,Memory,Mcp}/**", "ci/mock/scenarios/A/**", "docs/**"],
-            story_waits: {"28.1": epic-27,                  # real (v2, L3): the DraftTransform verb Story 27.1 creates, which 28.1's chat path submits
-                          "28.2": epic-19,                  # real: memory recall and Data.Memory
-                          "28.3": [epic-14, epic-22]}}      # real: the overview; the Mcp area's installer step
+            story_waits: {"28.2": epic-19}}                 # real: memory recall and Data.Memory (merged); 28.1 and 28.3 have no outstanding wait (see the note above)
+
+# Step 7 moved into epics: on 2026-11-11 (owner: "continue steps 4-7"; Contest Planner ruling). Nothing remains post-contest.
+post_contest: {}
