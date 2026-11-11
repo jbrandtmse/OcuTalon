@@ -10,7 +10,7 @@
 ///   - DryRun refuses a production with no contact (NOCONTACTS) and a to that is not the contacts' addresses; its answer is {"notice", "recipients": [{"name", "address"}],
 ///     "simulated": 1}. Ready is 0 with NOTSETUP when demo mode is off, so that an approved notice is kept as a draft and says so.
 ///   - Recheck and Execute read each target against the fixture again: it passes only if the id still is a contact of the production and has the address at its position in to;
-///     else it is skipped with a plain reason that names it. Execute sends nothing: its result is {"deliveries": [{"id", "name", "address"}], "skipped": [{"id", "reason"}]},
+///     else it is skipped with a plain reason (RECHECK naming the contact, or NOSTART for an id the fixture does not name). Execute sends nothing: its result is {"deliveries": [{"id", "name", "address"}], "skipped": [{"id", "reason"}]},
 ///     and the executor delivers the approved text from the row. Lane A.
 Class OcuTalon.Fix.Kind.PartnerWarning Extends OcuTalon.Fix.Kind
 {
@@ -49,6 +49,9 @@ Parameter ALLOWANCE = "The online demo allows 20 simulated emails an hour, and t
 Parameter RECHECK = "{name} is no longer a partner contact of {production}";
 
 Parameter NOSTART = "OcuTalon couldn't deliver the delay notice";
+
+/// The reason of a run that failed before anything was sent (the executor's NOREAD for this kind): the same words as NOSTART.
+Parameter NOREAD = "OcuTalon couldn't deliver the delay notice";
 
 /// The input of the draft, built from the incident's rows and the fixture only (see the class description): one line each for the partner, the production, the failed items,
 /// the failures, the first and the last failure and, when the incident has one, the cause.
@@ -171,7 +174,8 @@ ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicOb
 }
 
 /// The test of Recheck and Execute: deliveries holds {"id", "name", "address"} for each target that is still a contact of the production with the address at its position in
-/// to, skipped holds {"id", "reason"} for each other target. Parameters that don't pass CheckParameters skip every target with NOSTART. It changes nothing.
+/// to, skipped holds {"id", "reason"} for each other target: RECHECK with the contact's name for a contact whose address is not the one at its position, NOSTART for an id that the
+/// fixture does not name (no name is known for it). Parameters that don't pass CheckParameters skip every target with NOSTART. It changes nothing.
 ClassMethod Plan(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output deliveries As %DynamicArray, Output skipped As %DynamicArray) As %Status [ Private ]
 {
 	Set deliveries = []
@@ -185,9 +189,10 @@ ClassMethod Plan(incident As OcuTalon.Data.Incident, parameters As %DynamicObjec
 			Do skipped.%Push({"id": (+id), "reason": (..#NOSTART)})
 		} ElseIf $IsObject(contact) && (contact.address = $Piece(parameters.%Get("to"), ",", i)) {
 			Do deliveries.%Push(contact)
+		} ElseIf $IsObject(contact) {
+			Do skipped.%Push({"id": (+id), "reason": ($Replace(..Reason(..#RECHECK, incident), "{name}", contact.name))})
 		} Else {
-			Set name = $Select($IsObject(contact): contact.name, 1: "Partner contact "_id)
-			Do skipped.%Push({"id": (+id), "reason": ($Replace(..Reason(..#RECHECK, incident), "{name}", name))})
+			Do skipped.%Push({"id": (+id), "reason": (..#NOSTART)})
 		}
 	}
 	Quit $$$OK

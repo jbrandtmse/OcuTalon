@@ -15,7 +15,7 @@
 ///     not_found and an incident that was not noticed is not_allowed; none starts a draft;
 ///   - TestAllowance (AC10): on the online demo a session with 19 incoming emails and notices is allowed one more notice, with 20 it is refused with ALLOWANCE, a sent notice counts, and the flag off lifts it;
 ///   - TestDraftFails (AC12): a fallback, an error answer, an answer that is no Reply, an empty text, a text over 1000 characters, a refused dry run, a failed raise and a request to Decide that cannot be sent each raise nothing and
-///     tell the session result.partnerNotDrafted, with no ApprovalRef, which renders as ruled;
+///     tell the session result.partnerNotDrafted, with no ApprovalRef, which renders as ruled; a usable answer for an incident that was closed while the draft ran raises nothing and tells nobody;
 ///   - TestDraftCompletionRouting (AC12): Decide's answer and its error reach Drafted through the draft's completion key of OnResponse and OnError (an error under another key stays an error, an answer
 ///     under another key does nothing), as the framework calls them;
 ///   - TestStateNeverMoves (AC5, AC9): the approved, rejected, expired and result events of a partner request, on a resolved and on an open (rejected) incident, tell the session and leave the state and the open variant
@@ -321,6 +321,13 @@ Method TestDraftFails()
 		Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 		Do $$$AssertEquals(stored.State_"|"_stored.RequestRefs, "resolved|", case_": the incident is as it was")
 	}
+	Set closed = ..Incident(owner, "closed")
+	Set host.FailRaise = 0
+	Set host.DryAnswer = ..RealAnswer(closed, "A notice.")
+	Set sent = ..Count(host.Sent)
+	Set raised = ..Count(host.Raised)
+	Do $$$AssertStatusOK(host.EndDraft(..Draft(closed, owner), ..Reply("A notice.")), "the end of a draft whose incident was closed while it ran is handled")
+	Do $$$AssertEquals((..Count(host.Raised) - raised)_"|"_(..Count(host.Sent) - sent), "0|0", "it raises nothing and tells nobody: a closed incident is left alone")
 	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render("result.partnerNotDrafted", {}, "phone", .sc), "I couldn't draft the delay notice just now, so nothing was raised or sent. You can ask me again.", "the notice renders as ruled")
 	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render("result.partnerNotDrafted", {}, "web", .sc), "I couldn't draft the delay notice just now, so nothing was raised or sent. You can ask me again.", "for the web chat too")
 }

@@ -4,13 +4,14 @@ Include Ensemble
 /// production's jobs must hold the new code), with demo mode on, through Test.Watch.Case and the CI mock as the model: a turn of the Chat agent asks for the warning (the mock's marker scenario partner-warning), the
 /// real CommandsIn, IncidentManager, Decide (the draft is a second turn, whose input carries the marker partner-notice in the incident's cause, so the mock answers it with its notice), FixExecutor, WebChatOut and
 /// SimMailboxOut do the rest, for sessions that have a Session row and a resolved incident on the Orders production.
-///   - TestAskedTurnRaisesWithinBounds (Task 0; AC1, AC11): the first case. The turn "Warn the partner about the delay." with [[mock:partner-warning]]: the one tool step is ok, the model's next request reads outcome
+///   - TestAskedTurnRaisesWithinBounds (Task 0; AC1, AC11): the turn "Warn the partner about the delay." with [[mock:partner-warning]]: the one tool step is ok, the model's next request reads outcome
 ///     drafting, and one partner_warning request is raised for the incident, pending, fixed to contact 1, holding the mock's text and the recipient, within 20 seconds of the turn's end (the measured delays are logged:
 ///     the asking turn runs on ChatAgent, whose pool is 1, so the draft's turn waits for it); the incident is as it was; WebChatOut recorded the session's approval Delivery for the request and a second session has none;
 ///   - TestApprovedNoticeIsSentByteForByte (AC4, AC5, AC9, AC11): the request is approved: one mail reaches the session's Simulated mailbox with the Text of the row byte for byte, Sender OcuTalon, the subject of partner.subject and
 ///     the request's Ref, and one mailbox event is published to that session only; the request is done, its FixRun counts 1 total, 1 completed and no copy, the audit log holds one Action entry that names the contact id and no address, the
 ///     session gets result.partnerSent, and the incident is still resolved;
 ///   - TestDemoModeOffKeepsTheNotice (AC6): the request is approved while demo mode is off: it could not start with the NOTSETUP reason, no mail is saved, the row keeps the text, and the session gets result.partnerKept;
+///     after it, demo mode is put back and the test waits until the production's jobs read it again (Data.Setting's cache), so that no later case runs with demo mode off;
 ///   - TestInjectedTurn (AC8): in an untrusted turn (the mock's partner-warning-injected, whose input names an address of an attacker) propose_fix is denied with UNTRUSTED: no command reaches CommandsIn, no request or draft exists and no mail goes to any address;
 ///   - TestSecondSessionAsks (AC8, AC11): a session that has no incident of its own is told that there is no open incident to warn about, and nothing is drafted or raised for the first session's incident.
 Class OcuTalon.Test.Fix.PartnerTurns Extends OcuTalon.Test.Watch.Case
@@ -45,6 +46,8 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ##class(OcuTalon.Test.Demo.Step).PutBack(..DemoFound, ..DemoWas, ..DemoWasAt)
+	// the production's jobs keep the demo.mode they read for CACHESECONDS: wait until the value put back reaches them
+	If testname = "TestDemoModeOffKeepsTheNotice" Hang $Parameter("OcuTalon.Data.Setting", "CACHESECONDS") + 2
 	Quit ##super(testname)
 }
 

@@ -33,7 +33,7 @@
 ///   - TestProductionName: the title names the demo production by its display name (Orders), and a production that is not listed by its class name;
 ///   - TestText: the stored summary is read back through Watch.Summary.Text, and an incident without one gives an error status.
 ///   - TestKindLines (Story 23.2, AC14): the requested and ended lines of the suspend, resume and reroute requests, with no message counts for the item runs;
-///   - TestPartnerLines (Story 23.5, AC13): the requested line (with the number of recipients) and the sent, kept or not sent line of each delay notice, the message counts unchanged and "No fix ran" kept.
+///   - TestPartnerLines (Story 23.5, AC13): the requested line (with the number of recipients) and the sent, kept or not sent line of each delay notice, with no "the fix started" line, the message counts unchanged and "No fix ran" kept.
 /// The fixture rows are removed after each test.
 Class OcuTalon.Test.Watch.Summary Extends %UnitTest.TestCase
 {
@@ -732,6 +732,7 @@ Method TestPartnerLines()
 	Do $$$AssertEquals($Length(keys, "summary.partnerKept") - 1, 1, "the kept one with summary.partnerKept")
 	Do $$$AssertEquals($Length(keys, "summary.partnerNotSent") - 1, 1, "and the one that reached nobody with summary.partnerNotSent")
 	Do $$$AssertEquals($Length(keys, "summary.fixEnded") - 1, 0, "none of them has the counts line")
+	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 0, "nor a line that says a fix started: a delay notice is not a fix")
 	Do $$$AssertEquals($Length(keys, "summary.requested,") - 1, 0, "nor the repair's requested line")
 	Do $$$AssertEquals($Length(keys, "summary.noFixRan") - 1, 1, "a delay notice is not a fix, so the summary still says that no fix ran")
 	Do $$$AssertEquals(..Slots(row, "summary.requestedPartner").count, 1, "the requested line counts the recipients")

@@ -2,7 +2,7 @@
 title: 'Story 23.5: Draft partner delay notices that are sent only after approval'
 type: 'feature'
 created: '2026-11-09'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '10f53487e894b7bc8e5f01489ee28aa8dc336f4f'
 baseline_commit: '10f53487e894b7bc8e5f01489ee28aa8dc336f4f'
 review_loop_iteration: 0
@@ -207,7 +207,50 @@ deferred:
 - AC-NOTDRAFTED-WEB: Given a draft that fails, when `result.partnerNotDrafted` is sent, then the web chat shows it as a notice card (as well as the Simulated phone and Telegram), with a test.
 - AC-S6P: Given the release evaluation, when the cases where the user didn't ask run (injection included), then no `partner_warning` request is raised.
 
+### Review Findings
+
+Code review 2026-11-11 (epic-cycle code-review stage; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; review_mode full; baseline `10f53487`, plus QA's uncommitted changes). 1 high, 5 medium and 6 low were acted on; 19 were rejected or closed (appendix).
+
+- [x] [Review][Patch] (high) A target the fixture does not name was reported as "Partner contact {id} is no longer a partner contact of ...", a user-facing string not in `## Public Text` (it reaches `result.partnerNotSent`/`partnerSentSome`, the phone, Telegram and the web band). Fixed: such a target is skipped with the ruled NOSTART reason; RECHECK keeps naming a real contact [src/ocutalon/cls/OcuTalon/Fix/Kind/PartnerWarning.cls:Plan]
+- [x] [Review][Patch] (medium) `Executor.Run` sent `FixParameters.text` with no check against `DryRun.notice`, the text the approver was shown (AD-16, the "approval covers the exact text" ruling, matrix row "Tampered row"). Fixed: `AsApproved` requires them equal, character for character; otherwise the run could not start with NOSTART and nothing is sent [src/ocutalon/cls/OcuTalon/Fix/Executor.cls:Run, AsApproved]
+- [x] [Review][Patch] (medium) The incident summary wrote `summary.fixStarted` ("the fix started.") before every delay notice's end line, contradicting "a delay notice is not a fix" (AC13, Decided 12). Fixed: a contact run has its end line only (an interrupted one reads as not sent), and `TestPartnerLines` pins the absence [src/ocutalon/cls/OcuTalon/Watch/Summary.cls:RunEvents]
+- [x] [Review][Patch] (medium) `Test.Fix.PartnerTurns:TestDemoModeOffKeepsTheNotice` left the production's jobs reading demo mode off for up to `CACHESECONDS` after `PutBack`, so its neighbours were green by name order only (Rule 19 hermeticity). Fixed: `OnAfterOneTest` waits out the cache after that case [src/ocutalon/cls/OcuTalon/Test/Fix/PartnerTurns.cls:OnAfterOneTest]
+- [x] [Review][Patch] (medium) AC14's "a second session sees ... the mailbox message" was not checked over real HTTP. Fixed: A13 seeds one sent notice mail for this session and one for the second, and `GET /api/v1/state` lists the first (the control) and not the second [web/e2e/cards/approval-card.spec.ts:A13]
+- [x] [Review][Defer] (medium) Approve-then-close loses the notice's outcome: an Execute that reaches FixExecutor after the Dismiss is refused as unusable, and a result that comes back after it is dropped by `Aside`. Same root cause as DW-1108 (occurrence added); DW-1108 re-dispositioned `decision-pending` (owner burndown, for the decision sheet) with the recommendation that `Aside` still tells the result on a closed incident, with the existing texts and no state move [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:Aside] — deferred: a product call on the user-facing outcome
+- [x] [Review][Patch] (low) `Drafted`'s closed-incident guard had no test. Added to `TestDraftFails` [src/ocutalon/cls/OcuTalon/Test/Fix/PartnerDraft.cls]
+- [x] [Review][Patch] (low) A partner run that throws used the executor's default NOREAD ("couldn't read the failed messages in that production"). Fixed: the kind's NOREAD has NOSTART's ruled words [src/ocutalon/cls/OcuTalon/Fix/Kind/PartnerWarning.cls]
+- [x] [Review][Patch] (low) The fixture's no-write check looked only for methods named Save, Add and Set, and PartnerTurns' "fixture unchanged" cannot fail. Fixed: `TestNoContacts` pins the fixture's whole method list (all readers) [src/ocutalon/cls/OcuTalon/Test/Fix/PartnerWarning.cls:TestNoContacts]
+- [x] [Review][Patch] (low) `Test.Demo.Guide:TestPartnerRequestKeepsTheGuideFinished`'s comment promised a second-session case it does not have. Comment corrected [src/ocutalon/cls/OcuTalon/Test/Demo/Guide.cls]
+- [x] [Review][Patch] (low) `Test.Fix.PartnerTurns` called `TestAskedTurnRaisesWithinBounds` "the first case"; by name order it runs second. Comment corrected (Task 0's 0.25 s stays far inside its 20 s bound) [src/ocutalon/cls/OcuTalon/Test/Fix/PartnerTurns.cls]
+- [x] [Review][Patch] (low) AC15's mutation line named a source-text test, not an executing pin. Closed in-pass: the mutation went red on K9c in `live:sign-in-3 --part 1/2` (`## Verification`)
+
+Rejected or closed (appendix):
+- `Agent/Chat.cls`'s line covers only `refused` (blind): by-design, the Planner-approved text verbatim; the other outcomes come with their own CommandResult message.
+- Decided 13 overstates `aboutFix` (blind, edge): false as a code defect. A resolved card shows the diagnosis's fix sentence with or without a partner request (pre-existing); `aboutFix` only keeps a partner request from hiding a chat-kind request's sentence. The fix would be a spec edit.
+- The draft's cost is not in the summary's "Model cost of this incident" (blind): low, `wontfix-accepted` (DW-1112). The draft is a turn owned by the asking session and counted on its Usage, like the chat turn that asked for it; no column links it to the incident.
+- NOTSETUP is matched by its text in three places (blind): low. FixResult's fields are fixed, so a flag means a new field; the server and web tests both pin the ruled text.
+- `chat-view.ts` `bareResult` shows any result with a ref and no approvalRef (blind): false. Only `WebChatOut.ToolCallCard`'s partnerNotDrafted clause publishes such a row with a card ref.
+- Spec record slips (TelegramIn in Auto Run Result, "ten items"/"line 30" in Shared surfaces) (blind): the fix is a spec edit.
+- `Plan` reads `to` by the position in the subset it is given (edge): `wontfix-theoretical` (DW-1110). The fixture has one contact.
+- An interrupted contact run would read `result.interrupted` (edge): `wontfix-theoretical` (DW-1111). Needs a restart inside a few synchronous sends; the summary side is fixed above.
+- `SendNotice` has no timeout (edge): `wontfix-theoretical`. Becomes real only if SimMailboxOut's job hangs on its own save.
+- The Telegram press says it is sending after demo mode was switched off (edge): low. The press text is ruled, and `result.partnerKept` follows at once.
+- `propose_fix`'s item is optional now, so an item kind without one gets the base check's technical refusal (gap): low, `wontfix-accepted`. The refusal is safe (nothing raised) and goes to the model. reopen_if: a transcript shows `propose_fix` for an item kind without an item.
+- PartnerTurns' "no request"/"no mail" cannot tell a gate failure from NOITEM (gap): false. The `UNTRUSTED` step assertions pin AC8's gate.
+- The guide test cannot see the step-4 defect (gap): already DW-1109.
+- Lane B files outside the AD-33 list (acceptance): false as a HIGH. Each one is named elsewhere in this spec. README and the `B/` mock scenarios are in Tasks. `Channel/WebChat/Out.cls`, `chat-view.ts` and `Test.Core.WebChatOut` are the lead's recorded seam for the Planner's AC-NOTDRAFTED-WEB condition, and `web/e2e/chat/notice.spec.ts` N21 is that condition's test. `web/e2e/support/iris.ts` is in the Code Map's A13 helpers. `Live/Payload/Part/IncidentRequest.cls` is the incident payload's request part (listed "if needed", comment only). `Msg/Command/ProposeFix.cls` is the verb that 23.2 created under the spine's Lane A ruling (comment only). The Veto-window list itself is incomplete as a record; that is for the lead.
+- EXPERIENCE.md's "On the online demo only the reroute is offered" (acceptance): low. It is 23.2's ruled line about its own kinds; rewording it would be unruled text.
+- AC15's browser case is not end to end (acceptance): by-design (Decided 20).
+- `phone-request-sources.test.mjs` was not extended (acceptance): low. The phone takes its names from `approvalView`, which `approval-view.test.mjs` pins.
+- `DRAFTSUBJECT` "Partner delay notice" is not in Public Text (acceptance): false. The Tasks name it as the carrier's Subject; it is trace-only.
+- Task 0 was measured after a warm-up case (gap): low; the comment is corrected above.
+
+**Smoke rework (iteration 1):**
+- [ ] [Smoke] `Test.Channel.TelegramChat:TestNotices` fails on a warm stack: "there are 28 Watch notice keys" and "there are 34 of them". This story added `incident.partnerRequest` and `result.partner*` keys to `Msg/Catalog/Watch.cls`, and the test pins the count of the catalog's `incident.`/`result.` keys and the Telegram Delivery rows (Rule 19 shared surface, missed by implement, QA and review). Update the pins to what the catalog now holds, with each new key sending as the others do (the request key counts as an `approval` row, as 23.2's three request keys do); run the class on a stack and write its mutation line. No product change.
+
 ## Spec Change Log
+
+- 2026-11-11 (runner): lead smoke found the TelegramChat TestNotices shared-surface pin red; spec re-opened for rework iteration 1 with that [Smoke] item.
 
 - 2026-11-10 (runner): lead note before implement: 23.2 delivered (build on its code), More to try groups and count twelve, 37.2 interplay, spine lines written.
 
@@ -505,6 +548,25 @@ Every test added or changed passes on a fresh environment, in either order.
   - mutation: `WatchTools.ProposeFix` never maps no_incident to NOWARNING for a partner_warning -> `Test.Watch.Tools:TestProposePartnerWarning` red (AC-NOOPEN)
   - mutation: `WebChat.Out.ToolCallCard` drops the clause for `KEYPARTNERNOTDRAFTED` -> `Test.Core.WebChatOut:TestPartnerNotDraftedCard` red; `bareResult` in `chat-view.ts` forced false -> `web/scripts/chat-view.test.mjs` red (AC-NOTDRAFTED-WEB)
   - mutation: `IncidentManager.Asked` stops refusing a session that is not a recipient (the eval session) -> `Test.Eval.Report:TestPartnerRequestIsCounted` (and `TestRaisedFixRequestIsCounted`) red (AC-S6P)
+
+**QA stage (2026-11-10; (QA) marks what it added; fresh tag `e23s5q`, warm tag `e23s5qw`):**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerWarning.cls`, two methods added (warm, no production):
+  - `TestNoticeTextIsNeverAltered` (AC4): a notice with diacritics, an en dash, CJK, a check mark, a percent sign, template-like braces, markup, quotes and a backslash reaches the mailbox as the mail's Text character for character and byte for byte. An emoji (above U+FFFF) is left out: `Fix.Kind.PartnerWarning.Normalise` does not keep it, so a drafted notice never holds one (inference, not measured separately).
+    - mutation: `OnPartnerNotice` replaces the en dash with a hyphen -> `Test.Fix.PartnerWarning:TestNoticeTextIsNeverAltered` red (the older `TestApprovedNoticeIsSentByteForByte` stays green on that change; reverted, green again on the same warm stack)
+  - `TestClassTextsClaimNoRealEmail` (AC16): the texts that live in classes (the kind's NOTSETUP, NOCONTACTS, NOITEM, ALLOWANCE, RECHECK and NOSTART, `IncidentManager` MESSAGEDRAFTING and `WatchTools` NOWARNING) hold no phrase that says or implies a real email was sent.
+    - mutation: `PartnerWarning` NOSTART reads "... the delay notice by email" -> `Test.Fix.PartnerWarning:TestClassTextsClaimNoRealEmail` red (reverted, green again)
+- (QA) `web/e2e/chat/notice.spec.ts`, case `N21` added (AC-NOTDRAFTED-WEB, in the browser): a `result.partnerNotDrafted` Notification through the real NoticesIn, Notify and WebChatOut shows as a notice card of the chat with the ruled text, the info icon, no heading, strip or button, and again after a reload. Run locally after `ci/iris.sh build`: `OCUTALON_LIVE_DEADLINE=1500 ci/iris.sh live sign-in --part 5/12` (the part that holds `chat/notice.spec.ts`; 21 passed, N21 included).
+  - mutation: `Channel.WebChat.Out.ToolCallCard` without the `KEYPARTNERNOTDRAFTED` clause -> `notice.spec.ts` N21 red on a fresh stack (20 passed, 1 failed; reverted, the tree is byte-identical)
+- QA runs: `OcuTalon.Test.Fix.PartnerWarning` passed on the warm stack (13 methods); `node --test web/scripts/*.test.mjs` 1830 pass; `npm --prefix web run lint`; `bash docker/tests/test-{boundaries,class-rules,ci-config,readme}.sh` pass. `ci/units.sh` is unchanged.
+- **Code review (2026-11-11; warm tag `e23s5cw`, fresh tag `e23s5c`).** Each mutation was applied, the red observed and reverted, and `git status --short` and the `git diff` hash checked identical. The class was then green again on the same warm stack.
+  - mutation: `Executor.Run` skips `AsApproved` -> `Test.Fix.PartnerWarning:TestTamperedRowSendsNothing` red (AC4, AC8: only the approved text is sent)
+  - mutation: `Plan` names an unknown target "Partner contact {id}" again -> `Test.Fix.PartnerWarning:TestRecheck` and `TestTamperedRowSendsNothing` red (AC3, Public Text)
+  - mutation: `PartnerWarning` without `NOREAD` -> `Test.Fix.PartnerWarning:TestContract` and `TestClassTextsClaimNoRealEmail` red
+  - mutation: `Summary.RunEvents` writes `summary.fixStarted` for a contact run -> `Test.Watch.Summary:TestPartnerLines` red (AC13)
+  - mutation: `Drafted` without its closed-incident guard -> `Test.Fix.PartnerDraft:TestDraftFails` red
+  - mutation (AC15, corrects the line above): the `partnerWarning` press sends nothing -> `web/e2e/guide/more-to-try.spec.ts` K9c red in `ci/iris.sh live sign-in-3 --part 1/2` on a rebuilt bundle (126 passed, 1 failed: K9c only). The bundle was reverted and rebuilt.
+  - Runs: warm, every class passed: `Test.Fix.PartnerWarning`, `PartnerDraft`, `Kind`, `Refused`, `Asked`, `Executor`, `ItemKinds`, `Test.Watch.Summary`, `Incidents` and `Test.Demo.Guide`. Fresh: `Test.Fix.PartnerTurns` passed (143.5 s, with the added 62 s wait). `ci/iris.sh live cards`: 30 passed, A13 included, with its new mailbox control. Also passed: `node --test web/scripts/*.test.mjs` (1830 pass), `npm --prefix web run lint`, and `bash docker/tests/test-{boundaries,readme,class-rules}.sh`.
+- QA reads, no change needed: AC14's A13 already uses the `request` fixture (own cookie jar, never `page.request`) as the `OcuTalonUser`-only fixture user with a second-session check (404 and still pending); AC-NOOPEN is pinned by `Test.Watch.Tools:TestProposePartnerWarning` and `Test.Fix.PartnerTurns:TestSecondSessionAsks`; AC-S6P by `Test.Eval.Report:TestPartnerRequestIsCounted`; the allowance count by `Test.Core.Allowance:TestMailAllowedCountsPartnerNotices`; the web texts by `approval-view.test.mjs` ("never says or implies that a real email was sent").
 
 ## Auto Run Result
 

@@ -9,9 +9,12 @@ import { CARD_MS, HEADER, applied, composerOf, mainOf, unique, loadedAfter } fro
 import {
   answerHeaders,
   answerQuietly,
+  chk,
   cleanFixtureRows,
   fixtureUser,
+  irisScript,
   publishIncident,
+  quoted,
   readApproval,
   seedApproval,
   seedOtherSession,
@@ -456,7 +459,7 @@ test('A12: a reroute request carries its fixKind and dry run over real HTTP, a s
 /**
  * A13 (Story 23.5, AC14): a partner delay notice over real HTTP, as the unprivileged cards user (OcuTalonUser only) through the `request` fixture (http). GET /api/v1/state lists the request in the rail with its fixKind and
  * the dry run's notice, recipients and simulated; a reject over the answer route answers 200 with the same fixKind, notice, recipients and simulated; and a second session's partner request is in neither this user's state nor its
- * answer route, whose answer is 404 and leaves it pending. Then, in the page, the card of a second request shows the To line with the Simulated label, the exact notice and the note, the buttons are named "send a delay notice", and,
+ * answer route, whose answer is 404 and leaves it pending; the sent mail of this session's notice is in this user's mailbox and the second session's is not. Then, in the page, the card of a second request shows the To line with the Simulated label, the exact notice and the note, the buttons are named "send a delay notice", and,
  * once the incident carries the finished runs, the bands read "Sent to the Simulated mailbox." and the kept-as-a-draft sentence.
  */
 test('A13: a partner delay notice carries its notice and recipients over real HTTP, a second session sees none of it, and the card shows them as simulated', async ({ page, request: http }) => {
@@ -481,6 +484,13 @@ test('A13: a partner delay notice carries its notice and recipients over real HT
     expect(found?.dryRun?.notice, 'and the exact notice').toBe(notice);
     expect(found?.dryRun?.recipients, 'each recipient').toEqual([recipient]);
     expect(found?.dryRun?.simulated, 'and that it is simulated').toBe(true);
+    const ownMail = `A13 notice of this session ${Date.now().toString(36)}.`;
+    const theirMail = `A13 notice of the second session ${Date.now().toString(36)}.`;
+    rows.push(await seedNoticeMail(user, mine, ownMail));
+    rows.push(await seedNoticeMail(user, theirs, theirMail, other));
+    const mailbox = ((await (await http.get(STATE)).json()) as { mailbox?: Array<{ text?: string }> }).mailbox ?? [];
+    expect(mailbox.map((one) => one.text), 'this session\'s sent notice is in its Simulated mailbox').toContain(ownMail);
+    expect(JSON.stringify(mailbox), 'and the second session\'s is not').not.toContain(theirMail);
     expect(JSON.stringify(state.rail.approvals), 'the second session\'s request is not in this user\'s state').not.toContain(theirs);
     const stranger = await post(http, `/ocutalon/api/v1/approvals/${theirs}/answer`, { action: 'reject', channel: 'web' });
     expect(stranger.status(), 'and its answer route is 404').toBe(404);
@@ -521,6 +531,24 @@ test('A13: a partner delay notice carries its notice and recipients over real HT
     await cleanFixtureRows(rows);
   }
 });
+
+/**
+ * Writes one sent mail of a delay notice in a Simulated mailbox (Test.Data.Fixture.SimMessage: Kind mailbox, direction out, Sender OcuTalon and the request's ApprovalRef), the user's own session's
+ * unless a fixture session's Ref is given; its Ref, which cleanFixtureRows removes.
+ */
+async function seedNoticeMail(user: string, approvalRef: string, text: string, sessionRef?: string): Promise<string> {
+  const fields = { Kind: 'mailbox', Direction: 'out', Sender: 'OcuTalon', Subject: 'Simulated delay notice to Results Partner IT <it@results-partner.example>', Text: text, ApprovalRef: approvalRef };
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
+      `Set r=##class(OcuTalon.Test.Data.Fixture).SimMessage(${sessionRef === undefined ? 's.Ref' : quoted(sessionRef)},##class(%DynamicObject).%FromJSON(${quoted(JSON.stringify(fields))}))`,
+      'Write !,"CHK|mail|",r',
+    ].join('\n'),
+  );
+  const ref = chk(lines, 'mail');
+  if (!ref) throw new Error(`the mail could not be seeded (${lines.join(' ')})`);
+  return ref;
+}
 
 /**
  * A8: the replies that are not an answer. Each reply of the answer route is fulfilled by the test: a 500 shows its own message, a

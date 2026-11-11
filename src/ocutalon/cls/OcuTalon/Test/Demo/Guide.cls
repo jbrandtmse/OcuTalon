@@ -300,7 +300,7 @@ Method TestFinished()
 }
 
 /// A partner delay notice (Story 23.5; AC9) never moves the incident, so the guide stays finished whatever state such a request is in: a finished guide's resolved incident with a pending, approved, done,
-/// failed, rejected or expired partner request, and a closed one with its summary, read as they did before the request, and a request of another session's incident changes nothing.
+/// failed, rejected or expired partner request, and a closed one with its summary, read as they did before the request.
 Method TestPartnerRequestKeepsTheGuideFinished()
 {
 	Set fixture = "OcuTalon.Test.Data.Fixture"

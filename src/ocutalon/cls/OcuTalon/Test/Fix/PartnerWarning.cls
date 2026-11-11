@@ -14,9 +14,12 @@ Include Ensemble
 ///   - TestApprovedNoticeIsSentByteForByte (AC4): an approved request runs through FixExecutor: the notice of the row, 1000 characters long with braces, angle brackets, quotes and an ampersand, is
 ///     saved as sent mail of the owning session (Sender OcuTalon, the subject of partner.subject, the request's ApprovalRef) with Text equal to the row's, byte for byte; FixResult 1 total, 1 completed,
 ///     0 resent; the request is done; one Action entry names the contact ids and no address; and a second session has no mail;
+///   - (QA) TestNoticeTextIsNeverAltered (AC4): a notice with diacritics, CJK, a check mark, a percent sign, template-like braces and markup is saved as the mail's Text character for character and byte for byte;
+///   - (QA) TestClassTextsClaimNoRealEmail (AC16): the reasons of the kind, the answer of the ask and the reason of no open incident say nothing that implies a real email was sent;
 ///   - TestDemoModeOffKeepsTheNotice (AC6): the request is approved and demo mode is off when it runs: it could not start with the NOTSETUP reason, nothing is saved, the row keeps its dry run's text and
 ///     the result reads result.partnerKept;
-///   - TestTamperedRowSendsNothing (AC3, AC8): a row whose to names an address that the fixture lacks, and one whose target is not a contact, send nothing to it and report it: the result reads result.partnerNotSent;
+///   - TestTamperedRowSendsNothing (AC3, AC4, AC8): a row whose to names an address that the fixture lacks, and one whose target is not a contact (skipped with NOSTART), send nothing to it and report it: the
+///     result reads result.partnerNotSent; a row whose text is not the notice of its dry run (the text the approver was shown) sends nothing and could not start with NOSTART;
 ///   - TestFailedSendIsReported (AC4): a recipient whose copy errs is skipped with NOSTART, and a run in which nothing was saved could not start with it;
 ///   - TestNoApprovedRowSendsNothing (AC8): a request that is pending, rejected, expired or cancelled, a tool_call and a Ref with no row are refused: nothing is saved or sent, no FixRun is written and one info line names the Ref;
 ///   - TestResultKeys (AC4, AC16): Notice.ResultKey and ResultSlots give result.partnerSent, partnerSentSome, partnerNotSent and partnerKept, and each renders for the web, the phone and Telegram with the
@@ -93,6 +96,7 @@ Method TestContract()
 	Do $$$AssertEquals($Parameter(kind, "ALLOWANCE"), "The online demo allows 20 simulated emails an hour, and this session has used them for now, so no delay notice was drafted", "ALLOWANCE")
 	Do $$$AssertEquals($Parameter(kind, "RECHECK"), "{name} is no longer a partner contact of {production}", "the re-check reason")
 	Do $$$AssertEquals($Parameter(kind, "NOSTART"), "OcuTalon couldn't deliver the delay notice", "NOSTART")
+	Do $$$AssertEquals($Parameter(kind, "NOREAD"), $Parameter(kind, "NOSTART"), "and NOREAD, the reason of a run that failed before anything was sent, has the same words")
 	Do $$$AssertEquals($Parameter(kind, "SYSTEMNOTE"), "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed.", "the draft instruction")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Fix.Kind).Check("partner_warning", {"text": "A notice.", "to": (..#ADDRESS)}, []), "the diagnosis's check refuses it")
 	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).DiagnosedNames(), $ListBuild("repair_resend"), "and names only repair_resend")
@@ -175,6 +179,12 @@ Method TestNoContacts()
 	Do $$$AssertStatusNotOK($ClassMethod(..#KIND, "DryRun", incident, params, .targets, .dry), "and the dry run is refused")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText($ClassMethod(..#KIND, "DryRun", incident, params, .targets, .dry)) [ "No partner contacts are set up for", "with NOCONTACTS")
 	Do $$$AssertTrue('##class(%Dictionary.CompiledMethod).%ExistsId("OcuTalon.Fix.PartnerContacts||Save") && '##class(%Dictionary.CompiledMethod).%ExistsId("OcuTalon.Fix.PartnerContacts||Add") && '##class(%Dictionary.CompiledMethod).%ExistsId("OcuTalon.Fix.PartnerContacts||Set"), "the fixture has no write method")
+	Set names = ""
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.MethodDefinition WHERE parent = ? ORDER BY Name", "OcuTalon.Fix.PartnerContacts")
+	While rs.%Next() {
+		Set names = names_$Select(names = "": "", 1: ",")_rs.%Get("Name")
+	}
+	Do $$$AssertEquals(names, "Addresses,All,For,Joined,Named,Names", "its only methods read the XData block, so nothing can change a contact")
 	Do $$$AssertEquals(##class(%Dictionary.CompiledClass).%OpenId("OcuTalon.Fix.PartnerContacts").Abstract, 1, "and no row: the class is abstract")
 }
 
@@ -189,7 +199,7 @@ Method TestRecheck()
 	Do $ClassMethod(..#KIND, "Recheck", incident, {"text": (text), "to": "other@results-partner.example"}, "1", .passed, .skipped)
 	Do $$$AssertEquals(passed_"|"_skipped.%ToJSON(), "|[{""id"":1,""reason"":"""_gone_"""}]", "an address that differs from the one at its position is skipped and reported")
 	Do $ClassMethod(..#KIND, "Recheck", incident, {"text": (text), "to": (..#ADDRESS_",b@results-partner.example")}, "1,2", .passed, .skipped)
-	Do $$$AssertEquals(passed_"|"_skipped.%ToJSON(), "1|[{""id"":2,""reason"":""Partner contact 2 is no longer a partner contact of "_..#PRODUCTION_"""}]", "an id that is no contact is skipped, and the contact that passes still passes")
+	Do $$$AssertEquals(passed_"|"_skipped.%ToJSON(), "1|[{""id"":2,""reason"":""OcuTalon couldn't deliver the delay notice""}]", "an id that is no contact is skipped with NOSTART (no name is known for it), and the contact that passes still passes")
 	Do $ClassMethod(..#KIND, "Recheck", incident, {"text": (text), "to": (..#ADDRESS)}, "1,2", .passed, .skipped)
 	Do $$$AssertEquals(passed_"|"_skipped.%Size(), "1|1", "a to that is shorter than the targets skips the target with no address")
 	Do $ClassMethod(..#KIND, "Recheck", incident, {"text": ("two"_$Char(10)_"lines"), "to": (..#ADDRESS)}, "1", .passed, .skipped)
@@ -241,6 +251,47 @@ Method TestApprovedNoticeIsSentByteForByte()
 	Do $$$AssertTrue($IsObject(run) && (run.EndedAt '= ""), "its FixRun has ended")
 }
 
+/// (QA, Story 23.5; AC4) The sent text is the row's text whatever characters it holds: letters with diacritics, an en dash, CJK, a check mark, a percent sign, braces that
+/// look like a template slot, a doubled brace, markup, quotes and a backslash, are saved as the mail's Text unchanged (not rendered as a catalog template, not folded to ASCII, not
+/// collapsed, not cut). The characters are built with $Char so that no encoding of this file can change them.
+Method TestNoticeTextIsNeverAltered()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("unicode")
+	Set incident = ..Incident(owner, {"State": "resolved"})
+	Set notice = "Bestellungen f"_$Char(252)_"r M"_$Char(252)_"ller "_$Char(8211)_" "_$Char(27880, 25991)_" "_$Char(10003)_" 100% {recipient} {{x}} {0} <b>&amp;</b> ""q"" 'q' \ / and a slash."
+	Do $$$AssertEquals(notice, $ClassMethod(..#KIND, "Normalise", notice), "the notice is one line as the kind wants it")
+	Set ref = ..Request(owner, incident, "approved", notice)
+	Do $$$AssertStatusOK(..Send(host, ref), "the Execute is handled")
+	Set mail = ..Mail(owner)
+	Do $$$AssertEquals(mail.%Size(), 1, "one mail is saved")
+	If mail.%Size() = 1 {
+		Do $$$AssertTrue(mail.%Get(0).text = notice, "its Text equals the row's text byte for byte")
+		Do $$$AssertEquals($Length(mail.%Get(0).text), $Length(notice), "with the same number of characters")
+		Do $$$AssertEquals($Length($ZConvert(mail.%Get(0).text, "O", "UTF8")), $Length($ZConvert(notice, "O", "UTF8")), "and the same number of bytes in UTF-8")
+	}
+	Do $$$AssertEquals(..State(ref), "done", "the request is done")
+}
+
+/// (QA, Story 23.5; AC16) The fixed texts of the partner delay notice that live in classes and not in the catalog (the kind's reasons, the answer of the ask and the reason of no open incident) never say or imply that
+/// a real email was sent, and the ones that speak of delivery say that it is simulated, or that email delivery isn't set up.
+Method TestClassTextsClaimNoRealEmail()
+{
+	Set texts = $ListBuild(
+		$Parameter(..#KIND, "NOTSETUP"), $Parameter(..#KIND, "NOCONTACTS"), $Parameter(..#KIND, "NOITEM"), $Parameter(..#KIND, "ALLOWANCE"),
+		$Parameter(..#KIND, "RECHECK"), $Parameter(..#KIND, "NOSTART"), $Parameter(..#KIND, "NOREAD"), $Parameter("OcuTalon.Watch.IncidentManager", "MESSAGEDRAFTING"), $Parameter("OcuTalon.Tools.WatchTools", "NOWARNING"))
+	Set position = 0
+	While $ListNext(texts, position, text) {
+		Do $$$AssertTrue(text '= "", "a text is there: "_$Extract(text, 1, 40))
+		For phrase = "email was sent", "emails were sent", "emailed", "by email", "sent an email", "email has been sent", "email sent", "we sent", "was sent to the partner", "delivered to" {
+			Do $$$AssertEquals($Find($ZConvert(text, "L"), phrase), 0, "'"_$Extract(text, 1, 40)_"...' holds no '"_phrase_"'")
+		}
+	}
+	Do $$$AssertTrue($Parameter(..#KIND, "ALLOWANCE") [ "simulated emails", "the allowance text says that the emails are simulated")
+	Do $$$AssertEquals($Parameter(..#KIND, "NOTSETUP"), "email delivery isn't set up yet", "and the kept-as-a-draft reason is the ruled one")
+}
+
 Method TestDemoModeOffKeepsTheNotice()
 {
 	Set host = ..Host()
@@ -281,9 +332,15 @@ Method TestTamperedRowSendsNothing()
 	Set twice = ..Request(owner, incident, "approved", "A notice.", {"FixTargets": "1,2", "FixParameters": {"text": "A notice.", "to": (..#ADDRESS_",b@results-partner.example")}.%ToJSON()})
 	Do $$$AssertStatusOK(..Send(host, twice), "a row with one contact and one id that is none is handled")
 	Set last = host.Results.%Get(host.Results.%Size() - 1)
-	Do $$$AssertEquals(last.total_"|"_last.completed_"|"_last.skipped_"|"_$Piece(last.reason, " is no", 1), "2|1|1|Partner contact 2", "one is sent and one is reported")
+	Do $$$AssertEquals(last.total_"|"_last.completed_"|"_last.skipped_"|"_$Piece(last.reason, " is no", 1), "2|1|1|OcuTalon couldn't deliver the delay notice", "one is sent and one is reported")
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).ResultKey("done", ..ResultOf(last), "partner_warning"), "result.partnerSentSome", "which reads result.partnerSentSome")
 	Do $$$AssertEquals(..Mail(owner).%Size(), 1, "and only the contact's mail is saved")
+	Set other = ..Request(owner, incident, "approved", "A notice.", {"FixParameters": {"text": "Another notice.", "to": (..#ADDRESS)}.%ToJSON()})
+	Do $$$AssertStatusOK(..Send(host, other), "a row whose text is not the notice of its dry run is handled")
+	Do $$$AssertEquals(..Mail(owner).%Size()_"|"_..Count(host.Notices), "1|1", "and sends nothing more: only the text the approver was shown is ever sent")
+	Set last = host.Results.%Get(host.Results.%Size() - 1)
+	Do $$$AssertEquals(last.total_"|"_last.completed_"|"_last.reason_"|"_..State(other), "1|0|OcuTalon couldn't deliver the delay notice|failed", "it could not start, with NOSTART")
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).ResultKey("failed", ..ResultOf(last), "partner_warning"), "result.partnerNotSent", "which reads result.partnerNotSent")
 }
 
 Method TestFailedSendIsReported()

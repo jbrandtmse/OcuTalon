@@ -8,7 +8,7 @@
 ///       the timeline, sorted by time (ties keep the order below): summary.firstFailure (FirstAt), summary.noticed (NoticedAt); for each request of the incident
 ///         (RequestRefs, rows that name the incident): summary.requested (RaisedAt, the dry run's resend count; left out when the dry run holds no count; for a fix the user asked for in the chat summary.requestedSuspend, summary.requestedResume or summary.requestedReroute, Story 23.2, and summary.requestedPartner with the number of recipients for a partner delay notice, Story 23.5), its answer (summary.approved or summary.rejected at
 ///         AnsweredAt, with ...By and the user when the install is local and AnsweredBy is known; summary.expired at ExpiresAt; none for a pending or cancelled
-///         request) and, for its FixRun, summary.fixStarted (StartedAt) and summary.fixEnded (EndedAt, with the counts) or summary.fixInterrupted (EndedAt, with
+///         request) and, for its FixRun (but a delay notice's, which has its end line only), summary.fixStarted (StartedAt) and summary.fixEnded (EndedAt, with the counts) or summary.fixInterrupted (EndedAt, with
 ///         the resent count; a run of a kind whose targets are items ends with summary.itemSuspended, summary.itemResumed or summary.itemNotChanged instead of summary.fixEnded, and a
 ///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
 ///       summary.noCause (a fallback incident; the reason) or summary.cause and summary.element (omitted when empty; the element also when it is only a period,
@@ -177,25 +177,27 @@ ClassMethod RequestEvents(incident As OcuTalon.Data.Incident, request As OcuTalo
 }
 
 /// The lines of a fix run: started, then ended or interrupted when it has ended. The end of a run of a kind whose targets are items says what happened to the item
-/// (suspended, resumed or not changed), and that of a run of a kind whose targets are contacts whether the notice was sent, kept as a draft or not sent, not the message counts.
+/// (suspended, resumed or not changed), not the message counts. A run of a kind whose targets are contacts is not a fix: it has no started or interrupted line, only its end, which
+/// says whether the notice was sent, kept as a draft or not sent.
 ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Data.ApprovalRequest, ByRef timeline, ByRef seq As %Integer) [ Private ]
 {
+	Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
+	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") {
+		If run.EndedAt = "" Quit
+		Set key = $Select(+run.Completed > 0: "summary.partnerSent", (request.State = "failed") && (run.Reason = $Parameter(class, "NOTSETUP")): "summary.partnerKept", 1: "summary.partnerNotSent")
+		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt)})
+		Quit
+	}
 	Do ..Event(.timeline, .seq, run.StartedAt, "summary.fixStarted", {"time": (run.StartedAt)})
 	If run.EndedAt = "" Quit
 	If +run.Interrupted > 0 {
 		Do ..Event(.timeline, .seq, run.EndedAt, "summary.fixInterrupted", {"time": (run.EndedAt), "resent": (+run.Resent)})
 		Quit
 	}
-	Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "item") {
 		Set item = ..Parameters(request).%Get("item")
 		Set key = $Select(+run.Completed > 0: $Select($Parameter(class, "ENABLE"): "summary.itemResumed", 1: "summary.itemSuspended"), 1: "summary.itemNotChanged")
 		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt), "item": (item)})
-		Quit
-	}
-	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") {
-		Set key = $Select(+run.Completed > 0: "summary.partnerSent", (request.State = "failed") && (run.Reason = $Parameter(class, "NOTSETUP")): "summary.partnerKept", 1: "summary.partnerNotSent")
-		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt)})
 		Quit
 	}
 	Set slots = {"time": (run.EndedAt)}

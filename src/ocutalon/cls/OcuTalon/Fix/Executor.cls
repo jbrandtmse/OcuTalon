@@ -58,7 +58,8 @@ Include (EnsConstants, EnsErrors)
 ///     FixResult; Finish, when End refuses the run, does none of that and logs one Type 4 line (LOGENDED). Waiting leaves out a marked run, so that nothing resumes it.
 ///   - A kind whose targets are contacts (TARGETTYPE contact, Story 23.5: partner_warning) takes its own branch of the run. The production's running state is not read; the kind's Ready is
 ///     asked first, and a kind that is not ready ends the run as could not start with the kind's reason (NOTSETUP: demo mode is off, so the approved notice is kept as the row's DryRun
-///     text and nothing is sent). Otherwise Recheck and Execute run as for any kind, and Deliver then sends the approved text, from the row's FixParameters byte for byte, to
+///     text and nothing is sent). A row whose FixParameters text is not its DryRun's notice (the text the approver was shown) also could not start, with the kind's NOSTART, and
+///     sends nothing (AsApproved). Otherwise Recheck and Execute run as for any kind, and Deliver then sends the approved text, from the row's FixParameters byte for byte, to
 ///     SimMailboxOut (a Fix.Msg.PartnerNotice, synchronously) once for each delivery and each session of the incident's recipients; a recipient counts as sent when at least one
 ///     copy was saved. The run ends done through Finish with Total the number of targets, Resent 0, Completed the recipients sent, FailedAgain 0 and Skipped the rest (the first reason
 ///     is the lowest skipped target's), and as could not start with the kind's NOSTART when nothing was sent and a send erred. The Action entry's target is "<n> partner contacts
@@ -347,6 +348,10 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		$$$ThrowOnError(run.%Save())
 		If targetType = "contact" {
 			Do $ClassMethod(class, "Ready", incident, .unready)
+			If (unready = "") && '..AsApproved(row, parameters) {
+				$$$LOGWARNING(..#LOGDELIVER_row.Ref_": its text is not the notice of its dry run")
+				Set unready = ..KindReason(class, "NOSTART", ..#NOSTART)
+			}
 		} Else {
 			Set notRunning = ..NotRunning(incident)
 		}
@@ -458,6 +463,18 @@ Method Deliver(row As OcuTalon.Bridge.Data.ApprovalRequest, class As %String, in
 			Do skipped.%Push({"id": (delivery.id), "reason": (..KindReason(class, "NOSTART", ..#NOSTART))})
 		}
 	}
+}
+
+/// 1 when the text that a contact kind would send (the parameters' text) is the notice of the row's dry run, the text that the approver was shown, character for character.
+ClassMethod AsApproved(row As OcuTalon.Bridge.Data.ApprovalRequest, parameters As %DynamicObject) As %Boolean [ Private ]
+{
+	Try {
+		Set dryRun = {}.%FromJSON(row.DryRun)
+		Set same = $IsObject(dryRun) && dryRun.%IsA("%Library.DynamicObject") && (dryRun.%Get("notice") '= "") && (dryRun.%Get("notice") = parameters.%Get("text"))
+	} Catch {
+		Set same = 0
+	}
+	Quit same
 }
 
 /// Sends the notice to SimMailboxOut and waits for it (a seam for the tests): its status is OK when the mail was saved.
