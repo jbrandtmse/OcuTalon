@@ -9,7 +9,7 @@
 ///   - Break the feed is available while the session watches Orders, no visible Orders incident is open, awaiting approval or
 ///     fixing, and the session's latest run (of any epoch) has either brought a notice or waited NOTICEWAIT seconds. The stage
 ///     of the run is reported only for a run of the current epoch, and only while the session watches Orders.
-///   - Step 4 counts the incident's requests of the kinds that move it: a request whose kind never moves the incident (MOVES 0, a partner delay notice) is not an answer or an approved fix.
+///   - Step 4 counts the incident's requests of the kinds that move it: a request whose kind never moves the incident (MOVES 0, a partner delay notice) is not an answer or an approved fix; a request with no kind or an unregistered one still counts.
 ///   - The open variant counts only while the incident is open or closed (VARIANTSTATES): it is stored beside the state and means
 ///     nothing in another state.
 ///   - trace is the trace session of the run's noticed incident, when it has one (AD-26); run is the Ownership.RunCost total

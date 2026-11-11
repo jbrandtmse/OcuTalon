@@ -6750,12 +6750,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T03:04:14Z occurrence=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva
 - 2026-11-11T03:04:14Z status=decision-pending owner=burndown by=cr note=also approve-then-close (Execute refused as closed, or result dropped by Aside); rec: Aside tells result on closed, no new text
 - 2026-11-11T04:08:20Z status=routed owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=planner note=Merge-time ruling 2 option (a), only if about 1 h or less with existing text verbatim: a request approved after its incident closed gets result.partnerNotSent with an existing refusal reason through IncidentManager.Aside, nothing sent; else ledger for 1.0.8; (b) and (c) declined
+- 2026-11-11T04:46:48Z status=resolved-by:23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=adjudication note=commit 048dbe54 plus re-review patch (ruling 2a: Aside/Closed tells result.partnerNotSent with PartnerWarning NOSTART, nothing sent; leftover row-state part is DW-1117)
 
 ### DW-1109: Demo.Guide.Compute counts any approved request of the guide's incident for step 4, so a partner notice approved while the repair still waits marks step 4 done early
 - source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Demo/Guide.cls (Lane B, not in 23.5's AD-33 list); the finish still needs the incident resolved; fix is a one-line kind filter (leave MOVES 0 kinds out of step 4)
 - 2026-11-11T01:56:30Z status=escalated owner=burndown by=harvest note=AD-33_extension_request:Demo/Guide.cls_one-line_filter;orchestrator_or_Planner
 - 2026-11-11T04:08:20Z status=routed owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=planner note=Merge-time ruling 1 (prompts/epic-23-rulings-235.md): fix now in 23.5; Demo/Guide.cls joins the AD-33 list (one-line kind filter, MOVES 0 kinds do not count for step 4) plus a test
+- 2026-11-11T04:46:48Z status=resolved-by:23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=adjudication note=commit 048dbe54 plus re-review patch (Demo.Guide step 4 skips MOVES 0 kinds; TestPartnerRequestIsNotStepFour)
 
 ### DW-1110: Fix.Kind.PartnerWarning.Plan reads the address at the target's position in the targets it is given, so an Execute of a Recheck-passed subset compares later contacts with the wrong address
 - source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: low | fix-risk: low | footprint: in-story
@@ -6790,3 +6792,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: low | footprint: web/e2e/floor/keyboard.spec.ts
 - evidence: lane-B throwaway e37s2s3 on d282b2b7 2026-11-11 ~00:17Z: 1 failed/106 passed; rerun 107/107; 37.2 does not touch the decision strip or trace link
 - 2026-11-11T00:24:50Z status=routed owner=burndown by=harvest note=flake:keyboard.spec_K2_focus_after_link.focus();one_rerun_green
+
+### DW-1117: A partner request approved after its incident was closed stays approved for good: its session is never purged and a repeated approved outcome is told again
+- source: spec-23-5 code review (rework iteration 2) | severity: med | fix-risk: med | footprint: in-story
+- evidence: IncidentManager.Closed tells result.partnerNotSent but ends nothing (no Execute, no FinishExecution, no audit entry), so the row keeps State approved. Data.Purge.Keeps keeps every session with an approved request, and Outcome accepts a repeated approved outcome while the row still shows it. Residual of DW-1108; ruling 2(a) asked only for the telling.
+- 2026-11-11T04:45:12Z status=routed owner=burndown by=cr note=residual of DW-1108: ending the row needs a mechanism (FinishExecution failed plus audit, or an Execute the executor refuses)

@@ -187,7 +187,7 @@ Method TestPartnerRequestIsNotStepFour()
 	Set parameters = {"text": "A notice.", "to": "it@results-partner.example"}.%ToJSON()
 	Set ref = ..IncidentSession()
 	Set incident = ..IncidentOf(ref)
-	Set repair = $ClassMethod(fixture, "Approval", ref, incident, "pending")
+	Set repair = $ClassMethod(fixture, "Approval", ref, incident, "pending", , {"FixKind": "repair_resend"})
 	For state = "approved", "executing", "done", "failed", "rejected" {
 		Set notice = $ClassMethod(fixture, "Approval", ref, incident, state, , {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "1", "ResultTarget": "IncidentManager"})
 		Do ..Assert(..View(ref), "a "_state_" partner request beside a waiting repair", {"done": "10100"})

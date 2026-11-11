@@ -1726,9 +1726,9 @@ Method Aside(incident As OcuTalon.Data.Incident, event As %String, own As %Strin
 }
 
 /// The event of a request that never moves the incident (MOVES 0) on an incident that is closed: the incident stays closed and nothing is carried out (no Execute). An approved
-/// request is told to each recipient as a result that did not send, with the kind's NOSTART as its reason (ResultNotice, key from Notice.ResultKey); the final result of a run
-/// that ended after the close (the one FixExecutor sends for a request it refused as unusable) is told with the result notice it came with. Any other event is refused (Drop). A move that
-/// cannot be saved is the error status.
+/// request is told to each recipient as a result that did not send, with the kind's NOSTART as its reason (ResultNotice, key from Notice.ResultKey); a final or interrupted result
+/// (FINISHED) of a run that ended after the close, sent or not, is told with the result notice it came with. Any other event (a progress result, a rejection, an expiry) is refused (Drop).
+/// A move that cannot be saved is the error status.
 Method Closed(incident As OcuTalon.Data.Incident, event As %String, own As %String, notification As OcuTalon.Msg.Notification = "") As %Status [ Private ]
 {
 	If ..Owns(incident, own, .row) && (event = ..#APPROVED) {

@@ -19,7 +19,7 @@
 ///   - TestDraftCompletionRouting (AC12): Decide's answer and its error reach Drafted through the draft's completion key of OnResponse and OnError (an error under another key stays an error, an answer
 ///     under another key does nothing), as the framework calls them;
 ///   - TestStateNeverMoves (AC5, AC9): the approved, rejected, expired and result events of a partner request, on a resolved and on an open (rejected) incident, tell the session and leave the state and the open variant
-///     as they were; approved sends the Execute at once, the others none; on a closed incident (the incident stays closed, nothing is carried out) an approved request is told as result.partnerNotSent with the kind's NOSTART as the reason, a final result is told as it came, and a rejection or an expiry is refused; and such a request is left out of the table's facts, while a repair request still counts;
+///     as they were; approved sends the Execute at once, the others none; on a closed incident (the incident stays closed, nothing is carried out) an approved request is told as result.partnerNotSent with the kind's NOSTART as the reason, a final result (not sent, or sent) is told as it came, and a progress result, a rejection and an expiry are refused; and such a request is left out of the table's facts, while a repair request still counts;
 ///   - TestNoticeKeys (AC2): Notice.AskedKey and AskedSlots for the kind, and the result notice's slots.
 Class OcuTalon.Test.Fix.PartnerDraft Extends %UnitTest.TestCase
 {
@@ -424,7 +424,11 @@ Method TestStateNeverMoves()
 	Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(closed)
 	Do $$$AssertEquals(stored.State_"|"_stored.OpenVariant, "closed|", "the incident stays closed")
 	Kill stored
-	// the final result of a run that ended after the close is told as it came, and the other events are refused
+	// the final result of a run that ended after the close is told as it came (the executor has closed the request by then), and the other events are refused
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Set row.State = "failed"
+	Do $$$AssertStatusOK(row.%Save(), "the run that could not start has closed the request failed")
+	Kill row
 	Set sent = ..Count(host.Sent)
 	Set result = ##class(OcuTalon.Fix.Msg.FixResult).%New()
 	Set result.ApprovalRef = ref
@@ -437,6 +441,10 @@ Method TestStateNeverMoves()
 	Set note = host.Sent.%Get(host.Sent.%Size() - 1)
 	Do $$$AssertEquals(note.catalogKey_"|"_note.approvalRef, "result.partnerNotSent|"_ref, "as result.partnerNotSent")
 	Do $$$AssertEquals({}.%FromJSON(note.slots).reason, ##class(OcuTalon.Fix.Executor).#UNUSABLE, "with the reason it came with")
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Set row.State = "done"
+	Do $$$AssertStatusOK(row.%Save(), "the run that sent has closed the request done")
+	Kill row
 	Set sent = ..Count(host.Sent)
 	Set result.Reason = ""
 	Set result.Completed = 1
