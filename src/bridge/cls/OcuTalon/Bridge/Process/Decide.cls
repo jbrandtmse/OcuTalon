@@ -111,7 +111,7 @@ Include Ensemble
 ///     Never retried: daily_cap, budget and too_large, a reply in which a tool ran (Reply.ToolsRun), a SessionBroken turn, a request of kind tool,
 ///     a model test request (Settings.IsTest: its ItemId starts with Settings.#TESTITEMPREFIX, so that the answer says whether the first model
 ///     answered) and the retry itself. A timer that fired leaves it unknown whether a tool ran, so a timed-out turn is not retried (it falls back as in release
-///     1), and a timed-out decide or diagnose is retried only when every tool of its agent is read-only code-classified safe (ToolsReadOnly). The
+///     1), and a timed-out decide or diagnose is retried only when every tool of its agent is read-only code-classified safe and every MCP server that McpServersClass lists says that its tools are read-only (ToolsReadOnly). The
 ///     timers (AD-8): T1 is TimerFor of the first attempt, kept in FirstSeconds; the retry waits RetrySeconds, the least of TimerSeconds and
 ///     MAXTIMER - T1, and is sent only when that is at least MINTIMER, so the whole decision stays within MAXTIMER; otherwise the fallback keeps
 ///     the first reason and carries RETRYSKIPPED as its reasons. The retry takes the precheck of its own runner (Precheck: its key, the daily cap,
@@ -543,7 +543,7 @@ Method TimerFor(request As OcuTalon.Bridge.Msg.Request, compact As %Boolean) As 
 /// 1 when the reason is one that Decide retries once on a second model and nothing forbids it (AD-8): reason is one of RETRIED; no tool ran (toolsRun
 /// is 0: Reply.ToolsRun of the attempt's reply); the attempt is not a SessionBroken turn (broken is 0: Broken); and the request is not of kind tool.
 /// A timer that fired (timedOut 1) leaves it unknown whether a tool ran, so a turn is not retried then (it falls back as in release 1, lead ruling
-/// R2 of Story 17.2), and a decide or diagnose request is retried only when readOnly says that every tool of its agent is read-only (ToolsReadOnly).
+/// R2 of Story 17.2), and a decide or diagnose request is retried only when readOnly says that every tool of its agent is read-only, MCP servers included (ToolsReadOnly).
 /// It is pure.
 ClassMethod Retryable(reason As %String, toolsRun As %Boolean = 0, broken As %Boolean = 0, kind As %String = "", timedOut As %Boolean = 0, readOnly As %Boolean = 1) As %Boolean
 {
@@ -618,7 +618,8 @@ ClassMethod RetryItemProblem(runner As %String, kind As %String, item As %String
 
 /// 1 when every tool of the agent class of the runner is read-only by what code declares (AD-10), so that an attempt in which one ran, and whose outcome
 /// is unknown because its timer fired, did not change anything: the AgentClass setting of the runner (Ext.Accessor ValueFor, Adapter target) is a
-/// compiled class and ToolsetsReadOnly holds for its TOOLSETS parameter. 0 for anything that cannot be established from code.
+/// compiled class, ToolsetsReadOnly holds for its TOOLSETS parameter, and every MCP server that the McpServersClass setting lists says that its tools are
+/// read-only (McpServersReadOnly; no server leaves it as it was). 0 for anything that cannot be established from code and from the host's answers.
 ClassMethod ToolsReadOnly(runner As %String) As %Boolean
 {
 	Set readOnly = 0
@@ -626,6 +627,30 @@ ClassMethod ToolsReadOnly(runner As %String) As %Boolean
 		Set agentClass = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("AgentClass", "", runner, .sc, "Adapter")
 		If $$$ISERR(sc) || (agentClass = "") || '##class(%Dictionary.CompiledClass).%ExistsId(agentClass) Quit
 		Set readOnly = ..ToolsetsReadOnly($Parameter(agentClass, "TOOLSETS"))
+		If readOnly Set readOnly = ..McpServersReadOnly()
+	} Catch {
+		Set readOnly = 0
+	}
+	Quit readOnly
+}
+
+/// 1 when no MCP server is listed, or when every server that the McpServersClass setting of Decide lists (Servers) says that its tools are read-only
+/// (ToolsReadOnly of the class, DW-724). 0 for a setting that is not usable, a list that cannot be read or is no array, an entry with no server name,
+/// a server that does not say 1, and any exception.
+ClassMethod McpServersReadOnly() As %Boolean
+{
+	Set readOnly = 0
+	Try {
+		Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("McpServersClass", "", "Decide", .sc)
+		If $$$ISERR(sc) Quit
+		Set sc = $ClassMethod(class, "Servers", .servers)
+		If $$$ISERR(sc) || '$IsObject($Get(servers)) || ('servers.%IsA("%Library.DynamicArray")) Quit
+		Set readOnly = 1
+		Set iterator = servers.%GetIterator()
+		While readOnly && iterator.%GetNext(, .entry) {
+			Set server = $Select($IsObject(entry) && entry.%IsA("%Library.DynamicObject") && (entry.%GetTypeOf("server") = "string"): entry.%Get("server"), 1: "")
+			If (server = "") || '$ClassMethod(class, "ToolsReadOnly", server) Set readOnly = 0
+		}
 	} Catch {
 		Set readOnly = 0
 	}

@@ -8,6 +8,9 @@
 /// sees no context.
 /// The context of a replay (kind tool, Replay.Run) also holds the grant of the approved call (Grant): one entry of the same global that the gate
 /// consumes at the first call that matches it (TakeGrant). The grant is not a field: Current and Put never expose or set it, and Begin and End kill it.
+/// The context of a request that composes tools (AD-6, AD-10, AD-21) also holds the turn's MCP map: for each MCP tool that the serving tool manager lists,
+/// the fingerprint of its server, name, description and input schema (SetMcpTools), which the gate reads for a call (McpFingerprint). Like the grant, the map is
+/// not a field, and Begin and End kill it. A tool that is not in the map has no fingerprint.
 Class OcuTalon.Bridge.Context Extends %RegisteredObject
 {
 
@@ -117,6 +120,55 @@ ClassMethod Put(name As %String, value As %String) As %Status
 /// The node of the grant of the replay, in the same process-private global as the context and outside FIELDS.
 Parameter GRANT = "grant";
 
+/// The node of the turn's MCP map, in the same process-private global as the context and outside FIELDS.
+Parameter MCP = "mcp";
+
+/// The prefix of the tool_ref of an MCP tool (any letter case).
+Parameter MCPPREFIX = "mcp:";
+
+/// The longest server or tool name that the map keeps, in characters: a longer one is left out, so that it has no fingerprint and counts as unclassified.
+Parameter MCPKEYMAX = 400;
+
+/// Replaces the turn's MCP map with the tools of the catalog (the %Discover() list of the tool manager that serves the request): for each entry whose tool_ref
+/// starts mcp:, the fingerprint (ToolFingerprint) of the tool_ref as the server, the name, the description and the parameters. An entry that has no name, whose
+/// tool_ref or name is too long to key, or whose parameters are text that is not JSON gets no fingerprint. An error when there is no context (the old map, if
+/// any, is then not touched) or the catalog is not an array.
+ClassMethod SetMcpTools(catalog As %DynamicArray) As %Status
+{
+	If '..Active() Quit $SYSTEM.Status.Error(5001, "There is no context to put the MCP tools into")
+	If '$IsObject(catalog) || 'catalog.%IsA("%Library.DynamicArray") Quit $SYSTEM.Status.Error(5001, "The MCP catalog is not an array")
+	Kill ^||OcuTalonBP.Context(..#MCP)
+	Set iterator = catalog.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		If '$IsObject(tool) || (tool.%GetTypeOf("tool_ref") '= "string") || (tool.%GetTypeOf("name") '= "string") Continue
+		Set server = tool.%Get("tool_ref")
+		Set name = tool.%Get("name")
+		If '..IsMcpRef(server) || (name = "") || ($Length(server) > ..#MCPKEYMAX) || ($Length(name) > ..#MCPKEYMAX) Continue
+		Set fingerprint = ""
+		Try {
+			Set fingerprint = ..ToolFingerprint(server, name, tool.%Get("description"), tool.%Get("parameters"))
+		} Catch {
+			Set fingerprint = ""
+		}
+		If fingerprint '= "" Set ^||OcuTalonBP.Context(..#MCP, server, name) = fingerprint
+	}
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The fingerprint that the turn's MCP map holds for the tool of the name on the server (the tool_ref), or "" when the map has none, there is no map or no
+/// context.
+ClassMethod McpFingerprint(server As %String, name As %String) As %String
+{
+	If '..Active() || (server = "") || (name = "") || ($Length(server) > ..#MCPKEYMAX) || ($Length(name) > ..#MCPKEYMAX) Quit ""
+	Quit $Get(^||OcuTalonBP.Context(..#MCP, server, name))
+}
+
+/// 1 when the tool_ref starts mcp: (in any letter case).
+ClassMethod IsMcpRef(toolRef As %String) As %Boolean [ Private ]
+{
+	Quit $ZConvert($Extract(toolRef, 1, $Length(..#MCPPREFIX)), "L") = ..#MCPPREFIX
+}
+
 /// Builds the grant of the replay from the approval request with the Ref, in the context of this process: $ListBuild(Ref, ToolName, the hash of the
 /// canonical ToolArguments, ToolSource). Only a tool_call row in the state executing gives a grant (the replay starts the run first, StartExecution);
 /// any other row, a missing row and a process with no context are an error and leave no grant. A grant already there is replaced.
@@ -171,21 +223,14 @@ ClassMethod GrantSource() As %String
 /// literal by its type. It throws for text that is not JSON.
 ClassMethod ArgumentsHash(arguments As %RegisteredObject) As %String
 {
-	If $IsObject(arguments) {
-		Set value = arguments
-	} ElseIf $ZStrip(arguments, "*WC") = "" {
-		Set value = {}
-	} Else {
-		Set value = ##class(%Library.DynamicAbstractObject).%FromJSON(arguments)
-	}
-	If '$IsObject(value) || 'value.%IsA("%Library.DynamicAbstractObject") $$$ThrowStatus($SYSTEM.Status.Error(5001, "The arguments are not a JSON object or array"))
-	Quit $SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(256, $ZConvert(..Canonical(value, $Select(value.%IsA("%Library.DynamicArray"): "array", 1: "object")), "O", "UTF8")), 1)
+	Quit $SYSTEM.Encryption.Base64Encode(..Digest(arguments), 1)
 }
 
-/// The fingerprint of a tool: the ArgumentsHash of {"description": description, "parameters": parameters}, so it changes when the tool's description or
-/// its input schema changes and in no other case. The description is text; the parameters are the tool's input schema as an object or JSON text (blank
-/// text is {}). It throws for parameters that are text and not JSON.
-ClassMethod ToolFingerprint(description As %String, parameters As %RegisteredObject) As %String
+/// The fingerprint of an MCP tool: 64 lower-case hexadecimal characters, the SHA-256 (Digest) of the canonical form of {"server": server, "name": name,
+/// "description": description, "parameters": parameters}, so it changes when the server (the tool_ref the tool was listed under), the tool's name, its description
+/// or its input schema changes and in no other case. server and name are text, as is the description; the parameters are the tool's input schema as an object or
+/// JSON text (blank text is {}). It throws for parameters that are text and not JSON.
+ClassMethod ToolFingerprint(server As %String, name As %String, description As %String, parameters As %RegisteredObject) As %String
 {
 	If $IsObject(parameters) {
 		Set schema = parameters
@@ -195,9 +240,30 @@ ClassMethod ToolFingerprint(description As %String, parameters As %RegisteredObj
 		Set schema = ##class(%Library.DynamicAbstractObject).%FromJSON(parameters)
 	}
 	Set value = {}
+	Do value.%Set("server", server, "string")
+	Do value.%Set("name", name, "string")
 	Do value.%Set("description", description, "string")
 	Do value.%Set("parameters", schema)
-	Quit ..ArgumentsHash(value)
+	Set digest = ..Digest(value)
+	Set hex = ""
+	For i = 1:1:$Length(digest) {
+		Set hex = hex _ $ZConvert($Extract($ZHex(256 + $Ascii(digest, i)), 2, 3), "L")
+	}
+	Quit hex
+}
+
+/// The SHA-256 of the UTF-8 text of the canonical form of the arguments (see ArgumentsHash), as the 32 bytes of the digest.
+ClassMethod Digest(arguments As %RegisteredObject) As %String [ Private ]
+{
+	If $IsObject(arguments) {
+		Set value = arguments
+	} ElseIf $ZStrip(arguments, "*WC") = "" {
+		Set value = {}
+	} Else {
+		Set value = ##class(%Library.DynamicAbstractObject).%FromJSON(arguments)
+	}
+	If '$IsObject(value) || 'value.%IsA("%Library.DynamicAbstractObject") $$$ThrowStatus($SYSTEM.Status.Error(5001, "The arguments are not a JSON object or array"))
+	Quit $SYSTEM.Encryption.SHAHash(256, $ZConvert(..Canonical(value, $Select(value.%IsA("%Library.DynamicArray"): "array", 1: "object")), "O", "UTF8"))
 }
 
 /// The canonical text of a JSON value of the type (%GetTypeOf): see ArgumentsHash.

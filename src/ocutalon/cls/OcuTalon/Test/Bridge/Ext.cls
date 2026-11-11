@@ -10,6 +10,8 @@
 ///     (Story 19.5) gives no tool and McpServers (Story 35.1) names no server and takes any report;
 ///   - TestWriteDefault (Story 1.7): WriteDefault creates the System Default Settings row of a setting (any class) with the value and the
 ///     description, changes the row when it exists, and ValueFor reads the value;
+///   - TestMcpBases (Story 22.8): the base ClassifyMcp delegates to Classify with readOnly 0 and registered 1 (and gives "" for a source and name Classify does not know),
+///     a subclass's Classify is the one it delegates to, and the base McpServers ToolsReadOnly says 0 for any server;
 ///   - TestContext: no context before Begin; Begin carries the request's fields and the SuperSession into Current and starts the taint, the host data, the
 ///     characters of the tool results and (Story 1.10) the count of the commands that the tools submit at their start; the
 ///     process-private context is invisible to another job; Put changes it; End removes it.
@@ -53,7 +55,7 @@ Method TestAccessorInAnotherJob()
 	Do $$$AssertEquals($Get(@run@("namespace")), $Namespace, "the job ran in this namespace")
 	Do $$$AssertEquals($Get(@run@("HostSinkClass")), "OcuTalon.Core.BridgeSink|1", "HostSinkClass is OcuTalon.Core.BridgeSink")
 	Do $$$AssertEquals($Get(@run@("ReplyFilterClass")), "OcuTalon.Checks.ReplyGuard|1", "ReplyFilterClass is OcuTalon.Checks.ReplyGuard")
-	Do $$$AssertEquals($Get(@run@("ClassificationClass")), "OcuTalon.Bridge.Ext.Classification|1", "ClassificationClass is OcuTalon.Bridge.Ext.Classification")
+	Do $$$AssertEquals($Get(@run@("ClassificationClass")), "OcuTalon.Mcp.Classification|1", "ClassificationClass is OcuTalon.Mcp.Classification (Story 22.8)")
 	Do $$$AssertEquals($Get(@run@("TurnToolsClass")), "OcuTalon.Docs.TurnTools|1", "TurnToolsClass is OcuTalon.Docs.TurnTools")
 	Do $$$AssertEquals($Get(@run@("McpServersClass")), "OcuTalon.Mcp.Attach|1", "McpServersClass is OcuTalon.Mcp.Attach")
 	For case = "setting", "item", "production", "check", "checkEmpty", "checkMissing" {
@@ -212,6 +214,79 @@ Method TestExtensionBases()
 	Do $$$AssertTrue($IsObject(servers) && servers.%IsA("%Library.DynamicArray") && (servers.%Size() = 0), "and names no server (Story 35.1)")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.McpServers).OnAttach("zz", {"status": "attached", "reason": "", "tools": [], "refused": []}), "and takes any report without doing anything")
 	Do $$$AssertTrue($ClassMethod("OcuTalon.Mcp.Attach", "%Extends", "OcuTalon.Bridge.Ext.McpServers"), "OcuTalon.Mcp.Attach extends McpServers")
+}
+
+/// Story 22.8: the base ClassifyMcp answers {"classification": Classify(source, name), "readOnly": 0, "registered": 1} for any source, name and fingerprint,
+/// and a subclass that only overrides Classify (the fixture ZzGateClassification) is delegated to; McpServers ToolsReadOnly says 0 for any server, and the
+/// OcuTalon class that overrides it (Mcp.Attach) extends the base. The turn's MCP map (Context SetMcpTools, McpFingerprint): an entry whose tool_ref starts mcp:
+/// (in any case) gets the 64-character hexadecimal fingerprint of its server (the tool_ref), name, description and parameters; an entry of another tool_ref, with no name,
+/// or with parameters that are text and not JSON gets none; a second call replaces the map; there is no map and no fingerprint without a context; Begin and End
+/// end the map; and the map is not a field of the context.
+Method TestMcpBases()
+{
+	Set base = "OcuTalon.Bridge.Ext.Classification"
+	Set answer = $ClassMethod(base, "ClassifyMcp", "mcp:docs", "read_event_log", "any")
+	Do $$$AssertEquals(answer.%ToJSON(), {"classification": "", "readOnly": 0, "registered": 1}.%ToJSON(), "the base ClassifyMcp delegates to Classify, which classifies nothing, and registers every server")
+	Do $$$AssertEquals($ClassMethod(base, "ClassifyMcp", "mcp:docs", "read_event_log").%ToJSON(), answer.%ToJSON(), "also with no fingerprint")
+	Set fixture = "OcuTalon.Test.Bridge.ZzGateClassification"
+	Do $$$AssertEquals($ClassMethod(fixture, "ClassifyMcp", "mcp:zzserver", "zz_mcp_safe", "").%ToJSON(), {"classification": "safe", "readOnly": 0, "registered": 1}.%ToJSON(), "a subclass that overrides Classify only is delegated to: safe, readOnly 0, registered 1")
+	Do $$$AssertEquals($ClassMethod(fixture, "ClassifyMcp", "mcp:zzserver", "zz_mcp_other", "").%ToJSON(), answer.%ToJSON(), "and its tools it does not know are unclassified")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.McpServers).ToolsReadOnly("zz"), 0, "the base McpServers says 0 for any server")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.McpServers).ToolsReadOnly(""), 0, "also for none")
+	Do $$$AssertTrue($ClassMethod("OcuTalon.Mcp.Classification", "%Extends", base), "OcuTalon.Mcp.Classification extends Classification")
+
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set context = "OcuTalon.Bridge.Context"
+	Set catalog = [{"tool_ref": "mcp:remote:zz", "name": "a", "description": "A.", "parameters": {"type": "object"}}]
+	Do $$$AssertStatusNotOK($ClassMethod(context, "SetMcpTools", catalog), "SetMcpTools without a context is an error")
+	Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "a"), "", "and with no context there is no fingerprint")
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "turn"
+	Try {
+		Do $$$AssertStatusOK($ClassMethod(context, "Begin", request), "Begin")
+		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "a"), "", "a context starts with no map")
+		Set catalog = [
+			{"tool_ref": "mcp:remote:zz", "name": "a", "description": "A.", "parameters": {"type": "object", "properties": {"id": {"type": "string"}}}},
+			{"tool_ref": "MCP:remote:zz", "name": "b", "description": "B.", "parameters": {}},
+			{"tool_ref": "iris:Zz.Toolset", "name": "c", "description": "C.", "parameters": {}},
+			{"tool_ref": "mcp:remote:zz", "name": "", "description": "No name.", "parameters": {}},
+			{"tool_ref": "mcp:remote:zz", "name": "d", "description": "D.", "parameters": "not json"},
+			{"name": "e", "description": "No tool_ref.", "parameters": {}}, "text"]
+		Do $$$AssertStatusOK($ClassMethod(context, "SetMcpTools", catalog), "SetMcpTools takes a catalog")
+		Set first = $ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "a")
+		Do $$$AssertTrue(($Length(first) = 64) && ($Translate(first, "0123456789abcdef") = ""), "an MCP tool has a fingerprint of 64 lower-case hexadecimal characters: " _ first)
+		Do $$$AssertEquals(first, $ClassMethod(context, "ToolFingerprint", "mcp:remote:zz", "a", "A.", {"properties": {"id": {"type": "string"}}, "type": "object"}), "it is ToolFingerprint of the tool_ref, the name, the description and the parameters, whatever the order of the keys")
+		Do $$$AssertEquals($Length($ClassMethod(context, "McpFingerprint", "MCP:remote:zz", "b")), 64, "a tool_ref that starts MCP: counts in any case")
+		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "iris:Zz.Toolset", "c"), "", "a tool_ref that does not start mcp: has none")
+		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", ""), "", "a tool with no name has none")
+		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "d"), "", "a tool whose parameters are text that is not JSON has none")
+		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "e"), "", "a tool with no tool_ref has none")
+		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:other", "a"), "", "a tool is keyed by its server too")
+		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "A"), "", "and by the exact letter case of its name")
+		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", $Justify("", 401)_"x"), "", "a name too long to key has none")
+		Set node = $Parameter(context, "MCP")
+		Do $$$AssertStatusOK($ClassMethod(context, "SetMcpTools", [{"tool_ref": "mcp:remote:zz", "name": ($Justify("", 400)_"x"), "description": "Long.", "parameters": {}}, {"tool_ref": ("mcp:remote:" _ $Justify("", 400)), "name": "a", "description": "Long.", "parameters": {}}]), "a catalog of tools whose name or tool_ref is too long to key")
+		Do $$$AssertEquals($Data(^||OcuTalonBP.Context(node)), 0, "leaves them out of the map, whatever the read side does")
+		Do $$$AssertStatusOK($ClassMethod(context, "SetMcpTools", [{"tool_ref": "mcp:remote:zz", "name": "a", "description": "A.", "parameters": {"type": "object", "properties": {"id": {"type": "string"}}}}]), "the map is made again")
+		Do $$$AssertEquals($ClassMethod(context, "ToolFingerprint", "mcp:remote:zz", "a", "A.", {}) '= $ClassMethod(context, "ToolFingerprint", "mcp:remote:zy", "a", "A.", {}), 1, "another server gives another fingerprint")
+		Do $$$AssertEquals($ClassMethod(context, "ToolFingerprint", "mcp:remote:zz", "a", "A.", {}) '= $ClassMethod(context, "ToolFingerprint", "mcp:remote:zz", "b", "A.", {}), 1, "and so does another name")
+		Do $$$AssertTrue($Parameter(context, "FIELDS") '[ "mcp", "the map is not a field")
+		Do $$$AssertStatusNotOK($ClassMethod(context, "Put", "mcp", "x"), "and Put refuses it")
+
+		Do $$$AssertStatusOK($ClassMethod(context, "SetMcpTools", [{"tool_ref": "mcp:remote:zz", "name": "b", "description": "B.", "parameters": {}}]), "a second SetMcpTools")
+		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "a"), "", "replaces the map")
+		Do $$$AssertEquals($Length($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "b")), 64, "with the new tools")
+		Do $$$AssertStatusNotOK($ClassMethod(context, "SetMcpTools", "text"), "a catalog that is no array is an error")
+		Do $$$AssertEquals($Length($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "b")), 64, "which leaves the map as it was")
+		Do $$$AssertStatusOK($ClassMethod(context, "Begin", request), "Begin again")
+		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "b"), "", "ends the map")
+		Do $$$AssertStatusOK($ClassMethod(context, "SetMcpTools", [{"tool_ref": "mcp:remote:zz", "name": "b", "description": "B.", "parameters": {}}]), "a map is made again")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the MCP map test threw: " _ exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do $$$AssertEquals($Data(^||OcuTalonBP.Context), 0, "End removes the context, and the map with it")
+	Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "b"), "", "so there is no fingerprint")
 }
 
 /// Row 7: with no context, Active is 0 and Current is empty. After Begin, Active is 1 and Current carries the request's

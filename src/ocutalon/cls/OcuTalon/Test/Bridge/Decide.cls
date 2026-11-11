@@ -165,6 +165,10 @@
 ///   - TestRequestLimitThroughOnRequest: the limit that OnRequest and the key resend apply is the one the setting row gives (an empty row, 5000 and the
 ///     invalid 0, -1, abc, 1.5 and 100001 as 100000 with one warning that names RequestTokenLimit), so a decide one token above it sends nothing.
 /// Added by Story 17.2 (AD-6, AD-8, DW-647, DW-650; lead rulings U-281 and U-282), with the recorder (Test.Bridge.ZzDecide) for the second-model retry:
+///   - TestToolsReadOnlyMcp (Story 22.8, DW-724): ToolsReadOnly also asks the McpServersClass setting (here the fixture Test.Bridge.ZzReadOnlyServers, put in the stored
+///     configuration of Decide and put back) for each server it lists: all of them read-only is 1, one that is not 0, a list that errors, throws or is no array is 0, an
+///     entry with no server name is 0, a ToolsReadOnly that throws is 0, a class that is not usable is 0, no server leaves the answer as it was, and a runner whose tools
+///     are not read-only stays 0;
 ///   - TestRetryable, TestRetrySeconds, TestToolsReadOnly, TestToolsetsReadOnly: the pure rules: which reasons are retried, T2 = min(timer, 110 - T1) and 0
 ///     under 12, and the read-only tools of an agent, each clause of that rule on its own toolset (Test.Bridge.ZzReadOnly*); a timed-out turn is not retried (R2);
 ///   - TestHeldRetryOf (DW-650 a, b, c, d) and TestSentRequestRetryOf: a retry skips the conversation-lock probe only for the same runner and ItemId; a RetryOf
@@ -3477,6 +3481,53 @@ Method TestToolsReadOnly()
 	Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "ChatAgent"), 0, "Chat has tools that change state")
 	Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "ZzNoSuchRunner"), 0, "an item that is not in the production is not known to be read-only")
 	Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", ""), 0, "and neither is no item at all")
+}
+
+/// ToolsReadOnly and the MCP servers (Story 22.8, DW-724): the McpServersClass setting of Decide is put to the fixture ZzReadOnlyServers in the stored configuration
+/// of the production (the production names OcuTalon.Mcp.Attach, which a System Default Settings row would not override) and put back at the end.
+Method TestToolsReadOnlyMcp()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set fixture = "OcuTalon.Test.Bridge.ZzReadOnlyServers"
+	Set saved = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("McpServersClass", , , .sc)
+	Do $$$AssertStatusOK(sc, "the McpServersClass setting is read")
+	If $$$ISERR(sc) Quit
+	Kill ^||ZzReadOnlyServers
+	Try {
+		Do $$$AssertStatusOK(##class(Ens.Director).SetHostSettingValue("Decide", "McpServersClass", fixture), "McpServersClass is the fixture")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("McpServersClass"), fixture, "and the accessor reads it")
+		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 1, "a fixture that lists no server leaves Triage read-only")
+		Do $$$AssertEquals($ClassMethod(decide, "McpServersReadOnly"), 1, "and no server is read-only")
+		Set ^||ZzReadOnlyServers("servers") = "[""zzone"",""zztwo""]"
+		Set ^||ZzReadOnlyServers("ro", "zzone") = 1
+		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 0, "a listed server that does not say 1 makes it 0 (zztwo says nothing)")
+		Set ^||ZzReadOnlyServers("ro", "zztwo") = 1
+		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 1, "every listed server read-only: 1")
+		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "DiagnosisAgent"), 1, "also for Diagnosis")
+		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "ChatAgent"), 0, "a runner whose tools change state stays 0, whatever the servers say")
+		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "ZzNoSuchRunner"), 0, "and so does an item that is not in the production")
+		Set ^||ZzReadOnlyServers("ro", "zzone") = 0
+		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 0, "the first of two servers that is not read-only: 0")
+		Set ^||ZzReadOnlyServers("ro", "zzone") = 1
+		Set ^||ZzReadOnlyServers("throws") = "zztwo"
+		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 0, "a ToolsReadOnly that throws: 0")
+		Kill ^||ZzReadOnlyServers("throws")
+		For mode = "error", "throw", "text", "noname" {
+			Set ^||ZzReadOnlyServers("mode") = mode
+			Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 0, "Servers in the mode "_mode_": 0")
+		}
+		Kill ^||ZzReadOnlyServers("mode")
+		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 1, "control: the fixture as it was is 1 again")
+		Do $$$AssertStatusOK(##class(Ens.Director).SetHostSettingValue("Decide", "McpServersClass", "OcuTalon.Test.Bridge.ZzNoSuchServers"), "McpServersClass names a class that does not exist")
+		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 0, "which is 0")
+		Do $$$AssertStatusOK(##class(Ens.Director).SetHostSettingValue("Decide", "McpServersClass", "OcuTalon.Bridge.Ext.HostSink"), "McpServersClass names a class that does not extend the base")
+		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 0, "which is 0 too")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Kill ^||ZzReadOnlyServers
+	Do $$$AssertStatusOK(##class(Ens.Director).SetHostSettingValue("Decide", "McpServersClass", saved), "McpServersClass is put back")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("McpServersClass"), saved, "and the accessor reads the production's class again")
 }
 
 /// ToolsetsReadOnly (R2), one clause at a time, on toolsets of one tool each (Test.Bridge.ZzReadOnlyTool): a safe, read-only tool with no per-call

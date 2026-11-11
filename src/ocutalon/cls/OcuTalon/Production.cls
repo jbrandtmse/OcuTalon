@@ -21,6 +21,7 @@ XData ProductionDefinition
     <Setting Target="Host" Name="HostSinkClass">OcuTalon.Core.BridgeSink</Setting>
     <Setting Target="Host" Name="ReplyFilterClass">OcuTalon.Checks.ReplyGuard</Setting>
     <Setting Target="Host" Name="TurnToolsClass">OcuTalon.Docs.TurnTools</Setting>
+    <Setting Target="Host" Name="ClassificationClass">OcuTalon.Mcp.Classification</Setting>
     <Setting Target="Host" Name="McpServersClass">OcuTalon.Mcp.Attach</Setting>
   </Item>
   <Item Name="ApprovalHold" ClassName="OcuTalon.Bridge.Process.ApprovalHold" PoolSize="1" Enabled="true"/>
