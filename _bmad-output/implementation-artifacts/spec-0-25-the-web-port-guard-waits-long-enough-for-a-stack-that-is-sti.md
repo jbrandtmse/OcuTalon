@@ -2,12 +2,27 @@
 title: 'Story 0.25: The web-port guard waits long enough for a stack that is still shutting down'
 type: 'bugfix'
 created: '2026-11-10'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '9db150c7ef13bd154dd7fdbb8c91ea47ced94eff'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      docker/tests/test-install-script-live.sh step 5 prints only the last 5 lines of the guard's output, so after a double-retry failure the FAIL web port line and the bind error scroll out of view behind the holder lines.
+    evidence: |-
+      Step 5 runs `live_port_guard ... 2>&1` into plain_out and prints `tail -n 5`. The guard now ends a failure with the FAIL line, up to 20 PORT holder lines and the waited line. The step still fails on the exit status and the holder lines and the waited line stay visible; the spec's Design Notes say step 5 needs no edit.
+    location: >-
+      docker/tests/test-install-script-live.sh:153
+    severity: low
+  - summary: >-
+      docker/tests/test-boundaries.sh fails its `keys: nothing key-like` rule on the lead's own cycle-log line 818 (story_created for 0.25): `note=plan_measured_job_130269395421:occupant_...` matches the bot-token shape `[0-9]{8,10}:[A-Za-z0-9_-]{35}`.
+    evidence: |-
+      `bash docker/tests/test-boundaries.sh` prints `FAIL keys: nothing key-like` listing `_bmad-output/implementation-artifacts/cycle-log-epic-0.md:818` and nothing else; the line is committed at the baseline (9db150c7), outside this story's diff. `ci/checks.sh` runs the script, so the head is red until the line is reworded (for example a different separator after the job id).
+    location: >-
+      _bmad-output/implementation-artifacts/cycle-log-epic-0.md:818
+    severity: medium
 ---
 
 <intent-contract>
@@ -149,6 +164,38 @@ These are hermetic rows in `test-lib-live.sh`, run through `guard_run`. Its `sle
 
 ## Review Triage Log
 
+### 2026-11-11 - Review pass
+- verdicts: 28 findings - high 0, medium 3, low 22, false 3, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind: holder lookups run before `spent` is measured, so they eat the retry budget and inflate `waited N s` -- real (the first wait's `spent` was taken after `live_port_holders`); patched: `t_end` is taken right after the wait and used for both the "after N s" figure and `spent`; pinned by a new row with a 7 s holder listing.
+  - `[low]` `[defer]` Blind: step 5 of `test-install-script-live.sh` prints `tail -n 5`, which can hide the FAIL line behind the holder lines -- real but in a file the story does not change (Design Notes: step 5 needs no edit); the status and the holder lines still show; deferred (low).
+  - `[low]` `[reject]` Blind: many tests discard the guard's lines (`dc up >/dev/null 2>&1`) -- pre-existing call sites of other scripts; the lines go to stdout and each script chose to drop them; the fix is a per-script change beyond a direct correction.
+  - `[low]` `[reject]` Blind: the `lsof` fallback does not see non-listening sockets, and a comment on the auto-pick says "nothing listens on" -- the lead ruling at the spec gate keeps the `lsof` branch unchanged and widens only the `ss` branch; a comment nuance is cosmetic.
+  - `[low]` `[reject]` Blind: the `lsof` branch and the `docker ps` cap of `live_port_holders` are untested -- the `docker ps` cap is now pinned (patched with the holders-named row: 12 containers, 20 lines); the `lsof` branch is the macOS fallback of a print-only diagnostic that cannot change the guard's status.
+  - `[medium]` `[patch]` Blind (with Verification-gap): the teardown static row can pass with an empty file list -- real (a missing `git` or a broken pathspec makes `bg_down` empty); patched: the row also requires a non-empty file list; its scan half is pinned by a new mutation line.
+  - `[low]` `[reject]` Blind: nothing runs the real `timeout` wrapper; macOS has none -- the spec says "under `timeout 10` where the host has `timeout`"; the holder query is print-only.
+  - `[false]` `[reject]` Blind: the test header's "about a minute" is stale -- the script still takes about 62 s (real waits elsewhere in it).
+  - `[low]` `[reject]` Edge: the retry pauses pass the run's deadline -- the Design Notes state it ("the pauses and the attempts can pass the deadline by about 20 s"); the spec bounds only the polls.
+  - `[low]` `[reject]` Edge: `lsof -iTCP:<p>` also matches a remote port -- the spec names that command; print-only diagnostic.
+  - `[low]` `[reject]` Edge: `live_bounded` has no bound without `timeout` -- same as the Blind finding above.
+  - `[low]` `[reject]` Edge: `wait_until` overshoots a budget that is not a multiple of 3 by up to 2 s -- the spec fixes the 3 s poll; the overshoot is bounded and cosmetic.
+  - `[medium]` `[patch]` Edge (same root cause as the Blind teardown finding): the scan can pass vacuously -- patched with the non-empty file list.
+  - `[low]` `[reject]` Edge (claim): the wait "never waits past the deadline" does not cover the pauses -- by design, see the first Edge row.
+  - `[low]` `[reject]` Edge (claim): the holder lines may not list a half-removed container or a remote-port socket -- print-only diagnostic and the spec's command shape.
+  - `[low]` `[patch]` Verification-gap: a different failure on the second retry is not pinned (the FAIL line could be printed for it) -- code correct, row missing; patched: a `bind-mac bind-ci other` row; mutation demonstrated.
+  - `[medium]` `[patch]` Verification-gap: no row has a retry wait that polls with a non-zero budget, so the carry-over of the budget and the waited seconds were unpinned -- patched: a hook (`g_bindbusy`) and two rows (free at the pre-check and busy after the bind error: `10 3 3 3`, waited 19; pre-wait 30 s, retry 60 s, retry 0 s: waited 110); the mutations of the finding turn them red.
+  - `[low]` `[reject]` Verification-gap: the `lsof` branch and the `timeout 10` bound have no executed test -- the gap's own disposition was defer; diagnostic-only on the macOS path, so closed like the Blind row.
+  - `[low]` `[patch]` Verification-gap (other): the holder-tools-fail row compared its status with a variable of the previous row -- patched: the redundant comparison is gone and the literal status remains.
+  - `[low]` `[reject]` Verification-gap (other): the bind-three-times row's `-ge 1` holder check is met by `none seen` -- the holders-named row pins real holders.
+  - `[low]` `[reject]` Verification-gap (other): the `timeout` stub drops its argument -- a pass-through stub for the hermetic run; the bound is the spec's "where the host has `timeout`".
+  - `[low]` `[reject]` Verification-gap (other): AC4, AC5 and the Integration AC have no mutation line -- the spec itself says AC4's falsifiable parts are the rows above and AC5 and the Integration AC are live observations owned by the lead.
+  - `[false]` `[reject]` Intent: `live_web_port` prints a `waited` line, which is not a guarded start -- the Design Notes decide it ("Decided in-stage, live_web_port") and a row pins it.
+  - `[false]` `[reject]` Intent: `live_port_listed` widens to every state but TIME-WAIT -- the lead's ruling at the spec gate, in the Code Map, the Tasks and the Design Notes.
+  - `[low]` `[reject]` Intent: the teardown row is a repo-wide `git ls-files` check -- it is the spec's AC3 and its static row.
+  - `[low]` `[reject]` Intent: the holder cases use canned `docker`, `ss` and `timeout` output, not the real tools -- hermetic by the spec's rule; the real-listener proofs are the lead-owned lane-B proofs.
+  - `[low]` `[patch]` Intent: N includes the holder listing time -- same root cause as the first Blind row; patched there.
+  - `[low]` `[patch]` Intent: no row has a retry wait shortened by a part-spent budget -- same root cause as the Verification-gap budget row; patched there.
+
 ## Design Notes
 
 **Measured (plan stage, read-only, from job 130269395421's log):**
@@ -233,17 +280,39 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - Lead (once): CI on the head, with every workflow green, including `iris (shards)` `live:online-allowance` (the Integration AC).
 
 Mutations (one per AC; revert each and confirm that `git status --short` and `git diff --stat` are unchanged):
-- mutation: AC1, bound -- default `LIVE_PORT_WAIT` back to 20 -> the defaults row and the held-for-good row (30 sleeps) go red.
-- mutation: AC1, shared budget -- each retry waits a full `LIVE_PORT_WAIT` -> the shared-budget row goes red (92 sleeps).
-- mutation: AC1, two retries -- stop after one retry -> the "bind twice, then ok" and three-bind rows go red.
-- mutation: AC1, exact error -- retry on any non-zero exit -> the "other error on a retry" row goes red.
-- mutation: AC1, one line -- print the `waited` line after each attempt instead of once at the end -> the bind-three-times row goes red (3 lines); dropping the line -> the held-briefly row goes red.
-- mutation: AC2, holders -- add `--filter label=com.docker.compose.project=$P` to the holder query -> the holders-named row goes red; let `live_port_holders` return the `docker ps` status -> the holder-tools-fail row goes red.
-- mutation: AC3, teardown -- append ` &` to `live_cleanup`'s `dc down` -> the teardown row goes red.
+- mutation: AC1, bound -- default `LIVE_PORT_WAIT` back to 20 -> the defaults row goes red (observed; the held-for-good row pins 90 through `guard_run`'s own knob, so it stays green).
+- mutation: AC1, shared budget -- each retry waits a full `LIVE_PORT_WAIT` -> the shared-budget row goes red (92 sleeps; observed).
+- mutation: AC1, two retries -- stop after one retry -> the "bind twice, then ok", three-bind, shared-budget, holders-named and holder-tools-fail rows go red (observed).
+- mutation: AC1, exact error -- retry on any non-zero exit -> the "other error" and "other error on a retry" rows go red (observed).
+- mutation: AC1, one line -- print the `waited` line after each attempt instead of once at the end -> the bind-then-ok, bind-twice, bind-three-times, shared-budget, other-on-retry and own-stack rows go red (observed); dropping the line -> the held-briefly, held-for-good and the retry rows go red (observed).
+- mutation: AC1, retry waits poll -- pass `0` instead of `"$left"` to the retry's `live_port_wait_free` -> the "retry wait polls" and "budget carried over" rows go red (observed); delete the `spent=$((spent + SECONDS - t2))` line -> the "budget carried over" row goes red (observed).
+- mutation: AC1, other failure on the second retry -- drop `&& line=$(live_bind_error "$errf")` from the FAIL condition -> the "other failure on the second retry" row goes red (observed).
+- mutation: AC1, waited figure -- measure the first wait's `spent` after the holder listing (`$((SECONDS - t))`) -> the "seconds spent listing the holders are not counted" row goes red (observed).
+- mutation: AC2, holders -- add `--filter label=com.docker.compose.project=$P` to the holder query -> the holders-named row goes red (observed); let the guard take its status from `live_port_holders` (`live_port_holders "$p" && rc=0` after the FAIL line; the function itself returns 0 always, so a changed return alone cannot reach the guard's status) -> the bind-three-times, holders-named and holder-tools-fail rows go red (observed).
+- mutation: AC2, holder cap -- drop `NR <= 10` from the `docker ps -a` awk -> the holders-named row goes red (22 lines, not 20; observed).
+- mutation: AC3, teardown scan -- end a `dc down` line of a scanned script (`docker/tests/test-compose-start.sh`) with `&` -> the teardown row goes red from the scan alone (observed).
+- mutation: AC3, teardown -- append ` &` to `live_cleanup`'s `dc down` -> the teardown row goes red (observed).
+- mutation: lead ruling, `ss` branch -- `ss -tan` back to `ss -ltn` in `live_port_listed` -> the listener-table `ss` row (ESTAB, v4-mapped and `-tan` assertions) goes red (observed).
 - mutation: AC4 -- the rows above are its falsifiable parts.
 - mutation: AC5 and the Integration AC -- (lead) these are live observations; the hermetic rows are their stand-ins.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The web-port guard in `docker/tests/lib-live.sh` now waits for the port for one shared budget of `LIVE_PORT_WAIT` (default 90 s, polled every 3 s through `wait_until`), retries up to twice on exactly the bind error after a 10 s pause outside the budget, and then prints `FAIL web port: ... after two retries: <line>`. A guarded start that waited prints one `waited N s for port P` line (the override of `live_web_port` does too). The loud FAIL and `PORT still in use` list the holders (`live_port_holders`: containers of any project that publish the port, then TCP sockets of any state on it, at most 10 lines per source, or `none seen`; print-only). The poll's Linux check (`live_port_listed`) now reads `ss -tan` and counts every state but TIME-WAIT on the publish addresses (the lead's ruling at the spec gate). `live_first_start` shows the `waited` line beside FIRST-START.
+
+**Files changed.**
+- `docker/tests/lib-live.sh` -- the guard, `live_port_wait_free [max]`, `live_port_holders`, `live_bounded`, `live_port_listed`, the override's `waited` line, the knobs, `live_first_start`'s grep, and the header comments.
+- `docker/tests/test-lib-live.sh` -- every matrix row, the lead-ruling `ss` rows, the teardown static row, the fast-clock stubs, and the rows added by this review (second-retry other failure, retry wait polls, budget carried over, holder time not counted, holder cap).
+- This spec (frontmatter, `## Verification` mutation lines, triage log).
+
+**Review.** 28 findings: patches 8 (medium 3 rows over 2 entries: the teardown scan, the unpinned retry budget; the rest low), deferred 2 (step 5's `tail -n 5`; the cycle-log line below), rejected 19 with reasons in the triage log, false 3. Follow-up review recommended: true, because two medium entries were patched; the unverified risk is the new retry-wait and budget rows and the `ss -tan` widening, none of which has run against a real CI engine (the lead-owned proofs A and B and CI do that).
+
+**Verification.** `bash docker/tests/test-lib-live.sh` 169 PASS (156 before), `/bin/bash` 3.2 the same, `test-ci-config.sh`, `test-ci-warm.sh` and `test-ci-changes.sh` pass, the non-ASCII check prints 0 for both files, and the forbidden-paths diff is empty. Every mutation line was observed red and restored byte-identical.
+
+**Residual risks.**
+- `bash docker/tests/test-boundaries.sh` fails its one rule `keys: nothing key-like` on `_bmad-output/implementation-artifacts/cycle-log-epic-0.md:818` (the lead's `story_created` line for 0.25: the job id followed by a colon matches the bot-token shape), not on this diff; it fails the same at the baseline. Until the lead rewords that line, `ci/checks.sh` and so the head's CI are red on it (deferred, medium).
+- The `ss -tan` widening and the 10 s pause are unmeasured on a CI host (inference); the holder lines of the next recurrence will show what the occupant is.
+- `waited N s` reads from `$SECONDS` and can be one second high on a real clock.

@@ -38,14 +38,17 @@
 #   - wait_disabled_quiet (Story 11.22): check_items_run and live_park_telegram (after PARK done only) sample a disabled item only
 #     once the probe lists no Ens.Job entry of it in any state; a Dead entry or a silent session that outlasts DISABLED_QUIET_SECONDS
 #     fails naming the item, the state and the status, and the probe script carries no state filter.
-#   - the start's port guard (Story 0.24): with a web port, dc up, start and restart wait up to 20 s for the port (7 sleeps of 3 s and
-#     a last check), start anyway when it stays held, retry once after a pause on the bind error (both Docker lines) and then fail loudly,
-#     never retry another failure, skip the wait when the project's own container publishes the port, and leave calls with no web
-#     port and every other subcommand untouched; live_web_port waits for a briefly held override; port_in_use reads the listener
-#     table (ss, else lsof, else the connect check alone); an up, a down and the next up on one port (DW-1099) is waited for and
-#     retried; live_port_guard also runs as test-install-script-live.sh step 5 runs it; a real listener (python3) is in use through
-#     the connect check alone and through the host's own ss or lsof; live_first_start shows the PORT lines beside FIRST-START. `docker`, `sleep` and `port_in_use` are
-#     stubs; a subshell sources lib-live.sh again for the real dc.
+#   - the start's port guard (Stories 0.24 and 0.25): with a web port, dc up, start and restart wait up to 90 s for the port (30 sleeps
+#     of 3 s and a last check; one budget shared by the first wait and the waits before the retries), start anyway when it stays held
+#     and then list the holders (PORT holder: lines, or none seen), retry up to twice after a pause of 10 s on the bind error (both
+#     Docker lines) and then fail loudly with the holders, never retry another failure, print one "waited N s for port P" line per
+#     start that waited, skip the wait when the project's own container publishes the port, and leave calls with no web port and
+#     every other subcommand untouched; live_web_port waits for a briefly held override and says so; port_in_use reads the table of
+#     TCP sockets (ss -tan: every state but TIME-WAIT on the publish addresses, else lsof, else the connect check alone); an up, a
+#     down and the next up on one port (DW-1099) is waited for and retried; live_port_guard also runs as test-install-script-live.sh
+#     step 5 runs it; a real listener (python3) is in use through the connect check alone and through the host's own ss or lsof;
+#     live_first_start shows the PORT and waited lines beside FIRST-START; no teardown line is backgrounded. `docker`, `sleep` (a fast
+#     clock), `ss`, `lsof` and `port_in_use` are stubs; a subshell sources lib-live.sh again for the real dc.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass. Takes about a minute: the waits sleep 3 s each.
 set -u
 
@@ -551,7 +554,7 @@ done
 
 printf '%s\n' 52815 > "$used_ports"
 OCUTALON_TEST_WEB_PORT=52815
-LIVE_PORT_WAIT=0 # a port held for good: the override is refused at once, without the 20 s wait
+LIVE_PORT_WAIT=0 # a port held for good: the override is refused at once, without the 90 s wait
 web_port=""
 if live_web_port > "$tmp/port.out" 2>&1 || [ -n "$web_port" ]; then
   fail "web port: the override 52815 was accepted while something listens on it"
@@ -561,7 +564,7 @@ else
   fail "web port: an override that is in use was refused without saying so"
 fi
 unset OCUTALON_TEST_WEB_PORT
-LIVE_PORT_WAIT=20
+LIVE_PORT_WAIT=90
 
 seq 52800 52819 > "$used_ports"
 web_port=""
@@ -583,11 +586,14 @@ else
   fail "web port: the forbidden ports are wrong, or one is in the range"
 fi
 
-# --- the start's port guard (Story 0.24) ---
+# --- the start's port guard (Story 0.24; bounds of Story 0.25) ---
 
 # Every case runs the real dc in a subshell that sources lib-live.sh again (this script's own dc is a stub), with `docker`, `sleep` and
 # `port_in_use` replaced: `docker` records its arguments and answers `ps` and `compose` from the case, `sleep` records its seconds
-# and does not sleep, and `port_in_use` is busy for a number of checks and then free (each check is recorded in the calls file).
+# and does not sleep but advances SECONDS by them (a fast clock), and `port_in_use` is busy for a number of checks and then free (each
+# check is recorded in the calls file). The holder query (`docker ps -a`) answers g_ps_out and exits g_ps_rc; `ss` prints g_ss and
+# is recorded in ss.calls; g_tools=none hides ss and lsof from `command -v`; g_deadline sets the run's deadline in seconds from now;
+# g_bindbusy makes the port busy for that many checks after a bind error; g_holders_cost makes the holder listing take that many seconds.
 # guard_run <web port or empty> <busy checks> <own: 1 when the project's container publishes the port> <compose outcomes> <dc arguments...>
 # sets g_out (stdout), g_err (stderr), g_rc, and leaves $gdir/calls and $gdir/sleeps for the checks. An outcome is ok (prints
 # compose-out), bind-mac, bind-ci (the two bind errors of Docker Desktop and of the CI engine), or other.
@@ -598,21 +604,30 @@ guard_run() {
   shift 4
   : > "$gdir/calls"
   : > "$gdir/sleeps"
+  : > "$gdir/ss.calls"
   printf '%s\n' $queue > "$gdir/queue"
   printf '%s\n' "$busy" > "$gdir/busy"
   (
     . "$root/docker/tests/lib-live.sh"
-    LIVE_PORT_WAIT=20
-    LIVE_PORT_RETRY_PAUSE=5
+    unset SECONDS # a plain variable from here: the fake sleep below is then the only clock, so no real second can add to a figure
+    SECONDS=0
+    LIVE_PORT_WAIT=90
+    LIVE_PORT_RETRY_PAUSE=10
     P=guardproj
     tmp=$gdir
-    deadline=$((SECONDS + 1000))
+    deadline=$((SECONDS + ${g_deadline:-1000}))
     LIVE_FILES=(a.yml)
     web_port=$wp
     docker() {
       case $1 in
         ps)
           echo "$*" >> "$gdir/calls"
+          case " $* " in
+            *' -a '*)
+              if [ -n "${g_ps_out:-}" ]; then printf '%s\n' "$g_ps_out"; fi
+              return "${g_ps_rc:-0}"
+              ;;
+          esac
           if [ "$own" = 1 ]; then echo 0123456789ab; fi
           return 0
           ;;
@@ -624,6 +639,8 @@ guard_run() {
           outcome=$(head -n 1 "$gdir/queue")
           tail -n +2 "$gdir/queue" > "$gdir/queue.next"
           mv "$gdir/queue.next" "$gdir/queue"
+          # g_bindbusy: a bind error leaves the port busy for that many checks (the occupant showed up after the pre-check).
+          case $outcome in bind-*) if [ -n "${g_bindbusy:-}" ]; then printf '%s\n' "$g_bindbusy" > "$gdir/busy"; fi ;; esac
           case $outcome in
             bind-mac)
               echo "Error response from daemon: ports are not available: exposing port TCP 127.0.0.1:52803 -> 127.0.0.1:0: listen tcp4 127.0.0.1:52803: bind: address already in use" >&2
@@ -646,7 +663,32 @@ guard_run() {
           ;;
       esac
     }
-    sleep() { echo "$1" >> "$gdir/sleeps"; }
+    sleep() {
+      echo "$1" >> "$gdir/sleeps"
+      SECONDS=$((SECONDS + $1))
+    }
+    timeout() {
+      shift
+      "$@"
+    }
+    ss() {
+      echo "$*" >> "$gdir/ss.calls"
+      if [ -n "${g_ss:-}" ]; then printf '%s\n' "$g_ss"; fi
+    }
+    lsof() { return 1; }
+    if [ -n "${g_holders_cost:-}" ]; then
+      # g_holders_cost: listing the holders takes that many seconds of the fast clock.
+      live_port_holders() {
+        SECONDS=$((SECONDS + g_holders_cost))
+        echo "PORT holder: none seen"
+      }
+    fi
+    if [ "${g_tools:-}" = none ]; then
+      command() {
+        if [ "${1:-}" = -v ] && { [ "${2:-}" = ss ] || [ "${2:-}" = lsof ]; }; then return 1; fi
+        builtin command "$@"
+      }
+    fi
     port_in_use() {
       local n
       echo check >> "$gdir/calls"
@@ -674,71 +716,165 @@ guard_run() {
 g_has() { printf '%s\n' "$g_out" | grep -qF -- "$1"; }
 g_count() { grep -c -- "$1" "$gdir/calls"; }
 g_composes() { g_count '^compose '; }
+g_out_last_before_rc() { printf '%s\n' "$g_out" | grep -v '^RC=' | tail -n 1; }
 g_checks() { g_count '^check$'; }
 g_sleeps() { grep -c . "$gdir/sleeps"; }
+g_waited() { printf '%s\n' "$g_out" | grep -c '^waited '; }
+g_holders() { printf '%s\n' "$g_out" | grep -c '^PORT holder: '; }
+g_sleepline() { tr '\n' ' ' < "$gdir/sleeps"; }
+three=$(printf '3 %.0s' $(seq 1 30))
+
+if [ "$(env -u LIVE_PORT_WAIT -u LIVE_PORT_RETRY_PAUSE bash -c '. "$1"; echo "$LIVE_PORT_WAIT $LIVE_PORT_RETRY_PAUSE"' _ "$root/docker/tests/lib-live.sh")" = '90 10' ]; then
+  pass "port guard: with both knobs unset the wait is 90 s and the pause before a retry is 10 s"
+else
+  fail "port guard: the defaults of LIVE_PORT_WAIT and LIVE_PORT_RETRY_PAUSE are not 90 and 10"
+fi
 
 guard_run 52803 3 0 ok up -d --no-build
-if [ "$g_rc" = 0 ] && g_has 'PORT waiting: 127.0.0.1:52803 is in use; waiting up to 20 s' && g_has 'PORT free: 127.0.0.1:52803 after ' \
-  && [ "$(g_composes)" = 1 ] && [ "$(tail -n 1 "$gdir/calls" | cut -c1-7)" = compose ] && ! g_has 'PORT retry' && [ "$(g_checks)" = 4 ]; then
-  pass "port guard: a held port is waited for (PORT waiting, then PORT free) and the up runs once, after the checks"
+if [ "$g_rc" = 0 ] && g_has 'PORT waiting: 127.0.0.1:52803 is in use; waiting up to 90 s' && g_has 'PORT free: 127.0.0.1:52803 after ' \
+  && [ "$(g_composes)" = 1 ] && [ "$(tail -n 1 "$gdir/calls" | cut -c1-7)" = compose ] && ! g_has 'PORT retry' && [ "$(g_checks)" = 4 ] \
+  && [ "$(g_waited)" = 1 ] && g_has 'waited 6 s for port 52803' && [ "$(g_holders)" = 0 ]; then
+  pass "port guard: a held port is waited for (PORT waiting, then PORT free) and the up runs once, after the checks, with one waited line"
 else
   fail "port guard: held port: rc '$g_rc', composes '$(g_composes)', checks '$(g_checks)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
 fi
 
+g_ps_out='other-iris-1 Up 2 minutes project=other'
 guard_run 52803 999999 0 ok up -d
-if [ "$g_rc" = 0 ] && [ "$(g_sleeps)" = 7 ] && [ "$(sort -u "$gdir/sleeps" | tr '\n' ' ')" = '3 ' ] && g_has 'PORT waiting' \
-  && g_has 'PORT still in use: 127.0.0.1:52803 after ' && g_has 'starting anyway' && ! g_has 'PORT free' && [ "$(g_composes)" = 1 ]; then
-  pass "port guard: a port that stays held is waited for 7 checks (7 sleeps of 3 s) and the start runs once anyway"
+g_ps_out=""
+if [ "$g_rc" = 0 ] && [ "$(g_sleeps)" = 30 ] && [ "$(sort -u "$gdir/sleeps" | tr '\n' ' ')" = '3 ' ] && [ "$(g_checks)" = 32 ] && g_has 'PORT waiting' \
+  && g_has 'PORT still in use: 127.0.0.1:52803 after 90 s; starting anyway' && ! g_has 'PORT free' && [ "$(g_composes)" = 1 ] \
+  && [ "$(g_waited)" = 1 ] && g_has 'waited 90 s for port 52803' && g_has 'PORT holder: other-iris-1 Up 2 minutes project=other' \
+  && [ "$(printf '%s\n' "$g_out" | grep -n -e '^PORT still in use' -e '^PORT holder' -e '^waited ' | cut -d: -f1 | tr '\n' ' ')" = '2 3 5 ' ]; then
+  pass "port guard: a port that stays held is waited for 90 s (30 sleeps of 3 s, 32 checks), the holders are listed and the start runs once anyway"
 else
-  fail "port guard: held for good: rc '$g_rc', sleeps '$(g_sleeps)', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+  fail "port guard: held for good: rc '$g_rc', sleeps '$(g_sleeps)', checks '$(g_checks)', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
 fi
 
 guard_run 52803 0 0 'bind-mac ok' up -d --build
-if [ "$g_rc" = 0 ] && g_has 'PORT retry: ' && g_has 'bind: address already in use; retrying once in 5 s' && [ "$(g_composes)" = 2 ] \
-  && [ "$(cat "$gdir/sleeps")" = 5 ] && [ "$(g_checks)" = 2 ] && ! g_has 'FAIL web port' \
+if [ "$g_rc" = 0 ] && g_has 'PORT retry: ' && g_has 'bind: address already in use; retry 1 of 2 in 10 s' && [ "$(g_composes)" = 2 ] \
+  && [ "$(cat "$gdir/sleeps")" = 10 ] && [ "$(g_checks)" = 2 ] && ! g_has 'FAIL web port' && [ "$(g_waited)" = 1 ] && g_has 'waited 10 s for port 52803' \
   && printf '%s\n' "$g_err" | grep -qF 'bind: address already in use' \
   && [ "$(grep -c '^compose -p guardproj -f a.yml up -d --build$' "$gdir/calls")" = 2 ]; then
-  pass "port guard: a bind error is retried once after a pause of 5 s and another wait, and the first attempt's stderr is still shown"
+  pass "port guard: a bind error is retried once after a pause of 10 s and another wait, and the first attempt's stderr is still shown"
 else
   fail "port guard: bind then success: rc '$g_rc', composes '$(g_composes)', sleeps '$(tr '\n' ' ' < "$gdir/sleeps")', checks '$(g_checks)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
 fi
 
-guard_run 52803 0 0 'bind-ci bind-ci' up -d
-if [ "$g_rc" != 0 ] && [ -n "$g_rc" ] && [ "$(g_composes)" = 2 ] \
-  && g_has 'FAIL web port: 127.0.0.1:52803 could not be bound after one retry: Error response from daemon: driver failed programming external connectivity on endpoint' \
-  && [ "$(printf '%s\n' "$g_err" | grep -c 'driver failed programming external connectivity')" = 2 ]; then
-  pass "port guard: a second bind error fails loudly after exactly 2 starts, with the web port and the error line, and both attempts' stderr is shown"
+guard_run 52803 0 0 'bind-mac bind-ci ok' up -d
+if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 3 ] && g_has 'retry 1 of 2 in 10 s' && g_has 'retry 2 of 2 in 10 s' && [ "$(g_sleepline)" = '10 10 ' ] \
+  && ! g_has 'FAIL web port' && [ "$(g_waited)" = 1 ] && g_has 'waited 20 s for port 52803' && [ "$(g_holders)" = 0 ]; then
+  pass "port guard: a bind error twice is retried twice (pauses of 10 s each) and the third start comes up, with one waited 20 s line"
 else
-  fail "port guard: bind twice: rc '$g_rc', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+  fail "port guard: bind twice then ok: rc '$g_rc', composes '$(g_composes)', sleeps '$(g_sleepline)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+guard_run 52803 0 0 'bind-ci bind-ci bind-ci' up -d
+if [ "$g_rc" != 0 ] && [ -n "$g_rc" ] && [ "$(g_composes)" = 3 ] \
+  && g_has 'FAIL web port: 127.0.0.1:52803 could not be bound after two retries: Error response from daemon: driver failed programming external connectivity on endpoint' \
+  && [ "$(printf '%s\n' "$g_err" | grep -c 'driver failed programming external connectivity')" = 3 ] && [ "$(g_holders)" -ge 1 ] \
+  && [ "$(g_waited)" = 1 ] && g_has 'waited 20 s for port 52803' && [ "$(g_out_last_before_rc)" = 'waited 20 s for port 52803' ]; then
+  pass "port guard: a third bind error fails loudly after exactly 3 starts, with the web port, the error line, the holders and one waited line, and every attempt's stderr is shown"
+else
+  fail "port guard: bind three times: rc '$g_rc', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+# One budget of 90 s for the first wait and the waits before both retries (the pauses are outside it): 30 polls of 3 s, then the two pauses.
+guard_run 52803 999999 0 'bind-ci bind-ci bind-ci' up -d
+if [ "$g_rc" != 0 ] && [ -n "$g_rc" ] && [ "$(g_sleeps)" = 32 ] && [ "$(g_sleepline)" = "${three}10 10 " ] && [ "$(g_composes)" = 3 ] \
+  && [ "$(g_waited)" = 1 ] && g_has 'waited 110 s for port 52803' && g_has 'could not be bound after two retries'; then
+  pass "port guard: the first wait and the waits before the retries share one budget of 90 s (30 sleeps of 3 s, then 10 and 10): waited 110 s"
+else
+  fail "port guard: shared budget: rc '$g_rc', sleeps '$(g_sleeps)' ($(g_sleepline)), composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
 fi
 
 guard_run 52803 0 0 other up -d
-if [ "$g_rc" = 1 ] && [ "$(g_composes)" = 1 ] && ! g_has 'PORT retry' && ! g_has 'FAIL web port' && printf '%s\n' "$g_err" | grep -qF 'no such image'; then
-  pass "port guard: another start failure is not retried and keeps its status"
+if [ "$g_rc" = 1 ] && [ "$(g_composes)" = 1 ] && ! g_has 'PORT retry' && ! g_has 'FAIL web port' && printf '%s\n' "$g_err" | grep -qF 'no such image' \
+  && [ "$(g_waited)" = 0 ]; then
+  pass "port guard: another start failure is not retried and keeps its status, with no waited line"
 else
   fail "port guard: other failure: rc '$g_rc', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+guard_run 52803 0 0 'bind-mac other' up -d
+if [ "$g_rc" = 1 ] && [ "$(g_composes)" = 2 ] && [ "$(printf '%s\n' "$g_out" | grep -c '^PORT retry')" = 1 ] && ! g_has 'FAIL web port' \
+  && [ "$(g_waited)" = 1 ] && g_has 'waited 10 s for port 52803' && printf '%s\n' "$g_err" | grep -qF 'no such image'; then
+  pass "port guard: another failure on a retry keeps its status and ends the retries (2 starts, no FAIL web port, one waited line)"
+else
+  fail "port guard: other failure on a retry: rc '$g_rc', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+guard_run 52803 0 0 'bind-mac bind-ci other' up -d
+if [ "$g_rc" = 1 ] && [ "$(g_composes)" = 3 ] && [ "$(printf '%s\n' "$g_out" | grep -c '^PORT retry')" = 2 ] && ! g_has 'FAIL web port' \
+  && [ "$(g_holders)" = 0 ] && [ "$(g_waited)" = 1 ] && g_has 'waited 20 s for port 52803' && printf '%s\n' "$g_err" | grep -qF 'no such image'; then
+  pass "port guard: another failure on the second retry keeps its status, with no FAIL web port, no holder lines and one waited line"
+else
+  fail "port guard: other failure on the second retry: rc '$g_rc', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+# The wait before a retry polls the port with what is left of the budget (DW-1099: the occupant appears after the pre-check). Free at the
+# pre-check, busy for 4 checks after the bind error: 10 s pause, then 3 polls of 3 s.
+g_bindbusy=4
+guard_run 52803 0 0 'bind-mac ok' up -d
+g_bindbusy=""
+if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 2 ] && [ "$(g_sleepline)" = '10 3 3 3 ' ] && g_has 'PORT waiting: 127.0.0.1:52803 is in use; waiting up to 90 s' \
+  && g_has 'PORT free: ' && [ "$(g_waited)" = 1 ] && g_has 'waited 19 s for port 52803'; then
+  pass "port guard: the wait before a retry polls a port that became busy after the pre-check (10, then 3 polls of 3 s: waited 19 s)"
+else
+  fail "port guard: retry wait polls: rc '$g_rc', composes '$(g_composes)', sleeps '$(g_sleepline)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+# The pre-wait spends 30 s of the budget (10 polls), the first retry's wait the remaining 60 s (20 polls), and the second retry's wait none.
+g_bindbusy=999999
+guard_run 52803 11 0 'bind-mac bind-ci ok' up -d
+g_bindbusy=""
+if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 3 ] && [ "$(g_sleeps)" = 32 ] && [ "$(g_sleepline)" = "$(printf '3 %.0s' $(seq 1 10))10 $(printf '3 %.0s' $(seq 1 20))10 " ] \
+  && [ "$(g_waited)" = 1 ] && g_has 'waited 110 s for port 52803'; then
+  pass "port guard: the retries' waits spend what the first wait left of the 90 s budget (30 s, then 60 s, then none): waited 110 s"
+else
+  fail "port guard: budget carried over: rc '$g_rc', composes '$(g_composes)', sleeps '$(g_sleepline)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
+# Listing the holders is not waiting: its seconds are in neither the budget nor the waited figure (7 s here).
+g_holders_cost=7
+guard_run 52803 999999 0 ok up -d
+g_holders_cost=""
+if [ "$g_rc" = 0 ] && g_has 'PORT still in use: 127.0.0.1:52803 after 90 s; starting anyway' && g_has 'waited 90 s for port 52803'; then
+  pass "port guard: the seconds spent listing the holders are not counted as waiting"
+else
+  fail "port guard: holder listing time: rc '$g_rc', out: $(printf '%s' "$g_out" | tr '\n' '|')"
 fi
 
 # A bind error line longer than 200 characters is cut to 200 in the PORT retry line (review, Story 0.24).
 long="Error response from daemon: $(printf '%0300d' 0) bind: address already in use"
 guard_run 52803 0 0 'bind-long ok' up -d
-if [ "$g_rc" = 0 ] && printf '%s\n' "$g_out" | grep -qxF "PORT retry: ${long:0:200}; retrying once in 5 s"; then
+if [ "$g_rc" = 0 ] && printf '%s\n' "$g_out" | grep -qxF "PORT retry: ${long:0:200}; retry 1 of 2 in 10 s"; then
   pass "port guard: the PORT retry line carries the bind error's first 200 characters"
 else
   fail "port guard: long bind error: rc '$g_rc', out: $(printf '%s' "$g_out" | cut -c1-260 | tr '\n' '|')"
 fi
 
-# A port that frees after the wait's last sleep is seen by one last check (review, Story 0.24): busy for the first check and the 7
-# checks of wait_until, free at the 9th.
-guard_run 52803 8 0 ok up -d
-if [ "$g_rc" = 0 ] && [ "$(g_sleeps)" = 7 ] && [ "$(g_checks)" = 9 ] && g_has 'PORT free: ' && ! g_has 'starting anyway' && [ "$(g_composes)" = 1 ]; then
-  pass "port guard: a port that frees after the last of the 7 sleeps is free (one last check), with no starting anyway"
+# A port that frees after the wait's last sleep is seen by one last check (review, Story 0.24): busy for the first check and the 30
+# checks of wait_until, free at the 32nd.
+guard_run 52803 31 0 ok up -d
+if [ "$g_rc" = 0 ] && [ "$(g_sleeps)" = 30 ] && [ "$(g_checks)" = 32 ] && g_has 'PORT free: ' && ! g_has 'starting anyway' && [ "$(g_composes)" = 1 ]; then
+  pass "port guard: a port that frees after the last of the 30 sleeps is free (one last check), with no starting anyway"
 else
   fail "port guard: freed after the last sleep: rc '$g_rc', sleeps '$(g_sleeps)', checks '$(g_checks)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
 fi
 
+# The run's deadline ends the wait early: 30 s left of the run, so 10 sleeps of 3 s and not 30.
+g_deadline=30
+guard_run 52803 999999 0 ok up -d
+g_deadline=""
+if [ "$g_rc" = 0 ] && [ "$(g_sleeps)" = 10 ] && g_has 'starting anyway' && [ "$(g_composes)" = 1 ]; then
+  pass "port guard: the wait never goes past the run's deadline (10 sleeps with 30 s left, not 30)"
+else
+  fail "port guard: deadline: rc '$g_rc', sleeps '$(g_sleeps)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+
 guard_run 52803 999999 1 ok restart iris
-if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 1 ] && [ "$(g_checks)" = 0 ] && ! g_has 'PORT' \
+if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 1 ] && [ "$(g_checks)" = 0 ] && ! g_has 'PORT' && [ "$(g_waited)" = 0 ] \
   && grep -qx 'ps -q --filter label=com.docker.compose.project=guardproj --filter publish=52803' "$gdir/calls" \
   && grep -qx 'compose -p guardproj -f a.yml restart iris' "$gdir/calls"; then
   pass "port guard: a restart of the project's own stack (it publishes the port) is not pre-waited"
@@ -746,21 +882,21 @@ else
   fail "port guard: own stack, restart: rc '$g_rc', composes '$(g_composes)', checks '$(g_checks)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
 fi
 guard_run 52803 999999 1 ok up -d
-if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 1 ] && [ "$(g_checks)" = 0 ] && ! g_has 'PORT'; then
+if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 1 ] && [ "$(g_checks)" = 0 ] && ! g_has 'PORT' && [ "$(g_waited)" = 0 ]; then
   pass "port guard: an up over the project's own running stack is not pre-waited"
 else
   fail "port guard: own stack, up: rc '$g_rc', composes '$(g_composes)', checks '$(g_checks)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
 fi
 guard_run 52803 0 1 'bind-mac ok' start iris
-if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 2 ] && g_has 'PORT retry: '; then
-  pass "port guard: a bind error on the project's own stack is retried once, as elsewhere"
+if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 2 ] && g_has 'PORT retry: ' && [ "$(g_waited)" = 1 ] && g_has 'waited 10 s for port 52803'; then
+  pass "port guard: a bind error on the project's own stack is retried once, as elsewhere, with one waited line"
 else
   fail "port guard: own stack, bind error: rc '$g_rc', composes '$(g_composes)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
 fi
 
 guard_run "" 999999 0 ok up -d --build --wait
-if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 1 ] && ! grep -q '^ps ' "$gdir/calls" && [ "$(g_checks)" = 0 ] && ! g_has 'PORT' && g_has compose-out; then
-  pass "port guard: with no web port a start runs as it is: no docker ps, no port check, no PORT line"
+if [ "$g_rc" = 0 ] && [ "$(g_composes)" = 1 ] && ! grep -q '^ps ' "$gdir/calls" && [ "$(g_checks)" = 0 ] && ! g_has 'PORT' && ! g_has 'waited ' && g_has compose-out; then
+  pass "port guard: with no web port a start runs as it is: no docker ps, no port check, no PORT or waited line"
 else
   fail "port guard: no web port: rc '$g_rc', composes '$(g_composes)', checks '$(g_checks)', out: $(printf '%s' "$g_out" | tr '\n' '|')"
 fi
@@ -776,6 +912,32 @@ for sub in 'exec -T iris ls' 'ps -q iris' 'down -v'; do
 done
 if [ "$pass_through_ok" = 1 ]; then
   pass "port guard: exec, ps and down pass straight through with a web port, output unchanged"
+fi
+
+# DW-1100: the loud FAIL names what holds the port: the containers of any project that publish it (docker ps -a with a publish filter
+# and no project label), and the sockets of any state whose local port is the port (the ESTAB one is listed, the neighbour port is
+# not), at most 10 lines from each source (12 containers and 32 sockets are listed here: 20 lines).
+g_ps_out="$(printf 'other-iris-1 Up 2 minutes project=other\n'; for n in $(seq 2 12); do printf 'other-iris-%s Up 2 minutes project=other\n' "$n"; done)"
+g_ss="$(printf 'State Recv-Q Send-Q Local Address:Port Peer Address:Port Process\nESTAB 0 0 127.0.0.1:52803 127.0.0.1:41000 users:(("python3",pid=7,fd=3))\nESTAB 0 0 127.0.0.1:528030 127.0.0.1:41001\n'; for n in $(seq 1 30); do printf 'ESTAB 0 0 127.0.0.1:52803 127.0.0.1:%s\n' $((42000 + n)); done)"
+guard_run 52803 0 0 'bind-ci bind-ci bind-ci' up -d
+g_ps_out="" g_ss=""
+if [ "$g_rc" = 1 ] && g_has 'PORT holder: other-iris-1 Up 2 minutes project=other' && [ "$(g_holders)" = 20 ] \
+  && printf '%s\n' "$g_out" | grep -q '^PORT holder: ESTAB 0 0 127.0.0.1:52803 127.0.0.1:41000' && ! printf '%s\n' "$g_out" | grep -q ':528030' \
+  && [ "$(grep -c '^ps -a --filter publish=52803 --format ' "$gdir/calls")" = 1 ] && ! grep -q '^ps -a.*label=' "$gdir/calls" \
+  && [ "$(cat "$gdir/ss.calls")" = '-tanp' ]; then
+  pass "port guard: the loud FAIL lists the containers of any project that publish the port and at most 10 sockets of any state on it, each tool run once"
+else
+  fail "port guard: holders named: rc '$g_rc', holders '$(g_holders)', ss calls '$(tr '\n' ' ' < "$gdir/ss.calls")', out: $(printf '%s' "$g_out" | tr '\n' '|')"
+fi
+# No tool answers: the line says so, and the FAIL line and the start's status are those of the case above.
+g_ps_rc=1 g_tools=none
+guard_run 52803 0 0 'bind-ci bind-ci bind-ci' up -d
+g_ps_rc="" g_tools=""
+if [ "$g_rc" = 1 ] && g_has 'FAIL web port: 127.0.0.1:52803 could not be bound after two retries' && [ "$(g_holders)" = 1 ] \
+  && g_has 'PORT holder: none seen' && [ ! -s "$gdir/ss.calls" ]; then
+  pass "port guard: with docker ps failing and no ss or lsof the holder line says none seen, and the FAIL line and the status are unchanged"
+else
+  fail "port guard: holder tools fail: rc '$g_rc', out: $(printf '%s' "$g_out" | tr '\n' '|')"
 fi
 
 # The shape of DW-1099 and AC4 (QA): an up, a down, and the next up on the same port. The engine still holds the port for 3 checks after
@@ -825,7 +987,7 @@ g_out=$(
   tmp=$gdir
   deadline=$((SECONDS + 1000))
   web_port=52803
-  LIVE_PORT_WAIT=20
+  LIVE_PORT_WAIT=90
   LIVE_PORT_RETRY_PAUSE=0
   PATH="$gdir/bin:$PATH"
   port_in_use() { return 1; }
@@ -844,19 +1006,24 @@ else
   fail "port guard: test-install-script-live.sh step 5 does not start through live_port_guard"
 fi
 
-# The override of live_web_port waits for a port that is held briefly.
+# The override of live_web_port waits for a port that is held briefly, and says how long it waited (fast clock).
 : > "$gdir/calls"
 : > "$gdir/sleeps"
 printf '%s\n' 2 > "$gdir/busy"
 g_out=$(
   . "$root/docker/tests/lib-live.sh"
-  LIVE_PORT_WAIT=20
+  unset SECONDS # the fake sleep below is the only clock
+  SECONDS=0
+  LIVE_PORT_WAIT=90
   tmp=$gdir
   deadline=$((SECONDS + 1000))
   LIVE_FILES=()
   web_port=""
   OCUTALON_TEST_WEB_PORT=52815
-  sleep() { echo "$1" >> "$gdir/sleeps"; }
+  sleep() {
+    echo "$1" >> "$gdir/sleeps"
+    SECONDS=$((SECONDS + $1))
+  }
   port_in_use() {
     local n
     n=$(cat "$gdir/busy")
@@ -870,7 +1037,8 @@ g_out=$(
   echo "RC=$? PORT=$web_port"
 )
 if printf '%s\n' "$g_out" | grep -q '^PORT waiting' && printf '%s\n' "$g_out" | grep -q '^RC=0 PORT=52815$' \
-  && grep -q '127.0.0.1:52815:52773' "$gdir/port.yml" && [ "$(cat "$gdir/sleeps" | wc -l | tr -d ' ')" = 1 ]; then
+  && grep -q '127.0.0.1:52815:52773' "$gdir/port.yml" && [ "$(cat "$gdir/sleeps" | wc -l | tr -d ' ')" = 1 ] \
+  && [ "$(printf '%s\n' "$g_out" | grep -c '^waited ')" = 1 ] && printf '%s\n' "$g_out" | grep -qx 'waited 3 s for port 52815'; then
   pass "port guard: an override port that is held briefly is waited for, then accepted and published on 127.0.0.1 only"
 else
   fail "port guard: override held briefly: $(printf '%s' "$g_out" | tr '\n' '|')"
@@ -910,11 +1078,17 @@ done
 for addr in 127.0.0.1:00 127.0.0.1:10 '*:00' '[::]:10' 0.0.0.0:00 '*:10' 192.168.1.5:0; do
   if [ "$(listed "${ss_head}LISTEN 0 4096 $addr 0.0.0.0:*\n" 0 1 1)" != 0 ]; then ss_ok=0; echo "  ss table: $addr was taken for a listener"; fi
 done
-if [ "$(listed "${ss_head}ESTAB 0 0 127.0.0.1:0 127.0.0.1:5000\n" 0 1 1)" != 0 ]; then ss_ok=0; echo "  ss table: a connected socket was taken for a listener"; fi
+# Every state but TIME-WAIT counts, on the publish addresses only (a loopback client whose ephemeral source port is the port refuses the bind).
+if [ "$(listed "${ss_head}ESTAB 0 0 127.0.0.1:0 127.0.0.1:5000\n" 0 1 1)" != 1 ]; then ss_ok=0; echo "  ss table: a connected socket on 127.0.0.1:port was not seen"; fi
+if [ "$(listed "${ss_head}ESTAB 0 0 [::ffff:127.0.0.1]:0 [::ffff:127.0.0.1]:5000\n" 0 1 1)" != 1 ]; then ss_ok=0; echo "  ss table: a v4-mapped loopback socket was not seen"; fi
+if [ "$(listed "${ss_head}TIME-WAIT 0 0 127.0.0.1:0 127.0.0.1:5000\n" 0 1 1)" != 0 ]; then ss_ok=0; echo "  ss table: a TIME-WAIT socket was counted"; fi
+if [ "$(listed "${ss_head}ESTAB 0 0 10.0.0.5:0 10.0.0.5:5000\n" 0 1 1)" != 0 ]; then ss_ok=0; echo "  ss table: a socket on another local address was counted"; fi
+if [ "$(listed "${ss_head}ESTAB 0 0 127.0.0.1:00 127.0.0.1:5000\nESTAB 0 0 127.0.0.1:10 127.0.0.1:5000\n" 0 1 1)" != 0 ]; then ss_ok=0; echo "  ss table: a neighbour port was counted"; fi
 listed "${ss_head}" 0 1 1 > /dev/null
-if [ "$(cat "$gdir/ss.args")" != '-ltn' ] || [ -s "$gdir/lsof.args" ]; then ss_ok=0; echo "  ss table: ss was run with '$(cat "$gdir/ss.args")', or lsof was run beside it"; fi
+case " $(cat "$gdir/ss.args") " in *' -tan '*) ;; *) ss_ok=0; echo "  ss table: ss was run with '$(cat "$gdir/ss.args")', not -tan (every state)" ;; esac
+if [ -s "$gdir/lsof.args" ]; then ss_ok=0; echo "  ss table: lsof was run beside ss"; fi
 if [ "$ss_ok" = 1 ]; then
-  pass "listener table: ss -ltn lists 127.0.0.1, 0.0.0.0, * and [::] on the port as in use; a neighbour port, another address and a connected socket are not"
+  pass "listener table: ss -tan lists a socket of any state but TIME-WAIT on 127.0.0.1, 0.0.0.0, *, [::] or the v4-mapped loopback as in use; a neighbour port, another address and a TIME-WAIT socket are not"
 else
   fail "listener table: ss"
 fi
@@ -953,6 +1127,19 @@ if [ -n "$lport" ] && [ "$alone" = 1 ] && [ "$table" = 1 ]; then
   pass "listener table: a real listener on 127.0.0.1 is in use through the connect check alone and through this host's own ss or lsof"
 else
   fail "listener table: a real listener on '$lport': connect check alone '$alone', host's table '$table'"
+fi
+
+# Teardown is foreground (Story 0.25): in the tracked live scripts, CI scripts and release scripts no line that tears a stack down
+# (dc down, docker compose ... down) ends in a lone &, so a unit's teardown ends before the next unit starts; live_cleanup keeps its
+# one foreground dc down -v --rmi local.
+td_files=$(git ls-files 'docker/tests/*.sh' 'ci/*.sh' 'release/*.sh')
+bg_down=$(printf '%s\n' "$td_files" | while IFS= read -r tf; do
+  awk -v f="$tf" '/(dc down|docker compose.* down)/ && /[^&]&[ \t]*$/ { print f ": " $0 }' "$tf"
+done)
+if [ -n "$td_files" ] && [ -z "$bg_down" ] && [ "$(grep -c '^  if \[ "\${#LIVE_FILES\[@\]}" -gt 0 \]; then dc down -v --rmi local >/dev/null 2>&1; fi$' "$root/docker/tests/lib-live.sh")" = 1 ]; then
+  pass "teardown: no dc down or docker compose down line of the tracked docker/tests, ci or release scripts is backgrounded, and live_cleanup's dc down -v --rmi local is unchanged"
+else
+  fail "teardown: a backgrounded teardown line, or live_cleanup changed: $bg_down"
 fi
 
 # --- first_start_report and live_first_start (Story 0.8) ---
@@ -998,6 +1185,7 @@ first_start_probe() {
         up)
           SECONDS=32
           if [ -n "${FIRST_PORT:-}" ]; then echo "PORT free: 127.0.0.1:52803 after 6 s"; fi
+          if [ -n "${FIRST_WAITED:-}" ]; then echo "waited 6 s for port 52803"; fi
           ;;
         ps) echo cid-of-the-first-start ;;
       esac
@@ -1045,6 +1233,12 @@ if [ "$(printf '%s\n' "$out" | grep -E '^(PORT|FIRST-START)' | tr '\n' '|')" = '
   pass "live_first_start: the port guard's PORT lines from the start are shown before the FIRST-START line (Story 0.24)"
 else
   fail "live_first_start: the PORT lines of the start are not shown before FIRST-START ($(printf '%s' "$out" | tr '\n' '|'))"
+fi
+FIRST_PORT=1 FIRST_WAITED=1 FIRST_READY=200 out=$(first_start_probe -)
+if [ "$(printf '%s\n' "$out" | grep -E '^(PORT|waited |FIRST-START)' | tr '\n' '|')" = 'PORT free: 127.0.0.1:52803 after 6 s|waited 6 s for port 52803|FIRST-START engine=x86_64 build=30s ready=200s|' ]; then
+  pass "live_first_start: the guard's waited line is shown with the PORT lines, before the FIRST-START line (Story 0.25)"
+else
+  fail "live_first_start: the waited line of the start is not shown before FIRST-START ($(printf '%s' "$out" | tr '\n' '|'))"
 fi
 FIRST_READY=721 out=$(first_start_probe -)
 if printf '%s\n' "$out" | grep -qx 'FIRST-START engine=x86_64 build=30s ready=721s' \
