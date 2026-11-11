@@ -692,7 +692,7 @@ test('S12: the Channels section shows the state of Telegram, read only', async (
   const telegramBlock = page.locator('.telegram');
   await expect(telegramBlock.getByRole('textbox'), 'the Telegram block has no field, so no token can be entered').toHaveCount(0);
   await expect(telegramBlock.getByRole('button'), 'and no button').toHaveCount(0);
-  await expect(page.getByRole('textbox'), 'the only fields of the section are the Email group\'s address, server, user name and password (Story 21.2)').toHaveCount(4);
+  await expect(page.getByRole('textbox'), 'the only fields of the section are the Email group\'s address, two servers, user name and password (Stories 21.2 and 21.6)').toHaveCount(5);
   const notSetUp = page.getByText('Telegram not set up', { exact: true });
   const paused = page.getByText('Telegram paused', { exact: true });
   const on = page.getByText('Telegram on', { exact: true });

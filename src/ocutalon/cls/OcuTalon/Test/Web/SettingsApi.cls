@@ -164,6 +164,14 @@ Method TestGetShape()
 	Do $$$AssertEquals(keys, "sections,bridge,providers,instanceZone,prices", "the keys")
 	Do $$$AssertEquals(json.sections.%Get("check-thresholds").%ToJSON(), "{""diskFreePercent"":10,""journalFreePercent"":10,""licenseUsePercent"":90,""queueMessages"":100,""queueWaitMinutes"":10}", "the thresholds")
 	Do $$$AssertEquals(json.sections.%Get("daily-digest").channels, "web,phone,telegram", "the digest channels")
+	Set channels = json.sections.channels
+	Set members = ""
+	Set iterator = channels.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set members = members_$Select(members = "": "", 1: ",")_key
+	}
+	Do $$$AssertEquals(members, "address,incoming,outgoing,user,passwordSet", "the channels section holds the address, both servers, the user and passwordSet, nothing else (Story 21.6)")
+	Do $$$AssertEquals(channels.%GetTypeOf("outgoing")_"|"_channels.%GetTypeOf("passwordSet"), "string|boolean", "the outgoing server is a string and passwordSet a boolean")
 	Do $$$AssertEquals(json.sections.%Get("demo-mode").%GetTypeOf("demoMode"), "boolean", "demoMode is a boolean")
 	// U-177 exception: this Lane B test is edited by Lane A's Story 17.3 once, as ruled by the Contest Planner (2026-11-05). The providers are asserted by their built shape only.
 	Do $$$AssertEquals(json.providers.%GetTypeOf(0), "object", "the providers are built: the first row is an object")
@@ -519,7 +527,7 @@ Method TestDemoModeBodies()
 	Do $$$AssertEquals($Select($IsObject(after): after.Value, 1: ""), was, "demo mode did not change")
 }
 
-/// POST /v1/settings/channels (Story 21.2): on the online demo it answers 409 not_available with the accepted sentence before the body is read, and offers and
+/// POST /v1/settings/channels (Stories 21.2 and 21.6, with the outgoing server): on the online demo it answers 409 not_available with the accepted sentence before the body is read, and offers and
 /// submits nothing; a password over 256 characters is 400 bad_settings naming password with nothing offered; a refused body (a value with @{, an unknown
 /// field, a bad address, no object) is 400 through the production with nothing written and the offered password withdrawn; and a body that holds the
 /// password never answers it. The number of hand-off resources is the same after every call.
@@ -532,7 +540,7 @@ Method TestChannelsRoute()
 	Set before = ..Handoffs()
 	Set rows = ..SaveSettingsRows()
 	Set secret = "zzchannelspw"_$Job_$Random(100000)
-	Set ok = {"address": "zzchannels@example.com", "incoming": "pop.example.com", "user": "zzchannels", "password": (secret)}
+	Set ok = {"address": "zzchannels@example.com", "incoming": "pop.example.com", "outgoing": "smtp.example.com", "user": "zzchannels", "password": (secret)}
 	Try {
 		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 		Set body = ..Call("SaveChannels", ok.%ToJSON(), session, .response)
@@ -559,7 +567,7 @@ Method TestChannelsRoute()
 		Set body = ..Call("SaveChannels", "[1]", session, .response)
 		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[]}", "a body that is not an object: 400 bad_settings, no field")
 		Do $$$AssertEquals(..Handoffs()_"|"_..SaveSettingsRows(), before_"|"_rows, "nothing was offered and nothing submitted")
-		For field = "address", "incoming", "user" {
+		For field = "address", "incoming", "outgoing", "user" {
 			Set bad = {}.%FromJSON(ok.%ToJSON())
 			Do bad.%Set(field, "x@{y", "string")
 			Set body = ..Call("SaveChannels", bad.%ToJSON(), session, .response)

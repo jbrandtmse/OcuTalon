@@ -434,7 +434,7 @@ Method TestValues()
 	While iterator.%GetNext(.key, , .type) {
 		Set shape = shape_$Select(shape = "": "", 1: ",")_key_":"_type
 	}
-	Do $$$AssertEquals(shape, "address:string,incoming:string,user:string,passwordSet:boolean", "the channels hold the address, the server, the user name and whether a password is set")
+	Do $$$AssertEquals(shape, "address:string,incoming:string,outgoing:string,user:string,passwordSet:boolean", "the channels hold the address, both servers, the user name and whether a password is set")
 	Do $$$AssertEquals(body.sections.%Get("check-thresholds").%ToJSON(), "{""diskFreePercent"":10,""journalFreePercent"":10,""licenseUsePercent"":90,""queueMessages"":100,""queueWaitMinutes"":10}", "an absent row reads as the default, as a number")
 	Do $$$AssertEquals(body.sections.%Get("daily-digest").%ToJSON(), "{""time"":""08:00"",""channels"":""web,phone,telegram""}", "the digest defaults")
 	Do $$$AssertEquals(body.sections.%Get("demo-mode").%GetTypeOf("demoMode"), "boolean", "demoMode is a boolean")

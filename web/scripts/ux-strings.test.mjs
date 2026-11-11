@@ -226,6 +226,7 @@ const SOURCES = {
     'Your email address',
     'OcuTalon emails this address without asking.',
     'Incoming mail server (POP3)',
+    'Outgoing mail server (SMTP)',
     'Saved, and never shown again. Type a new value to replace it.',
     'Not set.',
     "This can't contain @{, which IRIS would read as a reference to a setting. Nothing was changed.",

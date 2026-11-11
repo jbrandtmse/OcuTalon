@@ -239,10 +239,14 @@ export interface SettingsSections {
   channels?: EmailValues;
 }
 
-/** The values of the Email form: the saved address, incoming server (host, or host:port off port 995) and user name, and whether a password is stored. */
+/**
+ * The values of the Email form: the saved address, incoming server (host, or host:port off port 995), outgoing server (host, or host:port off port 587; empty
+ * for none) and user name, and whether a password is stored.
+ */
 export interface EmailValues {
   address: string;
   incoming: string;
+  outgoing: string;
   user: string;
   passwordSet: boolean;
 }

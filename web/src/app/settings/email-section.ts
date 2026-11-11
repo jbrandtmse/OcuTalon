@@ -15,7 +15,8 @@ import { firstInError, SETTINGS_TEXTS } from './settings-view';
 const FORM_ERROR_ID = 'email-error';
 
 /**
- * The Email group of Settings > Channels (Story 21.2; FR-21, FR-22): the address, the incoming POP3 server (host, or host:port), the user name and the
+ * The Email group of Settings > Channels (Stories 21.2 and 21.6; FR-21, FR-22): the address, the incoming POP3 server and the outgoing SMTP server (each host, or
+ * host:port; an empty outgoing server means none), the user name and the
  * write-only password of the admin's mailbox, and **Save changes**. The values come from the page's GET /v1/settings (`sections.channels`, passed in); the
  * password is never in them, so its field is empty, and a line under it says whether one is stored ("Saved, and never shown again. Type a new value to
  * replace it." or "Not set."). The group is absent while the snapshot says that this is the online demo, and when the server sends no channels values.
@@ -73,6 +74,23 @@ const FORM_ERROR_ID = 'email-error';
           />
           @if (errors().incoming) {
             <p class="field-error" id="email-incoming-error"><app-icon name="circle-alert" [size]="16" />{{ errorOf('incoming') }}</p>
+          }
+        </div>
+        <div class="field">
+          <label for="email-outgoing">{{ t.outgoing }}</label>
+          <input
+            id="email-outgoing"
+            type="text"
+            autocomplete="off"
+            class="input"
+            [class.invalid]="errors().outgoing"
+            [attr.aria-invalid]="errors().outgoing ? 'true' : null"
+            [attr.aria-describedby]="errors().outgoing ? 'email-outgoing-error' : null"
+            [value]="texts().outgoing"
+            (input)="typed('outgoing', value($event))"
+          />
+          @if (errors().outgoing) {
+            <p class="field-error" id="email-outgoing-error"><app-icon name="circle-alert" [size]="16" />{{ errorOf('outgoing') }}</p>
           }
         </div>
         <div class="field">

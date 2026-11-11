@@ -23,6 +23,31 @@
 ///     password and no SaveSettings body, log row, audit entry, emailPoll value, stub answer or ^OcuTalon* global does;
 ///   - TestUserChangeKeepsThePassword (matrix row 2): a second real save with another user name and no password changes the credential's user name and
 ///     keeps its password.
+/// Story 21.6 adds the SMTP side against the mock's SMTP stub (host mock, SMTP on 1025, control on 8080 under /_mock/smtp/). The save writes SSLConfig
+/// OcuTalonClient* for outgoing mock:1025 and the test leaves it as saved: the job reads the CI-only variable OCUTALON_TEST_PLAIN_SMTP (ruling c), which
+/// together with the host mock lets the sender talk plain SMTP to the stub and to nothing else. Every send is preceded by an assertion that EmailOut's
+/// SMTPServer row is mock, so that no test can reach a real server.
+///   - TestOutgoingSave (matrix rows 1 and 3, AC 1): the real save with an outgoing server writes the EmailOut rows (port, credential, SSLConfig, identity check,
+///     Enabled) and the email.outgoing audit entry, EmailOut runs, and a save without it disables the item and removes the rows; with no job a send is
+///     not_connected at once;
+///   - TestToolSendReachesTheStub (Integration AC; rulings a, e, g): the owner's tool turn submits SendEmail to the saved address through Commands.Submit,
+///     real CommandsIn routes it to real EmailOut and the stub holds exactly that mail (UTF-8 kept, one plain part, no attachment) with one Delivery row; a
+///     second session, another address and a tainted or untrusted turn are refused and the stub receives nothing; the online demo flag refuses with
+///     not_available even though the rows are present and enabled;
+///   - TestSystemSendIsClaimedByItsApproval (rulings a, f): a system send with the approval of an executing email fix reaches the stub; the same approval again,
+///     and after EmailOut restarts, is already_sent and the stub holds one mail; a failed send keeps its claim; a send with no approval row is refused;
+///   - TestSendFailuresByStubMode (matrix "Send fails"): connect refused, AUTH refused, RCPT rejected and DATA rejected answer failed with P1a, P1b, Q4 and Q4, once,
+///     with no mail and no Delivery row;
+///   - TestNoPlainSmtpWithoutTheSwitch (ruling c): every SSLConfig value a save writes (ports 465, 587 and another), an empty and a foreign one, sent with the
+///     switch off, put no SMTP command beyond the greeting to the stub (nothing for an empty or foreign value); a host other than mock with the switch on
+///     connects to nothing; the switch on and the host mock sends;
+///   - TestResaveStartsStoppedItems (DW-1139, the observable): rows saved and enabled with the items stopped (the update never ran), an identical save leaves
+///     EmailIn and EmailOut running within the wait. The production's Ens.ScheduleHandler also updates the production on its own cycle and may start an
+///     enabled item before the save does, so the pin of "the save runs the update even when no row changed" is Test.Core.SettingsEmail TestNothingChanged;
+///   - TestCredentialReadAtSendTime (ruling d): the credential is read at each send: a save that changes only the user name (no row changes, so EmailOut is not
+///     restarted) shows at the stub's next login;
+///   - TestPasswordNotOnTheSendPath (ruling d, AC 3): after a save and a send no SendEmail message, log row, audit entry, Delivery row, stub state or ^OcuTalon* global
+///     holds the dummy password, and no log row holds the address or the subject.
 Class OcuTalon.Test.Channel.EmailLive Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -35,6 +60,11 @@ Parameter CREDENTIAL = "OcuTalonMail";
 Parameter STUBHOST = "mock";
 
 Parameter POP3PORT = 1110;
+
+/// The SMTP stub's port, and the production item that sends.
+Parameter SMTPPORT = 1025;
+
+Parameter SENDITEM = "EmailOut";
 
 Parameter CONTROLPORT = 8080;
 
@@ -60,9 +90,13 @@ Property Owner As %String [ Private ];
 /// The state before the test, to put back: $ListBuild(emailPoll mark, address row, address, owner row, owner).
 Property Found As %List [ Private ];
 
+/// The public setting onlineDemo as found, and the Refs of the approval requests that a test made.
+Property Online As %String [ Private ];
+
 Method OnBeforeAllTests() As %Status
 {
 	Set sc = ##super()
+	Set ..Online = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	If ..Missing = "" {
 		Set reason = ..StubReason()
 		If reason '= "" Set ..Missing = reason
@@ -80,20 +114,22 @@ Method OnAfterAllTests() As %Status
 Method StubReason() As %String [ Private ]
 {
 	If '$IsObject(..ItemOf()) Quit "The production has no item "_..#ITEM
+	If '$IsObject(..ItemOf(..#SENDITEM)) Quit "The production has no item "_..#SENDITEM
 	If $SYSTEM.Util.GetEnviron("OCUTALON_MODEL_BASE_URL") '[ ("//"_..#STUBHOST_":") Quit "OCUTALON_MODEL_BASE_URL does not name the CI mock: this class runs in throwaways and CI only (Rule 21)"
 	If '..Control("reset", {}) Quit "The CI mock's POP3 stub does not answer on "_..#STUBHOST_":"_..#CONTROLPORT_" (Rule 21)"
+	If '..SmtpControl("reset", {}) Quit "The CI mock's SMTP stub does not answer on "_..#STUBHOST_":"_..#CONTROLPORT_" (Rule 21)"
 	If ##class(Ens.Config.Credentials).%ExistsId(..#CREDENTIAL) Quit "A credential "_..#CREDENTIAL_" exists: this class runs on a stack with no mailbox connected"
 	Quit ""
 }
 
 /// The production's item of that name, or "".
-ClassMethod ItemOf() As Ens.Config.Item [ Private ]
+ClassMethod ItemOf(name As %String = {..#ITEM}) As Ens.Config.Item [ Private ]
 {
 	Set production = ##class(Ens.Config.Production).%OpenId("OcuTalon.Production")
 	If '$IsObject(production) Quit ""
 	Set found = ""
 	For i = 1:1:production.Items.Count() {
-		If production.Items.GetAt(i).Name = ..#ITEM {
+		If production.Items.GetAt(i).Name = name {
 			Set found = production.Items.GetAt(i)
 			Quit
 		}
@@ -116,6 +152,25 @@ ClassMethod StubState() As %DynamicObject
 {
 	Set request = ..Request()
 	Set sc = request.Get("/_mock/mail/state")
+	If $$$ISERR(sc) || (request.HttpResponse.StatusCode '= 200) Quit ""
+	Quit {}.%FromJSON(request.HttpResponse.Data)
+}
+
+/// The SMTP stub's control call: the route and the JSON body; 1 when it answered 200.
+ClassMethod SmtpControl(route As %String, body As %DynamicObject) As %Boolean
+{
+	Set request = ..Request()
+	Set request.ContentType = "application/json"
+	Do request.EntityBody.Write($ZConvert(body.%ToJSON(), "O", "UTF8"))
+	Set sc = request.Post("/_mock/smtp/"_route)
+	Quit $$$ISOK(sc) && (request.HttpResponse.StatusCode = 200)
+}
+
+/// The SMTP stub's state: {messages, connections, logins, user, failure, commands}, or "" when it does not answer.
+ClassMethod SmtpState() As %DynamicObject
+{
+	Set request = ..Request()
+	Set sc = request.Get("/_mock/smtp/state")
 	If $$$ISERR(sc) || (request.HttpResponse.StatusCode '= 200) Quit ""
 	Quit {}.%FromJSON(request.HttpResponse.Data)
 }
@@ -148,7 +203,7 @@ ClassMethod Mail(uidl As %String, subject As %String = "zz subject", text As %St
 
 /// Connects the mailbox through a real save as the fixture session's admin: offers the dummy password to the hand-off, submits the SaveSettings command
 /// with origin web_admin and takes back what is left. Answers the CommandResult.
-Method Connect(address As %String = "zzlive@example.com", user As %String = "zzlive") As OcuTalon.Msg.CommandResult [ Private ]
+Method Connect(address As %String = "zzlive@example.com", user As %String = "zzlive", outgoing As %String = "") As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set ..Owner = ..Session("owner")
 	Set ..Dummy = "Zz-live-"_..Number_"-"_$Random(1000000)
@@ -157,7 +212,9 @@ Method Connect(address As %String = "zzlive@example.com", user As %String = "zzl
 	Do $$$AssertStatusOK(sc, "the password is offered to the hand-off")
 	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
 	Set command.Slug = "channels"
-	Set command.Changes = {"address": (address), "incoming": (..#STUBHOST_":"_..#POP3PORT), "user": (user), "password": (uri)}.%ToJSON()
+	Set body = {"address": (address), "incoming": (..#STUBHOST_":"_..#POP3PORT), "user": (user), "password": (uri)}
+	If outgoing '= "" Do body.%Set("outgoing", outgoing, "string")
+	Set command.Changes = body.%ToJSON()
 	Set command.ActingUser = "zzlivecycle"
 	Set command.SessionRef = ..Owner
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
@@ -165,7 +222,116 @@ Method Connect(address As %String = "zzlive@example.com", user As %String = "zzl
 	Do $$$AssertEquals($$$ISOK(sc)_"|"_$IsObject($Get(result)), "1|1", "the save is submitted and answered")
 	Kill left
 	If $IsObject($Get(result)) && result.Ok Do $$$AssertTrue(..WaitJob(), "EmailIn runs after the save")
+	If $IsObject($Get(result)) && result.Ok && (outgoing '= "") Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs(..#SENDITEM, 1), "EmailOut runs after the save")
 	Quit $Get(result)
+}
+
+/// A save of the channels section by the fixture admin with no password (the stored one is kept), from the body; answers the CommandResult.
+Method Resave(body As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
+	Set command.Slug = "channels"
+	Set command.Changes = body.%ToJSON()
+	Set command.ActingUser = "zzlivecycle"
+	Set command.SessionRef = ..Owner
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_$IsObject($Get(result)), "1|1", "the save is submitted and answered")
+	Quit $Get(result)
+}
+
+/// The body of a save of the fixture mailbox with the outgoing server (none when empty) and no password.
+ClassMethod Body(outgoing As %String = "") As %DynamicObject [ Private ]
+{
+	Set body = {"address": "zzlive@example.com", "incoming": (..#STUBHOST_":"_..#POP3PORT), "user": "zzlive"}
+	If outgoing '= "" Do body.%Set("outgoing", outgoing, "string")
+	Quit body
+}
+
+/// The value of a System Default Settings row of an item, "" when there is none.
+ClassMethod Row(item As %String, name As %String) As %String [ Private ]
+{
+	Set id = "OcuTalon.Production||"_item_"||*||"_name
+	Quit $Select(##class(Ens.Config.DefaultSettings).%ExistsId(id): ##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue, 1: "")
+}
+
+/// Every send of this class goes to the CI stub: EmailOut's SMTPServer row is mock.
+Method MockServer() [ Private ]
+{
+	Do $$$AssertEquals(..Row(..#SENDITEM, "SMTPServer"), "mock", "EmailOut's SMTPServer row is mock: every send goes to the CI stub")
+}
+
+/// A tool turn of the session: a bridge context (provenance, taint) and a SendEmail submitted through Commands.Submit, which real CommandsIn routes to
+/// real EmailOut. Answers the CommandResult.
+Method ToolSend(owner As %String, recipients As %String, subject As %String, text As %String, provenance As %String = "user", tainted As %Boolean = 0) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Do ..MockServer()
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.OwnerRef = owner
+	Set request.Provenance = provenance
+	Set result = ""
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, ##class(OcuTalon.Data.Session).RefIndexOpen(owner).TraceRef), "a tool turn begins")
+	If tainted Do ##class(OcuTalon.Bridge.Context).Put("Tainted", 1)
+	Try {
+		Set command = ##class(OcuTalon.Msg.Command.SendEmail).%New()
+		Set command.SessionRef = owner
+		Set command.Recipients = recipients
+		Set command.Subject = subject
+		Set command.Text = text
+		Set command.IdempotencyKey = "zzlivekey"_$Increment(^OcuTalonTest("EmailLive", "key"))
+		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "tool", .result)
+		Do $$$AssertStatusOK(sc, "the command is submitted")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the tool turn runs without an exception")
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Quit result
+}
+
+/// A SendEmail of origin system (FixExecutor's path) with the approval's Ref, submitted through Commands.Submit; answers the CommandResult.
+Method SystemSend(owner As %String, recipients As %String, approval As %String) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Do ..MockServer()
+	Set command = ##class(OcuTalon.Msg.Command.SendEmail).%New()
+	Set command.SessionRef = owner
+	Set command.Recipients = recipients
+	Set command.Subject = "zz fix mail"
+	Set command.Text = "zz fix text"
+	Set command.ApprovalRef = approval
+	Set command.IdempotencyKey = "zzlivekey"_$Increment(^OcuTalonTest("EmailLive", "key"))
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .result)
+	Do $$$AssertStatusOK(sc, "the command is submitted")
+	Quit result
+}
+
+/// Makes the approval request of an executing email fix for the recipients (a comma list); answers its Ref.
+Method MakeApproval(ref As %String, recipients As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set row.Ref = ref
+	Set row.Kind = "fix"
+	Set row.State = "executing"
+	Set row.FixKind = "email"
+	Set row.OwnerRef = ..Owner
+	Set array = []
+	For i = 1:1:$Length(recipients, ",") Do array.%Push($Piece(recipients, ",", i))
+	Set row.FixParameters = {"recipients": (array)}.%ToJSON()
+	Do $$$AssertStatusOK(row.%Save(), "the approval request "_ref_" is made")
+	Quit ref
+}
+
+/// The mails that the SMTP stub holds.
+ClassMethod Mails() As %DynamicArray [ Private ]
+{
+	Set state = ..SmtpState()
+	Quit $Select($IsObject(state): state.messages, 1: [])
+}
+
+/// The number of Delivery rows of channel email of the owner, or with the approval's Ref.
+ClassMethod Deliveries(owner As %String, approval As %String = "") As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND (OwnerRef = ? OR ApprovalRef = ?)", owner, approval)
+	Do result.%Next()
+	Quit +result.%GetData(1)
 }
 
 /// The fixture that a poll of the plain stub needs: the row SSLConfig is "" (the product itself always writes OcuTalonClient).
@@ -263,10 +429,16 @@ Method ModelCalls() As %Integer [ Private ]
 /// Puts everything back: the item stopped and its rows, the credential, the keys, the seen rows, the mark, the stub, the owner's decisions.
 Method Disconnect() [ Private ]
 {
-	For name = "POP3Server", "POP3Port", "Credentials", "SSLConfig", "Enabled" {
-		Set id = "OcuTalon.Production||"_..#ITEM_"||*||"_name
-		If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
+	For item = ..#ITEM, ..#SENDITEM {
+		For name = "POP3Server", "POP3Port", "SMTPServer", "SMTPPort", "Credentials", "SSLConfig", "SSLCheckServerIdentity", "Enabled" {
+			Set id = "OcuTalon.Production||"_item_"||*||"_name
+			If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
+		}
 	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..Online)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND (OwnerRef = ? OR ApprovalRef LIKE 'zzlive%')", ..Owner)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE Ref LIKE 'zzlive%'")
+	Do ##class(OcuTalon.Bridge.Context).End()
 	If ##class(Ens.Config.Credentials).%ExistsId(..#CREDENTIAL) Do ##class(Ens.Config.Credentials).%DeleteId(..#CREDENTIAL)
 	If $ListLength(..Found) {
 		For pair = $ListBuild("email.address", 2, 3), $ListBuild("email.owner", 4, 5) {
@@ -281,6 +453,7 @@ Method Disconnect() [ Private ]
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.MailSeen")
 	Do ..Uncap()
 	Do ..Control("reset", {})
+	Do ..SmtpControl("reset", {})
 	Do ##class(Ens.Director).UpdateProduction()
 	If ..Owner '= "" {
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE OwnerRef = ?", ..Owner)
@@ -629,6 +802,340 @@ Method TestPasswordOnlyInTheCredential()
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(..Dummy), "", "and no ^OcuTalon* global does")
 		Do $$$AssertEquals(..StubState().%ToJSON() [ ..Dummy, 0, "nor the stub's state")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens.MessageHeader", "Description", ..Dummy), 0, "nor a message header")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// Matrix rows 1 and 3 and AC 1: the real save with an outgoing server writes the EmailOut rows and the audit entry and starts the item; a save without it
+/// disables the item and deletes the server rows; with no job a send is not_connected at once.
+Method TestOutgoingSave()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..Mailbox([])
+		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set result = ..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the real save with an outgoing server is done")
+		Do $$$AssertEquals(..Row(..#SENDITEM, "SMTPServer")_"|"_..Row(..#SENDITEM, "SMTPPort")_"|"_..Row(..#SENDITEM, "Credentials")_"|"_..Row(..#SENDITEM, "SSLConfig")_"|"_..Row(..#SENDITEM, "SSLCheckServerIdentity")_"|"_..Row(..#SENDITEM, "Enabled"), "mock|1025|OcuTalonMail|OcuTalonClient*|1|1", "the rows of EmailOut: server, port, the mail credential, STARTTLS, the identity checked, Enabled")
+		Do $$$AssertEquals(..Row(..#ITEM, "POP3Server")_"|"_..Row(..#ITEM, "SSLConfig"), "mock|OcuTalonClient", "the rows of EmailIn are as before")
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(since, "OcuTalon", "Settings", "", "zzlivecycle", "", 6, 20)
+		Do $$$AssertEquals(entries.%Size(), 6, "six Settings audit entries: the outgoing server is one more")
+		Set text = entries.%ToJSON()
+		Do $$$AssertEquals(text [ "email.outgoing", 1, "one is the outgoing server")
+		Do $$$AssertEquals(text [ "mock:1025", 1, "from nothing to host:port (port 1025 is not 587)")
+		Do $$$AssertEquals(text [ "zzlive@example.com", 0, "none holds the address")
+		Do $$$AssertEquals(text [ ..Dummy, 0, "or the password")
+		Set values = ##class(OcuTalon.Core.SettingsOps).Values().sections.channels
+		Do $$$AssertEquals(values.outgoing_"|"_values.passwordSet, "mock:1025|1", "the page's values show the outgoing server and that a password is set")
+		Do $$$AssertEquals($ZConvert(values.%ToJSON(), "L") [ $ZConvert(..Dummy, "L"), 0, "and not the password")
+		Set again = ..Resave(..Body())
+		Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "1|done", "a save without an outgoing server is done")
+		Do $$$AssertEquals(..Row(..#SENDITEM, "Enabled")_"|"_..Row(..#SENDITEM, "SMTPServer")_"|"_..Row(..#SENDITEM, "SMTPPort"), "0||", "EmailOut is disabled and its server rows are gone")
+		Do $$$AssertEquals(..Row(..#ITEM, "POP3Server")_"|"_..Row(..#ITEM, "Enabled"), "mock|1", "the mailbox is kept")
+		Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs(..#SENDITEM, 0), "EmailOut has no job within the wait")
+		Set mailbox = ##class(OcuTalon.Data.Setting).KeyIndexOpen("email.address").Value
+		Set begun = $ZHorolog
+		Set sent = ##class(OcuTalon.Core.Commands).Submit(..NewMail(..Owner, mailbox), "system", .none)
+		Do $$$AssertEquals($$$ISOK(sent)_"|"_none.Ok_"|"_none.Outcome_"|"_none.Message, "1|0|not_connected|No outgoing mail server is connected, so the email wasn't sent.", "with no job a send is not_connected (Q3)")
+		Do $$$AssertTrue($ZHorolog - begun < 10, "at once, not after the gate's whole wait")
+		Do $$$AssertEquals(..Mails().%Size(), 0, "and the stub holds no mail")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// A SendEmail of origin system with no approval, to the address.
+Method NewMail(owner As %String, recipients As %String) As OcuTalon.Msg.Command.SendEmail [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.SendEmail).%New()
+	Set command.SessionRef = owner
+	Set command.Recipients = recipients
+	Set command.Subject = "zz not connected"
+	Set command.Text = "zz text"
+	Set command.IdempotencyKey = "zzlivekey"_$Increment(^OcuTalonTest("EmailLive", "key"))
+	Quit command
+}
+
+/// The Integration AC (Lane A's Story 22.7 relies on it) and rulings a, e and g: the owner's tool turn reaches the stub through the real gate and the real
+/// operation; nothing else does.
+Method TestToolSendReachesTheStub()
+{
+	If '..Guard() Quit
+	Try {
+		Set result = ..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the mailbox and the SMTP server are connected")
+		Set other = ..Session("other")
+		Set subject = "Gr"_$Char(252, 223)_"e "_$Char(8364)_" zz tool"
+		Set text = "line one"_$Char(10)_"Zeile zwei "_$Char(228, 246, 252)_" "_$Char(8364)_" end"
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", subject, text)
+		Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome_"|"_sent.Message, "1|sent|The email was sent.", "the owner's tool SendEmail to the saved address is sent (Q1)")
+		Set mails = ..Mails()
+		Do $$$AssertEquals(mails.%Size(), 1, "the stub holds exactly one mail")
+		Set mail = mails.%Get(0)
+		Do $$$AssertEquals(mail.from_"|"_mail.to.%Get(0)_"|"_mail.to.%Size(), "zzlive@example.com|zzlive@example.com|1", "from and to the saved address")
+		Do $$$AssertEquals(mail.subject, subject, "with the subject as sent (UTF-8 kept)")
+		Do $$$AssertEquals($ZStrip(mail.text, ">WC"), text, "and the text as sent (UTF-8 kept)")
+		Do $$$AssertEquals(mail.parts_"|"_mail.attachments, "1|0", "one plain part and no attachment")
+		Do $$$AssertEquals(..Deliveries(..Owner), 1, "one Delivery row of channel email for the owner")
+		Set row = ##class(OcuTalon.Data.Delivery).%OpenId(..DeliveryId())
+		Do $$$AssertEquals(row.Channel_"|"_row.OwnerRef_"|"_row.ApprovalRef_"|"_row.Text, "email|"_..Owner_"||", "of the owner, with no approval and no text")
+		Do $$$AssertTrue($Length(row.ChannelMessageId) >= 16, "and a new Ref as the message id")
+		Set refused = "That can't be done from the chat. Nothing was changed."
+		Set second = ..ToolSend(other, "zzlive@example.com", "zz other session", "zz")
+		Do $$$AssertEquals(second.Ok_"|"_second.Outcome_"|"_second.Message, "0|not_allowed|"_refused, "a second session's identical command is refused")
+		Set foreign = ..ToolSend(..Owner, "zzforeign@example.com", "zz other address", "zz")
+		Do $$$AssertEquals(foreign.Ok_"|"_foreign.Outcome_"|"_foreign.Message, "0|not_allowed|"_refused, "another address is refused")
+		Set both = ..ToolSend(..Owner, "zzlive@example.com,zzforeign@example.com", "zz two addresses", "zz")
+		Do $$$AssertEquals(both.Outcome, "not_allowed", "the own address plus another is refused")
+		Set tainted = ..ToolSend(..Owner, "zzlive@example.com", "zz tainted", "zz", "user", 1)
+		Do $$$AssertEquals(tainted.Ok_"|"_tainted.Outcome_"|"_tainted.Message, "0|not_allowed|"_refused, "a tainted turn is refused (AD-10)")
+		Set untrusted = ..ToolSend(..Owner, "zzlive@example.com", "zz untrusted", "zz", "untrusted", 0)
+		Do $$$AssertEquals(untrusted.Ok_"|"_untrusted.Outcome_"|"_untrusted.Message, "0|not_allowed|"_refused, "and so is an untrusted turn")
+		Do $$$AssertEquals(..Mails().%Size()_"|"_..Deliveries(..Owner), "1|1", "the stub still holds one mail and there is still one Delivery row")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Do $$$AssertEquals(..Row(..#SENDITEM, "SMTPServer")_"|"_..Row(..#SENDITEM, "Enabled"), "mock|1", "control: EmailOut's rows are present and enabled")
+		Set demo = ..ToolSend(..Owner, "zzlive@example.com", "zz online demo", "zz")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..Online)
+		Do $$$AssertEquals(demo.Ok_"|"_demo.Outcome_"|"_demo.Message, "0|not_available|Email can't be connected on the online demo. Nothing was changed.", "with the online-demo flag set EmailOut answers not_available (P2)")
+		Do $$$AssertEquals(..Mails().%Size()_"|"_..Deliveries(..Owner), "1|1", "and nothing reached the stub")
+		Set again = ..ToolSend(..Owner, "zzlive@example.com", "zz after", "zz")
+		Do $$$AssertEquals(again.Outcome, "sent", "off the online demo the same send goes through")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// The ids of the alive jobs of the item, comma-separated.
+ClassMethod JobIds(item As %String) As %String [ Private ]
+{
+	Set ids = ""
+	Set result = ##class(%ResultSet).%New("Ens.Job:Enumerate")
+	Do result.Execute()
+	While result.Next() {
+		If (result.Get("ConfigName") = item) && (result.Get("State") = "Alive") Set ids = ids_$Select(ids = "": "", 1: ",")_result.Get("Job")
+	}
+	Quit ids
+}
+
+/// The id of the first Delivery row of channel email of the owner.
+Method DeliveryId() As %String [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND OwnerRef = ? ORDER BY ID", ..Owner)
+	Do result.%Next()
+	Quit result.%GetData(1)
+}
+
+/// Rulings a and f: a system send is allowed by the approval request of an executing email fix and is sent once per approval, also after EmailOut restarts.
+Method TestSystemSendIsClaimedByItsApproval()
+{
+	If '..Guard() Quit
+	Try {
+		Do $$$AssertEquals(..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT).Ok, 1, "the mailbox and the SMTP server are connected")
+		Set recipients = "zzlive@example.com,zzfix@example.com"
+		Set approval = ..MakeApproval("zzliveapproval0001", recipients)
+		Set first = ..SystemSend(..Owner, "zzfix@example.com, ZZLIVE@example.com", approval)
+		Do $$$AssertEquals(first.Ok_"|"_first.Outcome_"|"_first.Message, "1|sent|The email was sent.", "a system send with the approval of an executing email fix is sent")
+		Set mails = ..Mails()
+		Do $$$AssertEquals(mails.%Size(), 1, "the stub holds one mail")
+		Set to = mails.%Get(0).to
+		Do $$$AssertEquals(to.%Size()_"|"_(to.%Get(0)_","_to.%Get(1) [ "zzfix@example.com")_"|"_(to.%Get(0)_","_to.%Get(1) [ "ZZLIVE@example.com"), "2|1|1", "to those two recipients")
+		Do $$$AssertEquals(..Deliveries(..Owner, approval), 1, "and the approval's claim is one Delivery row")
+		Set again = ..SystemSend(..Owner, recipients, approval)
+		Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "1|already_sent", "the same approval again is already_sent")
+		Do $$$AssertEquals(..Mails().%Size(), 1, "and the stub still holds one mail")
+		Do $$$AssertStatusOK(##class(Ens.Director).TempStopConfigItem("OcuTalon.Production||"_..#SENDITEM, 1), "EmailOut is stopped")
+		Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs(..#SENDITEM, 0), "and has no job")
+		Do $$$AssertStatusOK(##class(Ens.Director).TempStopConfigItem("OcuTalon.Production||"_..#SENDITEM, 0), "and started again")
+		Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs(..#SENDITEM, 1), "it runs")
+		Set restarted = ..SystemSend(..Owner, recipients, approval)
+		Do $$$AssertEquals(restarted.Ok_"|"_restarted.Outcome, "1|already_sent", "after EmailOut restarts the same approval is still already_sent (the claim is persisted)")
+		Do $$$AssertEquals(..Mails().%Size(), 1, "and the stub still holds one mail")
+		Set none = ..SystemSend(..Owner, recipients, "zzlivenone000001")
+		Do $$$AssertEquals(none.Ok_"|"_none.Outcome, "0|refused", "an approval with no request is refused")
+		Set other = ..SystemSend(..Owner, "zzfix@example.com", ..MakeApproval("zzliveapproval0002", recipients))
+		Do $$$AssertEquals(other.Ok_"|"_other.Outcome, "0|refused", "recipients that are not the request's are refused")
+		Do $$$AssertEquals(..Mails().%Size(), 1, "and nothing more reached the stub")
+		Do $$$AssertEquals(..SmtpControl("failure", {"mode": "reject"}), 1, "the stub rejects recipients")
+		Set failing = ..MakeApproval("zzliveapproval0003", recipients)
+		Set failed = ..SystemSend(..Owner, recipients, failing)
+		Do $$$AssertEquals(failed.Ok_"|"_failed.Outcome_"|"_failed.Message, "0|failed|The mail server didn't accept the email, so it wasn't sent.", "a rejected system send answers failed (Q4)")
+		Do $$$AssertEquals(..SmtpControl("failure", {"mode": "none"}), 1, "the stub accepts again")
+		Set retry = ..SystemSend(..Owner, recipients, failing)
+		Do $$$AssertEquals(retry.Ok_"|"_retry.Outcome, "0|failed", "the failed approval keeps its claim: it is never sent again, and never answered as sent")
+		Do $$$AssertEquals(..Mails().%Size(), 1, "and the stub still holds one mail")
+		Set claim = ##class(%SQL.Statement).%ExecDirect(, "SELECT FallbackReason FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND ApprovalRef = ?", failing)
+		Do claim.%Next()
+		Do $$$AssertEquals(claim.%Get("FallbackReason"), "failed", "marked failed")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// Matrix "Send fails": each stub failure mode gives its sentence, after one try, with no mail and no Delivery row.
+Method TestSendFailuresByStubMode()
+{
+	If '..Guard() Quit
+	Try {
+		Do $$$AssertEquals(..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT).Ok, 1, "the mailbox and the SMTP server are connected")
+		Set cases = $ListBuild("refuse|OcuTalon couldn't reach the mail server.", "auth|The mail server refused the user name or password.", "reject|The mail server didn't accept the email, so it wasn't sent.", "error|The mail server didn't accept the email, so it wasn't sent.")
+		Set position = 0
+		While $ListNext(cases, position, case) {
+			Set mode = $Piece(case, "|", 1)
+			Do ..SmtpControl("reset", {})
+			Do $$$AssertEquals(..SmtpControl("failure", {"mode": (mode)}), 1, "the stub is in mode "_mode)
+			Set result = ..ToolSend(..Owner, "zzlive@example.com", "zz failure "_mode, "zz")
+			Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|failed|"_$Piece(case, "|", 2), mode_": failed with its sentence")
+			Set state = ..SmtpState()
+			Do $$$AssertEquals(state.messages.%Size()_"|"_state.connections, "0|1", mode_": no mail, and one connection (one try, no retry)")
+			Do $$$AssertEquals(..Deliveries(..Owner), 0, mode_": no Delivery row")
+			Do $$$AssertEquals(result.Message_result.Data [ ..#STUBHOST, 0, mode_": the answer names no server")
+		}
+		Do ..SmtpControl("reset", {})
+		Set ok = ..ToolSend(..Owner, "zzlive@example.com", "zz after the failures", "zz")
+		Do $$$AssertEquals(ok.Outcome, "sent", "with the stub healthy again the send goes through")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// Ruling c: with the switch off no SSLConfig value that a save writes, and no empty or foreign one, ever puts a plain SMTP session on the stub.
+Method TestNoPlainSmtpWithoutTheSwitch()
+{
+	If '..Guard() Quit
+	Try {
+		Do $$$AssertEquals(..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT).Ok, 1, "the mailbox and the SMTP server are connected")
+		Set written = ""
+		For port = 465, 587, 2525 {
+			Set result = ..Resave(..Body(..#STUBHOST_":"_port))
+			Do $$$AssertEquals(result.Outcome, "done", "outgoing mock:"_port_" is saved")
+			Set written = written_$ListBuild(port_"="_..Row(..#SENDITEM, "SSLConfig"))
+		}
+		Do $$$AssertEquals($ListToString(written, ";"), "465=OcuTalonClient;587=OcuTalonClient*;2525=OcuTalonClient*", "the SSLConfig values that a save writes: implicit TLS on 465, STARTTLS on any other port")
+		Set cases = $ListBuild("OcuTalonClient", "OcuTalonClient*", "", "SomethingElse")
+		Set position = 0
+		While $ListNext(cases, position, ssl) {
+			Do ..SmtpControl("reset", {})
+			Set ^||OcuTalonEmailOutSender("switch") = 0
+			Set adapter = ##class(OcuTalon.Test.Channel.EmailOutSender).%New()
+			Set adapter.SMTPServer = ..#STUBHOST, adapter.SMTPPort = ..#SMTPPORT, adapter.Credentials = ..#CREDENTIAL, adapter.SSLConfig = ssl
+			Do adapter.OnInit()
+			Set message = ##class(%Net.MailMessage).%New("UTF-8")
+			Set message.From = "zzlive@example.com"
+			Set message.Subject = "zz no plain"
+			Do message.To.Insert("zzlive@example.com")
+			Do message.TextData.Write("zz no plain")
+			Set sc = adapter.SendMail(message)
+			Set state = ..SmtpState()
+			Set verbs = ""
+			Set iterator = state.commands.%GetIterator()
+			While iterator.%GetNext(.verb) {
+				Set verbs = verbs_$ListBuild(verb)
+			}
+			Do $$$AssertTrue($$$ISERR(sc), "SSLConfig '"_ssl_"' with the switch off: the send fails")
+			Do $$$AssertEquals(##class(OcuTalon.Channel.Email.Sender).Classify(sc), "unreachable", "SSLConfig '"_ssl_"': as P1a")
+			Do $$$AssertEquals(state.messages.%Size()_"|"_state.logins, "0|0", "SSLConfig '"_ssl_"': no mail and no login at the stub")
+			Do $$$AssertTrue('$ListFind(verbs, "AUTH") && '$ListFind(verbs, "MAIL") && '$ListFind(verbs, "RCPT") && '$ListFind(verbs, "DATA"), "SSLConfig '"_ssl_"': no AUTH, MAIL, RCPT or DATA reached the stub ("_$ListToString(verbs)_")")
+			If (ssl = "") || (ssl = "SomethingElse") Do $$$AssertEquals(state.connections, 0, "SSLConfig '"_ssl_"': not even a connection")
+		}
+		Do ..SmtpControl("reset", {})
+		Set ^||OcuTalonEmailOutSender("switch") = 1
+		Set adapter = ##class(OcuTalon.Test.Channel.EmailOutSender).%New()
+		Set adapter.SMTPServer = "smtp.example.com", adapter.SMTPPort = ..#SMTPPORT, adapter.Credentials = ..#CREDENTIAL, adapter.SSLConfig = ""
+		Do adapter.OnInit()
+		Set sc = adapter.SendMail(message)
+		Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 6099, "with the switch on and a host that is not mock an empty SSLConfig still refuses plain")
+		Do $$$AssertEquals(..SmtpState().connections, 0, "and no connection is made")
+		Set adapter.SMTPServer = ..#STUBHOST
+		Set sc = adapter.SendMail(message)
+		Do $$$AssertStatusOK(sc, "with the switch on and the host mock the send goes to the stub (control)")
+		Do $$$AssertEquals(..Mails().%Size(), 1, "and the stub holds the mail")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Kill ^||OcuTalonEmailOutSender
+	Do ..Disconnect()
+}
+
+/// DW-1139: rows saved and enabled with the items not running (the update never ran); an identical save starts them.
+Method TestResaveStartsStoppedItems()
+{
+	If '..Guard() Quit
+	Try {
+		Do $$$AssertEquals(..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT).Ok, 1, "the mailbox and the SMTP server are connected")
+		For item = ..#ITEM, ..#SENDITEM {
+			Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault("OcuTalon.Production", item, "Enabled", 0, "zz test fixture"), item_": the fixture disables the item")
+		}
+		Do $$$AssertStatusOK(##class(Ens.Director).UpdateProduction(), "the production is updated")
+		For item = ..#ITEM, ..#SENDITEM {
+			Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs(item, 0), item_" has no job")
+			Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault("OcuTalon.Production", item, "Enabled", 1, "zz test fixture"), item_": the rows say Enabled 1 again, and no update runs")
+		}
+		Set result = ..Resave(..Body(..#STUBHOST_":"_..#SMTPPORT))
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the identical save is done")
+		For item = ..#ITEM, ..#SENDITEM {
+			Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs(item, 1), item_" runs after the identical save")
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// Ruling d: the sender reads OcuTalonMail at each send. A save with another user name and no password changes the credential and no row of EmailOut, so
+/// the item keeps running (same job), and the stub's next login is that user's.
+Method TestCredentialReadAtSendTime()
+{
+	If '..Guard() Quit
+	Try {
+		Do $$$AssertEquals(..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT).Ok, 1, "the mailbox and the SMTP server are connected")
+		Set first = ..ToolSend(..Owner, "zzlive@example.com", "zz first", "zz")
+		Do $$$AssertEquals(first.Outcome_"|"_..SmtpState().user, "sent|zzlive", "the first send logs in as the saved user")
+		Set job = ..JobIds(..#SENDITEM)
+		Set again = ..Resave({"address": "zzlive@example.com", "incoming": (..#STUBHOST_":"_..#POP3PORT), "outgoing": (..#STUBHOST_":"_..#SMTPPORT), "user": "zzlive2"})
+		Do $$$AssertEquals(again.Outcome, "done", "a save with another user name and no password is done")
+		Do $$$AssertEquals(..JobIds(..#SENDITEM), job, "and EmailOut was not restarted (no row of it changed): the same job")
+		Set second = ..ToolSend(..Owner, "zzlive@example.com", "zz second", "zz")
+		Do $$$AssertEquals(second.Outcome_"|"_..SmtpState().user, "sent|zzlive2", "the next send logs in as the new user: the credential is read at send time")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// Ruling d and AC 3: the dummy password is on the send path nowhere; the address and the subject are in no log row.
+Method TestPasswordNotOnTheSendPath()
+{
+	If '..Guard() Quit
+	Try {
+		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Do $$$AssertEquals(..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT).Ok, 1, "the mailbox and the SMTP server are connected")
+		Set subject = "zzsendsubject"_..Number_$Random(100000)
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", subject, "zz send text")
+		Do $$$AssertEquals(sent.Outcome, "sent", "the owner's tool send is sent")
+		Set failed = ..SmtpControl("failure", {"mode": "auth"})
+		Set refused = ..ToolSend(..Owner, "zzlive@example.com", subject, "zz send text")
+		Do $$$AssertEquals(refused.Outcome, "failed", "and a send whose login is refused fails")
+		Do ..SmtpControl("failure", {"mode": "none"})
+		Do $$$AssertTrue(##class(Ens.Config.Credentials).GetValue(..#CREDENTIAL, "Password") = ..Dummy, "Ens.Config.Credentials returns the dummy password")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.SendEmail", "Text", ..Dummy)_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.SendEmail", "Subject", ..Dummy)_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.SendEmail", "Recipients", ..Dummy), "000", "no SendEmail message holds the password")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.SendEmail", "Text", "zzlive")_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.SendEmail", "Subject", "zzlive"), "00", "or the user name")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.SaveSettings", "Changes", ..Dummy), 0, "no SaveSettings body holds it")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", ..Dummy), 0, "no Ens.Util.Log row holds it")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", "zzlive@example.com"), 0, "or the address")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", subject), 0, "or the subject")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens.MessageHeader", "Description", ..Dummy), 0, "no message header holds it")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since).%ToJSON() [ ..Dummy, 0, "no audit data holds it")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Data.Delivery", "ChannelMessageId", ..Dummy)_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Data.Delivery", "Text", ..Dummy), "00", "no Delivery row holds it")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(..Dummy), "", "no ^OcuTalon* global holds it")
+		Do $$$AssertEquals(..SmtpState().%ToJSON() [ ..Dummy, 0, "the SMTP stub's state does not")
+		Do $$$AssertEquals(##class(OcuTalon.Core.SettingsOps).Values().%ToJSON() [ ..Dummy, 0, "nor the page's values")
+		Do $$$AssertEquals(sent.Message_sent.Data_refused.Message_refused.Data [ ..Dummy, 0, "nor a CommandResult")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}

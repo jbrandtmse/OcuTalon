@@ -526,7 +526,8 @@ XData Contracts [ MimeType = application/json ]
    "SessionRef": "%String(MAXLEN=22)",
    "Recipients": "%String(MAXLEN=2000)",
    "Subject": "%String(MAXLEN=200)",
-   "Text": "%String(MAXLEN=)"
+   "Text": "%String(MAXLEN=)",
+   "ApprovalRef": "%String(MAXLEN=22)"
   }
  },
  "OcuTalon.Msg.Command.TestModel": {

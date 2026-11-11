@@ -1006,6 +1006,10 @@ Banners stack in this table's order.
 | Mail poll, log-in refused (`emailPoll.reason`, same place) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "The mail server refused the user name or password." |
 | Mail poll, mailbox not read (`emailPoll.reason`, same place) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "OcuTalon couldn't read the mailbox." |
 | Email on the online demo (the 409 `not_available` body of `POST /api/v1/settings/channels`, from `Web.Api` and `SettingsOps`; the page hides the section) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "Email can't be connected on the online demo. Nothing was changed." |
+| Email sent (the `CommandResult.Message` of `EmailOut`, which Lane A's email tool and `FixExecutor` show; also the answer for an approval that was sent already) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "The email was sent." |
+| Email refused (the `CommandResult.Message` of `EmailOut` when a recipient, the subject or the text is not allowed, or the recipients are not the ones the send may go to) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling, edited] | "The email wasn't sent because a recipient, the subject or the text wasn't allowed." |
+| Email, no outgoing server (the `CommandResult.Message` of `EmailOut` and of `CommandsIn` when `EmailOut` is not running or the mailbox has no address) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "No outgoing mail server is connected, so the email wasn't sent." |
+| Email rejected by the server (the `CommandResult.Message` of `EmailOut` when the mail server answers the sender, a recipient or the message with an error) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "The mail server didn't accept the email, so it wasn't sent." |
 
 ## Visual Trace Links
 

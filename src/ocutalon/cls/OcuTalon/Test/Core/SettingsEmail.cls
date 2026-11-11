@@ -1,5 +1,5 @@
-/// Tests of the email section of SaveSettings in OcuTalon.Core.SettingsOps (Story 21.2; AD-1, AD-17, AD-19), driven through a shadow instance of
-/// OcuTalon.Test.Core.SettingsEmailProbe: the credential, the settings rows of EmailIn and the production update are stand-ins, the audit write is a
+/// Tests of the email section of SaveSettings in OcuTalon.Core.SettingsOps (Stories 21.2 and 21.6; AD-1, AD-17, AD-19), driven through a shadow instance of
+/// OcuTalon.Test.Core.SettingsEmailProbe: the credential, the settings rows of EmailIn and EmailOut and the production update are stand-ins, the audit write is a
 /// recording seam, and the hand-off is the real OcuTalon.Core.SecretHandoff. Safe on a slot: the product keys email.address and email.owner and the public
 /// setting onlineDemo are saved before the tests and put back after them, and every reference a test offers is discarded. Every text is written out here.
 ///   - TestFirstSave (matrix row 1): a valid first save answers done; the credential holds the user and the password, the keys hold the address and the
@@ -14,10 +14,15 @@
 ///     nothing, and the page's values have no channels;
 ///   - TestOtherAdminSaves (row 6): a second admin's save moves email.owner to that session and audits the two Refs;
 ///   - TestHandOffLost (row 7): a reference that names no secret is refused naming password and nothing is written;
-///   - TestNothingChanged: the same save again writes no audit entry, no row and no credential and does not update the production;
+///   - TestNothingChanged (DW-1139): the same save again writes no audit entry, no row and no credential and still updates the production, so that an item
+///     whose earlier update never ran starts; a refused save updates nothing;
+///   - TestOutgoingFirstSave, TestSmtpTlsFollowsThePort, TestOutgoingCleared, TestOutgoingAudit (Story 21.6): the rows of EmailOut (SMTPServer, SMTPPort 587 by
+///     default, Credentials, SSLConfig OcuTalonClient on port 465 and OcuTalonClient* on any other, SSLCheckServerIdentity 1, Enabled 1), the rows of
+///     EmailIn untouched by an outgoing change, a cleared or absent outgoing server (Enabled 0, the server rows deleted, nothing written when none was saved),
+///     and the email.outgoing audit entry in the form host or host:port off 587;
 ///   - TestAllOrNothing: a failed audit write at each position or a failed key write changes nothing; a failed credential write, a failed settings row
 ///     write and a failed update put back the keys (with an audit entry of each), the credential and the rows, also over an earlier mailbox;
-///   - TestValues: the page's channels hold address, incoming, user and passwordSet, never the password;
+///   - TestValues: the page's channels hold address, incoming, outgoing, user and passwordSet, never the password;
 ///   - TestNoSecretAnywhere: after a save the password is in no audit entry, no ^OcuTalon* global and no Ens.Util.Log row.
 Class OcuTalon.Test.Core.SettingsEmail Extends %UnitTest.TestCase
 {
@@ -35,6 +40,8 @@ Parameter ADDRESS = "zzowner@example.com";
 Parameter USER = "zzowner@example.com";
 
 Parameter HOST = "pop.example.com";
+
+Parameter SMTPHOST = "smtp.example.com";
 
 /// The sentence of the online demo's refusal (Public text P2).
 Parameter UNAVAILABLE = "Email can't be connected on the online demo. Nothing was changed.";
@@ -112,7 +119,7 @@ Method TestTlsFollowsThePort()
 		Do ..Reset()
 		Set result = ..Save(..Body(..#ADDRESS, $Piece(case, "|", 1), ..#USER, ..Offer(..Secret("tls"))))
 		Do $$$AssertEquals(result.Outcome, "done", $Piece(case, "|", 1)_" is saved")
-		Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("sds", "POP3Server")_"|"_^||OcuTalonSettingsEmailProbe("sds", "POP3Port")_"|"_^||OcuTalonSettingsEmailProbe("sds", "SSLConfig"), $Piece(case, "|", 2, 4), $Piece(case, "|", 1)_": server, port and SSLConfig")
+		Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("sds", "EmailIn", "POP3Server")_"|"_^||OcuTalonSettingsEmailProbe("sds", "EmailIn", "POP3Port")_"|"_^||OcuTalonSettingsEmailProbe("sds", "EmailIn", "SSLConfig"), $Piece(case, "|", 2, 4), $Piece(case, "|", 1)_": server, port and SSLConfig")
 	}
 }
 
@@ -179,6 +186,16 @@ Method TestRefusedValues()
 		$ListBuild("server with @{", "incoming", """@{env:HOST}""", "incoming"),
 		$ListBuild("server with a scheme", "incoming", """pop3://pop.example.com""", "incoming"),
 		$ListBuild("missing server", "incoming", "<missing>", "incoming"),
+		$ListBuild("outgoing with @{", "outgoing", """@{env:SMTP}""", "outgoing"),
+		$ListBuild("outgoing with a space", "outgoing", """smtp example.com""", "outgoing"),
+		$ListBuild("outgoing with port 0", "outgoing", """smtp.example.com:0""", "outgoing"),
+		$ListBuild("outgoing with port 65536", "outgoing", """smtp.example.com:65536""", "outgoing"),
+		$ListBuild("outgoing with a bad port", "outgoing", """smtp.example.com:abc""", "outgoing"),
+		$ListBuild("outgoing with two ports", "outgoing", """smtp.example.com:1:2""", "outgoing"),
+		$ListBuild("outgoing with a scheme", "outgoing", """smtp://smtp.example.com""", "outgoing"),
+		$ListBuild("outgoing with a line feed", "outgoing", """smtp.example.com\n""", "outgoing"),
+		$ListBuild("outgoing as a number", "outgoing", "587", "outgoing"),
+		$ListBuild("outgoing as null", "outgoing", "null", "outgoing"),
 		$ListBuild("empty user", "user", """""", "user"),
 		$ListBuild("blank user", "user", """   """, "user"),
 		$ListBuild("user with a line feed", "user", """a\nb""", "user"),
@@ -201,8 +218,8 @@ Method TestRefusedValues()
 	}
 	Do ..Reset()
 	Do ..SeedEarlier()
-	Set result = ..Save({"address": "bad", "incoming": "bad host", "user": "", "password": 5})
-	Do $$$AssertEquals(result.Data, "{""fields"":[""address"",""incoming"",""user"",""password""]}", "every refused field is named, in the order of the form")
+	Set result = ..Save({"address": "bad", "incoming": "bad host", "outgoing": "@{x}", "user": "", "password": 5})
+	Do $$$AssertEquals(result.Data, "{""fields"":[""address"",""incoming"",""outgoing"",""user"",""password""]}", "every refused field is named, in the order of the form")
 	Do ..AssertUntouched("a save with four refused fields")
 }
 
@@ -287,15 +304,97 @@ Method TestHandOffLost()
 	Do ..AssertUntouched("a reference that was taken already")
 }
 
-/// The same save again changes nothing.
+/// The same save again changes nothing but still runs the production update (DW-1139): the items start when an earlier update never ran.
 Method TestNothingChanged()
 {
-	Do ..Save(..Body(..#ADDRESS, ..#HOST_":1995", ..#USER, ..Offer(..Secret("same"))))
+	Do ..Save(..Body(..#ADDRESS, ..#HOST_":1995", ..#USER, ..Offer(..Secret("same")), ..#SMTPHOST))
 	Do ..Clear()
-	Set result = ..Save({"address": (..#ADDRESS), "incoming": (..#HOST_":1995"), "user": (..#USER)})
+	Set result = ..Save({"address": (..#ADDRESS), "incoming": (..#HOST_":1995"), "outgoing": (..#SMTPHOST), "user": (..#USER)})
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the same values again are done")
 	Do $$$AssertEquals(..Audits().%Size(), 0, "no audit entry")
-	Do $$$AssertEquals($Get(^||OcuTalonSettingsEmailProbe("calls"), 0), 0, "no credential, row or update call")
+	Do $$$AssertEquals($Get(^||OcuTalonSettingsEmailProbe("calls"), 0), 1, "one call: no credential and no row is written")
+	Do $$$AssertEquals(..Count("start"), 1, "and it is the production update, which starts an item that is not running")
+	Do ..Reset()
+	Set result = ..Save({"address": "bad", "incoming": (..#HOST), "user": (..#USER)})
+	Do $$$AssertEquals(result.Outcome, "refused", "a refused save")
+	Do $$$AssertEquals(..Count("start"), 0, "updates nothing")
+}
+
+/// Story 21.6, matrix row 1: the first save with an outgoing server writes the rows of EmailOut and audits email.outgoing.
+Method TestOutgoingFirstSave()
+{
+	Set secret = ..Secret("out")
+	Set result = ..Save(..Body(..#ADDRESS, ..#HOST_":1995", ..#USER, ..Offer(secret), ..#SMTPHOST))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a first save with an outgoing server is done")
+	Do $$$AssertEquals(..Rows("EmailOut"), "SMTPServer=smtp.example.com;SMTPPort=587;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient*;SSLCheckServerIdentity=1;Enabled=1", "the rows of EmailOut: port 587, the same credential, STARTTLS, the identity checked")
+	Do $$$AssertEquals(..Rows(), "POP3Server=pop.example.com;POP3Port=1995;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient;Enabled=1", "the rows of EmailIn are written as before")
+	Do $$$AssertEquals(..Count("start"), 1, "the production is updated once")
+	Set audits = ..Audits()
+	Set forms = ""
+	For i = 0:1:audits.%Size() - 1 {
+		Set one = audits.%Get(i)
+		Set forms = forms_$Select(forms = "": "", 1: ";")_one.setting_"|"_one.from_"|"_one.to
+	}
+	Do $$$AssertEquals(forms [ ";email.outgoing||smtp.example.com;", 1, "email.outgoing is audited from nothing to the host (port 587 is not shown)")
+	Do $$$AssertEquals(..AuditText() [ secret, 0, "no audit entry holds the password")
+	Do ..Clear()
+	Set result = ..Save({"address": (..#ADDRESS), "incoming": (..#HOST_":1995"), "outgoing": (..#SMTPHOST), "user": (..#USER)})
+	Do $$$AssertEquals(..Audits().%Size()_"|"_..Count("sds"), "0|0", "the same save again writes no row and no audit entry")
+}
+
+/// Story 21.6: the SSLConfig of EmailOut follows the port: 465 implicit TLS, any other port STARTTLS; there is no plain choice.
+Method TestSmtpTlsFollowsThePort()
+{
+	Set cases = $ListBuild("smtp.example.com|smtp.example.com|587|OcuTalonClient*", "smtp.example.com:465|smtp.example.com|465|OcuTalonClient", "SMTP.Example.COM:25|smtp.example.com|25|OcuTalonClient*", "smtp.example.com:587|smtp.example.com|587|OcuTalonClient*", "smtp.example.com:2525|smtp.example.com|2525|OcuTalonClient*", "smtp.example.com:65535|smtp.example.com|65535|OcuTalonClient*")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Do ..Reset()
+		Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("smtptls")), $Piece(case, "|", 1)))
+		Do $$$AssertEquals(result.Outcome, "done", $Piece(case, "|", 1)_" is saved")
+		Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("sds", "EmailOut", "SMTPServer")_"|"_^||OcuTalonSettingsEmailProbe("sds", "EmailOut", "SMTPPort")_"|"_^||OcuTalonSettingsEmailProbe("sds", "EmailOut", "SSLConfig"), $Piece(case, "|", 2, 4), $Piece(case, "|", 1)_": server, port and SSLConfig")
+		Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("sds", "EmailOut", "SSLCheckServerIdentity"), 1, $Piece(case, "|", 1)_": the server identity is checked")
+	}
+}
+
+/// Story 21.6, matrix row 3: a cleared or absent outgoing server disables EmailOut and deletes the server rows; the mailbox stays.
+Method TestOutgoingCleared()
+{
+	For shape = "omitted", "empty" {
+		Do ..Reset()
+		Set secret = ..Secret("clear")
+		Do ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(secret), ..#SMTPHOST_":465"))
+		Do ..Clear()
+		Set body = ..Body(..#ADDRESS, ..#HOST, ..#USER, "")
+		If shape = "empty" Do body.%Set("outgoing", "", "string")
+		Set result = ..Save(body)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a save with the outgoing server "_shape_" is done")
+		Do $$$AssertEquals(..Rows("EmailOut"), "Credentials=OcuTalonMail;SSLConfig=OcuTalonClient;SSLCheckServerIdentity=1;Enabled=0", "outgoing "_shape_": EmailOut is disabled and the server rows are deleted")
+		Do $$$AssertEquals(..Rows(), "POP3Server=pop.example.com;POP3Port=995;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient;Enabled=1", "outgoing "_shape_": the mailbox rows are untouched")
+		Set audits = ..Audits()
+		Do $$$AssertEquals(audits.%Size()_"|"_audits.%Get(0).setting_"|"_audits.%Get(0).from_"|"_audits.%Get(0).to, "1|email.outgoing|smtp.example.com:465|", "outgoing "_shape_": audited from the host to nothing")
+		Do $$$AssertEquals(..Count("start"), 1, "outgoing "_shape_": the production is updated")
+		Do ..Clear()
+		Do ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ""))
+		Do $$$AssertEquals(..Audits().%Size()_"|"_..Count("sds")_"|"_..Count("deleteSds"), "0|0|0", "outgoing "_shape_": cleared again, nothing is written")
+	}
+	Do ..Reset()
+	Do ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("none"))))
+	Do $$$AssertEquals(..Rows("EmailOut"), "", "with no SMTP server ever saved, no row of EmailOut is written")
+}
+
+/// Story 21.6: the outgoing audit entry names host or host:port off 587, from and to.
+Method TestOutgoingAudit()
+{
+	Do ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("audit")), ..#SMTPHOST))
+	Do ..Clear()
+	Do ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, "", "mail.example.org:465"))
+	Set audits = ..Audits()
+	Do $$$AssertEquals(audits.%Size()_"|"_audits.%Get(0).setting_"|"_audits.%Get(0).from_"|"_audits.%Get(0).to, "1|email.outgoing|smtp.example.com|mail.example.org:465", "a changed outgoing server is one entry, from the host to host:port")
+	Do $$$AssertEquals(..Rows("EmailOut"), "SMTPServer=mail.example.org;SMTPPort=465;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient;SSLCheckServerIdentity=1;Enabled=1", "and the rows follow, with implicit TLS on 465")
+	Do ..Clear()
+	Do ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, "", "mail.example.org:587"))
+	Set audits = ..Audits()
+	Do $$$AssertEquals(audits.%Get(0).from_"|"_audits.%Get(0).to, "mail.example.org:465|mail.example.org", "back on port 587 the entry shows the host alone")
 }
 
 /// A failed audit write or key write changes nothing; a failure after the keys puts everything back.
@@ -314,7 +413,7 @@ Method TestAllOrNothing()
 	Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("apply"))))
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a failed key write is failed")
 	Do $$$AssertEquals(..Row("email.address")_"|"_..Row("email.owner")_"|"_$Get(^||OcuTalonSettingsEmailProbe("calls"), 0), "||0", "and changes nothing")
-	Set stages = $ListBuild("credential|credential|error", "row|sds|error", "third row|sdsAt|3", "update|start|error")
+	Set stages = $ListBuild("credential|credential|error", "row|sds|error", "third row|sdsAt|3", "outgoing row|sdsAt|6", "update|start|error")
 	Set position = 0
 	While $ListNext(stages, position, stage) {
 		For earlier = 0, 1 {
@@ -322,7 +421,7 @@ Method TestAllOrNothing()
 			If earlier Do ..SeedEarlier()
 			Set ^OcuTalonTest("SettingsEmailProbe", "answer", $Piece(stage, "|", 2)) = $Piece(stage, "|", 3)
 			Set was = ..State()
-			Set result = ..Save(..Body("zznew@example.com", "new.example.com:110", "zznewuser", ..Offer(..Secret("fail"))))
+			Set result = ..Save(..Body("zznew@example.com", "new.example.com:110", "zznewuser", ..Offer(..Secret("fail")), "new.smtp.example.com:465"))
 			Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a failed "_$Piece(stage, "|", 1)_" (earlier mailbox "_earlier_") is failed")
 			Kill ^OcuTalonTest("SettingsEmailProbe", "answer")
 			Do $$$AssertEquals(..State(), was, "a failed "_$Piece(stage, "|", 1)_" (earlier mailbox "_earlier_"): keys, credential and rows are as they were")
@@ -335,14 +434,16 @@ Method TestAllOrNothing()
 Method TestValues()
 {
 	Set before = ..Values().sections.channels
-	Do $$$AssertEquals(before.%ToJSON(), "{""address"":"""",""incoming"":"""",""user"":"""",""passwordSet"":false}", "before a save the channels are empty")
+	Do $$$AssertEquals(before.%ToJSON(), "{""address"":"""",""incoming"":"""",""outgoing"":"""",""user"":"""",""passwordSet"":false}", "before a save the channels are empty")
 	Set secret = ..Secret("values")
-	Do ..Save(..Body(..#ADDRESS, ..#HOST_":1995", ..#USER, ..Offer(secret)))
+	Do ..Save(..Body(..#ADDRESS, ..#HOST_":1995", ..#USER, ..Offer(secret), ..#SMTPHOST_":465"))
 	Set values = ..Values()
-	Do $$$AssertEquals(values.sections.channels.%ToJSON(), "{""address"":"""_..#ADDRESS_""",""incoming"":""pop.example.com:1995"",""user"":"""_..#USER_""",""passwordSet"":true}", "after a save they show the saved values and that a password is set")
+	Do $$$AssertEquals(values.sections.channels.%ToJSON(), "{""address"":"""_..#ADDRESS_""",""incoming"":""pop.example.com:1995"",""outgoing"":""smtp.example.com:465"",""user"":"""_..#USER_""",""passwordSet"":true}", "after a save they show the saved values and that a password is set")
 	Do $$$AssertEquals(values.%ToJSON() [ secret, 0, "and never the password")
 	Do ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ""))
-	Do $$$AssertEquals(..Values().sections.channels.incoming, ..#HOST, "a server on the default port is shown without it")
+	Do $$$AssertEquals(..Values().sections.channels.incoming_"|"_..Values().sections.channels.outgoing, ..#HOST_"|", "a server on the default port is shown without it, and a cleared outgoing server is empty")
+	Do ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, "", ..#SMTPHOST_":587"))
+	Do $$$AssertEquals(..Values().sections.channels.outgoing, ..#SMTPHOST, "an outgoing server on port 587 is shown without it")
 }
 
 /// After a save the password is in no audit entry, no ^OcuTalon* global and no Ens.Util.Log row.
@@ -377,9 +478,10 @@ Method Offer(secret As %String) As %String [ Private ]
 }
 
 /// The body of a valid save; the password member is the reference, or left out when it is "".
-ClassMethod Body(address As %String, incoming As %String, user As %String, uri As %String) As %DynamicObject [ Private ]
+ClassMethod Body(address As %String, incoming As %String, user As %String, uri As %String, outgoing As %String = "") As %DynamicObject [ Private ]
 {
 	Set body = {"address": (address), "incoming": (incoming), "user": (user)}
+	If outgoing '= "" Do body.%Set("outgoing", outgoing, "string")
 	If uri '= "" Do body.%Set("password", uri, "string")
 	Quit body
 }
@@ -430,12 +532,12 @@ ClassMethod Row(key As %String) As %String [ Private ]
 	Quit $Select($IsObject(row): row.Value, 1: "")
 }
 
-/// The settings rows of EmailIn that the probe holds, as "name=value;..." in the order of the item's rows, the absent ones left out.
-ClassMethod Rows() As %String [ Private ]
+/// The settings rows of the item (EmailIn, or EmailOut) that the probe holds, as "name=value;..." in the order of the item's rows, the absent ones left out.
+ClassMethod Rows(item As %String = "EmailIn") As %String [ Private ]
 {
 	Set out = ""
-	For name = "POP3Server", "POP3Port", "Credentials", "SSLConfig", "Enabled" {
-		If $Data(^||OcuTalonSettingsEmailProbe("sds", name)) Set out = out_$Select(out = "": "", 1: ";")_name_"="_^||OcuTalonSettingsEmailProbe("sds", name)
+	For name = "POP3Server", "POP3Port", "SMTPServer", "SMTPPort", "Credentials", "SSLConfig", "SSLCheckServerIdentity", "Enabled" {
+		If $Data(^||OcuTalonSettingsEmailProbe("sds", item, name)) Set out = out_$Select(out = "": "", 1: ";")_name_"="_^||OcuTalonSettingsEmailProbe("sds", item, name)
 	}
 	Quit out
 }
@@ -475,7 +577,7 @@ ClassMethod AuditText() As %String [ Private ]
 /// The state that a failed save must leave as it was: the two keys, the credential and the rows, as one text.
 ClassMethod State() As %String [ Private ]
 {
-	Quit ..Row("email.address")_"|"_..Row("email.owner")_"|"_$Get(^||OcuTalonSettingsEmailProbe("cred"))_"|"_..Rows()
+	Quit ..Row("email.address")_"|"_..Row("email.owner")_"|"_$Get(^||OcuTalonSettingsEmailProbe("cred"))_"|"_..Rows()_"|"_..Rows("EmailOut")
 }
 
 /// An earlier mailbox: the keys, the credential and the rows of a save by another session.
@@ -483,9 +585,12 @@ Method SeedEarlier() [ Private ]
 {
 	Do ##class(OcuTalon.Data.Setting).Set("email.address", "zzearlier@example.com")
 	Do ##class(OcuTalon.Data.Setting).Set("email.owner", ..#OTHERREF)
-	Do $ClassMethod(..#PROBE, "Seed", "zzearlier", "zzearlierpw", "old.example.com", 995)
-	Set ^||OcuTalonSettingsEmailProbe("sds", "Credentials") = "OcuTalonMail"
-	Set ^||OcuTalonSettingsEmailProbe("sds", "SSLConfig") = "OcuTalonClient"
+	Do $ClassMethod(..#PROBE, "Seed", "zzearlier", "zzearlierpw", "old.example.com", 995, "old.smtp.example.com", 587)
+	Set ^||OcuTalonSettingsEmailProbe("sds", "EmailIn", "Credentials") = "OcuTalonMail"
+	Set ^||OcuTalonSettingsEmailProbe("sds", "EmailIn", "SSLConfig") = "OcuTalonClient"
+	Set ^||OcuTalonSettingsEmailProbe("sds", "EmailOut", "Credentials") = "OcuTalonMail"
+	Set ^||OcuTalonSettingsEmailProbe("sds", "EmailOut", "SSLConfig") = "OcuTalonClient*"
+	Set ^||OcuTalonSettingsEmailProbe("sds", "EmailOut", "SSLCheckServerIdentity") = 1
 }
 
 /// Asserts that a refused save left the earlier mailbox as it was: the keys, the credential, the rows, no update and no audit entry.
@@ -494,6 +599,7 @@ Method AssertUntouched(what As %String) [ Private ]
 	Do $$$AssertEquals(..Row("email.address")_"|"_..Row("email.owner"), "zzearlier@example.com|"_..#OTHERREF, what_": the keys are as they were")
 	Do $$$AssertEquals($Get(^||OcuTalonSettingsEmailProbe("cred")), $ListBuild("zzearlier", "zzearlierpw"), what_": the credential is as it was")
 	Do $$$AssertEquals(..Rows(), "POP3Server=old.example.com;POP3Port=995;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient;Enabled=1", what_": the rows are as they were")
+	Do $$$AssertEquals(..Rows("EmailOut"), "SMTPServer=old.smtp.example.com;SMTPPort=587;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient*;SSLCheckServerIdentity=1;Enabled=1", what_": the rows of EmailOut are as they were")
 	Do $$$AssertEquals($Get(^||OcuTalonSettingsEmailProbe("calls"), 0), 0, what_": nothing is written and EmailIn is not updated")
 	Do $$$AssertEquals(..Audits().%Size(), 0, what_": nothing is audited")
 }

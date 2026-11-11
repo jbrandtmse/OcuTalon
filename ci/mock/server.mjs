@@ -1,8 +1,10 @@
 // The entry point of the CI model mock (AD-22): loads the scenario files, then serves the mock over plain HTTP.
-//   node server.mjs [--port <n>] [--log-dir <folder>] [--scenarios <folder>] [--pop3-port <n>]
+//   node server.mjs [--port <n>] [--log-dir <folder>] [--scenarios <folder>] [--pop3-port <n>] [--smtp-port <n>]
 //   --port       default 8080; with 0 the OS picks a port, and the bound port is in the listening line
 //   --pop3-port  default 1110; the plain-TCP POP3 stub (mail.mjs) listens there, and /_mock/mail/ on --port controls it. A port that
 //                cannot be taken is no start failure: the stub is then absent and the line {"event":"pop3-unavailable"} says so
+//   --smtp-port  default 1025; the plain-TCP SMTP stub (smtp.mjs) listens there, and /_mock/smtp/ on --port controls it. A port that
+//                cannot be taken is no start failure: the stub is then absent and the line {"event":"smtp-unavailable"} says so
 //   --log-dir    the folder of requests.jsonl; absent means stdout only. A folder that cannot be written is a start failure
 //   --scenarios  default: the scenarios/ folder beside this file
 // It prints {"event":"listening","port":<p>,"scenarios":<n>} on stdout when it serves, then one JSON line per request.
@@ -18,23 +20,25 @@ import { fileURLToPath } from 'node:url';
 import { createMail } from './mail.mjs';
 import { createMock, LOG_FILE } from './mock.mjs';
 import { loadScenarios } from './scenarios.mjs';
+import { createSmtp } from './smtp.mjs';
 
 function parseArgs(argv) {
-  const opts = { port: 8080, pop3Port: 1110, logDir: null, scenarios: path.join(path.dirname(fileURLToPath(import.meta.url)), 'scenarios') };
+  const opts = { port: 8080, pop3Port: 1110, smtpPort: 1025, logDir: null, scenarios: path.join(path.dirname(fileURLToPath(import.meta.url)), 'scenarios') };
   const problems = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const value = argv[i + 1];
-    if (arg === '--port' || arg === '--pop3-port' || arg === '--log-dir' || arg === '--scenarios') {
+    if (arg === '--port' || arg === '--pop3-port' || arg === '--smtp-port' || arg === '--log-dir' || arg === '--scenarios') {
       if (value === undefined) {
         problems.push(`${arg} needs a value`);
         continue;
       }
       i += 1;
-      if (arg === '--port' || arg === '--pop3-port') {
+      if (arg === '--port' || arg === '--pop3-port' || arg === '--smtp-port') {
         if (!/^[0-9]{1,5}$/.test(value) || Number(value) > 65535) problems.push(`${arg} is not a port number: ${value}`);
         else if (arg === '--port') opts.port = Number(value);
-        else opts.pop3Port = Number(value);
+        else if (arg === '--pop3-port') opts.pop3Port = Number(value);
+        else opts.smtpPort = Number(value);
       } else if (arg === '--log-dir') {
         opts.logDir = value;
       } else {
@@ -69,12 +73,19 @@ if (opts.logDir !== null) {
 
 const mock = createMock({ scenarios, logDir: opts.logDir, out: process.stdout });
 const mail = createMail();
+const smtp = createSmtp();
 const server = http.createServer((req, res) => {
   const url = req.url || '/';
   if (url.startsWith('/_mock/mail/')) {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => mail.handleControl(req, res, url.split('?')[0], Buffer.concat(chunks).toString('utf8')));
+    return;
+  }
+  if (url.startsWith('/_mock/smtp/')) {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => smtp.handleControl(req, res, url.split('?')[0], Buffer.concat(chunks).toString('utf8')));
     return;
   }
   mock.handle(req, res);
@@ -89,4 +100,7 @@ server.listen(opts.port, () => {
 });
 mail.listen(opts.pop3Port, '0.0.0.0', (e, bound) => {
   process.stdout.write(`${JSON.stringify(e ? { event: 'pop3-unavailable', code: e.code } : { event: 'pop3', port: bound })}\n`);
+});
+smtp.listen(opts.smtpPort, '0.0.0.0', (e, bound) => {
+  process.stdout.write(`${JSON.stringify(e ? { event: 'smtp-unavailable', code: e.code } : { event: 'smtp', port: bound })}\n`);
 });
