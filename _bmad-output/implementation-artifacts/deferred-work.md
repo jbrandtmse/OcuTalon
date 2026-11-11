@@ -6635,6 +6635,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340184 shards-10; first-start timeout is DW-999's; the park step is a new signature; the 23.2 rework checks it for a story cause
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:reminder-restart_telegram_park;one_rerun_with_the_next_push
+- 2026-11-11T00:03:57Z occurrence=feature-9f7db82c by=orchestrator note=run 42924654980 job 130207908005 iris(shards) on ocutalon-ci-15, unit live:online-allowance: 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then 'the first start did not end ready within 400 s'; same signature as the reminder-restart one, now in another unit; rerun of failed jobs
 ### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
