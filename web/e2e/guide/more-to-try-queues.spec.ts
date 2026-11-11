@@ -11,8 +11,9 @@ import { blockLiveSocket } from '../support/socket';
  * try item "Watch queue backlogs" sends "Watch the queue backlogs." once, as the user's own message, and the Queue-backlog check that the turn's start_watch
  * adds shows in the rail's Background checks with its schedule "A check every minute". While that turn is in flight (its POST is held until the second press is
  * checked) the control is aria-disabled and a second press sends nothing.
- * The sign-in unit has no model, so the POST is answered 202 here (as K9c of more-to-try.spec.ts does) and the check that the turn would start is the row that
- * start_watch kind queues makes, seeded and published as the CheckChanged event does; the turn from the prompt to the row is pinned by Test.Watch.Turns
+ * The sign-in unit has no model, so the POST is answered 202 here (as K9c of more-to-try.spec.ts does) and the check that the turn would start is a row like the
+ * one start_watch kind queues makes (its Kind, DisplayName, empty namespace and production, and the user's session), seeded and published as the CheckChanged
+ * event does; the turn from the prompt to the row is pinned by Test.Watch.Turns
  * (TestQueuesThroughTheAgent, on the CI mock scenario A/watch-start-queues.json).
  * The texts are written out here as the independent oracle of the page's own.
  * It signs in the sign-in unit's fixture user, as guide/more-to-try.spec.ts does (openAs), with the guide routed to the finish that lists this item.
@@ -34,18 +35,24 @@ const controlOf = (page: Page): Locator =>
 
 /**
  * Signs the sign-in unit's fixture user in with a routed demo guide at its finish that lists the item, so that the guide and its More to try panel show for it
- * whatever its own guide state is, and waits for the loaded page. The live socket is blocked and the polls drop guide.state events, so the routed guide stands;
- * every other event (the chat's and the rail's) reaches the page.
+ * whatever its own guide state is, and waits for the loaded page. The page has no status (no allowance, no banner) whatever the stack's state is: the snapshot's
+ * statuses are emptied, and the live socket is blocked and the polls drop guide.state and status events, so the routed guide stands; every other event (the
+ * chat's and the rail's) reaches the page. A poll answer that is not JSON passes as it is.
  */
 async function openAs(page: Page, user: string, password: string): Promise<void> {
   await blockLiveSocket(page);
   await page.route(new RegExp(`${EVENTS}\\?`), async (route) => {
     const response = await route.fetch();
-    const body = (await response.json()) as { events: Array<{ type: string }> };
-    body.events = body.events.filter((event) => event.type !== 'guide.state');
-    await route.fulfill({ response, json: body });
+    try {
+      const body = (await response.json()) as { events: Array<{ type: string }> };
+      body.events = body.events.filter((event) => event.type !== 'guide.state' && event.type !== 'status');
+      await route.fulfill({ response, json: body });
+    } catch {
+      await route.fulfill({ response });
+    }
   });
   await changeSnapshot(page, (snapshot) => {
+    snapshot['status'] = [];
     snapshot['guide'] = {
       runEpoch: 1,
       step: 5,

@@ -198,6 +198,24 @@ Rejected:
 - `low` `stop_watch`'s `kind` description differs from the spec's one text: model-facing, not ruled, and the stop wording is the accurate one.
 - `false` `Test/Msg/Contracts.cls` edited outside the approved list: it pins the Lane B command classes that veto item 6 approved "and their tests", and `Test/Msg` is not contended.
 
+**CI rework 1 re-review** (2026-11-11, lane D, tags e23s7vcr / e23s7vcm; diff `0f25251b..HEAD` plus the working tree; four layers). 26 raw findings, 4 entries after grouping (high 0, med 1, low 3); the rest rejected, in 9 groups below. Every patch applied; no HIGH, so the story closes `done` (Rule 15 exit condition). Checklist: (1) `WORDS` and both number-word lists reach fifteen and sixteen, `npm --prefix web test` 1912/1912, and `ENTRY_LINE` still fails a malformed entry (wrong case, missing label, wrong group) while the `Item n` / `First item` forms match exactly as before: confirmed. (2) K29 runs in sign-in-3 as the `NOTICE` user, removes its seeded row by ref, and its assertions each fail under a mutation; the seeded row matches `WatchOps.OnStart` on Kind, DisplayName, Namespace/Production and SessionRef (owner): confirmed. AC10's pin split is the lead's ruling (DW-1143, DW-1144), not re-raised.
+
+- [x] [Review][Patch] MED (Rule 19 hermeticity): K29's `openAs` left the page's statuses to the stack, and `queueWatch` is gated by the allowance status (`blocked()` reads `allowance.active()`), so a status left for the shared `NOTICE` user could make the press send nothing; its poll route also threw on a non-JSON answer. It now empties the snapshot's statuses, drops `status` events from the polls and passes a non-JSON answer as it is, as the sibling's `openAs`/`keepRoutedGuide` do [web/e2e/guide/more-to-try-queues.spec.ts:40] -- fix-risk low (setup only; the assertions are unchanged; K29 green and red under its mutation after the patch).
+- [x] [Review][Patch] LOW (Rule 19): the widened `ENTRY_LINE` accepted "After Item n" without checking n, so the anchor could go stale after a reorder with nothing red; the order test now asserts each "After Item n" entry comes right after `Item n`, and the comment above `ENTRY_LINE` names the form [web/scripts/sources-docs.test.mjs:101] -- fix-risk low (mutation observed).
+- [x] [Review][Patch] LOW: K29's header said it seeds "the row that start_watch kind queues makes"; the fixture row differs in AskedBy (`zzfixture`) and NextDueAt, which the rail does not read. The header now says "a row like the one" and names the fields that match [web/e2e/guide/more-to-try-queues.spec.ts:14] -- fix-risk low (comment only).
+- [x] [Review][Patch] LOW (Rule 19, stale mutation text): the AC10 mutation plan said "K29 (CI)" and the QA note said its red was "expected, not observed"; both now point at the observed red [spec ## Verification] -- fix-risk low (tracking section only).
+
+Rejected (CI rework 1 re-review):
+- `reject` AC10's text still names `B/queue-watch-ask.json`; the frontmatter `deferred:` entry reads as open while DW-1143 is `by-design`; no Spec Change Log line for the ruling; the triage log's "three layers" names four: each fix edits the spec outside `## Verification`; the lead's Design Notes ruling and DW-1143/DW-1144 govern.
+- `low` K29's title and the rail title come from the test's own payload; the 60 s wait sized for a model turn: covered by the DW-1143 ruling (the row render is pinned by `rail-view.test.mjs`, the name by `Test.Watch.Ops`); the wait only delays a failure.
+- `low` the pre-clean of queue rows was removed: the seeded row is removed by ref in `finally`; a row left by a killed run makes `toHaveCount(1)` fail loudly, never pass falsely; CI stacks are throwaways.
+- `low` AskedBy `zzfixture`, NextDueAt an hour ahead, no CreatedAt on the seeded row: the shared `Fixture.Check` marker and the deliberate no-tick schedule; the rail reads none of them (header corrected above).
+- `maybe-false` a pending `route.fetch()` when the page closes could reject after the test: flake only, not observed in two runs; would only be low.
+- `false` `postDataJSON()` null for the held POST: the page's outbox always posts a JSON body with `clientId`.
+- `false` a seventeenth item gives `undefined`: `sources-docs.test.mjs` fails then with "N items need a word in WORDS", the intended loud failure.
+- `false` the spec's `status: done` while sprint-status says `review`: the lead's convention at dev_complete; this review sets the sprint status.
+- `reject` `B/queue-watch-ask.json` is dead and could be deleted: DW-1144 (wontfix-accepted) is the lead's ruling.
+
 ## Spec Change Log
 
 - 2026-11-11 (CI rework 1, lead): CI on f78e6236 red in two story-class jobs (web WORDS count words stop at fourteen; K29 used the floor unit's user under sign-in-3). Re-opened with two [CI] items; scoped re-review follows.
@@ -453,7 +471,7 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC7: `ReadEntries` lists every namespace whatever the flag (a probe that bypasses `Productions`) → `TestOnlineDemoReadsOnlyOrders`.
 - AC8: `CheckResults` skips `queues` → `Test.Watch.Tools`.
 - AC9: no `detail` for queues → `rail-view.test.mjs`.
-- AC10: the item sends nothing → K29 (CI).
+- AC10: the item sends nothing → K29 (`live:sign-in-3`, `docker/tests/test-sign-in-3.sh --part 1/10` on a lane-D throwaway).
 - AC11: README says fourteen → `more-to-try-view.test.mjs`.
 - AC12: `Crossings` ignores `told` (no cooldown) → `Test.Checks.Queues`.
 
@@ -489,13 +507,19 @@ Audit: every AC1-AC12 and every matrix row has a pinning test (AC1 `Test.Watch.T
 - mutation: matrix "Stop", another session's row untouched: `WatchOps.OnStop` also deletes every `queues` row -> `Test.Watch.Ops:TestQueuesStartRepeatStop` red ("the other session's queue row is unchanged") (QA)
 - mutation: matrix "Start", per-session natural key: `RefOf` finds a queue row without the `SessionRef` -> `Test.Watch.Ops:TestQueuesStartRepeatStop` red ("it is a new watch") (QA)
 
-mutations_demonstrated=8 (QA, beside the 12 above). AC10's K29 red stays "expected, not observed" (browser units run in CI only). Nothing is left up on lane D.
+mutations_demonstrated=8 (QA, beside the 12 above). AC10's K29 red was observed in CI rework 1 and again in its re-review (see the AC10 line above and the re-review patches below). Nothing is left up on lane D.
 
 ### Code-review patches (2026-11-11, lane D warm throwaway, tag e23s7cw)
 
 Passing after the patches: `Test.Watch.Ops` (with `TestQueuesEndSession`), `Test.Checks.Queues`, `Test.Watch.Tools`, `Test.Watch.Turns`, `Test.Checks.QueueBacklog`, `Test.Core.SessionOpsProduction` (regression, run only), `Test.Bridge.CodeRules`; `npm --prefix web run lint`. K29 (now holding its POST until the second press is checked) is left to CI. Each mutation was applied from a backup, observed red and restored (`git status --short` and `git diff --stat` identical afterwards).
 - mutation: DW-1124 (AD-4, session end stops the queue row): `EndWatches` skips every Kind but production again -> `Test.Watch.Ops:TestQueuesEndSession` red ("both of the session's rows are gone, the queue row too") (CR)
 - mutation: matrix "First run, above", Decided 15: `RunQueues` puts the queue's own `oldestAt` in the slot even when it is unreadable -> `Test.Checks.Queues:TestQueueFindingRenders` red ("its oldestAt slot is the run time", and the catalog refuses the slot) (CR)
+
+### Code-review patches, CI rework 1 re-review (2026-11-11, lane D throwaways, tags e23s7vcr / e23s7vcm)
+
+Passing after the patches: `npm --prefix web test` (1912/1912), `npm --prefix web run lint`, `node --test web/scripts/sources-docs.test.mjs` (15/15), and `docker/tests/test-sign-in-3.sh --part 1/10` (19 passed, K29 1.7 s, run after `guide/more-to-try.spec.ts`). Both throwaways tore down on exit (no container or volume left). Each mutation was applied from a backup, observed red and restored (`git status --short` and `git diff --stat` identical afterwards).
+- mutation: AC10, re-observed after the K29 `openAs` patch: case `queueWatch` in `more-to-try.ts` does not call `outbox.send` -> K29 red at "the prompt was posted" (18 others green) (CR)
+- mutation: EXPERIENCE.md's anchor "After Item 3" made "After Item 9" -> `web/scripts/sources-docs.test.mjs` red ("\"After Item 9\" comes right after Item 9") (CR)
 
 
 ## Auto Run Result
