@@ -196,3 +196,4 @@
 2026-11-11T14:17:21Z	Story 23.7	ledger_adjudicated	owned=2 resolved=0 reowned=0 terminal=2(DW-1143_by-design,DW-1144_wontfix-accepted) note=rework_iteration_1
 2026-11-11T14:17:21Z	Story 23.7	smoke_complete	method=cli(npm_web_test_1912/1912,lint)+browser(live:sign-in-3_part1/10_on_lane-D_throwaways_by_rework_and_re-review:19/19,K29_1.7s) result=pass iterations=2 defects_caught=0 evidence=web-all.log;CLASS/playwright_lines_in_stage_reports model=claude-opus-5-5
 2026-11-11T14:17:21Z	Story 23.7	fresh_check	env=recipe(fresh_sign-in-3_stacks_e23s7r*,e23s7v*;web_units_env-free) tests=K29+sources-docs+more-to-try-view result=pass order=forward,reverse(K29_alone_and_after_sibling_more-to-try.spec) story_base=16cbc8b3
+2026-11-11T14:18:06Z	Story 23.7	committed	sha=96bc4b28 fix_for=23-7-watch-queue-backlogs-between-digests rework=1 submodules= ci=pending runs=43037078949,43037078655 amendments=none_new footprint_extensions=none_new
