@@ -3,7 +3,7 @@
   <Document name="ocutalon.ZPM">
     <Module>
       <Name>ocutalon</Name>
-      <Version>1.0.6</Version>
+      <Version>1.0.7</Version>
       <Description>Your integrations already tell you when something breaks, usually fifty times. OcuTalon reads the failures, works out the one cause, proposes the fix with a dry run, and only interrupts you when something needs you.</Description>
       <Packaging>module</Packaging>
       <SourcesRoot>.</SourcesRoot>
