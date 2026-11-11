@@ -2,7 +2,8 @@
 title: 'Story 23.10: Partner notice and summary polish from the 1.0.7 demo pass'
 type: 'bugfix'
 created: '2026-11-11'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0f105f8c0bd90dc7e6ee6c45d86b94bdc9c49ec8'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -137,6 +138,26 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-11 - Review pass
+- verdicts: 16 findings - high 0, medium 1, low 3, false 12, maybe-false 0
+- findings:
+  - `[false]` `[reject]` blind 1 / edge 1: the resolved sentence has no fix-outcome data (failed again, skipped) - the sentence is ruled verbatim by the Contest Planner and Facts is ruled to hold only the state (AD-16); by design, spec-bound.
+  - `[false]` `[reject]` blind 2 / edge 2: the sentence hard-codes "orders" - the same ruled sentence; the demo has one production.
+  - `[false]` `[reject]` blind 3: only `resolved` has an instruction - spec-bound (ruled sentence), Decided in-stage 3.
+  - `[false]` `[reject]` blind 4 / verification-gap 1: the "no looking into" assertions read the canned reply - Decided in-stage 4: the falsifiable part is the logged request, and the real-model check is on the Planner's RC-eval checklist.
+  - `[low]` `[patch]` blind 5 / edge 4: `TestSummaryFixFullStop` loops web and telegram but claims every channel - added "phone" to the loop (mailbox has no summary line); green.
+  - `[medium]` `[patch]` blind 6: no test pins the retired address `it@results-partner.example` against the matrix row "Old pending notice" - added a `Recheck` assertion in `PartnerWarning:TestRecheck`; green.
+  - `[low]` `[patch]` blind 7 / verification-gap 4: the `TestFacts` header bullet omits the state line - bullet updated.
+  - `[false]` `[reject]` blind 8: the positional `Asked` call is easy to get wrong - the new test asserts the marker's effect through the log (exactly one draft with the state line), so a wrong comma count goes red.
+  - `[false]` `[reject]` edge 3: a blank or non-warnable state in Facts - `Facts` is reached only for the WARNABLE states (`WatchTools`); no reachable failure.
+  - `[low]` `[patch]` edge 5 / verification-gap 3: `fixing` is not in the `TestFacts` state loop (AC3 lists each warnable state) - added; green.
+  - `[false]` `[reject]` edge 6: "exactly one draft" fails on a retry or a log gap - the draft turn is a single mock-answered turn; the spec requires the assertion.
+  - `[false]` `[reject]` verification-gap 2: the "whole instruction" assertion derives from the code under test - the verbatim literal on the next line and the `TestContract` pin catch a changed SYSTEMNOTE (mutation demonstrated).
+  - `[false]` `[reject]` verification-gap (AC5 note): the canned-reply assertions - same as blind 4; a deliberate limit recorded in the spec.
+  - `[false]` `[reject]` intent-alignment readings A-D: descriptive; the diff implements the code-and-CI reading the spec rules (model wording is the Planner's RC-eval item).
+  - `[false]` `[reject]` intent-alignment: other stand-in tests keep "Results Partner IT" - the spec lists them as self-contained and leaves them.
+  - `[false]` `[reject]` intent-alignment: DW-1159 not visible in the diff - the lead filed it at the spec gate; no code is in scope.
+
 ## Design Notes
 
 **The ruling (verbatim, Contest Planner, 2026-11-11):**
@@ -254,7 +275,37 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC5: the `partner-notice-resolved` reply given "We are looking into it." → `PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough`.
 - AC6: `summary.fix` text back to "Fix: {fix}" → `Test.Msg.Catalog:TestSummaryFixFullStop` and `Test.Watch.Summary`; `summary.evidence` back to "Evidence: {evidence}" → the same two.
 
+**Mutations run (Rule 19):**
+- mutation: fixture name back to "Results Partner IT" -> `Test.Fix.PartnerWarning` red (`TestFacts`, `TestNoContacts`, `TestParametersAndDryRun`, `TestRecheck`, `TestTamperedRowSendsNothing`, `TestApprovedNoticeIsSentByteForByte`)
+- mutation: `SimMailbox.In` `PARTNERFROM` set to the Orders contact -> `Test.Demo.SimMailboxIn:TestSamples` red
+- mutation: `Facts` without the state line -> `Test.Fix.PartnerWarning:TestFacts` red (the exact lines and both state assertions)
+- mutation: `SYSTEMNOTE` without the ruled sentence -> `Test.Fix.PartnerWarning:TestContract` (the instruction pin) red, and `PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough` red ("with the sentence for a resolved incident", run together with the next mutation on a re-upped warm stack)
+- mutation: the `partner-notice-resolved` reply given "We are looking into it." -> `PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough` red (the "looking into" assertions)
+- mutation: `summary.fix` and `summary.evidence` text back to "Fix: {fix}" / "Evidence: {evidence}" -> `Test.Msg.Catalog` red (`TestSummaryFixFullStop` and `TestEveryKeyOnEveryChannel`) and `Test.Watch.Summary:TestFixedDismissed` red
+
+**Found at implement:** three Test classes outside the Code Map render the `summary.evidence` key (not self-contained, contrary to the expectation under Tasks), so their Evidence line gains its full stop: `Test/Core/WebChatOut.cls`, `Test/Channel/TelegramOut.cls`, `Test/Demo/SimPhoneOut.cls`. `web/e2e/chat/notice.spec.ts` N20 (line ~720) also renders it and pins 'Evidence: OrderDate was <i>16/10/2026</i>' with `toEqual`; it is a Playwright spec (a test file, no web source), updated by the lead in this pass to 'Evidence: OrderDate was <i>16/10/2026</i>.' as Tasks step 4 directs when a pin renders the key.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary:** The demo contact is "Orders Partner IT" <it@orders-partner.example>. The draft's Facts hold "Incident state: <state>" after the Production line and SYSTEMNOTE carries the ruled sentence. The CI mock has a `partner-notice-resolved` case. `summary.fix` and `summary.evidence` end in a full stop. The rail lag is DW-1159 (ledgered by the lead).
+
+**Files changed:**
+- `src/ocutalon/cls/OcuTalon/Fix/PartnerContacts.cls`: the fixture row.
+- `src/ocutalon/cls/OcuTalon/Fix/Kind/PartnerWarning.cls`: SYSTEMNOTE sentence, the state line in Facts, docs.
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`: the two full stops and their sources.
+- `ci/mock/scenarios/A/partner-notice-resolved.json`: the new marker scenario.
+- `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerWarning.cls`, `PartnerDraft.cls`, `PartnerTurns.cls`: renames, the state and sentence pins, `TestResolvedDraftSaysTheOrdersWentThrough`, the retired-address re-check row.
+- `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls`: two fixture texts and `TestSummaryFixFullStop`.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Summary.cls`, `Test/Core/WebChatOut.cls`, `Test/Channel/TelegramOut.cls`, `Test/Demo/SimPhoneOut.cls`: the Evidence line's full stop.
+- `web/e2e/chat/notice.spec.ts`: N20's expected Evidence line (a test pin, no web source).
+
+**Review:** 16 findings; patches applied 4 (1 medium: retired-address re-check row; 3 low: phone in the full-stop loop, `fixing` in the Facts loop, the stale header bullet); deferred 0; the rest rejected with reasons in the triage log.
+
+**Follow-up review recommended:** false (no patched high; one patched medium).
+
+**Verification:** warm lane-D stack: `Test.Fix.PartnerWarning`, `PartnerDraft`, `PartnerTurns`, `Test.Msg.Catalog`, `Test.Watch.Summary`, `Test.Demo.SimMailboxIn` all passed after the last patch; `docker/tests/test-mock.sh` 134/134; all 32 `ci/checks.sh` scripts passed (run one by one, the whole script exceeds the 10-minute cap); `PartnerTurns` passed on a fresh stack; `npm --prefix web test` 1912/1912. Playwright `notice.spec.ts` N20 not run here (left to CI). Stacks torn down.
+
+**Residual risks:** the real model's wording for a resolved incident is the Planner's RC-eval item; Epic 35 touches `Test/Msg/Catalog.cls` (separate hunks, both kept at integrate).

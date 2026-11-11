@@ -138,7 +138,7 @@ Method TestFixedDismissed()
 	Do $$$AssertTrue(text [ ": the fix ended: 50 resent, 50 completed, 0 failed again, 0 skipped.", "the fix line")
 	Do $$$AssertTrue(text [ ": closed with Dismiss.", "the closing line")
 	Do $$$AssertTrue(text [ (": the fix started."_$Char(10)), "the fix started line")
-	Do $$$AssertEquals($Piece(text, $Char(10), 9, 15), "Cause: The partner changed the date format."_$Char(10)_"Where it failed: OrderDate."_$Char(10)_"Evidence: OrderDate 16/10/2026 in the sample"_$Char(10)_"Sample error: Field OrderDate was not a date."_$Char(10)_"Fix: repair the date and resend the orders"_$Char(10)_"Messages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped."_$Char(10)_"Model cost of this incident: $0.017.", "the lines after the timeline")
+	Do $$$AssertEquals($Piece(text, $Char(10), 9, 15), "Cause: The partner changed the date format."_$Char(10)_"Where it failed: OrderDate."_$Char(10)_"Evidence: OrderDate 16/10/2026 in the sample."_$Char(10)_"Sample error: Field OrderDate was not a date."_$Char(10)_"Fix: repair the date and resend the orders."_$Char(10)_"Messages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped."_$Char(10)_"Model cost of this incident: $0.017.", "the lines after the timeline")
 	Do $$$AssertNotTrue(text [ "went through", "and the text holds no word that the demo path filters")
 }
 
