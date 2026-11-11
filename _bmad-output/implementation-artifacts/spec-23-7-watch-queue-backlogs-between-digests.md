@@ -2,11 +2,11 @@
 title: 'Story 23.7: Watch queue backlogs between digests'
 type: 'feature'
 created: '2026-11-11'
-status: 'in-progress'
-baseline_revision: 'a77f88b478586b2a9f6bc64ed5870e27b3f6156d'
+status: 'done'
+baseline_revision: '0f25251b0ae5eae43b0aa07d217ccb373a77fe97'
 baseline_commit: 'a77f88b478586b2a9f6bc64ed5870e27b3f6156d'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
 warnings: [oversized]
@@ -17,6 +17,13 @@ deferred:
       Core/SessionOps.EndWatches (about line 340) skips every row whose Kind is not production (`If check.Kind '= ##class(OcuTalon.Watch.Ops).#KIND Continue`) and builds the StopWatch without a Kind, so a Kind queues row survives EndSession. Checks.Process.RunQueues never re-checks that the row's session is still live. Data.Purge.Keeps retains any session with a BackgroundCheck row. The fix is about three lines in a Lane B file (Core/*), which the spec lists as not touched and the stage prompt does not list among the approved cross-lane edits: let the loop also accept #QUEUEKIND and set stop.Kind = check.Kind (WatchOps OnStop already handles Kind queues), plus a Test.Core session-end case.
     location: >-
       src/ocutalon/cls/OcuTalon/Core/SessionOps.cls:340
+    severity: medium
+  - summary: >-
+      K29 no longer runs the press, the chat turn, start_watch and the rail row end to end: under sign-in-3 (no model, no CI mock) it answers the POST 202 and seeds and publishes the queue row itself, so a break in the prompt-to-row link leaves K29 green.
+    evidence: |-
+      The sign-in-3 stack holds no model key and the CI mock runs only with the floor unit, whose user K29 used before. K29's press assertions (prompt once, fromGuide false, aria-disabled, no second post) still fail if the item sends nothing (mutation observed). The prompt-to-row link is pinned server-side by Test.Watch.Turns:TestQueuesThroughTheAgent (scenario A/watch-start-queues.json, with the marker prompt), not by the item's literal prompt. ci/mock/scenarios/B/queue-watch-ask.json (matches the item's literal prompt) now has no consumer. Closing it needs an e2e case in a unit that has the mock (a floor-project or demo-switch spec), or a spec amendment that moves AC10's rail clause to Test.Watch.Turns.
+    location: >-
+      web/e2e/guide/more-to-try-queues.spec.ts
     severity: medium
 ---
 
@@ -145,8 +152,8 @@ deferred:
   - `web/e2e/guide/more-to-try.spec.ts` (`ITEMS` oracle entry only);
   - `web/e2e/guide/more-to-try-queues.spec.ts` (new, K29).
 
-- [ ] [CI] web (run 43026811791, job 130543466679): `web/scripts/sources-docs.test.mjs` fails "15 items need a word in WORDS" and every count check that reads the registry (README "its More to try panel has undefined more things to try", EXPERIENCE.md "There are undefined items, in this order", the registry's comments, "the entries are the panel's items, in its order") -- https://github.com/jbrandtmse/OcuTalon/actions/runs/43026811791/job/130543466679 -- add "fifteen" and "sixteen" (Story 35.3 lands next) to `WORDS` wherever it lives (`sources-docs.test.mjs`, and any other web test file with its own number-word list that the registry count reaches); then run the WHOLE web unit suite (`npm --prefix web test`, every `web/scripts/*.test.mjs`), never only the four files, and fix any other red it shows.
-- [ ] [CI] iris (shards-5), live:sign-in-3 (run 43026811791, job 130543466970): K29 `web/e2e/guide/more-to-try-queues.spec.ts` fails at its first line with "OCUTALON_FLOOR_USER must be set by the e2e unit's script": it calls `fixtureUser('FLOOR')` and `openFloor`, which only the floor unit's script sets, but `guide/` runs in the sign-in-3 project (docker/tests/test-sign-in-3.sh) -- https://github.com/jbrandtmse/OcuTalon/actions/runs/43026811791/job/130543466970 -- sign in with the sign-in-3 unit's own fixture user and helpers as the sibling `guide/more-to-try.spec.ts` does (`fixtureUser('NOTICE')`, `signIn` from `../sign-in/helpers`, `loadedAfter`), keeping K29's assertions; then run live sign-in-3 locally on a lane-D throwaway (`docker/tests/test-sign-in-3.sh --part k/n` for the part that holds `guide/more-to-try-queues.spec.ts`, each call in the foreground, polling if the harness backgrounds it) and record the K29 result and its mutation line.
+- [x] [CI] web (run 43026811791, job 130543466679): `web/scripts/sources-docs.test.mjs` fails "15 items need a word in WORDS" and every count check that reads the registry (README "its More to try panel has undefined more things to try", EXPERIENCE.md "There are undefined items, in this order", the registry's comments, "the entries are the panel's items, in its order") -- https://github.com/jbrandtmse/OcuTalon/actions/runs/43026811791/job/130543466679 -- add "fifteen" and "sixteen" (Story 35.3 lands next) to `WORDS` wherever it lives (`sources-docs.test.mjs`, and any other web test file with its own number-word list that the registry count reaches); then run the WHOLE web unit suite (`npm --prefix web test`, every `web/scripts/*.test.mjs`), never only the four files, and fix any other red it shows.
+- [x] [CI] iris (shards-5), live:sign-in-3 (run 43026811791, job 130543466970): K29 `web/e2e/guide/more-to-try-queues.spec.ts` fails at its first line with "OCUTALON_FLOOR_USER must be set by the e2e unit's script": it calls `fixtureUser('FLOOR')` and `openFloor`, which only the floor unit's script sets, but `guide/` runs in the sign-in-3 project (docker/tests/test-sign-in-3.sh) -- https://github.com/jbrandtmse/OcuTalon/actions/runs/43026811791/job/130543466970 -- sign in with the sign-in-3 unit's own fixture user and helpers as the sibling `guide/more-to-try.spec.ts` does (`fixtureUser('NOTICE')`, `signIn` from `../sign-in/helpers`, `loadedAfter`), keeping K29's assertions; then run live sign-in-3 locally on a lane-D throwaway (`docker/tests/test-sign-in-3.sh --part k/n` for the part that holds `guide/more-to-try-queues.spec.ts`, each call in the foreground, polling if the harness backgrounds it) and record the K29 result and its mutation line.
 
 **Acceptance Criteria:**
 - AC1 (Integration): Given a session that asks in the chat to watch queue backlogs, when the Chat turn calls `start_watch` with kind queues, then `WatchOps` writes one `Kind` queues row for the session and the session's stream gets its `check` event. A repeat adds no row. Asking to stop removes the row and publishes the stop event. (`Test.Watch.Turns:TestQueuesThroughTheAgent` through the `watch-start-queues`/`watch-stop-queues` markers, real `CommandsIn` and `WatchOps`; `Test.Watch.Ops`.)
@@ -198,6 +205,27 @@ Rejected:
 - 2026-11-11 (plan): Scope reopen of Epic 23 (the owner, 2026-11-11, via the Contest Planner). Story 23.7 is planned after 23.6, 23.2 and 23.5 merged. It reuses `Watch.Reader`'s queue read and `Checks.Coverage`'s thresholds, and it proposes the AD-18 row-type text below for the lead to raise.
 
 ## Review Triage Log
+
+### 2026-11-11 - CI rework 1 review pass (scoped to the two [CI] items)
+- verdicts: 17 findings - high 0, medium 1, low 8, false 3, maybe-false 5
+- findings:
+  - `[medium]` `[defer]` K29 no longer proves press -> turn -> start_watch -> rail row (POST answered 202, row seeded and published by the test; the sign-in-3 stack has no model and no mock; test title and AC10 overstate) - three layers filed it (blind hunter, edge-case hunter, intent-alignment, verification-gap); not patchable without a mock-stack unit; deferred in the frontmatter with what would close it (an e2e case where the mock runs, or an AC10 amendment); the press assertions keep their mutation (observed red)
+  - `[low]` `[patch]` header comment names `B/queue-watch-ask.json` as the scenario `TestQueuesThroughTheAgent` runs (it runs `A/watch-start-queues.json`) - comment replaced with the right scenario
+  - `[low]` `[defer]` `B/queue-watch-ask.json` has no consumer now - folded into the K29 deferred entry (its removal or reuse is the same decision)
+  - `[low]` `[reject]` local `openAs` copies the sibling's `openAs`/`keepRoutedGuide` instead of reusing them - the sibling is a contended Epic 21 file (not editable this pass) and `keepRoutedGuide` is not exported; closed wontfix-accepted, reopen_if=`guide/more-to-try.spec.ts` stops being contended and exports its helper
+  - `[low]` `[reject]` stale queue rows from a killed earlier run are no longer pre-cleaned (two reviewers) - the row is made only by this test, cleaned by ref in `finally`, nothing else makes a queues row for the fixture user; unlikely
+  - `[maybe-false]` `[reject]` status banner / `status` events not cleared as the sibling does (two reviewers) - the live run passed 19 of 19 and the noModelKey status did not touch the panel or the rail; would be a flake only (low)
+  - `[maybe-false]` `[reject]` `route.fetch()`/`response.json()` unguarded in the events route (two reviewers) - polls answer JSON; would be a flake only (low); the sibling's guard is not needed to pass
+  - `[maybe-false]` `[reject]` `route.fulfill({ response, json })` forwards a stale content-length - Playwright recomputes it for `json`; the live run passed
+  - `[maybe-false]` `[reject]` a real Tick might pick up the seeded row - false in effect: NextDueAt defaults an hour ahead (`check-seeds.test.mjs` pins it)
+  - `[maybe-false]` `[reject]` hand-built guide object may drift from the guide payload - the same shape as the sibling's `finished(...)`, a rename shows in the page; low
+  - `[low]` `[reject]` `sixteen` unused today - asked for by the lead (Story 35.3 lands the sixteenth item)
+  - `[low]` `[reject]` three number-word arrays instead of one shared list - the pass is one-word appends only by ruling
+  - `[false]` `[reject]` ENTRY_LINE widening may break the numbering - the order and heading `deepEqual` tests would fail if the "After Item 3" line were wrong, and `numberOf` keys on `Item` lines only
+  - `[low]` `[reject]` test title "the rail gains the Queue-backlog check" overstates - the header says what it proves; covered by the deferred entry
+  - `[false]` `[reject]` seedCheck run before the page is ready - it is published after `loadedAfter` and the composer is visible
+  - `[false]` `[reject]` K29 not hermetic - cleaned by ref, `workers: 1`
+  - `[low]` `[reject]` seeded `namespace`/`production` empty is a guess - `StartWatch`'s queues row is empty in both (WatchOps test pins it)
 
 ### 2026-11-11 - Review pass
 - verdicts: 35 findings - high 0, medium 4, low 22, false 9, maybe-false 0
@@ -443,7 +471,7 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: AC7 `ReadEntries` lists every namespace whatever the flag -> `Test.Checks.QueueBacklog:TestOnlineDemoReadsOnlyOrders` red (an Item and a `QUEUEFEED` key in `Reported`); `TestTwoCrossings` stayed green
 - mutation: AC8 `CheckResults` skips `queues` -> `Test.Watch.Tools` red (`TestCheckStatusQueues`)
 - mutation: AC9 no `detail` for queues -> `web/scripts/rail-view.test.mjs` red
-- mutation: AC10 the item sends nothing -> K29 expected red (not observed here: browser units run in CI only)
+- mutation: AC10 the item sends nothing (`more-to-try.ts` case `queueWatch` does not call `outbox.send`) -> K29 red at "the prompt was posted" (observed on a lane-D throwaway, `docker/tests/test-sign-in-3.sh --part 1/10`, 18 other tests green; reverted, `git diff` of the file empty). K29 green with the change reverted (19 passed, K29 1.7 s). The sign-in unit has no model key, so K29 answers the POST 202 and seeds and publishes the queue row that start_watch makes; the turn itself is pinned by `Test.Watch.Turns:TestQueuesThroughTheAgent` (CI rework 1)
 - mutation: AC11 README says fourteen -> `web/scripts/more-to-try-view.test.mjs` red
 - mutation: AC12 `Crossings` ignores `told` (no cooldown) -> `Test.Checks.Queues` red (`TestCooldown`)
 
@@ -487,3 +515,5 @@ Blocking condition: none
 **Verification performed.** On the lane-D warm throwaway after the last patch: `Test.Checks.Queues`, `QueueBacklog`, `Runs`, `Watch.Ops`, `Watch.Tools`, `Watch.Turns`, `Digest.Coverage`, `Msg.Catalog`, `Demo.Features`, `Agent.Instructions`, `Bridge.Gate`, `Bridge.CodeRules` all passed (the first set before the patches, `QueueBacklog`, `Turns`, `Watch.Tools`, `Gate`, `Instructions`, `CodeRules` after). `node --test` on the four web files (133 pass), `bash docker/tests/test-mock.sh`, `test-storage.sh`, `npm --prefix web run lint` (after the last patch), `test-boundaries.sh`, `test-ci-config.sh`, `test-readme.sh` pass. Mutations for AC1-AC9, AC11 and AC12 were observed red and reverted; AC10 (K29) is CI-only.
 
 **Residual risks.** Left to CI: K29, the fresh-stack `Test.Checks.QueueBacklog` inside `shard:lane-a@rest`, the `ITEMS` oracle edit, and the lead's forward/`--reverse` fresh-environment check. The deferred session-end gap above.
+
+**CI rework 1 (this pass).** Web unit job: `WORDS` and the two number-word lists in `more-to-try-view.test.mjs` end at sixteen, and `ENTRY_LINE` in `sources-docs.test.mjs` also matches EXPERIENCE.md's "After Item n" entry; `npm --prefix web test` passes (1912), lint and `test-boundaries.sh` pass. K29 now signs in the sign-in unit's `NOTICE` user like the sibling and passed on a lane-D throwaway (`test-sign-in-3.sh --part 1/10`, 19 passed), red under its mutation (see Verification). Review: 17 findings, 1 patched (comment), 1 medium deferred (K29 no longer drives the turn; see `deferred`), rest rejected with reasons in the triage log; follow-up review recommended false (no high patched). Residual risk: the deferred K29 coverage gap.

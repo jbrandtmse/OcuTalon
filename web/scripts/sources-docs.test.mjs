@@ -18,7 +18,7 @@ const README = readFileSync(join(root, 'README.md'), 'utf8');
 const EXPERIENCE = readFileSync(join(root, '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
 const REGISTRY = readFileSync(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts'), 'utf8');
 
-const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen'];
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen'];
 const count = WORDS[MORE_TO_TRY_ITEMS.length];
 
 /** The Planner-ruled README bullet (Story 20.2, public text 14), word for word. */
@@ -102,7 +102,7 @@ describe('EXPERIENCE.md, More to try', () => {
   // leaves the numbers of the others as they are.
   const NUMBERED = PANEL.filter((item) => EXPERIENCE.split('\n').some((one) => one.startsWith('    - Item ') && one.includes(`Label "${item.label}".`)));
   const numberOf = (id) => NUMBERED.findIndex((one) => one.id === id) + 1;
-  const ENTRY_LINE = /^    - (Item \d+|First item)\b/;
+  const ENTRY_LINE = /^    - (Item \d+|First item|After Item \d+)\b/;
   const HEADING_LINE = /^    - Heading "([^"]*)"\./;
   const labelOf = (text) => /Label "([^"]*)"\./.exec(text)?.[1];
 
