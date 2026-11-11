@@ -6967,3 +6967,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Mcp/Ops.cls MessageMap maps only the three verbs; CommandsIn.IsStub maps only code 5003 to not_built; spec Design Notes 17 records it
 - 2026-11-11T13:50:48Z status=by-design owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=spec Design Notes 17 states it; no UI sends them before 22.5, which adds the handlers
+
+### DW-1164: EmailOut's system path (Story 21.6) needs Story 22.7 to fill SendEmail.ApprovalRef, the approval row's FixKind 'email' and FixParameters.recipients, and to replay with a context of Kind tool and provenance user; only seeded rows test it today
+- source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Channel/Email/Out.cls system path reads Bridge.Data.ApprovalRequest; tests seed the row; S1 spine sub-bullet records the contract
+- 2026-11-11T23:31:06Z status=routed owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=harvest note=22.7 confirms both contracts with a test through the real FixExecutor and Replay.Run
