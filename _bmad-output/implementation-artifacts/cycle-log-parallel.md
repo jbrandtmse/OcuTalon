@@ -3417,3 +3417,7 @@
 - 2026-11-11T05:13Z orchestrator owner_decision via=contest_planner epic=23 story=23.5 DW-1108/1109 accepted as built; approve-then-close text -> DW-1118 LOW post-contest; DW-1117 post-contest (not 1.0.8; demo reset wipes sessions)
 - 2026-11-11T05:25Z orchestrator ci_red_classified head=a179b616 branch=OCT-epic0 story=0.25 run=42960883262 red=shards-2 Mcp.Attach (DW-1038), production row 21 (DW-306); runner reran failed jobs 05:24Z (attempt 2); records held as patch by runner
 - 2026-11-11T05:45Z orchestrator runner_clarification epic=25 story=25.2 kind=PART_READY(CI pending) head=284e8904 base=878da0d2 runs=42966931010,42966931064; DW-1102 resolved (stacked-band spacing; header 77px sticky; live floor 110/110); review 0 HIGH; registry 13 on its base; expect registry/README conflicts with 23.5 at merge
+- 2026-11-11T05:57Z orchestrator ci_green_verified branch=OCT-epic0 head=a179b616 runs=42960883262(attempt 2; DW-1038 + DW-306 flakes),42960883311 missing=none story=0.25
+- 2026-11-11T05:57Z orchestrator merge_gate epic=0 part=0.25 head=a179b616 base=b5bd74c5 conflicts=sprint-status.yaml(ours+regenerate+set 0-25=done, epic-0=done) test-lib-live/test-boundaries pass on merged tree; spine baseline; DW-1099 resolved-by 0.25 (+ host fix)
+- 2026-11-11T05:57Z orchestrator epic_merged_to_feature epic=0 part=0.25 note=feature CI runs (combination with 41.15)
+- 2026-11-11T05:57Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=0.25 insert via merge

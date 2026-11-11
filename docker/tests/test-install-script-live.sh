@@ -150,7 +150,9 @@ fi
 # The project went down a moment ago and this up uses the same port, so the start runs through the guard (Story 0.24).
 plain_out=$(live_port_guard env COMPOSE_PROJECT_NAME="$P" COMPOSE_FILE="$compose_files" IRIS_IMAGE="$test_base" docker compose up -d 2>&1)
 plain_rc=$?
-printf '%s\n' "$plain_out" | tail -n 5 | sed 's/^/  | /'
+# The guard's own lines in full, then the last 5 others, so the holder lines never scroll the FAIL or retry lines away (DW-1113).
+printf '%s\n' "$plain_out" | grep -E '^(PORT|FAIL web port|waited )' | sed 's/^/  | /'
+printf '%s\n' "$plain_out" | grep -vE '^(PORT|FAIL web port|waited )' | tail -n 5 | sed 's/^/  | /'
 if [ "$plain_rc" -eq 0 ]; then pass "a plain docker compose up -d exits 0"; else fail "a plain docker compose up -d exited $plain_rc"; fi
 if wait_until 600 plain_healthy; then
   pass "the plain docker compose up reaches healthy"
