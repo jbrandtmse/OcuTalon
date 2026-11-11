@@ -6,10 +6,11 @@ import { NAV_LINKS_USER } from '../support/header-nav';
 import { localDate, seedHistoryDecisions, type HistoryDecisionSeed } from '../support/history';
 import { cleanFixtureRows, fixtureUser, seedIncident } from '../support/iris';
 import { sessionRefOfUser } from '../support/memory';
+import { announcements, recordAnnouncements } from '../support/page';
 import { helpSeen, stubTraces } from '../support/trace';
 
 /**
- * Story 25.2, the History page (H1 to H14), in a real browser against a real stack, signed in as the LIVE fixture user (OcuTalonUser only, the online demo visitors'
+ * Story 25.2, the History page (H1 to H15), in a real browser against a real stack, signed in as the LIVE fixture user (OcuTalonUser only, the online demo visitors'
  * role). The cases read rows that this file seeds once, on local days that no other case uses (45 to 47 days ago, so an address names its day), through the
  * product's test fixture, with a second session's (PANEL) rows beside them that must never show:
  *
@@ -22,13 +23,14 @@ import { helpSeen, stubTraces } from '../support/trace';
  *   P01..P26  46  act  slack     no        26 rows, the second page holds P01
  *
  * and two incidents (noticed in 2031, so they head the list): one closed with a stored summary, a count of 4 and a diagnosis trace, one open with no summary.
- * The texts are written out here, as the independent oracle of the page's own. H9 and H12 stub the history routes in the browser and read no row.
+ * The texts are written out here, as the independent oracle of the page's own. H9, H12 and H15 stub the history routes in the browser and read no row.
  */
 const TITLE = 'History \u00B7 OcuTalon';
 const SIGN_IN_NAME = 'Open in Visual Trace (shows sign-in help first)';
 const PLAIN_NAME = 'Trace (opens in a new tab)';
 const DECISIONS = '**/ocutalon/api/v1/history/decisions*';
 const INCIDENTS = '**/ocutalon/api/v1/history/incidents*';
+const ERROR = "Couldn't load your history.";
 const CHANNEL_WORDS = /Unknown|Web chat|Simulated|Telegram|Email|Webhook|Slack|System|Heartbeat/;
 const stamp = Date.now().toString(36);
 const tag = `zz-hist-${stamp}`;
@@ -80,6 +82,8 @@ const tabOf = (page: Page, name: 'Decisions' | 'Incidents'): Locator => page.get
 const rowsOf = (page: Page): Locator => page.locator('[data-part="history-decisions"] > li');
 const incidentsOf = (page: Page): Locator => page.locator('[data-part="history-incidents"] > li');
 const control = (page: Page, label: string): Locator => page.getByLabel(label, { exact: true });
+/** The failed read's own region, on either tab: the live region holds the same words, so a page-wide text search would count that too. */
+const failedOf = (page: Page): Locator => page.locator('[data-part="history-failed"]');
 const pager = (page: Page, name: string): Locator => page.getByRole('navigation', { name, exact: true });
 const hashOf = (page: Page): string => new URL(page.url()).hash;
 const rowWith = (page: Page, text: string): Locator => rowsOf(page).filter({ hasText: text });
@@ -89,6 +93,15 @@ async function openApp(page: Page, seen = true): Promise<void> {
   await stubTraces(page.context());
   if (seen) await helpSeen(page);
   await loadedAfter(page, () => signIn(page, live().user, live().password));
+}
+
+/**
+ * After a successful Retry the announcement of the failure is withdrawn: the polite live region, which takes a text 100 ms after it is handed one, holds no
+ * trace of it once that time has passed.
+ */
+async function expectNoStaleError(page: Page): Promise<void> {
+  await page.waitForTimeout(300);
+  await expect(page.locator('.cdk-live-announcer-element'), 'the failure is no longer announced').not.toContainText(ERROR);
 }
 
 /** Goes to the History page at the address (the part after #/history) by the page's own address, without a reload. */
@@ -372,11 +385,12 @@ test('H9: the empty texts, and a failed read says so with Retry', async ({ page 
   await page.unroute(DECISIONS);
   await page.route(DECISIONS, (route) => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'x' } }) }));
   await visit(page, `?day=${d45}`);
-  await expect(page.getByText("Couldn't load your history.", { exact: true })).toBeVisible();
+  await expect(failedOf(page)).toHaveText(new RegExp(ERROR));
   await page.unroute(DECISIONS);
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(rowsOf(page)).toHaveCount(5);
-  await expect(page.getByText("Couldn't load your history.", { exact: true })).toHaveCount(0);
+  await expect(failedOf(page), 'the error and Retry are gone with the answer').toHaveCount(0);
+  await expectNoStaleError(page);
 });
 
 test('H10: another session\'s rows never appear, on either tab', async ({ page }) => {
@@ -458,12 +472,13 @@ test('H12: the Incidents tab shows the Fallback flag, the no-summary text of a c
 
   failing = true;
   await incidentPager.getByRole('button', { name: 'Previous page', exact: true }).click();
-  await expect(page.getByText("Couldn't load your history.", { exact: true })).toBeVisible();
+  await expect(failedOf(page)).toHaveText(new RegExp(ERROR));
   await expect(incidentsOf(page)).toHaveCount(0);
   failing = false;
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(incidentsOf(page)).toHaveCount(25);
-  await expect(page.getByText("Couldn't load your history.", { exact: true })).toHaveCount(0);
+  await expect(failedOf(page), 'the error and Retry are gone with the answer').toHaveCount(0);
+  await expectNoStaleError(page);
 });
 
 test.describe('in en-US', () => {
@@ -485,7 +500,7 @@ test.describe('in en-US', () => {
     await expect(rowsOf(page)).toHaveCount(5);
     expect(asked, 'one read, with the typed day').toHaveLength(1);
     expect((await page.evaluate(() => window.history.length)) - before, 'one history entry').toBe(1);
-    await expect(page.getByText("Couldn't load your history.", { exact: true })).toHaveCount(0);
+    await expect(failedOf(page)).toHaveCount(0);
     await page.goBack();
     await expect(page).not.toHaveURL(/day=/);
   });
@@ -505,4 +520,29 @@ test.describe('in Europe/Berlin', () => {
     await expect(closed.locator('.headline')).toHaveText(/^4 orders failed since /);
     await expect(closed.locator('.headline')).not.toContainText('CET');
   });
+});
+
+test('H15: a failure that waits for the live region\'s one-second gap is not announced once a Retry has been answered', async ({ page }) => {
+  await recordAnnouncements(page);
+  await openApp(page);
+  let asked = 0;
+  let failed = 0;
+  await page.route(DECISIONS, async (route) => {
+    asked += 1;
+    if (asked > 2) return route.continue();
+    await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'x' } }) });
+    failed += 1;
+  });
+  await visit(page, `?day=${d45}`);
+  await expect(failedOf(page)).toHaveText(new RegExp(ERROR));
+  await expect.poll(() => announcements(page, ERROR), 'the first failure is announced').toBe(1);
+  const retry = page.getByRole('button', { name: 'Retry', exact: true });
+  await retry.click();
+  await expect.poll(() => failed, 'the second read failed').toBe(2);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await retry.click();
+  await expect(rowsOf(page)).toHaveCount(5);
+  await expect(failedOf(page)).toHaveCount(0);
+  await page.waitForTimeout(1500);
+  expect(await announcements(page, ERROR), 'the second failure waited for the gap, and the answer withdrew it: the error was announced once').toBe(1);
 });

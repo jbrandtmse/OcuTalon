@@ -61,7 +61,9 @@ describe('the page speaks only through the Announcer', () => {
     const { code: announcer } = file('app/shared/announcer.ts');
     assert.match(announcer, /new AnnounceQueue\(/);
     assert.match(announcer, /announce\(message: string\): void \{\s*this\.queue\.push\(message\);\s*\}/);
-    assert.equal((announcer.match(/this\.live\.announce\(/g) ?? []).length, 1, 'one call to the live announcer');
+    assert.equal((announcer.match(/this\.live\.announce\(text, /g) ?? []).length, 1, 'one call that speaks a text');
+    assert.equal((announcer.match(/this\.live\.announce\(/g) ?? []).length, 2, 'and one more, which empties the region for a retracted text');
+    assert.match(announcer, /retract\(message: string\): void \{[^}]*this\.queue\.retract\(text\);\s*if \(text !== '' && this\.lastSpoken === text\) \{\s*this\.lastSpoken = '';\s*void this\.live\.announce\('', 'polite'\);/);
   });
 
   it('reads a reply for the chat from the real modules: the first block with links as labels, the catalog\'s fallback sentence and CHAT_TEXTS', () => {
