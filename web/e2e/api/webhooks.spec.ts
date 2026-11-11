@@ -129,6 +129,8 @@ async function dropDecisionsOf(names: string[]): Promise<void> {
 /**
  * Waits until the events whose subject is the name are done: `count` decide Decisions exist, `count` ItemDecisions have been routed, and no request of the
  * events' own trace sessions (the untrusted turn and the notice of an act included) is still queued or in flight. A case calls it before it removes its rows.
+ * The timer that Decide sets for each attempt (an Ens.AlarmRequest to Ens.Alarm, TimerSeconds, 60 by default) is not a request that writes anything: once the
+ * decision is recorded its fired response is discarded by the framework (Decide, the timer), so the wait does not count it, and a case no longer idles for the timer.
  */
 async function awaitSettled(name: string, count: number): Promise<void> {
   const own =
@@ -139,7 +141,7 @@ async function awaitSettled(name: string, count: number): Promise<void> {
         const lines = await irisScript(
           [
             `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) c FROM OcuTalon_Bridge_Data.Decision WHERE Summary = ? AND Kind = 'decide'",${quoted(name)}) Do rs.%Next() Write !,"CHK|d|",rs.%Get("c")`,
-            `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) c FROM Ens.MessageHeader WHERE Type = 1 AND Status IN (1,2,3) AND SessionId IN (${own})",${quoted(name)}) Do rs.%Next() Write !,"CHK|open|",rs.%Get("c")`,
+            `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) c FROM Ens.MessageHeader WHERE Type = 1 AND Status IN (1,2,3) AND MessageBodyClassName <> 'Ens.AlarmRequest' AND SessionId IN (${own})",${quoted(name)}) Do rs.%Next() Write !,"CHK|open|",rs.%Get("c")`,
             `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) c FROM Ens.MessageHeader WHERE Type = 1 AND Status = 9 AND MessageBodyClassName = 'OcuTalon.Msg.ItemDecision' AND SessionId IN (${own})",${quoted(name)}) Do rs.%Next() Write !,"CHK|routed|",rs.%Get("c")`,
           ].join('\n'),
         );
