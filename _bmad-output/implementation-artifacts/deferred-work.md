@@ -6738,6 +6738,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T22:37:05Z status=routed owner=0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=load note=Contest_Planner_ruling_2026-11-10_~22:45Z:_Story_0.24_fixes_the_web-port_collision_(recurred:_lane-a_run_42907226019_runner_6_port_52816_twice)
 - 2026-11-11T00:09:51Z status=resolved-by:0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=adjudication note=docker/tests/lib-live.sh_live_port_guard(dc_up/start/restart:wait<=20s,one_retry_on_the_bind_error,loud_FAIL);hermetic_rows_in_test-lib-live.sh;live_proofs_on_lane-C(real_Docker_bind_error_retried_once;IRIS_stacks_back_to_back)
 - 2026-11-11T02:51:19Z status=routed owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=load note=reopened:run_42943118887_job_130269395421_iris(shards)_live:online-allowance_ocutalon-ci-8_02:21Z:_0.24_guard_waited,retried_once_after_5s,FAIL_web_port_127.0.0.1:52818;Contest_Planner_ruling_(c)_2026-11-11_~02:50Z:_Story_0.25_(wait_90s/3s_poll,two_retries,waited_N_s_line)
+- 2026-11-11T04:27:01Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=adjudication note=lib-live.sh_live_port_guard:one_90s_budget_polled_every_3s(ss_-tan,every_state_but_TIME-WAIT,publish_addresses),up_to_two_retries_after_10s_pauses_on_the_bind_error,loud_FAIL,one_waited_N_s_for_port_P_line;179_hermetic_rows;lane-B_live_proofs_at_smoke;reopen_if=a_CI_log_shows_FAIL_web_port:
 ### DW-1097: test-readme.sh: no permanent self-test pins that chk_readme_links feeds the header logo (header_images) into its existence check
 - source: _bmad-output/implementation-artifacts/spec-0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: Dropping header_images from chk_readme_links' target stream keeps every rule green while the logo is tracked; only the AC4 untrack mutation shows it; chk_readme_links takes no tree-list argument, so a self-test cannot stub a missing logo; same limit existed with the relative src before 0.23
@@ -6749,6 +6750,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/tests/lib-live.sh live_port_guard: the FAIL line carries only 127.0.0.1:<p> and the bind error line; no docker ps --filter publish or ss/lsof line
 - 2026-11-10T23:52:05Z status=wontfix-accepted owner=0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=cr note=reopen_if=a CI log shows 'FAIL web port: 127.0.0.1:' and the occupant cannot be identified from that job's log
 - 2026-11-11T02:51:20Z status=routed owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=load note=reopened(reopen_if_met:run_42943118887_FAIL_web_port_127.0.0.1:52818,occupant_not_identifiable_from_the_job_log);Story_0.25_inbox
+- 2026-11-11T04:27:01Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=adjudication note=live_port_holders:PORT_holder_lines_after_the_loud_FAIL_and_PORT_still_in_use(docker_ps_-a_--filter_publish_all_projects;ss_-tanp_any_state_or_lsof;10_lines_each;never_fails_the_guard);rows_holders-named,holder-tools-fail,lsof_fallback;reopen_if=a_CI_log_shows_FAIL_web_port:_and_its_PORT_holder_lines_do_not_name_the_occupant
 
 ### DW-1101: test-install-script-live.sh step 5's use of live_port_guard is pinned hermetically only by a grep of the script's text; the executed check is the live install-script-live unit
 - source: spec-0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i.md | severity: low | fix-risk: low | footprint: in-story
@@ -6771,8 +6773,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: docker/tests/test-install-script-live.sh:153 tail -n 5 of plain_out; the step still fails on the exit status
 - 2026-11-11T03:57:02Z status=open owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=harvest note=two-way door; for the code review to patch
+- 2026-11-11T04:21:49Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=cr note=step 5 prints every PORT/FAIL web port/waited line then tail -n 5 of the rest; pinned by a test-lib-live.sh row, red observed
 
 ### DW-1114: test-boundaries.sh keys rule hit the lead's own cycle-log line (story_created 0.25): a job id followed by a colon and 35 word characters matched the bot-token shape
 - source: _bmad-output/implementation-artifacts/spec-0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: cycle-log-epic-0.md story_created 0.25 note; reworded by the lead before any push
 - 2026-11-11T03:57:02Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=harvest note=lead reworded the line (job id in parentheses); test-boundaries passes
+
+### DW-1115: live_port_listed's ss -tan poll counts FIN-WAIT-1/2, CLOSING and LAST-ACK sockets on the port as busy, though server-side ones inherit SO_REUSEADDR and may not block Docker's bind, so the guard can spend budget on a bindable port
+- source: spec-0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Edge Case Hunter and Acceptance Auditor (inference, not measured): the poll excludes only TIME-WAIT per the lead's spec-gate ruling; harm is delay within the 90 s budget, never a failed start
+- 2026-11-11T04:21:49Z status=by-design owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=cr note=spec-bound (lead ruling); reopen via amendment if a CI log shows PORT waiting while holder lines list only FIN-WAIT/LAST-ACK/CLOSING
+
+### DW-1116: epics.md:1659 (Story 0.25 AC) and epic-0-context.md:40 still say the poll uses ss -ltn on Linux, while the code now runs ss -tan (every state but TIME-WAIT) per the lead's spec-gate ruling
+- source: spec-0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: grep: both planning lines say ss -ltn; lib-live.sh live_port_listed runs ss -tan; the ruling is recorded only in the 0.25 spec's Design Notes
+- 2026-11-11T04:21:49Z status=wontfix-accepted owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=cr note=reopen_if=a later spec or retro cites the ss -ltn wording to change live_port_listed back to listeners only
+- 2026-11-11T04:26:27Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=adjudication note=epics.md_Story_0.25_AC_amended_with_marker(ss,_every_state_but_TIME-WAIT);epic-0-context.md_is_a_regenerated_cache

@@ -37,7 +37,7 @@ Epic 0 is the walking skeleton. One image build and `docker compose up` give Ocu
 ## Requirements & Constraints
 
 **The guard's new bounds (0.25).** This applies to every guarded start: `dc up`, `dc start` and `dc restart` with a web port, through `live_port_guard` and `live_port_wait_free`.
-- When the port is in use, wait up to 90 s for it to be free, polling every 3 s. Linux uses `ss -ltn`; 0.24's macOS equivalent stays for local runs.
+- When the port is in use, wait up to 90 s for it to be free, polling every 3 s. Linux uses `ss -tan (every state but TIME-WAIT)`; 0.24's macOS equivalent stays for local runs.
 - When the start fails with exactly the bind error ("address already in use" or "failed programming external connectivity"), retry it up to twice, waiting again before each retry. After the second retry fails, print the same loud `FAIL web port: ...` line and return the failure.
 - Any other failure returns at once, with no retry.
 - Every guarded start that had to wait prints exactly one line, `waited N s for port P`, where N is the seconds waited and P is the port. The next ledger entry uses it to measure the wait.

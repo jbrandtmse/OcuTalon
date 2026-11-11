@@ -161,7 +161,35 @@ These are hermetic rows in `test-lib-live.sh`, run through `guard_run`. Its `sle
 - Given a lane-B throwaway, when a listener holds the web port for about 40 s after `live_web_port`, then `dc up` waits it out, starts, and logs `waited N s for port 52802`. When the listener holds it past 90 s, the start retries twice and then prints the loud FAIL and the holder lines.
 - Integration AC: given consumer `docker/tests/test-online-allowance.sh` (CI `iris (shards)` `live:online-allowance`, the unit DW-1099 hit, starting through `dc up` on the runner's fixed port), when CI runs on the story's head, then the unit passes. Any wait it made appears as `waited N s for port P` in the job log, and every workflow is green.
 
+### Review Findings
+
+Code review (bmad-code-review, 2026-11-11; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 32 rows, 9 entries after grouping, 13 rejected).
+
+- [x] [Review][Patch] Rule 2: `override_run` (QA) was a near-copy of the inline override block of the "override held briefly" row; that row now calls `override_run 2` [docker/tests/test-lib-live.sh:1152] -- med, fix-risk low (test-only refactor, same assertions), in-story.
+- [x] [Review][Patch] Rule 19 hermeticity: the "override held briefly" row's `port.yml` assertion could pass on the 52815 file left by `override_run 0`; `override_run` now removes `port.yml` first [docker/tests/test-lib-live.sh:1039] -- med, fix-risk low (one `rm -f`), in-story.
+- [x] [Review][Patch] The guard's clock `t` started before the own-stack `docker ps -q`, so that query's time counted in `PORT still in use ... after N s`, in the budget and in `waited N s`; `t` is now taken right before the pre-wait [docker/tests/lib-live.sh:379] -- low, fix-risk low (one line). No hermetic pin: the query runs in a command substitution, so the fast clock cannot advance from it (tried; the row stayed green under the mutation and was removed). The lead's proofs A and B show the real figure.
+- [x] [Review][Patch] The `ss` listener-table row accepted any arguments containing ` -tan `, so `ss -tan state listening` (listeners only again) stayed green; it now requires exactly `-tan` [docker/tests/test-lib-live.sh:1203] -- low, fix-risk low.
+- [x] [Review][Patch] The bind-three-times row's `[ "$(g_holders)" -ge 1 ]` was met by any holder output; it now requires exactly the one `PORT holder: none seen` line its stubs produce [docker/tests/test-lib-live.sh:780] -- low, fix-risk low.
+- [x] [Review][Patch] The teardown scan missed a trailing comment after `&`, `docker-compose ... down`, `live_cleanup &`, `ci/iris.sh teardown &` and `"$me" down &`; it now strips a trailing comment and matches those forms (a multi-line `( ... ) &` is still not scanned, as the comment says) [docker/tests/test-lib-live.sh:1267] -- low, fix-risk low.
+- [x] [Review][Patch] DW-1113: step 5 of `test-install-script-live.sh` printed only `tail -n 5`, so the holder lines could hide the FAIL and retry lines; it now prints every guard line (`PORT`, `FAIL web port`, `waited`) and then the last 5 other lines, pinned by a static row in `test-lib-live.sh` [docker/tests/test-install-script-live.sh:154] -- low, fix-risk low; ledger DW-1113 resolved-by this story.
+- [x] [Review][Defer] The `ss -tan` poll counts FIN-WAIT-1/2, CLOSING and LAST-ACK sockets as busy, though server-side ones inherit SO_REUSEADDR and may not block the bind [docker/tests/lib-live.sh:218] -- deferred: maybe-false (medium if true; harm is delay inside the 90 s budget, never a failed start); spec-bound by the lead's spec-gate ruling, so DW-1115 `by-design`; a CI log with `PORT waiting` while the holder lines list only those states would settle it.
+- [x] [Review][Defer] `epics.md:1659` and `epic-0-context.md:40` still say the poll uses `ss -ltn` [_bmad-output/planning-artifacts/epics.md:1659] -- deferred: low, planning artifacts outside this story's footprint; DW-1116 `wontfix-accepted` with a reopen probe.
+
+Rejected:
+- false: `docker ps --filter publish=<p>` matches the container port, so the holder query and the own-stack skip never match (verification-gap, twice) -- measured on engine 29.7.2: `publish=52791` returns `ocutalon-slot-b` (host 52791 -> 52773), and `publish=52773` returns only the container whose HOST port is 52773, not the slots that map to 52773 inside.
+- false: `docker ps -a` lists no exited container, so "none seen" misleads (blind, edge) -- measured true that exited ones are not listed, but an exited container holds no port; a socket that does hold it shows in the `ss`/`lsof` half.
+- false: `LIVE_PORT_RETRY_PAUSE=0` prints `waited 0 s` after a retry (edge) -- the spec defines "waited" as "a retry ran".
+- false: the teardown row fails from a copy with no `.git` (edge) -- a loud failure in a setup no runner uses; the empty-list check was added on purpose by the previous review.
+- low: no holder lines when a retry succeeds (blind) -- AC2 names exactly when they print; the FAIL listing runs right after the last bind error, while the occupant is there.
+- low: unprivileged `ss -tanp` shows no process for root sockets (blind) -- print-only diagnostic; the socket line still shows; the fix needs privileges.
+- low: non-numeric `LIVE_PORT_WAIT` breaks the arithmetic (edge) -- an internal knob, the same as in 0.24.
+- low: `LIVE_PORT_WAIT=0` on a guarded start prints no waited line although the pre-check found the port in use (auditor) -- a 0 s budget is no wait; the QA row pins that reading and `PORT still in use ... after 0 s` already shows the busy port.
+- low: AC4, AC5 and the Integration AC have no `mutation:` line; the real `timeout`, `docker ps -a`, `ss -tanp` and `lsof` holder calls run only against stubs (verification-gap) -- AC4 is the suites; AC5 and the Integration AC are the lead's live proofs and CI, which also exercise the real holder tools.
+- low: stale `deferred:` item 2 and Residual-risks line on `test-boundaries.sh` (the line was reworded at 59db3869; the suite passes), the review tally that sums to 32, and the Auto Run Result's 169 PASS (blind, auditor) -- the fix is to edit build-auto's own record in this spec; the lead's bookkeeping.
+
 ## Spec Change Log
+
+- 2026-11-11 (lead, after code review): the second `deferred:` item (test-boundaries red on a cycle-log line) was resolved by the lead before any push (59db3869 reworded the line; ledger DW-1114 resolved); `test-boundaries.sh` passes. The suite count after QA and review is 179 PASS. epics.md's Story 0.25 AC now says `ss` (every state but TIME-WAIT), amended with a marker (DW-1116).
 
 ## Review Triage Log
 
@@ -293,9 +321,31 @@ Mutations (one per AC; revert each and confirm that `git status --short` and `gi
 - mutation: AC2, holder cap -- drop `NR <= 10` from the `docker ps -a` awk -> the holders-named row goes red (22 lines, not 20; observed).
 - mutation: AC3, teardown scan -- end a `dc down` line of a scanned script (`docker/tests/test-compose-start.sh`) with `&` -> the teardown row goes red from the scan alone (observed).
 - mutation: AC3, teardown -- append ` &` to `live_cleanup`'s `dc down` -> the teardown row goes red (observed).
-- mutation: lead ruling, `ss` branch -- `ss -tan` back to `ss -ltn` in `live_port_listed` -> the listener-table `ss` row (ESTAB, v4-mapped and `-tan` assertions) goes red (observed).
+- mutation: lead ruling, `ss` branch -- `ss -tan` back to `ss -ltn` in `live_port_listed` -> the listener-table `ss` row goes red through its arguments assertion only, since the `ss` stub prints its table whatever the arguments (corrected in code review); `ss -tan state listening` -> the same row goes red now that it requires exactly `-tan` (code review, observed).
 - mutation: AC4 -- the rows above are its falsifiable parts.
 - mutation: AC5 and the Integration AC -- (lead) these are live observations; the hermetic rows are their stand-ins.
+
+QA (bmad-qa-generate-e2e-tests), hermetic bash suite `docker/tests/test-lib-live.sh` extended (QA); 178 PASS under `bash` and `/bin/bash` 3.2 (169 before), about 64 s; `test-boundaries.sh` passes:
+- `docker/tests/test-lib-live.sh` (QA) -- nine rows added in the block `QA rows (Story 0.25)` and after the `ss` listener-table row, plus `guard_run` hooks `g_wait`, `g_tools=lsof`, `g_lsof` (and `lsof.calls`): a free-port start prints no PORT, holder or waited line; a port freed by the last check and a wait cut short by the deadline print exactly one waited line, last (`waited 90 s`, `waited 30 s`); a start after a start that waited in one process prints no waited line of its own; `LIVE_PORT_WAIT=0` on a guarded start is silent (no sleep, no `PORT waiting`, no waited line) and a retry still pauses 10 s (`waited 10 s`); the `lsof` holder fallback (header dropped, 10-line cap, one call); the `ss` holders are the sockets whose local port is the port in any state (TIME-WAIT and LISTEN listed, a client socket of the port not); the 10-line caps after `PORT still in use`; the override's waited line (none when free, one `waited 90 s` before the refusal when held); every state but TIME-WAIT counts in the `ss` poll (CLOSE-WAIT, FIN-WAIT-1/2, SYN-SENT, SYN-RECV, LAST-ACK, CLOSING) and a socket whose peer is the port does not.
+- Audit: every row of the I/O matrix and every AC clause has a row (defaults, held briefly, held for good, freed after the last poll, deadline, bind then ok, bind twice, bind three times, shared budget, other error, other on a retry, no wait, own stack, override, holders named, holder tools fail, teardown); the gaps filled are the ones above (the freed-after-last-poll, deadline and free-port rows asserted no waited line, the `ss` rows covered ESTAB and LISTEN only, the `lsof` holders and the peer-only socket were unpinned, and the `LIVE_PORT_WAIT=0` guard path was unpinned).
+- mutation: AC1, bound -- default `LIVE_PORT_WAIT` 90 -> 20 -> the defaults row goes red (QA, observed).
+- mutation: AC1, two retries -- `[ "$k" -lt 2 ]` -> `-lt 1` -> 9 rows red: bind twice, bind three times, shared budget, second-retry other failure, budget carried over, holders named, holder tools fail, lsof holders, ss holders (QA, observed).
+- mutation: AC1, exact error -- retry on any non-zero exit -> the bind-then-ok, other error, other error on a retry, long bind error and step-5 rows go red (QA, observed).
+- mutation: AC1, one waited line -- drop `LIVE_PORT_BUSY_SEEN=0` from the guard -> the "waited flag across starts" row goes red; print `waited` unconditionally -> the free-port, other-error, own-stack and `LIVE_PORT_WAIT=0` rows go red; print it only when the wait failed -> held-port, budget-carried-over, last-check/deadline and across-starts rows go red (QA, observed).
+- mutation: AC1, `LIVE_PORT_WAIT=0` -- `[ "$max" -le 0 ]` -> `-lt 0` in `live_port_wait_free` -> the `LIVE_PORT_WAIT=0` guard row and the held-override row go red (QA, observed).
+- mutation: AC1, override -- `live_web_port` prints the waited line unconditionally -> the override waited row and the `LIVE_PORT_WAIT=0` override row go red (QA, observed).
+- mutation: AC2, docker cap -- drop `NR <= 10` from the `docker ps -a` awk -> holders named (22 lines) and the still-in-use cap row (12) go red (QA, observed).
+- mutation: AC2, lsof cap -- drop `n < 10` from the lsof awk -> the lsof holders row goes red (12 lines) (QA, observed).
+- mutation: AC2, local port only -- the `ss` holder filter also matches the peer column -> the ss-holders-by-local-port row goes red (3 lines, not 2) (QA, observed).
+- mutation: AC2, status unchanged -- `live_port_holders "$p"; rc=0` after the FAIL line -> bind-three-times, shared-budget, holders named, holder tools fail, lsof and ss holder rows go red (QA, observed).
+- mutation: AC3, teardown -- ` &` on `live_cleanup`'s `dc down` -> the teardown row goes red; ` &` on the `dc down` line of `docker/tests/test-compose-start.sh` -> the teardown row goes red from the scan alone (QA, observed).
+- mutation: lead ruling, `ss` branch -- `ss -tan` -> `ss -ltn` -> the listener-table `ss` row goes red; only LISTEN and ESTAB counted -> the new `ss states` row goes red; the peer column counted -> the `ss states` row goes red (QA, observed).
+- mutation: AC4/shared surface, `live_first_start` -- grep narrowed to `^PORT` -> the waited-line row goes red (QA, observed).
+- QA mutation count: 18 applied, all red, each restored from a backup in the session scratchpad; `git status --short` and the checksums of `docker/tests/lib-live.sh` and `docker/tests/test-compose-start.sh` are unchanged after each. mutations_demonstrated=18.
+- mutation: code review, holder line -- `PORT holder: none seen` -> `PORT holder: nothing` -> the bind-three-times row (now exact) and the holder-tools-fail row go red (observed).
+- mutation: code review, teardown scan -- append `dc down -v >/dev/null 2>&1 & # background` to `docker/tests/test-compose-start.sh` -> the teardown row goes red (observed; the old scan missed the trailing comment).
+- mutation: code review, DW-1113 -- drop step 5's full print of the guard lines in `test-install-script-live.sh` -> the DW-1113 row goes red (observed).
+- Code review: the four code-review mutations above (`ss -tan state listening`, the holder line, the teardown scan, DW-1113) ran together, each turning a different row red (5 FAIL in all), then every file was restored from a backup in the session scratchpad, with checksums and `git status --short` unchanged. After the review: 179 PASS (178 + the DW-1113 row) under `bash` and `/bin/bash` 3.2.
 
 ## Auto Run Result
 

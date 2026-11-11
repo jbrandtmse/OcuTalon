@@ -1656,7 +1656,7 @@ So that no CI job fails with "FAIL web port" while an earlier unit's stack is on
 
 **Given** `docker/tests/lib-live.sh` (the `dc` guard of Story 0.24: `live_port_guard`, `live_port_wait_free`)
 **When** a guarded start (`dc up`, `dc start`, `dc restart` with a web port) finds its port in use
-**Then** it waits up to 90 s for the port to be free, polling every 3 s (`ss -ltn` on Linux; 0.24's macOS equivalent stays for local runs)
+**Then** it waits up to 90 s for the port to be free, polling every 3 s (`ss` on Linux; 0.24's macOS equivalent stays for local runs) [AMENDED 2026-11-11, Story 0.25 spec gate, lead ruling: the Linux check reads `ss -tan` and counts a socket on the publish addresses in every state except TIME-WAIT, because the 02:21Z holder was invisible to `ss -ltn`; it read "(`ss -ltn` on Linux; ...)"]
 **And** when the start fails with exactly the bind error ("address already in use" / "failed programming external connectivity"), it retries the start up to twice (each after another wait), and after the second retry prints the same loud `FAIL web port: …` line and returns the failure
 **And** any other failure returns at once, with no retry
 **And** every guarded start that had to wait prints exactly one line `waited N s for port P` (N the seconds waited, P the port), so that the next ledger entry can measure it
