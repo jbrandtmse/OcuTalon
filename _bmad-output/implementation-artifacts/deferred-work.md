@@ -1124,6 +1124,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-24T18:06:19Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=measure a real MCP tool's toolref and metadata in %CanExecute (stdio, remote, JSON configuration) when step 4 registers MCP servers
 - 2026-10-24T20:53:20Z occurrence=3-2-one-gate-decides-every-tool-call
 - 2026-11-02T21:46:12Z occurrence=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv
+- 2026-11-11T11:20:24Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
 
 ### DW-175: Two tools of one class whose names differ only in underscores, hyphens or case share their CLASSIFICATION, RESOURCES and STEPLABEL parameters (StepBuffer.ToolParameter's naming rule)
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: med | footprint: in-epic
@@ -4543,6 +4544,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Decide.ToolsReadOnly reads TOOLSETS and the tool classes' CLASSIFICATION/READONLY; run-time MCP tools are known only to a live tool manager; no agent has an MCP server in this release
 - 2026-11-05T08:23:16Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=when MCP servers are attached to an agent, ToolsReadOnly must count them (unclassified or non-read-only server -> not read-only); 22.2 classifies MCP tools by server and name
+- 2026-11-11T11:20:24Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
 
 ### DW-725: A second-model retry that ends after Decide's T2 timer still points the link at its session (SaveRetried, unconditional Point): the next turn continues from an answer the user never saw, and a next turn already running loses its compare-and-set save
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-story
@@ -6281,6 +6283,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Task 0 (3) did not measure a server that accepts and never answers; AttachOne, BuildTurnManager and AI Hub's per-call tools/list run with no bound and the MCP Config Store entry takes no timeout key, so one hung server could hold a runner past Decide's timer (unmeasured)
 - 2026-11-09T09:34:17Z status=escalated owner=burndown by=cr note=needs a measurement on a throwaway (rmcp's own timeout) before a fix; fix-risk high: platform behaviour
 - 2026-11-09T22:43:24Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=merge_gate note=Contest Planner decision 2026-11-09 (owner delegation): Story 22.2 adds a bounded MCP attach timeout with a clear error; Epic 35 part merge
+- 2026-11-11T11:20:25Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
 ### DW-1007: flake candidate: live:online-demo row 4 'the HTTP view of the connections was 0 and is 1 after five status GETs and five splash GETs' in CI install-fresh on feature 0ab2eef0 under a saturated queue (a lingering connection; same family as DW-987's visitor count)
 - source: CI run 42574755205 attempt 1 (feature 0ab2eef0) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code

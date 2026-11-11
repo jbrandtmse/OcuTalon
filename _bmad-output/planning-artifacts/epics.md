@@ -7386,7 +7386,7 @@ Tools from an added MCP server become OcuTalon's tools under the same gate, clas
 
 ### Story 22.2: Classify MCP tools by server and name
 
-> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1013] Attaching an MCP server gets a bounded timeout with a clear error, so a server that accepts the connection and never answers cannot block `AddTool` or the manager's listing (measure rmcp's own timeout on a throwaway first).
+> [AMENDED 2026-11-11, Story 22.2 spec gate, runner ruling (split, unattended decide U5; product default 6): Story 22.2 is split in two. This story keeps the add, remove and classify commands, `Tools(server)`, the per-server resource, the classification rows and their fingerprints from the attach report, the changed-tool clear found at an attach, and the admin notices. Story 22.8, planned next, takes the gate half: the turn's fingerprint map and the gate's classification (the criterion "Given a turn starting"), the clause "the gate denies any call to them" of the remove criterion, the changed-tool clear for a change found during a turn, the DW-1013 attach timeout (the amendment that stood here, moved whole to Story 22.8) and DW-174. No criterion is dropped.]
 
 [AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1 on Story 35.1, relayed by the orchestrator: (1) the admin chat notices for an unavailable MCP server and for a refused tool whose name shadows a built-in move here from Story 35.1's attach criterion, beside the changed-tool notice this story already sends; they use the accepted texts `mcp.serverUnavailable` and `mcp.toolShadowsBuiltIn` in `OcuTalon.Msg.Catalog.Watch`, read the attach report Story 35.1 records on the `OcuTalon.Mcp.Server` row, and reach the sessions whose user held `OcuTalonAdmin` at their latest sign-in through Story 35.2's read API (no run-time `%SYS` read, no AD-3 exception); (2) `OcuTalon.Core.SettingsOps` writes the server's Config Store entry `AI.MCP.OcuTalon_<server>` and its IRIS Wallet secret, called from Lane B's MCP settings route (Story 35.2), and `McpOps` writes only the `OcuTalon.Mcp.Server` row and calls `RestartRunners()`, so where the criteria below have `McpOps` write the Config Store entry, `SettingsOps` writes it; no command, log, test output or record ever carries a secret value, only a `secret://` reference]
 
@@ -7402,7 +7402,7 @@ So that a new or changed tool can never act without my say.
 
 **Given** a remove command
 **When** `McpOps` handles it
-**Then** the server's tools go at once: the gate denies any call to them, the runners restart without the server through `RestartRunners()`, its entry, row, classifications and resource are removed, and the removal is audited (FR-47, FR-9, AD-21)
+**Then** the server's tools go at once: the gate denies any call to them [AMENDED 2026-11-11, split: this clause is delivered by Story 22.8], the runners restart without the server through `RestartRunners()`, its entry, row, classifications and resource are removed, and the removal is audited (FR-47, FR-9, AD-21)
 
 **Given** a registered server whose tools the runners discovered
 **When** Lane B's settings page calls `OcuTalon.Mcp.Ops.Tools(server)`, which this story builds in place of Story 35.1 (was 22.1)'s stub
@@ -7417,12 +7417,10 @@ So that a new or changed tool can never act without my say.
 **When** `McpOps` handles it
 **Then** `OcuTalon.Mcp.ToolClassification` stores read-only or risky for (server, tool name) with a fingerprint of the tool's description and canonical input schema, and the change is audited (FR-48, FR-9, AD-17, AD-21)
 
-**Given** a turn starting
-**When** the runner prepares it
-**Then** it fingerprints each MCP tool from `ToolManager.%Discover()` before `Chat` and keeps the map in the bridge context, and the gate, through OcuTalon's `ClassificationClass`, treats a tool missing from the map, without a classification, or with a changed fingerprint as unclassified, which counts as risky (FR-48, AD-10, AD-31)
+[AMENDED 2026-11-11, split: the criterion "Given a turn starting" (the turn's fingerprint map and the gate's classification) moved whole to Story 22.8]
 
 **Given** a classified tool whose description or inputs changed
-**When** the change is found
+**When** the change is found [AMENDED 2026-11-11, split: at an attach here; a change found during a turn is Story 22.8's, through the clear this story builds]
 **Then** its classification is cleared, the change is audited, and each admin's chat gets a notice card, in the wording the author accepted from Story 35.1 (was 22.1)'s proposal, so the settings page shows the tool Unclassified (FR-48, FR-9, AD-32, UX-DR145)
 
 **Given** an MCP tool with the same name as a built-in tool, or one carrying annotations such as `readOnlyHint`
@@ -7432,7 +7430,7 @@ So that a new or changed tool can never act without my say.
 **Given** the model, an item's content or a tool result
 **When** it tries to classify a tool
 **Then** nothing changes: no tool can classify, and `McpOps` accepts a classify command only with origin `web_admin`, behind `CommandsIn`'s refusal of origin `tool` (Lane B's Story 21.4) (FR-7, FR-49, NFR-14, AD-1)
-- DW-174: Whether AI Hub gives an MCP tool a toolref that starts `mcp:` is unmeasured; another form (the JSON configuration form of `%AI.Tool.Resolver`) would take `metadata.origin_class` as the source, so a shadowing MCP tool could take a built-in's classification. Measure a real MCP tool's toolref and metadata in `%CanExecute` (stdio, remote, JSON configuration) when step 4 registers MCP servers (ledger; routed by harvest 2026-10-24)
+- DW-1038: flake family in `OcuTalon.Test.Mcp.Attach` (TestShadow, TestAttach, TestRequestServerDown red under CI load): make the mock-dependent attach tests robust (ledger; routed by burndown 2026-11-09)
 
 ### Story 22.3: Call MCP tools only through the governed proxy
 
@@ -7572,6 +7570,34 @@ So that email to me just goes and email to anyone else waits for my approval.
 **Given** the tests with the mocked model
 **When** they run
 **Then** email to the user reaches `EmailOut` without approval, email to anyone else doesn't reach it without an approved request and reaches it exactly once after approval, one test sends `Execute` with no approved row and expects nothing, and the tool inventory and security overview list the tool with its classification (FR-44, FR-7, FR-61, NFR-13, AD-16)
+
+### Story 22.8: Classify MCP calls by fingerprint in the gate
+
+[AMENDED 2026-11-11, Story 22.2 spec gate, runner ruling (split, unattended decide U5): split from Story 22.2, planned next after it; these criteria and entries are Story 22.2's, moved whole or in the part named, with their wording kept]
+
+> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1013; moved here from Story 22.2 by the 2026-11-11 split] Attaching an MCP server gets a bounded timeout with a clear error, so a server that accepts the connection and never answers cannot block `AddTool` or the manager's listing (measure rmcp's own timeout on a throwaway first).
+
+As an admin,
+I want every MCP call classified by the gate from my classification of that tool, as it is now,
+So that a new or changed tool can never act without my say.
+
+**Acceptance Criteria:**
+
+**Given** a turn starting
+**When** the runner prepares it
+**Then** it fingerprints each MCP tool from `ToolManager.%Discover()` before `Chat` and keeps the map in the bridge context, and the gate, through OcuTalon's `ClassificationClass`, treats a tool missing from the map, without a classification, or with a changed fingerprint as unclassified, which counts as risky (FR-48, AD-10, AD-31)
+
+**Given** a server removed by Story 22.2's remove command
+**When** a call to one of its tools reaches the gate
+**Then** the gate denies it at once (FR-47, FR-9, AD-21)
+
+**Given** a classified tool whose description or inputs changed
+**When** the change is found during a turn
+**Then** its classification is cleared through Story 22.2's `McpOps.ClearChanged`, the change is audited, and each admin's chat gets the `mcp.toolChanged` notice card, so the settings page shows the tool Unclassified (FR-48, FR-9, AD-32, UX-DR145)
+
+- DW-174: Whether AI Hub gives an MCP tool a toolref that starts `mcp:` is unmeasured; another form (the JSON configuration form of `%AI.Tool.Resolver`) would take `metadata.origin_class` as the source, so a shadowing MCP tool could take a built-in's classification. Measure a real MCP tool's toolref and metadata in `%CanExecute` (stdio, remote, JSON configuration) when step 4 registers MCP servers (ledger; routed by harvest 2026-10-24; moved from Story 22.2 by the 2026-11-11 split)
+- DW-724: `Decide.ToolsReadOnly` judges only an agent's compiled TOOLSETS, so MCP servers attached at step 4 (AD-21) are invisible to the U-282 rule; when MCP servers are attached to an agent, `ToolsReadOnly` must count them (an unclassified or non-read-only server's tool means not read-only) (ledger; routed by harvest 2026-11-05; moved from Story 22.2 by the 2026-11-11 split)
+- DW-1013: An attached MCP server that accepts the connection and never answers may block `AddTool` and the manager's listing with no deadline, at the build and in every request: the bounded attach timeout above (ledger; routed by merge_gate 2026-11-09; moved from Story 22.2 by the 2026-11-11 split)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 
