@@ -148,3 +148,5 @@
 2026-11-11T06:02:15Z	Story 23.5	dev_complete	commit=1d05b3fb rework=3 item=[CI]_DRYRUNKEYS_pin_extended tests=Data.Tables_5/5_slot-d
 2026-11-11T06:02:15Z	Story 23.5	stage_spawned	stage=code-review spawn_at=2026-11-11T06:02:15Z model=opus effort=high agent_name=23-5-ci-rereview cycle_iteration=4 rework_rereview=3 baseline=6943545e
 2026-11-11T06:05:20Z	Story 23.5	cr_complete	model=opus effort=high cycle_iteration=4 rework_rereview=3 resolved=0 deferred=0 dismissed=3 high=0 med=0 low=3 rows=0 unresolved_high_med=0 tracker=done
+2026-11-11T06:10:25Z	Story 23.5	fresh_check	env=fresh_class_stack_e23s5v3 tests=1(Test.Data.Tables) result=pass order=forward story_base=36f98521 torn_down=e23s5v3
+2026-11-11T06:10:25Z	Story 23.5	integrated	onto=c241f87c(0.25) conflicts=sprint-status(last_updated_only) resolution=plain_union checks=test-boundaries,test-ci-config,test-lib-live
