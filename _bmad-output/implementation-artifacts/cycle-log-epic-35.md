@@ -146,3 +146,5 @@
 2026-11-11T15:04:01Z	Epic 35	hold_ordered	reason=owner_quota_hold(HOLD_written_by_orchestrator_~15:00Z)
 2026-11-11T15:04:01Z	Story 35.3	hold_saved	story=35-3-send-events-to-ocutalon-through-a-webhook stage=dev_complete(rework_1) patch=none tree=clean next=code-review_2(scoped:e1b89f2c..HEAD)
 2026-11-11T15:04:01Z	Epic 35	hold_complete	shas=origin:pending_push_below throwaways=none(torn_down_by_stages) locks=none slot=ocutalon-slot-b(story_classes_partly_loaded_by_CR;reload_on_resume)
+2026-11-11T20:07:22Z	Epic 35	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=resume_after_switch_20261111 lane=B slot=ocutalon-slot-b port=52802 head=b92955f8 origin=b92955f8 hold=absent tree=clean patches=none
+2026-11-11T20:07:22Z	Story 35.3	owner_decision	id=DW-1128 at=prompts/redispatch-epic-35-20261111.md via=orchestrator(Contest_Planner_owner_delegation) by=owner note=R6(b)_reading_accepted;W8_conditions_(i)-(iii)_ride_code_review_2;removed_from_decisions_for_user

@@ -6895,6 +6895,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: high | footprint: out-of-footprint
 - evidence: measured on e35s3iw; nothing reaches the hook, nothing 2xx; the web server resolves dot segments before choosing an application
 - 2026-11-11T13:32:00Z status=decision-pending owner=burndown by=harvest note=planner: confirm the measured answers satisfy R6(b)
+- 2026-11-11T20:07:22Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=owner note=ruled by the Contest Planner (owner delegation) 2026-11-11: R6(b) reading accepted; W8 conditions (i)-(iii); rides code review 2
 
 ### DW-1129: 35.3: failed webhook-list load shows the create form and an empty list
 - source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
