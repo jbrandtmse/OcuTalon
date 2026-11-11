@@ -1125,6 +1125,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-24T20:53:20Z occurrence=3-2-one-gate-decides-every-tool-call
 - 2026-11-02T21:46:12Z occurrence=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv
 - 2026-11-11T11:20:24Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
+- 2026-11-11T22:20:57Z status=resolved-by:22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=adjudication note=Task0_evidence/22-8-task0-mcp-forms.md_measures_remote,JSON-config,stdio_forms;JSON_form_recognised_as_MCP_in_Gate.IsMcp_before_origin_class(TestMcpJsonConfiguration);2af16580
 
 ### DW-175: Two tools of one class whose names differ only in underscores, hyphens or case share their CLASSIFICATION, RESOURCES and STEPLABEL parameters (StepBuffer.ToolParameter's naming rule)
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: med | footprint: in-epic
@@ -4545,6 +4546,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Decide.ToolsReadOnly reads TOOLSETS and the tool classes' CLASSIFICATION/READONLY; run-time MCP tools are known only to a live tool manager; no agent has an MCP server in this release
 - 2026-11-05T08:23:16Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=when MCP servers are attached to an agent, ToolsReadOnly must count them (unclassified or non-read-only server -> not read-only); 22.2 classifies MCP tools by server and name
 - 2026-11-11T11:20:24Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
+- 2026-11-11T22:20:57Z status=resolved-by:22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=adjudication note=Decide.ToolsReadOnly_requires_McpServers.ToolsReadOnly(server)=1_for_every_listed_server(TestToolsReadOnlyMcp,TestRetryAfterTimerMcp);2af16580
 
 ### DW-725: A second-model retry that ends after Decide's T2 timer still points the link at its session (SaveRetried, unconditional Point): the next turn continues from an answer the user never saw, and a next turn already running loses its compare-and-set save
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-story
@@ -6921,3 +6923,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Mcp/Ops.cls MessageMap maps only the three verbs; CommandsIn.IsStub maps only code 5003 to not_built; spec Design Notes 17 records it
 - 2026-11-11T13:50:48Z status=by-design owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=spec Design Notes 17 states it; no UI sends them before 22.5, which adds the handlers
+
+### DW-1162: Spine AD-10 rule 1 and AD-21 S3 still define the MCP fingerprint as description plus input schema (ToolFingerprint(description, parameters)); the ruled and built form is SHA-256 hex over server id (tool_ref), name, description and schema
+- source: spec-22-8-classify-mcp-calls-by-fingerprint-in-the-gate.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Contest Planner ruling 2(a) (22.8 AC 1) is implemented in Context.ToolFingerprint(server, name, description, parameters); the spine's S1-S7 updates for 22.8 did not restate rule 1 or S3, so 22.3/22.4 builders reading the spine would hash the old form
+- 2026-11-11T22:18:46Z status=routed owner=burndown by=cr note=lead: Rule 20 spine write (AD-10 rule 1, AD-21 S3) recording ruling 2(a); no code change
+- 2026-11-11T22:20:57Z status=resolved-by:22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=adjudication note=spine_AD-10_rule1_and_AD-21_S3_now_state_SHA-256_hex_over_server_id,name,description,schema(Rule20_record_of_Planner_ruling_2(a));lint_unchanged

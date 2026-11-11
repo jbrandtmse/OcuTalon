@@ -29,7 +29,8 @@
 ///     changed tool to the probe) as the ClassificationClass, the real gate on the turn manager and the mock: TestReadOnlyTurn (zz_lookup classified read-only runs in an
 ///     untrusted turn, taints it, and zz_delete_ticket, unclassified, is denied; the mock sees only the first call), TestChangedInTurn (the mock changes zz_lookup's description:
 ///     the next composed turn leaves the row unclassified with the new fingerprint, one Tool entry and one notice for each admin session before any call, and the call is
-///     held), TestRugPullDescription and TestRugPullSchema (a classified tool that ran as read-only is changed under the same name by its server; it is then held in a user's
+///     held), TestChangedAtGate (QA: the row goes stale after the turn composed, so the gate's own question finds the mismatch: the call is held, the gate clears the row with
+///     one entry and one notice, and a second call adds none), TestRugPullDescription and TestRugPullSchema (a classified tool that ran as read-only is changed under the same name by its server; it is then held in a user's
 ///     turn and denied in an untrusted and a tainted one, and the mock sees no second call), TestRemovedServer (the server is removed after the turn's map was built: the call
 ///     is denied with UNREGISTERED, no request, no taint, and the mock sees no call),
 ///     TestReadOnlyTurnSkills (the same for an agent that declares skills, whose own manager serves the request), TestMapFailures (a host class that throws, a
@@ -440,6 +441,47 @@ Method TestChangedInTurn()
 	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
 }
 
+/// Story 22.8 (QA), matrix row "Changed (gate)": the mismatch reaches ClassifyMcp from the gate itself, because the turn-start check did not clear it (here the row is made stale
+/// after the turn composed, so the check found nothing). The call is held, the gate's own ClassifyMcp clears the row to the turn's fingerprint (one Tool entry, one notice for
+/// each admin session), the mock sees no call, and a second call finds the row unclassified: no second entry and no second notice for one transition.
+Method TestChangedAtGate()
+{
+	If ..Guard() Quit
+	Do ..UseTurn(1)
+	Set admin = ..MakeAdmin()
+	Set ^||ZzOps("admins") = $ListBuild(admin)
+	Do ..Register(, 1)
+	Set adapter = ..Runner().Adapter
+	Do ..Ok(adapter.BuildAgent(), "the agent builds with the server attached")
+	If '$IsObject(adapter.Agent) Quit
+	Do ..Classify("zz_lookup", "read-only")
+	Set held = $Parameter("OcuTalon.Bridge.Policy.Gate", "HELD")
+	Do ..BeginTurn("user")
+	Do ..Ok(adapter.OpenTurn("zz-mcp-owner"), "a turn composes its manager, and its check finds no change")
+	Set current = ##class(OcuTalon.Bridge.Context).McpFingerprint(..Spec(), "zz_lookup")
+	Do $$$AssertEquals($Length(current), 64, "the turn's map holds the fingerprint of zz_lookup")
+	Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_lookup")
+	Do $$$AssertEquals(row.Classification _ "|" _ (row.Fingerprint = current), "read-only|1", "control: the row is read-only with the turn's fingerprint")
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set row.Fingerprint = "stale" _ ..Number
+	Do ..Ok(row.%Save(), "the row now holds another fingerprint, as if the tool had changed since it was classified")
+	Set result = adapter.CallTool("zz_lookup", {"id": "1"})
+	Do $$$AssertTrue(result [ held, "the call in a user's turn is held for approval, not run as read-only")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.Mock).Calls(..Port, "zz_lookup"), 0, "and the mock never saw it")
+	Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_lookup")
+	Do $$$AssertEquals(row.Classification _ "|" _ (row.Fingerprint = current), "unclassified|1", "the gate's own question cleared the row, with the turn's fingerprint")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Tool", "Tool", ..Server)
+	Do $$$AssertEquals(entries.%Size(), 1, "one Tool entry is audited")
+	If entries.%Size() Do $$$AssertEquals(entries.%Get(0).data.tool _ "|" _ entries.%Get(0).data.classification, "zz_lookup|unclassified", "it says unclassified for zz_lookup")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "NoticeCount", admin, "mcp.toolChanged"), 1, "and the admin session got one mcp.toolChanged notice")
+	Set result = adapter.CallTool("zz_lookup", {"id": "1"})
+	Do $$$AssertTrue(result [ held, "a second call is held too")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "NoticeCount", admin, "mcp.toolChanged") _ "|" _ ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Tool", "Tool", ..Server).%Size(), "1|1", "with no second notice and no second entry for one transition")
+	Do adapter.CloseTurn()
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
+}
+
 /// Story 22.8, the rug-pull (the Contest Planner's condition 1): the server changes a tool that an admin classified read-only, under the same name, between two requests; here its
 /// description alone.
 Method TestRugPullDescription()
@@ -601,7 +643,7 @@ Method TestRemovedServer()
 		Do $$$AssertTrue(result [ unregistered, "so is the call to its other tool")
 		Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().Tainted, 0, "nothing taints the turn")
 		Do ##class(OcuTalon.Test.Bridge.Approval).TrackOwner(owner)
-		Do $$$AssertEquals(..ApprovalRows(owner), 0, "and no approval request exists")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Gate).ApprovalRows(owner), 0, "and no approval request exists")
 		Do adapter.CloseTurn()
 		Do ##class(OcuTalon.Bridge.Context).End()
 	}
@@ -859,14 +901,6 @@ Method RemoveThroughItem() [ Private ]
 	Kill ^||ZzAside
 	Do ..Ok(sc, "the server is removed through McpOps")
 	Do $$$AssertEquals($Select($IsObject($Get(result)): result.Outcome, 1: ""), "removed", "which answers removed")
-}
-
-/// The number of approval requests that the owner has.
-Method ApprovalRows(owner As %String) As %Integer [ Private ]
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ?", owner)
-	Do result.%Next()
-	Quit +result.%GetData(1)
 }
 
 /// Ends the approval requests that a held call raised for the owners of the test's turns, and deletes them.

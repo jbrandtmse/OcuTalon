@@ -428,8 +428,8 @@ ClassMethod FromExtension(source As %String, name As %String) As %DynamicObject 
 }
 
 /// The classification of an MCP tool (AD-10): ClassifyMcp of the ClassificationClass extension, asked for the source (the toolref), the name and the fingerprint
-/// that the turn's MCP map holds for the tool, "" when it holds none. An answer that is not an object, or whose registered is exactly 0, is
-/// unregistered (the answer "" is unclassified, and the bridge's default never says 0). A registered or readOnly member that is neither a number nor a
+/// that the turn's MCP map holds for the tool, "" when it holds none. An answer whose registered is exactly 0 is unregistered (the bridge's default never
+/// says 0); an answer that is not an object, the answer "" included, is unclassified. A registered or readOnly member that is neither a number nor a
 /// boolean makes the whole answer unclassified. With no fingerprint the tool is unclassified, whatever the answer says. Otherwise safe with readOnly 1 is
 /// read-only, safe with any other readOnly is safe, and risky is risky; trustedOutput is 0 and by is extension. Any other classification, and any other
 /// shape of answer, is unclassified. It throws when the setting names a class that is not usable or when ClassifyMcp

@@ -217,7 +217,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Set ..SavedCommands = ""
 	}
 	If ..ClassificationSwapped {
-		Do $$$AssertStatusOK(##class(Ens.Director).SetHostSettingValue("Decide", "ClassificationClass", ..SavedClassification), "Decide's ClassificationClass is put back")
+		Do $$$AssertStatusOK(..StoreDecideSetting("ClassificationClass", ..SavedClassification), "Decide's ClassificationClass is put back")
 		Set ..ClassificationSwapped = 0
 		Set ..SavedClassification = ""
 	}
@@ -908,6 +908,7 @@ Method TestMcpBridgeAlone()
 /// OcuTalon's class registers neither, so both are denied with UNREGISTERED. A JSON object of another type, text that is not JSON and an object with no type are not MCP.
 Method TestMcpJsonConfiguration()
 {
+	Do ..UseClassification("OcuTalon.Mcp.Classification")
 	Set gate = ..#GATE
 	Set unregistered = $Parameter(gate, "UNREGISTERED")
 	Set json = "{""type"":""mcp:remote"",""url"":""http://127.0.0.1:53999/mcp""}"
@@ -2638,7 +2639,7 @@ ClassMethod Taint() As %Boolean [ Private ]
 /// The number of approval requests that the owner has. The gate raises one for every held call (Story 3.6), so a count of 0 shows that a call was never
 /// held: an untrusted or tainted call, a missing privilege, a failed check and a safe call raise none, and a call that wrongly reached the result
 /// branch makes the count 1.
-ClassMethod ApprovalRows(owner As %String) As %Integer [ Private ]
+ClassMethod ApprovalRows(owner As %String) As %Integer
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ?", owner)
 	Do result.%Next()
@@ -2700,7 +2701,30 @@ Method UseClassification(class As %String) [ Private ]
 		Set ..SavedClassification = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ClassificationClass")
 		Set ..ClassificationSwapped = 1
 	}
-	Do $$$AssertStatusOK(##class(Ens.Director).SetHostSettingValue("Decide", "ClassificationClass", class), "the ClassificationClass of Decide is "_class)
+	Do $$$AssertStatusOK(..StoreDecideSetting("ClassificationClass", class), "the ClassificationClass of Decide is "_class)
+}
+
+/// Puts the Host setting of Decide to the value in the stored configuration of the active production (Ens.Config.Production, read by Accessor ValueFor) and
+/// saves only that: the running production is not updated and the production class is not written, so its XData keeps the lane markers. For the tests of
+/// this class and Test.Bridge.Decide, which put the value they changed back the same way.
+ClassMethod StoreDecideSetting(setting As %String, value As %String) As %Status
+{
+	Try {
+		Set production = ##class(Ens.Config.Production).%OpenId(##class(Ens.Director).GetActiveProductionName())
+		Set item = $Select($IsObject(production): production.FindItemByConfigName("Decide"), 1: "")
+		If '$IsObject(item) Return $SYSTEM.Status.Error(5001, "The stored configuration of the active production has no Decide item")
+		Set entry = item.FindSettingByName(setting, "Host")
+		If '$IsObject(entry) {
+			Set entry = ##class(Ens.Config.Setting).%New()
+			Set entry.Target = "Host"
+			Set entry.Name = setting
+			Do item.Settings.Insert(entry)
+		}
+		Set entry.Value = value
+		Return production.%Save()
+	} Catch exception {
+		Return exception.AsStatus()
+	}
 }
 
 /// Sets the turn's MCP map in the context that Begin made: each name is a tool of the server (the toolref), with a description and parameters of its own, so

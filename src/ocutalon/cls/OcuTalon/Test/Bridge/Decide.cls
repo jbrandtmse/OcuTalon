@@ -169,6 +169,8 @@
 ///     configuration of Decide and put back) for each server it lists: all of them read-only is 1, one that is not 0, a list that errors, throws or is no array is 0, an
 ///     entry with no server name is 0, a ToolsReadOnly that throws is 0, a class that is not usable is 0, no server leaves the answer as it was, and a runner whose tools
 ///     are not read-only stays 0;
+///   - TestRetryAfterTimerMcp (QA, AC 4 through the timer): with the real ToolsReadOnly, a decide whose timer fired is retried while the one listed server says read-only, and falls back
+///     with timeout, sending nothing, when that server says otherwise or throws;
 ///   - TestRetryable, TestRetrySeconds, TestToolsReadOnly, TestToolsetsReadOnly: the pure rules: which reasons are retried, T2 = min(timer, 110 - T1) and 0
 ///     under 12, and the read-only tools of an agent, each clause of that rule on its own toolset (Test.Bridge.ZzReadOnly*); a timed-out turn is not retried (R2);
 ///   - TestHeldRetryOf (DW-650 a, b, c, d) and TestSentRequestRetryOf: a retry skips the conversation-lock probe only for the same runner and ItemId; a RetryOf
@@ -225,6 +227,12 @@ Property DayMarked As %Boolean [ InitialExpression = 0 ];
 /// name them.
 Property SessionMark As %Integer;
 
+/// 1 after UseNoServers put Decide's McpServersClass to the fixture; OnAfterOneTest then puts SavedServers back.
+Property ServersSwapped As %Boolean [ InitialExpression = 0 ];
+
+/// The McpServersClass value of Decide before UseNoServers changed it.
+Property SavedServers As %String(MAXLEN = "");
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
@@ -254,6 +262,11 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set ..LogNeedles = ""
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..SavedRows)
 	Set ..SavedRows = ""
+	If ..ServersSwapped {
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Gate).StoreDecideSetting("McpServersClass", ..SavedServers), "McpServersClass is put back")
+		Set ..ServersSwapped = 0
+		Set ..SavedServers = ""
+	}
 	If ..DayMarked {
 		Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))
 		Set ..DayMarked = 0
@@ -3471,16 +3484,29 @@ Method TestRetrySeconds()
 }
 
 /// ToolsReadOnly (R2): the Triage agent has no tool and Diagnosis has only the read-only watch tools, so both count as read-only; Chat has tools that
-/// change state (reminders, watches); a runner without an agent class and one with a toolset that names a URI are not.
+/// change state (reminders, watches); a runner without an agent class and one with a toolset that names a URI are not. No MCP server is listed (UseNoServers).
 Method TestToolsReadOnly()
 {
 	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Do ..UseNoServers()
 	Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 1, "Triage has no tool")
 	Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "DiagnosisAgent"), 1, "Diagnosis has only read-only watch tools")
 	Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgentRetry"), 1, "and so do their retry runners")
 	Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "ChatAgent"), 0, "Chat has tools that change state")
 	Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "ZzNoSuchRunner"), 0, "an item that is not in the production is not known to be read-only")
 	Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", ""), 0, "and neither is no item at all")
+}
+
+/// Puts the McpServersClass setting of Decide to the fixture ZzReadOnlyServers listing no server (Test.Bridge.Gate StoreDecideSetting), so that the real ToolsReadOnly
+/// does not depend on the OcuTalon.Mcp.Server rows of the namespace. OnAfterOneTest puts the value back, also after a test that ended in an error.
+Method UseNoServers() [ Private ]
+{
+	If '..ServersSwapped {
+		Set ..SavedServers = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("McpServersClass")
+		Set ..ServersSwapped = 1
+	}
+	Kill ^||ZzReadOnlyServers
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Gate).StoreDecideSetting("McpServersClass", "OcuTalon.Test.Bridge.ZzReadOnlyServers"), "McpServersClass lists no MCP server")
 }
 
 /// ToolsReadOnly and the MCP servers (Story 22.8, DW-724): the McpServersClass setting of Decide is put to the fixture ZzReadOnlyServers in the stored configuration
@@ -3494,10 +3520,10 @@ Method TestToolsReadOnlyMcp()
 	If $$$ISERR(sc) Quit
 	Kill ^||ZzReadOnlyServers
 	Try {
-		Do $$$AssertStatusOK(##class(Ens.Director).SetHostSettingValue("Decide", "McpServersClass", fixture), "McpServersClass is the fixture")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Gate).StoreDecideSetting("McpServersClass", fixture), "McpServersClass is the fixture")
 		Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("McpServersClass"), fixture, "and the accessor reads it")
 		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 1, "a fixture that lists no server leaves Triage read-only")
-		Do $$$AssertEquals($ClassMethod(decide, "McpServersReadOnly"), 1, "and no server is read-only")
+		Do $$$AssertEquals($ClassMethod(decide, "McpServersReadOnly"), 1, "and with no server listed, the MCP part is 1 (the retry rule as before)")
 		Set ^||ZzReadOnlyServers("servers") = "[""zzone"",""zztwo""]"
 		Set ^||ZzReadOnlyServers("ro", "zzone") = 1
 		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 0, "a listed server that does not say 1 makes it 0 (zztwo says nothing)")
@@ -3518,15 +3544,15 @@ Method TestToolsReadOnlyMcp()
 		}
 		Kill ^||ZzReadOnlyServers("mode")
 		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 1, "control: the fixture as it was is 1 again")
-		Do $$$AssertStatusOK(##class(Ens.Director).SetHostSettingValue("Decide", "McpServersClass", "OcuTalon.Test.Bridge.ZzNoSuchServers"), "McpServersClass names a class that does not exist")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Gate).StoreDecideSetting("McpServersClass", "OcuTalon.Test.Bridge.ZzNoSuchServers"), "McpServersClass names a class that does not exist")
 		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 0, "which is 0")
-		Do $$$AssertStatusOK(##class(Ens.Director).SetHostSettingValue("Decide", "McpServersClass", "OcuTalon.Bridge.Ext.HostSink"), "McpServersClass names a class that does not extend the base")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Gate).StoreDecideSetting("McpServersClass", "OcuTalon.Bridge.Ext.HostSink"), "McpServersClass names a class that does not extend the base")
 		Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", "TriageAgent"), 0, "which is 0 too")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
 	Kill ^||ZzReadOnlyServers
-	Do $$$AssertStatusOK(##class(Ens.Director).SetHostSettingValue("Decide", "McpServersClass", saved), "McpServersClass is put back")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Gate).StoreDecideSetting("McpServersClass", saved), "McpServersClass is put back")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("McpServersClass"), saved, "and the accessor reads the production's class again")
 }
 
@@ -3855,9 +3881,10 @@ Method TestRetryNoSecondModel()
 
 /// The timer that fired (R2): a decide request whose timer fires is retried when every tool of its agent is read-only (Triage has none), with the timer of the retry
 /// at 50 seconds; a turn whose timer fires falls back with timeout as in release 1 and is not retried, because it is unknown whether a tool ran. The timer of the
-/// retry itself ends the decision with timeout, whatever the first attempt's re-sends were.
+/// retry itself ends the decision with timeout, whatever the first attempt's re-sends were. No MCP server is listed (UseNoServers).
 Method TestRetryAfterTimer()
 {
+	Do ..UseNoServers()
 	Set process = ..RetryProcess(60)
 	Set process.FirstSeconds = 60
 	Set process.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -3921,6 +3948,50 @@ Method TestRetryAfterTimer()
 	Set sc = process.OnResponse(request, .response, "", "", "timer")
 	Do $$$AssertEquals($ListGet($Get(^||ZzDecideCalls("send", 1)), 1)_"|"_$Get(^||ZzDecideCalls("send", 1, "retryOf")), "DiagnosisAgentRetry|DiagnosisAgent", "a diagnose request goes to DiagnosisAgentRetry")
 	Do ..RestoreRows()
+}
+
+/// Story 22.8 (QA), AC 4 through the timer, with the real ToolsReadOnly (the recorder's hook is not set): the McpServersClass of Decide is put to the fixture
+/// ZzReadOnlyServers in the stored configuration of the production and back. A decide request whose timer fired and whose agent has no tool (Triage) is retried
+/// while every listed server says that its tools are read-only; once one listed server says otherwise, or its answer throws, it falls back with timeout and nothing is sent.
+Method TestRetryAfterTimerMcp()
+{
+	Set fixture = "OcuTalon.Test.Bridge.ZzReadOnlyServers"
+	Set saved = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("McpServersClass", , , .sc)
+	Do $$$AssertStatusOK(sc, "the McpServersClass setting is read")
+	If $$$ISERR(sc) Quit
+	Kill ^||ZzReadOnlyServers, ^||ZzDecideReadOnly
+	Try {
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Gate).StoreDecideSetting("McpServersClass", fixture), "McpServersClass is the fixture")
+		Set ^||ZzReadOnlyServers("servers") = "[""zzone""]"
+		For case = $ListBuild("decide", 0), $ListBuild("decide", 1), $ListBuild("decide", 2) {
+			Set kind = $List(case, 1), state = $List(case, 2)
+			Set label = "a "_kind_" request whose timer fired, "_$Select(state = 0: "with a listed server that is not read-only", state = 1: "with a listed server that says read-only", 1: "with a listed server whose answer throws")_": "
+			Kill ^||ZzReadOnlyServers("ro"), ^||ZzReadOnlyServers("throws")
+			If state = 1 Set ^||ZzReadOnlyServers("ro", "zzone") = 1
+			If state = 2 Set ^||ZzReadOnlyServers("ro", "zzone") = 1, ^||ZzReadOnlyServers("throws") = "zzone"
+			Set process = ..RetryProcess(60)
+			Set process.FirstSeconds = 60
+			Set process.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Set request = ..NewRequest(kind)
+			Set response = ""
+			Set sc = process.OnResponse(request, .response, "", "", "timer")
+			Do $$$AssertStatusOK(sc, label_"the timer is answered with status OK")
+			If state = 1 {
+				Do $$$AssertEquals(..Rows(request.ItemId)_"|"_..Calls("send"), "0|1", label_"no row, and the request goes once to the retry runner")
+				Do $$$AssertEquals($ListGet($Get(^||ZzDecideCalls("send", 1)), 1)_"|"_$Get(^||ZzDecideCalls("send", 1, "retryOf")), "TriageAgentRetry|TriageAgent", label_"to TriageAgentRetry")
+			} Else {
+				Set row = ..RowOf(request.ItemId, kind)
+				Do $$$AssertEquals($Select($IsObject(row): row.Fallback_"|"_row.FallbackReason, 1: "no row"), "1|timeout", label_"it falls back with timeout")
+				Do $$$AssertEquals(..Calls("send"), 0, label_"and nothing is sent")
+			}
+			Do ..RestoreRows()
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Kill ^||ZzReadOnlyServers
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Gate).StoreDecideSetting("McpServersClass", saved), "McpServersClass is put back")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("McpServersClass"), saved, "and the accessor reads the production's class again")
 }
 
 /// A rate limit that outlasts the re-sends (Story 17.2): the key resend that finds less than a second of the timer left records rate_limited in release 1; with a

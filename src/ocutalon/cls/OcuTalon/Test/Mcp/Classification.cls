@@ -140,13 +140,13 @@ Method TestChangedFingerprint()
 	Do $$$AssertEquals(..ToolRows(server), "zz_none|unclassified|fp3;zz_risky|unclassified|fp2changed;zz_ro|unclassified|fp1changed", "and it is cleared too")
 	// an error of the clear: one warning, the same answer
 	Do ..Classify(server, "zz_ro", "read-only")
-	Set logMark = ..EventMark()
+	Set logMark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 	Set ^||ZzOps("auditError") = 1
 	Set answer = $ClassMethod(class, "ClassifyMcp", source, "zz_ro", "fp1again")
 	Kill ^||ZzOps("auditError")
 	Do $$$AssertEquals(answer.%ToJSON(), none, "a clear that fails answers none too")
-	Do $$$AssertEquals(..LogRowsHolding(logMark, "could not be cleared"), 1, "with one warning")
-	Do $$$AssertEquals(..LogRowsHolding(logMark, "fp1again"), 0, "that holds no fingerprint")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(logMark, "could not be cleared"), 1, "with one warning")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(logMark, "fp1again"), 0, "that holds no fingerprint")
 }
 
 /// The real class (not the probe subclass): a classified row and another fingerprint answer none, and the clear is OcuTalon.Mcp.Ops ClearChanged's, so the row is
@@ -299,20 +299,6 @@ Method ToolRows(server As %String) As %String
 	Quit text
 }
 
-/// The highest id of the event log, and the number of rows after the mark whose text holds the value.
-Method EventMark() As %Integer
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
-	Do result.%Next()
-	Quit +result.%GetData(1)
-}
-
-Method LogRowsHolding(mark As %Integer, value As %String) As %Integer
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Text [ ?", mark, value)
-	Do result.%Next()
-	Quit +result.%GetData(1)
-}
 
 /// Removes every fixture this test may have made, each attempted whatever happened before.
 Method Clean()

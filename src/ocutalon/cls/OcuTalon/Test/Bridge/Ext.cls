@@ -258,15 +258,17 @@ Method TestMcpBases()
 		Do $$$AssertEquals(first, $ClassMethod(context, "ToolFingerprint", "mcp:remote:zz", "a", "A.", {"properties": {"id": {"type": "string"}}, "type": "object"}), "it is ToolFingerprint of the tool_ref, the name, the description and the parameters, whatever the order of the keys")
 		Do $$$AssertEquals($Length($ClassMethod(context, "McpFingerprint", "MCP:remote:zz", "b")), 64, "a tool_ref that starts MCP: counts in any case")
 		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "iris:Zz.Toolset", "c"), "", "a tool_ref that does not start mcp: has none")
-		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", ""), "", "a tool with no name has none")
+		Do $$$AssertEquals(..McpKeys(), "MCP:remote:zz|b,mcp:remote:zz|a", "the map holds only the MCP tools with a tool_ref, a name and JSON parameters (no c, d, e or nameless tool)")
 		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "d"), "", "a tool whose parameters are text that is not JSON has none")
-		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "e"), "", "a tool with no tool_ref has none")
 		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:other", "a"), "", "a tool is keyed by its server too")
 		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "A"), "", "and by the exact letter case of its name")
-		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", $Justify("", 401)_"x"), "", "a name too long to key has none")
 		Set node = $Parameter(context, "MCP")
-		Do $$$AssertStatusOK($ClassMethod(context, "SetMcpTools", [{"tool_ref": "mcp:remote:zz", "name": ($Justify("", 400)_"x"), "description": "Long.", "parameters": {}}, {"tool_ref": ("mcp:remote:" _ $Justify("", 400)), "name": "a", "description": "Long.", "parameters": {}}]), "a catalog of tools whose name or tool_ref is too long to key")
+		Set wide = ""
+		For i = 1:1:400 Set wide = wide _ $Char(20000 + (i # 7))
+		Set longRef = "mcp:remote:@{config:AI.MCP.OcuTalon_" _ $Translate($Justify("", 40), " ", "z") _ "}"
+		Do $$$AssertStatusOK($ClassMethod(context, "SetMcpTools", [{"tool_ref": "mcp:remote:zz", "name": ($Justify("", 400)_"x"), "description": "Long.", "parameters": {}}, {"tool_ref": ("mcp:remote:" _ $Justify("", 400)), "name": "a", "description": "Long.", "parameters": {}}, {"tool_ref": (longRef), "name": (wide), "description": "Wide.", "parameters": {}}]), "a catalog of tools whose name or tool_ref is too long to key, alone or together")
 		Do $$$AssertEquals($Data(^||OcuTalonBP.Context(node)), 0, "leaves them out of the map, whatever the read side does")
+		Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", longRef, wide), "", "and the read side gives none for a pair too long to key together")
 		Do $$$AssertStatusOK($ClassMethod(context, "SetMcpTools", [{"tool_ref": "mcp:remote:zz", "name": "a", "description": "A.", "parameters": {"type": "object", "properties": {"id": {"type": "string"}}}}]), "the map is made again")
 		Do $$$AssertEquals($ClassMethod(context, "ToolFingerprint", "mcp:remote:zz", "a", "A.", {}) '= $ClassMethod(context, "ToolFingerprint", "mcp:remote:zy", "a", "A.", {}), 1, "another server gives another fingerprint")
 		Do $$$AssertEquals($ClassMethod(context, "ToolFingerprint", "mcp:remote:zz", "a", "A.", {}) '= $ClassMethod(context, "ToolFingerprint", "mcp:remote:zz", "b", "A.", {}), 1, "and so does another name")
@@ -287,6 +289,25 @@ Method TestMcpBases()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Do $$$AssertEquals($Data(^||OcuTalonBP.Context), 0, "End removes the context, and the map with it")
 	Do $$$AssertEquals($ClassMethod(context, "McpFingerprint", "mcp:remote:zz", "b"), "", "so there is no fingerprint")
+}
+
+/// The keys of the turn's MCP map (Context node MCP) as "server|name", joined by "," in the order of the global.
+ClassMethod McpKeys() As %String [ Private ]
+{
+	Set node = $Parameter("OcuTalon.Bridge.Context", "MCP")
+	Set keys = ""
+	Set server = ""
+	For {
+		Set server = $Order(^||OcuTalonBP.Context(node, server))
+		Quit:server=""
+		Set name = ""
+		For {
+			Set name = $Order(^||OcuTalonBP.Context(node, server, name))
+			Quit:name=""
+			Set keys = keys _ $Select(keys = "": "", 1: ",") _ server _ "|" _ name
+		}
+	}
+	Quit keys
 }
 
 /// Row 7: with no context, Active is 0 and Current is empty. After Begin, Active is 1 and Current carries the request's

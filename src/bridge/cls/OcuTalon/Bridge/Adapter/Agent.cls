@@ -542,11 +542,7 @@ Method BuildTurnManager() As %Status [ Private ]
 	Set sc = $ClassMethod(class, "Tools", ..TurnOwner, ..TurnKind, .tools)
 	If $$$ISERR(sc) Quit sc
 	Set count = $Select($IsObject($Get(tools)): tools.Count(), 1: 0)
-	Set mcp = 0
-	Set position = 0
-	While 'mcp && $ListNext(..Attached, position, spec) {
-		If $Extract(spec, 1, 4) = "mcp:" Set mcp = 1
-	}
+	Set mcp = ..HasMcp()
 	If (count = 0) && 'mcp Quit $$$OK
 	If $IsObject(..Agent.AvailableSkills) && (..Agent.AvailableSkills.%Size() > 0) {
 		If count = 0 Quit $$$OK

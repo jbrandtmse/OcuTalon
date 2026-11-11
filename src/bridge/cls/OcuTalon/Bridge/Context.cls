@@ -131,8 +131,8 @@ Parameter MCPKEYMAX = 400;
 
 /// Replaces the turn's MCP map with the tools of the catalog (the %Discover() list of the tool manager that serves the request): for each entry whose tool_ref
 /// starts mcp:, the fingerprint (ToolFingerprint) of the tool_ref as the server, the name, the description and the parameters. An entry that has no name, whose
-/// tool_ref or name is too long to key, or whose parameters are text that is not JSON gets no fingerprint. An error when there is no context (the old map, if
-/// any, is then not touched) or the catalog is not an array.
+/// tool_ref or name is too long to key (each over MCPKEYMAX, or both together over the length of a global reference), or whose parameters are text that is not
+/// JSON gets no fingerprint. An error when there is no context (the old map, if any, is then not touched) or the catalog is not an array; it never throws.
 ClassMethod SetMcpTools(catalog As %DynamicArray) As %Status
 {
 	If '..Active() Quit $SYSTEM.Status.Error(5001, "There is no context to put the MCP tools into")
@@ -150,17 +150,26 @@ ClassMethod SetMcpTools(catalog As %DynamicArray) As %Status
 		} Catch {
 			Set fingerprint = ""
 		}
-		If fingerprint '= "" Set ^||OcuTalonBP.Context(..#MCP, server, name) = fingerprint
+		If fingerprint = "" Continue
+		Try {
+			Set ^||OcuTalonBP.Context(..#MCP, server, name) = fingerprint
+		} Catch {
+		}
 	}
 	Quit $SYSTEM.Status.OK()
 }
 
 /// The fingerprint that the turn's MCP map holds for the tool of the name on the server (the tool_ref), or "" when the map has none, there is no map or no
-/// context.
+/// context (also for a server and name too long to key together). It never throws.
 ClassMethod McpFingerprint(server As %String, name As %String) As %String
 {
 	If '..Active() || (server = "") || (name = "") || ($Length(server) > ..#MCPKEYMAX) || ($Length(name) > ..#MCPKEYMAX) Quit ""
-	Quit $Get(^||OcuTalonBP.Context(..#MCP, server, name))
+	Try {
+		Set fingerprint = $Get(^||OcuTalonBP.Context(..#MCP, server, name))
+	} Catch {
+		Set fingerprint = ""
+	}
+	Quit fingerprint
 }
 
 /// 1 when the tool_ref starts mcp: (in any letter case).
