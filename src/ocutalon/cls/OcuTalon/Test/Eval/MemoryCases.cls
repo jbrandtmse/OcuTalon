@@ -16,6 +16,8 @@
 ///   - TestTainted (AC 2): the documents turn ran a documents step and then a save_memory step that the gate denied, cited Results runbook / Clearing the queue, replied with a why and no claim, and is right in memoryTurns;
 ///   - TestLearnedSaved (AC 7, AC 10): the learned-save turn was asked with the case's session as OwnerRef, a save_memory step saved (its summary holds "outcome":"saved" within the 400-character cut), the session
 ///     holds a learned memory with the turn's ItemId, and the case is right in learnedSave;
+///   - TestLearnedEntry (Story 41.15, AC 7): the learned-save turn's TurnResult keeps the Reply's HostData.learned as one entry, the session memory's Ref and text, from the real MemoryTools; the line is not shown, because the mock's reply
+///     already says "I'll remember that"; the denied documents turn and the refused (NOSESSION) turn keep none;
 ///   - TestLearnedRefused (AC 8): the refused turn's save_memory step is ok and holds the NOSESSION sentence, the reply makes no claim, and the case is right in learnedSave;
 ///   - TestForgotten (AC 6, AC 10): MemoryOps answered the seed's SaveMemory saved and its ForgetMemory forgotten, the session holds no memory, the turn carries none, the reply does not say Kim and the case is right in memoryTurns;
 ///   - TestSessionRows (AC 10): each session row had no IrisUser and no ResumeHash; the seeds were of origin system and addressed the forgotten-fact session alone;
@@ -235,10 +237,10 @@ Method Record() [ Private ]
 	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT CaseName, ItemId, State, DecisionRef, Fallback, Outcome FROM OcuTalon_Eval_Data.CaseResult WHERE RunRef = ?", ..RunRef)
 	While rows.%Next() {
 		Set name = rows.%Get("CaseName")
-		Set case = {"itemId": (rows.%Get("ItemId")), "state": (rows.%Get("State")), "decisionRef": (rows.%Get("DecisionRef")), "fallback": (+rows.%Get("Fallback")), "reply": "", "memories": "", "citations": "", "toolsRun": 0, "steps": (..ToolSteps(rows.%Get("DecisionRef"))), "owner": "", "channel": "", "outcome": (rows.%Get("Outcome"))}
-		Set turn = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ReplyText, Memories, Citations, ToolsRun FROM OcuTalon_Eval_Msg.TurnResult WHERE ItemId = ? ORDER BY ID DESC", rows.%Get("ItemId"))
+		Set case = {"itemId": (rows.%Get("ItemId")), "state": (rows.%Get("State")), "decisionRef": (rows.%Get("DecisionRef")), "fallback": (+rows.%Get("Fallback")), "reply": "", "memories": "", "citations": "", "learned": "", "toolsRun": 0, "steps": (..ToolSteps(rows.%Get("DecisionRef"))), "owner": "", "channel": "", "outcome": (rows.%Get("Outcome"))}
+		Set turn = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ReplyText, Memories, Citations, Learned, ToolsRun FROM OcuTalon_Eval_Msg.TurnResult WHERE ItemId = ? ORDER BY ID DESC", rows.%Get("ItemId"))
 		If turn.%Next() {
-			Set case.reply = turn.%Get("ReplyText"), case.memories = turn.%Get("Memories"), case.citations = turn.%Get("Citations"), case.toolsRun = +turn.%Get("ToolsRun")
+			Set case.reply = turn.%Get("ReplyText"), case.memories = turn.%Get("Memories"), case.citations = turn.%Get("Citations"), case.learned = turn.%Get("Learned"), case.toolsRun = +turn.%Get("ToolsRun")
 		}
 		Do ..Cases.%Set(name, case)
 		Do byItem.%Set(rows.%Get("ItemId"), name)
@@ -541,6 +543,29 @@ Method TestLearnedSaved()
 	Do $$$AssertEquals($Select($IsObject(entry): entry.right_"|"_entry.fallback, 1: "no entry"), "1|0", "the case is right and not a fallback")
 	Do $$$AssertTrue(..ScoreNames("learnedSave") [ name, "it is in learnedSave: "_..ScoreNames("learnedSave"))
 	Do $$$AssertEquals(..Report.scores.commands.total, 0, "and not in the commands score")
+}
+
+/// Story 41.15, AC 7: the eval path keeps the learned entry. MemoryTools read the learned row of the case's session (Ownership.Memory of an eval session) and put {memoryRef, text} into the Reply's HostData.learned; the TurnResult
+/// keeps it. The mock's reply says "I'll remember that", so Memory.Learned.Lines renders no line. A turn whose save was denied by the gate or refused (NOSESSION) has no entry.
+Method TestLearnedEntry()
+{
+	If '..Guard() Quit
+	Set name = "memory-learned-save"
+	Set case = ..CaseOf(name), session = $Select($IsObject(..Sessions1): ..Sessions1.%Get(name), 1: "")
+	Do $$$AssertTrue($IsObject(case) && $IsObject(session), name_": its case row and its session exist")
+	If '$IsObject(case) || '$IsObject(session) Quit
+	Do $$$AssertEquals(session.memories.%Size(), 1, "the session holds one memory")
+	If session.memories.%Size() = 1 {
+		Set memory = session.memories.%Get(0)
+		Do $$$AssertEquals(case.learned, [{"memoryRef": (memory.ref), "text": (memory.text)}].%ToJSON(), "the TurnResult's Learned holds the session memory's Ref and its stored text")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Memory.Learned).Lines(case.learned, case.reply, "web").%Size(), 0, "no line is rendered, because the mock's reply already says it: "_case.reply)
+	Do $$$AssertEquals(##class(OcuTalon.Memory.Learned).Shown(case.learned, "Noted.").%Size(), 1, "control: a reply that does not say it would show the entry")
+	For other = "memory-documents-remember", "memory-learned-refused" {
+		Set one = ..CaseOf(other)
+		Do $$$AssertTrue($IsObject(one), other_": its case row exists")
+		If $IsObject(one) Do $$$AssertEquals(one.learned, "", other_": the TurnResult has no Learned")
+	}
 }
 
 /// The refused learned save: the turn has no session (owner eval), so its save_memory step is ok and holds the NOSESSION sentence; the reply makes no claim; the case is right in learnedSave.

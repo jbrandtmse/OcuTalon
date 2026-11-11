@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 138 keys of OcuTalon.Msg.Catalog.Core and the 105 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 139 keys of OcuTalon.Msg.Catalog.Core and the 105 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 17 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -77,13 +77,14 @@ Method TestEntries()
 	Set keys = ..Read("Keys")
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
-	Do $$$AssertEquals(keys.core.%Size(), 138, "the expected Core list has 138 keys")
+	// Story 41.15 (Contest Planner ruling 2026-11-10): memory.learnedSaved adds one key to Story 23.2's 138 here, 139 in all.
+	Do $$$AssertEquals(keys.core.%Size(), 139, "the expected Core list has 139 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
 	// Story 23.6 (Contest Planner ruling 2026-11-09, AD-33 exception): the 26 summary.* keys, with Epic 35's mcp.* keys (plain union at the integrate-forward), take the count to 90 here.
 	Do $$$AssertEquals(keys.watch.%Size(), 105, "the expected Watch list has 105 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 138 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 139 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 105 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -974,6 +975,7 @@ XData Keys [ MimeType = application/json ]
   "pairing.paired",
   "pairing.badCode",
   "pairing.start",
+  "memory.learnedSaved",
   "pairing.notPaired",
   "pairing.stopped",
   "pairing.unpairedFromPage",
@@ -1405,6 +1407,7 @@ XData Fixtures [ MimeType = application/json ]
  "pairing.paired": {"slots": {}, "text": "You're paired with your OcuTalon session; notifications, reminders and approval requests will arrive here (send /stop to unpair)."},
  "pairing.badCode": {"slots": {}, "text": "That code didn't work. Open the OcuTalon page and scan the QR code there for a new one."},
  "pairing.start": {"slots": {}, "text": "This is OcuTalon, an assistant that runs inside InterSystems IRIS. To use it here, open your OcuTalon page and scan the QR code there; that pairs this chat with your session."},
+ "memory.learnedSaved": {"slots": {"fact": "The Results partner's contact is Lee"}, "text": "I'll remember this: \"The Results partner's contact is Lee\". You can tell me to forget it."},
  "pairing.notPaired": {"slots": {}, "text": "This chat isn't paired yet. Open your OcuTalon page and scan the QR code there."},
  "pairing.stopped": {"slots": {}, "text": "Unpaired. This chat won't get OcuTalon messages anymore. Scan the QR code on the OcuTalon page to pair again."},
  "pairing.unpairedFromPage": {"slots": {}, "text": "Unpaired from the OcuTalon page. Scan the QR code there to pair again."},

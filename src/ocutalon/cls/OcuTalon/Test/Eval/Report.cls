@@ -1180,6 +1180,43 @@ Method TestLearnedSaveNeedsTheSave()
 	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size(), 0, "and a wrong learned-save case is no problem")
 }
 
+/// Story 41.15 (AD-22): the learned-save case is also right when the person is told of the save by code: a saved step, a turn that is not a fallback and a TurnResult.Learned entry whose line renders for the web, whatever the
+/// reply says. With no entry (or an entry that shows nothing), with no saved step, or with a fallback it is wrong; the phrase rule is unchanged (TestLearnedSaveNeedsTheSave).
+Method TestLearnedSaveByTheLine()
+{
+	Set name = "memory-learned-save"
+	Do ..TurnCase(name, "command", ..LearnedExpectation())
+	Set silent = "Thanks, noted for this chat."
+	Set saved = $ListBuild($ListBuild("ok", ..SavedResult()))
+	Set entry = "[{""memoryRef"":""zzMemory0000000000001"",""text"":""The Results partner's contact is Lee.""}]"
+	Do $$$AssertEquals(..MemoryRight(name, silent, saved, , , entry), 1, "a silent reply, a saved step and a Learned entry is right")
+	Do $$$AssertEquals(..MemoryRight(name, silent, saved), 0, "the same with no Learned entry is wrong")
+	Do $$$AssertEquals(..MemoryRight(name, silent, saved, , , "[1,{""memoryRef"":"""",""text"":""x""}]"), 0, "an entry that shows no line is no entry")
+	Do $$$AssertEquals(..MemoryRight(name, silent, saved, , , entry, 1), 0, "with a fallback it is wrong")
+	Do $$$AssertEquals(..MemoryRight(name, silent, "", , , entry), 0, "with no saved step it is wrong")
+	Do $$$AssertEquals(..MemoryRight(name, silent, $ListBuild($ListBuild("denied", "")), , , entry), 0, "with a denied step it is wrong")
+	Set report = ..MemoryReport(name, silent, saved, , , entry)
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size(), 0, "and a wrong learned-save case is no problem")
+	Do $$$AssertEquals(..Line(report.scores.learnedSave), "1 of 1 share 1 met -", "the report-only score counts it, with no target")
+}
+
+/// Story 41.15 (AD-22, spec-gate ruling 4): the learned-save case is also right when the save rule holds and the reply passes Memory.Learned.Said, so "I'll remember Lee..." with no "that" counts as announced, as the
+/// person sees it. The same reply with no saved step is wrong, and a reply that does not say it (and has no Learned entry) is wrong.
+Method TestLearnedSaveBySaid()
+{
+	Set name = "memory-learned-save"
+	Do ..TurnCase(name, "command", ..LearnedExpectation())
+	Set saved = $ListBuild($ListBuild("ok", ..SavedResult()))
+	Set said = "I'll remember Lee is the contact."
+	Do $$$AssertEquals(..MemoryRight(name, said, saved), 1, "a reply 'I'll remember Lee is the contact.' with a saved step is right")
+	Do $$$AssertEquals(..MemoryRight(name, "I will  remember Lee"_$Char(8217)_"s number.", saved), 1, "also 'I will remember', with any white space")
+	Do $$$AssertEquals(..MemoryRight(name, "Sure. I"_$Char(8217)_"ll remember Lee.", saved), 1, "and with U+2019")
+	Do $$$AssertEquals(..MemoryRight(name, said, ""), 0, "the same reply with no saved step is wrong")
+	Do $$$AssertEquals(..MemoryRight(name, said, $ListBuild($ListBuild("ok", ..RefusalResult()))), 0, "and with a step that the owner refused")
+	Do $$$AssertEquals(..MemoryRight(name, said, saved, , , , 1), 0, "and with a fallback")
+	Do $$$AssertEquals(..MemoryRight(name, "We'll remember Lee.", saved), 0, "a reply that does not say it is wrong")
+}
+
 /// DW-1016: the refused learned save is right only when the reply holds neither "I'll remember that" nor "I will remember that" (a curly apostrophe included) and no
 /// save_memory step saved; the expectation has no key phrases. An expectation with none of keyPhrases, absentPhrases and memories is unscored.
 Method TestLearnedRefused()
@@ -2482,12 +2519,14 @@ ClassMethod RefusalResult() As %String [ Private ]
 
 /// The report of a run of one memory turn case (a turn row dated after any real row, with the reply, optional citations and memories JSON, and save_memory steps): steps is a list of
 /// $ListBuild(status, result) for each save_memory call, in order, or "" for none.
-Method MemoryReport(name As %String, reply As %String, steps As %List, citations As %String = "", memories As %String = "") As %DynamicObject [ Private ]
+Method MemoryReport(name As %String, reply As %String, steps As %List, citations As %String = "", memories As %String = "", learned As %String = "", fallback As %Boolean = 0) As %DynamicObject [ Private ]
 {
 	Set run = ..NewRun()
 	Set turn = {"ReplyText": (reply)}
 	If citations '= "" Set turn.Citations = citations
 	If memories '= "" Set turn.Memories = memories
+	If learned '= "" Set turn.Learned = learned
+	If fallback Do turn.%Set("Fallback", 1, "boolean")
 	Set decision = ..TurnRow(run, name, turn, {"SentAt": (..#FUTURE)})
 	Set position = 0, n = 0
 	While $ListNext(steps, position, step) {
@@ -2498,9 +2537,9 @@ Method MemoryReport(name As %String, reply As %String, steps As %List, citations
 }
 
 /// 1 when the memory turn case is scored right for that reply, those steps, citations and memories (see MemoryReport), else 0.
-Method MemoryRight(name As %String, reply As %String, steps As %List, citations As %String = "", memories As %String = "") As %Boolean [ Private ]
+Method MemoryRight(name As %String, reply As %String, steps As %List, citations As %String = "", memories As %String = "", learned As %String = "", fallback As %Boolean = 0) As %Boolean [ Private ]
 {
-	Set report = ..MemoryReport(name, reply, steps, citations, memories)
+	Set report = ..MemoryReport(name, reply, steps, citations, memories, learned, fallback)
 	Quit $Select(report.cases.%Size() = 1: +report.cases.%Get(0).%Get("right"), 1: -1)
 }
 

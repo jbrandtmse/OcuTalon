@@ -1,5 +1,5 @@
-/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 34 payload
-/// and part classes (Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 20.2 the parts Citation and Memory and the chat message's citations and memories, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 35 payload
+/// and part classes (Story 41.15 adds the part Learned and the chat message's learned; Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 20.2 the parts Citation and Memory and the chat message's citations and memories, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
 /// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
@@ -90,7 +90,7 @@ Method TestContracts()
 			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
 		}
 	}
-	Do $$$AssertEquals(classes, 34, "the contracts hold the 34 payload and part classes")
+	Do $$$AssertEquals(classes, 35, "the contracts hold the 35 payload and part classes")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
 }
@@ -401,6 +401,39 @@ Method TestIncidentFromRowReadsNoSql()
 		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Source).Matches(method, needle, 1), 0, "FixRun.OfRequest: no code line holds "_needle)
 	}
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set rs = ##class(%SQL.Statement).%ExecDirect(, ""x"")", "%ExecDirect", 1), "the scan flags a line that runs SQL")
+}
+
+/// A turn's chat message carries the learned saves it announces (Story 41.15): each entry of the row's Learned as {memoryRef, fact} with the fact shaped (one trailing full stop removed, cut to 200 characters with
+/// an ellipsis), at most 3, in order; none for a reply that already says "I'll remember" (any case, U+2019), for text that is not a JSON array and for entries of the wrong shape; and the JSON leaves the member out when empty.
+Method TestChatMessageLearned()
+{
+	Set ellipsis = $Char(8230)
+	Set long = $Translate($Justify("", 300), " ", "b")
+	Set row = ##class(OcuTalon.Data.Turn).%New()
+	Set row.Ref = "zzlrn"_..Number
+	Set row.ReplyText = "Noted."
+	Set row.Learned = [{"memoryRef": "zzm1", "text": "Lee is the contact."}, {"memoryRef": "zzm2", "text": (long)}, {"memoryRef": "zzm3", "text": "<b>Lee</b> & co"}, {"memoryRef": "zzm4", "text": "a fourth"}].%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do $$$AssertEquals(payload.Learned.Count(), 3, "three entries at most")
+	Do $$$AssertEquals(payload.Learned.GetAt(1).MemoryRef_"|"_payload.Learned.GetAt(1).Fact, "zzm1|Lee is the contact", "the first: one trailing full stop removed")
+	Do $$$AssertEquals(payload.Learned.GetAt(2).MemoryRef_"|"_payload.Learned.GetAt(2).Fact, "zzm2|"_$Extract(long, 1, 199)_ellipsis, "the second: 300 characters are 199 and an ellipsis")
+	Do $$$AssertEquals(payload.Learned.GetAt(3).Fact, "<b>Lee</b> & co", "the third: markup stays as the characters it is")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.learned.%Size()_"|"_exported.learned.%Get(0).%ToJSON(), "3|"_{"memoryRef": "zzm1", "fact": "Lee is the contact"}.%ToJSON(), "the JSON names them under learned, each {memoryRef, fact}")
+	For said = "I'll remember that.", "i WILL  remember it", "Sure. I"_$Char(8217)_"ll remember Lee" {
+		Set row.ReplyText = said
+		Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+		Do $$$AssertEquals(payload.Learned.Count(), 0, "a reply that says '"_said_"' has no entry to show")
+	}
+	Set row.ReplyText = "Noted."
+	For text = "not json", "{""memoryRef"":""zzm1"",""text"":""a""}", "[", "", "[1,null,{""text"":""a""},{""memoryRef"":""zzm1"",""text"":5}]" {
+		Set row.Learned = text
+		Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+		Do $$$AssertEquals(payload.Learned.Count(), 0, "'"_text_"' gives no entry")
+	}
+	Do payload.%JSONExportToString(.bareJson)
+	Do $$$AssertEquals(##class(%DynamicObject).%FromJSON(bareJson).%IsDefined("learned"), 0, "and the JSON then leaves the member out")
 }
 
 /// A turn's chat message carries its shown decision (the triage decision, or the reply decision of a fallback) as the decision
@@ -1196,7 +1229,8 @@ XData Contracts [ MimeType = application/json ]
    "CheckKey": "%String(%JSONFIELDNAME=checkKey,MAXLEN=128)",
    "Checks": "list Of OcuTalon.Live.Payload.Part.CheckRow(%JSONFIELDNAME=checks)",
    "Citations": "list Of OcuTalon.Live.Payload.Part.Citation(%JSONFIELDNAME=citations)",
-   "Memories": "list Of OcuTalon.Live.Payload.Part.Memory(%JSONFIELDNAME=memories)"
+   "Memories": "list Of OcuTalon.Live.Payload.Part.Memory(%JSONFIELDNAME=memories)",
+   "Learned": "list Of OcuTalon.Live.Payload.Part.Learned(%JSONFIELDNAME=learned)"
   }
  },
  "OcuTalon.Live.Payload.Check": {
@@ -1515,6 +1549,13 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "One": "%String(%JSONFIELDNAME=one,MAXLEN=128)",
    "Other": "%String(%JSONFIELDNAME=other,MAXLEN=128)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.Learned": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "MemoryRef": "%String(%JSONFIELDNAME=memoryRef,MAXLEN=128)",
+   "Fact": "%String(%JSONFIELDNAME=fact,MAXLEN=)"
   }
  },
  "OcuTalon.Live.Payload.Part.Memory": {

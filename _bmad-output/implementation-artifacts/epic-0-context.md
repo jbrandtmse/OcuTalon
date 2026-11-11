@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 0 is the walking skeleton. One image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start. It provides a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so the build lanes can work in parallel. Stories 0.1 to 0.23 are done. Epic 0 is re-opened once more (lane C, after Story 0.23) for Story 0.24, a CI-tooling fix for DW-1099. CI jobs have failed before running a single test with "failed to bind host port 127.0.0.1:52816/tcp: address already in use", also logged as "driver failed programming external connectivity". 52816 is the runner's own fixed web port, and no orphan container held it. The most likely cause is that a job starts its next throwaway stack before Docker's port proxy has released the previous stack's port after `compose down`. The goal is that no throwaway test stack can publish its web port on a host port that is still being released.
+Epic 0 is the walking skeleton. One image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start. It provides a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so the build lanes can work in parallel. Stories 0.1 to 0.24 are done. Epic 0 is re-opened again (lane B, after Story 0.24) for Story 0.25, a CI-tooling fix for DW-1099, which came back after 0.24. Story 0.24 added a guard in `docker/tests/lib-live.sh`: every guarded stack start waits up to 20 s for its web port, then retries once on the bind error. On ocutalon-ci-8 the guard still failed: it waited, retried once after 5 s and printed "FAIL web port: 127.0.0.1:52818 could not be bound after one retry". The likely cause, not proven, is that the previous unit's IRIS stack on the same runner was still shutting down, and a graceful IRIS shutdown can take well over the guard's 25 s or so. The goal is that the guard waits out a stack that is still shutting down, and that no unit's teardown can still be running when the next unit starts.
 
 ## Stories
 
@@ -31,44 +31,48 @@ Epic 0 is the walking skeleton. One image build and `docker compose up` give Ocu
 - Story 0.21: The README opens with a centred header: logo, tagline and badges (done)
 - Story 0.22: The More to try panel shows its items under three group headings (done)
 - Story 0.23: The README header's logo and LICENSE badge link use absolute GitHub URLs (done)
-- Story 0.24: A test stack's web port can never collide with a port that is still being released (backlog)
+- Story 0.24: A test stack's web port can never collide with a port that is still being released (done)
+- Story 0.25: The web-port guard waits long enough for a stack that is still shutting down (backlog)
 
 ## Requirements & Constraints
 
-**Two ruled fixes (0.24); the spec picks one.** The spec must say which fix it chose and why, and list the files it touches.
-- **Preferred: ephemeral port.** Publish the web port as `127.0.0.1::52773`, so Docker picks a free host port. Read it back with `docker compose port` after the stack starts. This replaces both the fixed per-runner scheme in `ci/iris.sh` (52810 + n and 52819 - n) and the port probe in `docker/tests/lib-live.sh` (`live_web_port`). Every web client must then use the read-back port: each live script's `base`, the Playwright configs and `web/e2e/support`, `ci/**`, and the release harnesses.
-- **Fallback: wait and retry once.** Take this only if the preferred fix is too large (more than about 2 to 3 hours of work). Before each stack start, wait up to 20 s for the chosen port to be free: `ss -ltn` on Linux, or an equivalent such as `lsof -iTCP:<port> -sTCP:LISTEN` for local macOS runs. Then retry the start exactly once, and only on exactly this bind error ("address already in use" or "failed programming external connectivity"). If the retry also fails, fail loudly.
+**The guard's new bounds (0.25).** This applies to every guarded start: `dc up`, `dc start` and `dc restart` with a web port, through `live_port_guard` and `live_port_wait_free`.
+- When the port is in use, wait up to 90 s for it to be free, polling every 3 s. Linux uses `ss -tan (every state but TIME-WAIT)`; 0.24's macOS equivalent stays for local runs.
+- When the start fails with exactly the bind error ("address already in use" or "failed programming external connectivity"), retry it up to twice, waiting again before each retry. After the second retry fails, print the same loud `FAIL web port: ...` line and return the failure.
+- Any other failure returns at once, with no retry.
+- Every guarded start that had to wait prints exactly one line, `waited N s for port P`, where N is the seconds waited and P is the port. The next ledger entry uses it to measure the wait.
 
-**Invariants either way.**
-- `OCUTALON_TEST_WEB_PORT` keeps working as an explicit override. The lanes' dev slot ports 52801 to 52804 and the lanes' throwaways depend on it, so check every local caller.
+**Teardown is waited for.** Check every live script's teardown path: a foreground `dc down`, a background one, or one run from a trap. A unit's teardown must run in the foreground and finish before the next unit can start. A teardown that ran in the background or was not waited for must now be waited for, with a foreground `dc down` or a wait on its PID.
+
+**Out of scope.** No change to `ci/iris.sh`, the workflows or the release harnesses. Story 0.24's ephemeral-port option (publish `127.0.0.1::52773` and read the port back) stays out of scope. No test-logic change.
+
+**Invariants kept from 0.24.**
+- `OCUTALON_TEST_WEB_PORT` keeps working as an explicit override. The lanes' dev slots 52801 to 52804 and the lanes' throwaways depend on it.
 - The web port stays bound to 127.0.0.1 only.
 - The forbidden ports stay refused.
-- No test-logic change.
-- No workflow-file change beyond what the port needs.
 
 **Tests.**
-- `docker/tests/test-ci-config.sh`, `test-ci-changes.sh` and `test-lib-live.sh` pass, and so does `docker/tests/test-boundaries.sh`.
-- Every pin of the old port scheme that changes moves to the new one. No pin is deleted or weakened beyond what the chosen fix replaces.
-- A self-test or unit covers the new port logic:
-  - Preferred fix: an ephemeral port is read back, and every web client uses it.
-  - Fallback: a held port is waited for, and the bind error is retried once and then fails loudly.
+- `docker/tests/test-lib-live.sh` runs with a stubbed docker and a fast clock or stubbed sleep, and passes with `docker/tests/test-boundaries.sh`.
+- Its rows pin the 90 s bound, the 3 s poll, the two retries followed by the loud FAIL, the `waited N s for port P` line, and no retry on any other error.
+- No existing row is deleted or weakened beyond what the new bounds replace.
 
 **Done means:**
-- On a lane-C throwaway, two stacks started back to back (the way `release/ipm-install.sh` path B and part p do) both come up, and the second answers on its web port with no bind error.
-- DW-1099 is resolved by this story.
+- On a lane-B throwaway, a port held for about 40 s by a listener is waited out: the start succeeds and logs the wait.
+- A port held for more than 90 s gets two retries, then the loud FAIL.
+- DW-1099 is resolved by this story again. DW-1100 (the FAIL line does not name what holds the port) and DW-1101 (step 5 of the install-script test is pinned only by a grep) keep their reopen condition: a CI log that shows "FAIL web port:".
 - Every workflow is green on the story's head.
 
 ## Technical Decisions
 
-- **Throwaway stacks.** Destructive and CI tests run only in throwaway compose projects (`docker compose -p <name>` with the CI override), never on a developer instance. `ci/iris.sh` is the one recipe that runs the IRIS units, on the runner and on a developer machine. `ci/compose.ci.yml` is layered after the throwaway override.
-- **CI hosts.** ci-b holds runners 3 to 8, ci-c runners 9 to 14, and ci-d runners 15 to 20. Each runner currently has its own fixed web port.
-- **Release-tool gate.** Any `.github/workflows/*.yml` or `release/**` hunk is a RELEASE TOOL item and goes to the Contest Planner before it merges. CI log message text is internal, so there is no PUBLIC TEXT gate.
+- **Throwaway stacks.** Destructive and CI tests run only in throwaway compose projects (`docker compose -p <name>` with the CI override), never on a developer instance. Every live script and release harness starts its stack through `dc` in `lib-live.sh`, so the guard is the one place the fix goes. `ci/iris.sh` runs the IRIS units on the runner and on a developer machine.
+- **CI hosts.** ci-b holds runners 3 to 8, ci-c runners 9 to 14, and ci-d runners 15 to 20. Each runner has its own fixed web port (52810 + n or 52819 - n), so the previous unit on the same runner is the likely holder.
+- **Gates.** CI log message text is internal, so there is no PUBLIC TEXT gate. A hunk in `.github/workflows/*.yml` or `release/**` would be a RELEASE TOOL item for the Contest Planner, but this story makes none.
 - **Never weaken checks.** Never delete or weaken a rule or self-test. Shell test scripts stay ASCII-only and run on bash 3.2 with BSD or GNU tools; for example, BSD `head -n 0` fails, so use `awk`.
 - **Lane ownership.** Epic 0 may edit files from any lane in one story. Never write a local absolute path into a tracked file.
 
 ## Cross-Story Dependencies
 
-- **Builds on** Story 0.7 (CI on the IRIS runner and the throwaway recipe), Story 0.14 (`lib-live.sh` checks used by the live tests and the upgrade harness) and Story 0.20 (the IRIS CI groups).
-- **Sequenced after 0.23** on lane C.
-- **Failures this story removes.** The bind error is DW-1099: lane-a run 42907226019 (two failures on the same port 6 s apart) and ci run 42894860855 (`live:online-demo`).
+- **Builds on** Story 0.24 (the guard: `live_port_guard`, `live_port_wait_free`, `live_bind_error`, and its hermetic rows in `test-lib-live.sh`), Story 0.14 (`lib-live.sh` checks for the live tests and the upgrade harness) and Story 0.7 (CI on the IRIS runner).
+- **Sequenced after 0.24.** 0.25 runs on lane B.
+- **The failure that reopened DW-1099:** run 42943118887, job 130269395421, iris (shards) `live:online-allowance` on ocutalon-ci-8. dockerd on ci-b logged the bind error at 02:21:35 and again at 02:21:44, and nothing held 52818 when it was checked at 02:45Z.
 - **Known flakes.** Other inherited CI flakes (for example DW-973, DW-774, DW-689 and DW-1026) can turn a run red without a cause in this story. Classify them; do not change the story to work around them.

@@ -552,6 +552,44 @@ Method TestStateChatDecision()
 	Do $ClassMethod(fixture, "Clean", mine_","_theirs_","_triage_","_reply_","_replied_","_fallback_","_bare)
 }
 
+/// Story 41.15 (AD-4, AD-12): the snapshot's chat entry for a turn carries the learned saves to show, {memoryRef, fact} with the fact shaped, as chat.message does; a turn whose reply already says "I'll remember" has none, and a turn
+/// of another session is not in the snapshot, with its learned entry.
+Method TestStateLearned()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapilearned"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapilearnedother"_..Number)
+	Set learned = "[{""memoryRef"":""zzlrn1"",""text"":""The Results partner's contact is Lee.""},{""memoryRef"":""zzlrn2"",""text"":""Second fact""}]"
+	Set shown = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:01Z")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(shown)
+	Set row.ReplyText = "Noted."
+	Set row.Learned = learned
+	Do $$$AssertStatusOK(row.%Save(), "mine has a turn with two learned entries")
+	Set said = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:02Z")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(said)
+	Set row.ReplyText = "I'll remember that."
+	Set row.Learned = learned
+	Do $$$AssertStatusOK(row.%Save(), "and a turn whose reply says it")
+	Set plain = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:03Z")
+	Set other = $ClassMethod(fixture, "Turn", theirs, "2030-01-01T10:00:04Z")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(other)
+	Set row.ReplyText = "Noted."
+	Set row.Learned = "[{""memoryRef"":""zzlrnother"",""text"":""Theirs only""}]"
+	Do $$$AssertStatusOK(row.%Save(), "theirs has a turn with a learned entry")
+
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(..Items(body.chat), "chat.message:"_shown_",chat.message:"_said_",chat.message:"_plain, "mine's chat holds its three turns and no other session's")
+	Set first = body.chat.%Get(0).payload
+	Do $$$AssertEquals(first.learned.%ToJSON(), [{"memoryRef": "zzlrn1", "fact": "The Results partner's contact is Lee"}, {"memoryRef": "zzlrn2", "fact": "Second fact"}].%ToJSON(), "the first entry lists the learned saves as the line shows them")
+	Do $$$AssertEquals(body.chat.%Get(1).payload.%IsDefined("learned")_"|"_body.chat.%Get(2).payload.%IsDefined("learned"), "0|0", "a reply that says it, and a turn with no entry, have none")
+	Set theirBody = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(theirs))
+	Do $$$AssertEquals(..Items(theirBody.chat), "chat.message:"_other, "theirs holds its own turn only")
+	Do $$$AssertEquals(theirBody.chat.%Get(0).payload.learned.%ToJSON(), [{"memoryRef": "zzlrnother", "fact": "Theirs only"}].%ToJSON(), "with its own entry")
+	Do $$$AssertTrue(theirBody.%ToJSON() '[ "zzlrn1", "the snapshot of theirs holds none of mine's learned saves")
+	Do $$$AssertTrue(body.%ToJSON() '[ "zzlrnother", "and the snapshot of mine none of theirs")
+	Do $ClassMethod(fixture, "Clean", mine_","_theirs_","_shown_","_said_","_plain_","_other)
+}
+
 /// DW-294: the snapshot's chat entry for an incident carries the member decision, the Decision payload of the incident's
 /// DecisionRef (its diagnose decision), when that is a decision of the session's own, so that the card's footer finds it after a
 /// load. An incident whose DecisionRef is empty, or a decision of another session, has no decision member, and the entry is then

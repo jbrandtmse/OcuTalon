@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-11-2026 05:14
+last_updated: 11-11-2026 06:27
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -60,6 +60,7 @@ development_status:
   0-22-the-more-to-try-panel-shows-its-items-under-three-group-head: done
   0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute: done
   0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i: done
+  0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti: done
   epic-0-retrospective: optional
 
   epic-1: done
@@ -483,6 +484,7 @@ development_status:
   41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star: done
   41-13-the-memory-card-pinned-and-learned-memories: done
   41-14-evaluation-and-tests-for-memory-s-second-part: done
+  41-15-learned-saves-are-announced-by-code: done
   epic-41-retrospective: optional
 action_items:
   - id: "epic-32-retro-item-1-ci-capacity-dw-55-ocutalon-ci-c-starts-i"

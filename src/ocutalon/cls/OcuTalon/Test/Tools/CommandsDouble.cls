@@ -24,6 +24,7 @@
 ///       ^OcuTalonTest("CommandsDouble","refuse",<the verb's class name without its package>) = <message>: Ok 0, Outcome refused, and that message;
 ///       ^OcuTalonTest("CommandsDouble","refuseRef",<a reminder's Ref>) = <message>: a CancelReminder of that ReminderRef is refused the same way, and one of
 ///         any other Ref is answered as usual;
+///       ^OcuTalonTest("CommandsDouble","memoryRef") = <Ref>: SaveMemory is answered with that Ref instead of MEMORYREF (Story 41.15);
 ///       ^OcuTalonTest("CommandsDouble","data") = <text>: ListReminders is answered with that text as its Data;
 ///       ^OcuTalonTest("CommandsDouble","outcome") = <word>: ProposePersona is answered Ok with that word as its Outcome;
 ///       ^OcuTalonTest("CommandsDouble","fail") = 1: OnProcessInput returns an error status, after it has recorded the command; any other text is the
@@ -104,7 +105,7 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 		Set result.Ok = 1
 		Set result.Outcome = "saved"
 		Set result.Message = "The CI double saved the memory."
-		Set result.Ref = ..#MEMORYREF
+		Set result.Ref = $Select($Get(^OcuTalonTest("CommandsDouble", "memoryRef")) '= "": ^OcuTalonTest("CommandsDouble", "memoryRef"), 1: ..#MEMORYREF)
 	} ElseIf verb = "ForgetMemory" {
 		Set result.Ok = 1
 		Set result.Outcome = "forgotten"

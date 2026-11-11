@@ -1644,6 +1644,43 @@ So that no CI job fails with "address already in use" before a single test runs.
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.25: The web-port guard waits long enough for a stack that is still shutting down
+
+[ADDED 2026-11-11, DW-1099 reopened, Contest Planner ruling (c)] SC-5 re-open of Epic 0 (lane B), after Story 0.24. A CI-tooling story; the scope below is the Contest Planner's ruling of 2026-11-11 (~02:50Z, owner delegation), the flake-fix exception under SCOPE CLOSED. Findings: at 02:21Z, 0.24's guard ran on ocutalon-ci-8 (shards, live:online-allowance): it waited, retried once after 5 s, then printed "FAIL web port: 127.0.0.1:52818 could not be bound after one retry"; dockerd on ci-b logged "failed to bind host port 127.0.0.1:52818" at 02:21:35 and 02:21:44; nothing held 52818 at 02:45Z, and Docker's event history no longer reached back far enough to name the holder. Inference (unproven): the previous unit's IRIS stack on the same runner was still shutting down, and a graceful IRIS shutdown can take well over 25 s, which matches 0.24's guard failing at about 25 s. No `ci/iris.sh`, workflow or release-harness change; the ephemeral-port fix (1) of Story 0.24 stays out of scope. CI log message text is internal (no PUBLIC TEXT gate).
+
+As the owner of the CI pipeline,
+I want the web-port guard to wait out a previous stack that is still releasing the port,
+So that no CI job fails with "FAIL web port" while an earlier unit's stack is only shutting down.
+
+**Acceptance Criteria:**
+
+**Given** `docker/tests/lib-live.sh` (the `dc` guard of Story 0.24: `live_port_guard`, `live_port_wait_free`)
+**When** a guarded start (`dc up`, `dc start`, `dc restart` with a web port) finds its port in use
+**Then** it waits up to 90 s for the port to be free, polling every 3 s (`ss` on Linux; 0.24's macOS equivalent stays for local runs) [AMENDED 2026-11-11, Story 0.25 spec gate, lead ruling: the Linux check reads `ss -tan` and counts a socket on the publish addresses in every state except TIME-WAIT, because the 02:21Z holder was invisible to `ss -ltn`; it read "(`ss -ltn` on Linux; ...)"]
+**And** when the start fails with exactly the bind error ("address already in use" / "failed programming external connectivity"), it retries the start up to twice (each after another wait), and after the second retry prints the same loud `FAIL web port: …` line and returns the failure
+**And** any other failure returns at once, with no retry
+**And** every guarded start that had to wait prints exactly one line `waited N s for port P` (N the seconds waited, P the port), so that the next ledger entry can measure it
+
+**Given** every live script's teardown path (how a unit's `dc down` / cleanup runs: foreground, background or trap)
+**When** a unit ends
+**Then** its teardown runs in the foreground and finishes before the next unit can start; a teardown that ran in the background or was not waited for now waits (a foreground `dc down`, or a wait on its PID)
+
+**Given** `docker/tests/test-lib-live.sh` (stubbed docker, a fast clock or stubbed sleep)
+**When** it runs with `docker/tests/test-boundaries.sh`
+**Then** its rows pin the 90 s bound, the 3 s poll, two retries then the loud FAIL, the `waited N s for port P` line, and no retry on any other error; no existing row is deleted or weakened beyond what the new bounds replace
+
+**Given** a lane-B throwaway
+**When** a port is held about 40 s by a listener, and then held past 90 s
+**Then** the first start waits it out, starts, and logs the wait; the second retries twice and then fails with the loud FAIL line
+**And** DW-1099 is resolved by this story again; DW-1100 and DW-1101 keep their reopen condition (a CI log shows "FAIL web port:")
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1099: infra: a test stack's first start failed in Docker networking (bind error on the web port); reopened after 0.24 (ledger; routed by load 2026-11-11)
+- DW-1100: the port guard's loud failure does not name what holds the port (ledger; routed by load 2026-11-11)
+- DW-1101: test-install-script-live.sh step 5's use of live_port_guard is pinned hermetically only by a grep of the script's text (ledger; routed by load 2026-11-11)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
@@ -10587,3 +10624,47 @@ So that memory that learns can't be fed from outside and really forgets.
 - DW-1015: the learned-save eval case (`eval/memory-learned-save`) covers no real save (an eval turn's owner `eval` is not a session, so `save_memory` is refused); give the case a real session, and score it right only when the save happened AND the reply carries the sentence; until then it stays report-only, labelled wording-only, never a gate (ledger; routed by owner 2026-11-09, Contest Planner ruling under the owner's delegation)
 
 **Release check:** at the first daily release after the re-open, the Contest Planner's hands-on pass with real keys mentions a fact, sees it learned, pins it, and starts a new day's conversation to see it read (REL-7, as amended 2026-10-31).
+
+### Story 41.15: Learned saves are announced by code
+
+[ADDED 2026-11-10, Contest Planner ruling (1.0.6 RC eval: memory-learned-save 0/3), owner's delegation; rulings verbatim in the orchestrator's `prompts/epic-41-rulings-4115.md`; split from Story 41.14's superseded proposal "Code-guaranteed learned-save line"]
+
+*Home lanes, as ruled: A (`Tools/MemoryTools.cls`) and B (`Core/Conversation.cls`, `Data/Turn.cls`, the catalog, the web chat, Notify). Second part. Not a 1.0.7 requirement.*
+
+As a user,
+I want OcuTalon's code to tell me when it learned a fact from my own words,
+So that a learned save is never silent, whatever the model writes.
+
+**Acceptance Criteria:**
+
+**Given** a `save_memory` call in a user turn
+**When** it is stored with `Source` `learned` and answers `saved`
+**Then** `MemoryTools` records `{memoryRef, text}` in the turn's HostData member `learned` (at most 3 entries; HostData carries `memoryRef` and `text` only)
+**And** a told save, a refused save (DW-1016) and a failed save add nothing (AD-21)
+
+**Given** the turn's reply
+**When** `Conversation` keeps it
+**Then** the learned entries are stored on the Turn as the new property `Learned` (JSON, at most 3 entries) beside `Citations` and `Memories`, and the reply text is never changed: the reply guard's and `Conversation`'s rules hold (AD-21, AD-28)
+**And** the trace shows the Turn's `Learned`
+
+**Given** a Turn with `Learned` entries
+**When** the reply is shown on its channel (the web chat, and Telegram or the phone through Notify) in the same turn
+**Then** one line per entry follows the reply, the way the check rows render, from the catalog key `memory.learnedSaved`, which reads verbatim: `I'll remember this: "{fact}". You can tell me to forget it.` (AD-28)
+**And** `{fact}` is the stored text unchanged, except that one trailing full stop is removed and text over 200 characters is cut to 200 with "…"
+**And** the line is plain text on every channel: escaped in the web chat, and sent with no Telegram parse mode
+**And** no line is shown when the reply already says "I'll remember" or "I will remember", matched as the reply guard matches a phrase
+
+**Given** Chat's instructions
+**When** this story ships
+**Then** Chat's learned-save bullet stays as it is (no model-facing change)
+
+**Given** automated tests
+**When** they run
+**Then** they cover: a fact ending in a full stop; a 300-character fact; a fact containing markup, rendered inert on the web and on Telegram; a told save, a refused save and a failed save adding nothing; and the reply-already-says-it case
+**And** a second-session check proves one session's `Learned` never shows in another session's chat or state payload (standing real-HTTP route rule)
+
+**Given** the evaluation case `memory-learned-save`
+**When** it is scored
+**Then** it stays report-only, and it scores right whenever the learned entry and the rendered line are both present
+
+**Spine:** additive lines under AD-21 and AD-28 (accepted veto items).

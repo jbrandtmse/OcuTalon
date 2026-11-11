@@ -4409,6 +4409,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T13:31:15Z status=resolved-by:7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=adjudication note=Snapshot.DiffCategory_excuses_new_and_completing_headers_Ens.ScheduleService->Ens.ScheduleHandler_only(ScheduleWrite);pinned_by_SnapshotDiff.TestScheduleWritesAreNotChanges(5_mutations_red);forced-condition_harness_old_red_20/20,fix_20/20(evidence/7-11/cause.md);callers_green_warm
 - 2026-11-08T13:44:12Z occurrence=OCT-epic32-cf04f99a-attempt2 by=orchestrator note=run 42472273728 attempt 2 TestFewerThanTwentyGood ScheduleService header again; one more rerun under the Planner's (c) deviation; 7.11 fixes it
 - 2026-11-08T22:41:17Z occurrence=OCT-epic41-ef38622e by=orchestrator note=run 42525785483: iris(shards) lane-a@Checks,Install,Watch,Eval Test.Watch.GoodMessages TestFewerThanTwentyGood (Ens.ScheduleService header); head predates 7.11 on feature (integrated onto c25902c3): inherited, fixed by the integrate-forward
+- 2026-11-11T02:45:31Z occurrence=41-15 by=orchestrator note=run 42943118887 job 130269395326 iris(shards-11) lane-a@Fix Test.Fix.DryRun TestFiftyOrdersChangeNothing ('OCUTALON headers 117 changed'); OCT-epic41 94af9e02
+- 2026-11-11T02:47:30Z occurrence=41-15-learned-saves-are-announced-by-code by=runner note=run_42943118887_iris(shards-11)_lane-a@Fix_Test.Fix.DryRun_TestFiftyOrdersChangeNothing(OCUTALON_headers_117_changed);head_94af9e02;41.15_changes_no_Fix_code
 
 ### DW-698: flake: lane-a@rest Tools.RecentActivity and RecentActivityTurn saw a leaked resolved Orders/OrdersFromPartner incident (count 50, approved on web, 50 resent); TestPoisoned hit INVALID OREF in Test.Watch.Case.SortedKeys
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6739,21 +6741,49 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T22:53:15Z occurrence=feature-d35efc22 by=orchestrator note=run 42902128153 job 130130553943 iris(browser) on ocutalon-ci-6 at 22:21Z: live:demo-path and live:online-demo both refused (driver failed programming external connectivity) 6 s apart, no test ran; third occurrence; fix in flight as Story 0.24; rerun of failed jobs
 - 2026-11-10T22:37:05Z status=routed owner=0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=load note=Contest_Planner_ruling_2026-11-10_~22:45Z:_Story_0.24_fixes_the_web-port_collision_(recurred:_lane-a_run_42907226019_runner_6_port_52816_twice)
 - 2026-11-11T00:09:51Z status=resolved-by:0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=adjudication note=docker/tests/lib-live.sh_live_port_guard(dc_up/start/restart:wait<=20s,one_retry_on_the_bind_error,loud_FAIL);hermetic_rows_in_test-lib-live.sh;live_proofs_on_lane-C(real_Docker_bind_error_retried_once;IRIS_stacks_back_to_back)
+- 2026-11-11T02:45:31Z occurrence=41-15-after-0.24 by=orchestrator note=run 42943118887 job 130269395421 iris(shards) live:online-allowance on ocutalon-ci-8: 'FAIL web port: 127.0.0.1:52818 could not be bound after one retry' (0.24's wait+retry ran and still failed); matches the reopen condition of DW-1100/DW-1101 (a CI log shows FAIL web port:); reported to the Contest Planner
+- 2026-11-11T02:47:30Z occurrence=41-15-learned-saves-are-announced-by-code by=runner note=run_42943118887_iris(shards)_live:online-allowance_runner_ci-8:web_port_127.0.0.1:52818_could_not_be_bound_after_one_retry;head_94af9e02_contains_0.24(ea5374ef);recurred_after_the_fix;orchestrator_reports_to_Planner
+- 2026-11-11T04:45:56Z note=host fix: reserved ports, 2026-11-11 ~05:30Z, Contest Planner: net.ipv4.ip_local_reserved_ports = 52800-52819 live on ci-b, ci-c, ci-d and persisted in /etc/sysctl.d/60-ocutalon-ci-ports.conf (the kernel no longer hands the runners' web ports out as ephemeral source ports; ephemeral range unchanged 32768-60999); Story 0.25's wait+retry stays as the second line of defence; a rebuilt runner host needs the same sysctl
+- 2026-11-11T02:51:19Z status=routed owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=load note=reopened:run_42943118887_job_130269395421_iris(shards)_live:online-allowance_ocutalon-ci-8_02:21Z:_0.24_guard_waited,retried_once_after_5s,FAIL_web_port_127.0.0.1:52818;Contest_Planner_ruling_(c)_2026-11-11_~02:50Z:_Story_0.25_(wait_90s/3s_poll,two_retries,waited_N_s_line)
+- 2026-11-11T04:27:01Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=adjudication note=lib-live.sh_live_port_guard:one_90s_budget_polled_every_3s(ss_-tan,every_state_but_TIME-WAIT,publish_addresses),up_to_two_retries_after_10s_pauses_on_the_bind_error,loud_FAIL,one_waited_N_s_for_port_P_line;179_hermetic_rows;lane-B_live_proofs_at_smoke;reopen_if=a_CI_log_shows_FAIL_web_port:
 ### DW-1097: test-readme.sh: no permanent self-test pins that chk_readme_links feeds the header logo (header_images) into its existence check
 - source: _bmad-output/implementation-artifacts/spec-0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: Dropping header_images from chk_readme_links' target stream keeps every rule green while the logo is tracked; only the AC4 untrack mutation shows it; chk_readme_links takes no tree-list argument, so a self-test cannot stub a missing logo; same limit existed with the relative src before 0.23
 - 2026-11-10T20:08:58Z status=wontfix-accepted owner=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute by=harvest note=reopen_if=chk_readme_links gains a tree-list argument, or the header logo goes missing on main without readme-links going red
 - 2026-11-10T20:20:54Z occurrence=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute
 
+### DW-1104: One 'I'll remember' anywhere in the reply suppresses every learned line of the turn, including one about another fact or an unrelated 'I'll remember to ...'
+- source: spec-41-15-learned-saves-are-announced-by-code.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Memory.Learned.Shown returns [] whenever Said(replyText); with 2-3 learned entries a reply naming one fact hides the rest (no test covers that mix)
+- 2026-11-11T01:26:25Z status=by-design owner=41-15-learned-saves-are-announced-by-code by=cr note=AC 5 and the ruling fix a per-turn check (any I'll remember -> no line); per-entry matching needs a spec amendment
+
+### DW-1105: Eval memory rule waives the whole missing key-phrase list when the learned line or Said holds, and never ties Learned to the saved step's memory
+- source: spec-41-15-learned-saves-are-announced-by-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Eval.Report.MemoryRule: announced = 'missing.%Size() || (learned && Announced(reply, turn)); LEARNEDCASES has one case with one keyPhrases group
+- 2026-11-11T01:26:25Z status=wontfix-theoretical owner=41-15-learned-saves-are-announced-by-code by=cr note=real when a LEARNEDCASES case gains a second keyPhrases group (e.g. the fact itself) or a turn saves two memories
+
+### DW-1106: Test/Eval/Report.cls edits MemoryReport/MemoryRight in place (3 '-' lines) where the spec says added lines only
+- source: spec-41-15-learned-saves-are-announced-by-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: git diff c79da26f -- src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls: helper signatures gain learned/fallback args the new tests need
+- 2026-11-11T01:26:25Z status=wontfix-accepted owner=41-15-learned-saves-are-announced-by-code by=cr note=reopen_if=the integrate-forward or a merge reports a conflict in Test/Eval/Report.cls MemoryReport or MemoryRight
+
+### DW-1107: The eval report still lists the 'I'll remember that' key phrase as missing for a memory-learned-save turn scored right by the line or by Said
+- source: spec-41-15-learned-saves-are-announced-by-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: MemoryRule keeps missing from the phrase rule (ruling 4: phrase rule unchanged, one call); the check row shows a missing phrase on a right row
+- 2026-11-11T01:26:25Z status=by-design owner=41-15-learned-saves-are-announced-by-code by=cr note=ruling 4 keeps the phrase rule and its output as they are; changing the report output needs a spec amendment
 ### DW-1100: The port guard's loud failure (FAIL web port / PORT still in use) does not name what holds the port, so a recurrence of DW-1099 gives no more diagnosis than the first
 - source: spec-0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: docker/tests/lib-live.sh live_port_guard: the FAIL line carries only 127.0.0.1:<p> and the bind error line; no docker ps --filter publish or ss/lsof line
 - 2026-11-10T23:52:05Z status=wontfix-accepted owner=0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=cr note=reopen_if=a CI log shows 'FAIL web port: 127.0.0.1:' and the occupant cannot be identified from that job's log
+- 2026-11-11T02:51:20Z status=routed owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=load note=reopened(reopen_if_met:run_42943118887_FAIL_web_port_127.0.0.1:52818,occupant_not_identifiable_from_the_job_log);Story_0.25_inbox
+- 2026-11-11T04:27:01Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=adjudication note=live_port_holders:PORT_holder_lines_after_the_loud_FAIL_and_PORT_still_in_use(docker_ps_-a_--filter_publish_all_projects;ss_-tanp_any_state_or_lsof;10_lines_each;never_fails_the_guard);rows_holders-named,holder-tools-fail,lsof_fallback;reopen_if=a_CI_log_shows_FAIL_web_port:_and_its_PORT_holder_lines_do_not_name_the_occupant
 
 ### DW-1101: test-install-script-live.sh step 5's use of live_port_guard is pinned hermetically only by a grep of the script's text; the executed check is the live install-script-live unit
 - source: spec-0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: docker/tests/test-lib-live.sh greps '^plain_out=$(live_port_guard env ' in test-install-script-live.sh; the step-5-shaped row runs a look-alike command, not the script
 - 2026-11-10T23:52:05Z status=wontfix-accepted owner=0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=cr note=reopen_if=live:install-script-live shows 'address already in use' or 'failed programming external connectivity' at step 5 with no 'PORT retry' line before it
+- 2026-11-11T02:51:20Z status=routed owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=load note=reopen_flagged_by_orchestrator(a_CI_log_shows_FAIL_web_port:);Story_0.25_inbox
+- 2026-11-11T03:07:21Z status=wontfix-accepted owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=spec_gate note=declined_by_the_0.25_plan(hermetic_step_5_needs_the_whole_live_script_stubbed;its_own_reopen_condition_not_met_at_02:21Z;step_5_gets_the_two_retries_through_live_port_guard);reopen_if=live:install-script-live_shows_a_bind_error_at_step_5_with_no_PORT_retry_line_before_it,or_a_CI_log_shows_FAIL_web_port:_at_step_5
 ### DW-1102: The compact header's left group fits one row at 640px with about 15-19px to spare (floor user: mark, badge, Demo view switch, Chat, Documents, Usage); Story 25.2's History link will wrap it and turn live:floor G4/G5 red again
 - source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md code review (rework 3) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 37.2 rework 3 measured the floor-user header sticky at 625px and static at 620px (640x360@2, stub /state); Story 25.2 (epics.md) opens History from the header navigation, a fifth link for the floor user, so its own G4/G5 will be red unless it plans the compact header's room (web/src/app/header/header.ts stacked .side).
@@ -6765,3 +6795,29 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: low | footprint: web/e2e/floor/keyboard.spec.ts
 - evidence: lane-B throwaway e37s2s3 on d282b2b7 2026-11-11 ~00:17Z: 1 failed/106 passed; rerun 107/107; 37.2 does not touch the decision strip or trace link
 - 2026-11-11T00:24:50Z status=routed owner=burndown by=harvest note=flake:keyboard.spec_K2_focus_after_link.focus();one_rerun_green
+
+### DW-1118: post-contest: an approve-then-close partner notice shows 'OcuTalon couldn't read the approved fix', an existing text that fits a partner notice weakly
+- source: Contest Planner ruling on Story 23.5 (DW-1108 side effect), 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 23.5 head 52db267d: IncidentManager.Aside now surfaces the result that arrives after the close; the executor's existing reason text is reused
+- 2026-11-11T05:13:13Z status=routed owner=burndown by=owner note=post-contest (Contest Planner, delegated authority); accepted for now because the text exists; a better fit needs a change in another story's executor
+### DW-1113: test-install-script-live.sh step 5 prints only the last 5 lines of the guard's output, so after a double-retry failure the FAIL web port line can scroll out of view behind the PORT holder lines
+- source: _bmad-output/implementation-artifacts/spec-0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: docker/tests/test-install-script-live.sh:153 tail -n 5 of plain_out; the step still fails on the exit status
+- 2026-11-11T03:57:02Z status=open owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=harvest note=two-way door; for the code review to patch
+- 2026-11-11T04:21:49Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=cr note=step 5 prints every PORT/FAIL web port/waited line then tail -n 5 of the rest; pinned by a test-lib-live.sh row, red observed
+
+### DW-1114: test-boundaries.sh keys rule hit the lead's own cycle-log line (story_created 0.25): a job id followed by a colon and 35 word characters matched the bot-token shape
+- source: _bmad-output/implementation-artifacts/spec-0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: cycle-log-epic-0.md story_created 0.25 note; reworded by the lead before any push
+- 2026-11-11T03:57:02Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=harvest note=lead reworded the line (job id in parentheses); test-boundaries passes
+
+### DW-1115: live_port_listed's ss -tan poll counts FIN-WAIT-1/2, CLOSING and LAST-ACK sockets on the port as busy, though server-side ones inherit SO_REUSEADDR and may not block Docker's bind, so the guard can spend budget on a bindable port
+- source: spec-0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Edge Case Hunter and Acceptance Auditor (inference, not measured): the poll excludes only TIME-WAIT per the lead's spec-gate ruling; harm is delay within the 90 s budget, never a failed start
+- 2026-11-11T04:21:49Z status=by-design owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=cr note=spec-bound (lead ruling); reopen via amendment if a CI log shows PORT waiting while holder lines list only FIN-WAIT/LAST-ACK/CLOSING
+
+### DW-1116: epics.md:1659 (Story 0.25 AC) and epic-0-context.md:40 still say the poll uses ss -ltn on Linux, while the code now runs ss -tan (every state but TIME-WAIT) per the lead's spec-gate ruling
+- source: spec-0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: grep: both planning lines say ss -ltn; lib-live.sh live_port_listed runs ss -tan; the ruling is recorded only in the 0.25 spec's Design Notes
+- 2026-11-11T04:21:49Z status=wontfix-accepted owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=cr note=reopen_if=a later spec or retro cites the ss -ltn wording to change live_port_listed back to listeners only
+- 2026-11-11T04:26:27Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=adjudication note=epics.md_Story_0.25_AC_amended_with_marker(ss,_every_state_but_TIME-WAIT);epic-0-context.md_is_a_regenerated_cache
