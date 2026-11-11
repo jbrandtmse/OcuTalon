@@ -120,6 +120,7 @@ deferred: []
 - [ ] `web/src/app/rail/rail-view.ts` -- contended in-place edit: `RAIL_TEXTS.checkScheduleQueues` = 'A check every minute', and in `checkRow` a row of kind `queues` gets that `detail`.
 - [ ] `web/src/app/guide/more-to-try-view.ts`, `more-to-try.ts` -- item `queueWatch` (texts in Design Notes, `group: 'Incidents and fixes'`) right after `partnerWarning` in the registry; `MORE_TO_TRY_TEXTS.queuePrompt` = 'Watch the queue backlogs.'; action `queueWatch` sends it like `partnerWarning` (aria-disabled while blocked); the header comment says fifteen. `src/ocutalon/cls/OcuTalon/Demo/Features.cls` -- `queueWatch` always, right after `partnerWarning`, with its doc line.
 - [ ] `README.md` -- line 40 "fourteen" → "fifteen"; append the Design Notes bullet LAST in `### New since 1.0.0`. `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- after the Planner's ruling only: line 245 "fourteen" → "fifteen", and the item bullet under "Incidents and fixes" with `[ADDED <date>, Story 23.7, Contest Planner ruling]`.
+- [ ] `src/ocutalon/cls/OcuTalon/Checks/Queues.cls` -- the flapping cooldown in `Crossings` exactly as Design Notes "Applying the rulings" describes (`told` per namespace and item, 3600 s, held-back queues stay out of `above`, old `told` entries dropped); `Over` is unchanged. [ADDED 2026-11-11, Story 23.7, Contest Planner ruling]
 - [ ] Tests (update every pin named under Shared surfaces first, then add):
   - `Test/Checks/Queues.cls` (new; the pure `Over`/`Crossings` matrix, the admin threshold via `Data.Setting.Set` and restore, and run cases through `QueueProbe` for every matrix row from "First run" to "Online demo" except Online demo, plus `TestQueueFindingRenders`);
   - `Test/Checks/QueueProbe.cls` (new; extends `Test.Checks.Probe`, `QUEUEKIND` zzqueues, `QueueDue` keeps `Only`, seams from `^||ChecksProbe("entries"|"queues", ...)`);
@@ -147,14 +148,33 @@ deferred: []
 - AC9: Given a `check` payload of kind queues, when the rail renders it, then its row reads "Queue-backlog check" with the schedule "A check every minute", its last run and result, and the trace link. (`web/scripts/rail-view.test.mjs`.)
 - AC10: Given the demo guide's More to try panel, when the visitor presses "Ask to watch queues", then "Watch the queue backlogs." is sent once as the user's own message, and the rail's Background checks gains the "Queue-backlog check" row with "A check every minute". Nothing is sent while a turn is in flight. (K29, `web/e2e/guide/more-to-try-queues.spec.ts`, CI, with `ci/mock/scenarios/B/queue-watch-ask.json`.)
 - AC11: Given the More to try registry, when the count pins run, then README line 40, EXPERIENCE.md's count and the `more-to-try-view.ts` header comment equal the registry's item count (15). The README's New since 1.0.0 ends with the queue-backlog bullet. (`web/scripts/more-to-try-view.test.mjs`, registry-driven.)
+- AC12 (Contest Planner ruling, flapping): Given a queue reported above at time T, when it drops below and backs up again at T+10 min, then no Item is sent and the queue stays out of `above`; when a run at T+61 min finds it still above, exactly one Item is sent; and when it flaps again within the next hour, nothing more is sent. A different queue in the same namespace is not held back by the first one's cooldown. (`Test.Checks.Queues`, pure `Crossings` cases with `nowSeconds`, and one run case through `QueueProbe`.) [ADDED 2026-11-11, Story 23.7, Contest Planner ruling]
 
 ## Spec Change Log
 
+- 2026-11-11 (spec gate, lead): Contest Planner rulings and the orchestrator's U7 ruling recorded verbatim under Design Notes. PUBLIC TEXT a-h and veto items 1-6 approved/accepted; design 7 confirmed; ADDED CONDITION: a per-queue once-an-hour reporting cooldown (task, AC12, mutation added; it extends the intent's crossing-memory line and its "Falls below, rises again" row). AD-18 bullet and Conventions clause written to the spine with `[ADDED 2026-11-11, Story 23.7]`. Contended plain unions approved; no overlap with Epics 21/22 at re-check.
 - 2026-11-11 (plan): Scope reopen of Epic 23 (the owner, 2026-11-11, via the Contest Planner). Story 23.7 is planned after 23.6, 23.2 and 23.5 merged. It reuses `Watch.Reader`'s queue read and `Checks.Coverage`'s thresholds, and it proposes the AD-18 row-type text below for the lead to raise.
 
 ## Review Triage Log
 
 ## Design Notes
+
+**Spec-gate rulings [ADDED 2026-11-11, Story 23.7, Contest Planner ruling + orchestrator U7 ruling] (verbatim):**
+
+> # Rulings, Story 23.7 spec gate (2026-11-11 ~12:30Z; Contest Planner under the owner's delegation, plus the orchestrator's U7 rulings; verbatim terms)
+> PUBLIC TEXT: a to h APPROVED verbatim, including More to try item 15 in "Incidents and fixes", the README bullet with the count fifteen, and the three refusal lines.
+> VETO ITEMS: 1 to 6 ACCEPTED as specced. The test-only Read grant is for throwaways only, guarded and removed, and never on the product or the demo.
+> 7. DESIGN: CONFIRMED. A queue already over its threshold when the watch starts is reported once.
+> ADDED CONDITION (flapping): a queue that drops below its threshold and backs up again re-reports at most once per hour: a per-queue cooldown in Checks.Queues.Over's reporting, with a test, so a queue hovering at its threshold can't spend model decisions every few minutes (the demo's daily cost cap too). No new text.
+> ONLINE DEMO: ON and read-only as specced: Orders only, per visitor session, cleared by the reset, every decision inside the existing allowance and cost cap.
+> ORCHESTRATOR (U7): the AD-18 amendment (bullet "Queue backlog, the row type (Story 23.7)" after the Story 35.1 source-poll bullet + one clause in the Consistency Conventions Background checks row) APPROVED as an extension, marker [ADDED 2026-11-11, Story 23.7]; the contended paths APPROVED as plain unions (Epic 22: Checks/Process.cls, Checks/Coverage.cls; rail-view.ts, guide/more-to-try.spec.ts, README) with a diff re-check of origin/OCT-epic22 and OCT-epic21 before implement; any overlapping hunk is a Clarification.
+
+**Applying the rulings (lead, 2026-11-11):**
+- Every PUBLIC TEXT string listed below is approved verbatim; implement writes them exactly as listed (README count fifteen, More to try item 15 under "Incidents and fixes", EXPERIENCE.md lines now allowed with the marker `[ADDED 2026-11-11, Story 23.7, Contest Planner ruling]`).
+- Veto items 1-6 accepted as specced; Decided in-stage 2 (no first-run baseline) confirmed.
+- The AD-18 bullet and the Consistency Conventions clause are written into the spine by the lead (marker `[ADDED 2026-11-11, Story 23.7]`), with one added sentence for the cooldown below. Stages never write the spine.
+- The contended in-place edits listed under Contended touches are approved as plain unions; the lead re-checked `origin/OCT-epic22` and `origin/OCT-epic21` (and their worktrees) before implement: no overlap.
+- **Flapping cooldown (ADDED CONDITION) - this extends the intent's crossing-memory line and its "Falls below, rises again" row:** a queue is reported at most once an hour. `Reported` gains `"told": {"<namespace>": {"<item>": "<UTC YYYY-MM-DDThh:mm:ssZ of its last report>"}}`. In `Checks.Queues.Crossings`, a queue that is above now and not in its namespace's previous `above` is reported only when it has no `told` time or that time is 3600 s or more before `nowSeconds`; then it enters `above` and `told` takes the run time. When the cooldown holds it back, it is NOT added to `above` (so if it is still above at the first run after the hour, it is reported then, and a stuck queue is never silenced for good). `told` entries older than an hour are dropped from the new JSON. The cooldown lives in the Queues reporting rule (`Crossings`), never in `Over`'s threshold test, so the digest's live read (`Coverage.Live`) is unchanged by it. No new text.
 
 **Architecture decisions:**
 - AD-1: commands through `CommandsIn`; tool origin `tool`, "start or stop a watch" already listed.
@@ -314,6 +334,7 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC9: no `detail` for queues → `rail-view.test.mjs`.
 - AC10: the item sends nothing → K29 (CI).
 - AC11: README says fourteen → `more-to-try-view.test.mjs`.
+- AC12: `Crossings` ignores `told` (no cooldown) → `Test.Checks.Queues`.
 
 ## Auto Run Result
 
