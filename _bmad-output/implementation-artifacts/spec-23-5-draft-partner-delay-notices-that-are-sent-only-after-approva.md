@@ -2,11 +2,11 @@
 title: 'Story 23.5: Draft partner delay notices that are sent only after approval'
 type: 'feature'
 created: '2026-11-09'
-status: 'in-progress'
-baseline_revision: '10f53487e894b7bc8e5f01489ee28aa8dc336f4f'
+status: 'done'
+baseline_revision: '4e7cb8e7c695f5f8b6c71452ff057f57f95599a2'
 baseline_commit: '10f53487e894b7bc8e5f01489ee28aa8dc336f4f'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md'
@@ -246,7 +246,9 @@ Rejected or closed (appendix):
 - Task 0 was measured after a warm-up case (gap): low; the comment is corrected above.
 
 **Smoke rework (iteration 1):**
-- [ ] [Smoke] `Test.Channel.TelegramChat:TestNotices` fails on a warm stack: "there are 28 Watch notice keys" and "there are 34 of them". This story added `incident.partnerRequest` and `result.partner*` keys to `Msg/Catalog/Watch.cls`, and the test pins the count of the catalog's `incident.`/`result.` keys and the Telegram Delivery rows (Rule 19 shared surface, missed by implement, QA and review). Update the pins to what the catalog now holds, with each new key sending as the others do (the request key counts as an `approval` row, as 23.2's three request keys do); run the class on a stack and write its mutation line. No product change.
+- [x] [Smoke] `Test.Channel.TelegramChat:TestNotices` fails on a warm stack: "there are 28 Watch notice keys" and "there are 34 of them". This story added `incident.partnerRequest` and `result.partner*` keys to `Msg/Catalog/Watch.cls`, and the test pins the count of the catalog's `incident.`/`result.` keys and the Telegram Delivery rows (Rule 19 shared surface, missed by implement, QA and review). Update the pins to what the catalog now holds, with each new key sending as the others do (the request key counts as an `approval` row, as 23.2's three request keys do); run the class on a stack and write its mutation line. No product change.
+  - Done (warm tag `e23s5rw`): the pins are now 34 Watch notice keys, 40 Delivery rows, 41 notifications handled by TelegramOut (40 and the answered one) and 40 web rows; `incident.partnerRequest` joins the `approval` rows and the five `result.partner*` keys send as `result` rows. `Test.Channel.TelegramChat` passed (all of it, 39 s).
+  - mutation: the notice filter leaves `result.partnerKept` out -> `Test.Channel.TelegramChat:TestNotices` red ("there are 34 Watch notice keys", "there are 40 of them", "TelegramOut has handled all 40 notifications"); reverted byte-identical (`cmp` and `git diff` hash), the class green again on the same stack.
 
 ## Spec Change Log
 
@@ -304,6 +306,18 @@ Rejected or closed (appendix):
   - `[low]` `[reject]` (intent 4) new persistent message classes - the spec's veto list names Fix.Msg.PartnerNotice and Watch.Msg.Draft; no table or column is new
   - `[low]` `[reject]` (intent 5) EXPERIENCE.md numbers rewritten - the ruling of the More to try groups requires it
   - `[low]` `[reject]` (intent 6) no single browser test runs ask, card and mailbox - PartnerTurns (production) and A13 (card over HTTP) pin the halves; Decided 20
+
+### 2026-11-10 - Review pass (rework iteration 1, smoke)
+- verdicts: 8 findings - high 0, medium 0, low 6, false 2, maybe-false 0 (routes: 0 patch, 0 defer, 8 reject)
+- findings:
+  - `[low]` `[reject]` (blind 1) the pins are hand-kept literals that break again when the catalog grows - they are the deliberate pins the item asks to update (deriving them from the key list would make the count assertion tautological); fix is more than a direct correction
+  - `[low]` `[reject]` (blind 2) the test's own `approval` list means it cannot see the product's classification of `incident.partnerRequest` - true, the implementer saw the mutation stay green and did not record it as a pin; the same holds for the other seven request keys and the product kind is pinned at `Test/Fix/PartnerDraft.cls:180`
+  - `[false]` `[reject]` (blind 3) no sweep for other tests pinning the Watch catalog counts - the verification-gap layer searched `src/ocutalon/cls/OcuTalon/Test` and found no other pin of the old 28 or 34; `Test.Msg.Catalog` already holds fixtures for all six keys
+  - `[false]` `[reject]` (blind 4) `review_loop_iteration` and `followup_review_recommended` unchanged around the rework - the counter counts bad_spec loopbacks (none here) and the recommendation is recomputed at finalize
+  - `[low]` `[reject]` (gap 1) the `approval` clause for `incident.partnerRequest` cannot fail in `TestNotices` - same claim and same evidence as blind 2: pinned in `PartnerDraft.cls:180`, no named harm
+  - `[low]` `[reject]` (gap 2) the mutation edits the test's own filter, not the product - it shows the count pins go red; a product-side removal of a key would also move 34 to 33 (the layer checked the count), so the pin reacts to the product as well
+  - `[low]` `[reject]` (gap other) the literals 34, 40, 41, 40 are hand-maintained - same as blind 1
+  - `[low]` `[reject]` (intent 1) the kind list is hand-coded in the test, not derived from the product - same as blind 2
 
 ## Design Notes
 
@@ -582,3 +596,15 @@ Review: 41 findings from four layers. Patched: 7 (2 medium: the draft completion
 Verification: node tests 1830 pass; lint; `test-boundaries`, `test-readme`, `test-ci-config`, `test-mock`, `test-class-rules` pass. The spec's warm loop (Fix.PartnerWarning, PartnerDraft, Kind, Refused, Watch.Summary, Core.Allowance, Demo.Features, Guide, SimMailboxOut, Msg.Catalog, Install.SecurityOverview, Live.Payloads, TelegramIn, Agent.Constants, Watch.Tools, Core.WebChatOut, Eval.Report, Fix.Asked, Executor, Watch.Incidents, Notices, Transitions) passed on `e23s5iw`; `Test.Fix.PartnerTurns` and `Test.Demo.SimMailboxIn` passed fresh on `e23s5i`. Browser: `live:cards` (A13) and `live:sign-in-3 --part 1/2` (K9c) passed in the implement pass. The `partnerNotDrafted` web card was estimated at 0.75 h and built.
 
 Residual risks: the two deferred items above; the review-pass tests (`TestDraftCompletionRouting`, `TestPartnerRequestIsCounted`) and the probe seams were not re-reviewed (follow-up review recommended: two medium patches on a first pass). The browser units for AC14/AC15 and `ci/checks.sh` are left to CI.
+
+### Rework iteration 1 (smoke)
+
+Summary: `Test.Channel.TelegramChat:TestNotices` pinned the Watch notice keys at 28 and the Delivery rows at 34. The catalog now holds 34 `incident.`/`result.` keys (this story added `incident.partnerRequest` and the five `result.partner*` keys), so the pins are now 34 keys, 40 Delivery rows, 41 notifications handled by TelegramOut (the 40 and the answered one) and 40 web rows; `incident.partnerRequest` joins the `approval` rows. No product change.
+
+Files changed: `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls` (the pins and the `approval` list); this spec (item ticked, mutation line, triage entry).
+
+Review: 8 findings from four layers (one returned none). Patched 0, deferred 0, rejected 8 (6 low, 2 false), each with its reason in the triage log. Follow-up review recommended: false (no `high` patched on this follow-up pass).
+
+Verification: `Test.Channel.TelegramChat` passed in full on warm stack `e23s5rw` (slot D), and again after the mutation was reverted; `test-boundaries` and `test-class-rules` pass. mutation: see the Smoke item.
+
+Residual risks: `TestNotices` classifies the request keys itself, so the `approval` kind of `incident.partnerRequest` is pinned by `Test.Fix.PartnerDraft` and not by this class (as for the other request keys).
