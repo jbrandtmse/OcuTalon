@@ -153,3 +153,14 @@
 2026-11-11T07:23:15Z	Story 23.5	ci_resolved	story=23.5 sha=81b1ba8a runs=42970585049(success),42970585121(success) result=success resolved_at=part_merge
 2026-11-11T07:23:15Z	Epic 23	part_merge	story=23.5 head=81b1ba8a feature=51a53f69 by=orchestrator note=green_by_identity
 2026-11-11T07:23:15Z	Epic 23	epic_runner_complete	part_merge=23.6,23.2,23.5 epic_status=in-progress parked=23.3,23.4,23.7,23.8,23.9(closed_scope) lane=D_idle
+2026-11-11T10:53:42Z	Epic 23	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_23_7_23_9 lane=D slot=ocutalon-slot-d port=52804
+2026-11-11T10:53:42Z	Epic 23	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-11T10:53:42Z	Epic 23	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-11T10:53:42Z	Epic 23	launch_env	depth=4 watchdog=default bash_max_ms=default note=harness_backgrounds_bash_at_~170s(switch-20261109-common)
+2026-11-11T10:53:42Z	Epic 23	epic_branch_checked_out	repos=. head=b79350d1 origin=b79350d1 tree=clean ci=gh workflows=ci,lane-a bootstrap_check=pass scope=reopen(23.7,23.9;23.3,23.4,23.8_wait_epic-36) policy_hash_ok=true doctrine_hash_ok=true HOLD=absent hold_at=none
+2026-11-11T10:53:42Z	Epic 23	integrated_forward	feature=5ed39411 head=a9819d7a conflicts_resolved=none note=reopen_start(1.0.7_cut_base)
+2026-11-11T10:53:42Z	Epic 23	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-11T10:53:42Z	Epic 23	ledger_load	total=1117 open=0 routed=124 escalated=2 decision_pending=6 terminal=985 owner_unknown=0 reowned_none=0 owned_23-7=0 owned_23-9=1(DW-1068)
+2026-11-11T10:53:42Z	Epic 23	retro_review_skipped	reason=skipped(policy):recorded_already(2026-11-09T17:07:41Z;gates.retrospective=skip;no_new_retro;DW-1068_already_routed_to_23-9)
+2026-11-11T10:53:42Z	Epic 23	amendment	file=_bmad-output/planning-artifacts/epics.md story=23.9 what=un-parked_marker(AMENDED_2026-11-11,scope_reopened) tier=1
+2026-11-11T10:54:11Z	Epic 23	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true scope=reopen(23.7,23.9) warnings=23.7_overlaps_delivered_Checks.Coverage+Watch.Reader_queue_reads(judge_at_spec),23.9_option_a_vs_b_to_Planner_at_spec,23.3/23.4/23.8_wait_epic-36

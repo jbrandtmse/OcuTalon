@@ -7802,7 +7802,7 @@ So that I can watch a data condition without giving OcuTalon any way to change d
 
 ### Story 23.9: Resume a suspended item after its incident closes
 
-[ADDED 2026-11-10, Contest Planner ruling (DW-1068 re-ruling), PARKED until after voting; not for 1.0.6 or 1.0.7] Split from Story 23.2, whose `result.itemSuspended` text limits the undo to while the incident is open and points to the Management Portal after it closes.
+[ADDED 2026-11-10, Contest Planner ruling (DW-1068 re-ruling), PARKED until after voting; not for 1.0.6 or 1.0.7] [AMENDED 2026-11-11, un-parked: scope reopened by the owner via the Contest Planner - see the story change log] Split from Story 23.2, whose `result.itemSuspended` text limits the undo to while the incident is open and points to the Management Portal after it closes.
 
 As a production developer,
 I want to undo a suspend OcuTalon made even after its incident has closed,
