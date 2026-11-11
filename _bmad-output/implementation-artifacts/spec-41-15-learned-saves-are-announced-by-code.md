@@ -2,7 +2,7 @@
 title: "Story 41.15: Learned saves are announced by code"
 type: 'feature'
 created: '2026-11-10'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'c79da26fcbaf0852ec765aebf37c9970e5da1da9'
 baseline_commit: 'c79da26fcbaf0852ec765aebf37c9970e5da1da9'
 review_loop_iteration: 0
@@ -412,6 +412,7 @@ Rejected:
 - low: `TestLearnedReadFailed` sees the warning under the helper's class name; `TestStateLearned` cleans outside try/finally; `TestLearnedEntry` needs the production restart (verification-gap, 3 rows) — the test pins the warning's text and count; the class convention; the order is in `## Verification`.
 - false: the eval change is more than one call (auditor) — the entry-and-line rule is Task 12's own; ruling 4's addition is the one `Said` call.
 - false: QA files are uncommitted; the integrate-forward is pending (auditor, 2 rows) — the lead commits after the smoke gate; the Spec Change Log already carries the integrate-forward.
+- [ ] [CI] iris (shards-2) shard:lane-a@rest and iris (shards-4) live:memory-offline, run 42943118887 (https://github.com/jbrandtmse/OcuTalon/actions/runs/42943118887): `OcuTalon.Test.Memory.Turns:TestSaveRecallListThroughTheAgent` fails "the reply is not tainted and carries no HostData" (`Test/Memory/Turns.cls:253`). Cause: this test sends the turn straight to the Chat agent job, so no `Data.Turn` exists and `Memory.Ops.Source` reads the save as `learned` (41.8's rule, unchanged), and this story then correctly records it in HostData `learned`. Fix (lead decision, decide-level; the reply guard, taint and 41.8's source rule do not change): update the pin, not the data. Assert `answer.Tainted` = 0 and that `answer.HostData` is exactly `{"learned":[{"memoryRef":<the saved Ref>,"text":<the saved text>}]}` (no `memories` member), with a one-line comment saying why the save is learned on this path; update the class doc line for this method (`Turns.cls:7`) to say so. Keep every other assertion. Add `Test.Memory.Turns` (the HostData pins of its save and list turns) to the spec's `Shared surfaces:` line under `## Verification`, and a `mutation:` line for the new pin (e.g. `Announce` skips the `Remember` call -> `Memory.Turns:TestSaveRecallListThroughTheAgent` red). Run `OcuTalon.Test.Memory.Turns` (it needs the CI mock reachable: run it on the lane-A warm stack after `ci/mock/scenarios/A/memory-learned-line.json` is in place) and every other `OcuTalon.Test.Memory.*` class, one per call.
 
 ## Spec Change Log
 
@@ -423,6 +424,7 @@ Rejected:
   Lead note (2026-11-11, decide): feature moved to 9f7db82c (Story 23.2 merged; it changed `Agent/Chat.cls`, `Msg/Catalog/Core.cls`, `Live/Payload/**`). This story is implemented on the current base and the lead integrates 9f7db82c (once green) before the push. AC 8's intent is "this story changes nothing in `Agent/Chat.cls` or any tool description": before the integrate-forward, `git diff 0eb14ea2 -- src/ocutalon/cls/OcuTalon/Agent/Chat.cls` is empty; after it, the check is `git diff <the merged feature head> HEAD -- src/ocutalon/cls/OcuTalon/Agent/Chat.cls` empty. Count lines and catalog entries that 23.2 also changed are summed at the integrate-forward (plain union).
   Applied: items 1-3 match the plan as written (Design Notes spec-gate items 1 and 3, "The phone", the 200-character cut). Item 4 amends the Eval bullet in Boundaries, Task 12's `Eval/Report.cls` rule, the `Test/Eval/Report.cls` task (`TestLearnedSaveBySaid`), AC 9, Design Notes "The eval rule", and the AC 9 mutation, each marked [AMENDED 2026-11-11, Contest Planner spec-gate ruling 4, owner's delegation].
 - 2026-11-11 (lead, after the implement pass; decide): the implement pass's finalize write of `## Review Triage Log` replaced the rest of the spec: `## Design Notes`, `## Verification` (with its Mutations list) and the `## Auto Run Result` heading were lost, and the triage log kept 6 of its 25 rows. The lead restored `## Design Notes` and `## Verification` byte for byte from the pre-implement spec (c79da26f, which carries the spec-gate rulings), re-added the `## Auto Run Result` heading and its `Blocking condition: none` line, and kept the pass's own result text. The implement pass reported all nine AC mutations observed red and reverted (AC 8 held by the empty Chat.cls diff and `TestInstructions`); QA re-demonstrates one mutation per AC and records each `mutation:` line under `## Verification`.
+- 2026-11-11 (lead, CI rework iteration 1; trigger=ci): run 42943118887 red. Story reds: `Test.Memory.Turns:TestSaveRecallListThroughTheAgent` in shards-2 (lane-a@rest) and shards-4 (live:memory-offline), one root cause, see the `[CI]` item. Not this story's: DW-675 flake (shards-11, occurrence appended), DW-1099 infra (shards, occurrence appended). The planned `Shared surfaces:` line missed `Test.Memory.Turns`.
 
 ## Review Triage Log
 
