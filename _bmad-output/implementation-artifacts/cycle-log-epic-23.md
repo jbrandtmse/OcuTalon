@@ -199,3 +199,4 @@
 2026-11-11T14:18:06Z	Story 23.7	committed	sha=96bc4b28 fix_for=23-7-watch-queue-backlogs-between-digests rework=1 submodules= ci=pending runs=43037078949,43037078655 amendments=none_new footprint_extensions=none_new
 2026-11-11T14:18:28Z	Epic 23	amendment	file=_bmad-output/planning-artifacts/epics.md story=23.10 what=story_inserted(ADDED_2026-11-11_Contest_Planner_ruling_from_the_1.0.7_demo_pass) tier=1 by=orchestrator_instruction graph=orchestrator_adds
 2026-11-11T14:21:25Z	Epic 23	epic_context_compiled	spawn_at=2026-11-11T14:19:00Z reason=planning_artifact_newer(23.10_inserted,AD-18_spine) model=opus effort=high words=2176 gaps=README/EXPERIENCE_name_no_recipient,Results_Partner_IT_also_SimMailbox.In_sender(leave),summary.fix_double_stop_risk,rail_after_Reject_cause_unfound
+2026-11-11T14:21:32Z	Story 23.10	stage_spawned	stage=plan spawn_at=2026-11-11T14:21:32Z model=opus effort=high agent_name=23-10-partner-notice-polish-plan-1 cycle_iteration=1
