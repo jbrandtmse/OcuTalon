@@ -6912,15 +6912,6 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 1.0.7 RC eval, 3 real-model attempts: the model refused to save runbook text, cited 'Results runbook / Clearing the queue' and quoted it, but said 'runbook', failing only the phrase check
 - 2026-11-11T11:02:31Z status=routed owner=burndown by=owner note=ruled by the Contest Planner: widen eval/memory-documents-remember's phrase check to document|runbook|file; report-only; Epic 41's eval files; next free lane, ~30 min, after RELEASE DONE
 
-### DW-1143: K29 under sign-in-3 (no model, no CI mock) seeds the queue row instead of running press->turn->start_watch->row end to end
-- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story(web/e2e/guide/more-to-try-queues.spec.ts)
-- evidence: sign-in-3 has no CI mock; K29 pins press->one prompt (mutation red); Test.Watch.Turns:TestQueuesThroughTheAgent pins prompt->start_watch(kind queues)->row->check event; rail-view.test.mjs and K29 pin the row render
-- 2026-11-11T14:03:12Z status=by-design owner=23-7-watch-queue-backlogs-between-digests by=harvest note=ruling(decide,tier1): AC10's chain is pinned link by link across K29, Test.Watch.Turns and rail-view.test.mjs; recorded in spec Design Notes; reopen only if a browser unit with the CI mock gains a guide case
-
-### DW-1144: ci/mock/scenarios/B/queue-watch-ask.json has no consumer after the K29 rework (K29 no longer runs a chat turn)
-- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: low | fix-risk: low | footprint: in-story(ci/mock/scenarios/B)
-- evidence: K29 answers the POST itself under sign-in-3; test-mock.sh passes with the file present
-- 2026-11-11T14:03:12Z status=wontfix-accepted owner=23-7-watch-queue-backlogs-between-digests by=harvest note=reopen_if=a mock-scenario consumer check flags it or a CI-mock browser unit gains a guide case (then K29 moves there and uses it)
 ### DW-1133: A classified MCP tool that its server stops listing loses its ToolClassification row at the next attach with no Tool audit entry and no admin notice
 - source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Mcp/Ops.cls SyncTools deletes rows of tools no longer listed or refused (spec matrix, Attach report row); ClearRow audits only a changed fingerprint
@@ -6950,3 +6941,22 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: rail lists pendingApprovals(store) (web/src/app/rail/rail-view.ts:340); store approvals change only via approval events (live/live-store.ts:188-189); the press reply updates only the card's AnswerPress.local (approvals/answer-press.ts replied); event published async by Core.BridgeSink.Approved, read by the next poll (live-state.ts:19 POLL_DELAY_MS 1000)
 - 2026-11-11T20:10:49Z status=routed owner=burndown by=owner note=Contest Planner ruling 2026-11-11T20:09:53Z (owner delegation; reverses orchestrator veto U-318): judge-visible (Reject a fix is a featured More to try step). Follow-up story in approvals/phone/rail, dispatched by the orchestrator AFTER 21.2 merges, on any free lane, after 0.26 and DW-1123. Acceptance: a browser test presses Reject and the request is gone from the rail within 5 s, on the web and on the phone view. Ships in 1.0.8 only if merged before the cut, else 1.0.9. Not a 23.10 rework.
+### DW-1157: flake: lane-a@rest Test.Checks.BeatOutcomes TestAct 'the person's row is made' failed with ERROR #5808 Key not unique OcuTalon.Data.HeartbeatBeat:SessionRefIndex (a leftover beat row for the test session)
+- source: OCT-epic23 96bc4b28 (Story 23.7 CI rework), ci run 43037078949 job 130578626759 on ocutalon-ci-20 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the same 23.7 code (Checks/Process.cls Tick) passed shards-2 on f78e6236 (run 43026811791); f78e6236..96bc4b28 changes only web tests and K29
+- 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): likely test isolation (a beat row left by an earlier method or class for the same session); one rerun per occurrence; rerun deferred: the owner's quota HOLD forbids CI reruns until RESUME
+- 2026-11-11T20:06:36Z status=routed owner=burndown by=owner note=Contest Planner ruling (owner delegation) 2026-11-11T20Z: if it recurs anywhere it is a test-isolation bug; fix it (clear or unique-ify HeartbeatBeat rows in the test setup), never rerun again
+
+### DW-1158: flake: live:sign-in-2 e2e/live/live.spec.ts:86 L1 '/state is requested once, and polls come every 1 to 2 seconds' failed at 'the interval before poll 1' (timing)
+- source: OCT-epic23 96bc4b28, ci run 43037078949 job 130578626990 on ocutalon-ci-16 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: timing assert on the poll interval under CI load; 23.7 changes no live/poll code
+- 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); one rerun per occurrence; rerun deferred until RESUME (HOLD)
+### DW-1143: K29 under sign-in-3 (no model, no CI mock) seeds the queue row instead of running press->turn->start_watch->row end to end
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story(web/e2e/guide/more-to-try-queues.spec.ts)
+- evidence: sign-in-3 has no CI mock; K29 pins press->one prompt (mutation red); Test.Watch.Turns:TestQueuesThroughTheAgent pins prompt->start_watch(kind queues)->row->check event; rail-view.test.mjs and K29 pin the row render
+- 2026-11-11T14:03:12Z status=by-design owner=23-7-watch-queue-backlogs-between-digests by=harvest note=ruling(decide,tier1): AC10's chain is pinned link by link across K29, Test.Watch.Turns and rail-view.test.mjs; recorded in spec Design Notes; reopen only if a browser unit with the CI mock gains a guide case
+
+### DW-1144: ci/mock/scenarios/B/queue-watch-ask.json has no consumer after the K29 rework (K29 no longer runs a chat turn)
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: low | fix-risk: low | footprint: in-story(ci/mock/scenarios/B)
+- evidence: K29 answers the POST itself under sign-in-3; test-mock.sh passes with the file present
+- 2026-11-11T14:03:12Z status=wontfix-accepted owner=23-7-watch-queue-backlogs-between-digests by=harvest note=reopen_if=a mock-scenario consumer check flags it or a CI-mock browser unit gains a guide case (then K29 moves there and uses it)
