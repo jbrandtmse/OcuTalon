@@ -3481,3 +3481,7 @@
 - 2026-11-11T14:28Z orchestrator runner_parked lane=A epic=22 at story boundary (22.2 done, before 22.8 implement) last_pushed=6a6542b8 (records; CI cancelled 43038742725,43038742705); 22.2 CI 74798cbe in progress
 - 2026-11-11T14:32Z orchestrator runner_parked lane=D epic=23 at 23.10 plan boundary (spec ready-for-dev, gate pending); 23.7 code head 96bc4b28 CI running (43037078949, 43037078655); bookkeeping pushed by orchestrator e85f53bf (CI cancelled)
 - 2026-11-11T14:37Z orchestrator planner_message item=queue Story 0.26 (README video + interop-first + measured comparison), first on next free lane after RESUME, merged before 1.0.8; Ideas Portal field dropped (bonus credited) ref=prompts/story-026-readme-video-comparison.md
+- 2026-11-11T14:52Z orchestrator ci_green_verified branch=OCT-epic22 head=74798cbe runs=43034610404,43034610425 missing=none story=22.2
+- 2026-11-11T14:52Z orchestrator merge_gate epic=22 part=22.2 head=6a6542b8 (code = 74798cbe; 0ca20684 ancestor) conflicts=none code_identical_to_epic_head=yes spine_lint=baseline tracker=valid; graph story entries 22.8/22.9/22.10 added; DW-1038 resolved by 22.2
+- 2026-11-11T14:52Z orchestrator epic_merged_to_feature epic=22 part=22.2 note=merged during the HOLD (no runner needed); green by identity; feature CI cancelled as record-only
+- 2026-11-11T14:52Z orchestrator deps_hash_rerecorded reason=split note=22.2 split into 22.2/22.8/22.9 + 22.10 filed
