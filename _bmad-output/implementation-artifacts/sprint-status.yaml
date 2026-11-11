@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-11-2026 20:10
+last_updated: 11-11-2026 20:51
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -337,8 +337,7 @@ development_status:
   23-7-watch-queue-backlogs-between-digests: done
   23-8-watch-a-saved-sql-query-as-a-read-only-sql-user: backlog
   23-9-resume-a-suspended-item-after-its-incident-closes: backlog
-  23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass: 
-    ready-for-dev
+  23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass: in-progress
   epic-23-retrospective: optional
 
   epic-24: backlog

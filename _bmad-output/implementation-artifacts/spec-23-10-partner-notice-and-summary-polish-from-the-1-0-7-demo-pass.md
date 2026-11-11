@@ -206,7 +206,9 @@ No AC contradicts an AD Rule. No NFR is touched.
 - `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerTurns.cls` (Epic 22): other. `ADDRESS` (22), the subject literal (83), `Asked`'s signature (181) and its call (189), `ResolvedIncident`'s signature and cause literal (216, 219), one header bullet. Appended block: the new test method at the end of the class.
 - `ci/mock/scenarios/A/partner-notice-resolved.json` (Epics 21, 22): new file.
 
-Not contended: `Fix/PartnerContacts.cls`, `Fix/Kind/PartnerWarning.cls`, `Test/Msg/Catalog.cls`, `Test/Watch/Summary.cls`.
+- `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` (Epic 35, found at the pre-implement re-check; the spec gate's first overlap check was invalid): `origin/OCT-epic35` adds three `settings.webhook*` keys and fixtures and moves the Core count to 143 and the fixture total to 222. 23.10 touches only the `summary.fix` / `summary.evidence` fixture texts and appends `TestSummaryFixFullStop`; it adds no key and changes no count. Separate hunks, both sides kept at integrate (orchestrator gate ruling 1). Edit nothing else in this file.
+
+Not contended: `Fix/PartnerContacts.cls`, `Fix/Kind/PartnerWarning.cls`, `Test/Watch/Summary.cls`.
 
 **Public text and veto items:** Public text is only the ruled strings: the contact name and address, and the Fix and Evidence full stops (Evidence pre-approved by the Contest Planner, 2026-11-11T20:09:53Z). Model-facing text is the ruled sentence plus the "Incident state:" label (agent text, never shown). The mock reply is CI-only. Veto items: none (no security, privilege, stored-data shape, guarantee or dependency change; the new mock case file is allowed).
 
