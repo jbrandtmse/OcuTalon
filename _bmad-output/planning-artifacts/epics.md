@@ -7404,6 +7404,8 @@ So that OcuTalon can email me.
 **When** the email tests run
 **Then** an SMTP stub in the CI-only override receives the mail, and no real email is ever sent (FR-44, REL-4, CON-3, AD-22)
 
+- DW-1139: SettingsOps.SaveEmail starts the production update only when a settings row changed, so an identical re-save after a failed update leaves the email item unapplied; settle it on the shared apply path (ledger; routed by adjudication 2026-11-11)
+
 ### Story 21.7: Send the daily digest by email
 
 > [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.6. [AMENDED 2026-11-11, Contest Planner ruling Q1] The digest is routed through Notify, which gains the email channel; `Digest.Process` (Lane A) keeps building the content and gets no email knowledge (ledger DW-820).

@@ -6412,6 +6412,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Core/CommandsIn.cls OwnAddressOnly: two Data.Setting.Get calls, each cached per process with its own timestamp (Data/Setting.cls Get)
 - 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=Story 21.2 lets an install reconnect the mailbox to a different session, or a test shows a tool email reaching another session's address
 - 2026-11-11T11:19:27Z status=routed owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=spec_gate note=reopen_if_met:21.2_moves_the_mailbox_to_the_last_saving_admin;spec_task_CommandsIn.OwnAddressOnly_reads_both_keys_uncached
+- 2026-11-11T20:07:39Z status=resolved-by:21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=adjudication note=CommandsIn.OwnAddressOnly reads email.owner and email.address through Data.Setting.Fresh (uncached row reads), build 4357809f; pinned by Test.Data.Setting TestFreshIgnoresTheCache and Test.Core.CommandsStep4 TestSendEmailAfterSave
 
 ### DW-1043: RestartRunners passes Bridge.Timeouts.Restart's error status through untested: matrix row 9's error cell (an item that does not restart) has no test
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
@@ -6890,26 +6891,31 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Channel/Email/Adapter.cls Poll quits on the first Read/Deliver failure and records nothing for it
 - 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=choose skip-after-N or quarantine-with-reason; never drop mail silently
+- 2026-11-11T20:07:39Z status=resolved-by:21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=adjudication note=Channel/Email/Adapter.cls Read: after READTRIES (3) failed polls the email is read as headers only (matrix row 11), so nothing is dropped and later mail is not held up; pinned by Test.Channel.EmailIn TestUnreadableEmailIsReadAsHeaders (review patch, commit 334f4477)
 
 ### DW-1139: SettingsOps.SaveEmail: an identical re-save after the detached production update failed all its tries does not start EmailIn again, though the page said it applies within a minute
 - source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: SaveEmail calls StartItem only when a settings row was written; UpdateIn logs one error after its last try (unverified)
 - 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=settle by a measured failed update then identical re-save
+- 2026-11-11T20:07:39Z status=routed owner=21-6-send-email-over-smtp by=adjudication note=residual: SettingsOps.SaveEmail starts the production update (StartItem) only when a settings row changed, so an identical re-save after UpdateIn failed all its tries leaves the item unapplied; Story 21.6 reuses this apply path for EmailOut's host settings ('applies them within a minute') and settles it there (start the update when the item is not running as saved, or measure the failed-update case)
 
 ### DW-1140: EmailLive TestSpentBudgetStillDecides cannot show daily_cap on the keyless CI stack (no_key is checked first), so a Decide ignoring the cap for email Items stays green
 - source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Test/Channel/EmailLive.cls accepts no_key or daily_cap and counts model calls (always 0 without a key)
 - 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=pin at Precheck level or on a stack with the CI mock key
+- 2026-11-11T20:07:40Z status=resolved-by:21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=adjudication note=Test.Channel.EmailLive TestSpentBudgetStillDecides now uses a key fixture, so the email's decision must be the daily_cap fallback with no model call; QA added TestCappedDayGivesDailyCapForAnEmailItem (commit 334f4477)
 
 ### DW-1141: Email form refusal, dirty and hidden states have no executed component or browser test; only view functions and the saved path E2 run
 - source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: web/src/app/settings/email-section.ts; email-view.test.mjs pure functions only
 - 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=two-way door: one e2e case typing @{ and checking the field error
+- 2026-11-11T20:07:40Z status=wontfix-accepted by=adjudication note=refusal state covered by QA's web/e2e/settings/email.spec.ts E4 (typing @{ shows the ruled field error, nothing saved or offered); dirty state is the pure isEmailDirty, unit-tested in email-view.test.mjs, and the hidden state (online demo) is the 409/absent-group path the per-story smoke checks; reopen_if=a settings e2e or a user report shows the Email section's Save enabled with no change, or the section shown on an online-demo install
 
 ### DW-1142: EmailIn: a POP3 server that stalls mid-list may hold a poll past the 8 s read timeout (per read, not per poll)
 - source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: %Net.POP3 GetMessageUIDArray loops until the lone dot; not measured (unverified)
 - 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=settle with the stub answering UIDL partly then going silent
+- 2026-11-11T20:07:40Z status=wontfix-accepted by=adjudication note=the per-read TIMEOUT (8 s) ends a silent server's poll and the review's StopAsked patch ends a poll between emails; only a server that trickles one line inside every 8 s during UIDL or RETR can hold a poll, which needs a broken or hostile mail server the admin chose; reopen_if=an EmailIn poll in the Ens event log runs longer than 60 s, or the POP3 stub configured to trickle UIDL lines every 5 s holds a poll past 30 s
 
 ### DW-1154: EmailIn: Data.Purge can delete the email.owner session of a quiet mailbox; then EmailIn refuses every email (no owner session) and every poll fails with P1c until an admin saves the mailbox again
 - source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: low | footprint: out-of-footprint
