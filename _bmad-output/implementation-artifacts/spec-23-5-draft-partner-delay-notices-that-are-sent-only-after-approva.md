@@ -295,6 +295,15 @@ Rejected (appendix):
 - The row stays approved, so the card still shows approved and the Telegram press text says "Sending" (acceptance): merged into DW-1117. The press text is existing text, and the ruling allows no new sentence.
 - The web chat does not show the not-sent result (this review's own check): low. A closed card shows no request, so the web offers no approve after the close. Only a press already in flight while another channel closes the incident reaches it.
 
+### Review Findings (rework iteration 3, CI: code review)
+
+Scope: the rework diff since `6943545e` (commit `1d05b3fb`). Four layers (blind, edge case, verification gap, acceptance), launched with no model override (no `model-overrides.yaml`). 3 findings, all from blind: high 0, medium 0, low 3, false 0. Patched 0, deferred 0, rejected 3. Clean review. Checklist: the `[CI]` item is fixed. The `TestContracts` expected value equals `ApprovalRequest` `DRYRUNKEYS` character for character. It is the earlier 11 keys in their order plus `notice,recipients,simulated`, still a literal `$$$AssertEquals` (not loosened, not computed from the parameter), and its message names the three keys. The `mutation:` line is recorded under the item and in the Auto Run Result. Stale-pin sweep of `src/`: only `Test.Data.Tables:13` and `Test.Fix.PartnerWarning:103` pin this parameter, and both hold the full value. `Test.Fix.DryRun` and `Test.Watch.GoodMessages` read `RepairResend`'s own `DRYRUNKEYS`. No copy of the old 11-key string is left in tracked files outside `_bmad-output`. The reviewer re-ran `Test.Data.Tables` on slot D: 5 of 5 passed, with the slot's parameter confirmed at the 14-key value. Re-review exit (Rule 15): no high, so the story closes.
+
+Rejected (appendix):
+- The `## Verification` Shared surfaces line for `DRYRUNKEYS` names `Test.Live.Payloads` and `payloads.ts`, but not `Test.Data.Tables` or `Test.Fix.PartnerWarning` (blind): low. The fix is a spec edit. The pin is now moved and the sweep above finds no other stale pin. The same lesson was ruled the same way at iteration 1 (`TestNotices`).
+- The iteration-3 Residual risks leave out that CI run 42963531773 also hit the DW-432 online-allowance flake (blind): low. The fix is a spec edit. The flake is already ledgered as DW-432, and the lead recorded this occurrence when it re-opened the story.
+- The residual risk that slot D's `OcuTalon.Data.Turn` was reloaded gives no reason (blind): low. The fix is a spec edit. The reload only brought the dev slot in line with the branch. CI builds from source, and this review's own run of `Test.Data.Tables` on slot D passed.
+
 ## Spec Change Log
 
 - 2026-11-11 (runner): lead smoke found the TelegramChat TestNotices shared-surface pin red; spec re-opened for rework iteration 1 with that [Smoke] item.
