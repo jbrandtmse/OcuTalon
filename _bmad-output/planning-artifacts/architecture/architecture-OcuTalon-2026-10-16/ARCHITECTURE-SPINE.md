@@ -7,7 +7,7 @@ paradigm: 'Message-driven Interoperability production (pipes and filters) with p
 scope: 'OcuTalon: the 1.0.0 kit and release, build steps 2 to 6, the personality epics (39 to 41), and step 7 after the contest'
 status: final
 created: '2026-10-16'
-updated: '2026-11-09'
+updated: '2026-11-11'
 binds: [FR-1..FR-74, NFR-1..NFR-28, CON-1..CON-5, REL-1..REL-11, UJ-1, UJ-2]
 sources:
   - _bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md
@@ -1451,6 +1451,8 @@ flowchart LR
 | `OcuTalon.Data.Ownership.TurnOfItem(itemId, sessionRef)` (AD-4), read by `MemoryOps` for a save's source [ADDED 2026-11-09, Story 41.8] | B | built (read by `DailyNote.Build` since Story 41.3) |
 | `OcuTalon.Data.Ownership.Usage(sessionRef, days, .sc)` and the `Ownership.Rows` kind `usage` (AD-4, AD-13, AD-20): the session's own `OcuTalon.Bridge.Data.Usage` rows (Lane A's table, read only) of a range of instance-zone days, read by the usage route [ADDED 2026-11-10, Story 37.2] | B | Story 37.2 |
 | The header navigation's Usage entry (`web/src/app/header/header-nav.ts`, after Documents, for every signed-in user) and the Usage page (`web/src/app/usage/`, `#/usage`), which reads only `GET /api/v1/usage` [ADDED 2026-11-10, Story 37.2] | B | Story 37.2 |
+| `OcuTalon.Data.Ownership.HistoryDecisions(sessionRef, outcome, channel, day, fallback, page, .pages, .sc)` and `HistoryIncidents(sessionRef, page, .pages, .sc)`, with the `Ownership.Rows` kinds `historyDecisions`, `historyDecisionTotal`, `historyIncidents` and `historyIncidentTotal` (AD-4, AD-13, AD-27): the session's own `OcuTalon.Bridge.Data.Decision` rows of Kind `decide` (Lane A's table, read only; channel through the same owner's `Usage` rows) and the incidents `INCIDENTVISIBLE` admits, 25 to a page, newest first, read by the history routes [ADDED 2026-11-11, Story 25.2] | B | Story 25.2 |
+| The header navigation's History entry (`web/src/app/header/header-nav.ts`, between Documents and Usage, for every signed-in user) and the History page (`web/src/app/history/`, `#/history`), which reads only `GET /api/v1/history/decisions` and `/incidents` [ADDED 2026-11-11, Story 25.2] | B | Story 25.2 |
 
 **Live-event types and their single publisher:**
 
@@ -1613,6 +1615,7 @@ OcuTalon/
 | `POST /api/v1/settings/mcp/classify` | `ClassifyTool` (Story 21.4) [ADDED 2026-11-09, Story 35.2] |
 | `POST /api/v1/settings/mcp/sources` and `DELETE /api/v1/settings/mcp/sources/<ref>` | `SetSourcePoll`, `RemoveSourcePoll` (Story 21.5); every `/api/v1/settings` row is admin-checked before the envelope and submits with origin `web_admin` [ADDED 2026-11-09, Story 35.2] |
 | `GET /api/v1/usage?days=1`, `7` or `30` (7 when absent) | `OcuTalon.Web.Usage`, forwarded from `Web.Api`'s map: the CSP session's own Usage rows (AD-20) through `Ownership.Usage` (`Ownership.Rows` kind `usage`), from the first instant of the instance-zone local date `days - 1` days before today up to the first instant of tomorrow (`Data.Time`), summed by `Ownership.Sum` into buckets by local date, agent, channel, model and `Estimated`: 200 with `days`, `limit` (`Decide`'s `MAXREQUESTTOKENS`) and `buckets`; any other `days` is 404 `not_found`; a failed read is 500 `server_error`; any user with the OcuTalon user role, behind the AD-13 envelope [ADDED 2026-11-10, Story 37.2] |
+| `GET /api/v1/history/decisions?outcome=&channel=&day=&fallback=&page=` and `GET /api/v1/history/incidents?page=` | `OcuTalon.Web.History`, forwarded from `Web.Api`'s map: the CSP session's own decisions (filters per the enums, an instance-zone `day` through `Data.Time`, `fallback` `yes`/`no`) and visible incidents (with the 23.6 summary as text) through `Ownership.HistoryDecisions`/`HistoryIncidents`, 25 a page: 200 with `page`, `pages` and the list; any other value of a known parameter is 404 `not_found`; a failed read is 500 `server_error`; any user with the OcuTalon user role, behind the AD-13 envelope [ADDED 2026-11-11, Story 25.2] |
 
 ## Capability → Architecture Map
 

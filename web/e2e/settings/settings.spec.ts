@@ -65,7 +65,7 @@ test('S1: an admin sees Chat and Settings in the header, and Settings opens the 
   await expect(guide, 'the main page has the demo guide (demo mode on)').toHaveCount(1);
   const nav = pagesNav(page);
   await expect(nav, 'the header holds one navigation landmark named Pages').toHaveCount(1);
-  await expect(nav.getByRole('link'), 'with Chat, Settings, Documents and Usage').toHaveText(['Chat', 'Settings', 'Documents', 'Usage']);
+  await expect(nav.getByRole('link'), 'with Chat, Settings, Documents, History and Usage').toHaveText(['Chat', 'Settings', 'Documents', 'History', 'Usage']);
   await expect(nav.getByRole('link', { name: 'Chat', exact: true }), 'the current page is marked').toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('link', { name: 'Settings', exact: true })).not.toHaveAttribute('aria-current', 'page');
 

@@ -57,9 +57,10 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     const buttons = count(code, /<button\b/g);
     assert.equal(buttons, 1, 'one button in the template');
     assert.equal(count(code, /<button\s[^>]*type="button"/g), buttons);
-    assert.equal(count(code, /<a\b/g), 2, 'and two links, to the Documents page and to the Usage page');
+    assert.equal(count(code, /<a\b/g), 2, 'and two links: to the Documents page, and one for the Usage and the History pages');
     assert.match(code, /<a [^>]*routerLink="\/documents"/);
-    assert.match(code, /<a [^>]*routerLink="\/usage"/);
+    assert.match(code, /@else if \(item\.action === 'usage' \|\| item\.action === 'history'\) \{\s*<a [^>]*\[routerLink\]="'\/' \+ item\.action"/);
+    assert.match(code, /case 'usage':\s*void this\.router\.navigate\(\['\/usage'\]\);\s*break;\s*case 'history':\s*void this\.router\.navigate\(\['\/history'\]\);\s*break;/);
     assert.equal(count(code, /\(click\)=/g), 3, 'each control has a click and nothing else acts');
     assert.equal(count(code, /\(click\)="press\(item\)"/g), 1, 'the one button presses');
     assert.doesNotMatch(code, /\bconstructor\s*\(|ngOnInit|ngAfterViewInit|\beffect\(/, 'nothing runs at creation');

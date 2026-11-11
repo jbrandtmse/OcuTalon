@@ -2,11 +2,11 @@
 title: 'Story 25.2: Filter past decisions and incidents on the History page'
 type: 'feature'
 created: '2026-11-10'
-status: 'ready-for-dev'
-baseline_revision: 'ddedbd6aedef926ff039e1f86b11418cd765f9f1'
+status: 'done'
+baseline_revision: '9d978686497c5a91a18b6cc71663500f8e7946fa'
 planned_against: 'Story 37.2 at OCT-epic37 7ef82a4671cb4ceec2a0ae2192e3d8f657488a1a (not merged)'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-25-context.md'
   - '{project-root}/_bmad/custom/skill-rules.md'
@@ -149,41 +149,41 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (implement, before any edit): re-check this spec against Story 37.2 as merged on the feature branch: the header nav, the `Ownership.Rows` kinds, the REST and ownership spine rows, the More to try registry, `Demo/Features`, README and EXPERIENCE. Record any drift in the Spec Change Log. Also re-read `sprint-status.yaml` for 37-2 `done` and run `git log --oneline --grep "37.2"` on the base.
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- add the kinds `historyDecisions`, `historyDecisionTotal`, `historyIncidents` and `historyIncidentTotal` to `Statement`, appended after 37.2's `usage` block. Add `HistoryDecisions(sessionRef, outcome, channel, day, fallback, page, Output pages, Output sc)` and `HistoryIncidents(sessionRef, page, Output pages, Output sc)`, documented in the class doc beside 37.2's `Usage` line.
+- [x] Task 0 (implement, before any edit): re-check this spec against Story 37.2 as merged on the feature branch: the header nav, the `Ownership.Rows` kinds, the REST and ownership spine rows, the More to try registry, `Demo/Features`, README and EXPERIENCE. Record any drift in the Spec Change Log. Also re-read `sprint-status.yaml` for 37-2 `done` and run `git log --oneline --grep "37.2"` on the base.
+- [x] `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- add the kinds `historyDecisions`, `historyDecisionTotal`, `historyIncidents` and `historyIncidentTotal` to `Statement`, appended after 37.2's `usage` block. Add `HistoryDecisions(sessionRef, outcome, channel, day, fallback, page, Output pages, Output sc)` and `HistoryIncidents(sessionRef, page, Output pages, Output sc)`, documented in the class doc beside 37.2's `Usage` line.
   - The decision WHERE is: `d.OwnerRef = ? AND d.Kind = 'decide' AND (? = '' OR (d.Fallback = 1 AND ? = 'tellnow') OR (d.Fallback = 0 AND d.Outcome = ?)) AND (? = '' OR d.Fallback = ?) AND (? = '' OR (d.RecordedAt >= ? AND d.RecordedAt < ?)) AND (? = '' OR EXISTS (SELECT 1 FROM OcuTalon_Bridge_Data.Usage u WHERE u.OwnerRef = d.OwnerRef AND u.DecisionRef = d.Ref AND u.Channel = ?))`.
   - The page form adds `ORDER BY d.RecordedAt DESC, d.ID DESC LIMIT ? OFFSET ?`.
   - Incidents use `INCIDENTVISIBLE` with `ORDER BY i.NoticedAt DESC, i.ID DESC LIMIT ? OFFSET ?`.
   - The page size is the class parameter `HISTORYPAGE = 25`.
   - `day` becomes a window through `Data.Time.FromLocal`. An unreadable `day` is an error status (the route validates first).
   -- Rationale: the one read path (AD-4, AD-13), the existing allow-listed prepare, the same shape as 37.2's `Usage`. `LIMIT ? OFFSET ?` with binds was measured to work on build 154 (Design Notes).
-- [ ] `src/ocutalon/cls/OcuTalon/Web/History.cls` (new) -- `Extends OcuTalon.Web.Api`. Its UrlMap has `GET /decisions` → `Decisions` and `GET /incidents` → `Incidents`. It validates exactly per the I/O matrix and answers a bad value with `..Fail(404,"not_found",..#MESSAGENOTFOUND)`. It reads through Ownership with `SessionRef(.sc)` and writes the allow-listed keys only.
+- [x] `src/ocutalon/cls/OcuTalon/Web/History.cls` (new) -- `Extends OcuTalon.Web.Api`. Its UrlMap has `GET /decisions` → `Decisions` and `GET /incidents` → `Incidents`. It validates exactly per the I/O matrix and answers a bad value with `..Fail(404,"not_found",..#MESSAGENOTFOUND)`. It reads through Ownership with `SessionRef(.sc)` and writes the allow-listed keys only.
   - Decisions: `Live.Payload.Decision.FromRow` → `PayloadObject` → `TraceLink.Viewer`/`Add`, then a copy of only the allow-listed keys, plus `channel` from `Ownership.DecisionChannel`.
   - Incidents: built directly from the row. `itemNoun` has the same shape as `Live.Payload.Part.ItemNoun`. `traceUrl` is `TraceLink.Url(TraceHeaderId, $Namespace, , , .viewer)`. `summary` is `Watch.Summary.Text(ref, "web", .sc)` when `Summary '= ""`, and a failed render gives `""`.
   -- Rationale: the 37.2 forwarding pattern; one trace builder (AD-26).
-- [ ] `src/ocutalon/cls/OcuTalon/Web/Api.cls` -- add `<Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>` after 37.2's `/v1/usage` map, and append one header doc bullet after 37.2's usage bullet.
-- [ ] `web/src/app/api/history-types.ts` (new) and `web/src/app/api/api-client.ts` -- add `historyDecisions(filters: HistoryFilters & {page})` and `historyIncidents(page)`. They send only the set parameters, and their result types are `HistoryDecisionsResponse` and `HistoryIncidentsResponse`. Append them after 37.2's `usage()`.
-- [ ] `web/src/app/history/history-view.ts` (new, pure, erasable TS, type-only imports plus the imported `*_TEXTS`, the way 37.2's `usage-view.ts` imports shared labels) -- holds:
+- [x] `src/ocutalon/cls/OcuTalon/Web/Api.cls` -- add `<Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>` after 37.2's `/v1/usage` map, and append one header doc bullet after 37.2's usage bullet.
+- [x] `web/src/app/api/history-types.ts` (new) and `web/src/app/api/api-client.ts` -- add `historyDecisions(filters: HistoryFilters & {page})` and `historyIncidents(page)`. They send only the set parameters, and their result types are `HistoryDecisionsResponse` and `HistoryIncidentsResponse`. Append them after 37.2's `usage()`.
+- [x] `web/src/app/history/history-view.ts` (new, pure, erasable TS, type-only imports plus the imported `*_TEXTS`, the way 37.2's `usage-view.ts` imports shared labels) -- holds:
   - `HISTORY_TEXTS`.
   - `paramsOf(queryParamMap-like)` → `{tab, outcome, channel, day, fallback, page}`, which drops invalid values.
   - `queryOf(state)`, which writes only the set values (`tab` only for `incidents`, `page` only when above 1).
   - `OUTCOMES`, `CHANNELS` (the Msg.Enum order, with `USAGE_TEXTS.channels` labels), `FALLBACKS`.
   - `emptyText(state)`, `pageText(page, pages)`, `incidentTimes(row, when)` and `summaryLines(text)`.
-- [ ] `web/src/app/history/history-page.ts` (new) -- `HistoryPage`, OnPush, mirroring 37.2's `UsagePage` for load, `asked` and `failed`/Retry, with no loading text. Its structure:
+- [x] `web/src/app/history/history-page.ts` (new) -- `HistoryPage`, OnPush, mirroring 37.2's `UsagePage` for load, `asked` and `failed`/Retry, with no loading text. Its structure:
   - `<main class="history" tabindex="-1">`, a hidden `<h1>` "History", and a `role="tablist"` labelled by the h1. It has two `role="tab"` buttons (`aria-selected`, `aria-controls`, roving tabindex, Arrow keys through `nextTab`) and two `role="tabpanel"`, each with a hidden `h2`.
   - Decisions panel: native `<select>`s Outcome, Channel and Fallback, a native `<input type="date">` Date, each with `<label for>`, and "Clear filters" when any filter is set. Then a `<ul>` of `<app-decision-row>` fed by the exported `decisionRow(payload, formatAt(now))`, with the channel label inserted as meta part 2 when set, tracked by `ref`. Each row has `min-height: var(--space-10)`.
   - Incidents panel: a `<ul>` of rows. Each row has the state chip and Fallback flag first, the headline (`headlineOf`), the "Noticed …" / "Closed …" times, the summary lines (or the no-summary text) and `<app-trace-link>` when `traceUrl` is set.
   - A pager `<nav aria-label>` with Previous page, "Page n of N" and Next page, never shown when there is a single page.
   - A filter, tab or page change navigates with `queryParams` (`replaceUrl:false` for user changes, so Back works; `true` when it corrects an invalid or past-the-end value). A filter change resets `page`, and a tab change drops the decision filters' `page`.
   -- Rationale: UX-DR127/129/130/147; extend, don't copy.
-- [ ] `web/src/app/incidents/incident-state-chip.ts` (new) and `web/src/app/incidents/incident-card.ts` -- extract the inline chip span and its `.chip*` CSS into `IncidentStateChip` (`[chip]`, `[text]`), rendering the same span and classes. The card uses it, and nothing else in the card changes. In `incident-view.ts`, export `stateOf` and `headlineOf` with no behaviour change. -- Rationale: Rule 2 (no copied chip CSS).
-- [ ] `web/src/app/rail/rail-view.ts` and `web/src/app/rail/status-rail.ts` -- export `decisionRow` and `formatAt` with no behaviour change.
-- [ ] `web/src/app/app.config.ts` and `web/src/app/settings/settings-view.ts` -- add the route `{ path: 'history', component: HistoryPage, title: HISTORY_TEXTS.title }` before 37.2's `usage` route, and give `pageOf` a `'history'` branch for `/history`.
-- [ ] `web/src/app/header/header-nav.ts` -- add the `History` link (`routerLink="/history"`, `aria-current` from `page.page() === 'history'`) between Documents and Usage (EXPERIENCE :77 order). Update 37.2's doc comment and `header.ts`'s "four navigation links" comment to five.
-- [ ] DW-1102 (routed to this story by 37.2's code review and merge gate; epics.md 25.2 `[ADDED 2026-11-10, DW-1102 …]` AC): `web/src/app/header/header.ts` -- in the stacked band (`@media ${LAYOUT_QUERIES.stacked}`) apply the measured spacing-only fit K (Design Notes → HEADER FIT): `.header` inline padding `var(--space-2)` (12 → 8px); the LEFT `.side` only (`.side:not(.right)`, or restore `.right`'s gap after it) `gap: var(--space-1)` (12 → 4px), `--header-nav-gap: 0px` (4 → 0) and `--header-nav-item-inline: var(--space-1)` (6 → 4px, the drawer band's own nav values); `.home` `gap: var(--space-2)` (mark to wordmark 12 → 8px). Nothing else in the header changes (no hidden link, no label, font, group or behaviour change: any such change is a PLANNER REPORT first). Update the header comment (:90-96) and `header-nav.ts`'s comment to the new values and the four-link floor user. Acceptance: at 640x360@2 the floor user's header (Chat, Documents, History, Usage) is 77px and sticky, writes 77px, no sideways scroll; `live:floor` G4 and G5 green in Chromium, Firefox and WebKit. -- Rationale: 37.2 left about 19px; History needs about 65px; K was measured to leave about 18px.
-- [ ] `web/src/app/guide/more-to-try-view.ts` and `more-to-try.ts` -- add `MORE_TO_TRY_TEXTS.items.history` (PUBLIC TEXT), the action `'history'`, and the registry entry `{ id: 'history', …, action: 'history', group: 'Usage and history' }` appended last (the Planner's ruling: the fourth heading that 37.2 adds, usage then history). Extend 37.2's usage link branch so it serves both page links (one `<a>`, path from the action) and add `case 'history'` to the navigate switch. The header comment's count word follows the registry.
-- [ ] `src/ocutalon/cls/OcuTalon/Demo/Features.cls` -- `Ids` appends `history` unconditionally after `usage`. Update the doc line so it no longer says "usage … last".
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/OwnershipHistory.cls` (new; extends `OcuTalon.Test.Bridge.ZoneCase` like 37.2's `OwnershipUsage`) -- tests every I/O matrix row at the Ownership level:
+- [x] `web/src/app/incidents/incident-state-chip.ts` (new) and `web/src/app/incidents/incident-card.ts` -- extract the inline chip span and its `.chip*` CSS into `IncidentStateChip` (`[chip]`, `[text]`), rendering the same span and classes. The card uses it, and nothing else in the card changes. In `incident-view.ts`, export `stateOf` and `headlineOf` with no behaviour change. -- Rationale: Rule 2 (no copied chip CSS).
+- [x] `web/src/app/rail/rail-view.ts` and `web/src/app/rail/status-rail.ts` -- export `decisionRow` and `formatAt` with no behaviour change.
+- [x] `web/src/app/app.config.ts` and `web/src/app/settings/settings-view.ts` -- add the route `{ path: 'history', component: HistoryPage, title: HISTORY_TEXTS.title }` before 37.2's `usage` route, and give `pageOf` a `'history'` branch for `/history`.
+- [x] `web/src/app/header/header-nav.ts` -- add the `History` link (`routerLink="/history"`, `aria-current` from `page.page() === 'history'`) between Documents and Usage (EXPERIENCE :77 order). Update 37.2's doc comment and `header.ts`'s "four navigation links" comment to five.
+- [x] DW-1102 (routed to this story by 37.2's code review and merge gate; epics.md 25.2 `[ADDED 2026-11-10, DW-1102 …]` AC): `web/src/app/header/header.ts` -- in the stacked band (`@media ${LAYOUT_QUERIES.stacked}`) apply the measured spacing-only fit K (Design Notes → HEADER FIT): `.header` inline padding `var(--space-2)` (12 → 8px); the LEFT `.side` only (`.side:not(.right)`, or restore `.right`'s gap after it) `gap: var(--space-1)` (12 → 4px), `--header-nav-gap: 0px` (4 → 0) and `--header-nav-item-inline: var(--space-1)` (6 → 4px, the drawer band's own nav values); `.home` `gap: var(--space-2)` (mark to wordmark 12 → 8px). Nothing else in the header changes (no hidden link, no label, font, group or behaviour change: any such change is a PLANNER REPORT first). Update the header comment (:90-96) and `header-nav.ts`'s comment to the new values and the four-link floor user. Acceptance: at 640x360@2 the floor user's header (Chat, Documents, History, Usage) is 77px and sticky, writes 77px, no sideways scroll; `live:floor` G4 and G5 green in Chromium, Firefox and WebKit. -- Rationale: 37.2 left about 19px; History needs about 65px; K was measured to leave about 18px.
+- [x] `web/src/app/guide/more-to-try-view.ts` and `more-to-try.ts` -- add `MORE_TO_TRY_TEXTS.items.history` (PUBLIC TEXT), the action `'history'`, and the registry entry `{ id: 'history', …, action: 'history', group: 'Usage and history' }` appended last (the Planner's ruling: the fourth heading that 37.2 adds, usage then history). Extend 37.2's usage link branch so it serves both page links (one `<a>`, path from the action) and add `case 'history'` to the navigate switch. The header comment's count word follows the registry.
+- [x] `src/ocutalon/cls/OcuTalon/Demo/Features.cls` -- `Ids` appends `history` unconditionally after `usage`. Update the doc line so it no longer says "usage … last".
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/OwnershipHistory.cls` (new; extends `OcuTalon.Test.Bridge.ZoneCase` like 37.2's `OwnershipUsage`) -- tests every I/O matrix row at the Ownership level:
   - each filter, alone and combined;
   - outcome `tellnow` with a fallback row whose stored Outcome is not `tellnow`;
   - channel through the usage rows, and a row with no usage row;
@@ -192,15 +192,15 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
   - order;
   - isolation (B, eval, instance, no owner, un-noticed incident; an instance incident visible locally only through a watching `Check`, and invisible with `onlineDemo` 1);
   - the refusals.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls` -- add the four kinds to `TestIsolationEveryRowKind`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/HistoryApi.cls` (new; mirrors 37.2's `UsageApi`) -- covers:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls` -- add the four kinds to `TestIsolationEveryRowKind`.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Web/HistoryApi.cls` (new; mirrors 37.2's `UsageApi`) -- covers:
   - Dispatch: exactly one Map for `/v1/history`; `/v1/historyx` is no route; History's routes are `GET /decisions` and `GET /incidents`; POST is no route; 403 `no_role` without the role.
   - Every bad value in the matrix → 404 with the exact body.
   - Shape: the exact top keys, and every item's keys within the allow-list (`DECISIONKEYS`, `INCIDENTKEYS`). The body holds no `SessionRef`, `$Username`, fixture tag, `"id"`, `ownerRef`, `itemId`, `traceHeaderId` or `kind`.
   - Isolation, the summary text, and no session → 500.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Demo/Features.cls` -- add `,history` after `usage` in every `TestIds` expectation. `src/ocutalon/cls/OcuTalon/Test/Web/DocumentsApi.cls` -- no edit when, as at 37.2, its Map pin filters on `/v1/documents`; otherwise apply 37.2's URL filter.
-- [ ] `web/e2e/api/history.spec.ts` (new; real HTTP, mirrors 37.2's `api/usage.spec.ts`) -- the SECURITY tests listed in Design Notes. Seed through `irisScript` with `Test.Data.Fixture` `Decision`, `Usage` and `Incident` (with a stored `Summary`) and clean up in `finally`. Extend `support/iris.ts`'s `seedDecision(s)`/`seedIncident` where they fit, and otherwise add `web/e2e/support/history.ts`.
-- [ ] `web/e2e/history/history.spec.ts` (new) -- covers (also: a decision with no usage row shows no channel text at all, no "Unknown" and no labelled dash, the Planner's condition):
+- [x] `src/ocutalon/cls/OcuTalon/Test/Demo/Features.cls` -- add `,history` after `usage` in every `TestIds` expectation. `src/ocutalon/cls/OcuTalon/Test/Web/DocumentsApi.cls` -- no edit when, as at 37.2, its Map pin filters on `/v1/documents`; otherwise apply 37.2's URL filter.
+- [x] `web/e2e/api/history.spec.ts` (new; real HTTP, mirrors 37.2's `api/usage.spec.ts`) -- the SECURITY tests listed in Design Notes. Seed through `irisScript` with `Test.Data.Fixture` `Decision`, `Usage` and `Incident` (with a stored `Summary`) and clean up in `finally`. Extend `support/iris.ts`'s `seedDecision(s)`/`seedIncident` where they fit, and otherwise add `web/e2e/support/history.ts`.
+- [x] `web/e2e/history/history.spec.ts` (new) -- covers (also: a decision with no usage row shows no channel text at all, no "Unknown" and no labelled dash, the Planner's condition):
   - the page from the header nav: title, `aria-current`;
   - the tabs: `aria-selected`, ArrowRight/ArrowLeft, Enter/Space, never switching by themselves;
   - every filter changes the address, and a reload and a copied link keep it;
@@ -211,7 +211,7 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
   - rows at least 40px tall (boundingBox);
   - a second session's fixture rows never appear (a PANEL session seeded at the same time);
   - keyboard only.
-- [ ] Shared tests (Rule 19) -- update these:
+- [x] Shared tests (Rule 19) -- update these:
   - `frame.spec.ts`: the Tab order gains History before Usage, and 37.2's 1024px test (F3) becomes five links (its title and its `toHaveText` list gain History; measured: it fits unchanged, 56px, one line). `web/e2e/floor/layout.spec.ts` G4/G5 are NOT edited: they must pass unchanged with the History link and the fit K (DW-1102).
   - `settings.spec.ts:68` → `['Chat','Settings','Documents','History','Usage']`; `documents.spec.ts:338` → `['Chat','Documents','History','Usage']`.
   - `more-to-try.spec.ts`: `ITEMS`, `controlOf`, K3's href for the history item, the group-heading oracle (K27) gains history under "Usage and history", and the new **K28** "the link of the History item opens the History page". K16 and K17 (the compact band at 1280x650 and 1280x600) must stay green unchanged (the Planner's condition).
@@ -221,8 +221,8 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
   - `ux-strings.test.mjs`: `IMPORTED` gets `['history/history-view.ts', ['HISTORY_TEXTS']]`, the `ux`/`ac` sources, and a `ruled` block "Story 25.2 rulings at the spec gate" (2026-11-10, Contest Planner: PUBLIC TEXT approved as proposed).
   - `floor-sources.test.mjs`: the history page in `KEY_HANDLERS`, the arrow list and bindings, the `tabs` allowed map (reason: UX-DR130 Decisions/Incidents tabs), and the scroller list only if it adds a scroller.
   - `web/scripts/history-view.test.mjs` (new): `paramsOf`/`queryOf` round trips, invalid values dropped, `emptyText`, `pageText`.
-- [ ] `README.md` -- append the History bullet last in "New since 1.0.0" and update :40's count word. `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- add the More to try entry under 37.2's "Usage and history" heading, after usage, with the next item number, plus "Item N's control is a link to the History page.", and update the "There are … items" count word. Both carry `[ADDED <date>, Story 25.2, Contest Planner ruling …]`.
-- [ ] `ARCHITECTURE-SPINE.md` -- append the three rows in Design Notes → SPINE ROWS after 37.2's rows. Refresh `updated:`, run `memlog.py append --type decision` and lint (Rule 20).
+- [x] `README.md` -- append the History bullet last in "New since 1.0.0" and update :40's count word. `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- add the More to try entry under 37.2's "Usage and history" heading, after usage, with the next item number, plus "Item N's control is a link to the History page.", and update the "There are … items" count word. Both carry `[ADDED <date>, Story 25.2, Contest Planner ruling …]`.
+- [x] `ARCHITECTURE-SPINE.md` -- append the three rows in Design Notes → SPINE ROWS after 37.2's rows. Refresh `updated:`, run `memlog.py append --type decision` and lint (Rule 20).
 
 **Acceptance Criteria:**
 - Given a signed-in user on any page, when they press History in the header navigation, then `#/history` opens titled "History · OcuTalon", with History marked `aria-current="page"` between Documents and Usage, and the tabs Decisions and Incidents are read from `/api/v1/history/*`, which read only OcuTalon's and the bridge's tables (Decision, Usage and Incident, plus Turn and BackgroundCheck through the reused `FromRow` and `INCIDENTVISIBLE`) through `Ownership`, never a production message. The spine's REST and ownership tables carry this story's three rows.
@@ -239,7 +239,51 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 - 2026-11-11 ~01:45Z (lead, re-dispatch after 37.2 merged as 878da0d2): DW-1102 routed to this story (AC added at 37.2's merge gate); measured the compact header (Design Notes → HEADER FIT) and planned the spacing-only fit K as a Tasks & Acceptance item; F3 updated to five links; G4/G5 unchanged. Lead pre-check of Task 0: 37.2 shipped the fourth heading "Usage and history" (`more-to-try-view.ts:158`, usage in it :146, EXPERIENCE :260/:265), `/v1/usage` forwarding (`Web/Api.cls:266`), `Demo.Features` usage last; the registry is at twelve, history makes thirteen. The implement stage still does Task 0 in full.
 - 2026-11-10 ~19:15Z (lead): the Planner's rulings written in verbatim (Design Notes, "Planner rulings at the spec gate"). PUBLIC TEXT approved as proposed, with the no-channel condition. SECURITY accepted; real-HTTP case 7 (page beyond the last → 200, empty list) added. GROUP changed to the fourth heading "Usage and history" (37.2 adds it; 25.2 appends history; K16/K17 stay green, else fallback "Safety and settings"). Tasks, Shared tests and the registry task updated to match.
 
+- 2026-11-11 (implement, Task 0): re-checked against Story 37.2 as merged on this branch (HEAD includes merge 878da0d2; sprint-status 37-2 `done`; `git log --grep "37.2"` shows 878da0d2). No drift in any name the spec uses: header nav (Chat, Settings, Documents, Usage), `Ownership.Usage` and kind `usage`, `Web.Usage` and the `/v1/usage` Map, the More to try registry (twelve items, usage last in "Usage and history", `MORE_TO_TRY_GROUPS` with the fourth heading), `Demo.Features` (usage last), the README Usage bullet, EXPERIENCE (Item 11 under "Usage and history", count word "twelve"), the spine's 37.2 rows. Line numbers in the Code Map moved; everything was re-located by name. `Test.Web.DocumentsApi` filters its Map count by URL, so it needed no edit. One 37.2 test pinned the usage item as the last registry entry and last numbered item (`web/scripts/usage-docs.test.mjs`) and one pinned the incident card's inline chip markup and CSS (`web/scripts/incident-sources.test.mjs`): both follow this story's changes (usage is now second to last, and the chip is `IncidentStateChip`). The README History bullet carries no `[ADDED ...]` marker, as 37.2's Usage bullet carries none (the README is the judges' page); EXPERIENCE's entries carry theirs.
+
+- 2026-11-11 (implement, spine): the three spine rows are written and `updated:` is refreshed; `lint_spine.py` gives the baseline 10 low findings and no `ad_id`, `ad_fields` or new `placeholder` finding. `memlog.py append --type decision` failed with FileNotFoundError: the spine folder has no `.memlog.md` (the folder holds only ARCHITECTURE-SPINE.md and ARCHITECTURE-NOTES.md). Nothing was created for it; the lead decides (Rule 20: no memlog, no append).
+
 ## Review Triage Log
+
+### 2026-11-11 — Review pass
+- verdicts: 36 findings — high 0, medium 3, low 22, false 11, maybe-false 0
+- findings:
+  - `[low]` `reject` (blind) the channel filter matches any usage row but the label is the first non-empty one — all usage rows of one decision belong to one turn and so to one channel; the spec names `DecisionChannel` as the filter's source; no multi-channel decision is reachable.
+  - `[medium]` `patch` (blind) Previous page and Next page destroy the focused pager while the page loads, so keyboard focus drops to the body — `step()` now focuses the page's main region first; H3 asserts it, the mutation (focus call removed) turns H3 red; `announce-focus-sources.test.mjs` counts the call.
+  - `[false]` `reject` (blind) no loading state — Decided in-stage 9 and PUBLIC TEXT row 25: none, as 37.2.
+  - `[false]` `reject` (blind) the error state is shared across tabs and stays until the next answer — the ruled 37.2 pattern; `arrived()` clears it on the next answer.
+  - `[low]` `reject` (blind) one `DecisionChannel` read per row — at most 25 indexed reads per page; the spec names the method.
+  - `[low]` `reject` (blind) the count and the page are two reads — a row recorded in between can only shift one page; theoretical, and a past-the-end answer is corrected by the page.
+  - `[false]` `reject` (blind) planning-doc dates ahead of today — the UTC date at the time of the run is 2026-11-11 (`date -u`); the spec says the rows carry the implement stage's UTC date.
+  - `[false]` `reject` (blind) header spacing outside scope — it is the spec's DW-1102 task, measured spacing-only fit K.
+  - `[low]` `reject` (blind) tab panels without `tabindex="0"` — each panel holds focusable filters or rows; the Memory card sibling has the same shape; not in the spec.
+  - `[false]` `reject` (blind) the hidden panel and `outcomeSelect` focus in `clear()` — the Clear filters button exists only on the Decisions tab, so the target exists whenever it runs.
+  - `[low]` `reject` (blind) client `isDay` accepts dates the server's zone refuses — year 9999 or a zone gap only; the page shows its error and Retry; a server check of the next day's start was tried and its test could not be shown to fail on the lane's zone, so it was reverted.
+  - `[false]` `reject` (blind) no doc says instance incidents are listed on a local install — the README bullet makes no claim about them and the spine row says so.
+  - `[low]` `reject` (edge) `DayParam` checks only the day's start (`9999-12-31` reaches Ownership and is 500) — same as the client `isDay` row: unreachable in use.
+  - `[low]` `reject` (edge) `isDay` range versus the server — same as above.
+  - `[low]` `reject` (edge) a five-digit year in the date input is dropped while the input shows it — unlikely, and the fix adds a branch.
+  - `[low]` `reject` (edge) channel filter and label can disagree — same as the first row.
+  - `[low]` `reject` (edge) count and page not one transaction — same as the count row.
+  - `[low]` `reject` (edge) a closed incident whose summary cannot be rendered reads "No summary was written for this incident." — that is PUBLIC TEXT row 19, ruled for exactly this case.
+  - `[false]` `reject` (edge) `failed` not reset when a load starts — the ruled pattern keeps it until the next answer, where `arrived()` clears it.
+  - `[low]` `reject` (edge) `Test.Data.Ownership.ReadAll` dies with an invalid OREF if a probe count read fails — a failing read already fails the test; a clearer message is cosmetic.
+  - `[low]` `reject` (edge) claim: every unreadable day is 404 — same as the `DayParam` row.
+  - `[low]` `reject` (edge) claim: the label always equals the filtered channel — same as the first row.
+  - `[medium]` `patch` (verification-gap) the incident `fallback: true` and its flag are never asserted — `TestIncidentsShape`'s open incident now has `Fallback` 1 and the `open|1` assertion; the mutation (no `Fallback`) turns the class red.
+  - `[medium]` `patch` (verification-gap) H3's single-page "no pager" assertion can pass in the loading window — H3 waits for the five rows first.
+  - `[low]` `patch` (verification-gap) H6 reads the meta text with a non-waiting call — H6 waits for the five rows first.
+  - `[low]` `patch` (verification-gap) AC7 (DW-1102) has no `mutation:` line — fit K reverted, `live floor` G4 and G5 red, line written.
+  - `[low]` `patch` (verification-gap) AC5's isolation mutation was not run against `api/history.spec.ts` — run (red), line completed.
+  - `[false]` `reject` (verification-gap) further mutations for AC1 to AC4 and AC6 — one demonstrated mutation per AC is the bar, and each has one.
+  - `[low]` `reject` (verification-gap) H7's fixed 1.5 s wait — a negative assertion ("never switches by itself") has no readiness signal to wait for.
+  - `[low]` `reject` (verification-gap) H7 and H10 count one "No summary yet" row — the rows are the test's own tagged fixtures, seeded in `beforeAll`, cleaned in `afterAll`, one worker.
+  - `[low]` `reject` (verification-gap) `TestDispatch` asserts differently with and without the role in the test process — the sibling `UsageApi` has the same pair.
+  - `[false]` `reject` (verification-gap) the `ux-strings` and `floor-sources` edits add no runtime coverage — an observation, no defect.
+  - `[low]` `reject` (verification-gap) one extra query per row — same as the per-row row.
+  - `[false]` `reject` (verification-gap) `web/test-results/**` files exist — gitignored run output, not part of the change.
+  - `[low]` `reject` (intent-alignment) a failed `Rows` read is not tested at the route — `TestNoSession` covers the 500 path that `ServerError` serves for both failures.
+  - `[false]` `reject` (intent-alignment) reuse by extraction is a wider footprint than "reuses" — the spec's Tasks name each extraction and export.
 
 ## Design Notes
 
@@ -304,6 +348,12 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 9. No loading text, as 37.2 has none. The error is "Couldn't load your history." with Retry.
 10. Unknown query parameters are ignored. The page drops invalid address values before it asks.
 11. The History link goes between Documents and Usage (EXPERIENCE :77: "then History and Usage (step 6)").
+
+12. An optional filter is tested with `? IS NULL`, not `? = ''` (the Tasks and Matrix text): an empty bound value is NULL in dynamic SQL on build 154 (measured: with `""` bound, `? = ''` is never true and every filtered statement returned no row; `? IS NULL` is true). The statements are otherwise the spec's. `Ownership.HISTORYDECISIONS` holds the one WHERE text for the page and the count.
+13. The Tab, pager and filter details the spec leaves open: filters stay in the address across a tab change and only the page resets; Previous page and Next page are `aria-disabled` (never `disabled`, so focus stays) at an end; Clear filters moves focus to the Outcome select, because its button leaves with the filters; a duplicate value of a known parameter (`outcome=a&outcome=b`) is 404, as a bad value is; the date input's change sets the filter and an emptied input clears it.
+14. `history-view.ts` takes the shared labels as arguments (`outcomeOptions(labels)`, `channelOptions(labels)`), as `groupRows` takes the agent names, because a view module imports only types; the page passes `CHAT_TEXTS` chip words and `USAGE_TEXTS.channels`. `OUTCOMES`, `CHANNELS` and `FALLBACKS` are the route's values.
+15. `headlineOf` takes `Pick`s of the payload and context it reads (a type narrowing, no behaviour change), so the History row calls it with the row's three fields and the clock.
+16. The History keyboard test's filter step uses `selectOption`: a native select's ArrowDown opens the list on macOS and changes the value on Linux, so the key is the browser's, not the page's.
 
 **Lead note at the spec gate (2026-11-10):** Decided in-stage 4's gap is the same root cause as the ledger's DW-941 (routed, owner `burndown`: a decision with no model call has no channel because the bridge `Decision` row has no `Channel`; the fix is a Lane A column). This story neither owns nor closes DW-941 and does not depend on it being decided (it is `routed`, not `decision-pending`); the History page states the gap honestly by leaving such a decision's channel out. If DW-941 lands first, the channel EXISTS clause can switch to the column in a later story.
 
@@ -473,18 +523,48 @@ Run one command per tool call, each sized to about 150 s; one test class per cal
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
-**Mutations to record (Rule 19), one per AC, each observed red and reverted byte-identical:**
-- the `historyDecisions` owner check made `OR 1=1` -> `OwnershipHistory` isolation and `api/history.spec.ts` (3) red;
-- the outcome clause's fallback branch removed -> the outcome `tellnow` test red;
-- `queryOf` not writing `outcome` -> the `history.spec.ts` reload test red;
-- the DecisionRow replaced by plain text with no button -> the disclosure test red;
-- `summary` not rendered -> the incidents test red;
-- the History link moved after Usage -> `frame.spec.ts` Tab order red;
-- the registry entry's action changed -> K28 red.
+**Mutations to record (Rule 19), one per AC, each observed red and reverted byte-identical (2026-11-11, implement stage; the file was compared with `cmp` against a copy after each revert):**
+- mutation: the `historyDecisions` owner check made `(d.OwnerRef = ? OR 1 = 1)` -> `OwnershipHistory` TestIsolation red (also TestPaging and TestDayEdges), and `api/history.spec.ts` (3) red (the isolation test, `live sign-in --part 2/20`, 1 failed of 10); reverted, `cmp` identical;
+- mutation: the outcome clause's fallback branch removed (`? IS NULL OR ? IS NULL OR (d.Fallback = 0 AND d.Outcome = ?)`) -> `OwnershipHistory` TestFilters red (the outcome `tellnow` and the `tellnow` with fallback `yes` assertions);
+- mutation: `queryOf` not writing `outcome` -> `history-view.test.mjs` (round trip, writes only the values that are set, canonical address, merge query) red, and `history.spec.ts` H2 (the reload and copied-link test) red;
+- mutation: the DecisionRow replaced by `<span>{{ row.title }}</span>` with no button -> `history.spec.ts` H4 (the disclosure test) red, with H8 and H11;
+- mutation: the incident row's `summary` lines dropped (`summaryLines(...).slice(0, 0)`) -> `history.spec.ts` H7 (the Incidents tab test) red;
+- mutation: the History link moved after Usage in `header-nav.ts` -> `frame.spec.ts` Tab order (F3 list and F7) red, 3 tests;
+- mutation: the registry entry's action changed from `'history'` to `'usage'` -> `more-to-try.spec.ts` K28 red (and K3's href assertion);
+- mutation (DW-1102): the stacked band's fit K reverted (header padding `var(--space-3)`, `.side` gap and `--header-nav-gap` and `--header-nav-item-inline` 6px as before, `.home` gap dropped) -> `live floor` red in `layout.spec.ts` G4 and G5 only (2 failed, 105 passed); reverted, `cmp` identical, and with fit K `live floor` (Chromium, Firefox, WebKit) passed 107 tests, G4 and G5 included; nothing in `layout.spec.ts` was edited;
+- mutation: the `Previous page`/`Next page` focus move to the main region removed from `step()` -> `history.spec.ts` H3 red (its `toBeFocused` assertion), the bundle rebuilt for the mutation and again after the revert; `cmp` identical;
+- mutation: the open fixture incident of `HistoryApi.TestIncidentsShape` without `Fallback` 1 -> `Test.Web.HistoryApi` red (the `open|1` assertion); restored, green.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned to the spec gate against Story 37.2 at OCT-epic37 `7ef82a46` (not merged). The implement stage waits for 37.2's merge (`story_waits_stories: {"25.2": "37.2"}`) and starts with Task 0's re-check. The three sections for the Planner are under Design Notes: PUBLIC TEXT, SECURITY and MORE TO TRY GROUP; the Planner ruled them on 2026-11-10 (~19:10Z): text approved, security accepted with the page-beyond-the-last case, group "Usage and history" (fourth heading, from 37.2). Decided in-stage item 4 is flagged for the Planner: a decision that no model call served has no recorded channel.
+**Summary.** Story 25.2 adds the History page (`#/history`, a header link between Documents and Usage) with Decisions and Incidents tabs, filters held in the address, 25-row paging, and the two owner-scoped reads `GET /api/v1/history/decisions` and `/incidents` (`Web.History`, forwarded from `Web.Api`) over four new `Ownership.Rows` kinds. It reuses the rail's decision row, the extracted `IncidentStateChip`, `headlineOf` and the shared trace link. It also lands the More to try item (thirteenth, in "Usage and history"), `Demo.Features` `history`, the README bullet, the EXPERIENCE item, the spine rows, and DW-1102's spacing-only header fit K.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`: `HISTORYPAGE`, `HISTORYDECISIONS`, `HistoryDecisions`, `HistoryIncidents` and the four `Statement` kinds.
+- `src/ocutalon/cls/OcuTalon/Web/History.cls` (new) and `Web/Api.cls` (one Map): the routes.
+- `src/ocutalon/cls/OcuTalon/Demo/Features.cls`: `history` after `usage`.
+- `web/src/app/history/*`, `api/history-types.ts`, `api/api-client.ts`, `app.config.ts`, `settings/settings-view.ts`: the page, view and client.
+- `web/src/app/incidents/incident-state-chip.ts` (new), `incident-card.ts`, `incident-view.ts`, `rail/rail-view.ts`, `rail/status-rail.ts`: the extraction and exports.
+- `web/src/app/header/header-nav.ts` and `header.ts`: the History link and fit K.
+- `web/src/app/guide/more-to-try*.ts`: the history item and the generalized link branch.
+- Tests: `Test/Data/OwnershipHistory`, `Test/Web/HistoryApi`, `Test/Data/Ownership`, `Test/Demo/Features`, `web/e2e/api/history.spec.ts`, `web/e2e/history/history.spec.ts`, `web/e2e/support/*`, the shared e2e specs and the node tests listed in the diff.
+- `README.md`, `EXPERIENCE.md`, `ARCHITECTURE-SPINE.md`: the story's own rows and entries.
+
+**Review.** 36 findings: high 0, medium 3, low 22, false 11. Patches applied (6 entries): the page-turn focus move (medium), the incident `fallback` assertion (medium), H3's wait for rows (medium), H6's wait for rows (low), and the missing `mutation:` lines for AC5 and DW-1102 (low). Nothing deferred. Every rejected finding and its reason is in the Review Triage Log.
+
+**Follow-up review recommended: true.** Three medium entries were patched. The unverified risk: the page-turn focus move is proven in Chromium only (`history.spec.ts` runs in the chromium project), not in Firefox or WebKit.
+
+**Verification.**
+- Slot-C classes through the warm stack: `OwnershipHistory`, `HistoryApi`, `Test.Data.Ownership`, `Test.Demo.Features`, `DocumentsApi`, `OwnershipUsage` and `UsageApi` passed (the 37.2 siblings included).
+- Node: the seven `(loop)` test files (203 tests) and `npm --prefix web test` (1883) pass. `npm run lint` and `npm run build` pass; the build keeps its existing budget warnings.
+- e2e on fresh lane-C stacks after the last patch: `api/history.spec.ts` (part 2/20, 10 passed), `history/history.spec.ts` (part 14/20, 11 passed), `live floor` (107 passed in Chromium, Firefox and WebKit, G4 and G5 unedited). `frame`, `documents`, `settings` and `more-to-try` passed in the implement pass and are unchanged since (no patch touched a file they cover).
+- `bash ci/checks.sh`: all scripts passed. `lint_spine.py`: the baseline 10 low `placeholder` findings, nothing new.
+- Mutations: each recorded in `## Verification`, each observed red and reverted byte-identical.
+
+**Residual risks and notes.**
+- Decided in-stage 12 (implement): on build 154 an empty bound value is NULL in dynamic SQL, so the filter statements test `? IS NULL` where the spec text said `? = ''`.
+- The spine memlog append (`memlog.py append --type decision`, Rule 20) did not run: the spine folder has no `.memlog.md`. The lead records the decision.
+- DW-941 (a decision no model call served has no channel) is unchanged and stays with the burn-down.

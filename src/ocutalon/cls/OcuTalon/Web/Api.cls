@@ -90,6 +90,8 @@
 ///     the map at the end of the URL map.
 ///   - The usage route (Story 37.2; GET /v1/usage?days=1|7|30) is OcuTalon.Web.Usage's, forwarded by its own map: the CSP session's own token and cost
 ///     buckets by local day, agent, channel, model and Estimated, with the request-size limit.
+///   - The history routes (Story 25.2; GET /v1/history/decisions?outcome=&channel=&day=&fallback=&page= and GET /v1/history/incidents?page=) are OcuTalon.Web.History's, forwarded
+///     by its own map: the CSP session's own decisions, filtered and paged, and the incidents it sees, paged, with the stored summary as text.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -264,6 +266,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/settings/demo-mode" Method="POST" Call="SaveDemoMode"/>
 <Map Prefix="/v1/documents" Forward="OcuTalon.Web.Documents"/>
 <Map Prefix="/v1/usage" Forward="OcuTalon.Web.Usage"/>
+<Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>
 </Routes>
 }
 

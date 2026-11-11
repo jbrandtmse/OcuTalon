@@ -48,7 +48,7 @@ const FOCUS_RULE: FocusRule = {
 };
 
 /** The values railView reuses, from the real modules, with the times counted from now. */
-function formatAt(now: number): RailFormat {
+export function formatAt(now: number): RailFormat {
   return {
     when: (iso) => pageWhen(iso, now),
     countdown: (dueIso) => countdownText(dueIso, now),

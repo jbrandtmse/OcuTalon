@@ -101,8 +101,14 @@ describe('the page of an address', () => {
     }
   });
 
+  it('is history for /history, whatever the query, the matrix parameters or the hash mark (Story 25.2)', () => {
+    for (const address of ['/history', '#/history', '/history;x=1', '/history?x=1', '/history?tab=incidents&page=2', '/history#top']) {
+      assert.equal(pageOf(address), 'history', address);
+    }
+  });
+
   it('is the chat for every other address', () => {
-    for (const address of ['', '/', '#/', '/settingsx', '/Settings', '/other/settings', '/chat', '#', '/documentsx', '/Documents', '/other/documents', '/documents/x', '/usagex', '/Usage', '/other/usage', '/usage/x']) {
+    for (const address of ['', '/', '#/', '/settingsx', '/Settings', '/other/settings', '/chat', '#', '/documentsx', '/Documents', '/other/documents', '/documents/x', '/usagex', '/Usage', '/other/usage', '/usage/x', '/historyx', '/History', '/other/history', '/history/x']) {
       assert.equal(pageOf(address), 'chat', address);
     }
     assert.equal(pageOf('/settings/documents'), 'settings', 'a section named documents is still the settings page');
