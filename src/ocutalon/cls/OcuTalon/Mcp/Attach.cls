@@ -2,8 +2,9 @@
 /// the McpServersClass setting of the Decide item in OcuTalon.Production.
 ///   - Servers: one {"server", "config"} for each row of OcuTalon.Mcp.Server in the order of the names, the config being AI.MCP.OcuTalon_<Name>. The
 ///     row holds no URL and no credential: the Config Store entry does.
-///   - OnAttach: hands the report to OcuTalon.Mcp.Ops.RecordAttach, which writes the server's row. Nothing else: no notification, no look-up of an
-///     administrator and no read outside this namespace (Story 22.2 sends the admin notices from the row).
+///   - OnAttach: hands the report ({"status", "reason", "tools", "refused"} and, for an attached server, "fingerprints": each listed tool's name to its
+///     fingerprint) to OcuTalon.Mcp.Ops.RecordAttach, which writes the server's row and its tool rows and sends the admin notices. RecordAttach
+///     looks up the administrators' sessions through OcuTalon.Data.Ownership AdminSessions to address the notices. OnAttach itself does nothing else.
 Class OcuTalon.Mcp.Attach Extends OcuTalon.Bridge.Ext.McpServers
 {
 

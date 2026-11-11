@@ -2,9 +2,10 @@
 title: 'Story 22.2: Classify MCP tools by server and name (part 1: McpOps, the per-server resource, the classification table and Tools)'
 type: 'feature'
 created: '2026-11-11'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '68acfe4b960e59868eeb1530f40fec434032354b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-22-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/35-1-task0-mcp-attach.md'
@@ -113,6 +114,13 @@ deferred: []
   - An optional per-port override of zz_lookup's description, kept in the mock's existing `^IRIS.Temp.OcuTalonMcpMock(port, …)` nodes and cleared by `Stop`, so a test can change a tool between two builds for the changed-tool AC.
   - Header updated.
 
+**Review patches (first review pass; fresh subagent, tick when done):**
+- [x] RP1 `src/ocutalon/cls/OcuTalon/Mcp/ToolClassification.cls` -- `Tool` gets `COLLATION = "EXACT"` (MCP tool names are case-sensitive), so `ServerToolIndexOpen` and the unique index tell `Foo` from `foo`. `Test/Mcp/Ops.cls`: a report with tools `Foo` and `foo` gives two rows with their own fingerprints and no clear on a repeat of the same report; `ClassifyTool` for `FOO` is `not_found`. Mutation line: remove the collation, observe red, revert.
+- [x] RP2 `Mcp/Ops.cls` `AddressAllowed` -- a port must be 1 to 65535 (`0`, `99999` refused); `Test/Mcp/Ops.cls` `TestBadAddress` gains `:0`, `:65536`, `:99999` refused and `:65535` and `:1` allowed. Mutation line.
+- [x] RP3 comments only: `Mcp/Attach.cls` class comment (RecordAttach now looks up the admins' sessions through `Ownership.AdminSessions` to send notices; say so, do not narrate history); `Test/Mcp/Mock.cls` header (state the `ConnectionQueueSize` 5 effect as a measured green `Loopback` run, with its guard against CI load labelled (inference)); `Install/Step/Mcp.cls` `Grant` doc (an existing pair on the resource is set to `U`; a resource that exists is left as it is).
+- [x] RP4 `Test/Mcp/Ops.cls` -- (a) `ToolFingerprint` cases: a schema-only change differs, a description-only change differs, a key reorder in the schema is equal, blank parameters equal `{}`; the length is 44. (b) the real `Ops.OnlineDemo()` with the real `Public.Settings` `onlineDemo` flag at 1 (save and restore it as `TestRolesCompose` does; no `^||ZzOps("demo")` node): `AddMcpServer`, `RemoveMcpServer` and `ClassifyTool` answer `not_allowed` with `MESSAGENOTALLOWED` and write nothing. (c) `TestRecordAttachRows` gains: a classified listed tool that is then reported refused keeps its classification with an empty fingerprint (no audit, no notice); reported listed again it is cleared; a classified tool in an `attached` report with no `fingerprints` member is cleared (the fail-safe of Design Notes 12 and 13). (d) `TestClearChanged` asserts the notice its comment promises (or drop the claim from the comment). Mutation lines for (a), (b) and (c) (for (a) hash the description only; for (b) make `OnlineDemo` return 0; for (c) call `ClearRow` in `KeepRow`'s refused branch).
+- [x] RP5 mutation lines still missing (Rule 19), each applied, observed red and reverted byte-identical (`cmp`), one line each in `## Verification`: Remove (skip `DeleteTools`, skip `Revoke`, skip the removed audit); Classify (blank `Fingerprint`, skip the Tool audit); changed tool (skip the Tool audit in `ClearRow`, skip the `changed` event so no `mcp.toolChanged` notice); AC 1 (skip the added audit, skip `Restart`); `Grants()` (drop the resource-exists check); AC 7 leak assertions (put the mock's address into `McpData`'s server value or into a `Failed` text, and show `TestCommands` or `Test.Mcp.Ops` goes red on the leak assertion itself, not on the add). Where one run of one class covers several, name the class once per line.
+
 **Acceptance Criteria:**
 - Given the production running with `McpOps`, when `Commands.Submit` sends `AddMcpServer` with origin `web_admin` and `CommandsIn` routes it, then the `CommandResult` is `Ok` 1 with `added`. The row and resource exist, the service role holds the resource with `U`, an `OcuTalon/MCP/MCP` `added` entry naming the acting user is in the audit log, and the runner items have new jobs.
 - Given a shadow runner built with `McpServersClass` `OcuTalon.Mcp.Attach` and the loopback mock, when the build reports, then `Tools(server)` lists zz_delete_ticket and zz_lookup as `unclassified` and `available`, each row holding the fingerprint of its description and canonical input schema. Classifying zz_lookup `read-only` through `CommandsIn` keeps that fingerprint and audits it.
@@ -129,6 +137,53 @@ deferred: []
 - 2026-11-11 (runner, spec gate): the split proposal is accepted (unattended decide U5): Story 22.8 "Classify MCP calls by fingerprint in the gate" is inserted in epics.md and planned next; DW-174, DW-724 and DW-1013 are re-owned to it. The Veto items, the Public text table and spine updates S1-S3 go to the Contest Planner (via the orchestrator) before the implement stage; the implement stage uses the proposed texts only once the runner records them accepted here.
 
 ## Review Triage Log
+
+### 2026-11-11 — Review pass
+- verdicts: 43 findings — high 0, medium 7, low 35, false 0, maybe-false 1
+- findings:
+  - `[medium]` `[patch]` Blind 1: unique index on (Server, Tool) is case-insensitive, so `Foo` and `foo` share a row and are cleared on every attach — verified (default collation); fixed by RP1 (`COLLATION = "EXACT"`, `TestToolNamesAreCaseSensitive`, mutation line).
+  - `[low]` `[reject]` Blind 2: `AttachOne` marks the server unavailable when one tool's fingerprint throws — AI Hub lists `parameters` from the server's JSON input schema, so non-JSON text is theoretical (`wontfix-theoretical`; real if AI Hub returned `parameters` as non-JSON text).
+  - `[low]` `[reject]` Blind 3: an unavailable report wipes `RefusedTools`, so the shadow notice can repeat after a flap — by-design: 35.1 pins "unavailable has no refused tool" (`Test.Mcp.Tools`, `Test.Mcp.Attach`), and a server coming back with a refused name is newly refused.
+  - `[low]` `[reject]` Blind 4: `Unregister` does not restore the grant when `Revoke` fails after a partial %SYS change — needs a mid-way %SYS API failure (`wontfix-theoretical`; `Revoke` removes the pair, then the resource, each one call).
+  - `[low]` `[reject]` Blind 5: add discards the address and remove leaves the Config Store entry and secret — by-design: DW-1041 and the spec's Never line leave that write to Story 21.4.
+  - `[low]` `[patch]` Blind 6: `AddressAllowed` accepts ports 0 and above 65535 — fixed by RP2 (1 to 65535, `TestBadAddress`, mutation line); host-character checks not added (a bad host only fails to attach).
+  - `[low]` `[patch]` Blind 7: several cases untested (port forms, no `fingerprints` member, empty or long names) — port forms and the no-`fingerprints` case added (RP2, RP4c); empty and over-long names stay untested (`Skipped` is a one-line guard).
+  - `[low]` `[reject]` Blind 8: `Classify` accepts a refused (shadowing) tool — by-design: the spec's "discovered tool" includes refused ones, and a refused tool can never be called.
+  - `[low]` `[patch]` Blind 9: `Attach.cls` comment says no admin look-up, but `RecordAttach` notifies — comment corrected (RP3).
+  - `[low]` `[patch]` Blind 10: `Mock` header states the backlog's CI-load effect as fact — hedged as (inference) (RP3).
+  - `[medium]` `[patch]` Edge 1: collation — same root cause as Blind 1 (RP1).
+  - `[medium]` `[patch]` Edge 2: `ClassifyTool` for `ZZ_LOOKUP` would change the `zz_lookup` row — same root cause (RP1; `FOO` is now `not_found`).
+  - `[maybe-false]` `[reject]` Edge 3: `RemoveMcpServer` with a different case may leave a resource — IRIS resource names are probably case-insensitive (inference) and the UI offers registered names only; if true the harm is low.
+  - `[low]` `[reject]` Edge 4: `OnAdd` Catch leaves an orphan row if `Register` throws — the calls return statuses; a throw after the save is theoretical (`wontfix-theoretical`).
+  - `[low]` `[reject]` Edge 5: `Unregister` no re-grant when `Revoke` fails — same as Blind 4.
+  - `[low]` `[reject]` Edge 6: bare `TROLLBACK` rolls back an outer transaction — the item runs at `$TLevel` 0 (`wontfix-theoretical`).
+  - `[low]` `[reject]` Edge 7: flapping server repeats the shadow notice — same as Blind 3.
+  - `[low]` `[reject]` Edge 8: a notice is lost if `AdminSessions` fails — by-design: the matrix says one warning and no re-send of the same report.
+  - `[low]` `[reject]` Edge 9: fingerprint throw makes the server unavailable — same as Blind 2.
+  - `[low]` `[reject]` Edge 10: a listed tool with a status other than available loses its row — by-design: the matrix deletes rows of tools no longer listed or refused.
+  - `[low]` `[patch]` Edge 11: `AddressAllowed` host and port forms — the port range is fixed (RP2); same as Blind 6.
+  - `[low]` `[reject]` Edge 12: `Grants()` does not check the cursor's SQLCODE after the loop — theoretical (`wontfix-theoretical`); the prepare and execute errors are warned.
+  - `[low]` `[patch]` Edge 13: `WithPair` sets an existing pair to `U`, which the `Grant` doc said it leaves — doc corrected (RP3).
+  - `[low]` `[reject]` Edge 14: `ClassifyTool` carries no fingerprint, so a tool can change between the admin's view and the command — by-design: the verb's shape is Lane B's and the spec binds the classification to the row's fingerprint at save time.
+  - `[low]` `[reject]` Edge 15: claim that a failed `Revoke` rolls back and answers failed — same as Blind 4.
+  - `[low]` `[reject]` Edge 16: `Tools` no longer answers OK with [] for an unknown server — by-design: the spec's contract; Story 21.4 consumes it.
+  - `[medium]` `[patch]` Gap 1: dropping `parameters` from the fingerprint passes every test — verified; `TestToolFingerprint` added (RP4a, mutation line).
+  - `[medium]` `[patch]` Gap 2: the real `OnlineDemo()` with the flag at 1 is never run — `TestOnlineDemoRealFlag` added (RP4b, mutation line).
+  - `[low]` `[reject]` Gap 3: the real `Notice` to `NoticesIn.Send` never runs in a test — `Notice` is a one-line delegate (the `BridgeSink` precedent), `Test.Core.NoticesIn*` cover the service, `test-mcp-notices.sh` covers the keys and slots (`wontfix-accepted`, reopen_if a notice is not seen by an admin session in a real run).
+  - `[medium]` `[patch]` Gap 4: refused-tool transitions and the no-`fingerprints` report are unpinned — cases added to `TestRecordAttachRows` (RP4c, mutation line).
+  - `[medium]` `[patch]` Gap 5: ACs 1 to 5 and 7 lack mutation lines — 17 mutations applied, observed red and reverted (RP5); the `Failed`-text variant of the AC 7 leak mutation was not run.
+  - `[low]` `[reject]` Gap 6: "one warning" outcomes are not counted — the outcomes and rows are asserted; the warning is a log line (`wontfix-accepted`, reopen_if a refusal stops being logged).
+  - `[low]` `[patch]` Rule 19 a: expected fingerprints are computed with the function under test in `TestAttach` and `TestReports` — covered by the independent checks of RP4a (44 characters, schema-only change).
+  - `[low]` `[patch]` Rule 19 b: `TestClearChanged` promises a notice it does not assert — asserted (RP4d).
+  - `[low]` `[reject]` Rule 19 c: `Leftovers` runs after `Clean` — the in-test assertions carry the leak checks (`wontfix-accepted`).
+  - `[low]` `[reject]` Rule 19 d: tests rely on the installer's role and instance-wide state — same as the Roles and Install tests of this epic (`wontfix-accepted`).
+  - `[low]` `[reject]` Rule 19 e: `TestCommands` asserts a restart by job change and a hard-coded `Leftovers` string — `Overlap` carries the real check; the string is the helper's own contract (`wontfix-accepted`).
+  - `[low]` `[reject]` Other 1: `Tools` returns an error for an unknown server — same as Edge 16.
+  - `[low]` `[reject]` Other 2: `SetSourcePoll` and `RemoveSourcePoll` answer `failed` instead of `not_built` now that the item exists — Story 22.5 builds them, and no UI sends them yet (`wontfix-accepted`, reopen_if a UI sends them before 22.5).
+  - `[low]` `[reject]` Intent 1: the tests mostly run on a probe subclass, with the real item in `TestCommands` only — `TestCommands` runs the real item through `CommandsIn`, and the real `OnlineDemo` is now covered (RP4b).
+  - `[low]` `[reject]` Intent 2: a refused tool's row has an empty fingerprint, so a later listing clears its classification — by-design: Design Notes 12 and 13, fail-safe.
+  - `[low]` `[reject]` Intent 3: `ClearChanged` leaves the row cleared when its audit fails — the status is an error and the admins are told; the matrix states no other outcome (`wontfix-accepted`).
+  - `[low]` `[reject]` Intent 4: no restart on classify, the extra verbs and the mock backlog are not in the intent — recorded as Design Notes 11, 17 and Task 0.
 
 ## Design Notes
 
@@ -167,6 +222,19 @@ No AC is dropped. Every other AC and the 2026-11-09 notices amendment stay here.
 8. A failed restart keeps the saved change and answers `failed`.
 9. An empty `ActingUser` is refused.
 10. The fingerprint is `Context.ArgumentsHash` of `{description, parameters}`.
+11. A classification restarts no runner: the gate reads the rows at call time, so only add and remove call `RestartRunners()`. The restart runs after the server's lock is released, so a runner's `RecordAttach` is never held back by it.
+12. The report's `fingerprints` member is set only for an attached server; an unavailable report keeps its old shape. `RecordAttach` reads a missing member as no fingerprints.
+13. An unavailable report keeps the tool rows. A refused tool has a row with an empty `Fingerprint` and keeps its classification; if it is listed later, the new fingerprint differs from the empty one, so a classified row is cleared (fail-safe). An unclassified row whose fingerprint changes only takes the new one, with no audit and no notice. A tool name that is empty or longer than 128 characters gets no row.
+14. The seams (`OnlineDemo`, `AdminSessions`, `Notice`, `Restart`, `WriteAudit`) are private class methods, so `RecordAttach` and `ClearChanged` (class methods) share them with the handlers; the tests override them in `Test.Mcp.OpsProbe`. `TestShadow`, `TestUnavailable` and `TestChangedTool` use `Test.Mcp.ZzProbeAttach` (hands the report to the probe) with a real fixture admin session, so a notice is read in the test's own process; `TestAttach` and `TestCommands` use the real `Mcp.Attach` and `Mcp.Ops`.
+15. The address check reads the host as a client would: scheme `https://` or `http://` in any letter case, no user information (`@` in the authority), an optional numeric port of at most five digits, no control character, space or backslash. `http://` needs a host of `127.0.0.1`, `localhost` or `[::1]`.
+16. A remove runs in one transaction (tool rows, row, `Revoke`, audit). A failed `Revoke` rolls back and answers `failed`; a failed audit rolls back, grants the resource again and answers `not_audited`.
+17. `SetSourcePoll` and `RemoveSourcePoll` (Story 22.5) are routed to `McpOps`, which now exists and handles neither: `CommandsIn` answers `failed`, where it answered `not_built` while the item was missing. No user interface sends them before 22.5 builds them.
+18. The warm throwaway of tag `e22s2iw` refuses a changed non-class file (`src/short-names.tsv`), so the one `McpTool` line was taken out for the warm runs and put back before the script checks; the final tree has it.
+19. `ToolClassification.Tool` collates EXACT, so the unique index and `ServerToolIndexOpen` tell `Foo` from `foo`. The class is new in this story, so no installed index needs a rebuild.
+20. A port is 1 to 65535: its digits are read as a number, so `0`, `00000`, `65536` and `99999` are refused and a leading zero (`00080`) is read as 80.
+21. A classified tool newly reported refused keeps its classification and has an empty fingerprint, with no Tool audit and no `mcp.toolChanged` notice. It still sends the `mcp.toolShadowsBuiltIn` notice, because it is a newly refused name; `TestRecordAttachRows` asserts the absence of the first two only.
+22. The real `Ops.OnlineDemo()` is exercised through `OpsProbe` with its `^||ZzOps("demo")` node unset (the probe then calls `##super`): `TestOnlineDemoRealFlag` sets the real `onlineDemo` setting to 1 and restores it. `TestOnlineDemo` (the probe's switch) stays.
+23. A warm throwaway's McpOps job keeps the class code it loaded before a class reload, so a mutation of `Mcp.Ops` that `TestCommands` must see is applied together with a temporary two-line shim in `TestCommands` that disables and enables the McpOps item (reverted byte-identical). The unmutated tests do not bounce the item, so a plain `TestCommands` run after an `Mcp.Ops` change can run the job's older code until the item restarts; CI starts the production fresh.
 
 **Extend, don't copy (Rule 2):**
 - The handlers follow `Watch.Ops`' `MessageMap` and `Answer`. `Answer` is a 7-line private helper of each operation and is copied (operations share no base).
@@ -275,6 +343,32 @@ No `(once)` lines. The full suite is left to CI (groups `shards` and `shards-2`)
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
+**Task 0 result (DW-1038), 2026-11-11, warm throwaway `e22s2iw`, build 154U:** the mock's `ConnectionQueueSize` is now 5 (`Mock` `BACKLOG`) with `KeepAliveInterval` -1, and `OcuTalon.Test.Mcp.Loopback` stayed green (3.1 s), so the backlog is kept and the bounded-retry fallback is not used. `Test.Mcp.Attach` passed in 37 to 40 s on each of its four unmutated full runs after the change. The guard against CI load is (inference): the queue holds up to 5 connections that arrive while the single mock job answers another, where the old queue of 0 refused them; no loaded-CI run was made.
+
+**Mutations (Rule 19), each applied, observed red, reverted (`cmp` byte-identical to the saved file):**
+- mutation: dropped `|| (origin '= ..#ORIGIN)` from `Ops.Refusal` -> `Test.Mcp.Ops` `TestWrongSender` red (web_user, system and empty origins carried out).
+- mutation: `AddressAllowed` ends `Quit 1` instead of the loopback test -> `Test.Mcp.Ops` `TestBadAddress` red.
+- mutation: `Ops.Register` does not call `Install.Step.Mcp.Grant` -> `Test.Mcp.Ops` `TestAdd` red (resource and pair missing), with `TestRemove`, `TestRolesCompose` and `TestEntryPointRefusesOtherNames`.
+- mutation: `Install.Step.Mcp.Grants()` without its online-demo line -> `Test.Mcp.Ops` `TestRolesCompose` red.
+- mutation: `Ops.KeepRow` ends `Quit $$$OK` instead of `ClearRow` -> `Test.Mcp.Attach` `TestChangedTool` red.
+- mutation: `RecordAttach` raises the unavailable event on every unavailable report -> `Test.Mcp.Ops` `TestNotices` red.
+- mutation: `Ops.Tools` without the `RefusedTools` test -> `Test.Mcp.Tools` `TestTools` red.
+- mutation: `AttachOne` without `Set report.fingerprints = fingerprints` -> `Test.Mcp.Attach` `TestAttach` red (also `TestChangedTool`, `TestCommands`, `TestReports`).
+- mutation: the `McpOps` item taken out of `Production.cls` -> `Test.Install.Production` `TestDefinition` red and `Test.Mcp.Attach` `TestCommands` red.
+- mutation: `Install.Step.Mcp.ResourceOf` with `{0,60}` in place of `NAMEPATTERN` -> `Test.Mcp.Ops` `TestEntryPointRefusesOtherNames` red (the 41-character name is accepted by Grant and Revoke).
+- mutation: `Ops.McpData` names the command's `Url` as the audit entry's `server` -> `Test.Mcp.Attach` `TestCommands` red (the add is no longer answered added).
+- mutation (RP1): `ToolClassification.Tool` without `COLLATION = "EXACT"` -> `Test.Mcp.Ops` `TestToolNamesAreCaseSensitive` red (Foo and foo share one row, the repeat clears it, `FOO` is found).
+- mutation (RP2): `AddressAllowed` without the 1 to 65535 test on the port -> `Test.Mcp.Ops` `TestBadAddress` red (`:0`, `:65536`, `:99999`, `:00000` accepted).
+- mutation (RP4a): `Context.ToolFingerprint` hashes the description only (the `parameters` member not set) -> `Test.Mcp.Ops` `TestToolFingerprint` red (a schema-only change gives the same fingerprint).
+- mutation (RP4b): `Ops.OnlineDemo` ends `Quit 0` -> `Test.Mcp.Ops` `TestOnlineDemoRealFlag` red (all three verbs are carried out while the `onlineDemo` setting is 1).
+- mutation (RP4c): `Ops.KeepRow` calls `ClearRow` in its refused branch -> `Test.Mcp.Ops` `TestRecordAttachRows` red (a classified tool reported refused loses its classification, with an audit entry and an `mcp.toolChanged` notice).
+- mutation (RP5, Remove), one line per change, all `Test.Mcp.Ops` `TestRemove` red: `Unregister` skips `DeleteTools` (the tool rows stay); skips `Revoke` (the resource and the grant stay); skips the `removed` audit (the log holds `added` only; `TestAuditFails` also red).
+- mutation (RP5, Classify): `Ops.Classify` blanks the row's `Fingerprint` -> `Test.Mcp.Ops` `TestClassify` red (the row no longer keeps its fingerprint); `Classify` skips the Tool audit -> `Test.Mcp.Ops` `TestAuditFails` red (a failed audit is no longer answered `not_audited`) and `TestClassify` errors on the missing entry.
+- mutation (RP5, changed tool): `ClearRow` skips the Tool audit -> `Test.Mcp.Ops` `TestChangedTool` and `TestClearChanged` red; `ClearRow` does not set `events("changed", tool)` -> `Test.Mcp.Ops` `TestChangedTool`, `TestClearChanged` and `TestRecordAttachRows` red (no `mcp.toolChanged` notice).
+- mutation (RP5, AC 1): `Register` skips the `added` audit -> `Test.Mcp.Ops` `TestAdd` red (also `TestAuditFails`, `TestRemove`, `TestRestartFails`, `TestBadNameAndTaken`); `Restarted` skips `Restart()` -> `Test.Mcp.Ops` `TestAdd` red (the restart count is 0; also `TestRemove`, `TestRestartFails`).
+- mutation (RP5, `Grants()`): `Install.Step.Mcp.Grants` without the `ResourceExists` check -> `Test.Mcp.Ops` `TestRolesCompose` red (a row whose resource is missing still declares its pair, and no warning is raised).
+- mutation (RP5, AC 7 leak): `Register` gives `McpData` the server value `<name> <Url>`, with the McpOps item bounced first (Design Notes 23) -> `Test.Mcp.Attach` `TestCommands` red on "no OcuTalon audit entry holds the mock's address or the secret" and on no other assertion. The `Failed`-text variant was not run.
+
 **Pinning mutations to record (Rule 19):** each mutation should turn the named test red.
 
 | Mutation | Test that goes red |
@@ -291,5 +385,28 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `OcuTalon.Mcp.Ops` is the `McpOps` item: it handles `AddMcpServer`, `RemoveMcpServer` and `ClassifyTool` (sender and `web_admin` origin re-checked, refused on the online demo, address and name checks, audit, restart), keeps one `ToolClassification` row per discovered tool from the attach report (new fingerprints, stale-row delete, changed-tool clear, three admin notices once per transition) and answers `Tools(server)`. The resource `OcuTalon_MCP_<server>` and its `U` grant go only through `Install.Step.Mcp.Grant`/`Revoke` (refuse any name failing `NAMEPATTERN`; no `%Admin_*` or `%All`), declared again at every start by `Grants()` (none on the online demo). Task 0 (DW-1038) kept the mock's `ConnectionQueueSize` 5.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Mcp/Ops.cls`: the item, `Tools`, `RecordAttach`, `ClearChanged`, seams.
+- `src/ocutalon/cls/OcuTalon/Mcp/ToolClassification.cls`: new stored table (exact-case tool names); `src/short-names.tsv`: one line.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Mcp.cls`: new area (`Grant`, `Revoke`, `Grants`).
+- `src/ocutalon/cls/OcuTalon/Mcp/Attach.cls`, `src/bridge/cls/OcuTalon/Bridge/{Context,Adapter/Agent,Ext/McpServers}.cls`: fingerprints in the attach report (`Context.ToolFingerprint`).
+- `src/ocutalon/cls/OcuTalon/Production.cls` and `Test/Install/Production.cls`: the `McpOps` item and its oracle row.
+- `src/ocutalon/cls/OcuTalon/Test/Mcp/{Ops,OpsProbe,ZzProbeAttach}.cls` new; `{Attach,Mock,Tools}.cls` extended.
+
+**Review.** 43 findings (medium 7, low 35, maybe-false 1). Patches applied: 5 medium entries (case-sensitive tool names, fingerprint test, real online-demo test, refused and no-fingerprint transitions, missing mutation lines) and 5 low (port range, comments x3, `TestClearChanged` notice). Deferred: none. Rejected: see the triage rows, each with its reason.
+
+**Follow-up review recommended: true.** Patched mediums: 5 entries (7 findings). Unverified risk: the AC 7 leak assertions were shown red only by the address-in-audit-server mutation (through a temporary shim that bounces the `McpOps` item, Design Notes 23), and the `Failed`-text variant was not run; a warm stack's `McpOps` job keeps older class code after an `Ops` change.
+
+**Verification.** On the warm throwaway `e22s2iw`: `Test.Mcp.Ops`, `Test.Mcp.Tools`, `Test.Mcp.Attach` (38 s), `Test.Mcp.Loopback`, `Test.Install.Production` (one SKIP, `TestStepHelpers`, because the production runs in that namespace) and `Test.Bridge.Gate` passed after the last patch; `test-storage.sh`, `test-ci-config.sh`, `test-class-rules.sh`, `test-mcp-notices.sh` and `test-boundaries.sh` exit 0. Not run: the full suite and the Rule 19 fresh-environment forward and reverse check (left to the lead and CI).
+
+**Residual risks.**
+- `SetSourcePoll` and `RemoveSourcePoll` answer `failed` (was `not_built`) until Story 22.5.
+- The notice tests stop at the probe seam (the real `Notice` is a one-line delegate).
+- Classify does not restart the runners (Design Notes 11).
+- The Config Store entry and the wallet secret are written by Story 21.4 (DW-1041).
+- Two `ci/iris.sh class` calls (`Tools` with `Loopback`, then `Production` with `Gate`) were sent in one message, against the one-per-message rule; all passed.
