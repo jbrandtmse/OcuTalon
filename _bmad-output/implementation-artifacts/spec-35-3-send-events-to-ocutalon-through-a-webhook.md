@@ -1,0 +1,453 @@
+---
+title: 'Story 35.3: Send events to OcuTalon through a webhook'
+type: 'feature'
+created: '2026-11-11'
+status: 'ready-for-dev'
+review_loop_iteration: 0
+followup_review_recommended: false
+context:
+  - '{project-root}/_bmad-output/implementation-artifacts/epic-35-context.md'
+  - '{project-root}/_bmad-output/implementation-artifacts/spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md'
+warnings: ['oversized']
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** Story 35.2 fixed the webhook's names, values and texts in the spine and the catalog, but nothing is built: an admin cannot create a webhook, `/ocutalon/hook` does not exist, and no outside system can send OcuTalon an event. Epics 21, 22 and 27 wait on this story.
+
+**Approach:** Build the webhook end to end on 35.2's B2-B4, B7, B8 and B10, local installs only: the `OcuTalon.Data.Webhook` table, the `/ocutalon/hook` application with its least role, the `OcuTalon.Web.Hook` dispatch class, the adapterless `WebhookIn` service, admin routes that list webhooks, create one and replace a secret (the secret reaches `SettingsOps` only through an in-memory event, never a command, message, log or trace), the Settings > Channels "Webhooks" group, one More to try item and one README line. On an online-demo install the application, the role, the routes and the item are all off.
+
+## Boundaries & Constraints
+
+**Always:**
+- Lane B files only, plus the footprint extensions and contended-file edits that Design Notes list. Build to 35.2's spine values (B2-B4, B7, B8, B10); spine edits are plain unions marked `[ADDED 2026-11-11, Story 35.3]`, or `[AMENDED 2026-11-11, Story 35.3, ...]`, only after the gate's ruling on the veto items.
+- The secret appears only in the REST process's memory, the event resource's shared memory and `SettingsOps`'s memory. It never appears in a command, a production message, the event log, the console log, the audit log, a trace, test output or any global. Only the `salt.hash` string is stored.
+- The hook's refusals are status lines with no body. No log line or audit entry holds a header, the body, the secret or the caller's address.
+- REST and hook code reads tables with object access (index opens and `$Order` over the class's own globals), never with SQL. The only REST-side write is the hook's counters global (see the SECURITY block's AD-1 item).
+- Accepted texts only: 35.2's webhook rows and existing EXPERIENCE strings are shipped verbatim. The new texts in the PUBLIC TEXT block ship only after the lead records their acceptance.
+- ASCII only in source (Rule 14). Comments state the contract, never the history.
+- Online demo: no hook application, no `OcuTalonWebhook` role, routes refused with the off text, no More to try item.
+
+**Never:**
+- Any Lane A file: `Install/**` other than `Install/Step/Web.cls`, `Install/SecurityOverview.cls`, `Test/Install/**`, `src/bridge/**` or `Mcp/**`. Lead item L1 is the only path to the Lane A change this story needs.
+- `.github/workflows/**`, `release/**` or `ci/units.sh`.
+- `%All` or any `%Ens_*` resource for `OcuTalonWebhook`, and no user holding it.
+- Reusing the unsalted `Data.Pairing.HashCode`.
+- Passing the secret or its hash through `Commands.Submit`.
+- A delete route for webhooks, email settings, Slack, or mapping a payload by its source.
+- Renaming or changing any of 35.2's accepted keys.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| H1 accept | `POST /ocutalon/hook/<ref>`, right secret in `X-OcuTalon-Webhook-Secret`, JSON object or array of 65,536 bytes or fewer | 202 with no body in under 1 s. `WebhookIn` sends `Intake` an Item: `Channel` webhook, `Provenance` untrusted, the owner's `SessionRef`, `Subject` the name, `Text` the body as UTF-8 text. The Item has its own trace session, whose SuperSession is the owner's `TraceRef` | Production not running, or `WebhookIn` fails: 503, status line only, nothing becomes an item, and a console line names the Ref and the status |
+| H2 unknown or bad secret | unknown or malformed ref, missing or wrong secret, or a Ref whose owning session has no row | 401, status line only. An unknown ref is compared against `DUMMYHASH` | rejection counted (H7) |
+| H3 too big | right secret, body of 65,537 bytes or more | 413, status line only; the body is not parsed | rejection counted |
+| H4 not JSON | right secret, body that is not a JSON object or array (a scalar, text, an empty body, or form fields) | 400, status line only | rejection counted |
+| H5 over limit | right secret, the 121st valid event of this webhook in one UTC clock hour | 429, status line only, with `Retry-After` in seconds to the next hour | rejection counted; the accepted count is not raised |
+| H6 other paths | `GET`, `PUT` or `OPTIONS` on `/<ref>`; `/ocutalon/hook/`; `/ocutalon/hook/a/b` | 404, status line only | not counted |
+| H7 rejection audit | rejections on one slot (a Ref, or `?` for every unknown ref) | At most one `Action` entry per 60 s per slot: `webhook_rejected`, channel webhook, target the Ref (empty when unknown), `counts.rejected` the rejections since the previous entry. The daily Web purge writes a pending count older than 60 s | an audit write that fails is logged without any request data, and the answer is unchanged |
+| C1 create | admin, `POST /api/v1/settings/channels/webhooks` with `{"name","secret"}` | 200 `{"result":"done","message","webhook":{ref,name,path,createdAt}}`. The row holds `salt.hash`. One Settings audit entry: setting `webhook.<Ref>`, from "", to the name | -- |
+| C2 field refusals | `@{` in a name or secret; a name not 1-64 characters after trimming, or holding a control character; a secret not 16-256 characters of 0x21-0x7E; a name already used, compared without regard to case | 400 `bad_webhook` with `fields` `{name?, secret?}` (each the field's text: `settings.refusedExpansion`, `webhookBadName`, `webhookBadSecret` or `webhookNameTaken`) and the message "Couldn't save. Nothing was changed." | nothing written; the event resource is deleted |
+| C3 rotate | admin, `POST .../webhooks/<ref>/secret` with `{"secret"}`, the session's own Ref | 200 `{"result":"done","message"}`. The old secret then gets 401 and the new one 202. Audit: setting `webhook.<Ref>.secret`, from and to "" | another session's or an unknown Ref: 404 `not_found`, nothing written |
+| C4 list | admin, `GET .../webhooks` | 200 `{"webhooks":[{ref,name,path,createdAt}]}`, the session's own webhooks in creation order, `path` `/ocutalon/hook/<ref>` | a read that fails: 500 |
+| C5 not admin | the LIVE fixture user (OcuTalonUser) on any of the three routes | 403 `not_admin` (Api's OnPreDispatch) | -- |
+| C6 online demo | `onlineDemo` 1, admin on any of the three routes | 409 `not_available` with `settings.webhooksOffOnDemo` | nothing read or written |
+| C7 bad body | a body that is not exactly the shape | 400 `bad_webhook`, `fields` {} | nothing submitted |
+
+</intent-contract>
+
+## Code Map
+
+- `src/ocutalon/cls/OcuTalon/Install/Step/Web.cls` -- Lane B. `Definitions` (:149) adds `/ocutalon/hook` off the online demo. It is built like `/ocutalon/public` (:170-180, `Common(...,0)`, `AutheEnabled` 64, `GroupById` ""), with `MatchRoles` `:OcuTalonWebhook`, `DispatchClass` `OcuTalon.Web.Hook` and `CookiePath` `/ocutalon/hook/`. `Grants()` (:136) gains the webhook role's rows off the online demo through `GrantsFor(online)`, the Story 23.2 S1 precedent `Install/Step/Fix.cls:36-39` (`GrantsOf(kinds, online)`). `OnlineDemo()` (:114) reads `Data.Public.Settings`. The Public step runs before Roles, which runs before Web (`Install/Registry.cls:14`). `Run` removes `/ocutalon/hook` on the online demo when it exists. `Purge` (:124) also calls the Webhook counters' purge.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls` -- Lane A, read only. It composes roles from every area's `Grants()`. It never deletes a role, so with no declaration the online demo gets no `OcuTalonWebhook` role. It refuses `FORBIDDEN` resources and resources that do not exist.
+- `src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls:314-336,418` and `Test/Install/SecurityOverview.cls:296-327,625-640` -- Lane A, read only. `Applications()` lists every application whose `MatchRoles` is not empty under "Roles added for every signed-in user". The pin at :326 expects only `/ocutalon` and `/ocutalon/api`. Both break when the hook is added: lead item L1.
+- `docs/security-overview.md:92-97` -- generated. Regenerate with `docker/tests/test-security-overview.sh --write` only after L1 is settled.
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls:230-269` (UrlMap), `:285-332` (`OnPreDispatch`: role, admin check for `/v1/settings` and below, envelope, BodyLimit) -- contended (Epic 21). Add one `<Map Prefix="/v1/settings/channels/webhooks" Forward="OcuTalon.Web.HookSettings"/>` row after the History map, and one bullet in the class doc's list of forwarded maps (:82-88). `%CSP.REST` builds a Map's regex as Prefix + `(/.*)?` (`irislib/%CSP/REST.cls:731`), so the anchored route `/v1/settings/channels` (:261, still 501) is unchanged.
+- `src/ocutalon/cls/OcuTalon/Web/History.cls:1-30` -- the forwarded-class sibling (extends `Web.Api`; the role and envelope checks run again).
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls:493-499,544-551` -- the `Post`/`Mail` pattern: `Ens.Director.CreateBusinessService` plus `ProcessInput` in the request's process.
+- `src/ocutalon/cls/OcuTalon/Channel/SimMailbox/In.cls` -- the sibling of `WebhookIn` (35.2 item (g)): adapterless, `%SuperSession` = the session's `TraceRef`, async `Send` seam to `Intake`, input a `%RegisteredObject`.
+- `src/ocutalon/cls/OcuTalon/Core/Intake.cls:1-25` -- refuses an Item that is not untrusted, or that has no ItemId, owner, or Text/Subject/Sender. Channel-agnostic.
+- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:143-156` (`Carry`), `:190-216` (`AuditData`, `WriteAudit`), `:660` (`OnlineDemo`), `:766` (`Result`), end of class (:1478) -- contended (Epic 21). Add two `If class = ...` lines to `Carry`'s list and append one self-contained block of webhook methods and one class-doc paragraph.
+- `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls:283-300` (`XData Routes`) -- append two rows: `CreateWebhook` and `SetWebhookSecret`, owner `SettingsOps`, origins `web_admin`.
+- `src/ocutalon/cls/OcuTalon/Msg/Command/SaveSettings.cls` -- the verb class shape (`ActingUser` set from the authenticated context).
+- `src/ocutalon/cls/OcuTalon/Data/Upload.cls` -- the table sibling: `Ref` with EXACT collation, `RefIndex` Unique, `SessionRefIndex`, object access with no SQL, `NewRef`.
+- `src/ocutalon/cls/OcuTalon/Data/Session.cls:200-205` (`Hash`: base64url without padding), `:11-13` (the `MARKGLOBAL` counter-global precedent, `$Increment` with no row lock).
+- `src/bridge/cls/OcuTalon/Bridge/Ids.cls:7` -- `NewRef()`. `src/bridge/cls/OcuTalon/Bridge/Audit.cls:17-77` -- `Record(type, data)`: the `Action` shape `irisUser,sessionRef,channel,action,target,result,counts,approvalRef` and the `Settings` shape `setting,from,to`. `irisUser` must not be empty.
+- `src/ocutalon/cls/OcuTalon/Data/Purge.cls:119-133` (`Keeps`) -- add a `Webhook` line beside `Pairing` (:129) and one clause in the class doc (:9-11).
+- `src/ocutalon/cls/OcuTalon/Production.cls:69-98` -- lane B region. Append `<Item Name="WebhookIn" ClassName="OcuTalon.Channel.Webhook.In" PoolSize="0" Enabled="true"/>`. Its oracle row goes in `Test/Core/ProductionItems.cls:20`.
+- `src/ocutalon/cls/OcuTalon/Demo/Features.cls:43-55` -- `Ids(has)`: add the id `webhooks` after `heartbeat`, when `has.webhooks` (not the online demo). Test: `Test/Demo/Features.cls:59`.
+- `web/src/app/settings/channels-section.ts` -- contended (Epic 21). Append `<app-webhooks-section />` at the end of the template, the import, and its name in `imports`. `settings-view.ts:41-45` holds `save`, `saved` and `failed` (reuse them). `settings-page.ts:70` is not edited.
+- `web/src/app/guide/more-to-try-view.ts:25-161` (texts, `MoreToTryAction`, registry) and `more-to-try.ts` (the hand-off; the usage and history items are the routerLink precedent).
+- `web/src/app/history/history-view.ts:30,183` -- the channel filter already offers `webhook`, labelled "Webhook" (`usage-view.ts:44`).
+- `web/e2e/support/iris.ts:52-73` (fixture kinds `LIVE` and others; `README_ACCOUNT` in the api specs), `web/e2e/api/history.spec.ts:85-245` (second-session pattern), `web/e2e/api/api.spec.ts:347-367` (anonymous requests), `web/e2e/settings/settings.spec.ts:495-528` (S8 non-admin), `web/playwright.config.ts:52-61` (`settings/` is sign-in-2, `guide/` is sign-in-3, `api/` is chromium).
+- `src/ocutalon/cls/OcuTalon/Test/Web/Install.cls:42-73` (`TestDefinitions`, four applications), `:239-277` (`TestGrants`, six grants); `Test/Web/SettingsApi.cls` (stand-in request pattern, `ApiProbe` roles seam); `Test/Core/CommandsStep4.cls` (verbs' origins); `Test/Msg/Contracts.cls:42` (verb list) and `:453+` (XData); `Test/Data/Tables.cls` (contracts); `Test/Data/Purge.cls:122` (`TestSessionKeptWhileActiveOrCurrent`); `Test/Msg/Catalog.cls` (key count).
+- `docker/tests/lib-live.sh:766-795` (`check_security`), `docker/tests/test-online-demo.sh:469-472` (row 11, "exactly the five", unchanged).
+- `docker/tests/lib-online.sh:315`, `test-online-host.sh:235,486` -- the demo host's proxy already blocks `/ocutalon/hook` (the Contest Planner's release check). Read only.
+- `src/short-names.tsv` -- add the row `Webhook	^OcuTalonP.Webhook	OcuTalon.Data.Webhook	B`.
+
+## Tasks & Acceptance
+
+**Execution:**
+- [ ] Task 0 (throwaway, lane B, fresh tag `e35s3i`, once the hook and `WebhookIn` compile; record each result in `## Design Notes` "Measured"; any item marked (inference) stays inference until it is measured):
+  - (a) The least grants of `OcuTalonWebhook`. Start from `%DB_OCUTALON_CODE:R`, `%DB_OCUTALON_DATA:RW` and `%DB_OCUTALON_PRIVATE:RW`, remove one at a time, and record which step breaks: the row read, the counters, the audit write, `CreateBusinessService`/`ProcessInput`, or the async send. If any `%Ens_*` resource or `%All` turns out to be needed, stop with `## Clarification Needed`. Any other added resource goes to the veto list.
+  - (b) `%request.Content.Size` before any read, for bodies of 65,536 and 65,537 bytes with Content-Type `application/json`, with none, and with `application/x-www-form-urlencoded`.
+  - (c) The event handoff between a CSP process (the README admin) and the `SettingsOps` job: `Create`, `Signal`, `WaitMsg` and `Delete` succeed, and afterwards no global of OCUTALON_DATA or OCUTALON_PRIVATE holds the secret.
+  - (d) `Bridge.Audit.Record` from the hook process (UnknownUser with the role) writes the entry.
+  - (e) The 202 latency over 20 requests: the maximum and the median.
+  - (f) `$SYSTEM.License.InstanceConnections()` before and 5 s after 10 hook requests (no unit held).
+  - (g) The History channel of a webhook item's decision is `webhook`.
+- [ ] `src/ocutalon/cls/OcuTalon/Data/Webhook.cls` -- new table and helpers:
+  - Properties: `Ref` (22 characters, EXACT, Unique index), `Name` (64 characters; Unique index with the default collation, so a duplicate is detected without regard to case), `SessionRef` (EXACT, indexed), `SecretHash` (66 characters, `salt.hash`), `CreatedAt`. `DEFAULTGLOBAL` `^OcuTalonP.Webhook`, `COUNTGLOBAL` `^OcuTalonP.WebhookC`.
+  - Parameters: `DUMMYHASH` (a fixed literal `salt.hash`), `BODYMAX` 65536, `ACCEPTEDMAX` 120, `AUDITSECONDS` 60.
+  - `HashSecret(secret)`: 16 random bytes of salt, then SHA-256 of the salt bytes followed by the UTF-8 secret, written as base64url salt "." hash.
+  - `Matches(stored, secret)`: recomputes with the stored salt and compares the whole 43-character hash in constant time (no exit inside the loop).
+  - `Lookup(ref)` (an index open), `ForSession(sessionRef)` (`$Order` over `SessionRefIndex`), `NameProblem` and `SecretProblem` (each returns its catalog key or "").
+  - Counters: `Accept(ref, now, Output retryAfter)` (`$Increment` on the hour's window), `Reject(slot, now, Output count)` (1 when an entry is due), `Flush(now, Output pending)` and `PurgeCounters(now)`.
+  - Rationale: B4 and B7. One owner of the hash format, used by `SettingsOps` and the hook.
+- [ ] `src/short-names.tsv` -- the registry row (`test-storage.sh`).
+- [ ] `src/ocutalon/cls/OcuTalon/Msg/Command/CreateWebhook.cls` (`Name`, `Handoff`, `ActingUser`) and `SetWebhookSecret.cls` (`WebhookRef`, `Handoff`, `ActingUser`) -- verb classes on `SaveSettings`'s shape. `Handoff` is only the name of the event resource; no property holds a secret or a hash.
+- [ ] `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls` -- two `XData Routes` rows (`web_admin`, `SettingsOps`) and the step-4 doc line.
+- [ ] `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` -- two `Carry` lines and one appended block (`CreateWebhook`, `SetWebhookSecret`, `TakeSecret`, `WebhookResult`):
+  - `TakeSecret`: `WaitMsg(handoff, 2)`, then `Delete`. No message means outcome `failed`.
+  - Validates the name and the secret (C2), refuses on the online demo (`not_available`) and checks that the session has a row.
+  - Writes the Settings audit entry first (C1, C3). An audit failure means `not_audited`, and nothing is written.
+  - Then saves the row (a unique-index clash means `name_taken`).
+  - Answers `CommandResult` `Data` `{ref,name,createdAt}` or `{fields}`.
+  - Never logs or returns the secret.
+- [ ] `src/ocutalon/cls/OcuTalon/Web/HookSettings.cls` -- new class, extends `Web.Api`, forwarded:
+  - Routes: `GET ""`, `POST ""`, `POST "/:ref/secret"`. The online demo answers C6 first.
+  - The body is checked for shape only (C7; a secret over 256 characters is a `secret` field error).
+  - Create and rotate: a resource name `$Name(^OcuTalonP.WebhookH(NewRef()))`, then `$SYSTEM.Event.Create`, then `Signal(name, secret)`, then `Commands.Submit` (origin `web_admin`, `ActingUser` `$Username`, `SessionRef` `Ownership.SessionRef`), then `$SYSTEM.Event.Delete` in every path, a thrown error included.
+  - Outcomes map to C1-C3 (`not_found` 404; `not_audited`, `failed` and any other outcome 500).
+  - Rotation first checks `Webhook.Lookup(ref).SessionRef` is the caller's session; otherwise 404.
+- [ ] `src/ocutalon/cls/OcuTalon/Web/Api.cls` -- the one Map row and one doc bullet (contended edit, the allowed kind).
+- [ ] `src/ocutalon/cls/OcuTalon/Web/Hook.cls` -- new class, `%CSP.REST`:
+  - `UseSession` 0 and `HandleCorsRequest` 0. Its own `AccessCheck` lets the dispatch decide. One route, `POST /:ref`.
+  - `ReportHttpStatusCode` answers every status as a status line with no body, and maps 405 to 404.
+  - Order: online demo 404, then H2, H3, H4, H5, then `CreateBusinessService("WebhookIn")` plus `ProcessInput`, then 202 (H1).
+  - Records each rejection through `Webhook.Reject` and `Bridge.Audit.Record` (H7, `irisUser` `$Username`, `result` "rejected").
+- [ ] `src/ocutalon/cls/OcuTalon/Channel/Webhook/In.cls` and `Event.cls` -- `WebhookIn`, from `SimMailbox.In`'s shape with no row and no live event: the session must have a row (else an error), `%SuperSession` = its `TraceRef`, the Item as in H1, `Send` seam with async send to `Intake`, output `{"itemId"}`.
+- [ ] `src/ocutalon/cls/OcuTalon/Production.cls` and `Test/Core/ProductionItems.cls` -- the `WebhookIn` item and its oracle row (lane B region).
+- [ ] `src/ocutalon/cls/OcuTalon/Install/Step/Web.cls` -- as in the Code Map, with doc lines.
+- [ ] `src/ocutalon/cls/OcuTalon/Data/Purge.cls` -- `Keeps`: a session that owns a webhook is current.
+- [ ] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls` and `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- after acceptance only: keys T1-T3 in the 35.2 block, More to try item T4-T6 (item 12 under "Safety and settings"; Usage and History become items 13 and 14; "fourteen items" becomes "fifteen items" with the webhook item's condition).
+- [ ] `src/ocutalon/cls/OcuTalon/Demo/Features.cls` -- the `webhooks` id when not on the online demo.
+- [ ] `web/src/app/settings/webhooks-section.ts`, `webhooks-view.ts` (new) and `channels-section.ts` (the contended append):
+  - The "Webhooks" group: heading, help, the form (Name, a write-only Secret of type password, "Create webhook").
+  - The list: per webhook, a group named by the webhook, the line `settings.webhookAddress` with `location.origin + path`, a write-only Secret field with the `settings.secretSet` hint, and "Save changes".
+  - Field errors under their fields. Success shows `SETTINGS_TEXTS.saved` and clears the secret field. A 403 shows `SETTINGS_TEXTS.denied` in the group. A 409 `not_available` shows T1 instead of the form. Any other error shows `SETTINGS_TEXTS.failed`.
+  - Texts are literals equal to the catalog. No unsaved guard (Decided 9).
+- [ ] `web/src/app/api/api-client.ts`, `api-types.ts` -- `webhooks()`, `createWebhook()`, `setWebhookSecret()`.
+- [ ] `web/src/app/guide/more-to-try-view.ts`, `more-to-try.ts` -- the `webhooks` item, action `webhooks` (a routerLink to `/settings/channels`), group "Safety and settings", after `heartbeat`.
+- [ ] `README.md` -- T7 and T8 after acceptance.
+- [ ] Spine (`ARCHITECTURE-SPINE.md`) -- edits S1-S8 (Design Notes) as plain unions after the gate's ruling, then lint per Rule 20 (`lint_spine.py`, the baseline's findings only).
+- [ ] Tests (ObjectScript; each class's header says what it pins):
+  - `Test/Data/Webhook.cls` -- the hash format, `Matches` against `DUMMYHASH`, counters and windows, the audit slot cap, flush and purge, and a static check that `Matches` has no `Quit` inside its loop.
+  - `Test/Web/Hook.cls` -- stand-in requests: H1-H7 with a probe `Send` seam. Nothing becomes an item on any refusal (no `WebhookIn` header since the test began). One entry for N rejections in 60 s, and a second after 60 s through an injected clock.
+  - `Test/Web/WebhookIn.cls` -- the Item's fields; its own session with SuperSession equal to the owner's `TraceRef` (on the stack's production); a missing session is an error.
+  - `Test/Web/HookSettingsApi.cls` -- C1-C7 through the real production. Two fixture sessions: A's webhook is not listed for B, and B's rotation of A's Ref answers 404. The secret scan: after create and rotate, the extents of both verbs' messages, `Ens_Util.Log` since the start, the audit entries since the start, `^OcuTalonP.Webhook*` and `$SYSTEM.Event` (a `WaitMsg` on the used name returns nothing) hold no secret. The demo refusal is tested with `Data.Setting` `onlineDemo` set to 1 and put back in all cases.
+  - `Test/Web/Install.cls` -- `TestDefinitions`: five applications, with the hook's keys. `TestGrants`: six trace grants plus the measured webhook grants. New `TestOnlineDemoNoHook`: with the flag on (put back), no hook application and no webhook grant.
+  - `Test/Core/CommandsStep4.cls` -- extended: both verbs accepted from `web_admin` only and refused from `tool`, `web_user` and `system`.
+  - `Test/Msg/Contracts.cls`, `Test/Data/Tables.cls`, `Test/Data/Purge.cls` (a webhook keeps its session), `Test/Demo/Features.cls`, `Test/Msg/Catalog.cls` -- the shared surfaces.
+- [ ] Tests (real HTTP and browser):
+  - `web/e2e/api/webhooks.spec.ts` (chromium):
+    - (W1) The README admin creates (200) and lists, and the LIVE user gets 403 `not_admin` on all three routes.
+    - (W2) POST with the right secret gives 202, no body, under 1000 ms. Then poll up to 60 s: the decision appears on `GET /v1/history/decisions?channel=webhook` for the admin, with a `traceUrl` whose session is the Item's own; through `irisScript`, the Item's header has SuperSession equal to the admin session's `TraceRef`, and its `ItemDecision` is in the same session.
+    - (W3) H2-H6 and the same 401 for unknown, missing and wrong; no new `WebhookIn` header.
+    - (W4) Rotation: the old secret gets 401 and the new one 202.
+    - (W5) The LIVE user's History and `/state` hold none of W2's decision.
+    - (W6) The unauthenticated sweep (Design Notes, L2).
+    - Each test creates its own `zz` webhook and removes its rows afterwards through `irisScript`.
+  - `web/e2e/settings/webhooks.spec.ts` (sign-in-2): create from the page, read the address line, see the secret field empty with no value shown, the field errors (`@{`, short secret, duplicate), rotation, and a fulfilled 409 that shows T1.
+  - `web/e2e/guide/more-to-try.spec.ts`: K29, the item's link opens Settings > Channels.
+  - `docker/tests/test-online-demo.sh`: row 11 also checks that `OcuTalonWebhook` does not exist and that `POST /ocutalon/hook/<22 chars>` with a secret header gets no 202 and creates no `WebhookIn` header.
+  - `docker/tests/lib-live.sh` `check_security`: the role row and the `/ocutalon/hook` properties.
+  - `web/scripts` tests: `ux-strings` SOURCES rows, the count words in `more-to-try-view` and `sources-docs`, and the catalog test.
+
+**Acceptance Criteria:**
+- Given the README admin in Settings > Channels on a local install, when they create a webhook with a name and a secret of at least 16 characters, then the page lists it with "Send events with POST to <origin>/ocutalon/hook/<ref>.", its secret field is empty and shows only "Saved, and never shown again. Type a new value to replace it.", the row holds only a 66-character `salt.hash`, one Settings audit entry names the webhook's Ref and name but not the secret, no command, message, event log line, audit entry, trace or global holds the secret, and the webhook's events belong to that admin's session.
+- Given a name or secret holding `@{`, a secret shorter than 16 characters or holding a space, an empty name, or a name already used (in any case), when the admin creates, then the field shows its accepted or ruled text (C2) and nothing is stored.
+- Given a webhook, when a sender POSTs a JSON object or array of 65,536 bytes or fewer with the right secret, then it gets 202 with no body within 1 s, and afterwards the admin's History page shows OcuTalon's decision on it under the channel Webhook, with a trace link to the event's own trace session, which holds the untrusted Item and its decision under the admin session's trace.
+- Given an unknown webhook, a missing secret or a wrong secret, when it arrives, then it gets the same 401 status line, nothing becomes an item, and the audit log holds at most one `webhook_rejected` entry per 60 s for that Ref (or for all unknown Refs together), counting the rejections; a body over 65,536 bytes gets 413, a body that is not a JSON object or array gets 400, the 121st event in an hour gets 429, and none of them becomes an item.
+- Given no sign-in, when a test calls every route of every OcuTalon dispatch class and every `/ocutalon*` application path with every method, then only a webhook POST with its secret is accepted, apart from the sign-in page with its images and `GET /ocutalon/public/status` (restated per L2).
+- Given the LIVE fixture user (OcuTalonUser only), when they call any webhook settings route, then they get 403 `not_admin`; and a second session sees neither another session's webhooks nor their events' decisions.
+- Given the admin replaces a webhook's secret, when the sender then uses the old secret, then it gets 401, and the new secret gets 202.
+- Given a fresh online-demo install, when it starts, then the `/ocutalon*` applications are exactly the five, the role `OcuTalonWebhook` does not exist, a POST to `/ocutalon/hook/<ref>` with a secret header gets no 202 and creates no item, an admin's webhook settings routes answer 409 with "Webhooks are off on the online demo, so it has no public webhook address. They work on your own install.", and the More to try panel has no webhook item.
+- Given a local install, when it starts or upgrades, then `/ocutalon/hook` has exactly B2's properties, and `OcuTalonWebhook` holds exactly the grants Task 0 measured, never `%All` or an `%Ens_*` resource, and no user holds it.
+- Given a session that owns a webhook and has no other activity, when the daily purge runs past the cutoff, then the session and its webhook are kept.
+- Given demo mode on a local install, when the guide's More to try panel opens, then it holds "Send an event through a webhook" under "Safety and settings", and its control opens Settings > Channels. The README's "New since 1.0.0" holds the webhook line.
+- Integration (Rule 1): a sender (`curl` stands in, as in W2) POSTs to the webhook; `Web.Hook` reads `Data.Webhook` (written by `SettingsOps`); `WebhookIn` sends the Item; `Intake`, `Decide` and `OutcomeRouter` run; the admin's `GET /v1/history/decisions?channel=webhook` shows the decision. This is the observable effect, against the real stack.
+
+## Spec Change Log
+
+- 2026-11-11 (lead, spec gate): L2 applied as a Rule 5 tier-1 amendment (epics.md:9404, `[AMENDED 2026-11-11, Story 35.3 spec gate ...]`). SECURITY 1-13, STORED DATA, ONLINE DEMO, PUBLIC TEXT T1-T9, L3 and spine amendments S1/S3/S4 sent to the Contest Planner through the orchestrator; L1 (Lane A SecurityOverview heading and pin, contended with Epic 22) sent to the orchestrator as a cross-epic item. Implement waits for the rulings, which the lead records here and in Design Notes.
+
+## Review Triage Log
+
+## Design Notes
+
+**Governing ADs (Rule 6):** AD-1 (verbs, origins, Submit, REST writes), AD-3 (private database), AD-4 (session ownership), AD-13 (hook application, admin check, envelope), AD-14 (channels, Items), AD-17 (one audit writer, capped rejections), AD-19 (secret homes, `@{`, SettingsOps), AD-23 (step order: Public, then Roles, then Web), AD-24 (roles, `OcuTalonWebhook`), AD-25 (online demo topology), AD-26 (own trace session), AD-27 (retention), AD-29 (lanes), AD-30 (Intake pipeline), AD-33 (one owner per item and table). No AC contradicts an AD's Rule. The amendments this plan proposes are veto items (S1, S3, S4).
+
+**Already met (not re-done):**
+- 35.2's accepted texts (`settings.webhooks*`, `webhookName`, `webhookSecret`, `webhookCreate`, `webhookAddress`, `webhookNameTaken`, `secretSet`, `refusedExpansion` with slot `marker`) are in `Catalog.Core` and EXPERIENCE.md.
+- The `webhook` channel in both enums.
+- `Core.Admin.Held` and `Web.Api.IsAdmin`.
+- The proxy rule `block-hook` on the demo host.
+- History's channel filter and its "Webhook" label.
+
+**SECURITY (veto items; each value marked "mine" is this plan's choice; each item states its demo behaviour):**
+1. **Endpoint.** `POST /ocutalon/hook/<ref>` on the application `/ocutalon/hook/` (B2: unauthenticated, outside the sign-in group, `MatchRoles` `:OcuTalonWebhook`, dispatch `OcuTalon.Web.Hook`, `UseSession` 0). Every other method or path answers 404.
+   - The dispatch also answers 404 when `onlineDemo` is set (belt and braces; mine).
+   - Demo: the application does not exist. A request to `/ocutalon/hook/...` falls to `/ocutalon`, which serves the splash, and the proxy blocks the path.
+2. **Authentication.**
+   - The per-webhook secret travels in the header `X-OcuTalon-Webhook-Secret`.
+   - The stored `SecretHash` is `base64url(salt16).base64url(SHA-256(salt bytes followed by the UTF-8 secret))` (B4). The hook recomputes it with the row's salt and compares the 43-character hash in constant time over its whole length.
+   - An unknown or malformed Ref, or a Ref whose owning session has no row, is compared against `DUMMYHASH`, and all of them answer the same 401.
+   - Demo: n/a (no endpoint).
+3. **Order and statuses.**
+   - 401, then 413, then 400, then 429, then 202 (or 503 when the production cannot take the event; 503 is mine). Every refusal is a status line with no body. The only header is `Retry-After` on 429 (mine).
+   - Body cap: 65,536 bytes from `%request.Content.Size`, checked before parsing (inference until Task 0 (b)). A form-typed body counts as not JSON (400) whatever CSP parsed.
+   - Demo: n/a.
+4. **Rate limits.**
+   - (a) Rejection audit as B3: at most one `Action` entry per 60 s per Ref, with unknown Refs sharing the slot `?`, counting the rejections since the previous entry. The first rejection after a quiet minute is written at once, and the daily Web purge writes a count still pending (mine). A rejection is a 401, 413, 400 or 429; 404 and 503 are not counted (mine).
+   - (b) **Accepted events, proposed: at most 120 valid events per webhook per UTC clock hour, the 121st and later get 429 with `Retry-After`** (mine). This keeps a leaked secret from flooding items and model cost: about 2 a minute sustained, enough for the step-4 sources.
+   - The limit is checked after authentication and validation, so an attacker without the secret cannot use up the sender's allowance.
+   - Demo: n/a.
+5. **What becomes an item.** One `OcuTalon.Msg.Item`:
+   - `Channel` webhook, `Provenance` untrusted, `SessionRef` the webhook's owning admin session (B2), `Subject` the name, `Text` the body as received (UTF-8 to text), no `Sender`.
+   - It is sent asynchronously to `Intake` by `WebhookIn` in a trace session of its own whose SuperSession is the owner's `TraceRef` (AD-26).
+   - Untrusted content follows the existing AD-10/AD-30 path: decide, and on `act` only a read-only turn in a fresh AI session. Nothing in this story widens it.
+   - Demo: none.
+6. **Storing the secret: the handoff (AD-1, AD-19, the DW-1041 precedent).**
+   - The REST process (`Web.HookSettings`, the admin's CSP process) puts the secret into an IRIS event resource, `$SYSTEM.Event.Create(name)` then `Signal(name, secret)`, where `name` is `$Name(^OcuTalonP.WebhookH("<NewRef>"))`. The resource lives in shared memory only, and no global node is written.
+   - It then submits `CreateWebhook` or `SetWebhookSecret`, whose only link is `Handoff` = that name, through `Commands.Submit` (origin `web_admin`).
+   - `SettingsOps`, inside the production, reads the secret with `WaitMsg(name, 2)`, deletes the resource, validates, computes the `salt.hash` and writes the row.
+   - The REST process deletes the resource again after the answer, and also on an error.
+   - So the secret is never in a command, message, log, trace or global, and the REST process writes no table (AD-1 unchanged for this path). `SettingsOps` writes the hash (B7). The row holds the `salt.hash` string only.
+   - Measured on slot B (2026-11-11, one process, no data written): a queued signal survives until read, `WaitMsg` returns the 300-character message intact, `Delete` discards a queued message (a recreated resource reads none), `Signal` to a missing resource returns 0, and no global was created.
+   - Cross-process between the CSP and production users is inference until Task 0 (c). A process that dies between `Signal` and `Delete` would leave the secret in shared memory until `SettingsOps` reads it or IRIS restarts (inference; the name is random and short-lived).
+   - Fallback for the Planner to choose instead (not taken by the implement stage without a ruling): the REST process computes the `salt.hash` and the command carries it, so the hash, not the secret, would sit in the message and in Visual Trace.
+   - Demo: the routes are refused before any handoff.
+7. **The role `OcuTalonWebhook`.**
+   - Declared by `Install.Step.Web.Grants()` off the online demo only (the Story 23.2 S1 precedent `Install.Step.Fix.Grants`). Composed by Lane A's Roles step unchanged.
+   - Inference: `%DB_OCUTALON_CODE:R`, `%DB_OCUTALON_DATA:RW`, `%DB_OCUTALON_PRIVATE:RW`, which are the same database resources the API application gives every signed-in user, under whom `CreateBusinessService` already works (`Web.Api.Post`). Task 0 (a) measures the least set.
+   - Never `%All` or `%Ens_*`, and no user holds it. Roles' `FORBIDDEN` list refuses `%All`.
+   - Demo: not declared, so not created (Roles never deletes; a fresh demo install never had it).
+8. **Minimum secret** (35.2 item (f); mine): 16 to 256 characters, each printable ASCII 0x21-0x7E (no spaces, which header handling may trim), no `@{`. The field error is T3. Demo: n/a.
+9. **Management** (mine):
+   - This story ships the list (`GET`), create (`POST`) and secret replacement (`POST .../<ref>/secret`). Replacement is how an admin revokes a leaked secret, and it uses only accepted texts (`settings.secretSet` promises exactly that).
+   - No delete route: a delete needs new confirmation texts and is not needed for safety once rotation exists. Proposed for Epic 21's Channels work if wanted.
+   - A webhook belongs to the creating admin's session. Only that session lists or rotates it; another session gets 404.
+   - Names are unique across the instance, without regard to case (B7).
+   - Demo: all refused (409, T1).
+10. **The hook's counters** (`^OcuTalonP.WebhookC`) are REST-side writes. They are needed by B3, and by (4b) if accepted. AD-1's REST write list does not name them yet: spine edit S1 (an AD amendment, veto).
+11. **Admin checks.**
+    - `Web.Api.OnPreDispatch` refuses non-admins with 403 `not_admin` for `/v1/settings` and below, before the forward. The forwarded class repeats the role and envelope checks.
+    - Every route submits with origin `web_admin`. `CommandsIn` accepts both verbs from `web_admin` only.
+    - Demo: visitors are never admins (403). An admin gets 409.
+12. **Audit of changes.** Create: Settings, `webhook.<Ref>`, from "" to the name. Replacement: Settings, `webhook.<Ref>.secret`, from "" to "". Neither holds the secret or the hash. Demo: none.
+13. **Logs.** The hook logs only "WebhookIn unavailable" with the Ref and status on a 503. Nothing logs a header, the body, the secret or the address.
+
+**STORED DATA (veto item):**
+- New table `OcuTalon.Data.Webhook` (Lane B, `^OcuTalonP.Webhook` in the private database, which the trace role cannot read):
+  - `Ref` (22, EXACT, unique), `Name` (64, unique without regard to case), `SessionRef` (EXACT, indexed), `SecretHash` (66, the `salt.hash` string only), `CreatedAt` (UTC).
+  - Written only by `SettingsOps`; read by `Web.Hook`, `Web.HookSettings` and `Data.Purge`.
+- New counters global `^OcuTalonP.WebhookC` (no class storage; the `Session` `MARKGLOBAL` precedent):
+  - `("a", ref, "YYYY-MM-DDTHH")` = accepted count.
+  - `("r", slot)` = `$ListBuild(lastEntryAt, pendingCount)`.
+  - Written by `Web.Hook` and the Web purge.
+- Retention:
+  - A webhook has no removal in this story. It keeps its owning session current, so the session purge never deletes that session (`Data.Purge.Keeps`, AD-27).
+  - Accepted windows older than two hours are deleted by the daily Web purge.
+  - A rejection slot is one node per Ref plus `?`.
+- On a fresh install and an upgrade the table is empty and needs no migration. A webhook is not removed with its owning session, because that session is kept.
+- Demo: no row and no counter is ever written. The purge finds none.
+
+**ONLINE DEMO (owner standing rule; how the code knows):**
+- The install steps read `Data.Public.Settings.Get("onlineDemo")="1"` (`Install.Step.Web.OnlineDemo`, written by the Public step before Roles and Web). Run-time code reads `Data.Setting.Get("onlineDemo")=1` (`SettingsOps.OnlineDemo`). The Story 23.2 S1 precedent is `Install.Step.Fix.Grants` (online-dependent grants) and AD-24's "Suspend and resume" bullet.
+- On the demo:
+  - (1) `Definitions` has no `/ocutalon/hook`, and `Run` deletes one that exists (mine).
+  - (2) `Grants()` has no webhook rows, so no role.
+  - (3) `Web.Hook` answers 404 if it is ever reached.
+  - (4) `Web.HookSettings` answers 409 `not_available` with T1 on all routes, before any read.
+  - (5) `SettingsOps` refuses both verbs with `not_available`.
+  - (6) `Demo.Features` lists no `webhooks` item.
+  - (7) `test-online-demo.sh` row 11 keeps "exactly the five" and adds the role and POST checks; `Test.Web.Install.TestOnlineDemoNoHook` and the `HookSettingsApi` demo case pin the rest.
+
+**PUBLIC TEXT (veto item; none of these is in EXPERIENCE.md, DESIGN.md, the PRD or 35.2's 30 keys. Checked: EXPERIENCE :970-992 and :243-266, README :40-58. Voice: plain, short, "Nothing was changed." in refusals):**
+
+| # | Key / place | Verbatim wording | Where it shows |
+| --- | --- | --- | --- |
+| T1 | `settings.webhooksOffOnDemo` | "Webhooks are off on the online demo, so it has no public webhook address. They work on your own install." | 409 message, and the Webhooks group in place of the form (online demo) |
+| T2 | `settings.webhookBadName` | "Enter a name of 1 to 64 characters. Nothing was changed." | name field error |
+| T3 | `settings.webhookBadSecret` | "Use a secret of 16 to 256 characters: letters, digits and punctuation, with no spaces. Nothing was changed." | secret field error |
+| T4 | More to try label (`MORE_TO_TRY_TEXTS.items.webhooks.label`) | "Send an event through a webhook" | More to try, "Safety and settings", item 12 |
+| T5 | More to try look-for | "In Settings, Channels, create a webhook with a name and a secret of at least 16 characters. Then send it any JSON with POST to the address it shows, with the secret in the X-OcuTalon-Webhook-Secret header. On the History page, filter by the channel Webhook to read OcuTalon's decision on the event, with a link to its trace." | same item |
+| T6 | More to try control | "Open Channels settings" | same item (a link) |
+| T7 | README "New since 1.0.0" line (after the History bullet) | "- **Webhooks.** On your own install, an admin creates a webhook in Settings, under Channels, with a name and a secret, and any other system can send it a JSON event with POST, with the secret in a header. OcuTalon answers at once, then decides on the event as untrusted content: it can lead to a notice or to your digest, never to an action. The decision shows on the History page, and the event and its decision in Visual Trace. The secret is kept only as a salted hash. Webhooks are off on the online demo, which has no public webhook address. Try it on your own install: More to try, *Send an event through a webhook*." | README.md |
+| T8 | README usability row (:40) | "its More to try panel has fifteen more things to try (fourteen on the online demo)" in place of "its More to try panel has fourteen more things to try" | README.md |
+| T9 | EXPERIENCE :245 | "There are fifteen items" in place of "There are fourteen items", plus the item line: "Item 12. Label "Send an event through a webhook". Look for: <T5>. Control: "Open Channels settings". It shows only off the online demo." Usage and History become items 13 and 14 | EXPERIENCE.md |
+
+- Reused verbatim, no new key: "Saved. Applies within a minute. Recorded in the audit log." (`SETTINGS_TEXTS.saved`), "Couldn't save. Nothing was changed." (`failed`), "Save changes" (`save`), "Only OcuTalon admins can open settings." (`denied`), "Webhook" (the History channel label).
+- T7's claim "never to an action" rests on AD-10/AD-30's untrusted path (read-only turn, offers only), which this story does not change. The Planner judges the wording.
+- The e2e case is K29 (K25-K28 are taken). The registry grows from 14 to 15 items (14 on the online demo).
+- The implement stage ships T1-T9 only as accepted (a rejected row: the field shows `SETTINGS_TEXTS.failed`, and the More to try item and README line are left out).
+
+**Lead items (for the spec gate):**
+- **L1 (intent gap, cross-epic: a Lane A change, contended with Epic 22; no edit by this story).**
+  - Adding `/ocutalon/hook` (with `MatchRoles` `:OcuTalonWebhook`) makes two Lane A things wrong. (i) `Install/SecurityOverview.cls:418`'s heading "Roles added for every signed-in user", generated into `docs/security-overview.md`, would claim the hook's role is added for signed-in users, which is untrue for an unauthenticated application (AD-24 Prevents "an overview that overstates"). (ii) `Test/Install/SecurityOverview.cls:326` and its doc at :298-299 and :640 pin that only `/ocutalon` and `/ocutalon/api` add roles. That test goes red in shard lane-a@Install.
+  - Recommended Lane A change (about 10 lines), made by Epic 22's runner or under an orchestrator ruling:
+    - The generator's table gets the heading `| Web application | Sign-in | Roles added to its requests |`, with `password` or `none (unauthenticated)` read from `AutheEnabled`.
+    - The test pin gains `;/ocutalon/hook=:OcuTalonWebhook`, and its messages say "adds the listed roles to its requests".
+    - Then `test-security-overview.sh --write` regenerates the document (this story may do that step).
+  - The heading text is public text (veto).
+  - Until it is ruled, the implement stage builds everything else and does not push. CI's lane-a@Install would be red.
+- **L2 (Rule 5 tier 1, apply and report; this epic's own story block).** Restate the third criterion's **And** as: "a test calling `/ocutalon/hook` and every other OcuTalon path without signing in finds only a webhook `POST` with its secret accepted, apart from the product's two public paths, the sign-in page with its images and `GET /ocutalon/public/status` (FR-14, AD-25)". This is 35.2 item (c): PRD :443 already names both exceptions, so the intent is unchanged. W6 enforces it:
+  - Routes come from every OcuTalon dispatch class's `XData UrlMap`, read through `irisScript`: Api, Documents, Usage, History, HookSettings, Hook, Public.Status, Public.Shell. Applications come from `Security.Applications` `/ocutalon%`.
+  - Each route and method is called without a session, with dummy `:params`.
+  - Allowed 2xx answers: the sign-in page (200 with `IRISUsername`), its images, `GET /ocutalon/public/status`, and the W2 POST.
+- **L3 (veto; also listed as SECURITY 4b and 6).** The accepted-event limit (120 per hour, 429) and the event-resource handoff are new behaviours that need the Planner's yes before implement.
+
+**Spine edits (implement stage, after the gate's ruling; plain unions; lint per Rule 20):**
+- S1 (AD amendment, veto): AD-1's REST write list gains "the hook's per-webhook counters (B3's rejection count and the accepted-event count)".
+- S2: AD-1 step-4 sub-bullet, union: `CreateWebhook` (`Name`, `Handoff`) and `SetWebhookSecret` (`WebhookRef`, `Handoff`), from `web_admin` only, to `SettingsOps`.
+- S3 (veto): AD-19 B4 ("How the creation route keeps the secret out ... is Story 35.3's") gets the handoff sentence of SECURITY 6 and the secret rule of SECURITY 8.
+- S4 (veto): AD-13 B2 gets the measured grants in place of the inference, the 429 limit, 503, and "not created on an online-demo install, where `Install.Step.Web` declares neither the application nor the role". AD-24's B10 sentence gets "off the online demo".
+- S5: REST surface rows `GET /api/v1/settings/channels/webhooks` and `POST /api/v1/settings/channels/webhooks/<ref>/secret` (`Web.HookSettings`, forwarded).
+- S6: AD-27 Data.Purge sentence: "a webhook" joins the current list. The Web area's purge also deletes the webhook counters' old windows.
+- S7: Tables paragraph: `^OcuTalonP.WebhookC` beside `Webhook`.
+- S8: Cross-area row: `Data.Webhook.HashSecret`/`Matches` (B, 35.3), read by Story 27.1's Slack route if it wants the same cap.
+
+**Resolution of 35.2's items for this plan:**
+- (a) L1.
+- (b) The pins: `Test/Web/Install.cls:53` and `:239-277` updated; `lib-live.sh` `check_security` extended; `test-online-demo.sh` stays "exactly the five" on the demo, with the role and POST checks added.
+- (c) L2.
+- (d) Task 0 (a)-(g).
+- (e) SECURITY 6.
+- (f) SECURITY 8.
+- (g) `WebhookIn` extends nothing of `SimMailbox.In`. It copies its shape (see the reuse note below).
+
+**Ledger inbox:** none (no DW entry owned by this story).
+
+**Decided in-stage:**
+1. Two verbs, not `SaveSettings` (the webhook is a row, not a key of `ALLOWLIST`).
+2. Field validation lives in `SettingsOps` (the one owner). The REST process checks the shape only, and caps the secret at 256 characters so the signal stays small.
+3. Response `fields` is an object of field to text.
+4. 200, not 201, for create (the settings convention).
+5. `path`, not a full URL, from the server; the page prefixes `location.origin`.
+6. The webhooks group sits at the end of the Channels section.
+7. A 403 in the group shows the denied text in place, so `settings-page.ts` is not edited.
+8. No cap on webhooks per session (admin only).
+9. The webhook form takes no part in the unsaved guard: a typed secret is not kept on leaving.
+10. The test for `WebhookIn` lives in `Test/Web` (lane B), because the `Channel` test area is lane-a's shard.
+11. The More to try item depends on the instance (off the online demo), not on the viewer's admin role. A non-admin who presses it sees Settings' denied view.
+12. `irisUser` of a rejection entry is `$Username` of the hook process (UnknownUser).
+13. The hook's online-demo 404, and the deletion of a stale hook application by `Run` on the demo.
+14. Real-HTTP isolation between two admins is pinned in ObjectScript with two fixture sessions. W5 uses the LIVE user as the second session, so e2e makes no temporary admin account.
+
+**Integration ACs (Rule 1):** see the last AC (sender to History, real stack). `Data.Webhook` is consumed by `Web.Hook` (W2, W3), and the verbs by `SettingsOps` (C1-C3).
+**Consumed-by:**
+- 27.1: a Slack route ahead of `/:ref` in `Web.Hook`, the `/ocutalon/hook` application, `OcuTalonWebhook`, the capped rejection audit.
+- 21.2: Channels section composition beside the webhooks group.
+- 21.x and later: an optional delete route.
+
+**Consumes:**
+- 35.2: B2-B4, B7, B8, B10, the accepted texts, `Admin.Held`.
+- `Commands.Submit`/`CommandsIn`, `Bridge.Audit.Record`, `Bridge.Ids.NewRef`, `Data.Ownership.SessionRef`.
+- `Intake`, `Decide`, `OutcomeRouter`, `Web.History`, all as delivered and against real instances in tests.
+
+**Extend, don't copy (Rule 2):**
+- `WebhookIn` follows `Channel/SimMailbox/In.cls`: the same seams (`Send`, `%SuperSession`). It is a sibling class rather than a subclass, because the mailbox saves a row, publishes an event and runs the online-demo allowance, none of which applies.
+- `Web.HookSettings` extends `Web.Api`, as `Web.History` does.
+- `Data.Webhook` follows `Data.Upload` (Ref, `SessionRefIndex`, object access). Its hash extends `Session.Hash`'s base64url form with a salt (not `Pairing.HashCode`, which is unsalted).
+- The counters follow `Session.MARKGLOBAL`.
+- `Web.Grants` online flag follows `Fix.GrantsOf(kinds, online)`.
+- The settings section follows `channels-section.ts`/`time-zone-section.ts`.
+- The More to try item follows the `history` item.
+
+**CI:**
+- `new_units: none`. `ci_groups: none changed`. No `ci/units.sh` edit.
+- The new classes land in existing areas: Data in `shard:lane-b@Contract,Core,Data,Live` (group `image`); Web, Demo and Msg in `shard:lane-b@rest` (group `shards-6`).
+- The specs land in `live:sign-in` (`shards-10`, api), `live:sign-in-2` (`shards-4`, settings), `live:sign-in-3` (`shards-5`, guide) and `live:online-demo` (`browser`).
+- Expected growth (inference): about 30-60 s per touched group.
+
+**Contended-file edits (the allowed kinds only):**
+- `Web/Api.cls`: one Map row and one doc bullet.
+- `Core/SettingsOps.cls`: two lines in `Carry`'s list, one appended method block and one doc paragraph.
+- `web/src/app/settings/channels-section.ts`: one import, one `imports` name and one element at the end of the template.
+- `Production.cls`: lane B region.
+
+**footprint_extensions:**
+- `Data/Purge.cls`, `Demo/Features.cls`, `Msg/Catalog/Core.cls`, `Channel/Webhook/**` (in the hint).
+- `src/short-names.tsv`.
+- `Test/{Data,Demo,Msg}/**`.
+- `docker/tests/{lib-live.sh,test-online-demo.sh}`.
+- `web/src/app/{guide,api}/**`, `web/scripts/*.test.mjs`, `web/e2e/{api,settings,guide,support}/**`.
+- `README.md`, EXPERIENCE.md, the spine, and `docs/security-overview.md` (after L1).
+
+**Measured:** (implement stage, Task 0)
+
+## Verification
+
+`$LANE` is `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=35 stage=implement'`. The fresh tag is `e35s3i` and the warm tag `e35s3iw`. Run one command per call in the foreground with `timeout: 600000`. A live unit runs past about 150 s; if the harness moves it to the background, wait in bounded foreground polls.
+
+**Commands:**
+- (once) `$LANE OCUTALON_RUN_TAG=e35s3iw ci/warm.sh up`; at the end `ci/warm.sh down` with the same tag, also after a failure.
+- (loop) `$LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s3iw ci/iris.sh class <C>`, one call each, for `OcuTalon.Test.Data.Webhook`, `.Test.Web.Hook`, `.Test.Web.WebhookIn`, `.Test.Web.HookSettingsApi`, `.Test.Web.Install`, `.Test.Core.CommandsStep4`, `.Test.Core.CommandsPrecedent`, `.Test.Msg.Contracts`, `.Test.Msg.Catalog`, `.Test.Data.Tables`, `.Test.Data.Purge`, `.Test.Demo.Features`, `.Test.Web.SettingsApi` and `.Test.Web.DocumentsApi` -- expected: `CLASS ... passed` for each.
+- (once) `$LANE OCUTALON_RUN_TAG=e35s3i ci/iris.sh class OcuTalon.Test.Install.Production` -- expected: passed (lane B oracle row).
+- (once, after L1 only) the same for `OcuTalon.Test.Install.SecurityOverview`, then `bash docker/tests/test-security-overview.sh --write` and a compare run -- expected: PASS.
+- (once) Task 0 on a fresh stack: `$LANE OCUTALON_RUN_TAG=e35s3i ci/iris.sh build`, then the measurements through the stack's `iris session` and `curl` -- each result is recorded under "Measured".
+- (once) `$LANE OCUTALON_RUN_TAG=e35s3i ci/iris.sh live sign-in --part k/n` for the part holding `api/webhooks.spec.ts` (n chosen by `web/scripts/e2e-part.mjs` so that the part holds at most two files), `live sign-in-2 --part k/n` for `settings/webhooks.spec.ts`, and `live sign-in-3 --part k/n` for `guide/more-to-try.spec.ts` -- expected: each part passes.
+- (once) `$LANE OCUTALON_RUN_TAG=e35s3i ci/iris.sh live online-demo` -- expected: PASS (row 11 with the role and POST checks).
+- (once) `$LANE OCUTALON_RUN_TAG=e35s3i ci/iris.sh live sign-in` is not re-run whole. `check_security` is exercised by the sign-in part above -- expected: the hook and role rows pass.
+- (loop) `bash docker/tests/test-storage.sh`, `bash docker/tests/test-class-rules.sh`, `bash docker/tests/test-boundaries.sh`, `bash docker/tests/test-readme.sh` -- expected: pass.
+- (loop) `npm --prefix web run lint`, `node --test web/scripts/ux-strings.test.mjs web/scripts/more-to-try-view.test.mjs web/scripts/sources-docs.test.mjs web/scripts/catalog.test.mjs` -- expected: pass. `npm --prefix web test` once at the end.
+- (once) `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` -- expected: `"ok": true` with the baseline's findings only.
+- (once) at the end, `$LANE OCUTALON_RUN_TAG=e35s3i ci/iris.sh teardown` -- expected: only this tag's projects are removed.
+
+**Planned mutations (Rule 19; the implement stage records the observed red next to each):**
+- AC1: `CreateWebhook` gains a `Secret` property filled by the route. Red: `HookSettingsApi` secret scan.
+- AC2: `SecretProblem` accepts 15 characters. Red: `HookSettingsApi` and settings spec.
+- AC3: `Web.Hook` sends synchronously and waits for the decision. Red: W2's 1000 ms.
+- AC3: `WebhookIn` skips `%SuperSession`. Red: `WebhookIn` and W2's SuperSession check.
+- AC4: an unknown ref returns 401 before comparing. Red: `Test.Web.Hook` dummy-compare probe.
+- AC4: `Matches` exits at the first difference. Red: `Test.Data.Webhook` static check.
+- AC4: the audit cap is removed. Red: `Test.Web.Hook` one-entry case.
+- AC5: `/v1/usage` Map allows no session. Red: W6 (fixture subclass flag; reverted).
+- AC6: `HookSettings` skips the session check on rotate. Red: `HookSettingsApi` B-rotates-A.
+- AC7: rotation keeps the old hash. Red: W4.
+- AC8: `Definitions` ignores the flag. Red: `TestOnlineDemoNoHook` and `live online-demo` row 11.
+- AC9: grants gain `%Ens_Portal`. Red: `TestGrants` forbidden assertion.
+- AC10: `Keeps` drops the Webhook line. Red: `Test.Data.Purge`.
+- AC11: `Ids` drops `webhooks`. Red: `Test.Demo.Features` and K29.
+
+**Shared surfaces:**
+- The `/ocutalon*` application list: `Test.Web.Install.TestDefinitions`, `lib-live.sh` `check_security`, `test-online-demo.sh` row 11 (unchanged on the demo), and Lane A's `Test.Install.SecurityOverview` with `docs/security-overview.md` (L1).
+- The role grants: `Test.Web.Install.TestGrants`, the Roles composition, and the security overview's roles table.
+- The production items oracle: `Test.Core.ProductionItems`, read by `Test.Install.Production` and the live units.
+- The `Msg.Command` verb set and `CommandsIn` routes: `Test.Msg.Contracts`, `Test.Core.CommandsPrecedent` and `CommandsStep4`.
+- The tables contract and the short-names registry: `Test.Data.Tables` and `test-storage.sh`.
+- `Catalog.Core`'s key count: `Test.Msg.Catalog` and `web/scripts/catalog.test.mjs`.
+- `Web.Api`'s URL map: `Test.Web.DocumentsApi`, which filters by URL, and `CommandsStep4.TestNoMcpSettingsRoute`.
+- The More to try registry and its counts: `Demo.Features`, `more-to-try-view` and `sources-docs` tests, K-cases, README :40, and EXPERIENCE :245.
+- The History decisions of the README admin's session (W2 removes its rows).
+- The session purge's "current" list.
+
+Standing criterion: every test added or changed passes on a fresh environment, in either order.
+
+## Auto Run Result
+
+Status: ready-for-dev
+Blocking condition: none
+
+**Plan stage summary.** The spec plans one story. Before implement, the gate needs:
+- the Planner's rulings on the SECURITY, STORED DATA, PUBLIC TEXT (T1-T9) and ONLINE DEMO blocks, which include L3 (the 120-per-hour limit and the event-resource handoff) and the AD amendments S1, S3 and S4;
+- L1, a cross-epic Lane A change to the security overview's application-roles heading and its pin in `Test.Install.SecurityOverview`, which this story cannot edit;
+- L2, the lead's tier-1 restatement of the unauthenticated-path criterion.
+
+Measured in this stage on slot B: the in-memory `$SYSTEM.Event` handoff within one process (no global written; a queued message is discarded by Delete). Everything else marked (inference) is Task 0.
