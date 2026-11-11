@@ -308,11 +308,13 @@ Method AttachServers(agent As %AI.Agent) As %Status [ Private ]
 	Quit $$$OK
 }
 
-/// The report of attaching one server: {"status", "reason", "tools", "refused"} (OcuTalon.Bridge.Ext.McpServers). builtin is the list of the names of
-/// the tools on the manager before the first server was attached.
+/// The report of attaching one server: {"status", "reason", "tools", "refused"} and, for an attached server, "fingerprints" (OcuTalon.Bridge.Ext.McpServers).
+/// builtin is the list of the names of the tools on the manager before the first server was attached. A tool's fingerprint is Context ToolFingerprint of
+/// the description and the input schema that AI Hub lists for it.
 Method AttachOne(agent As %AI.Agent, config As %String, builtin As %List) As %DynamicObject [ Private ]
 {
 	Set report = {"status": "unavailable", "reason": "", "tools": [], "refused": []}
+	Set fingerprints = {}
 	If '$Match(config, "^AI\.MCP\.[A-Za-z0-9_]+$") {
 		Set report.reason = "invalid"
 		Quit report
@@ -331,10 +333,12 @@ Method AttachOne(agent As %AI.Agent, config As %String, builtin As %List) As %Dy
 			Set state = tool.%Get("status")
 			If (state = "") || (state = "available") {
 				Do report.tools.%Push(name)
+				Do fingerprints.%Set(name, ##class(OcuTalon.Bridge.Context).ToolFingerprint(tool.%Get("description"), tool.%Get("parameters")), "string")
 			} ElseIf $ListFind(builtin, name) {
 				Do report.refused.%Push(name)
 			}
 		}
+		Set report.fingerprints = fingerprints
 		Set report.status = "attached"
 	} Catch {
 		Set report.reason = "failed"

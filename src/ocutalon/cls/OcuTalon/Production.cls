@@ -65,6 +65,7 @@ XData ProductionDefinition
   </Item>
   <Item Name="MemoryOps" ClassName="OcuTalon.Memory.Ops" PoolSize="1" Enabled="true"/>
   <Item Name="DocumentOps" ClassName="OcuTalon.Docs.Ops" PoolSize="1" Enabled="true"/>
+  <Item Name="McpOps" ClassName="OcuTalon.Mcp.Ops" PoolSize="1" Enabled="true"/>
   <!-- lane A: end -->
   <!-- lane B: begin -->
   <Item Name="WebChatIn" ClassName="OcuTalon.Channel.WebChat.In" PoolSize="0" Enabled="true"/>

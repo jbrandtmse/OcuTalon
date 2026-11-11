@@ -182,6 +182,24 @@ ClassMethod ArgumentsHash(arguments As %RegisteredObject) As %String
 	Quit $SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(256, $ZConvert(..Canonical(value, $Select(value.%IsA("%Library.DynamicArray"): "array", 1: "object")), "O", "UTF8")), 1)
 }
 
+/// The fingerprint of a tool: the ArgumentsHash of {"description": description, "parameters": parameters}, so it changes when the tool's description or
+/// its input schema changes and in no other case. The description is text; the parameters are the tool's input schema as an object or JSON text (blank
+/// text is {}). It throws for parameters that are text and not JSON.
+ClassMethod ToolFingerprint(description As %String, parameters As %RegisteredObject) As %String
+{
+	If $IsObject(parameters) {
+		Set schema = parameters
+	} ElseIf $ZStrip(parameters, "*WC") = "" {
+		Set schema = {}
+	} Else {
+		Set schema = ##class(%Library.DynamicAbstractObject).%FromJSON(parameters)
+	}
+	Set value = {}
+	Do value.%Set("description", description, "string")
+	Do value.%Set("parameters", schema)
+	Quit ..ArgumentsHash(value)
+}
+
 /// The canonical text of a JSON value of the type (%GetTypeOf): see ArgumentsHash.
 ClassMethod Canonical(value, type As %String) As %String [ Private ]
 {

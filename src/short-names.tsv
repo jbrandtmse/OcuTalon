@@ -34,3 +34,4 @@ Upload	^OcuTalonP.Upload	OcuTalon.Data.Upload	B
 McpServer	^OcuTalonP.McpServer	OcuTalon.Mcp.Server	A
 Precedent	^OcuTalonP.Precedent	OcuTalon.Data.Precedent	B
 MailSeen	^OcuTalonP.MailSeen	OcuTalon.Data.MailSeen	B
+McpTool	^OcuTalonP.McpTool	OcuTalon.Mcp.ToolClassification	A
