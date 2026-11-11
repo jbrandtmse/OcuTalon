@@ -235,6 +235,16 @@ export interface SettingsSections {
   };
   'daily-digest': { time: string; channels: string };
   'demo-mode': { demoMode: boolean };
+  /** The mailbox (Story 21.2): never on the online demo. `passwordSet` says that a password is stored; the password itself is never sent. */
+  channels?: EmailValues;
+}
+
+/** The values of the Email form: the saved address, incoming server (host, or host:port off port 995) and user name, and whether a password is stored. */
+export interface EmailValues {
+  address: string;
+  incoming: string;
+  user: string;
+  passwordSet: boolean;
 }
 
 /** The body of a Time zone save: the IANA zone name, or "" for the server's own zone. The zone is a bridge value, so the 200 answer's sections do not hold it. */

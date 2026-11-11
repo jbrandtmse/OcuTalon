@@ -2,14 +2,50 @@
 title: 'Story 21.2: Connect a mailbox and read it over POP3 (first child of 21.2)'
 type: 'feature'
 created: '2026-11-11'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'fe7f00c63a39100bf0d5c73532e8c5c4a9caade2'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-21-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md'
 warnings: ['oversized', 'multiple-goals']
-deferred: []
+deferred:
+  - summary: >-
+      A permanently unreadable or undeliverable email at the head of the new mail stops every poll at that email, so later mail never reaches Intake.
+    evidence: |-
+      Adapter.Poll quits on the first Read or Deliver failure with the unreadable reason and records nothing for it; the spec's matrix row "Failed poll" keeps rows of Items already sent and does not say what a permanently failing email does. Skipping it would drop mail silently, so the choice (skip after N tries, or quarantine with a reason) needs a ruling.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Channel/Email/Adapter.cls (Poll)
+    severity: medium
+  - summary: >-
+      A re-save of identical mailbox values after the detached production update failed all its tries does not start EmailIn again, and the page has already said the change applies within a minute.
+    evidence: |-
+      SaveEmail calls StartItem only when a settings row was written (applied); UpdateIn now logs one error after its last failed try but nothing reaches the page or the emailPoll mark. What would settle it: a measured failed update followed by an identical re-save leaving EmailIn disabled.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls (SaveEmail, StartItem, UpdateIn)
+    severity: medium (unverified)
+  - summary: >-
+      The budget pin of an email Item cannot show the daily_cap reason on the keyless CI stack, because no_key is checked first.
+    evidence: |-
+      TestSpentBudgetStillDecides accepts no_key or daily_cap and counts model calls (always 0 without a key); a Decide that ignored the cap for email Items would stay green there. What would settle it: a stack with a model key (CI mock) or a Precheck-level pin for an Item of channel email with a capped day.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Channel/EmailLive.cls (TestSpentBudgetStillDecides)
+    severity: medium
+  - summary: >-
+      The Email form's refusal, dirty and hidden states have no executed component or browser test; only the view functions and the success path (E2) run.
+    evidence: |-
+      email-view.test.mjs covers the pure functions and email.spec.ts E2 the saved path; no case types a value holding @{ and checks the field error, and no online-demo browser run checks the section is absent (the server already omits channels there: Test.Web.SettingsApi TestOnlineDemo).
+    location: >-
+      web/src/app/settings/email-section.ts
+    severity: low
+  - summary: >-
+      A server that stalls mid-list may hold a poll longer than the 8 second read timeout, because the timeout bounds each read, not the poll.
+    evidence: |-
+      %Net.POP3 GetMessageUIDArray and GetSizeOfMessages loop on lines until the lone dot; whether a read timeout ends the loop or spins was not measured. What would settle it: the stub answering UIDL with a few lines and then going silent, and the item's stop time measured.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Channel/Email/Adapter.cls (TIMEOUT, Poll)
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -101,6 +137,57 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-11 - Review pass
+- verdicts: 47 findings - high 0, medium 13, low 30, false 3, maybe-false 1 (the two intent-auditor divergences are rated low)
+- findings:
+  - Blind 1 `[medium]` `[defer]` a permanently bad email at the head blocks later mail - real (Poll quits on the first Read/Deliver failure); the fix is a design call (skip loses mail), so ledgered in `deferred:` with what would settle it.
+  - Blind 2 `[medium]` `[patch]` StripTags regexes quadratic on hostile HTML - real (untrusted content up to 1,048,576 characters); `StripTags` rewritten as linear scans (`DropBlocks`, `DropTags`); pinned by `EmailIn` `TestStripTagsIsLinear`.
+  - Blind 3 `[low]` `[reject]` PutBack does not reverse the audit of server, user and credential - the spec's Task says the old keys go back and are audited as put back; only the two product keys carry audit rows by design.
+  - Blind 4 `[low]` `[patch]` a failed production update is silent - `UpdateIn` now logs one error line after its last failed try; the page text and the emailPoll display belong to Story 22.5.
+  - Blind 5 `[false]` `[reject]` saving moves ownership silently - ruled behaviour (matrix row "Other admin saves", V4).
+  - Blind 6 `[low]` `[reject]` omitted password reused for a changed server - matrix row 2 says the password is kept and other changes apply; the admin changes the host on purpose.
+  - Blind 7 `[low]` `[reject]` SSLConfig can be blanked by editing the item - an admin editing production settings by hand is out of scope; the product writes only OcuTalonClient (V7) and a test pins it (`TestTlsFollowsThePort`).
+  - Blind 8 `[medium]` `[patch]` Trim and baseline do not scale - `Trim` now looks seen UIDLs up in a local array (linear); the baseline's one save per UIDL stays (one-time, bounded by mailbox size).
+  - Blind 9 `[low]` `[reject]` the mock's `bytes` padding turns an HTML-only mail multipart - a CI fixture detail; the new live test uses `html` without `bytes`.
+  - Blind 10 `[false]` `[reject]` "after you connect" gap - Decided in-stage (2) states it (baseline until the first successful poll).
+  - Edge 1 `[medium]` `[defer]` poison email, same root cause as Blind 1 - carried.
+  - Edge 2 `[low]` `[reject]` UIDL over 70 characters or empty - RFC 1939 caps a UIDL at 70 characters and forbids an empty one.
+  - Edge 3 `[low]` `[reject]` a transiently empty UIDL list trims every row - the matrix row "Gone mail" prescribes the trim after a successful poll; an empty list from a healthy server is a server fault.
+  - Edge 4 `[medium]` `[patch]` huge mailbox, quadratic `$ListFind` - same root cause as Blind 8, patched with it.
+  - Edge 5 `[low]` `[reject]` the same UIDL listed twice - a broken server; the unique index keeps the table sound.
+  - Edge 6 `[low]` `[reject]` Deliver OK then Record fails - a local database write failure; the email is then sent again at the next poll (at-least-once).
+  - Edge 7 `[low]` `[reject]` -ERR to the greeting reads as "refused" - Task 0 (c) measured 6015 on a failed connect as the log-in refusal (P1b); a greeting -ERR is not measured.
+  - Edge 8 `[medium]` `[patch]` StripTags regex stall - same root cause as Blind 2.
+  - Edge 9 `[low]` `[reject]` an attachment text part chosen as the body - needs an attachment before the body part; not reachable from ordinary mail.
+  - Edge 10 `[low]` `[reject]` an ownerless mailbox shows "couldn't read the mailbox" - the three sentences are the ruled P1a-c; a fourth would be new public text.
+  - Edge 11 `[medium]` `[defer]` an identical re-save does not restart the item after a failed update - real but rare; the fix needs a running-state probe; ledgered (unverified) with what would settle it.
+  - Edge 12 `[low]` `[patch]` the update failure is silent - same fix as Blind 4.
+  - Edge 13 `[low]` `[reject]` empty `SessionRef` leaves the owner empty - the route always passes the CSP session Ref and `Commands.Submit` requires it.
+  - Edge 14 `[low]` `[reject]` the route reads `onlineDemo` through the cache - the sibling `SaveSection` and every settings route do the same; `SettingsOps` refuses again uncached.
+  - Edge 15 `[false]` `[reject]` mail between the save and the first poll is baselined - Decided in-stage (2).
+  - Edge 16 `[low]` `[reject]` the mock's error callback can fire twice - a CI-only fixture with no effect on a test.
+  - Edge 17 `[low]` `[reject]` the mock's unbounded line buffer - a CI-only fixture inside the compose network.
+  - Edge 18 `[maybe-false]` `[defer]` TIMEOUT bounds a read, not the poll - what would settle it: a stub that stalls mid-list and a measured stop time.
+  - Edge 19 `[low]` `[reject]` a live DELE path behind `DeleteMessage` - guarded by the forced 0 and pinned by `TestDeleteIsNeverHonoured`; the parent's own call shape is kept.
+  - Edge 20 `[low]` `[reject]` the simulated mailbox refuses an over-long body while EmailIn cuts it - V-COST says cut it to the same constant (`BODYMAX`); a refused email would be lost.
+  - Gap 1 `[medium]` `[defer]` the budget pin accepts `no_key` - real on the keyless stack; ledgered with what would settle it.
+  - Gap 2 `[medium]` `[patch]` AC 7 had no assertion of "untrusted" and an unscoped header count - `TestSuspiciousEmailActsOnNothing` now finds this email's Item by subject and asserts `Provenance` untrusted and channel email; mutation recorded.
+  - Gap 3 `[medium]` `[patch]` row 11 never ran against the real stub - new `EmailLive` `TestHtmlLargeAndEncodedMail` (HTML-only, over 1,048,576 bytes, UTF-8 subject and text); mutation recorded.
+  - Gap 4 `[low]` `[defer]` the form's refusal and hidden states have no executed host - no component test host exists in this project; the server side and the view functions are pinned.
+  - Gap 5 `[medium]` `[patch]` live tests acted before the poll ended - `Poll` now waits for a later `emailPoll` time; the negative checks keep a bounded wait because absence has no signal.
+  - Gap 6 `[medium]` `[patch]` two control assertions could not fail (`%Next()` of COUNT) - they read the count and expect 2 and 3; the header count is scoped (Gap 2).
+  - Gap 7 `[low]` `[reject]` `ModelCalls()` cannot be non-zero on a keyless stack - stated in the budget note; the assertion stays as a guard against a model call on a stack that has a key.
+  - Gap 8 `[low]` `[reject]` a stale emailPoll mark could satisfy the first wait - `Disconnect` restores the earlier mark and the wait is for the first poll's own sentence.
+  - Gap 9 `[low]` `[patch]` mutation lines missing for the Fresh reader, the TLS rule, the 50 cap, gone mail, the stub's delete count, the form's body, E2 and E3 - each mutation applied, red observed, reverted (Verification).
+  - Gap 10 `[low]` `[reject]` AC 10 and AC 11 have no pinning test - AC 10 is a measurement and AC 11 a path check (`git status`), neither is a behaviour a test can pin.
+  - Gap 11 `[medium]` `[defer]` poison email - carried (Blind 1).
+  - Gap 12 `[low]` `[reject]` the DELE branch is dead code - see Edge 19.
+  - Gap 13 `[low]` `[reject]` the OAuth2 block has no test - copied for Story 21.3 on purpose (Design Notes, Rule 2); 21.3 tests it.
+  - Gap 14 `[low]` `[patch]` a test comment claimed more than it asserted - `TestFailedPoll`'s comment now says what it asserts.
+  - Gap 15 `[low]` `[reject]` `TestGetShape` scans `"password"` quoted - the scan still catches a key or value named password; `passwordSet` is the shape's own member.
+  - Intent 1 `[low]` `[reject]` TLS is exercised in no committed test - Decided in-stage (4) and Task 0 (e): a committed private key trips `docker/tests/lib-keys.sh`; TLS was measured against a scratch certificate and the save's `SSLConfig` is pinned.
+  - Intent 2 `[low]` `[reject]` E3 reaches the service through `ProcessInput` and E2 observes only that a poll was recorded - the poll-to-Item path is `EmailLive`'s; E2/E3 pin the page, the owner's state and isolation.
+
 ## Design Notes
 
 **Spec gate rulings [RULED 2026-11-11 ~13:10Z, Contest Planner under the owner's delegation; written verbatim by the lead from prompts/epic-21-rulings-212.md]:**
@@ -153,6 +240,14 @@ Lead notes on the rulings: `Offer`/`Withdraw` in the plan became the shared `Put
 
 **Measured in plan (slot C, OCUTALON, build 154U, read-only apart from a named event resource created and deleted):** a `Signal(name, message)` with no waiter queues the message; a later `WaitMsg` gets `1|<message>`; `Delete` with a message queued discards it (re-created resource: count 0, `WaitMsg` `0|`); a JOBbed process consumed a queued wakeup (count 1 -> 0); the resource name `$Name(^OcuTalonHandoffProbe(...))` created no global. Unmeasured (Task 0 a): the message content across processes and the privilege of a caller without `%All` (inference: no privilege needed).
 
+**Measured (Task 0, implement stage, 2026-11-11, lane-C warm throwaway `e21s2iw`, build 154U; scratch files only under the session scratch folder, nothing committed):**
+- **(a) Cross-process hand-off (shared evidence for 35.3): a secret put by one IRIS process was taken, with its exact content, by another independent process and, in the real flow, by the `SettingsOps` production job; a second `Take` of the reference fails; `Take(uri, .discard, 0)` of a taken or discarded reference fails harmlessly. No privilege is needed to `Put` or `Take`; the one measurement that is open is the web process of an admin without `%All`, which `web/e2e/settings/email.spec.ts` E2 covers over real HTTP as the README admin (passed on a fresh stack).** The resource name is read as a global reference (`$SYSTEM.Event.List()` shows it with its database), and a resource that nobody takes lives until its `Take` (so the route discards).
+- **(b) Start and restart.** From a standalone process, an `Enabled` System Default Settings row of 1 plus `Ens.Director.UpdateProduction()` started the definition-disabled `EmailIn` in 17 ms, and a changed adapter row (`POP3Server`) stopped it and started a new job that used the new value at once. Called from inside `SettingsOps`' own production job, the same call logged `ErrJobRegistryNotClean` for that job and, when a later update could not stop `EmailIn` within its 10 seconds, ended the `SettingsOps` job with a `<SUBSCRIPT>` error that the production did not restart. So `SettingsOps.StartItem` starts a detached job (`UpdateIn`, at most 3 tries) that runs the update outside every production job; the save does not wait for it, and the page says the change applies within a minute. `Bridge.Timeouts.Restart` (`TempStopConfigItem`) calls the same update from the calling job (inference: Lane A's `McpOps` meets the same hazard in Story 22.2 and Story 21.4's restart; reported). `EnableConfigItem` is not used.
+- **(c) `%Net.POP3` codes, driven by the stub:** a refused connection, an unknown host and a no-greeting close: 6012 (after the read timeout) and 6013; a TLS handshake against a plain stub: 6085; STLS refused: 6015; `-ERR` after PASS: 6015; `-ERR` after UIDL (connected): 6015. Classification: a failed connect with 6015 is P1b, any other failed connect is P1a, any later failure is P1c (an STLS refusal is also P1b: inference, no server text is kept). The connect timeout is `TIMEOUT` 8 s, under the 10 s that a production update waits for an item to stop.
+- **(d) Decoding.** `%Net.POP3.Fetch` and `FetchMessageHeaders` decode encoded-word `From` and `Subject` (UTF-8 base64) to the right code points (u-umlaut 252, sharp s 223, euro 8364) and a base64 UTF-8 body likewise; a multipart/alternative message has its plain part first (`Parts`, `IsHTML` 0) and its HTML part second (`IsHTML` 1); an HTML-only message has `IsHTML` 1 and its text in `TextData`. `Adapter.TextOf` takes the first plain part, else the HTML with script and style blocks and tags removed, entities decoded and white space collapsed.
+- **(e) TLS.** With a scratch certificate (SAN `mock`, two days, scratch folder only) behind a scratch TLS front of the stub and a scratch client SSL configuration: implicit TLS (995-style) and STARTTLS (`*`, 110-style) both read the mailbox with the server's identity checked; `OcuTalonClient` (system CAs) refuses the scratch certificate (6085) on both; a wrong host name fails (6012). So port 110 stays supported (no refusal at save). The scratch front, certificate, key and configuration were removed.
+- **(f) Grant (V5).** `SettingsOps`' job runs as the Interoperability system user `_Ensemble`, whose role holds `%All` on every install (spine AD-5/NFR text). The two writes need only the data database of the namespace (`%DB_OCUTALON_DATA:RW`, writing the `EmailIn` rows of `Ens.Config.DefaultSettings` and the product keys) and `%Ens_Credentials:W` (checked by `%SYS.Ensemble.SecondarySet` before it writes the password into the secondary store). The real save through the production wrote the credential and the rows in that job. No new grant, role or resource was added, and none is needed; the least set that the writes use is those two resources.
+
 **Spine edits (after the spec gate; plain unions):** S1 AD-19 sub-bullet: the mail password reaches the credential through `SecretHandoff` (in memory, deleted on take or withdraw, never stored); `OcuTalonMail` holds user and password; server, port, SSL config and `Enabled` are `EmailIn` SDS rows written by `SettingsOps`; the mailbox moves to the last saving admin's session. S2 AD-1 sub-bullet: REST code may offer a secret it received to `SecretHandoff` (no stored state). S3 AD-14 sub-bullet: `EmailIn`'s adapter (no delete, baseline, seen UIDLs, 10 per poll, the size rule). S4 Tables paragraph: Lane B owns `MailSeen` (writer `EmailIn`). S5 AD-22 sub-bullet: the mock's POP3 side and `/_mock/mail/`.
 
 **Decided in-stage:** (1) split (below); (2) "connected" = `EmailIn`'s first successful poll of a mailbox identity: mail present then is baseline, so mail arriving in the seconds before that first poll is not an Item (inference: under 5 s); (3) TLS rule: port 110 -> STARTTLS, any other port implicit TLS, default 995; no plain option; (4) the CI stub is plain TCP; `EmailLive` asserts the save wrote `SSLConfig` `OcuTalonClient` (the first poll then fails, giving the P1a case), then sets the SDS `SSLConfig` to "" and `CallInterval` to 2 as a test-only fixture and restores both; TLS itself is Task 0 (e) (a committed private key would trip `docker/tests/lib-keys.sh`); (5) "no repeats after a restart" uses an `EmailIn` restart in `EmailLive` (persistence is the table's), no production restart; (6) at most 50 new emails per poll (RULED, was 10), poll every 60 s; (7) audit forms: address and user "set"/"changed" (identities, AD-17), password "set", server host:port as is; (8) no disconnect in this story (proposed for 21.6); (9) DW-1042 resolved here by uncached reads (the mailbox can move); (10) no More-to-try item: the panel is the demo guide's and the online demo (where judges try it) keeps the simulated mailbox; the README line names "on your own install"; (11) page texts are literals in `email-view.ts` equal to the accepted wording (source `ux`); (12) passwords up to 256 characters; (13) EmailIn's tests live in `Test/Channel` (shard piece `lane-a@Channel`, group `production`); `SettingsEmail`/`SecretHandoff` in `Test/Core` (piece `lane-b@Contract,Core,Data,Live`, group `image`); the e2e spec in `live:sign-in-2` (group `shards-4`). No new unit.
@@ -170,6 +265,8 @@ Lead notes on the rulings: `Offer`/`Withdraw` in the plan became the shared `Put
 **Extend, don't copy (Rule 2):** the adapter extends `EnsLib.EMail.InboundAdapter` (keeps its settings and OAuth2 for 21.3) and replaces `OnTask` -- the parent's re-reads every message each poll and logs addresses; its OAuth2 token lines (~8) are copied for that reason. `EmailIn`'s Item build copies `SimMailbox.In.Accept`'s 9 lines: the sources differ (no allowance, no `SimMessage` row, no live event) and a shared helper would change a class other stories pin. `SaveEmail` reuses `AuditData`, `WriteAudit`, `Apply`, `Stored` and mirrors `SaveProduct`'s transaction; `SaveChannels` extends `SaveSection`'s shape; the form follows `check-thresholds-section.ts`; the stub follows the mock's Telegram control routes; `EmailLive` extends `InProduction`.
 
 **Contended files (reported):** `Web/Api.cls` (one route row changed, one method added; 35.3 adds `/channels/webhooks` beside it), `Test/Web/Api.cls:999` (one list entry renamed), `channels-section.ts` (one block appended), `api-types.ts` (one optional member), `Production.cls` (lane B region, one item), `ci/mock/server.mjs` (one start block), `README.md` (one bullet), `ux-strings.test.mjs` (one list entry, rows). New files in contended folders: `web/src/app/settings/email-*.ts`, `web/e2e/settings/email.spec.ts`, `ci/mock/mail.mjs`. **Footprint extensions:** `web/scripts/ux-strings.test.mjs`, `Channel/Email/**` (listed as `Email*`), `Data/MailSeen.cls` (AD-33 table).
+
+**Implementation notes (implement stage, 2026-11-11):** (1) Contended files as touched: `Web/Api.cls` (the route row, `SaveChannels`, its `SubmitChannels` seam, `Answer`'s `not_available`, two parameters, the class doc), `Test/Web/Api.cls` (the route list), `Test/Web/SettingsApi.cls` (`TestChannelsRoute`, the answer mapping, the scan's word `"password"` quoted because the page holds `passwordSet`), `Production.cls` (one item, lane B region), `Test/Core/ProductionItems.cls` (its oracle row), `ci/mock/server.mjs` (the `--pop3-port` option and the start block, plus the control route to `mail.mjs`), `README.md` (P3), `EXPERIENCE.md` (P1a-c, P2), `ux-strings.test.mjs` (one module entry, seven rows), `src/short-names.tsv` (the `MailSeen` row, which `test-storage.sh` requires), `web/e2e/settings/settings.spec.ts` (S12: the Channels section now holds the Email form, so its old "no field, no Save button" pin is scoped to the Telegram block and counts the four fields). (2) Beyond the spec's file list, because the pinned invariants and rules required it: `Data/Setting.cls` gets the read method `Fresh` (an uncached row read; `Test.Core.SettingsOps` `TestOnlyRunTimeWriter` forbids `KeyIndexOpen` in any class but `SettingsOps`, so `CommandsIn` and `Channel.Email.In` read through it), with `Test.Data.Setting` `TestFreshIgnoresTheCache`; `channels-section.ts` takes the mailbox values and passes them down and `settings-page.ts` binds them (the page asks `GET /v1/settings` once, which `S1` pins, so the Email group cannot fetch it again), which also gives the Email form the page's unsaved-changes prompt; `web/scripts/announce-focus-sources.test.mjs` lists `email-section.ts` (announcer, focus, render wait); `Test/Core/SettingsOps.cls` `TestAllowList` expects the two email keys. (3) No `ci/units.sh` change: `Test.Channel.EmailIn`, `EmailLive` and the stand-ins join `lane-a@Channel` (group `production`), `Test.Core.SecretHandoff`, `SettingsEmail` and `SettingsEmailProbe` join `lane-b@Contract,Core,Data,Live` (group `image`), `web/e2e/settings/email.spec.ts` joins `live:sign-in-2` (the part of `--part 7/8` that lists it), `ci/mock/test/mail.test.mjs` runs with `node --test ci/mock/test/`.
 
 ## Veto items
 
@@ -221,7 +318,35 @@ Lane C variables on every `ci/` call (worktree root): `OCUTALON_LOCK_DIR="$(dirn
 
 **Shared surfaces:** `SettingsOps.Values()` sections and `XData Sections` (`Test.Core.SettingsSave` `TestValues`, `Test.Web.SettingsApi` `TestGetShape`, `api-types.ts`); `ALLOWLIST` (`TestAllowList`); `Web.Api` UrlMap route list (`Test/Web/Api.cls:999`); the production's lane B items (`EmailIn` disabled, so "every enabled item runs" checks are unchanged); the tables list (`Test.Data.Tables`, `test-storage.sh`, spine Tables); the mock's routes and ports (`ci/mock/test/server.test.mjs`); `ux-strings.test.mjs` inventory; README "New since 1.0.0" (`test-readme.sh`); the spine lint baseline; Settings > Channels content (`web/e2e/settings/settings.spec.ts` checks section names only). Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
+**Mutations observed (Rule 19; each applied, red observed, reverted, the tree byte-identical to before it):**
+- AC 1 and the matrix (save, validation, all or nothing): `SaveEmail` writes the credential before it validates -> `Test.Core.SettingsEmail` `TestAllOrNothing` and `TestRefusedValues` red; the online-demo check of `SaveEmail` removed -> `TestOnlineDemo` red.
+- AC 3 (the password is only in the credential): `SecretHandoff.Put` also stores the secret in a global -> `Test.Core.SecretHandoff` `TestNothingPersisted` and `Test.Channel.EmailLive` `TestPasswordOnlyInTheCredential` red; the route no longer discards an untaken secret -> `Test.Web.SettingsApi` `TestChannelsRoute` red ("the offered password was withdrawn").
+- Hand-off: `Take` skips `Delete` -> `Test.Core.SecretHandoff` `TestRoundTrip`, `TestSecondTakeFails`, `TestDiscard`, `TestCrossProcess` and `TestWaitAndTimeout` red.
+- AC 4 (403 and online demo): the admin gate does not cover `channels` (`OnPreDispatch`) -> `web/e2e/settings/email.spec.ts` E1 red on a fresh stack (the non-admin save went through); the route's online-demo check removed -> `Test.Web.SettingsApi` `TestChannelsRoute` red.
+- AC 5 (rows 8 to 13): `DeleteMessage` not forced to 0 -> `Test.Channel.EmailIn` `TestDeleteIsNeverHonoured` red; the seen check skipped -> `TestFirstPollIsBaseline` and `TestDeleteIsNeverHonoured` red; the baseline skipped -> `TestFailedPoll` and `TestDeleteIsNeverHonoured` red; seen rows not written -> `EmailIn` `TestNewMail` and `EmailLive` `TestBaselineAndNewMail` ("no repeats after a restart") red; a failed connect with the log-in code classified as "unreachable" -> `EmailIn` `TestFailedPoll` red.
+- AC 6 (tool email after save, DW-1042): `CommandsIn.Stored` back to the cached `Setting.Get` -> `Test.Core.CommandsStep4` `TestSendEmailAfterSave` red.
+- AC 7 (the suspicious email): `EmailIn` drops every email (the service returns OK before it sends) -> `Test.Channel.EmailLive` `TestSuspiciousEmailActsOnNothing` red (no decision, no Item from `EmailIn` to `Intake`).
+- AC 8 (V-COST): the service no longer cuts the text -> `Test.Channel.EmailIn` `TestServiceItem` red; `EmailIn` dropping the Item on a capped day -> `EmailLive` `TestSpentBudgetStillDecides` red. The stack has no model key, so a spent day and a missing key both give a fallback with a precheck reason (`no_key` comes first, `daily_cap` after it); the test pins that the email is still decided, with no model call.
+- AC 9 (first poll silent): the baseline skipped -> `Test.Channel.EmailIn` `TestFirstPollIsBaseline` red.
+- Review pass additions (each applied, red observed, reverted): `StripTags` without `DropBlocks` -> `EmailIn` `TestStripTagsIsLinear` and `TestLargeAndHtmlMail` red; `MailSeen.Trim` a no-op -> `TestGoneMail` red; `NEWMAX` 500 -> `TestNewMail` red; `SslFor` returns "" -> `SettingsEmail` `TestTlsFollowsThePort` and `TestFirstSave` red; `Setting.Fresh` reads the cache -> `Test.Data.Setting` `TestFreshIgnoresTheCache` red; the stub's DELE counted as 0 -> `ci/mock/test/mail.test.mjs` red; `emailBody` always sends the password -> `web/scripts/email-view.test.mjs` red; `Adapter.Read` never headers-only -> `EmailLive` `TestHtmlLargeAndEncodedMail` red; `EmailIn` Item `Provenance` "trusted" -> `TestSuspiciousEmailActsOnNothing` red; `EmailIn` Item `SessionRef` empty -> `email.spec.ts` E2 (its E3 part, "the owner's state holds the email's decision") red on a fresh stack; `EmailValues` `passwordSet` always false -> E2 red ("the channels hold the saved values"). `TestSaveAndFirstPoll`'s wait is for the first poll's own sentence (no mutation needed: it fails on timeout).
+- AC 10 (V5): measured, see Measured (f); no mutation applies.
+- AC 11 (footprint): `git status --short` lists no Lane A path.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Story 21.2 (POP3 half): `SecretHandoff` (Put/Take), the route `POST /api/v1/settings/channels` and `SettingsOps.SaveEmail` (credential `OcuTalonMail`, `email.address`/`email.owner`, `EmailIn` System Default Settings, a detached production update), the `EmailIn` service and its own POP3 adapter (no delete, silent baseline, seen UIDLs in `Data.MailSeen`, 50 per poll, size rule, `emailPoll`), the Email form, the POP3 stub in the CI mock, and spine S1-S5, the README P3 bullet and the EXPERIENCE rows. No new grant, role, resource, unit or group; no Lane A file.
+
+**Files changed.** New: `Core/SecretHandoff.cls`, `Data/MailSeen.cls`, `Channel/Email/{Adapter,In,Mail}.cls`, `ci/mock/mail.mjs` and its test, `web/src/app/settings/email-{view,section}.ts`, `web/e2e/settings/email.spec.ts`, `web/scripts/email-view.test.mjs`, test classes `Test/Core/{SecretHandoff,SettingsEmail,SettingsEmailProbe}`, `Test/Channel/{EmailIn,EmailInAdapter,EmailInPop3,EmailInServiceProbe,EmailLive}`. Changed: `Web/Api.cls` (route), `Core/SettingsOps.cls` (section, `SaveEmail`), `Core/CommandsIn.cls` (uncached keys, DW-1042), `Data/Setting.cls` (`Fresh`), `Production.cls` (disabled item), `ci/mock/server.mjs`, the settings page and channels section, `api-types.ts`, the pins named in the Tasks, `src/short-names.tsv`, the spine, README, EXPERIENCE.
+
+**Test groups.** `Test.Channel.EmailIn*`, `EmailLive`: shard piece `lane-a@Channel`, group `production`; `Test.Core.SecretHandoff`, `SettingsEmail`: piece `lane-b@Contract,Core,Data,Live`, group `image`; `settings/email.spec.ts`: `live:sign-in-2`, group `shards-4`.
+
+**Review.** 47 findings, none high. Patched: linear `StripTags` (hostile HTML), linear `Trim`, a logged update failure, AC 7's untrusted assertion, the real-stub row 11 test, the live poll wait, two unfalsifiable assertions, a test comment, and the missing mutation lines. Deferred (5 entries in `deferred:`): the poison email at the head, a re-save after a failed update, the budget pin on a keyless stack, the form's refusal state in a browser, a mid-list stall. Rejected: 28, each with its reason in the Triage Log.
+
+**Follow-up review recommended: true.** Five medium entries were patched on a first pass: the unverified risk is the new `StripTags` scanners (`DropBlocks`, `DropTags`) on real-world HTML, which only `EmailIn` unit tests and the one live HTML case exercise.
+
+**Verification.** All (loop) classes pass on the warm stack `e21s2iw` after the last patch (`SecretHandoff`, `SettingsEmail`, `EmailIn`, `EmailLive` 30 s, `CommandsStep4`, `SettingsSave`, `SettingsApi`, `Test.Web.Api`, `Tables`, `CommandsRouting`, `Data.Setting`, `SettingsOps`); node: `ci/mock/test` 142 pass, `web/scripts` 1915 pass; `tsc` and `npm run build` clean; `ci/iris.sh live sign-in-2 --part 7/8` 41 of 41 on `e21s2i`; the four `docker/tests` scripts pass; the spine lint has the same 10 low placeholder findings as before. Both throwaway stacks are torn down; no lane-C lock is held.
+
+**Residual risks.** `UpdateProduction` called inside a production job misbehaves (Task 0 b), so `Bridge.Timeouts.Restart` and its callers (Lane A, Stories 21.4 and 22.2) may meet the same job-registry problem. An `STLS` refusal is classified as P1b (inference). The budget pin cannot show `daily_cap` without a model key (ledgered).

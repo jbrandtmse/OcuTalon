@@ -71,6 +71,9 @@ XData ProductionDefinition
   <Item Name="WebChatOut" ClassName="OcuTalon.Channel.WebChat.Out" PoolSize="1" Enabled="true"/>
   <Item Name="SimMailboxIn" ClassName="OcuTalon.Channel.SimMailbox.In" PoolSize="0" Enabled="true"/>
   <Item Name="SimMailboxOut" ClassName="OcuTalon.Channel.SimMailbox.Out" PoolSize="1" Enabled="true"/>
+  <Item Name="EmailIn" ClassName="OcuTalon.Channel.Email.In" PoolSize="1" Enabled="false">
+    <Setting Target="Adapter" Name="CallInterval">60</Setting>
+  </Item>
   <Item Name="SimPhoneOut" ClassName="OcuTalon.Channel.SimPhone.Out" PoolSize="1" Enabled="true"/>
   <Item Name="AnswersIn" ClassName="OcuTalon.Core.AnswersIn" PoolSize="0" Enabled="true"/>
   <Item Name="AnswerOps" ClassName="OcuTalon.Core.AnswerOps" PoolSize="1" Enabled="true"/>

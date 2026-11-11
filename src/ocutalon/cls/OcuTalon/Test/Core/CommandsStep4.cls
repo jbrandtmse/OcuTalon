@@ -9,6 +9,9 @@
 ///   - TestSendEmailOwnAddress: a tool's SendEmail is routed only when email.owner is the command's SessionRef and every recipient is
 ///     email.address, ignoring case and surrounding spaces; a foreign recipient, an empty list, no address, another owner and, inside a
 ///     bridge context, another SessionRef are refused with nothing sent;
+///   - TestSendEmailAfterSave (Story 21.2, matrix row 13; DW-1042): the keys that the real SettingsOps.SaveEmail writes route the saving session's tool SendEmail to
+///     the saved address and refuse another session and another address; when another admin saves, the first session is refused and the second routed, also over
+///     a cache that still names the first;
 ///   - TestToolVerbs: the real TOOLVERBS holds SendEmail and no MCP verb, and the real Routes send the five MCP verbs to McpOps from web_admin
 ///     only and SendEmail to EmailOut from tool and system;
 ///   - TestRestartRunnersWithoutProduction: RestartRunners' work answers OK and restarts nothing for no running production or another one;
@@ -48,6 +51,8 @@ Method OnAfterAllTests() As %Status
 	Kill ^OcuTalonTest("CommandsRouting", ..Run)
 	Do ..PutBack("email.owner", $List(..Found, 1), $List(..Found, 2))
 	Do ..PutBack("email.address", $List(..Found, 3), $List(..Found, 4))
+	Kill ^OcuTalonTest("SettingsOpsProbe")
+	Kill ^||OcuTalonSettingsEmailProbe
 	Quit $$$OK
 }
 
@@ -187,6 +192,34 @@ Method TestSendEmailOwnAddress()
 	Do $$$AssertEquals(..Calls(), before + 1, "and is sent")
 	Do probe.OnProcessInput(..NewEmail("system", "zzsessB", ""), .output)
 	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "1|test", "origin system with an empty list is the owner's to validate")
+}
+
+/// The keys that the real save writes (Story 21.2, matrix row 13; DW-1042): SettingsOps.SaveEmail, through a probe whose credential, settings rows and
+/// production update are stand-ins, writes email.address and email.owner, and CommandsIn then routes a tool's SendEmail to the saved address for the saving
+/// session only. When another admin saves, the mailbox moves: even with this process's cache holding the first admin's pair, as another process's would
+/// for up to a minute, the first session is refused and the second is routed (CommandsIn reads both keys from their rows).
+Method TestSendEmailAfterSave()
+{
+	Set refused = "That can't be done from the chat. Nothing was changed."
+	Do ..SaveMailbox("zzsessA", "Me@Example.org")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get("email.owner")_"|"_##class(OcuTalon.Data.Setting).Get("email.address"), "zzsessA|Me@Example.org", "the real save wrote the owner and the address")
+	Set probe = ..NewProbe()
+	Do probe.OnProcessInput(..NewEmail("tool", "zzsessA", "me@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "1|test", "the saving session's tool SendEmail to the saved address is routed")
+	Do $$$AssertEquals(..Call(..Calls(), "target"), "EmailOut", "to EmailOut")
+	Do probe.OnProcessInput(..NewEmail("tool", "zzsessB", "me@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_allowed|"_refused, "another session's identical command is refused")
+	Do probe.OnProcessInput(..NewEmail("tool", "zzsessA", "other@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_allowed|"_refused, "another address is refused")
+	Set before = ..Calls()
+	Do ..SaveMailbox("zzsessB", "Me@Example.org")
+	Set ^||OcuTalon.Setting("email.owner") = $ListBuild("zzsessA", 1, $ZHorolog)
+	Set ^||OcuTalon.Setting("email.address") = $ListBuild("Me@Example.org", 1, $ZHorolog)
+	Do probe.OnProcessInput(..NewEmail("tool", "zzsessA", "me@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_allowed|"_refused, "after the mailbox moves to B, A is refused even over a cache that still names A")
+	Do probe.OnProcessInput(..NewEmail("tool", "zzsessB", "me@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "1|test", "and B is routed")
+	Do $$$AssertEquals(..Calls(), before + 1, "only B's command was sent")
 }
 
 /// The real TOOLVERBS and Routes: SendEmail is a tool verb and no MCP verb is; the five MCP verbs go to McpOps from web_admin only, and
@@ -382,6 +415,26 @@ Method SetMailbox(owner As %String, address As %String) [ Private ]
 {
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set("email.owner", owner), "email.owner is set")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set("email.address", address), "email.address is set")
+}
+
+/// Saves the mailbox for the session through the real SaveEmail, run by a SettingsEmailProbe (stand-in credential, settings rows and production update).
+Method SaveMailbox(session As %String, address As %String) [ Private ]
+{
+	Set secret = "zzstep4pw"_$Job_$Random(100000)
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(secret, .uri)
+	Do $$$AssertStatusOK(sc, "the password is offered")
+	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
+	Set command.Slug = "channels"
+	Set command.Changes = {"address": (address), "incoming": "pop.example.com", "user": "zzstep4", "password": (uri)}.%ToJSON()
+	Set command.ActingUser = "zzadmin"
+	Set command.SessionRef = session
+	Set command.Origin = "web_admin"
+	Set save = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.SettingsEmailProbe", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the settings probe is made")
+	Set sc = save.OnMessage(command, .result)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the real save is done")
+	Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .discard, 0)
+	Kill discard, secret
 }
 
 /// Puts a key back as found: its row with the value, or no row.

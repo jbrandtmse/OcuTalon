@@ -52,6 +52,17 @@ ClassMethod Get(key As %String, default As %String = "") As %String
 	Quit $Select($ListGet(cached, 1) = "": default, 1: $ListGet(cached, 1))
 }
 
+/// The value of a setting read from its row right now, never from the per-process cache, or default when the row is absent or its value is empty. A
+/// public key is read as Get reads it. A reader of a key that another process writes and that moves between owners, such as email.owner, uses this
+/// so that it never acts on a value that is up to CACHESECONDS old.
+ClassMethod Fresh(key As %String, default As %String = "") As %String
+{
+	If key = "" Quit default
+	If ..IsPublic(key) Quit ..Get(key, default)
+	Set row = ..KeyIndexOpen(key)
+	Quit $Select($IsObject(row) && (row.Value '= ""): row.Value, 1: default)
+}
+
 /// Writes a value only when the key is absent, and drops this process's cache entry for it.
 /// An empty key is refused with an error status, and so is a public key, which the status names.
 ClassMethod Seed(key As %String, value As %String) As %Status

@@ -468,6 +468,19 @@ XData Contracts [ MimeType = application/json ]
    "RefIndex": "Ref unique"
   }
  },
+ "OcuTalon.Data.MailSeen": {
+  "super": "%Persistent",
+  "props": {
+   "Mailbox": "%String(COLLATION=EXACT,MAXLEN=64)",
+   "Uidl": "%String(COLLATION=EXACT,MAXLEN=70)",
+   "Baseline": "%Boolean",
+   "SeenAt": "%String(MAXLEN=20)"
+  },
+  "indexes": {
+   "MailboxUidlIndex": "Mailbox,Uidl unique",
+   "MailboxIndex": "Mailbox"
+  }
+ },
  "OcuTalon.Data.Precedent": {
   "super": "%Persistent",
   "props": {
@@ -752,6 +765,11 @@ XData Registry [ MimeType = application/json ]
   "short": "Handled",
   "global": "^OcuTalonP.Handled",
   "class": "OcuTalon.Data.Handled"
+ },
+ {
+  "short": "MailSeen",
+  "global": "^OcuTalonP.MailSeen",
+  "class": "OcuTalon.Data.MailSeen"
  },
  {
   "short": "Memory",

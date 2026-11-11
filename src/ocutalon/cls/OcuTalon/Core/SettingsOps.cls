@@ -61,6 +61,13 @@
 /// transaction, which a refusal rolls back (the refusal names "prices.<model>", and nothing is audited or set); then each audit entry of a price, then each
 /// SetModel with its audit entry (TriageAgent.model, TriageAgent.secondModel, price.<model>.<key>). A later failure puts back what was written (SetModel
 /// and SetPrice with the old values) and audits each put-back. A value that equals the current one is dropped.
+/// The email section (Story 21.2; kind email, slug channels) connects a POP3 mailbox: the body is {address, incoming, user, password} where password
+/// is a SecretHandoff reference (or absent or empty to keep the stored one) and never the password; SaveEmail takes the password from the hand-off,
+/// writes the product keys email.address and email.owner (the session of the admin who saved, so the mailbox moves to the last saving admin), the
+/// credential OcuTalonMail (user name and password) and the System Default Settings rows of EmailIn (POP3Server, POP3Port, Credentials, SSLConfig
+/// and Enabled), and has a detached job update the production so that EmailIn starts or restarts. It is the only writer of all of these, and it refuses with
+/// not_available on the online demo. Values adds channels {address, incoming, user, passwordSet} from the rows and the credential, never the
+/// password, and not on the online demo.
 /// TestModel (origin web_admin) sends Bridge.Settings.TestRequest's request to Decide synchronously, waits at most TESTWAIT seconds, and answers the outcome
 /// tested with Data {answered, seconds, reason} (an expired wait gives reason timeout), or refused with Data {"fields": ["agent"]} for an agent that
 /// TestRequest refuses. It writes no setting and no audit entry; the Decision and Usage rows of the test request are Decide's, as Bridge.Settings.TestRequest describes.
@@ -68,7 +75,7 @@ Class OcuTalon.Core.SettingsOps Extends Ens.BusinessOperation
 {
 
 /// The setting keys that this operation writes, comma-separated.
-Parameter ALLOWLIST = "demo.mode,digest.time,digest.channels,checks.thresholds.diskFreePercent,checks.thresholds.journalFreePercent,checks.thresholds.licenseUsePercent,checks.thresholds.queueMessages,checks.thresholds.queueWaitMinutes";
+Parameter ALLOWLIST = "demo.mode,digest.time,digest.channels,checks.thresholds.diskFreePercent,checks.thresholds.journalFreePercent,checks.thresholds.licenseUsePercent,checks.thresholds.queueMessages,checks.thresholds.queueWaitMinutes,email.address,email.owner";
 
 /// The per-person setting keys that this operation writes, comma-separated: person.<SessionRef>. followed by one of these (AD-19).
 Parameter PERSONKEYS = "persona.preset,persona.language,persona.custom,heartbeat.on,heartbeat.interval,heartbeat.from,heartbeat.to,heartbeat.checklist";
@@ -780,6 +787,31 @@ Parameter MESSAGESECTIONREFUSED = "A value was refused, so nothing was changed."
 
 Parameter MESSAGESECTIONNOTAUDITED = "OcuTalon couldn't write the audit entry, so nothing was saved.";
 
+/// The Message of an email save on the online demo (Public text P2).
+Parameter MESSAGEUNAVAILABLE = "Email can't be connected on the online demo. Nothing was changed.";
+
+/// The Interoperability credential that holds the mailbox's user name and password (AD-19).
+Parameter CREDENTIAL = "OcuTalonMail";
+
+/// The production item that reads the mailbox.
+Parameter MAILITEM = "EmailIn";
+
+/// The Description of the System Default Settings rows of the mail item.
+Parameter ROWDESCRIPTION = "Written by SettingsOps when an admin saves the mailbox (Story 21.2); do not edit.";
+
+/// The most characters of a mail password.
+Parameter PASSWORDMAX = 256;
+
+/// The POP3 port of a server written without one (implicit TLS), and the port that uses STARTTLS (RFC 2595).
+Parameter DEFAULTPORT = 995;
+
+Parameter STARTTLSPORT = 110;
+
+/// How many times the detached production update tries, and the seconds between the tries.
+Parameter UPDATETRIES = 3;
+
+Parameter UPDATEPAUSE = 3;
+
 /// The longest value of a bridge field that Save passes on to Bridge.Settings.
 Parameter BRIDGEMAX = 200;
 
@@ -797,7 +829,7 @@ Parameter TESTWAIT = 45;
 /// The sections of the settings page. A section has a slug, a kind (product: its fields are Data.Setting keys that this class writes; bridge:
 /// its fields are bridge names that Bridge.Settings changes; demo: read here only, a SetDemoMode switches it) and its fields. A field has a name
 /// (the page's and the API's), a key (product) or the bridge name, a type (int, time, channels, bridge or flag), its default and, for an int, its
-/// range. A models section has no fields: its body is nested (SaveModels). A section without a row here (Channels) has no save yet.
+/// range. A models section has no fields: its body is nested (SaveModels). An email section (Channels, Story 21.2) has its own save (SaveEmail) and its names are those of the form: its fields carry no key.
 XData Sections [ MimeType = application/json ]
 {
 [
@@ -817,7 +849,12 @@ XData Sections [ MimeType = application/json ]
   {"name": "queueMessages", "key": "checks.thresholds.queueMessages", "type": "int", "min": 1, "max": 1000000, "default": "100"},
   {"name": "queueWaitMinutes", "key": "checks.thresholds.queueWaitMinutes", "type": "int", "min": 1, "max": 1000000, "default": "10"}]},
  {"slug": "demo-mode", "kind": "demo", "fields": [
-  {"name": "demoMode", "key": "demo.mode", "type": "flag", "default": "0"}]}
+  {"name": "demoMode", "key": "demo.mode", "type": "flag", "default": "0"}]},
+ {"slug": "channels", "kind": "email", "fields": [
+  {"name": "address"},
+  {"name": "incoming"},
+  {"name": "user"},
+  {"name": "password", "optional": 1}]}
 ]
 }
 
@@ -850,7 +887,7 @@ ClassMethod Values() As %DynamicObject
 	Set sections = {}
 	Set iterator = ..Sections().%GetIterator()
 	While iterator.%GetNext(, .section) {
-		If (section.kind = "bridge") || (section.kind = "models") Continue
+		If (section.kind = "bridge") || (section.kind = "models") || (section.kind = "email") Continue
 		Set values = {}
 		Set fields = section.fields.%GetIterator()
 		While fields.%GetNext(, .field) {
@@ -867,6 +904,7 @@ ClassMethod Values() As %DynamicObject
 		}
 		Do sections.%Set(section.slug, values)
 	}
+	If '..OnlineDemo() Do sections.%Set("channels", ..EmailValues())
 	Quit {"sections": (sections), "bridge": (##class(OcuTalon.Bridge.Settings).Values()), "providers": (##class(OcuTalon.Bridge.Settings).Providers()), "instanceZone": (##class(OcuTalon.Bridge.Time).Zone()), "prices": (..Prices())}
 }
 
@@ -922,6 +960,7 @@ Method Save(command As OcuTalon.Msg.Command.SaveSettings) As OcuTalon.Msg.Comman
 	}
 	If '$IsObject(changes) || 'changes.%IsA("%Library.DynamicObject") Quit ..Refused([])
 	If section.kind = "models" Quit ..SaveModels(command, changes)
+	If section.kind = "email" Quit ..SaveEmail(command, changes)
 	Set bad = [], refused = 0, wanted = ""
 	Set fields = section.fields.%GetIterator()
 	While fields.%GetNext(, .field) {
@@ -1358,6 +1397,339 @@ Method TestModel(command As OcuTalon.Msg.Command.TestModel) As OcuTalon.Msg.Comm
 		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	}
 	Quit ..Result(1, "tested", "", answer.%ToJSON())
+}
+
+/// Saves the email section of a SaveSettings command (Story 21.2; AD-1, AD-17, AD-19; see the class description); changes is the parsed body.
+/// In order: the online demo refuses (not_available, nothing offered or read); every field is validated (EmailShape: address, incoming server
+/// as host or host:port, user name, and the password's hand-off reference or nothing) and the password taken from the hand-off, so that a refusal
+/// names every refused field and changes nothing; then the changes against the stored values, each with its Settings audit entry written first
+/// (address and user as "set" or "changed", the server as host:port, the credential as "set", the owner as the two Refs) and the product keys
+/// email.address and email.owner written in one transaction; then the credential OcuTalonMail, the System Default Settings rows of EmailIn
+/// and the production update that starts or restarts the item. A failure after the transaction puts everything back as it was (PutBackEmail)
+/// and audits the keys put back. A save that changes nothing writes the settings rows that differ and nothing else. The password is held in
+/// a local variable only, and killed on every path.
+Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..#MESSAGEUNAVAILABLE)
+	Set bad = []
+	Kill field
+	Set unknown = ..EmailShape(changes, .field, bad)
+	Set secret = ""
+	If $Get(field("password")) '= "" {
+		Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(field("password"), .secret)
+		If $$$ISERR(sc) || ..PasswordProblem(secret) {
+			Kill secret
+			Set secret = ""
+			Do ..AddField(bad, "password")
+		}
+	} ElseIf '..ReadCredential(.oldUser, .oldPassword, 0) {
+		Do ..AddField(bad, "password")
+	}
+	If bad.%Size() || unknown {
+		Kill secret, oldPassword
+		Quit ..Refused(bad)
+	}
+	Set exists = ..ReadCredential(.oldUser, .oldPassword)
+	Set oldAddress = ..Stored("email.address"), oldOwner = ..Stored("email.owner")
+	Set oldIncoming = ..IncomingForm(..ReadItemSetting("POP3Server"), ..ReadItemSetting("POP3Port"))
+	Set newIncoming = ..IncomingForm(field("host"), field("port"))
+	Set todo = []
+	If field("address") '= oldAddress Do todo.%Push({"setting": "email.address", "from": ($Select(oldAddress = "": "", 1: "set")), "to": ($Select(oldAddress = "": "set", 1: "changed")), "key": "email.address", "value": (field("address")), "old": (oldAddress)})
+	If command.SessionRef '= oldOwner Do todo.%Push({"setting": "email.owner", "from": (oldOwner), "to": (command.SessionRef), "key": "email.owner", "value": (command.SessionRef), "old": (oldOwner)})
+	If newIncoming '= oldIncoming Do todo.%Push({"setting": "email.incoming", "from": (oldIncoming), "to": (newIncoming), "key": "", "value": "", "old": ""})
+	If 'exists || (field("user") '= oldUser) Do todo.%Push({"setting": "email.user", "from": ($Select('exists: "", 1: "set")), "to": ($Select('exists: "set", 1: "changed")), "key": "", "value": "", "old": ""})
+	If secret '= "" Do todo.%Push({"setting": "email.credential", "from": ($Select(exists: "set", 1: "")), "to": "set", "key": "", "value": "", "old": ""})
+	Set level = $TLevel
+	TSTART
+	Try {
+		Set iterator = todo.%GetIterator()
+		While iterator.%GetNext(, .one) {
+			Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, one.setting, one.from, one.to))
+			If $$$ISERR(sc) {
+				TROLLBACK 1
+				Set text = $SYSTEM.Status.GetErrorText(sc)
+				$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
+				Kill secret, oldPassword
+				Return ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
+			}
+			If one.key '= "" Set sc = ..Apply(one.key, one.value)
+			If $$$ISERR(sc) {
+				TROLLBACK 1
+				$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
+				Kill secret, oldPassword
+				Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+			}
+		}
+		TCOMMIT
+	} Catch exception {
+		If $TLevel > level TROLLBACK 1
+		$$$LOGERROR(exception.DisplayString())
+		Kill secret, oldPassword
+		Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Set written = ""
+	Set sc = $$$OK
+	Try {
+		If (secret '= "") || ('exists) || (field("user") '= oldUser) {
+			Set sc = ..WriteCredential(field("user"), secret, 'exists || (secret '= ""))
+			If $$$ISOK(sc) Set written = written_$ListBuild("credential")
+		}
+		If $$$ISOK(sc) Set sc = ..WriteItemSettings(field("host"), field("port"), .rows, .applied)
+		If $$$ISOK(sc) && applied Set sc = ..StartItem()
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) {
+		$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
+		Do ..PutBackEmail(command, todo, $ListFind(written, "credential"), exists, oldUser, oldPassword, .rows)
+		Kill secret, oldPassword
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Kill secret, oldPassword
+	Quit ..Result(1, "done", ..#MESSAGESECTIONSAVED)
+}
+
+/// Validates the body of the email section into field: address, host, port and user (canonical), and password, the hand-off reference or "".
+/// Each refused field is named in bad: a field that is missing or is not a JSON string (the password may be missing or empty), one that holds
+/// "@{" or a control character, an address that is not one address (at most 254 characters, one @, no space), an incoming server that is not
+/// host or host:port (a host name of letters, digits, hyphens and dots, lower-cased; a port 1 to 65535, else DEFAULTPORT), a user name of
+/// 1 to 256 characters, and a password that is not a reference of SecretHandoff.
+ClassMethod EmailShape(changes As %DynamicObject, Output field, bad As %DynamicArray) As %Boolean [ Private ]
+{
+	Kill field
+	Set field("address") = "", field("host") = "", field("port") = "", field("user") = "", field("password") = ""
+	For name = "address", "incoming", "user", "password" {
+		Set type = changes.%GetTypeOf(name)
+		Set text = $Select(type = "string": changes.%Get(name), 1: "")
+		If (name = "password") && ((type = "unassigned") || ((type = "string") && (text = ""))) Continue
+		If (type '= "string") || (text [ "@{") || (..HasControl(text)) {
+			Do ..AddField(bad, name)
+			Continue
+		}
+		Set text = $ZStrip(text, "<>W")
+		If name = "address" {
+			If '$Match(text, "^[^@ ,;<>()\[\]\\""]{1,64}@[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z0-9-]+$") || ($Length(text) > 254) {
+				Do ..AddField(bad, name)
+			} Else {
+				Set field("address") = text
+			}
+		} ElseIf name = "incoming" {
+			Set host = $Piece(text, ":", 1), port = $Select($Length(text, ":") = 2: $Piece(text, ":", 2), 1: ..#DEFAULTPORT)
+			If ($Length(text, ":") > 2) || '$Match(host, "^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$") || '$Match(port, "^[1-9][0-9]{0,4}$") || (port > 65535) {
+				Do ..AddField(bad, name)
+			} Else {
+				Set field("host") = $ZConvert(host, "L"), field("port") = +port
+			}
+		} ElseIf name = "user" {
+			If ($Length(text) < 1) || ($Length(text) > 256) {
+				Do ..AddField(bad, name)
+			} Else {
+				Set field("user") = text
+			}
+		} Else {
+			If '$Match(text, "^secret://handoff/[0-9A-F]{32}$") {
+				Do ..AddField(bad, name)
+			} Else {
+				Set field("password") = text
+			}
+		}
+	}
+	Set unknown = 0
+	Set iterator = changes.%GetIterator()
+	While iterator.%GetNext(.name) {
+		If '$ListFind($ListBuild("address", "incoming", "user", "password"), name) Set unknown = 1
+	}
+	Quit unknown
+}
+
+/// 1 when the text holds a control character.
+ClassMethod HasControl(text As %String) As %Boolean [ Private ]
+{
+	Quit ($ZStrip(text, "*C") '= text)
+}
+
+/// 1 when the password is not acceptable: empty, over PASSWORDMAX characters, with a control character or with "@{".
+ClassMethod PasswordProblem(secret As %String) As %Boolean [ Private ]
+{
+	Quit (secret = "") || ($Length(secret) > ..#PASSWORDMAX) || ..HasControl(secret) || (secret [ "@{")
+}
+
+/// The incoming server as the page shows it and the audit records it: host, or host:port when the port is not DEFAULTPORT. "" for no host.
+ClassMethod IncomingForm(host As %String, port As %String) As %String [ Private ]
+{
+	If host = "" Quit ""
+	Quit host_$Select((port = "") || (port = ..#DEFAULTPORT): "", 1: ":"_port)
+}
+
+/// The SSLConfig of the item for the port: the client configuration (implicit TLS), or with a star STARTTLS on port STARTTLSPORT. There is no
+/// plain choice.
+ClassMethod SslFor(port As %Integer) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Install.Step.SSL).#NAME_$Select(port = ..#STARTTLSPORT: "*", 1: "")
+}
+
+/// The System Default Settings rows of EmailIn that a mailbox needs, as host and port: name, value pairs in a list.
+ClassMethod ItemRows(host As %String, port As %Integer) As %List [ Private ]
+{
+	Quit $ListBuild($ListBuild("POP3Server", host), $ListBuild("POP3Port", port), $ListBuild("Credentials", ..#CREDENTIAL), $ListBuild("SSLConfig", ..SslFor(port)), $ListBuild("Enabled", 1))
+}
+
+/// Writes the rows of ItemRows that differ from the stored ones, and answers in rows(name) the value each had before ($ListBuild(existed, value))
+/// for PutBackEmail; applied is 1 when any row was written. The first error stops the writes.
+Method WriteItemSettings(host As %String, port As %Integer, Output rows, Output applied As %Boolean) As %Status [ Private ]
+{
+	Kill rows
+	Set applied = 0
+	Set list = ..ItemRows(host, port)
+	Set position = 0
+	While $ListNext(list, position, one) {
+		Set name = $List(one, 1), value = $List(one, 2)
+		Set existed = ..ItemSettingExists(name)
+		Set old = ..ReadItemSetting(name)
+		If existed && (old = value) Continue
+		Set rows(name) = $ListBuild(existed, old)
+		Set applied = 1
+		Set sc = ..WriteItemSetting(name, value)
+		If $$$ISERR(sc) Quit
+	}
+	Quit $Get(sc, $$$OK)
+}
+
+/// Puts back what a failed email save changed: the product keys of todo (with an audit entry of each put back), the credential when it was written
+/// (to oldUser and oldPassword, or deleted when there was none), and the settings rows of rows; then the production is updated again, its status
+/// ignored. A step that cannot be put back is logged.
+Method PutBackEmail(command As OcuTalon.Msg.Command.SaveSettings, todo As %DynamicArray, credentialWritten As %Boolean, existed As %Boolean, oldUser As %String, oldPassword As %String, ByRef rows) [ Private ]
+{
+	For i = todo.%Size() - 1:-1:0 {
+		Set one = todo.%Get(i)
+		If one.key = "" Continue
+		Set sc = ..Apply(one.key, one.old)
+		If $$$ISERR(sc) {
+			$$$LOGERROR("The value of "_one.key_" could not be put back: "_$SYSTEM.Status.GetErrorText(sc))
+			Continue
+		}
+		Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, one.setting, one.to, one.from))
+		If $$$ISERR(sc) $$$LOGERROR("The Settings audit entry of a value put back could not be written: "_$SYSTEM.Status.GetErrorText(sc))
+	}
+	If credentialWritten {
+		Set sc = $Select(existed: ..WriteCredential(oldUser, oldPassword, 1), 1: ..DeleteCredential())
+		If $$$ISERR(sc) $$$LOGERROR("The mail credential could not be put back: "_$SYSTEM.Status.GetErrorText(sc))
+	}
+	Set name = ""
+	For {
+		Set name = $Order(rows(name), 1, was)
+		Quit:name=""
+		Set sc = $Select($List(was, 1): ..WriteItemSetting(name, $List(was, 2)), 1: ..DeleteItemSetting(name))
+		If $$$ISERR(sc) $$$LOGERROR("The setting "_name_" of the mail item could not be put back: "_$SYSTEM.Status.GetErrorText(sc))
+	}
+	Do ..StartItem()
+}
+
+/// The values of the email section for the page (Values): {address, incoming, user, passwordSet}. The user name comes from the credential and
+/// the server from the item's settings rows; the password is never read, only whether the credential exists.
+ClassMethod EmailValues() As %DynamicObject
+{
+	Set exists = 0, user = ""
+	Try {
+		Set exists = ..ReadCredential(.user, .password, 0)
+	} Catch {
+		Set exists = 0, user = ""
+	}
+	Kill password
+	Set values = {}
+	Do values.%Set("address", ..Stored("email.address"), "string")
+	Do values.%Set("incoming", ..IncomingForm(..ReadItemSetting("POP3Server"), ..ReadItemSetting("POP3Port")), "string")
+	Do values.%Set("user", $Select(exists: user, 1: ""), "string")
+	Do values.%Set("passwordSet", exists, "boolean")
+	Quit values
+}
+
+/// 1 when the credential OcuTalonMail exists; user is its user name, and password its password only when withPassword is 1 (the caller holds it
+/// in memory and kills it; the page's read never loads it). A test subclass overrides it.
+ClassMethod ReadCredential(Output user As %String, Output password As %String, withPassword As %Boolean = 1) As %Boolean
+{
+	Set user = "", password = ""
+	If '##class(Ens.Config.Credentials).%ExistsId(..#CREDENTIAL) Quit 0
+	Set credential = ##class(Ens.Config.Credentials).%OpenId(..#CREDENTIAL)
+	If '$IsObject(credential) Quit 0
+	Set user = credential.Username
+	If withPassword Set password = credential.Password
+	Quit 1
+}
+
+/// Writes the credential OcuTalonMail. With setPassword 0 only the user name changes and the stored password stays. A test subclass overrides it.
+ClassMethod WriteCredential(user As %String, password As %String, setPassword As %Boolean) As %Status [ Private ]
+{
+	If setPassword Quit ##class(Ens.Config.Credentials).SetCredential(..#CREDENTIAL, user, password, 1)
+	Set credential = ##class(Ens.Config.Credentials).%OpenId(..#CREDENTIAL)
+	If '$IsObject(credential) Quit $SYSTEM.Status.Error(5001, "The mail credential cannot be opened")
+	Set credential.Username = user
+	Quit credential.%Save()
+}
+
+/// Deletes the credential OcuTalonMail. A test subclass overrides it.
+ClassMethod DeleteCredential() As %Status [ Private ]
+{
+	If '##class(Ens.Config.Credentials).%ExistsId(..#CREDENTIAL) Quit $$$OK
+	Quit ##class(Ens.Config.Credentials).%DeleteId(..#CREDENTIAL)
+}
+
+/// The System Default Settings row of the mail item for the setting: its id. A test subclass overrides the four methods below that use it.
+ClassMethod ItemSettingId(name As %String) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Install.Step.Production).#PRODUCTION_"||"_..#MAILITEM_"||*||"_name
+}
+
+/// 1 when the settings row exists.
+ClassMethod ItemSettingExists(name As %String) As %Boolean [ Private ]
+{
+	Quit ##class(Ens.Config.DefaultSettings).%ExistsId(..ItemSettingId(name))
+}
+
+/// The value of the settings row, "" when there is none.
+ClassMethod ReadItemSetting(name As %String) As %String [ Private ]
+{
+	Set id = ..ItemSettingId(name)
+	If '##class(Ens.Config.DefaultSettings).%ExistsId(id) Quit ""
+	Quit ##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue
+}
+
+/// Writes the settings row of the mail item.
+ClassMethod WriteItemSetting(name As %String, value As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault(##class(OcuTalon.Install.Step.Production).#PRODUCTION, ..#MAILITEM, name, value, ..#ROWDESCRIPTION)
+}
+
+/// Deletes the settings row of the mail item.
+ClassMethod DeleteItemSetting(name As %String) As %Status [ Private ]
+{
+	Set id = ..ItemSettingId(name)
+	If '##class(Ens.Config.DefaultSettings).%ExistsId(id) Quit $$$OK
+	Quit ##class(Ens.Config.DefaultSettings).%DeleteId(id)
+}
+
+/// Starts the mail item, or restarts it when it runs, so that it reads its settings rows: the production update, run by a detached job (UpdateIn).
+/// The update is not called from this job: Ens.Director.UpdateProduction called inside a production job logs the job's registry as not clean and,
+/// when an item does not stop in time, ends the calling job. The save does not wait for the update: the item starts within seconds, and the page
+/// says that the change applies within a minute. With no OcuTalon production running it answers OK: the item reads its rows when the production
+/// starts. An error status says that the detached job could not be started. A test subclass overrides it.
+ClassMethod StartItem() As %Status [ Private ]
+{
+	If '##class(Ens.Director).IsProductionRunning(.name) || (name '= ##class(OcuTalon.Install.Step.Production).#PRODUCTION) Quit $$$OK
+	Job ##class(OcuTalon.Core.SettingsOps).UpdateIn():($Namespace):5
+	Quit $Select($Test: $$$OK, 1: $SYSTEM.Status.Error(5001, "The production update could not be started"))
+}
+
+/// The detached job of StartItem: updates the production, and tries again after a pause when the update does not end OK (at most UPDATETRIES
+/// tries); when none ends OK it logs one error line. It runs outside every production job, writes nothing and logs no setting.
+ClassMethod UpdateIn() [ Internal ]
+{
+	For try = 1:1:..#UPDATETRIES {
+		Set sc = ##class(Ens.Director).UpdateProduction()
+		If $SYSTEM.Status.IsOK(sc) Quit
+		Hang ..#UPDATEPAUSE
+	}
+	If $SYSTEM.Status.IsError(sc) $$$LOGERROR("The production update that applies the mail settings did not end OK")
 }
 
 /// Restarts every agent runner item that has a job in the running OcuTalon.Production, so that each rebuilds its agent with the MCP servers

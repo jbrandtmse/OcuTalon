@@ -130,12 +130,14 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 
 /// 1 when a SendEmail from a tool is for the session user's own mailbox: inside a bridge context the command's SessionRef is the
 /// context's OwnerRef, the product key email.owner is the SessionRef, email.address is set, and every comma-separated recipient,
-/// trimmed and lower-cased, equals it lower-cased. An empty list, an empty recipient or no mailbox gives 0.
+/// trimmed and lower-cased, equals it lower-cased. An empty list, an empty recipient or no mailbox gives 0. Both keys are read from their
+/// rows and never from the per-process cache, because the mailbox moves to the admin who saved last (SettingsOps.SaveEmail) and a cached
+/// pair could name the old owner with the new address.
 ClassMethod OwnAddressOnly(command As OcuTalon.Msg.Command.SendEmail) As %Boolean [ Private ]
 {
 	If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit 0
-	Set address = $ZConvert($ZStrip(##class(OcuTalon.Data.Setting).Get("email.address"), "<>W"), "L")
-	If (address = "") || (command.SessionRef = "") || (##class(OcuTalon.Data.Setting).Get("email.owner") '= command.SessionRef) Quit 0
+	Set address = $ZConvert($ZStrip(..Stored("email.address"), "<>W"), "L")
+	If (address = "") || (command.SessionRef = "") || (..Stored("email.owner") '= command.SessionRef) Quit 0
 	Set recipients = command.Recipients
 	If $ZStrip(recipients, "<>W") = "" Quit 0
 	Set own = 1
@@ -143,6 +145,12 @@ ClassMethod OwnAddressOnly(command As OcuTalon.Msg.Command.SendEmail) As %Boolea
 		If $ZConvert($ZStrip($Piece(recipients, ",", i), "<>W"), "L") '= address Set own = 0
 	}
 	Quit own
+}
+
+/// The value of the product key right now, read from its row and never from the per-process cache; "" when the row is absent.
+ClassMethod Stored(key As %String) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Setting).Fresh(key)
 }
 
 /// The one send of the class: the command to the owner item, synchronously. Private, so that only Carry sends through it,
