@@ -189,3 +189,4 @@
 2026-11-11T13:45:13Z	Story 23.7	ci_red_classified	run=43026811791 workflow=.github/workflows/ci.yml class=story test=web:sources-docs.test.mjs_WORDS_stops_at_fourteen(job_130543466679)
 2026-11-11T13:45:13Z	Story 23.7	ci_red_classified	run=43026811791 workflow=.github/workflows/ci.yml class=story test=iris(shards-5)live:sign-in-3_K29_OCUTALON_FLOOR_USER_unset(job_130543466970)
 2026-11-11T13:45:13Z	Story 23.7	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=[CI]web_WORDS_fifteen_sixteen,[CI]K29_sign-in-3_fixture_user scope_baseline=6f308d8e note=orchestrator_classified_story;lesson_run_whole_web_suite
+2026-11-11T13:45:18Z	Story 23.7	stage_spawned	stage=implement spawn_at=2026-11-11T13:45:18Z model=sonnet effort=high agent_name=23-7-ci-rework-1 cycle_iteration=2 rework=1
