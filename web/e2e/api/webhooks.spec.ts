@@ -128,9 +128,10 @@ async function dropDecisionsOf(names: string[]): Promise<void> {
 
 /**
  * Waits until the events whose subject is the name are done: `count` decide Decisions exist, `count` ItemDecisions have been routed, and no request of the
- * events' own trace sessions (the untrusted turn and the notice of an act included) is still queued or in flight. A case calls it before it removes its rows.
- * The timer that Decide sets for each attempt (an Ens.AlarmRequest to Ens.Alarm, TimerSeconds, 60 by default) is not a request that writes anything: once the
- * decision is recorded its fired response is discarded by the framework (Decide, the timer), so the wait does not count it, and a case no longer idles for the timer.
+ * events' own trace sessions (the untrusted turn and the notice of an act included) is still queued or in flight, a business process's timer apart. A case
+ * calls it before it removes its rows. A timer (an Ens.AlarmRequest to Ens.Alarm, such as the one Decide sets for each attempt, TimerSeconds, 60 by default)
+ * is not counted: while the process that set it is running, that process's own request stays open and is counted; once the process is complete, the
+ * framework discards the timer's response and nothing is written. The cases remove no message header, so a timer that Ens.Alarm still holds fires harmlessly.
  */
 async function awaitSettled(name: string, count: number): Promise<void> {
   const own =

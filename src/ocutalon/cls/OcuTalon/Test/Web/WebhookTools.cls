@@ -41,6 +41,8 @@ ClassMethod HeadersSince(mark As %Integer, source As %String) As %Integer
 
 /// 1 once the trace session holds an ItemDecision request that OutcomeRouter has completed and none of its requests is still queued or in flight (the Intake,
 /// Decide and routing steps of an event are done); 0 when that has not happened within the seconds. The status 9 is Completed, 1 to 3 are Created, Queued and Delivered.
+/// A timer (an Ens.AlarmRequest to Ens.Alarm) counts as open too, because the caller then removes the session's message headers, and Ens.Alarm logs an error
+/// when the request of a timer it still holds is gone.
 ClassMethod WaitSettled(sessionId As %String, seconds As %Integer = 60) As %Boolean
 {
 	Set end = $ZHorolog + seconds
