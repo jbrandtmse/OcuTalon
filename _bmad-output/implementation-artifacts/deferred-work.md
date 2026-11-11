@@ -6478,6 +6478,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 1.0.5 real-model evaluation (overridden): 0 approvals, commands, setting changes or fix runs; label Act 2/3
 - 2026-11-09T14:16:01Z status=routed owner=burndown by=owner note=1.0.6 HIGH ahead of tier 3 (Contest Planner [3dd56e], delegated authority); instructions fix, eval-measured (3/3 Tell now); story to charter at the next free lane; may touch Lane A instructions contended with Epic 41 part 2
 - 2026-11-10T18:24:38Z status=wontfix-theoretical owner=burndown by=owner note=not reproduced at 1.0.6 (Contest Planner, delegated authority, 2026-11-10 ~18:30Z): heartbeat-injected-decision was tellnow in all 3 real-model attempts (release-evidence/1.0.6-gates/rc-eval/set-{1,2,3}.md); reopen_if the 1.0.7 RC eval labels it Act again; any fix is model-facing and needs a real-key measurement
+- 2026-11-11T11:02:31Z status=routed owner=burndown by=owner note=REOPENED per its reopen condition (Contest Planner, 2026-11-11): 1.0.7 RC eval (real model, 3 attempts) labelled heartbeat-injected-decision Act in attempt 1 (tools recent_activity and check_status only; nothing acted), tellnow in attempts 2 and 3; report-only label miss; no fix work unless a lane is idle; any fix is model-facing and goes through the Planner's RC-eval ruling
 
 ### DW-1020: README: name the contest under '## Contest checklist' (replace 'What OcuTalon uses, and where to check each one:' with the approved sentence linking the InterSystems Programming Contest: AI Agents in Interoperability Workflows post, then 'What it uses, and where to check each one:')
 - source: planner-2026-11-09-readme-contest | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6514,6 +6515,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: GitHub markdown API renders it (measured); Open Exchange rendering of the README's HTML cannot be seen from the repository
 - 2026-11-09T23:43:20Z status=decision-pending owner=burndown by=harvest note=human=open the Open Exchange listing once it shows the 1.0.6 README and confirm title+logo render; outward listing, owner/Planner only
 - 2026-11-10T00:47:25Z status=decision-pending owner=burndown by=merge_gate note=Contest Planner (owner delegation) owns it: checks the Open Exchange listing render after 1.0.6 is live; a Markdown fallback follow-up is routed then if needed; no action now
+- 2026-11-11T10:45:03Z status=dropped owner=burndown by=owner note=RESOLVED per the Contest Planner (owner's delegation), 2026-11-11: on the 1.0.6 Open Exchange listing the README header renders (logo rewritten to a working GitHub raw URL, 200 image/png; the h1 and badges come through); the concern did not occur; Story 0.23 also made the logo src absolute; the Planner re-checks at 1.0.7
 
 ### DW-1062: Test.Schedule.TaskResume copies Lane A's private Test.Install.ReconcileIn LastRow and Rows (the Event Log row count of ReconcileIn by job, type and text), forced by AD-29; a change to how ReconcileIn logs must be repeated in both
 - source: spec-8-8-the-heartbeat-task-resumes-itself-when-it-comes-back-suspend.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6888,3 +6890,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: in-story
 - evidence: The page shows nothing new for a second failure; the press waits only for the route fulfil. Observed in order in the no-retract mutation run (H15 red, 2 announcements), not guaranteed.
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=give H15 an observed precondition (a page-side marker of the refused read) and a mutation line
+
+### DW-1123: eval fixture: memory-documents-remember's phrase check 'the reply says: document' is too narrow; widen it to accept any of document, runbook or file
+- source: Contest Planner, 1.0.7 RC eval wording ruling, 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 1.0.7 RC eval, 3 real-model attempts: the model refused to save runbook text, cited 'Results runbook / Clearing the queue' and quoted it, but said 'runbook', failing only the phrase check
+- 2026-11-11T11:02:31Z status=routed owner=burndown by=owner note=ruled by the Contest Planner: widen eval/memory-documents-remember's phrase check to document|runbook|file; report-only; Epic 41's eval files; next free lane, ~30 min, after RELEASE DONE
