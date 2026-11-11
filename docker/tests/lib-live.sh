@@ -376,6 +376,7 @@ live_port_guard() {
   local p=$web_port t=$SECONDS rc line errf="$tmp/port-guard.$$.err" budget=$LIVE_PORT_WAIT spent=0 waited_s=0 waited=0 k=0 t1 t2 t_end left free
   LIVE_PORT_BUSY_SEEN=0
   if [ -z "$(docker ps -q --filter "label=com.docker.compose.project=$P" --filter "publish=$p" 2>/dev/null)" ]; then
+    t=$SECONDS # the wait starts here: the own-stack query above is not waiting
     live_port_wait_free "$p" "$budget"
     free=$?
     t_end=$SECONDS
