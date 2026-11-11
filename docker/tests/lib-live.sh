@@ -228,14 +228,14 @@ port_in_use() {
 live_port_free() { ! port_in_use "$1"; }
 
 # live_port_wait_free <port>: 0 at once when the port is free; 1 at once, silently, when LIVE_PORT_WAIT is 0. Otherwise prints "PORT waiting", waits (wait_until, so every 3 s, up to
-# LIVE_PORT_WAIT s and never past the run's deadline) for it to be free, and prints "PORT free: ... after <s> s" and returns 0, or
-# returns 1 when it is still in use.
+# LIVE_PORT_WAIT s and never past the run's deadline) for it to be free, checks once more after the last sleep, and prints
+# "PORT free: ... after <s> s" and returns 0, or returns 1 when it is still in use.
 live_port_wait_free() {
   local p=$1 t=$SECONDS
   if ! port_in_use "$p"; then return 0; fi
   if [ "$LIVE_PORT_WAIT" -le 0 ]; then return 1; fi
   echo "PORT waiting: 127.0.0.1:$p is in use; waiting up to $LIVE_PORT_WAIT s"
-  if wait_until "$LIVE_PORT_WAIT" live_port_free "$p"; then
+  if wait_until "$LIVE_PORT_WAIT" live_port_free "$p" || live_port_free "$p"; then
     echo "PORT free: 127.0.0.1:$p after $((SECONDS - t)) s"
     return 0
   fi
@@ -584,6 +584,8 @@ live_first_start() {
     echo "first start: docker compose up failed after $((SECONDS - up_at)) s"
     return 1
   fi
+  # The port guard's lines (Story 0.24): a port wait or a retry counts in the ready figure, so they are shown beside it.
+  grep '^PORT' "$tmp/first-up.log"
   cid=$(dc ps -q iris)
   if [ -z "$cid" ]; then
     echo "first start: no iris container in project $P after $((SECONDS - up_at)) s"
