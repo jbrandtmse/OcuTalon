@@ -2,7 +2,7 @@
 title: 'Story 25.2: Filter past decisions and incidents on the History page'
 type: 'feature'
 created: '2026-11-10'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '9d978686497c5a91a18b6cc71663500f8e7946fa'
 baseline_commit: '9d978686497c5a91a18b6cc71663500f8e7946fa'
 planned_against: 'Story 37.2 at OCT-epic37 7ef82a4671cb4ceec2a0ae2192e3d8f657488a1a (not merged)'
@@ -225,6 +225,8 @@ Line numbers are on this branch (`ddedbd6a`), unless marked "37.2" (OCT-epic37 `
 - [x] `README.md` -- append the History bullet last in "New since 1.0.0" and update :40's count word. `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- add the More to try entry under 37.2's "Usage and history" heading, after usage, with the next item number, plus "Item N's control is a link to the History page.", and update the "There are … items" count word. Both carry `[ADDED <date>, Story 25.2, Contest Planner ruling …]`.
 - [x] `ARCHITECTURE-SPINE.md` -- append the three rows in Design Notes → SPINE ROWS after 37.2's rows. Refresh `updated:`, run `memlog.py append --type decision` and lint (Rule 20).
 
+- [ ] [CI] iris (shards-10) live:sign-in, ci run 42966931010 job 130346188773 on 284e8904: `web/e2e/usage/usage.spec.ts:328` U8 failed at :339 "at 305px the header navigation still holds every link" (expected `['Chat','Documents','Usage']`; the History link is now in the nav) -- a shared-surface pin (Rule 19) of 37.2 that this story's History link changes. Fix: update the pin at :339, and ALSO U1 at `usage.spec.ts:197` ("…and no Settings or History", same literal list: History now shows, so its message and list change), preferably by reading the expected list from one shared source instead of a literal (e.g. a small exported list in `web/e2e/support/` that the nav specs share, or deriving it from the nav source as the other nav specs do); grep every spec that pins the header link list (`git grep -n "'Chat', *'" web/e2e`: frame, documents, settings, history, usage, floor) and make each consistent. The U8 305px case must still hold with four links (every link visible and inside the window); if the 305px window cannot hold History without hiding or overflowing, STOP with a clarification (never hide a link; never change the header beyond the ruled fit K). Verify on a lane-C fresh stack: the part holding `usage/usage.spec.ts` and the part holding `history/history.spec.ts` (`live sign-in --part k/20`, via `e2e-part.mjs`), `live sign-in-3 --part 1/2` (more-to-try), node (`npm --prefix web test`). Write the mutation line (Rule 19) for the changed pin.
+
 **Acceptance Criteria:**
 - Given a signed-in user on any page, when they press History in the header navigation, then `#/history` opens titled "History · OcuTalon", with History marked `aria-current="page"` between Documents and Usage, and the tabs Decisions and Incidents are read from `/api/v1/history/*`, which read only OcuTalon's and the bridge's tables (Decision, Usage and Incident, plus Turn and BackgroundCheck through the reused `FromRow` and `INCIDENTVISIBLE`) through `Ownership`, never a production message. The spine's REST and ownership tables carry this story's three rows.
 - Given the Decisions tab with fixture decisions across outcomes, channels, days and fallback, when the user sets any combination of the four filters, then only matching decisions show, newest first, 25 to a page with Previous/Next, each row at least 40px with the outcome chip first. The address holds the filters, so a reload or a pasted link shows the same list, and with no match the panel reads "No decisions match these filters.".
@@ -263,6 +265,8 @@ Rejected:
 - (auditor) `itemNoun` is omitted when there is no noun -- low: the allow-list ("only the keys") holds; the key follows `Live.Payload.Part.ItemNoun`'s shape, pinned by `TestIncidentsShape`.
 
 ## Spec Change Log
+
+- 2026-11-11 ~06:35Z (lead, rework iteration 1 of 3, trigger=ci): CI red on 284e8904 (ci 42966931010): (a) story — usage.spec.ts U8 pins the old three-link nav (the [CI] item under Tasks & Acceptance); (b) flake — lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges/TestRunAgain, ledgered DW-1094 (occurrence appended, no rework). The branch was integrated forward onto feature c241f87c (41.15, 0.25) before this rework. Feature's 23.5 (partnerWarning) may land later and collide on the More to try count lines; that is handled at the next integrate round (counts fourteen: partnerWarning under "Incidents and fixes", history last under "Usage and history").
 
 - 2026-11-10 (lead, spec gate): Design Notes gained the lead note on DW-941. The PUBLIC TEXT, SECURITY and MORE TO TRY GROUP sections go to the Contest Planner; the rulings are written here before implement.
 - 2026-11-11 ~01:45Z (lead, re-dispatch after 37.2 merged as 878da0d2): DW-1102 routed to this story (AC added at 37.2's merge gate); measured the compact header (Design Notes → HEADER FIT) and planned the spacing-only fit K as a Tasks & Acceptance item; F3 updated to five links; G4/G5 unchanged. Lead pre-check of Task 0: 37.2 shipped the fourth heading "Usage and history" (`more-to-try-view.ts:158`, usage in it :146, EXPERIENCE :260/:265), `/v1/usage` forwarding (`Web/Api.cls:266`), `Demo.Features` usage last; the registry is at twelve, history makes thirteen. The implement stage still does Task 0 in full.

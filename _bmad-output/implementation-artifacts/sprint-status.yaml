@@ -344,7 +344,7 @@ development_status:
   epic-24-retrospective: optional
 
   epic-25: in-progress
-  25-2-filter-past-decisions-and-incidents-on-the-history-page: done
+  25-2-filter-past-decisions-and-incidents-on-the-history-page: in-progress
   25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: backlog
   25-4-assign-approver-and-viewer-roles-in-settings: backlog
   25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: backlog

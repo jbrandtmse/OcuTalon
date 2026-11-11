@@ -41,3 +41,5 @@
 2026-11-11T06:26:54Z	Story 25.2	ci_resolved	story=25.2 sha=284e8904 runs=42966931010,42966931064 result=failure failed=.github/workflows/ci.yml via=none resolved_at=next_plan(orchestrator_report)
 2026-11-11T06:26:54Z	Story 25.2	ci_red_classified	run=42966931010 workflow=.github/workflows/ci.yml class=story test=live:sign-in_usage.spec.ts:328_U8(nav_link_pin_[Chat,Documents,Usage]_lacks_History) job=130346188773
 2026-11-11T06:26:54Z	Story 25.2	ci_red_classified	run=42966931010 workflow=.github/workflows/ci.yml class=flake test=lane-b@rest_Test.Web.GuideApi_TestOnlyTheMarkerChanges/TestRunAgain ledger=DW-1094(occurrence)
+2026-11-11T06:27:26Z	Epic 25	integrated_forward	feature=c241f87c(b5bd74c5_41.15+0.25_docker/tests) head=cf01cfde conflicts_resolved=sprint-status.yaml(regenerated),ARCHITECTURE-SPINE.md(updated:_line;both_sides_rows_kept;lint_baseline_10_low) note=23.5_not_landed_yet
+2026-11-11T06:27:45Z	Story 25.2	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI:usage.spec_U8/U1_nav_pin scope_baseline=cf01cfde cap=3 used_before=0
