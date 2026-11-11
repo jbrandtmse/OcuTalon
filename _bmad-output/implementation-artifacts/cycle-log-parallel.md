@@ -3485,3 +3485,6 @@
 - 2026-11-11T14:52Z orchestrator merge_gate epic=22 part=22.2 head=6a6542b8 (code = 74798cbe; 0ca20684 ancestor) conflicts=none code_identical_to_epic_head=yes spine_lint=baseline tracker=valid; graph story entries 22.8/22.9/22.10 added; DW-1038 resolved by 22.2
 - 2026-11-11T14:52Z orchestrator epic_merged_to_feature epic=22 part=22.2 note=merged during the HOLD (no runner needed); green by identity; feature CI cancelled as record-only
 - 2026-11-11T14:52Z orchestrator deps_hash_rerecorded reason=split note=22.2 split into 22.2/22.8/22.9 + 22.10 filed
+- 2026-11-11T14:53Z orchestrator ci_cancelled_record_only head=a25fd0d3 runs=43042757664,43042757674, reason=green_by_identity(code = 74798cbe)
+- 2026-11-11T14:56Z orchestrator runner_parked lane=C epic=21 story=21.2 after code review (1 HIGH fixed) last_pushed=9bdb5371 (wip(hold); CI cancelled 43043268011,43043267992,43043184185,43043184523,); SecretHandoff cross-process proven by 35.3 and 21.2
+- 2026-11-11T15:05Z orchestrator runner_parked lane=B epic=35 story=35.3 after rework 1 implement (next: code review 2) last_pushed=b92955f8 (CI cancelled 43044648166,43044647867,); ALL FOUR LANES PARKED
