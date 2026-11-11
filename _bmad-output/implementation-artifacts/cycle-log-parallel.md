@@ -3387,3 +3387,5 @@
 - 2026-11-11T01:05Z orchestrator merge_gate epic=0 part=0.24 head=add83609 base=9f7db82c conflicts=sprint-status.yaml(ours+regenerate+set 0-24=done, epic-0=done) lib-live.sh auto-merged; test-lib-live/test-ci-config/test-boundaries/test-readme pass on merged tree; spine baseline; DW-1099 resolved-by 0.24
 - 2026-11-11T01:05Z orchestrator epic_merged_to_feature epic=0 part=0.24 note=feature CI runs (combination); merged by the orchestrator directly (no runner integrate round)
 - 2026-11-11T01:05Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=0.24 insert via merge
+- 2026-11-11T01:05Z orchestrator handoff updated (0.24 merged ea5374ef; lane C closing)
+- 2026-11-11T01:06:21Z orchestrator epic_runner_complete epic=0 part=0.24 runner=a759a111fb92b56f0 head=8c57bd35 (records only) ci_cancelled_record_only=42936411185,42936411014, lane_C=idle (scope closed)
