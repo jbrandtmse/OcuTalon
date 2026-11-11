@@ -2933,6 +2933,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T17:42:07Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980616882 iris(shards) live:online-allowance D1 S1 daily-cap banner not found 60s; OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
 - 2026-11-11T05:58:07Z occurrence=23-5 by=orchestrator note=run 42963531773 job 130335378855 iris(shards) live:online-allowance D1 S1 daily-cap banner not found (ci-10); OCT-epic23 52db267d
 - 2026-11-11T05:58:31Z occurrence=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva note=CI run 42963531773 (52db267d) iris (shards) live:online-allowance D1 S1 the daily cap banner shows (ci-10); classified FLAKE by the orchestrator
+- 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625133 iris(shards) live:online-allowance D1 daily-cap banner (ci-13); OCT-epic25 4af29b25; rerun of failed jobs
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -4412,6 +4413,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T22:41:17Z occurrence=OCT-epic41-ef38622e by=orchestrator note=run 42525785483: iris(shards) lane-a@Checks,Install,Watch,Eval Test.Watch.GoodMessages TestFewerThanTwentyGood (Ens.ScheduleService header); head predates 7.11 on feature (integrated onto c25902c3): inherited, fixed by the integrate-forward
 - 2026-11-11T02:45:31Z occurrence=41-15 by=orchestrator note=run 42943118887 job 130269395326 iris(shards-11) lane-a@Fix Test.Fix.DryRun TestFiftyOrdersChangeNothing ('OCUTALON headers 117 changed'); OCT-epic41 94af9e02
 - 2026-11-11T02:47:30Z occurrence=41-15-learned-saves-are-announced-by-code by=runner note=run_42943118887_iris(shards-11)_lane-a@Fix_Test.Fix.DryRun_TestFiftyOrdersChangeNothing(OCUTALON_headers_117_changed);head_94af9e02;41.15_changes_no_Fix_code
+- 2026-11-11T08:31:54Z occurrence=25-2 by=orchestrator note=run 42981966109 job 130394214728 iris(shards-8) lane-a@Watch Test.Watch.GoodMessages TestFewerThanTwentyGood 'OCUTALON queues Ens.ScheduleHandler changed' (ci-17), same ScheduleService/Handler family
 
 ### DW-698: flake: lane-a@rest Tools.RecentActivity and RecentActivityTurn saw a leaked resolved Orders/OrdersFromPartner incident (count 50, approved on web, 50 resent); TestPoisoned hit INVALID OREF in Test.Watch.Case.SortedKeys
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6697,6 +6699,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-parallel.md (OCT-epic41 4612eb5c, ci.yml run 42777878916) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (shards-10) job 129700562519 at 08:03:16Z, unit live:sign-in 857s; the same group passed on 28229232 (run 42767697005); 28229232..4612eb5c changes no product code
 - 2026-11-10T14:48:46Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); not rerun, as above; rerun once per occurrence
+- 2026-11-11T08:31:54Z occurrence=25-2 by=orchestrator note=run 42981966109 job 130394215010 iris(shards-10) live:sign-in row 8 empty chat panel (ci-9); OCT-epic25 f21137d1
 ### DW-1084: More to try: the panel's render of an ungrouped set (first, no h4) is pinned only by groupsOf unit tests and a template source-text match; no executed render covers it
 - source: spec-0-22-the-more-to-try-panel-shows-its-items-under-three-group-head.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web has no component test host and every registry row declares a ruled group (the typo-guard unit test fails otherwise), so no e2e can render an ungrouped set; a template rewrite that keeps the @if regex green could misrender it
@@ -6729,6 +6732,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (image) lane-b@Contract,Core,Data,Live; green on one rerun
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the GuideApi entry filed alongside (unverified); no fix work now
 - 2026-11-10T19:46:28Z note=see also DW-1094 (possible shared cause)
+- 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625167 iris(image) lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows (pending reminder, watch, open approval) (ci-8); OCT-epic25 4af29b25; rerun of failed jobs
 
 ### DW-1098: post-contest idea: admins see instance-owned incident usage on the Usage page (today a local install counts only the session's own rows, by design)
 - source: Contest Planner ruling on DW-1090 (Story 37.2), 2026-11-10 | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -6856,3 +6860,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: grep: both planning lines say ss -ltn; lib-live.sh live_port_listed runs ss -tan; the ruling is recorded only in the 0.25 spec's Design Notes
 - 2026-11-11T04:21:49Z status=wontfix-accepted owner=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=cr note=reopen_if=a later spec or retro cites the ss -ltn wording to change live_port_listed back to listeners only
 - 2026-11-11T04:26:27Z status=resolved-by:0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=adjudication note=epics.md_Story_0.25_AC_amended_with_marker(ss,_every_state_but_TIME-WAIT);epic-0-context.md_is_a_regenerated_cache
+
+### DW-1119: infra: CI lane-a ipm-install path A second run failed with 'ERROR! Error merging CPF file. $zf(-100) exited with 7' (Initialize FAILURE in OCUTALON)
+- source: OCT-epic25 f21137d1 (Story 25.2), lane-a run 42981966175 job 130394214504 on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 07:52:08Z: the first-run-in-USER checks passed; the second run in OCUTALON took 126 s and failed at Initialize with the CPF merge error; 25.2 changes no install, Install or IPM file
+- 2026-11-11T08:31:54Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence): an IRIS CPF merge ((-100)) failed during the IPM install; one rerun per occurrence; real if it recurs on an install-touching head
