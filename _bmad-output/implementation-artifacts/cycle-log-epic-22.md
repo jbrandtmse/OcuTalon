@@ -65,3 +65,6 @@
 2026-11-11T20:06:59Z	Epic 22	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
 2026-11-11T20:06:59Z	Epic 22	launch_env	depth=4 watchdog=default bash_max_ms=default
 2026-11-11T20:07:07Z	Epic 22	integrated_forward	feature=e81cbf0d head=1ac0fba0 conflicts_resolved=none note=post_switch_hold(22.2_merged_a25fd0d3;delta=cycle-log-parallel.md,epic-dependencies.yaml)
+2026-11-11T20:10:25Z	Epic 22	slot_loaded	server=ocutalon-slot-a bridge=62 ocutalon=905 compile=clean classes=967(disk;plus_generated) head=6089b2a5 production=untouched
+2026-11-11T20:22:24Z	Story 22.2	ci_resolved	story=22.2 sha=74798cbe runs=43034610404,43034610425 result=success failed=none via=none resolved_at=next_plan note=integration_head_6089b2a5_bookkeeping-only(CI_pending;green_by_identity_with_74798cbe)
+2026-11-11T20:22:24Z	Story 22.8	stage_spawned	stage=implement spawn_at=2026-11-11T20:22:24Z model=sonnet agent_name=22-8-classify-mcp-calls-by-fingerprint-in-the-gate-implement-1 cycle_iteration=1 story_base=6089b2a5 effort=high
