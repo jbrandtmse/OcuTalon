@@ -83,3 +83,5 @@
 2026-11-11T22:39:48Z	Story 22.8	committed	sha=7e01fbc7 submodules= ci=pending runs=43113562220,43113562177 amendments=spine:AD-10_rule1,AD-21_S3(record_of_Planner_ruling_2(a)) footprint_ext=Bridge/Ext/Classification.cls,Bridge/Ext/McpServers.cls,Bridge/Process/Decide.cls,docker/tests/test-production.sh,Production.cls(lane-A_region)
 2026-11-11T22:39:48Z	Story 22.8	story_cycle	plan_to_commit_min=n/a(spec_from_prior_session;implement_to_commit=144) implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-11T22:41:38Z	Epic 22	epic_context_compiled	reason=planning_artifact_newer(spine_S15-S18,fingerprint_record) model=opus words=2153
+2026-11-11T23:59:28Z	Story 22.8	ci_resolved	story=22.8 sha=7e01fbc7 runs=43113562220,43113562177 result=success failed=none via=none resolved_at=next_plan note=ci_red_once_on_DW-549_flake(resume.spec_R1),green_on_rerun(orchestrator;occurrence_added);merged_to_feature_cf6fcb39_by_orchestrator
+2026-11-11T23:59:28Z	Epic 22	hold_at_noted	at=2026-11-12T07:00Z source=orchestrator(owner_plan_via_Contest_Planner)
