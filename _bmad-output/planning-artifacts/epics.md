@@ -1644,6 +1644,43 @@ So that no CI job fails with "address already in use" before a single test runs.
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.25: The web-port guard waits long enough for a stack that is still shutting down
+
+[ADDED 2026-11-11, DW-1099 reopened, Contest Planner ruling (c)] SC-5 re-open of Epic 0 (lane B), after Story 0.24. A CI-tooling story; the scope below is the Contest Planner's ruling of 2026-11-11 (~02:50Z, owner delegation), the flake-fix exception under SCOPE CLOSED. Findings: at 02:21Z, 0.24's guard ran on ocutalon-ci-8 (shards, live:online-allowance): it waited, retried once after 5 s, then printed "FAIL web port: 127.0.0.1:52818 could not be bound after one retry"; dockerd on ci-b logged "failed to bind host port 127.0.0.1:52818" at 02:21:35 and 02:21:44; nothing held 52818 at 02:45Z, and Docker's event history no longer reached back far enough to name the holder. Inference (unproven): the previous unit's IRIS stack on the same runner was still shutting down, and a graceful IRIS shutdown can take well over 25 s, which matches 0.24's guard failing at about 25 s. No `ci/iris.sh`, workflow or release-harness change; the ephemeral-port fix (1) of Story 0.24 stays out of scope. CI log message text is internal (no PUBLIC TEXT gate).
+
+As the owner of the CI pipeline,
+I want the web-port guard to wait out a previous stack that is still releasing the port,
+So that no CI job fails with "FAIL web port" while an earlier unit's stack is only shutting down.
+
+**Acceptance Criteria:**
+
+**Given** `docker/tests/lib-live.sh` (the `dc` guard of Story 0.24: `live_port_guard`, `live_port_wait_free`)
+**When** a guarded start (`dc up`, `dc start`, `dc restart` with a web port) finds its port in use
+**Then** it waits up to 90 s for the port to be free, polling every 3 s (`ss -ltn` on Linux; 0.24's macOS equivalent stays for local runs)
+**And** when the start fails with exactly the bind error ("address already in use" / "failed programming external connectivity"), it retries the start up to twice (each after another wait), and after the second retry prints the same loud `FAIL web port: …` line and returns the failure
+**And** any other failure returns at once, with no retry
+**And** every guarded start that had to wait prints exactly one line `waited N s for port P` (N the seconds waited, P the port), so that the next ledger entry can measure it
+
+**Given** every live script's teardown path (how a unit's `dc down` / cleanup runs: foreground, background or trap)
+**When** a unit ends
+**Then** its teardown runs in the foreground and finishes before the next unit can start; a teardown that ran in the background or was not waited for now waits (a foreground `dc down`, or a wait on its PID)
+
+**Given** `docker/tests/test-lib-live.sh` (stubbed docker, a fast clock or stubbed sleep)
+**When** it runs with `docker/tests/test-boundaries.sh`
+**Then** its rows pin the 90 s bound, the 3 s poll, two retries then the loud FAIL, the `waited N s for port P` line, and no retry on any other error; no existing row is deleted or weakened beyond what the new bounds replace
+
+**Given** a lane-B throwaway
+**When** a port is held about 40 s by a listener, and then held past 90 s
+**Then** the first start waits it out, starts, and logs the wait; the second retries twice and then fails with the loud FAIL line
+**And** DW-1099 is resolved by this story again; DW-1100 and DW-1101 keep their reopen condition (a CI log shows "FAIL web port:")
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1099: infra: a test stack's first start failed in Docker networking (bind error on the web port); reopened after 0.24 (ledger; routed by load 2026-11-11)
+- DW-1100: the port guard's loud failure does not name what holds the port (ledger; routed by load 2026-11-11)
+- DW-1101: test-install-script-live.sh step 5's use of live_port_guard is pinned hermetically only by a grep of the script's text (ledger; routed by load 2026-11-11)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.

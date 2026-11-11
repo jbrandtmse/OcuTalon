@@ -801,3 +801,17 @@
 2026-11-11T01:05:36Z	Epic 0	epic_status_done	stories=24 note=reopen_0.24_done;tracker_already_done_on_feature(ea5374ef)
 2026-11-11T01:05:36Z	Epic 0	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=sonnet high_med_avg=5.00 unresolved_high_med_avg=0.00 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=5 result=hold applied=false scope=reopen_0.24
 2026-11-11T01:05:36Z	Epic 0	epic_runner_complete	stories_completed=1 part_merge=0.24 note=merged_by_orchestrator(ea5374ef);scope_closed(owner):lane_C_idle
+2026-11-11T02:51:44Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=dispatch_0_25_port_wait lane=B
+2026-11-11T02:51:44Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-11T02:51:44Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-11T02:51:44Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default bootstrap_check=ok
+2026-11-11T02:51:44Z	Epic 0	integrated_forward	feature=878da0d2 head=c91ec2f8 conflicts_resolved=none note=start_of_0.25(feature_878da0d2_green_02:18Z)
+2026-11-11T02:51:44Z	Epic 0	epic_branch_reopened	reason=DW-1099_reopened_after_0.24(Contest_Planner_ruling_(c)_2026-11-11) from=878da0d2
+2026-11-11T02:51:44Z	Epic 0	epic_branch_checked_out	repos=. head=c91ec2f8
+2026-11-11T02:51:44Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-11T02:51:44Z	Epic 0	ledger_load	total=1098 open=0 routed=122 escalated=2 decision_pending=6 terminal=968 status_unknown=0 owner_unknown=0 reowned_none=0 note=DW-1099,DW-1100,DW-1101_routed_to_0-25(reopen)
+2026-11-11T02:51:44Z	Epic 0	ledger_routed_planned	story=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti entries=3 excess=0 by=load
+2026-11-11T02:51:44Z	Epic 0	retro_review_skipped	reason=policy(dispatch:skip_X.0_and_retro_review) note=skipped(policy)
+2026-11-11T02:52:11Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_re-check_headless_for_0.25
+2026-11-11T02:53:15Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.25_added) model=claude-opus-5-5 effort=high lines=78
+2026-11-11T02:53:15Z	Story 0.25	stage_spawned	stage=plan spawn_at=2026-11-11T02:53:15Z model=opus effort=high agent_name=0-25-plan-1 cycle_iteration=1
