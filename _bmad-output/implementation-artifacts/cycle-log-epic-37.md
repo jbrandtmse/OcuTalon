@@ -69,3 +69,6 @@
 2026-11-11T00:40:06Z	Story 37.2	integrated_forward	feature=9f7db82c(41.14_66172559_green_42922378793/42922378711+23.2_f73a09d5_green_42897677403/42897677699) head=20362391 conflicts_resolved=README,EXPERIENCE,Test/Demo/Features,ux-strings,more-to-try-view(plain_unions),sprint-status(regenerated) registry=12
 2026-11-11T00:40:06Z	Story 37.2	smoke_complete	method=browser(on_merged_tree_20362391,fresh_lane-B_e37s2i3:sign-in-3_1/2_127/127(more-to-try,K16,K17,K27,K22,K23);sign-in_4/4_58/58(usage);class_Demo.Features_pass;floor_107/107_on_d282b2b7(header_unchanged_by_merge)) result=pass iterations=5 defects_caught=0 model=claude-opus-5-5
 2026-11-11T00:40:56Z	Story 37.2	committed	sha=3e21a085 submodules= ci=pending runs=42933194753,42933194884 base=feature_9f7db82c supersedes=9848c3ec(red_shards-3_fixed_in_rework3)
+2026-11-11T01:25:19Z	Story 37.2	ci_resolved	story=37.2 sha=3e21a085 runs=42933194753,42933194884 failed=none via=none result=success resolved_at=merge_gate
+2026-11-11T01:25:19Z	Epic 37	part_merge	story=37.2 head=3e21a085 feature=878da0d2(ea5374ef+37.2) by=orchestrator note=DW-1096_amended_by_orchestrator;DW-1102_AC_added_to_25.2;More_to_try_twelve_items
+2026-11-11T01:25:19Z	Epic 37	epic_runner_complete	stories_completed=1(37.2) part=true epic_status=in-progress(37.1_waits_on_epic-36) lane=B_idle_after
