@@ -3403,3 +3403,7 @@
 - 2026-11-11T02:46:59Z orchestrator runner_dispatched epic=0 story=0.25 lane=B slot=ocutalon-slot-b port=52802 agent=a07f812be26990961 prompt=prompts/dispatch-epic-0-025.md
 - 2026-11-11T03:22Z orchestrator owner_decision via=contest_planner item=hold time set 11:30Z (3:30am PST); Planner sends HOLD NOW; no long stage starts after ~11:10Z; idle until account switch ~13:00Z; 1.0.7 cut after the switch
 - 2026-11-11T03:23Z orchestrator runner_clarification epic=41 story=41.15 kind=CI_WAIT head=05551e4a base=878da0d2 runs=42952094961,42952094918; both story reds = one test pin (Test.Memory.Turns TestSaveRecallListThroughTheAgent expected empty HostData; now expects learned entry); prod code unchanged; re-review 0 HIGH/MED
+- 2026-11-11T04:04Z orchestrator ci_green_verified branch=OCT-epic41 head=05551e4a runs=42952094961,42952094918 missing=none story=41.15
+- 2026-11-11T04:04Z orchestrator merge_gate epic=41 part=41.15 head=05551e4a base=878da0d2(ancestor) conflicts=none code_identical_to_epic_head=yes spine_lint=baseline tracker=valid
+- 2026-11-11T04:04Z orchestrator epic_merged_to_feature epic=41 part=41.15 note=green by identity; feature CI cancelled as record-only
+- 2026-11-11T04:04Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=41.15 insert via merge

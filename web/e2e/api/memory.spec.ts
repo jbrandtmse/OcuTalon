@@ -1,7 +1,9 @@
 import { expect, test, type APIRequestContext, type APIResponse } from '../support/fixtures';
 
-import { README_ACCOUNT, envelope, expectError, signInOverHttp } from '../sign-in/helpers';
-import { fixtureUser } from '../support/iris';
+import { README_ACCOUNT, envelope, expectError, signIn, signInOverHttp } from '../sign-in/helpers';
+import { STATE, sessionEvents } from '../support/api';
+import { composerOf, loadedAfter } from '../support/floor';
+import { cleanFixtureRows, fixtureUser, seedTurns, turnRows } from '../support/iris';
 import { memoryExists, pinnedCountOf, precedentExists, removeMemory, removeNoteRows, removePrecedent, seedMemory, seedNoteDecision, seedNoteTurn, seedPrecedent, sessionRefOfUser } from '../support/memory';
 import { sessionRef } from '../support/persona';
 
@@ -382,5 +384,61 @@ test('the pinned memories as the LIVE user, and a second session sees none of th
     await second.dispose();
     await anonymous.dispose();
     for (const one of seeded) await removeMemory(one);
+  }
+});
+
+/**
+ * Story 41.15 (AD-4; the standing rule for /api/v1 routes): a learned save is announced only in its own session. The unprivileged LIVE fixture user (OcuTalonUser only) has a done turn seeded
+ * with a learned entry and published on its stream. Over real HTTP LIVE's GET /api/v1/state is 200 and its chat item for the turn carries `learned` as the entries to show, [{memoryRef, fact}] with the
+ * fact shaped (one trailing full stop removed), and its events carry the same `learned` on the chat.message. A second OcuTalonUser-only session (PANEL) sees no such turn: its state chat holds neither the
+ * turn nor a `learned` member, its events after the publish hold none, and its page shows neither the turn's text nor the announcement. The turn is removed in `finally`.
+ */
+test('a learned turn: the LIVE user sees its learned entries and a second session sees none of it', async ({ request, playwright, baseURL, page }) => {
+  test.setTimeout(120_000);
+  const live = fixtureUser('LIVE');
+  const other = fixtureUser('PANEL');
+  const second = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
+  const unique = `zzlearned${Date.now()}`;
+  const text = `The ${unique} contact is Lee`;
+  const made: string[] = [];
+  try {
+    await signInOverHttp(request, live.user, live.password);
+    await signInOverHttp(second, other.user, other.password);
+    expect(await sessionRefOfUser(other.user), 'the second account is another session').not.toBe(await sessionRefOfUser(live.user));
+    const seeded = await seedTurns(
+      live.user,
+      [{ createdAt: '2025-03-02T10:00:00Z', text: `zz ${unique} question`, replyText: `zz ${unique} reply`, learned: [{ memoryRef: `zzLearned${unique}`, text: `${text}.` }] }],
+      true,
+    );
+    made.push(...turnRows(seeded));
+    const ref = seeded.refs[0]!;
+
+    // LIVE: the state's chat item for the turn carries learned, shaped for the line, and so does its chat.message event.
+    const state = await request.get(STATE);
+    expect(state.status(), await state.text()).toBe(200);
+    const chat = ((await state.json()) as { chat: Array<{ type: string; payload: { ref?: string; learned?: unknown } }> }).chat;
+    const item = chat.find((one) => one.type === 'chat.message' && one.payload.ref === ref);
+    expect(item, 'the seeded turn is in the state').toBeDefined();
+    expect(item?.payload.learned, 'with its learned entry as the line shows it').toEqual([{ memoryRef: `zzLearned${unique}`, fact: text }]);
+    const mine = await sessionEvents(request, 0, (events) => events.some((event) => event.type === 'chat.message' && event.payload['ref'] === ref));
+    const published = mine.find((event) => event.type === 'chat.message' && event.payload['ref'] === ref);
+    expect(published?.payload['learned'], "LIVE's own event carries it").toEqual([{ memoryRef: `zzLearned${unique}`, fact: text }]);
+
+    // PANEL: no learned member and no LIVE turn in the state, the events or the page.
+    const theirState = await second.get(STATE);
+    expect(theirState.status(), await theirState.text()).toBe(200);
+    const theirBody = await theirState.text();
+    expect(theirBody, "the second session's state holds no learned member").not.toContain('"learned":');
+    expect(theirBody, "and none of LIVE's turn").not.toContain(unique);
+    const theirEvents = await sessionEvents(second, 0, () => false, 2);
+    expect(JSON.stringify(theirEvents), "the second session's events hold none of LIVE's turn").not.toContain(unique);
+    expect(JSON.stringify(theirEvents), 'and no learned member').not.toContain('"learned":');
+    await loadedAfter(page, () => signIn(page, other.user, other.password));
+    await expect(composerOf(page)).toBeVisible();
+    await expect(page.locator('main.main'), "the second session's page shows none of LIVE's turn").not.toContainText(unique);
+    await expect(page.locator('app-learned-lines'), 'and no learned line').toHaveCount(0);
+  } finally {
+    await second.dispose();
+    await cleanFixtureRows(made);
   }
 });

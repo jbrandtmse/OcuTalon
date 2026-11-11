@@ -30,7 +30,11 @@ import { clock, plain, tokenColor } from '../support/page';
  *     document and an unknown ref are 404 not_found with no text;
  *   - S6: the markup in a document is text on the Documents page and in a passage popover;
  *   - S7: a memory saved and recalled through the composer and the CI mock shows the "From memory" chip under the recall;
- *   - S8, S9 (QA): the memory chip's Enter, outside press, Shift+Tab and Esc rules and its plain text; a second chip swaps the popover.
+ *   - S8, S9 (QA): the memory chip's Enter, outside press, Shift+Tab and Esc rules and its plain text; a second chip swaps the popover;
+ *   - S10 (Story 41.15): a turn that learned facts shows one line for each after the check rows and before the source chips, `I'll remember this: "{fact}". You can tell me to forget it.`,
+ *     with one trailing full stop removed and a long fact cut to 200 characters with an ellipsis, and markup shown as characters (no element is made);
+ *   - S11 (Story 41.15): a reply that already says "I'll remember" shows no line;
+ *   - S12 (Story 41.15): a learned fact sent through the composer and the CI mock shows the line live and after a reload, and a told save shows none.
  */
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-US' });
 
@@ -482,6 +486,62 @@ test('S9: pressing another chip swaps the popover, and only one is open', async 
   await expect(remembered.locator('[data-part="memory"]'), 'focus is inside the new popover').toBeFocused();
 });
 
+/** The learned line of a fact (the ruled catalog text of memory.learnedSaved), written out here as the independent oracle of the page's own. */
+const learnedLine = (fact: string): string => `I'll remember this: "${fact}". You can tell me to forget it.`;
+const learnedOf = (page: Page, key: string): Locator => replyOf(page, key).locator('p.learned');
+
+/** S10: the learned lines under a reply: placement, one stop removed, the 200-character cut, and markup as characters. */
+test('S10: a learned save is announced under the reply, after the check rows and before the source chips, as plain text', async ({ page }) => {
+  const long = `${'x'.repeat(299)}.`;
+  const markup = '<b>Lee</b> & <script>window.__x=1</script>';
+  const [first, second] = await seed([
+    turn('S10a', {
+      replyText: 'Noted.',
+      checkKey: 'checks.allPassed',
+      checks: [{ result: 'passed', entry: 'Orders production', finding: '', checkedAt: '2025-03-01T10:00:00Z' }],
+      memories: [{ memoryRef: 'zzMemS10', text: 'Lee is the Results contact.', savedAt: '2025-03-01T10:00:00Z' } satisfies SeedMemory],
+      learned: [
+        { memoryRef: 'zzLearnedA', text: 'Lee is the contact.' },
+        { memoryRef: 'zzLearnedB', text: long },
+      ],
+    }),
+    turn('S10b', { replyText: 'Noted again.', learned: [{ memoryRef: 'zzLearnedC', text: markup }] }),
+  ]);
+  await open(page, 'DECISION');
+  const lines = learnedOf(page, first!);
+  await expect(lines, 'one line for each entry').toHaveCount(2);
+  await expect(lines.nth(0), 'one trailing full stop is removed').toHaveText(learnedLine('Lee is the contact'));
+  await expect(lines.nth(1), '300 characters are cut to 199 and an ellipsis').toHaveText(learnedLine(`${'x'.repeat(199)}\u2026`));
+  await expect(replyOf(page, first!).locator('p.sentence'), 'the check sentence is above the lines').toHaveCount(1);
+  const top = async (locator: Locator): Promise<number> => (await locator.boundingBox())?.y ?? Number.NaN;
+  const sentence = await top(replyOf(page, first!).locator('p.sentence'));
+  const firstLine = await top(lines.nth(0));
+  const secondLine = await top(lines.nth(1));
+  const chips = await top(sourcesOf(page, first!));
+  expect(sentence, 'the check rows come before the lines').toBeLessThan(firstLine);
+  expect(firstLine, 'the lines are in order').toBeLessThan(secondLine);
+  expect(secondLine, 'and the source chips come after them').toBeLessThan(chips);
+  await expect(lines.nth(0), 'the lines carry no label of their own').not.toHaveAttribute('aria-label', /.+/);
+
+  const marked = learnedOf(page, second!);
+  await expect(marked, 'markup in the fact is shown as characters').toHaveText(learnedLine(markup));
+  await expect(replyOf(page, second!).locator('b, script'), 'and makes no element').toHaveCount(0);
+});
+
+/** S11: a reply that already says it gets no line, though its turn kept the entry. */
+test('S11: a reply that already says "I\'ll remember" shows no learned line', async ({ page }) => {
+  const [said, willSaid, silent] = await seed([
+    turn('S11a', { replyText: "I'll remember that Lee is the contact.", learned: [{ memoryRef: 'zzLearnedD', text: 'Lee is the contact.' }] }),
+    turn('S11b', { replyText: 'I  WILL\u00A0remember Lee.', learned: [{ memoryRef: 'zzLearnedE', text: 'Lee is the contact.' }] }),
+    turn('S11c', { replyText: 'Noted.', learned: [{ memoryRef: 'zzLearnedF', text: 'Lee is the contact.' }] }),
+  ]);
+  await open(page, 'DECISION');
+  await expect(learnedOf(page, silent!), 'a silent reply is announced').toHaveCount(1);
+  await expect(replyOf(page, said!), 'the reply that says it is shown').toContainText("I'll remember that Lee is the contact.");
+  await expect(learnedOf(page, said!), 'no line under it').toHaveCount(0);
+  await expect(learnedOf(page, willSaid!), 'nor under "I will remember" in any case and white space').toHaveCount(0);
+});
+
 /** S7: a memory saved and recalled through the real composer and the CI mock shows its chip. */
 test.describe('S7: the From memory chip on a real turn', () => {
   /** The mark of the saved AI sessions before the case (RunnerFixture.SessionMark), for the clean-up. */
@@ -539,6 +599,7 @@ test.describe('S7: the From memory chip on a real turn', () => {
     const saveId = await send(page, "Remember that the Results partner's contact is Lee. [[mock:memory-save]]");
     await expect(replyOf(page, saveId), "the save scenario's reply shows").toContainText('The CI mock will remember that.', { timeout: REPLY_MS });
     await expect(sourcesOf(page, saveId), 'a save recalls nothing, so it has no chip').toHaveCount(0);
+    await expect(learnedOf(page, saveId), 'a told save is not announced').toHaveCount(0);
 
     const askId = await send(page, 'Who do I call about Results? [[mock:memory-recall-keyword]]');
     await expect(replyOf(page, askId), "the recall scenario's reply shows").toContainText('The CI mock found the memory.', { timeout: REPLY_MS });
@@ -557,5 +618,20 @@ test.describe('S7: the From memory chip on a real turn', () => {
     await page.reload();
     await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
     await expect(sourcesOf(page, askId).getByRole('button', { name: /^From memory: .*Lee/ }), 'a reload shows it again').toHaveCount(1);
+  });
+
+  test('S12: a learned fact sent through the composer is announced by code, live and after a reload', async ({ page }) => {
+    test.setTimeout(180_000);
+    await wipe();
+    await open(page, 'CHAT');
+    const id = await send(page, "The Results partner's contact is Lee. [[mock:memory-learned-line]]");
+    await expect(replyOf(page, id), "the scenario's silent reply shows").toContainText('Noted.', { timeout: REPLY_MS });
+    await expect(learnedOf(page, id), 'the line follows the reply').toHaveText(learnedLine("the Results partner's contact is Lee"), { timeout: REPLY_MS });
+    await expect(learnedOf(page, id)).toHaveCount(1);
+
+    // After a reload the chat item comes from /v1/state and shows the same line.
+    await page.reload();
+    await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(learnedOf(page, id), 'a reload shows it again').toHaveText(learnedLine("the Results partner's contact is Lee"));
   });
 });

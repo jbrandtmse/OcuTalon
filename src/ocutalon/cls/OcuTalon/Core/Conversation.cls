@@ -32,6 +32,9 @@
 ///     kept on the Turn as Citations and Memories (JSON) when they hold an entry of the documented shape; a malformed entry is
 ///     dropped, and bad JSON or a wrong shape adds nothing. They are read only from a usable reply, like the checks, and go with
 ///     the turn on chat.message and on the Outbound to Notify;
+///   - the same HostData's array learned (Story 41.15; at most MAXLEARNED, {memoryRef, text} entries that MemoryTools put there for a learned save,
+///     AD-21) is kept the same way on the Turn as Learned (JSON) and goes on the Outbound and, as the entries to show, on chat.message (the channels render the line under the reply):
+///     Conversation renders no text, and the reply text is never changed;
 ///   - finishing: the Turn is done and saved, then chat.message is published (it carries the turn's shown decision, cost and
 ///     check rows), an Outbound goes to Notify with the shown decision's Ref (Turn.ShownDecisionRef) and the check key and
 ///     rows, and RunTurns goes to Conversation itself when the session has a queued turn. A failed publish or send is logged
@@ -123,6 +126,9 @@ Parameter LOGSOURCES = "Conversation added no citations or memories: ";
 
 /// The most citations and the most memories a reply carries.
 Parameter MAXSOURCES = 5;
+
+/// The most learned saves a reply carries.
+Parameter MAXLEARNED = 3;
 
 /// The start of the warning when StartsSession could not read what it needs; the reason follows it.
 Parameter LOGSTART = "Conversation could not tell whether the turn starts a session, so it does: ";
@@ -560,8 +566,8 @@ Method RenderChecks(results As %DynamicArray, Output rows As %DynamicArray) As %
 	Quit ##class(OcuTalon.Checks.Render).Render(results, .rows)
 }
 
-/// The citations and memories of a usable reply: the arrays citations and memories of HostData, when it is a JSON object, are kept
-/// on the turn as Citations and Memories (JSON arrays) with the entries of the documented shape only, at most MAXSOURCES each. A
+/// The citations, memories and learned saves of a usable reply: the arrays citations, memories and learned of HostData, when it is a JSON object, are kept
+/// on the turn as Citations, Memories and Learned (JSON arrays) with the entries of the documented shape only, at most MAXSOURCES (MAXLEARNED for learned) each. A
 /// field is set only when an entry is kept. Bad JSON, a wrong shape or an error add nothing; the turn ends normally in every case.
 Method Sourced(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
 {
@@ -571,8 +577,10 @@ Method Sourced(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
 		If $ClassName(data) '= "%Library.DynamicObject" Quit
 		Set citations = ..Kept(data, "citations", $ListBuild("documentRef", "document", "section", "passage"), "chunkIndex")
 		Set memories = ..Kept(data, "memories", $ListBuild("memoryRef", "text", "savedAt"), "")
+		Set learned = ..Kept(data, "learned", $ListBuild("memoryRef", "text"), "", ..#MAXLEARNED)
 		If citations '= "" Set turn.Citations = citations
 		If memories '= "" Set turn.Memories = memories
+		If learned '= "" Set turn.Learned = learned
 	} Catch exception {
 		$$$LOGWARNING(..#LOGSOURCES_exception.DisplayString())
 	}
@@ -580,14 +588,15 @@ Method Sourced(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
 
 /// The entries of the array member of data as a JSON array: an entry is kept when it is an object whose strings (a list of
 /// names) are strings and whose number (a name, or "" for none) is a number; it is cut down to those members, in that order.
-/// At most MAXSOURCES entries are kept. "" when the member is not an array or no entry is kept.
-Method Kept(data As %DynamicObject, member As %String, strings As %List, number As %String) As %String [ Private ]
+/// At most cap entries are kept (MAXSOURCES when no cap is given). "" when the member is not an array or no entry is kept.
+Method Kept(data As %DynamicObject, member As %String, strings As %List, number As %String, cap As %Integer = "") As %String [ Private ]
 {
+	If cap = "" Set cap = ..#MAXSOURCES
 	If data.%GetTypeOf(member) '= "array" Quit ""
 	Set array = data.%Get(member)
 	Set kept = []
 	For i = 0:1:array.%Size() - 1 {
-		If kept.%Size() >= ..#MAXSOURCES Quit
+		If kept.%Size() >= cap Quit
 		If array.%GetTypeOf(i) '= "object" Continue
 		Set element = array.%Get(i)
 		Set entry = {}, valid = 1
@@ -714,6 +723,7 @@ Method Tell(turn As OcuTalon.Data.Turn) [ Private ]
 		Set outbound.CheckRows = turn.CheckRows
 		Set outbound.Citations = turn.Citations
 		Set outbound.Memories = turn.Memories
+		Set outbound.Learned = turn.Learned
 		If turn.ReplyCatalogKey '= "" {
 			Set outbound.CatalogKey = turn.ReplyCatalogKey
 			Set outbound.Slots = {"fallbackReason": (turn.FallbackReason)}.%ToJSON()

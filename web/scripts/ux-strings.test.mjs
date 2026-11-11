@@ -646,6 +646,7 @@ const SOURCES = {
       "OcuTalon deletes common English phrases that say all is well from the model's replies, so its own checks give the verdict. In another language, the model is only told not to say so.",
       "OcuTalon deletes common English phrases that say all is well from the model's replies, so its own checks give the verdict. If this persona writes in another language, the model is only told not to say so.",
     ],
+    'Story 41.15 AC 3 (the line under a reply that announces a learned save, the ruled catalog text memory.learnedSaved; it is in epics.md, not in EXPERIENCE.md)': ['I\'ll remember this: "{fact}". You can tell me to forget it.'],
     'Story 6.2: Approve or reject a fix from the web chat (the expiry caption "Expires {when}" and the busy notice of an unanswered press, which adds "The request is still waiting." to the busy and failure rule of EXPERIENCE.md)': [
       'Expires {when}',
       "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting.",
