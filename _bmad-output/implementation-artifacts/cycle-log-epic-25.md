@@ -44,3 +44,5 @@
 2026-11-11T06:27:26Z	Epic 25	integrated_forward	feature=c241f87c(b5bd74c5_41.15+0.25_docker/tests) head=cf01cfde conflicts_resolved=sprint-status.yaml(regenerated),ARCHITECTURE-SPINE.md(updated:_line;both_sides_rows_kept;lint_baseline_10_low) note=23.5_not_landed_yet
 2026-11-11T06:27:45Z	Story 25.2	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI:usage.spec_U8/U1_nav_pin scope_baseline=cf01cfde cap=3 used_before=0
 2026-11-11T06:27:52Z	Story 25.2	stage_spawned	stage=implement spawn_at=2026-11-11T06:27:52Z model=sonnet agent_name=25-2-filter-past-decisions-and-incidents-on-the-history-page-implement-2 cycle_iteration=2 rework=1
+2026-11-11T06:58:50Z	Story 25.2	dev_complete	spawn_at=2026-11-11T06:27:52Z model=sonnet build_sha=d89a749d baseline_revision=22e03497 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=7 cycle_iteration=2 rework=1 self_review=0h,2m(patched),13_rows
+2026-11-11T06:58:51Z	Story 25.2	stage_spawned	stage=code-review spawn_at=2026-11-11T06:58:51Z model=opus agent_name=25-2-filter-past-decisions-and-incidents-on-the-history-page-code-review-2 cycle_iteration=2 scope=22e03497..HEAD
