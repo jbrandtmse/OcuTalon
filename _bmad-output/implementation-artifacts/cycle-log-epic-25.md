@@ -58,3 +58,5 @@
 2026-11-11T08:32:34Z	Story 25.2	ci_red_classified	run=42981966175 workflow=.github/workflows/lane-a.yml class=infra test=ipm-install_path_A_second_run(CPF_merge_zf-100_exit_7) note=orchestrator_files_infra_entry
 2026-11-11T08:32:34Z	Story 25.2	rework_opened	cycle_iteration=3 iteration=2 trigger=ci items=CI:history.spec_H12_error_after_Retry scope_baseline=f21137d1 cap=3 used_before=1
 2026-11-11T08:32:34Z	Story 25.2	stage_spawned	stage=implement spawn_at=2026-11-11T08:32:34Z model=sonnet agent_name=25-2-filter-past-decisions-and-incidents-on-the-history-page-implement-3 cycle_iteration=3 rework=2
+2026-11-11T09:07:09Z	Story 25.2	dev_complete	spawn_at=2026-11-11T08:32:34Z model=sonnet build_sha=c46ff253 baseline_revision=20b768a8 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=7 cycle_iteration=3 rework=2 self_review=0h,7m(3_patched),10l note=Announcer.retract_additive(shared);H15_timing_window_~1s
+2026-11-11T09:07:09Z	Story 25.2	stage_spawned	stage=code-review spawn_at=2026-11-11T09:07:09Z model=opus agent_name=25-2-filter-past-decisions-and-incidents-on-the-history-page-code-review-3 cycle_iteration=3 scope=20b768a8..HEAD

@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-11-10'
 status: 'done'
 baseline_revision: '20b768a855ea6ff52ab4c808c9a69a0fa5f29599'
-baseline_commit: '22e03497092a8e3d52f5bd30f9a743275659d94a'
+baseline_commit: '20b768a855ea6ff52ab4c808c9a69a0fa5f29599'
 planned_against: 'Story 37.2 at OCT-epic37 7ef82a4671cb4ceec2a0ae2192e3d8f657488a1a (not merged)'
 review_loop_iteration: 0
 followup_review_recommended: false
