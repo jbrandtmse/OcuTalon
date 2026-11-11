@@ -833,7 +833,7 @@ Method LoggedSecret() As %Boolean [ Private ]
 
 /// Where the secret shows, as a text of the places ("" when nowhere). The value is looked for by containment and is never part of the text: the event log after the
 /// mark of the test, the stores of the key scan, the audit entries since the mark, the specs recorded as attached, the statuses and the catalog of the agent's manager,
-/// the fields of the fixture row and the request log of the mock. With manager 0 the agent's own manager is not asked (it lists a server that is down).
+/// the fields of the fixture row, the request log of the mock and the notices that the probe recorded. With manager 0 the agent's own manager is not asked (it lists a server that is down).
 Method Leaks(adapter As OcuTalon.Test.Bridge.ZzTurnAdapter, manager As %Boolean = 1) As %String [ Private ]
 {
 	Set secret = ..Secret
@@ -850,6 +850,8 @@ Method Leaks(adapter As OcuTalon.Test.Bridge.ZzTurnAdapter, manager As %Boolean 
 	Set row = ..Row()
 	If $IsObject(row), (row.Name _ row.CreatedAt _ row.AttachStatus _ row.AttachReason _ row.AttachedAt _ $ListToString(row.RefusedTools)) [ secret Set places = places _ $ListBuild("the row")
 	If ..Port, ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%ToJSON() [ secret Set places = places _ $ListBuild("the request log of the mock")
+	If $ClassMethod(..#PROBE, "Notices").%ToJSON() [ secret Set places = places _ $ListBuild("a notice")
+	If ..Port, $ClassMethod(..#PROBE, "Notices").%ToJSON() [ ("127.0.0.1:" _ ..Port) Set places = places _ $ListBuild("a notice, by the mock's address")
 	Quit $ListToString(places, ", ")
 }
 

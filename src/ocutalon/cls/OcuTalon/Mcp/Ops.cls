@@ -1,8 +1,9 @@
 /// McpOps (AD-1, AD-21, AD-29, AD-33; Lane A): the item of the production that owns the MCP servers an admin registers. It is the only writer of
-/// OcuTalon.Mcp.Server and of OcuTalon.Mcp.ToolClassification, and it answers every command with an OcuTalon.Msg.CommandResult.
+/// OcuTalon.Mcp.Server and of OcuTalon.Mcp.ToolClassification, and it answers AddMcpServer, RemoveMcpServer and ClassifyTool with an
+/// OcuTalon.Msg.CommandResult. It has no handler for SetSourcePoll and RemoveSourcePoll (Story 22.5), so CommandsIn answers those failed.
 ///   - AddMcpServer, RemoveMcpServer and ClassifyTool come from CommandsIn with Origin web_admin. Each handler re-checks that the sender is CommandsIn,
 ///     that the Origin is web_admin (a bridge context counts as origin tool), that ActingUser is not empty and that the install is not the online demo,
-///     before it writes anything; a refusal is one warning and the outcome not_allowed.
+///     before it writes anything; a refusal has the outcome not_allowed, and a wrong sender or origin or a missing acting user is also one warning.
 ///   - The order of an add is Validate (name, address), Register (the row, then the resource and its grant through OcuTalon.Install.Step.Mcp.Grant),
 ///     Audit (an MCP entry), Restart (SettingsOps.RestartRunners, after the server's lock is released). A remove is Unregister (the tool rows and the
 ///     row, then Install.Step.Mcp.Revoke), Audit, Restart. A classification is Validate, Save, Audit (a Tool entry; no restart, since the gate reads the rows). An audit that fails undoes
@@ -31,9 +32,6 @@ Parameter COMMANDSENDER = "CommandsIn";
 
 /// The only origin the three verbs are carried out for.
 Parameter ORIGIN = "web_admin";
-
-/// The classifications an admin may set, comma-separated.
-Parameter CLASSIFICATIONS = "unclassified,read-only,risky";
 
 /// The longest a stored fingerprint is.
 Parameter FINGERPRINTLENGTH = 64;
@@ -213,7 +211,7 @@ Method Classify(request As OcuTalon.Msg.Command.ClassifyTool, Output response As
 {
 	Set server = request.Server
 	Set word = request.Classification
-	If '$ListFind($ListFromString(..#CLASSIFICATIONS), word) Quit ..Answer(.response, 0, "bad_classification", ..#MESSAGECLASSIFICATION)
+	If '$ListFind($ListFromString(##class(OcuTalon.Mcp.ToolClassification).#CLASSIFICATIONS), word) Quit ..Answer(.response, 0, "bad_classification", ..#MESSAGECLASSIFICATION)
 	If '$Match(server, ##class(OcuTalon.Mcp.Server).#NAMEPATTERN) || '##class(OcuTalon.Mcp.Server).NameIndexExists(server) Quit ..Answer(.response, 0, "not_found", ..#MESSAGENOSERVER)
 	Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, request.Tool)
 	If '$IsObject(row) Quit ..Answer(.response, 0, "not_found", ..#MESSAGENOTOOL)

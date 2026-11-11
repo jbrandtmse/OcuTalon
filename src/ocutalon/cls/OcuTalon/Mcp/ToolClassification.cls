@@ -13,7 +13,7 @@ Class OcuTalon.Mcp.ToolClassification Extends %Persistent
 /// The private global of the class's data and indexes, from src/short-names.tsv (AD-3).
 Parameter DEFAULTGLOBAL = "^OcuTalonP.McpTool";
 
-/// The classifications a row holds, comma-separated.
+/// The classifications a row holds, comma-separated; OcuTalon.Mcp.Ops accepts these words and no other.
 Parameter CLASSIFICATIONS = "unclassified,read-only,risky";
 
 /// The name of the registered server (OcuTalon.Mcp.Server Name).

@@ -12,10 +12,13 @@
 ///     the online demo (through the probe's switch, and through the real onlineDemo setting) are refused for all three verbs with the sentences of CommandsIn, before any write;
 ///   - TestRemove, TestClassify: the rows, resource, grant and audit entries; an unknown server or tool, and a word that is not a classification, change nothing;
 ///   - TestAuditFails, TestRestartFails: an audit that fails undoes an add and a classification (not_audited); a restart that fails keeps the change (failed);
-///   - TestRolesCompose, TestGrantsSkipMissingResource: the Roles step composes the grant of each row whose resource exists, and none on the online demo;
+///   - TestRolesCompose: the Roles step composes the grant of each row whose resource exists, skips a row whose resource is missing, and composes none on the
+///     online demo;
 ///   - TestRecordAttachRows, TestToolNamesAreCaseSensitive, TestChangedTool, TestClearChanged, TestNotices: the tool rows of an attach report (names are case-sensitive;
 ///     a classified tool that is reported refused keeps its classification, and one that is listed with a different or missing fingerprint is cleared), the clear of a
 ///     changed tool, and one notice per transition;
+///   - TestNoAddressOrSecretInAnyText (AC 7): the address a command gives, and a failure's text that holds a credential, show in no result, audit entry, notice,
+///     or event-log row of the add, classify, remove and attach paths (a refusal, a failed audit and a failed restart included);
 ///   - TestToolFingerprint: the fingerprint changes with the description or the input schema, not with the order of the schema's keys.
 Class OcuTalon.Test.Mcp.Ops Extends %UnitTest.TestCase
 {
@@ -46,12 +49,21 @@ Property SavedDemo As %String;
 
 Property DemoSaved As %Boolean [ InitialExpression = 0 ];
 
+/// A test that offers the entry point names that must be refused snapshots the OcuTalon roles and the OcuTalon_MCP_ resources (Guard), and the clean-up puts them
+/// back, so that a wrong refusal cannot leave a resource or a grant for the next test.
+Property Guarded As %Boolean [ InitialExpression = 0 ];
+
+Property RoleSnapshot As %String(MAXLEN = "");
+
+Property ResourceSnapshot As %String(MAXLEN = "");
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Kill ^||ZzOps
 	Set ..Names = ""
 	Set ..Admin = ""
 	Set ..DemoSaved = 0
+	Set ..Guarded = 0
 	Set ..Number = $Increment(^OcuTalonTest("McpOps", "n"))
 	Set ..AuditMark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Do ..Clean()
@@ -94,18 +106,21 @@ Method TestAdd()
 /// The Contest Planner's condition on the resource and its grant (Story 22.2, AC 6).
 Method TestEntryPointRefusesOtherNames()
 {
+	Do ..Guard()
 	Set roles = ..OcuTalonRoles()
 	Set resources = ..ResourceCount()
 	Set long = $Translate($Justify("", 41), " ", "a")
 	Set bad = $ListBuild("", "%All", "x;y", "x y", "../x", "1abc", "%Admin_Secure", long, "x" _ $Char(10), "a-b", "a.b", "%Admin_Manage")
-	Set position = 0
-	While $ListNext(bad, position, name) {
-		Set shown = $Extract($Translate(name, $Char(10), "?"), 1, 12)
-		Do $$$AssertStatusNotOK(##class(OcuTalon.Install.Step.Mcp).Grant(name), "Grant refuses '" _ shown _ "'")
-		Do $$$AssertStatusNotOK(##class(OcuTalon.Install.Step.Mcp).Revoke(name), "Revoke refuses '" _ shown _ "'")
+	// all the Grants first and then all the Revokes, so that a Revoke cannot hide what a Grant made
+	For verb = "Grant", "Revoke" {
+		Set position = 0
+		While $ListNext(bad, position, name) {
+			Set shown = $Extract($Translate(name, $Char(10), "?"), 1, 12)
+			Do $$$AssertStatusNotOK($ClassMethod("OcuTalon.Install.Step.Mcp", verb, name), verb _ " refuses '" _ shown _ "'")
+		}
+		Do $$$AssertEquals(..ResourceCount(), resources, "after the " _ verb _ "s no resource is created or deleted")
+		Do $$$AssertEquals(..OcuTalonRoles(), roles, "and the resources of every OcuTalon role, the service role included, are byte-identical")
 	}
-	Do $$$AssertEquals(..ResourceCount(), resources, "no resource is created or deleted")
-	Do $$$AssertEquals(..OcuTalonRoles(), roles, "and the resources of every OcuTalon role, the service role included, are byte-identical")
 	Do $$$AssertEquals(..ResourceExists("%Admin_Secure"), 1, "%Admin_Secure is still there")
 	// a valid add changes the service role by exactly one pair and no other OcuTalon role at all
 	Set server = ..Server("e")
@@ -461,6 +476,85 @@ Method TestToolNamesAreCaseSensitive()
 	Do $$$AssertEquals(..ToolRows(server), "Foo|read-only|fpupper;foo|unclassified|fplower", "and nothing changed")
 }
 
+/// AC 7: the address that a command gives, and the text of a failure that holds a credential (AI Hub's error text can), show in no result, no audit entry, no
+/// notice, no event-log row and no stored row, on any path: add (valid, bad, taken, refused, not audited, restart failed), classify, remove and the attach report.
+Method TestNoAddressOrSecretInAnyText()
+{
+	Set tag = ..Number _ "x" _ $Random(1000000000)
+	Set address = "zzleakurl" _ tag
+	Set secret = "zzleaksecret" _ tag
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set logMark = ..EventMark()
+	Set admin = ..MakeAdmin()
+	Set ^||ZzOps("admins") = $ListBuild(admin)
+	Set server = ..Server("l")
+	Set url = "https://" _ address _ ".example.invalid/mcp?token=" _ secret
+	Set texts = ""
+	// the add, its refusals and its failures
+	Set result = ..Run(..#SENDER, ..Add(server, url))
+	Do $$$AssertEquals(result.Outcome, "added", "the add of a server with the marked address is carried out")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set result = ..Run(..#SENDER, ..Add(server, url))
+	Do $$$AssertEquals(result.Outcome, "exists", "a second add is refused")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set result = ..Run(..#SENDER, ..Add(..Server("m"), "http://" _ address _ ".example.invalid/mcp?token=" _ secret))
+	Do $$$AssertEquals(result.Outcome, "bad_address", "an address that is not allowed is refused")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set result = ..Run(..#SENDER, ..Add("1" _ address, url))
+	Do $$$AssertEquals(result.Outcome, "bad_name", "a bad name is refused")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set result = ..Run("WebChatIn", ..Add(..Server("n"), url))
+	Do $$$AssertEquals(result.Outcome, "not_allowed", "a wrong sender is refused")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set ^||ZzOps("auditError") = 1
+	Set result = ..Run(..#SENDER, ..Add(..Server("o"), url))
+	Kill ^||ZzOps("auditError")
+	Do $$$AssertEquals(result.Outcome, "not_audited", "an add whose audit fails is answered not_audited")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set ^||ZzOps("restartError") = 1
+	Set result = ..Run(..#SENDER, ..Add(..Server("p"), url))
+	Kill ^||ZzOps("restartError")
+	Do $$$AssertEquals(result.Outcome, "failed", "an add whose restart fails is answered failed")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	// the attach report: a failure whose text holds the address and the credential, then a refused tool, then a changed one
+	Set text = "Failed to add tool spec 'mcp:remote:" _ url _ "' with the header value " _ secret
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).RecordAttach(server, {"status": "unavailable", "reason": (text), "tools": [], "refused": []}), "a report whose reason is the failure text is recorded")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).RecordAttach(server, {"status": "attached", "reason": "", "tools": ["zz_a"], "refused": ["zz_shadow"], "fingerprints": {"zz_a": "fp1"}}), "an attached report with a refused tool is recorded")
+	Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_a")
+	Set row.Classification = "read-only"
+	Do row.%Save()
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).RecordAttach(server, {"status": "attached", "reason": "", "tools": ["zz_a"], "refused": ["zz_shadow"], "fingerprints": {"zz_a": "fp2"}}), "a report with a changed tool is recorded")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.OpsProbe).NoticeCount(admin, "mcp.serverUnavailable") _ "|" _ ##class(OcuTalon.Test.Mcp.OpsProbe).NoticeCount(admin, "mcp.toolShadowsBuiltIn") _ "|" _ ##class(OcuTalon.Test.Mcp.OpsProbe).NoticeCount(admin, "mcp.toolChanged"), "1|1|1", "the three notices were sent, so the scan of the notices has something to scan")
+	// classify, then remove
+	Do ..MakeTool(server, "zz_one", "unclassified", "fp")
+	Set result = ..Run(..#SENDER, ..Classify(server, "zz_one", "risky"))
+	Do $$$AssertEquals(result.Outcome, "saved", "a classification is carried out")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set result = ..Run(..#SENDER, ..Classify(server, "zz_one", "maybe"))
+	Do $$$AssertEquals(result.Outcome, "bad_classification", "a bad classification is refused")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set result = ..Run(..#SENDER, ..Remove(server))
+	Do $$$AssertEquals(result.Outcome, "removed", "the remove is carried out")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set result = ..Run(..#SENDER, ..Remove(..Server("q")))
+	Do $$$AssertEquals(result.Outcome, "not_found", "the remove of an unknown server is refused")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set result = ..Run(..#SENDER, ..Remove(..Server("p")))
+	Do $$$AssertEquals(result.Outcome, "removed", "the server whose restart failed is removed")
+	// the scans (the values are never part of a message)
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", server, , 2)
+	Do $$$AssertEquals(entries.%Size(), 2, "the audit log holds the addition and the removal, so the scan of the audit log has something to scan")
+	Set notices = ##class(OcuTalon.Test.Mcp.OpsProbe).Notices().%ToJSON()
+	Do $$$AssertTrue(notices [ server, "the notices name the server, so a scan of them can find a value")
+	Do $$$AssertEquals((texts [ address) + (texts [ secret), 0, "no result holds the address or the credential")
+	Do $$$AssertEquals((notices [ address) + (notices [ secret), 0, "no notice holds the address or the credential")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, , , , address).%Size() + ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, , , , secret).%Size(), 0, "no audit entry holds the address or the credential")
+	Do $$$AssertEquals(..LogRowsHolding(logMark, address) + ..LogRowsHolding(logMark, secret), 0, "no event-log row holds the address or the credential")
+	Do $$$AssertTrue(..LogRowsHolding(logMark, "refused AddMcpServer") > 0, "the event log holds the warning of the refused add, so a scan of the log can find a value")
+	Set row = ##class(OcuTalon.Mcp.Server).NameIndexOpen(..Server("p"))
+	Do $$$AssertEquals($IsObject(row), 0, "no row of a removed server is left")
+}
+
 /// The fingerprint of a tool: it follows the description and the input schema and nothing else.
 Method TestToolFingerprint()
 {
@@ -597,6 +691,22 @@ Method TestAdminSessionsRead()
 }
 
 /// --- helpers ---
+/// The highest id of the event log.
+Method EventMark() As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// The number of event-log rows after the mark whose text holds the value.
+Method LogRowsHolding(mark As %Integer, value As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Text [ ?", mark, value)
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
 /// The name of the test's server with the suffix, which the clean-up removes.
 Method Server(suffix As %String) As %String [ Private ]
 {
@@ -826,6 +936,51 @@ Method Clean() [ Private ]
 	For i = 1:1:$Length(..Admin, ",") {
 		Set ref = $Piece(..Admin, ",", i)
 		If ref '= "", ##class(OcuTalon.Data.Session).RefIndexExists(ref, .id) Do ##class(OcuTalon.Data.Session).%DeleteId(id)
+	}
+	If ..Guarded Do ..Restore()
+}
+
+/// Snapshots the OcuTalon roles and the OcuTalon_MCP_ resources for Restore.
+Method Guard() [ Private ]
+{
+	Set ..RoleSnapshot = ..OcuTalonRoles()
+	Set ..ResourceSnapshot = ..McpResources()
+	Set ..Guarded = 1
+}
+
+/// The names of the OcuTalon_MCP_ resources, comma-separated and sorted.
+Method McpResources() As %String [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set names = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM Security.Resources ORDER BY Name")
+	While result.%Next() {
+		If $Extract(result.%Get("Name"), 1, 13) = "OcuTalon_MCP_" Set names = names _ $Select(names = "": "", 1: ",") _ result.%Get("Name")
+	}
+	Quit names
+}
+
+/// Puts the Resources of each OcuTalon role back as Guard saw them, then deletes the OcuTalon_MCP_ resources that Guard did not see.
+Method Restore() [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	For i = 1:1:$Length(..RoleSnapshot, ";") {
+		Set part = $Piece(..RoleSnapshot, ";", i)
+		Set role = $Piece(part, "=", 1)
+		If role = "" Continue
+		Kill properties
+		If '##class(Security.Roles).Exists(role) || '$$$ISOK(##class(Security.Roles).Get(role, .properties)) Continue
+		If $Get(properties("Resources")) = $Piece(part, "=", 2, *) Continue
+		Kill properties
+		Set properties("Resources") = $Piece(part, "=", 2, *)
+		Do ##class(Security.Roles).Modify(role, .properties)
+	}
+	Set names = ..McpResources()
+	For i = 1:1:$Length(names, ",") {
+		Set name = $Piece(names, ",", i)
+		If (name '= "") && '$ListFind($ListFromString(..ResourceSnapshot), name) Do ##class(Security.Resources).Delete(name)
 	}
 }
 

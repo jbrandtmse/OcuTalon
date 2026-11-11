@@ -131,6 +131,42 @@ deferred: []
 - [RULED 2026-11-11, Contest Planner condition] Given `Install.Step.Mcp.Grant` or `Revoke` called with any name that fails `Server.NAMEPATTERN`, when it runs, then it returns an error, creates or deletes no resource and leaves `OcuTalonServiceRole` unchanged; and given a valid add, `OcuTalonServiceRole` gains exactly `OcuTalon_MCP_<server>:U` and no security-administration privilege (`%Admin_*`, `%All`).
 - Given any test of this story, when its output, logs, audit entries and notices are searched, then the fixture secret and the mock's URL appear in none.
 
+### Review Findings
+
+Code review 2026-11-11 (follow-up review; layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, all on the session's model). 39 raw findings: 17 in 14 entries after grouping (high 0, medium 0, low 14), 22 rejected (listed below by root cause). No AD or Contest Planner CONDITION breach: `Grant`/`Revoke` build `OcuTalon_MCP_<server>` themselves, refuse any name failing `NAMEPATTERN` before any write, touch only that resource and that one pair, and add no `%Admin_*` or `%All`; only `Install.Step.Mcp` switches to `%SYS`.
+
+- [x] [Review][Patch] The real `Ops.Restart()` (AC 1, "the runner items have new jobs") had no `mutation:` line; every restart line ran on the probe's counter [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls:603] -- closed in-pass: mutation applied, `TestCommands` red, reverted; line under `## Verification`.
+- [x] [Review][Patch] The AC 7 `Failed`-text leak variant was never run [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls:159] -- closed in-pass: mutation applied, `TestNoAddressOrSecretInAnyText` red on the event-log scan only, reverted; line under `## Verification`.
+- [x] [Review][Patch] `Test.Mcp.Ops` header named a test that does not exist (`TestGrantsSkipMissingResource`) [src/ocutalon/cls/OcuTalon/Test/Mcp/Ops.cls:15] -- the missing-resource skip is in `TestRolesCompose`; header corrected.
+- [x] [Review][Patch] `Test.Mcp.Ops` header said `TestNoAddressOrSecretInAnyText` scans the stored row; it does not [src/ocutalon/cls/OcuTalon/Test/Mcp/Ops.cls:21] -- claim removed.
+- [x] [Review][Patch] `Mcp.Ops` class comment said a refusal is always one warning; the online-demo refusal logs none (matching the matrix) [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls:5] -- corrected.
+- [x] [Review][Patch] `Mcp.Ops` class comment said the item answers every command with a `CommandResult`; it has no handler for `SetSourcePoll`/`RemoveSourcePoll` [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls:2] -- corrected.
+- [x] [Review][Patch] The classification words were in `Ops.CLASSIFICATIONS` and in `ToolClassification.CLASSIFICATIONS`, which nothing read [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls:214] -- `Ops.Classify` now reads `ToolClassification.#CLASSIFICATIONS`; the `Ops` copy is removed.
+- [x] [Review][Patch] `## Verification` Shared surfaces named `TestToolsStub`, which this story renamed `TestTools` -- corrected (tracking section).
+- [x] [Review][Defer] `SetSourcePoll`/`RemoveSourcePoll` answer `failed` (was `not_built`) until Story 22.5 [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls:62] -- deferred: DW-1137 `by-design` (Design Notes 17).
+- [x] [Review][Defer] A classified tool that its server stops listing loses its row with no Tool audit and no notice [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls:372] -- deferred: DW-1133 `wontfix-accepted` (fail-safe; reopen_if in the entry).
+- [x] [Review][Defer] `docs/bridge-guide.md` omits the attach report's `fingerprints` member and `Context.ToolFingerprint` [docs/bridge-guide.md:317] -- deferred: DW-1134 `wontfix-accepted` (public doc text, pinned whole-line; reopen_if the section is next edited).
+- [x] [Review][Defer] No test reaches the Grant-failure undo, the failed-Revoke rollback or `Change`'s resource drop [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls:151] -- deferred: DW-1135 `wontfix-accepted` (needs a seam in the CONDITION's entry point).
+- [x] [Review][Defer] `Install.Step.Mcp`'s role Get/edit/Modify repeats `Demo.ServiceRole`'s (Rule 2, weak reason) [src/ocutalon/cls/OcuTalon/Install/Step/Mcp.cls:130] -- deferred: DW-1136 `wontfix-accepted` (Demo.cls is outside this story's files).
+- [x] [Review][Defer] Spine AD-21 (about L798) still says the mock sets a connection queue size of 0; Task 0 kept 5 -- handed to the lead as a Rule 20 spine update (S4); no code change.
+
+Rejected:
+- `maybe-false` (low if true): the remove's failed audit rolls back `Revoke`'s `%SYS` globals inside `TSTART`, so the re-`Grant` finds them and writes nothing, leaving IRIS's in-memory security tables saying no access -- `Security.Resources.Delete`'s doc confirms the in-memory update, but whether `TROLLBACK` restores the globals is unmeasured, and `CheckUserPermission` (22.3's gate check) computes from the role definitions (inference); `TestAuditFails` shows the resource and the pair are back. Real if a process check of `OcuTalon_MCP_<s>` fails after a remove whose audit failed.
+- `low`: the undo branches ignore their own statuses (`Revoke`, `%DeleteId`, the restoring `%Save`) -- needs a failed audit and then a failed undo; the fix adds branches.
+- `low`: an add's failed-audit undo deletes an `OcuTalon_MCP_<s>` resource that existed without a row -- that resource has no server and is OcuTalon's own name space; the end state is clean.
+- `low`: `RemoveMcpServer`/`ClassifyTool` with a different letter case (`FOO` for `Foo`) -- the left-over pair claim is `false` (`Security.Resources.Delete` removes the resource from every role, per its doc); what remains is the audit naming the request's case and a lock keyed on it, reachable only by a hand-made request (21.4's page offers the stored names); the fix adds a helper.
+- `low`: `Security.Roles` read-modify-write race between `Install.Step.Mcp.SetPair` and `Demo.ServiceRole` -- needs an add or remove during a demo-mode switch, and the Roles step re-declares both at the next start.
+- `low`: a refused (empty-fingerprint) classified tool later listed with no fingerprint keeps its classification -- `AttachOne` sets a fingerprint for every attached tool (Design Notes 12), and 22.8's gate compares the call-time fingerprint; real if an attached report lists a tool with no fingerprint string.
+- `false`: `Tools` lists stale rows as available when `AttachStatus` is "" -- tool rows exist only after an attached report, and the bridge reports only attached or unavailable.
+- `low`: `RecordAttach` has no online-demo check -- no code makes an `Mcp.Server` row on the demo (`McpOps` refuses every verb there); real if the demo installer writes `Mcp.Server` rows.
+- `false`: the `%Status` texts of `Tools` and `Install.Step.Mcp.ResourceOf` are new user-facing text -- they reach the event log, not a `CommandResult`; 21.4 renders its own text from the outcome.
+- `false`: `TestOnlineDemoRealFlag`'s `$Data(^||ZzOps("demo")) = 0` cannot fail -- it is the test's precondition and goes red if the set-up ever sets the probe's switch.
+- `low`: `TestRolesCompose`'s `>= 1` warning count could pass on another row's warning -- `found = 0` is the pin.
+- `low`: `Test.Mcp.Ops` relies on the installer's role and audit events -- already `wontfix-accepted` as Rule 19 d in the first review; no new evidence.
+- `low`: the spec's Execution tasks are unticked -- the fix edits the spec under review.
+- `low`: `FINGERPRINTLENGTH` repeats `Fingerprint`'s `MAXLEN`, and `ResourceOf`'s error repeats "up to 39" -- a guard and an error text; no caller diverges.
+- process: the implement stage sent two `ci/iris.sh` calls in one message, and its `Test.Mcp.Attach` green may have run an older McpOps job (Design Notes 23) -- this review's run of `Test.Mcp.Attach` on a fresh warm stack, with the final `Mcp.Ops` loaded at production start, passed (36.9 s).
+
 ## Spec Change Log
 
 - 2026-11-11 (runner, rulings applied): the Contest Planner's rulings (verbatim under Design Notes) are applied. Public text 1-8 (the `MESSAGE*` table) is APPROVED verbatim: the implement stage uses those exact texts. Veto items accepted, with the CONDITION on the resource and grant met as stated under Design Notes (one fixed entry point, `Install.Step.Mcp.Grant`/`Revoke`, with a refusal test and a new AC). Spine S1-S3 written (items table; AD-21 "Step 4 build"). No More to try or README line.
@@ -335,7 +371,7 @@ No `(once)` lines. The full suite is left to CI (groups `shards` and `shards-2`)
 
 **Shared surfaces:**
 - the production's item list (`Test.Install.Production` oracle);
-- the `Tools(server)` contract (`Test.Mcp.Tools` TestToolsStub);
+- the `Tools(server)` contract (`Test.Mcp.Tools` TestTools, which replaced TestToolsStub);
 - the attach report shape (`Test.Mcp.Attach` TestReports, `ZzServers`);
 - the resources of `OcuTalonServiceRole` (`Roles.Compose`, the generated security overview);
 - `src/short-names.tsv` (`test-storage.sh`);
@@ -369,6 +405,24 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation (RP5, AC 1): `Register` skips the `added` audit -> `Test.Mcp.Ops` `TestAdd` red (also `TestAuditFails`, `TestRemove`, `TestRestartFails`, `TestBadNameAndTaken`); `Restarted` skips `Restart()` -> `Test.Mcp.Ops` `TestAdd` red (the restart count is 0; also `TestRemove`, `TestRestartFails`).
 - mutation (RP5, `Grants()`): `Install.Step.Mcp.Grants` without the `ResourceExists` check -> `Test.Mcp.Ops` `TestRolesCompose` red (a row whose resource is missing still declares its pair, and no warning is raised).
 - mutation (RP5, AC 7 leak): `Register` gives `McpData` the server value `<name> <Url>`, with the McpOps item bounced first (Design Notes 23) -> `Test.Mcp.Attach` `TestCommands` red on "no OcuTalon audit entry holds the mock's address or the secret" and on no other assertion. The `Failed`-text variant was not run.
+
+**QA stage (2026-11-11, warm throwaway `e22s2qa`), tests added or changed (QA):**
+- `src/ocutalon/cls/OcuTalon/Test/Mcp/Ops.cls` (QA): new `TestNoAddressOrSecretInAnyText` (AC 7: a marked address and a marked credential in the failure text of an attach report show in no result of add, bad address, taken, bad name, wrong sender, failed audit, failed restart, classify, bad classification and remove, in no notice, audit entry, event-log row; with positive controls); `TestEntryPointRefusesOtherNames` now runs all Grants, checks, then all Revokes, checks (a Revoke could undo what a Grant made), and snapshots and restores the OcuTalon roles and OcuTalon_MCP_ resources in its clean-up (`Guard`/`Restore`) so a wrong refusal leaves nothing for the next test.
+- `src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls` (QA): `Leaks` also looks in the notices that the probe recorded, for the secret and for the mock's address.
+
+**QA mutations (Rule 19), each applied, observed red, reverted (`cmp` byte-identical to the saved copy; `git status --short` shows only the two QA test files):**
+- mutation (AC 7, result message): `OnAdd` answers `bad_address` with `MESSAGEADDRESS _ " " _ request.Url` -> `Test.Mcp.Ops` `TestNoAddressOrSecretInAnyText` red on "no result holds the address or the credential" (also `TestBadAddress`, by its exact message).
+- mutation (AC 7, notice): `RecordAttach` sets `events("unavailable")` to the report's reason and `Notify` adds it to the `mcp.serverUnavailable` slots -> `Test.Mcp.Ops` `TestNoAddressOrSecretInAnyText` red on "no notice holds the address or the credential" and on no other assertion.
+- mutation (AC 7, notice, real secret): the same `Ops` change plus `AttachOne` putting `GetErrorText(sc)` (which holds the secret) in `report.reason` -> `Test.Mcp.Attach` `TestUnavailable` red on "the secret, which AI Hub's error text holds, shows in none of the places that are checked"; with the `Leaks` notice lines taken out (HEAD's `Attach.cls`) the same mutations leave that assertion green (only the row assertion is red), so the new place is what pins it.
+- mutation (online demo, per verb): `OnAdd`, `OnRemove` and `OnClassify` each skip `Refusal` while `OnlineDemo()` is true -> `Test.Mcp.Ops` `TestOnlineDemo` and `TestOnlineDemoRealFlag` red on "an add on the online demo is refused", "a remove is refused" and "a classification is refused" (and on nothing written / no grant).
+- mutation (condition AC, refusal half): `Grant` and `Revoke` ignore `ResourceOf`'s error and build `OcuTalon_MCP_<name>` themselves -> `Test.Mcp.Ops` `TestEntryPointRefusesOtherNames` red on "Grant refuses" / "Revoke refuses" for 11 of the 12 names, and on "after the Grants no resource is created or deleted" and "the resources of every OcuTalon role ... are byte-identical".
+- mutation (condition AC, valid add half): `WithPair` also appends `%Admin_Secure:U` -> `Test.Mcp.Ops` `TestEntryPointRefusesOtherNames` red on "the service role gained exactly OcuTalon_MCP_<server>:U" and "no OcuTalon role gained an %All or %Admin_ resource".
+- mutation (Remove of an unknown server): `Unregister` answers `removed` and asks for a restart when there is no row -> `Test.Mcp.Ops` `TestRemove` red ("removing '...' is not_found" for the four names, "no runner was restarted") and `TestNoAddressOrSecretInAnyText`.
+- mutation (`Tools` of an unknown or empty server): `Ops.Tools` answers OK for a missing row -> `Test.Mcp.Tools` `TestTools` red ("Tools of 'zzmcpnosuch' is an error", "Tools of '' is an error").
+
+**Code review mutations (Rule 19, 2026-11-11, warm throwaway `e22s2cr`), each applied, observed red, reverted (`cmp` byte-identical to the saved copy; `git status --short` unchanged):**
+- mutation (AC 7, the `Failed` text variant): `Register`'s failed-audit branch passes `"... so it was undone " _ request.Url` to `Failed` -> `Test.Mcp.Ops` `TestNoAddressOrSecretInAnyText` red on "no event-log row holds the address or the credential" and on no other assertion.
+- mutation (AC 1, the real restart): `Ops.Restart()` ends `Quit $$$OK` instead of calling `SettingsOps.RestartRunners()`, with the McpOps item bounced at the start of `TestCommands` (Design Notes 23; the two-line shim reverted with it) -> `Test.Mcp.Attach` `TestCommands` red on "the runner items have new jobs" and "none of the runner jobs of before is still alive"; every `Test.Mcp.Ops` restart line runs on the probe's counter, so this is the real seam's pin.
 
 **Pinning mutations to record (Rule 19):** each mutation should turn the named test red.
 

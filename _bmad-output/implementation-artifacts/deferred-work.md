@@ -6404,6 +6404,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T17:51:03Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=burndown note=Epic_35_part_merge_burn-down_overflow:Test.Mcp.Attach_(Lane_A)_is_extended_by_22.2's_McpOps_work;make_TestShadow's_bare-manager_AddTool_wait_for_the_mock_or_retry_once_under_load;a_red_on_a_quiet_host_makes_it_real
 - 2026-11-10T17:14:25Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run note=e6eb901d_shards-2_TestAttach_mock_tools_not_attached;passed_3x_locally(warm2,fresh1);files_reached_unchanged_since_b99d6529
 - 2026-11-10T17:23:09Z occurrence=release-1.0.6-PR10 by=orchestrator note=reported by the Contest Planner: PR #10 ci run 42847029797 iris (shards-2) shard:lane-a@rest OcuTalon.Test.Mcp.Attach TestRequestServerDown 'on a manager of its own that lists the server's tools: 0'; green on one rerun; v1.0.6 released 17:17:56Z
+- 2026-11-11T13:53:14Z status=resolved-by:22-2-classify-mcp-tools-by-server-and-name by=adjudication note=Task_0_mock_backlog_5(Mock.BACKLOG,keep-alive_-1),Loopback_green;Test.Mcp.Attach_passed_warm_and_cr;a_red_on_a_quiet_host_reopens
 
 ### DW-1041: AD-1 lets REST code write only the Session row, counters, pairing hashes and UI markers, but the step 4 contract has the MCP settings routes call SettingsOps.SaveMcpEntry/RemoveMcpEntry in the REST process to write the wallet secret and Config Store entry (ruling Q4), with no AD-1 exception recorded
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: med | fix-risk: high | footprint: out-of-footprint
@@ -6895,3 +6896,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner, 1.0.7 RC eval wording ruling, 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 1.0.7 RC eval, 3 real-model attempts: the model refused to save runbook text, cited 'Results runbook / Clearing the queue' and quoted it, but said 'runbook', failing only the phrase check
 - 2026-11-11T11:02:31Z status=routed owner=burndown by=owner note=ruled by the Contest Planner: widen eval/memory-documents-remember's phrase check to document|runbook|file; report-only; Epic 41's eval files; next free lane, ~30 min, after RELEASE DONE
+
+### DW-1133: A classified MCP tool that its server stops listing loses its ToolClassification row at the next attach with no Tool audit entry and no admin notice
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Mcp/Ops.cls SyncTools deletes rows of tools no longer listed or refused (spec matrix, Attach report row); ClearRow audits only a changed fingerprint
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=22.6's doc or an admin needs the audit log to show a classification lost to a vanished tool; fail-safe
+
+### DW-1134: docs/bridge-guide.md's McpServersClass bullet lists the OnAttach report as status, reason, tools and refused; it omits the new fingerprints member and Context.ToolFingerprint
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: bridge-guide.md:317 and its whole-line pin docker/tests/test-bridge-guide.sh:650; Ext/McpServers.cls doc states the fingerprints member (Story 22.2)
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=the guide's extension-classes section is next edited (22.6 docs) or a host reads fingerprints in OnAttach
+
+### DW-1135: No test reaches Mcp.Ops Register's Grant-failure undo, Unregister's failed-Revoke rollback, or Install.Step.Mcp.Change's resource drop when SetPair fails
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: a search of src/ocutalon/cls/OcuTalon/Test finds no path into those branches; Install.Step.Mcp has no seam to force a Security.* failure
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=a Security.Roles or Security.Resources call fails in CI or a run log, or a story adds a seam to Install.Step.Mcp
+
+### DW-1136: Install.Step.Mcp RoleResources/SetPair/SetRoleResources repeat Demo.ServiceRole's Security.Roles Get, edit and Modify of OcuTalonServiceRole's Resources (Rule 2: pattern named, no shared helper)
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Install/Step/Mcp.cls:130-187 vs Install/Step/Demo.cls:478-499; spec Extend-don't-copy names the pattern but no reason it is not shared
+- 2026-11-11T13:50:48Z status=wontfix-accepted owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=reopen_if=a third Get/Modify of OcuTalonServiceRole's Resources is written; then lift one helper into Install.Step
+
+### DW-1137: SetSourcePoll and RemoveSourcePoll reach McpOps, which maps neither, so CommandsIn answers failed (it answered not_built) until Story 22.5 builds them
+- source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Mcp/Ops.cls MessageMap maps only the three verbs; CommandsIn.IsStub maps only code 5003 to not_built; spec Design Notes 17 records it
+- 2026-11-11T13:50:48Z status=by-design owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=spec Design Notes 17 states it; no UI sends them before 22.5, which adds the handlers
