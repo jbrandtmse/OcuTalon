@@ -18,7 +18,7 @@ const README = readFileSync(join(root, 'README.md'), 'utf8');
 const EXPERIENCE = readFileSync(join(root, '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
 const REGISTRY = readFileSync(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts'), 'utf8');
 
-const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen'];
 const count = WORDS[MORE_TO_TRY_ITEMS.length];
 
 /** The Planner-ruled README bullet (Story 20.2, public text 14), word for word. */
@@ -169,12 +169,13 @@ describe('EXPERIENCE.md, More to try', () => {
     assert.match(line(numberOf('documents')), /\[AMENDED 2026-11-09, Story 20\.3, Planner ruling [^\]]*public text 5\)\. It read: "/);
   });
 
-  it('has exactly one line for the headings, naming each in order with its count word (Story 0.22)', () => {
+  it('has exactly one line for the headings, naming each in order with its count word (Story 0.22) and the fourth-group ruling\'s marker', () => {
     const lines = EXPERIENCE.split('\n').filter((one) => one.includes('[ADDED 2026-11-10, Story 0.22,'));
     assert.equal(lines.length, 1);
     const at = MORE_TO_TRY_GROUPS.map((group) => lines[0].indexOf(`"${group}"`));
     assert.ok(at.every((one) => one >= 0), 'every heading is quoted');
     assert.deepEqual([...at].sort((x, y) => x - y), at, 'in the panel\'s order');
     assert.ok(lines[0].includes(`under ${WORDS[MORE_TO_TRY_GROUPS.length]} headings`), 'the count word');
+    assert.ok(lines[0].includes('[AMENDED 2026-11-10, Contest Planner ruling: a fourth group for the step-6 pages]'), 'the fourth-group ruling\'s marker');
   });
 });

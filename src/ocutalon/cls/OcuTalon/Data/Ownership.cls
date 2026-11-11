@@ -56,6 +56,8 @@
 ///     requests it sees, as Approvals does, placed by AnsweredAt, else RaisedAt) and NoteReminders (its reminders of every state, by DueAt). DecisionChannel is the Channel of a
 ///     decision's own usage rows. A window with an empty bound gives an empty list and an error status in sc.
 ///   - DecisionServed (Story 41.12) is whether a decision has any usage row of the session.
+///   - Usage (Story 37.2) is the session's own Usage rows of the last 1, 7 or 30 instance-zone local days, summed into buckets of local date, agent, channel, model and
+///     Estimated, for the Usage page; it is a Rows kind (usage) summed by Sum, and a row of owner eval, instance or another session is never read.
 Class OcuTalon.Data.Ownership
 {
 
@@ -176,6 +178,72 @@ ClassMethod CheckInCost(sessionRef As %String, itemId As %String, Output sc As %
 	Set cost = {}
 	Do ..Sum(rows, cost)
 	Quit cost
+}
+
+/// The session's own Usage rows of the last days instance-zone local days (1, 7 or 30), today included (Story 37.2; AD-20, AD-18), as an object
+/// {"days", "buckets"}. days lists the local dates YYYY-MM-DD, oldest first and today last. The rows are those recorded from the first instant of the
+/// first date up to the first instant of the day after today (Data.Time). buckets holds one object for each distinct (local date of RecordedAt,
+/// Agent, Channel, Model, Estimated), ordered by that key: {"day", "agent", "channel", "model", "estimated", "inputTokens", "outputTokens",
+/// "cacheReadTokens", "cacheWriteTokens", "costUSD", "largestRequestTokens"}. The five totals are Sum's (a NULL cost counts 0), so the buckets add
+/// up to what RunCost totals for the same rows; largestRequestTokens is the largest of the bucket's rows. No row id, Ref or owner is in the result.
+/// A row of owner eval, instance or another session is never counted. A days that is not a whole number from 1 to 30, a row whose time cannot be read
+/// and a failed read give {} and an error status in sc.
+ClassMethod Usage(sessionRef As %String, days As %Integer, Output sc As %Status) As %DynamicObject
+{
+	Set sc = $SYSTEM.Status.OK()
+	Set days = $Get(days)
+	If (days '? 1.2N) || (days < 1) || (days > 30) {
+		Set sc = $SYSTEM.Status.Error(5001, "The range of the usage read is 1 to 30 days")
+		Quit {}
+	}
+	Set today = $Piece(##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).NowUtc()), "T", 1)
+	Set first = $ZDate($ZDateH(today, 3) - (days - 1), 3)
+	Set next = $ZDate($ZDateH(today, 3) + 1, 3)
+	Set from = ##class(OcuTalon.Data.Time).FromLocal(first_"T00:00:00")
+	Set to = ##class(OcuTalon.Data.Time).FromLocal(next_"T00:00:00")
+	If (from = "") || (to = "") {
+		Set sc = $SYSTEM.Status.Error(5001, "The days of the usage read could not be worked out")
+		Quit {}
+	}
+	Set rows = ..Rows("usage", sessionRef, .sc, from, to)
+	If $SYSTEM.Status.IsError(sc) Quit {}
+	Kill group
+	Set unreadable = 0
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		Set day = $Piece(##class(OcuTalon.Data.Time).ToLocal(row.RecordedAt), "T", 1)
+		If day = "" Set unreadable = 1 Quit
+		Set key = day_$Char(1)_row.Agent_$Char(1)_row.Channel_$Char(1)_row.Model_$Char(1)_(+row.Estimated)
+		If '$Data(group(key)) Set group(key) = ##class(%ListOfObjects).%New()
+		Do group(key).Insert(row)
+	}
+	If unreadable {
+		Set sc = $SYSTEM.Status.Error(5001, "A usage row has a time that cannot be read")
+		Quit {}
+	}
+	Set dates = []
+	For i = (days - 1):-1:0 Do dates.%Push($ZDate($ZDateH(today, 3) - i, 3))
+	Set buckets = []
+	Set key = ""
+	For {
+		Set key = $Order(group(key))
+		If key = "" Quit
+		Set list = group(key)
+		Set bucket = {}
+		Do bucket.%Set("day", $Piece(key, $Char(1), 1))
+		Do bucket.%Set("agent", $Piece(key, $Char(1), 2))
+		Do bucket.%Set("channel", $Piece(key, $Char(1), 3))
+		Do bucket.%Set("model", $Piece(key, $Char(1), 4))
+		Do bucket.%Set("estimated", +$Piece(key, $Char(1), 5), "boolean")
+		Do ..Sum(list, bucket)
+		Set largest = 0
+		For i = 1:1:list.Count() {
+			If list.GetAt(i).LargestRequestTokens > largest Set largest = list.GetAt(i).LargestRequestTokens
+		}
+		Do bucket.%Set("largestRequestTokens", largest, "number")
+		Do buckets.%Push(bucket)
+	}
+	Quit {"days": (dates), "buckets": (buckets)}
 }
 
 /// Sets the four token totals and the cost of the Usage rows (none when rows is not a list) in cost, 0 for a total with no
@@ -1069,6 +1137,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "checkInUsage" {
 		Set class = "OcuTalon.Bridge.Data.Usage", binds = "oa"
 		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef = ? AND Channel = 'heartbeat' AND ItemId = ?"
+	}
+	If kind = "usage" {
+		Set class = "OcuTalon.Bridge.Data.Usage", binds = "oaa"
+		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef = ? AND RecordedAt >= ? AND RecordedAt < ? ORDER BY RecordedAt, ID"
 	}
 	If kind = "runDecisions" {
 		Set class = "OcuTalon.Bridge.Data.Decision", binds = "oa"

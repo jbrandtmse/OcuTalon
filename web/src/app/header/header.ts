@@ -84,10 +84,12 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  * button holds focus, the button leaves and focus goes to the main region without scrolling, through the page's focus rule. This band is
  * the narrowest one where the header stays on one line, so it takes less space between and inside its items (12px inline padding, 8px
  * between the left group's items, 4px between the right group's and inside its buttons; the navigation and the reset countdown do the
- * same), which keeps the mark, the context badge, the Demo view switch, the three navigation links, the Status button, the reset
+ * same), which keeps the mark, the context badge, the Demo view switch, the four navigation links, the Status button, the reset
  * countdown and the menus inside the window at 1024px.
  *
- * Below 1024px the header is the page's one sticky element and is compact (48px minimum, 12px inline padding, may wrap). It writes its
+ * Below 1024px the header is the page's one sticky element and is compact (48px minimum, 12px inline padding, may wrap). Its navigation
+ * links sit 4px apart with 6px of inline padding, so that the left group (mark, context badge, Demo view switch and the links of a signed-in
+ * user who is not an admin) fits one row at 640px and the header stays within its two rows. It writes its
  * measured block size to --app-header-block-size on the root element, which the stacked layout's scroll-padding-top reads, so that
  * the focused element is never scrolled under it. Where its wrapped height passes a quarter of the window's height (a very short
  * window), it would cover too much of the page, so it takes the host class `scrolls`: it scrolls away with the page (position
@@ -334,6 +336,8 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
       }
       .side {
         flex-wrap: wrap;
+        --header-nav-gap: var(--space-1);
+        --header-nav-item-inline: 6px;
       }
     }
     .reason {

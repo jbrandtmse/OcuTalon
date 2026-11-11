@@ -15,7 +15,7 @@ import { blockLiveSocket } from '../support/socket';
  * features it names) and keeps it by dropping guide.state from the page's polls; the POSTs of items 2, 3 and 5 are routed and counted,
  * because their downstream flows are pinned by the demo-path specs. K5 uses the real Persona card, and collapses it again.
  *   - K2 (matrix 1): the routed finish: the panel is open after the links and before Try it yourself, items 1 to 4 in order;
- *   - K3 (matrix 3, 10): every id of the registry: its items in order with their look-for lines, links to the Documents page for the documents and sources items, the Memory heading focused by the Memory card item and the Heartbeat checklist heading by the heartbeat item;
+ *   - K3 (matrix 3, 10): every id of the registry: its items in order with their look-for lines, links to the Documents page for the documents and sources items, the link to the Usage page for the usage item, the Memory heading focused by the Memory card item and the Heartbeat checklist heading by the heartbeat item;
  *   - K4 (matrix 2): step 1: no panel, the link in the Tab order, Enter opens and Space closes it, focus stays on the link;
  *   - K5 (matrix 5): item 1 opens the Persona card's Change and focuses it, also in the drawer band, where the drawer opens first;
  *   - K6 (matrix 6): item 2 selects the Simulated mailbox tab, sends the chip's own POST once and focuses the chip;
@@ -67,6 +67,8 @@ const SAMPLE = '**/ocutalon/api/v1/mailbox/samples/suspicious-request';
 const DEMO_VIEW_KEY = 'ocutalon.demoView.off';
 
 const FOUR = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView'];
+// The ids of the routed real finish (openRealFinish: K16, K16b, K19 to K23) and of K17: all four groups of the panel show, so the room is measured with the fourth heading.
+const BAND_IDS = [...FOUR, 'memory', 'usage'];
 // Every id of the registry, in its order, so that an item another story adds joins the K3 and K9 cases; ITEMS below is the independent text oracle.
 const ALL = MORE_TO_TRY_ITEMS.map((item) => item.id);
 /** The ids the panel shows for a feature list, in the order it shows them: the sets of groupsOf, flattened. */
@@ -146,6 +148,13 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
       'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
     button: 'Open the Documents page',
   },
+  // mutation: the registry's usage look-for reads "on your messages and incidents." -> K3 (the usage item's look-for text) red.
+  usage: {
+    label: 'See tokens and cost',
+    lookFor:
+      'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+    button: 'Open the Usage page',
+  },
 };
 const REMEMBER = "Remember that the Results partner's contact is Lee.";
 const REROUTE = 'Reroute the failed orders to OrdersForReview.';
@@ -155,7 +164,7 @@ const guideRegion = (page: Page): Locator => page.getByRole('region', { name: 'D
 const linkOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'More to try', exact: true });
 const panelOf = (page: Page): Locator => guideRegion(page).getByRole('group', { name: 'Other things to try', exact: true });
 const itemOf = (page: Page, id: string): Locator => panelOf(page).getByRole('listitem').filter({ has: page.getByText(ITEMS[id]!.label, { exact: true }) });
-const controlOf = (page: Page, id: string): Locator => itemOf(page, id).getByRole(id === 'documents' || id === 'sources' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
+const controlOf = (page: Page, id: string): Locator => itemOf(page, id).getByRole(id === 'documents' || id === 'sources' || id === 'usage' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
 const switchOf = (page: Page): Locator => page.getByRole('switch', { name: 'Demo view', exact: true });
 const breakButton = (page: Page): Locator => page.locator('app-break-feed-box app-server-button button');
 const hideOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'Hide guide', exact: true });
@@ -329,12 +338,22 @@ test('K3: every id shows its item in order, the documents and sources items are 
   const documents = controlOf(page, 'documents');
   await expect(documents, 'the documents item is a link').toHaveAttribute('href', /#\/documents$/);
   await expect(controlOf(page, 'sources'), 'the sources item is a link to the same page').toHaveAttribute('href', /#\/documents$/);
+  await expect(controlOf(page, 'usage'), 'the usage item is a link to the Usage page').toHaveAttribute('href', /#\/usage$/);
   await expect(controlOf(page, 'memoryCard')).toHaveAttribute('type', 'button');
   await controlOf(page, 'memoryCard').click();
   await expect(page.locator('#rail-heading-memory'), 'the Memory card item puts focus on the Memory heading').toBeFocused();
   await expect(controlOf(page, 'heartbeat')).toHaveAttribute('type', 'button');
   await controlOf(page, 'heartbeat').click();
   await expect(page.locator('#rail-heading-heartbeat'), 'the heartbeat item puts focus on the Heartbeat checklist heading').toBeFocused();
+});
+
+/** K3b (routed finish, every id): pressing the usage item's link opens the Usage page by navigation. */
+test('K3b: the link of the usage item opens the Usage page', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openWith(page, finished(ALL));
+  await controlOf(page, 'usage').click();
+  await expect(page, 'at the address #/usage').toHaveURL(/#\/usage$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Usage', exact: true }), 'the Usage page').toBeVisible();
 });
 
 /**
@@ -799,9 +818,9 @@ test('K15: item 2 sends nothing while the email limit holds, and focuses the chi
 const RUN = { decisions: 2, tokens: 9850, costUSD: 0.0041, models: ['Claude Haiku 5.5'] };
 const RUN_TOTAL = 'This run: 2 decisions \u00B7 9,850 tokens \u00B7 $0.0041 on Claude Haiku 5.5.';
 
-/** Opens the routed real finish (the four ids, Break the feed active, the run total) and checks that the run total is on the page. */
+/** Opens the routed real finish (the band ids, Break the feed active, the run total) and checks that the run total is on the page. */
 async function openRealFinish(page: Page, banner = false): Promise<void> {
-  await openWith(page, finished(FOUR, { breakFeed: { active: true }, run: RUN }), undefined, false, banner);
+  await openWith(page, finished(BAND_IDS, { breakFeed: { active: true }, run: RUN }), undefined, false, banner);
   await expect(page.locator('app-demo-guide .finish .run-total'), 'the finish carries the run total').toHaveText(RUN_TOTAL);
 }
 
@@ -999,7 +1018,7 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
     expect(room.holds <= 1 || room.chat < size.chat + 4, `${at}: its window takes all the room above the chat's floor, unless it shows everything`).toBe(true);
     const fit = Math.max(1, Math.floor((room.width - 8 + 16) / (320 + 16)));
     expect(room.columns, `${at}: the items of each list are in as many columns as fit, each at least 20rem wide`).toEqual(
-      groupsOf(itemsFor(FOUR)).map((set) => Math.min(set.items.length, fit)),
+      groupsOf(itemsFor(BAND_IDS)).map((set) => Math.min(set.items.length, fit)),
     );
   } else {
     expect(room.overflowY, `${at}: the stacked panel is no scroller of its own`).toBe('visible');
@@ -1011,13 +1030,13 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
 }
 
 /**
- * Tab from the panel's own stop through the four controls, in the order shown: each one that takes focus is wholly in view in the panel's window with its
+ * Tab from the panel's own stop through the controls, in the order shown: each one that takes focus is wholly in view in the panel's window with its
  * focus ring (the control's box grown by the ring's offset and width, 4px), and the window has scrolled by the time the last one is reached.
  */
 async function expectTabInView(page: Page, at: string): Promise<void> {
   await panelOf(page).focus();
   const scrolls = await panelOf(page).evaluate((node) => node.scrollHeight - node.clientHeight > 1);
-  for (const id of shown(FOUR)) {
+  for (const id of shown(BAND_IDS)) {
     await page.keyboard.press('Tab');
     await expect(controlOf(page, id), `${at}: Tab reaches ${id}`).toBeFocused();
     const inView = await page.evaluate(() => {
@@ -1044,7 +1063,7 @@ async function expectTabInView(page: Page, at: string): Promise<void> {
 for (const size of [...ROOM, ...FINISH_ROOM]) {
   const { band, width, height, chat } = size;
   /**
-   * K16 (the panel's room): the routed finish with the four ids and no banner. The panel is open by default from 680px tall and starts
+   * K16 (the panel's room): the routed finish with the band ids and no banner. The panel is open by default from 680px tall and starts
    * closed under it (the compact band), where the link opens it. The measurements are recorded as an annotation and one log line. The
    * panel is a Tab stop named "Other things to try" where it scrolls.
    */
@@ -1112,7 +1131,7 @@ for (const size of ROOM.filter((one) => one.framed)) {
   const { width, height, chat } = size;
   test(`K17: with the link opening the panel before the finish (${width}x${height}) the chat keeps at least ${chat}px and the page does not scroll`, async ({ page }) => {
     await page.setViewportSize({ width, height });
-    await openWith(page, guide(FOUR, { run: RUN }));
+    await openWith(page, guide(BAND_IDS, { run: RUN }));
     await linkOf(page).click();
     await expect(panelOf(page), 'the link opens the panel').toBeVisible();
     const room = await settledRoom(page);
@@ -1620,11 +1639,12 @@ test('K27: the panel shows its items under the ruled group headings, each follow
   await openWith(page, finished(ALL));
   const panel = panelOf(page);
   await expect(panel).toBeVisible();
-  const RULED_HEADINGS = ['Incidents and fixes', 'Memory and documents', 'Safety and settings'];
+  const RULED_HEADINGS = ['Incidents and fixes', 'Memory and documents', 'Safety and settings', 'Usage and history'];
   const groupOf = (id: string): string | undefined => MORE_TO_TRY_ITEMS.find((item) => item.id === id)!.group;
   expect(ALL.filter((id) => !RULED_HEADINGS.includes(groupOf(id) ?? '')), 'every item declares a ruled group').toEqual([]);
   const expected = RULED_HEADINGS.map((group): [string, string[]] => [group, ALL.filter((id) => groupOf(id) === group)]).filter(([, ids]) => ids.length > 0);
   expect(MORE_TO_TRY_GROUPS, 'the page\'s constant is the ruled order').toEqual(RULED_HEADINGS);
+  expect(groupOf('usage'), 'the usage item is in the fourth group').toBe(RULED_HEADINGS[3]);
 
   const headings = panel.getByRole('heading', { level: 4 });
   await expect(headings, 'the groups that have items, in order').toHaveText(expected.map(([group]) => group));
@@ -1637,5 +1657,6 @@ test('K27: the panel shows its items under the ruled group headings, each follow
     await expect(heading, `${group}: no tabindex`).not.toHaveAttribute('tabindex', /.*/);
     await expect(heading.locator('xpath=following-sibling::ul[1]').locator('.item-label'), `${group}: its labels, in registry order`).toHaveText(ids.map((id) => ITEMS[id]!.label));
   }
+  await expect(headings.last().locator('xpath=following-sibling::ul[1]'), 'the fourth heading holds the usage item').toContainText(ITEMS['usage']!.label);
   await expect(panel.locator('.item-label'), 'every item once').toHaveCount(ALL.length);
 });

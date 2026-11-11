@@ -1,6 +1,6 @@
 /**
  * The demo guide's "Other things to try" panel (Story 4.11; EXPERIENCE: Demo guide and controls): its fixed strings, the registry of
- * its twelve items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
+ * its thirteen items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
  * as it is and the strings test reads it.
  *
  * The catalog is the server's (AD-12): `guide.features` is the list of feature ids that Demo.Features.Present gives, in the guide's
@@ -100,6 +100,12 @@ export const MORE_TO_TRY_TEXTS = {
         'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
       button: 'Open the Documents page',
     },
+    usage: {
+      label: 'See tokens and cost',
+      lookFor:
+        'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+      button: 'Open the Usage page',
+    },
   },
 } as const;
 
@@ -115,7 +121,7 @@ export const RESOLVED_CHIP = '.chip-resolved';
 export const DISMISS_BUTTON = 'app-incident-dismiss button';
 
 /** The hand-off that an item's control makes. */
-export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'partnerWarning' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat';
+export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'partnerWarning' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat' | 'usage';
 
 /**
  * One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off,
@@ -145,6 +151,7 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents', group: 'Memory and documents' },
   { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat', group: 'Safety and settings' },
   { id: 'sources', ...MORE_TO_TRY_TEXTS.items.sources, action: 'documents', group: 'Memory and documents' },
+  { id: 'usage', ...MORE_TO_TRY_TEXTS.items.usage, action: 'usage', group: 'Usage and history' },
 ];
 
 /** The registry entries whose id the server's list holds, in registry order. Unknown ids are ignored, and no list gives none. */
@@ -156,7 +163,7 @@ export function itemsFor(features: readonly string[] | undefined): readonly More
 }
 
 /** The panel's group headings, in the order the panel shows them. */
-export const MORE_TO_TRY_GROUPS: readonly string[] = ['Incidents and fixes', 'Memory and documents', 'Safety and settings'];
+export const MORE_TO_TRY_GROUPS: readonly string[] = ['Incidents and fixes', 'Memory and documents', 'Safety and settings', 'Usage and history'];
 
 /** One set of the panel: its heading (none for the items that declare no group) and its items, in order. */
 export interface MoreToTryGroup {

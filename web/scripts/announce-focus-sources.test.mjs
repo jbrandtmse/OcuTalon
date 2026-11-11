@@ -127,6 +127,8 @@ describe('the page speaks only through the Announcer', () => {
       'app/shared/confirm-dialog.ts',
       'app/shared/narrow-note.ts',
       'app/shared/server-button.ts',
+      // The Usage page: its load failure, "Couldn't load your usage.", once per failed read (Story 37.2).
+      'app/usage/usage-page.ts',
     ]);
   });
 });

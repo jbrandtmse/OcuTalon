@@ -6548,6 +6548,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Test/Core/ConversationSessionStart.cls TestCoreMemoryAtStart; the existing StartIfNewDay pattern of the class
 - 2026-11-10T00:26:53Z status=wontfix-accepted owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=cr note=reopen_if=a CI or local run of ConversationSessionStart:TestCoreMemoryAtStart that straddles local midnight goes green with the branch skipped
 
+### DW-1089: Usage page: a zero-cost day, group or row reads "<$0.0001" (formatCost(0)), suggesting a tiny spend that did not happen; an exact-zero string needs a PUBLIC TEXT ruling
+- source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: med | fix-risk: low | footprint: web/src/app/usage/usage-page.ts
+- evidence: formatCost(0) returns the shipped <$0.0001; Day grouping zero-fills days; no PUBLIC TEXT string for exact zero
+- 2026-11-10T17:59:38Z status=decision-pending owner=burndown by=harvest note=public_text:exact_zero_cost_string(e.g._$0)_for_the_Planner;fix_is_one_branch_in_usage-page.ts_cost()_plus_a_test
+- 2026-11-10T18:36:08Z occurrence=37-2-see-tokens-and-cost-over-time-on-the-usage-page
+- 2026-11-10T21:22:13Z status=resolved-by:37-2-see-tokens-and-cost-over-time-on-the-usage-page owner=37-2-see-tokens-and-cost-over-time-on-the-usage-page by=adjudication note=Planner_ruling_2026-11-10_21:00Z_applied_in_3cee6f2e:costText_shows_$0_for_exact_zero,<$0.0001_kept;usage-view.test_and_U2_pin_it
+
+### DW-1090: Usage page on a local install counts only the session's own rows, never instance-owned incident decisions, while the ruled look-for says the cost comes from the agents' decisions on your messages and incidents
+- source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Ownership.Usage reads OwnerRef = session only (spec SECURITY: instance rows not shown on a local install); a local session sees instance incidents (Ownership class doc) but their decisions' cost never shows; ruled text in more-to-try-view.ts items.usage
+- 2026-11-10T18:36:08Z status=decision-pending owner=burndown by=cr note=product call for the Planner: show instance-owned usage on a local install (admins?) or reword the ruled look-for; behaviour is spec-bound
+- 2026-11-10T21:22:14Z status=resolved-by:37-2-see-tokens-and-cost-over-time-on-the-usage-page owner=37-2-see-tokens-and-cost-over-time-on-the-usage-page by=adjudication note=Planner_ruling_option_a_applied_in_3cee6f2e:look-for_second_sentence_reworded(own_decisions_only);option_b_ledgered_by_Planner_as_post-contest_idea
+
+### DW-1091: Story 37.2 test classes repeat small private helpers: UsageApi.Envelope copies DocumentsApi.Envelope; KeysOf, Models and LocalDate/Date are in both Test.Web.UsageApi and Test.Data.OwnershipUsage
+- source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: src/ocutalon/cls/OcuTalon/Test/Web/UsageApi.cls:311 vs Test/Web/DocumentsApi.cls:808 (one line); KeysOf/Models/Date in UsageApi.cls and Test/Data/OwnershipUsage.cls:184-261 (2 to 10 lines each); per-class private helpers are the test classes' norm
+- 2026-11-10T18:36:08Z status=wontfix-accepted owner=37-2-see-tokens-and-cost-over-time-on-the-usage-page by=cr note=reopen_if=a third test class copies KeysOf, Models or LocalDate, or one copy changes behaviour and the other does not
 ### DW-1059: The generated docs/security-overview.md role table lists %Ens_ConfigItemRun:U for OcuTalonServiceRole unconditionally, but an online-demo install leaves it off (S1)
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Install.Step.Fix.Grants omits the pair when onlineDemo is 1; Install.SecurityOverview renders the table from Fix.Kind.Classes() without that condition; the fix needs one ruled public sentence
@@ -6635,6 +6652,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340184 shards-10; first-start timeout is DW-999's; the park step is a new signature; the 23.2 rework checks it for a story cause
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:reminder-restart_telegram_park;one_rerun_with_the_next_push
+- 2026-11-11T00:03:57Z occurrence=feature-9f7db82c by=orchestrator note=run 42924654980 job 130207908005 iris(shards) on ocutalon-ci-15, unit live:online-allowance: 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then 'the first start did not end ready within 400 s'; same signature as the reminder-restart one, now in another unit; rerun of failed jobs
 ### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
@@ -6679,6 +6697,11 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web has no component test host and every registry row declares a ruled group (the typo-guard unit test fails otherwise), so no e2e can render an ungrouped set; a template rewrite that keeps the @if regex green could misrender it
 - 2026-11-10T16:33:14Z status=wontfix-accepted owner=0-22-the-more-to-try-panel-shows-its-items-under-three-group-head by=cr note=reopen_if=a registry item ships with no group, or web gains a component test host
 
+### DW-1096: Story 0.22's block in epics.md (:1564-1565, :1584) and epic-0-context.md still say three More to try headings and no fourth heading; the Planner's ruling of 2026-11-10 ~19:10Z added the fourth, Usage and history
+- source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: low | footprint: _bmad-output/planning-artifacts/epics.md
+- evidence: prompts/epic-25-rulings-252.md s3; code, EXPERIENCE and tests say four
+- 2026-11-10T19:57:51Z status=routed owner=burndown by=harvest note=cross-epic_story_block(Epic_0):_orchestrator_amends_per_Rule_11;reported_in_37.2_PART_READY
+- 2026-11-11T01:23:44Z status=resolved-by:37-2-see-tokens-and-cost-over-time-on-the-usage-page by=merge_gate note=Story 0.22's epics.md block amended at 37.2's merge gate ([AMENDED 2026-11-10, Contest Planner ruling: a fourth group for the step-6 pages])
 ### DW-1092: flake candidate: live:sign-in-3 web/e2e/memory-card.spec.ts:424 MC6 'Tab reaches Forget' (the Forget button stayed inactive) once on a local fresh stack
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 merge 649b511f (feature 3dcd4cb5 + 23.2) local live:sign-in-3: 1 failed, 166 passed; 23.2 changes neither the Memory card nor its spec
@@ -6712,6 +6735,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T21:01:35Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence, likely a port still held on the self-hosted runner from an earlier job); rerun of failed jobs; reopen as real only if it recurs on a quiet runner
 - 2026-11-10T22:32:50Z occurrence=37-2 by=orchestrator note=lane-a run 42907226019 job 130148282085 ipm-install-p on runner ocutalon-ci-6: 'failed to set up container networking: driver failed programming external connectivity' for the second stack (path B) and part p; first occurrence was on ocutalon-ci-11; two runners in two hours: possibly concurrent jobs on one droplet colliding on a published port; rerun of failed jobs; flagged to the Contest Planner (owns the runners)
 - 2026-11-10T22:53:15Z occurrence=feature-d35efc22 by=orchestrator note=run 42902128153 job 130130553943 iris(browser) on ocutalon-ci-6 at 22:21Z: live:demo-path and live:online-demo both refused (driver failed programming external connectivity) 6 s apart, no test ran; third occurrence; fix in flight as Story 0.24; rerun of failed jobs
+- 2026-11-10T22:37:05Z status=routed owner=0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=load note=Contest_Planner_ruling_2026-11-10_~22:45Z:_Story_0.24_fixes_the_web-port_collision_(recurred:_lane-a_run_42907226019_runner_6_port_52816_twice)
+- 2026-11-11T00:09:51Z status=resolved-by:0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=adjudication note=docker/tests/lib-live.sh_live_port_guard(dc_up/start/restart:wait<=20s,one_retry_on_the_bind_error,loud_FAIL);hermetic_rows_in_test-lib-live.sh;live_proofs_on_lane-C(real_Docker_bind_error_retried_once;IRIS_stacks_back_to_back)
 ### DW-1097: test-readme.sh: no permanent self-test pins that chk_readme_links feeds the header logo (header_images) into its existence check
 - source: _bmad-output/implementation-artifacts/spec-0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: Dropping header_images from chk_readme_links' target stream keeps every rule green while the logo is tracked; only the AC4 untrack mutation shows it; chk_readme_links takes no tree-list argument, so a self-test cannot stub a missing logo; same limit existed with the relative src before 0.23
@@ -6744,3 +6769,22 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Watch.Summary costs Usage.Totals(incident.DecisionRef) only; the draft is a separate Decide turn owned by the asking session (OwnerRef), counted on its Usage like the chat turn that asked for it; no column links it to the incident.
 - 2026-11-11T03:04:14Z status=wontfix-accepted owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=cr note=reopen_if=the owner rules that a session-asked draft's cost belongs to the incident summary (needs a stored link: veto item)
+### DW-1100: The port guard's loud failure (FAIL web port / PORT still in use) does not name what holds the port, so a recurrence of DW-1099 gives no more diagnosis than the first
+- source: spec-0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: docker/tests/lib-live.sh live_port_guard: the FAIL line carries only 127.0.0.1:<p> and the bind error line; no docker ps --filter publish or ss/lsof line
+- 2026-11-10T23:52:05Z status=wontfix-accepted owner=0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=cr note=reopen_if=a CI log shows 'FAIL web port: 127.0.0.1:' and the occupant cannot be identified from that job's log
+
+### DW-1101: test-install-script-live.sh step 5's use of live_port_guard is pinned hermetically only by a grep of the script's text; the executed check is the live install-script-live unit
+- source: spec-0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: docker/tests/test-lib-live.sh greps '^plain_out=$(live_port_guard env ' in test-install-script-live.sh; the step-5-shaped row runs a look-alike command, not the script
+- 2026-11-10T23:52:05Z status=wontfix-accepted owner=0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i by=cr note=reopen_if=live:install-script-live shows 'address already in use' or 'failed programming external connectivity' at step 5 with no 'PORT retry' line before it
+### DW-1102: The compact header's left group fits one row at 640px with about 15-19px to spare (floor user: mark, badge, Demo view switch, Chat, Documents, Usage); Story 25.2's History link will wrap it and turn live:floor G4/G5 red again
+- source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md code review (rework 3) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 37.2 rework 3 measured the floor-user header sticky at 625px and static at 620px (640x360@2, stub /state); Story 25.2 (epics.md) opens History from the header navigation, a fifth link for the floor user, so its own G4/G5 will be red unless it plans the compact header's room (web/src/app/header/header.ts stacked .side).
+- 2026-11-11T00:09:01Z status=routed owner=25-2-filter-past-decisions-and-incidents-on-the-history-page by=cr note=plan the compact header at 640x360 with the History link; G4/G5 guard it; epics.md DW bullet under 25.2 is the orchestrator's post-merge
+- 2026-11-11T01:23:44Z status=routed owner=25-2-filter-past-decisions-and-incidents-on-the-history-page by=merge_gate note=Story 37.2 merge gate: epics.md Story 25.2 gains the [ADDED 2026-11-10, DW-1102] AC (History link fits the compact header at 640x360; live:floor G4/G5 green); 25.2's implement must plan the fit (37.2 left 15-19px)
+
+### DW-1103: flake: live:floor web/e2e/floor/keyboard.spec.ts:237 K2 (Esc closes the Trace help of a reply strip): 'focus is back on the link' (expect toBeFocused, received inactive within 10 s) red once locally, passed on one unchanged rerun
+- source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: low | footprint: web/e2e/floor/keyboard.spec.ts
+- evidence: lane-B throwaway e37s2s3 on d282b2b7 2026-11-11 ~00:17Z: 1 failed/106 passed; rerun 107/107; 37.2 does not touch the decision strip or trace link
+- 2026-11-11T00:24:50Z status=routed owner=burndown by=harvest note=flake:keyboard.spec_K2_focus_after_link.focus();one_rerun_green
