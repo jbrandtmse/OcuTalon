@@ -3631,6 +3631,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(fix_in_web/e2e-online/resume.spec.ts:84,not_AC-named,standing_ruling_forbids_the_edit)
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 - 2026-11-09T14:59:00Z occurrence=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=runner note=OCT-epic35_cd13b1ae_run_42633085173_iris(install-fresh)_live:online-demo_resume.spec.ts:84_R1_expected_1794242100_received_1794242101;one_rerun_of_the_failed_job
+- 2026-11-11T23:31:17Z occurrence=22-8 note=OCT-epic22 7e01fbc7 run 43113562220 iris(browser): expected 1794444720 received 1794444721 (1 s off); one rerun
 
 ### DW-559: The reminders list answer (CommandCall.Listed) shows each due time without the zone label on the online demo, while the set reply (Answer) now carries ' ET'
 - source: _bmad-output/implementation-artifacts/spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md | severity: low | fix-risk: low | footprint: in-story
@@ -6956,3 +6957,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: low | fix-risk: low | footprint: in-story(ci/mock/scenarios/B)
 - evidence: K29 answers the POST itself under sign-in-3; test-mock.sh passes with the file present
 - 2026-11-11T14:03:12Z status=wontfix-accepted owner=23-7-watch-queue-backlogs-between-digests by=harvest note=reopen_if=a mock-scenario consumer check flags it or a CI-mock browser unit gains a guide case (then K29 moves there and uses it)
+
+### DW-1160: flake candidate (host load): live:install-start row 3 'the dev start did not end ready within 200 s' in CI iris (install-fresh) on feature c33e0916 under the post-outage backlog
+- source: feature c33e0916, ci run 43099749161 job iris (install-fresh) on ocutalon-ci-12 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: no test assertion failed; live:online-demo-path in the same job passed; same start-not-ready family as DW-612 (row 2) and DW-1082 (install-upgrade row 7); all 18 runners busy with the outage backlog
+- 2026-11-11T21:32:07Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun of the failed job when the run completes
+- 2026-11-11T22:10:09Z note=green on one rerun (43099749161 attempt 2)
+
+### DW-1161: CI headroom: lane-a ipm-install takes 28-30 min against its 35-min job timeout; under host load it times out (cancelled at 35m0s) with no test failed
+- source: feature c33e0916, lane-a run 43099749306 job ipm-install on ocutalon-ci-10 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: durations: 14:31-15:00 (29.5m), 20:07-20:35 (28m), 14:02-14:32 (30m); 21:03-21:38 timed out during the post-outage backlog
+- 2026-11-11T21:39:35Z status=routed owner=burndown by=orchestrator note=infra (host load): one rerun per occurrence; a recurrence on a clean queue means the group needs a split (standing CI rule), never a longer timeout
+- 2026-11-11T22:10:09Z note=green on one rerun (43099749306 attempt 2)
+
+### DW-1163: CI ops: GitHub Actions outage left zombie runs (queued at attempt 1; cancel says completed, rerun says running, force-cancel says not queued); recovery = a fresh push of a bookkeeping-only head, its result read by identity
+- source: OCT-epic21 2242c77d runs 43096469670, 43096469722 (2026-11-11 Actions major outage) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: superseded by fresh runs 43114341467, 43114341576 on 8fc11a6e (zero code diff from 2242c77d); the zombie runs are void and are never acted on again
+- 2026-11-11T22:45:47Z status=wontfix-accepted owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=orchestrator note=reopen_if=a zombie run blocks a head whose only recovery is a code change (Contest Planner ruling 2026-11-11)
