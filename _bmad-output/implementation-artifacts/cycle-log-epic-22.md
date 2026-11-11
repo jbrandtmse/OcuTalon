@@ -57,3 +57,6 @@
 2026-11-11T14:26:43Z	Story 22.4	planner_rulings_applied	source=orchestrator_ruling_R1 at=2026-11-11T14:27Z via=orchestrator r1=approved_both_parts(FinishExecution_changed;one_BridgeSink_branch+one_ToolCallNotices_row_plain_union_with_Epic_21,recheck_origin/OCT-epic21_before_implement) spine=S15-S18_written veto=pending_with_Planner
 2026-11-11T14:26:43Z	Story 22.4	spine_updated	ad=AD-10,AD-11,AD-31 reason=orchestrator_ruling(S15-S18) by=runner story=22-4 lint=no_new_findings
 2026-11-11T14:27:26Z	Story 22.4	planner_rulings_applied	source=<coordination>/prompts/epic-22-rulings-224.md at=2026-11-11T14:50Z via=orchestrator veto=1-4_accepted_with_conditions(each_an_AC) fingerprint_redefinition=SHA-256_hex(server,tool,schema,description)->task_in_22.8 demo_test=exists_in_22.2(TestOnlineDemo,TestOnlineDemoRealFlag)
+2026-11-11T14:27:51Z	Epic 22	hold_ordered	reason=owner_quota_96pct(orchestrator_HOLD_NOW) running_stage=none
+2026-11-11T14:27:51Z	Epic 22	hold_saved	story=none stage=none patch=none tree=clean note=no_story_mid-pipeline(22.2_committed+pushed_74798cbe;22.8,22.9,22.3,22.4_ready-for-dev_specs_committed)
+2026-11-11T14:27:51Z	Epic 22	hold_complete	shas=74798cbe(code,pushed,CI_orchestrator-owned)+bookkeeping_to_be_pushed_now
