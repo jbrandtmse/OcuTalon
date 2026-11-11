@@ -39,3 +39,4 @@
 2026-11-11T20:31:38Z	Epic 21	resume_prompt_refreshed	path=<state>/resume/epic-21.md head=f35271a9
 2026-11-11T20:31:38Z	Epic 21	stage_spawned	stage=epic_context spawn_at=2026-11-11T20:31:38Z model=opus effort=high agent_name=epic-21-context-prewarm-2 reason=planning_artifact_newer
 2026-11-11T20:32:57Z	Epic 21	epic_context_compiled	spawn_at=2026-11-11T20:31:38Z reason=planning_artifact_newer model=opus effort=high words=1261 gaps=EmailOut_not_yet_an_item(21.6),McpOps_no_wallet_write(DW-1041,21.4),21.3_AD-3+README_rulings,spine_SaveMcpEntry_wording(21.4)
+2026-11-11T20:33:22Z	Story 21.6	stage_spawned	stage=plan spawn_at=2026-11-11T20:33:22Z model=opus effort=high agent_name=21-6-send-email-over-smtp-plan-1 cycle_iteration=1
