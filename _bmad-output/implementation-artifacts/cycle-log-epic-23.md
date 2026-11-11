@@ -164,3 +164,4 @@
 2026-11-11T10:53:42Z	Epic 23	retro_review_skipped	reason=skipped(policy):recorded_already(2026-11-09T17:07:41Z;gates.retrospective=skip;no_new_retro;DW-1068_already_routed_to_23-9)
 2026-11-11T10:53:42Z	Epic 23	amendment	file=_bmad-output/planning-artifacts/epics.md story=23.9 what=un-parked_marker(AMENDED_2026-11-11,scope_reopened) tier=1
 2026-11-11T10:54:11Z	Epic 23	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true scope=reopen(23.7,23.9) warnings=23.7_overlaps_delivered_Checks.Coverage+Watch.Reader_queue_reads(judge_at_spec),23.9_option_a_vs_b_to_Planner_at_spec,23.3/23.4/23.8_wait_epic-36
+2026-11-11T10:57:54Z	Epic 23	epic_context_compiled	spawn_at=2026-11-11T10:58:30Z reason=planning_artifact_newer(23.9_unpark),reopen_weighting(23.7,23.9) model=opus effort=high words=2028 gaps=no_queue_backlog_kind_in_spine(AD-18;36.1_backlog),23.7_overlaps_Checks.Coverage_queue_thresholds,23.9_option_a_b_to_Planner,23.9_demo_refused(ONLINESHARED)
