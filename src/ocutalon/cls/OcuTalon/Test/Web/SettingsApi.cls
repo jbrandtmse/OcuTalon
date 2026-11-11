@@ -28,7 +28,7 @@
 ///   - TestSaveDemoModeAudited: an admin's demo mode save (the stack's own mode) answers 200 and writes one entry with the call's user, the CSP session's Ref and the channel web;
 ///   - TestDemoModeBodies: a demo mode body that is not exactly {demoMode: true or false} is 400 with nothing submitted;
 ///   - TestChannelsRoute (Story 21.2): POST /v1/settings/channels on the online demo is 409 not_available with nothing offered or submitted, a password over 256
-///     characters and a body that is not an object are 400 with nothing offered, a value with @{ or an unknown field is 400 through the production with the offered
+///     characters, a password that is not a JSON string (a number, an object) and a body that is not an object are 400 with nothing offered or submitted, a value with @{ or an unknown field is 400 through the production with the offered
 ///     password withdrawn, a command that the production does not take is 500 with the offered password withdrawn, and the password is in no answer, log row, ^OcuTalon* global or SaveSettings message;
 ///   - TestAnswerMapping: each outcome of a save has its status, code and text;
 ///   - TestStateHasAdmin: the snapshot's admin follows the role.
@@ -544,6 +544,18 @@ Method TestChannelsRoute()
 		Set body = ..Call("SaveChannels", long.%ToJSON(), session, .response)
 		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""password""]}", "a password of 257 characters: 400 bad_settings naming password")
 		Do $$$AssertEquals(..Handoffs()_"|"_..SaveSettingsRows(), before_"|"_rows, "nothing was offered and nothing submitted")
+		For type = "number", "object" {
+			Set odd = {}.%FromJSON(ok.%ToJSON())
+			If type = "number" {
+				Do odd.%Set("password", 98765432123, "number")
+			} Else {
+				Do odd.%Set("password", {"p": "zzpw98765432123"})
+			}
+			Set body = ..Call("SaveChannels", odd.%ToJSON(), session, .response)
+			Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""password""]}", "a password that is a JSON "_type_": 400 bad_settings naming password")
+			Do $$$AssertEquals(..Handoffs()_"|"_..SaveSettingsRows(), before_"|"_rows, type_": nothing was offered and nothing submitted")
+			Do $$$AssertEquals(..SaveSettingsHold("98765432123"), 0, type_": no SaveSettings message holds the value")
+		}
 		Set body = ..Call("SaveChannels", "[1]", session, .response)
 		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[]}", "a body that is not an object: 400 bad_settings, no field")
 		Do $$$AssertEquals(..Handoffs()_"|"_..SaveSettingsRows(), before_"|"_rows, "nothing was offered and nothing submitted")

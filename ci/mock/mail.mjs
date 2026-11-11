@@ -15,7 +15,7 @@
 //   GET  /_mock/mail/state     {"uidls":[...],"connections":n,"logins":n,"user":"<last user>","deletes":n,"failure":"<mode>","commands":{"UIDL":n,...}}
 // A <message> is {"uidl","from","subject","text","html","bytes"}: uidl is required (1 to 70 printable characters, no space); text is the
 // plain body and html the HTML body (html alone makes an HTML-only message, both make multipart/alternative); bytes pads the body with filler to that total size (at
-// most 4 MiB), so that a message over a size limit needs no large request. A non-ASCII subject or body is encoded as a real mail
+// most 4 MiB; an HTML-only message pads its HTML body and stays HTML-only), so that a message over a size limit needs no large request. A non-ASCII subject or body is encoded as a real mail
 // would send it (an encoded word, base64). Any other path is a 404.
 
 import net from 'node:net';
@@ -40,7 +40,7 @@ function payload(text) {
 // build(message): the message as a mail would arrive, with CRLF line ends, its headers and its size in octets. A message with both text and
 // html is multipart/alternative (the plain part first); with html alone it is text/html; otherwise text/plain.
 export function build(message) {
-  const html = typeof message.html === 'string' ? message.html : null;
+  let html = typeof message.html === 'string' ? message.html : null;
   let text = typeof message.text === 'string' ? message.text : '';
   const head = [
     `From: ${encodeHeader(message.from ?? 'sender@example.com')}`,
@@ -52,7 +52,9 @@ export function build(message) {
   ];
   if (Number.isInteger(message.bytes) && message.bytes > 0) {
     const need = message.bytes - (head.join('\r\n').length + 400 + text.length + (html ?? '').length);
-    if (need > 0) text += `\n${'x'.repeat(77)}`.repeat(Math.ceil(need / 79));
+    const filler = need > 0 ? `\n${'x'.repeat(77)}`.repeat(Math.ceil(need / 79)) : '';
+    if (html !== null && text === '') html += filler;
+    else text += filler;
   }
   let body;
   if (html !== null && text !== '') {

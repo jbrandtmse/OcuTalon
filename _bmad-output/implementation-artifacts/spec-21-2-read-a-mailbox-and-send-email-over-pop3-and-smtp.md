@@ -132,6 +132,40 @@ deferred:
 - Given SettingsOps' save, when it writes `EmailIn`'s settings and the credential, then Design Notes names the grant it uses (measured, Task 0 (f)), and no new grant or %All was added without a ruling (RULED, V5).
 - Given the finished diff, when its paths are listed, then no Lane A path or Never-list item appears, and each contended-file touch is the one Design Notes names.
 
+
+### Review Findings
+
+Code review (bmad-code-review, 2026-11-11; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 36 rows, 17 entries after grouping; each with severity, fix-risk, footprint, disposition per Rule 15).
+
+- [x] [Review][Patch] HIGH, fix-risk low, in-story: a hand-off clears the service's `%WaitForNextCallInterval` (Ens.BusinessService.ProcessInput), so a poll that handed mail on was followed at once by another: the 50-per-poll cap (RULED V-COST, poll every 60 s) did not bound a flood, and a refused hand-off reconnected to the mail server in a tight loop [src/ocutalon/cls/OcuTalon/Channel/Email/Adapter.cls:OnTask] -- fixed: OnTask sets it back to 1; `EmailIn` `TestWaitsForTheNextInterval`.
+- [x] [Review][Patch] MED, fix-risk med, in-story (DW-1138): an email whose whole read fails stopped every poll at it [Adapter.cls:Read] -- fixed: after READTRIES (3) failed polls it is read as headers only (row 11's rule), so nothing is dropped and later mail is not held up; a refused hand-off is mailbox-wide (owner, send) and is retried each interval; `TestUnreadableEmailIsReadAsHeaders`.
+- [x] [Review][Patch] MED, fix-risk low, in-story: every 6015 on connect read as P1b, so a wrong port (an IMAP or SMTP greeting) or no greeting in time told the admin the password was refused [Adapter.cls:ConnectReason] -- fixed: P1b only when the server's line is `-ERR`; `TestFailedPoll` cases added.
+- [x] [Review][Patch] MED, fix-risk low, in-story: a password sent as a JSON number or object was copied into the persisted SaveSettings body (V1) [src/ocutalon/cls/OcuTalon/Web/Api.cls:SaveChannels] -- fixed: 400 `["password"]` before anything is offered or submitted; `Test.Web.SettingsApi` `TestChannelsRoute`.
+- [x] [Review][Patch] MED, fix-risk low, in-story (DW-1140): the budget pin did not pass through the running Decide [Test/Channel/EmailLive.cls:TestSpentBudgetStillDecides] -- fixed: a key fixture, so the email's decision must be the `daily_cap` fallback with no model call.
+- [x] [Review][Patch] MED, fix-risk low, in-story: AC 7's counts cannot change on the keyless stack [EmailLive.cls:TestSuspiciousEmailActsOnNothing] -- fixed: the email's decide request is asserted untrusted (the provenance by which `Test.Bridge.Gate` keeps its turns to safe read-only tools); the counts stay as a guard.
+- [x] [Review][Patch] MED, fix-risk low, in-story: AC 3's three polls were never asserted [EmailLive.cls:TestPasswordOnlyInTheCredential] -- fixed: each poll asserted and the last one must read the mailbox.
+- [x] [Review][Patch] MED, fix-risk low, in-story: matrix row 2's real credential path (user name changed, password kept) had no test outside the probe [EmailLive.cls] -- fixed: new `TestUserChangeKeepsThePassword`.
+- [x] [Review][Patch] MED, fix-risk low, in-story (Rule 19 hermeticity): E2's "has recorded a poll" could be met by an earlier mark and E4 assumed no mailbox [web/e2e/settings/email.spec.ts] -- fixed: both remove any mailbox (and the mark) first.
+- [x] [Review][Patch] MED, fix-risk low, in-story (DW-1142 area): a poll of many large emails ignored a stop request between emails [Adapter.cls:Poll] -- fixed: `StopAsked` (Ens.Job ShouldBeQuiescent/ShouldTerminate) ends the poll after the email in hand as a good poll; `TestStopEndsThePollBetweenEmails`. A stall inside one read stays DW-1142's.
+- [x] [Review][Patch] LOW, fix-risk low, in-story: the listed UIDLs were one `$List`, which a very large mailbox can push past the string limit [Adapter.cls:Poll, Data/MailSeen.cls:Trim] -- fixed: a local array passed by reference.
+- [x] [Review][Patch] LOW, fix-risk low, in-story: `Take` treated a `WaitMsg` code of -1 (resource deleted while waiting) as a message [Core/SecretHandoff.cls:Take] -- fixed: only code 1.
+- [x] [Review][Patch] LOW, fix-risk low, in-story: `EmailLive.ItemOf` returned the last item when none was `EmailIn` [EmailLive.cls:ItemOf] -- fixed.
+- [x] [Review][Patch] LOW, fix-risk low, in-story: the stub's `bytes` padding made an HTML-only fixture multipart [ci/mock/mail.mjs:build] -- fixed: an HTML-only message pads its HTML; `ci/mock/test/mail.test.mjs` case added.
+- [x] [Review][Defer] MED, fix-risk low, out-of-footprint: `Data.Purge` can delete the `email.owner` session of a quiet mailbox, after which every email is refused until a re-save [src/ocutalon/cls/OcuTalon/Data/Purge.cls] -- deferred: DW-1154 routed owner=burndown.
+- [x] [Review][Defer] LOW: an offered secret whose web process dies between Put and its discard stays in memory until restart [Core/SecretHandoff.cls] -- deferred: DW-1155 wontfix-theoretical.
+- [x] [Review][Defer] LOW: a UIDL over 70 characters cannot be recorded, so its email repeats [Data/MailSeen.cls] -- deferred: DW-1156 wontfix-theoretical (RFC 1939 caps UIDLs at 70).
+
+Rejected:
+- the stored password is kept when the server or user changes -- matrix row 2 (spec-bound; also Blind 6 of the build review).
+- no marker in the Item when a body is dropped or cut -- new text; row 11 prescribes headers only and the 10,000-character cut.
+- the address help says OcuTalon emails the address before SMTP ships -- the accepted 35.2 key; Story 21.6 ships sending in the same release.
+- the server field has no format help -- would be new public text.
+- an empty SessionRef from origin system leaves the owner empty -- no producer sends `channels` from system; a guard for an unreachable case.
+- a changed server, port or user re-baselines the mailbox -- Decided in-stage (2): the identity is the hash of server, port and user.
+- the spec's `deferred:` list and S3's "10 per poll" are stale; the spine's AD-19 bullet carries both markers -- spec and spine text, not code (lead and integrate-forward).
+- `EmailLive.Poll` can count the first TLS poll -- each test then waits for its own mark or decision; `TestPasswordOnlyInTheCredential` now asserts its last poll read the mailbox.
+- TIMEOUT bounds a read, not a poll -- DW-1142 (already ledgered, this story).
+
 ## Spec Change Log
 
 - 2026-11-11 (lead, spec gate, before implement): Planner and orchestrator rulings applied (Design Notes, "Spec gate rulings"): shared `SecretHandoff` interface (Put/Take) and the V1 fallback; 50 emails per poll; budget, request-size, silent-baseline and injection ACs and tasks; V5 grant measurement (Task 0 f); V7 restated; P3 sentence added.
@@ -332,6 +366,25 @@ Lane C variables on every `ci/` call (worktree root): `OCUTALON_LOCK_DIR="$(dirn
 - Review pass additions (each applied, red observed, reverted): `StripTags` without `DropBlocks` -> `EmailIn` `TestStripTagsIsLinear` and `TestLargeAndHtmlMail` red; `MailSeen.Trim` a no-op -> `TestGoneMail` red; `NEWMAX` 500 -> `TestNewMail` red; `SslFor` returns "" -> `SettingsEmail` `TestTlsFollowsThePort` and `TestFirstSave` red; `Setting.Fresh` reads the cache -> `Test.Data.Setting` `TestFreshIgnoresTheCache` red; the stub's DELE counted as 0 -> `ci/mock/test/mail.test.mjs` red; `emailBody` always sends the password -> `web/scripts/email-view.test.mjs` red; `Adapter.Read` never headers-only -> `EmailLive` `TestHtmlLargeAndEncodedMail` red; `EmailIn` Item `Provenance` "trusted" -> `TestSuspiciousEmailActsOnNothing` red; `EmailIn` Item `SessionRef` empty -> `email.spec.ts` E2 (its E3 part, "the owner's state holds the email's decision") red on a fresh stack; `EmailValues` `passwordSet` always false -> E2 red ("the channels hold the saved values"). `TestSaveAndFirstPoll`'s wait is for the first poll's own sentence (no mutation needed: it fails on timeout).
 - AC 10 (V5): measured, see Measured (f); no mutation applies.
 - AC 11 (footprint): `git status --short` lists no Lane A path.
+
+**QA additions (QA stage; no new test file, two existing test files extended; each mutation applied, red observed, reverted, the tree byte-identical to before it):**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Channel/EmailLive.cls` `TestCappedDayGivesDailyCapForAnEmailItem` (closes DW-1140, AC 8): the email goes through the real service (recording subclass) to an Item, `Intake.RequestFor` makes its decide request, and `Decide.Precheck` with a key present gives "" on an open day and `daily_cap` on a capped day. mutation: `Intake.RequestFor` sets `Channel` to "web" -> `TestCappedDayGivesDailyCapForAnEmailItem` red ("Intake makes the decide request of the Item, with channel email"); the test's `Cap()` call removed -> the same test red ("on a capped day it gives daily_cap"). Runs in `lane-a@Channel` (group `production`); about 0.1 s, throwaway/CI only.
+- (QA) `web/e2e/settings/email.spec.ts` E4 (closes DW-1141): the admin types an address holding `@{` with valid other fields, saves, and the address field shows the accepted `refusedExpansion` text, is `aria-invalid`, no other field is named, no saved text, GET shows no address and no password set, and no hand-off resource or `email.address` key is left. mutation: `fieldErrorText` always returns the `failed` text -> E4 red.
+- (QA) `web/e2e/settings/email.spec.ts` E2, second-session block (route rule for `POST /v1/settings/channels` and the GET's `channels` section): the LIVE fixture user (OcuTalonUser only) gets 403 on GET `/v1/settings` with none of the owner's mailbox in the body and 403 on POST `/v1/settings/channels`, and the admin's saved mailbox is unchanged. The rest of the rule was already pinned: LIVE 403 on POST (E1, S8), README admin 200 (E2), GET 403 for LIVE (S8). mutation: the admin gate of `OnPreDispatch` skipped once a mailbox exists (`email.address` row) -> E2 red at "the other session's GET /v1/settings is 403" (the gate removed for the channels URL alone -> E1 red, as recorded above).
+- Run: `ci/iris.sh live sign-in-2 --part 13/15` (12 of 12 on a fresh stack; the part holds `session/session.spec.ts` and `settings/email.spec.ts`); `EmailLive` 29 s green on a warm stack.
+
+**Code review additions (each mutation applied, red observed, reverted, the tree byte-identical to before it; warm `e21s2rw`, fresh `e21s2r`):**
+- `Adapter.OnTask` no longer resets `%WaitForNextCallInterval` -> `Test.Channel.EmailIn` `TestWaitsForTheNextInterval` red.
+- `Adapter.Read` without the READTRIES fallback -> `TestUnreadableEmailIsReadAsHeaders` red.
+- `ConnectReason` without the `-ERR` check -> `TestFailedPoll` red (the empty and the IMAP greeting).
+- the poll's `StopAsked` check removed -> `TestStopEndsThePollBetweenEmails` red.
+- `SaveChannels` without the password type check -> `Test.Web.SettingsApi` `TestChannelsRoute` red (the value reached the SaveSettings message).
+- `WriteCredential`'s user-only branch writes an empty password (SettingsOps item restarted) -> `EmailLive` `TestUserChangeKeepsThePassword` red.
+- `Intake.RequestFor` sets Provenance "user" -> `EmailLive` `TestSuspiciousEmailActsOnNothing` red.
+- the test's `Cap()` removed (key present) -> `EmailLive` `TestSpentBudgetStillDecides` red (no `daily_cap`).
+- `PlainStub()` removed from `TestPasswordOnlyInTheCredential` -> red ("the last poll read the mailbox").
+- the stub pads `text` for an HTML-only message -> `ci/mock/test/mail.test.mjs` red.
+- Runs: `EmailIn`, `SecretHandoff`, `SettingsApi`, `SettingsEmail`, `EmailLive` (30 s) green on warm; `node --test ci/mock/test/` 143 pass, `web/scripts` 1915 pass, `tsc -p tsconfig.e2e.json` clean; `ci/iris.sh live sign-in-2 --part 13/15` 12 of 12 on fresh (E2/E4 now start from no mailbox); `test-class-rules.sh`, `test-boundaries.sh` pass. Both stacks torn down.
 
 ## Auto Run Result
 

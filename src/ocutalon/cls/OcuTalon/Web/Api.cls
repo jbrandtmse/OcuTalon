@@ -906,8 +906,9 @@ ClassMethod SaveCheckThresholds() As %Status
 }
 
 /// POST /v1/settings/channels (Story 21.2): see the class description. On the online demo it answers 409 not_available before the body is read. The
-/// body is a JSON object, and anything else is 400 bad_settings with no field and nothing offered or submitted. A password that is a non-empty
-/// string of more than PASSWORDMAX characters is 400 bad_settings with fields ["password"], nothing offered. Any other non-empty string password
+/// body is a JSON object, and anything else is 400 bad_settings with no field and nothing offered or submitted. A password that is present but not
+/// a JSON string, or a string of more than PASSWORDMAX characters, is 400 bad_settings with fields ["password"], nothing offered or submitted, so
+/// that no password value ever reaches the command. Any other non-empty string password
 /// is offered to SecretHandoff and replaced in the body by its reference; the SaveSettings command (slug channels, origin web_admin, the IRIS user of
 /// the call, the CSP session's Ref) carries only that reference. Whatever the submit answers, or throws, the reference is then taken with no wait and
 /// the value discarded (a Take of a reference that SettingsOps already took fails harmlessly). The answers are those of Answer.
@@ -915,8 +916,9 @@ ClassMethod SaveChannels() As %Status
 {
 	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 Quit ..Fail(409, "not_available", ..#MESSAGENOTAVAILABLE)
 	If '..SettingsBody(.body) Quit ..BadSettings([])
-	Set password = $Select(body.%GetTypeOf("password") = "string": body.password, 1: "")
-	If $Length(password) > ..#PASSWORDMAX {
+	Set type = body.%GetTypeOf("password")
+	Set password = $Select(type = "string": body.password, 1: "")
+	If ((type '= "string") && (type '= "unassigned")) || ($Length(password) > ..#PASSWORDMAX) {
 		Kill password
 		Quit ..BadSettings(["password"])
 	}

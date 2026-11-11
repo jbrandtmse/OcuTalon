@@ -78,19 +78,16 @@ ClassMethod Uidls(mailbox As %String) As %List
 	Quit list
 }
 
-/// Deletes the rows of the mailbox whose Uidl is not in listed (a list of Uidls; the marker stays) and every row of any other mailbox;
-/// returns the first error status or OK.
-ClassMethod Trim(mailbox As %String, listed As %List) As %Status
+/// Deletes the rows of the mailbox whose Uidl is not listed (listed(uidl) defined for each listed Uidl, so that a mailbox of any size fits;
+/// the marker stays) and every row of any other mailbox; returns the first error status or OK.
+ClassMethod Trim(mailbox As %String, ByRef listed) As %Status
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, Mailbox, Uidl FROM OcuTalon_Data.MailSeen")
 	If result.%SQLCODE < 0 Quit $$$ERROR($$$SQLError, result.%SQLCODE, result.%Message)
-	Set count = 0, position = 0
-	While $ListNext(listed, position, one) {
-		Set present(one) = ""
-	}
+	Set count = 0
 	While result.%Next() {
 		Set uidl = result.%GetData(3)
-		If (result.%GetData(2) = mailbox) && ((uidl = ..#MARKER) || $Data(present(uidl))) Continue
+		If (result.%GetData(2) = mailbox) && ((uidl = ..#MARKER) || ((uidl '= "") && $Data(listed(uidl)))) Continue
 		Set ids($Increment(count)) = result.%GetData(1)
 	}
 	Set sc = $$$OK

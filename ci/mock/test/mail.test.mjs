@@ -8,6 +8,7 @@ import net from 'node:net';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { build } from '../mail.mjs';
 import { spawnServer } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -201,6 +202,13 @@ test('a message over a size is built from a small request, and a non-ASCII messa
     assert.ok(body.lines.includes('Content-Transfer-Encoding: base64'));
     c.close();
   });
+});
+
+test('an HTML-only message padded to a size stays HTML-only and reaches the size', () => {
+  const built = build({ uidl: 'h', subject: 'Html', html: '<p>only html</p>', bytes: 4000 });
+  assert.ok(built.raw.includes('Content-Type: text/html; charset=utf-8'));
+  assert.ok(!built.raw.includes('multipart/alternative'));
+  assert.ok(built.size > 3500, `the size is ${built.size}`);
 });
 
 test('a message with a plain and an HTML body is multipart/alternative, plain part first', async () => {

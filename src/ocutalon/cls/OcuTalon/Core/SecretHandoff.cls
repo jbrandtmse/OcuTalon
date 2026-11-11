@@ -58,7 +58,7 @@ ClassMethod Take(uri As %String, Output secret As %String, timeoutSec As %Intege
 		If $SYSTEM.Event.Defined(resource) {
 			Set message = $SYSTEM.Event.WaitMsg(resource, +$Get(timeoutSec))
 			Do $SYSTEM.Event.Delete(resource)
-			If +$List(message, 1) {
+			If $ListGet(message, 1) = 1 {
 				Set secret = $List(message, 2)
 				Set found = 1
 			}

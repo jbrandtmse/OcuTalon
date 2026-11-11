@@ -11,8 +11,9 @@ import { chk, fixtureUser, irisScript } from '../support/iris';
  * the live fixture user (OCUTALON_LIVE_USER) holds OcuTalonUser only. The CI mock's POP3 stub is at mock:1110 inside the compose network, and the mailbox the
  * test saves uses it with the dummy password of the run (random, never printed, never sent to a script). The save writes SSLConfig OcuTalonClient (TLS, never
  * plain), so the plain stub is polled over TLS and the poll fails with the "couldn't reach" sentence: that is the recorded outcome the test waits for.
- * The cases leave the stack as they found it: the mailbox is removed again (the credential, the settings rows of EmailIn, the keys email.address and
- * email.owner, the seen rows, the emailPoll mark and the test's decisions).
+ * E2 and E4 start from no mailbox (they remove one first, the emailPoll mark included, so that E2's recorded poll is its own save's) and leave the
+ * stack as they found it: the mailbox is removed again (the credential, the settings rows of EmailIn, the keys email.address and email.owner, the
+ * seen rows, the emailPoll mark and the test's decisions).
  *   - E1: a user without OcuTalonAdmin gets 403 not_admin from POST /v1/settings/channels, and nothing is offered to the hand-off, submitted or written;
  *   - E2: an admin fills the Email group in and saves: the page shows the saved text, GET /v1/settings shows passwordSet true and holds no password, a reload
  *     shows an empty password field and "Saved, and never shown again. Type a new value to replace it.", and EmailIn runs and has recorded a poll;
@@ -104,6 +105,7 @@ test('E1: a user without OcuTalonAdmin is refused by POST /v1/settings/channels'
 /** E2 and E3: the admin connects the mailbox from the page; a second session never sees the owner's email items. */
 test('E2: an admin connects a mailbox from Settings > Channels, and the password is never shown again', async ({ page, playwright }) => {
   const dummy = `Zz-e2e-${randomBytes(9).toString('hex')}`;
+  await removeMailbox();
   await openChannels(page);
   try {
     const group = page.locator('section[data-section="email"]');
@@ -159,6 +161,15 @@ test('E2: an admin connects a mailbox from Settings > Channels, and the password
       const state = await other.get('/ocutalon/api/v1/state');
       expect(state.status(), "the other session's state").toBe(200);
       expect((await state.text()).includes(subject), "holds no email item of the owner's mailbox").toBe(false);
+      // QA (21.2): the second session reads none of the saved mailbox through the settings route and cannot replace it through the channels route.
+      const settings = await other.get(SETTINGS);
+      expect(settings.status(), "the other session's GET /v1/settings is 403").toBe(403);
+      const settingsText = await settings.text();
+      expect(settingsText.includes('e2e@example.com') || settingsText.includes('mock:1110') || settingsText.includes('passwordSet'), "and holds none of the owner's mailbox").toBe(false);
+      const replace = await other.post(CHANNELS, { headers: envelope(), data: { address: 'live@example.com', incoming: 'mock:1110', user: 'live', password: 'not-a-real-password' } });
+      expect(replace.status(), "the other session's POST /v1/settings/channels is 403").toBe(403);
+      const kept = await page.request.get(SETTINGS);
+      expect((JSON.parse(await kept.text()) as { sections: { channels: Channels } }).sections.channels, "and the owner's saved mailbox is as it was").toEqual({ address: 'e2e@example.com', incoming: 'mock:1110', user: 'e2e', passwordSet: true });
     } finally {
       await other.dispose();
     }
@@ -167,3 +178,31 @@ test('E2: an admin connects a mailbox from Settings > Channels, and the password
   }
 });
 
+/** E4 (QA, DW-1141): a value that holds @{ is refused by the form: the field shows the ruled text, nothing is saved and nothing is offered to the hand-off. */
+test('E4: a value holding @{ is refused with the setting-reference text, and nothing changes', async ({ page }) => {
+  const REFUSED = "This can't contain @{, which IRIS would read as a reference to a setting. Nothing was changed.";
+  await removeMailbox();
+  await openChannels(page);
+  try {
+    const before = await counts();
+    const group = page.locator('section[data-section="email"]');
+    await expect(group.getByRole('heading', { level: 3, name: 'Email', exact: true }), 'the Email group heading').toBeVisible();
+    await group.getByLabel('Your email address', { exact: true }).fill('e2e-@{env:PATH}@example.com');
+    await group.getByLabel('Incoming mail server (POP3)', { exact: true }).fill('mock:1110');
+    await group.getByLabel('User name', { exact: true }).fill('e2e');
+    await group.getByLabel('Password', { exact: true }).fill(`Zz-e2e-${randomBytes(9).toString('hex')}`);
+    await group.getByRole('button', { name: 'Save changes', exact: true }).click();
+    const error = group.locator('#email-address-error');
+    await expect(error, 'the address field shows the setting-reference text').toHaveText(REFUSED);
+    await expect(group.getByLabel('Your email address', { exact: true }), 'the field is marked invalid').toHaveAttribute('aria-invalid', 'true');
+    await expect(group.locator('#email-incoming-error, #email-user-error, #email-password-error'), 'no other field is named').toHaveCount(0);
+    await expect(group.locator('p.saved'), 'no saved text shows').toHaveCount(0);
+    const response = await page.request.get(SETTINGS);
+    const channels = (JSON.parse(await response.text()) as { sections: { channels: Channels } }).sections.channels;
+    expect(channels.passwordSet, 'no password was stored').toBe(false);
+    expect(channels.address, 'and no address').toBe('');
+    expect(await counts(), 'nothing was left offered to the hand-off, and no key was written').toMatchObject({ handoffs: before.handoffs, keys: before.keys });
+  } finally {
+    await removeMailbox();
+  }
+});

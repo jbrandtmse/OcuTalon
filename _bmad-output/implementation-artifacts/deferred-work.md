@@ -6910,3 +6910,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: %Net.POP3 GetMessageUIDArray loops until the lone dot; not measured (unverified)
 - 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=settle with the stub answering UIDL partly then going silent
+
+### DW-1154: EmailIn: Data.Purge can delete the email.owner session of a quiet mailbox; then EmailIn refuses every email (no owner session) and every poll fails with P1c until an admin saves the mailbox again
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Purge.Keeps counts a session current by sign-in, pairing, requests, watches and reminders, not email.owner; In.OnProcessInput then answers ERROROWNER for every email (Channel/Email/In.cls:38). Mail stays on the server and is read after the next save.
+- 2026-11-11T14:53:35Z status=routed owner=burndown by=cr note=fix: Data/Purge.cls Keeps treats the email.owner session as current (Lane B, outside Epic 21 footprint)
+
+### DW-1155: SecretHandoff: an offered secret whose caller dies between Put and its discard Take stays in the event resource until IRIS restarts; nothing expires it
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Take deletes the resource; the route always discards with Take(uri,.d,0); only a killed CSP process between Put and that Take leaves it (shared memory, never a global or disk).
+- 2026-11-11T14:53:35Z status=wontfix-theoretical owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=cr note=real if a web process is killed mid-save; a TTL sweep (35.3 Discard at integrate-forward) would close it
+
+### DW-1156: EmailIn: a UIDL over 70 characters cannot be recorded in Data.MailSeen, so that email is delivered again at every poll (or the baseline never completes)
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: MailSeen.Uidl MAXLEN 70; Adapter records after Deliver, so a failed Record repeats the email. RFC 1939 caps a UIDL at 70 printable characters.
+- 2026-11-11T14:53:35Z status=wontfix-theoretical owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=cr note=real only for a POP3 server that breaks RFC 1939's 70-character UIDL limit

@@ -10,15 +10,19 @@ Include Ensemble
 ///   - a mailbox that is new to EmailIn (Data.MailSeen holds no baseline marker for its identity, the hash of server, port and user name)
 ///     is baselined: every listed UIDL is recorded seen (Baseline 1) and no Item is made, so only mail that arrives afterwards is read;
 ///   - otherwise every listed UIDL with no row is new; the oldest NEWMAX of them go on (the rest wait for the next poll). A new email
-///     over MAXBYTES (the LIST size) is read as headers only (Sender and Subject, an empty Text); any other is fetched. The Mail
+///     over MAXBYTES (the LIST size) is read as headers only (Sender and Subject, an empty Text), and so is one whose whole read failed in
+///     READTRIES polls of this job; any other is fetched. The Mail
 ///     (Sender, Subject, Text: the plain part, else the HTML part with its tags removed, cut to the size of the simulated mailbox)
 ///     goes to the service through Deliver, and its UIDL is recorded seen when the service took it. A refusal stops the poll, and what was
-///     recorded stays;
+///     recorded stays; a refused hand-off is the service's (no owner session, no send) and is tried again at the next poll. When the
+///     production asks the item to stop (StopAsked), the poll ends after the email in hand, as a good poll, and the rest wait for the next;
 ///   - after a poll that reached its end the rows of mail that is no longer listed, and every row of another mailbox, are deleted;
 ///   - QUIT: the connection is closed with no DELE ever sent.
 /// Every poll ends with the status mark emailPoll (StatusMark.Record): {at, ok, reason, lastOkAt}. The reason of a failed poll is one of
 /// three plain sentences and never holds server text, an address or a credential: REASONUNREACHABLE when the connection or the TLS
-/// handshake failed, REASONREFUSED when the server answered -ERR to the log-in (USER or PASS), REASONUNREADABLE for any other failure.
+/// handshake failed or the server did not greet as a POP3 server (another protocol, or no greeting in time), REASONREFUSED when it answered
+/// -ERR while connecting (to USER, PASS or STLS), REASONUNREADABLE for any other failure. A poll that handed an email on still waits
+/// CallInterval for the next one (the framework would otherwise poll again at once), so at most NEWMAX emails go on per interval.
 /// OnTask returns OK for a failed poll too, logging the reason as a warning and nothing else, because the framework would log the
 /// text of an error status, and that text can hold the server's words.
 Class OcuTalon.Channel.Email.Adapter Extends EnsLib.EMail.InboundAdapter
@@ -43,8 +47,14 @@ Parameter REASONUNREADABLE = "OcuTalon couldn't read the mailbox.";
 /// The status code of a POP3 server's -ERR answer ($$$POP3Error).
 Parameter POP3ERROR = 6015;
 
+/// The polls in a row that may fail to read one new email whole; after them it is read as headers only, as an email over MAXBYTES is.
+Parameter READTRIES = 3;
+
+/// The failed whole reads of a new email in this job, by UIDL.
+Property ReadFailures As %String [ MultiDimensional, Private ];
+
 /// The read timeout of the POP3 connection, in seconds (the class's default is 30): under the 10 seconds that a production update waits for an
-/// item to stop, so that a poll stuck in a connection or a read ends in time for the update.
+/// item to stop, so that one read that hangs ends in time for the update; between emails the poll ends early when a stop is asked (StopAsked).
 Parameter TIMEOUT = 8;
 
 Method OnInit() As %Status
@@ -65,6 +75,7 @@ Method OnTask() As %Status
 		Set ok = 0
 		Set reason = ..#REASONUNREADABLE
 	}
+	If $IsObject(..BusinessHost) Set ..BusinessHost.%WaitForNextCallInterval = 1
 	Try {
 		If ..MailServer.Connected Do ..MailServer.QuitAndCommit()
 	} Catch {
@@ -111,9 +122,9 @@ Method Poll(Output reason As %String, Output handed As %Integer, Output baseline
 		Set reason = ..#REASONUNREADABLE
 		Quit 0
 	}
-	Set listed = ""
+	Kill listed
 	For n = 1:1:uids.Count() {
-		Set listed = listed_$ListBuild(uids.GetAt(n))
+		If uids.GetAt(n) '= "" Set listed(uids.GetAt(n)) = ""
 	}
 	If '##class(OcuTalon.Data.MailSeen).Baselined(mailbox) {
 		For n = 1:1:uids.Count() {
@@ -122,7 +133,7 @@ Method Poll(Output reason As %String, Output handed As %Integer, Output baseline
 			Set baseline = baseline + 1
 		}
 		If $$$ISOK(sc) Set sc = ##class(OcuTalon.Data.MailSeen).Record(mailbox, ##class(OcuTalon.Data.MailSeen).#MARKER, 1)
-		If $$$ISOK(sc) Set sc = ##class(OcuTalon.Data.MailSeen).Trim(mailbox, listed)
+		If $$$ISOK(sc) Set sc = ##class(OcuTalon.Data.MailSeen).Trim(mailbox, .listed)
 		If $$$ISERR(sc) {
 			Set reason = ..#REASONUNREADABLE
 			Quit 0
@@ -143,6 +154,7 @@ Method Poll(Output reason As %String, Output handed As %Integer, Output baseline
 	}
 	Set position = 0
 	While $ListNext(new, position, n) {
+		If ..StopAsked() Quit
 		Set uidl = uids.GetAt(n)
 		Set sc = ..Read(n, uidl, +sizes.GetAt(n), .mail)
 		If $$$ISOK(sc) Set sc = ..Deliver(mail)
@@ -155,7 +167,7 @@ Method Poll(Output reason As %String, Output handed As %Integer, Output baseline
 		Set handed = handed + 1
 	}
 	If reason '= "" Quit 0
-	If $$$ISERR(##class(OcuTalon.Data.MailSeen).Trim(mailbox, listed)) {
+	If $$$ISERR(##class(OcuTalon.Data.MailSeen).Trim(mailbox, .listed)) {
 		Set reason = ..#REASONUNREADABLE
 		Quit 0
 	}
@@ -163,18 +175,20 @@ Method Poll(Output reason As %String, Output handed As %Integer, Output baseline
 }
 
 /// The plain reason of a failed connection: the server's -ERR answer (to USER, PASS or STLS) is the refusal; a refused or lost connection, a
-/// TLS failure and every other failure of the connection is "couldn't reach".
+/// TLS failure, a greeting that is not POP3's (another protocol on the port, or none in time) and every other failure of the connection is
+/// "couldn't reach". The status text is read here only and never kept.
 ClassMethod ConnectReason(sc As %Status) As %String
 {
-	Quit $Select($SYSTEM.Status.Equals(sc, ..#POP3ERROR): ..#REASONREFUSED, 1: ..#REASONUNREACHABLE)
+	Quit $Select($SYSTEM.Status.Equals(sc, ..#POP3ERROR) && ($SYSTEM.Status.GetErrorText(sc) [ ": -ERR"): ..#REASONREFUSED, 1: ..#REASONUNREACHABLE)
 }
 
-/// Reads email n (UIDL uidl, size bytes) into the Mail: the whole email when it is within MAXBYTES, else its headers only.
+/// Reads email n (UIDL uidl, size bytes) into the Mail: the whole email when it is within MAXBYTES and its whole read has not failed READTRIES
+/// times, else its headers only.
 Method Read(n As %Integer, uidl As %String, size As %Integer, Output mail As OcuTalon.Channel.Email.Mail) As %Status [ Private ]
 {
 	Set mail = ##class(OcuTalon.Channel.Email.Mail).%New()
 	Set mail.Uidl = uidl
-	If size > ..#MAXBYTES {
+	If (size > ..#MAXBYTES) || ($Get(..ReadFailures(uidl)) >= ..#READTRIES) {
 		Set sc = ..MailServer.FetchMessageHeaders(n, .headers)
 		If $$$ISERR(sc) Quit sc
 		Set mail.Sender = ..Line($Get(headers("from")))
@@ -182,7 +196,11 @@ Method Read(n As %Integer, uidl As %String, size As %Integer, Output mail As Ocu
 		Quit $$$OK
 	}
 	Set sc = ..MailServer.Fetch(n, .message)
-	If $$$ISERR(sc) Quit sc
+	If $$$ISERR(sc) {
+		Set ..ReadFailures(uidl) = $Get(..ReadFailures(uidl)) + 1
+		Quit sc
+	}
+	Kill ..ReadFailures(uidl)
 	Set mail.Sender = ..Line(message.From)
 	Set mail.Subject = ..Line(message.Subject)
 	Set mail.Text = ..TextOf(message)
@@ -277,6 +295,12 @@ ClassMethod DropTags(text As %String) As %String [ Private ]
 		Set from = close
 	}
 	Quit out_$Extract(text, from, *)
+}
+
+/// 1 when the production asks this job to stop or to be quiescent (an update that restarts the item, a production stop). A test subclass overrides it.
+Method StopAsked() As %Boolean [ Private ]
+{
+	Quit ##class(Ens.Job).ShouldBeQuiescent() || ##class(Ens.Job).ShouldTerminate()
 }
 
 /// Hands the Mail to the service of the item. A test subclass overrides it.

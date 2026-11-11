@@ -14,6 +14,12 @@
 ///   - TestGoneMail: a UIDL that is no longer listed has its row deleted after a successful poll, and so has every row of another mailbox;
 ///   - TestDeleteIsNeverHonoured: the DeleteMessage setting is forced to 0, whatever it was, and no poll deletes;
 ///   - TestNoRepeatAfterFailure: an email whose hand-off failed is not recorded seen and goes on at the next poll;
+///   - TestUnreadableEmailIsReadAsHeaders (DW-1138): an email whose whole read fails in 3 polls in a row is read as headers only at the 4th, so the
+///     mail after it is not held up and nothing is dropped;
+///   - TestStopEndsThePollBetweenEmails: when the production asks the item to stop, the poll ends after the email in hand as a good poll, and the
+///     rest go on at the next poll;
+///   - TestWaitsForTheNextInterval: a poll that handed emails on leaves the business host waiting CallInterval for the next poll (RULED V-COST: at
+///     most 50 per interval), although the hand-off cleared the flag;
 ///   - TestServiceItem (row 9): the service sends one Item to Intake for an email: channel email, provenance untrusted, the owner from the email.owner row, the
 ///     three fields, every other field empty, the SuperSession the owner's TraceRef; the text is cut to the size of the simulated mailbox's body (RULED V-COST);
 ///   - TestServiceRefusals: an input that is no email, an email with no UIDL, no owner or an owner without a session row, and a failed send, are error statuses and
@@ -209,7 +215,7 @@ Method TestFailedPoll()
 	Do ..Mail("u1")
 	Do adapter.OnTask()
 	Set okAt = ..Mark().at
-	Set cases = $ListBuild("ConnectPort|6012|"_..#UNREACHABLE, "ConnectPort|6013|"_..#UNREACHABLE, "ConnectPort|6085|"_..#UNREACHABLE, "ConnectPort|6015|"_..#REFUSED, "ConnectPort|6018|"_..#UNREACHABLE, "GetMessageUIDArray|6015|"_..#UNREADABLE, "GetMessageUIDArray|6014|"_..#UNREADABLE)
+	Set cases = $ListBuild("ConnectPort|6012|"_..#UNREACHABLE, "ConnectPort|6013|"_..#UNREACHABLE, "ConnectPort|6085|"_..#UNREACHABLE, "ConnectPort|6015~-ERR SERVER-WORDS zzserver@example.com|"_..#REFUSED, "ConnectPort|6015~|"_..#UNREACHABLE, "ConnectPort|6015~* OK SERVER-WORDS IMAP ready|"_..#UNREACHABLE, "ConnectPort|6018|"_..#UNREACHABLE, "GetMessageUIDArray|6015|"_..#UNREADABLE, "GetMessageUIDArray|6014|"_..#UNREADABLE)
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Kill ^||OcuTalonEmailInPop3("answer")
@@ -270,6 +276,66 @@ Method TestNoRepeatAfterFailure()
 	Do adapter.OnTask()
 	Do $$$AssertEquals(..Delivered(), 4, "u5 goes on at the next poll")
 	Do $$$AssertEquals($List(..Handed(4), 1), "u5", "it is u5")
+}
+
+/// DW-1138: an email whose whole read fails in READTRIES polls in a row is read as headers only at the next, and the mail after it goes on.
+Method TestUnreadableEmailIsReadAsHeaders()
+{
+	Set adapter = ..Adapter("unreadable")
+	Do ..Mail("u1")
+	Do adapter.OnTask()
+	Do ..Mail("u2", "Dana <dana@example.com>", "zz cannot be read", "zz body"), ..Mail("u3", "b@example.com", "zz after it", "zz later body")
+	Set ^||OcuTalonEmailInPop3("answer", "Fetch") = 6015
+	For try = 1:1:3 {
+		Do adapter.OnTask()
+		Do $$$AssertEquals(..Delivered()_"|"_..Mark().reason, "0|"_..#UNREADABLE, "poll "_try_": the whole read fails, nothing goes on")
+	}
+	Do $$$AssertEquals(..Count("FetchMessageHeaders"), 0, "control: no headers were read yet")
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Delivered(), 1, "the 4th poll hands it on")
+	Do $$$AssertEquals(..Handed(1), $ListBuild("u2", "Dana <dana@example.com>", "zz cannot be read", ""), "as headers only: its sender and subject, an empty text")
+	Kill ^||OcuTalonEmailInPop3("answer")
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Delivered(), 2, "the next email is not held up")
+	Do $$$AssertEquals(..Handed(2), $ListBuild("u3", "b@example.com", "zz after it", "zz later body"), "and is read whole")
+	Do $$$AssertEquals(..SeenRows(adapter), "u1=1,baseline marker=1,u2=0,u3=0", "both are recorded seen")
+}
+
+/// A stop asked during a poll ends it after the email in hand; the rest go on at the next poll.
+Method TestStopEndsThePollBetweenEmails()
+{
+	Set adapter = ..Adapter("stop")
+	Do ..Mail("u1")
+	Do adapter.OnTask()
+	Do ..Mail("u2"), ..Mail("u3"), ..Mail("u4")
+	Set ^||OcuTalonEmailInAdapter("stopAfter") = 1
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Delivered(), 1, "a stop asked after the first email ends the poll there")
+	Do $$$AssertEquals(..Mark().ok_"|"_..Mark().reason, "1|", "as a good poll")
+	Do $$$AssertEquals(..SeenRows(adapter), "u1=1,baseline marker=1,u2=0", "only the email handed on is recorded")
+	Kill ^||OcuTalonEmailInAdapter("stopAfter")
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Delivered(), 3, "the next poll hands the other two on")
+	Do $$$AssertEquals($List(..Handed(2), 1)_","_$List(..Handed(3), 1), "u3,u4", "in order")
+}
+
+/// RULED V-COST: a poll that handed emails on leaves the host waiting CallInterval for the next poll.
+Method TestWaitsForTheNextInterval()
+{
+	Set adapter = ..Adapter("interval")
+	Set adapter.BusinessHost = ..Service()
+	Do ..Mail("u1")
+	Do adapter.OnTask()
+	Do ..Mail("u2")
+	Set adapter.BusinessHost.%WaitForNextCallInterval = 1
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Delivered(), 1, "control: an email was handed on, which clears the flag")
+	Do $$$AssertEquals(adapter.BusinessHost.%WaitForNextCallInterval, 1, "the host still waits CallInterval for the next poll")
+	Set ^||OcuTalonEmailInAdapter("fail") = 1
+	Do ..Mail("u3")
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Mark().ok, 0, "control: a refused hand-off fails the poll")
+	Do $$$AssertEquals(adapter.BusinessHost.%WaitForNextCallInterval, 1, "and the next try waits CallInterval too")
 }
 
 /// A UIDL that is no longer listed has its row deleted after a good poll, and so has every row of another mailbox.

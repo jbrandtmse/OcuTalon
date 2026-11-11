@@ -3,7 +3,8 @@
 ///   - ("mail", n) = $ListBuild(uidl, from, subject, text, html, size, parts) is email n (1, 2, ...): text is the plain body, html the HTML body, size the
 ///     number of octets that LIST reports (0 for the length of the text), and parts 1 for a multipart/alternative email with both bodies;
 ///   - ("answer", step) = a status code or "": ConnectPort, GetMessageUIDArray, GetSizeOfMessages, FetchMessageHeaders, Fetch and QuitAndCommit answer
-///     an error status with that code and the text "SERVER-WORDS zzserver@example.com" (server text, an address) when the step has a code;
+///     an error status with that code and the text "SERVER-WORDS zzserver@example.com" (server text, an address) when the step has a code; "code~line"
+///     answers that code with the server's line instead, as %Net.POP3 reports a POP3 answer (the line may be empty);
 ///   - ("calls", name) counts the calls of each method, ("fetched", n) the emails that Fetch read whole and ("headers", n) those that
 ///     FetchMessageHeaders read; ("connect") = $ListBuild(server, port, user) of the last ConnectPort (the password is never recorded).
 /// The product never refers to it.
@@ -18,8 +19,9 @@ ClassMethod Count(name As %String) As %Integer
 ClassMethod Fails(step As %String) As %Status [ Private ]
 {
 	Set ^||OcuTalonEmailInPop3("calls", step) = $Get(^||OcuTalonEmailInPop3("calls", step)) + 1
-	Set code = $Get(^||OcuTalonEmailInPop3("answer", step))
-	Quit $Select(code = "": $$$OK, 1: $SYSTEM.Status.Error(code, "SERVER-WORDS zzserver@example.com"))
+	Set answer = $Get(^||OcuTalonEmailInPop3("answer", step))
+	Set code = $Piece(answer, "~", 1)
+	Quit $Select(code = "": $$$OK, 1: $SYSTEM.Status.Error(code, $Select(answer [ "~": $Piece(answer, "~", 2, *), 1: "SERVER-WORDS zzserver@example.com")))
 }
 
 Method ConnectPort(PopServer As %String, PopPort As %Integer = 110, UserName As %String, Password As %String, AccessToken As %String = "") As %Status
