@@ -6906,3 +6906,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner, 1.0.7 RC eval wording ruling, 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 1.0.7 RC eval, 3 real-model attempts: the model refused to save runbook text, cited 'Results runbook / Clearing the queue' and quoted it, but said 'runbook', failing only the phrase check
 - 2026-11-11T11:02:31Z status=routed owner=burndown by=owner note=ruled by the Contest Planner: widen eval/memory-documents-remember's phrase check to document|runbook|file; report-only; Epic 41's eval files; next free lane, ~30 min, after RELEASE DONE
+
+### DW-1143: K29 under sign-in-3 (no model, no CI mock) seeds the queue row instead of running press->turn->start_watch->row end to end
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story(web/e2e/guide/more-to-try-queues.spec.ts)
+- evidence: sign-in-3 has no CI mock; K29 pins press->one prompt (mutation red); Test.Watch.Turns:TestQueuesThroughTheAgent pins prompt->start_watch(kind queues)->row->check event; rail-view.test.mjs and K29 pin the row render
+- 2026-11-11T14:03:12Z status=by-design owner=23-7-watch-queue-backlogs-between-digests by=harvest note=ruling(decide,tier1): AC10's chain is pinned link by link across K29, Test.Watch.Turns and rail-view.test.mjs; recorded in spec Design Notes; reopen only if a browser unit with the CI mock gains a guide case
+
+### DW-1144: ci/mock/scenarios/B/queue-watch-ask.json has no consumer after the K29 rework (K29 no longer runs a chat turn)
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: low | fix-risk: low | footprint: in-story(ci/mock/scenarios/B)
+- evidence: K29 answers the POST itself under sign-in-3; test-mock.sh passes with the file present
+- 2026-11-11T14:03:12Z status=wontfix-accepted owner=23-7-watch-queue-backlogs-between-digests by=harvest note=reopen_if=a mock-scenario consumer check flags it or a CI-mock browser unit gains a guide case (then K29 moves there and uses it)

@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-11-11'
 status: 'done'
 baseline_revision: '0f25251b0ae5eae43b0aa07d217ccb373a77fe97'
-baseline_commit: 'a77f88b478586b2a9f6bc64ed5870e27b3f6156d'
+baseline_commit: '0f25251b0ae5eae43b0aa07d217ccb373a77fe97'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -267,6 +267,8 @@ Rejected:
   - `[false]` `[reject]` Intent audit: reason order for several unread namespaces - the spec fixes "first unread namespace in list order".
 
 ## Design Notes
+
+**AC10 pins after CI rework 1 [ADDED 2026-11-11, Story 23.7, lead ruling (decide, Rule 5 tier 1: the AC's observable outcome is unchanged, only where it is pinned)]:** the sign-in-3 project that runs `guide/` has no model and no CI mock, so K29 answers the message POST and seeds the queue row. AC10's chain is pinned link by link: the press sends the prompt once as the user's own message, aria-disabled while held, no second post (K29, mutation observed); the prompt drives `start_watch` with kind queues to the row and its `check` event (`Test.Watch.Turns:TestQueuesThroughTheAgent`, with `ci/mock/scenarios/A/watch-start-queues.json`); the row renders "Queue-backlog check" with "A check every minute" (`rail-view.test.mjs`, K29). Ledger DW-1143 (by-design), DW-1144 (the unused B scenario, wontfix-accepted).
 
 **Spec-gate rulings [ADDED 2026-11-11, Story 23.7, Contest Planner ruling + orchestrator U7 ruling] (verbatim):**
 
