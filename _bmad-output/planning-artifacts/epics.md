@@ -7352,7 +7352,7 @@ So that I decide which added tools OcuTalon may use, and how.
 
 **Given** the online demo
 **When** anyone signs in
-**Then** only the preconfigured allow-listed servers exist, the demo account sees no settings, and nobody can add or remove a server (FR-47, FR-59, AD-25)
+**Then** MCP settings are off: no MCP endpoint runs on the demo, the demo account sees no settings, nobody can add or remove a server, and the demo says so in a plain line (public text at this story's spec gate) (FR-47, FR-59, AD-25) [AMENDED 2026-11-11, Contest Planner ruling: the online-demo safety rule; no MCP endpoint runs on the demo] (it read: "only the preconfigured allow-listed servers exist, the demo account sees no settings, and nobody can add or remove a server")
 
 ### Story 21.5: Set up source polls and answer tool-call approval requests
 
@@ -7406,7 +7406,7 @@ So that OcuTalon can email me.
 
 ### Story 21.7: Send the daily digest by email
 
-> [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.6. Open point for its spec gate: `Digest.Process` (Lane A) routes the digest only to web, phone and Telegram (ledger DW-820).
+> [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.6. [AMENDED 2026-11-11, Contest Planner ruling Q1] The digest is routed through Notify, which gains the email channel; `Digest.Process` (Lane A) keeps building the content and gets no email knowledge (ledger DW-820).
 
 As an admin,
 I want the daily digest by email,
