@@ -7815,6 +7815,32 @@ So that a suspended item is never left disabled without a governed way back.
 **Then** the spec chooses between (a) a resume raised on the closed incident, which never moves its state, and (b) an incident with an active suspend stays open until a resume or Dismiss (the Planner leans to (b)); either way exactly one approval request with its own dry run is raised, the item is re-checked before running, and a second session or a user outside the incident's ownership scope cannot resume it (FR-26, AD-15, AD-16)
 - DW-1068: After a suspend's incident closes the user cannot ask to resume the item (ledger; routed by merge_gate 2026-11-10)
 
+### Story 23.10: Partner notice and summary polish from the 1.0.7 demo pass
+
+[ADDED 2026-11-11, Contest Planner ruling from the 1.0.7 demo pass] From the Contest Planner's hands-on pass of 1.0.7 on the live demo (ruling text: the orchestrator's `prompts/epic-23-story-2310-ruling.md`). Judge-visible; it runs after Story 23.7 and before Story 23.9.
+
+As a production developer watching the demo's Orders feed,
+I want the partner notice to name the right partner and to match the incident's state, and the incident summary and the status rail to read cleanly,
+So that what OcuTalon drafts and shows is accurate.
+
+**Acceptance Criteria:**
+
+**Given** the online demo's partner contact fixture (Story 23.5)
+**When** the guide's Orders incident drafts a partner notice
+**Then** its recipient is "Orders Partner IT" <it@orders-partner.example> (ruled public text), keyed to the Orders production if the fixture keys contacts by production; the README and EXPERIENCE.md lines that name the recipient and the tests say the same (FR-29)
+
+**Given** an incident that is resolved when its partner notice is drafted
+**When** the draft is written
+**Then** the draft's facts include the incident's state, and the draft instruction carries, verbatim: "If the incident is resolved, say that the affected orders went through after the fix, and don't say that work is still going on or that updates will follow."; an eval or CI mock case shows a resolved incident's draft without "looking into" or "will share updates" (FR-29, AD-16)
+
+**Given** an incident summary (Story 23.6)
+**When** its "Fix:" line is rendered
+**Then** the line ends with its full stop, and its pin says so (FR-30, AD-32)
+
+**Given** an approval request the user rejects
+**When** the status rail's Approval requests refresh
+**Then** the rejected request leaves the rail at once if the cause is a one-line refresh; otherwise the gap is filed in the ledger with its cause (LOW, FR-8)
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.
