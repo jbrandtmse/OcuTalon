@@ -19,7 +19,7 @@
 ///   - TestDraftCompletionRouting (AC12): Decide's answer and its error reach Drafted through the draft's completion key of OnResponse and OnError (an error under another key stays an error, an answer
 ///     under another key does nothing), as the framework calls them;
 ///   - TestStateNeverMoves (AC5, AC9): the approved, rejected, expired and result events of a partner request, on a resolved and on an open (rejected) incident, tell the session and leave the state and the open variant
-///     as they were; approved sends the Execute at once, the others none; on a closed incident each is refused; and such a request is left out of the table's facts, while a repair request still counts;
+///     as they were; approved sends the Execute at once, the others none; on a closed incident (the incident stays closed, nothing is carried out) an approved request is told as result.partnerNotSent with the kind's NOSTART as the reason, a final result is told as it came, and a rejection or an expiry is refused; and such a request is left out of the table's facts, while a repair request still counts;
 ///   - TestNoticeKeys (AC2): Notice.AskedKey and AskedSlots for the kind, and the result notice's slots.
 Class OcuTalon.Test.Fix.PartnerDraft Extends %UnitTest.TestCase
 {
@@ -403,7 +403,7 @@ Method TestStateNeverMoves()
 			If event = "approved" Do $$$AssertEquals(host.Executed.%Get(host.Executed.%Size() - 1).approvalRef, ref, label_": for the request")
 		}
 	}
-	// a closed incident refuses the events
+	// a closed incident stays closed and nothing is carried out: an approved request is told as not sent, with the kind's NOSTART as the reason
 	Set closed = ..Incident(owner, "closed")
 	Set ref = ..Row(owner, closed, "approved", "A notice.")
 	Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(closed)
@@ -417,7 +417,47 @@ Method TestStateNeverMoves()
 	Set outcome.IncidentRef = closed
 	Set outcome.Outcome = "approved"
 	Do $$$AssertStatusOK(host.OnRequest(outcome, .answer), "the outcome is handled")
-	Do $$$AssertEquals(..Count(host.Sent)_"|"_(..Count(host.Executed) - executed), (sent)_"|0", "on a closed incident it tells nobody and sends no Execute")
+	Do $$$AssertEquals(..Count(host.Sent)_"|"_(..Count(host.Executed) - executed), (sent + 1)_"|0", "on a closed incident an approval is told once and sends no Execute")
+	Set note = host.Sent.%Get(host.Sent.%Size() - 1)
+	Do $$$AssertEquals(note.kind_"|"_note.catalogKey_"|"_note.approvalRef, "result|result.partnerNotSent|"_ref, "it is told as a result that did not send, for the request")
+	Do $$$AssertEquals({}.%FromJSON(note.slots).reason, ##class(OcuTalon.Fix.Kind.PartnerWarning).#NOSTART, "with the kind's NOSTART as the reason")
+	Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(closed)
+	Do $$$AssertEquals(stored.State_"|"_stored.OpenVariant, "closed|", "the incident stays closed")
+	Kill stored
+	// the final result of a run that ended after the close is told as it came, and the other events are refused
+	Set sent = ..Count(host.Sent)
+	Set result = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+	Set result.ApprovalRef = ref
+	Set result.IncidentRef = closed
+	Set result.Final = 1
+	Set result.Total = 1
+	Set result.Reason = ##class(OcuTalon.Fix.Executor).#UNUSABLE
+	Do $$$AssertStatusOK(host.OnRequest(result, .answer), "the result is handled")
+	Do $$$AssertEquals(..Count(host.Sent), sent + 1, "a final result after the close is told once")
+	Set note = host.Sent.%Get(host.Sent.%Size() - 1)
+	Do $$$AssertEquals(note.catalogKey_"|"_note.approvalRef, "result.partnerNotSent|"_ref, "as result.partnerNotSent")
+	Do $$$AssertEquals({}.%FromJSON(note.slots).reason, ##class(OcuTalon.Fix.Executor).#UNUSABLE, "with the reason it came with")
+	Set sent = ..Count(host.Sent)
+	Set result.Reason = ""
+	Set result.Completed = 1
+	Do $$$AssertStatusOK(host.OnRequest(result, .answer), "a sent result is handled")
+	Set note = host.Sent.%Get(host.Sent.%Size() - 1)
+	Do $$$AssertEquals(..Count(host.Sent)_"|"_note.catalogKey, (sent + 1)_"|result.partnerSent", "a final result that sent after the close is told as it came")
+	Set sent = ..Count(host.Sent)
+	Set result.Final = 0
+	Do $$$AssertStatusOK(host.OnRequest(result, .answer), "a progress result is handled")
+	Do $$$AssertEquals(..Count(host.Sent), sent, "a result still in progress after the close tells nobody")
+	For event = "rejected", "expired" {
+		Set other = ..Row(owner, closed, event, "A notice.")
+		Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(closed)
+		Set stored.RequestRefs = stored.RequestRefs_","_other
+		Do $$$AssertStatusOK(stored.%Save(), event_": the closed incident lists another request")
+		Kill stored
+		Set outcome.ApprovalRef = other
+		Set outcome.Outcome = event
+		Do $$$AssertStatusOK(host.OnRequest(outcome, .answer), event_": the outcome is handled")
+	}
+	Do $$$AssertEquals(..Count(host.Sent)_"|"_(..Count(host.Executed) - executed), sent_"|0", "a rejection and an expiry after the close tell nobody and send no Execute")
 	// the table's facts
 	Set incident = ..Incident(owner, "resolved")
 	Set partner = ..Row(owner, incident, "pending", "A notice.")

@@ -115,7 +115,8 @@
 ///     error, a fallback, an empty or over-long text, a refused dry run, a failed raise) raises nothing and tells each recipient result.partnerNotDrafted (NotDrafted, no
 ///     ApprovalRef), and a draft that finds a request of the kind waiting by then stops with one Type 4 line and nothing sent. A request of a kind with MOVES 0 never moves the
 ///     incident: Event gives its approved, rejected, expired and result events to Aside, which tells the sessions and sends the Execute for an approved one but keeps the state and
-///     the open variant, refuses them on a closed incident, and Facts leaves such a request out of the table's facts.
+///     the open variant, and Facts leaves such a request out of the table's facts. On a closed incident (Closed) the incident stays closed and nothing is carried out: an approved request
+///     tells each recipient result.partnerNotSent with the kind's NOSTART as the reason, a final result that comes after the close is told as it came, and any other event is refused (Drop).
 ///   - The summary (Story 23.6; AD-15, AD-32): every accepted move into closed (dismiss, closeForReplay, closeQuiet) first builds the incident's summary in code
 ///     (OcuTalon.Watch.Summary, from the incident's rows; no model request), stores it in Summary and sets ClosedAt, in the one save of Move, and then sends one
 ///     Notification of kind summary (catalog key summary.title, Slots {}, the incident's DecisionRef, no ApprovalRef) to each recipient through Tell, before the incident
@@ -1712,19 +1713,41 @@ Method Event(incident As OcuTalon.Data.Incident, event As %String, own As %Strin
 	Quit $$$OK
 }
 
-/// The event of a request of a kind that never moves the incident (MOVES 0; Story 23.5; AD-15): an incident that is closed refuses it (Drop). Otherwise the incident stays in its
+/// The event of a request of a kind that never moves the incident (MOVES 0; Story 23.5; AD-15): an incident that is closed is Closed's. Otherwise the incident stays in its
 /// state and variant, and Move tells each recipient the notification with the incident event whatever the event, and, for approved, the order to carry the fix out goes to FixExecutor
 /// at once (Execute), after the notification. A move that cannot be saved is the error status.
 Method Aside(incident As OcuTalon.Data.Incident, event As %String, own As %String, notification As OcuTalon.Msg.Notification = "") As %Status [ Private ]
 {
-	If incident.State = ..#CLOSED {
-		Do ..Drop(incident.Ref, event, incident.State)
-		Quit $$$OK
-	}
+	If incident.State = ..#CLOSED Quit ..Closed(incident, event, own, notification)
 	Set sc = ..Move(incident, incident.State, incident.OpenVariant, notification)
 	If $$$ISERR(sc) Quit sc
 	If event = ..#APPROVED Do ..Execute(incident, own)
 	Quit $$$OK
+}
+
+/// The event of a request that never moves the incident (MOVES 0) on an incident that is closed: the incident stays closed and nothing is carried out (no Execute). An approved
+/// request is told to each recipient as a result that did not send, with the kind's NOSTART as its reason (ResultNotice, key from Notice.ResultKey); the final result of a run
+/// that ended after the close (the one FixExecutor sends for a request it refused as unusable) is told with the result notice it came with. Any other event is refused (Drop). A move that
+/// cannot be saved is the error status.
+Method Closed(incident As OcuTalon.Data.Incident, event As %String, own As %String, notification As OcuTalon.Msg.Notification = "") As %Status [ Private ]
+{
+	If ..Owns(incident, own, .row) && (event = ..#APPROVED) {
+		Set class = ##class(OcuTalon.Fix.Kind).ForName(row.FixKind)
+		Set result = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+		Set result.ApprovalRef = row.Ref
+		Set result.IncidentRef = incident.Ref
+		Set result.Final = 1
+		Set result.Total = $Select(row.FixTargets = "": 0, 1: $Length(row.FixTargets, ","))
+		Set result.Reason = $Select(class = "": "", 1: $Parameter(class, "NOSTART"))
+		Set notification = ..ResultNotice(incident, row, result)
+	} ElseIf event '= ##class(OcuTalon.Watch.Transitions).#FINISHED {
+		Set notification = ""
+	}
+	If '$IsObject(notification) {
+		Do ..Drop(incident.Ref, event, incident.State)
+		Quit $$$OK
+	}
+	Quit ..Move(incident, incident.State, incident.OpenVariant, notification)
 }
 
 /// 0 when the request's kind never moves the incident (MOVES 0); 1 for every other kind, and for a request whose kind is not registered.

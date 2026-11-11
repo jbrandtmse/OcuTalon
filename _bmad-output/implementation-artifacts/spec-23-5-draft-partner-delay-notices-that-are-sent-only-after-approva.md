@@ -2,8 +2,8 @@
 title: 'Story 23.5: Draft partner delay notices that are sent only after approval'
 type: 'feature'
 created: '2026-11-09'
-status: 'in-progress'
-baseline_revision: '4e7cb8e7c695f5f8b6c71452ff057f57f95599a2'
+status: 'done'
+baseline_revision: '931f012400ec1fc4667ca0251cb64b3772faee5a'
 baseline_commit: '4e7cb8e7c695f5f8b6c71452ff057f57f95599a2'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -11,21 +11,6 @@ context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md'
 warnings: [oversized]
-deferred:
-  - summary: >-
-      A partner request that is approved after its incident was closed is dropped with one Type 4 line: the row stays approved, nothing is sent and the user gets no result (and the Telegram press answer still says it is sending).
-    evidence: |-
-      Spec line "Aside refuses on closed (Drop)" is the ruled behaviour, and a pending partner request does not block closing (MOVES 0, left out of the table's facts), so approve-after-close is reachable: ask, dismiss the incident, then approve. IncidentManager.Aside calls Drop and Quit. What would settle it: a ruling on the user-facing outcome (a new "not sent, the incident is closed" result text, or expiring pending partner requests when the incident closes).
-    location: >-
-      src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:Aside
-    severity: medium
-  - summary: >-
-      Demo.Guide.Compute counts any approved request of the guide's incident for step 4, so a partner notice approved while the repair still waits marks step 4 done early.
-    evidence: |-
-      Recorded by the implement stage (Decided in-stage 19). Demo/Guide.cls is Lane B and not in the AD-33 list, so it was left unchanged. The finish still needs the incident resolved, so the guide cannot finish early. A one-line kind filter (leave MOVES 0 kinds out of step 4) would close it, once the AD-33 list allows the file.
-    location: >-
-      src/ocutalon/cls/OcuTalon/Demo/Guide.cls:Compute
-    severity: medium
 ---
 
 <intent-contract>
@@ -251,8 +236,15 @@ Rejected or closed (appendix):
   - mutation: `result.partnerKept` deleted from `Msg/Catalog/Watch.cls` `Entries` (the product catalog) -> `Test.Channel.TelegramChat:TestNotices` red ("there are 34 Watch notice keys", "there are 40 of them", "TelegramOut has handled all 40 notifications and the answered one", "WebChatOut has handled all 40 notifications and the answered one"); restored byte-identical (`cmp`, `git status --short` and `git diff --stat` unchanged), the class green again on the same warm stack (`e23s5dw`, code review).
 
 **Merge-time rework (iteration 2; Contest Planner merge-time rulings, prompts/epic-23-rulings-235.md):**
-- [ ] [Rework] DW-1109 (ruling 1, fix now): `Demo.Guide.Compute` counts any answered or approved request of the guide's incident for step 4, so a partner notice approved while the repair still waits marks step 4 done early. Add the one-line kind filter in `Demo/Guide.cls` (now on the AD-33 list): a request whose kind never moves the incident (`MOVES` 0, `Fix.Kind`) counts for neither `answered` nor `fixApproved`. Test (in `Test.Demo.Guide`): a partner notice approved while the repair request still waits leaves step 4 not done (and the repair's approval still marks it done). Demonstrated `mutation:` line.
-- [ ] [Rework] DW-1108 (ruling 2, option (a), bounded at about 1 h; existing text verbatim, no new public text): a partner request approved after its incident was closed is no longer dropped silently. Through `IncidentManager.Aside`, the request's recipients are told `result.partnerNotSent` with an EXISTING refusal reason (prefer the kind's own `NOSTART`, "OcuTalon couldn't deliver the delay notice"; never a new sentence), and nothing is sent (no Execute, no PartnerNotice, no SimMailbox row). The same telling covers a partner result that comes back after the incident closed (approve-then-close), if it falls out of the same change. Test: ask, close, approve: one `result.partnerNotSent` told with that reason, nothing sent. Demonstrated `mutation:` line. If this cannot be done within about 1 h, or needs a new sentence, stop: leave the item unchecked, keep the frontmatter `deferred:` entry, and record "deferred to 1.0.8 per ruling 2" in `## Auto Run Result`.
+- [x] [Rework] DW-1109 (ruling 1, fix now): `Demo.Guide.Compute` counts any answered or approved request of the guide's incident for step 4, so a partner notice approved while the repair still waits marks step 4 done early. Add the one-line kind filter in `Demo/Guide.cls` (now on the AD-33 list): a request whose kind never moves the incident (`MOVES` 0, `Fix.Kind`) counts for neither `answered` nor `fixApproved`. Test (in `Test.Demo.Guide`): a partner notice approved while the repair request still waits leaves step 4 not done (and the repair's approval still marks it done). Demonstrated `mutation:` line.
+  - Done (warm tag `e23s5qw`; slot D): `Demo.Guide.Compute` leaves a request whose kind has `MOVES` 0 out of `answered` and `fixApproved` (an unregistered kind or no kind still counts); `Test.Demo.Guide:TestPartnerRequestIsNotStepFour` pins it: a partner notice approved, executing, done, failed or rejected beside a waiting repair leaves step 4 not done (done "10100"), and the repair's approval marks it done ("10110"). `Test.Demo.Guide` passed (26 methods, slot D and warm).
+  - mutation: the `MOVES` filter line deleted from `Demo/Guide.cls` `Compute` -> `Test.Demo.Guide:TestPartnerRequestIsNotStepFour` red (all five "partner request beside a waiting repair: done" assertions); restored byte-identical (`cmp` against the saved copy, `git diff --stat` unchanged), class green again.
+  - Review patch: the test also pins the guide's `finished` (a partner request in approved, executing, done or failed state is not the approved fix of a resolved incident with the trace). mutation: the filter moved to the `answered` line only (the `fixApproved` side unfiltered) -> `TestPartnerRequestIsNotStepFour` red ("finished" for all four states); restored byte-identical (`cmp`), class green again (26 methods).
+- [x] [Rework] DW-1108 (ruling 2, option (a), bounded at about 1 h; existing text verbatim, no new public text): a partner request approved after its incident was closed is no longer dropped silently. Through `IncidentManager.Aside`, the request's recipients are told `result.partnerNotSent` with an EXISTING refusal reason (prefer the kind's own `NOSTART`, "OcuTalon couldn't deliver the delay notice"; never a new sentence), and nothing is sent (no Execute, no PartnerNotice, no SimMailbox row). The same telling covers a partner result that comes back after the incident closed (approve-then-close), if it falls out of the same change. Test: ask, close, approve: one `result.partnerNotSent` told with that reason, nothing sent. Demonstrated `mutation:` line. If this cannot be done within about 1 h, or needs a new sentence, stop: leave the item unchecked, keep the frontmatter `deferred:` entry, and record "deferred to 1.0.8 per ruling 2" in `## Auto Run Result`.
+  - Done (warm tag `e23s5qw`; slot D): `IncidentManager.Aside` hands a closed incident to the new `Closed`. The incident stays closed (no state or variant move, no Execute, no PartnerNotice, no SimMessage). An approved request is told to each recipient as `result.partnerNotSent` through `ResultNotice` (a `FixResult` built in memory with Final 1, Total = the targets and the kind's `NOSTART` as Reason, so `Notice.ResultKey`/`ResultSlots` give the key and the reason slot; nothing is stored). The final result that FixExecutor sends for an approved-then-closed request (refused as `UNUSABLE`) falls out of the same code: `Closed` tells the result notice it came with (`result.partnerNotSent`, the executor's existing reason). Any other event on a closed incident is still refused with the Type 4 line. No new text, no schema change; about 0.5 h.
+  - Tests: `Test.Fix.PartnerDraft:TestStateNeverMoves` (closed part) now asserts one `result.partnerNotSent` for the request with `PartnerWarning.NOSTART` as the reason, no Execute, the incident still `closed`, the after-close final result told once, and a rejection and an expiry told to nobody. `Test.Fix.PartnerDraft`, `PartnerWarning`, `Demo.Guide`, `Watch.Transitions`, `Closing`, `Notices`, `Incidents`, `Summary`, `Fix.Kind` and `Fix.Refused` passed on warm `e23s5qw`; `Test.Fix.PartnerTurns` passed fresh. No shared-surface pin moved (no catalog key or count changed).
+  - mutation: the approved branch of `Closed` made unreachable (`event = ..#APPROVED` -> `event = "never"`) -> `Test.Fix.PartnerDraft:TestStateNeverMoves` red ("an approval is told once", "told as a result that did not send", "with the kind's NOSTART as the reason"); and `Closed` also calling `Execute` on approved -> the same method red ("an approval is told once and sends no Execute"); each restored byte-identical (`cmp` against the saved copy), class green again.
+  - Review patch: `TestStateNeverMoves` also pins the reason of the after-close final result (the executor's `UNUSABLE`), a sent final result (`result.partnerSent`, told as it came) and a progress result (told to nobody). mutation: `Closed`'s `ElseIf event '= FINISHED` made `ElseIf 0` (every event passes its notice through) -> `TestStateNeverMoves` red ("a result still in progress after the close tells nobody", "a rejection and an expiry after the close tell nobody and send no Execute"); and made `ElseIf 1` (every notice dropped) -> red ("a final result after the close is told once", "with the reason it came with", "a final result that sent after the close is told as it came"); each restored byte-identical (`cmp`), `Test.Fix.PartnerDraft` green again (10 methods).
 
 
 ### Review Findings (rework iteration 1, smoke: code review)
@@ -337,6 +329,33 @@ Rejected (appendix):
   - `[low]` `[reject]` (gap 2) the mutation edits the test's own filter, not the product - it shows the count pins go red; a product-side removal of a key would also move 34 to 33 (the layer checked the count), so the pin reacts to the product as well
   - `[low]` `[reject]` (gap other) the literals 34, 40, 41, 40 are hand-maintained - same as blind 1
   - `[low]` `[reject]` (intent 1) the kind list is hand-coded in the test, not derived from the product - same as blind 2
+
+### 2026-11-11 - Review pass (rework iteration 2, merge-time rulings)
+- verdicts: 23 findings - high 0, medium 1, low 20, false 2, maybe-false 0 (routes: 4 patch, 19 reject)
+- findings:
+  - `[low]` `[reject]` (blind 1) an approved request on a closed, never-noticed incident is still dropped (Move tells only when NoticedAt is set) - Aside has the same contract; a partner request is raised on a noticed incident, so no session is waiting on an unnoticed one.
+  - `[low]` `[reject]` (blind 2) the request row stays approved after the not-sent telling - ending the row needs a new lifecycle call, outside the ruled item; it stayed approved before this change too.
+  - `[low]` `[reject]` (blind 3) the Telegram press answer still says it is sending - existing text; the ruling allows no new sentence, and result.partnerNotSent follows it.
+  - `[low]` `[reject]` (blind 4) the MOVES test is repeated in Demo.Guide - the lead's item fixes this form (resolve the class through Fix.Kind as Moves does, additive in Guide only); Moves is Private on the production class and a shared helper would touch Fix/Kind.cls.
+  - `[low]` `[patch]` (blind 5) test gaps: the after-close final result's reason is not asserted, a progress result after the close is not tested - added to TestStateNeverMoves (the UNUSABLE reason, a sent result, a progress result); the unregistered-kind branch and the Drop line stay unpinned (pre-existing contract, existing rows have no FixKind), rejected.
+  - `[low]` `[reject]` (blind 6) review_loop_iteration and followup_review_recommended in the frontmatter - the fix is a spec edit by the lead.
+  - `[low]` `[reject]` (edge 1) Move stamps ClosedAt on a closed row that has none - only a legacy row; the stamp is the right close time and changes no state.
+  - `[low]` `[reject]` (edge 2) the row stays approved and a repeated approved outcome re-tells - same as blind 2; the outcome is told once per approval.
+  - `[low]` `[reject]` (edge 3) a MOVES 0 kind without the partner reason or key - theoretical: the only such kind is partner_warning; a second one carries its own NOSTART.
+  - `[low]` `[reject]` (edge 4) a rejected or expired partner request after the close gets only the Type 4 line - the ruling names the approved event; the answer to a rejection is not the user's lost send.
+  - `[low]` `[reject]` (edge 5) distinct Drop reasons per branch - cosmetic.
+  - `[false]` `[reject]` (edge 6) earlier partner rows in the loop mask a later state - a regression in the filter turns the first iteration red already; the rows only accumulate.
+  - `[false]` `[reject]` (edge 7) the claim that the incident is unchanged while Move re-saves and re-publishes it - Move saves only a changed row and the incident event is the one Aside always sends; state and variant are asserted unchanged.
+  - `[medium]` `[patch]` (gap 1) the kind filter has no test on the fixApproved side (finished) - added to TestPartnerRequestIsNotStepFour; a mutation that filters only answered turns it red.
+  - `[low]` `[patch]` (gap 2) Closed's refusal and passthrough branches have no mutation line and the sent and progress results no test - tests added, two mutation lines recorded under the item.
+  - `[low]` `[reject]` (gap 3) the unregistered-kind branch is pinned only by existing rows without FixKind - those rows are the pin; the lead's item states the behaviour.
+  - `[low]` `[reject]` (gap 4) rejected and expired assertions held before the change - they guard against over-telling in Closed, which the ElseIf mutation now shows.
+  - `[low]` `[reject]` (intent 1) the test builds the closed incident and calls OnRequest on the stub host, not the ask-close-approve chat sequence - the closed-incident fixtures of TestStateNeverMoves are the named place.
+  - `[low]` `[reject]` (intent 2) no PartnerNotice or SimMailbox row is asserted directly - none can exist without an Execute, which the stub host records as sent none.
+  - `[low]` `[patch]` (intent 3) the after-close final result's reason differs from NOSTART and is not asserted - the executor's UNUSABLE reason is now asserted; it reads as "couldn't read the approved fix", existing text.
+  - `[low]` `[reject]` (intent 4) the Telegram press answer is untouched - same as blind 3.
+  - `[low]` `[reject]` (intent 5) Move re-emits the incident event - same as edge 7.
+  - `[low]` `[reject]` (intent 6) the result notice replaces the answered notice for an approval on a closed incident - the intended telling (one result, not two).
 
 ## Design Notes
 
@@ -627,3 +646,18 @@ Review: 8 findings from four layers (one returned none). Patched 0, deferred 0, 
 Verification: `Test.Channel.TelegramChat` passed in full on warm stack `e23s5rw` (slot D), and again after the mutation was reverted; `test-boundaries` and `test-class-rules` pass. mutation: see the Smoke item.
 
 Residual risks: `TestNotices` classifies the request keys itself, so the `approval` kind of `incident.partnerRequest` is pinned by `Test.Fix.PartnerDraft` and not by this class (as for the other request keys).
+
+### Rework iteration 2 (merge-time rulings)
+
+Status: done
+Blocking condition: none
+
+Summary: DW-1109 and DW-1108 are done. `Demo.Guide.Compute` leaves a request whose kind never moves the incident (`MOVES` 0; an unregistered kind still counts) out of step 4 and the finish. `IncidentManager.Aside` hands a closed incident to the new `Closed`: an approved MOVES 0 request tells its recipients `result.partnerNotSent` with the kind's `NOSTART` (existing text), sends nothing (no Execute, no PartnerNotice, no SimMailbox row) and leaves the incident closed; the final result of an approve-then-close request is told as it came (`UNUSABLE` reason); other events are still refused with the Type 4 line. No new text, no catalog or schema change (about 0.5 h). Both `deferred:` entries are removed from the frontmatter.
+
+Files changed: `Demo/Guide.cls`, `Watch/IncidentManager.cls`, `Test/Demo/Guide.cls` (`TestPartnerRequestIsNotStepFour`), `Test/Fix/PartnerDraft.cls` (`TestStateNeverMoves`, closed part); this spec.
+
+Review: 23 findings from four layers. Patched 4 (1 medium: the filter's finished side had no test; 3 low: the after-close reason, a sent result and a progress result had no assertions, and the refusal and passthrough branches no mutation line), deferred 0, rejected 19 (17 low, 2 false), each with its reason in the triage log. Follow-up review recommended: false (this follow-up pass patched no `high`).
+
+Verification: `Test.Demo.Guide` (26 methods) and `Test.Fix.PartnerDraft` (10) passed on slot D after the patches; before them, on slot D and warm `e23s5qw`: `Test.Fix.PartnerWarning`, `Test.Watch.Transitions`, `Closing`, `Notices`, `Incidents`, `Summary`, `Fix.Kind` and `Fix.Refused` passed (one slot-D `Test.Watch.Summary:TestProductionName` environment error, "Item Decide not found in Production", passed warm), and `Test.Fix.PartnerTurns` passed fresh. `test-boundaries` and `test-class-rules` pass. mutation: see the two items (four mutations, each red and reverted byte-identical).
+
+Residual risks: the request row of a partner notice approved after the close stays `approved` (ending it needs a lifecycle call outside this item); the Telegram press answer still says it is sending, and `result.partnerNotSent` follows it; the after-close final result reads "OcuTalon couldn't read the approved fix" (existing text).
