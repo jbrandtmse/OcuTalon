@@ -162,6 +162,12 @@ deferred: []
   - `Test/Mcp/Attach.cls` -- `TestProxyRewrite`, `TestRugPullInRequest` (description, then schema), `TestProxyCut` and `TestDirectCall` through the shadow runner, plus `Leaks`.
 
 **Acceptance Criteria:**
+- [RULED 2026-11-11, Contest Planner condition on text 1] Given a tool or server name with markup, control characters or more than 64 characters, when the step label "Running {tool} on {server}" is built and shown, then each slot is plain text (escaped on the web page, sent with no Telegram parse mode) and cut to 64 characters ending with "\u2026".
+- [RULED 2026-11-11, condition (a)] Given a fixture server whose Config Store entry carries a `secret://` reference to a test credential, when `call_mcp_tool` runs (called, refused and failed cases), then a grep of the message bodies, the Visual Trace (the session's messages), the event log and the audit entries written during the test finds the test credential nowhere.
+- [RULED 2026-11-11, condition (b)] Given an `https://` server, when the proxy calls it, then the request verifies the server certificate (`VerifyPeer` on, no accept-any setting), and a plain `http://` address other than this computer (127.0.0.1, localhost, [::1]) is refused before any request.
+- [RULED 2026-11-11, condition (c)] Given a `tools/call` result, when it returns to the turn, then the turn is tainted (AD-10) and the result is cut to the request size limit, marked as cut, before it reaches the model; both are pinned by tests.
+- [RULED 2026-11-11, condition (d)] Given any proxy run, when it is audited, then the entry holds the server, the tool and the outcome only, never the arguments or the result.
+- [RULED 2026-11-11, condition (e)] Given the runner job cannot read the wallet secret (Task 0 (2)), then the implement stage stops with an intent gap; no grant is added without a ruling.
 - Given a read-only MCP tool and a composed turn (a user's turn, and separately an untrusted item's turn, where a risky tool's call is still denied UNTRUSTED and described as an offer), when the model's native call is allowed, then it runs only through `call_mcp_tool` (the mock logs only `client` `iris` requests for it), its result passes `Tools.Result`, one step is labelled with the server and tool, the turn is tainted, and one `MCP` `called` audit entry exists.
 - Given a turn whose map was built, when the server changes the tool's description (and, in a second case, its input schema) before the call, then the proxy refuses it unrun with `MCPCHANGED`, the mock logs no `tools/call`, and one `refused` audit entry exists. Mutation: skip the proxy's fingerprint compare → red.
 - Given a result longer than the step's room, when it returns, then the model gets it cut and marked, and the step's total stays within 40,000 characters.
@@ -171,6 +177,8 @@ deferred: []
 - Given any test of this story, when its output, logs, audit entries and step records are searched, then the fixture secret, the mock's URL and the call's argument values appear in none of them.
 
 ## Spec Change Log
+
+- 2026-11-11 (runner, rulings applied): the Contest Planner's 22.3 rulings (verbatim under Design Notes) are applied: texts 1-10 approved (text 1 slots plain and cut to 64 characters), veto accepted with conditions (a)-(e) added as ACs, F1 pre-approved, spine S12-S14 written.
 
 - 2026-11-11 (runner, spec gate): validated (no split). The Veto items, the Public text table (10 proposed strings, incl. F1's), fallback F1 and spine updates S12-S14 go to the Contest Planner (via the orchestrator) before the implement stage; this story implements only after Stories 22.8 and 22.9 are committed.
 
@@ -235,6 +243,23 @@ deferred: []
 - S12 (AD-21 Calling): the proxy is offered only by a request's composed manager that holds an MCP server, through `McpServersClass.ProxyToolSet()`. Before `tools/call` it re-lists the tool and refuses a changed fingerprint. `CALLSECONDS` 20. One `MCP` `called`/`refused` audit entry per run. The proxy never writes the classification row.
 - S13 (AD-31): `ProxyToolSet()` (default `""`), and `ClassifyMcp`'s optional `resource`.
 - S14 (AD-10 rule 2): MCP and proxy calls check `U` on the answer's `resource`. The rewrite mechanism is Task 0's measured variant, recorded with its evidence.
+
+
+**Contest Planner rulings (verbatim)** [RULED 2026-11-11 ~14:35Z, Contest Planner under the owner's delegation, relayed by the orchestrator; source `<coordination>/prompts/epic-22-rulings-223.md`]:
+
+> # Rulings, Story 22.3 (governed proxy call_mcp_tool) spec gate (Contest Planner, 2026-11-11 ~14:35Z; owner's delegation; verbatim terms)
+> PUBLIC TEXT 1-10: APPROVED verbatim. Condition on 1 ("Running {tool} on {server}"): the tool name comes from an outside server, so render both slots as plain text (escaped on the web, no Telegram parse mode) and cut each to 64 characters with "…".
+> VETO: ACCEPTED, with conditions:
+> (a) The wallet credential read at call time never appears in a message body, Visual Trace, log or audit entry; add a test that greps the trace and logs for the test credential.
+> (b) Outbound https calls verify the server certificate (VerifyPeer on); no "accept any certificate"; plain http only to this computer, as text 3 allows.
+> (c) A tools/call result is untrusted content: it taints the turn (AD-10) and is cut to the request size limit before it reaches the model. Pin both.
+> (d) Audit records the server, tool and outcome only, never arguments or results, as specced.
+> (e) If the runner job lacks the wallet read, stop, as specced; no new grant without a ruling.
+> F1: PRE-APPROVED as the fallback if Task 0 shows the gate can't reroute the call: the gate denies with MCPUSEPROXY and the model calls call_mcp_tool itself; the extra round trip is acceptable; record it in the spec.
+> Spine S12-S14 (orchestrator U7): fine under these conditions.
+> ACK 22.2: merge on green (the single fixed Grant/Revoke entry point with no %Admin*; DW-1038 resolved).
+
+**How this spec applies them** (runner, 2026-11-11): texts 1-10 are approved verbatim; the implement stage uses them. Text 1's `{tool}` and `{server}` slots are rendered as plain text (escaped on the web, no Telegram parse mode) and each is cut to 64 characters with "\u2026" (Rule 14: escape in source). Conditions (a)-(e) are acceptance criteria below, each pinned by a test with a demonstrated mutation. F1 is pre-approved: if Task 0 finds no rewrite variant, the gate denies an allowed native MCP call with `MCPUSEPROXY` and the model calls `call_mcp_tool` itself (one extra round trip, accepted); Task 0's STOP on "no variant" no longer applies. The STOP on a missing wallet read (e) stands. Spine S12-S14 written.
 
 ## Veto items
 
