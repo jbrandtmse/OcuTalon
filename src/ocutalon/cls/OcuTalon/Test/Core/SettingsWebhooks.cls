@@ -5,7 +5,9 @@
 ///     webhook.<Ref> and the name, with the salted hash in the row and the secret in no entry;
 ///   - TestRotateOfAnotherSession: a rotation of a Ref that another session owns, and of an unknown Ref, answers not_found and leaves the hash and the audit alone;
 ///   - TestOnlineDemo: with the online-demo flag set both commands answer not_available, store nothing and audit nothing;
-///   - TestNoSecret: a command whose handoff uri has no secret behind it answers failed and stores nothing.
+///   - TestNoSecret: a command whose handoff uri has no secret behind it answers failed and stores nothing;
+///   - TestNameTakenAtSave: a create whose name is taken between its check and its save (another row stored at its audit write) answers name_taken with the
+///     name's field text, writes a second audit entry that undoes the first (from the name to ""), and stores no row of its own.
 Class OcuTalon.Test.Core.SettingsWebhooks Extends %UnitTest.TestCase
 {
 
@@ -95,6 +97,25 @@ Method TestOnlineDemo()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_available", "so is a rotation")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Webhook).Lookup(ref).SecretHash, hash, "and it leaves the hash alone")
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 0, "neither writes an audit entry")
+}
+
+Method TestNameTakenAtSave()
+{
+	Set name = "zz ops clash "_$Random(1000000)
+	Set ^OcuTalonTest("SettingsOpsProbe", "clash") = name
+	Set ^OcuTalonTest("SettingsOpsProbe", "clashSession") = ..B
+	Set result = ..Create(name, ..A)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|name_taken", "a create whose name is taken at its save is name_taken")
+	Set data = {}.%FromJSON(result.Data)
+	Do $$$AssertEquals(data.fields.name, ##class(OcuTalon.Core.SettingsOps).WebhookFieldText("settings.webhookNameTaken", name), "with the name's field text")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 2, "after two audit entries")
+	Set first = {}.%FromJSON(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "data"))
+	Set undone = {}.%FromJSON(^OcuTalonTest("SettingsOpsProbe", "calls", 2, "data"))
+	Do $$$AssertEquals(undone.setting, first.setting, "the second names the same webhook")
+	Do $$$AssertEquals(undone.from_"|"_undone.to, name_"|", "and undoes the first, from the name to nothing")
+	Set rows = 0, result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.Webhook WHERE SessionRef = ?", ..A)
+	While result.%Next() { Set rows = rows + 1 }
+	Do $$$AssertEquals(rows, 0, "and session A has no row")
 }
 
 Method TestNoSecret()

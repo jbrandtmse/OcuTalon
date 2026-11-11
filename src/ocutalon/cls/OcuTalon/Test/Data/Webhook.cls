@@ -1,6 +1,7 @@
 /// Tests of Data.Webhook (Story 35.3; AD-3, AD-13, AD-17, AD-19, AD-27): the salted hash, its constant-time comparison, the table's helpers, the hook's
 /// counters and the purge of them. The rows are fixtures (Test.Data.Fixture) and the counters are those of fresh Refs, removed after every test. Safe on a slot,
-/// except that PurgeCounters writes real audit entries.
+/// except that PurgeCounters writes real audit entries. Flush and PurgeCounters walk every slot, so TestFlushAndPurge holds every counter it did not make aside
+/// while it runs and puts them back after, so that no real slot is stamped with the test's 2030 clock and no real window is deleted.
 ///   - TestHashFormat: HashSecret gives 66 characters, a 22-character salt, a dot and a 43-character hash, all base64url; the same secret hashes differently
 ///     each time (a new salt), the secret itself is not in the value, and the value matches its secret, a secret with non-ASCII characters included;
 ///   - TestMatches: a wrong, empty, longer or shorter secret, and every malformed stored value, do not match and never throw; DUMMYHASH is well formed and
@@ -12,8 +13,9 @@
 ///   - TestObjectAccess: the readers and the counters use no SQL;
 ///   - TestAcceptWindows: Accept counts per UTC hour, the 121st is refused with the seconds to the next hour and is not counted, and another Ref or hour is free;
 ///   - TestRejectSlots: Reject is due at once for a quiet slot, not again within 60 seconds, due at 60 seconds with the count since, and slots are separate;
+///     a slot stamped later than now (the clock was set back) is due at once;
 ///   - TestFlushAndPurge: Flush hands over a pending count older than 60 seconds once, PurgeCounters writes it as an audit entry and deletes the accepted
-///     windows older than two hours only.
+///     windows older than two hours only; Flush also hands over a pending count stamped later than now.
 Class OcuTalon.Test.Data.Webhook Extends %UnitTest.TestCase
 {
 
@@ -203,9 +205,30 @@ Method TestRejectSlots()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Webhook).Reject(slot, ##class(OcuTalon.Data.Time).AddSeconds(t0, 60), .count), 1, "due again at 60 seconds")
 	Do $$$AssertEquals(count, 3, "with the rejections since the previous entry, this one included")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Webhook).Reject(slot, ##class(OcuTalon.Data.Time).AddSeconds(t0, 61), .count), 0, "and then quiet for another 60 seconds")
+	Set ahead = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..Refs = ..Refs_","_ahead
+	Set ^OcuTalonP.WebhookC("r", ahead) = $ListBuild("2031-01-01T00:00:00Z", 2)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Webhook).Reject(ahead, t0, .count), 1, "a slot stamped later than now is due at once")
+	Do $$$AssertEquals(count, 3, "with its pending rejections and this one")
 }
 
 Method TestFlushAndPurge()
+{
+	Merge held = ^OcuTalonP.WebhookC
+	Kill ^OcuTalonP.WebhookC
+	Try {
+		Do ..FlushAndPurge()
+	} Catch ex {
+		Do $$$AssertTrue(0, "FlushAndPurge threw "_ex.DisplayString())
+	}
+	For i = 1:1:$Length(..Refs, ",") {
+		If $Piece(..Refs, ",", i) '= "" Kill ^OcuTalonP.WebhookC("a", $Piece(..Refs, ",", i)), ^OcuTalonP.WebhookC("r", $Piece(..Refs, ",", i))
+	}
+	Merge ^OcuTalonP.WebhookC = held
+}
+
+/// The body of TestFlushAndPurge, run while the counters it did not make are held aside.
+Method FlushAndPurge()
 {
 	Set slot = ##class(OcuTalon.Bridge.Ids).NewRef(), young = ##class(OcuTalon.Bridge.Ids).NewRef(), settled = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set ..Refs = slot_","_young_","_settled
@@ -214,12 +237,12 @@ Method TestFlushAndPurge()
 	Do ##class(OcuTalon.Data.Webhook).Reject(slot, ##class(OcuTalon.Data.Time).AddSeconds(t0, 5), .count)
 	Do ##class(OcuTalon.Data.Webhook).Reject(slot, ##class(OcuTalon.Data.Time).AddSeconds(t0, 6), .count)
 	Do ##class(OcuTalon.Data.Webhook).Reject(settled, t0, .count)
-	Do ##class(OcuTalon.Data.Webhook).Reject(young, ##class(OcuTalon.Data.Time).AddSeconds(t0, 50), .count)
-	Do ##class(OcuTalon.Data.Webhook).Reject(young, ##class(OcuTalon.Data.Time).AddSeconds(t0, 51), .count)
 	Set early = ##class(OcuTalon.Data.Webhook).Flush(##class(OcuTalon.Data.Time).AddSeconds(t0, 30), .pending)
 	For i = 1:1:early {
 		Do $$$AssertTrue($Case($ListGet(pending(i), 1), slot: 0, settled: 0, young: 0, : 1), "nothing of this test is pending for more than 60 seconds at 30 seconds")
 	}
+	Do ##class(OcuTalon.Data.Webhook).Reject(young, ##class(OcuTalon.Data.Time).AddSeconds(t0, 50), .count)
+	Do ##class(OcuTalon.Data.Webhook).Reject(young, ##class(OcuTalon.Data.Time).AddSeconds(t0, 51), .count)
 	Set total = ##class(OcuTalon.Data.Webhook).Flush(##class(OcuTalon.Data.Time).AddSeconds(t0, 61), .pending)
 	Set found = ""
 	For i = 1:1:total {
@@ -232,6 +255,14 @@ Method TestFlushAndPurge()
 	For i = 1:1:again {
 		Do $$$AssertTrue($ListGet(pending(i), 1) '= slot, "the flushed slot is not flushed twice")
 	}
+	Set ahead = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..Refs = ..Refs_","_ahead
+	Set ^OcuTalonP.WebhookC("r", ahead) = $ListBuild("2031-01-01T00:00:00Z", 2)
+	Set total = ##class(OcuTalon.Data.Webhook).Flush(##class(OcuTalon.Data.Time).AddSeconds(t0, 63), .pending), found = ""
+	For i = 1:1:total {
+		If $ListGet(pending(i), 1) = ahead Set found = $ListGet(pending(i), 2)
+	}
+	Do $$$AssertEquals(found, 2, "Flush hands over a pending count stamped later than now")
 	Kill ^OcuTalonP.WebhookC("r", slot)
 	Set ^OcuTalonP.WebhookC("r", slot) = $ListBuild(t0, 4)
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()

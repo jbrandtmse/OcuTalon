@@ -10,6 +10,8 @@
 /// The answers "auditAt" and "applyAt" (a number n) make the nth audit write, or the nth guarded write, since the counters were killed
 /// (^||OcuTalonSettingsOpsProbe("n", seam), a process-private global, which a TROLLBACK does not undo) answer an error status, for the
 /// all-or-nothing tests of a section's save (Story 33.2).
+/// With ^OcuTalonTest("SettingsOpsProbe", "clash") set to a name (and "clashSession" to a session Ref), the next audit write first stores a webhook row of that
+/// name and clears the answer, so that a CreateWebhook's save after its audit entry meets a taken name (Story 35.3 review).
 /// The bridge seams BridgeCurrent, BridgeCheck and BridgeSet stand in for Bridge.Settings: each call is recorded under
 /// ^OcuTalonTest("SettingsOpsProbe", "bridge", n) as "check" or "set" with the name and value ("what"); the answer "check" is "" for OK, "stub" for
 /// "not implemented" (code 5003), "error" for an error status and "error:<name>" for an error status for that name only; the answer "set" is "" for
@@ -39,6 +41,7 @@ Method WriteAudit(data As %DynamicObject) As %Status [ Private ]
 	Set ^OcuTalonTest("SettingsOpsProbe", "calls", n) = "audit"
 	Set ^OcuTalonTest("SettingsOpsProbe", "calls", n, "data") = data.%ToJSON()
 	Set ^OcuTalonTest("SettingsOpsProbe", "calls", n, "seen") = ##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Install.Step.Demo).#MODEKEY)
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "clash")) '= "" Do ##class(OcuTalon.Test.Data.Fixture).Webhook($Get(^OcuTalonTest("SettingsOpsProbe", "clashSession")), ^OcuTalonTest("SettingsOpsProbe", "clash"), "zz-ops-clash-0123456789") Kill ^OcuTalonTest("SettingsOpsProbe", "clash")
 	If $Increment(^||OcuTalonSettingsOpsProbe("n", "audit")) = +$Get(^OcuTalonTest("SettingsOpsProbe", "answer", "auditAt")) Quit $SYSTEM.Status.Error(5001, "zz audit failed at its turn")
 	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "audit")) = "record" Quit ##class(OcuTalon.Bridge.Audit).Record("Settings", data)
 	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "audit")) = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "zz audit threw"))

@@ -22,7 +22,7 @@ const BLANK: RowState = { secretError: '', formError: false, done: false };
 
 /**
  * The Webhooks group of Settings > Channels (Story 35.3; FR-45): the form that makes a webhook and the list of the admin's webhooks, each with the address to
- * send events to and a field that replaces its secret. The secret fields are write-only (type password): they are sent once and cleared, and nothing on the page
+ * send events to and a field that replaces its secret. The secret fields are write-only (type password): a saved one is cleared from its field (a refused one stays for correcting), and nothing on the page
  * ever shows a secret or a hash. The server judges every value and answers each refused field with its text, which the group shows under that field:
  *   - 200: "Saved. Applies within a minute. Recorded in the audit log." shows and the announcer reads it once; a created webhook joins the list and the form's
  *     fields are emptied; a replaced secret's field is emptied;

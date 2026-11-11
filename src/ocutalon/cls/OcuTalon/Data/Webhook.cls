@@ -1,7 +1,8 @@
 /// A webhook: a named, secret-protected address through which another system sends OcuTalon JSON events (AD-13, AD-14, AD-19; Story 35.3). Lane B.
 /// A row is owned by the admin session that created it (SessionRef), and its events belong to that session. The only writer is
-/// OcuTalon.Core.SettingsOps; the readers are OcuTalon.Web.Hook, OcuTalon.Web.HookSettings and OcuTalon.Data.Purge. Every read is object access (an index
-/// open or $Order over the class's own globals), never SQL, because the hook runs as an unauthenticated user.
+/// OcuTalon.Core.SettingsOps; the readers are OcuTalon.Web.Hook, OcuTalon.Web.HookSettings and OcuTalon.Data.Purge. Every read by the two web classes and this class's helpers is object access (an index
+/// open or $Order over the class's own globals), never SQL, because the hook runs as an unauthenticated user; Data.Purge, which runs in the production, checks
+/// a session's webhooks with SQL.
 ///   - SecretHash is the only form of the secret that is kept: HashSecret gives base64url(salt16) "." base64url(SHA-256(salt followed by the UTF-8 secret)),
 ///     66 characters. Matches recomputes it with the stored salt and compares the whole 43-character hash in constant time. An unknown or malformed Ref
 ///     is compared against DUMMYHASH, so it takes the same time. The unsalted Data.Pairing.HashCode is not used.
@@ -191,7 +192,7 @@ ClassMethod Unaccept(ref As %String, now As %String)
 
 /// Counts one rejection in the slot (a Ref, or "?" for every unknown Ref). Returns 1 when an audit entry is due, with count the rejections since the
 /// previous entry (this one included), and the slot is then marked as written at now with none pending. Returns 0 within AUDITSECONDS of the previous entry,
-/// with the rejection kept as pending.
+/// with the rejection kept as pending. A previous entry stamped later than now (the clock was set back) counts as due, so that no clock change silences the audit.
 ClassMethod Reject(slot As %String, now As %String, Output count As %Integer) As %Boolean
 {
 	Set count = 0, due = 0
@@ -202,7 +203,7 @@ ClassMethod Reject(slot As %String, now As %String, Output count As %Integer) As
 		Set node = $Get(@lockName)
 		Set last = $ListGet(node, 1), pending = $ListGet(node, 2) + 1
 		Set age = $Select(last = "": ..#AUDITSECONDS, 1: ##class(OcuTalon.Data.Time).Seconds(now) - ##class(OcuTalon.Data.Time).Seconds(last))
-		If age >= ..#AUDITSECONDS {
+		If (age < 0) || (age >= ..#AUDITSECONDS) {
 			Set due = 1, count = pending
 			Set @lockName = $ListBuild(now, 0)
 		} Else {
@@ -215,7 +216,8 @@ ClassMethod Reject(slot As %String, now As %String, Output count As %Integer) As
 	Quit due
 }
 
-/// The slots whose pending rejections are older than AUDITSECONDS at now, as pending(n) = $ListBuild(slot, count); each is marked as written at now.
+/// The slots whose pending rejections are older than AUDITSECONDS at now, or stamped later than now, as pending(n) = $ListBuild(slot, count); each is marked as
+/// written at now.
 ClassMethod Flush(now As %String, Output pending) As %Integer
 {
 	Kill pending
@@ -229,7 +231,8 @@ ClassMethod Flush(now As %String, Output pending) As %Integer
 		If '$Test Continue
 		Set node = $Get(@lockName)
 		Set last = $ListGet(node, 1), count = +$ListGet(node, 2)
-		If (count > 0) && ((##class(OcuTalon.Data.Time).Seconds(now) - ##class(OcuTalon.Data.Time).Seconds(last)) >= ..#AUDITSECONDS) {
+		Set age = ##class(OcuTalon.Data.Time).Seconds(now) - ##class(OcuTalon.Data.Time).Seconds(last)
+		If (count > 0) && ((age < 0) || (age >= ..#AUDITSECONDS)) {
 			Set total = total + 1
 			Set pending(total) = $ListBuild(slot, count)
 			Set @lockName = $ListBuild(now, 0)

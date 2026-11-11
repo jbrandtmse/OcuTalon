@@ -495,6 +495,23 @@ else
   fail "row 11 (Story 35.3): WebhookIn messages before '$hook_before', after '$hook_after'"
 fi
 
+# Story 35.3 (QA, DW-1130): the Web step's own Run, with the online-demo flag on (it is on in this stack), deletes a stale /ocutalon/hook application.
+# A stand-in is made through the step's own Apply (a local install that was switched to the online demo would hold one), Run is called, and the check
+# reads that the application is gone and that the /ocutalon* applications are the five again. The stack is a throwaway, and Run is what every start of
+# it runs; the stand-in is removed again at the end whatever Run did, so a failed check leaves nothing behind for the checks after it.
+check_session "row 11 (Story 35.3): Install.Step.Web.Run deletes a stale /ocutalon/hook application on the online demo" OCUTALON \
+  "CHK|stale-made|1
+CHK|run|1
+CHK|stale-after|0
+CHK|apps-after|/ocutalon,/ocutalon/api,/ocutalon/public,/ocutalon/trace/ocuorders,/ocutalon/trace/ocutalon" \
+  'Do ##class(OcuTalon.Install.Step.Web).TraceApp("OCUTALON",.props) Set props("CookiePath")="/ocutalon/hook/" Set sc=##class(OcuTalon.Install.Step.Web).Apply("/ocutalon/hook",.props)' \
+  'Set $Namespace="%SYS" Write !,"CHK|stale-made|",$SYSTEM.Status.IsOK(sc)*##class(Security.Applications).Exists("/ocutalon/hook") Set $Namespace="OCUTALON"' \
+  'Set sc=##class(OcuTalon.Install.Step.Web).Run() Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)' \
+  'Set $Namespace="%SYS" Write !,"CHK|stale-after|",##class(Security.Applications).Exists("/ocutalon/hook")' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT Name FROM Security.Applications WHERE Name LIKE ? ORDER BY Name","/ocutalon%") Set l="" While rs.%Next() { Set l=l_$Select(l="":"",1:",")_rs.%Get("Name") } Write !,"CHK|apps-after|",l' \
+  'Set $Namespace="OCUTALON" Do ##class(OcuTalon.Install.Step.Web).RemoveHook()' \
+  'Halt'
+
 bundle_main=$(dc exec -T iris sh -c "ls /durable/iris/csp/ocutalon-web" 2>/dev/null | tr -d '\r' | grep -E '^main-[A-Za-z0-9]+\.js$' | head -n 1)
 if [ -z "$bundle_main" ]; then
   fail "row 11: no main-<hash>.js bundle file in the stack's web folder"

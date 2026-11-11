@@ -1,7 +1,7 @@
 /**
  * The Webhooks group of Settings > Channels (Story 35.3; EXPERIENCE: Settings and requests (step 4)): the view rules of its form, as a framework-free module
  * that imports nothing (so Node runs it as it is). The page decides nothing (AD-12): the server validates every name and secret and answers each refused field
- * with its text, and the page shows those texts as they come. The secret is write-only: it is typed, sent once and cleared, and no text of this module
+ * with its text, and the page shows those texts as they come. The secret is write-only: it is typed and sent, cleared once saved, and no text of this module
  * holds one.
  * - addressText fills the accepted sentence (SETTINGS_TEXTS.webhooks.address, "Send events with POST to {address}.") with the page's origin and the webhook's path.
  * - webhookOutcome classifies a refused or failed call: 403 is denied (the group shows the page's denied text), 409 not_available is the online demo's

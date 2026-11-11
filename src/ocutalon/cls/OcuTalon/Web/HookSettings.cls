@@ -11,7 +11,7 @@
 ///     another session owns is 404 not_found before anything is read from the body or handed over; the refusals are 400 bad_webhook as above.
 ///   - On the online demo every route answers 409 not_available with the text settings.webhooksOffOnDemo, before anything is read or written.
 /// The secret reaches SettingsOps only through OcuTalon.Core.SecretHandoff: Put before the command is submitted, and Discard on every path after it, an error
-/// included. The command holds the handoff uri and no secret, no route reads or writes a table, and no answer, log line or audit entry holds the secret.
+/// included. The command holds the handoff uri and no secret, no route writes a table (List and the Ref check read Data.Webhook), and no answer, log line or audit entry holds the secret.
 /// Any other outcome, an error status and an exception are 500 server_error. Every state-changing call is submitted with origin web_admin.
 Class OcuTalon.Web.HookSettings Extends OcuTalon.Web.Api
 {

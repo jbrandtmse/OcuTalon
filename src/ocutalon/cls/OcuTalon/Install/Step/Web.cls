@@ -179,7 +179,7 @@ ClassMethod TraceGrants() As %DynamicArray [ Private ]
 /// empty, so a list added by hand is removed at the next start. With the online demo on, /ocutalon, /ocutalon/api and
 /// the OCUTALON trace application get ONLINETIMEOUT; /ocutalon/public, /ocutalon/hook and every application of a local install get LOCALTIMEOUT. /ocutalon/hook is
 /// defined only off the online demo.
-/// CSPZENEnabled is 1 for all four: with it off, build 154 does not reach the dispatch class of a signed-in
+/// CSPZENEnabled is 1 for every one of them: with it off, build 154 does not reach the dispatch class of a signed-in
 /// request, and answers an empty page or a 404.
 ClassMethod Definitions(Output apps) As %Status
 {

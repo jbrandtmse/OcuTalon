@@ -3,8 +3,8 @@
 ///   - TestRoundTrip: Put returns a uri secret://handoff/<Ref>, Take returns the secret once, and a second Take of the uri fails;
 ///   - TestFailuresAreAlike: an unknown uri, a malformed uri and an empty uri each fail with the same status text and no secret, a signaled secret is read at once and an event that never existed fails without a long wait;
 ///   - TestDiscard: Discard deletes an untaken event, so that Take then fails, and Discard of an unknown or empty uri is not an error;
-///   - TestNothingPersists: after Put, Take and Discard, no global, event log row or audit entry of the run holds the secret, and no node of the event's
-///     name exists in any global.
+///   - TestNothingPersists: after Put, Take and Discard, no global of the webhook, setting and session tables (the webhook's data, index, stream and
+///     counter globals), event log row or audit entry of the run holds the secret, and no node of the event's name exists in any global.
 Class OcuTalon.Test.Core.SecretHandoff Extends %UnitTest.TestCase
 {
 
@@ -77,12 +77,12 @@ Method TestNothingPersists()
 	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uriB)
 	Do $$$AssertEquals($Data(^OcuTalonP.SecretHandoff), 0, "no node of the event's global exists")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Web.WebhookTools).GlobalHolds("^OcuTalonP.SecretHandoff", secret), 0, "so none holds the secret")
-	For global = "^OcuTalonP.Webhook", "^OcuTalonP.WebhookD", "^OcuTalonP.WebhookC", "^OcuTalonP.Setting", "^OcuTalonP.Session" {
+	For global = "^OcuTalonP.WebhookD", "^OcuTalonP.WebhookI", "^OcuTalonP.WebhookS", "^OcuTalonP.WebhookC", "^OcuTalonP.Setting", "^OcuTalonP.Session" {
 		Do $$$AssertEquals(##class(OcuTalon.Test.Web.WebhookTools).GlobalHolds(global, secret), 0, global_" does not hold it")
 	}
 	Do $$$AssertTrue(##class(OcuTalon.Test.Web.WebhookTools).LogText(log) '[ secret, "no event log row holds it")
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon")
-	Do $$$AssertEquals(entries.%Size(), 0, "and no audit entry was written")
+	Do $$$AssertTrue(entries.%ToJSON() '[ secret, "and no audit entry of the run holds it")
 }
 
 }
