@@ -60,6 +60,7 @@ development_status:
   0-22-the-more-to-try-panel-shows-its-items-under-three-group-head: done
   0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute: done
   0-24-a-test-stack-s-web-port-can-never-collide-with-a-port-that-i: done
+  0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti: done
   epic-0-retrospective: optional
 
   epic-1: done
