@@ -3389,3 +3389,7 @@
 - 2026-11-11T01:05Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=0.24 insert via merge
 - 2026-11-11T01:05Z orchestrator handoff updated (0.24 merged ea5374ef; lane C closing)
 - 2026-11-11T01:06:21Z orchestrator epic_runner_complete epic=0 part=0.24 runner=a759a111fb92b56f0 head=8c57bd35 (records only) ci_cancelled_record_only=42936411185,42936411014, lane_C=idle (scope closed)
+- 2026-11-11T01:24Z orchestrator ci_green_verified branch=OCT-epic37 head=3e21a085 runs=42933194753,42933194884 missing=none story=37.2
+- 2026-11-11T01:24Z orchestrator merge_gate epic=37 part=37.2 head=3e21a085 base=ea5374ef conflicts=sprint-status.yaml(ours+regenerate+set 37-2=done, epic-37=in-progress) code_diff_vs_epic_head=0.24 lib-live files (disjoint) amendments: epics.md Story 0.22 block +AMENDED fourth-group line (DW-1096 resolved), Story 25.2 +ADDED DW-1102 AC (DW-1102 routed to 25-2) test_readme=pass test_boundaries=pass spine=baseline more_to_try=12
+- 2026-11-11T01:24Z orchestrator epic_merged_to_feature epic=37 part=37.2 note=feature CI runs (combination with 0.24)
+- 2026-11-11T01:24Z orchestrator deps_hash_rerecorded reason=rule5_amendment note=37.2 merge gate amendments (0.22 block, 25.2 AC)

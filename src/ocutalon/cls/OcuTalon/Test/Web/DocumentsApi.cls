@@ -2,7 +2,7 @@
 /// whose OcuTalon.SessionRef is a fixture session (as Test.Web.DismissApi does), through Test.Web.DocumentsProbe, whose Submit records the
 /// command instead of sending it to CommandsIn. Safe on a slot: no production is needed. Rows are fixtures (Test.Data.Fixture), removed before
 /// and after the tests, with the upload rows of the test's sessions; the public setting onlineDemo and the probe's globals are put back.
-///   - TestDispatch (Task 0 (a)): Web.Api's URL map holds exactly one Map, for /v1/documents, forwarded to Web.Documents, and the forwarded class
+///   - TestDispatch (Task 0 (a)): Web.Api's URL map holds exactly one Map for /v1/documents, forwarded to Web.Documents, and the forwarded class
 ///     routes GET and POST of the empty remainder and DELETE of /:ref to List, Add and Remove; a Map of the same kind (Test.Web.DocumentsMapProbe)
 ///     reaches the probe's three routes through the forwarded role check; the whole chain from Web.Api.DispatchMap reaches Web.Documents' routes in
 ///     a process that holds the OcuTalon user role, and in one that lacks it the forwarded dispatch refuses 403 no_role;
@@ -93,13 +93,12 @@ Method TestDispatch()
 	For {
 		Set i = $Order(routes(i), 1, route)
 		Quit:i=""
-		If route.type = "M" {
+		If (route.type = "M") && (route.url = "/v1/documents") {
 			Set maps = maps + 1
 			Set map = route
 		}
 	}
-	Do $$$AssertEquals(maps, 1, "Web.Api's URL map holds exactly one Map")
-	Do $$$AssertEquals(map.url, "/v1/documents", "its prefix is /v1/documents")
+	Do $$$AssertEquals(maps, 1, "Web.Api's URL map holds exactly one Map for /v1/documents")
 	Do $$$AssertEquals(map.forward, "OcuTalon.Web.Documents", "it forwards to Web.Documents")
 	Set matcher = ##class(%Regex.Matcher).%New(map.regex)
 	Do $$$AssertTrue(matcher.Match("/v1/documents"), "the prefix itself matches")

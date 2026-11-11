@@ -57,9 +57,10 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     const buttons = count(code, /<button\b/g);
     assert.equal(buttons, 1, 'one button in the template');
     assert.equal(count(code, /<button\s[^>]*type="button"/g), buttons);
-    assert.equal(count(code, /<a\b/g), 1, 'and one link, to the Documents page');
+    assert.equal(count(code, /<a\b/g), 2, 'and two links, to the Documents page and to the Usage page');
     assert.match(code, /<a [^>]*routerLink="\/documents"/);
-    assert.equal(count(code, /\(click\)=/g), 2, 'each control has a click and nothing else acts');
+    assert.match(code, /<a [^>]*routerLink="\/usage"/);
+    assert.equal(count(code, /\(click\)=/g), 3, 'each control has a click and nothing else acts');
     assert.equal(count(code, /\(click\)="press\(item\)"/g), 1, 'the one button presses');
     assert.doesNotMatch(code, /\bconstructor\s*\(|ngOnInit|ngAfterViewInit|\beffect\(/, 'nothing runs at creation');
     assert.doesNotMatch(file('guide/more-to-try-room.ts').code, /\.focus\(|\.click\(|\.send\(|\bApiClient\b|\bAnnouncer\b/, 'the room measurement acts on nothing');
@@ -99,7 +100,7 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
   it('is a labelled group with a list, each control marked for the focus rule', () => {
     assert.match(code, /class="group ring-inside" role="group" tabindex="0" data-guide-focus="moreItem" \[attr\.aria-labelledby\]="labelId"/);
     assert.match(code, /<ul class="items">/);
-    assert.equal(count(code, /data-guide-focus="moreItem"/g), 3, 'the group and the two kinds of control');
+    assert.equal(count(code, /data-guide-focus="moreItem"/g), 4, 'the group, the button and the two links');
   });
 
   it('is bounded where the page fills the viewport: its own vertical scroll, with the room that the chat leaves above its floor', () => {
