@@ -519,7 +519,7 @@ Method TestNotices()
 		If edits.%Size() = 1 Do $$$AssertEquals(edits.%Get(0).text, withFixText_$Char(10, 10)_status, "the incident.withFix message, with the status as its last line")
 		Do $$$AssertEquals(..Rows(session, "telegram", "pairing"), expectedRows_",answered|zzappr1|"_withFixRow, "and records one answered telegram row, with the message's id")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentPhone(session, 100).Count(), phones, "the phone got none of the allowance notices")
-		Do $$$AssertTrue(..WaitRows(session, "web", "*", 40, 30) >= 40, "WebChatOut has handled all 40 notifications, so that nothing is left to write when the test ends")
+		Do $$$AssertTrue(..WaitRows(session, "web", "*", 41, 30) >= 41, "WebChatOut has handled all 40 notifications and the answered one, so that nothing is left to write when the test ends")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the notices test failed: "_..Safe(ex))
 	}

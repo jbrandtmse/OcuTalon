@@ -247,8 +247,21 @@ Rejected or closed (appendix):
 
 **Smoke rework (iteration 1):**
 - [x] [Smoke] `Test.Channel.TelegramChat:TestNotices` fails on a warm stack: "there are 28 Watch notice keys" and "there are 34 of them". This story added `incident.partnerRequest` and `result.partner*` keys to `Msg/Catalog/Watch.cls`, and the test pins the count of the catalog's `incident.`/`result.` keys and the Telegram Delivery rows (Rule 19 shared surface, missed by implement, QA and review). Update the pins to what the catalog now holds, with each new key sending as the others do (the request key counts as an `approval` row, as 23.2's three request keys do); run the class on a stack and write its mutation line. No product change.
-  - Done (warm tag `e23s5rw`): the pins are now 34 Watch notice keys, 40 Delivery rows, 41 notifications handled by TelegramOut (40 and the answered one) and 40 web rows; `incident.partnerRequest` joins the `approval` rows and the five `result.partner*` keys send as `result` rows. `Test.Channel.TelegramChat` passed (all of it, 39 s).
-  - mutation: the notice filter leaves `result.partnerKept` out -> `Test.Channel.TelegramChat:TestNotices` red ("there are 34 Watch notice keys", "there are 40 of them", "TelegramOut has handled all 40 notifications"); reverted byte-identical (`cmp` and `git diff` hash), the class green again on the same stack.
+  - Done (warm tag `e23s5rw`): the pins are now 34 Watch notice keys, 40 Delivery rows, 41 notifications handled by TelegramOut (40 and the answered one) and 41 web rows (the 40 and the answered one, which WebChatOut also records; the drain guard read 40 until the code review); `incident.partnerRequest` joins the `approval` rows and the five `result.partner*` keys send as `result` rows. `Test.Channel.TelegramChat` passed (all of it, 39 s).
+  - mutation: `result.partnerKept` deleted from `Msg/Catalog/Watch.cls` `Entries` (the product catalog) -> `Test.Channel.TelegramChat:TestNotices` red ("there are 34 Watch notice keys", "there are 40 of them", "TelegramOut has handled all 40 notifications and the answered one", "WebChatOut has handled all 40 notifications and the answered one"); restored byte-identical (`cmp`, `git status --short` and `git diff --stat` unchanged), the class green again on the same warm stack (`e23s5dw`, code review).
+
+### Review Findings (rework iteration 1, smoke: code review)
+
+Scope: the rework diff since `4e7cb8e7`. Four layers (blind, edge case, verification gap, acceptance); 6 findings: high 0, medium 0, low 5, false 1. Patched 2, rejected 4. Checklist: the `[Smoke]` item is fixed. The catalog holds 34 `incident.`/`result.` keys (28 plus this story's six), 34 + 6 core keys = 40 Delivery rows, TelegramOut handles 41, the operators are unchanged (no pin loosened), and `incident.partnerRequest` is an `approval` row as the product sends it.
+
+- [x] [Review][Patch] (low) The WebChatOut drain guard waited for 40 web rows, but the answered Notification also records one (Notify sends any other kind to WebChatOut; `answered` is not a card kind), so one missing notice still passed and the last row could be written after the test ended [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls:522]. Now 41. The class passed warm, and the mutation above turns it red.
+- [x] [Review][Patch] (low, Rule 19) The mutation line changed the test's own key filter, not the code under test. Closed in-pass: the catalog-side mutation above was applied, observed red, reverted and recorded.
+
+Rejected (appendix):
+- `TestNotices` sets the kind of `incident.partnerRequest` itself, so it cannot see the product's classification, and a future request key left off its list would pass as `incident` (verification gap, edge case): low. In this test the kind is fixture input: it pins that the channels record the kind they are given. The product's `approval` kind is pinned at `Test/Fix/PartnerDraft.cls:180`. Deriving the list from the product needs a new helper, which is more than a direct correction. Under Rule 19 this is acceptable: it is not an unfalsifiable pin of an AC.
+- The spec's Shared surfaces list and `epic-23-context.md` do not name `TestNotices` (blind): low. The fix is a spec or context edit. Rule 19 already requires the implement stage to search the test trees for a shared surface's old shape.
+- `followup_review_recommended: false` sits beside the Auto Run Result's "follow-up review recommended" (blind): low. The fix is a spec edit, and the scope of this re-review was set by the lead.
+- The spec reads `status: done` while the tracker reads `review` (acceptance, process note): false as a defect. The implement stage sets the spec's status at finalize, and this review syncs the tracker.
 
 ## Spec Change Log
 
