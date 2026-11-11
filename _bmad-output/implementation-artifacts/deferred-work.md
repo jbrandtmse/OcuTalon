@@ -6884,3 +6884,33 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: in-story
 - evidence: The page shows nothing new for a second failure; the press waits only for the route fulfil. Observed in order in the no-retract mutation run (H15 red, 2 announcements), not guaranteed.
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=give H15 an observed precondition (a page-side marker of the refused read) and a mutation line
+
+### DW-1127: 35.3: rotation's Settings audit entry shows [redacted] for from/to where C3 said empty strings
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Bridge.Audit.Record redacts sensitive settings (webhook.<Ref>.secret); neither secret nor hash is recorded
+- 2026-11-11T13:32:00Z status=by-design owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=existing Redact convention; C3 wording superseded
+
+### DW-1128: 35.3: W8 asserts measured answers for dot-segment paths (web server normalizes to /ocutalon/api -> 401 signed_out; encoded slash -> stock 404) where ruling R6(b) says all 404
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: high | footprint: out-of-footprint
+- evidence: measured on e35s3iw; nothing reaches the hook, nothing 2xx; the web server resolves dot segments before choosing an application
+- 2026-11-11T13:32:00Z status=decision-pending owner=burndown by=harvest note=planner: confirm the measured answers satisfy R6(b)
+
+### DW-1129: 35.3: failed webhook-list load shows the create form and an empty list
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: webhooks-section.ts stateOf returns ready for errors other than 403/409; a load-failure text is not accepted
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA/CR: reuse an existing accepted load-failure text if one exists, else wontfix with probe
+
+### DW-1130: 35.3: Install.Step.Web.Run's removal of a stale /ocutalon/hook on the online demo is not pinned from Run
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestRemoveHook calls RemoveHook directly
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA: pin through Run with the flag set
+
+### DW-1131: 35.3: a local install switched to the online demo keeps a stale OcuTalonWebhook role
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Roles step (Lane A) never deletes roles; role holds only the three DB grants; no user holds it; demo installs are fresh
+- 2026-11-11T13:32:00Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=reopen_if=an existing local install is ever converted to an online demo in place
+
+### DW-1132: 35.3: the hook's 503 with the real Hand (production not running) is not exercised at a live surface
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Test.Web.Hook drives 503 via HookProbe only
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA: exercise the real 503 or close with probe
