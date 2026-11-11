@@ -138,6 +138,7 @@ deferred:
 ## Spec Change Log
 
 - 2026-11-11 (plan): Story inserted on 2026-11-11 from the Contest Planner's 1.0.7 demo-pass ruling (`.coordination/prompts/epic-23-story-2310-ruling.md`, ~14:30Z, under the owner's delegation). It runs after 23.7 and before 23.9 on lane D. Item 4 is planned as a ledger entry (frontmatter `deferred`), because its cause is not a one-line refresh.
+- 2026-11-11 (spec gate): the orchestrator's gate rulings recorded under Design Notes (contended hunks plain union; mock case accepted; item 4 a veto item, U-318).
 
 ## Review Triage Log
 
@@ -165,6 +166,12 @@ No new line is proposed. The card, phone and mailbox show the renamed contact on
 5. The existing `partner-notice` and `partner-notice-draft` replies ("We are looking into it and will keep you informed.") stay unchanged. They are CI-only canned text. Editing them is a contended "other" hunk with no product effect, and `NOTICE` pins them byte for byte.
 6. Item 3 needs no new guard. `Msg.Catalog.SlotText` already drops a value's trailing "." before the text's "." and keeps "?", "!" or "…" (Code Map). `TestSummaryFixFullStop` pins it for this key.
 7. Item 4 goes to the ledger (frontmatter `deferred`, for the lead's harvest). The cause is that the rail reads only the live store, which only the asynchronously published `approval` event updates. The fix is a store function, a LiveState method and two hosts, not a one-line refresh.
+
+**Spec-gate rulings (orchestrator, 2026-11-11T20:09Z, `.coordination/prompts/epic-23-rulings-2310-gate.md`):**
+1. The contended "other" hunks listed below (Watch.cls `summary.fix`, `Test/Fix/PartnerWarning`, `PartnerDraft`, `PartnerTurns`, the new mock scenario) are approved as plain unions. Condition: the lead re-checks Epics 21, 22 and 35 right before the implement spawn. A new hunk on one of these files keeps both sides at integrate; a behaviour choice is a Clarification.
+2. Ruling item 2 met by the CI mock case: accepted (the RC-eval item goes to the Planner).
+3. Ruling item 4 (rail after Reject): decided as a veto item (inbox U-318): LOW, wontfix-accepted, reopen_if a browser test that presses Reject still sees the request on the rail 5 s later. A reversal becomes a routed entry for an Epic 21 story, not a 23.10 rework.
+4. The "Decided in-stage" items stand.
 
 **For the Planner's next RC-eval checklist (model-facing):** with the real model, on a guide incident that is resolved, ask "Warn the partner about the delay.". The drafted notice says the affected orders went through after the fix, addresses Orders Partner IT, and has no "looking into", "will share updates" or other words saying work is still going on.
 
