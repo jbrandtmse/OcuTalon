@@ -2931,6 +2931,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 - 2026-11-04T04:29:11Z occurrence=10ce26ac by=merge_gate note=run 41769982647 attempt 1 live:online-allowance D1 (feature head)
 - 2026-11-10T17:42:07Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980616882 iris(shards) live:online-allowance D1 S1 daily-cap banner not found 60s; OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
+- 2026-11-11T05:58:07Z occurrence=23-5 by=orchestrator note=run 42963531773 job 130335378855 iris(shards) live:online-allowance D1 S1 daily-cap banner not found (ci-10); OCT-epic23 52db267d
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -6428,6 +6429,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T21:55:44Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_594a66af_run_42702099695_browser_live:demo-path_06-trace:35_finish_not_found_after_navigation_to_?signedOut=1;one_rerun_of_the_failed_job
 - 2026-11-10T07:54:01Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_b99d6529_run_42768243726_browser_06-trace_signedOut;one_rerun
 - 2026-11-10T17:42:06Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980616591 iris(browser) live:demo-path 06-trace .finish-done not found after navigation to ?signedOut=1; OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
+- 2026-11-11T07:02:27Z occurrence=feature-c241f87c by=orchestrator note=run 42969082500 job 130353082261 iris(browser) live:demo-path 06-trace 'the run total' not found after navigation to ?signedOut=1 (ci-4); rerun of failed jobs
 
 ### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -6719,6 +6721,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (shards-6) lane-b@rest; green on one rerun
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the Data.Purge entry filed alongside (Planner's unverified guess); no fix work now
 - 2026-11-10T19:46:28Z note=see also DW-1095 (possible shared cause: before/after session-row comparisons)
+- 2026-11-11T06:26:39Z occurrence=25-2 by=orchestrator note=run 42966931010 job 130346188889 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges + TestRunAgain (ci-12); OCT-epic25 284e8904
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
