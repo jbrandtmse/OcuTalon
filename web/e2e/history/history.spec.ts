@@ -6,6 +6,7 @@ import { NAV_LINKS_USER } from '../support/header-nav';
 import { localDate, seedHistoryDecisions, type HistoryDecisionSeed } from '../support/history';
 import { cleanFixtureRows, fixtureUser, seedIncident } from '../support/iris';
 import { sessionRefOfUser } from '../support/memory';
+import { freeze } from '../support/clock';
 import { announcements, recordAnnouncements } from '../support/page';
 import { helpSeen, stubTraces } from '../support/trace';
 
@@ -23,7 +24,7 @@ import { helpSeen, stubTraces } from '../support/trace';
  *   P01..P26  46  act  slack     no        26 rows, the second page holds P01
  *
  * and two incidents (noticed in 2031, so they head the list): one closed with a stored summary, a count of 4 and a diagnosis trace, one open with no summary.
- * The texts are written out here, as the independent oracle of the page's own. H9, H12 and H15 stub the history routes in the browser and read no row.
+ * The texts are written out here, as the independent oracle of the page's own. H9, H12 and H15 stub the history routes in the browser to fail a read.
  */
 const TITLE = 'History \u00B7 OcuTalon';
 const SIGN_IN_NAME = 'Open in Visual Trace (shows sign-in help first)';
@@ -385,7 +386,7 @@ test('H9: the empty texts, and a failed read says so with Retry', async ({ page 
   await page.unroute(DECISIONS);
   await page.route(DECISIONS, (route) => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'x' } }) }));
   await visit(page, `?day=${d45}`);
-  await expect(failedOf(page)).toHaveText(new RegExp(ERROR));
+  await expect(failedOf(page)).toContainText(ERROR);
   await page.unroute(DECISIONS);
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(rowsOf(page)).toHaveCount(5);
@@ -472,7 +473,7 @@ test('H12: the Incidents tab shows the Fallback flag, the no-summary text of a c
 
   failing = true;
   await incidentPager.getByRole('button', { name: 'Previous page', exact: true }).click();
-  await expect(failedOf(page)).toHaveText(new RegExp(ERROR));
+  await expect(failedOf(page)).toContainText(ERROR);
   await expect(incidentsOf(page)).toHaveCount(0);
   failing = false;
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
@@ -522,27 +523,52 @@ test.describe('in Europe/Berlin', () => {
   });
 });
 
+/**
+ * Runs the page's stopped clock (freeze) on in 20 ms steps until the check holds, and returns how far it ran. The page renders and its timers fire only on
+ * these steps, so what a check waits for takes the same time of the page's clock on any host.
+ */
+async function stepUntil(page: Page, check: () => Promise<boolean>, most: number, what: string): Promise<number> {
+  for (let ran = 0; ran <= most; ran += 20) {
+    if (await check()) return ran;
+    await page.clock.runFor(20);
+  }
+  throw new Error(`${what}: not within ${most} ms of the page's clock`);
+}
+
+/**
+ * H15 needs the page's clock (page.clock.install() before sign-in), stopped before the first read: the second failure then waits for the live region's
+ * one-second gap for as long as the test holds the clock, however slow the host, and the answer is handled before the clock runs again.
+ */
 test('H15: a failure that waits for the live region\'s one-second gap is not announced once a Retry has been answered', async ({ page }) => {
   await recordAnnouncements(page);
+  await page.clock.install();
   await openApp(page);
   let asked = 0;
   let failed = 0;
+  let answered = false;
   await page.route(DECISIONS, async (route) => {
     asked += 1;
-    if (asked > 2) return route.continue();
+    if (asked > 2) {
+      await route.fulfill({ response: await route.fetch() });
+      answered = true;
+      return;
+    }
     await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'x' } }) });
     failed += 1;
   });
-  await visit(page, `?day=${d45}`);
-  await expect(failedOf(page)).toHaveText(new RegExp(ERROR));
-  await expect.poll(() => announcements(page, ERROR), 'the first failure is announced').toBe(1);
+  await freeze(page);
+  await page.evaluate((hash) => {
+    window.location.hash = hash;
+  }, `#/history?day=${d45}`);
+  await stepUntil(page, async () => (await failedOf(page).count()) === 1 && (await announcements(page, ERROR)) === 1, 3000, 'the first failure shows and is announced');
+  await expect(failedOf(page)).toContainText(ERROR);
   const retry = page.getByRole('button', { name: 'Retry', exact: true });
-  await retry.click();
+  await retry.press('Enter');
   await expect.poll(() => failed, 'the second read failed').toBe(2);
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  await retry.click();
-  await expect(rowsOf(page)).toHaveCount(5);
+  await retry.press('Enter');
+  await expect.poll(() => answered, 'the third read is answered').toBe(true);
+  await stepUntil(page, async () => (await rowsOf(page).count()) === 5, 2000, 'the answer shows its five rows');
   await expect(failedOf(page)).toHaveCount(0);
-  await page.waitForTimeout(1500);
+  await page.clock.runFor(1500);
   expect(await announcements(page, ERROR), 'the second failure waited for the gap, and the answer withdrew it: the error was announced once').toBe(1);
 });

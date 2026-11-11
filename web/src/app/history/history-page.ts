@@ -80,7 +80,8 @@ interface IncidentLine {
  * shows the same list: a filter, tab or page change navigates (and so Back works), a filter change goes back to page 1, and an address with a value the
  * server would not take is replaced by the cleaned one. The lists page with Previous page and Next page ("Page n of N"), shown only with more than one page; a
  * page past the last (a stale link) is replaced in the address by the last page. The page asks the route when it opens, on each change of the address and
- * on Retry, shows nothing before the first answer, and shows "Couldn't load your history." with Retry for a failed read, announced through the live region, and an answer that follows withdraws that announcement.
+ * on Retry, shows nothing before the first answer, and shows "Couldn't load your history." with Retry for a failed read, announced through the live region.
+ * An answer that follows withdraws that announcement when it still waits or was spoken alone (Announcer.retract).
  */
 @Component({
   selector: 'app-history-page',
