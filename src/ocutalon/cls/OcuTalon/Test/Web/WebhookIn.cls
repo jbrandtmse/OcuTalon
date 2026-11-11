@@ -6,7 +6,8 @@
 ///   - TestRefusals: an input that is not an Event, an Event with no session, with blank text, and one whose session has no row each answer an error status
 ///     and send nothing; a failing send is the answer;
 ///   - TestOwnTraceSession: through the production, the Item's message has a trace session of its own whose SuperSession is the owner's TraceRef, and a session
-///     with no row sends no message.
+///     with no row sends no message; the test waits until the event is decided and routed before it removes its messages, and afterwards the event's trace
+///     session stays empty.
 Class OcuTalon.Test.Web.WebhookIn Extends %UnitTest.TestCase
 {
 
@@ -94,12 +95,15 @@ Method TestOwnTraceSession()
 	Do $$$AssertEquals(found, 1, "one message from WebhookIn is under the owner's TraceRef")
 	Do $$$AssertTrue(own '= "", "and it has a session of its own")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Web.WebhookTools).HeadersSince(mark, "WebhookIn"), 1, "and no other")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Web.WebhookTools).WaitSettled(own, 60), "the event is decided and routed")
 	Set orphan = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set mark = ##class(OcuTalon.Test.Web.WebhookTools).LastHeader()
 	Set sc = service.ProcessInput(..Event(orphan, "zz hook", "{}"), .output)
 	Do $$$AssertStatusNotOK(sc, "an event whose session has no row is an error")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Web.WebhookTools).HeadersSince(mark, "WebhookIn"), 0, "and sends no message")
 	Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages([(trace)])
+	Hang 1
+	Do $$$AssertEquals(##class(OcuTalon.Test.Web.WebhookTools).SessionHeaders(own), 0, "no late writer adds to the event's trace session after the clean-up")
 }
 
 /// An Event of the session with the name and the text.

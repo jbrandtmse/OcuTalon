@@ -317,20 +317,8 @@ Method TestDemoOnlyGrantsListed()
 	Do $$$AssertEquals(model.serviceUser.roles.%Size(), 1, "holds one role")
 	Do $$$AssertEquals(model.serviceUser.roles.%Get(0), "OcuTalonServiceRole", "the service role")
 	Do $$$AssertEquals(model.serviceUser.login, "disabled", "with login disabled")
-	Set shown = ""
-	Set iterator = model.applications.%GetIterator()
-	While iterator.%GetNext(, .app) {
-		Set shown = shown _ $Select(shown = "": "", 1: ";") _ app.name_"=:"_..List(app.roles, ":")
-	}
-	Set roles = ##class(OcuTalon.Install.Step.Web).#APPLICATIONROLES
-	Set hook = $Select(##class(OcuTalon.Data.Public.Settings).Get("onlineDemo") = "1": "", 1: ";/ocutalon/hook=:"_##class(OcuTalon.Install.Step.Web).#HOOKROLE)
-	Do $$$AssertEquals(shown, "/ocutalon="_roles_";/ocutalon/api="_roles_hook, "/ocutalon and /ocutalon/api add the roles of Web.APPLICATIONROLES, /ocutalon/hook adds only the webhook role off the online demo, and no other application of the Web step adds a role")
-	Set signIn = ""
-	Set iterator = model.applications.%GetIterator()
-	While iterator.%GetNext(, .app) {
-		Set signIn = signIn _ $Select(signIn = "": "", 1: ";") _ app.name_"="_app.signIn
-	}
-	Do $$$AssertEquals(signIn, "/ocutalon=password;/ocutalon/api=password"_$Select(hook = "": "", 1: ";/ocutalon/hook=none (unauthenticated)"), "each application's sign-in is read from its AutheEnabled")
+	Do ..ApplicationsFor(0)
+	Do ..ApplicationsFor(1)
 	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
 	Set text = sections("privileges")
 	Do $$$AssertTrue(..HasLine(text, "| `OcuTalonServiceRole` | `%DB_OCUORDERS_DATA` | R |"), "the privilege section lists the service role's demo-only grant")
@@ -644,6 +632,35 @@ Method TestPrivilegesMatchSecurityRecords()
 }
 
 // --- helpers ---
+
+/// The model's applications with the online-demo flag set to the given value: /ocutalon and /ocutalon/api add the roles of Web.APPLICATIONROLES and sign in
+/// with a password; /ocutalon/hook adds only the webhook role and signs in with none, and only with the flag off; no other application adds a role. The
+/// flag is put back, also after a failure.
+Method ApplicationsFor(online As %Boolean) [ Private ]
+{
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set error = ""
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", $Select(online: 1, 1: 0))
+		Set model = $ClassMethod(..#GENERATOR, "Model")
+		Set shown = ""
+		Set signIn = ""
+		Set iterator = model.applications.%GetIterator()
+		While iterator.%GetNext(, .app) {
+			Set shown = shown _ $Select(shown = "": "", 1: ";") _ app.name_"=:"_..List(app.roles, ":")
+			Set signIn = signIn _ $Select(signIn = "": "", 1: ";") _ app.name_"="_app.signIn
+		}
+		Set roles = ##class(OcuTalon.Install.Step.Web).#APPLICATIONROLES
+		Set hook = $Select(online: "", 1: ";/ocutalon/hook=:"_##class(OcuTalon.Install.Step.Web).#HOOKROLE)
+		Set label = $Select(online: "online demo", 1: "local install")
+		Do $$$AssertEquals(shown, "/ocutalon="_roles_";/ocutalon/api="_roles_hook, label_": /ocutalon and /ocutalon/api add the roles of Web.APPLICATIONROLES, /ocutalon/hook adds only the webhook role off the online demo, and no other application of the Web step adds a role")
+		Do $$$AssertEquals(signIn, "/ocutalon=password;/ocutalon/api=password"_$Select(online: "", 1: ";/ocutalon/hook=none (unauthenticated)"), label_": each application's sign-in is read from its AutheEnabled")
+	} Catch exception {
+		Set error = exception.DisplayString()
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do $$$AssertEquals(error, "", "the applications were read without an error")
+}
 
 /// The row of the tool in the model, or "".
 ClassMethod RowOf(name As %String) As %DynamicObject [ Private ]

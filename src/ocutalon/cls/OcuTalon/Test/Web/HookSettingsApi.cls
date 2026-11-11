@@ -299,7 +299,7 @@ Method TestSecretNeverStored()
 	Do ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Settings", "Settings", ref, "", 2)
 	Set hash = ##class(OcuTalon.Data.Webhook).Lookup(ref).SecretHash
 	For secret = first, second {
-		Set label = $Extract(secret, 1, 18)
+		Set label = $Select(secret = first: "the first secret", 1: "the replacing secret")
 		Set messages = ..Columns("OcuTalon_Msg_Command.CreateWebhook")_..Columns("OcuTalon_Msg_Command.SetWebhookSecret")_..Columns("OcuTalon_Msg.CommandResult")
 		Do $$$AssertTrue(messages '[ secret, label_": no command or result message holds it")
 		Do $$$AssertTrue(##class(OcuTalon.Test.Web.WebhookTools).LogText(log) '[ secret, label_": no event log row holds it")

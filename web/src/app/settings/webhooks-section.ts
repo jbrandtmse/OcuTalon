@@ -1,11 +1,12 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, ElementRef, inject, Injector, signal } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, Injector, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
-import { type Observable, tap } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
 import type { WebhookRow } from '../api/api-types';
 import { Icon } from '../icon/icon';
+import { LOAD_FAILED } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
 import { ServerButton } from '../shared/server-button';
 import { SETTINGS_TEXTS } from './settings-view';
@@ -30,6 +31,8 @@ const BLANK: RowState = { secretError: '', formError: false, done: false };
  *   - 403: "Only OcuTalon admins can open settings." shows in the group in place of the form (the page is not told);
  *   - 409 `not_available` (the online demo): the group shows its own text in place of the form;
  *   - any other failure: "Couldn't save. Nothing was changed." under the button, read once by the announcer.
+ * A list that fails to load for any reason but 403 and 409 shows the accepted load error (LOAD_FAILED, "Couldn't load your session.") with Retry in place of the
+ * form, as the page does for its own load, and the announcer reads it once; Retry asks for the list again.
  * Typing in a field clears its error and the saved line. The group takes no part in the page's unsaved guard: a typed secret is not kept on leaving.
  */
 @Component({
@@ -42,6 +45,12 @@ const BLANK: RowState = { secretError: '', formError: false, done: false };
       @switch (state()) {
         @case ('off') {
           <p class="help" data-state="off">{{ texts.webhooks.offOnDemo }}</p>
+        }
+        @case ('failed') {
+          <div class="load-error" data-state="failed">
+            <p class="load-error-text" id="webhooks-load-error-text">{{ loadFailed }}</p>
+            <app-server-button variant="secondary" [action]="retry" [describedBy]="['webhooks-load-error-text']">Retry</app-server-button>
+          </div>
         }
         @case ('denied') {
           <p class="field-error" data-state="denied"><app-icon name="circle-alert" [size]="16" />{{ texts.denied }}</p>
@@ -203,6 +212,16 @@ const BLANK: RowState = { secretError: '', formError: false, done: false };
       margin: 0;
       color: var(--ink);
     }
+    .load-error {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-3);
+    }
+    .load-error-text {
+      margin: 0;
+      color: var(--ink);
+    }
   `,
 })
 export class WebhooksSection {
@@ -210,11 +229,13 @@ export class WebhooksSection {
   private readonly announcer = inject(Announcer);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly destroyed = inject(DestroyRef);
 
   protected readonly texts = SETTINGS_TEXTS;
+  protected readonly loadFailed = LOAD_FAILED;
 
-  /** loading until the list answers; then ready, off (the online demo) or denied. */
-  protected readonly state = signal<'loading' | 'ready' | 'off' | 'denied'>('loading');
+  /** loading until the list answers; then ready, off (the online demo), denied, or failed (the list did not load). */
+  protected readonly state = signal<'loading' | 'ready' | 'off' | 'denied' | 'failed'>('loading');
   protected readonly webhooks = signal<readonly WebhookRow[]>([]);
 
   protected readonly name = signal('');
@@ -229,15 +250,37 @@ export class WebhooksSection {
   private readonly rowStates = signal<Readonly<Record<string, RowState>>>({});
 
   constructor() {
+    this.load();
+  }
+
+  /** Retry: asks for the list again; the Observable emits once and completes when the server has answered, whatever the answer. */
+  protected readonly retry = (): Observable<void> =>
+    new Observable<void>((subscriber) => {
+      this.load(() => {
+        subscriber.next();
+        subscriber.complete();
+      });
+    });
+
+  /** Loads the list; done is called once the server has answered. */
+  private load(done?: () => void): void {
     this.api
       .webhooks()
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyed))
       .subscribe({
         next: (list) => {
           this.webhooks.set(list.webhooks);
           this.state.set('ready');
+          done?.();
         },
-        error: (error: unknown) => this.state.set(this.stateOf(error)),
+        error: (error: unknown) => {
+          const state = this.stateOf(error);
+          this.state.set(state);
+          if (state === 'failed') {
+            this.announcer.announce(LOAD_FAILED);
+          }
+          done?.();
+        },
       });
   }
 
@@ -322,12 +365,12 @@ export class WebhooksSection {
     this.rowStates.update((all) => ({ ...all, [ref]: state }));
   }
 
-  private stateOf(error: unknown): 'ready' | 'off' | 'denied' {
+  private stateOf(error: unknown): 'off' | 'denied' | 'failed' {
     if (!(error instanceof HttpErrorResponse)) {
-      return 'ready';
+      return 'failed';
     }
     const outcome = webhookOutcome(error.status, error.error);
-    return outcome.kind === 'off' ? 'off' : outcome.kind === 'denied' ? 'denied' : 'ready';
+    return outcome.kind === 'off' ? 'off' : outcome.kind === 'denied' ? 'denied' : 'failed';
   }
 
   private refusedCreate(error: unknown): void {
