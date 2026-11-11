@@ -43,3 +43,4 @@
 2026-11-11T06:26:54Z	Story 25.2	ci_red_classified	run=42966931010 workflow=.github/workflows/ci.yml class=flake test=lane-b@rest_Test.Web.GuideApi_TestOnlyTheMarkerChanges/TestRunAgain ledger=DW-1094(occurrence)
 2026-11-11T06:27:26Z	Epic 25	integrated_forward	feature=c241f87c(b5bd74c5_41.15+0.25_docker/tests) head=cf01cfde conflicts_resolved=sprint-status.yaml(regenerated),ARCHITECTURE-SPINE.md(updated:_line;both_sides_rows_kept;lint_baseline_10_low) note=23.5_not_landed_yet
 2026-11-11T06:27:45Z	Story 25.2	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI:usage.spec_U8/U1_nav_pin scope_baseline=cf01cfde cap=3 used_before=0
+2026-11-11T06:27:52Z	Story 25.2	stage_spawned	stage=implement spawn_at=2026-11-11T06:27:52Z model=sonnet agent_name=25-2-filter-past-decisions-and-incidents-on-the-history-page-implement-2 cycle_iteration=2 rework=1
