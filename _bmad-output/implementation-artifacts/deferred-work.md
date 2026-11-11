@@ -6892,6 +6892,21 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: The page shows nothing new for a second failure; the press waits only for the route fulfil. Observed in order in the no-retract mutation run (H15 red, 2 announcements), not guaranteed.
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=give H15 an observed precondition (a page-side marker of the refused read) and a mutation line
 
+### DW-1124: Ending a session does not stop its queue-backlog row: Core/SessionOps.EndWatches skips non-production kinds, so the check keeps running for the ended session and Data.Purge.Keeps keeps the session
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-epic(Core/SessionOps.cls,not_contended)
+- evidence: SessionOps.cls:332-345 EndWatches skips Kind<>production and builds StopWatch without Kind; WatchOps.OnStop handles Kind queues
+- 2026-11-11T12:25:12Z status=open owner=23-7-watch-queue-backlogs-between-digests by=harvest note=fix now at 23.7 code review: accept QUEUEKIND in EndWatches, set stop.Kind=check.Kind, plus a Test.Core session-end case; footprint extension (no in-flight epic owns SessionOps.cls)
+- 2026-11-11T12:56:43Z status=resolved-by:23-7-watch-queue-backlogs-between-digests by=adjudication note=Core/SessionOps.EndWatches_accepts_QUEUEKIND_and_sets_stop.Kind;Test.Watch.Ops:TestQueuesEndSession(mutation_observed_red)
+
+### DW-1125: Chat's queue-backlog rule follows the production watch rules; whether the real model calls start_watch/stop_watch with kind queues for 'Watch the queue backlogs.' and its stop is unmeasured (only the CI mock scripts it)
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Agent/Chat.cls:58 rule after the start/stop production rules; a model that calls start_watch without kind answers unknown_production/only_orders on the demo; no real-key run exists (maybe-false, unverified)
+- 2026-11-11T12:55:23Z status=routed owner=38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=cr note=unverified: settle by running the More to try queue prompt and its stop against the real model
+
+### DW-1126: The heartbeat checklist's Watches line lists production watches only, so a session whose only check is the queue-backlog check reads Watches: none
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Checks/Beat.cls WatchLines skips every Kind but production; the spec's Never forbids any change to Checks.Beat
+- 2026-11-11T12:55:23Z status=by-design owner=23-7-watch-queue-backlogs-between-digests by=cr note=spec Never: no change to Checks.Beat; reopens only via a spec amendment
 ### DW-1123: eval fixture: memory-documents-remember's phrase check 'the reply says: document' is too narrow; widen it to accept any of document, runbook or file
 - source: Contest Planner, 1.0.7 RC eval wording ruling, 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 1.0.7 RC eval, 3 real-model attempts: the model refused to save runbook text, cited 'Results runbook / Clearing the queue' and quoted it, but said 'runbook', failing only the phrase check
@@ -6932,3 +6947,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic23 96bc4b28, ci run 43037078949 job 130578626990 on ocutalon-ci-16 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: timing assert on the poll interval under CI load; 23.7 changes no live/poll code
 - 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); one rerun per occurrence; rerun deferred until RESUME (HOLD)
+### DW-1143: K29 under sign-in-3 (no model, no CI mock) seeds the queue row instead of running press->turn->start_watch->row end to end
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story(web/e2e/guide/more-to-try-queues.spec.ts)
+- evidence: sign-in-3 has no CI mock; K29 pins press->one prompt (mutation red); Test.Watch.Turns:TestQueuesThroughTheAgent pins prompt->start_watch(kind queues)->row->check event; rail-view.test.mjs and K29 pin the row render
+- 2026-11-11T14:03:12Z status=by-design owner=23-7-watch-queue-backlogs-between-digests by=harvest note=ruling(decide,tier1): AC10's chain is pinned link by link across K29, Test.Watch.Turns and rail-view.test.mjs; recorded in spec Design Notes; reopen only if a browser unit with the CI mock gains a guide case
+
+### DW-1144: ci/mock/scenarios/B/queue-watch-ask.json has no consumer after the K29 rework (K29 no longer runs a chat turn)
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: low | fix-risk: low | footprint: in-story(ci/mock/scenarios/B)
+- evidence: K29 answers the POST itself under sign-in-3; test-mock.sh passes with the file present
+- 2026-11-11T14:03:12Z status=wontfix-accepted owner=23-7-watch-queue-backlogs-between-digests by=harvest note=reopen_if=a mock-scenario consumer check flags it or a CI-mock browser unit gains a guide case (then K29 moves there and uses it)

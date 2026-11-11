@@ -3524,3 +3524,7 @@
 2026-11-11T20:50:19Z	Epic 23	runner_resumed	agent=afc4a2f06e7d322df with=CI_outage_rule:implement_23.10_local_unpushed mode=message_to_live_runner
 2026-11-11T21:01:50Z	Epic 23	ci_green_verified	branch=OCT-epic23 head=96bc4b28 runs=43037078949(att2),43037078655 result=success story=23.7 note=DW-1157,DW-1158_green_on_one_rerun(flake_confirmed)
 2026-11-11T21:01:50Z	Epic 23	merge_enqueued	part=23.7 head=e85f53bf(code=96bc4b28;+5_bookkeeping:23.10_inserted+spec) by=orchestrator
+2026-11-11T21:02:50Z	Epic 23	merge_gate	part=23.7 head=e85f53bf(code=96bc4b28) conflicts=sprint-status.yaml(ours+regenerate+set_23-7=done;validate_ok) spine=auto-merged lint=baseline(10_low_placeholder,same_as_e81cbf0d) amendments=AD-18_bullet+Conventions_clause(ruled_11:16Z),epics.md_23.9_unpark_marker footprint_extensions=Core/SessionOps.cls,Test/Checks/Probe.cls
+2026-11-11T21:02:50Z	Run	spine_reconciled	ads_merged=0 lint=baseline
+2026-11-11T21:02:50Z	Run	ledger_routed_planned	story=38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test entries=1(DW-1125) excess=0 by=merge_gate
+2026-11-11T21:02:50Z	Run	deps_hash_rerecorded	reason=fix_forward,ledger_routed note=Story_23.10_inserted_in_Epic_23(owner_decision_12:44Z)+DW-1125_bullet_under_38.1 hash=1be243ae

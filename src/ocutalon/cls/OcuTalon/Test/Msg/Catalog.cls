@@ -1,8 +1,8 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 140 keys of OcuTalon.Msg.Catalog.Core and the 116 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 140 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
-///   - OneForms: for each of the 19 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
+///   - OneForms: for each of the 20 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
 ///   - Reasons: the plain-words text of each of the 12 Msg.Enum FALLBACKREASON values;
 ///   - Fixtures: for every key, its slots (the UJ-1 values) and the exact text it renders on the message channels, and its
@@ -84,9 +84,10 @@ Method TestEntries()
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
 	// Story 23.6 (Contest Planner ruling 2026-11-09, AD-33 exception): the 26 summary.* keys, with Epic 35's mcp.* keys (plain union at the integrate-forward), take the count to 90 here.
 	// Story 23.5 (Contest Planner ruling 2026-11-09): the 11 keys of the partner delay notice (incident.partnerRequest; result.partnerSent, partnerSentSome, partnerNotSent, partnerKept, partnerNotDrafted; summary.requestedPartner, partnerSent, partnerKept, partnerNotSent; partner.subject) take the Watch count to 116, and press.approvedPartner takes the Core count to 139 (140 with Story 41.15's memory.learnedSaved).
-	Do $$$AssertEquals(keys.watch.%Size(), 116, "the expected Watch list has 116 keys")
+	// Story 23.7 (Contest Planner Public Text ruling 2026-11-11): the key watch.queueBacklog takes the Watch count to 117.
+	Do $$$AssertEquals(keys.watch.%Size(), 117, "the expected Watch list has 117 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 140 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 116 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 117 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -124,7 +125,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 219 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 220 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system,heartbeat", "five Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -598,7 +599,7 @@ Method TestCountOfOneForms()
 		}
 	}
 	Do $$$AssertEquals(..Names(.carriers), ..SortedKeys(forms), "exactly the entries of the OneForms block carry a one form")
-	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 19, "19 entries carry a one form")
+	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 20, "20 entries carry a one form")
 	Set iterator = forms.%GetIterator()
 	While iterator.%GetNext(.key, .form) {
 		For channel = "phone", "mailbox", "telegram", "web" {
@@ -1257,7 +1258,8 @@ XData Keys [ MimeType = application/json ]
   "mcp.toolShadowsBuiltIn",
   "mcp.toolChanged",
   "mcp.replayToolChanged",
-  "mcp.sourceStopped"
+  "mcp.sourceStopped",
+  "watch.queueBacklog"
  ]
 }
 }
@@ -1416,6 +1418,13 @@ XData OneForms [ MimeType = application/json ]
   "text": "The resend stopped when OcuTalon restarted: 49 of 50 orders went through. The other one needs a new approval.",
   "plural": "The other {n} need a new approval.",
   "singular": "The other one needs a new approval."
+ },
+ "watch.queueBacklog": {
+  "slot": "count",
+  "slots": {"itemName": "QueueSink", "production": "Orders", "count": 1, "time": "2026-10-16T18:12:00Z", "oldestAt": "2026-10-16T18:02:00Z"},
+  "text": "The QueueSink queue in the Orders production had 1 message waiting at 14:12 ET, since 14:02 ET.\nWhy now: you asked me to watch queue backlogs.",
+  "plural": "{n} messages waiting",
+  "singular": "1 message waiting"
  }
 }
 }
@@ -1684,6 +1693,7 @@ XData Fixtures [ MimeType = application/json ]
  "mcp.toolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval."},
  "mcp.replayToolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed."},
  "mcp.sourceStopped": {"slots": {"source": "Open tickets", "tool": "lookup", "server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "The source Open tickets stopped polling at 14:15 ET, because its tool lookup on Tickets is no longer Read-only. Your digest lists it as not checked."},
+ "watch.queueBacklog": {"slots": {"itemName": "QueueSink", "production": "Orders", "count": 105, "time": "2026-10-16T18:12:00Z", "oldestAt": "2026-10-16T18:02:00Z"}, "text": "The QueueSink queue in the Orders production had 105 messages waiting at 14:12 ET, the oldest since 14:02 ET.\nWhy now: you asked me to watch queue backlogs."},
  "settings.emailHeading": {"slots": {}, "text": "Email"},
  "settings.emailHelp": {"slots": {}, "text": "Connect your mailbox. OcuTalon decides on each email that arrives after you connect it, and leaves your mail on the server."},
  "settings.emailAddress": {"slots": {}, "text": "Your email address"},
