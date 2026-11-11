@@ -6616,3 +6616,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md code review (rework 3) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 37.2 rework 3 measured the floor-user header sticky at 625px and static at 620px (640x360@2, stub /state); Story 25.2 (epics.md) opens History from the header navigation, a fifth link for the floor user, so its own G4/G5 will be red unless it plans the compact header's room (web/src/app/header/header.ts stacked .side).
 - 2026-11-11T00:09:01Z status=routed owner=25-2-filter-past-decisions-and-incidents-on-the-history-page by=cr note=plan the compact header at 640x360 with the History link; G4/G5 guard it; epics.md DW bullet under 25.2 is the orchestrator's post-merge
+
+### DW-1103: flake: live:floor web/e2e/floor/keyboard.spec.ts:237 K2 (Esc closes the Trace help of a reply strip): 'focus is back on the link' (expect toBeFocused, received inactive within 10 s) red once locally, passed on one unchanged rerun
+- source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: low | footprint: web/e2e/floor/keyboard.spec.ts
+- evidence: lane-B throwaway e37s2s3 on d282b2b7 2026-11-11 ~00:17Z: 1 failed/106 passed; rerun 107/107; 37.2 does not touch the decision strip or trace link
+- 2026-11-11T00:24:50Z status=routed owner=burndown by=harvest note=flake:keyboard.spec_K2_focus_after_link.focus();one_rerun_green
