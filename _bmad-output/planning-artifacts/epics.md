@@ -7258,6 +7258,8 @@ An admin connects a real mailbox and SMTP server and creates webhooks with their
 
 ### Story 21.2: Read a mailbox and send email over POP3 and SMTP
 
+> [AMENDED 2026-11-11, Story 21.2 spec gate, split ruled by the Epic 21 runner (unattended, decide: doctrine U5, split into siblings planned next in Epic 21)] This story now delivers the POP3 half: connecting the mailbox (criterion 1 for POP3, its credentials, the address, the `EmailIn` host settings, within a minute, audit, ownership), criterion 2 with its And, criterion 4 for `EmailIn` and the settings, and criterion 5's POP3 stub. Criterion 1's SMTP parts and its And (`SendEmail` reaches `EmailOut`), criterion 4 for `EmailOut` and criterion 5's SMTP stub moved verbatim to Story 21.6; criterion 3 and its And (the digest by email, the `email` render channel) moved verbatim to Story 21.7. The criteria below stand as the epic's whole promise.
+
 As an admin,
 I want to connect my mailbox and an SMTP server,
 So that each new email gets an attention decision and OcuTalon can email me.
@@ -7286,6 +7288,7 @@ So that each new email gets an attention decision and OcuTalon can email me.
 **Given** CI
 **When** the email tests run
 **Then** a POP3 and SMTP stub in the CI-only override serves fixture mail, and the tests cover one item per new email, no repeats after a restart, untrusted provenance, mail left on the server, and a failed poll recorded with its reason (FR-44, REL-4, CON-3, AD-22)
+- DW-1042: CommandsIn.OwnAddressOnly reads email.owner and email.address through Data.Setting.Get's 60 s cache, so a moved mailbox can pair a stale owner with a fresh address (ledger; routed by spec_gate 2026-11-11)
 
 ### Story 21.3: Sign in to Gmail and Microsoft 365 with OAuth2
 
@@ -7377,6 +7380,44 @@ So that sources feed OcuTalon new items and I approve only calls I understand.
 **Given** a pending request that Lane A's Story 22.4 cancelled because its server was removed
 **When** the cancellation arrives
 **Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 35.2 (was 21.1)'s proposal (FR-47, FR-8, AD-11)
+
+### Story 21.6: Send email over SMTP
+
+> [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.2 and before 21.3, which reuses `EmailIn` and `EmailOut`.
+
+As an admin,
+I want to connect an SMTP server,
+So that OcuTalon can email me.
+
+**Acceptance Criteria:**
+
+**Given** an admin in Settings › Channels on a local or IPM install, with a mailbox connected (Story 21.2)
+**When** they enter an SMTP server with its credentials and save
+**Then** `SettingsOps` stores the credentials in IRIS Interoperability credentials (write-only fields, `@{` refused), sets the `EmailOut` host settings with the installer's client SSL configuration, applies them within a minute and audits the change without secrets (FR-44, FR-17, FR-9, NFR-11, AD-19)
+**And** a `SendEmail` command reaches `EmailOut` from origin `tool` only when every recipient is the session user's own address, and is refused otherwise, as Story 35.2 (was 21.1) fixed; Lane A's email tool (Story 22.7) relies on this (FR-44, AD-1)
+
+**Given** the online demo
+**When** it runs
+**Then** `EmailOut` stays disabled and no email settings show (FR-44, FR-59)
+
+**Given** CI
+**When** the email tests run
+**Then** an SMTP stub in the CI-only override receives the mail, and no real email is ever sent (FR-44, REL-4, CON-3, AD-22)
+
+### Story 21.7: Send the daily digest by email
+
+> [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.6. Open point for its spec gate: `Digest.Process` (Lane A) routes the digest only to web, phone and Telegram (ledger DW-820).
+
+As an admin,
+I want the daily digest by email,
+So that I get it in my own mailbox.
+
+**Acceptance Criteria:**
+
+**Given** email chosen as a digest channel in Settings › Daily digest, which offers it once a mailbox is connected
+**When** `EmailOut` sends the digest
+**Then** it goes only to the user's own address, as plain text rendered from the catalog, recorded as a `Delivery` (FR-44, FR-35, FR-17, AD-14, AD-32)
+**And** this story adds the `email` channel to `OcuTalon.Msg.Catalog.Render` as the renderer's owner (Lane B), as plain text under the `phone` channel's rules, so `EmailOut` renders the digest here and the pages of Story 24.3, and the render tests cover every key `EmailOut` sends (AD-32)
 
 ## Epic 22: Extend OcuTalon with MCP servers, governed like built-in tools (step 4)
 

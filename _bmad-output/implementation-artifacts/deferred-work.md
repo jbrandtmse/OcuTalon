@@ -6411,6 +6411,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Core/CommandsIn.cls OwnAddressOnly: two Data.Setting.Get calls, each cached per process with its own timestamp (Data/Setting.cls Get)
 - 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=Story 21.2 lets an install reconnect the mailbox to a different session, or a test shows a tool email reaching another session's address
+- 2026-11-11T11:19:27Z status=routed owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=spec_gate note=reopen_if_met:21.2_moves_the_mailbox_to_the_last_saving_admin;spec_task_CommandsIn.OwnAddressOnly_reads_both_keys_uncached
 
 ### DW-1043: RestartRunners passes Bridge.Timeouts.Restart's error status through untested: matrix row 9's error cell (an item that does not restart) has no test
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
