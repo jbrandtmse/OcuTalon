@@ -193,6 +193,9 @@ describe('the same ref again: count and fixing', () => {
     assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'resume_item', item: 'OrdersToWarehouse' }] })).fixSentence, 'I can resume OrdersToWarehouse.');
     assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'reroute', item: 'OrdersForReview', count: 50 }] })).fixSentence, 'I can reroute 50 orders to OrdersForReview.');
     assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'repair_resend' }] })).fixSentence, 'I can repair and resend all 50.', 'the diagnosis\'s own request keeps its sentence');
+    assert.equal(view(full({ state: 'resolved', requests: [{ state: 'pending', fixKind: 'partner_warning' }] })).fixSentence, 'I can repair and resend all 50.', 'a pending delay notice is not the incident\'s fix: the fix sentence is the diagnosis\'s own');
+    assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'partner_warning' }, { state: 'pending', fixKind: 'reroute', item: 'OrdersForReview', count: 50 }] })).fixSentence, 'I can reroute 50 orders to OrdersForReview.', 'and it does not hide the sentence of a fix that is');
+    assert.equal(view(full({ state: 'fixing', requests: [{ state: 'approved', fixKind: 'partner_warning' }, { state: 'executing', fixKind: 'suspend_item', item: 'OrdersToWarehouse' }] })).fixingLine, 'Suspending OrdersToWarehouse\u2026', 'a delay notice running is not the fixing line');
   });
 
   it('shows the fixing line only while the state is fixing', () => {
@@ -667,6 +670,23 @@ describe('the result bands (Story 6.4)', () => {
     });
     assert.deepEqual(bandTexts(full({ requests: [{ ref: 'A1', state: 'pending' }] }), context()), {});
     assert.deepEqual(bandTexts(full({ requests: undefined }), context()), {});
+  });
+
+  it('gives a partner delay notice its own band on a compact card, and the chat announces it (Story 23.5)', () => {
+    const requests = [
+      { ref: 'P1', state: 'done', fixKind: 'partner_warning', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } },
+      { ref: 'P2', state: 'failed', fixKind: 'partner_warning', result: { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 0, interrupted: 0, reason: "email delivery isn't set up yet" } },
+    ];
+    const closed = { ...full({ state: 'closed' }), requests };
+    const bands = view(closed).results;
+    assert.deepEqual(
+      bands.map((band) => [band.key, band.text, band.tone]),
+      [
+        ['result.partnerSent', 'Sent to the Simulated mailbox.', 'success'],
+        ['result.partnerKept', "Approved and kept as a draft: email delivery isn't set up yet.", 'partial'],
+      ],
+    );
+    assert.equal(bandTexts(closed, context()).P1, 'Sent to the Simulated mailbox.');
   });
 
   it('give a suspend, a resume and a reroute their own band on a compact card, with the incident\'s production for the item kinds (Story 23.2)', () => {

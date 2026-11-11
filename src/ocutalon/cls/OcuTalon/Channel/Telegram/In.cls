@@ -481,6 +481,8 @@ Method PressText(code As %String, slots As %DynamicObject, Output alert As %Bool
 		} ElseIf kind = "reroute" {
 			If (slots.%GetTypeOf("count") '= "number") || (slots.%Get("to") = "") Quit ""
 			Set key = "press.approvedReroute", use = {"count": (slots.count), "itemNoun": (slots.itemNoun), "to": (slots.to)}
+		} ElseIf kind = "partner_warning" {
+			Set key = "press.approvedPartner"
 		} Else {
 			If slots.%GetTypeOf("count") '= "number" Quit ""
 			Set key = "press.approved", use = slots

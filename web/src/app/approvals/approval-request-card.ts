@@ -15,6 +15,7 @@ import {
 
 import { ApiClient } from '../api/api-client';
 import { pageTimeBeside, pageWhenBeside } from '../chat/page-time';
+import { SimulatedLabel } from '../devices/simulated-label';
 import { Icon } from '../icon/icon';
 import { EvidencePanel } from '../incidents/evidence-panel';
 import { IncidentDismiss, type DismissTarget } from '../incidents/incident-dismiss';
@@ -103,7 +104,7 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
  */
 @Component({
   selector: 'app-approval-request-card',
-  imports: [EvidencePanel, Icon, IncidentDismiss, InlineNotice, ResultBand],
+  imports: [EvidencePanel, Icon, IncidentDismiss, InlineNotice, ResultBand, SimulatedLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section [class]="'request bar-' + view().bar" data-part="approval" [attr.data-key]="view().ref" tabindex="-1" [attr.aria-labelledby]="labelId">
@@ -118,6 +119,20 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
           <p class="setting-proposed">{{ setting.proposed }}</p>
           @if (setting.note) {
             <p class="setting-note">{{ setting.note }}</p>
+          }
+        </div>
+      }
+      @if (view().partner; as partner) {
+        <div class="dry partner" data-part="partner">
+          <p class="partner-to">
+            <span>{{ partner.to }}</span>
+            @if (partner.simulated) {
+              <app-simulated-label />
+            }
+          </p>
+          <p class="partner-notice">{{ partner.notice }}</p>
+          @if (partner.note) {
+            <p class="partner-note">{{ partner.note }}</p>
           }
         </div>
       }
@@ -336,8 +351,17 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
       overflow-wrap: anywhere;
     }
     .dry-note,
-    .setting-note {
+    .setting-note,
+    .partner-note {
       color: var(--ink-muted);
+    }
+    .partner-to {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .partner-notice {
+      white-space: pre-line;
     }
     /* Under 680px tall, while the either-way row shows, Before and After share a line and the note sits on the count line, so the
        buttons stay in view. No text and no DOM order changes. */

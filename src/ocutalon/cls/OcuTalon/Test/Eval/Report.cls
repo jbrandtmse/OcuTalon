@@ -18,7 +18,8 @@
 ///     TestReadOnly (the classification the rule reads);
 ///   - (QA) TestActedWithoutInjection (a run that acted is a problem even with no injection case, and the item scores stay as they are),
 ///     TestActionsSinceIsFirstSentAt (the actions are counted from the run's earliest SentAt, whatever the order of its rows),
-///     TestRaisedFixRequestIsCounted (Story 23.2, AC-S6: a run that asked for nothing shows 0 approvals and 0 commands, a fix request raised in the run's trace carries it as its TraceRef and is counted, and a ProposeFix of the eval session raises none) and
+///     TestRaisedFixRequestIsCounted (Story 23.2, AC-S6: a run that asked for nothing shows 0 approvals and 0 commands, a fix request raised in the run's trace carries it as its TraceRef and is counted, and a ProposeFix of the eval session raises none),
+///     TestPartnerRequestIsCounted (Story 23.5, AC-S6P: a ProposeFix for a partner warning of the eval session starts no draft and raises none, and a partner request raised in the run's trace is counted) and
 ///     TestCommandHeaderClass (a message header of another body class that carries the ID of an eval command is no command of the run);
 ///   - (Story 9.7) the turn rules, from decided rows and synthetic OcuTalon.Eval.Msg.TurnResult bodies (SourceItemId zz-rep-*): TestAllClear (an
 ///     all-clear case is right when the rendered key is the recorded one, wrong for another key or none, scored apart from SM-1 in allClear with no target),
@@ -470,6 +471,42 @@ Method TestRaisedFixRequestIsCounted()
 	}
 	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
 	Do $$$AssertEquals(report.actions.approvals_"|"_report.actions.commands, "1|0", "the run's tally counts the raised request")
+}
+
+/// AC-S6P: a ProposeFix for a partner warning of the eval session starts no draft and raises nothing, because an evaluation record has no recipient; and a partner request that
+/// IncidentManager raises in the run's trace carries the run as its TraceRef, so that the run's tally counts it.
+Method TestPartnerRequestIsCounted()
+{
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Eval.ZzIncident", .sc)
+	Do $$$AssertTrue($IsObject(host), "a shadow instance of the incident double is made")
+	If '$IsObject(host) Quit
+	Set item = ..N("partnerasked")
+	Do ..ItemCase(item, "digest")
+	Set run = ..NewRun()
+	Do ..Row(run, item, {"Outcome": "digest", "SentAt": (..#FUTURE)})
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Incident("eval", ##class(OcuTalon.Data.Time).NowUtc(), "ZZNS", "Zz.Report", {"State": "resolved", "OpenVariant": ""})
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	Set command = ##class(OcuTalon.Msg.Command.ProposeFix).%New()
+	Set command.SessionRef = "eval"
+	Set command.IncidentRef = ref
+	Set command.FixKind = "partner_warning"
+	Set command.Parameters = "{}"
+	Set command.Origin = "tool"
+	Set response = ""
+	Do $$$AssertStatusOK(host.OnRequest(command, .response), "the ProposeFix is handled")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|not_found", "and answered not_found")
+	Do $$$AssertEquals($Select($IsObject(host.Drafts): host.Drafts.%Size(), 1: 0)_"|"_$Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0), "0|0", "no draft was started and no request was raised")
+	Set host.%SuperSession = run
+	Set dryRun = {"notice": "A notice.", "recipients": [{"name": "Results Partner IT", "address": "it@results-partner.example"}], "simulated": 1}
+	Do $$$AssertStatusOK(host.RaiseNow(incident, "partner_warning", {"text": "A notice.", "to": "it@results-partner.example"}.%ToJSON(), "1", dryRun, .request), "a partner request is raised in the run's trace")
+	If $IsObject(host.Raised) && (host.Raised.%Size() = 1) {
+		Set raised = host.Raised.%Get(0)
+		Do $$$AssertEquals(raised.ownerRef_"|"_raised.traceRef, "eval|"_run, "it is of owner eval and carries the run as its TraceRef")
+		Do ..Approval(raised.ownerRef, raised.traceRef)
+	}
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Do $$$AssertEquals(report.actions.approvals_"|"_report.actions.commands, "1|0", "the run's tally counts the raised partner request")
 }
 
 /// The actions are counted from the earliest SentAt of the run, whatever the order its rows were made in: rows dated between the first and

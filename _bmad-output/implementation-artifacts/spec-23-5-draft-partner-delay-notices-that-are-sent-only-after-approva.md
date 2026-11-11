@@ -2,14 +2,29 @@
 title: 'Story 23.5: Draft partner delay notices that are sent only after approval'
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '10f53487e894b7bc8e5f01489ee28aa8dc336f4f'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      A partner request that is approved after its incident was closed is dropped with one Type 4 line: the row stays approved, nothing is sent and the user gets no result (and the Telegram press answer still says it is sending).
+    evidence: |-
+      Spec line "Aside refuses on closed (Drop)" is the ruled behaviour, and a pending partner request does not block closing (MOVES 0, left out of the table's facts), so approve-after-close is reachable: ask, dismiss the incident, then approve. IncidentManager.Aside calls Drop and Quit. What would settle it: a ruling on the user-facing outcome (a new "not sent, the incident is closed" result text, or expiring pending partner requests when the incident closes).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:Aside
+    severity: medium
+  - summary: >-
+      Demo.Guide.Compute counts any approved request of the guide's incident for step 4, so a partner notice approved while the repair still waits marks step 4 done early.
+    evidence: |-
+      Recorded by the implement stage (Decided in-stage 19). Demo/Guide.cls is Lane B and not in the AD-33 list, so it was left unchanged. The finish still needs the incident resolved, so the guide cannot finish early. A one-line kind filter (leave MOVES 0 kinds out of step 4) would close it, once the AD-33 list allows the file.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Demo/Guide.cls:Compute
+    severity: medium
 ---
 
 <intent-contract>
@@ -201,6 +216,51 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-10 - Review pass
+- verdicts: 41 findings - high 0, medium 7, low 34, false 0, maybe-false 0 (routes: 7 patch, 2 defer, 32 reject)
+- findings:
+  - `[low]` `[patch]` (blind 1) EXPERIENCE.md "Items 4, 7 and 10 go to a card in the status rail" is wrong after the renumbering - fixed: the numbers are 5, 8 and 11 (Memory, Persona, Heartbeat), with an AMENDED marker
+  - `[medium]` `[reject]` (blind 2) the 20-an-hour cap is checked at ask time only - by design: Decided 4 (checked at ask, the overshoot bounded by the fixture's contact count) and Decided 5 (a copy per recipient session)
+  - `[medium]` `[defer]` (blind 3) a pending partner request does not block closing, and an approval after the close is dropped - spec-bound (Aside refuses on closed); deferred with what would settle it
+  - `[low]` `[reject]` (blind 4) summary.partnerSent reads the same for a partial send - the ruled text has no partial summary key and the fixture holds one contact, so a partial send cannot occur
+  - `[low]` `[reject]` (blind 5) the draft input holds the stored cause - the spec's Always list names "the stored plain cause" as an input, normalised to one line
+  - `[low]` `[reject]` (blind 6) "20" is written into three texts - the ruled text; EMAILLIMIT is 20 and a change to it is a text change
+  - `[low]` `[reject]` (blind 7) Executor.Run ignores Ready's return - only PartnerWarning implements it and sets a reason whenever it answers 0; no reachable failure
+  - `[low]` `[reject]` (blind 8) item is optional for every kind - an empty item reaches the kind's dry run, which refuses it plainly (the same refusal as an unknown item)
+  - `[low]` `[reject]` (blind 9) a draft for a missing or closed incident ends silently - the spec says "A missing or closed incident is left alone", and the already-asked case is the ruled Type 4 line
+  - `[low]` `[patch]` (blind 10) comments of Msg.Command.ProposeFix and Part.IncidentRequest still list three kinds - fixed
+  - `[medium]` `[reject]` (blind 11) no evaluation case for the new Chat line - the eval cases that run the real model belong to the release evaluation, which this story only extends through S6 (AC-S6P, patched below as a test of the tally)
+  - `[low]` `[reject]` (edge 1) Run ignores Ready's return - as blind 7
+  - `[low]` `[reject]` (edge 2) an exception inside Deliver after some copies were saved ends the run as could-not-read - Deliver returns statuses and does not throw for its reads; theoretical
+  - `[medium]` `[reject]` (edge 3) no allowance check at send time - as blind 2 (Decided 4)
+  - `[low]` `[reject]` (edge 4) MailAllowed's retryAt for more than 1 is the oldest row's - only the ask passes more than 1, with one fixture contact; theoretical
+  - `[low]` `[reject]` (edge 5) OnPartnerNotice takes an empty ApprovalRef or Text - the only sender is the Executor, which builds both from the approved row; theoretical
+  - `[low]` `[reject]` (edge 6) a second ask before the first raise starts a second draft - by design, Decided 7 and the matrix row "Already asked" (one Type 4 line)
+  - `[low]` `[reject]` (edge 7) a draft for a closed incident ends with no notice - as blind 9
+  - `[medium]` `[defer]` (edge 8) approved partner request on a closed incident - as blind 3
+  - `[low]` `[reject]` (edge 9) item and production names go into the draft input without Normalise - they are configuration names of the production, not message text, and the spec lists them as inputs
+  - `[low]` `[reject]` (edge 10) a skipped contact whose address changed reads "no longer a contact" - one fixture contact, so the position cannot move; theoretical
+  - `[low]` `[reject]` (edge 11) item optional for the item kinds - as blind 8
+  - `[medium]` `[patch]` (gap 1) OnResponse and OnError of a Draft were never exercised, only Drafted - fixed: probe seams DraftAnswered and DraftRefused and Test.Fix.PartnerDraft:TestDraftCompletionRouting; mutation line written
+  - `[low]` `[reject]` (gap 2) Deliver with two recipient sessions and one failed copy is untested - demo mode's owner is one session; reopen_if a second recipient session can hold a partner request
+  - `[low]` `[patch]` (gap 3a) AC-NOOPEN has no mutation line - fixed (demonstrated red on Test.Watch.Tools)
+  - `[low]` `[patch]` (gap 3b) AC-NOTDRAFTED-WEB has no mutation line - fixed (demonstrated red on Test.Core.WebChatOut and chat-view.test.mjs)
+  - `[medium]` `[patch]` (gap 3c) AC-S6P has no pinning test or line - fixed: Test.Eval.Report:TestPartnerRequestIsCounted, with a demonstrated mutation
+  - `[low]` `[reject]` (gap 3d) AC15's recorded mutation went red in a source-text test, not K9c - K9c runs in the browser units; reopen_if a regression of the press passes both tests
+  - `[low]` `[reject]` (gap 3e) AC4, AC6, AC11 and AC14 name different red tests than the spec's tasks - each line names a test that went red on its mutation; the trim of AC4 is a no-op on a normalised text (recorded)
+  - `[low]` `[reject]` (gap 4a) TestDemoModeOffKeepsTheNotice waits CACHESECONDS + 2 - the wait is the setting cache's expiry (Decided 20), not a guess about a job
+  - `[low]` `[reject]` (gap 4b) timed negative checks and a wall-clock bound in PartnerTurns - the bound is the spec's own (20 s) against a measured 0.4 s; the absence checks wait far longer than the draft takes
+  - `[low]` `[patch]` (gap 4c) TestAskedTurnRaisesWithinBounds reports the measurement with $$$AssertSkipped, so the method reads skipped on every pass - fixed: $$$LogMessage
+  - `[low]` `[reject]` (gap 4d) Test.Fix.Refused's comment says nothing is sent to a mailbox, with no SimMessage assertion - the no-run assertions (no FixRun, row unchanged) hold it
+  - `[low]` `[reject]` (gap other 1) Kind.ProductionName swallows a failed read of the production list - falls back to the class name by design (Decided in-stage); no reachable wrong send
+  - `[low]` `[reject]` (gap other 2) MailAllowed's more argument is unobservable with one contact - covered by the Test.Core.Allowance unit case
+  - `[low]` `[reject]` (intent 1) a notice goes to every recipient session, the allowance counts the asker - Decided 4 and 5
+  - `[low]` `[reject]` (intent 2) a local install never reaches a draft (no contacts) - ruled: contacts are demo-only (the partner-contacts ruling)
+  - `[low]` `[reject]` (intent 3) some ruled texts do not name the mailbox - the texts are the Planner's, verbatim; none says or implies a real email
+  - `[low]` `[reject]` (intent 4) new persistent message classes - the spec's veto list names Fix.Msg.PartnerNotice and Watch.Msg.Draft; no table or column is new
+  - `[low]` `[reject]` (intent 5) EXPERIENCE.md numbers rewritten - the ruling of the More to try groups requires it
+  - `[low]` `[reject]` (intent 6) no single browser test runs ask, card and mailbox - PartnerTurns (production) and A13 (card over HTTP) pin the halves; Decided 20
+
 ## Design Notes
 
 **Architecture decisions:** AD-1 (tool -> command -> owner), AD-4 (ownership; mailbox copy per owning session), AD-6 (the draft is a Decide `turn`, a new caller like Digest), AD-10 (the gate denies `propose_fix` untrusted), AD-11 (row is the truth), AD-14 (SimMailboxOut), AD-15 (IncidentManager raises; partner requests do not move state), AD-16 (kind, row-only execution, re-check), AD-17 (one audit writer), AD-20 (allowance), AD-24 (no grant), AD-29/AD-33 (lanes; exception below), AD-32 (catalog; the body is not a template).
@@ -222,6 +282,20 @@ deferred: []
 5. A mailbox copy goes to each recipient session of the incident. A recipient counts as sent when one copy is saved.
 6. A failed draft is told through a `result` notification without an ApprovalRef. The web chat keeps it as a Delivery row only (`WebChatOut` 31-35), so on the web the chat's own `drafting` answer is the only line. This is an accepted residual.
 7. Concurrent asks: the second ask before the raise starts a second draft that raises nothing (no new column for an in-flight marker).
+
+8. Implement stage: the registry id and the Features id are `partnerWarning` (the spec's name for both), the one row the groups ruling calls warnPartner, in `Incidents and fixes` after `reroute`. EXPERIENCE numbers it Item 3 and the items after it one higher; README line 40 and the header say twelve.
+9. Implement stage: the Action entry's target is "<n> partner contact(s) (<contact ids>) of <production class name> (simulated)": the audit shape has no field for the ids, so they sit in the target text, and no address is in it.
+10. Implement stage: `Fix.Kind.ProductionName` answers the class name when `Reader.Admits` throws (a namespace whose production list can't be read, such as a slot with no OcuTalon.Production), so that Facts and the reasons never fail on it.
+11. Implement stage: `Channel/SimMailbox/Out` now sets `SimMessage.ApprovalRef` on a partner notice (`Keep` records the Ref on the Delivery row only), because `Ownership.PartnerNotices` counts the SimMessage rows with an ApprovalRef; `OnPartnerNotice` answers an error status for an owner that is not a session, so that `Executor.Deliver` never counts such a copy as sent. The ApprovalRef and a mailbox Delivery row do not clash with the phone's or Telegram's lookups (they are by channel).
+12. Implement stage: a delay notice is not a fix of the failure. `Watch.Summary` gives its runs their own end lines but does not set "a fix ran", so an incident whose only run was a notice still says `summary.noFixRan`, and the message counts are the repair's alone.
+13. Implement stage: `incident-view.ts` gives no fix sentence and no fixing line for a pending or running `partner_warning` request (`aboutFix`), which would otherwise read the diagnosis's "I can repair and resend ..." on a resolved incident that only waits for the notice.
+14. Implement stage: `PartnerWarning.Normalise` strips the same invisible characters as `Msg.Catalog.Clean` (a private method of another area), so that a model text cannot hide a bidirectional control between the card and the mailbox.
+15. Implement stage: `IncidentManager.Start` and `StartDraft` share `SendToSelf`; the draft that finds a request of its kind waiting by its end writes one Type 4 line and tells nobody (no `result.partnerNotDrafted`), because another draft already succeeded.
+16. Implement stage: `propose_fix`'s `item` argument is optional (default ""), so a partner warning is called with the kind alone; for `partner_warning` the tool answers `refused` with the ruled NOWARNING sentence when the session has no incident that is not closed, and finds incidents in every state but closed (`WARNABLE`).
+17. Implement stage, names that differ from the spec: the press tests of 23.2 and this story are in `Test.Channel.TelegramApproval` (there is no TelegramIn press unit); `Test.Fix.Asked` now reads the failed-ask warning from `RaiseAsked` (the extracted tail), not `Asked`; `ExecutorProbe.SendNotice` and the draft seams of `IncidentProbe` (`StartDraft`, `SendDraft`, `BeginDraft`, `EndDraft`, `FactsNow`) are the test seams.
+18. Implement stage: a switch of demo mode reaches a production job only after `Data.Setting`'s 60-second per-process cache expires, so a notice approved within a minute of switching demo mode off can still be delivered, and a switch on is as slow; `TestDemoModeOffKeepsTheNotice` waits 62 seconds for that reason.
+19. Implement stage, residual (an intent gap for the Planner, Lane B, not in the AD-33 list): `Demo.Guide.Compute` counts any answered or approved request of the guide's incident for step 4 and for the finish, partner requests included. The finish still needs the incident `resolved`, so a partner request never finishes the guide, but a partner request approved while the repair still waits would mark step 4 as done. `Demo/Guide.cls` is unchanged.
+20. Implement stage: AC15's browser case (`K9c`) pins that the item sends its prompt once as the user's own message; the card and the mailbox after approval are pinned on the production by `Test.Fix.PartnerTurns` and by `A13` (the card, over real HTTP), not by one browser run of the whole path.
 
 **AC evidence already delivered:**
 - `Execute` is refused without an approved row (`Fix/Executor.cls:199-207, 246-252`).
@@ -270,6 +344,7 @@ This story adds per-kind tests for each.
 - Story 37.2 (Usage, a fourth heading "Usage and history") may land first; whichever merges second re-integrates (plain union, counts from the registry).
 - The spine lines for this story (AD-14, AD-15, AD-16, AD-20, AD-32, [ADDED 2026-11-10, Story 23.5, Contest Planner ruling]) are already written; AD-12's incident-payload line from 23.2 is on feature.
 - The `result.partnerNotDrafted` web-chat notice card condition: estimate it FIRST; more than about an hour of work is an intent-gap HALT naming the estimate (the lead reports to the Planner).
+- Estimate recorded (2026-11-10, lead, before implement): the `result.partnerNotDrafted` web card is about 0.75 h, under the one-hour bar, so it is built (not an intent gap). The seam: `Channel/WebChat/Out.cls` `ToolCallCard` takes this one key without an ApprovalRef onto the card path (the `recentNotices` read already keeps a `result` row that has a ChannelMessageId, so the snapshot needs no change); `web/src/app/chat/chat-view.ts` `noticeOf` shows a `result` with no approvalRef only when it carries a `ref` (an incident-card `result` Delivery row has none, so it stays the incident card's); `web/scripts/chat-view.test.mjs` lines 119 and 397 pin the old shape and are updated; one IRIS test in `Test/Core/WebChatOut.cls` (sibling `TestToolCallCards`) and the `chat-view.test.mjs` case pin it.
 
 ## Public Text
 
@@ -374,6 +449,7 @@ Run every command from the epic-23 worktree root, one per call with `timeout: 60
 - The More to try registry: ten items in `more-to-try-view.test.mjs` IDS and RULED, the `more-to-try-sources.test.mjs` `outbox.send` pin, `more-to-try.spec.ts` and `Test.Demo.Features`; plus README line 30 and the EXPERIENCE.md count.
 - The approval, rail, incident and phone web view tests.
 - The mock scenario registry (`docker/tests/test-mock.sh`).
+- Added by the implement stage (each updated in the same pass): `Test.Fix.Asked` (the failed-ask warning's source method is `RaiseAsked`), `Test.Fix.ExecutorProbe` and `Test.Watch.IncidentProbe` (the notice and draft seams), `Test.Msg.Catalog`'s OneForms block and its web-wording rule, `Test.Core.WebChatOut` (the not-drafted card), `Test.Live.Payloads`'s DryRun contract, `Test.Demo.Guide`, `Test.Channel.TelegramApproval`, `Test.Install.SecurityOverview`'s kind rows, `web/scripts/{chat-view,chat-announcements,playwright-projects,more-to-try-view,more-to-try-sources,ux-strings}.test.mjs`, and EXPERIENCE.md's item numbers.
 
 Every test added or changed passes on a fresh environment, in either order.
 
@@ -404,7 +480,42 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC15: the item sends nothing -> `more-to-try.spec.ts` (CI).
 - AC16: make `result.partnerSent` read "sent by email" -> `Test.Msg.Catalog`.
 
+**Recorded by the implement stage (2026-11-10/11):**
+- Task 0 (fresh throwaway `e23s5i`, `Test.Fix.PartnerTurns` first case, the CI mock): the request was raised 0.25 s after the asking turn ended and 0.39 s after it began; the draft's Decide timer never fired (no fallback `timeout`). Under the 20 s bound.
+- Runs: every class of the warm loop passed on `e23s5iw` (`Test.Fix.PartnerWarning`, `PartnerDraft`, `Kind`, `Refused`, `Asked`, `Executor`, `ItemKinds`, `Test.Watch.Summary`, `Transitions`, `Notices`, `Incidents`, `Test.Core.Allowance`, `WebChatOut`, `Test.Demo.Features`, `Guide`, `SimMailboxOut`, `SimMailboxIn`, `Test.Msg.Catalog`, `Test.Install.SecurityOverview`, `Test.Live.Payloads`, `Test.Channel.TelegramApproval`, `Test.Agent.Constants`, `Instructions`, `Test.Watch.Tools`, `Test.Bridge.CodeRules`); `Test.Fix.PartnerTurns` passed fresh (`e23s5i`); `live:cards` (30 passed, A13 included) and `live:sign-in-3 --part 1/2` (127 passed, K9c and K27 included) passed; `node --test web/scripts/*.test.mjs`, `npm --prefix web run lint`, `bash docker/tests/test-{boundaries,readme,ci-config,mock,storage,class-rules,ci-changes}.sh` passed.
+- Mutations (applied, red observed, reverted byte-identical: `git status --short` and `git diff` hash unchanged):
+  - mutation: add `incident.SampleError` to `Facts` -> `Test.Fix.PartnerWarning:TestFacts` red (AC1)
+  - mutation: `AskedSlots` gives `recipients` empty -> `Test.Fix.PartnerDraft:TestDraftRaised` and `TestNoticeKeys` red (AC2)
+  - mutation: `Plan` skips the address test of `Recheck` -> `Test.Fix.PartnerWarning:TestRecheck` red (AC3)
+  - mutation: `OnPartnerNotice` cuts the text at 900 characters (a trim shows no difference on a normalised text, so the cut stands in for it) -> `Test.Fix.PartnerWarning:TestApprovedNoticeIsSentByteForByte` red (AC4; `Test.Fix.PartnerTurns` reads the same text from the mailbox, not run mutated)
+  - mutation: `Aside` also calls `Execute` on rejected -> `Test.Fix.PartnerDraft:TestStateNeverMoves` red (AC5)
+  - mutation: `Ready` always 1 -> `Test.Fix.PartnerWarning:TestDemoModeOffKeepsTheNotice` red (AC6; not run mutated on the production)
+  - mutation: `AskedDraft` skips the `NOCONTACTS` check -> `Test.Fix.PartnerDraft:TestRefusals` red (AC7)
+  - mutation: `READONLYPROPOSEFIX` 1 -> `Test.Fix.PartnerTurns:TestInjectedTurn` red on a fresh stack (AC8)
+  - mutation: `Event` routes partner events through `Apply` -> `Test.Fix.PartnerDraft:TestStateNeverMoves` red (AC9)
+  - mutation: `MailAllowed` counts incoming emails only -> `Test.Core.Allowance:TestMailAllowedCountsPartnerNotices` red on the warm stack (AC10)
+  - mutation: `OnPartnerNotice` omits `Announce` -> `Test.Demo.SimMailboxOut:TestPartnerNotice` red (AC11; not run mutated on the production)
+  - mutation: `Drafted` skips `NotDrafted` -> `Test.Fix.PartnerDraft:TestDraftFails` red (AC12)
+  - mutation: `RunEvents` uses the counts line for a partner run -> `Test.Watch.Summary:TestPartnerLines` red (AC13)
+  - mutation: `Live.Payload.Approval.FromRow` drops `Notice` -> `Test.Live.Payloads:TestApprovalPartnerNotice` red (AC14; `approval-card.spec.ts` A13 reads the same fields in CI)
+  - mutation: the More to try `partnerWarning` press sends nothing -> `more-to-try-sources.test.mjs` (the four prompts of the outbox) red (AC15; `K9c` in CI)
+  - mutation: `result.partnerSent` reads "sent by email" -> `Test.Msg.Catalog:TestPartnerTextsNameTheSimulatedMailbox` red (AC16)
+  - mutation: `OnError` of a Draft request quits with the error instead of calling `Drafted` -> `Test.Fix.PartnerDraft:TestDraftCompletionRouting` red (AC12's error case, through the framework's completion handler)
+  - mutation: `WatchTools.ProposeFix` never maps no_incident to NOWARNING for a partner_warning -> `Test.Watch.Tools:TestProposePartnerWarning` red (AC-NOOPEN)
+  - mutation: `WebChat.Out.ToolCallCard` drops the clause for `KEYPARTNERNOTDRAFTED` -> `Test.Core.WebChatOut:TestPartnerNotDraftedCard` red; `bareResult` in `chat-view.ts` forced false -> `web/scripts/chat-view.test.mjs` red (AC-NOTDRAFTED-WEB)
+  - mutation: `IncidentManager.Asked` stops refusing a session that is not a recipient (the eval session) -> `Test.Eval.Report:TestPartnerRequestIsCounted` (and `TestRaisedFixRequestIsCounted`) red (AC-S6P)
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: `partner_warning` is a new fix kind asked for in the chat through `propose_fix`. IncidentManager has the notice drafted through Decide from code-built facts (an untrusted, fresh turn that can act on nothing), raises one `fix` request whose dry run holds the exact text and every recipient from the demo-only fixture `Fix.PartnerContacts`, and, after approval, FixExecutor re-checks the recipients and sends the approved text byte for byte through `SimMailboxOut` (never `EmailOut`). With demo mode off at run time the approved notice is kept as a draft with the ruled line. A partner request never moves the incident's state. A failed draft reaches the web chat as a notice card.
+
+Files changed: see the diff since baseline `10f53487e894b7bc8e5f01489ee28aa8dc336f4f`. New: `Fix/Kind/PartnerWarning.cls`, `Fix/PartnerContacts.cls`, `Fix/Msg/PartnerNotice.cls`, `Watch/Msg/Draft.cls`, five CI mock scenarios, `Test.Fix.PartnerWarning`, `PartnerDraft`, `PartnerTurns`. Extended: Fix Kind and Executor, IncidentManager, Notice, Summary, Allowance, Ownership, SimMailbox and WebChat out, Telegram In, the Watch and Core catalogs, WatchTools, Chat, the approval and incident payloads, the web approval card, rail, incident view, chat view and More to try (twelve items), README, EXPERIENCE.md, `docs/security-overview.md`, and the shared-surface tests. `ci/units.sh` is unchanged.
+
+Review: 41 findings from four layers. Patched: 7 (2 medium: the draft completion handlers had no test, AC-S6P had no test; 5 low: the EXPERIENCE.md item numbers, two stale doc comments, two missing mutation lines, one skipped-status test). Deferred: 2 (both medium: approve-after-close of a partner request; the guide's step 4 counting a partner request). Rejected: 32, each with its reason in the triage log.
+
+Verification: node tests 1830 pass; lint; `test-boundaries`, `test-readme`, `test-ci-config`, `test-mock`, `test-class-rules` pass. The spec's warm loop (Fix.PartnerWarning, PartnerDraft, Kind, Refused, Watch.Summary, Core.Allowance, Demo.Features, Guide, SimMailboxOut, Msg.Catalog, Install.SecurityOverview, Live.Payloads, TelegramIn, Agent.Constants, Watch.Tools, Core.WebChatOut, Eval.Report, Fix.Asked, Executor, Watch.Incidents, Notices, Transitions) passed on `e23s5iw`; `Test.Fix.PartnerTurns` and `Test.Demo.SimMailboxIn` passed fresh on `e23s5i`. Browser: `live:cards` (A13) and `live:sign-in-3 --part 1/2` (K9c) passed in the implement pass. The `partnerNotDrafted` web card was estimated at 0.75 h and built.
+
+Residual risks: the two deferred items above; the review-pass tests (`TestDraftCompletionRouting`, `TestPartnerRequestIsCounted`) and the probe seams were not re-reviewed (follow-up review recommended: two medium patches on a first pass). The browser units for AC14/AC15 and `ci/checks.sh` are left to CI.

@@ -36,7 +36,8 @@
 ///   - Watchers, ActiveVisitors, AllowanceHeld, AdminSessions and ApprovalIncident read across owners, so they prepare with the privilege
 ///     check, report a failed read in sc, and run only in production jobs and tests.
 ///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
-///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. RecentTurns leaves out a refused
+///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. PartnerNotices (Story 23.5) is the session's own count of the delay notices
+///     it sent since a time (outgoing mailbox rows that carry an ApprovalRef), the other part of the email limit. RecentTurns leaves out a refused
 ///     turn, and RecentNotices includes the allowance cards and the digest cards (Story 17.10) and the summary cards (Story 23.6).
 ///   - The Documents page's reads (Story 34.2) are Rows kinds too: Documents, the session's own documents (and on a local install those of
 ///     owner instance, which every user shares), newest first, and Document, one by its Ref; a document the session can't see answers "".
@@ -713,6 +714,18 @@ ClassMethod IncomingMail(sessionRef As %String, since As %String, Output oldest 
 	Quit rows.Count()
 }
 
+/// The number of delay notices that the session has sent after since (UTC; SimMessage rows of Kind mailbox, Direction out, with an ApprovalRef: the sent mail of an approved
+/// partner notice, Story 23.5; a reply has none), and, as oldest, the CreatedAt of the oldest of them ("" when there is none): the other count behind the online demo's email
+/// limit (Allowance.MailAllowed). sc is an error status when the read failed, and the count is then 0.
+ClassMethod PartnerNotices(sessionRef As %String, since As %String, Output oldest As %String, Output sc As %Status) As %Integer
+{
+	Set oldest = ""
+	Set rows = ..Rows("partnerNotices", sessionRef, .sc, $Get(since))
+	If $SYSTEM.Status.IsError(sc) Quit 0
+	If rows.Count() > 0 Set oldest = rows.GetAt(1).CreatedAt
+	Quit rows.Count()
+}
+
 /// The session's own approval requests of Kind tool_call that finished after the time after and at or before the time through (UTC
 /// strings, as FinishedAt is; after "" is the start of time, bound as "0" because an empty bind is a NULL that no comparison
 /// matches), by FinishedAt and then ID: a request with no FinishedAt (pending, approved or executing) is never one of them. An empty
@@ -1104,6 +1117,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "incomingMail" {
 		Set class = "OcuTalon.Data.SimMessage", binds = "oa"
 		Quit "SELECT ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox' AND Direction = 'in' AND CreatedAt > ? ORDER BY CreatedAt, ID"
+	}
+	If kind = "partnerNotices" {
+		Set class = "OcuTalon.Data.SimMessage", binds = "oa"
+		Quit "SELECT ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox' AND Direction = 'out' AND ApprovalRef IS NOT NULL AND ApprovalRef <> '' AND CreatedAt > ? ORDER BY CreatedAt, ID"
 	}
 	If kind = "finishedToolCalls" {
 		Set class = "OcuTalon.Bridge.Data.ApprovalRequest", binds = "oaa"
