@@ -4,7 +4,8 @@
 /// reason, so that a broken Demo step can never give a green shard.
 ///   - TestTheStepOwnsOrders: the step owns the namespace it created, and demo mode is on;
 ///   - TestOneOrderInEachFormat: an order in YYYY-MM-DD completes at OrdersToWarehouse; an order in MM/DD/YYYY fails at
-///     OrdersFromPartner with the transform's error in the event log; both carry the caller's reference as SuperSession;
+///     OrdersFromPartner with the transform's error in the event log; both carry the caller's reference as SuperSession; neither
+///     sends a message to OrdersForReview (Story 23.2: the review item takes only what a user reroutes there);
 ///   - TestPartnerKeepsNoState: two batches in different formats, one after the other, each pass or fail by their own format;
 ///   - TestBadBatchSendsNothing: a bad batch is refused with an error that names the value, and no message is sent;
 ///   - TestRepairedCopyGoesThrough: a failed order resent with the date repaired completes, and the original stays errored;
@@ -23,7 +24,7 @@
 /// The tests that assert that nothing happened wait with AwaitPolls (FailurePoller's own count of runs) and not with a fixed pause.
 /// A failed order has header Status 8 (Error) at OrdersFromPartner, with IsError 0 and an empty ErrorStatus, because it is a
 /// request with no response; its error text is the event-log row of Type 2 (Error) for that item and session.
-/// Switching to OCUORDERS happens only in Snapshot, the class methods below (Running, Send, Count, Sessions, Headers, ErrorTexts, MarkNewFailures and Resend; all but Resend
+/// Switching to OCUORDERS happens only in Snapshot, the class methods below (Running, Send, Count, Received, Sessions, Headers, ErrorTexts, MarkNewFailures and Resend; all but Resend
 /// are public, with WaitCount, for Test.Demo.BreakFeedProduction and the demo-path steps) and Test.Data.Fixture.RemoveMessages, each of
 /// which calls only classes that resolve there (OcuTalon.Demo.Orders, Ens, EnsLib and % classes) while it is there and returns plain
 /// values or dynamic objects.
@@ -181,6 +182,7 @@ Method TestOneOrderInEachFormat()
 	}
 	Set goodSession = sessions
 	Do $$$AssertEquals(..ErrorTexts(goodSession).%Size(), 0, "the good order's session logs no error at OrdersFromPartner")
+	Do $$$AssertEquals(..Received(good, "OrdersToWarehouse")_"|"_..Received(good, "OrdersForReview"), "1|0", "the good order reaches OrdersToWarehouse and sends nothing to OrdersForReview")
 
 	Set headers = ..Headers(bad)
 	Do $$$AssertEquals(headers.%Size(), 1, "the bad order has one header: nothing reaches the warehouse")
@@ -198,6 +200,7 @@ Method TestOneOrderInEachFormat()
 		}
 		Do $$$AssertTrue(found, "the event log holds the transform's error at OrdersFromPartner")
 	}
+	Do $$$AssertEquals(..Received(bad, "OrdersForReview"), 0, "the bad order sends nothing to OrdersForReview either")
 }
 
 /// Row 11: no state is kept between batches.
@@ -293,7 +296,7 @@ Method TestSnapshotIsReadableAndCurrent()
 		If failure.body.OrderDate '= "10/16/2026" Do $$$AssertEquals(failure.body.OrderDate, "10/16/2026", "failure "_i_" has the changed date")
 		If failure.error '[ "Expected YYYY-MM-DD, got '10/16/2026'." Do $$$AssertTrue(0, "failure "_i_" carries the transform's error")
 	}
-	Do $$$AssertTrue(committed.items.%Size() = 3, "the snapshot holds the three items' settings")
+	Do $$$AssertTrue(committed.items.%Size() = 4, "the snapshot holds the four items' settings")
 	Do $$$AssertTrue(committed.trace.%Size() > 0, "the snapshot holds a trace excerpt")
 
 	Set ref = ..NewRef()
@@ -669,6 +672,16 @@ ClassMethod Count(ref As %String, item As %String, status As %Integer) As %Integ
 	New $NAMESPACE
 	Set $NAMESPACE = ..#NAMESPACE
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SuperSession = ? AND TargetConfigName = ? AND Status = ?", ref, item, status)
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
+/// The number of headers of the reference at the item, in any status.
+ClassMethod Received(ref As %String, item As %String) As %Integer
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#NAMESPACE
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SuperSession = ? AND TargetConfigName = ?", ref, item)
 	Do rs.%Next()
 	Quit +rs.%GetData(1)
 }

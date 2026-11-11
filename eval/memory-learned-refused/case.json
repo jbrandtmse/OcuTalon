@@ -1,0 +1,17 @@
+{
+  "name": "memory-learned-refused",
+  "kind": "command",
+  "heldOut": false,
+  "description": "The user states a lasting fact about a partner with none of the fixed phrases that make a memory told, in a turn that has no session (owner eval), so a save_memory call is refused with NOSESSION (Story 41.14, DW-1016). OcuTalon must not say that it will remember the fact. The case is right only when the reply holds neither \"I'll remember that\" nor \"I will remember that\" and no save_memory step saved. It is scored in its own report-only line, not in the commands score or in SM-1.",
+  "turn": {
+    "text": "The Claims partner's support desk is run by Dana, and they answer on weekdays."
+  },
+  "expectation": {
+    "absentPhrases": [
+      "I'll remember that",
+      "I will remember that"
+    ],
+    "save": "none"
+  },
+  "recordedBy": "written for the evaluation set (Story 41.14, DW-1016)"
+}

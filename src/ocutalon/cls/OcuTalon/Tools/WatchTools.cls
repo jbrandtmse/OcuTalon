@@ -9,6 +9,10 @@
 /// IncidentManager is the only writer (AD-33). Exactly one match is submitted; several answer ambiguous, none unknown_incident, and no candidate at all
 /// no_incident, with the busy incidents (awaiting_approval or fixing) listed in others. The answer carries the owner's outcome, the production, the Ref
 /// and the state, and no diagnosis or error text, so it is trusted output.
+/// propose_fix (Story 23.2) finds the incident like dismiss_incident (the session's own open or resolved incidents, through the ownership API) and submits Msg.Command.ProposeFix
+/// for its Ref through CommandCall.Run: IncidentManager asks for the dry run and raises the approval request itself, so the tool never raises, writes or opens anything. It is
+/// safe, not read-only and trusted output, like dismiss_incident, so the gate denies it in an untrusted or tainted turn. Its answer carries the owner's outcome, the production, the
+/// kind, the item and the request's Ref, and no diagnosis or error text.
 /// check_status reads the latest results of the session's own background checks through OcuTalon.Tools.WatchAnswers.CheckResults (the ownership API) and
 /// copies them, as they are, to the bridge context's HostData as the checks member, where Conversation finds them for Checks.Render (AD-28). The tool
 /// never decides or interprets a result and submits nothing. Its answer is built from the session's own rows (the display name, the result, the finding
@@ -51,6 +55,8 @@ Parameter STEPLABELDISMISSINCIDENT = "Dismissing an incident";
 
 Parameter STEPLABELCHECKSTATUS = "Reading the check results";
 
+Parameter STEPLABELPROPOSEFIX = "Asking to approve a fix";
+
 Parameter CLASSIFICATIONSTARTWATCH = "safe";
 
 Parameter READONLYSTARTWATCH = 0;
@@ -80,6 +86,15 @@ Parameter CLASSIFICATIONCHECKSTATUS = "safe";
 Parameter READONLYCHECKSTATUS = 1;
 
 Parameter TRUSTEDOUTPUTCHECKSTATUS = 1;
+
+Parameter CLASSIFICATIONPROPOSEFIX = "safe";
+
+Parameter READONLYPROPOSEFIX = 0;
+
+Parameter TRUSTEDOUTPUTPROPOSEFIX = 1;
+
+/// The states of the incidents that propose_fix may name (AD-15).
+Parameter FIXABLE = "open,resolved";
 
 /// Starts watching a production for the user in this conversation: a background check that tells the user only when something needs them.
 /// Call it directly with the name the user gave, such as Orders. The answer has an outcome. started: the watch is on, and production is the
@@ -143,6 +158,40 @@ ClassMethod DismissIncident(production As %String(DESCRIPTION = "The name of the
 	Set refusal = ##class(OcuTalon.Tools.CommandCall).Run(command, .result)
 	If $IsObject(refusal) Quit ..Return(refusal)
 	Quit ..Return(##class(OcuTalon.Tools.WatchAnswers).Dismissed(result, match))
+}
+
+/// Asks for approval of a fix that the user asked for: suspend_item (disable a production item), resume_item (enable it again, which is also how a suspend is undone) or reroute
+/// (resend the failed messages of an incident as copies to another item). Call it at once when the user asks for one of these, with the item the user named: for suspend_item and
+/// resume_item the item to change, for reroute the item to send the failed messages to. It works on the user's open or resolved incident, found as for dismiss_incident (production
+/// names it when the user does). It raises an approval request with a dry run and changes nothing until the user approves it. The answer has an outcome. raised: the request
+/// is raised; approvalRef says which, and the user sees it in the chat. already_asked: the same request is already waiting. refused: the message says why the fix can't be
+/// done. nothing: there is nothing to do, for example no failed message to reroute. ambiguous, unknown_incident and no_incident are as for dismiss_incident. Anything else: the
+/// message says why nothing was raised.
+ClassMethod ProposeFix(kind As %String(DESCRIPTION = "One of suspend_item, resume_item or reroute."), item As %String(DESCRIPTION = "The name of the production item to suspend or resume; for reroute, the name of the item to send the failed messages to."), production As %String(DESCRIPTION = "The name of the production the incident is about, exactly as the user gave it, such as Orders. Only when the user names one.") = "", incident As %String(DESCRIPTION = "Only when an earlier answer listed incidents and the user picked one: that incident's ref. Otherwise leave it out.") = "") As %DynamicObject
+{
+	Set refusal = ##class(OcuTalon.Tools.CommandCall).Session(.context)
+	If $IsObject(refusal) Quit ..Return(refusal)
+	Set refusal = ##class(OcuTalon.Tools.WatchAnswers).ResolveIncident(production, incident, context.OwnerRef, .match, ..#FIXABLE)
+	If $IsObject(refusal) {
+		If (kind = "reroute") && (refusal.outcome = "no_incident") Set refusal = {"ok": false, "outcome": "nothing", "message": (##class(OcuTalon.Watch.IncidentManager).#MESSAGENOTHING)}
+		Quit ..Return(refusal)
+	}
+	Set command = ##class(OcuTalon.Msg.Command.ProposeFix).%New()
+	Set command.IncidentRef = match.ref
+	Set command.FixKind = kind
+	Set command.Parameters = $Select(kind = "reroute": {"target": (item)}, 1: {"item": (item)}).%ToJSON()
+	Set refusal = ##class(OcuTalon.Tools.CommandCall).Run(command, .result)
+	If $IsObject(refusal) Quit ..Return(refusal)
+	Set answer = ##class(OcuTalon.Tools.CommandCall).Answer(result)
+	Set answer.outcome = result.Outcome
+	Set answer.production = match.production
+	Set answer.kind = kind
+	Set answer.item = item
+	If result.Ref '= "" {
+		Do answer.%Remove("ref")
+		Set answer.approvalRef = result.Ref
+	}
+	Quit ..Return(answer)
 }
 
 /// Reads the latest results of the user's background checks in this conversation, one per watched production. Call it when the user asks whether everything

@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so the build lanes can work in parallel. Stories 0.1 to 0.21 are done. Epic 0 is re-opened once more (lane C, after Story 8.8) for Story 0.22, under the Contest Planner's More to try capacity ruling: the demo guide's More to try panel has grown into a long flat list, so its items are shown under three short group headings, letting a visitor find the kind of thing they want to try without reading every item.
+Epic 0 is the walking skeleton. One image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start. It provides a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so the build lanes can work in parallel. Stories 0.1 to 0.23 are done. Epic 0 is re-opened once more (lane C, after Story 0.23) for Story 0.24, a CI-tooling fix for DW-1099. CI jobs have failed before running a single test with "failed to bind host port 127.0.0.1:52816/tcp: address already in use", also logged as "driver failed programming external connectivity". 52816 is the runner's own fixed web port, and no orphan container held it. The most likely cause is that a job starts its next throwaway stack before Docker's port proxy has released the previous stack's port after `compose down`. The goal is that no throwaway test stack can publish its web port on a host port that is still being released.
 
 ## Stories
 
@@ -29,44 +29,46 @@ Epic 0 is the walking skeleton: one image build and `docker compose up` give Ocu
 - Story 0.19: The README names the contest (done)
 - Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget (done)
 - Story 0.21: The README opens with a centred header: logo, tagline and badges (done)
-- Story 0.22: The More to try panel shows its items under three group headings (backlog)
+- Story 0.22: The More to try panel shows its items under three group headings (done)
+- Story 0.23: The README header's logo and LICENSE badge link use absolute GitHub URLs (done)
+- Story 0.24: A test stack's web port can never collide with a port that is still being released (backlog)
 
 ## Requirements & Constraints
 
-**Ruled public text (0.22).** The three group headings and their order are fixed verbatim: "Incidents and fixes", then "Memory and documents", then "Safety and settings". Current items map as: rejectFix to Incidents and fixes; memory, documents and sources to Memory and documents; suspiciousEmail, heartbeat, persona and demoView to Safety and settings. Any other new public string (an accessible name, the EXPERIENCE.md line, a fallback label for ungrouped items) goes to the Contest Planner as PUBLIC TEXT at the spec gate, before implement. Approved text is committed verbatim; if a check refuses it, the conflict goes back to the Planner, not a rewording.
+**Two ruled fixes (0.24); the spec picks one.** The spec must say which fix it chose and why, and list the files it touches.
+- **Preferred: ephemeral port.** Publish the web port as `127.0.0.1::52773`, so Docker picks a free host port. Read it back with `docker compose port` after the stack starts. This replaces both the fixed per-runner scheme in `ci/iris.sh` (52810 + n and 52819 - n) and the port probe in `docker/tests/lib-live.sh` (`live_web_port`). Every web client must then use the read-back port: each live script's `base`, the Playwright configs and `web/e2e/support`, `ci/**`, and the release harnesses.
+- **Fallback: wait and retry once.** Take this only if the preferred fix is too large (more than about 2 to 3 hours of work). Before each stack start, wait up to 20 s for the chosen port to be free: `ss -ltn` on Linux, or an equivalent such as `lsof -iTCP:<port> -sTCP:LISTEN` for local macOS runs. Then retry the start exactly once, and only on exactly this bind error ("address already in use" or "failed programming external connectivity"). If the retry also fails, fail loudly.
 
-**Scope of change (0.22).** Only `web/src/app/guide/more-to-try.ts`, `web/src/app/guide/more-to-try-view.ts` (the `MORE_TO_TRY_ITEMS` registry), their unit tests under `web/scripts/`, `web/e2e/guide/`, and one marked line in EXPERIENCE.md. No item's label, look-for or control text changes; no registry row changes except its `group:` field. README.md is unchanged.
+**Invariants either way.**
+- `OCUTALON_TEST_WEB_PORT` keeps working as an explicit override. The lanes' dev slot ports 52801 to 52804 and the lanes' throwaways depend on it, so check every local caller.
+- The web port stays bound to 127.0.0.1 only.
+- The forbidden ports stay refused.
+- No test-logic change.
+- No workflow-file change beyond what the port needs.
 
-**Grouping behaviour.**
-- Group order lives in one exported constant. Within a group, items keep registry order. An item a later story puts first in the registry (23.6's incidentSummary) still renders first overall.
-- Headings come from registry data plus the ordering constant, never a hard-coded list of three; a fourth group must need only data.
-- A group with no present item (after `itemsFor` filters by the instance's features) shows no heading.
-- An item with no `group` still renders, in a place the spec decides and a unit test pins.
+**Tests.**
+- `docker/tests/test-ci-config.sh`, `test-ci-changes.sh` and `test-lib-live.sh` pass, and so does `docker/tests/test-boundaries.sh`.
+- Every pin of the old port scheme that changes moves to the new one. No pin is deleted or weakened beyond what the chosen fix replaces.
+- A self-test or unit covers the new port logic:
+  - Preferred fix: an ephemeral port is read back, and every web client uses it.
+  - Fallback: a held port is waited for, and the bind error is retried once and then fails loudly.
 
-**Tests.** Unit tests cover grouping, group order, empty-group suppression, the ungrouped fallback and focus order, reading the registry rather than a literal count. An e2e shows each heading with its items in the open panel.
-
-**Counts and docs.** README.md and EXPERIENCE.md keep the TOTAL item count (the registry rule). EXPERIENCE.md gains one line, carrying this story's marker, listing the three groups in order; no other text changes.
-
-**Done means:** `docker/tests/test-boundaries.sh` passes, and lane-a and ci are green.
+**Done means:**
+- On a lane-C throwaway, two stacks started back to back (the way `release/ipm-install.sh` path B and part p do) both come up, and the second answers on its web port with no bind error.
+- DW-1099 is resolved by this story.
+- Every workflow is green on the story's head.
 
 ## Technical Decisions
 
-- **Registry is the single source.** `MORE_TO_TRY_ITEMS` already has an optional `group` field (added by Story 20.3); `itemsFor` filters items by the features the server lists in the guide's payload, and an absent feature means the item is absent, not disabled.
-- **In-flight items carry their own group.** incidentSummary (23.6), reroute (23.2), warnPartner (23.5), memoryCard / pinMemory (41.13) and 37.2's item declare their own `group:` in their own stories; the merges are a plain union, so 0.22 must not depend on them.
-- **Existing pins.** Ruled item strings are pinned byte for byte in `web/e2e/guide/more-to-try.spec.ts`, `web/scripts/more-to-try-view.test.mjs` and `web/scripts/ux-strings.test.mjs`; no pin may be deleted or weakened.
-- **CI cost.** Story 4.11's More to try e2e tests once pushed the `live:sign-in` CI unit over its ~1,000 s line; keep the new e2e lean.
-- **Lane ownership.** Epic 0 may edit files from any lane in one story.
-
-## UX & Interaction Patterns
-
-- **The panel.** "Other things to try" is a labelled group inside the demo guide (demo view only), opened by the "More to try" link-button (`aria-expanded`, focus stays on the link). Its label is a paragraph, never a heading. It is open by itself in the finish state (after the links, before the Try it yourself row) except in the compact band (height after banners under 680px) or where the room cannot hold its shortest window; otherwise closed until the link is pressed.
-- **Group headings.** Each shown group renders as a real heading inside the panel, at the level below the panel's label, followed by its items. Since the label itself is a paragraph, the spec must settle the concrete heading level against the guide's heading outline.
-- **Focus and scrolling.** The panel is one Tab stop named "Other things to try" in every band; headings take no focus and keyboard focus still moves item by item. Where the page fills the viewport the panel scrolls on its own, sized by the room the chat leaves above its floor (64px in the compact band, 160px above it), and a focused control scrolls into view. Every item must stay reachable in the compact band. The panel announces nothing; focus moves only on the user's own press.
-- **Layout.** Items sit in a grid of as many columns as fit (each at least 20rem, `gap` `{spacing.2}` rows / `{spacing.4}` columns); headings must not break that layout or widen the page at 320px. The panel keeps `{spacing.1}` inline padding and a `{spacing.1}` list gutter so focus rings are never clipped. Item label is `{typography.body}` strong in `{colors.ink}`, look-for line `{typography.body-sm}` in `{colors.ink-muted}`, control a `button-secondary`.
+- **Throwaway stacks.** Destructive and CI tests run only in throwaway compose projects (`docker compose -p <name>` with the CI override), never on a developer instance. `ci/iris.sh` is the one recipe that runs the IRIS units, on the runner and on a developer machine. `ci/compose.ci.yml` is layered after the throwaway override.
+- **CI hosts.** ci-b holds runners 3 to 8, ci-c runners 9 to 14, and ci-d runners 15 to 20. Each runner currently has its own fixed web port.
+- **Release-tool gate.** Any `.github/workflows/*.yml` or `release/**` hunk is a RELEASE TOOL item and goes to the Contest Planner before it merges. CI log message text is internal, so there is no PUBLIC TEXT gate.
+- **Never weaken checks.** Never delete or weaken a rule or self-test. Shell test scripts stay ASCII-only and run on bash 3.2 with BSD or GNU tools; for example, BSD `head -n 0` fails, so use `awk`.
+- **Lane ownership.** Epic 0 may edit files from any lane in one story. Never write a local absolute path into a tracked file.
 
 ## Cross-Story Dependencies
 
-- **Built on 20.3 and 4.11.** 20.3 added the `group` field and the sample-runbook controls of items 6 and 8; 4.11 built the panel, its sizing and focus rules. Both are merged.
-- **Sequenced after 8.8** on lane C.
-- **Later stories add grouped items** (23.2, 23.5, 23.6, 37.2, 41.13); each sets its own `group:` and must render correctly through 0.22's data-driven headings.
-- **Known flakes.** Inherited CI flakes (for example DW-973, DW-774, DW-689 and DW-1026) can turn a run red without a cause in this story. Classify them; do not change the story to work around them.
+- **Builds on** Story 0.7 (CI on the IRIS runner and the throwaway recipe), Story 0.14 (`lib-live.sh` checks used by the live tests and the upgrade harness) and Story 0.20 (the IRIS CI groups).
+- **Sequenced after 0.23** on lane C.
+- **Failures this story removes.** The bind error is DW-1099: lane-a run 42907226019 (two failures on the same port 6 s apart) and ci run 42894860855 (`live:online-demo`).
+- **Known flakes.** Other inherited CI flakes (for example DW-973, DW-774, DW-689 and DW-1026) can turn a run red without a cause in this story. Classify them; do not change the story to work around them.

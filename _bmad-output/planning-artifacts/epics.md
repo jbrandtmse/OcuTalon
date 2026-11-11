@@ -1582,7 +1582,67 @@ So that I can find the kind of thing I want to try without reading a long flat l
 **Then** both keep the TOTAL item count (the registry rule) and README.md is otherwise unchanged; EXPERIENCE.md gets one line, carrying this story's marker, that lists the three groups in order; no other text changes
 **And** EXPERIENCE.md's More to try entries are listed and renumbered by group: the three ruled headings, with the order inside each group, and the item numbers it cites elsewhere follow; the wording of the renumbering goes to the Contest Planner at the spec gate [AMENDED 2026-11-10, Contest Planner ruling]
 **And** no test pins a group's size or the number of groups as a literal (Story 37.2's `usage` item joins "Safety and settings" as its last item, with no fourth heading) [AMENDED 2026-11-10, Contest Planner ruling for Story 37.2]
+**And** [AMENDED 2026-11-10, Contest Planner ruling: a fourth group for the step-6 pages] a fourth heading, "Usage and history", is the last entry of the group constant, added by Story 37.2: it holds Story 37.2's `usage` item, and Story 25.2's `history` item joins it. This supersedes "joins \"Safety and settings\" as its last item, with no fourth heading" in the line above and "the three ruled headings" / "lists the three groups" in the lines before it (DW-1096)
 **And** `docker/tests/test-boundaries.sh` passes, and lane-a and ci are green
+
+### Story 0.23: The README header's logo and LICENSE badge link use absolute GitHub URLs
+
+[ADDED 2026-11-10, Contest Planner ruling (PUBLIC TEXT ruled), for 1.0.7] SC-5 re-open of Epic 0 (lane C), after Story 0.22. The scope below is the Contest Planner's ruling of 2026-11-10 (~19:50Z, owner delegation), verbatim; the two new URLs are the ruled public text, and no other README text changes. The `docker/tests/test-readme.sh` hunk is not a release tool (ruled for Story 0.21). Files: README.md (lines 1 and 10 only), docker/tests/test-readme.sh.
+
+As a judge or visitor reading OcuTalon's Open Exchange listing,
+I want the README header's logo and LICENSE badge link to work there as they do on GitHub,
+So that the listing shows the logo instead of a broken image.
+
+Why: Open Exchange's README import mangles relative HTML image paths (another entry's `<img src="web/logo.svg">` became a doubled `https://github.com/.../raw/main/https://github.com/.../raw/main/web/logo.svg`, broken); absolute raw URLs come through intact. The orchestrator checked that `docs/images/ocutalon-logo.png` is on main and that its raw URL answers 200 image/png.
+
+**Acceptance Criteria:**
+
+**Given** README.md line 1 (the header's h1)
+**When** this story merges
+**Then** only the logo's `src` changes, from `docs/images/ocutalon-logo.png` to `https://raw.githubusercontent.com/jbrandtmse/OcuTalon/main/docs/images/ocutalon-logo.png`, keeping `alt="OcuTalon logo"`, `width="160"`, `height="160"` and everything else on the line
+
+**Given** README.md line 10 (the LICENSE badge)
+**When** this story merges
+**Then** its link `href="LICENSE"` becomes `href="https://github.com/jbrandtmse/OcuTalon/blob/main/LICENSE"`, and nothing else in the badge changes
+**And** no other README line changes (the body's relative `[LICENSE](LICENSE)` links stay: they are Markdown, not HTML)
+
+**Given** `docker/tests/test-readme.sh`, which pins the header block verbatim
+**When** this story merges
+**Then** its header pins carry the two new URLs, and a self-test still shows that a header logo with a different src is flagged
+**And** no other rule is weakened: in particular the header logo's file is still read by the image checks (it exists in the tree under `docs/images/` and stays under the size limit), and the allowances stay confined to the header block
+
+**Given** the change
+**When** this story merges
+**Then** `bash docker/tests/test-readme.sh` passes every rule and every self-test, `docker/tests/test-boundaries.sh` passes, and CI is green
+
+### Story 0.24: A test stack's web port can never collide with a port that is still being released
+
+[ADDED 2026-11-10, DW-1099, Contest Planner ruling] SC-5 re-open of Epic 0 (lane C), after Story 0.23. A CI-tooling story; the scope below is the Contest Planner's ruling of 2026-11-10 (~22:45Z, owner delegation). Findings (read-only on the CI hosts; ci-b holds runners 3-8, ci-c 9-14, ci-d 15-20): CI failed with "failed to bind host port 127.0.0.1:52816/tcp: address already in use" (also logged as "driver failed programming external connectivity"); 52816 is runner 6's own fixed web port (`ci/iris.sh`: 52810 + n), and no orphan container held it. Both failures in lane-a run 42907226019 were on the same port 6 s apart (path B's second stack, then part p), and ci run 42894860855 (live:online-demo) failed the same way. Most likely (inference): the previous stack's port is not yet free when the next stack of the same job starts (Docker's port proxy releases it a moment after `compose down`). No test-logic change, and no workflow-file change beyond what the port needs: any `.github/workflows/*.yml` or `release/**` hunk is a RELEASE TOOL item for the Contest Planner before it merges. CI log message text is internal (no PUBLIC TEXT gate).
+
+As the owner of the CI pipeline,
+I want every throwaway test stack to publish its web port on a host port that cannot collide with one still being released,
+So that no CI job fails with "address already in use" before a single test runs.
+
+**Acceptance Criteria:**
+
+**Given** `docker/tests/lib-live.sh` (`live_web_port`) and `ci/iris.sh` (the per-runner fixed port scheme 52810 + n / 52819 - n)
+**When** this story merges
+**Then** one of the two ruled fixes is in place, and the spec says which one and why, with the list of files it touches
+**And** (1) preferred: the web port is published as `127.0.0.1::52773`, so Docker picks a free ephemeral host port, and it is read back with `docker compose port` after the stack starts; this replaces the fixed per-runner scheme in `ci/iris.sh` and the probe in `lib-live.sh`, and every web client (each live script's `base`, the Playwright configs and `web/e2e/support`, `ci/**`, the release harnesses) uses the read-back port; OR (2) fallback, if (1) touches too much (more than about 2-3 hours of work): before each stack start, wait up to 20 s for the chosen port to be free (`ss -ltn` on Linux, an equivalent such as `lsof -iTCP:<port> -sTCP:LISTEN` for local macOS runs), and retry the start exactly once on exactly this bind error ("address already in use" / "failed programming external connectivity"), failing loudly after the retry
+**And** `OCUTALON_TEST_WEB_PORT` keeps working as an explicit override (the lanes' dev slot ports 52801-52804 and the lanes' throwaways depend on it; every local caller is checked), the web port stays bound to 127.0.0.1 only, and the forbidden ports stay refused
+
+**Given** `docker/tests/test-ci-config.sh`, `docker/tests/test-ci-changes.sh` and `docker/tests/test-lib-live.sh`
+**When** this story merges
+**Then** they pass with `docker/tests/test-boundaries.sh`, every pin of the old port scheme that changes moves to the new one, and none is deleted or weakened beyond what the chosen fix replaces
+**And** a self-test or unit covers the new port logic: for (1), an ephemeral port is read back and every web client uses it; for (2), a held port is waited for, and the bind error is retried once and then fails loudly
+
+**Given** a lane-C throwaway
+**When** two stacks are started back to back, the way `release/ipm-install.sh` path B and part p do
+**Then** the second stack starts and answers on its web port with no bind error, and DW-1099 is resolved by this story
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
@@ -7702,6 +7762,22 @@ So that I can watch a data condition without giving OcuTalon any way to change d
 **Then** the statement fails with a privilege error, no data changes, and the run is not checked (FR-33, FR-10)
 **And** the tool inventory test still finds no tool that runs data-changing SQL (FR-10)
 
+
+### Story 23.9: Resume a suspended item after its incident closes
+
+[ADDED 2026-11-10, Contest Planner ruling (DW-1068 re-ruling), PARKED until after voting; not for 1.0.6 or 1.0.7] Split from Story 23.2, whose `result.itemSuspended` text limits the undo to while the incident is open and points to the Management Portal after it closes.
+
+As a production developer,
+I want to undo a suspend OcuTalon made even after its incident has closed,
+So that a suspended item is never left disabled without a governed way back.
+
+**Acceptance Criteria:**
+
+**Given** an item that OcuTalon suspended through an executed `suspend_item` request of an incident the user can see, and that incident has closed
+**When** the user asks OcuTalon to resume the item
+**Then** the spec chooses between (a) a resume raised on the closed incident, which never moves its state, and (b) an incident with an active suspend stays open until a resume or Dismiss (the Planner leans to (b)); either way exactly one approval request with its own dry run is raised, the item is re-checked before running, and a second session or a user outside the incident's ownership scope cannot resume it (FR-26, AD-15, AD-16)
+- DW-1068: After a suspend's incident closes the user cannot ask to resume the item (ledger; routed by merge_gate 2026-11-10)
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.
@@ -7834,6 +7910,8 @@ So that I can look back at what OcuTalon decided and handled.
 **Given** automated tests and a Playwright spec under `web/e2e/`
 **When** filters combine across fixture decisions and incidents of two sessions
 **Then** the results match the fixtures, the other session's records never appear, and the tabs use `aria-selected` and work by keyboard (FR-53, AD-4, UX-DR130, NFR-25)
+
+**And** [ADDED 2026-11-10, DW-1102, Story 37.2 merge gate] the History header link fits the compact header at 640x360 (200%): Story 37.2 left 15-19px of slack there (nav gap 4px, link padding 6px below 1024px), so the header stays sticky, hides no link and needs no sideways scroll, and `live:floor` layout G4 and G5 stay green
 
 ### Story 25.3: Send a PDF, Word file or photo from the web app or Telegram
 
@@ -9403,8 +9481,8 @@ So that I can see what OcuTalon costs and spot a request close to the size limit
 
 **Given** step 6 starts in Lane B
 **When** this story begins
-**Then** the spine's REST table and ownership tables gain Lane B's step-6 additions in the same change: the usage and history reads, the file upload route and the private file table, the Roles section's routes, and the header navigation's History and Usage entries (AD-29, AD-33)
-**And** the step-6 additions that Lane A's Story 37.1 (was 26.1) asks for in Lane B's contracts are appended by Lane B as their owner (AD-29, AD-33) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the Dockerfile lines for `pdfplumber` and `python-docx` moved to Story 34.2 (was 20.1); it read "**And** the step-6 additions that Lane A's Story 37.1 (was 26.1) asks for in Lane B's contracts are appended by Lane B as their owner, including the Dockerfile lines that install the Python packages Story 37.1 (was 26.1) names (`pdfplumber==0.11.10` and `python-docx==1.1.2`) pinned, like `fastembed`, with the same `pip install --target` line and their licence notices kept (AD-23, AD-29, AD-33, CON-2)"]
+**Then** the spine's REST table and ownership tables gain this story's own step-6 additions in the same change: the usage read and the header navigation's Usage entry; the history read and the History entry come with Story 25.2, and the file upload route, the private file table and the Roles section's routes with the stories that build them (25.3, 25.4 and 25.5, 37.1); the header shows no History entry until Story 25.2 merges (AD-29, AD-33) [AMENDED 2026-11-10, decided by the Contest Planner under the owner's delegation: each story adds its own step-6 spine rows; the step-pairing rule no longer applies after the owner's re-plan; it read "the spine's REST table and ownership tables gain Lane B's step-6 additions in the same change: the usage and history reads, the file upload route and the private file table, the Roles section's routes, and the header navigation's History and Usage entries (AD-29, AD-33)"]
+**And** the step-6 additions that Lane A's Story 37.1 (was 26.1) asks for in Lane B's contracts come with the stories that build them, not with this story (AD-29, AD-33) [AMENDED 2026-11-10, decided by the Contest Planner under the owner's delegation: each story adds its own step-6 spine rows; the step-pairing rule no longer applies after the owner's re-plan; it read "are appended by Lane B as their owner (AD-29, AD-33)"] [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the Dockerfile lines for `pdfplumber` and `python-docx` moved to Story 34.2 (was 20.1); it read "**And** the step-6 additions that Lane A's Story 37.1 (was 26.1) asks for in Lane B's contracts are appended by Lane B as their owner, including the Dockerfile lines that install the Python packages Story 37.1 (was 26.1) names (`pdfplumber==0.11.10` and `python-docx==1.1.2`) pinned, like `fastembed`, with the same `pip install --target` line and their licence notices kept (AD-23, AD-29, AD-33, CON-2)"]
 
 **Given** a signed-in user
 **When** they open Usage from the header navigation

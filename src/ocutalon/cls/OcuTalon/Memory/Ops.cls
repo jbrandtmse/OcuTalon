@@ -24,7 +24,10 @@
 ///     is ever unpinned to make room. Otherwise Pinned is 1, PinnedAt is now (UTC to the second), and the answer is pinned (Ok 1, an empty Message) with the Ref.
 ///   - UnpinMemory (Story 41.12; origin web_user only): an own memory, pinned or not, gets Pinned 0 and PinnedAt empty, and the answer is unpinned (Ok 1, an empty Message); another
 ///     session's memory and an unknown Ref answer not_found (Ok 0, an empty Message).
-///   - Who may ask (DW-1029): SaveMemory comes from origin tool; ForgetMemory from tool or web_user; PinMemory, UnpinMemory and SearchMemory from web_user only (CommandsIn).
+///   - ListPinnedMemories (Story 41.13; a read, from origin web_user): the command's own SessionRef's pinned memories (OcuTalon.Memory.Pinned), newest pin first, as the same items as a search, and
+///     used, the tokens of the core-memory block: ceil($Length of OcuTalon.Memory.CoreBlock / OcuTalon.Memory CHARSPERTOKEN), the cap's own computation, 0 with no pin. Data is {items, used}. It changes
+///     no row and takes no lock; a failure answers failed.
+///   - Who may ask (DW-1029): SaveMemory comes from origin tool; ForgetMemory from tool or web_user; PinMemory, UnpinMemory, SearchMemory and ListPinnedMemories from web_user only (CommandsIn).
 ///   - A lock on the session that cannot be taken within 5 seconds, a save or delete that fails and any exception answer failed.
 ///   - After a new row is saved, Tuned is called with its id, which has the SQL statistics of the table gathered at every STATSEVERY-th id
 ///     (OcuTalon.Memory.Tune), so that the recall query keeps using the HNSW index as the table grows.
@@ -61,6 +64,9 @@ XData MessageMap
 </MapItem>
 <MapItem MessageType="OcuTalon.Msg.Command.SearchMemory">
 <Method>OnSearch</Method>
+</MapItem>
+<MapItem MessageType="OcuTalon.Msg.Command.ListPinnedMemories">
+<Method>OnListPinned</Method>
 </MapItem>
 <MapItem MessageType="OcuTalon.Msg.Command.PinMemory">
 <Method>OnPin</Method>
@@ -249,17 +255,7 @@ Method OnSearch(request As OcuTalon.Msg.Command.SearchMemory, Output response As
 	Try {
 		Set sc = ##class(OcuTalon.Memory).Search(request.SessionRef, request.Query, ##class(OcuTalon.Memory).#MAXLIMIT, .rows)
 		If $$$ISERR(sc) Quit
-		Set items = []
-		Set iterator = rows.%GetIterator()
-		While iterator.%GetNext(, .row) {
-			Set item = {}
-			Set item.ref = row.memoryRef
-			Set item.text = row.text
-			Set item.savedAt = row.savedAt
-			Set item.source = row.source
-			Do item.%Set("pinned", (row.pinned = 1), "boolean")
-			Do items.%Push(item)
-		}
+		Set items = ..Items(rows)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
@@ -267,6 +263,46 @@ Method OnSearch(request As OcuTalon.Msg.Command.SearchMemory, Output response As
 	Set sc = ..Answer(.response, 1, "done", "")
 	Set response.Data = items.%ToJSON()
 	Quit sc
+}
+
+/// Lists the command's own session's pinned memories, newest pin first, with the tokens they use (see the class description). It changes no row and takes no lock:
+/// this operation runs one job, and that job is the only writer of a pin.
+Method OnListPinned(request As OcuTalon.Msg.Command.ListPinnedMemories, Output response As OcuTalon.Msg.CommandResult) As %Status
+{
+	Set response = ""
+	Try {
+		Set sc = ##class(OcuTalon.Memory).Pinned(request.SessionRef, .rows)
+		If $$$ISERR(sc) Quit
+		Set sc = ##class(OcuTalon.Memory).CoreBlock(request.SessionRef, "", .block)
+		If $$$ISERR(sc) Quit
+		Set perToken = ##class(OcuTalon.Memory).#CHARSPERTOKEN
+		Set data = {}
+		Set data.items = ..Items(rows)
+		Set data.used = ($Length(block) + perToken - 1) \ perToken
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) Quit ..Failed(.response, sc)
+	Set sc = ..Answer(.response, 1, "done", "")
+	Set response.Data = data.%ToJSON()
+	Quit sc
+}
+
+/// The rows of Memory.Search or Memory.Pinned as the JSON array [{ref, text, savedAt, source, pinned}] (pinned a boolean, no origin).
+ClassMethod Items(rows As %DynamicArray) As %DynamicArray [ Private ]
+{
+	Set items = []
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		Set item = {}
+		Set item.ref = row.memoryRef
+		Set item.text = row.text
+		Set item.savedAt = row.savedAt
+		Set item.source = row.source
+		Do item.%Set("pinned", (row.pinned = 1), "boolean")
+		Do items.%Push(item)
+	}
+	Quit items
 }
 
 /// Called with the id of each row that was just saved: gathers the table's statistics at every STATSEVERY-th id (OcuTalon.Memory.Tune), and returns 1

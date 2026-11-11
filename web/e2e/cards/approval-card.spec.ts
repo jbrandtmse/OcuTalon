@@ -31,7 +31,7 @@ import { announcedTexts, clock, recordAnnouncements, tokenColor } from '../suppo
  * A2 is an Approve, A3 two requests and a Reject, A4 the busy rule (one request however often pressed, the notice after 10 s and the late
  * answer), A5 the press that lost the race to the phone, A6 the 1280x600 layout and A7 another session's request (signed in over HTTP,
  * with no page load), A8 the replies that are not an answer, A9 a closed incident, A10 the headline cap letting go once the reader scrolls
- * on and A11 the result band of a run that stopped partway (Story 31.2).
+ * on and A11 the result band of a run that stopped partway (Story 31.2); A12 (Story 23.2, AC15) a reroute request over real HTTP.
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -367,6 +367,87 @@ test('A7: another session\'s request answers 404 from the page\'s context and st
     expect(await response.text(), 'with the body of an unknown ref').toBe(await unknown.text());
     expect(JSON.parse(await response.text()).error.code).toBe('not_found');
     expect(await readApproval(theirs).then((one) => one.state), 'and stays pending').toBe('pending');
+  } finally {
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * A12 (Story 23.2, AC15): a reroute request over real HTTP, as the unprivileged cards user (OcuTalonUser only) through the `request` fixture (http), whose cookies are not the page's, so the page still signs in itself. GET /api/v1/state lists the
+ * request in the rail with its fixKind and the dry run's to, from and example; a reject over the answer route (user routes need the user role alone) answers 200 with the
+ * request's payload, state rejected, with the same fixKind and to; and a second session's reroute request is in neither this user's state nor its answer route.
+ * Then, in the page, the card of a second reroute request is approved from the web, and once the incident carries the finished runs (50 of 50 copies completed; a
+ * suspended item) each request's result band reads result.rerouted with the target and result.itemSuspended with the item and the incident's production (DW-1067:
+ * the band of a fix the user asked for in the chat); once the incident is closed, the compact card draws the same two bands itself.
+ */
+test('A12: a reroute request carries its fixKind and dry run over real HTTP, a second session sees none of it, and a finished run shows its band', async ({ page, request: http }) => {
+  const { user, password } = fixtureUser(KIND);
+  const rows: string[] = [];
+  const dryRun = { affected: 50, resend: 50, field: '', itemNoun: { one: 'order', other: 'orders' }, from: 'OrdersFromPartner', to: 'OrdersForReview', example: '1234' } as const;
+  try {
+    await signInOverHttp(http, user, password);
+    expect((await http.get(STATE)).status(), 'signed in').toBe(200);
+    const mine = await seedApproval(user, { fixKind: 'reroute', requiredRole: 'OcuTalonUser', expiresAt: TOMORROW_AT_1413, dryRun });
+    rows.push(mine);
+    const other = await seedOtherSession(`zzother${Date.now().toString(36)}`);
+    rows.push(other);
+    const theirs = await seedApproval(user, { fixKind: 'reroute', requiredRole: 'OcuTalonUser', expiresAt: TOMORROW_AT_1413, dryRun }, { sessionRef: other });
+    rows.push(theirs);
+    const state = (await (await http.get(STATE)).json()) as { rail: { approvals: Array<{ ref: string; fixKind?: string; dryRun?: { to?: string; from?: string; example?: string } }> } };
+    const found = state.rail.approvals.find((one) => one.ref === mine);
+    expect(found?.fixKind, 'the state names the fix kind').toBe('reroute');
+    expect(found?.dryRun?.to, 'and the item the messages would go to').toBe('OrdersForReview');
+    expect(found?.dryRun?.from).toBe('OrdersFromPartner');
+    expect(found?.dryRun?.example).toBe('1234');
+    expect(JSON.stringify(state.rail.approvals), 'the second session\'s request is not in this user\'s state').not.toContain(theirs);
+    const stranger = await post(http, `/ocutalon/api/v1/approvals/${theirs}/answer`, { action: 'reject', channel: 'web' });
+    expect(stranger.status(), 'and its answer route is 404').toBe(404);
+    expect(await readApproval(theirs).then((one) => one.state), 'the second session\'s request stays pending').toBe('pending');
+    const answer = await post(http, `/ocutalon/api/v1/approvals/${mine}/answer`, { action: 'reject', channel: 'web' });
+    expect(answer.status(), 'a reject over the answer route is 200').toBe(200);
+    const body = JSON.parse(await answer.text()) as { approval?: { state?: string; fixKind?: string; dryRun?: { to?: string } } };
+    expect(body.approval?.state).toBe('rejected');
+    expect(body.approval?.fixKind).toBe('reroute');
+    expect(body.approval?.dryRun?.to).toBe('OrdersForReview');
+
+    await open(page);
+    const incident = refOf('A12');
+    const requests: string[] = [];
+    const request = await raise(page, user, rows, incident, requests, { fixKind: 'reroute', dryRun });
+    const card = requestCard(page, request);
+    await expect(card).toHaveCount(1, { timeout: CARD_MS });
+    await card.getByRole('button', { name: 'Approve: reroute 50 orders to OrdersForReview', exact: true }).click();
+    await expect(card.locator('p.status'), 'the press answers from the web').toContainText('Approved from the web chat', { timeout: 30_000 });
+    const suspend = await raise(page, user, rows, incident, requests, { fixKind: 'suspend_item', dryRun: { item: 'OrdersToWarehouse', before: 'enabled', after: 'disabled' } });
+    const result = { total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' };
+    const suspended = { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' };
+    const finished = [
+      { ref: request, state: 'done', fixKind: 'reroute', item: 'OrdersForReview', count: 50, result },
+      { ref: suspend, state: 'done', fixKind: 'suspend_item', item: 'OrdersToWarehouse', result: suspended },
+    ];
+    const rerouted = 'All 50 orders were rerouted to OrdersForReview and completed there. The originals stay unchanged.';
+    const suspendedText =
+      'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is suspended: it is disabled now. To undo it while this incident is open, ask me to resume OrdersToWarehouse. After the incident closes, enable OrdersToWarehouse again on the production\'s configuration page in the Management Portal.';
+    await applied(
+      page,
+      await publishIncident(user, { ...incidentOf(incident, []), state: 'resolved', production: 'OcuTalon.Demo.Orders.Production', requests: finished }),
+    );
+    const band = card.locator('[data-part="result"]');
+    await expect(band.locator('.text'), 'the band says where the copies went').toHaveText(rerouted, { timeout: CARD_MS });
+    await expect(band, 'in the success tone').toHaveAttribute('data-tone', 'success');
+    await expect(requestCard(page, suspend).locator('[data-part="result"] .text'), 'the suspend band names the item in the incident\'s production').toHaveText(
+      suspendedText,
+      { timeout: CARD_MS },
+    );
+    await applied(
+      page,
+      await publishIncident(user, { ...incidentOf(incident, []), state: 'closed', production: 'OcuTalon.Demo.Orders.Production', requests: finished }),
+    );
+    await expect(requestCard(page, request), 'the closed card draws no request card').toHaveCount(0, { timeout: CARD_MS });
+    await expect(incidentCard(page, incident).locator('[data-part="result"] .text'), 'and keeps both bands, the suspend\'s naming the item in the incident\'s production').toHaveText(
+      [rerouted, suspendedText],
+      { timeout: CARD_MS },
+    );
   } finally {
     await cleanFixtureRows(rows);
   }

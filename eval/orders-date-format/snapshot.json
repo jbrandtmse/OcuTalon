@@ -1540,6 +1540,13 @@
       "enabled": 1,
       "poolSize": 1,
       "settings": {}
+    },
+    {
+      "name": "OrdersForReview",
+      "className": "OcuTalon.Demo.Orders.Review",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {}
     }
   ],
   "trace": [

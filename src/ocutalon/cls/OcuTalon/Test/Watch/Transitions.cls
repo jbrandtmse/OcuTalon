@@ -1,7 +1,7 @@
 /// Tests of the transition table of an incident (Story 5.5; AD-15) and of the quiet-time rule that closeQuiet uses. The class is pure: it calls
 /// OcuTalon.Watch.Transitions.Next and OcuTalon.Watch.Settle.Quiet and nothing else, so it runs warm.
 ///   - TestRows: every row of the table, each at every combination of the facts pending, waiting and demoMode (and at the variants a notice may carry), gives
-///     its target state, open variant and execute choice;
+///     its target state, open variant and execute choice; the row "open, noticed + raised -> awaiting_approval" (Story 23.2) is the request that the user asked for in the chat;
 ///   - TestRefusedMoves: every pair of state (none, open not noticed, open noticed, awaiting_approval, fixing, resolved, closed) and event, at every combination
 ///     of the facts, is refused unless a row accepts it, and a refused move gives no target, variant or execute;
 ///   - TestQuiet: Settle.Quiet is 0 at 899 and 900 seconds, 1 at 901, and 0 for a time it cannot read.
@@ -103,6 +103,7 @@ ClassMethod Rows() As %List [ Private ]
 		$ListBuild("", "*", "first", "", "open", "", ""),
 		$ListBuild("open", 0, "notice", "v", "open", "<v>", ""),
 		$ListBuild("open", 0, "raised", "", "awaiting_approval", "", ""),
+		$ListBuild("open", 1, "raised", "", "awaiting_approval", "", ""),
 		$ListBuild("awaiting_approval", "*", "approved", "", "fixing", "", "own"),
 		$ListBuild("awaiting_approval", "*", "rejected", "p0", "open", "rejected", ""),
 		$ListBuild("awaiting_approval", "*", "rejected", "p1", "awaiting_approval", "", ""),

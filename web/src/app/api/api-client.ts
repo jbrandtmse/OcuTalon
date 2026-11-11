@@ -175,6 +175,11 @@ export class ApiClient {
     return this.http.get<DocumentsList>(`${BASE}/documents`);
   }
 
+  /** The session's own usage over the last 1, 7 or 30 local days, summed into buckets (Story 37.2): the Usage page's read. */
+  usage(days: import('./usage-types').UsageDays): Observable<import('./usage-types').UsageResponse> {
+    return this.http.get<import('./usage-types').UsageResponse>(`${BASE}/usage`, { params: { days } });
+  }
+
   /**
    * Adds one document: a POST of {name, content}, the file's bytes in base64 (the session is the caller's, never in the body). The answer is
    * {result: 'done', ref}; a 400 `bad_document` (with its `reason`), a 413, a 501 and a 500 fail as an HttpErrorResponse whose `error` is
@@ -272,5 +277,34 @@ export class ApiClient {
    */
   forgetPrecedent(ref: string): Observable<import('./memory-card-types').PrecedentForgotten> {
     return this.http.delete<import('./memory-card-types').PrecedentForgotten>(`${BASE}/memory/precedents/${encodeURIComponent(ref)}`, { body: {} });
+  }
+
+  /**
+   * The session's memories (Story 41.13): a GET of /memory/items, the newest 20 with no query, or with `?q=` (sent only when not blank) the best 5. A search
+   * that has no answer in time fails as a 503 whose body error.code is `search_busy`; on the online demo one past the allowance fails as a 429.
+   */
+  memoryItems(q?: string): Observable<import('./memory-card-types').MemoryItems> {
+    const query = (q ?? '').trim();
+    return this.http.get<import('./memory-card-types').MemoryItems>(`${BASE}/memory/items`, query === '' ? {} : { params: { q: query } });
+  }
+
+  /** The session's pinned memories, newest pin first, and the tokens they use (Story 41.13): a GET of /memory/pinned. */
+  pinnedMemories(): Observable<import('./memory-card-types').PinnedMemories> {
+    return this.http.get<import('./memory-card-types').PinnedMemories>(`${BASE}/memory/pinned`);
+  }
+
+  /** Pins one memory (Story 41.13): a POST with the body {}. A 409 `over_cap` fails as an HttpErrorResponse; so does a 404 for a memory that is gone. */
+  pinMemory(ref: string): Observable<import('./memory-card-types').MemoryDone> {
+    return this.http.post<import('./memory-card-types').MemoryDone>(`${BASE}/memory/${encodeURIComponent(ref)}/pin`, {});
+  }
+
+  /** Unpins one memory (Story 41.13): a DELETE with the body {}. */
+  unpinMemory(ref: string): Observable<import('./memory-card-types').MemoryDone> {
+    return this.http.delete<import('./memory-card-types').MemoryDone>(`${BASE}/memory/${encodeURIComponent(ref)}/pin`, { body: {} });
+  }
+
+  /** Forgets one memory (Story 41.13): a DELETE with the body {}; its pin and search entries go with it. A 404 means it is already gone. */
+  forgetMemory(ref: string): Observable<import('./memory-card-types').MemoryDone> {
+    return this.http.delete<import('./memory-card-types').MemoryDone>(`${BASE}/memory/items/${encodeURIComponent(ref)}`, { body: {} });
   }
 }

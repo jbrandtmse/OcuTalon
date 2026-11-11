@@ -14,6 +14,7 @@ const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)
 const { BREAK_FEED_BUTTON, CHAT_FLOOR, COMPACT_BAND_HEIGHT, DISMISS_BUTTON, INCIDENT_CARD, MORE_TO_TRY_GROUPS, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, RESOLVED_CHIP, chatFloor, groupsOf, inCompactBand, itemsFor, windowBound } = await import(app('guide', 'more-to-try-view.ts'));
 const { HEIGHT_QUERIES } = await import(app('shared', 'layout-view.ts'));
 const { RAIL_TEXTS } = await import(app('rail', 'rail-view.ts'));
+const { MEMORY_HEADING_ID, MEMORY_TEXTS } = await import(app('rail', 'memory-card', 'memory-card-view.ts'));
 const { HEARTBEAT_HEADING_ID, HEARTBEAT_TEXTS } = await import(app('rail', 'heartbeat-card', 'heartbeat-card-view.ts'));
 const { PERSONA_TEXTS, PRESETS } = await import(app('rail', 'persona-card', 'persona-card-view.ts'));
 const { TRY_IT_TEXTS } = await import(app('chat', 'try-it-view.ts'));
@@ -36,6 +37,7 @@ const RULED = {
   label: 'Other things to try',
   rememberPrompt: "Remember that the Results partner's contact is Lee.",
   summaryPrompt: 'Show me the incident summary',
+  reroutePrompt: 'Reroute the failed orders to OrdersForReview.',
   items: {
     incidentSummary: {
       label: 'Read the incident summary',
@@ -61,6 +63,12 @@ const RULED = {
         'This presses Break the feed again. OcuTalon usually notices within a minute. When the fix waits for your approval, press Reject in the chat or on the Simulated phone, and look for "Nothing was changed."',
       button: 'Break it again',
     },
+    reroute: {
+      label: 'Reroute the failed orders',
+      lookFor:
+        'First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way.',
+      button: 'Ask to reroute',
+    },
     demoView: {
       label: 'See the page as on your own install',
       lookFor: 'The demo guide, Break the feed and the Simulated devices are hidden, as on your own install. Turn Demo view back on in the top bar to return.',
@@ -70,6 +78,12 @@ const RULED = {
       label: 'Ask it to remember something',
       lookFor: 'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
       button: 'Ask it to remember',
+    },
+    memoryCard: {
+      label: 'Pin a memory',
+      lookFor:
+        'First do "Ask it to remember something". Then open All memories in the Memory card and press Pin on the memory marked Told. Open Pinned to see it: pinned facts are read at the start of each conversation, up to 1,000 tokens.',
+      button: 'Go to the Memory card',
     },
     documents: {
       label: 'Ask about a document',
@@ -88,6 +102,13 @@ const RULED = {
         'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
       button: 'Open the Documents page',
     },
+    usage: {
+      label: 'See tokens and cost',
+      // mutation: the registry's look-for ends its second sentence "on your messages and incidents." -> the RULED copy test, the ux-strings and usage-docs tests go red.
+      lookFor:
+        'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+      button: 'Open the Usage page',
+    },
   },
 };
 
@@ -102,13 +123,16 @@ const ACTION_OF = { sources: 'documents' };
 const GROUP_OF = {
   incidentSummary: 'Incidents and fixes',
   rejectFix: 'Incidents and fixes',
+  reroute: 'Incidents and fixes',
   memory: 'Memory and documents',
+  memoryCard: 'Memory and documents',
   documents: 'Memory and documents',
   sources: 'Memory and documents',
   suspiciousEmail: 'Safety and settings',
   heartbeat: 'Safety and settings',
   persona: 'Safety and settings',
   demoView: 'Safety and settings',
+  usage: 'Usage and history',
 };
 const idsOf = (items) => items.map((item) => item.id);
 
@@ -131,8 +155,10 @@ describe('(a) the fixed strings', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS.map((id) => ACTION_OF[id] ?? id));
   });
 
-  it('give every entry its ruled group', () => {
+  it('give every entry its ruled group, with usage the last item of Usage and history and the last registry entry', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => [item.id, item.group]), IDS.map((id) => [id, GROUP_OF[id]]));
+    assert.equal(MORE_TO_TRY_ITEMS.filter((item) => item.group === 'Usage and history').at(-1)?.id, 'usage', 'usage is the last item of Usage and history');
+    assert.equal(MORE_TO_TRY_ITEMS.at(-1)?.id, 'usage', 'and the last registry entry');
   });
 
   it('use straight ASCII quotes and no other non-ASCII character', () => {
@@ -153,7 +179,7 @@ describe('(b) itemsFor', () => {
   });
 
   it('shows exactly its item, in its place, when memory, documents or heartbeat is added', () => {
-    for (const id of ['memory', 'documents', 'heartbeat', 'sources']) {
+    for (const id of ['memory', 'memoryCard', 'documents', 'heartbeat', 'sources']) {
       assert.deepEqual(idsOf(itemsFor([...BEFORE_MEMORY, id])), IDS.filter((one) => BEFORE_MEMORY.includes(one) || one === id), id);
     }
     assert.deepEqual(idsOf(itemsFor(IDS)), IDS);
@@ -176,7 +202,7 @@ describe('(b2) groupsOf', () => {
   const flat = (sets) => sets.flatMap((set) => idsOf(set.items));
 
   it('holds the ruled headings, in the ruled order', () => {
-    assert.deepEqual(MORE_TO_TRY_GROUPS, ['Incidents and fixes', 'Memory and documents', 'Safety and settings']);
+    assert.deepEqual(MORE_TO_TRY_GROUPS, ['Incidents and fixes', 'Memory and documents', 'Safety and settings', 'Usage and history']);
   });
 
   it('knows every group that the registry declares', () => {
@@ -265,6 +291,14 @@ describe('(c) every quoted on-screen name equals its source', () => {
     assert.equal(BREAK_FEED_BUTTON, 'app-break-feed-box app-server-button button');
   });
 
+  it('names Reject a fix, the review item and the prompt that the reroute item sends as the page does (Story 23.2)', () => {
+    has(items.reroute.lookFor, `First do "${items.rejectFix.label}"`);
+    has(items.reroute.lookFor, 'to reroute them to OrdersForReview, the review queue');
+    has(items.reroute.lookFor, 'press Trace to see the copies go to OrdersForReview');
+    assert.equal(MORE_TO_TRY_TEXTS.reroutePrompt, RULED.reroutePrompt);
+    assert.ok(RULED.reroutePrompt.includes('OrdersForReview'));
+  });
+
   it('names the Simulated devices and the Demo view switch as the page does', () => {
     has(items.demoView.lookFor, `the ${DEVICE_TEXTS.region} are hidden`);
     has(items.demoView.lookFor, `Turn ${DEMO_VIEW_TEXTS.label} back on`);
@@ -277,7 +311,23 @@ describe('(c) every quoted on-screen name equals its source', () => {
     has(items.heartbeat.lookFor, `press ${HEARTBEAT_TEXTS.run}.`);
     assert.equal(HEARTBEAT_TEXTS.run, 'Run the heartbeat now');
     has(items.heartbeat.button, `the ${RAIL_TEXTS.heartbeat} card`);
-    assert.equal(HEARTBEAT_HEADING_ID, 'rail-heading-heartbeat', 'the heading that item 7 hands focus to');
+    assert.equal(HEARTBEAT_HEADING_ID, 'rail-heading-heartbeat', 'the heading that the heartbeat item hands focus to');
+  });
+
+  it('names the Memory card, its tabs and its controls as the card does, and the item it follows by its label', () => {
+    has(items.memoryCard.lookFor, `"${items.memory.label}"`);
+    has(items.memoryCard.lookFor, `open ${MEMORY_TEXTS.memories} in the ${RAIL_TEXTS.memory} card`);
+    has(items.memoryCard.lookFor, `press ${MEMORY_TEXTS.pin} on the memory marked ${MEMORY_TEXTS.told}`);
+    has(items.memoryCard.lookFor, `Open ${MEMORY_TEXTS.pinned} to see it`);
+    has(items.memoryCard.lookFor, 'up to 1,000 tokens');
+    assert.equal(MEMORY_TEXTS.used, '{used} of 1,000 tokens (estimated).', 'the limit the line quotes');
+    has(items.memoryCard.button, `the ${RAIL_TEXTS.memory} card`);
+    assert.equal(MEMORY_HEADING_ID, 'rail-heading-memory', 'the heading that the button hands focus to');
+  });
+
+  it('puts the Memory card item right after the memory item', () => {
+    const at = MORE_TO_TRY_ITEMS.findIndex((item) => item.id === 'memory');
+    assert.equal(MORE_TO_TRY_ITEMS[at + 1]?.id, 'memoryCard');
   });
 
   it('names Dismiss, the Simulated phone and the summary prompt as the page does (Story 23.6)', () => {

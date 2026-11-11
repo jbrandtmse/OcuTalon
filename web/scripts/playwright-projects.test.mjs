@@ -328,12 +328,12 @@ describe('the case lists of the floor, answers and cards projects (Story 6.4; DW
     }
   });
 
-  it('holds I2 to I11, A2 to A11 and E1 to E6 in the cards project, each once and in its own spec', () => {
+  it('holds I2 to I11, A2 to A12 and E1 to E6 in the cards project, each once and in its own spec', () => {
     const where = (id) => cards.filter((one) => idOf(one.title) === id).map((one) => one.file);
     for (const id of range('I', 2, 11)) assert.deepEqual(where(id), ['cards/incident-card.spec.ts'], id);
-    for (const id of range('A', 2, 11)) assert.deepEqual(where(id), ['cards/approval-card.spec.ts'], id);
+    for (const id of range('A', 2, 12)) assert.deepEqual(where(id), ['cards/approval-card.spec.ts'], id);
     for (const id of range('E', 1, 8)) assert.deepEqual(where(id), ['cards/either-way.spec.ts'], id);
-    assert.equal(cards.length, 28, 'and no other case');
+    assert.equal(cards.length, 29, 'and no other case');
     assert.deepEqual([...new Set(cards.flatMap((one) => one.projects))], ['cards'], 'in Chromium only: no case is tagged for Firefox or WebKit');
   });
 
@@ -393,7 +393,7 @@ describe('the online-demo, online-session, online-allowance, online-demo-path an
 
   it('online-allowance (the e2e:online-allowance script) lists exactly the spec files of web/e2e-online/allowance/, and the online-demo script none of them', () => {
     const own = onlineOnDisk.filter((name) => name.startsWith('allowance/'));
-    assert.deepEqual(own, ['allowance/daily-cap.spec.ts', 'allowance/messages.spec.ts'], 'web/e2e-online/allowance/ holds the two specs of Story 16.9');
+    assert.deepEqual(own, ['allowance/daily-cap.spec.ts', 'allowance/memory-search.spec.ts', 'allowance/messages.spec.ts'], 'web/e2e-online/allowance/ holds the two specs of Story 16.9 and the Memory card search spec of Story 41.13');
     assert.deepEqual(
       filesOf('e2e:online-allowance'),
       own.map((name) => `../e2e-online/${name}`),

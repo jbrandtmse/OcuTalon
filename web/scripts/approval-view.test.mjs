@@ -51,6 +51,134 @@ const pending = (over = {}) => ({
 const answered = (state, over = {}) =>
   pending({ state, answeredAction: state === 'rejected' ? 'reject' : 'approve', answeredChannel: 'web', answeredBy: 'FLOOR', answeredAt: '2026-10-27T14:15:00Z', ...over });
 
+describe('the fixes the user asks for in the chat (Story 23.2)', () => {
+  const suspend = (over = {}) => pending({ fixKind: 'suspend_item', dryRun: { item: 'OrdersToWarehouse', before: 'enabled', after: 'disabled' }, ...over });
+  const reroute = (over = {}) =>
+    pending({
+      fixKind: 'reroute',
+      dryRun: { affected: 50, resend: 50, leftOut: 0, itemNoun: { one: 'order', other: 'orders' }, from: 'OrdersFromPartner', to: 'OrdersForReview', example: '1234' },
+      ...over,
+    });
+
+  it('titles a suspend, a resume and a reroute by the rail\'s title, and names the buttons by it', () => {
+    const view = approvalView(suspend(), ctx());
+    assert.equal(view.action, 'Suspend OrdersToWarehouse.');
+    assert.equal(view.approveName, 'Approve: suspend OrdersToWarehouse');
+    assert.equal(view.rejectName, 'Reject: suspend OrdersToWarehouse');
+    assert.equal(approvalView(suspend({ fixKind: 'resume_item', dryRun: { item: 'OrdersToWarehouse', before: 'disabled', after: 'enabled' } }), ctx()).action, 'Resume OrdersToWarehouse.');
+    const rerouted = approvalView(reroute(), ctx());
+    assert.equal(rerouted.action, 'Reroute 50 orders to OrdersForReview.');
+    assert.equal(rerouted.approveName, 'Approve: reroute 50 orders to OrdersForReview');
+    assert.equal(approvalView(reroute({ dryRun: { ...reroute().dryRun, affected: 1, resend: 1 } }), ctx()).action, 'Reroute 1 order to OrdersForReview.');
+  });
+
+  it('shows the item\'s state before and after for a suspend, swapped for a resume, with no count and no fixed-targets line', () => {
+    const view = approvalView(suspend(), ctx());
+    assert.deepEqual(view.dryRun, { countLine: '', field: '', before: 'OrdersToWarehouse: enabled', after: 'OrdersToWarehouse: disabled', eitherWay: '', resendLine: '', nothingYet: 'Nothing has changed yet.' });
+    assert.equal(view.fixedTargets, '');
+    const resume = approvalView(suspend({ fixKind: 'resume_item', dryRun: { item: 'OrdersToWarehouse', before: 'disabled', after: 'enabled' } }), ctx());
+    assert.equal(resume.dryRun.before, 'OrdersToWarehouse: disabled');
+    assert.equal(resume.dryRun.after, 'OrdersToWarehouse: enabled');
+    assert.equal(approvalView(suspend({ dryRun: {} }), ctx()).dryRun, undefined, 'a dry run with no item has no block');
+  });
+
+  it('shows the example where it is and where it would go, and the copies, for a reroute (one form too)', () => {
+    const view = approvalView(reroute(), ctx());
+    assert.deepEqual(view.dryRun, {
+      countLine: '50 orders affected',
+      field: '',
+      before: 'Message 1234: OrdersFromPartner',
+      after: 'Message 1234: OrdersForReview',
+      eitherWay: '',
+      resendLine: '50 copies to OrdersForReview; the originals stay unchanged.',
+      nothingYet: 'Nothing has changed yet.',
+    });
+    const one = approvalView(reroute({ dryRun: { ...reroute().dryRun, affected: 1, resend: 1 } }), ctx());
+    assert.equal(one.dryRun.resendLine, '1 copy to OrdersForReview; the original stays unchanged.');
+    assert.equal(approvalView(reroute({ state: 'approved' }), ctx()).dryRun.nothingYet, '', 'an answered request keeps the record without the note');
+  });
+
+  it('reads a refusal of an item kind as the fixes text, whatever the server said, and any other as before', () => {
+    const body = { error: { code: 'not_allowed', message: 'Only an approver for resends can answer this request.' } };
+    assert.deepEqual(answerOutcomeOf(403, body, 'suspend_item'), { kind: 'notAllowed', message: 'Only an approver for fixes can answer this request.' });
+    assert.deepEqual(answerOutcomeOf(403, body, 'resume_item'), { kind: 'notAllowed', message: 'Only an approver for fixes can answer this request.' });
+    assert.deepEqual(answerOutcomeOf(403, body, 'reroute'), { kind: 'notAllowed', message: 'Only an approver for resends can answer this request.' });
+    assert.deepEqual(answerOutcomeOf(403, undefined, 'suspend_item'), { kind: 'notAllowed', message: 'Only an approver for fixes can answer this request.' });
+  });
+});
+
+describe('the result band of a fix the user asked for in the chat (Story 23.2, DW-1067)', () => {
+  const render = renderPageText;
+  const noun = { one: 'order', other: 'orders' };
+  const PRODUCTION = 'OcuTalon.Demo.Orders.Production';
+  const ITEM = 'OrdersToWarehouse';
+  const AUDIT = 'Recorded in the IRIS audit log.';
+  const ran = (over = {}) => ({ total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '', ...over });
+  const item = (fixKind, result, over = {}) => resultView({ ref: 'A', state: 'done', fixKind, item: ITEM, result, ...over }, undefined, render, PRODUCTION);
+
+  it('is the success band of result.itemSuspended for a suspend that changed the item, and of result.itemResumed for a resume', () => {
+    assert.deepEqual(item('suspend_item', ran()), {
+      key: 'result.itemSuspended',
+      text: `${ITEM} in ${PRODUCTION} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume ${ITEM}. After the incident closes, enable ${ITEM} again on the production's configuration page in the Management Portal.`,
+      tone: 'success',
+      icon: 'circle-check',
+      audit: AUDIT,
+    });
+    assert.deepEqual(item('resume_item', ran()), { key: 'result.itemResumed', text: `${ITEM} in ${PRODUCTION} is enabled again.`, tone: 'success', icon: 'circle-check', audit: AUDIT });
+  });
+
+  it('is the partial band of result.itemSkipped when the item had changed since the dry run, with the reason as the sentence it is, and of result.itemNotChanged when the run could not change it', () => {
+    const skipped = ran({ completed: 0, skipped: 1, reason: `${ITEM} is already disabled` });
+    assert.deepEqual(item('suspend_item', skipped), {
+      key: 'result.itemSkipped',
+      text: `${ITEM} was not changed: ${ITEM} is already disabled. It needs a new approval.`,
+      tone: 'partial',
+      icon: 'triangle-alert',
+      audit: AUDIT,
+    });
+    assert.equal(item('resume_item', ran({ completed: 0, skipped: 1, reason: 'It changed.' })).text, `${ITEM} was not changed: It changed. It needs a new approval.`, 'a reason with its own full stop is not doubled');
+    const failed = ran({ completed: 0, reason: "OcuTalon couldn't change the item" });
+    assert.deepEqual(item('resume_item', failed, { state: 'failed' }), {
+      key: 'result.itemNotChanged',
+      text: "Nothing was changed: OcuTalon couldn't change the item.",
+      tone: 'partial',
+      icon: 'triangle-alert',
+      audit: AUDIT,
+    });
+  });
+
+  it('claims nothing for an item kind that is still going, was interrupted, or lacks what its text names', () => {
+    assert.equal(item('suspend_item', ran(), { state: 'executing' }), undefined, 'still going');
+    assert.equal(item('suspend_item', ran({ completed: 0, interrupted: 1, reason: 'x' })), undefined, 'interrupted');
+    assert.equal(item('suspend_item', ran({ completed: 0 })), undefined, 'nothing changed and no reason');
+    assert.equal(item('suspend_item', ran(), { item: undefined }), undefined, 'no item');
+    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'suspend_item', item: ITEM, result: ran() }, undefined, render), undefined, 'no production');
+    assert.equal(item('suspend_item', ran({ completed: 0, skipped: 1, reason: 'x' }), { item: undefined }), undefined, 'a skipped item with no item');
+  });
+
+  it('is the success band of result.rerouted for a reroute whose copies all completed, with the target and the count-of-one form, and none without a target', () => {
+    const all = { total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' };
+    assert.deepEqual(resultView({ ref: 'A', state: 'done', fixKind: 'reroute', item: 'OrdersForReview', result: all }, noun, render), {
+      key: 'result.rerouted',
+      text: 'All 50 orders were rerouted to OrdersForReview and completed there. The originals stay unchanged.',
+      tone: 'success',
+      icon: 'circle-check',
+      audit: AUDIT,
+    });
+    assert.equal(
+      resultView({ ref: 'A', state: 'done', fixKind: 'reroute', item: 'OrdersForReview', result: { ...all, total: 1, resent: 1, completed: 1 } }, noun, render).text,
+      'The order was rerouted to OrdersForReview and completed there. The original stays unchanged.',
+    );
+    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'reroute', result: all }, noun, render), undefined, 'no target');
+    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'repair_resend', result: all }, noun, render).key, 'result.allThrough', 'the diagnosis\'s kind is as before');
+  });
+
+  it('keeps the bands of a reroute that failed again or skipped some', () => {
+    const view = resultView({ ref: 'A', state: 'done', fixKind: 'reroute', item: 'OrdersForReview', result: { total: 50, resent: 50, completed: 48, failedAgain: 2, skipped: 0, interrupted: 0, reason: 'x' } }, noun, render);
+    assert.equal(view.key, 'result.failedAgain');
+  });
+});
+
 describe('the pending card', () => {
   it('has the label, the action, the fixed-targets line, the dry run, the buttons\' names and the expiry, as the matrix writes them', () => {
     const view = approvalView(pending(), ctx());
@@ -527,11 +655,17 @@ describe('the texts', () => {
       resendCopies: '{count} repaired copies; the originals stay unchanged.',
       resendCopyOne: '1 repaired copy; the original stays unchanged.',
       nothingYet: 'Nothing has changed yet.',
+      itemState: '{item}: {state}',
+      rerouteBefore: 'Message {example}: {from}',
+      rerouteAfter: 'Message {example}: {to}',
+      rerouteCopies: '{count} copies to {to}; the originals stay unchanged.',
+      rerouteCopyOne: '1 copy to {to}; the original stays unchanged.',
       settingNow: 'Now: {old}',
       settingProposed: 'Proposed: {new}',
       settingNote: 'Nothing changes unless you approve.',
       expires: 'Expires {when}',
       notApprover: 'Only an approver for resends can answer this request.',
+      notApproverFix: 'Only an approver for fixes can answer this request.',
       gone: 'That request is no longer available.',
       busyNotice: "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting.",
       nounOne: 'message',

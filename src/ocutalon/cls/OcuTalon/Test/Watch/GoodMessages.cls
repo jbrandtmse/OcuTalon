@@ -8,7 +8,7 @@ Include Ensemble
 /// request, 60 for a later round's notice or warning and Case's bounds (WAITBATCH and the like) for the rest (test bounds, not NFR-7). The incidents, requests, holds, orders and warnings of a test are removed after it (Case; OnAfterOneTest).
 ///   - TestFewerThanTwentyGood (Integration AC; the read-only proof): 5 orders that went through and 3 that failed in S's reference: one pending request; the Notification
 ///     has the key incident.withFixChecked and the slots goodChecked 5, goodChanged 0 and goodNoun orders; the phone message that SimPhoneOut kept holds the ruled line with
-///     5 and 0; the stored dry run has exactly the keys of DRYRUNKEYS; a dry run asked again gives the notice's counts in its goodCheck, and changes nothing in either
+///     5 and 0; the stored dry run has exactly the keys of RepairResend DRYRUNKEYS; a dry run asked again gives the notice's counts in its goodCheck, and changes nothing in either
 ///     namespace but its own session (Test.Fix.Snapshot), leaves the good orders' bodies and statuses as they were, writes no event-log row and calls no model. Task 0
 ///     (Story 7.9) records the Status, IsError and Type of the good headers that Reader.Good returns;
 ///   - TestOnlyTheNewestTwenty: 23 good orders and 2 failed: goodChecked is 20, and Reader.Good reads the 20 newest by header id, 23 when it is given a larger limit;
@@ -116,11 +116,11 @@ Method OneRequest(ref As %String) As %DynamicObject [ Private ]
 	Quit request
 }
 
-/// Asserts that the stored dry run of the request has exactly the keys of DRYRUNKEYS (no goodCheck).
+/// Asserts that the stored dry run of the request has exactly the keys of RepairResend DRYRUNKEYS (no goodCheck).
 Method AssertStoredKeys(request As %DynamicObject) [ Private ]
 {
 	Set stored = {}.%FromJSON(request.dryRun)
-	Do $$$AssertEquals(..SortedKeys(stored), ..SortedNames($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")), "the stored dry run has exactly the keys of DRYRUNKEYS: "_..SortedKeys(stored))
+	Do $$$AssertEquals(..SortedKeys(stored), ..SortedNames($Parameter("OcuTalon.Fix.Kind.RepairResend", "DRYRUNKEYS")), "the stored dry run has exactly the keys of RepairResend DRYRUNKEYS: "_..SortedKeys(stored))
 }
 
 /// The one Notification of the incident (its kind, catalog key and approval Ref asserted as given); "" when there is not exactly one of that kind.
@@ -286,7 +286,7 @@ Method TestOneChangedGoodWithholdsTheFix()
 	Do $$$AssertEquals(notes.%Size(), 1, "S has one Notification of it")
 	If notes.%Size() = 1 {
 		Set note = notes.%Get(0)
-		Do $$$AssertEquals(note.kind_"|"_note.catalogKey_"|"_note.approvalRef_"|"_note.slots.cause, "incident|incident.noFix||"_row.Cause, "the no-fix notice, with the cause and no request")
+		Do $$$AssertEquals(note.kind_"|"_note.catalogKey_"|"_note.approvalRef_"|"_note.slots.cause, "incident|incident.goodChanged||"_row.Cause, "the no-fix notice of the good-message refusal (DW-823), with the cause and no request")
 	}
 	Do $$$AssertEquals(..HeadersBetween(row.TraceHeaderId, 1, "IncidentManager", "FixExecutor", "OcuTalon.Fix.Msg.DryRun"), 1, "the dry run was asked")
 	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(..WarningMark, .text, "Proposed", $Parameter("OcuTalon.Watch.IncidentManager", "LOGPROPOSE"))

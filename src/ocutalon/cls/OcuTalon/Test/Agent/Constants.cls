@@ -41,7 +41,7 @@ Method TestToolNames()
 		Do $$$AssertTrue('$ListFind(names, value), value_" is distinct")
 		Set names = names _ $ListBuild(value)
 	}
-	Do $$$AssertEquals(count, 20, "there are 20 tool names")
+	Do $$$AssertEquals(count, 21, "there are 21 tool names (Story 23.2 adds propose_fix)")
 	Set release = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1"))
 	Do $$$AssertEquals($ListLength(release), 12, "RELEASE1 lists 12 names")
 	Do $$$AssertEquals($ListFind(release, $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")), 0, "and send_digest of step 2 is not among them")

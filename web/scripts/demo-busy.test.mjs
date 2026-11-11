@@ -6,6 +6,7 @@
 // to erasable syntax and imports nothing.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -14,7 +15,7 @@ import { fakeClock } from './fake-clock.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = join(here, '..', 'src', 'app', 'live', 'demo-busy.ts');
-const { DEMO_BUSY_RECHECK_MS, DEMO_BUSY_STATUS, DemoBusyWatch } = await import(pathToFileURL(source).href);
+const { DEMO_BUSY_RECHECK_MS, DEMO_BUSY_STATUS, DemoBusyWatch, SEARCH_BUSY_CODE, makesDemoBusy } = await import(pathToFileURL(source).href);
 
 /** A watch on a fake clock, with every value it reported and every check it asked for. */
 function setup() {
@@ -34,6 +35,44 @@ describe('the constants', () => {
   it('are a 10 s re-check and the 503 status', () => {
     assert.equal(DEMO_BUSY_RECHECK_MS, 10_000);
     assert.equal(DEMO_BUSY_STATUS, 503);
+  });
+});
+
+describe('makesDemoBusy (Story 41.13, DW-1040)', () => {
+  it('names the memory reads\' own busy code', () => {
+    assert.equal(SEARCH_BUSY_CODE, 'search_busy');
+  });
+
+  it('is false for a 503 whose body error.code is search_busy', () => {
+    assert.equal(makesDemoBusy(503, { error: { code: 'search_busy', message: 'Search is busy right now. Try again in a moment.' } }), false);
+  });
+
+  it('is true for every other 503, whatever its body', () => {
+    assert.equal(makesDemoBusy(503, { error: { code: 'busy', message: 'x' } }), true);
+    assert.equal(makesDemoBusy(503, { error: { code: 'server_error' } }), true);
+    assert.equal(makesDemoBusy(503, { error: {} }), true);
+    assert.equal(makesDemoBusy(503, { error: 'search_busy' }), true, 'an error that is not an object is no code');
+    assert.equal(makesDemoBusy(503, { code: 'search_busy' }), true, 'a code outside error is not the contract');
+    assert.equal(makesDemoBusy(503, null), true);
+    assert.equal(makesDemoBusy(503, undefined), true);
+    assert.equal(makesDemoBusy(503, '<html>Service Unavailable</html>'), true);
+    assert.equal(makesDemoBusy(503, []), true);
+  });
+
+  it('is false for any status that is not 503', () => {
+    for (const status of [0, 200, 202, 401, 404, 409, 429, 500, 502, 504]) {
+      assert.equal(makesDemoBusy(status, { error: { code: 'busy' } }), false, `status ${status}`);
+    }
+  });
+});
+
+describe('the interceptor asks makesDemoBusy for every 503', () => {
+  it('reports a 503 to DemoBusyState only through makesDemoBusy, and no other status', () => {
+    const interceptor = readFileSync(join(here, '..', 'src', 'app', 'api', 'envelope.interceptor.ts'), 'utf8');
+    assert.match(interceptor, /import \{ makesDemoBusy \} from '\.\.\/live\/demo-busy';/);
+    assert.match(interceptor, /error instanceof HttpErrorResponse && makesDemoBusy\(error\.status, error\.error\)\) \{\s*busy\.apiAnswered\(error\.status\);/);
+    assert.equal((interceptor.match(/busy\.apiAnswered\(/g) ?? []).length, 2, 'one call for a 2xx and one for the refused 503');
+    assert.doesNotMatch(interceptor, /error\.status === 503/);
   });
 });
 

@@ -1,11 +1,11 @@
 /**
  * The demo guide's "Other things to try" panel (Story 4.11; EXPERIENCE: Demo guide and controls): its fixed strings, the registry of
- * its nine items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
+ * its twelve items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
  * as it is and the strings test reads it.
  *
  * The catalog is the server's (AD-12): `guide.features` is the list of feature ids that Demo.Features.Present gives, in the guide's
  * payload. The page decides nothing about which epics are merged.
- * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompts that the memory item and the incident summary item (when there is no resolved incident to close) send.
+ * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompts that the memory item, the reroute item and the incident summary item (when there is no resolved incident to close) send.
  * - MORE_TO_TRY_ITEMS is the registry: one entry for each feature id, in the order the panel shows them. `action` names the hand-off
  *   that the button makes (more-to-try.ts): each one uses a control that the page already has.
  * - itemsFor(features) is the registry entries whose id the list holds, in registry order. An id the registry does not know is
@@ -25,6 +25,7 @@ export const MORE_TO_TRY_TEXTS = {
   label: 'Other things to try',
   rememberPrompt: "Remember that the Results partner's contact is Lee.",
   summaryPrompt: 'Show me the incident summary',
+  reroutePrompt: 'Reroute the failed orders to OrdersForReview.',
   items: {
     incidentSummary: {
       label: 'Read the incident summary',
@@ -50,6 +51,12 @@ export const MORE_TO_TRY_TEXTS = {
         'This presses Break the feed again. OcuTalon usually notices within a minute. When the fix waits for your approval, press Reject in the chat or on the Simulated phone, and look for "Nothing was changed."',
       button: 'Break it again',
     },
+    reroute: {
+      label: 'Reroute the failed orders',
+      lookFor:
+        'First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way.',
+      button: 'Ask to reroute',
+    },
     demoView: {
       label: 'See the page as on your own install',
       lookFor:
@@ -61,6 +68,12 @@ export const MORE_TO_TRY_TEXTS = {
       lookFor:
         'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
       button: 'Ask it to remember',
+    },
+    memoryCard: {
+      label: 'Pin a memory',
+      lookFor:
+        'First do "Ask it to remember something". Then open All memories in the Memory card and press Pin on the memory marked Told. Open Pinned to see it: pinned facts are read at the start of each conversation, up to 1,000 tokens.',
+      button: 'Go to the Memory card',
     },
     documents: {
       label: 'Ask about a document',
@@ -80,6 +93,12 @@ export const MORE_TO_TRY_TEXTS = {
         'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
       button: 'Open the Documents page',
     },
+    usage: {
+      label: 'See tokens and cost',
+      lookFor:
+        'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+      button: 'Open the Usage page',
+    },
   },
 } as const;
 
@@ -95,9 +114,12 @@ export const RESOLVED_CHIP = '.chip-resolved';
 export const DISMISS_BUTTON = 'app-incident-dismiss button';
 
 /** The hand-off that an item's control makes. */
-export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'demoView' | 'memory' | 'documents' | 'heartbeat';
+export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat' | 'usage';
 
-/** One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off. */
+/**
+ * One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off,
+ * and, optionally, the heading of the group it belongs to (the panel does not render groups yet).
+ */
 export interface MoreToTryItem {
   readonly id: string;
   readonly label: string;
@@ -114,11 +136,14 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'persona', ...MORE_TO_TRY_TEXTS.items.persona, action: 'persona', group: 'Safety and settings' },
   { id: 'suspiciousEmail', ...MORE_TO_TRY_TEXTS.items.suspiciousEmail, action: 'suspiciousEmail', group: 'Safety and settings' },
   { id: 'rejectFix', ...MORE_TO_TRY_TEXTS.items.rejectFix, action: 'rejectFix', group: 'Incidents and fixes' },
+  { id: 'reroute', ...MORE_TO_TRY_TEXTS.items.reroute, action: 'reroute', group: 'Incidents and fixes' },
   { id: 'demoView', ...MORE_TO_TRY_TEXTS.items.demoView, action: 'demoView', group: 'Safety and settings' },
   { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory', group: 'Memory and documents' },
+  { id: 'memoryCard', ...MORE_TO_TRY_TEXTS.items.memoryCard, action: 'memoryCard', group: 'Memory and documents' },
   { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents', group: 'Memory and documents' },
   { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat', group: 'Safety and settings' },
   { id: 'sources', ...MORE_TO_TRY_TEXTS.items.sources, action: 'documents', group: 'Memory and documents' },
+  { id: 'usage', ...MORE_TO_TRY_TEXTS.items.usage, action: 'usage', group: 'Usage and history' },
 ];
 
 /** The registry entries whose id the server's list holds, in registry order. Unknown ids are ignored, and no list gives none. */
@@ -130,7 +155,7 @@ export function itemsFor(features: readonly string[] | undefined): readonly More
 }
 
 /** The panel's group headings, in the order the panel shows them. */
-export const MORE_TO_TRY_GROUPS: readonly string[] = ['Incidents and fixes', 'Memory and documents', 'Safety and settings'];
+export const MORE_TO_TRY_GROUPS: readonly string[] = ['Incidents and fixes', 'Memory and documents', 'Safety and settings', 'Usage and history'];
 
 /** One set of the panel: its heading (none for the items that declare no group) and its items, in order. */
 export interface MoreToTryGroup {

@@ -20,6 +20,9 @@ Property ToolName As %String(%JSONFIELDNAME = "toolName", MAXLEN = 128);
 /// Why the request needs an answer.
 Property Reason As %String(%JSONFIELDNAME = "reason", MAXLEN = 1000);
 
+/// The name of the fix kind of a fix request (Story 23.2), such as repair_resend, suspend_item, resume_item or reroute; empty for any other kind of request.
+Property FixKind As %String(%JSONFIELDNAME = "fixKind", MAXLEN = 64);
+
 /// What the action would do, from the dry run.
 Property DryRun As OcuTalon.Live.Payload.Part.DryRun(%JSONFIELDNAME = "dryRun");
 
@@ -54,7 +57,7 @@ Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 /// The namespace that holds the trace.
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
-/// The payload for an approval request row, with every row-backed field set; dryRun is the row's stored JSON parsed
+/// The payload for an approval request row, with every row-backed field set (the fix kind of a fix request included); dryRun is the row's stored JSON parsed
 /// into its part (left absent when the row holds none or it can't be read). A setting request (Story 40.6) has the DryRun {key, ownerRef, old, new}:
 /// its part holds only before and after, each the old or new object's text, the string itself when it is one, and "" when it is missing; every other
 /// field of the part stays empty, eitherWay is 0 and Reading is not asked. For any other kind the part's eitherWay and reading are the answer of Watch.Notice Reading over that dry run
@@ -70,6 +73,7 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 	Set payload.State = row.State
 	Set payload.IncidentRef = row.IncidentRef
 	Set payload.ToolName = row.ToolName
+	Set payload.FixKind = row.FixKind
 	Set payload.RaisedAt = row.RaisedAt
 	Set payload.ExpiresAt = row.ExpiresAt
 	Set payload.AnsweredAction = row.AnsweredAction
@@ -101,6 +105,10 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 			Set part.Field = dry.field
 			Set part.Before = dry.before
 			Set part.After = dry.after
+			Set part.Item = dry.item
+			Set part.From = dry.from
+			Set part.To = dry.to
+			Set part.Example = dry.example
 			If $IsObject(dry.itemNoun) {
 				Set part.ItemNoun = ##class(OcuTalon.Live.Payload.Part.ItemNoun).%New()
 				Set part.ItemNoun.One = dry.itemNoun.one

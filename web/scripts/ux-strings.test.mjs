@@ -69,7 +69,8 @@ const IMPORTED = [
   ['documents/documents-view.ts', ['DOCUMENTS_TEXTS', 'REASON_TEXTS']],
   ['documents/sample-runbook-view.ts', ['SAMPLE_RUNBOOK_TEXTS']],
   ['chat/noise-view.ts', ['NOISE_TEXTS']],
-  ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS']],
+  ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS', 'ANSWER_WORDS']],
+  ['usage/usage-view.ts', ['USAGE_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -173,6 +174,18 @@ for (const [name, text] of [...imported, ...fromSource, ...fromTemplates]) {
  */
 const SOURCES = {
   ux: [
+    'Usage',
+    'See tokens and cost',
+    'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+    'Open the Usage page',
+    'Agent',
+    'Channel',
+    'Tokens and cost',
+    'No model use in this period.',
+    'Webhook',
+    'Email',
+    'Heartbeat',
+    'estimated',
     'No key set. Add {variable} to .env.',
     'Test',
     'None',
@@ -255,6 +268,7 @@ const SOURCES = {
     'Cache write',
     'Decision {decision} \u00b7 Turn {turn}',
     '<$0.0001',
+    '$0',
     'Passed',
     'Failed',
     'Not checked',
@@ -441,12 +455,19 @@ const SOURCES = {
     'Reject a fix',
     'This presses Break the feed again. OcuTalon usually notices within a minute. When the fix waits for your approval, press Reject in the chat or on the Simulated phone, and look for "Nothing was changed."',
     'Break it again',
+    'Reroute the failed orders',
+    'First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way.',
+    'Ask to reroute',
+    'Reroute the failed orders to OrdersForReview.',
     'See the page as on your own install',
     'The demo guide, Break the feed and the Simulated devices are hidden, as on your own install. Turn Demo view back on in the top bar to return.',
     'Show the page without the demo',
     'Ask it to remember something',
     'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
     'Ask it to remember',
+    'Pin a memory',
+    'First do "Ask it to remember something". Then open All memories in the Memory card and press Pin on the memory marked Told. Open Pinned to see it: pinned facts are read at the start of each conversation, up to 1,000 tokens.',
+    'Go to the Memory card',
     'Ask about a document',
     'On the Documents page, press Add the sample runbook, or add a short file of your own (nothing personal: Visual Trace on the demo is shared). When it reads Ready, ask in the chat "According to the runbook, what should I do when partner orders fail with a date error?", or ask about your own file, and look for the chip under the answer that names the document and its section.',
     'Open the Documents page',
@@ -464,6 +485,7 @@ const SOURCES = {
     'Incidents and fixes',
     'Memory and documents',
     'Safety and settings',
+    'Usage and history',
     'Run again',
     'Try it yourself',
     'Which productions are running?',
@@ -593,6 +615,18 @@ const SOURCES = {
     'Yesterday',
     'This was noise',
     'Marked as noise at {time}. Similar items will take this into account.',
+    // Story 41.13 (EXPERIENCE.md, the Memory card: the tabs, the Pinned line and its figure, the chips, the refused pin) and the stored answers' words (DW-998).
+    'Pinned',
+    'All memories',
+    'Pinned facts are read at the start of each conversation.',
+    '{used} of 1,000 tokens (estimated).',
+    'Told',
+    'Learned',
+    'Pin',
+    'Unpin',
+    'That would go over the 1,000-token limit. Unpin something first.',
+    'Approved',
+    'Rejected',
   ],
   design: [
     'Unread',
@@ -626,9 +660,42 @@ const SOURCES = {
       'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.',
     ],
     'Story 34.2: Add and remove documents on a Documents page (the page title "Documents \u00b7 OcuTalon")': ['Documents \u00b7 OcuTalon'],
+    'Story 37.2: See tokens and cost over time on the Usage page (the page title "Usage \u00b7 OcuTalon", epics.md)': ['Usage \u00b7 OcuTalon'],
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 37.2 rulings at the spec gate 2026-11-10 (the Contest Planner under the owner\'s delegation, prompts/epic-37-rulings-372.md: the Usage page\'s Range and Group by labels, the range options, the Day grouping, the Tokens and cost, Largest request per day and Largest request (estimated) headings, the largest-request cell, the error line, the agent name Chat summaries, the channel names Web chat and Slack, and the includes estimates marker; the More to try item\'s label, look-for and control sit under ux, because EXPERIENCE.md holds them)': [
+      'Range',
+      'Last 7 days',
+      'Last 30 days',
+      'Group by',
+      'Day',
+      'Largest request per day',
+      'Largest request (estimated)',
+      '{tokens} of {limit} tokens',
+      "Couldn't load your usage.",
+      'Chat summaries',
+      'Web chat',
+      'Slack',
+      'includes estimates',
+    ],
+    'Story 23.2 ruling (the Contest Planner under the owner\'s delegation, 2026-11-09, relayed by the orchestrator: Public Text, Web (Lane B): the titles of the suspend, resume and reroute requests, the incident card\'s fix and fixing sentences for them, the dry run rows of the approval card, and the refusal text of an item kind)': [
+      'Suspend {item}',
+      'Resume {item}',
+      'Reroute {n} {noun} to {to}',
+      'Suspending {item}\u2026',
+      'Resuming {item}\u2026',
+      'Rerouting {count} {noun}\u2026',
+      'I can suspend {item}.',
+      'I can resume {item}.',
+      'I can reroute {count} {noun} to {to}.',
+      '{item}: {state}',
+      'Message {example}: {from}',
+      'Message {example}: {to}',
+      '{count} copies to {to}; the originals stay unchanged.',
+      '1 copy to {to}; the original stays unchanged.',
+      'Only an approver for fixes can answer this request.',
+    ],
     'Story 18.4 ruling planner-2026-11-08-18.4 (the Contest Planner under the owner\'s delegation, 2026-11-08, relayed by the orchestrator: the digest card\'s disclosure "What I checked ({n})", the line "Marked as handled at {time}", which the catalog gives (the Got it button is the UX\'s and sits under ux); "Saved for the daily digest" is the UX\'s and sits under ux)': [
       'What I checked ({n})',
       'Marked as handled at {time}',
@@ -742,6 +809,13 @@ const SOURCES = {
     'Story 30.5 ruling U-182 (AD-16 as amended: the text of result.stoppedPartway, a resend that stops at the first copy that errs; the page renders the catalog\'s text)': [
       "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
     ],
+    'Story 23.2 ruling (Contest Planner, Public Text 2026-11-09, texts of the result.item* and result.rerouted catalog keys, result.itemSuspended as re-ruled on 2026-11-10 for DW-1068; its DW-1067 ruling of 2026-11-10 has the request card show them in its result band, rendered from the catalog)': [
+      "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal.",
+      '{item} in {production} is enabled again.',
+      '{item} was not changed: {reason}. It needs a new approval.',
+      'Nothing was changed: {reason}.',
+      'All {count} {itemNoun} were rerouted to {to} and completed there. The originals stay unchanged.',
+    ],
     'Story 7.8 (U-249: the either-way sentence of the dry run, which the notice carries since Story 7.7; the page renders the catalog\'s text, cut by the generator from the two entries that hold it)': [
       'All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived.',
     ],
@@ -769,6 +843,19 @@ const SOURCES = {
       'Forget {summary}',
       "Couldn't forget it. Nothing was changed.",
       'OcuTalon keeps this answer but does not use it when it decides.',
+    ],
+    'Story 41.13 ruling planner-2026-11-09-41.13 (the Contest Planner under the owner\'s delegation, relayed by the orchestrator: the PUBLIC TEXT list of the Memory card\'s Pinned and All memories tabs, with the two empty texts, the More to try item and the demo rule line; the Search is busy text is Story 41.9\'s ruling)': [
+      'Nothing pinned yet. Pin a memory from All memories.',
+      'No memories yet. Say "Remember that ..." in the chat.',
+      'No memories match.',
+      'Search your memories',
+      'Search',
+      'Showing the newest {shown} of {total}. Search to find the others.',
+      'Forget this memory? OcuTalon will stop using it.',
+      "Couldn't pin it. Nothing was changed.",
+      "Couldn't unpin it. Nothing was changed.",
+      'Search is busy right now. Try again in a moment.',
+      "On the online demo, your memories and pins belong to this visit: they're deleted when you sign out or the demo resets. Each search counts as one of your messages.",
     ],
     'Story 20.2 ruling planner-2026-11-09-20.2 (the Contest Planner under the owner\'s delegation, 2026-11-09, relayed by the orchestrator: the accessible name of a citation chip without the section sign (text 1a), the memory chip\'s accessible name and the popover\'s "Saved {when}", and the Documents page\'s line for a document that cannot be opened)': [
       '{document}, section {section}',
@@ -982,15 +1069,20 @@ describe('the sources', () => {
 describe('the ellipsis and the characters', () => {
   const strings = [...inventory.keys()];
 
-  it('never holds three dots', () => {
-    assert.deepEqual(strings.filter((text) => text.includes('...')), []);
+  it('never holds three dots, but in the one text that the Contest Planner ruled with the user\'s own words in straight quotes', () => {
+    // Story 41.13 (planner-2026-11-09-41.13): the Memory card's empty text quotes the phrase to type, "Remember that ...", as the other look-for lines quote theirs.
+    assert.deepEqual(strings.filter((text) => text.includes('...')), ['No memories yet. Say "Remember that ..." in the chat.']);
   });
 
   it('holds U+2026 once, from the UX, when a string holds it', () => {
     const marked = strings.filter((text) => text.includes('\u2026'));
     assert.ok(marked.length >= 4, `${marked.length} strings hold the ellipsis`);
+    const ruledEllipsis = entries(SOURCES).filter(([, kind, why]) => kind === 'ruled' && why.startsWith('Story 23.2 ruling')).map(([text]) => text);
     for (const text of marked) {
       assert.equal(text.split('\u2026').length - 1, 1, `${JSON.stringify(text)} holds U+2026 once`);
+      if (ruledEllipsis.includes(text)) {
+        continue;
+      }
       assert.ok(SOURCES.ux.includes(text), `${JSON.stringify(text)} is a ux string`);
       assert.ok(holds(documents.ux, text), `${JSON.stringify(text)} appears with U+2026 in EXPERIENCE.md`);
     }
