@@ -49,7 +49,7 @@ deferred: []
 - **Online demo.** No MCP server can be registered there, so no MCP hold, replay or cancel can happen. The demo's built-in approval path (fix kinds, UJ-1) is unchanged, and `Test.Bridge.Gate`, `Test.Bridge.Approval`, `Test.Bridge.Decide` and the demo path stay green.
 
 **Never:**
-- Edit `Core.SettingsOps`, `Core.CommandsIn`, `Core.BridgeSink`, `Core.Conversation`, `Web.*`, `web/**`, or any Lane B test. `Core.BridgeSink` changes only under ruling R1 (Clarification Needed).
+- Edit `Core.SettingsOps`, `Core.CommandsIn`, `Core.BridgeSink`, `Core.Conversation`, `Web.*`, `web/**`, or any Lane B test. `Core.BridgeSink` changes only under ruling R1: ONE branch in `Core.BridgeSink` and ONE row in `Test.Core.ToolCallNotices`, as a plain union with Epic 21 (lane C) [ADDED 2026-11-11, orchestrator ruling R1 (cross-lane exception)].
 - Edit `Install.Step.Mcp.Grant`/`Revoke`, or add a privilege, grant, resource, route or table.
 - Register an MCP server on the agent's own manager, or put the proxy in any `TOOLSETS`.
 - Return the tool's result to the conversation, use a real MCP server or a real channel, or delete, skip or shorten a test.
@@ -167,6 +167,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-11 (runner): R1 ruled by the orchestrator (both parts, verbatim under Design Notes); spine S15-S18 written; veto items still pending with the Contest Planner.
+
 - 2026-11-11 (runner, spec gate): validated (no split). R1 (Lane B `Core.BridgeSink` branch + `FinishExecution` result `changed`), the Veto items and spine updates S15-S18 go to the Contest Planner/orchestrator before the implement stage; until R1 is recorded as ruled with both parts, the implement stage builds the specified fallback. This story implements only after Stories 22.8, 22.9 and 22.3 are committed.
 
 ## Review Triage Log
@@ -246,6 +248,8 @@ Their consumers in this story are the real `Replay`, `Gate`, `Mcp.Proxy` and `Mc
 5. No new privilege, role, grant, resource, route or web dependency.
 
 ## Clarification Needed
+
+**R1 RULED** [ADDED 2026-11-11, orchestrator ruling R1 (cross-lane exception)]: "22.4's R1 is APPROVED, both parts. (a) FinishExecution accepts the new result "changed" (spine S18, AD-11). (b) A ruled lane exception: 22.4 may add ONE branch to Lane B's OcuTalon.Core.BridgeSink and ONE row to Test.Core.ToolCallNotices, as a plain union with Epic 21 (lane C). Re-check origin/OCT-epic21's diff on those files before implement; any overlapping hunk is a Clarification. Spine S15-S18 are approved as additive. 22.4's veto items are with the Planner." So the implement stage builds the R1 path (not the fallback) after the runner re-checks `git diff origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic21 -- src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls src/ocutalon/cls/OcuTalon/Test/Core/ToolCallNotices.cls` (an overlapping hunk stops it as a Clarification). Spine S15-S18 written. The veto items are still with the Contest Planner; the implement stage waits for that ruling.
 
 **R1 (Lane B change, escalated per runner note 4).** The accepted result text `mcp.replayToolChanged` can reach the owner only if `Core.BridgeSink`'s approval.result rule (L248-251, Lane B) can tell a changed-tool failure apart. The row's Result is today `done`, `failed` or `interrupted`.
 
