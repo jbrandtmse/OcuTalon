@@ -6885,3 +6885,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: in-story
 - evidence: The page shows nothing new for a second failure; the press waits only for the route fulfil. Observed in order in the no-retract mutation run (H15 red, 2 announcements), not guaranteed.
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=give H15 an observed precondition (a page-side marker of the refused read) and a mutation line
+
+### DW-1138: EmailIn: a permanently unreadable or undeliverable email at the head of the new mail stops every poll at that email, so later mail never reaches Intake
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Channel/Email/Adapter.cls Poll quits on the first Read/Deliver failure and records nothing for it
+- 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=choose skip-after-N or quarantine-with-reason; never drop mail silently
+
+### DW-1139: SettingsOps.SaveEmail: an identical re-save after the detached production update failed all its tries does not start EmailIn again, though the page said it applies within a minute
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: SaveEmail calls StartItem only when a settings row was written; UpdateIn logs one error after its last try (unverified)
+- 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=settle by a measured failed update then identical re-save
+
+### DW-1140: EmailLive TestSpentBudgetStillDecides cannot show daily_cap on the keyless CI stack (no_key is checked first), so a Decide ignoring the cap for email Items stays green
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Test/Channel/EmailLive.cls accepts no_key or daily_cap and counts model calls (always 0 without a key)
+- 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=pin at Precheck level or on a stack with the CI mock key
+
+### DW-1141: Email form refusal, dirty and hidden states have no executed component or browser test; only view functions and the saved path E2 run
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/src/app/settings/email-section.ts; email-view.test.mjs pure functions only
+- 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=two-way door: one e2e case typing @{ and checking the field error
+
+### DW-1142: EmailIn: a POP3 server that stalls mid-list may hold a poll past the 8 s read timeout (per read, not per poll)
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: %Net.POP3 GetMessageUIDArray loops until the lone dot; not measured (unverified)
+- 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=settle with the stub answering UIDL partly then going silent
