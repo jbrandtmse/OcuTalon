@@ -22,6 +22,8 @@
 ///     Admits, answers started and sends one CheckChanged of Kind queues; a repeat answers already_watching with the same Ref, the queue-specific message and no second
 ///     row and no message, beside a production watch of the same session; a StopWatch of Kind queues removes that row alone (not the production's, not another session's), sends
 ///     Stopped 1 with the row's kind and display name, and answers not_watching with the queue-specific message when there is none; the online demo allows it;
+///   - TestQueuesEndSession (DW-1124; AD-4): an EndSession through the production removes the session's queue row as well as its production watch, and leaves another
+///     session's queue row unchanged;
 ///   - TestChangedSendFails (Story 5.6): a failed send logs one warning for the start and one for the stop, and each answer stays started or stopped;
 ///   - TestThroughTheProduction: the item answers a StartWatch and a StopWatch with a CommandResult and writes and removes the row;
 ///   - TestLockTimeout (QA, DW-218): another job holds the session's lock (^OcuTalon.Watch(session)); a start and a stop wait about 5 seconds and
@@ -393,6 +395,30 @@ Method TestQueuesOnlineDemo()
 	Do $$$AssertEquals(rows.%Size(), 1, "one row")
 	If rows.%Size() = 1 Do $$$AssertEquals(rows.%Get(0).kind_"|"_rows.%Get(0).namespace_"|"_rows.%Get(0).production, "queues||", "of Kind queues with no namespace and production")
 	Do $$$AssertEquals(..Sent(host), 1, "and one CheckChanged")
+}
+
+/// Ending a session stops its queue-backlog check (DW-1124; AD-4: SessionOps.End stops watches through WatchOps): the session's production watch and its
+/// queue row are both gone after an EndSession through the production, and another session's queue row is unchanged.
+Method TestQueuesEndSession()
+{
+	If '..Ready() Quit
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set session = ..Session("queuesEnd")
+	Set other = ..Session("queuesEndOther")
+	Do $$$AssertStatusOK(host.OnStart(..QueueStart(session, "zzqend1"), .queued), "the queue start is answered")
+	Do ..AssertResult(queued, 1, "started", "queue start")
+	Do $$$AssertStatusOK(host.OnStart(..Start(session, "zzqend2"), .watched), "the production start is answered")
+	Do ..AssertResult(watched, 1, "started", "production start")
+	Do $$$AssertStatusOK(host.OnStart(..QueueStart(other, "zzqend3"), .kept), "another session's queue start is answered")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(session).Count(), 2, "the session has its production watch and its queue row")
+	Set otherRow = ..Rows(other, 0).%ToJSON()
+	Set end = ##class(OcuTalon.Msg.Command.EndSession).%New()
+	Set end.SessionRef = session
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.Commands).Submit(end, "web_user", .result), "Submit returns OK")
+	Do $$$AssertEquals($Select($IsObject(result): result.Ok_"|"_result.Outcome, 1: ""), "1|ended", "EndSession is Ok 1, ended")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(session).Count(), 0, "both of the session's rows are gone, the queue row too")
+	Do $$$AssertEquals(..Rows(other, 0).%ToJSON(), otherRow, "and the other session's queue row is unchanged")
 }
 
 /// --- helpers ---

@@ -210,7 +210,9 @@ Method TestQueuesThroughTheAgent()
 		Do $$$AssertEquals(payload.ref_"|"_payload.kind_"|"_payload.displayName, row.ref_"|queues|Queue-backlog check", "of the new row, Kind queues")
 	}
 	Set sc = ..Turn("user", "Watch the queue backlogs. [[mock:watch-start-queues]]", session, .request, .answer, .turnSession, .requests)
+	Do $$$AssertStatusOK(sc, "the repeat's turn ran")
 	Do $$$AssertEquals(..Rows(session).%Size(), 1, "a repeat adds no row")
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests for the repeat")
 	If requests.%Size() = 2 {
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 		Do $$$AssertEquals($ListLength(results), 2, "the repeat's next request carries the first turn's tool result and its own")

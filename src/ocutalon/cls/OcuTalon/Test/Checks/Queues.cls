@@ -20,7 +20,9 @@
 ///   - TestStoppedMeanwhile (matrix "Stopped meanwhile"): the row is deleted during the read: nothing is recorded, sent or published;
 ///   - TestSendFails (matrix "Send fails"): one warning for the Item that cannot be sent, the other Items still go and the failed one is not sent again;
 ///   - TestDue: a row that is not due at the Tick does not run; the next one is the Tick plus 60 seconds;
-///   - TestQueueFindingRenders: each Item's key and slots render to the catalog's text on the web channel, local and online demo, for one message and for many.
+///   - TestQueueFindingRenders: each Item's key and slots render to the catalog's text on the web channel, local and online demo, for one message and for many; a queue
+///     above by count whose oldest time is unreadable gets the run time in its oldestAt slot and renders.
+/// Each test starts from the default thresholds (100 messages, 10 minutes) and puts the stored ones back after it.
 Class OcuTalon.Test.Checks.Queues Extends %UnitTest.TestCase
 {
 
@@ -68,6 +70,8 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	Set ..Checks = ""
 	Set ..LogMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do $ClassMethod(..#PROBE, "Reset")
+	Do ##class(OcuTalon.Data.Setting).Set(..#QUEUEMESSAGES, 100)
+	Do ##class(OcuTalon.Data.Setting).Set(..#QUEUEWAIT, 10)
 	Quit $$$OK
 }
 
@@ -493,7 +497,7 @@ Method TestDue()
 	Do $$$AssertEquals((row.LastRunAt '= "")_"|"_row.NextDueAt, "1|"_..At(3), "at its time it ran, and it is next due the Tick plus 60 seconds")
 	Do $$$AssertEquals(..Stored(otherRef).LastRunAt, "", "the other kind still did not")
 	Do ..Tick(host, ..At(2))
-	Do $$$AssertEquals(..FindingItems().%Size(), 1, "a second Tick with the same time ran nothing")
+	Do $$$AssertEquals(..Ran(ref), 1, "a second Tick with the same time ran nothing")
 }
 
 /// Each Item's key and slots render to the catalog's text (AD-32), on the web channel on a local install and on the online demo, for many messages and for one.
@@ -524,6 +528,15 @@ Method TestQueueFindingRenders()
 			Do $$$AssertEquals(text, expected, "item "_(n + 1)_": the catalog's text, online demo "_online)
 		}
 	}
+	Do ..Feed("ZZQA", [(..Queue("A", 105, ..Back(700))), (..Queue("B", 1, ..Back(900))), (..Queue("C", 101, ""))])
+	Do ..Tick(host, ..At(1))
+	Set items = ..FindingItems()
+	Do $$$AssertEquals(items.%Size(), 3, "a third Item, for C, whose oldest time is unreadable")
+	If items.%Size() '= 3 Quit
+	Set slots = items.%Get(2).slots
+	Do $$$AssertEquals(..Slot(slots, "oldestAt"), ..Slot(slots, "time"), "its oldestAt slot is the run time")
+	Do ##class(OcuTalon.Msg.Catalog).RenderAt(items.%Get(2).catalogKey, slots, "web", ..Slot(slots, "time"), 0, .sc)
+	Do $$$AssertStatusOK(sc, "and it renders on the web channel")
 }
 
 /// --- helpers ---

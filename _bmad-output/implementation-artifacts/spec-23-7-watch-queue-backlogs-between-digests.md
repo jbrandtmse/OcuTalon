@@ -159,6 +159,35 @@ deferred:
 - AC11: Given the More to try registry, when the count pins run, then README line 40, EXPERIENCE.md's count and the `more-to-try-view.ts` header comment equal the registry's item count (15). The README's New since 1.0.0 ends with the queue-backlog bullet. (`web/scripts/more-to-try-view.test.mjs`, registry-driven.)
 - AC12 (Contest Planner ruling, flapping): Given a queue reported above at time T, when it drops below and backs up again at T+10 min, then no Item is sent and the queue stays out of `above`; when a run at T+61 min finds it still above, exactly one Item is sent; and when it flaps again within the next hour, nothing more is sent. A different queue in the same namespace is not held back by the first one's cooldown. (`Test.Checks.Queues`, pure `Crossings` cases with `nowSeconds`, and one run case through `QueueProbe`.) [ADDED 2026-11-11, Story 23.7, Contest Planner ruling]
 
+### Review Findings
+
+Code review 2026-11-11 (lane D, tags e23s7cw / e23s7c; four layers, full-opus tier). 29 raw findings, 11 entries after grouping (high 1, med 4, low 6), 11 rejected. Every patch applied; story `done`.
+
+- [x] [Review][Patch] HIGH (AD-4, DW-1124): ending a session left its queue-backlog row running; `EndWatches` now also stops the `Kind` queues row and passes the row's Kind [src/ocutalon/cls/OcuTalon/Core/SessionOps.cls:340] -- fix-risk low (three lines; `WatchOps.OnStop` already handles Kind queues). Pinned by the new `Test.Watch.Ops:TestQueuesEndSession`; footprint extension (no in-flight epic owns `Core/SessionOps.cls`).
+- [x] [Review][Patch] MED (Rule 19): `TestQueuesThroughTheAgent` could skip the repeat's `already_watching` check silently; it now asserts the repeat turn's status and its two logged requests [src/ocutalon/cls/OcuTalon/Test/Watch/Turns.cls:213] -- fix-risk low.
+- [x] [Review][Patch] MED (Rule 19): K29's second press did not wait for a turn in flight (the mock turn could end first); the POST is now held until the second press is checked [web/e2e/guide/more-to-try-queues.spec.ts:40] -- fix-risk low (route hold with fallback, released before the rail check; under BUSY_TIMEOUT_MS).
+- [x] [Review][Patch] MED (Rule 19 hermeticity): `Test.Checks.Queues` run cases relied on the stack's stored thresholds; each test now starts from 100 / 10 and `PutBack` restores the stored ones [src/ocutalon/cls/OcuTalon/Test/Checks/Queues.cls:65] -- fix-risk low.
+- [x] [Review][Patch] LOW: `queueWatch`'s aria-disabled binding had no test; K29 now asserts it while the POST is held [web/e2e/guide/more-to-try-queues.spec.ts:62] -- fix-risk low.
+- [x] [Review][Patch] LOW: `TestDue`'s last assertion could not fail (A was already in `above`); it now counts the row's runs [src/ocutalon/cls/OcuTalon/Test/Checks/Queues.cls:499] -- fix-risk low.
+- [x] [Review][Patch] LOW: the run-time fallback for an unreadable `oldestAt` (Decided 15) was never run; `TestQueueFindingRenders` adds a count-only queue with no oldest time [src/ocutalon/cls/OcuTalon/Test/Checks/Queues.cls:530] -- fix-risk low.
+- [x] [Review][Patch] LOW: `QueueBacklog` said the told time is made "an hour old"; `Age` makes it two hours old [src/ocutalon/cls/OcuTalon/Test/Checks/QueueBacklog.cls:10] -- fix-risk low.
+- [x] [Review][Patch] LOW (Rule 2, weak reason): `WatchAnswers` kept its own `QUEUEKIND` copy while `WatchTools` reads `Watch.Ops.#QUEUEKIND`; it now reads `Watch.Ops` too [src/ocutalon/cls/OcuTalon/Tools/WatchAnswers.cls:226] -- fix-risk low.
+- [x] [Review][Defer] MED, unverified (maybe-false): the Chat queue rule follows the production rules; whether the real model calls start_watch/stop_watch with kind queues is unmeasured [src/ocutalon/cls/OcuTalon/Agent/Chat.cls:58] -- deferred: DW-1125, routed owner=38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test (settled by a real-key run of the More to try queue prompt and its stop).
+- [x] [Review][Defer] LOW, spec-bound: the heartbeat checklist's Watches line omits the queue-backlog check [src/ocutalon/cls/OcuTalon/Checks/Beat.cls:268] -- deferred: DW-1126 `by-design` (spec Never: no change to `Checks.Beat`).
+
+Rejected:
+- `low` No exception for a backlog behind an item OcuTalon suspended: real but rare (suspend is refused on the online demo), the report is true, and the fix needs a new cross-check with `Fix.Run.Suspended`.
+- `false` README "a run that can't read a namespace shows Not checked": `Reader.Productions()` lists only readable namespaces, the README's scope is "each production it can read", and the text is ruled.
+- `low` `TestAdminThreshold`'s settings reach the real Checks job's 60 s cache: tests run one class per call, and no later class depends on those values (the per-test reset above also applies).
+- `false` A negative `queueMessages` reports empty queues: `Reader` lists only items with Status-2 messages, so no queue has count 0.
+- `low` A told time in the future (clock stepped back) holds a queue longer than an hour: theoretical.
+- `low` The sink's 120 s per-message cap on a slow stack: each run is one synchronous Tick and the held span is seconds (Task 0: read 0.051 s).
+- `low` The per-row `LOGRUN` catch in `Tick` has no test: no AC or matrix row; it mirrors the production loop, and a test needs a fault seam.
+- `low` `TestQueuesStartRepeatStop` branches on whether a real Tick ran: same pattern as the sibling `TestStart`; `WatchOps` writes `NextDueAt` now by contract.
+- `reject` AC5 vs AC12 matrix text: the fix edits the spec; Decided 18 records it.
+- `low` `stop_watch`'s `kind` description differs from the spec's one text: model-facing, not ruled, and the stop wording is the accurate one.
+- `false` `Test/Msg/Contracts.cls` edited outside the approved list: it pins the Lane B command classes that veto item 6 approved "and their tests", and `Test/Msg` is not contended.
+
 ## Spec Change Log
 
 - 2026-11-11 (spec gate, lead): Contest Planner rulings and the orchestrator's U7 ruling recorded verbatim under Design Notes. PUBLIC TEXT a-h and veto items 1-6 approved/accepted; design 7 confirmed; ADDED CONDITION: a per-queue once-an-hour reporting cooldown (task, AC12, mutation added; it extends the intent's crossing-memory line and its "Falls below, rises again" row). AD-18 bullet and Conventions clause written to the spine with `[ADDED 2026-11-11, Story 23.7]`. Contended plain unions approved; no overlap with Epics 21/22 at re-check.
@@ -413,6 +442,27 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: AC10 the item sends nothing -> K29 expected red (not observed here: browser units run in CI only)
 - mutation: AC11 README says fourteen -> `web/scripts/more-to-try-view.test.mjs` red
 - mutation: AC12 `Crossings` ignores `told` (no cooldown) -> `Test.Checks.Queues` red (`TestCooldown`)
+
+### QA-stage audit (2026-11-11, lane D warm throwaway, tag e23s7qw)
+
+Audit: every AC1-AC12 and every matrix row has a pinning test (AC1 `Test.Watch.Turns:TestQueuesThroughTheAgent` and `Test.Watch.Ops`; AC2-AC4, AC6, AC12 `Test.Checks.Queues`; AC5, AC7 `Test.Checks.QueueBacklog`; AC8 `Test.Watch.Tools:TestCheckStatusQueues` and `Test.Digest.Coverage:TestQueueRow`; AC9, AC11 the web unit files; AC10 `web/e2e/guide/more-to-try-queues.spec.ts`, which asserts the prompt is posted once with `fromGuide` false, the rail row "Queue-backlog check" with "A check every minute", and no second post). No test was added (QA): no AC or matrix row lacked a pinning test, and every assertion probed below can fail. Re-run green on the warm stack: `Test.Checks.Queues`, `Test.Checks.QueueBacklog`; `node --test` on the four web files (133 pass). Mutations below were applied one at a time, observed red, and reverted from a backup (`git status --short` empty afterwards).
+- mutation: matrix "Stopped meanwhile": `Record` without its `%ROWCOUNT < 1` guard -> `Test.Checks.Queues:TestStoppedMeanwhile` red ("no Item was sent", "and no run was logged") (QA)
+- mutation: matrix "Send fails": `Record` quits its send loop after the first failed send -> `Test.Checks.Queues:TestSendFails` red ("both Items were sent", "the failed one is not sent again") (QA)
+- mutation: matrix "Empty list": the empty-list reason removed from `RunQueues` -> `Test.Checks.Queues:TestListUnreadable` red ("an empty list: the same, never passed on nothing") (QA)
+- mutation: matrix "List unreadable": `RunQueues` clears `Reported` when the list was not read -> `Test.Checks.Queues:TestListUnreadable` red ("Reported unchanged", both rows) (QA)
+- mutation: AC12 "a different queue is not held back": the cooldown applies to the whole namespace (any held `told` entry holds every queue) -> `Test.Checks.Queues:TestCooldown` red ("B, a different queue of the namespace, is reported") and `TestNamespaceUnread` red (QA)
+- mutation: matrix "Unknown kind": `WatchAnswers.KnownKind` accepts every kind -> `Test.Watch.Tools:TestUnknownKind` red (QA)
+- mutation: matrix "Stop", another session's row untouched: `WatchOps.OnStop` also deletes every `queues` row -> `Test.Watch.Ops:TestQueuesStartRepeatStop` red ("the other session's queue row is unchanged") (QA)
+- mutation: matrix "Start", per-session natural key: `RefOf` finds a queue row without the `SessionRef` -> `Test.Watch.Ops:TestQueuesStartRepeatStop` red ("it is a new watch") (QA)
+
+mutations_demonstrated=8 (QA, beside the 12 above). AC10's K29 red stays "expected, not observed" (browser units run in CI only). Nothing is left up on lane D.
+
+### Code-review patches (2026-11-11, lane D warm throwaway, tag e23s7cw)
+
+Passing after the patches: `Test.Watch.Ops` (with `TestQueuesEndSession`), `Test.Checks.Queues`, `Test.Watch.Tools`, `Test.Watch.Turns`, `Test.Checks.QueueBacklog`, `Test.Core.SessionOpsProduction` (regression, run only), `Test.Bridge.CodeRules`; `npm --prefix web run lint`. K29 (now holding its POST until the second press is checked) is left to CI. Each mutation was applied from a backup, observed red and restored (`git status --short` and `git diff --stat` identical afterwards).
+- mutation: DW-1124 (AD-4, session end stops the queue row): `EndWatches` skips every Kind but production again -> `Test.Watch.Ops:TestQueuesEndSession` red ("both of the session's rows are gone, the queue row too") (CR)
+- mutation: matrix "First run, above", Decided 15: `RunQueues` puts the queue's own `oldestAt` in the slot even when it is unreadable -> `Test.Checks.Queues:TestQueueFindingRenders` red ("its oldestAt slot is the run time", and the catalog refuses the slot) (CR)
+
 
 ## Auto Run Result
 

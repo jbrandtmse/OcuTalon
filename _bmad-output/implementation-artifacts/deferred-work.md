@@ -6889,3 +6889,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-epic(Core/SessionOps.cls,not_contended)
 - evidence: SessionOps.cls:332-345 EndWatches skips Kind<>production and builds StopWatch without Kind; WatchOps.OnStop handles Kind queues
 - 2026-11-11T12:25:12Z status=open owner=23-7-watch-queue-backlogs-between-digests by=harvest note=fix now at 23.7 code review: accept QUEUEKIND in EndWatches, set stop.Kind=check.Kind, plus a Test.Core session-end case; footprint extension (no in-flight epic owns SessionOps.cls)
+- 2026-11-11T12:56:43Z status=resolved-by:23-7-watch-queue-backlogs-between-digests by=adjudication note=Core/SessionOps.EndWatches_accepts_QUEUEKIND_and_sets_stop.Kind;Test.Watch.Ops:TestQueuesEndSession(mutation_observed_red)
+
+### DW-1125: Chat's queue-backlog rule follows the production watch rules; whether the real model calls start_watch/stop_watch with kind queues for 'Watch the queue backlogs.' and its stop is unmeasured (only the CI mock scripts it)
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Agent/Chat.cls:58 rule after the start/stop production rules; a model that calls start_watch without kind answers unknown_production/only_orders on the demo; no real-key run exists (maybe-false, unverified)
+- 2026-11-11T12:55:23Z status=routed owner=38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=cr note=unverified: settle by running the More to try queue prompt and its stop against the real model
+
+### DW-1126: The heartbeat checklist's Watches line lists production watches only, so a session whose only check is the queue-backlog check reads Watches: none
+- source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Checks/Beat.cls WatchLines skips every Kind but production; the spec's Never forbids any change to Checks.Beat
+- 2026-11-11T12:55:23Z status=by-design owner=23-7-watch-queue-backlogs-between-digests by=cr note=spec Never: no change to Checks.Beat; reopens only via a spec amendment

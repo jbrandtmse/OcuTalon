@@ -7,7 +7,7 @@
 ///   - TestTwoCrossings (AC5, Integration): the sink held and its queue filled past 100, a run, a second run, the queue drained, a run, filled past 100 again and a run send exactly two
 ///     watch.queueBacklog Items for QueueSink to Intake, one for each crossing, each with a decision from Intake, and the person's web chat gets the tell-now text that the catalog renders for
 ///     each. The feed's headers by status, its item states and its production state are the same before and after each run with the sink held. Between the drain and the second crossing the test
-///     makes the told time of the queue an hour old, the one thing that the hourly cooldown (AC12) would otherwise decide;
+///     makes the told time of the queue two hours old, the one thing that the hourly cooldown (AC12) would otherwise decide;
 ///   - TestOnlineDemoReadsOnlyOrders (AC7): with the online demo flag on and the feed's queue above its threshold, a run reads the Orders production only: Reported has no key for the feed's namespace
 ///     and no Item is sent for it.
 Class OcuTalon.Test.Checks.QueueBacklog Extends OcuTalon.Test.Checks.BeatCase
@@ -114,7 +114,7 @@ Method TestTwoCrossings()
 	Set row = ..Check(ref)
 	Do $$$AssertEquals(row.Result_"|"_..Names(row.Reported), "passed|", "the row is passed and the queue left above")
 	Do $$$AssertEquals(..Findings(trace, session, floor).%Size(), 1, "and no Item was sent")
-	Do $$$AssertStatusOK(##class(OcuTalon.Test.Checks.Queues).Age(ref), "the told time of the queue is made an hour old")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Checks.Queues).Age(ref), "the told time of the queue is made two hours old")
 
 	Do $ClassMethod(..#FIXTURE, "Hold")
 	Do $$$AssertStatusOK($ClassMethod(..#FIXTURE, "Fill", ..#FILL), ..#FILL_" requests are sent again")

@@ -35,10 +35,8 @@
 Class OcuTalon.Tools.WatchAnswers
 {
 
-/// The kind of a watch row of a production (the Kind of its BackgroundCheck), and of the queue-backlog check's row.
+/// The kind of a watch row of a production (the Kind of its BackgroundCheck).
 Parameter KIND = "production";
-
-Parameter QUEUEKIND = "queues";
 
 /// The list of the answer unknown_production when no production can be watched at all.
 Parameter NOPRODUCTIONS = "no productions";
@@ -227,8 +225,9 @@ ClassMethod CheckResults(sessionRef As %String, Output results As %DynamicArray)
 	If $$$ISERR(sc) || '$IsObject(checks) Quit {"ok": false, "message": (..#CHECKSNOTREAD)}
 	For i = 1:1:checks.Count() {
 		Set check = checks.GetAt(i)
-		If (check.Kind '= ..#KIND) && (check.Kind '= ..#QUEUEKIND) Continue
-		Do results.%Push({"result": (check.Result), "entry": ($Select(check.Kind = ..#QUEUEKIND: check.DisplayName, 1: $Replace(..#ENTRY, "{name}", check.DisplayName))), "finding": (check.Finding), "checkedAt": (check.LastRunAt)})
+		Set queues = (check.Kind = ##class(OcuTalon.Watch.Ops).#QUEUEKIND)
+		If (check.Kind '= ..#KIND) && 'queues Continue
+		Do results.%Push({"result": (check.Result), "entry": ($Select(queues: check.DisplayName, 1: $Replace(..#ENTRY, "{name}", check.DisplayName))), "finding": (check.Finding), "checkedAt": (check.LastRunAt)})
 	}
 	Quit ""
 }

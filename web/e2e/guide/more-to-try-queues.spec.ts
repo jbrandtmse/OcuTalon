@@ -7,7 +7,8 @@ import { composerOf, openFloor, railOf } from '../support/floor';
 /**
  * K29 (Story 23.7, AC10), on the real stack with the CI mock (ci/mock/scenarios/B/queue-watch-ask.json): the demo guide's More to try item "Watch queue
  * backlogs" sends "Watch the queue backlogs." once, as the user's own message, and the chat turn's start_watch with kind queues adds the Queue-backlog check
- * to the rail's Background checks, with its schedule "A check every minute". While that turn is in flight a second press sends nothing.
+ * to the rail's Background checks, with its schedule "A check every minute". While that turn is in flight (its POST is held until the second press is
+ * checked) the control is aria-disabled and a second press sends nothing.
  * The texts are written out here as the independent oracle of the page's own.
  */
 const LABEL = 'Watch queue backlogs';
@@ -41,6 +42,14 @@ test('K29: Ask to watch queues sends its prompt once and the rail gains the Queu
       posts.push(request.postDataJSON() as { text: string; fromGuide: boolean });
     }
   });
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**${MESSAGES}`, async (route) => {
+    if (route.request().method() === 'POST') await held;
+    await route.fallback();
+  });
   await removeQueueChecks(user);
   try {
     await openFloor(page);
@@ -54,12 +63,17 @@ test('K29: Ask to watch queues sends its prompt once and the rail gains the Queu
     await expect.poll(() => posts.length, { message: 'the prompt was posted' }).toBe(1);
     expect(posts[0]!.text).toBe(PROMPT);
     expect(posts[0]!.fromGuide, 'as the user\'s own message').toBe(false);
+    await expect(control, 'while its turn is in flight the control is aria-disabled').toHaveAttribute('aria-disabled', 'true');
     await control.click({ force: true });
+    await page.waitForTimeout(500);
+    expect(posts, 'a press while the turn was in flight sent nothing').toHaveLength(1);
+    release();
     const row = railOf(page).locator('li.row').filter({ hasText: CHECK });
     await expect(row, 'the rail lists the Queue-backlog check').toHaveCount(1, { timeout: 60_000 });
     await expect(row, 'with its schedule').toContainText(SCHEDULE);
-    expect(posts, 'a press while the turn was in flight sent nothing').toHaveLength(1);
+    expect(posts, 'and nothing more was sent').toHaveLength(1);
   } finally {
+    release();
     await removeQueueChecks(user);
   }
 });
