@@ -61,7 +61,9 @@ describe('the page speaks only through the Announcer', () => {
     const { code: announcer } = file('app/shared/announcer.ts');
     assert.match(announcer, /new AnnounceQueue\(/);
     assert.match(announcer, /announce\(message: string\): void \{\s*this\.queue\.push\(message\);\s*\}/);
-    assert.equal((announcer.match(/this\.live\.announce\(/g) ?? []).length, 1, 'one call to the live announcer');
+    assert.equal((announcer.match(/this\.live\.announce\(text, /g) ?? []).length, 1, 'one call that speaks a text');
+    assert.equal((announcer.match(/this\.live\.announce\(/g) ?? []).length, 2, 'and one more, which empties the region for a retracted text');
+    assert.match(announcer, /retract\(message: string\): void \{[^}]*this\.queue\.retract\(text\);\s*if \(text !== '' && this\.lastSpoken === text\) \{\s*this\.lastSpoken = '';\s*void this\.live\.announce\('', 'polite'\);/);
   });
 
   it('reads a reply for the chat from the real modules: the first block with links as labels, the catalog\'s fallback sentence and CHAT_TEXTS', () => {
@@ -89,15 +91,16 @@ describe('the page speaks only through the Announcer', () => {
     // box announces "Sent" (Story 4.4): nothing else announces either.
     // Story 16.1: the header's credential rows speak (credential-rows.ts: "Copied" or the copy failure, once, after the user's own press on a
     // copy button), so that file is the one header file that is not silent; the header itself still is.
+    // Story 41.13: the Memory card speaks (memory-card.ts: the one notice of a panel, once, when a Pin, Unpin or search fails), the second rail file that is not silent.
     // Stories 12.4 and 12.5: the Telegram card speaks (telegram-card.ts: "Telegram paired" or "Telegram unpaired", once each, when the pairing
     // changes), the one rail file that is not silent; the pairing change is announced once, from the card that shows it (UX-DR132).
-    const silent = files.filter((one) => (one.name !== 'app/header/credential-rows.ts' && one.name !== 'app/rail/telegram-card/telegram-card.ts' && /^app\/(rail|header)\//.test(one.name)) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts', 'app/incidents/incident-card.ts', 'app/incidents/evidence-panel.ts'].includes(one.name));
+    const silent = files.filter((one) => (one.name !== 'app/header/credential-rows.ts' && one.name !== 'app/rail/telegram-card/telegram-card.ts' && one.name !== 'app/rail/memory-card/memory-card.ts' && /^app\/(rail|header)\//.test(one.name)) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts', 'app/incidents/incident-card.ts', 'app/incidents/evidence-panel.ts'].includes(one.name));
     assert.ok(silent.length >= 8, 'the silent files are found');
     assert.ok(silent.some((one) => one.name === 'app/incidents/incident-card.ts'), 'the incident card is among them');
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once), Dismiss (the message of an error reply, once, Story 6.4), the credential rows (Story 16.1) and the Telegram card (the pairing and the unpairing, once each, Stories 12.4 and 12.5) and the settings page (the saved text of a section, once, a failed save of the thresholds, and the load failure, Story 33.2; the saved and failed texts of the Models and Budgets sections and the Test result line, once, Story 18.3) and the Documents page (a refused file or a failed document of the user\'s own add, once, Story 34.2) and Got it (the message of an error reply, once, Story 18.4)', () => {
+  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once), Dismiss (the message of an error reply, once, Story 6.4), the credential rows (Story 16.1) and the Telegram card (the pairing and the unpairing, once each, Stories 12.4 and 12.5) and the settings page (the saved text of a section, once, a failed save of the thresholds, and the load failure, Story 33.2; the saved and failed texts of the Models and Budgets sections and the Test result line, once, Story 18.3) and the Documents page (a refused file or a failed document of the user\'s own add, once, Story 34.2) and Got it (the message of an error reply, once, Story 18.4) and the Memory card (the one notice of a panel, once, Story 41.13) and the shared confirm dialog (its failure notice, once, Story 41.13)', () => {
     assert.deepEqual(filesWith(/\bannouncer\.announce\(|\.announce\(/).sort(), [
       'app/approvals/answer-press.ts',
       'app/approvals/approval-request-card.ts',
@@ -110,9 +113,12 @@ describe('the page speaks only through the Announcer', () => {
       'app/feed/break-feed-box.ts',
       'app/guide/demo-guide.ts',
       'app/header/credential-rows.ts',
+      // The History page: its load failure, "Couldn't load your history.", once per failed read (Story 25.2).
+      'app/history/history-page.ts',
       'app/incidents/incident-dismiss.ts',
       'app/live/live-state.ts',
       'app/mailbox/simulated-mailbox.ts',
+      'app/rail/memory-card/memory-card.ts',
       'app/rail/telegram-card/telegram-card.ts',
       'app/settings/budgets-section.ts',
       'app/settings/check-thresholds-section.ts',
@@ -122,8 +128,11 @@ describe('the page speaks only through the Announcer', () => {
       'app/settings/settings-page.ts',
       'app/settings/time-zone-section.ts',
       'app/shared/announcer.ts',
+      'app/shared/confirm-dialog.ts',
       'app/shared/narrow-note.ts',
       'app/shared/server-button.ts',
+      // The Usage page: its load failure, "Couldn't load your usage.", once per failed read (Story 37.2).
+      'app/usage/usage-page.ts',
     ]);
   });
 });
@@ -136,9 +145,10 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/guide/demo-guide.ts': [1, 'Show me focuses the phone\'s pending notification or its feed, for the user\'s own press (Story 4.7)'],
     'app/guide/more-to-try.ts': [1, 'an item of Other things to try hands focus to the control it presses, for the user\'s own press (Story 4.11)'],
     'app/devices/device-panel.ts': [1, 'the tab that the user\'s arrow key moved to'],
+    'app/history/history-page.ts': [3, 'the tab that the user\'s arrow key moved to, the first filter after the user\'s own Clear filters, whose button leaves with the filters, and the page\'s main region after the user\'s own Previous or Next page, whose pager leaves while the page loads (Story 25.2)'],
     'app/rail/heartbeat-card/heartbeat-card.ts': [1, 'Edit, after the user\'s own Esc collapses its disclosure'],
     'app/rail/persona-card/persona-card.ts': [1, 'Change, after the user\'s own Esc collapses its disclosure'],
-    'app/rail/memory-card/memory-card.ts': [2, 'the tab that the user\'s arrow key moved to, and the Memory heading after the user\'s own confirmed Forget, when the dialog has given focus back and the row is gone (Story 41.6)'],
+    'app/rail/memory-card/memory-card.ts': [2, 'the tab that the user\'s arrow key moved to, and the Memory heading after the user\'s own confirmed Forget, or after an Unpin that took the row off Pinned, when the dialog or the button has given focus back and the row is gone (Stories 41.6 and 41.13)'],
     'app/mailbox/simulated-mailbox.ts': [2, 'the mailbox\'s own views move focus for the user\'s press (the form\'s From, the open email\'s heading, the row or Simulate after Back, the first field in error after Send, the sent email\'s row), through focusLater and focusSent'],
     'app/phone/simulated-phone.ts': [1, 'the target of the phone\'s New messages button, which the user pressed'],
     'app/shared/popover.ts': [2, 'a popover returns focus to its trigger when the user closes it, and takes it into its panel when the user opens it'],
@@ -202,5 +212,36 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.doesNotMatch(headline, /\.focus\(/, 'and the shared rule moves the focus');
     assert.doesNotMatch(file('app/main-page/main-page.ts').code, /(?:LOAD_ERROR|NOTE)_RULE: FocusRule = \{[^}]*item/);
     assert.doesNotMatch(file('app/header/header.ts').code, /STATUS_RULE: FocusRule = \{[^}]*item/);
+  });
+});
+
+describe('the failure notices of the confirm dialog and the Memory card (Story 41.13; DW-996, DW-997, NFR-25)', () => {
+  it('shows the confirm dialog\'s notice under an id of its own, names it in the confirm button\'s description, and announces it once', () => {
+    const dialog = file('app/shared/confirm-dialog.ts').code;
+    assert.match(dialog, /noticeId = `confirm-dialog-notice-\$\{\(lastDialog \+= 1\)\}`/, 'an id of its own for each dialog');
+    assert.match(dialog, /<app-inline-notice [^>]*\[id\]="noticeId"/, 'the notice carries the id');
+    assert.match(dialog, /\[describedBy\]="failed\(\) \? \[noticeId\] : \[\]"/, 'the confirm button is described by it while it shows');
+    assert.equal((dialog.match(/\.announce\(/g) ?? []).length, 1, 'one place announces');
+    assert.match(dialog, /this\.failed\.set\(true\);\s*this\.announcer\.announce\(this\.content\.failed\);/, 'when the notice is set, once');
+  });
+
+  it('replaces both old dialogs: nothing refers to the Forget or Remove dialogs any more', () => {
+    assert.deepEqual(filesWith(/app-forget-answer-dialog|app-remove-document-dialog|forget-dialog|remove-dialog|FORGET_TITLE_ID|REMOVE_TITLE_ID|\bFORGOTTEN\b|\bREMOVED\b|ForgetTarget|RemoveTarget/), []);
+    assert.deepEqual(filesWith(/\bConfirmDialog\b/).sort(), ['app/documents/documents-page.ts', 'app/rail/memory-card/memory-card.ts', 'app/shared/confirm-dialog.ts']);
+  });
+
+  it('shows the Memory card\'s notice of a panel under an id of its own, announces it once, and names it in the pressed control\'s description', () => {
+    const card = file('app/rail/memory-card/memory-card.ts').code;
+    assert.equal((card.match(/\.announce\(/g) ?? []).length, 1, 'one place announces');
+    assert.match(card, /if \(notice !== undefined\) \{\s*this\.announcer\.announce\(notice\.text\);/);
+    assert.equal((card.match(/\[id\]="noticeId\('(?:pinned|memories)'\)"/g) ?? []).length, 2, 'one notice for each panel, with its id');
+    assert.match(card, /\[describedBy\]="describedBy\(panel, item\.ref\)"/, 'the Pin or Unpin button names it');
+    assert.match(card, /\[attr\.aria-describedby\]="describing\('memories', ''\)"/, 'and so does the search');
+  });
+
+  it('searches only when the form is submitted: no input, keyup or change handler on the search box', () => {
+    const card = file('app/rail/memory-card/memory-card.ts').code;
+    assert.match(card, /<form class="search" role="search" \(submit\)="submit\(\$event, query\.value\)">/);
+    assert.doesNotMatch(card, /\(input\)=|\(keyup\)=|\(keypress\)=|\(change\)=|valueChanges|debounce/);
   });
 });

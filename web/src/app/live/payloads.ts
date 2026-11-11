@@ -31,6 +31,13 @@ export interface DryRun {
   before?: string;
   after?: string;
   itemNoun?: ItemNoun;
+  item?: string;
+  from?: string;
+  to?: string;
+  example?: string;
+  notice?: string;
+  recipients?: string[];
+  simulated?: boolean;
   eitherWay?: boolean;
   reading?: string;
 }
@@ -77,6 +84,9 @@ export interface IncidentGroup {
 export interface IncidentRequest {
   ref?: string;
   state?: string;
+  fixKind?: string;
+  item?: string;
+  count?: number;
   result?: IncidentRequestResult;
 }
 
@@ -100,6 +110,11 @@ export interface IncidentTraceTargets {
 export interface ItemNoun {
   one?: string;
   other?: string;
+}
+
+export interface Learned {
+  memoryRef?: string;
+  fact?: string;
 }
 
 export interface Memory {
@@ -141,6 +156,7 @@ export interface ChatMessagePayload {
   checks?: CheckRow[];
   citations?: Citation[];
   memories?: Memory[];
+  learned?: Learned[];
   traceUrl?: string;
 }
 
@@ -215,6 +231,7 @@ export interface ApprovalPayload {
   incidentRef?: string;
   toolName?: string;
   reason?: string;
+  fixKind?: string;
   dryRun?: DryRun;
   raisedAt?: string;
   expiresAt?: string;
@@ -291,6 +308,7 @@ export interface GuideStatePayload {
 
 export interface IncidentPayload {
   ref?: string;
+  production?: string;
   state?: string;
   openVariant?: string;
   count?: number;

@@ -107,6 +107,10 @@ describe('the fixed strings', () => {
         hintReminders: 'To cancel, ask: "Cancel my reminder to stretch."',
         repair: 'Repair and resend',
         repairCount: 'Repair and resend {n} {noun}',
+        suspend: 'Suspend {item}',
+        resume: 'Resume {item}',
+        reroute: 'Reroute {n} {noun} to {to}',
+        partner: 'Send a delay notice',
         runTool: 'Run {toolName}',
         changePersona: 'Change how OcuTalon talks to you',
         showInChat: 'Show in the chat: {action}',
@@ -300,6 +304,11 @@ describe('approval requests', () => {
     assert.equal(approvalTitle(approval('a', { dryRun: { affected: 0, itemNoun: { one: 'order', other: 'orders' } } })), 'Repair and resend 0 orders');
     assert.equal(approvalTitle(approval('a', { dryRun: undefined })), 'Repair and resend');
     assert.equal(approvalTitle(approval('a', { kind: 'tool_call', toolName: 'zz_tool', dryRun: undefined })), 'Run zz_tool');
+    assert.equal(approvalTitle(approval('a', { fixKind: 'suspend_item', dryRun: { item: 'OrdersToWarehouse' } })), 'Suspend OrdersToWarehouse');
+    assert.equal(approvalTitle(approval('a', { fixKind: 'resume_item', dryRun: { item: 'OrdersToWarehouse' } })), 'Resume OrdersToWarehouse');
+    assert.equal(approvalTitle(approval('a', { fixKind: 'reroute', dryRun: { affected: 50, to: 'OrdersForReview', itemNoun: { one: 'order', other: 'orders' } } })), 'Reroute 50 orders to OrdersForReview');
+    assert.equal(approvalTitle(approval('a', { fixKind: 'reroute', dryRun: { affected: 1, to: 'OrdersForReview', itemNoun: { one: 'order', other: 'orders' } } })), 'Reroute 1 order to OrdersForReview');
+    assert.equal(approvalTitle(approval('a', { fixKind: 'partner_warning', dryRun: { notice: 'A.', recipients: ['A <a@x.example>'], simulated: true } })), 'Send a delay notice');
     assert.equal(approvalTitle(approval('a', { kind: 'setting', dryRun: { before: 'Professional (default)', after: 'Pirate' } })), 'Change how OcuTalon talks to you');
     assert.equal(approvalTitle(approval('a', { kind: 'setting', dryRun: undefined })), 'Change how OcuTalon talks to you');
     const view = viewOf({ approvals: [approval('a1'), approval('a2', { dryRun: { affected: 1, itemNoun: { one: 'order', other: 'orders' } } })] });

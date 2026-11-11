@@ -101,14 +101,15 @@ ClassMethod Decide(name As %String, matches As %DynamicArray, onlineDemo As %Boo
 	Quit {"ok": false, "outcome": "unknown_production", "name": (name), "list": (..Joined(names)), "productions": (names)}
 }
 
-/// Resolves the incident of a dismiss_incident call for the session. "" and the one matching entry in match, or the refusal answer for the model and
+/// Resolves the incident of a dismiss_incident call (or, given states, of a propose_fix call: the states of the incidents it may name, open and resolved) for the session. "" and the one matching entry in match, or the refusal answer for the model and
 /// nothing to submit: {"ok": false, "message": INCIDENTSNOTREAD} when the incidents cannot be read, {"ok": false, "outcome": "no_incident", "others": [busy]}
 /// when no incident can be dismissed, {"ok": false, "outcome": "ambiguous", "incidents": [matches]} for several matches and {"ok": false, "outcome":
 /// "unknown_incident", "incidents": [candidates], "others": [busy]} for none. An entry is {"ref", "production" (the display name of the session's own
 /// watch of the production, else the row's production), "state", "openVariant", "since", "count"}.
-ClassMethod ResolveIncident(production As %String, incident As %String, sessionRef As %String, Output match As %DynamicObject) As %DynamicObject
+ClassMethod ResolveIncident(production As %String, incident As %String, sessionRef As %String, Output match As %DynamicObject, states As %String = "") As %DynamicObject
 {
 	Set match = ""
+	If states = "" Set states = ..#DISMISSABLE
 	Set rows = ##class(OcuTalon.Data.Ownership).Incidents($Get(sessionRef), .sc)
 	If $$$ISERR(sc) || '$IsObject(rows) Quit {"ok": false, "message": (..#INCIDENTSNOTREAD)}
 	Do ..WatchNames($Get(sessionRef), .names)
@@ -118,7 +119,7 @@ ClassMethod ResolveIncident(production As %String, incident As %String, sessionR
 		Set state = row.State
 		Set display = $Get(names(row.Namespace, row.Production))
 		Set entry = {"ref": (row.Ref), "production": ($Select(display '= "": display, 1: row.Production)), "state": (state), "openVariant": (row.OpenVariant), "since": (##class(OcuTalon.Data.Time).ForMessage(row.FirstAt)), "count": (+row.Count)}
-		If $ListFind($ListFromString(..#DISMISSABLE), state) {
+		If $ListFind($ListFromString(states), state) {
 			Do candidates.%Push({"namespace": (row.Namespace), "production": (row.Production), "displayName": (entry.production), "entry": (entry)})
 		} ElseIf $ListFind($ListFromString(..#BUSY), state) {
 			Do busy.%Push(entry)

@@ -2,6 +2,7 @@ import { HttpErrorResponse, HttpResponse, type HttpInterceptorFn } from '@angula
 import { inject } from '@angular/core';
 import { catchError, tap, throwError } from 'rxjs';
 
+import { makesDemoBusy } from '../live/demo-busy';
 import { DemoBusyState } from '../live/demo-busy-state';
 import { SessionGate } from '../session/session-gate';
 
@@ -16,7 +17,7 @@ const CHANGING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
  * - Once the session is known to be gone, nothing is sent: the call fails at once as a 401.
  * - A state-changing call carries Content-Type: application/json and X-OcuTalon-Request: 1 (the browser adds the Origin).
  * - A 401 tells the session gate, which stops the page and shows the sign-in page, and is passed on to the caller.
- * - Every answer reports its status to DemoBusyState (Story 16.5): a 503 makes the online demo's page busy, and a 2xx clears that.
+ * - Every answer reports its status to DemoBusyState (Story 16.5): a 503 makes the online demo's page busy unless its body's error code is `search_busy` (the Memory card's own message), and a 2xx clears that.
  */
 export const envelopeInterceptor: HttpInterceptorFn = (request, next) => {
   if (!request.url.startsWith(API)) {
@@ -40,7 +41,7 @@ export const envelopeInterceptor: HttpInterceptorFn = (request, next) => {
       if (error instanceof HttpErrorResponse && error.status === 401) {
         gate.onSignedOut();
       }
-      if (error instanceof HttpErrorResponse && error.status === 503) {
+      if (error instanceof HttpErrorResponse && makesDemoBusy(error.status, error.error)) {
         busy.apiAnswered(error.status);
       }
       return throwError(() => error);

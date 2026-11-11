@@ -11,7 +11,7 @@
 #   3. A second run must print the ready block at once (no progress line), say the base exists, and keep the same container.
 #   4. The project goes down without -v, $P-base is removed without -f (the shared name keeps its id), and the README's manual
 #      command re-makes it: docker tag <the loaded Health image> <base>.
-#   5. A plain docker compose up -d (the same environment, no script) reaches healthy on the same volume (its CreatedAt is unchanged).
+#   5. A plain docker compose up -d (the same environment, no script; run through live_port_guard) reaches healthy on the same volume (its CreatedAt is unchanged).
 # Cleanup: the two $P- names are removed without -f, .env is removed only when this run created it, then lib-live.sh removes the project
 # with its volume and images and releases the throwaway lock. The shared base's id is checked at the start, after step 4 and at the end.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -147,9 +147,12 @@ fi
 
 # --- 5. a plain docker compose up ---
 
-plain_out=$(env COMPOSE_PROJECT_NAME="$P" COMPOSE_FILE="$compose_files" IRIS_IMAGE="$test_base" docker compose up -d 2>&1)
+# The project went down a moment ago and this up uses the same port, so the start runs through the guard (Story 0.24).
+plain_out=$(live_port_guard env COMPOSE_PROJECT_NAME="$P" COMPOSE_FILE="$compose_files" IRIS_IMAGE="$test_base" docker compose up -d 2>&1)
 plain_rc=$?
-printf '%s\n' "$plain_out" | tail -n 5 | sed 's/^/  | /'
+# The guard's own lines in full, then the last 5 others, so the holder lines never scroll the FAIL or retry lines away (DW-1113).
+printf '%s\n' "$plain_out" | grep -E '^(PORT|FAIL web port|waited )' | sed 's/^/  | /'
+printf '%s\n' "$plain_out" | grep -vE '^(PORT|FAIL web port|waited )' | tail -n 5 | sed 's/^/  | /'
 if [ "$plain_rc" -eq 0 ]; then pass "a plain docker compose up -d exits 0"; else fail "a plain docker compose up -d exited $plain_rc"; fi
 if wait_until 600 plain_healthy; then
   pass "the plain docker compose up reaches healthy"

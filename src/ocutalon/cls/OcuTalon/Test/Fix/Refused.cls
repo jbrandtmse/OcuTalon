@@ -3,7 +3,7 @@
 /// in OCUORDERS, make real failed orders there and fail with the reason where they do not have them. The Execute goes to the real item FixExecutor by name from the
 /// SimMailboxIn service, so a wrong run would really resend the incident's failed orders. The incident, its rows and the messages of the test are removed after it.
 ///   - TestPastExpiryCannotStart (AC 4; DW-384): see the method;
-///   - TestNoApprovedRowNoRun (AC 4; the matrix row "Refused"): OcuTalon.Production is running with TestingEnabled 0. For every registered kind (Fix.Kind Classes), an
+///   - TestNoApprovedRowNoRun (AC 4; the matrix row "Refused"): OcuTalon.Production is running with TestingEnabled 0. For every registered kind (Fix.Kind Classes, partner_warning of Story 23.5 included: nothing is sent to any mailbox), an
 ///     incident over three real failed orders gets one request of that kind in each state that is not approved and unexpired: pending, rejected, expired, cancelled and
 ///     executing, a tool_call, and a Ref that has no row. An Execute for each is answered OK by the real item and changes nothing:
 ///     the row is as it was (every column), no FixRun is written, no FixResult goes to IncidentManager, no copy is made and a snapshot of OCUORDERS shows no change,

@@ -19,6 +19,13 @@ XData Entries [ MimeType = application/json ]
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Pairing (Telegram) / Valid code"
  },
+ "memory.learnedSaved": {
+  "text": "I'll remember this: \"{fact}\". You can tell me to forget it.",
+  "slots": {
+   "fact": "text"
+  },
+  "source": "Story 41.15 AC (Contest Planner ruling 2026-11-10)"
+ },
  "pairing.badCode": {
   "text": "That code didn't work. Open the OcuTalon page and scan the QR code there for a new one.",
   "slots": {},
@@ -788,6 +795,34 @@ XData Entries [ MimeType = application/json ]
    "server": "text"
   },
   "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Canceled"
+ },
+ "press.approvedSuspend": {
+  "text": "Approved. Suspending {item}.",
+  "slots": {
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
+ },
+ "press.approvedResume": {
+  "text": "Approved. Resuming {item}.",
+  "slots": {
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
+ },
+ "press.approvedReroute": {
+  "text": "Approved. Rerouting {count} {itemNoun} to {to}.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "to": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
+ },
+ "press.approvedPartner": {
+  "text": "Approved. Sending the delay notice to the Simulated mailbox.",
+  "slots": {},
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
  }
 }
 }

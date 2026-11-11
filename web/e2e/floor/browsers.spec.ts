@@ -17,14 +17,16 @@ import {
 import { cleanFixtureRows, fixtureUser } from '../support/iris';
 
 /**
- * Story 2.16, what differs between the engines (E1 to E3), in a real browser against a real stack, in Chromium, Firefox and WebKit. It
+ * Story 2.16, what differs between the engines (E1 to E4), in a real browser against a real stack, in Chromium, Firefox and WebKit. It
  * pins the Visual Trace button, which closes its own menu even when the engine takes focus away from a pressed button, and a press inside
  * that menu, which reaches its control in the same case (DW-145, E1); the
  * chat list and the rail, which are tab stops named by their headings, draw their ring inside their edge and scroll by key (DW-89,
- * E2); and the composer, which sends nothing for the Enter that ends an IME composition in Safari's event order (E3). It needs the stack that
+ * E2); the composer, which sends nothing for the Enter that ends an IME composition in Safari's event order (E3); and the History page's pager, whose Previous page and
+ * Next page hand keyboard focus to the page's main region when they leave while the next page loads (Story 25.2, E4; the answers are stubbed in the browser, so E4
+ * seeds nothing and reads no row). It needs the stack that
  * docker/tests/test-floor.sh starts: every case signs in as the floor user (OCUTALON_FLOOR_USER, the user role) over real HTTP, in a
  * fresh browser context. E2 removes the rows it seeds with cleanFixtureRows in finally, and E3 routes every chat post to an abort in the
- * browser, so none reaches the server. All three run in every engine (tag @browsers).
+ * browser, so none reaches the server. All four run in every engine (tag @browsers).
  */
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -216,4 +218,58 @@ test('E3: an Enter that ends an IME composition sends nothing, in Safari\'s even
   await settled(page);
   expect(posts, 'an Enter inside an open composition sends nothing').toBe(0);
   await expect(field, 'and the text stays').toHaveValue('composing');
+});
+
+/**
+ * E4 (Story 25.2): Next page and Previous page on the History page. The pager leaves while the next page loads, so a focused pager button would drop focus to the
+ * body: the page hands focus to its main region first. The history answers are stubbed in the browser (25 decisions on page 1 of 2, one on page 2, the answer to a
+ * page held for 400 ms so that the pager is gone while the page loads), so the case seeds nothing and needs no clean-up. The press is the keyboard's Enter on the
+ * focused button, which every engine delivers as a click, and the case first shows that focus is not already on the main region.
+ */
+test('E4: Next page and Previous page on the History page leave keyboard focus on the page\'s main region', { tag: '@browsers' }, async ({ page }) => {
+  const decisionsOf = (from: number, count: number): Array<Record<string, unknown>> =>
+    Array.from({ length: count }, (_one, index) => ({
+      ref: `ZzE4Ref${String(from + index).padStart(4, '0')}`,
+      outcome: 'act',
+      reasons: 'Stubbed.',
+      fallback: false,
+      fallbackReason: '',
+      itemSummary: `E4 row ${from + index}`,
+      recordedAt: '2030-01-01T09:00:00Z',
+      channel: 'web',
+    }));
+  await page.route('**/ocutalon/api/v1/history/decisions*', async (route) => {
+    const second = new URL(route.request().url()).searchParams.get('page') === '2';
+    await new Promise((done) => setTimeout(done, 400));
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ page: second ? 2 : 1, pages: 2, decisions: second ? decisionsOf(26, 1) : decisionsOf(1, 25) }),
+    });
+  });
+  await openFloor(page);
+  await page.evaluate(() => {
+    window.location.hash = '#/history';
+  });
+  const rows = page.locator('[data-part="history-decisions"] > li');
+  const main = page.locator('main.history');
+  const next = page.getByRole('button', { name: 'Next page', exact: true });
+  const previous = page.getByRole('button', { name: 'Previous page', exact: true });
+  await expect(rows, 'page 1 holds 25 rows').toHaveCount(25);
+  await expect(page.getByText('Page 1 of 2', { exact: true })).toBeVisible();
+
+  await next.focus();
+  await expect(next, 'the pager button holds focus').toBeFocused();
+  await expect(main, 'and the main region does not yet').not.toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(rows, 'page 2 holds its one row').toHaveCount(1);
+  await expect(page.getByText('Page 2 of 2', { exact: true })).toBeVisible();
+  await expect(main, 'Next page: focus is on the main region, not the body').toBeFocused();
+
+  await previous.focus();
+  await expect(previous, 'Previous page holds focus').toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(rows, 'page 1 is back with its 25 rows').toHaveCount(25);
+  await expect(page.getByText('Page 1 of 2', { exact: true })).toBeVisible();
+  await expect(main, 'Previous page: focus is on the main region, not the body').toBeFocused();
 });

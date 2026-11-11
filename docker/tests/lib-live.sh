@@ -20,6 +20,12 @@
 # unless a test that drives a browser calls live_web_port to publish the web port on 127.0.0.1 in 52800-52819. The only bot token
 # in the container is the dummy of ci/compose.ci.yml, or the empty value that live_no_bot_token layers after it; neither is a key
 # (live_key_count, check_no_key).
+# With a web port, dc up, dc start and dc restart go through live_port_guard (Stories 0.24 and 0.25): one budget of LIVE_PORT_WAIT s
+# (default 90, polled every 3 s) of waiting for the port to be free, shared by the wait before the start and the waits before the
+# retries; up to two retries, each after LIVE_PORT_RETRY_PAUSE s (default 10, outside the budget) and a wait, when the start fails with
+# the bind error ("address already in use" or "failed programming external connectivity"); a third bind error fails loudly. A start
+# that waited prints one "waited <s> s for port <p>" line, and the loud failure and "PORT still in use" list what holds the port
+# (live_port_holders: containers of any project and TCP sockets in any state).
 # live_start also makes sure that the web bundle (src/ocutalon/csp/) exists, because the image refuses to build
 # without it: see ensure_web_bundle.
 #
@@ -197,15 +203,61 @@ ensure_web_bundle() {
 # The ports that no test may publish: the judges' default, and the ports of the other instances and slots.
 LIVE_FORBIDDEN_PORTS="52773 1979 52779 8089 1990 1991 52790 52791 8090 8091"
 
-# 0 when something listens on 127.0.0.1:<port>.
-port_in_use() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+# The knobs of the port wait and of the retries in live_port_guard, in seconds.
+LIVE_PORT_WAIT=${LIVE_PORT_WAIT:-90}
+LIVE_PORT_RETRY_PAUSE=${LIVE_PORT_RETRY_PAUSE:-10}
+# Set to 1 by live_port_wait_free when it found the port in use and waited for it; its callers reset it to 0 first.
+LIVE_PORT_BUSY_SEEN=0
+
+# 0 when the host's table of TCP sockets holds <port> on a local address that Docker's bind would collide with: ss where there is one
+# (every state except TIME-WAIT, so a loopback client whose ephemeral source port is the port counts as well as a listener, on
+# 127.0.0.1, 0.0.0.0, *, [::] or [::ffff:127.0.0.1]; a TIME-WAIT socket does not block a listener that sets SO_REUSEADDR), otherwise
+# lsof (LISTEN only); with neither tool, 1 (the connect check of port_in_use stands alone).
+live_port_listed() {
+  if command -v ss >/dev/null 2>&1; then
+    ss -tan 2>/dev/null | awk -v p="$1" '
+      $1 != "TIME-WAIT" && ($4 == "127.0.0.1:" p || $4 == "0.0.0.0:" p || $4 == "*:" p || $4 == "[::]:" p || $4 == "[::ffff:127.0.0.1]:" p) { found = 1 }
+      END { exit !found }'
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+  else
+    return 1
+  fi
+}
+
+# 0 when something listens on 127.0.0.1:<port>, or the listener table lists the port (a stack that is still releasing it can refuse
+# the connect and still hold the bind).
+port_in_use() {
+  if (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; then return 0; fi
+  live_port_listed "$1"
+}
+
+live_port_free() { ! port_in_use "$1"; }
+
+# live_port_wait_free <port> [<max s>]: 0 at once when the port is free; 1 at once, silently, when <max s> (default LIVE_PORT_WAIT)
+# is 0 or less. Otherwise sets LIVE_PORT_BUSY_SEEN=1, prints "PORT waiting", waits (wait_until, so every 3 s, up to <max s> and never
+# past the run's deadline) for it to be free, checks once more after the last sleep, and prints "PORT free: ... after <s> s" and
+# returns 0, or returns 1 when it is still in use.
+live_port_wait_free() {
+  local p=$1 max=${2:-$LIVE_PORT_WAIT} t=$SECONDS
+  if ! port_in_use "$p"; then return 0; fi
+  if [ "$max" -le 0 ]; then return 1; fi
+  LIVE_PORT_BUSY_SEEN=1
+  echo "PORT waiting: 127.0.0.1:$p is in use; waiting up to $max s"
+  if wait_until "$max" live_port_free "$p" || live_port_free "$p"; then
+    echo "PORT free: 127.0.0.1:$p after $((SECONDS - t)) s"
+    return 0
+  fi
+  return 1
+}
 
 # live_web_port: publishes the project's web port on 127.0.0.1 only. The port is OCUTALON_TEST_WEB_PORT when set,
-# otherwise the first port of 52800-52819 that nothing listens on. Sets web_port, and adds an override file
+# otherwise the first port of 52800-52819 that nothing listens on. An override port that is in use is waited for
+# (live_port_wait_free, up to LIVE_PORT_WAIT s, printing one "waited <s> s for port <p>" line when it waited) before it is refused. Sets web_port, and adds an override file
 # (ports: ["127.0.0.1:<port>:52773"]) after the other compose files. Returns 1, saying why, when the port is
-# outside 52800-52819, in use or forbidden, or no port is free.
+# outside 52800-52819, in use (after the wait) or forbidden, or no port is free.
 live_web_port() {
-  local port="" candidate forbidden
+  local port="" candidate forbidden waited_from free
   if [ -n "${OCUTALON_TEST_WEB_PORT:-}" ]; then
     port=$OCUTALON_TEST_WEB_PORT
     case $port in
@@ -225,7 +277,12 @@ live_web_port() {
       echo "FAIL live_web_port: OCUTALON_TEST_WEB_PORT $port is outside 52800-52819"
       return 1
     fi
-    if port_in_use "$port"; then
+    LIVE_PORT_BUSY_SEEN=0
+    waited_from=$SECONDS
+    live_port_wait_free "$port"
+    free=$?
+    if [ "$LIVE_PORT_BUSY_SEEN" = 1 ]; then echo "waited $((SECONDS - waited_from)) s for port $port"; fi
+    if [ "$free" -ne 0 ]; then
       echo "FAIL live_web_port: port $port is in use on 127.0.0.1"
       return 1
     fi
@@ -246,10 +303,119 @@ live_web_port() {
   live_add_file "$tmp/port.yml"
 }
 
-dc() {
+dc_compose() {
   local args=() f
   for f in "${LIVE_FILES[@]}"; do args+=(-f "$f"); done
   docker compose -p "$P" "${args[@]}" "$@"
+}
+
+# dc <compose arguments>: the project's compose command. With a web port, a start (up, start or restart as the first argument) goes
+# through live_port_guard; every other call runs as it is.
+dc() {
+  case ${1:-} in
+    up | start | restart)
+      if [ -n "${web_port:-}" ]; then
+        live_port_guard dc_compose "$@"
+        return
+      fi
+      ;;
+  esac
+  dc_compose "$@"
+}
+
+# The first line of file <1> that holds a bind error, cut to 200 characters; 1 when there is none.
+live_bind_error() {
+  local line
+  line=$(grep -m1 -F -e 'address already in use' -e 'failed programming external connectivity' "$1" 2>/dev/null) || return 1
+  printf '%s\n' "${line:0:200}"
+}
+
+# live_bounded <command...>: runs the command under timeout 10 where the host has timeout.
+live_bounded() {
+  if command -v timeout >/dev/null 2>&1; then timeout 10 "$@"; else "$@"; fi
+}
+
+# live_port_holders <port>: prints "PORT holder: <line>" for what holds the port, and returns 0 always: every container of any
+# project that publishes it (docker ps -a), then every TCP socket with that local port in any state (ss, else lsof), at most 10
+# lines from each source and each tool run once; "PORT holder: none seen" when there is nothing.
+live_port_holders() {
+  local p=$1 out seen=0
+  out=$(live_bounded docker ps -a --filter "publish=$p" --format '{{.Names}} {{.Status}} project={{.Label "com.docker.compose.project"}}' 2>/dev/null \
+    | awk 'NR <= 10 { print "PORT holder: " substr($0, 1, 200) }')
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out"
+    seen=1
+  fi
+  if command -v ss >/dev/null 2>&1; then
+    out=$(live_bounded ss -tanp 2>/dev/null | awk -v s=":$p" '
+      length($4) > length(s) && substr($4, length($4) - length(s) + 1) == s && n < 10 { n++; print "PORT holder: " substr($0, 1, 200) }')
+  elif command -v lsof >/dev/null 2>&1; then
+    out=$(live_bounded lsof -nP -iTCP:"$p" 2>/dev/null | awk 'NR > 1 && n < 10 { n++; print "PORT holder: " substr($0, 1, 200) }')
+  else
+    out=""
+  fi
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out"
+    seen=1
+  fi
+  if [ "$seen" = 0 ]; then echo "PORT holder: none seen"; fi
+  return 0
+}
+
+# live_port_guard <command...>: runs a start of the project's stack, which publishes $web_port, as follows.
+#   1. Before the start, unless the project's own container publishes the port (a restart, or an up over a running stack): waits for
+#      the port to be free (live_port_wait_free, one budget of LIVE_PORT_WAIT s); when it is still in use, says so, lists the holders
+#      and starts anyway, because the bind decides.
+#   2. Runs the command; its stderr goes to a file and is replayed to stderr afterwards.
+#   3. When the command fails with a bind error: up to two times prints "PORT retry", pauses LIVE_PORT_RETRY_PAUSE s (outside the
+#      budget), waits for the port again with what is left of the budget, and runs the command once more. A bind error after the
+#      second retry prints "FAIL web port: ... could not be bound after two retries" and the holders.
+#   4. A start that waited (the first wait found the port in use, or a retry ran) prints one "waited <s> s for port <p>" line, last.
+# Returns the last status. Any other failure returns its status at once, with no retry.
+live_port_guard() {
+  local p=$web_port t=$SECONDS rc line errf="$tmp/port-guard.$$.err" budget=$LIVE_PORT_WAIT spent=0 waited_s=0 waited=0 k=0 t1 t2 t_end left free
+  LIVE_PORT_BUSY_SEEN=0
+  if [ -z "$(docker ps -q --filter "label=com.docker.compose.project=$P" --filter "publish=$p" 2>/dev/null)" ]; then
+    t=$SECONDS # the wait starts here: the own-stack query above is not waiting
+    live_port_wait_free "$p" "$budget"
+    free=$?
+    t_end=$SECONDS
+    if [ "$free" -ne 0 ]; then
+      echo "PORT still in use: 127.0.0.1:$p after $((t_end - t)) s; starting anyway"
+      live_port_holders "$p"
+    fi
+    if [ "$LIVE_PORT_BUSY_SEEN" = 1 ]; then
+      spent=$((t_end - t))
+      waited_s=$spent
+      waited=1
+    fi
+  fi
+  "$@" 2>"$errf"
+  rc=$?
+  cat "$errf" >&2
+  while [ "$rc" -ne 0 ] && [ "$k" -lt 2 ] && line=$(live_bind_error "$errf"); do
+    k=$((k + 1))
+    waited=1
+    echo "PORT retry: $line; retry $k of 2 in $LIVE_PORT_RETRY_PAUSE s"
+    t1=$SECONDS
+    sleep "$LIVE_PORT_RETRY_PAUSE"
+    t2=$SECONDS
+    left=$((budget - spent))
+    if [ "$left" -lt 0 ]; then left=0; fi
+    live_port_wait_free "$p" "$left" || true
+    spent=$((spent + SECONDS - t2))
+    waited_s=$((waited_s + SECONDS - t1))
+    "$@" 2>"$errf"
+    rc=$?
+    cat "$errf" >&2
+  done
+  if [ "$rc" -ne 0 ] && [ "$k" -eq 2 ] && line=$(live_bind_error "$errf"); then
+    echo "FAIL web port: 127.0.0.1:$p could not be bound after two retries: $line"
+    live_port_holders "$p"
+  fi
+  if [ "$waited" = 1 ]; then echo "waited $waited_s s for port $p"; fi
+  rm -f "$errf"
+  return "$rc"
 }
 
 # Records the image that the service's last build produced, so that the cleanup removes it
@@ -488,6 +654,8 @@ live_first_start() {
     echo "first start: docker compose up failed after $((SECONDS - up_at)) s"
     return 1
   fi
+  # The port guard's lines (Stories 0.24 and 0.25): a port wait or a retry counts in the ready figure, so they are shown beside it.
+  grep -E '^(PORT|waited )' "$tmp/first-up.log"
   cid=$(dc ps -q iris)
   if [ -z "$cid" ]; then
     echo "first start: no iris container in project $P after $((SECONDS - up_at)) s"
@@ -898,16 +1066,16 @@ compare_surfaces() {
   fi
 }
 
-# check_orders_jobs <label>: OrdersFromPartner and OrdersToWarehouse each have an alive job in OCUORDERS, and the adapterless
+# check_orders_jobs <label>: OrdersFromPartner, OrdersToWarehouse and OrdersForReview each have an alive job in OCUORDERS, and the adapterless
 # PartnerOrdersIn has none. The jobs of the system items of Interoperability (Ens.*) are not the production's.
 check_orders_jobs() {
   local label=$1 names
   item_jobs "$tmp/orders.jobs" OCUORDERS
   names=$(awk -F'\t' '$1 !~ /^Ens\./ { print $1 }' "$tmp/orders.jobs" | sort | tr '\n' ' ')
-  if [ "$names" = 'OrdersFromPartner OrdersToWarehouse ' ]; then
-    pass "$label: OrdersFromPartner and OrdersToWarehouse have an alive job, and PartnerOrdersIn has none"
+  if [ "$names" = 'OrdersForReview OrdersFromPartner OrdersToWarehouse ' ]; then
+    pass "$label: OrdersFromPartner, OrdersToWarehouse and OrdersForReview have an alive job, and PartnerOrdersIn has none"
   else
-    fail "$label: the alive jobs of the Orders production are '$names', not OrdersFromPartner and OrdersToWarehouse"
+    fail "$label: the alive jobs of the Orders production are '$names', not OrdersForReview, OrdersFromPartner and OrdersToWarehouse"
   fi
 }
 
@@ -919,7 +1087,7 @@ check_orders_jobs() {
 #   - in OCUORDERS, OcuTalon.Demo.Orders resolves to OCUTALON_CODE, OcuTalon.Web.Public, OcuTalon.Data.Public and the global
 #     ^OcuTalonPublic resolve to OCUTALON_PUBLIC;
 #   - Interoperability is enabled, and no HealthShare mapping or instance marker exists for OCUORDERS;
-#   - the Orders production runs with OrdersFromPartner and OrdersToWarehouse alive, and OCUORDERS has no autostart production;
+#   - the Orders production runs with OrdersFromPartner, OrdersToWarehouse and OrdersForReview alive, and OCUORDERS has no autostart production;
 #   - /ocutalon/trace/ocuorders has the properties of the trace application, the Interoperability portal application of the
 #     namespace (/csp/ocuorders) asks for a password (AutheEnabled 32), and the trace role holds Read on the OCUORDERS
 #     databases and SQL SELECT on Ens.MessageHeader in OCUORDERS;

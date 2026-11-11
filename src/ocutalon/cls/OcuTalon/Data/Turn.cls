@@ -82,6 +82,10 @@ Property Citations As %String(MAXLEN = "");
 /// Rows saved before this property hold no value.
 Property Memories As %String(MAXLEN = "");
 
+/// The learned saves the reply announces (Story 41.15), as a JSON array of {memoryRef, text} (at most 3): the facts that the turn saved from the person's
+/// own words (Source learned), as MemoryTools put them in the reply's HostData; empty for a reply with none. Rows saved before Story 41.15 hold no value.
+Property Learned As %String(MAXLEN = "");
+
 /// The Ref of the decision whose figures the turn shows (AD-20): for a fallback reply the reply decision, else the triage
 /// decision; the other one when the first is empty.
 Method ShownDecisionRef() As %String
@@ -175,6 +179,9 @@ Storage Default
 </Value>
 <Value name="25">
 <Value>Memories</Value>
+</Value>
+<Value name="26">
+<Value>Learned</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.TurnD</DataLocation>

@@ -11,7 +11,10 @@ Include Ensemble
 ///     ItemId, no ClientId and no decision. Nothing queues it, the chat never shows it and no recap includes it. The window of a
 ///     refusal runs from its first refusal until its retryAt (the Session row's AllowanceUntil); the first refusal of a window is
 ///     flagged, and the channel service sends the one allowance Notice then;
-///   - MailAllowed holds the simulated mailbox to EMAILLIMIT incoming emails over the same window, samples included;
+///   - TryConsumeRead counts one read of the Memory card's search (Story 41.13, DW-1031) against the same entries, Limit() and WINDOW, and
+///     records nothing when it refuses: no refused Turn, no AllowanceUntil, so the window and the one notice stay the chat's;
+///   - MailAllowed holds the simulated mailbox to EMAILLIMIT simulated emails over the same window: the incoming ones, samples included, and the delay notices that the session
+///     sent (Story 23.5), and it asks for room for more than one when the caller says how many it wants;
 ///   - Refund gives back the entry of a message whose send failed. Until says when a window ends. Notice and DailyCapNotice build the
 ///     two allowance notifications (kind allowance, which goes to the web chat and the paired chat only, AD-14).
 /// With the flag off (a local or IPM install) nothing is counted, recorded or refused. None of these methods publishes an event.
@@ -49,6 +52,22 @@ Parameter LOGREFUND = "Allowance could not give back a message's entry: ";
 /// nothing. It never throws.
 ClassMethod TryConsume(sessionRef As %String, channel As %String, text As %String, Output retryAt As %String, Output firstRefusal As %Boolean) As %Boolean
 {
+	Quit ..Consume(sessionRef, channel, text, 1, .retryAt, .firstRefusal)
+}
+
+/// Asks to count one read (the Memory card's search) against the session's allowance. Returns 1 when it may go on; its entry is
+/// then appended to AllowanceTimes as a message's is. Returns 0 when the session has Limit() entries in the window: retryAt is the
+/// UTC time when the oldest blocking entry leaves the window, and nothing is written (no refused Turn, no AllowanceUntil, no
+/// transaction). A busy lock or a failure returns 0 with retryAt "". With the flag off, or for a session that has no row, it
+/// returns 1 and records nothing. It never throws.
+ClassMethod TryConsumeRead(sessionRef As %String, Output retryAt As %String) As %Boolean
+{
+	Quit ..Consume(sessionRef, "", "", 0, .retryAt, .firstRefusal)
+}
+
+/// The core of TryConsume and TryConsumeRead. With record 0 a refusal sets retryAt and writes nothing.
+ClassMethod Consume(sessionRef As %String, channel As %String, text As %String, record As %Boolean, Output retryAt As %String, Output firstRefusal As %Boolean) As %Boolean [ Private ]
+{
 	Set retryAt = ""
 	Set firstRefusal = 0
 	If ..Off() Quit 1
@@ -74,6 +93,10 @@ ClassMethod TryConsume(sessionRef As %String, channel As %String, text As %Strin
 		}
 		Set until = ##class(OcuTalon.Data.Time).AddSeconds($List(times, 1), ..#WINDOW)
 		If until = "" Quit
+		If 'record {
+			Set retryAt = until
+			Quit
+		}
 		Set first = '(session.AllowanceUntil ] now)
 		TStart
 		Set sc = ..Refused(session.Ref, channel, text, now)
@@ -230,20 +253,23 @@ ClassMethod DailyCapNotice(sessionRef As %String, resetsAt As %String) As OcuTal
 	Quit notification
 }
 
-/// 1 when the session may simulate one more incoming email at now (UTC): always with the flag off, otherwise when it has fewer
-/// than EMAILLIMIT incoming emails (samples included, outgoing ones never) after now minus WINDOW seconds
-/// (Ownership.IncomingMail). The caller holds the session row's lock across this call and the save of its email. When it is 0,
-/// retryAt is the UTC time when the oldest of them leaves the window. sc is an error status when the count could not be read,
-/// and the result is then 0 with retryAt "".
-ClassMethod MailAllowed(sessionRef As %String, now As %String, Output retryAt As %String, Output sc As %Status) As %Boolean
+/// 1 when the session may simulate more emails at now (UTC), one by default: always with the flag off, otherwise when its count of incoming emails (samples included,
+/// Ownership.IncomingMail) and of delay notices it sent (Ownership.PartnerNotices), both after now minus WINDOW seconds, plus more is at most EMAILLIMIT. The caller of an incoming
+/// email holds the session row's lock across this call and the save of its email. When it is 0, retryAt is the UTC time when the oldest of them leaves the window.
+/// sc is an error status when a count could not be read, and the result is then 0 with retryAt "".
+ClassMethod MailAllowed(sessionRef As %String, now As %String, Output retryAt As %String, Output sc As %Status, more As %Integer = 1) As %Boolean
 {
 	Set retryAt = ""
 	Set sc = $SYSTEM.Status.OK()
 	If ..Off() Quit 1
-	Set count = ##class(OcuTalon.Data.Ownership).IncomingMail(sessionRef, ##class(OcuTalon.Data.Time).AddSeconds(now, -..#WINDOW), .oldest, .sc)
+	Set since = ##class(OcuTalon.Data.Time).AddSeconds(now, -..#WINDOW)
+	Set incoming = ##class(OcuTalon.Data.Ownership).IncomingMail(sessionRef, since, .oldestIncoming, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit 0
-	If count < ..#EMAILLIMIT Quit 1
-	Set retryAt = ##class(OcuTalon.Data.Time).AddSeconds(oldest, ..#WINDOW)
+	Set notices = ##class(OcuTalon.Data.Ownership).PartnerNotices(sessionRef, since, .oldestNotice, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit 0
+	If incoming + notices + more '> ..#EMAILLIMIT Quit 1
+	Set oldest = $Select(oldestIncoming = "": oldestNotice, oldestNotice = "": oldestIncoming, oldestNotice ] oldestIncoming: oldestIncoming, 1: oldestNotice)
+	If oldest '= "" Set retryAt = ##class(OcuTalon.Data.Time).AddSeconds(oldest, ..#WINDOW)
 	Quit 0
 }
 

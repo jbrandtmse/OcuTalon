@@ -16,6 +16,8 @@
 ///   - TestTimeReadsForms: the forms and the refusals of Observe.TimeReads, which the card tests rely on;
 ///   - TestNoticeOnAnotherDay: a retryAt on another day reads "on <day> at HH:MM ET", the form that the card tests accept beside the clock alone;
 ///   - TestMailAllowed: the email limit at 19, 20 and 21, outgoing rows and old rows ignored, the flag off;
+///   - TestMailAllowedCountsPartnerNotices (Story 23.5, AC10): the sent delay notices (outgoing mailbox rows with an ApprovalRef) count with the incoming emails toward the 20, a reply (no ApprovalRef) does
+///     not, a caller that asks for room for several (more) is allowed only while count plus more is at most 20, retryAt is the oldest of the two kinds, and the flag off lifts it;
 ///   - TestConversationNamesNoAllowance: Conversation never refers to the allowance, by its full or its short name, or to TryConsume
 ///     (AD-20);
 ///   - QA (Story 16.9): TestMailAllowedFailedReadIsNotAnAllowance (a count that cannot be read is an error and 0, never an allowance),
@@ -238,6 +240,90 @@ Method TestBusyLockRefusesWithNoRetryAt()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Trace).LockFree(id), 1, "the row's lock is free")
 }
 
+/// Story 41.13: below the limit TryConsumeRead allows a read, with an empty retryAt, and appends now to AllowanceTimes as a message's
+/// entry is; it records no Turn and opens no window. It shares the entries with TryConsume: 48 messages and one read make 49, so the
+/// 50th message is allowed and the 51st is refused.
+Method TestReadUnderLimit()
+{
+	Set ref = ..Session("readunder")
+	Do ..Seed(ref, 48, 1000)
+	Set retryAt = "zz"
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsumeRead(ref, .retryAt)_"|"_retryAt, "1|", "a read under the limit is allowed, with no retryAt")
+	Set times = ..Times(ref)
+	Do $$$AssertEquals($ListLength(times), 49, "its entry is appended")
+	Do $$$AssertTrue(..Shaped(times) && ..Ordered(times), "in UTC to the second, oldest first")
+	Do $$$AssertEquals(..TurnCount(ref), 0, "no Turn is recorded")
+	Do $$$AssertEquals(..Row(ref).AllowanceUntil, "", "and no window is opened")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsume(ref, "web", "zz the fiftieth", .again, .first), 1, "the 50th count is a message")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsume(ref, "web", "zz the fifty-first", .again, .first), 0, "and the 51st is refused: reads and messages share one count")
+}
+
+/// Story 41.13: at the limit a read is refused with the retryAt of a message (the oldest entry plus WINDOW) and writes nothing: no Turn,
+/// no new entry, AllowanceUntil unchanged, so that a following TryConsume still flags the first refusal of the window.
+Method TestReadAtLimitRecordsNothing()
+{
+	Set ref = ..Session("readlimit")
+	Do ..Seed(ref, 50, 1000)
+	Set oldest = $List(..Times(ref), 1)
+	Set before = ..Row(ref).AllowanceTimes
+	For i = 1:1:2 {
+		Set retryAt = "zz"
+		Set allowed = ##class(OcuTalon.Core.Allowance).TryConsumeRead(ref, .retryAt)
+		Do $$$AssertEquals(allowed_"|"_retryAt, "0|"_##class(OcuTalon.Data.Time).AddSeconds(oldest, 3600), "read "_i_" is refused, with the oldest entry plus 3600 seconds")
+	}
+	Set row = ..Row(ref)
+	Do $$$AssertEquals(row.AllowanceTimes, before, "no entry is added")
+	Do $$$AssertEquals(row.AllowanceUntil, "", "AllowanceUntil is unchanged")
+	Do $$$AssertEquals(..TurnCount(ref), 0, "and no refused Turn is recorded")
+	Do $$$AssertEquals($TLevel, 0, "with no open transaction")
+	Set allowed = ##class(OcuTalon.Core.Allowance).TryConsume(ref, "web", "zz the first message past the limit", .retryAt, .first)
+	Do $$$AssertEquals(allowed_"|"_first, "0|1", "the next message is the first refusal of the window")
+	Do $$$AssertEquals(..TurnCount(ref), 1, "and records its one refused Turn")
+}
+
+/// Story 41.13: with the flag off, or for a session that has no row, a read is allowed and nothing is recorded.
+Method TestReadFlagOff()
+{
+	Set ref = ..Session("readoff")
+	Do ..Seed(ref, 50, 500)
+	Set before = ..Times(ref)
+	For flag = "", 0 {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", flag)
+		Set retryAt = "zz"
+		Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsumeRead(ref, .retryAt)_"|"_retryAt, "1|", "flag '"_flag_"': allowed, nothing to retry")
+	}
+	Do $$$AssertEquals(..Row(ref).AllowanceTimes, before, "the entries are untouched")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set unknown = "zzallowance"_..Number_"readnorow"
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsumeRead(unknown, .retryAt)_"|"_retryAt, "1|", "a session with no row is allowed")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(unknown), 0, "and no row is made")
+	Do $$$AssertEquals(..TurnCount(ref), 0, "no Turn is recorded")
+}
+
+/// Story 41.13: another job holds the session's row lock: a read waits about LOCKWAIT seconds, then answers 0 with an empty retryAt and
+/// records nothing.
+Method TestReadBusyLock()
+{
+	Set ref = ..Session("readbusy")
+	Do ..Seed(ref, 10, 500)
+	Set id = ..Row(ref).%Id()
+	Set before = ..Times(ref)
+	Kill ^OcuTalonTest("Allowance", "job", "readhold")
+	Job ##class(OcuTalon.Test.Core.Allowance).Hold(id, "readhold")
+	Do ..WaitFor($Name(^OcuTalonTest("Allowance", "job", "readhold", "ready")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("Allowance", "job", "readhold", "ready")), 1, "another job holds the row's lock")
+	Set started = $ZHorolog
+	Set allowed = ##class(OcuTalon.Core.Allowance).TryConsumeRead(ref, .retryAt)
+	Set waited = $ZHorolog - started
+	Do $$$AssertEquals(allowed_"|"_retryAt, "0|", "the read is refused with no retryAt")
+	Do $$$AssertTrue((waited >= (##class(OcuTalon.Core.Allowance).#LOCKWAIT - 0.5)) && (waited < (##class(OcuTalon.Core.Allowance).#LOCKWAIT + 5)), "after about "_##class(OcuTalon.Core.Allowance).#LOCKWAIT_" seconds: "_waited)
+	Set ^OcuTalonTest("Allowance", "job", "readhold", "release") = 1
+	Do ..WaitFor($Name(^OcuTalonTest("Allowance", "job", "readhold", "done")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("Allowance", "job", "readhold", "done")), 1, "the other job lets go")
+	Do $$$AssertEquals(..Times(ref), before, "nothing was recorded on the row")
+	Do $$$AssertEquals(..TurnCount(ref), 0, "and no Turn")
+}
+
 /// Row 8, a failed save: a refused message whose Turn cannot be saved (a channel over the property's length) rolls back, so
 /// the call answers 0 with an empty retryAt, no flag, no window, no Turn and no open transaction, and holds no lock.
 Method TestFailedSaveRollsBack()
@@ -355,6 +441,38 @@ Method TestMailAllowed()
 	Set other = ..Session("mailother")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(other, now, .retryAt, .sc), 1, "another session's emails are not counted")
+}
+
+/// AC10 (Story 23.5): the delay notices that the session sent count with its incoming emails toward the 20 of the hour.
+Method TestMailAllowedCountsPartnerNotices()
+{
+	Set ref = ..Session("mailnotice")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	For i = 1:1:10 Do ..Mail(ref, "in", ##class(OcuTalon.Data.Time).AddSeconds(now, -3000 + i))
+	For i = 1:1:9 Do ..Notice(ref, ##class(OcuTalon.Data.Time).AddSeconds(now, -2500 + i))
+	For i = 1:1:5 Do ..Mail(ref, "out", ##class(OcuTalon.Data.Time).AddSeconds(now, -100 - i))
+	Do ..Notice(ref, ##class(OcuTalon.Data.Time).AddSeconds(now, -3601))
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(ref, now, .retryAt, .sc), 1, "10 incoming and 9 notices: one more is allowed (a reply and a notice older than the hour are not counted)")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(ref, now, .retryAt, .sc, 2), 0, "but room for two is not: 19 plus 2 is over 20")
+	Set oldest = ##class(OcuTalon.Data.Time).AddSeconds(now, -3000 + 1)
+	Do $$$AssertEquals(retryAt, ##class(OcuTalon.Data.Time).AddSeconds(oldest, 3600), "retryAt is the oldest of the incoming emails and the notices plus 3600 seconds")
+	Do ..Notice(ref, ##class(OcuTalon.Data.Time).AddSeconds(now, -2400))
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(ref, now, .retryAt, .sc), 0, "10 incoming and 10 notices: refused")
+	Do $$$AssertStatusOK(sc, "with no error")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(ref, ##class(OcuTalon.Data.Time).AddSeconds(oldest, 3600), .later, .sc), 1, "allowed again when the oldest has left the window")
+	Set only = ..Session("mailnoticeonly")
+	For i = 1:1:20 Do ..Notice(only, ##class(OcuTalon.Data.Time).AddSeconds(now, -3000 + i))
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(only, now, .retryAt, .sc), 0, "20 notices alone use the 20 emails")
+	Do $$$AssertEquals(retryAt, ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).AddSeconds(now, -3000 + 1), 3600), "and retryAt is the oldest notice plus 3600 seconds")
+	Set none = ..Session("mailnone")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(none, now, .retryAt, .sc, 20), 1, "room for 20 with nothing sent is allowed")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(none, now, .retryAt, .sc, 21)_"|"_retryAt, "0|", "room for 21 is refused, with no retryAt to give")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PartnerNotices(ref, ##class(OcuTalon.Data.Time).AddSeconds(now, -3600), .first, .sc)_"|"_first, "10|"_##class(OcuTalon.Data.Time).AddSeconds(now, -2500 + 1), "PartnerNotices counts the notices of the hour and gives the oldest")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PartnerNotices("", now, .first, .sc), 0, "an empty session reads none")
+	Do $$$AssertStatusNotOK(sc, "and says that the read failed")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(only, now, .retryAt, .sc, 5), 1, "the flag off: no limit")
 }
 
 /// Matrix row 17, the error handling (QA): a count that cannot be read is an error status and the result is 0 with an empty retryAt,
@@ -510,6 +628,12 @@ Method Seed(ref As %String, count As %Integer, oldestAge As %Integer, until As %
 Method Mail(ref As %String, direction As %String, createdAt As %String) [ Private ]
 {
 	Do ##class(OcuTalon.Test.Data.Fixture).SimMessage(ref, {"Kind": "mailbox", "Direction": (direction), "CreatedAt": (createdAt), "Subject": "zz mail"})
+}
+
+/// A sent delay notice of the session (Story 23.5): outgoing mailbox mail that carries the ApprovalRef of its request.
+Method Notice(ref As %String, createdAt As %String) [ Private ]
+{
+	Do ##class(OcuTalon.Test.Data.Fixture).SimMessage(ref, {"Kind": "mailbox", "Direction": "out", "CreatedAt": (createdAt), "Subject": "zz notice", "ApprovalRef": "ZzApprovalRef00000001"})
 }
 
 /// The turns of the session, oldest first.

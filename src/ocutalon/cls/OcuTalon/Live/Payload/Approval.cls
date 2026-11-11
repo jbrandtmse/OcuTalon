@@ -20,6 +20,9 @@ Property ToolName As %String(%JSONFIELDNAME = "toolName", MAXLEN = 128);
 /// Why the request needs an answer.
 Property Reason As %String(%JSONFIELDNAME = "reason", MAXLEN = 1000);
 
+/// The name of the fix kind of a fix request (Story 23.2), such as repair_resend, suspend_item, resume_item or reroute; empty for any other kind of request.
+Property FixKind As %String(%JSONFIELDNAME = "fixKind", MAXLEN = 64);
+
 /// What the action would do, from the dry run.
 Property DryRun As OcuTalon.Live.Payload.Part.DryRun(%JSONFIELDNAME = "dryRun");
 
@@ -54,8 +57,9 @@ Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 /// The namespace that holds the trace.
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
-/// The payload for an approval request row, with every row-backed field set; dryRun is the row's stored JSON parsed
-/// into its part (left absent when the row holds none or it can't be read). A setting request (Story 40.6) has the DryRun {key, ownerRef, old, new}:
+/// The payload for an approval request row, with every row-backed field set (the fix kind of a fix request included); dryRun is the row's stored JSON parsed
+/// into its part (left absent when the row holds none or it can't be read). A partner_warning request (Story 23.5) has the DryRun {notice, recipients, simulated}: its part holds
+/// only the notice, the recipients as "Name <address>" and simulated, with no repair keys and no reading. A setting request (Story 40.6) has the DryRun {key, ownerRef, old, new}:
 /// its part holds only before and after, each the old or new object's text, the string itself when it is one, and "" when it is missing; every other
 /// field of the part stays empty, eitherWay is 0 and Reading is not asked. For any other kind the part's eitherWay and reading are the answer of Watch.Notice Reading over that dry run
 /// and the row's FixParameters, the rule that chose the notice's key: eitherWay 1 with the reading, else 0 and no reading. Neither is kept on the row. The reason has no source in the row and
@@ -70,6 +74,7 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 	Set payload.State = row.State
 	Set payload.IncidentRef = row.IncidentRef
 	Set payload.ToolName = row.ToolName
+	Set payload.FixKind = row.FixKind
 	Set payload.RaisedAt = row.RaisedAt
 	Set payload.ExpiresAt = row.ExpiresAt
 	Set payload.AnsweredAction = row.AnsweredAction
@@ -95,12 +100,28 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 				Set payload.DryRun = part
 				Quit
 			}
+			If row.FixKind = "partner_warning" {
+				Set part.Notice = dry.notice
+				Set part.Simulated = +dry.simulated
+				If $IsObject(dry.recipients) {
+					Set iterator = dry.recipients.%GetIterator()
+					While iterator.%GetNext(, .recipient) {
+						Do part.Recipients.Insert(recipient.name_" <"_recipient.address_">")
+					}
+				}
+				Set payload.DryRun = part
+				Quit
+			}
 			Set part.Affected = dry.affected
 			Set part.Resend = dry.resend
 			Set part.LeftOut = dry.leftOut
 			Set part.Field = dry.field
 			Set part.Before = dry.before
 			Set part.After = dry.after
+			Set part.Item = dry.item
+			Set part.From = dry.from
+			Set part.To = dry.to
+			Set part.Example = dry.example
 			If $IsObject(dry.itemNoun) {
 				Set part.ItemNoun = ##class(OcuTalon.Live.Payload.Part.ItemNoun).%New()
 				Set part.ItemNoun.One = dry.itemNoun.one

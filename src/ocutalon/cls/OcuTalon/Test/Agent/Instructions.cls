@@ -101,6 +101,8 @@ Method TestChat()
 	Do $$$AssertTrue(text [ "call stop_watch again with the namespace the user picks", "a stop that is ambiguous is asked about and stopped with stop_watch, never with start_watch")
 	Do $$$AssertTrue(text [ "why nothing was stopped", "and a stop that did nothing is explained from the answer's message")
 	Do $$$AssertTrue(text [ "dismiss_incident", "the instructions name dismiss_incident")
+	Do $$$AssertTrue(text [ "call propose_fix with kind partner_warning and no item", "the instructions say how a partner warning is asked for: propose_fix with kind partner_warning and no item (Story 23.5)")
+	Do $$$AssertTrue(text [ "that it comes as an approval request with the exact text and recipients, and that nothing is sent until it is approved", "and that the notice comes as an approval request and nothing is sent until it is approved")
 	Do $$$AssertTrue(text [ "call dismiss_incident again with the ref", "an ambiguous incident is asked about and dismissed with its ref")
 	Do $$$AssertTrue(text [ "can't be dismissed while its fix waits for approval", "an incident whose fix is busy is not dismissed, and the user is told why")
 	Do $$$AssertTrue(text [ "why nothing was dismissed", "and a dismissal that did nothing is explained from the answer's message")
@@ -196,7 +198,7 @@ ClassMethod MaxLen(class As %String, property As %String) As %String [ Private ]
 
 /// Triage has no toolset, Diagnosis has the Watch toolset, and a fresh tool manager discovers exactly the three tools
 /// of OcuTalon.Tools.Names, each once, with the ReadOnly requirement 1, and runs each one, which takes no argument and has no bridge context here, to the dynamic object {"items":[]}. Chat has the Reminders, Watching, Persona (Story 40.5) and Memory (Story 19.3) toolsets,
-/// and a fresh tool manager discovers exactly the other sixteen tools of OcuTalon.Tools.Names (send_digest since Story 17.6, incident_summary since Story 23.6), each once; with no bridge context each of them that takes
+/// and a fresh tool manager discovers exactly the other seventeen tools of OcuTalon.Tools.Names (send_digest since Story 17.6, incident_summary since Story 23.6, propose_fix since Story 23.2), each once; with no bridge context each of them that takes
 /// arguments (all but list_productions, which lists the productions and submits nothing; check_status takes none and answers NOSESSION too) runs to the dynamic object {"ok": false, "message": NOSESSION}
 /// and submits nothing.
 Method TestToolsets()
@@ -233,13 +235,14 @@ Method TestToolsets()
 	}
 	Do manager.Cleanup()
 
-	Set expected = $ListBuild(##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY, ##class(OcuTalon.Tools.Names).#INCIDENTSUMMARY, ##class(OcuTalon.Tools.Names).#DIGESTTOOLS, ##class(OcuTalon.Tools.Names).#PROPOSEPERSONA, ##class(OcuTalon.Tools.Names).#SAVEMEMORY, ##class(OcuTalon.Tools.Names).#SEARCHMEMORIES, ##class(OcuTalon.Tools.Names).#LISTMEMORIES, ##class(OcuTalon.Tools.Names).#FORGETMEMORY)
+	Set expected = $ListBuild(##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#PROPOSEFIX, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY, ##class(OcuTalon.Tools.Names).#INCIDENTSUMMARY, ##class(OcuTalon.Tools.Names).#DIGESTTOOLS, ##class(OcuTalon.Tools.Names).#PROPOSEPERSONA, ##class(OcuTalon.Tools.Names).#SAVEMEMORY, ##class(OcuTalon.Tools.Names).#SEARCHMEMORIES, ##class(OcuTalon.Tools.Names).#LISTMEMORIES, ##class(OcuTalon.Tools.Names).#FORGETMEMORY)
 	Set arguments("set_reminder") = {"text": "stretch", "delaySeconds": 60}
 	Set arguments("list_reminders") = {}
 	Set arguments("cancel_reminder") = {"reminderRefs": ["zzReminderStretch00001"]}
 	Set arguments("start_watch") = {"name": "Orders"}
 	Set arguments("stop_watch") = {"name": "Orders"}
 	Set arguments("dismiss_incident") = {}
+	Set arguments("propose_fix") = {"kind": "reroute", "item": "OrdersForReview"}
 	Set arguments("check_status") = {}
 	Set arguments("send_digest") = {}
 	Set arguments("incident_summary") = {}

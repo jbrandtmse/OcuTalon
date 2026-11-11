@@ -41,10 +41,16 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'result.interrupted': 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval.',
   'result.couldNotStart': 'Nothing was resent: {reason}. Nothing was changed.',
   'result.stoppedPartway': "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+  'result.itemSuspended': "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal.",
+  'result.itemResumed': '{item} in {production} is enabled again.',
+  'result.itemSkipped': '{item} was not changed: {reason}. It needs a new approval.',
+  'result.itemNotChanged': 'Nothing was changed: {reason}.',
+  'result.rerouted': 'All {count} {itemNoun} were rerouted to {to} and completed there. The originals stay unchanged.',
   'audit.recorded': 'Recorded in the IRIS audit log.',
   'incident.eitherWayLine': 'All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived.',
   'button.gotIt': 'Got it',
   'handled.marked': 'Marked as handled at {time}',
+  'memory.learnedSaved': 'I\'ll remember this: "{fact}". You can tell me to forget it.',
   'fallbackReason.timeout': "the model didn't answer within the time allowed",
   'fallbackReason.empty': "the model's reply was empty",
   'fallbackReason.cutOff': "the model's reply was cut off",
@@ -64,7 +70,7 @@ export const MESSAGE_TEXTS: Readonly<Record<string, string>> = {
   'answered.approvedBy': 'Approved by {user} from {channel} at {time}.',
 };
 
-/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel's name, noun the form that the count slot chooses, the others (time, count, cost and text) take the formatted string the caller passes. */
+/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel's name, noun the form that the count slot chooses, the others (time, count, cost, text and sentence) take the formatted string the caller passes. */
 export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'conversation.turnFallback': { 'fallbackReason': 'fallbackReason' },
   'checks.allPassed': {},
@@ -105,10 +111,16 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'result.interrupted': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count', 'remaining': 'count' },
   'result.couldNotStart': { 'reason': 'text' },
   'result.stoppedPartway': { 'count': 'count', 'itemNoun': 'noun', 'resent': 'count', 'completed': 'count', 'notTried': 'count' },
+  'result.itemSuspended': { 'item': 'text', 'production': 'text' },
+  'result.itemResumed': { 'item': 'text', 'production': 'text' },
+  'result.itemSkipped': { 'item': 'text', 'reason': 'sentence' },
+  'result.itemNotChanged': { 'reason': 'sentence' },
+  'result.rerouted': { 'count': 'count', 'itemNoun': 'noun', 'to': 'text' },
   'audit.recorded': {},
   'incident.eitherWayLine': { 'resendCount': 'count', 'reading': 'text', 'item': 'text' },
   'button.gotIt': {},
   'handled.marked': { 'time': 'time' },
+  'memory.learnedSaved': { 'fact': 'text' },
 };
 
 /** The count-of-one form of each listed key that has one: the count slot that decides it, and the text used when that slot is "1". */
@@ -120,6 +132,7 @@ export const PAGE_ONE_FORMS: Readonly<Record<string, { readonly slot: string; re
   'result.stillResending': { slot: 'completed', text: "Still resending: 1 of {count} {itemNoun} has gone through so far. I'll tell you when it's done." },
   'result.interrupted': { slot: 'remaining', text: 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other one needs a new approval.' },
   'result.stoppedPartway': { slot: 'notTried', text: "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and 1 more wasn't tried. Nothing else was changed, and I won't resend the rest without a new approval." },
+  'result.rerouted': { slot: 'count', text: 'The {itemNoun} was rerouted to {to} and completed there. The original stays unchanged.' },
   'incident.eitherWayLine': { slot: 'resendCount', text: 'The date is valid whether read month first or day first. Read {reading}, it matches the day the {item} arrived.' },
 };
 
@@ -186,6 +199,12 @@ function slotText(types: Readonly<Record<string, string>>, name: string, slots: 
   return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : type === 'noun' ? nounText(value, slots) : cleanSlot(value);
 }
 
+/** The text of a slot and the full stop that follows it in the template (empty when none does): a sentence slot never doubles the stop (a sentence that ends with one keeps that one), and a sentence that ends with "?", "!" or an ellipsis takes none. */
+function slotWithStop(types: Readonly<Record<string, string>>, name: string, piece: string, stop: string): string {
+  if (stop === '' || types[name] !== 'sentence' || piece === '') return piece + stop;
+  return '.?!\u2026'.includes(piece.slice(-1)) ? piece : piece + stop;
+}
+
 /** The text of a key in page form: its count-of-one form when it has one and the form's count slot is "1", else its PAGE_TEXTS text. */
 function pageTemplate(key: string, slots: PageSlots): string | undefined {
   const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
@@ -207,7 +226,7 @@ export function renderPageText(key: string, slots: PageSlots = {}): string {
   const template = pageTemplate(key, slots);
   if (template === undefined) throw new Error("The page has no catalog text for '" + key + "'");
   const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
-  return template.replace(/\{([^{}]*)\}/g, (_placeholder: string, name: string) => slotText(types, name, slots));
+  return template.replace(/\{([^{}]*)\}(\.?)/g, (_placeholder: string, name: string, stop: string) => slotWithStop(types, name, slotText(types, name, slots), stop));
 }
 
 /**
@@ -222,13 +241,13 @@ export function renderMessageText(key: string, slots: PageSlots = {}): string {
   const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
   let out = '';
   let position = 0;
-  for (const match of template.matchAll(/\{([^{}]*)\}/g)) {
+  for (const match of template.matchAll(/\{([^{}]*)\}(\.?)/g)) {
     const name = match[1] ?? '';
     const piece = slotText(types, name, slots);
     out += template.slice(position, match.index);
     const dated = types[name] === 'time' && !/^\d\d:\d\d$/.test(piece.replace(/ ET$/, ''));
     if (dated && /(^| )at $/.test(out)) out = out.slice(0, -3) + 'on ';
-    out += piece;
+    out += slotWithStop(types, name, piece, match[2] ?? '');
     position = (match.index ?? 0) + match[0].length;
   }
   return out + template.slice(position);

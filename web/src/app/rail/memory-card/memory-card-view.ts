@@ -10,7 +10,15 @@
  * - `metaParts` gives a row's meta parts (when, the channel as the server sends it, the answer word), which the component joins with the
  *   rail's separator; an empty part is left out.
  * - `forgetName` is the accessible name of a row's Forget: "Forget" followed by the row's summary.
- * - `nextTab` is the other of the two tabs.
+ * - `nextTab` is the tab one step on (or back) of the four tabs, wrapping at both ends.
+ *
+ * Story 41.13 adds the tabs Pinned and All memories (FR-73, FR-74, AD-21, AD-28): their strings are EXPERIENCE.md's (the Memory card) or the
+ * Contest Planner's rulings (the empty texts, the search, the failures, the demo rule).
+ * - `sourceLabel` is the chip of a memory: Told, or Learned for any source that is not told.
+ * - `usedText` is the Pinned figure: the number the server gave, grouped as en-US, never computed here.
+ * - `memoryName` is the accessible name of a row's button: the word, then the first MEMORY_OPENING characters of the text, with an ellipsis
+ *   when the text is longer.
+ * - `listMore` is the line under a list that shows only the newest of more, or "" when the list shows them all.
  */
 
 /** The card's fixed texts. */
@@ -31,6 +39,27 @@ export const MEMORY_TEXTS = {
   confirm: 'Forget',
   forgetFailed: "Couldn't forget it. Nothing was changed.",
   toolNote: 'OcuTalon keeps this answer but does not use it when it decides.',
+  pinned: 'Pinned',
+  memories: 'All memories',
+  pinnedIntro: 'Pinned facts are read at the start of each conversation.',
+  used: '{used} of 1,000 tokens (estimated).',
+  pinnedEmpty: 'Nothing pinned yet. Pin a memory from All memories.',
+  memoriesEmpty: 'No memories yet. Say "Remember that ..." in the chat.',
+  noMatch: 'No memories match.',
+  searchLabel: 'Search your memories',
+  search: 'Search',
+  told: 'Told',
+  learned: 'Learned',
+  pin: 'Pin',
+  unpin: 'Unpin',
+  listMore: 'Showing the newest {shown} of {total}. Search to find the others.',
+  memoryQuestion: 'Forget this memory? OcuTalon will stop using it.',
+  pinFailed: "Couldn't pin it. Nothing was changed.",
+  unpinFailed: "Couldn't unpin it. Nothing was changed.",
+  overCap: 'That would go over the 1,000-token limit. Unpin something first.',
+  searchBusy: 'Search is busy right now. Try again in a moment.',
+  demoRule:
+    "On the online demo, your memories and pins belong to this visit: they're deleted when you sign out or the demo resets. Each search counts as one of your messages.",
 } as const;
 
 /** The words of the stored answers. */
@@ -43,8 +72,14 @@ export const ANSWER_WORDS: Readonly<Record<string, string>> = {
 /** The id of the rail heading that the section takes (status-rail.ts), which names the tab list and takes focus after a confirmed Forget. */
 export const MEMORY_HEADING_ID = 'rail-heading-memory';
 
-/** The card's two tabs, in order. */
-export type MemoryTab = 'notes' | 'answers';
+/** The card's four tabs, in order. */
+export type MemoryTab = 'notes' | 'answers' | 'pinned' | 'memories';
+
+/** The tabs, in order. */
+export const MEMORY_TABS: readonly MemoryTab[] = ['notes', 'answers', 'pinned', 'memories'];
+
+/** How many characters of a memory's text a button's accessible name quotes (the length of a note's opening). */
+export const MEMORY_OPENING = 80;
 
 /** The fields of a precedent row that the rules read. */
 export interface MemoryRowFields {
@@ -72,7 +107,31 @@ export function forgetName(summary: string): string {
   return MEMORY_TEXTS.forgetName.replace('{summary}', () => summary);
 }
 
-/** The other tab. */
-export function nextTab(tab: MemoryTab): MemoryTab {
-  return tab === 'notes' ? 'answers' : 'notes';
+/** The tab one step on (step 1, the default) or one step back (step -1); the first follows the last and the last precedes the first. */
+export function nextTab(tab: MemoryTab, step: 1 | -1 = 1): MemoryTab {
+  const count = MEMORY_TABS.length;
+  const at = MEMORY_TABS.indexOf(tab);
+  return MEMORY_TABS[(at + step + count) % count] ?? 'notes';
+}
+
+/** The chip of a memory: Told for a told one, Learned for any other. */
+export function sourceLabel(source: string): string {
+  return source === 'told' ? MEMORY_TEXTS.told : MEMORY_TEXTS.learned;
+}
+
+/** The Pinned figure for the tokens the server counted: "{used} of 1,000 tokens (estimated).", the number grouped as en-US. */
+export function usedText(used: number): string {
+  return MEMORY_TEXTS.used.replace('{used}', () => new Intl.NumberFormat('en-US').format(used));
+}
+
+/** The accessible name of a memory row's button: the word, then the text's first MEMORY_OPENING characters, and an ellipsis when the text is longer. */
+export function memoryName(word: string, text: string): string {
+  const characters = Array.from(text);
+  const opening = characters.length > MEMORY_OPENING ? `${characters.slice(0, MEMORY_OPENING).join('')}\u2026` : text;
+  return `${word} ${opening}`;
+}
+
+/** The line under a list that shows the newest `shown` of `total` memories; "" when the list holds them all. */
+export function listMore(shown: number, total: number): string {
+  return total > shown ? MEMORY_TEXTS.listMore.replace('{shown}', () => String(shown)).replace('{total}', () => String(total)) : '';
 }

@@ -1,0 +1,22 @@
+{
+  "name": "propose-fix-suspend",
+  "match": {
+    "marker": "propose-fix-suspend"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "propose_fix",
+        "input": {
+          "kind": "suspend_item",
+          "item": "OrdersToWarehouse"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I've asked for your approval to suspend the item."
+    }
+  ]
+}

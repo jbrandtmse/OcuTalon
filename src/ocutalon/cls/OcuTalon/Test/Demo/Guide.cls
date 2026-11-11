@@ -179,6 +179,30 @@ Method TestStepFour()
 	}
 }
 
+/// A partner delay notice (kind partner_warning, MOVES 0) is not an answer or an approved fix for step 4 (Story 23.5): approved, or answered in any way, while the repair request still waits,
+/// it leaves step 4 not done and the guide not finished, and the repair's own approval still marks it done.
+Method TestPartnerRequestIsNotStepFour()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set parameters = {"text": "A notice.", "to": "it@results-partner.example"}.%ToJSON()
+	Set ref = ..IncidentSession()
+	Set incident = ..IncidentOf(ref)
+	Set repair = $ClassMethod(fixture, "Approval", ref, incident, "pending", , {"FixKind": "repair_resend"})
+	For state = "approved", "executing", "done", "failed", "rejected" {
+		Set notice = $ClassMethod(fixture, "Approval", ref, incident, state, , {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "1", "ResultTarget": "IncidentManager"})
+		Do ..Assert(..View(ref), "a "_state_" partner request beside a waiting repair", {"done": "10100"})
+	}
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(repair)
+	Set row.State = "approved"
+	Do $$$AssertStatusOK(row.%Save(), "the repair request is approved")
+	Do ..Assert(..View(ref), "the repair approved", {"done": "10110"})
+	Set waiting = ..Finishing("resolved", "fix", "pending", 1)
+	For state = "approved", "executing", "done", "failed" {
+		Do $ClassMethod(fixture, "Approval", waiting, ..IncidentOf(waiting), state, , {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "1", "ResultTarget": "IncidentManager"})
+		Do ..Assert(..View(waiting), "a "_state_" partner request is not the approved fix of a resolved incident with the trace", {"finished": 0})
+	}
+}
+
 /// Row 6: the trace-opened marker is step 5.
 Method TestStepFive()
 {
@@ -297,6 +321,24 @@ Method TestFinished()
 		Do ..Assert(..View(..Finishing("closed", variant, "done", 1)), "closed after "_variant_" with an approved fix", {"finished": 0})
 	}
 	Do ..Assert(..View(..Finishing("resolved", "fix", "pending", 1)), "no approved request", {"finished": 0})
+}
+
+/// A partner delay notice (Story 23.5; AC9) never moves the incident, so the guide stays finished whatever state such a request is in: a finished guide's resolved incident with a pending, approved, done,
+/// failed, rejected or expired partner request, and a closed one with its summary, read as they did before the request.
+Method TestPartnerRequestKeepsTheGuideFinished()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ref = ..Finishing("resolved", "fix", "approved", 1)
+	Set before = ..View(ref)
+	Do ..Assert(before, "the guide is finished before the partner request", {"finished": 1, "done": "10111"})
+	Set parameters = {"text": "A notice.", "to": "it@results-partner.example"}.%ToJSON()
+	For state = "pending", "approved", "done", "failed", "rejected", "expired" {
+		Do $ClassMethod(fixture, "Approval", ref, ..IncidentOf(ref), state, , {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "1", "ResultTarget": "IncidentManager"})
+		Do ..Assert(..View(ref), "a "_state_" partner request: the guide is as it was", {"finished": 1, "done": "10111", "step": (before.step)})
+	}
+	Set closed = ..Finishing("closed", "fix", "done", 1)
+	Do $ClassMethod(fixture, "Approval", closed, ..IncidentOf(closed), "done", , {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "1", "ResultTarget": "IncidentManager"})
+	Do ..Assert(..View(closed), "a closed incident with a done partner request stays finished", {"finished": 1})
 }
 
 /// Row 10: the step is the lowest step not done, 5 when all are done; after a rejection, a fallback or a no-fix notice a 5 becomes

@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so both build lanes can work in parallel. Stories 0.1 to 0.18 and 0.20 are done. Epic 0 is re-opened again for release 1.0.6 with two README stories, both owner-approved through the Contest Planner. Story 0.19 names the contest in the README's contest checklist (DW-1020). Story 0.21 then opens the README with a centred header (logo, title, tagline and status badges), so a judge sees what OcuTalon is and whether it is healthy before reading the body.
+Epic 0 is the walking skeleton. One image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start. It provides a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so the build lanes can work in parallel. Stories 0.1 to 0.24 are done. Epic 0 is re-opened again (lane B, after Story 0.24) for Story 0.25, a CI-tooling fix for DW-1099, which came back after 0.24. Story 0.24 added a guard in `docker/tests/lib-live.sh`: every guarded stack start waits up to 20 s for its web port, then retries once on the bind error. On ocutalon-ci-8 the guard still failed: it waited, retried once after 5 s and printed "FAIL web port: 127.0.0.1:52818 could not be bound after one retry". The likely cause, not proven, is that the previous unit's IRIS stack on the same runner was still shutting down, and a graceful IRIS shutdown can take well over the guard's 25 s or so. The goal is that the guard waits out a stack that is still shutting down, and that no unit's teardown can still be running when the next unit starts.
 
 ## Stories
 
@@ -26,53 +26,53 @@ Epic 0 is the walking skeleton: one image build and `docker compose up` give Ocu
 - Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction (done)
 - Story 0.17: The README's evaluation table shows release 1.0.4's numbers (done)
 - Story 0.18: The README shows judges where to look (done)
-- Story 0.19: The README names the contest (backlog)
+- Story 0.19: The README names the contest (done)
 - Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget (done)
-- Story 0.21: The README opens with a centred header: logo, tagline and badges (backlog)
+- Story 0.21: The README opens with a centred header: logo, tagline and badges (done)
+- Story 0.22: The More to try panel shows its items under three group headings (done)
+- Story 0.23: The README header's logo and LICENSE badge link use absolute GitHub URLs (done)
+- Story 0.24: A test stack's web port can never collide with a port that is still being released (done)
+- Story 0.25: The web-port guard waits long enough for a stack that is still shutting down (backlog)
 
 ## Requirements & Constraints
 
-**Approved public text is committed verbatim.** The 0.19 checklist line and the 0.21 tagline are approved word for word. If a README check rule refuses approved text, the text is not reworded; the conflict goes back to the Contest Planner.
+**The guard's new bounds (0.25).** This applies to every guarded start: `dc up`, `dc start` and `dc restart` with a web port, through `live_port_guard` and `live_port_wait_free`.
+- When the port is in use, wait up to 90 s for it to be free, polling every 3 s. Linux uses `ss -tan (every state but TIME-WAIT)`; 0.24's macOS equivalent stays for local runs.
+- When the start fails with exactly the bind error ("address already in use" or "failed programming external connectivity"), retry it up to twice, waiting again before each retry. After the second retry fails, print the same loud `FAIL web port: ...` line and return the failure.
+- Any other failure returns at once, with no retry.
+- Every guarded start that had to wait prints exactly one line, `waited N s for port P`, where N is the seconds waited and P is the port. The next ledger entry uses it to measure the wait.
 
-**The spec gate for 0.21.** The exact header markup (alt texts, badge labels, link targets) and any new or changed README-check rule message go to the Contest Planner as PUBLIC TEXT before the implement stage. The `test-readme.sh` change is not a release tool, so it needs no release-tool review.
+**Teardown is waited for.** Check every live script's teardown path: a foreground `dc down`, a background one, or one run from a trap. A unit's teardown must run in the foreground and finish before the next unit can start. A teardown that ran in the background or was not waited for must now be waited for, with a foreground `dc down` or a wait on its PID.
 
-**Scope of change.**
-- 0.19 changes README.md only, and only the one checklist line. Nothing else in the README changes.
-- 0.21 changes only README.md, `docker/tests/test-readme.sh` and the new `docs/images/ocutalon-logo.png`.
+**Out of scope.** No change to `ci/iris.sh`, the workflows or the release harnesses. Story 0.24's ephemeral-port option (publish `127.0.0.1::52773` and read the port back) stays out of scope. No test-logic change.
 
-**README rules that stay in force:**
-- "Try it in two minutes" stays at the top of the body, with the online demo link. The existing link bar follows the new header unchanged.
-- The README keeps the not-affiliated note, the credits, and plain language.
-- Public text holds no keys, local machine paths, private infrastructure details or other entrants' names.
+**Invariants kept from 0.24.**
+- `OCUTALON_TEST_WEB_PORT` keeps working as an explicit override. The lanes' dev slots 52801 to 52804 and the lanes' throwaways depend on it.
+- The web port stays bound to 127.0.0.1 only.
+- The forbidden ports stay refused.
 
-**The README check (0.21).**
-- The new allowance covers only the one header block: badge images from img.shields.io and from the repository's own CI `badge.svg` path, images inside links within the block, a centred HTML wrapper if needed, and the logo PNG.
-- Every existing rule stays as strict outside the block. The top rule (opening paragraph, teaser, hero image) applies from the first line after the header.
-- New self-tests prove that each of these is flagged: a badge outside the header, a badge from another host, and an image inside a link outside the header.
-- No pin is deleted or weakened.
+**Tests.**
+- `docker/tests/test-lib-live.sh` runs with a stubbed docker and a fast clock or stubbed sleep, and passes with `docker/tests/test-boundaries.sh`.
+- Its rows pin the 90 s bound, the 3 s poll, the two retries followed by the loud FAIL, the `waited N s for port P` line, and no retry on any other error.
+- No existing row is deleted or weakened beyond what the new bounds replace.
 
 **Done means:**
-- `bash docker/tests/test-readme.sh` passes every rule and self-test.
-- `docker/tests/test-boundaries.sh` passes.
-- Lane-a CI is green.
-- For 0.21, the header renders correctly on the pushed branch's GitHub README page.
+- On a lane-B throwaway, a port held for about 40 s by a listener is waited out: the start succeeds and logs the wait.
+- A port held for more than 90 s gets two retries, then the loud FAIL.
+- DW-1099 is resolved by this story again. DW-1100 (the FAIL line does not name what holds the port) and DW-1101 (step 5 of the install-script test is pinned only by a grep) keep their reopen condition: a CI log that shows "FAIL web port:".
+- Every workflow is green on the story's head.
 
 ## Technical Decisions
 
-- **Badge anchors must resolve.** The badges link to in-page anchors (`#start-it-with-the-install-script`, `#install-it-with-ipm`, `#whats-interesting`). Each must match a heading's GitHub slug in the current README. The license badge links to `LICENSE`, the online-demo badge to https://demo.ocutalon.com, CI to the ci.yml runs page and the version badge to Releases. Static shields use plain colours. The docker logo on its badge is optional.
-- **Link allow-list.** `community.intersystems.com` is already on `test-readme.sh`'s allow-list, so 0.19's contest-post link needs no rule change. No AI Hub bug-report repository may be allowed.
-- **Portability.** `test-readme.sh` also runs under macOS's bash 3.2 in hermetic tests, so shell changes must be portable.
-- **Lane ownership.** `docker/` belongs to Lane B, but Epic 0 may edit files from both lanes in one story.
-
-## UX & Interaction Patterns
-
-- **Choosing the logo.** `docs/images/ocutalon-logo.png` is about 200 px, made from `logo/OcuTalon-Icon.jpeg` or the light logo, whichever reads better at about 160 px on both of GitHub's themes.
-- **Brand rules.** The light logo has a white background box that shows on dark or tinted surfaces. The icon mark carries a navy tile, which must stay intact. Never recolour, crop, outline or animate the logo.
-- **Header order.** The logo, the title OcuTalon, the one-line tagline, the badge row, then the existing link bar.
+- **Throwaway stacks.** Destructive and CI tests run only in throwaway compose projects (`docker compose -p <name>` with the CI override), never on a developer instance. Every live script and release harness starts its stack through `dc` in `lib-live.sh`, so the guard is the one place the fix goes. `ci/iris.sh` runs the IRIS units on the runner and on a developer machine.
+- **CI hosts.** ci-b holds runners 3 to 8, ci-c runners 9 to 14, and ci-d runners 15 to 20. Each runner has its own fixed web port (52810 + n or 52819 - n), so the previous unit on the same runner is the likely holder.
+- **Gates.** CI log message text is internal, so there is no PUBLIC TEXT gate. A hunk in `.github/workflows/*.yml` or `release/**` would be a RELEASE TOOL item for the Contest Planner, but this story makes none.
+- **Never weaken checks.** Never delete or weaken a rule or self-test. Shell test scripts stay ASCII-only and run on bash 3.2 with BSD or GNU tools; for example, BSD `head -n 0` fails, so use `awk`.
+- **Lane ownership.** Epic 0 may edit files from any lane in one story. Never write a local absolute path into a tracked file.
 
 ## Cross-Story Dependencies
 
-- **0.21 follows 0.19.** Both are on the same lane and both edit README.md, so build 0.21 on 0.19's merged README.
-- **Built on earlier stories.** Both build on the 0.17 and 0.18 README (link bar, judges' table, contest checklist) and on 0.15's root Dockerfile, all already merged.
-- **Release target.** Both target release 1.0.6.
-- **Known flakes.** Inherited CI flakes (for example DW-973, DW-774, DW-689 and DW-1026) can turn a run red without a cause in these stories. Classify them; do not change the stories to work around them.
+- **Builds on** Story 0.24 (the guard: `live_port_guard`, `live_port_wait_free`, `live_bind_error`, and its hermetic rows in `test-lib-live.sh`), Story 0.14 (`lib-live.sh` checks for the live tests and the upgrade harness) and Story 0.7 (CI on the IRIS runner).
+- **Sequenced after 0.24.** 0.25 runs on lane B.
+- **The failure that reopened DW-1099:** run 42943118887, job 130269395421, iris (shards) `live:online-allowance` on ocutalon-ci-8. dockerd on ci-b logged the bind error at 02:21:35 and again at 02:21:44, and nothing held 52818 when it was checked at 02:45Z.
+- **Known flakes.** Other inherited CI flakes (for example DW-973, DW-774, DW-689 and DW-1026) can turn a run red without a cause in this story. Classify them; do not change the story to work around them.

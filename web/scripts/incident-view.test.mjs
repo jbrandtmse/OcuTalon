@@ -30,7 +30,7 @@ function context(over = {}, { onlineDemo = false, browser = 'Europe/Berlin' } = 
     messageTime: (iso, now) => messageTime(iso, now, 'UTC', onlineDemo),
     topTime: (iso, now) => pageWhenBeside(iso, now, 'UTC', 'en-GB', browser),
     itemTime: (iso, now) => pageWhen(iso, now, 'en-GB', browser),
-    result: (request, itemNoun) => resultView(request, itemNoun, renderPageText),
+    result: (request, itemNoun, production) => resultView(request, itemNoun, renderPageText, production),
     // The reason's text as decision-strip.ts fallbackReasonText finds it.
     reasonText: (reason) => PAGE_TEXTS['fallbackReason.' + (reason !== undefined && Object.hasOwn(REASON_KEYS, reason) ? REASON_KEYS[reason] : 'generic')],
     ...over,
@@ -181,6 +181,21 @@ describe('the same ref again: count and fixing', () => {
     assert.equal(view(full({ state: 'fixing', count: 52, noticeCount: 50, requests: [] })).fixingLine, 'Repairing and resending 50 orders\u2026');
     assert.equal(view(full({ state: 'fixing', count: 52, noticeCount: undefined, requests: undefined })).fixingLine, 'Repairing and resending 52 orders\u2026');
     assert.equal(view(full({ state: 'fixing', requests: [{ state: 'executing', result: { total: 1 } }] })).fixingLine, 'Repairing and resending 1 order\u2026', 'count of one');
+  });
+
+  it('says what a fix the user asked for in the chat does, by its kind (Story 23.2)', () => {
+    const suspending = view(full({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'suspend_item', item: 'OrdersToWarehouse' }] }));
+    assert.equal(suspending.fixingLine, 'Suspending OrdersToWarehouse\u2026');
+    assert.equal(view(full({ state: 'fixing', requests: [{ state: 'approved', fixKind: 'resume_item', item: 'OrdersToWarehouse' }] })).fixingLine, 'Resuming OrdersToWarehouse\u2026');
+    assert.equal(view(full({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'reroute', item: 'OrdersForReview', count: 50 }] })).fixingLine, 'Rerouting 50 orders\u2026');
+    assert.equal(view(full({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'reroute', item: 'OrdersForReview', count: 1 }] })).fixingLine, 'Rerouting 1 order\u2026');
+    assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'suspend_item', item: 'OrdersToWarehouse' }] })).fixSentence, 'I can suspend OrdersToWarehouse.');
+    assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'resume_item', item: 'OrdersToWarehouse' }] })).fixSentence, 'I can resume OrdersToWarehouse.');
+    assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'reroute', item: 'OrdersForReview', count: 50 }] })).fixSentence, 'I can reroute 50 orders to OrdersForReview.');
+    assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'repair_resend' }] })).fixSentence, 'I can repair and resend all 50.', 'the diagnosis\'s own request keeps its sentence');
+    assert.equal(view(full({ state: 'resolved', requests: [{ state: 'pending', fixKind: 'partner_warning' }] })).fixSentence, 'I can repair and resend all 50.', 'a pending delay notice is not the incident\'s fix: the fix sentence is the diagnosis\'s own');
+    assert.equal(view(full({ state: 'awaiting_approval', requests: [{ state: 'pending', fixKind: 'partner_warning' }, { state: 'pending', fixKind: 'reroute', item: 'OrdersForReview', count: 50 }] })).fixSentence, 'I can reroute 50 orders to OrdersForReview.', 'and it does not hide the sentence of a fix that is');
+    assert.equal(view(full({ state: 'fixing', requests: [{ state: 'approved', fixKind: 'partner_warning' }, { state: 'executing', fixKind: 'suspend_item', item: 'OrdersToWarehouse' }] })).fixingLine, 'Suspending OrdersToWarehouse\u2026', 'a delay notice running is not the fixing line');
   });
 
   it('shows the fixing line only while the state is fixing', () => {
@@ -502,6 +517,12 @@ describe('the fixed strings', () => {
         groupedOne: '1 failure grouped into this incident',
         fix: 'I can {fixSummary}.',
         fixing: 'Repairing and resending {count} {noun}\u2026',
+        fixingSuspend: 'Suspending {item}\u2026',
+        fixingResume: 'Resuming {item}\u2026',
+        fixingReroute: 'Rerouting {count} {noun}\u2026',
+        fixSuspend: 'I can suspend {item}.',
+        fixResume: 'I can resume {item}.',
+        fixReroute: 'I can reroute {count} {noun} to {to}.',
         showDetails: 'Show details',
         nounOne: 'message',
         nounOther: 'messages',
@@ -649,6 +670,46 @@ describe('the result bands (Story 6.4)', () => {
     });
     assert.deepEqual(bandTexts(full({ requests: [{ ref: 'A1', state: 'pending' }] }), context()), {});
     assert.deepEqual(bandTexts(full({ requests: undefined }), context()), {});
+  });
+
+  it('gives a partner delay notice its own band on a compact card, and the chat announces it (Story 23.5)', () => {
+    const requests = [
+      { ref: 'P1', state: 'done', fixKind: 'partner_warning', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } },
+      { ref: 'P2', state: 'failed', fixKind: 'partner_warning', result: { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 0, interrupted: 0, reason: "email delivery isn't set up yet" } },
+    ];
+    const closed = { ...full({ state: 'closed' }), requests };
+    const bands = view(closed).results;
+    assert.deepEqual(
+      bands.map((band) => [band.key, band.text, band.tone]),
+      [
+        ['result.partnerSent', 'Sent to the Simulated mailbox.', 'success'],
+        ['result.partnerKept', "Approved and kept as a draft: email delivery isn't set up yet.", 'partial'],
+      ],
+    );
+    assert.equal(bandTexts(closed, context()).P1, 'Sent to the Simulated mailbox.');
+  });
+
+  it('give a suspend, a resume and a reroute their own band on a compact card, with the incident\'s production for the item kinds (Story 23.2)', () => {
+    const asked = [
+      { ref: 'S1', state: 'done', fixKind: 'suspend_item', item: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } },
+      { ref: 'S2', state: 'done', fixKind: 'resume_item', item: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } },
+      { ref: 'S3', state: 'done', fixKind: 'resume_item', item: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 1, interrupted: 0, reason: 'OrdersToWarehouse is already enabled' } },
+      { ref: 'S4', state: 'failed', fixKind: 'suspend_item', item: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 0, interrupted: 0, reason: "OcuTalon couldn't change the item" } },
+      { ref: 'R1', state: 'done', fixKind: 'reroute', item: 'OrdersForReview', count: 50, result: { total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } },
+    ];
+    const closed = full({ state: 'closed', production: 'OcuTalon.Demo.Orders.Production', requests: asked });
+    assert.deepEqual(
+      view(closed).results.map((band) => [band.key, band.text, band.tone, band.icon]),
+      [
+        ['result.itemSuspended', 'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is suspended: it is disabled now. To undo it while this incident is open, ask me to resume OrdersToWarehouse. After the incident closes, enable OrdersToWarehouse again on the production\'s configuration page in the Management Portal.', 'success', 'circle-check'],
+        ['result.itemResumed', 'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is enabled again.', 'success', 'circle-check'],
+        ['result.itemSkipped', 'OrdersToWarehouse was not changed: OrdersToWarehouse is already enabled. It needs a new approval.', 'partial', 'triangle-alert'],
+        ['result.itemNotChanged', "Nothing was changed: OcuTalon couldn't change the item.", 'partial', 'triangle-alert'],
+        ['result.rerouted', 'All 50 orders were rerouted to OrdersForReview and completed there. The originals stay unchanged.', 'success', 'circle-check'],
+      ],
+    );
+    assert.equal(bandTexts(closed, context()).S1, 'OrdersToWarehouse in OcuTalon.Demo.Orders.Production is suspended: it is disabled now. To undo it while this incident is open, ask me to resume OrdersToWarehouse. After the incident closes, enable OrdersToWarehouse again on the production\'s configuration page in the Management Portal.', 'and the chat announces it');
+    assert.equal(bandTexts(full({ state: 'closed', requests: asked }), context()).S1, undefined, 'a payload with no production names no item in it, so it claims nothing');
   });
 
   it('show no band for a fix run that is still going and has no result: the fixing line is its still-resending state', () => {

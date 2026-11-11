@@ -7,11 +7,12 @@
 import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { sourceFiles } from './source-files.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
+const { MORE_TO_TRY_GROUPS } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts')).href);
 const files = sourceFiles(join(here, '..', 'src', 'app'), ['.ts']);
 const file = (name) => {
   const found = files.find((one) => one.name === name);
@@ -33,13 +34,13 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.doesNotMatch(code, /postMailboxSample|postBreakFeed|\bDemoView\b|\.set\(false\)|\.set\(true\)/);
   });
 
-  it('moves focus in one place, and sends only the two prompts through the outbox, with the text alone', () => {
+  it('moves focus in one place, and sends only the four prompts through the outbox, with the text alone', () => {
     assert.equal(count(code, /\.focus\(/g), 1);
     const sends = [...code.matchAll(/\boutbox\.send\(([^)]*)\)/g)];
     assert.deepEqual(
       sends.map((one) => one[1].trim()),
-      ['MORE_TO_TRY_TEXTS.rememberPrompt', 'MORE_TO_TRY_TEXTS.summaryPrompt'],
-      'the memory item sends its own, the incident summary item falls back to its prompt',
+      ['MORE_TO_TRY_TEXTS.reroutePrompt', 'MORE_TO_TRY_TEXTS.partnerPrompt', 'MORE_TO_TRY_TEXTS.rememberPrompt', 'MORE_TO_TRY_TEXTS.summaryPrompt'],
+      'the reroute item, the partner warning item and the memory item send their own, the incident summary item falls back to its prompt',
     );
     assert.doesNotMatch(code, /fromGuide/);
   });
@@ -56,9 +57,11 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     const buttons = count(code, /<button\b/g);
     assert.equal(buttons, 1, 'one button in the template');
     assert.equal(count(code, /<button\s[^>]*type="button"/g), buttons);
-    assert.equal(count(code, /<a\b/g), 1, 'and one link, to the Documents page');
+    assert.equal(count(code, /<a\b/g), 2, 'and two links: to the Documents page, and one for the Usage and the History pages');
     assert.match(code, /<a [^>]*routerLink="\/documents"/);
-    assert.equal(count(code, /\(click\)=/g), 2, 'each control has a click and nothing else acts');
+    assert.match(code, /@else if \(item\.action === 'usage' \|\| item\.action === 'history'\) \{\s*<a [^>]*\[routerLink\]="'\/' \+ item\.action"/);
+    assert.match(code, /case 'usage':\s*void this\.router\.navigate\(\['\/usage'\]\);\s*break;\s*case 'history':\s*void this\.router\.navigate\(\['\/history'\]\);\s*break;/);
+    assert.equal(count(code, /\(click\)=/g), 3, 'each control has a click and nothing else acts');
     assert.equal(count(code, /\(click\)="press\(item\)"/g), 1, 'the one button presses');
     assert.doesNotMatch(code, /\bconstructor\s*\(|ngOnInit|ngAfterViewInit|\beffect\(/, 'nothing runs at creation');
     assert.doesNotMatch(file('guide/more-to-try-room.ts').code, /\.focus\(|\.click\(|\.send\(|\bApiClient\b|\bAnnouncer\b/, 'the room measurement acts on nothing');
@@ -73,16 +76,32 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.match(code, /case 'documents':\s*this\.sample\.ask\(\);\s*void this\.router\.navigate\(\['\/documents'\]\);\s*break;/);
   });
 
-  it('names no aria-label and no icon on a control, and no heading', () => {
+  it('names no aria-label and no icon, and its only heading is the group heading, which takes no focus', () => {
     const template = /template:\s*`([^`]*)`/.exec(code);
     assert.ok(template, 'the template is inline');
-    assert.doesNotMatch(template[1], /aria-label=|<app-icon|<h[1-6]\b/);
+    assert.doesNotMatch(template[1], /aria-label=|<app-icon/);
+    const headings = template[1].match(/<h[1-6]\b[^>]*>[^<]*<\/h[1-6]>/g) ?? [];
+    assert.deepEqual(headings, ['<h4 class="set-heading">{{ set.heading }}</h4>']);
+    assert.equal((template[1].match(/<h[1-6]\b/g) ?? []).length, 1, 'no other heading element, whatever it holds');
+    assert.doesNotMatch(headings[0], /tabindex|\bid=/);
+    assert.match(template[1], /@if \(set\.heading\) \{\s*<h4 class="set-heading">/, 'a set with no heading renders no heading element');
+    assert.match(template[1], /<p class="group-label" \[id\]="labelId">/, 'the panel label stays a paragraph');
+  });
+
+  it('holds none of the heading strings, and iterates the sets that groupsOf gives', () => {
+    for (const heading of MORE_TO_TRY_GROUPS) {
+      assert.ok(!code.includes(heading), `${heading} is not written in the component`);
+    }
+    assert.match(code, /protected readonly groups = computed\(\(\) => groupsOf\(this\.items\(\)\)\);/);
+    assert.match(code, /@for \(set of groups\(\); track set\.heading\) \{/);
+    assert.match(code, /@for \(item of set\.items; track item\.id\) \{/);
+    assert.doesNotMatch(/template:\s*`([^`]*)`/.exec(code)[1], /\bitems\(\)/, 'the template never iterates the flat list');
   });
 
   it('is a labelled group with a list, each control marked for the focus rule', () => {
     assert.match(code, /class="group ring-inside" role="group" tabindex="0" data-guide-focus="moreItem" \[attr\.aria-labelledby\]="labelId"/);
     assert.match(code, /<ul class="items">/);
-    assert.equal(count(code, /data-guide-focus="moreItem"/g), 3, 'the group and the two kinds of control');
+    assert.equal(count(code, /data-guide-focus="moreItem"/g), 4, 'the group, the button and the two links');
   });
 
   it('is bounded where the page fills the viewport: its own vertical scroll, with the room that the chat leaves above its floor', () => {
@@ -109,9 +128,14 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.doesNotMatch(code, /@media \$\{LAYOUT_QUERIES\.stacked\}/, 'the stacked column has no bound of its own: the page scrolls');
   });
 
-  it('hands item 7 to the Heartbeat checklist card\'s heading and presses nothing', () => {
+  it('hands the heartbeat item to the Heartbeat checklist card\'s heading and presses nothing', () => {
     assert.match(code, /case 'heartbeat':\s*this\.layout\.focusRegion\(RAIL_REGION\);\s*this\.handTo\(\[`#\$\{HEARTBEAT_HEADING_ID\}`\], \(\) => false\);/);
     assert.match(code, /import \{ HEARTBEAT_HEADING_ID \} from '\.\.\/rail\/heartbeat-card\/heartbeat-card-view'/);
+  });
+
+  it('hands the Memory card item to the Memory heading and presses nothing', () => {
+    assert.match(code, /case 'memoryCard':\s*this\.layout\.focusRegion\(RAIL_REGION\);\s*this\.handTo\(\[`#\$\{MEMORY_HEADING_ID\}`\], \(\) => false\);/);
+    assert.match(code, /import \{ MEMORY_HEADING_ID \} from '\.\.\/rail\/memory-card\/memory-card-view'/);
   });
 
   it('uses none of the class names the guide\'s other parts use', () => {

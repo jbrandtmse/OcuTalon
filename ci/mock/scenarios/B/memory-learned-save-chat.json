@@ -1,0 +1,22 @@
+{
+  "name": "memory-learned-save-chat",
+  "match": {
+    "prompt": "The Results partner's contact is Lee, and their test desk answers on weekdays.",
+    "mockkey": "chat"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "save_memory",
+        "input": {
+          "text": "The Results partner's contact is Lee, and their test desk answers on weekdays."
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I'll remember that the Results partner's contact is Lee, and their test desk answers on weekdays."
+    }
+  ]
+}

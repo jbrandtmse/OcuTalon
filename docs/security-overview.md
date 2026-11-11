@@ -18,6 +18,7 @@ No built-in tool runs operating-system commands, arbitrary ObjectScript or Pytho
 | `list_memories` | `OcuTalon.Tools.MemoryTools` | `OcuTalon.Tools.Memory` | `OcuTalon.Agent.Chat` | Listing your memories | safe | yes | yes | none |
 | `list_productions` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Listing the productions | safe | yes | yes | none |
 | `list_reminders` | `OcuTalon.Tools.ReminderTools` | `OcuTalon.Tools.Reminders` | `OcuTalon.Agent.Chat` | Listing your reminders | safe | yes | yes | none |
+| `propose_fix` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Asking to approve a fix | safe | no | yes | none |
 | `propose_persona` | `OcuTalon.Tools.PersonaTools` | `OcuTalon.Tools.Persona` | `OcuTalon.Agent.Chat` | Suggesting a persona | safe | no | yes | none |
 | `read_event_log` | `OcuTalon.Tools.WatchReads` | `OcuTalon.Tools.Watch` | `OcuTalon.Agent.Diagnosis` | Reading the event log | safe | yes | no | none |
 | `read_failed_messages` | `OcuTalon.Tools.WatchReads` | `OcuTalon.Tools.Watch` | `OcuTalon.Agent.Diagnosis` | Reading the failed messages | safe | yes | no | none |
@@ -37,9 +38,15 @@ One tool has no class of its own: `documents`, the search over your added docume
 <!-- BEGIN GENERATED fix-kinds: written by OcuTalon.Install.SecurityOverview, do not edit -->
 ## Fix kinds
 
-| Class | Name | Resources |
-| --- | --- | --- |
-| `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | `%Ens_MessageResend:U` |
+| Class | Name | Classification | Resources |
+| --- | --- | --- | --- |
+| `OcuTalon.Fix.Kind.PartnerWarning` | `partner_warning` | risky | none |
+| `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | risky | `%Ens_MessageResend:U` |
+| `OcuTalon.Fix.Kind.Reroute` | `reroute` | risky | `%Ens_MessageResend:U` |
+| `OcuTalon.Fix.Kind.ResumeItem` | `resume_item` | risky | `%Ens_ConfigItemRun:U` |
+| `OcuTalon.Fix.Kind.SuspendItem` | `suspend_item` | risky | `%Ens_ConfigItemRun:U` |
+
+On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so OcuTalon can't suspend or resume items there.
 
 <!-- END GENERATED fix-kinds -->
 
@@ -51,6 +58,7 @@ One tool has no class of its own: `documents`, the search over your added docume
 | Role | Resource | Permission | Declared by |
 | --- | --- | --- | --- |
 | `OcuTalonAdmin` | none | - | `Users` |
+| `OcuTalonServiceRole` | `%Ens_ConfigItemRun` | U | `Fix` |
 | `OcuTalonServiceRole` | `%Ens_MessageResend` | U | `Fix` |
 | `OcuTalonTraceViewer` | `%DB_OCUTALON_CODE` | R | `Web` |
 | `OcuTalonTraceViewer` | `%DB_OCUTALON_DATA` | R | `Web` |

@@ -406,6 +406,7 @@ Method Press(chatRef As %String, query As %DynamicObject) [ Private ]
 	If $SYSTEM.Status.IsError(sc) {
 		$$$LOGWARNING(..#LOGPRESS_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
 	} Else {
+		If code = "approved" Do ..FixSlots(chatRef, approvalRef, slots)
 		Set text = ..PressText(code, slots, .alert)
 	}
 	Do ..AnswerPress(query, text, alert)
@@ -446,6 +447,25 @@ Method AnswerPress(query As %DynamicObject, text As %String, alert As %Boolean) 
 	}
 }
 
+/// Adds to the slots of an approved press the fix kind of its request (fixKind) and, from its dry run, the item a suspend or resume changes (item) and the item a reroute sends
+/// the messages to (to), for the pressing chat's paired session (Story 23.2). A request that can't be read adds nothing, and PressText then shows no text for a kind it can't name.
+Method FixSlots(chatRef As %String, approvalRef As %String, slots As %DynamicObject) [ Private ]
+{
+	Try {
+		Set chat = ##class(OcuTalon.Data.Pairing).Chat(chatRef)
+		If '$IsObject(chat) || (chat.SessionRef = "") Quit
+		Set row = ##class(OcuTalon.Data.Ownership).Approval(approvalRef, chat.SessionRef, .sc)
+		If '$IsObject(row) || (row.FixKind = "") Quit
+		Do slots.%Set("fixKind", row.FixKind, "string")
+		Set dry = ##class(OcuTalon.Live.Payload.Approval).FromRow(row).DryRun
+		If $IsObject(dry) {
+			If dry.Item '= "" Do slots.%Set("item", dry.Item, "string")
+			If dry.To '= "" Do slots.%Set("to", dry.To, "string")
+		}
+	} Catch {
+	}
+}
+
 /// The text of the answer to a press, from the code and slots that FromTelegram gave; alert is 1 for a refusal, which stays until it is
 /// dismissed. "" (with alert 0) when the code shows no text: approved with no count, not_allowed (one warning) and a render error (one warning).
 Method PressText(code As %String, slots As %DynamicObject, Output alert As %Boolean) As %String [ Private ]
@@ -454,8 +474,19 @@ Method PressText(code As %String, slots As %DynamicObject, Output alert As %Bool
 	Set key = ""
 	Set use = {}
 	If code = "approved" {
-		If slots.%GetTypeOf("count") '= "number" Quit ""
-		Set key = "press.approved", use = slots
+		Set kind = slots.%Get("fixKind")
+		If (kind = "suspend_item") || (kind = "resume_item") {
+			If slots.%Get("item") = "" Quit ""
+			Set key = $Select(kind = "suspend_item": "press.approvedSuspend", 1: "press.approvedResume"), use = {"item": (slots.item)}
+		} ElseIf kind = "reroute" {
+			If (slots.%GetTypeOf("count") '= "number") || (slots.%Get("to") = "") Quit ""
+			Set key = "press.approvedReroute", use = {"count": (slots.count), "itemNoun": (slots.itemNoun), "to": (slots.to)}
+		} ElseIf kind = "partner_warning" {
+			Set key = "press.approvedPartner"
+		} Else {
+			If slots.%GetTypeOf("count") '= "number" Quit ""
+			Set key = "press.approved", use = slots
+		}
 	} ElseIf code = "rejected" {
 		Set key = "press.rejected"
 	} ElseIf code = "already_answered" {

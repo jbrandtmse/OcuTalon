@@ -9,6 +9,8 @@
 ///   - (none) + first -> open, no variant;
 ///   - open, not noticed + notice (variant fallback or no_fix) -> open with that variant;
 ///   - open, not noticed + raised -> awaiting_approval;
+///   - open, noticed + raised -> awaiting_approval (a fix that the user asked for in the chat, Story 23.2; a later round's request never reaches this row, because IncidentManager
+///     drops it for an open incident);
 ///   - awaiting_approval + approved -> fixing, execute own;
 ///   - awaiting_approval + rejected or expired -> open with the variant rejected or expired when pending is 0, else awaiting_approval;
 ///   - fixing + progress -> fixing;
@@ -99,6 +101,8 @@ ClassMethod Next(state As %String, noticed As %Boolean, event As %String, facts 
 				Set to = ..#CLOSED
 			} ElseIf (event = ..#CLOSEQUIET) && 'demo {
 				Set to = ..#CLOSED
+			} ElseIf event = ..#RAISED {
+				Set to = ..#AWAITING
 			}
 		}
 	} ElseIf state = ..#AWAITING {

@@ -42,6 +42,10 @@ export const RAIL_TEXTS = {
   hintReminders: 'To cancel, ask: "Cancel my reminder to stretch."',
   repair: 'Repair and resend',
   repairCount: 'Repair and resend {n} {noun}',
+  suspend: 'Suspend {item}',
+  resume: 'Resume {item}',
+  reroute: 'Reroute {n} {noun} to {to}',
+  partner: 'Send a delay notice',
   runTool: 'Run {toolName}',
   changePersona: 'Change how OcuTalon talks to you',
   showInChat: 'Show in the chat: {action}',
@@ -173,7 +177,7 @@ export function readmeSection(readmeUrl: string, anchor: string): string {
 
 /**
  * The title of an approval request: "Repair and resend 50 orders" for a fix with a dry run (the noun by the count), "Repair and
- * resend" without one, "Run zz_tool" for a tool call, and "Change how OcuTalon talks to you" for a setting request (a proposed persona).
+ * resend" without one, "Suspend {item}", "Resume {item}" and "Reroute {n} {noun} to {to}" for the fixes the user asks for in the chat (Story 23.2), "Send a delay notice" for a partner warning (Story 23.5), "Run zz_tool" for a tool call, and "Change how OcuTalon talks to you" for a setting request (a proposed persona).
  */
 export function approvalTitle(approval: ApprovalPayload): string {
   if (approval.kind === 'setting') {
@@ -182,7 +186,17 @@ export function approvalTitle(approval: ApprovalPayload): string {
   if (approval.kind === 'tool_call') {
     return fill(RAIL_TEXTS.runTool, { toolName: approval.toolName ?? '' }).trim();
   }
+  if (approval.fixKind === 'partner_warning') {
+    return RAIL_TEXTS.partner;
+  }
+  if (approval.fixKind === 'suspend_item' || approval.fixKind === 'resume_item') {
+    return fill(approval.fixKind === 'suspend_item' ? RAIL_TEXTS.suspend : RAIL_TEXTS.resume, { item: approval.dryRun?.item ?? '' }).trim();
+  }
   const affected = approval.dryRun?.affected;
+  if (approval.fixKind === 'reroute' && typeof affected === 'number') {
+    const rerouted = (affected === 1 ? approval.dryRun?.itemNoun?.one : approval.dryRun?.itemNoun?.other) ?? '';
+    return fill(RAIL_TEXTS.reroute, { n: String(affected), noun: rerouted, to: approval.dryRun?.to ?? '' }).trim();
+  }
   if (typeof affected !== 'number') {
     return RAIL_TEXTS.repair;
   }
@@ -266,7 +280,8 @@ function reminderRow(reminder: ReminderPayload, format: RailFormat): RailRow {
   return withTrace(row, reminder.traceUrl);
 }
 
-function decisionRow(decision: DecisionPayload, format: RailFormat): RailRow {
+/** The row of one decision payload, which the rail lists and the History page lists too. */
+export function decisionRow(decision: DecisionPayload, format: RailFormat): RailRow {
   const fallback = decision.fallback === true;
   const sentence = fallback ? format.fallbackSentence(decision.fallbackReason ?? '') : undefined;
   const meta: string[] = [];

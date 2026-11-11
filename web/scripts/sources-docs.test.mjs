@@ -12,13 +12,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
-const { MORE_TO_TRY_ITEMS } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts')).href);
+const { MORE_TO_TRY_GROUPS, MORE_TO_TRY_ITEMS, groupsOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts')).href);
 
 const README = readFileSync(join(root, 'README.md'), 'utf8');
 const EXPERIENCE = readFileSync(join(root, '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
 const REGISTRY = readFileSync(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts'), 'utf8');
 
-const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen'];
 const count = WORDS[MORE_TO_TRY_ITEMS.length];
 
 /** The Planner-ruled README bullet (Story 20.2, public text 14), word for word. */
@@ -95,20 +95,45 @@ describe('EXPERIENCE.md, More to try', () => {
     return found;
   };
 
-  it('lists the registry\'s items in the order of its entries, and no item past them', () => {
-    // The entries sit in the order of the panel, whatever their numbers: 23.6's first item comes before Item 1 and 23.2's Item 9 after Item 3 ("the numbers of the other items stay as they are").
-    const labels = EXPERIENCE.split('\n')
-      .filter((one) => /^    - (Item \d+|First item)\b/.test(one))
-      .map((one) => /Label "([^"]+)"/.exec(one)?.[1]);
-    assert.deepEqual(labels, MORE_TO_TRY_ITEMS.map((item) => item.label), 'EXPERIENCE.md lists the registry\'s items, in the registry\'s order, and no other');
+  // The panel's order: the sets of groupsOf, flattened. EXPERIENCE.md numbers its entries in this order.
+  const SETS = groupsOf(MORE_TO_TRY_ITEMS);
+  const PANEL = SETS.flatMap((set) => set.items);
+  // EXPERIENCE.md numbers its `Item n` entries 1, 2, ... in the panel's order; an unnumbered entry (`First item`) takes no number and
+  // leaves the numbers of the others as they are.
+  const NUMBERED = PANEL.filter((item) => EXPERIENCE.split('\n').some((one) => one.startsWith('    - Item ') && one.includes(`Label "${item.label}".`)));
+  const numberOf = (id) => NUMBERED.findIndex((one) => one.id === id) + 1;
+  const ENTRY_LINE = /^    - (Item \d+|First item)\b/;
+  const HEADING_LINE = /^    - Heading "([^"]*)"\./;
+  const labelOf = (text) => /Label "([^"]*)"\./.exec(text)?.[1];
+
+  it('lists the registry\'s items in the panel\'s order, and no item past them', () => {
+    const lines = EXPERIENCE.split('\n').filter((one) => ENTRY_LINE.test(one));
+    assert.deepEqual(lines.map(labelOf), PANEL.map((item) => item.label), 'the entries are the panel\'s items, in its order');
+    NUMBERED.forEach((item, at) => {
+      assert.ok(line(at + 1).includes(`Label "${item.label}".`), `Item ${at + 1} is the registry's ${item.id} entry`);
+    });
   });
 
-  for (const [n, id] of [
-    [6, 'documents'],
-    [8, 'sources'],
-  ]) {
-    it(`Item ${n} is the ${id} entry of the registry: label, look-for and control`, () => {
+  it('lists the headings of the panel, each followed by exactly its group\'s items', () => {
+    const wanted = SETS.flatMap((set) => [...(set.heading === undefined ? [] : [`heading ${set.heading}`]), ...set.items.map((item) => `item ${item.label}`)]);
+    const found = EXPERIENCE.split('\n').flatMap((one) => {
+      if (HEADING_LINE.test(one)) {
+        return [`heading ${HEADING_LINE.exec(one)[1]}`];
+      }
+      return ENTRY_LINE.test(one) ? [`item ${labelOf(one)}`] : [];
+    });
+    assert.deepEqual(found, wanted);
+    assert.deepEqual(
+      EXPERIENCE.split('\n').filter((one) => HEADING_LINE.test(one)).map((one) => HEADING_LINE.exec(one)[1]),
+      SETS.flatMap((set) => (set.heading === undefined ? [] : [set.heading])),
+    );
+  });
+
+  for (const id of ['documents', 'sources']) {
+    it(`The ${id} entry is the registry's: label, look-for and control, numbered by the panel's order`, () => {
       const item = entry(id);
+      const n = numberOf(id);
+      assert.ok(n > 0, `${id} is in the panel`);
       const text = line(n);
       assert.ok(text.includes(`Label "${item.label}". Look for: "${item.lookFor}"`), `Item ${n} label and look-for`);
       assert.ok(text.includes(`Control: "${item.button}".`), `Item ${n} control`);
@@ -116,14 +141,15 @@ describe('EXPERIENCE.md, More to try', () => {
   }
 
   it('names the items whose controls are links to the Documents page', () => {
-    assert.ok(EXPERIENCE.includes("Items 6 and 8's controls are links to the Documents page."));
+    assert.ok(EXPERIENCE.includes(`Items ${numberOf('documents')} and ${numberOf('sources')}'s controls are links to the Documents page.`));
   });
 
   it('says that, with no documents, items 6 and 8 are the sample button that the Documents page presses (Story 20.3)', () => {
     const control = 'While the visitor has no documents, each is instead an "Add the sample runbook" button, which opens the Documents page and presses that page\'s Add the sample runbook.';
-    assert.ok(EXPERIENCE.includes(`Items 6 and 8's controls are links to the Documents page. ${control}`), 'the controls sentence');
+    const pair = `${numberOf('documents')} and ${numberOf('sources')}`;
+    assert.ok(EXPERIENCE.includes(`Items ${pair}'s controls are links to the Documents page. ${control}`), 'the controls sentence');
     assert.ok(
-      EXPERIENCE.includes('item 4 turns the Demo view switch off and leaves focus on it; items 6 and 8, while the visitor has no documents, open the Documents page and press its Add the sample runbook, with focus on it;'),
+      EXPERIENCE.includes(`item ${numberOf('demoView')} turns the Demo view switch off and leaves focus on it; items ${pair}, while the visitor has no documents, open the Documents page and press its Add the sample runbook, with focus on it;`),
       'the hand-off rule',
     );
     assert.ok(
@@ -132,14 +158,24 @@ describe('EXPERIENCE.md, More to try', () => {
       ),
       'the Documents step',
     );
-    for (const text of [control, 'items 6 and 8, while the visitor has no documents,']) {
+    for (const text of [control, `items ${pair}, while the visitor has no documents,`]) {
       assert.ok(EXPERIENCE.split('\n').some((one) => one.includes(text) && /\[(?:AMENDED|ADDED) 2026-11-09, Story 20\.3, Planner ruling [^\]]*\]/.test(one)), `${text} carries its marker`);
     }
   });
 
-  it('marks the change to item 6 and the new item 8 with the story and the ruling', () => {
-    assert.match(line(6), /\[AMENDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 9\)/);
-    assert.match(line(8), /\[ADDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 10 to 12\)/);
-    assert.match(line(6), /\[AMENDED 2026-11-09, Story 20\.3, Planner ruling [^\]]*public text 5\)\. It read: "/);
+  it('marks the change to the documents item and the new sources item with the story and the ruling', () => {
+    assert.match(line(numberOf('documents')), /\[AMENDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 9\)/);
+    assert.match(line(numberOf('sources')), /\[ADDED 2026-11-09, Story 20\.2, Planner ruling [^\]]*public text 10 to 12\)/);
+    assert.match(line(numberOf('documents')), /\[AMENDED 2026-11-09, Story 20\.3, Planner ruling [^\]]*public text 5\)\. It read: "/);
+  });
+
+  it('has exactly one line for the headings, naming each in order with its count word (Story 0.22) and the fourth-group ruling\'s marker', () => {
+    const lines = EXPERIENCE.split('\n').filter((one) => one.includes('[ADDED 2026-11-10, Story 0.22,'));
+    assert.equal(lines.length, 1);
+    const at = MORE_TO_TRY_GROUPS.map((group) => lines[0].indexOf(`"${group}"`));
+    assert.ok(at.every((one) => one >= 0), 'every heading is quoted');
+    assert.deepEqual([...at].sort((x, y) => x - y), at, 'in the panel\'s order');
+    assert.ok(lines[0].includes(`under ${WORDS[MORE_TO_TRY_GROUPS.length]} headings`), 'the count word');
+    assert.ok(lines[0].includes('[AMENDED 2026-11-10, Contest Planner ruling: a fourth group for the step-6 pages]'), 'the fourth-group ruling\'s marker');
   });
 });

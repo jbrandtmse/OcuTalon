@@ -32,7 +32,7 @@ const FAKE = {
   // The real texts of an incident card, with a headline that carries the count so that a count change would show.
   incidentText: (previous, incident) => announcementOf(previous, incident, `H${incident.count ?? ''}`),
   // The real result bands: the catalog's texts of the Result mapping.
-  bandTexts: (incident) => bandTexts(incident, { result: (request, noun) => resultView(request, noun, renderPageText) }),
+  bandTexts: (incident) => bandTexts(incident, { result: (request, noun, production) => resultView(request, noun, renderPageText, production) }),
   dismissed: () => false,
 };
 
@@ -429,7 +429,7 @@ describe('a tool call\'s request and result notice (Story 31.6, DW-610)', () => 
   });
 
   it('announces nothing for a request or result notice with no approvalRef, which the chat does not show', () => {
-    const { texts } = next([[turn('A')]], [[turn('A'), notice('K3', { kind: 'approval', text: REQUEST }), notice('K4', { kind: 'result', text: 'zz_send ran once.' })]]);
+    const { texts } = next([[turn('A')]], [[turn('A'), notice('', { kind: 'approval', text: REQUEST }), notice('', { kind: 'result', text: 'zz_send ran once.' })]]);
     assert.deepEqual(texts, []);
   });
 });

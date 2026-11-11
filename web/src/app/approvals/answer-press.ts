@@ -66,7 +66,7 @@ export class AnswerPress {
   }
 
   /** A press of Approve or Reject for the request: one call for both buttons; a press while a call is out is ignored. */
-  press(ref: string, action: 'approve' | 'reject'): void {
+  press(ref: string, action: 'approve' | 'reject', fixKind = ''): void {
     if (!this.state.press()) {
       return;
     }
@@ -76,16 +76,16 @@ export class AnswerPress {
       .answer(ref, action, this.options.channel)
       .pipe(takeUntilDestroyed(this.options.destroyRef))
       .subscribe({
-        next: (response: HttpResponse<AnswerBody>) => this.replied(call, response.status, response.body),
+        next: (response: HttpResponse<AnswerBody>) => this.replied(call, response.status, response.body, fixKind),
         error: (error: unknown) =>
-          error instanceof HttpErrorResponse ? this.replied(call, error.status, error.error) : this.replied(call, 0, undefined),
+          error instanceof HttpErrorResponse ? this.replied(call, error.status, error.error, fixKind) : this.replied(call, 0, undefined, fixKind),
       });
   }
 
   /** The reply to the call: it ends the busy state, early or late, and shows what the reply says. */
-  private replied(call: number, status: number, body: unknown): void {
+  private replied(call: number, status: number, body: unknown, fixKind: string): void {
     this.state.answered(call);
-    const outcome = answerOutcomeOf(status, body);
+    const outcome = answerOutcomeOf(status, body, fixKind);
     const approval = 'approval' in outcome ? outcome.approval : undefined;
     if (approval !== undefined) {
       this.local.set(approval);

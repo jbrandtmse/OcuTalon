@@ -1,7 +1,9 @@
 import { expect, test, type APIRequestContext, type APIResponse } from '../support/fixtures';
 
-import { README_ACCOUNT, envelope, expectError, signInOverHttp } from '../sign-in/helpers';
-import { fixtureUser } from '../support/iris';
+import { README_ACCOUNT, envelope, expectError, signIn, signInOverHttp } from '../sign-in/helpers';
+import { STATE, sessionEvents } from '../support/api';
+import { composerOf, loadedAfter } from '../support/floor';
+import { cleanFixtureRows, fixtureUser, seedTurns, turnRows } from '../support/iris';
 import { memoryExists, pinnedCountOf, precedentExists, removeMemory, removeNoteRows, removePrecedent, seedMemory, seedNoteDecision, seedNoteTurn, seedPrecedent, sessionRefOfUser } from '../support/memory';
 import { sessionRef } from '../support/persona';
 
@@ -321,5 +323,122 @@ test('the pin cap as the LIVE user', async ({ request }) => {
     expect(await pinnedOf(request, short), 'the short memory is pinned once there is room').toBe(true);
   } finally {
     for (const one of seeded) await removeMemory(one);
+  }
+});
+
+/**
+ * Story 41.13 (FR-74, AD-21; the standing rule for /api/v1 routes): GET /api/v1/memory/pinned over real HTTP as the unprivileged LIVE fixture user, with a second OcuTalonUser-only session (PANEL). Signed out it is
+ * 401 signed_out with no challenge. Signed in with no pin it is 200 with exactly the members items and used, `[]` and 0. After a pin of a seeded memory the row comes back as the five-member item with pinned true, and
+ * used is the core-memory block's tokens rounded up, worked out here: the block is 36 + 3 + the text's length + 2 characters, so ceil((41 + length) / 4). The second session's pinned list holds none of the first's
+ * refs, and after the unpin the first's list is `[]` and 0 again. The test needs the LIVE session to hold no pin; the rows it seeds are removed in `finally`.
+ */
+test('the pinned memories as the LIVE user, and a second session sees none of them', async ({ request, playwright, baseURL }) => {
+  test.setTimeout(150_000);
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
+  const session = await sessionRefOfUser(live.user);
+  expect(await pinnedCountOf(session), 'the LIVE session holds no pinned memory before the test').toBe(0);
+  const other = fixtureUser('PANEL');
+  const second = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
+  const anonymous = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
+  const text = `The zzpinned${Date.now()} gateway is pinned.example.test`;
+  const seeded: string[] = [];
+  try {
+    const signedOut = await anonymous.get(`${MEMORY}/pinned`);
+    await expectError(signedOut, 401, 'signed_out', SIGNED_OUT);
+    expect(signedOut.headers()['www-authenticate'], 'signed out sends no challenge').toBeUndefined();
+
+    await signInOverHttp(second, other.user, other.password);
+    expect(await sessionRefOfUser(other.user), 'the second account is another session').not.toBe(session);
+
+    const empty = await request.get(`${MEMORY}/pinned`);
+    expect(empty.status(), await empty.text()).toBe(200);
+    expect(empty.headers()['content-type']).toContain('application/json');
+    const none = (await empty.json()) as Record<string, unknown>;
+    expect(Object.keys(none), 'exactly items and used').toEqual(['items', 'used']);
+    expect(none).toEqual({ items: [], used: 0 });
+
+    const ref = await seedMemory(session, text);
+    seeded.push(ref);
+    await expectDone(await request.fetch(`${MEMORY}/${ref}/pin`, { method: 'POST', headers: envelope() }));
+    const pinned = await request.get(`${MEMORY}/pinned`);
+    expect(pinned.status(), await pinned.text()).toBe(200);
+    const body = (await pinned.json()) as { items: Array<Record<string, unknown>>; used: number };
+    expect(Object.keys(body), 'exactly items and used').toEqual(['items', 'used']);
+    expect(body.items, 'the pinned row, as the five-member item with pinned true').toEqual([
+      { ref, text, savedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/), source: 'told', pinned: true },
+    ]);
+    expect(Object.keys(body.items[0] ?? {})).toEqual(['ref', 'text', 'savedAt', 'source', 'pinned']);
+    expect(body.used, 'used is ceil((36 + 3 + length + 2) / 4)').toBe(Math.ceil((41 + text.length) / 4));
+
+    const theirs = await second.get(`${MEMORY}/pinned`);
+    expect(theirs.status(), await theirs.text()).toBe(200);
+    const theirBody = (await theirs.json()) as { items: Array<{ ref: string }>; used: number };
+    expect(theirBody.items.map((one) => one.ref), "the second session's pinned list holds none of the first's refs").not.toContain(ref);
+
+    await expectDone(await request.fetch(`${MEMORY}/${ref}/pin`, { method: 'DELETE', headers: envelope() }));
+    const cleared = await request.get(`${MEMORY}/pinned`);
+    expect(cleared.status(), await cleared.text()).toBe(200);
+    expect(await cleared.json(), 'after the unpin: no items and used 0').toEqual({ items: [], used: 0 });
+  } finally {
+    await second.dispose();
+    await anonymous.dispose();
+    for (const one of seeded) await removeMemory(one);
+  }
+});
+
+/**
+ * Story 41.15 (AD-4; the standing rule for /api/v1 routes): a learned save is announced only in its own session. The unprivileged LIVE fixture user (OcuTalonUser only) has a done turn seeded
+ * with a learned entry and published on its stream. Over real HTTP LIVE's GET /api/v1/state is 200 and its chat item for the turn carries `learned` as the entries to show, [{memoryRef, fact}] with the
+ * fact shaped (one trailing full stop removed), and its events carry the same `learned` on the chat.message. A second OcuTalonUser-only session (PANEL) sees no such turn: its state chat holds neither the
+ * turn nor a `learned` member, its events after the publish hold none, and its page shows neither the turn's text nor the announcement. The turn is removed in `finally`.
+ */
+test('a learned turn: the LIVE user sees its learned entries and a second session sees none of it', async ({ request, playwright, baseURL, page }) => {
+  test.setTimeout(120_000);
+  const live = fixtureUser('LIVE');
+  const other = fixtureUser('PANEL');
+  const second = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
+  const unique = `zzlearned${Date.now()}`;
+  const text = `The ${unique} contact is Lee`;
+  const made: string[] = [];
+  try {
+    await signInOverHttp(request, live.user, live.password);
+    await signInOverHttp(second, other.user, other.password);
+    expect(await sessionRefOfUser(other.user), 'the second account is another session').not.toBe(await sessionRefOfUser(live.user));
+    const seeded = await seedTurns(
+      live.user,
+      [{ createdAt: '2025-03-02T10:00:00Z', text: `zz ${unique} question`, replyText: `zz ${unique} reply`, learned: [{ memoryRef: `zzLearned${unique}`, text: `${text}.` }] }],
+      true,
+    );
+    made.push(...turnRows(seeded));
+    const ref = seeded.refs[0]!;
+
+    // LIVE: the state's chat item for the turn carries learned, shaped for the line, and so does its chat.message event.
+    const state = await request.get(STATE);
+    expect(state.status(), await state.text()).toBe(200);
+    const chat = ((await state.json()) as { chat: Array<{ type: string; payload: { ref?: string; learned?: unknown } }> }).chat;
+    const item = chat.find((one) => one.type === 'chat.message' && one.payload.ref === ref);
+    expect(item, 'the seeded turn is in the state').toBeDefined();
+    expect(item?.payload.learned, 'with its learned entry as the line shows it').toEqual([{ memoryRef: `zzLearned${unique}`, fact: text }]);
+    const mine = await sessionEvents(request, 0, (events) => events.some((event) => event.type === 'chat.message' && event.payload['ref'] === ref));
+    const published = mine.find((event) => event.type === 'chat.message' && event.payload['ref'] === ref);
+    expect(published?.payload['learned'], "LIVE's own event carries it").toEqual([{ memoryRef: `zzLearned${unique}`, fact: text }]);
+
+    // PANEL: no learned member and no LIVE turn in the state, the events or the page.
+    const theirState = await second.get(STATE);
+    expect(theirState.status(), await theirState.text()).toBe(200);
+    const theirBody = await theirState.text();
+    expect(theirBody, "the second session's state holds no learned member").not.toContain('"learned":');
+    expect(theirBody, "and none of LIVE's turn").not.toContain(unique);
+    const theirEvents = await sessionEvents(second, 0, () => false, 2);
+    expect(JSON.stringify(theirEvents), "the second session's events hold none of LIVE's turn").not.toContain(unique);
+    expect(JSON.stringify(theirEvents), 'and no learned member').not.toContain('"learned":');
+    await loadedAfter(page, () => signIn(page, other.user, other.password));
+    await expect(composerOf(page)).toBeVisible();
+    await expect(page.locator('main.main'), "the second session's page shows none of LIVE's turn").not.toContainText(unique);
+    await expect(page.locator('app-learned-lines'), 'and no learned line').toHaveCount(0);
+  } finally {
+    await second.dispose();
+    await cleanFixtureRows(made);
   }
 });

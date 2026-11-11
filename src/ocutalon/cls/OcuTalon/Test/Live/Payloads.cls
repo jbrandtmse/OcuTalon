@@ -1,11 +1,11 @@
-/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 34 payload
-/// and part classes (Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 20.2 the parts Citation and Memory and the chat message's citations and memories, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 35 payload
+/// and part classes (Story 41.15 adds the part Learned and the chat message's learned; Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 20.2 the parts Citation and Memory and the chat message's citations and memories, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
 /// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
 /// shows (from unsaved rows), and the trace targets of a chat turn's decision and of an approval request (Story 2.13), which
 /// build from fixture sessions, turns, incidents and approval requests, and the result that the incident payload lists for a request whose run has ended (Story 7.4),
-/// read from the request's FixRun, and the either-way fields of the approval payload's dry run (Story 7.8), built from unsaved rows, and the heartbeat payload's FromRow of an unsaved HeartbeatBeat row and of no row (Story 39.7). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// read from the request's FixRun, the kind, item and count that it lists for a chat-asked suspend, resume or reroute request (Story 23.2), and the either-way fields of the approval payload's dry run (Story 7.8), built from unsaved rows, and the heartbeat payload's FromRow of an unsaved HeartbeatBeat row and of no row (Story 39.7). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
 /// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
 Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {
@@ -90,7 +90,7 @@ Method TestContracts()
 			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
 		}
 	}
-	Do $$$AssertEquals(classes, 34, "the contracts hold the 34 payload and part classes")
+	Do $$$AssertEquals(classes, 35, "the contracts hold the 35 payload and part classes")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
 }
@@ -324,6 +324,7 @@ Method TestFromRowRequestResult()
 	Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.FixRun).OfRequest(ended)) + $IsObject(##class(OcuTalon.Data.FixRun).OfRequest(bare)) + $IsObject(##class(OcuTalon.Data.FixRun).OfRequest("")), 1, "OfRequest finds the run of the Ref, compares it exactly (the upper-case run is not the bare request's) and gives none for an empty Ref")
 	Do $$$AssertStatusOK(##class(OcuTalon.Live.Payload.Incident).FromRow(row).%JSONExportToString(.json), "the payload exports")
 	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.production, "Zz.Production", "the payload names the incident's production, which a suspend's band names its item in")
 	Do $$$AssertEquals(object.requests.%Size(), 3, "three requests")
 	If object.requests.%Size() = 3 {
 		Set result = object.requests.%Get(0).result
@@ -337,6 +338,74 @@ Method TestFromRowRequestResult()
 		Do $$$AssertEquals(object.requests.%Get(2).%IsDefined("result"), 0, "and neither has a request that has no run of its own")
 	}
 	Do $ClassMethod(fixture, "Clean", ended_","_running_","_bare_","_row.Ref)
+}
+
+/// The requests of a chat-asked fix (Story 23.2): FromRow lists each request's fixKind; a suspend or resume names the item of its parameters, a reroute names its target item and
+/// counts its dry run's affected messages, and a repair request names no item and gives no count.
+Method TestFromRowRequestKinds()
+{
+	Set owner = "ZzPay"_..Number_"rk"
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set row = ..Incident(owner)
+	Set at = ##class(OcuTalon.Data.Time).NowUtc()
+	Set reroute = $ClassMethod(fixture, "Approval", owner, row.Ref, "pending", at, {"FixKind": "reroute", "FixParameters": ({"target": "OrdersForReview"}.%ToJSON()), "DryRun": ({"affected": 7, "resend": 6, "leftOut": 1, "itemNoun": {"one": "order", "other": "orders"}, "from": "OrdersFromPartner", "to": "OrdersForReview", "example": "41"}.%ToJSON())})
+	Set suspend = $ClassMethod(fixture, "Approval", owner, row.Ref, "pending", at, {"FixKind": "suspend_item", "FixParameters": ({"item": "OrdersToWarehouse"}.%ToJSON()), "DryRun": ({"item": "OrdersToWarehouse", "before": "enabled", "after": "disabled"}.%ToJSON())})
+	Set repair = $ClassMethod(fixture, "Approval", owner, row.Ref, "pending", at, {"FixKind": "repair_resend", "FixParameters": ({"field": "OrderDate", "from": "DD/MM/YYYY", "to": "YYYY-MM-DD"}.%ToJSON())})
+	Set row.RequestRefs = reroute_","_suspend_","_repair
+	Do $$$AssertStatusOK(row.%Save(), "the fixture row lists three requests")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Payload.Incident).FromRow(row).%JSONExportToString(.json), "the payload exports")
+	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.requests.%Size(), 3, "three requests")
+	If object.requests.%Size() = 3 {
+		Set one = object.requests.%Get(0)
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.count_"|"_one.%GetTypeOf("count"), reroute_"|reroute|OrdersForReview|7|number", "the reroute names its target and counts its affected messages")
+		Set one = object.requests.%Get(1)
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.%IsDefined("count"), suspend_"|suspend_item|OrdersToWarehouse|0", "the suspend names its item and gives no count")
+		Set one = object.requests.%Get(2)
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.%IsDefined("item")_"|"_one.%IsDefined("count"), repair_"|repair_resend|0|0", "the repair request names no item and gives no count")
+	}
+	Do $ClassMethod(fixture, "Clean", reroute_","_suspend_","_repair_","_row.Ref)
+}
+
+/// A partner delay notice (Story 23.5; AC2, AC14): FromRow gives the dry run part the notice (with its line breaks), every recipient as "Name <address>" and simulated; no repair key is set, the exported JSON
+/// holds notice, recipients and simulated true and none of the repair keys, and a request of another kind has none of the three. The incident payload lists the request with its fixKind and no item or count.
+Method TestApprovalPartnerNotice()
+{
+	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set request.Ref = "ZzPartnerRef"_..Number
+	Set request.Kind = "fix"
+	Set request.State = "pending"
+	Set request.FixKind = "partner_warning"
+	Set request.FixParameters = {"text": "Orders failed.", "to": "it@results-partner.example,b@results-partner.example"}.%ToJSON()
+	Set notice = "Orders from your feed failed."_$Char(10)_"We are looking into it."
+	Set request.DryRun = {"notice": (notice), "recipients": [{"name": "Results Partner IT", "address": "it@results-partner.example"}, {"name": "B", "address": "b@results-partner.example"}], "simulated": 1}.%ToJSON()
+	Set stored = request.DryRun
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals(payload.FixKind, "partner_warning", "the payload names the kind")
+	Do $$$AssertTrue(payload.DryRun.Notice = notice, "the dry run part holds the notice, line break included")
+	Do $$$AssertEquals(payload.DryRun.Recipients.Count()_"|"_payload.DryRun.Recipients.GetAt(1)_"|"_payload.DryRun.Recipients.GetAt(2), "2|Results Partner IT <it@results-partner.example>|B <b@results-partner.example>", "and every recipient as Name <address>, in order")
+	Do $$$AssertEquals(payload.DryRun.Simulated, 1, "and simulated")
+	Do $$$AssertEquals(payload.DryRun.Affected_"|"_payload.DryRun.Resend_"|"_payload.DryRun.Field_"|"_payload.DryRun.EitherWay_"|"_payload.DryRun.Reading, "|||0|", "no repair key is set")
+	Do $$$AssertEquals(request.DryRun, stored, "the row's stored dry run is unchanged")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json).dryRun
+	Do $$$AssertTrue(exported.notice = notice, "the JSON has the notice")
+	Do $$$AssertEquals(exported.recipients.%Size()_"|"_exported.recipients.%Get(0)_"|"_exported.simulated_"|"_exported.%GetTypeOf("simulated"), "2|Results Partner IT <it@results-partner.example>|1|boolean", "the recipients and simulated true")
+	Do $$$AssertEquals(exported.%IsDefined("affected")_"|"_exported.%IsDefined("field")_"|"_exported.%IsDefined("before"), "0|0|0", "and none of the repair keys")
+	Set request.DryRun = {"affected": 3, "resend": 3, "leftOut": 0, "field": "OrderDate", "before": "10/16/2026", "after": "2026-10-16"}.%ToJSON()
+	Set request.FixKind = "repair_resend"
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals(payload.DryRun.Notice_"|"_payload.DryRun.Recipients.Count()_"|"_payload.DryRun.Simulated, "|0|0", "a repair request has no notice, no recipient and is not simulated")
+	// the incident payload lists the request
+	Set owner = "ZzPay"_..Number_"pn"
+	Set row = ..Incident(owner)
+	Set ref = $ClassMethod("OcuTalon.Test.Data.Fixture", "Approval", owner, row.Ref, "pending", , {"FixKind": "partner_warning", "FixParameters": (request.FixParameters), "DryRun": (stored)})
+	Set row.RequestRefs = ref
+	Do $$$AssertStatusOK(row.%Save(), "the fixture row lists the request")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Payload.Incident).FromRow(row).%JSONExportToString(.incidentJson), "the incident payload exports")
+	Set one = ##class(%DynamicObject).%FromJSON(incidentJson).requests.%Get(0)
+	Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.%IsDefined("item")_"|"_one.%IsDefined("count"), ref_"|partner_warning|0|0", "it carries the fixKind and no item or count")
+	Do $ClassMethod("OcuTalon.Test.Data.Fixture", "Clean", ref_","_row.Ref)
 }
 
 /// A saved FixRun of the request (the Ref) and the incident, with the properties of fields (an object) set. Fixture.FixRun ends the
@@ -373,6 +442,39 @@ Method TestIncidentFromRowReadsNoSql()
 		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Source).Matches(method, needle, 1), 0, "FixRun.OfRequest: no code line holds "_needle)
 	}
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set rs = ##class(%SQL.Statement).%ExecDirect(, ""x"")", "%ExecDirect", 1), "the scan flags a line that runs SQL")
+}
+
+/// A turn's chat message carries the learned saves it announces (Story 41.15): each entry of the row's Learned as {memoryRef, fact} with the fact shaped (one trailing full stop removed, cut to 200 characters with
+/// an ellipsis), at most 3, in order; none for a reply that already says "I'll remember" (any case, U+2019), for text that is not a JSON array and for entries of the wrong shape; and the JSON leaves the member out when empty.
+Method TestChatMessageLearned()
+{
+	Set ellipsis = $Char(8230)
+	Set long = $Translate($Justify("", 300), " ", "b")
+	Set row = ##class(OcuTalon.Data.Turn).%New()
+	Set row.Ref = "zzlrn"_..Number
+	Set row.ReplyText = "Noted."
+	Set row.Learned = [{"memoryRef": "zzm1", "text": "Lee is the contact."}, {"memoryRef": "zzm2", "text": (long)}, {"memoryRef": "zzm3", "text": "<b>Lee</b> & co"}, {"memoryRef": "zzm4", "text": "a fourth"}].%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do $$$AssertEquals(payload.Learned.Count(), 3, "three entries at most")
+	Do $$$AssertEquals(payload.Learned.GetAt(1).MemoryRef_"|"_payload.Learned.GetAt(1).Fact, "zzm1|Lee is the contact", "the first: one trailing full stop removed")
+	Do $$$AssertEquals(payload.Learned.GetAt(2).MemoryRef_"|"_payload.Learned.GetAt(2).Fact, "zzm2|"_$Extract(long, 1, 199)_ellipsis, "the second: 300 characters are 199 and an ellipsis")
+	Do $$$AssertEquals(payload.Learned.GetAt(3).Fact, "<b>Lee</b> & co", "the third: markup stays as the characters it is")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.learned.%Size()_"|"_exported.learned.%Get(0).%ToJSON(), "3|"_{"memoryRef": "zzm1", "fact": "Lee is the contact"}.%ToJSON(), "the JSON names them under learned, each {memoryRef, fact}")
+	For said = "I'll remember that.", "i WILL  remember it", "Sure. I"_$Char(8217)_"ll remember Lee" {
+		Set row.ReplyText = said
+		Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+		Do $$$AssertEquals(payload.Learned.Count(), 0, "a reply that says '"_said_"' has no entry to show")
+	}
+	Set row.ReplyText = "Noted."
+	For text = "not json", "{""memoryRef"":""zzm1"",""text"":""a""}", "[", "", "[1,null,{""text"":""a""},{""memoryRef"":""zzm1"",""text"":5}]" {
+		Set row.Learned = text
+		Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+		Do $$$AssertEquals(payload.Learned.Count(), 0, "'"_text_"' gives no entry")
+	}
+	Do payload.%JSONExportToString(.bareJson)
+	Do $$$AssertEquals(##class(%DynamicObject).%FromJSON(bareJson).%IsDefined("learned"), 0, "and the JSON then leaves the member out")
 }
 
 /// A turn's chat message carries its shown decision (the triage decision, or the reply decision of a fallback) as the decision
@@ -1125,6 +1227,7 @@ XData Contracts [ MimeType = application/json ]
    "IncidentRef": "%String(%JSONFIELDNAME=incidentRef,MAXLEN=22)",
    "ToolName": "%String(%JSONFIELDNAME=toolName,MAXLEN=128)",
    "Reason": "%String(%JSONFIELDNAME=reason,MAXLEN=1000)",
+   "FixKind": "%String(%JSONFIELDNAME=fixKind,MAXLEN=64)",
    "DryRun": "OcuTalon.Live.Payload.Part.DryRun(%JSONFIELDNAME=dryRun)",
    "RaisedAt": "%String(%JSONFIELDNAME=raisedAt,MAXLEN=20)",
    "ExpiresAt": "%String(%JSONFIELDNAME=expiresAt,MAXLEN=20)",
@@ -1167,7 +1270,8 @@ XData Contracts [ MimeType = application/json ]
    "CheckKey": "%String(%JSONFIELDNAME=checkKey,MAXLEN=128)",
    "Checks": "list Of OcuTalon.Live.Payload.Part.CheckRow(%JSONFIELDNAME=checks)",
    "Citations": "list Of OcuTalon.Live.Payload.Part.Citation(%JSONFIELDNAME=citations)",
-   "Memories": "list Of OcuTalon.Live.Payload.Part.Memory(%JSONFIELDNAME=memories)"
+   "Memories": "list Of OcuTalon.Live.Payload.Part.Memory(%JSONFIELDNAME=memories)",
+   "Learned": "list Of OcuTalon.Live.Payload.Part.Learned(%JSONFIELDNAME=learned)"
   }
  },
  "OcuTalon.Live.Payload.Check": {
@@ -1226,6 +1330,7 @@ XData Contracts [ MimeType = application/json ]
   "super": "%RegisteredObject,%JSON.Adaptor",
   "props": {
    "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "Production": "%String(%JSONFIELDNAME=production,MAXLEN=128)",
    "State": "%String(%JSONFIELDNAME=state,MAXLEN=32)",
    "OpenVariant": "%String(%JSONFIELDNAME=openVariant,MAXLEN=32)",
    "Count": "%Integer(%JSONFIELDNAME=count)",
@@ -1389,6 +1494,13 @@ XData Contracts [ MimeType = application/json ]
    "Before": "%String(%JSONFIELDNAME=before,MAXLEN=1000)",
    "After": "%String(%JSONFIELDNAME=after,MAXLEN=1000)",
    "ItemNoun": "OcuTalon.Live.Payload.Part.ItemNoun(%JSONFIELDNAME=itemNoun)",
+   "Item": "%String(%JSONFIELDNAME=item,MAXLEN=128)",
+   "From": "%String(%JSONFIELDNAME=from,MAXLEN=128)",
+   "To": "%String(%JSONFIELDNAME=to,MAXLEN=128)",
+   "Example": "%String(%JSONFIELDNAME=example,MAXLEN=32)",
+   "Notice": "%String(%JSONFIELDNAME=notice,MAXLEN=)",
+   "Recipients": "list Of %String(%JSONFIELDNAME=recipients,MAXLEN=300)",
+   "Simulated": "%Boolean(%JSONFIELDNAME=simulated)",
    "EitherWay": "%Boolean(%JSONFIELDNAME=eitherWay)",
    "Reading": "%String(%JSONFIELDNAME=reading,MAXLEN=32)"
   }
@@ -1449,6 +1561,9 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
    "State": "%String(%JSONFIELDNAME=state,MAXLEN=32)",
+   "FixKind": "%String(%JSONFIELDNAME=fixKind,MAXLEN=64)",
+   "Item": "%String(%JSONFIELDNAME=item,MAXLEN=128)",
+   "Count": "%Integer(%JSONFIELDNAME=count)",
    "Result": "OcuTalon.Live.Payload.Part.IncidentRequestResult(%JSONFIELDNAME=result)"
   }
  },
@@ -1478,6 +1593,13 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "One": "%String(%JSONFIELDNAME=one,MAXLEN=128)",
    "Other": "%String(%JSONFIELDNAME=other,MAXLEN=128)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.Learned": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "MemoryRef": "%String(%JSONFIELDNAME=memoryRef,MAXLEN=128)",
+   "Fact": "%String(%JSONFIELDNAME=fact,MAXLEN=)"
   }
  },
  "OcuTalon.Live.Payload.Part.Memory": {

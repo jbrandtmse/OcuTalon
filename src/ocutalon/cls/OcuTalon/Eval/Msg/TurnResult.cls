@@ -6,6 +6,7 @@
 ///     RecordedChecks, and saves it again, and sends it, once the reply is in.
 ///   - The two readers are the eval branch of check_status (OcuTalon.Tools.WatchAnswers.EvalCheckResults, which finds the message by the
 ///     ItemId of the call's bridge context and reads RecordedChecks) and OcuTalon.Eval.Report (which scores a turn case from the reply and the rendered key).
+///   - Memories (Story 41.14) is the Reply's HostData.memories, kept as Citations is, for the report's rule that a reply carries no memory.
 ///   - Fallback is true when Decide answered with a fallback, or when Decide was busy at every ask (EvalIn then sets the reason rate_limited),
 ///     and FallbackReason is then one of Msg.Enum FALLBACKREASON; such a message has no reply text and no rendered key.
 Class OcuTalon.Eval.Msg.TurnResult Extends Ens.Request
@@ -45,6 +46,12 @@ Property FallbackReason As %String(MAXLEN = 32);
 /// The citations of the Reply's HostData as a JSON array, for a documents case (Story 19.4); empty when the Reply carried none.
 Property Citations As %String(MAXLEN = "");
 
+/// The memories of the Reply's HostData (the memories array that the memory tools merge in) as a JSON array, for a session case (Story 41.14); empty when the Reply carried none.
+Property Memories As %String(MAXLEN = "");
+
+/// The learned saves of the Reply's HostData (the learned array that save_memory merges in, Story 41.15) as a JSON array of {memoryRef, text}; empty when the Reply carried none.
+Property Learned As %String(MAXLEN = "");
+
 Storage Default
 {
 <Data name="TurnResultDefaultData">
@@ -81,6 +88,12 @@ Storage Default
 </Value>
 <Value name="11">
 <Value>Citations</Value>
+</Value>
+<Value name="12">
+<Value>Memories</Value>
+</Value>
+<Value name="13">
+<Value>Learned</Value>
 </Value>
 </Data>
 <DefaultData>TurnResultDefaultData</DefaultData>

@@ -11,9 +11,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { BREAK_FEED_BUTTON, CHAT_FLOOR, COMPACT_BAND_HEIGHT, DISMISS_BUTTON, INCIDENT_CARD, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, RESOLVED_CHIP, chatFloor, inCompactBand, itemsFor, windowBound } = await import(app('guide', 'more-to-try-view.ts'));
+const { BREAK_FEED_BUTTON, CHAT_FLOOR, COMPACT_BAND_HEIGHT, DISMISS_BUTTON, INCIDENT_CARD, MORE_TO_TRY_GROUPS, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, RESOLVED_CHIP, chatFloor, groupsOf, inCompactBand, itemsFor, windowBound } = await import(app('guide', 'more-to-try-view.ts'));
 const { HEIGHT_QUERIES } = await import(app('shared', 'layout-view.ts'));
 const { RAIL_TEXTS } = await import(app('rail', 'rail-view.ts'));
+const { MEMORY_HEADING_ID, MEMORY_TEXTS } = await import(app('rail', 'memory-card', 'memory-card-view.ts'));
 const { HEARTBEAT_HEADING_ID, HEARTBEAT_TEXTS } = await import(app('rail', 'heartbeat-card', 'heartbeat-card-view.ts'));
 const { PERSONA_TEXTS, PRESETS } = await import(app('rail', 'persona-card', 'persona-card-view.ts'));
 const { TRY_IT_TEXTS } = await import(app('chat', 'try-it-view.ts'));
@@ -36,6 +37,8 @@ const RULED = {
   label: 'Other things to try',
   rememberPrompt: "Remember that the Results partner's contact is Lee.",
   summaryPrompt: 'Show me the incident summary',
+  reroutePrompt: 'Reroute the failed orders to OrdersForReview.',
+  partnerPrompt: 'Warn the partner about the delay.',
   items: {
     incidentSummary: {
       label: 'Read the incident summary',
@@ -61,6 +64,18 @@ const RULED = {
         'This presses Break the feed again. OcuTalon usually notices within a minute. When the fix waits for your approval, press Reject in the chat or on the Simulated phone, and look for "Nothing was changed."',
       button: 'Break it again',
     },
+    reroute: {
+      label: 'Reroute the failed orders',
+      lookFor:
+        'First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way.',
+      button: 'Ask to reroute',
+    },
+    partnerWarning: {
+      label: 'Warn the partner',
+      lookFor:
+        'This asks OcuTalon in the chat to warn the partner about an incident\'s delay, so it needs an incident that isn\'t closed: if you closed the guide\'s incident, do "Reject a fix" first. OcuTalon drafts a short notice from the incident\'s counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox.',
+      button: 'Ask for a partner warning',
+    },
     demoView: {
       label: 'See the page as on your own install',
       lookFor: 'The demo guide, Break the feed and the Simulated devices are hidden, as on your own install. Turn Demo view back on in the top bar to return.',
@@ -70,6 +85,12 @@ const RULED = {
       label: 'Ask it to remember something',
       lookFor: 'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
       button: 'Ask it to remember',
+    },
+    memoryCard: {
+      label: 'Pin a memory',
+      lookFor:
+        'First do "Ask it to remember something". Then open All memories in the Memory card and press Pin on the memory marked Told. Open Pinned to see it: pinned facts are read at the start of each conversation, up to 1,000 tokens.',
+      button: 'Go to the Memory card',
     },
     documents: {
       label: 'Ask about a document',
@@ -88,6 +109,19 @@ const RULED = {
         'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
       button: 'Open the Documents page',
     },
+    usage: {
+      label: 'See tokens and cost',
+      // mutation: the registry's look-for ends its second sentence "on your messages and incidents." -> the RULED copy test, the ux-strings and usage-docs tests go red.
+      lookFor:
+        'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
+      button: 'Open the Usage page',
+    },
+    history: {
+      label: 'Look back at past decisions',
+      lookFor:
+        'On the History page, filter the Decisions tab by outcome, channel, date or fallback, and open a decision to read its reasons, with a link to its trace. The Incidents tab lists your incidents with their state and, once an incident has closed, its summary. If it reads "No decisions yet.", run the guide first.',
+      button: 'Open the History page',
+    },
   },
 };
 
@@ -98,8 +132,23 @@ const IDS = MORE_TO_TRY_ITEMS.map((item) => item.id);
 const BEFORE_MEMORY = IDS.slice(0, IDS.indexOf('memory'));
 // The item whose control hands off to another item's control (Story 20.2: See where an answer came from opens the Documents page).
 const ACTION_OF = { sources: 'documents' };
-// The panel's group of each item that declares one (the Contest Planner's More to try groups ruling, 2026-11-10); the other items declare none yet.
-const GROUP_OF = { sources: 'Memory and documents' };
+// The panel's group of each item (the Contest Planner's More to try groups ruling, 2026-11-10).
+const GROUP_OF = {
+  incidentSummary: 'Incidents and fixes',
+  rejectFix: 'Incidents and fixes',
+  reroute: 'Incidents and fixes',
+  partnerWarning: 'Incidents and fixes',
+  memory: 'Memory and documents',
+  memoryCard: 'Memory and documents',
+  documents: 'Memory and documents',
+  sources: 'Memory and documents',
+  suspiciousEmail: 'Safety and settings',
+  heartbeat: 'Safety and settings',
+  persona: 'Safety and settings',
+  demoView: 'Safety and settings',
+  usage: 'Usage and history',
+  history: 'Usage and history',
+};
 const idsOf = (items) => items.map((item) => item.id);
 
 describe('(a) the fixed strings', () => {
@@ -121,8 +170,11 @@ describe('(a) the fixed strings', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS.map((id) => ACTION_OF[id] ?? id));
   });
 
-  it('give the sources entry its ruled group, Memory and documents, and no other entry a group yet', () => {
+  it('give every entry its ruled group, with usage then history the last items of Usage and history and the last registry entries', () => {
     assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => [item.id, item.group]), IDS.map((id) => [id, GROUP_OF[id]]));
+    assert.deepEqual(MORE_TO_TRY_ITEMS.filter((item) => item.group === 'Usage and history').map((item) => item.id), ['usage', 'history'], 'usage then history in Usage and history');
+    assert.deepEqual(IDS.slice(-2), ['usage', 'history'], 'and the last two registry entries');
+    assert.equal(MORE_TO_TRY_ITEMS.at(-1)?.action, 'history', 'the history item hands off to the History page');
   });
 
   it('use straight ASCII quotes and no other non-ASCII character', () => {
@@ -143,7 +195,7 @@ describe('(b) itemsFor', () => {
   });
 
   it('shows exactly its item, in its place, when memory, documents or heartbeat is added', () => {
-    for (const id of ['memory', 'documents', 'heartbeat', 'sources']) {
+    for (const id of ['memory', 'memoryCard', 'documents', 'heartbeat', 'sources']) {
       assert.deepEqual(idsOf(itemsFor([...BEFORE_MEMORY, id])), IDS.filter((one) => BEFORE_MEMORY.includes(one) || one === id), id);
     }
     assert.deepEqual(idsOf(itemsFor(IDS)), IDS);
@@ -157,6 +209,70 @@ describe('(b) itemsFor', () => {
   it('follows the registry order, not the input order', () => {
     assert.deepEqual(idsOf(itemsFor([...IDS].reverse())), IDS);
     assert.deepEqual(idsOf(itemsFor(['demoView', 'persona'])), ['persona', 'demoView']);
+  });
+});
+
+describe('(b2) groupsOf', () => {
+  const item = (id, group) => ({ id, label: id, lookFor: id, button: id, action: 'persona', group });
+  const headings = (sets) => sets.map((set) => set.heading);
+  const flat = (sets) => sets.flatMap((set) => idsOf(set.items));
+
+  it('holds the ruled headings, in the ruled order', () => {
+    assert.deepEqual(MORE_TO_TRY_GROUPS, ['Incidents and fixes', 'Memory and documents', 'Safety and settings', 'Usage and history']);
+  });
+
+  it('knows every group that the registry declares', () => {
+    for (const entry of MORE_TO_TRY_ITEMS) {
+      assert.ok(MORE_TO_TRY_GROUPS.includes(entry.group), `${entry.id} declares ${JSON.stringify(entry.group)}`);
+    }
+  });
+
+  it('gives the whole registry under the headings in order, and each group in registry order', () => {
+    const sets = groupsOf(itemsFor(IDS));
+    assert.deepEqual(headings(sets), MORE_TO_TRY_GROUPS.filter((group) => IDS.some((id) => GROUP_OF[id] === group)));
+    for (const set of sets) {
+      assert.deepEqual(idsOf(set.items), IDS.filter((id) => GROUP_OF[id] === set.heading), set.heading);
+    }
+    assert.deepEqual(flat(sets).sort(), [...IDS].sort(), 'every item once');
+  });
+
+  it('leaves out a group with no item, and gives nothing for no items', () => {
+    const sets = groupsOf(itemsFor(BEFORE_MEMORY));
+    assert.deepEqual(headings(sets), MORE_TO_TRY_GROUPS.filter((group) => BEFORE_MEMORY.some((id) => GROUP_OF[id] === group)));
+    assert.ok(!headings(sets).includes('Memory and documents'));
+    assert.deepEqual(groupsOf([]), []);
+    assert.deepEqual(groupsOf(itemsFor(undefined)), []);
+  });
+
+  it('puts the items with no group, or a blank one, first and with no heading', () => {
+    const items = [item('a', 'Safety and settings'), item('b', undefined), item('c', '  '), item('d', ''), item('e', 'Incidents and fixes')];
+    const sets = groupsOf(items);
+    assert.equal(sets[0].heading, undefined);
+    assert.deepEqual(idsOf(sets[0].items), ['b', 'c', 'd']);
+    assert.deepEqual(headings(sets), [undefined, 'Incidents and fixes', 'Safety and settings']);
+    assert.ok(sets.every((set, i) => i === 0 || (typeof set.heading === 'string' && set.heading.trim() !== '')), 'no empty heading');
+  });
+
+  it('puts a group the constant does not hold after the ordered groups, in order of first appearance', () => {
+    const items = [item('a', 'Zed'), item('b', 'Safety and settings'), item('c', 'Alpha'), item('d', 'Zed'), item('e', 'Incidents and fixes')];
+    const sets = groupsOf(items);
+    assert.deepEqual(headings(sets), ['Incidents and fixes', 'Safety and settings', 'Zed', 'Alpha']);
+    assert.deepEqual(idsOf(sets[2].items), ['a', 'd']);
+  });
+
+  it('keeps an Incidents and fixes item that comes first in the input first overall', () => {
+    const sets = groupsOf([item('first', 'Incidents and fixes'), ...itemsFor(IDS)]);
+    assert.equal(flat(sets)[0], 'first');
+  });
+
+  it('gives every input item once, and the flattened sets are the focus order', () => {
+    for (const id of IDS) {
+      const input = itemsFor([...BEFORE_MEMORY, id]);
+      const sets = groupsOf(input);
+      assert.deepEqual(flat(sets).sort(), idsOf(input).sort(), id);
+      assert.equal(new Set(flat(sets)).size, input.length, id);
+      assert.deepEqual(flat(sets), MORE_TO_TRY_GROUPS.flatMap((group) => idsOf(input).filter((one) => GROUP_OF[one] === group)), `${id}: the order shown`);
+    }
   });
 });
 
@@ -191,6 +307,24 @@ describe('(c) every quoted on-screen name equals its source', () => {
     assert.equal(BREAK_FEED_BUTTON, 'app-break-feed-box app-server-button button');
   });
 
+  it('names Reject a fix, the review item and the prompt that the reroute item sends as the page does (Story 23.2)', () => {
+    has(items.reroute.lookFor, `First do "${items.rejectFix.label}"`);
+    has(items.reroute.lookFor, 'to reroute them to OrdersForReview, the review queue');
+    has(items.reroute.lookFor, 'press Trace to see the copies go to OrdersForReview');
+    assert.equal(MORE_TO_TRY_TEXTS.reroutePrompt, RULED.reroutePrompt);
+    assert.ok(RULED.reroutePrompt.includes('OrdersForReview'));
+  });
+
+  it('names Reject a fix, the Simulated mailbox and the prompt that the partner warning item sends as the page does (Story 23.5)', () => {
+    has(items.partnerWarning.lookFor, `do "${items.rejectFix.label}" first`);
+    has(items.partnerWarning.lookFor, `open the ${DEVICE_TEXTS.mailboxTab} to read the notice`);
+    has(items.partnerWarning.lookFor, 'Nothing goes to a real inbox.');
+    assert.equal(MORE_TO_TRY_TEXTS.partnerPrompt, RULED.partnerPrompt);
+    assert.equal(RULED.partnerPrompt, 'Warn the partner about the delay.');
+    assert.equal(MORE_TO_TRY_ITEMS.find((item) => item.id === 'partnerWarning')?.group, 'Incidents and fixes');
+    assert.equal(MORE_TO_TRY_ITEMS[MORE_TO_TRY_ITEMS.findIndex((item) => item.id === 'reroute') + 1]?.id, 'partnerWarning', 'it follows the reroute item');
+  });
+
   it('names the Simulated devices and the Demo view switch as the page does', () => {
     has(items.demoView.lookFor, `the ${DEVICE_TEXTS.region} are hidden`);
     has(items.demoView.lookFor, `Turn ${DEMO_VIEW_TEXTS.label} back on`);
@@ -203,7 +337,23 @@ describe('(c) every quoted on-screen name equals its source', () => {
     has(items.heartbeat.lookFor, `press ${HEARTBEAT_TEXTS.run}.`);
     assert.equal(HEARTBEAT_TEXTS.run, 'Run the heartbeat now');
     has(items.heartbeat.button, `the ${RAIL_TEXTS.heartbeat} card`);
-    assert.equal(HEARTBEAT_HEADING_ID, 'rail-heading-heartbeat', 'the heading that item 7 hands focus to');
+    assert.equal(HEARTBEAT_HEADING_ID, 'rail-heading-heartbeat', 'the heading that the heartbeat item hands focus to');
+  });
+
+  it('names the Memory card, its tabs and its controls as the card does, and the item it follows by its label', () => {
+    has(items.memoryCard.lookFor, `"${items.memory.label}"`);
+    has(items.memoryCard.lookFor, `open ${MEMORY_TEXTS.memories} in the ${RAIL_TEXTS.memory} card`);
+    has(items.memoryCard.lookFor, `press ${MEMORY_TEXTS.pin} on the memory marked ${MEMORY_TEXTS.told}`);
+    has(items.memoryCard.lookFor, `Open ${MEMORY_TEXTS.pinned} to see it`);
+    has(items.memoryCard.lookFor, 'up to 1,000 tokens');
+    assert.equal(MEMORY_TEXTS.used, '{used} of 1,000 tokens (estimated).', 'the limit the line quotes');
+    has(items.memoryCard.button, `the ${RAIL_TEXTS.memory} card`);
+    assert.equal(MEMORY_HEADING_ID, 'rail-heading-memory', 'the heading that the button hands focus to');
+  });
+
+  it('puts the Memory card item right after the memory item', () => {
+    const at = MORE_TO_TRY_ITEMS.findIndex((item) => item.id === 'memory');
+    assert.equal(MORE_TO_TRY_ITEMS[at + 1]?.id, 'memoryCard');
   });
 
   it('names Dismiss, the Simulated phone and the summary prompt as the page does (Story 23.6)', () => {
@@ -218,12 +368,12 @@ describe('(c) every quoted on-screen name equals its source', () => {
 
   it('counts the items by the registry: the header comment of the module says how many there are', () => {
     const header = readFileSync(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts'), 'utf8');
-    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen'];
     assert.match(header, new RegExp(`the registry of\\s+\\*\\s+its ${words[MORE_TO_TRY_ITEMS.length]} items`), `the header comment says ${words[MORE_TO_TRY_ITEMS.length]} items`);
   });
 
   it('counts the items by the registry in the README (line 30) and in EXPERIENCE.md, whatever the number is after the merges (Story 23.6, AC 18)', () => {
-    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen'];
     const word = words[MORE_TO_TRY_ITEMS.length];
     const readme = readFileSync(join(here, '..', '..', 'README.md'), 'utf8');
     assert.match(readme, new RegExp(`its More to try panel has ${word} more things to try`), `the README says ${word} more things to try`);

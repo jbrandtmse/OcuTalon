@@ -813,6 +813,234 @@ XData Entries [ MimeType = application/json ]
   "slots": {},
   "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
  },
+ "incident.suspendRequest": {
+  "text": "I can suspend {item} in {production}. Approve?\n\nDry run: {item} is enabled now and would be disabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I can suspend {item} in {production}.\n\nDry run: {item} is enabled now and would be disabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "item": "text",
+   "production": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "incident.resumeRequest": {
+  "text": "I can resume {item} in {production}. Approve?\n\nDry run: {item} is disabled now and would be enabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I can resume {item} in {production}.\n\nDry run: {item} is disabled now and would be enabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "item": "text",
+   "production": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "incident.rerouteRequest": {
+  "text": "I can reroute {count} failed {itemNoun} from {from} to {to}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: message {example} would go to {to} instead of {from}. I'll resend {resendCount} copies to {to}; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I can reroute {count} failed {itemNoun} from {from} to {to}.\n\nDry run: {count} {itemNoun} affected. Example: message {example} would go to {to} instead of {from}. I'll resend {resendCount} copies to {to}; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "from": "text",
+   "to": "text",
+   "example": "text",
+   "resendCount": "count"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09",
+  "one": {
+   "slot": "resendCount",
+   "text": "I can reroute {count} failed {itemNoun} from {from} to {to}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: message {example} would go to {to} instead of {from}. I'll resend 1 copy to {to}; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+   "web": "I can reroute {count} failed {itemNoun} from {from} to {to}.\n\nDry run: {count} {itemNoun} affected. Example: message {example} would go to {to} instead of {from}. I'll resend 1 copy to {to}; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."
+  }
+ },
+ "incident.goodChanged": {
+  "text": "{count} {itemNoun} failed since {time}. {cause}. The fix I would use would also change {noun} that went through, so I'm not proposing it. Nothing was changed.\n\nFailures:\n{groups}\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "time": "time",
+   "cause": "sentence",
+   "noun": "text",
+   "groups": "groups"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.itemSuspended": {
+  "text": "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal.",
+  "slots": {
+   "item": "text",
+   "production": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, text ruled by the Contest Planner 2026-11-10 (DW-1068 re-ruling)"
+ },
+ "result.itemResumed": {
+  "text": "{item} in {production} is enabled again.",
+  "slots": {
+   "item": "text",
+   "production": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.itemSkipped": {
+  "text": "{item} was not changed: {reason}. It needs a new approval.",
+  "slots": {
+   "item": "text",
+   "reason": "sentence"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.itemNotChanged": {
+  "text": "Nothing was changed: {reason}.",
+  "slots": {
+   "reason": "sentence"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.rerouted": {
+  "text": "All {count} {itemNoun} were rerouted to {to} and completed there. The originals stay unchanged.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "to": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09",
+  "one": {
+   "slot": "count",
+   "text": "The {itemNoun} was rerouted to {to} and completed there. The original stays unchanged."
+  }
+ },
+ "summary.requestedSuspend": {
+  "text": "{time}: OcuTalon asked for approval to suspend {item}.",
+  "slots": {
+   "time": "time",
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.requestedResume": {
+  "text": "{time}: OcuTalon asked for approval to resume {item}.",
+  "slots": {
+   "time": "time",
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.requestedReroute": {
+  "text": "{time}: OcuTalon asked for approval to reroute {count} {itemNoun} to {to}.",
+  "slots": {
+   "time": "time",
+   "count": "count",
+   "itemNoun": "noun",
+   "to": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.itemSuspended": {
+  "text": "{time}: {item} was suspended.",
+  "slots": {
+   "time": "time",
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.itemResumed": {
+  "text": "{time}: {item} was resumed.",
+  "slots": {
+   "time": "time",
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.itemNotChanged": {
+  "text": "{time}: {item} was not changed.",
+  "slots": {
+   "time": "time",
+   "item": "text"
+  },
+  "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "incident.partnerRequest": {
+  "text": "I drafted a delay notice about this incident for {recipients}. Approve sending it?\n\nDry run: the notice below would go to the Simulated mailbox, not to a real inbox. The recipients are simulated partner contacts.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I drafted a delay notice about this incident for {recipients}.\n\nDry run: the notice below would go to the Simulated mailbox, not to a real inbox. The recipients are simulated partner contacts.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "recipients": "text",
+   "notice": "text"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.partnerSent": {
+  "text": "The delay notice went to the Simulated mailbox for all {count} partner contacts. No real email was sent.",
+  "slots": {
+   "count": "count"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09",
+  "one": {
+   "slot": "count",
+   "text": "The delay notice went to the Simulated mailbox for the partner contact. No real email was sent."
+  }
+ },
+ "result.partnerSentSome": {
+  "text": "The delay notice went to the Simulated mailbox for {completed} of {total} partner contacts. Not sent to the rest: {reason}. No real email was sent.",
+  "slots": {
+   "completed": "count",
+   "total": "count",
+   "reason": "sentence"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.partnerNotSent": {
+  "text": "The delay notice was not sent: {reason}. It needs a new approval.",
+  "slots": {
+   "reason": "sentence"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.partnerKept": {
+  "text": "The delay notice is approved and kept as a draft: email delivery isn't set up yet, so nothing was sent.",
+  "slots": {},
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.partnerNotDrafted": {
+  "text": "I couldn't draft the delay notice just now, so nothing was raised or sent. You can ask me again.",
+  "slots": {},
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.requestedPartner": {
+  "text": "{time}: OcuTalon asked for approval to send a delay notice to {count} partner contacts.",
+  "slots": {
+   "time": "time",
+   "count": "count"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09",
+  "one": {
+   "slot": "count",
+   "text": "{time}: OcuTalon asked for approval to send a delay notice to the partner contact."
+  }
+ },
+ "summary.partnerSent": {
+  "text": "{time}: the delay notice went to the Simulated mailbox.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.partnerKept": {
+  "text": "{time}: the delay notice was approved and kept as a draft.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.partnerNotSent": {
+  "text": "{time}: the delay notice was not sent.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "partner.subject": {
+  "text": "Simulated delay notice to {recipient}",
+  "slots": {
+   "recipient": "text"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
  "mcp.serverUnavailable": {
   "text": "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools.",
   "slots": {

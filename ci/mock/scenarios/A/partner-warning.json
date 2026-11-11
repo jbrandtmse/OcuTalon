@@ -1,0 +1,21 @@
+{
+  "name": "partner-warning",
+  "match": {
+    "marker": "partner-warning"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "propose_fix",
+        "input": {
+          "kind": "partner_warning"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I'm drafting the delay notice. It will come as an approval request with the exact text and the recipients, and nothing is sent until it is approved."
+    }
+  ]
+}

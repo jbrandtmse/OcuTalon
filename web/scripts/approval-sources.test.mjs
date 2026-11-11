@@ -142,7 +142,7 @@ describe('the call', () => {
     assert.match(method, /\/approvals\/\$\{encodeURIComponent\(ref\)\}\/answer`, \{ action, channel \}/);
     assert.doesNotMatch(method, /session|user/i);
     assert.match(card.code, /answer: \(ref, action, channel\) => this\.api\.answerApproval\(ref, action, channel\),\s*channel: 'web',/);
-    assert.match(card.code, /this\.answer\.press\(this\.view\(\)\.ref, action\)/);
+    assert.match(card.code, /this\.answer\.press\(this\.view\(\)\.ref, action, this\.approval\(\)\.fixKind \?\? ''\)/);
     assert.match(press.code, /\.answer\(ref, action, this\.options\.channel\)/, 'the press posts the channel it was given');
     assert.doesNotMatch(press.code, /session|user/i);
   });
@@ -209,6 +209,24 @@ describe('the texts', () => {
     assert.doesNotMatch(template, /Nothing changes unless you approve|Now:|Proposed:/, 'the template types none of the lines\' words');
   });
 
+  it('prints a partner delay notice\'s lines (Story 23.5) by interpolation, in the dry run\'s place, with the Simulated label beside the To line, and types none of their words', () => {
+    const order = ['view().action', 'partner.to', 'partner.notice', 'partner.note'];
+    let last = -1;
+    for (const name of order) {
+      const at = template.indexOf(`{{ ${name} }}`);
+      assert.ok(at > last, `{{ ${name} }} is printed, below the one before`);
+      last = at;
+    }
+    assert.match(template, /@if \(view\(\)\.partner; as partner\) \{/);
+    assert.match(template, /@if \(partner\.simulated\) \{\s*<app-simulated-label \/>/, 'the label stands beside the To line, while the payload says simulated');
+    assert.ok(template.indexOf('{{ partner.note }}') < template.indexOf('{{ texts.dryRun }}'), 'before the dry run block');
+    assert.doesNotMatch(template, /Nothing is sent unless you approve|To:|Simulated mailbox/, 'the template types none of the lines\' words');
+    const card = file(files, 'approval-request-card.ts');
+    assert.match(card.code, /import \{ SimulatedLabel \} from '\.\.\/devices\/simulated-label';/);
+    assert.match(card.code, /imports: \[[^\]]*SimulatedLabel[^\]]*\]/);
+    assert.match(literal(card, 'styles'), /\.partner-notice \{\s*white-space: pre-line;/, 'the notice keeps its line breaks');
+  });
+
   it('binds no markup: not as innerHTML, outerHTML, a bypass or a sanitizer', () => {
     for (const one of files) assert.doesNotMatch(one.code, /innerhtml|outerhtml|bypassSecurity|DomSanitizer/i, one.name);
   });
@@ -262,8 +280,10 @@ describe('the incident card', () => {
   it('draws a request card for each request of the incident, the first with the panel, each with its request, the noun and (the last) Dismiss, and its own Show details row only without one', () => {
     assert.match(
       incidentTemplate,
-      /@for \(request of requests\(\); track request\.ref; let first = \$first; let last = \$last\) \{\s*<app-approval-request-card\s+\[approval\]="request"\s+\[ctx\]="approvalCtx\(\)"\s+\[details\]="first \? view\(\)\.panel : undefined"\s+\[detailsId\]="panelId"\s+\[detailsOpen\]="open\(\)"\s+\[result\]="resultOf\(request\.ref\)"\s+\[itemNoun\]="incident\(\)\.itemNoun"\s+\[dismiss\]="last \? dismissTarget\(\) : undefined"\s+\(toggleDetails\)="open\.set\(!open\(\)\)"\s+\/>\s*\}\s*@if \(requests\(\)\.length === 0\) \{\s*@if \(view\(\)\.panel \|\| dismissTarget\(\)\) \{\s*<div class="actions">/,
+      /@for \(request of requests\(\); track request\.ref; let first = \$first; let last = \$last\) \{\s*<app-approval-request-card\s+\[approval\]="request"\s+\[ctx\]="approvalCtx\(\)"\s+\[details\]="first \? view\(\)\.panel : undefined"\s+\[detailsId\]="panelId"\s+\[detailsOpen\]="open\(\)"\s+\[result\]="resultOf\(request\.ref\)"\s+\[itemNoun\]="incident\(\)\.itemNoun"\s+\[production\]="production\(\)"\s+\[dismiss\]="last \? dismissTarget\(\) : undefined"\s+\(toggleDetails\)="open\.set\(!open\(\)\)"\s+\/>\s*\}\s*@if \(requests\(\)\.length === 0\) \{\s*@if \(view\(\)\.panel \|\| dismissTarget\(\)\) \{\s*<div class="actions">/,
     );
+    assert.match(incident.code, /result: \(request, itemNoun, production\) => resultView\(request, itemNoun, \(key, slots\) => renderPageText\(key, slots\), production\),/, 'the compact card\'s bands name the production');
+    assert.match(incident.code, /production = computed\(\(\) => productionOf\(this\.incident\(\)\)\);/);
     assert.match(incident.code, /requests = computed\(\(\) => \(this\.view\(\)\.compact \? \[\] : requestsOf\(this\.incident\(\), this\.approvals\(\)\)\)\)/);
     assert.ok(incidentTemplate.indexOf('{{ view().fixingLine }}') < incidentTemplate.indexOf('<app-approval-request-card'), 'the request cards follow the fixing line');
     assert.ok(incidentTemplate.indexOf('<app-approval-request-card') < incidentTemplate.indexOf('class="footer"'), 'and come before the footer');
@@ -273,8 +293,9 @@ describe('the incident card', () => {
 describe('the result band and Dismiss on the request card (Story 6.4)', () => {
   it('draws the band between the answer row and the expiry, from the incident payload\'s request, and shows Dismiss at the row\'s end only when there is no band', () => {
     assert.match(template, /<\/button>\s*\}\s*@if \(!band\(\) && dismiss\(\); as target\) \{\s*<app-incident-dismiss \[target\]="target" \/>\s*\}\s*<\/span>\s*\}\s*<\/div>\s*@if \(band\(\); as result\) \{\s*<app-result-band \[result\]="result" \[dismiss\]="dismiss\(\)" \/>\s*\}\s*@if \(view\(\)\.expiry\) \{/);
-    assert.match(card.code, /band = computed\(\(\) => \{\s*const request = this\.result\(\);\s*const ctx = this\.ctx\(\);\s*return request === undefined \? undefined : resultView\(request, this\.itemNoun\(\), \(key, slots\) => ctx\.render\(key, slots\)\);/);
+    assert.match(card.code, /band = computed\(\(\) => \{\s*const request = this\.result\(\);\s*const ctx = this\.ctx\(\);\s*return request === undefined \? undefined : resultView\(request, this\.itemNoun\(\), \(key, slots\) => ctx\.render\(key, slots\), this\.production\(\)\);/);
     assert.match(card.code, /readonly result = input<IncidentRequest \| undefined>\(undefined\);/);
+    assert.match(card.code, /readonly production = input\(''\);/, 'and names the incident\'s production for the band of a suspend or resume');
     assert.match(card.code, /readonly dismiss = input<DismissTarget \| undefined>\(undefined\);/);
     assert.doesNotMatch(card.code, /\.focus\(|autofocus/, 'and the card moves no focus for it');
     assert.equal((card.code.match(/this\.announcer\.announce\(/g) ?? []).length, 1, 'nor announces a band');

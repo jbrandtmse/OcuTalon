@@ -15,6 +15,7 @@ import {
 
 import { ApiClient } from '../api/api-client';
 import { pageTimeBeside, pageWhenBeside } from '../chat/page-time';
+import { SimulatedLabel } from '../devices/simulated-label';
 import { Icon } from '../icon/icon';
 import { EvidencePanel } from '../incidents/evidence-panel';
 import { IncidentDismiss, type DismissTarget } from '../incidents/incident-dismiss';
@@ -103,7 +104,7 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
  */
 @Component({
   selector: 'app-approval-request-card',
-  imports: [EvidencePanel, Icon, IncidentDismiss, InlineNotice, ResultBand],
+  imports: [EvidencePanel, Icon, IncidentDismiss, InlineNotice, ResultBand, SimulatedLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section [class]="'request bar-' + view().bar" data-part="approval" [attr.data-key]="view().ref" tabindex="-1" [attr.aria-labelledby]="labelId">
@@ -118,6 +119,20 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
           <p class="setting-proposed">{{ setting.proposed }}</p>
           @if (setting.note) {
             <p class="setting-note">{{ setting.note }}</p>
+          }
+        </div>
+      }
+      @if (view().partner; as partner) {
+        <div class="dry partner" data-part="partner">
+          <p class="partner-to">
+            <span>{{ partner.to }}</span>
+            @if (partner.simulated) {
+              <app-simulated-label />
+            }
+          </p>
+          <p class="partner-notice">{{ partner.notice }}</p>
+          @if (partner.note) {
+            <p class="partner-note">{{ partner.note }}</p>
           }
         </div>
       }
@@ -336,8 +351,17 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
       overflow-wrap: anywhere;
     }
     .dry-note,
-    .setting-note {
+    .setting-note,
+    .partner-note {
       color: var(--ink-muted);
+    }
+    .partner-to {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .partner-notice {
+      white-space: pre-line;
     }
     /* Under 680px tall, while the either-way row shows, Before and After share a line and the note sits on the count line, so the
        buttons stay in view. No text and no DOM order changes. */
@@ -442,6 +466,8 @@ export class ApprovalRequestCard {
   readonly result = input<IncidentRequest | undefined>(undefined);
   /** The incident's item noun, which the band's text names the items by. */
   readonly itemNoun = input<ItemNoun | undefined>(undefined);
+  /** The incident's production, which the band of a suspend or resume names the item in. */
+  readonly production = input('');
   /** Dismiss, on the last request card of a resolved or open incident: at the band's right end, else at the end of the answer row; undefined for none. */
   readonly dismiss = input<DismissTarget | undefined>(undefined);
 
@@ -478,7 +504,7 @@ export class ApprovalRequestCard {
   protected readonly band = computed(() => {
     const request = this.result();
     const ctx = this.ctx();
-    return request === undefined ? undefined : resultView(request, this.itemNoun(), (key, slots) => ctx.render(key, slots));
+    return request === undefined ? undefined : resultView(request, this.itemNoun(), (key, slots) => ctx.render(key, slots), this.production());
   });
 
   /** True while a press is out: both buttons are busy. */
@@ -502,7 +528,7 @@ export class ApprovalRequestCard {
 
   /** A press of Approve or Reject: one call for both buttons; a press while a call is out is ignored. */
   protected press(action: 'approve' | 'reject'): void {
-    this.answer.press(this.view().ref, action);
+    this.answer.press(this.view().ref, action, this.approval().fixKind ?? '');
   }
 
   /**

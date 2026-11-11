@@ -83,6 +83,18 @@ export async function seedMemory(session: string, text: string): Promise<string>
   return ref;
 }
 
+/** Sets the Source of the memory with the Ref (told, or learned) on its row, as a row that the model saved on its own has it; a fixture may write the row itself. */
+export async function setMemorySource(ref: string, source: 'told' | 'learned'): Promise<void> {
+  const lines = await irisScript(
+    [
+      `Set m=##class(OcuTalon.Data.Memory).RefIndexOpen(${quoted(ref)})`,
+      `If $IsObject(m) Set m.Source=${quoted(source)} Set sc=m.%Save()`,
+      'Write !,"CHK|set|",$Select($IsObject(m):$SYSTEM.Status.IsOK($Get(sc)),1:0)',
+    ].join('\n'),
+  );
+  if (chk(lines, 'set') !== '1') throw new Error(`the source of the memory could not be set (${lines.join(' ')})`);
+}
+
 /** Deletes the memory with the Ref, with its vector and keyword entries, if it is there. */
 export async function removeMemory(ref: string): Promise<void> {
   await irisScript(

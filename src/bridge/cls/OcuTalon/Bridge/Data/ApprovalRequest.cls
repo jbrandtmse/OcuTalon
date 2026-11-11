@@ -5,8 +5,9 @@ Class OcuTalon.Bridge.Data.ApprovalRequest Extends %Persistent
 /// The private global of the class's data and indexes, from src/short-names.tsv (AD-3).
 Parameter DEFAULTGLOBAL = "^OcuTalonBP.Approval";
 
-/// The keys of the stored dry run of a repair and resend fix; later fix kinds add their own (AD-16).
-Parameter DRYRUNKEYS = "affected,resend,leftOut,field,before,after,itemNoun";
+/// The keys of the stored dry run of a fix: those of repair and resend, then those of suspend, resume (item, before, after), reroute (from, to, example) and partner_warning
+/// (notice, recipients, simulated); a kind fills its own (AD-16).
+Parameter DRYRUNKEYS = "affected,resend,leftOut,field,before,after,itemNoun,item,from,to,example,notice,recipients,simulated";
 
 /// An unguessable random reference (AD-11).
 Property Ref As %String(MAXLEN = 22);

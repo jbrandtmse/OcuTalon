@@ -6,18 +6,20 @@
 ///       summary.title                                     the failed count, the item noun and the production (its display name, as the watch cards name it;
 ///                                                         else its class name)
 ///       the timeline, sorted by time (ties keep the order below): summary.firstFailure (FirstAt), summary.noticed (NoticedAt); for each request of the incident
-///         (RequestRefs, rows that name the incident): summary.requested (RaisedAt, the dry run's resend count; left out when the dry run holds no count), its answer (summary.approved or summary.rejected at
+///         (RequestRefs, rows that name the incident): summary.requested (RaisedAt, the dry run's resend count; left out when the dry run holds no count; for a fix the user asked for in the chat summary.requestedSuspend, summary.requestedResume or summary.requestedReroute, Story 23.2, and summary.requestedPartner with the number of recipients for a partner delay notice, Story 23.5), its answer (summary.approved or summary.rejected at
 ///         AnsweredAt, with ...By and the user when the install is local and AnsweredBy is known; summary.expired at ExpiresAt; none for a pending or cancelled
-///         request) and, for its FixRun, summary.fixStarted (StartedAt) and summary.fixEnded (EndedAt, with the counts) or summary.fixInterrupted (EndedAt, with
-///         the resent count); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
+///         request) and, for its FixRun (but a delay notice's, which has its end line only), summary.fixStarted (StartedAt) and summary.fixEnded (EndedAt, with the counts) or summary.fixInterrupted (EndedAt, with
+///         the resent count; a run of a kind whose targets are items ends with summary.itemSuspended, summary.itemResumed or summary.itemNotChanged instead of summary.fixEnded, and a
+///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
 ///       summary.noCause (a fallback incident; the reason) or summary.cause and summary.element (omitted when empty; the element also when it is only a period,
 ///         which the catalog would drop before its own period and then refuse as empty)
 ///       summary.evidence (the first evidence line of the diagnosis payload; omitted when there is none), summary.sampleError (the first sentence of the sample
 ///         error, at most the length of an incident notice's error summary; omitted when empty)
-///       summary.fix (the fix summary) when a fix ran, else summary.noFixRan
+///       summary.fix (the fix summary) when a fix of a kind the diagnosis proposes ran, summary.noFixRan when no run of any kind ran
 ///       summary.groups (every failure group, with its count at the close; left out when the incident has none) for a fallback incident or an incident whose fix
 ///         did not run
-///       summary.messages (failed = the incident's Count; resent, completed, failed again and skipped summed over the incident's FixRuns)
+///       summary.messages (failed = the incident's Count; resent, completed, failed again and skipped summed over the incident's FixRuns of kinds whose targets are messages)
+///       A run of a delay notice is not a fix of the failure: it adds no summary.fix and does not make summary.noFixRan go away.
 ///       summary.cost, or summary.costUnknown when a usage row of the incident's diagnosis decision has no cost (Usage.Totals; an incident without usage rows costs 0)
 ///   - The channel of an answer is the name the README gives it ("the web chat", "the Simulated phone", "Telegram", "the Simulated mailbox"), never an internal id; an answer from a channel
 ///     that has no name here gets no answer line, because the summary cannot say where it came from. The answerer is named only on a local install (onlineDemo 0).
@@ -55,6 +57,7 @@ ClassMethod Build(incident As OcuTalon.Data.Incident, event As %String, closedAt
 		Do ..Event(.timeline, .seq, incident.FirstAt, "summary.firstFailure", {"time": (incident.FirstAt)})
 		Do ..Event(.timeline, .seq, incident.NoticedAt, "summary.noticed", {"time": (incident.NoticedAt)})
 		Set ran = 0
+		Set diagnosed = 0
 		Set resent = 0, completed = 0, failedAgain = 0, skipped = 0
 		Set position = 0
 		Set refs = $ListFromString(incident.RequestRefs)
@@ -65,8 +68,12 @@ ClassMethod Build(incident As OcuTalon.Data.Incident, event As %String, closedAt
 			Do ..RequestEvents(incident, request, onlineDemo, .timeline, .seq)
 			Set run = ##class(OcuTalon.Data.FixRun).OfRequest(request.Ref)
 			If '$IsObject(run) Continue
+			Do ..RunEvents(run, request, .timeline, .seq)
+			Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
+			If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") Continue
 			Set ran = 1
-			Do ..RunEvents(run, .timeline, .seq)
+			If (class '= "") && ($Parameter(class, "TARGETTYPE") = "item") Continue
+			If (class = "") || $Parameter(class, "DIAGNOSED") Set diagnosed = 1
 			Set resent = resent + run.Resent
 			Set completed = completed + run.Completed
 			Set failedAgain = failedAgain + run.FailedAgain
@@ -90,7 +97,7 @@ ClassMethod Build(incident As OcuTalon.Data.Incident, event As %String, closedAt
 		If evidence '= "" Do parts.%Push(..Part("summary.evidence", {"evidence": (evidence)}))
 		Set sample = ..Clean(##class(OcuTalon.Watch.ErrorText).Summary(incident.SampleError))
 		If sample '= "" Do parts.%Push(..Part("summary.sampleError", {"error": (sample)}))
-		If ran && 'incident.Fallback {
+		If diagnosed && 'incident.Fallback {
 			If ..Clean(incident.FixSummary) '= "" Do parts.%Push(..Part("summary.fix", {"fix": (..Clean(incident.FixSummary))}))
 		}
 		If 'ran {
@@ -139,7 +146,18 @@ ClassMethod RequestEvents(incident As OcuTalon.Data.Incident, request As OcuTalo
 {
 	Set noun = ##class(OcuTalon.Watch.Notice).Noun(incident, request.DryRun)
 	Set count = ..Resend(request)
-	If count '= "" Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requested", {"time": (request.RaisedAt), "count": (count), "itemNoun": (noun)})
+	Set parameters = ..Parameters(request)
+	If request.FixKind = "suspend_item" {
+		Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requestedSuspend", {"time": (request.RaisedAt), "item": (parameters.%Get("item"))})
+	} ElseIf request.FixKind = "resume_item" {
+		Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requestedResume", {"time": (request.RaisedAt), "item": (parameters.%Get("item"))})
+	} ElseIf request.FixKind = "reroute" {
+		If count '= "" Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requestedReroute", {"time": (request.RaisedAt), "count": (count), "itemNoun": (noun), "to": (parameters.%Get("target"))})
+	} ElseIf request.FixKind = "partner_warning" {
+		Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requestedPartner", {"time": (request.RaisedAt), "count": ($Length(request.FixTargets, ","))})
+	} ElseIf count '= "" {
+		Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requested", {"time": (request.RaisedAt), "count": (count), "itemNoun": (noun)})
+	}
 	Set state = request.State
 	If state = "expired" {
 		Do ..Event(.timeline, .seq, request.ExpiresAt, "summary.expired", {"time": (request.ExpiresAt)})
@@ -158,13 +176,28 @@ ClassMethod RequestEvents(incident As OcuTalon.Data.Incident, request As OcuTalo
 	Do ..Event(.timeline, .seq, request.AnsweredAt, key, slots)
 }
 
-/// The lines of a fix run: started, then ended or interrupted when it has ended.
-ClassMethod RunEvents(run As OcuTalon.Data.FixRun, ByRef timeline, ByRef seq As %Integer) [ Private ]
+/// The lines of a fix run: started, then ended or interrupted when it has ended. The end of a run of a kind whose targets are items says what happened to the item
+/// (suspended, resumed or not changed), not the message counts. A run of a kind whose targets are contacts is not a fix: it has no started or interrupted line, only its end, which
+/// says whether the notice was sent, kept as a draft or not sent.
+ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Data.ApprovalRequest, ByRef timeline, ByRef seq As %Integer) [ Private ]
 {
+	Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
+	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") {
+		If run.EndedAt = "" Quit
+		Set key = $Select(+run.Completed > 0: "summary.partnerSent", (request.State = "failed") && (run.Reason = $Parameter(class, "NOTSETUP")): "summary.partnerKept", 1: "summary.partnerNotSent")
+		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt)})
+		Quit
+	}
 	Do ..Event(.timeline, .seq, run.StartedAt, "summary.fixStarted", {"time": (run.StartedAt)})
 	If run.EndedAt = "" Quit
 	If +run.Interrupted > 0 {
 		Do ..Event(.timeline, .seq, run.EndedAt, "summary.fixInterrupted", {"time": (run.EndedAt), "resent": (+run.Resent)})
+		Quit
+	}
+	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "item") {
+		Set item = ..Parameters(request).%Get("item")
+		Set key = $Select(+run.Completed > 0: $Select($Parameter(class, "ENABLE"): "summary.itemResumed", 1: "summary.itemSuspended"), 1: "summary.itemNotChanged")
+		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt), "item": (item)})
 		Quit
 	}
 	Set slots = {"time": (run.EndedAt)}
@@ -173,6 +206,19 @@ ClassMethod RunEvents(run As OcuTalon.Data.FixRun, ByRef timeline, ByRef seq As 
 	Do slots.%Set("failedAgain", +run.FailedAgain, "number")
 	Do slots.%Set("skipped", +run.Skipped, "number")
 	Do ..Event(.timeline, .seq, run.EndedAt, "summary.fixEnded", slots)
+}
+
+/// The request's FixParameters as a dynamic object; {} when they are not one.
+ClassMethod Parameters(request As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject [ Private ]
+{
+	Set parameters = {}
+	Try {
+		Set parsed = {}.%FromJSON(request.FixParameters)
+		If $IsObject(parsed) && parsed.%IsA("%Library.DynamicObject") Set parameters = parsed
+	} Catch {
+		Set parameters = {}
+	}
+	Quit parameters
 }
 
 /// The number of messages the request's dry run said it would resend (resend, else affected); "" when the dry run holds neither as a whole number.

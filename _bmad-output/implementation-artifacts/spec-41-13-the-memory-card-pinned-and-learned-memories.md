@@ -2,12 +2,21 @@
 title: "Story 41.13: The Memory card: pinned and learned memories"
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '640209992996aa10e1f98579b513a837e8347f33'
+baseline_commit: '640209992996aa10e1f98579b513a837e8347f33'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      No executed test covers the "Showing the newest {shown} of {total}. Search to find the others." line on the card with more than 20 memories.
+    evidence: |-
+      The line is pinned only by the pure `listMore` unit test; an e2e case needs more than 20 seeded memories, which no case seeds.
+    location: >-
+      web/e2e/memory-card.spec.ts
+    severity: low
 ---
 
 <intent-contract>
@@ -269,7 +278,52 @@ Paths are under `src/ocutalon/cls/OcuTalon/` (server) or `web/` (client) unless 
 - AC 7 (FR-73; findability): Given the card on the online demo, when it loads, then it shows the per-session rule (`e2e-online/memory-card.spec.ts`, MC18). Given the README, when this story updates it, then its memory bullet says what forgetting removes and that earlier messages aren't rewritten, New since 1.0.0 has the Memory card line, and line 30 says eight. Given More to try, when the panel opens, then it holds eight items with `memoryCard` after `memory`, and its button focuses the Memory heading (`TestIds`, `more-to-try-view.test.mjs`, `more-to-try.spec.ts`).
 - AC 8 (Rule 1 integration): Given LIVE with a seeded memory, when the card's Pin is pressed and Pinned opened, then the row and the held-arithmetic figure come back through the real route, `CommandsIn`, `MemoryOps.OnListPinned` and `Memory.CoreBlock` (MC13).
 
+- [x] [Ruling] More to try groups (Planner 2026-11-10): add `group: 'Memory and documents'` to the `memoryCard` item in `MORE_TO_TRY_ITEMS` (`web/src/app/guide/more-to-try-view.ts`) as an additive field (an optional `group?: string` on the item type if the type needs it); no rendering change, no other item or text change; the web unit and lint checks stay green.
+
+### Review Findings
+
+Code review 2026-11-09 (four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor). 0 decision-needed, 13 patch (all applied), 0 defer, 19 rejected. Ledger: DW-1066 (MC6 flake, wontfix-accepted).
+
+- [x] [Review][Patch] The ruled `group: 'Memory and documents'` on the `memoryCard` item, with `group?: string` on `MoreToTryItem` as Epic 20 declares it [web/src/app/guide/more-to-try-view.ts:91]
+- [x] [Review][Patch] A Pin or Unpin answered 404 removed the focused button and left focus on the body; it now goes to the Memory heading, and MC19 checks it [web/src/app/rail/memory-card/memory-card.ts:701]
+- [x] [Review][Patch] Contended `CommandsIn` and `Web.Api` doc lines were reworded in place; restored, with the new facts as added lines [src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls:18]
+- [x] [Review][Patch] The registry's `memoryCard` was added by rewriting the `memory` line; now an appended line [src/ocutalon/cls/OcuTalon/Demo/Features.cls:45]
+- [x] [Review][Patch] AD-25's own line still said every API 503 is the page's busy state; an additive sub-bullet points to the amendment under AD-13 [ARCHITECTURE-SPINE.md:923]
+- [x] [Review][Patch] "Announced once" polled to 1 and stopped, so a duplicate a moment later passed; MC14, MC16, MC17, MC19 and D10 now re-check after 1 s [web/e2e/memory-card.spec.ts:842]
+- [x] [Review][Patch] MC16 and MC20 asserted the online-demo-only "Demo busy" banner absent on a local install, which cannot fail; removed (OM2 pins it) [web/e2e/memory-card.spec.ts:918]
+- [x] [Review][Patch] The panel-first `find` and the Pinned-panel unpin had no executed test; MC23 added [web/e2e/memory-card.spec.ts:1096]
+- [x] [Review][Patch] "A submit while one is in flight is ignored" had no test; MC24 added [web/e2e/memory-card.spec.ts:1122]
+- [x] [Review][Patch] MS1 read the allowance row before the list read was answered; it now waits for the list's 200 [web/e2e-online/allowance/memory-search.spec.ts:41]
+- [x] [Review][Patch] AC 6 had a mutation only on a source test and AC 8 none observed; both observed red on `live:sign-in-3 --part 7/8` (## Verification) [web/e2e/memory-card.spec.ts:929]
+- [x] [Review][Patch] MC6 flake: not a product race (the re-read clears the rows with the selection while focus is on the tab, draws them once, tracked by ref); the test now waits for the re-read, checks the first Forget is the seeded row's, and names the focused element on failure (DW-1066) [web/e2e/memory-card.spec.ts:435]
+- [x] [Review][Patch] Stale test docs: the MC header lacked MC19 to MC24, MC21's title miscounted, `CommandsStep3` said "none of the three" [web/e2e/memory-card.spec.ts:51]
+
+Rejected:
+- `low` Pinned busy read shows no notice: spec-bound (matrix and Design Notes: a failed read shows the intro only).
+- `low` the card's 429 gives no retry time: spec-bound (the card shows the served message; the chat owns the notice window).
+- `low` `listMore` prints the total ungrouped: the unit test pins it; grouping changes a shown string, and a total over 999 is rare.
+- `low` `messageOf` imported from `incidents/incident-dismiss`: reuse of an existing helper (Rule 2); moving it touches another area.
+- `low` the probe's `OnListPinned` dispatch is not run by `TestRealStubOwners`: that test asserts no_session, which a list read does not answer; `OnListPinned` is pinned by `Pins:TestListPinned` and MC13.
+- `false` `MemoryApi:TestSearchAllowance`'s list check cannot fail: the session is at its limit, so a counted list would be 429.
+- `low` the README bullet omits the demo rules: the bullet is ruled verbatim.
+- `false` the pinned read maps `not_built` to 500: the spec says anything else is 500, as `SearchMemories` does.
+- `low` Esc during an in-flight confirm keeps a deleted row: both old dialogs did the same; the next read removes it.
+- `low` a forget from Pinned of a row outside the newest 20 leaves `total` one high, and the list shows 19 of N: the next selection re-reads.
+- `low` a notice of a hidden panel is announced: it answers the person's own press.
+- `low` `OnListPinned` with a concurrent sign-out: theoretical; the person is signing out.
+- `false` More to try counts are literals: the counts are the id lists' lengths; an oracle derived from the registry would be tautological.
+- `low` near-copied test locators and helpers across three spec files and `CommandsStep3`: spec-local; no diverging caller named.
+- `low` the frontmatter `deferred` entry is stale (MC21 now covers it): the fix edits the spec's frontmatter; for the lead's ledger pass.
+- `low` AC 2's refused pin has no mutation of its own: Rule 19 asks one per AC, and AC 2 has one.
+- `low` `documents-page.ts` beyond the ruled lines: the content, the `ConfirmRequest` field and `CONFIRMED` are the least the shared dialog needs; the one avoidable line, the doc comment, is kept because reverting it would name a deleted class (Rule 14).
+- `false` K9's title "item 5" is stale: memory is still item 5.
+- `low` the AD-25 line's placement under AD-13: placed as ruled ("after the Demo busy bullet"); the cross-reference above closes the gap.
+
 ## Spec Change Log
+
+- 2026-11-10 (Contest Planner ruling on More to try capacity, verbatim in `.worktrees/.coordination/prompts/more-to-try-groups-ruling.md`, relayed by the orchestrator): three headed groups of four, rendered by Epic 0 Story 0.22 (lane C). This story's item (`memoryCard`, the ruling's "pinMemory") declares `group: "Memory and documents"` as an additive registry field and nothing else; the field is ignored until 0.22 lands; no other item text changes; the README L30 total count follows the registry. 41.13's part merge waits for 0.22 (the orchestrator holds it if 41.13 is green first). Added below as a [Ruling] item for code review to patch.
+
+- 2026-11-10 (orchestrator ruling, decide, contended with Epics 20 and 23 in flight): plain union. (1) `Demo/Features.cls` `Ids`, the More to try registry and `Test/Demo/Features:TestIds` are list appends: this story adds `memoryCard` right after `memory`; the second epic to merge fixes the order and the numbered "item N" doc lines from the merged registry. (2) Every More to try count (README.md:30, `SEVEN`-style constants in `web/e2e/guide/more-to-try.spec.ts`, `more-to-try-view.test.mjs`) is derived from the registry, never a literal; the README line's number is written from the registry at merge (the Planner may group items above ten; until then build to the registry rule). (3) README "New since 1.0.0": one appended bullet. (4) `web/src/app/documents/documents-page.ts`: change ONLY the dialog import and the open call (lines 14 and 224) to the shared `ConfirmDialog`; add no other lines there; keep `documents-view.ts`'s text constants in place (Epic 20's 20.2/20.3 add lines and a button there). (5) `Test/Web/Api.cls`: a one-route append in map order. (6) Anything at merge outside (1)-(5) comes back as a Clarification.
 
 - 2026-11-09 (planner-2026-11-09-41.13, Contest Planner under the owner's delegation, relayed by the orchestrator): the spec-gate items are ruled as below (verbatim). Where a text below differs from the Design Notes' drafts, the ruling wins; implement uses these exact strings.
 
@@ -287,7 +341,38 @@ Paths are under `src/ocutalon/cls/OcuTalon/` (server) or `web/` (client) unless 
   4. SEARCH ALLOWANCE: APPROVED. Allowance.TryConsumeRead, no refused turn, no notice window; a refused search answers 429 with the messages route's body, and the card shows the existing allowance message. 41.9's read-verb condition still holds (a search counts as no command or Act in the eval or the gates).
   DW-1030's paging is declined (newest 20 + search).
 
+- 2026-11-09 (implement stage, verified-claim check of ruling item 1): the online-demo note's two halves, checked against the code at `640209992996aa10e1f98579b513a837e8347f33`. Half 1 TRUE: sign-out runs `SessionOps.End`, whose step 3 calls `OcuTalon.Memory.DropSession` (`Core/SessionOps.cls` EndDocumentsAndMemories), a `DELETE` of the session's `Data.Memory` rows; `Pinned` and `PinnedAt` are columns of that row (`Data/Memory.cls`), so pins go with it. Half 2 TRUE as the spine states it (AD-4, "The reset ends every session by restoring the golden copy"; the sessions' values "go with sign-out and the reset"), the reset being a host-side restore of the golden copy, not an in-repo class. Both halves stay in the text; no code changed.
+
 ## Review Triage Log
+
+### 2026-11-09 — Review pass
+- verdicts: 24 findings — high 0, medium 6, low 12, false 6, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: the spec's Auto Run Result still says ready-for-dev — finalize writes it; nothing to fix in code.
+  - `[low]` `[patch]` Blind: stray and incomplete doc comments on `SubmitMemory` and `PinnedMemories` in `Web/Api.cls` — the verb joins the list, the stray line goes, "no answer in time" reads right.
+  - `[low]` `[patch]` Blind: item numbers in test titles went stale when `memoryCard` joined the registry — the two "item 7" mentions of the heartbeat item now name it.
+  - `[low]` `[reject]` Blind: `listMore` prints the total without grouping — the line's wording is ruled and has no figure format; a count past 999 is not reachable in the 20-row list's use.
+  - `[low]` `[reject]` Blind: `sourceLabel('')` is Learned — the server returns told for an empty source (`Memory.Row`, `ListMemories`), so the client never receives one.
+  - `[false]` `[reject]` Blind: arrows read the tab — the spec says Pinned and All memories read each time they are selected, and the arrows select.
+  - `[medium]` `[patch]` Blind: Unpin on Pinned also drops the memory from the All memories list — `toggled` now takes the row off the Pinned list only.
+  - `[false]` `[reject]` Blind: a failed list or Pinned read shows no message, and a status 0 search failure shows the busy text — AD-28 and the matrix say a failed read shows the intro only, and the Design Notes say a search failure without a served message shows the busy text.
+  - `[false]` `[reject]` Blind: the 429 `retryAt` is dropped and Search stays enabled — the matrix and AC 4 say the card shows the served allowance message; the chat owns the notice window.
+  - `[false]` `[reject]` Blind: the allowance is consumed before the query is validated — `MemoryItems` trims the query and a blank one is the list, which never reaches `SearchMemory`.
+  - `[medium]` `[patch]` Blind: card pin, unpin and search-failure branches have no local test — MC19 (404 and 500 on pin and unpin) is added; the 21-memory line is deferred.
+  - `[medium]` `[patch]` Edge: `find` trusts the All memories flag over the Pinned list's — `find` now looks first in the shown panel's own list.
+  - `[low]` `[patch]` Edge: a Pin answered after the person switched to Pinned leaves the tab stale — `toggled` reads Pinned again when it is shown.
+  - `[medium]` `[patch]` Edge: Unpin from Pinned drops the memory from the listing — the same fix as the Blind row above.
+  - `[false]` `[reject]` Edge: a busy or failed search burns an allowed message — the spec and AD-20 line say it counts and is not refunded.
+  - `[low]` `[reject]` Edge: `OnListPinned` and a concurrent sign-out — the person is signing out; no reachable harm.
+  - `[low]` `[reject]` Edge: a confirm that answers 200 after the dialog closed leaves the row — the two old dialogs did the same (their close was a no-op), and the next read removes it.
+  - `[false]` `[reject]` Edge: the diff changes more than added lines in `CommandsIn` and `Web.Api` — the Code Map names each of those edits (the Routes comma, the doc lines, the `refusal` output, the `MemoryItems` busy line).
+  - `[low]` `[patch]` Edge: a stale listing flag can skip the Pinned re-read after Forget — fixed by the `find` change.
+  - `[medium]` `[patch]` Verification: no `CommandsIn` test for the busy row lock — `TestSearchAllowanceBusyLock` added; its mutation is in `## Verification`.
+  - `[medium]` `[patch]` Verification: no executed test for pin and unpin failures or the 404 — MC19 added (type-checked and listed; it runs in `live:sign-in-3`).
+  - `[low]` `[reject]` Verification: the interceptor's 503 rule is pinned by a source match — `makesDemoBusy` is unit-tested and MC16 and OM2 drive the real interceptor.
+  - `[low]` `[reject]` Verification: AC 3, AC 8 and the online halves have no observed red locally — the spec marks them CI only.
+  - `[low]` `[reject]` Verification: MC14 to MC18 and MS1 have no mutation line — Rule 19 asks one per AC, not per case.
+- Intent-alignment layer: descriptive only, no findings; it read the diff as a full vertical slice (R1 with R2) and named the card's runtime behaviour and the served `Retry-After` as CI-only surfaces.
 
 ## Design Notes
 
@@ -328,6 +413,8 @@ No AC contradicts an AD's Rule except AD-25's "whose 503 the page itself shows a
   - A search failure other than busy or the allowance shows the served `error.message`, else the busy text.
 - **The More to try button** focuses the Memory heading (the heartbeat item's pattern). Its look-for text says to open All memories, so no card API is needed.
 - **Panel capacity:** the panel has no count cap; its room is a scroll region (`more-to-try-room.ts`). Eight items fit, so no grouping is needed.
+
+- **`documents-page.ts` touches more than lines 14 and 224** (implement stage): the shared `ConfirmDialog` takes its question, button texts and action through `ConfirmRequest.content`, so the open call sets that content from `DOCUMENTS_TEXTS` (the same constants, unchanged) and the page injects `ConfirmRequest` in place of the deleted `RemoveTarget`; one doc-comment word changes. No other line of the page and none of `documents-view.ts` is touched. The orchestrator's ruling (change only the import and the open call) could not hold once `RemoveTarget` and `REMOVED` were deleted with the old dialog.
 
 **Extend, don't copy:**
 - `ConfirmDialog` replaces `ForgetDialog` and `RemoveDocumentDialog` (DW-996).
@@ -468,7 +555,61 @@ Every test added or changed passes on a fresh environment, in either order, and 
 - AC 7: `Ids` without `memoryCard` → `Features:TestIds` red.
 - AC 8: CI only (MC13). The local stand-in is AC 2's mutation.
 
+Recorded mutations (implement stage; each applied, observed red, reverted, and the tree confirmed byte-identical to the pre-mutation files):
+- mutation: AC 1 `MEMORY_TABS` without `'memories'` (`memory-card-view.ts`) → `memory-card-view.test.mjs` `nextTab` (the four-tab cycle and the step back) red.
+- mutation: AC 2 `OnListPinned` computes `used` from the sum of the pins' text lengths (`Memory/Ops.cls`) → `Test.Memory.Pins:TestListPinned` red (the 989 against 1000, and 15 and 16 against the sums).
+- mutation: AC 3 CI only (MC15, `live:sign-in-3`): the card keeps the row after `CONFIRMED` → MC15 red; not run locally.
+- mutation: AC 4 the `SearchMemory` branch of `Carry` skipped (`Core/CommandsIn.cls`) → `Test.Core.CommandsStep3:TestSearchAllowance` red; `Consume` records a refused Turn when `record` is 0 (`Core/Allowance.cls`) → `Test.Core.Allowance:TestReadAtLimitRecordsNothing` red.
+- mutation: AC 4 (the busy lock) `SearchAllowance` falls through with `Quit ""` when `retryAt` is empty (`Core/CommandsIn.cls`) → `Test.Core.CommandsStep3:TestSearchAllowanceBusyLock` red (the Ok 0 failed answer and the zero sends); reverted, byte-identical, green again.
+- mutation: AC 5 `SearchBusy` without `SetHeader` (`Web/Api.cls`) → `Test.Web.MemoryApi:TestSearchBusy` red; `makesDemoBusy` ignores the code (`live/demo-busy.ts`) → `demo-busy.test.mjs` red (the online spec is CI only).
+- mutation: AC 6 the confirm button's `[describedBy]` no longer names the notice id (`shared/confirm-dialog.ts`) → `announce-focus-sources.test.mjs` (the confirm dialog's notice test) red; MC17 and D10 are CI only.
+- mutation: AC 7 `Ids` without `memoryCard` (`Demo/Features.cls`) → `Test.Demo.Features:TestIds` red.
+- mutation: AC 8 CI only (MC13); the local stand-in is AC 2's mutation.
+
+QA stage (2026-11-09): the e2e units ran on lane-A throwaways (`OCUTALON_LIVE_DEADLINE=1200`, tag `e41s13q`):
+- `live sign-in-3 --part 7/8` (`memory-card.spec.ts`): first run 15 passed and 4 failed, MC14, MC16, MC17 and MC19, all `expect(await announcements(...)).toBe(1)` read at once while the announcer (cdk `LiveAnnouncer`, 100 ms) had not yet written the text (a test race, not a product defect); fixed with `expect.poll`, then 19 passed, and with the three QA tests 22 passed (one earlier 21-of-22 run failed MC6's "Tab reaches Forget" once and passed on the rerun: an unexplained flake).
+- `live sign-in --part 2/19` (`api/memory.spec.ts`): 8 passed. `live sign-in --part 11/19` (`documents.spec.ts`): D10 failed on the same race, fixed, 13 passed.
+- `live sign-in-3 --part 1/8` (`more-to-try.spec.ts`, `guide.spec.ts`): 114 passed.
+- `live online-demo` (whole unit; `e2e-online/memory-card.spec.ts`): OM2 failed on the same race, fixed, 55 passed and the unit passed. `live online-allowance` (whole unit; MS1): 13 passed and the unit passed.
+- Web unit files (`memory-card-view`, `demo-busy`, `busy-state`, `floor-sources`, `announce-focus-sources`, `playwright-projects`, `more-to-try-view`, `more-to-try-sources`, `ux-strings`) all pass; `npm run lint` passes.
+
+QA tests added to `web/e2e/memory-card.spec.ts` (QA): MC20 (the Pinned read answered 503 `search_busy` shows the intro only, no figure, no empty text, no demo-busy), MC21 (21 more memories than the list holds: 20 rows and "Showing the newest 20 of N. Search to find the others.", the deferred finding), MC22 (Forget of an already-deleted memory answers a real 404, the dialog closes and the row leaves All memories and Pinned).
+
+QA mutations (one run of `live sign-in-3 --part 7/8` with all three applied, reverted afterwards, `memory-card.ts` and `memory-card-view.ts` byte-identical by md5):
+- mutation: AC 3 `memoryGone` no longer calls `leave(ref)` (`memory-card.ts`) → MC15 and MC22 red (the CI-only mutation of the implement stage, now demonstrated).
+- mutation: AC 1 (list row) `listMore` shows its line only when total > shown + 1000 (`memory-card-view.ts`) → MC21 red.
+- mutation: AC 5 (pinned busy row) the `readPinned` error handler sets `{items: [], used: 0}` instead of clearing the view (`memory-card.ts`) → MC20 red.
+
+Code review mutations (one run of `live sign-in-3 --part 7/8` with all four applied, reverted afterwards, the three files byte-identical by md5, `git status --short` and `git diff --stat` unchanged; then a clean run, 24 passed):
+- mutation: AC 6 the confirm button's `[describedBy]` set to `[]` (`shared/confirm-dialog.ts`) → MC17 red ("the confirm button is described by it").
+- mutation: AC 8 `OnListPinned` answers `used` + 1 (`Memory/Ops.cls`) → MC13 red ("the figure is worked out here from the text"; MC14, MC15 and MC22 red too).
+- mutation: (the patched `find`) `find` returns the All memories row first (`memory-card.ts`) → MC23 red (no unpin was sent).
+- mutation: (submit while in flight) the `searching()` guard of `submit` skipped (`memory-card.ts`) → MC24 red (3 searches against 1).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The Memory card has the tabs Notes, Your answers, Pinned and All memories. `ListPinnedMemories` and `GET /api/v1/memory/pinned` give the pins and `used` from `Memory.CoreBlock`. Each online-demo `SearchMemory` is counted in `CommandsIn` through `Allowance.TryConsumeRead` (no Turn, no window, a refusal is 429 `allowance`). A 503 `search_busy` carries `Retry-After: 5` and is not the page's busy state. One `ConfirmDialog` replaces the Forget and Remove dialogs and announces its notice. The More to try item, `memoryCard`, the README and six spine lines are added.
+
+**Files changed.**
+- Server: `Core/Allowance.cls` (`Consume`, `TryConsumeRead`), `Core/CommandsIn.cls` (Routes row, `Send` and `Carry` lines, `SearchAllowance`), `Msg/Command/ListPinnedMemories.cls` (new), `Memory/Ops.cls` (`OnListPinned`, `Items`), `Web/Api.cls` (route, `SearchBusy`, `PinnedMemories`, the 429), `Eval/Report.cls`, `Demo/Features.cls`.
+- Client: `shared/confirm-dialog.ts` (new; two dialogs deleted), `rail/memory-card/*`, `documents/documents-page.ts`, `api/*`, `live/demo-busy.ts`, `guide/*`.
+- Tests: the server classes named in the Code Map, `Test/Core/CommandsStep3` `TestSearchAllowanceBusyLock`, 11 web unit files, and the e2e specs (MC11 to MC19, OM1 to OM3, MS1, `api/memory.spec.ts`, D10, K3).
+- Docs: `README.md` (eight items, the Memory bullet, one new bullet) and six additive spine lines with the memlog decision.
+
+**Review.** 24 findings: 7 groups patched (the unpin-from-Pinned listing drop, the `find` order, the Pin-after-switch re-read, the `CommandsIn` busy-lock test, MC19, the doc comments and the item-number titles), 1 deferred (the 21-memory line has no e2e), 16 rejected with the reasons in the Review Triage Log. Patched at entry verdict: medium 4, low 3.
+
+**Follow-up review recommended: true.** Risk: the patched card logic (`find`, `toggled`) and the new MC19 are type-checked and listed but not executed, because the Playwright units are CI-only here.
+
+**Decided in-stage.** Both halves of the online-demo note were verified true (see the Spec Change Log) and stay in the text. `documents-page.ts` changes more than lines 14 and 224 (Design Notes). `playwright-projects.test.mjs` lists the new allowance spec, and `ux-strings.test.mjs` admits the one ruled empty text that holds three dots.
+
+**Verification performed.**
+- Warm stack, one class per call, all passed: `Core.Allowance`, `Core.CommandsStep3` (with the new test), `Memory.Pins`, `Web.MemoryApi`, `Web.Api`, `Eval.Report`, `Demo.Features`, `Core.AllowanceInProduction`.
+- Web unit files, all passed: `memory-card-view`, `demo-busy`, `busy-state`, `more-to-try-view`, `more-to-try-sources`, `ux-strings`, `documents-view`, `floor-sources`, `announce-focus-sources`, `playwright-projects`, `api-client-sources`.
+- `npm run lint`, `playwright test --list` (28 tests in 4 files, then MC19), `ng build`, `test-class-rules`, `test-boundaries`, `test-readme`, and `lint_spine.py` (the 10 baseline findings, nothing new) passed.
+- Mutations: AC 1, 2, 4 (two) , 5, 6 and 7 observed red and reverted; AC 3 and AC 8 are CI only.
+- Not run locally, left to CI: `live:sign-in-3`, `live:sign-in`, `live:online-demo`, `live:online-allowance`, the shards, `ci/checks.sh`, and the lead's fresh-environment check (forward and reverse). The warm stack was torn down.
+
+**Residual risks.** The new e2e specs have not executed. `documents-page.ts` and the Routes/`Web.Api` edits may need a merge touch with Epics 20 and 35.

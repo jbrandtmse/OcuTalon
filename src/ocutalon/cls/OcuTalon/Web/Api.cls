@@ -79,11 +79,19 @@
 ///     user has no SQL privilege and no search service, AD-13); otherwise q (trimmed and cut at 2,000 characters) is searched by a SearchMemory (a read verb,
 ///     origin web_user, through SubmitMemory) that MemoryOps answers with the best 5 of the session's own memories, total the number of items. A failed read or search
 ///     is 500 server_error; a search that has no answer in time is 503 search_busy.
+///     (Story 41.13) GET /v1/memory/pinned answers 200 {"items":[{ref, text, savedAt, source, pinned}],"used"}: the session's pinned memories, newest pin first, and the tokens of
+///     their core-memory block, both from one ListPinnedMemories (a read verb, origin web_user, through SubmitMemory) that MemoryOps answers; no answer in time is 503 search_busy,
+///     anything else that fails 500 server_error. Every 503 search_busy carries the header Retry-After (SEARCHRETRYAFTER seconds). On the online demo a search past the message
+///     allowance is 429 allowance with the messages route's body (retryAt, limit), and nothing was searched; the list and the pinned read never count.
 ///     POST and DELETE /v1/memory/:ref/pin submit PinMemory and UnpinMemory, and DELETE /v1/memory/items/:ref submits ForgetMemory, each with
 ///     origin web_user through SubmitMemory: Ok is 200 {"result":"done"}; not_found 404; over_cap 409 (a pin or an unpin; 500 for a forget); not_built 501; anything else 500
 ///     server_error. MemoryOps matches the ref to the session's own rows, so another session's ref is 404 not_found and the row is kept.
 ///   - The documents routes (Story 34.2; GET and POST /v1/documents, DELETE /v1/documents/:ref) are OcuTalon.Web.Documents', forwarded by
 ///     the map at the end of the URL map.
+///   - The usage route (Story 37.2; GET /v1/usage?days=1|7|30) is OcuTalon.Web.Usage's, forwarded by its own map: the CSP session's own token and cost
+///     buckets by local day, agent, channel, model and Estimated, with the request-size limit.
+///   - The history routes (Story 25.2; GET /v1/history/decisions?outcome=&channel=&day=&fallback=&page= and GET /v1/history/incidents?page=) are OcuTalon.Web.History's, forwarded
+///     by its own map: the CSP session's own decisions, filtered and paged, and the incidents it sees, paged, with the stored summary as text.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -186,6 +194,9 @@ Parameter MEMORYLISTMAX = 20;
 /// The message of the 503 search_busy of the memory search: the search has no answer in time.
 Parameter MESSAGESEARCHBUSY = "Search is busy right now. Try again in a moment.";
 
+/// The seconds that the Retry-After header of a 503 search_busy names.
+Parameter SEARCHRETRYAFTER = 5;
+
 /// The status line of a 503 answer.
 Parameter HTTP503SERVICEUNAVAILABLE = "503 Service Unavailable";
 
@@ -239,6 +250,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/memory/precedents/:ref" Method="DELETE" Call="ForgetPrecedent"/>
 <Route Url="/v1/memory/notes" Method="GET" Call="Notes"/>
 <Route Url="/v1/memory/items" Method="GET" Call="MemoryItems"/>
+<Route Url="/v1/memory/pinned" Method="GET" Call="PinnedMemories"/>
 <Route Url="/v1/memory/:ref/pin" Method="POST" Call="PinMemory"/>
 <Route Url="/v1/memory/:ref/pin" Method="DELETE" Call="UnpinMemory"/>
 <Route Url="/v1/memory/items/:ref" Method="DELETE" Call="ForgetMemory"/>
@@ -253,6 +265,8 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/settings/check-thresholds" Method="POST" Call="SaveCheckThresholds"/>
 <Route Url="/v1/settings/demo-mode" Method="POST" Call="SaveDemoMode"/>
 <Map Prefix="/v1/documents" Forward="OcuTalon.Web.Documents"/>
+<Map Prefix="/v1/usage" Forward="OcuTalon.Web.Usage"/>
+<Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>
 </Routes>
 }
 
@@ -1814,21 +1828,72 @@ ClassMethod MemoryItems() As %Status
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set query = $ZStrip($Extract($ZStrip(%request.Get("q"), "<>WC"), 1, ..#MEMORYQUERYMAX), "<>WC")
-	Set sc = ..ReadMemories(sessionRef, query, .items, .total, .busy)
+	Set sc = ..ReadMemories(sessionRef, query, .items, .total, .busy, .refusal)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
-	If busy Quit ..Fail(503, "search_busy", ..#MESSAGESEARCHBUSY)
+	If busy Quit ..SearchBusy()
+	If $IsObject(refusal) Quit ..Fail(429, "allowance", $Replace(..#MESSAGEALLOWANCE, "{limit}", refusal.limit), , {"retryAt": (refusal.retryAt), "limit": (+refusal.limit)})
 	Set %response.ContentType = ..#CONTENTTYPE
 	Write {"items": (items), "total": (+total)}.%ToJSON()
 	Quit $SYSTEM.Status.OK()
 }
 
+/// GET /v1/memory/pinned (Story 41.13; AD-1, AD-4, AD-13, AD-21): the session's pinned memories as 200 {"items":[{ref, text, savedAt, source, pinned}],"used"}, newest pin first, with
+/// used the tokens of the core-memory block as MemoryOps computed them (ReadPinned). A session that can't be read and a failed read are 500 server_error; a read that has no
+/// answer in time is 503 search_busy with Retry-After.
+ClassMethod PinnedMemories() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set sc = ..ReadPinned(sessionRef, .items, .used, .busy)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If busy Quit ..SearchBusy()
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write {"items": (items), "used": (+used)}.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The 503 search_busy answer of the memory reads: the header Retry-After with SEARCHRETRYAFTER seconds, then the busy message.
+ClassMethod SearchBusy() As %Status [ Private ]
+{
+	Do %response.SetHeader("Retry-After", ..#SEARCHRETRYAFTER)
+	Quit ..Fail(503, "search_busy", ..#MESSAGESEARCHBUSY)
+}
+
+/// The pinned items of the session as the array [{ref, text, savedAt, source, pinned}] and used, the tokens of their core-memory block: a ListPinnedMemories with the session's
+/// SessionRef, submitted with origin web_user through SubmitMemory, which MemoryOps answers with {items, used} in Data. An error status, no result and an answer that is not Ok with
+/// that shape are errors; an answer with Outcome busy is busy 1 with an OK status. A seam for the tests.
+ClassMethod ReadPinned(sessionRef As %String, Output items As %DynamicArray, Output used As %Integer, Output busy As %Boolean) As %Status [ Private ]
+{
+	Set items = [], used = 0, busy = 0
+	Set command = ##class(OcuTalon.Msg.Command.ListPinnedMemories).%New()
+	Set command.SessionRef = sessionRef
+	Set sc = ..SubmitMemory(command, .result)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	If '$IsObject(result) Quit $SYSTEM.Status.Error(5001, "CommandsIn answered no result")
+	If result.Outcome = "busy" {
+		Set busy = 1
+		Quit $SYSTEM.Status.OK()
+	}
+	If 'result.Ok Quit $SYSTEM.Status.Error(5001, "The ListPinnedMemories was answered "_result.Outcome)
+	Try {
+		Set found = ##class(%DynamicAbstractObject).%FromJSON(result.Data)
+		If ($ClassName(found) '= "%Library.DynamicObject") || ($ClassName(found.items) '= "%Library.DynamicArray") || (found.%GetTypeOf("used") '= "number") Throw ##class(%Exception.General).%New("ReadPinned", 5001, , "The ListPinnedMemories answered no items and used")
+		Set items = found.items
+		Set used = found.used
+	} Catch exception {
+		Set items = [], used = 0
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
 /// The items of the session for the query, as the array [{ref, text, savedAt, source, pinned}], and their total; busy is 1 (and the status OK) when a search has no
 /// answer in time. A blank query is the session's newest memories through Ownership (ListMemories), anything else a search (SearchMemories). A seam for the tests.
-ClassMethod ReadMemories(sessionRef As %String, query As %String, Output items As %DynamicArray, Output total As %Integer, Output busy As %Boolean) As %Status [ Private ]
+ClassMethod ReadMemories(sessionRef As %String, query As %String, Output items As %DynamicArray, Output total As %Integer, Output busy As %Boolean, Output refusal As %DynamicObject) As %Status [ Private ]
 {
-	Set items = [], total = 0, busy = 0
+	Set items = [], total = 0, busy = 0, refusal = ""
 	If query = "" Quit ..ListMemories(sessionRef, .items, .total)
-	Quit ..SearchMemories(sessionRef, query, .items, .total, .busy)
+	Quit ..SearchMemories(sessionRef, query, .items, .total, .busy, .refusal)
 }
 
 /// The session's newest MEMORYLISTMAX memories and its count of them, read through Ownership.Memories and MemoryTotal.
@@ -1856,9 +1921,9 @@ ClassMethod ListMemories(sessionRef As %String, Output items As %DynamicArray, O
 /// The best memories of the session for the query: a SearchMemory with the session's SessionRef, submitted with origin web_user through SubmitMemory, which MemoryOps answers
 /// with the items in Data (the web user can't embed a query itself). An error status, no result and an answer that is not Ok with items are errors; an answer with Outcome
 /// busy (the gate got no answer in time) is busy 1 with an OK status.
-ClassMethod SearchMemories(sessionRef As %String, query As %String, Output items As %DynamicArray, Output total As %Integer, Output busy As %Boolean) As %Status [ Private ]
+ClassMethod SearchMemories(sessionRef As %String, query As %String, Output items As %DynamicArray, Output total As %Integer, Output busy As %Boolean, Output refusal As %DynamicObject) As %Status [ Private ]
 {
-	Set items = [], total = 0, busy = 0
+	Set items = [], total = 0, busy = 0, refusal = ""
 	Set command = ##class(OcuTalon.Msg.Command.SearchMemory).%New()
 	Set command.Query = query
 	Set command.SessionRef = sessionRef
@@ -1869,6 +1934,7 @@ ClassMethod SearchMemories(sessionRef As %String, query As %String, Output items
 		Set busy = 1
 		Quit $SYSTEM.Status.OK()
 	}
+	If result.Outcome = "allowance" Quit ..AllowanceRefusal(result, .refusal)
 	If 'result.Ok Quit $SYSTEM.Status.Error(5001, "The SearchMemory was answered "_result.Outcome)
 	Try {
 		Set found = ##class(%DynamicAbstractObject).%FromJSON(result.Data)
@@ -1877,6 +1943,22 @@ ClassMethod SearchMemories(sessionRef As %String, query As %String, Output items
 		Set total = found.%Size()
 	} Catch exception {
 		Set items = [], total = 0
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// The refusal of a search that the online demo's message allowance stopped (Story 41.13): the {retryAt, limit} of the result's Data. A Data that holds no retryAt and limit is an error status.
+ClassMethod AllowanceRefusal(result As OcuTalon.Msg.CommandResult, Output refusal As %DynamicObject) As %Status [ Private ]
+{
+	Set refusal = ""
+	Set sc = $SYSTEM.Status.OK()
+	Try {
+		Set found = ##class(%DynamicAbstractObject).%FromJSON(result.Data)
+		If ($ClassName(found) '= "%Library.DynamicObject") || (found.%GetTypeOf("retryAt") '= "string") || (found.%GetTypeOf("limit") '= "number") Throw ##class(%Exception.General).%New("AllowanceRefusal", 5001, , "The SearchMemory allowance answer holds no retryAt and limit")
+		Set refusal = found
+	} Catch exception {
+		Set refusal = ""
 		Set sc = exception.AsStatus()
 	}
 	Quit sc
@@ -1929,6 +2011,7 @@ ClassMethod MemoryItemCommand(verb As %String, ref As %String) As %Status [ Priv
 }
 
 /// Submits the MarkNoise, ForgetPrecedent, PinMemory, UnpinMemory, ForgetMemory or SearchMemory with origin web_user; result is the CommandResult. An error status means the command never reached CommandsIn.
+/// A ListPinnedMemories is submitted the same way (Story 41.13).
 ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
