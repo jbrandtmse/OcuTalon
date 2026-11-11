@@ -2931,6 +2931,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 - 2026-11-04T04:29:11Z occurrence=10ce26ac by=merge_gate note=run 41769982647 attempt 1 live:online-allowance D1 (feature head)
 - 2026-11-10T17:42:07Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980616882 iris(shards) live:online-allowance D1 S1 daily-cap banner not found 60s; OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
+- 2026-11-11T05:58:07Z occurrence=23-5 by=orchestrator note=run 42963531773 job 130335378855 iris(shards) live:online-allowance D1 S1 daily-cap banner not found (ci-10); OCT-epic23 52db267d
+- 2026-11-11T05:58:31Z occurrence=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva note=CI run 42963531773 (52db267d) iris (shards) live:online-allowance D1 S1 the daily cap banner shows (ci-10); classified FLAKE by the orchestrator
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -6429,6 +6431,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T21:55:44Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_594a66af_run_42702099695_browser_live:demo-path_06-trace:35_finish_not_found_after_navigation_to_?signedOut=1;one_rerun_of_the_failed_job
 - 2026-11-10T07:54:01Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_b99d6529_run_42768243726_browser_06-trace_signedOut;one_rerun
 - 2026-11-10T17:42:06Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980616591 iris(browser) live:demo-path 06-trace .finish-done not found after navigation to ?signedOut=1; OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
+- 2026-11-11T07:02:27Z occurrence=feature-c241f87c by=orchestrator note=run 42969082500 job 130353082261 iris(browser) live:demo-path 06-trace 'the run total' not found after navigation to ?signedOut=1 (ci-4); rerun of failed jobs
 
 ### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -6721,6 +6724,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the Data.Purge entry filed alongside (Planner's unverified guess); no fix work now
 - 2026-11-10T19:46:28Z note=see also DW-1095 (possible shared cause: before/after session-row comparisons)
 - 2026-11-11T06:26:54Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page note=OCT-epic25 284e8904 ci run 42966931010 iris (shards-6) lane-b@rest TestOnlyTheMarkerChanges/TestRunAgain; classified flake by the orchestrator; no rework
+- 2026-11-11T06:26:39Z occurrence=25-2 by=orchestrator note=run 42966931010 job 130346188889 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges + TestRunAgain (ci-12); OCT-epic25 284e8904
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6752,6 +6756,36 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T20:08:58Z status=wontfix-accepted owner=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute by=harvest note=reopen_if=chk_readme_links gains a tree-list argument, or the header logo goes missing on main without readme-links going red
 - 2026-11-10T20:20:54Z occurrence=0-23-the-readme-header-s-logo-and-license-badge-link-use-absolute
 
+### DW-1108: A partner request approved after its incident was closed is dropped with one log line: the row stays approved, nothing is sent and the user gets no result (the Telegram press answer still says it is sending)
+- source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: IncidentManager.Aside drops on a closed incident (spec: refuses on closed); a pending partner request does not block closing (MOVES 0), so ask, Dismiss, then Approve reaches it
+- 2026-11-11T01:56:30Z status=open owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=harvest note=needs_a_Planner_ruling_on_the_user-facing_outcome(cancel_pending_partner_requests_at_close,or_send_anyway,or_a_result_line)
+- 2026-11-11T03:04:14Z occurrence=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva
+- 2026-11-11T03:04:14Z status=decision-pending owner=burndown by=cr note=also approve-then-close (Execute refused as closed, or result dropped by Aside); rec: Aside tells result on closed, no new text
+- 2026-11-11T04:08:20Z status=routed owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=planner note=Merge-time ruling 2 option (a), only if about 1 h or less with existing text verbatim: a request approved after its incident closed gets result.partnerNotSent with an existing refusal reason through IncidentManager.Aside, nothing sent; else ledger for 1.0.8; (b) and (c) declined
+- 2026-11-11T04:46:48Z status=resolved-by:23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=adjudication note=commit 048dbe54 plus re-review patch (ruling 2a: Aside/Closed tells result.partnerNotSent with PartnerWarning NOSTART, nothing sent; leftover row-state part is DW-1117)
+
+### DW-1109: Demo.Guide.Compute counts any approved request of the guide's incident for step 4, so a partner notice approved while the repair still waits marks step 4 done early
+- source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Demo/Guide.cls (Lane B, not in 23.5's AD-33 list); the finish still needs the incident resolved; fix is a one-line kind filter (leave MOVES 0 kinds out of step 4)
+- 2026-11-11T01:56:30Z status=escalated owner=burndown by=harvest note=AD-33_extension_request:Demo/Guide.cls_one-line_filter;orchestrator_or_Planner
+- 2026-11-11T04:08:20Z status=routed owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=planner note=Merge-time ruling 1 (prompts/epic-23-rulings-235.md): fix now in 23.5; Demo/Guide.cls joins the AD-33 list (one-line kind filter, MOVES 0 kinds do not count for step 4) plus a test
+- 2026-11-11T04:46:48Z status=resolved-by:23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=adjudication note=commit 048dbe54 plus re-review patch (Demo.Guide step 4 skips MOVES 0 kinds; TestPartnerRequestIsNotStepFour)
+
+### DW-1110: Fix.Kind.PartnerWarning.Plan reads the address at the target's position in the targets it is given, so an Execute of a Recheck-passed subset compares later contacts with the wrong address
+- source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Executor.Run passes Recheck's passed ids to Carry/Execute; Plan indexes to by the position in that subset, not in FixTargets. Fix.PartnerContacts holds one contact, so no subset can shift a position today.
+- 2026-11-11T03:04:14Z status=wontfix-theoretical owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=cr note=real once a production has two or more contacts (Stories 36.2/24.2's contact table): key the to position on the row's FixTargets
+
+### DW-1111: An interrupted partner_warning run (restart inside Deliver) would read result.interrupted, the resend's wording
+- source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Notice.ResultKey checks Interrupted before the contact branch; Deliver is a few synchronous SimMailboxOut sends, so a restart must land inside them. The summary side no longer says a fix started or was interrupted for a notice run (review patch).
+- 2026-11-11T03:04:14Z status=wontfix-theoretical owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=cr note=real if a run of kind partner_warning is ever marked interrupted by Fix.Run.Mark (FixRun Interrupted>0 with a contact kind)
+
+### DW-1112: The incident summary's model cost leaves out the cost of drafting a delay notice
+- source: spec-23-5-draft-partner-delay-notices-that-are-sent-only-after-approva.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Watch.Summary costs Usage.Totals(incident.DecisionRef) only; the draft is a separate Decide turn owned by the asking session (OwnerRef), counted on its Usage like the chat turn that asked for it; no column links it to the incident.
+- 2026-11-11T03:04:14Z status=wontfix-accepted owner=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva by=cr note=reopen_if=the owner rules that a session-asked draft's cost belongs to the incident summary (needs a stored link: veto item)
 ### DW-1104: One 'I'll remember' anywhere in the reply suppresses every learned line of the turn, including one about another fact or an unrelated 'I'll remember to ...'
 - source: spec-41-15-learned-saves-are-announced-by-code.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Memory.Learned.Shown returns [] whenever Said(replyText); with 2-3 learned entries a reply naming one fact hides the rest (no test covers that mix)
@@ -6796,6 +6830,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: lane-B throwaway e37s2s3 on d282b2b7 2026-11-11 ~00:17Z: 1 failed/106 passed; rerun 107/107; 37.2 does not touch the decision strip or trace link
 - 2026-11-11T00:24:50Z status=routed owner=burndown by=harvest note=flake:keyboard.spec_K2_focus_after_link.focus();one_rerun_green
 
+### DW-1117: A partner request approved after its incident was closed stays approved for good: its session is never purged and a repeated approved outcome is told again
+- source: spec-23-5 code review (rework iteration 2) | severity: med | fix-risk: med | footprint: in-story
+- evidence: IncidentManager.Closed tells result.partnerNotSent but ends nothing (no Execute, no FinishExecution, no audit entry), so the row keeps State approved. Data.Purge.Keeps keeps every session with an approved request, and Outcome accepts a repeated approved outcome while the row still shows it. Residual of DW-1108; ruling 2(a) asked only for the telling.
+- 2026-11-11T04:45:12Z status=routed owner=burndown by=cr note=residual of DW-1108: ending the row needs a mechanism (FinishExecution failed plus audit, or an Execute the executor refuses)
 ### DW-1118: post-contest: an approve-then-close partner notice shows 'OcuTalon couldn't read the approved fix', an existing text that fits a partner notice weakly
 - source: Contest Planner ruling on Story 23.5 (DW-1108 side effect), 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 23.5 head 52db267d: IncidentManager.Aside now surfaces the result that arrives after the close; the executor's existing reason text is reused

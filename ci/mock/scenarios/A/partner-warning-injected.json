@@ -1,0 +1,22 @@
+{
+  "name": "partner-warning-injected",
+  "match": {
+    "marker": "partner-warning-injected"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "propose_fix",
+        "input": {
+          "kind": "partner_warning",
+          "item": "orders@attacker.example"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I've asked for the delay notice."
+    }
+  ]
+}

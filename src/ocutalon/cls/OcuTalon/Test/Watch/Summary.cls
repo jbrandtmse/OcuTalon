@@ -32,6 +32,8 @@
 ///   - TestGroupsAtClose (AC3): the groups line lists every group with its count at the close, a group that formed after the notice (no NoticeCount) included;
 ///   - TestProductionName: the title names the demo production by its display name (Orders), and a production that is not listed by its class name;
 ///   - TestText: the stored summary is read back through Watch.Summary.Text, and an incident without one gives an error status.
+///   - TestKindLines (Story 23.2, AC14): the requested and ended lines of the suspend, resume and reroute requests, with no message counts for the item runs;
+///   - TestPartnerLines (Story 23.5, AC13): the requested line (with the number of recipients) and the sent, kept or not sent line of each delay notice, with no "the fix started" line, the message counts unchanged and "No fix ran" kept.
 /// The fixture rows are removed after each test.
 Class OcuTalon.Test.Watch.Summary Extends %UnitTest.TestCase
 {
@@ -702,6 +704,47 @@ Method TestKindLines()
 	Do $$$AssertTrue(text [ ": OcuTalon asked for approval to suspend OrdersToWarehouse.", "the suspend line reads as ruled")
 	Do $$$AssertTrue(text [ ": OrdersToWarehouse was suspended.", "and its end line")
 	Do $$$AssertTrue(text [ ": OcuTalon asked for approval to reroute 3 orders to OrdersForReview.", "and the reroute line")
+}
+
+/// Story 23.5 (AC13): an incident with a sent, a kept and a not sent partner delay notice has the requested line (with the number of recipients) and the ended line of each, the message counts are the repair's
+/// alone, and the notice's runs make neither a diagnosis fix line nor "No fix ran" go away.
+Method TestPartnerLines()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("partner")
+	Set incident = ..Incident(owner, "resolved")
+	Set parameters = "{""text"":""A notice."",""to"":""it@results-partner.example""}"
+	Set dryRun = "{""notice"":""A notice."",""recipients"":[{""name"":""Results Partner IT"",""address"":""it@results-partner.example""}],""simulated"":1}"
+	Set sent = ..Request(owner, incident, "done", ..T(-6000), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "1", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
+	Set kept = ..Request(owner, incident, "failed", ..T(-5000), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "1", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900))})
+	Set notSent = ..Request(owner, incident, "done", ..T(-4000), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "1,2", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-3900))})
+	Do ..Link(incident, sent_","_kept_","_notSent)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, sent, {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 1, "Resent": 0, "Completed": 1, "FailedAgain": 0, "Skipped": 0})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, kept, {"StartedAt": (..T(-4800)), "EndedAt": (..T(-4700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Reason": ($Parameter("OcuTalon.Fix.Kind.PartnerWarning", "NOTSETUP"))})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, notSent, {"StartedAt": (..T(-3800)), "EndedAt": (..T(-3700)), "Total": 2, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 2, "Reason": "Partner contact 2 is no longer a partner contact of Orders"})
+	Set result = ..Command(host, "dismiss", incident, owner)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set keys = ..Keys(row)
+	Do $$$AssertEquals($Length(keys, "summary.requestedPartner") - 1, 3, "each partner request has its requested line: "_keys)
+	Do $$$AssertEquals($Length(keys, "summary.partnerSent") - 1, 1, "the sent notice ends with summary.partnerSent")
+	Do $$$AssertEquals($Length(keys, "summary.partnerKept") - 1, 1, "the kept one with summary.partnerKept")
+	Do $$$AssertEquals($Length(keys, "summary.partnerNotSent") - 1, 1, "and the one that reached nobody with summary.partnerNotSent")
+	Do $$$AssertEquals($Length(keys, "summary.fixEnded") - 1, 0, "none of them has the counts line")
+	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 0, "nor a line that says a fix started: a delay notice is not a fix")
+	Do $$$AssertEquals($Length(keys, "summary.requested,") - 1, 0, "nor the repair's requested line")
+	Do $$$AssertEquals($Length(keys, "summary.noFixRan") - 1, 1, "a delay notice is not a fix, so the summary still says that no fix ran")
+	Do $$$AssertEquals(..Slots(row, "summary.requestedPartner").count, 1, "the requested line counts the recipients")
+	Set messages = ..Slots(row, "summary.messages")
+	Do $$$AssertEquals(messages.failed_"|"_messages.resent_"|"_messages.completed_"|"_messages.failedAgain_"|"_messages.skipped, "50|0|0|0|0", "the message counts are unchanged by the notices")
+	Set text = ##class(OcuTalon.Watch.Summary).Text(incident, "web", .sc)
+	Do $$$AssertStatusOK(sc, "the summary renders")
+	Do $$$AssertTrue(text [ ": OcuTalon asked for approval to send a delay notice to the partner contact.", "the requested line reads as ruled")
+	Do $$$AssertTrue(text [ ": OcuTalon asked for approval to send a delay notice to 2 partner contacts.", "also for two recipients")
+	Do $$$AssertTrue(text [ ": the delay notice went to the Simulated mailbox.", "the sent line")
+	Do $$$AssertTrue(text [ ": the delay notice was approved and kept as a draft.", "the kept line")
+	Do $$$AssertTrue(text [ ": the delay notice was not sent.", "and the not sent line")
 }
 
 /// A shadow instance of the probe.

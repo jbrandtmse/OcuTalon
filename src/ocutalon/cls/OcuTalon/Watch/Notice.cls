@@ -46,6 +46,10 @@
 ///     affected), itemNoun, from, to, example and resendCount (its resend) for a reroute. ResultKey, given the kind's name, gives result.itemSuspended or result.itemResumed
 ///     for an item kind that changed its item, result.itemSkipped when the re-check skipped it and result.itemNotChanged when the run could not start; for a reroute whose copies
 ///     all completed (the key that is result.allThrough) it gives result.rerouted. ResultSlots, given the item, production and target in extra, adds them.
+///   - A partner delay notice (Story 23.5): AskedKey gives incident.partnerRequest for partner_warning and AskedSlots {recipients ("Name <address>" of each recipient of the dry
+///     run, joined with ", "), notice (the dry run's text)}. ResultKey, given the kind's name, gives for a kind whose targets are contacts result.partnerKept (the run failed with the
+///     kind's NOTSETUP reason), result.partnerSent (every recipient was sent), result.partnerSentSome (some were) or result.partnerNotSent (none was); ResultSlots gives count
+///     (Completed), or completed, total and reason (the Reason), or reason, by the key. result.partnerNotDrafted, the result of a draft that failed, is IncidentManager's and has no slots.
 ///   - The good-message refusal (DW-823): NoFixKey gives incident.goodChanged, in place of incident.noFix, for the reason of a repair dry run that the good-message check refused
 ///     (Fix.Kind.RepairResend GOODCHANGED); its slots are those of incident.noFix and noun, the plural item noun.
 /// Slots, WithFixSlots and ResultSlots give "" with an error status in sc where the slots cannot be built (no group, an empty cause, an empty time, a dry run without its
@@ -133,6 +137,19 @@ Parameter KEYITEMNOTCHANGED = "result.itemNotChanged";
 
 Parameter KEYREROUTED = "result.rerouted";
 
+/// The catalog keys of a partner delay notice (Story 23.5): the approval notice, and the results of a run and of a draft that failed.
+Parameter KEYPARTNERREQUEST = "incident.partnerRequest";
+
+Parameter KEYPARTNERSENT = "result.partnerSent";
+
+Parameter KEYPARTNERSENTSOME = "result.partnerSentSome";
+
+Parameter KEYPARTNERNOTSENT = "result.partnerNotSent";
+
+Parameter KEYPARTNERKEPT = "result.partnerKept";
+
+Parameter KEYPARTNERNOTDRAFTED = "result.partnerNotDrafted";
+
 /// The state of an approval request that is still carrying out its fix.
 Parameter EXECUTING = "executing";
 
@@ -197,10 +214,11 @@ ClassMethod NoFixKey(reason As %String) As %String
 	Quit ..#KEYNOFIX
 }
 
-/// The catalog key of the approval notice of a fix the user asked for in the chat, from the kind's name (suspend_item, resume_item or reroute); "" for any other kind. Pure.
+/// The catalog key of the approval notice of a fix the user asked for in the chat, from the kind's name (suspend_item, resume_item, reroute or partner_warning); "" for any
+/// other kind. Pure.
 ClassMethod AskedKey(kind As %String) As %String
 {
-	Quit $Case($Get(kind), "suspend_item": ..#KEYSUSPENDREQUEST, "resume_item": ..#KEYRESUMEREQUEST, "reroute": ..#KEYREROUTEREQUEST, : "")
+	Quit $Case($Get(kind), "suspend_item": ..#KEYSUSPENDREQUEST, "resume_item": ..#KEYRESUMEREQUEST, "reroute": ..#KEYREROUTEREQUEST, "partner_warning": ..#KEYPARTNERREQUEST, : "")
 }
 
 /// The slots of the approval notice of a fix the user asked for in the chat (see the class description), from the kind's name, the dry run (a dynamic object) and the incident;
@@ -216,6 +234,22 @@ ClassMethod AskedSlots(kind As %String, dryRun As %DynamicObject, incident As Oc
 	If '$IsObject($Get(dryRun)) {
 		Set sc = $SYSTEM.Status.Error(5001, "The dry run of incident "_incident.Ref_" is not an object")
 		Quit ""
+	}
+	If key = ..#KEYPARTNERREQUEST {
+		Set notice = ..Text(dryRun.notice)
+		Set recipients = ""
+		If $IsObject(dryRun.recipients) {
+			Set iterator = dryRun.recipients.%GetIterator()
+			While iterator.%GetNext(, .recipient) {
+				If (..Text(recipient.name) = "") || (..Text(recipient.address) = "") Continue
+				Set recipients = recipients_$Select(recipients = "": "", 1: ", ")_..Text(recipient.name)_" <"_..Text(recipient.address)_">"
+			}
+		}
+		If (notice = "") || (recipients = "") {
+			Set sc = $SYSTEM.Status.Error(5001, "The dry run of incident "_incident.Ref_" has no notice or no recipient")
+			Quit ""
+		}
+		Quit {"recipients": (recipients), "notice": (notice)}
 	}
 	If (key = ..#KEYSUSPENDREQUEST) || (key = ..#KEYRESUMEREQUEST) {
 		Set item = ..Text(dryRun.item)
@@ -361,6 +395,12 @@ ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult, ki
 	If ($Get(state) = ..#EXECUTING) || ('result.Final && 'result.Interrupted) Quit ..#KEYSTILL
 	If result.Interrupted Quit ..#KEYINTERRUPTED
 	Set class = ##class(OcuTalon.Fix.Kind).ForName(kind)
+	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") {
+		If ($Get(state) = "failed") && ($Parameter(class, "NOTSETUP") '= "") && (result.Reason = $Parameter(class, "NOTSETUP")) Quit ..#KEYPARTNERKEPT
+		If (+result.Completed > 0) && (+result.Completed = +result.Total) Quit ..#KEYPARTNERSENT
+		If +result.Completed > 0 Quit ..#KEYPARTNERSENTSOME
+		Quit ..#KEYPARTNERNOTSENT
+	}
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "item") {
 		If +result.Completed > 0 Quit $Select($Parameter(class, "ENABLE"): ..#KEYITEMRESUMED, 1: ..#KEYITEMSUSPENDED)
 		If +result.Skipped > 0 Quit ..#KEYITEMSKIPPED
@@ -391,6 +431,16 @@ ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, no
 	Set sc = $$$OK
 	Set reason = ..Text(result.Reason)
 	If '$IsObject(extra) Set extra = {}
+	If $ListFind($ListBuild(..#KEYPARTNERSENT, ..#KEYPARTNERSENTSOME, ..#KEYPARTNERNOTSENT, ..#KEYPARTNERKEPT), key) {
+		If key = ..#KEYPARTNERKEPT Quit {}
+		If key = ..#KEYPARTNERSENT Quit {"count": (+result.Completed)}
+		If reason = "" {
+			Set sc = $SYSTEM.Status.Error(5001, "The result of "_result.ApprovalRef_" has no reason")
+			Quit ""
+		}
+		If key = ..#KEYPARTNERNOTSENT Quit {"reason": (reason)}
+		Quit {"completed": (+result.Completed), "total": (+result.Total), "reason": (reason)}
+	}
 	If (key = ..#KEYITEMSUSPENDED) || (key = ..#KEYITEMRESUMED) || (key = ..#KEYITEMSKIPPED) || (key = ..#KEYITEMNOTCHANGED) {
 		If (key '= ..#KEYITEMNOTCHANGED) && (..Text(extra.item) = "") {
 			Set sc = $SYSTEM.Status.Error(5001, "The result of "_result.ApprovalRef_" has no item")

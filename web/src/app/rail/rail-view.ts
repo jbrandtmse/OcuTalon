@@ -45,6 +45,7 @@ export const RAIL_TEXTS = {
   suspend: 'Suspend {item}',
   resume: 'Resume {item}',
   reroute: 'Reroute {n} {noun} to {to}',
+  partner: 'Send a delay notice',
   runTool: 'Run {toolName}',
   changePersona: 'Change how OcuTalon talks to you',
   showInChat: 'Show in the chat: {action}',
@@ -176,7 +177,7 @@ export function readmeSection(readmeUrl: string, anchor: string): string {
 
 /**
  * The title of an approval request: "Repair and resend 50 orders" for a fix with a dry run (the noun by the count), "Repair and
- * resend" without one, "Suspend {item}", "Resume {item}" and "Reroute {n} {noun} to {to}" for the fixes the user asks for in the chat (Story 23.2), "Run zz_tool" for a tool call, and "Change how OcuTalon talks to you" for a setting request (a proposed persona).
+ * resend" without one, "Suspend {item}", "Resume {item}" and "Reroute {n} {noun} to {to}" for the fixes the user asks for in the chat (Story 23.2), "Send a delay notice" for a partner warning (Story 23.5), "Run zz_tool" for a tool call, and "Change how OcuTalon talks to you" for a setting request (a proposed persona).
  */
 export function approvalTitle(approval: ApprovalPayload): string {
   if (approval.kind === 'setting') {
@@ -184,6 +185,9 @@ export function approvalTitle(approval: ApprovalPayload): string {
   }
   if (approval.kind === 'tool_call') {
     return fill(RAIL_TEXTS.runTool, { toolName: approval.toolName ?? '' }).trim();
+  }
+  if (approval.fixKind === 'partner_warning') {
+    return RAIL_TEXTS.partner;
   }
   if (approval.fixKind === 'suspend_item' || approval.fixKind === 'resume_item') {
     return fill(approval.fixKind === 'suspend_item' ? RAIL_TEXTS.suspend : RAIL_TEXTS.resume, { item: approval.dryRun?.item ?? '' }).trim();

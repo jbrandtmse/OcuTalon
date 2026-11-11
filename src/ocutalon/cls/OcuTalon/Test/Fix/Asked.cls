@@ -57,6 +57,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set ..Refs = ""
 	Set ..Incidents = ""
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Asked", $Parameter(..#PROBE, "LOGASK"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "RaiseAsked", $Parameter(..#PROBE, "LOGASK"))
 	Quit $$$OK
 }
 
@@ -161,7 +162,7 @@ Method TestRefusedNothingAndFailed()
 	Do $$$AssertEquals(host.Raised.%Size()_"|"_host.Sent.%Size(), "0|0", "none of them raises a request or sends a Notification")
 	Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Do $$$AssertEquals(stored.State_"|"_stored.RequestRefs, "resolved|", "and the incident is as it was")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "Asked", $Parameter(..#PROBE, "LOGASK")), 1, "the failed ask is one Type 3 warning")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "RaiseAsked", $Parameter(..#PROBE, "LOGASK")), 1, "the failed ask is one Type 3 warning (RaiseAsked, the tail of every asked request, logs it)")
 }
 
 Method TestNotAllowedAndNotFound()

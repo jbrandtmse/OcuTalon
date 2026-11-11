@@ -24,6 +24,9 @@
 ///     ("None") and TestDismissInstance ("Instance") (Story 5.9): which incident dismiss_incident submits a Dismiss for, against the double, with the
 ///     recorded commands (origin tool, the session, the key <ItemId>:<n>, the IncidentRef and no other field) and the whole answer; an incident that is
 ///     not open or resolved, not noticed or not the session's is never submitted, and a production of white space alone is not given;
+///   - TestProposePartnerWarning (Story 23.5; AC1, AC-NOOPEN): propose_fix with kind partner_warning needs no item, finds the session's incident in any state but closed (awaiting_approval and fixing too, which suspend and
+///     resume do not), submits a ProposeFix with the parameters {} (or {"item"} when an item was given, which IncidentManager then refuses) against the double, and answers the owner's outcome with the kind and no item;
+///     a session with no incident that is not closed is answered refused with "There's no open incident to warn the partner about, so no delay notice was drafted" and nothing is submitted;
 ///   - TestIncidentsNotRead and TestDismissedData (Story 5.9, QA; pure, no production): WatchAnswers.ResolveIncident answers INCIDENTSNOTREAD and offers nothing
 ///     to submit when Ownership cannot read the incidents (the owners instance and eval and an empty one are refused), and WatchAnswers.Dismissed adds state and
 ///     openVariant only for a Data that is a JSON object with a string state, and never raises for any other Data;
@@ -67,7 +70,7 @@ Method TestDeclarations()
 	Set want("check_status") = $ListBuild("safe", 1, 1, "Reading the check results", "", "")
 	Set want("recent_activity") = $ListBuild("safe", 1, 1, "Reading recent activity", "", "")
 	Set want("send_digest") = $ListBuild("safe", 0, 1, "Sending your digest", "", "")
-	Set want("propose_fix") = $ListBuild("safe", 0, 1, "Asking to approve a fix", "incident,item,kind,production", "kind,item")
+	Set want("propose_fix") = $ListBuild("safe", 0, 1, "Asking to approve a fix", "incident,item,kind,production", "kind")
 	Set want("incident_summary") = $ListBuild("safe", 1, 0, "Reading the incident summary", "", "")
 	Set expected = $ListBuild($Parameter(names, "STARTWATCH"), $Parameter(names, "STOPWATCH"), $Parameter(names, "LISTPRODUCTIONS"), $Parameter(names, "DISMISSINCIDENT"), $Parameter(names, "CHECKSTATUS"), $Parameter(names, "RECENTACTIVITY"), $Parameter(names, "DIGESTTOOLS"), $Parameter(names, "INCIDENTSUMMARY"), $Parameter(names, "PROPOSEFIX"))
 	Set tools = $ClassMethod(..#TOOLSET, "%New").%Discover().tools
@@ -552,6 +555,44 @@ Method TestDismissOne()
 	Set answer = ##class(OcuTalon.Tools.WatchTools).DismissIncident()
 	Do ..AssertObject(answer, {"ok": true, "message": "The CI double dismissed the incident.", "ref": (resolved), "outcome": "closed", "production": "Zz Zz.Production", "state": "closed", "openVariant": ""}, "a resolved incident is submitted too, with the display name of the session's watch")
 	Do ..AssertDismissals(r, itemId, resolved)
+}
+
+/// A partner_warning ask (Story 23.5): the incident of any state but closed, the parameters {} or {"item"}, the owner's outcome in the answer, and the ruled reason when there is no incident.
+Method TestProposePartnerWarning()
+{
+	If '..Ready() Quit
+	If '..UseDouble() Quit
+	Set a = ..Session("warn")
+	Set waiting = ..Seed(a, "awaiting_approval", "Zz.Production", "2030-01-01T10:00:00Z", {"OpenVariant": ""})
+	Do ..Seed(a, "closed", "Zz.Production", "2030-01-01T11:00:00Z", {"OpenVariant": ""})
+	Set ^OcuTalonTest("CommandsDouble", "refuse", "ProposeFix") = "The CI double refused the ask."
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Begin(a, itemId)
+	Set answer = ##class(OcuTalon.Tools.WatchTools).ProposeFix("partner_warning")
+	Do ..AssertObject(answer, {"ok": false, "message": "The CI double refused the ask.", "outcome": "refused", "production": "Zz.Production", "kind": "partner_warning"}, "partner_warning with no item and an incident that waits for approval is submitted")
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 1, "the double recorded one command")
+	If calls.%Size() = 1 {
+		Set call = calls.%Get(0)
+		Do $$$AssertEquals(call.class_"|"_call.origin_"|"_call.sessionRef_"|"_call.key, "OcuTalon.Msg.Command.ProposeFix|tool|"_a_"|"_itemId_":1", "a ProposeFix, origin tool, the session of the turn, the key <ItemId>:1")
+		Do $$$AssertEquals(call.fields.IncidentRef_"|"_call.fields.FixKind_"|"_call.fields.Parameters, waiting_"|partner_warning|{}", "for the incident, the kind and no parameter")
+	}
+	Set answer = ##class(OcuTalon.Tools.WatchTools).ProposeFix("partner_warning", "orders@attacker.example")
+	Do $$$AssertEquals(answer.outcome_"|"_answer.item, "refused|orders@attacker.example", "an item that the user gave is passed on, for IncidentManager to refuse, and said back")
+	Set calls = ..Calls()
+	If calls.%Size() = 2 Do $$$AssertEquals(calls.%Get(1).fields.Parameters, "{""item"":""orders@attacker.example""}", "as the parameter item")
+	Set answer = ##class(OcuTalon.Tools.WatchTools).ProposeFix("suspend_item", "OrdersToWarehouse")
+	Do $$$AssertEquals(answer.outcome, "no_incident", "a suspend does not find an incident that waits for approval, as before")
+	Do $$$AssertEquals(..Calls().%Size(), 2, "and submits nothing")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Kill ^OcuTalonTest("CommandsDouble", "calls")
+	Set none = ..Session("warnnone")
+	Do ..Seed(none, "closed", "Zz.Production", "2030-01-01T11:00:00Z", {"OpenVariant": ""})
+	Do ..Begin(none, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Set answer = ##class(OcuTalon.Tools.WatchTools).ProposeFix("partner_warning")
+	Do ..AssertObject(answer, {"ok": false, "outcome": "refused", "message": "There's no open incident to warn the partner about, so no delay notice was drafted"}, "with no incident that is not closed the answer says so plainly")
+	Do $$$AssertEquals(..Calls().%Size(), 0, "and nothing is submitted")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.WatchTools", "NOWARNING"), "There's no open incident to warn the partner about, so no delay notice was drafted", "the reason is the ruled one")
 }
 
 Method TestDismissPicks()

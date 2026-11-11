@@ -56,6 +56,7 @@ import { blockLiveSocket } from '../support/socket';
  *   - K18: a focused panel group hands focus on when the finish leaves;
  *   - K27: the panel's level-4 headings are exactly the groups that have items, in order, each followed by its own list of items, and no
  *     heading takes focus;
+ *   - K9c (Story 23.5, AC15): the partner warning item sends "Warn the partner about the delay." once as the user's own message and sends nothing while a turn is in flight;
  *   - K14 (matrix 5, error): item 1 focuses the Persona heading when the card has not loaded;
  *   - K15 (matrix 6, error): item 2 sends nothing while the email limit holds, and focuses the inactive chip;
  *   - K25 (Story 23.6, AC 10): the incident summary item at the finish presses the Dismiss of the newest resolved incident card: the card's chip says
@@ -109,6 +110,12 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
       'First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way.',
     button: 'Ask to reroute',
   },
+  partnerWarning: {
+    label: 'Warn the partner',
+    lookFor:
+      'This asks OcuTalon in the chat to warn the partner about an incident\'s delay, so it needs an incident that isn\'t closed: if you closed the guide\'s incident, do "Reject a fix" first. OcuTalon drafts a short notice from the incident\'s counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox.',
+    button: 'Ask for a partner warning',
+  },
   demoView: {
     label: 'See the page as on your own install',
     lookFor: 'The demo guide, Break the feed and the Simulated devices are hidden, as on your own install. Turn Demo view back on in the top bar to return.',
@@ -159,6 +166,7 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
 };
 const REMEMBER = "Remember that the Results partner's contact is Lee.";
 const REROUTE = 'Reroute the failed orders to OrdersForReview.';
+const PARTNER = 'Warn the partner about the delay.';
 
 const guideRegion = (page: Page): Locator => page.getByRole('region', { name: 'Demo guide' });
 const linkOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'More to try', exact: true });
@@ -614,6 +622,28 @@ test('K9b: the reroute item sends its prompt once as the user\'s own message, an
   await control.click();
   await expect.poll(() => bodies.length, { message: 'the prompt was posted' }).toBe(1);
   expect(bodies[0]!.text).toBe(REROUTE);
+  expect(bodies[0]!.fromGuide, 'as the user\'s own message').toBe(false);
+  await expect(control, 'while its turn is in flight the control is aria-disabled').toHaveAttribute('aria-disabled', 'true');
+  await control.click({ force: true });
+  await page.waitForTimeout(500);
+  expect(bodies, 'and a second press sends nothing').toHaveLength(1);
+});
+
+/** K9c (Story 23.5, AC15): the partner warning item sends its prompt once as the user's own message, and sends nothing while a turn is in flight. */
+test('K9c: the partner warning item sends its prompt once as the user\'s own message, and sends nothing while its turn is in flight', async ({ page }) => {
+  const bodies: Array<{ clientId: string; text: string; fromGuide: boolean }> = [];
+  await page.route(`**${MESSAGES}`, async (route: Route) => {
+    const body = route.request().postDataJSON() as { clientId: string; text: string; fromGuide: boolean };
+    bodies.push(body);
+    await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ clientId: body.clientId }) });
+  });
+  await openWith(page, finished(['rejectFix', 'reroute', 'partnerWarning']));
+  await expect(panelOf(page).locator('.item-label'), 'the partner warning item follows the reroute item').toHaveText([ITEMS['rejectFix']!.label, ITEMS['reroute']!.label, ITEMS['partnerWarning']!.label]);
+  await expect(itemOf(page, 'partnerWarning').locator('.look-for')).toHaveText(ITEMS['partnerWarning']!.lookFor);
+  const control = controlOf(page, 'partnerWarning');
+  await control.click();
+  await expect.poll(() => bodies.length, { message: 'the prompt was posted' }).toBe(1);
+  expect(bodies[0]!.text).toBe(PARTNER);
   expect(bodies[0]!.fromGuide, 'as the user\'s own message').toBe(false);
   await expect(control, 'while its turn is in flight the control is aria-disabled').toHaveAttribute('aria-disabled', 'true');
   await control.click({ force: true });
