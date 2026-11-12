@@ -940,3 +940,6 @@
 2026-11-12T15:28:39Z	Story 0.30	ruling	question=DW-1199_INSTALLLINK choice=extend_Q1(GUIDE.md#install-it-yourself)+pins by=orchestrator category=decide note=Planner_may_reverse;footprint+=Core/Allowance.cls,Test/Core/5_classes
 2026-11-12T15:28:39Z	Story 0.30	rework_opened	cycle_iteration=2 iteration=1 trigger=med_first_review items=DW-1199 scope_baseline=f99ed26d
 2026-11-12T15:28:39Z	Story 0.30	stage_spawned	stage=implement spawn_at=2026-11-12T15:28:39Z model=sonnet effort=high agent_name=0-30-implement-2 cycle_iteration=2
+2026-11-12T15:50:44Z	Story 0.30	dev_complete	spawn_at=2026-11-12T15:28:39Z model=sonnet effort=high build_sha=db889be9 baseline_revision=af6d4bb1 review_loop_iteration=0 followup_review_recommended=false deferred=1(DW-1200,wontfix-accepted) cycle_iteration=2 note=DW-1199_INSTALLLINK_to_GUIDE.md;5_IRIS_classes_pass_warm_lane-A(e0s30iw,down);web_132_pass;lint_clean;mutation_red_then_green
+2026-11-12T15:50:45Z	Story 0.30	adr_verifications_complete	result=none_required mutations=none model=claude-opus-5-5 cycle_iteration=2
+2026-11-12T15:50:45Z	Story 0.30	stage_spawned	stage=qa spawn_at=2026-11-12T15:50:45Z model=sonnet effort=high agent_name=0-30-qa-1 cycle_iteration=2

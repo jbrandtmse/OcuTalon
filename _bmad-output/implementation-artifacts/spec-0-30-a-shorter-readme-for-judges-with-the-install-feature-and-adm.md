@@ -9,15 +9,7 @@ review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred:
-  - summary: >-
-      WatchTools.READMELINK (`...OcuTalon#readme`), the {readmeLink} of the watch.onlyOrders answer, and the Splash and busy-page "Install it yourself (README)" links open the README top, where the install section no longer lives.
-    evidence: |-
-      Real but outside DW-1199's ruling: Q1 and the amendment name four web files and Allowance.cls INSTALLLINK only, and the intent's Never list closes `src/**` and the catalog text beyond them. The README top still reaches GUIDE.md through its More section and the pointer, so the link lands on a live page, not a dead anchor. Settling it needs a ruling on whether these links move to GUIDE.md#install-it-yourself.
-    location: >-
-      src/ocutalon/cls/OcuTalon/Tools/WatchTools.cls:47
-    severity: low
-
+deferred: []
 ---
 
 <intent-contract>
