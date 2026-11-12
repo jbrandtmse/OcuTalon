@@ -3671,3 +3671,22 @@
 2026-11-12T07:09:05Z	Run	inbox_hold_item	id=U-322
 2026-11-12T07:38:45Z	Epic 0	ci_red_classified	sha=eff03a14 run=43159935962 job=iris(production) test=live:production_row21_WatchOps class=flake(DW-306) action=rerun_DEFERRED_to_resume(HOLD) lane-a=success
 2026-11-12T07:43:28Z	Run	ci_observed	feature=74ee76dc run=43160772937 attempt=1 completed failed=iris(shards-4)DW-1158,iris(browser)DW-1187 others=success lane-a=success rerun=DEFERRED_to_resume(HOLD)
+2026-11-12T10:02:15Z	Run	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-12T10:02:15Z	Run	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-12T10:02:15Z	Run	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-12T10:02:15Z	Run	telemetry_gate	pending=1 action=none(gates.model_tier=record_only)
+2026-11-12T10:02:15Z	Run	permission_mode_attested	mode=bypassPermissions source=session_system_prompt
+2026-11-12T10:02:15Z	Run	unattended_resumed	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec lock_token=1794477728-57457 session="OcuTalon_Orchestrator_11-12-2026" via=owner_interactive_reinvocation(U-322) hold_cleared=yes model=claude-opus-5-5
+2026-11-12T10:02:43Z	Run	ci_rerun	head=74ee76dc run=43160772937 attempt=2 failed=iris(shards-4)DW-1158,iris(browser)DW-1187 reason=classified_flakes_one_rerun
+2026-11-12T10:02:43Z	Epic 0	ci_rerun	head=eff03a14 run=43159935962 attempt=2 failed=iris(production)DW-306 reason=known_flake_one_rerun
+2026-11-12T10:02:43Z	Epic 35	ci_observed	head=c6c099df runs=43172109907,43172110020 result=success
+2026-11-12T10:05:05Z	Epic 22	owner_decision	via=contest_planner what=lane_placement ruling="Epic 22 on lane D after DW-1159 (22.9 implement, then 22.3-22.7, 22.10); may start before DW-1159 if lane D frees and DW-1159 is blocked; 22.x public text to the Planner"
+2026-11-12T10:05:05Z	Epic 0	runner_dispatched	model=opus runner=epic-runner-0 prompt=prompts/redispatch-epic-0-20261112.md reason=resume_after_switch_20261112
+2026-11-12T10:05:05Z	Epic 35	runner_dispatched	model=opus runner=epic-runner-35 prompt=prompts/redispatch-epic-35-20261112.md reason=resume_after_switch_20261112
+2026-11-12T10:05:05Z	Epic 21	runner_dispatched	model=opus runner=epic-runner-21 prompt=prompts/redispatch-epic-21-20261112.md reason=resume_after_switch_20261112
+2026-11-12T10:05:05Z	Epic 23	runner_dispatched	model=opus runner=epic-runner-23 prompt=prompts/redispatch-epic-23-20261112.md reason=resume_after_switch_20261112
+2026-11-12T10:27:45Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=74ee76dc runs=43160772937(attempt2),43160772958 result=success flakes_rerun=DW-1158,DW-1187 note=newest_fully_green_feature_head(1.0.8_base_candidate); 0a73299f records-only over it = green by identity
+2026-11-12T10:29:21Z	Epic 35	runner_reported	PART_READY part=35.3 head=90cec339 code_head=c6c099df ci=success runs=43172109907,43172110020
+2026-11-12T10:29:21Z	Epic 35	amendments_verified	amendments=3 extensions=5 ok=true note=epics.md_35.3_un-park+L2,EXPERIENCE.md_sixteen_items(tier-1,markers_present;line_numbers_shifted)
+2026-11-12T10:29:21Z	Epic 35	ci_green_verified	runs=43172109907,43172110020 head=c6c099df result=success
+2026-11-12T10:29:21Z	Epic 35	merge_enqueued	part=35.3 head=90cec339
