@@ -3820,3 +3820,7 @@
 2026-11-12T22:24:18Z	Epic 21	runner_reported	PLANNER_REPORT+RELEASE_TOOL story=21.8_LOCAL_READY(code_c3448279,local_2cc947a4) release_tool=release/checklist.sh_mail.google.com_exemption decisions=DW-1226(decision-pending_human),DW-1230(escalated_plain-POP3_bearer) gate=21.10(V1-V7,T1-T2) split=21.11
 2026-11-12T22:24:18Z	Epic 25	runner_dispatched_id	runner=aa000b22fa7fb6f0c
 2026-11-12T22:24:18Z	Run	deps_hash_rerecorded	reason=split note=epic-21_story_waits_21.9/21.10/21.11_added(hash_rerecord_at_merge)
+2026-11-12T22:25:13Z	Epic 21	owner_decision	via=contest_planner what=lane_C_rulings(21.8_RELEASE_TOOL+DW-1230_fix_before_push;DW-1226_owner_post-contest;21.10_approved+Telegram_4096_condition;DW-1207_burndown) file=prompts/gate-rulings-20261112-1810.md note=25.3_plan_already_on_Epic25_runner
+2026-11-12T22:25:40Z	Epic 0	owner_decision	via=contest_planner what=0.35_merge_gate ruling="0.35 (e27bd379) does NOT merge on green CI; only after the Planner A/B passes ship rule (a)-(e)" dispatch_state=held_merge
+2026-11-12T22:51:35Z	Epic 25	ruling	question=AC_for_25.6_reply_contract_on_Epic37_Story_37.1(not_yet_planned) choice=add_AC_to_37.1 rejected=25.6_owns_contract why=37.1_is_step6_contracts_story(photo_caption) category=veto inbox=U-326 ledger=DW-1231 policy=5086036
+2026-11-12T22:51:35Z	Epic 25	runner_reported	PLANNER_REPORT story=25.3_plan(ready-for-dev,oversized) rulings_needed=demo(a_OFF_recommended),split_25.6,veto_route/table/columns,gap_until_26.2,GUIDE_line local=bcea7098

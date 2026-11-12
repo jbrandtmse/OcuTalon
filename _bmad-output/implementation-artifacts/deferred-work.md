@@ -7359,3 +7359,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/tests/test-compose-file.sh oauth_install_paths_clean: 58 files scanned, floor 40 catches only release/* (25); fixtures plant only /csp/sys/oauth2/OAuth2.Response.cls; gap predates 0.34 (Story 21.3)
 - 2026-11-12T20:19:09Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=pins beyond the ruled (a),(b1),(b2) exceed the 1.0.8 ruling; reopen_if=a diff edits the pathspec or regex line of oauth_install_paths_clean
 - 2026-11-12T20:19:32Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=reopen_if=a diff edits oauth_install_paths_clean's pathspec or regex line; more pins exceed the 1.0.8 ruling
+
+### DW-1231: AC for 37.1: fix the read-result reply contract (extracted-text summary ref, Add to documents offer, photo memory caption, read-failure reason) that Story 25.6 consumes
+- source: orchestrator ruling on 25.3's split, 2026-11-12 (veto U-326) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 25.3 plan: 25.6 needs a reply contract no story fixes
+- 2026-11-12T22:51:35Z status=routed owner=37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption by=orchestrator note=DW bullet added to 37.1's epics.md block at 25.3's merge
