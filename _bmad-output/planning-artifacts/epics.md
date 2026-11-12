@@ -1818,6 +1818,27 @@ So that I can judge the entry quickly and still find every install and admin det
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.31: DW-1191: the webhook secret test's malformed-salt case can never equal the real salt
+
+[ADDED 2026-11-12, burndown by the Contest Planner's standing ruling (owner's delegation, prompts/standing-rulings-20261112.md, DW-1191: test-only, burndown; lane A after 0.30)] `OcuTalon.Test.Data.Webhook` `TestMatches` builds a malformed stored value by putting "x" in front of the salt's second character on; when the random salt already starts with "x" (about 1 run in 64) that value is the real one and `Matches` rightly answers 1, so the test fails at random. Footprint: `src/ocutalon/cls/OcuTalon/Test/Data/Webhook.cls` only.
+
+As a developer reading CI,
+I want the webhook secret test to fail only when Matches is wrong,
+So that a random salt never turns CI red.
+
+**Acceptance Criteria:**
+
+**Given** `TestMatches`
+**When** it builds the malformed-salt variant
+**Then** the variant's first character is one the salt does not start with, chosen as `lastChanged` chooses its last character (for example `$Select($Extract(salt) = "x": "y", 1: "x")`), so the variant never equals the stored value, whatever the random salt
+**And** every other case of `TestMatches` and the rest of the class are unchanged, and no product code changes
+**And** a test proves the choice: with a salt that starts with "x" the variant still differs from the salt
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1191: Test.Data.Webhook TestMatches 'x...' malformed-salt variant equals the real hash when the random salt starts with x (ledger; routed by the Contest Planner 2026-11-12)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
