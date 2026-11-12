@@ -56,3 +56,5 @@
 2026-11-12T15:41:19Z	Story 0.31	pushed	sha=34428e24 code_sha=38c3f267 ci=pending runs=43250436386,43250436407 missing=none
 2026-11-12T15:47:10Z	Epic 0	story_inserted	story=0.32 key=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and source=orchestrator_continue_planner_standing_burndown_ruling dw=DW-1082,DW-1195 marker=ADDED_2026-11-12_Contest_Planner_standing_burndown_ruling
 2026-11-12T15:47:10Z	Story 0.32	ledger_routed_planned	story=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and entries=2 excess=0 by=lane_order
+2026-11-12T15:49:30Z	Epic 0	epic_context_compiled	reason=story_inserted model=claude-opus-5-5 lines=79 note=epics.md_0.32_block_committed_here_(missed_in_dfb85e9b_by_lead)
+2026-11-12T15:49:30Z	Story 0.32	stage_spawned	stage=plan spawn_at=2026-11-12T15:49:30Z model=opus agent_name=0-32-plan-1 cycle_iteration=1
