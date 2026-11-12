@@ -109,3 +109,5 @@
 2026-11-12T17:24:58Z	Epic 22	integrated_forward	feature=90777cf8 head=5b20b8f1 conflicts_resolved=sprint-status.yaml(bookkeeping:feature_side,regenerated,22.9=done_re-set) note=adds_21.3,0.27;code_overlap_with_22.9_files=none
 2026-11-12T17:27:04Z	Story 22.9	committed	sha=148f349f story_commit=ee9a06f4 build_sha=901d7335 submodules= ci=pending runs=43269496267,43269496130 amendments=none footprint_ext=Bridge/Adapter/Agent.cls,Bridge/Ext/McpServers.cls(as_specced)
 2026-11-12T17:27:04Z	Story 22.9	story_cycle	plan_to_commit_min=n/a(spec_from_prior_session;implement_to_push=182) implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-12T17:32:23Z	Epic 22	epic_context_compiled	reason=planning_artifact_newer(merge_90777cf8:epics.md,spine,EXPERIENCE.md) model=opus words=1685
+2026-11-12T17:32:23Z	Story 22.5	stage_spawned	stage=plan spawn_at=2026-11-12T17:32:23Z model=opus agent_name=22-5-poll-a-read-only-mcp-tool-as-a-source-plan-1 cycle_iteration=1 effort=high note=planned_during_22.9_CI_wait(standing_no-idle-lane)
