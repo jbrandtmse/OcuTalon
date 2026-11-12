@@ -934,13 +934,13 @@ Banners stack in this table's order.
 
 | Banner | Text | Action | Can be closed |
 | --- | --- | --- | --- |
-| Allowance used up: session (danger) | "You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram). You can send more at {time}." | "Install it yourself" (README) | No |
+| Allowance used up: session (danger) | "You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram). You can send more at {time}." | "Install it yourself" (GUIDE.md) | No |
 | Allowance used up: daily cap (danger) | "The online demo has used today's model allowance. Decisions use fixed rules until {time}." | "Install it yourself" | No |
 | Unreachable (danger) | "Can't reach OcuTalon. Retrying every 10 seconds." | None | No |
-| No model key (warning, FR-38) | Step 1: "OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon." From step 2: "…Add a key for a supported provider (for example, ANTHROPIC_API_KEY) to the .env file and restart OcuTalon." | "How to set a key" (README) | No |
+| No model key (warning, FR-38) | Step 1: "OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon." From step 2: "…Add a key for a supported provider (for example, ANTHROPIC_API_KEY) to the .env file and restart OcuTalon." | "How to set a key" (GUIDE.md) | No |
 | Daily cost cap reached (warning, local) | "OcuTalon has reached today's cost limit of {cap}. Decisions use fixed rules until {time}." | "Budgets" (Settings, admins) | No |
 | Heartbeat stalled (warning, FR-32) | "Background checks have paused: the heartbeat last ran at {time}. Watches and reminders may be late until it recovers." | None | No |
-| Bot in use (warning, FR-22) | "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot." | "Set up a bot" (README) | No |
+| Bot in use (warning, FR-22) | "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot." | "Set up a bot" (GUIDE.md) | No |
 | Reset soon (warning) | "The demo resets in 5 minutes. Your session and Telegram pairing will be cleared." | None | Yes |
 | Reconnecting (info) | "Reconnecting… New messages may be delayed." | None | Yes |
 

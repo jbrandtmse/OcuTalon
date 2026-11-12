@@ -327,7 +327,7 @@ t_base() {
 
 # The IPM package and the registry install (Story 15.4): copied lines, the slot, and a record without the sections.
 t_ipm() {
-  local pub slot="Not run yet. After this version is published to the package registry, the README's two commands are run once against the registry on a clean build 154 instance, and the result is recorded here."
+  local pub slot="Not run yet. After this version is published to the package registry, the guide's two commands are run once against the registry on a clean build 154 instance, and the result is recorded here."
   newcase
   {
     cat "$rec"

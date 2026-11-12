@@ -2,8 +2,8 @@
 // components and services: the pure views (allowance-view.ts, banner-view.ts, mailbox-view.ts) have their own tests, and the browser cases
 // (e2e-online/allowance/) run the real components against the real stack in minutes. This file reads the sources, as the other *-sources
 // ratchets do, so that the guards the browser cases are the only other proof of fail in seconds:
-// - the banners' two README targets are built in banner-stack.ts from the anchors install-it-yourself and set-a-model-key, which are
-//   headings of the README, and the guide and the about dialog keep their link to the README's top (the splash is served by the server);
+// - the banners' two guide targets are built in banner-stack.ts from the anchors install-it-yourself and set-a-model-key, which are
+//   headings of GUIDE.md, and the demo guide and the about dialog keep their link to the README's top (the splash is served by the server);
 // - the explained-disabled controls (the composer's field and Send, the guide's send prompts, the mailbox's chips and Send) are marked
 //   aria-disabled and described by their reason, never disabled, and a press while the limit holds does nothing;
 // - AllowanceState is read by the banner stack, the composer, the guide and the outbox and by nothing else, so Break the feed's box and
@@ -23,7 +23,7 @@ import { sourceFiles } from './source-files.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const app = join(here, '..', 'src', 'app');
 const files = sourceFiles(app, ['.ts']);
-const { README_URL } = await import(pathToFileURL(join(app, 'links.ts')).href);
+const { GUIDE_URL, README_URL } = await import(pathToFileURL(join(app, 'links.ts')).href);
 const { readmeSection } = await import(pathToFileURL(join(app, 'rail', 'rail-view.ts')).href);
 
 const file = (name) => {
@@ -48,30 +48,37 @@ const guide = file('guide/demo-guide.ts');
 const outbox = file('chat/chat-outbox.ts');
 const mailbox = file('mailbox/simulated-mailbox.ts');
 
-describe('the README sections that the banner actions open (AC 10, DW-361)', () => {
-  const readme = readFileSync(join(here, '..', '..', 'README.md'), 'utf8');
-  const slugs = readme.split('\n').filter((line) => /^## /.test(line)).map((line) => slug(line.slice(3).trim()));
+describe('the guide sections that the banner actions open (AC 10, DW-361)', () => {
+  const guideText = readFileSync(join(here, '..', '..', 'GUIDE.md'), 'utf8');
+  const slugs = guideText.split('\n').filter((line) => /^## /.test(line)).map((line) => slug(line.slice(3).trim()));
 
-  it('the stack builds the install and set-a-key addresses from the anchors of the two README sections, and the Telegram one as before', () => {
+  it('the stack builds the install, set-a-key and Telegram addresses from GUIDE_URL and the anchors of the three guide sections', () => {
     assert.match(stack.code, /const INSTALL_ANCHOR = 'install-it-yourself';/);
     assert.match(stack.code, /const SET_KEY_ANCHOR = 'set-a-model-key';/);
-    assert.match(stack.code, /installUrl: readmeSection\(README_URL, INSTALL_ANCHOR\),/);
-    assert.match(stack.code, /setKeyUrl: readmeSection\(README_URL, SET_KEY_ANCHOR\),/);
-    assert.match(stack.code, /telegramUrl: readmeSection\(README_URL, TELEGRAM_ANCHOR\),/);
+    assert.match(stack.code, /installUrl: readmeSection\(GUIDE_URL, INSTALL_ANCHOR\),/);
+    assert.match(stack.code, /setKeyUrl: readmeSection\(GUIDE_URL, SET_KEY_ANCHOR\),/);
+    assert.match(stack.code, /telegramUrl: readmeSection\(GUIDE_URL, TELEGRAM_ANCHOR\),/);
   });
 
-  it('those addresses are the repository README with the section\'s anchor, not its top', () => {
-    assert.equal(readmeSection(README_URL, 'install-it-yourself'), 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself');
-    assert.equal(readmeSection(README_URL, 'set-a-model-key'), 'https://github.com/jbrandtmse/OcuTalon#set-a-model-key');
-    assert.notEqual(README_URL, readmeSection(README_URL, 'install-it-yourself'));
+  it('the Telegram card and the settings channels section build their Telegram address from GUIDE_URL and the anchor of the guide\'s Telegram section', () => {
+    assert.match(file('rail/telegram-card/telegram-card.ts').code, /href = readmeSection\(GUIDE_URL, TELEGRAM_ANCHOR\);/);
+    assert.match(file('settings/channels-section.ts').code, /href = readmeSection\(GUIDE_URL, TELEGRAM_ANCHOR\);/);
+    assert.ok(slugs.includes('telegram'), `the headings: ${slugs.join(', ')}`);
   });
 
-  it('the README has a heading for each of the two anchors', () => {
+  it('those addresses are the repository\'s GUIDE.md with the section\'s anchor, not the README', () => {
+    assert.equal(GUIDE_URL, 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md');
+    assert.equal(readmeSection(GUIDE_URL, 'install-it-yourself'), 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself');
+    assert.equal(readmeSection(GUIDE_URL, 'set-a-model-key'), 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#set-a-model-key');
+    assert.notEqual(README_URL, readmeSection(GUIDE_URL, 'install-it-yourself'));
+  });
+
+  it('GUIDE.md has a heading for each of the two anchors', () => {
     assert.ok(slugs.includes('install-it-yourself'), `the headings: ${slugs.join(', ')}`);
     assert.ok(slugs.includes('set-a-model-key'));
   });
 
-  it('only the banner stack uses the two anchors, and the guide and the about dialog keep the README\'s top (the Never list)', () => {
+  it('only the banner stack uses the two anchors, and the demo guide and the about dialog keep the README\'s top (the Never list)', () => {
     assert.deepEqual(files.filter((one) => /\b(?:INSTALL_ANCHOR|SET_KEY_ANCHOR)\b/.test(one.code)).map((one) => one.name), ['banners/banner-stack.ts']);
     assert.match(guide.code, /protected readonly readme = README_URL;/);
     assert.match(file('about/about-dialog.ts').code, /protected readonly readme = README_URL;/);

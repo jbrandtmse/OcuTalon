@@ -251,8 +251,8 @@ exit_is() { [ "$rc" -eq "$1" ]; }
 ready_block() { # ready_block <port>: the ready block with the address and the account
   out_has "OcuTalon is ready after " && out_has "http://localhost:$1/ocutalon/" && out_has "User:      ocutalon" && out_has "Password:  ocutalon"
 }
-failure_help() { # the logs command, the README section and the promise that nothing was removed
-  out_has "docker compose logs iris" && out_has "Troubleshooting section of README.md" && out_has "Nothing was removed"
+failure_help() { # the logs command, the guide section and the promise that nothing was removed
+  out_has "docker compose logs iris" && out_has "Troubleshooting section of GUIDE.md" && out_has "Nothing was removed"
 }
 
 # --- first run ---
@@ -776,7 +776,7 @@ echo 'running starting' > "$d/health"
 run_install OCUTALON_INSTALL_WAIT=2 STUB_SLEEP=1
 check "never ready: exit 1" exit_is 1
 check "never ready: says it was not ready after the wait" out_has_re '^OcuTalon was not ready after [0-9]+ s, the longest this script waits\.$'
-check "never ready: the logs command, the README section, and nothing removed" failure_help
+check "never ready: the logs command, the guide section, and nothing removed" failure_help
 check "never ready: names the container's state and its health check" out_has "(state: running, health check: starting) may still become ready later"
 check "never ready: a progress line was printed" test "$(out_count '^Waiting, ')" -ge 1
 
@@ -787,7 +787,7 @@ for st in "exited" "dead" "NONE"; do
   run_install
   check "container stops ($st): exit 1" exit_is 1
   check "container stops ($st): says it stopped" out_has "OcuTalon stopped before it was ready"
-  check "container stops ($st): the logs command, the README section, and nothing removed" failure_help
+  check "container stops ($st): the logs command, the guide section, and nothing removed" failure_help
 done
 new_case stops-at-once
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
@@ -800,7 +800,7 @@ add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
 echo 1 > "$d/up-exit"
 run_install
 check "up fails: exit 1" exit_is 1
-check "up fails: plain message with the logs command and the README section" test "$(out_has 'Docker Compose could not start OcuTalon' && failure_help && echo ok)" = ok
+check "up fails: plain message with the logs command and the guide section" test "$(out_has 'Docker Compose could not start OcuTalon' && failure_help && echo ok)" = ok
 check "up fails: no poll afterwards (the only read of the service is the one before up)" test "$(call_count '^compose ps')" -eq 1
 check "up fails: compose's own messages (both streams) stay on screen, as the message above says" test "$(out_has 'stub: compose up' && out_has 'message on standard error' && echo ok)" = ok
 

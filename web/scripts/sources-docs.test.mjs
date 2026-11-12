@@ -15,20 +15,21 @@ const root = join(here, '..', '..');
 const { MORE_TO_TRY_GROUPS, MORE_TO_TRY_ITEMS, groupsOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts')).href);
 
 const README = readFileSync(join(root, 'README.md'), 'utf8');
+const GUIDE = readFileSync(join(root, 'GUIDE.md'), 'utf8');
 const EXPERIENCE = readFileSync(join(root, '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
 const REGISTRY = readFileSync(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts'), 'utf8');
 
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen'];
 const count = WORDS[MORE_TO_TRY_ITEMS.length];
 
-/** The Planner-ruled README bullet (Story 20.2, public text 14), word for word. */
+/** The Planner-ruled bullet of the guide's "New since 1.0.0" section (Story 20.2, public text 14), word for word. */
 const BULLET =
   '- **Where an answer came from.** An answer from your documents ends with a chip for each source that names the document and section: press it to read the passage, or open the whole document on the Documents page. An answer that recalls a memory carries a From memory chip that shows what was remembered and when. Try it: More to try, *See where an answer came from*.';
 
 /** The text between a heading line and the next heading of the same or a higher level. */
 const section = (text, heading) => {
   const start = text.indexOf(`\n${heading}\n`);
-  assert.ok(start >= 0, `${heading} is in the README`);
+  assert.ok(start >= 0, `${heading} is in the file`);
   const rest = text.slice(start + heading.length + 2);
   const end = rest.search(/\n#{1,3} /);
   return end < 0 ? rest : rest.slice(0, end);
@@ -56,8 +57,8 @@ describe('every written count follows the registry', () => {
   });
 });
 
-describe('README, "New since 1.0.0"', () => {
-  const bullets = section(README, '### New since 1.0.0')
+describe('GUIDE.md, "New since 1.0.0"', () => {
+  const bullets = section(GUIDE, '## New since 1.0.0')
     .split('\n')
     .filter((line) => line.startsWith('- '));
 
