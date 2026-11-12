@@ -939,3 +939,4 @@
 2026-11-12T15:25:57Z	Story 0.30	decision_dependency	entry=DW-1199 route=Contest_Planner(PLANNER_REPORT) recommended=extend_Q1_to_Allowance.cls_INSTALLLINK(link_target_only)+pins next=on_yes:rework_item_before_QA(IRIS_slot_A_for_the_5_test_classes);on_no:QA+CR_now,DW-1199_routed_to_a_named_story
 2026-11-12T15:28:39Z	Story 0.30	ruling	question=DW-1199_INSTALLLINK choice=extend_Q1(GUIDE.md#install-it-yourself)+pins by=orchestrator category=decide note=Planner_may_reverse;footprint+=Core/Allowance.cls,Test/Core/5_classes
 2026-11-12T15:28:39Z	Story 0.30	rework_opened	cycle_iteration=2 iteration=1 trigger=med_first_review items=DW-1199 scope_baseline=f99ed26d
+2026-11-12T15:28:39Z	Story 0.30	stage_spawned	stage=implement spawn_at=2026-11-12T15:28:39Z model=sonnet effort=high agent_name=0-30-implement-2 cycle_iteration=2
