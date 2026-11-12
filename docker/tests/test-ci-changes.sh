@@ -256,6 +256,7 @@ paths_case "the second workflow runs no group" false none .github/workflows/lane
 paths_case "docs runs no group" false none docs/guide.md docs/x.md
 paths_case "release runs no group" false none release/x.sh
 paths_case "the README runs no group" false none README.md
+paths_case "the guide runs no group" false none GUIDE.md
 paths_case "CLAUDE.md runs no group" false none CLAUDE.md
 paths_case "the agent settings run no group" false none .claude/settings.json
 paths_case "the example environment runs no group" false none .env.example
