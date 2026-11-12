@@ -3791,3 +3791,14 @@
 2026-11-12T19:12:01Z	Epic 0	owner_decision	via=contest_planner what=0.29_PUBLIC_TEXT_approved(1.0.9,+sentence,one_number_per_measure_test,C2) file=prompts/story-029-rulings-20261112.md
 2026-11-12T19:12:01Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=36092ff1 runs=43283013813,43283013786 result=success note=own_runs_green(1.0.8_base)
 2026-11-12T19:12:01Z	Epic 0	runner_reported	LOCAL_READY story=0.33(DW-1191,renumbered) local=6726db3d
+2026-11-12T19:42:41Z	Epic 0	owner_decision	via=contest_planner what=1.0.8_release_blocker_hotfix_0.34(test-compose-file_oauth_scan_excludes_built_bundle) exempt_from_hold=yes
+2026-11-12T19:42:41Z	Epic 0	worktree_provisioned	branch=OCT-epic0c base=36092ff1 method=git_worktree_add(local) purpose=0.34_hotfix_lever bootstrap=ok
+2026-11-12T19:42:41Z	Epic 0	runner_dispatched	model=opus runner=epic-runner-0c story=0.34 prompt=prompts/dispatch-epic-0c-034-hotfix.md note=5th_concurrent_runner_accepted_for_release_blocker(no_IRIS_slot)
+2026-11-12T19:46:47Z	Epic 0	runner_reported	LOCAL_READY stories=0.31+0.32 head=dfed7cb7 release_tool=ci.yml(checks20->25,iris40->50),lane-a.yml(ipm-install/-p35->45) ledger=DW-1212,DW-1213,DW-1214,DW-1161_resolved;DW-1217_filed(host_memory)
+2026-11-12T19:46:47Z	Epic 36	runner_dispatched	model=opus runner=epic-runner-36 lane=B prompt=prompts/dispatch-epic-36-20261112.md worktree=.worktrees/epic-36(local) note=5_live_runners_while_0.34_hotfix_lever_runs(no_slot)
+2026-11-12T19:47:15Z	Epic 0	owner_decision	via=contest_planner what=0.32_RELEASE_TOOL_hunks_approved_as_landed(dfed7cb7) note=push_once_at_HOLD_OFF
+2026-11-12T19:57:37Z	Epic 0	runner_reported	LOCAL_READY story=0.29 local=db0cb9df readme_words=2171 also=0.33 lane_A_next=none_in_Epic_0
+2026-11-12T19:58:21Z	Epic 0	owner_decision	via=contest_planner what=lane_A_next=Story_0.35_routine_attention_target(plan_first,ship_rule_3x_real_model,spend_cents_within_harness_caps) file=prompts/story-035-ruling-20261112.md dispatch=after_0.34_hotfix_runner_ends
+2026-11-12T20:19:53Z	Epic 36	runner_reported	PLANNER_REPORT story=36.1_plan(ready-for-dev,oversized) veto=V1-V6 public_text=13_catalog+security-overview local=05d75393
+2026-11-12T20:19:53Z	Run	ruling	question=contended_Checks/Process.cls(36.1_one-line_Tick_insert_vs_22.5/22.11) choice=36.1_first;22.5/22.11_integrate_forward_after(they_already_wait_on_22.4->21.4) category=decide policy=5086036
+2026-11-12T20:22:09Z	Epic 36	owner_decision	via=contest_planner what=36.1_gate(V1=b_no_grant;V2-V5_approved;V3_conditions;no_public_text) file=prompts/story-361-rulings-20261112.md ac_moved_to=23.3 ledger=DW-1225 relay=runner_36_at_turn_end
