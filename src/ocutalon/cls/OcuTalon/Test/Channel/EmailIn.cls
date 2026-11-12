@@ -12,9 +12,9 @@
 ///   - TestFailedPoll (row 12): each failure has the sentence of its kind, the mark holds {at, ok 0, reason, lastOkAt} and nothing else, no server text, address
 ///     or user name is in the mark or the log, a failed poll still returns OK, and the seen rows of emails already handed on stay;
 ///   - TestOAuthPollUsesTheToken (Story 21.8, T1): with OAuth2ApplicationName set the adapter asks the handler for the token (application, session and the credential's
-///     user name as the resource), connects with that token and no more, drops it after the login, and a poll is ok; the token is in no mark or log row;
-///   - TestOAuthReasons (Story 21.8, DW-1179, T1): in OAuth2 mode a handler that answers an error, one that is not authorized, one that gives no token and one that
-///     throws all give the sign-in sentence with no connection made, and so does a login the server refuses; an unreachable server keeps its sentence; in password
+///     user name as the resource), connects with that token and no more, and a poll is ok; the token is in no mark or log row;
+///   - TestOAuthReasons (Story 21.8, DW-1179, T1): in OAuth2 mode a handler that answers an error, one that is not authorized, one that gives no token, one that
+///     says not authorized but leaves a token, and one that throws all give the sign-in sentence with no connection made, and so does a login the server refuses; an unreachable server keeps its sentence; in password
 ///     mode a refused login keeps the refused sentence and the handler is never asked;
 ///   - TestGoneMail: a UIDL that is no longer listed has its row deleted after a successful poll, and so has every row of another mailbox;
 ///   - TestDeleteIsNeverHonoured: the DeleteMessage setting is forced to 0, whatever it was, and no poll deletes;
@@ -314,7 +314,7 @@ Method TestOAuthReasons()
 	Do ..Mail("u1")
 	Do adapter.OnTask()
 	Set okAt = ..Mark().at
-	Set cases = $ListBuild("error||"_..#SIGNIN, "empty||"_..#SIGNIN, "throw||"_..#SIGNIN, "|ConnectPort 6015~-ERR [AUTH] invalid token|"_..#SIGNIN, "|ConnectPort 6012|"_..#UNREACHABLE, "|ConnectPort 6013|"_..#UNREACHABLE, "|GetMessageUIDArray 6015|"_..#UNREADABLE)
+	Set cases = $ListBuild("error||"_..#SIGNIN, "empty||"_..#SIGNIN, "stale||"_..#SIGNIN, "throw||"_..#SIGNIN, "|ConnectPort 6015~-ERR [AUTH] invalid token|"_..#SIGNIN, "|ConnectPort 6012|"_..#UNREACHABLE, "|ConnectPort 6013|"_..#UNREACHABLE, "|GetMessageUIDArray 6015|"_..#UNREADABLE)
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Kill ^||OcuTalonEmailInPop3("answer"), ^||OcuTalonEmailInPop3("calls"), ^||OcuTalonEmailInPop3("token"), ^||OcuTalonEmailInHandler

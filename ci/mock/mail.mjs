@@ -12,7 +12,7 @@
 //   POST /_mock/mail/add       {"messages":[<message>,...]}   appends to the mailbox
 //   POST /_mock/mail/remove    {"uidl":"<uidl>"}              takes one message out of the mailbox
 //   POST /_mock/mail/failure   {"mode":"none"|"refuse"|"auth"|"error"}
-//        refuse: the connection is closed at once, with no greeting; auth: PASS is answered -ERR; error: UIDL is answered -ERR
+//        refuse: the connection is closed at once, with no greeting; auth: PASS and AUTH XOAUTH2 are answered -ERR; error: UIDL is answered -ERR
 //   POST /_mock/mail/reset     the mailbox empty, no failure, every count 0
 //   GET  /_mock/mail/state     {"uidls":[...],"connections":n,"logins":n,"xoauth2":n,"xoauth2Refused":n,"user":"<last user>","deletes":n,"failure":"<mode>",
 //                              "commands":{"UIDL":n,...}}   (logins counts every accepted login, xoauth2 those that were XOAUTH2; the failure mode auth

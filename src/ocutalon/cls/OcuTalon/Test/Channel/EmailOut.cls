@@ -982,11 +982,11 @@ Method TestSenderTlsSettings()
 }
 
 /// With OAuth2ApplicationName set (Story 21.8) the send logs in with the handler's token only: an authorized answer puts the token into the authenticator for the send and
-/// the authenticator is empty again after it, also when %Net.SMTP raises an exception; a handler error, an OK answer that is not authorized, an empty token and an
-/// exception of the handler each fail the send as SMTPAUTHFailed (classified refused) before %Net.SMTP is called, so that no stored credential is used.
+/// the authenticator, and the SASL mechanism that the login made from it, are empty again after it, also when %Net.SMTP raises an exception; a handler error, an OK
+/// answer that is not authorized (with an empty token or with a token left behind), an empty token and an exception of the handler each fail the send as SMTPAUTHFailed (classified refused) before %Net.SMTP is called, so that no stored credential is used.
 Method TestSenderOAuth2Paths()
 {
-	For answer = "", "error", "empty", "throw" {
+	For answer = "", "error", "empty", "stale", "throw" {
 		Kill ^||OcuTalonEmailOutSender, ^||OcuTalonEmailInHandler
 		Set ^||OcuTalonEmailInHandler("answer") = answer
 		Set ^||OcuTalonEmailOutSender("switch") = 0
@@ -1001,6 +1001,8 @@ Method TestSenderOAuth2Paths()
 			Do $$$AssertStatusOK(sc, label_": the send goes to %Net.SMTP")
 			Do $$$AssertEquals($Get(^||OcuTalonEmailOutSender("token")), "zz-token-1", label_": the authenticator held the handler's token during the send")
 			Do $$$AssertEquals(adapter.SMTP.authenticator.AccessToken, "", label_": and is empty after it")
+			Do $$$AssertEquals($Get(^||OcuTalonEmailOutSender("mechanism")), "zz-token-1", label_": the login's SASL mechanism held a copy of it during the send")
+			Do $$$AssertNotTrue($IsObject(adapter.SMTP.authenticator.Mechanism), label_": and no mechanism, so no copy of the token, is kept after it")
 		} Else {
 			Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 6167, label_": the send fails with the authentication error")
 			Do $$$AssertEquals(##class(OcuTalon.Channel.Email.Sender).Classify(sc), "refused", label_": classified refused")
@@ -1024,6 +1026,8 @@ Method TestSenderOAuth2Paths()
 	Do $$$AssertEquals(raised, 1, "an exception of %Net.SMTP reaches the caller")
 	Do $$$AssertEquals($Get(^||OcuTalonEmailOutSender("token")), "zz-token-1", "the authenticator held the token when it was raised")
 	Do $$$AssertEquals(adapter.SMTP.authenticator.AccessToken, "", "and is empty after it")
+	Do $$$AssertEquals($Get(^||OcuTalonEmailOutSender("mechanism")), "zz-token-1", "the login's SASL mechanism held a copy of it")
+	Do $$$AssertNotTrue($IsObject(adapter.SMTP.authenticator.Mechanism), "and no mechanism is kept after the exception")
 	Kill ^||OcuTalonEmailOutSender, ^||OcuTalonEmailInHandler
 }
 

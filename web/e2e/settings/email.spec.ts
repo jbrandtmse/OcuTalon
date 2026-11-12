@@ -81,11 +81,11 @@ async function counts(): Promise<{ handoffs: string; saves: string; keys: string
   return { handoffs: chk(lines, 'handoffs') ?? '?', saves: chk(lines, 'saves') ?? '?', keys: chk(lines, 'keys') ?? '?', out: chk(lines, 'out') ?? '?' };
 }
 
-/** Removes the mailbox the test connected, and what it made: the settings rows of EmailIn, the credential, the keys, the seen rows, the mark, the decisions. */
+/** Removes the mailbox the test connected, and what it made: the settings rows of EmailIn and EmailOut (the OAuth2 rows of a provider save included), the credential, the keys, the seen rows, the mark, the decisions. */
 async function removeMailbox(): Promise<void> {
   await irisScript(
     [
-      'For i="EmailIn","EmailOut" { For n="POP3Server","POP3Port","SMTPServer","SMTPPort","Credentials","SSLConfig","SSLCheckServerIdentity","Enabled" { Set id="OcuTalon.Production||"_i_"||*||"_n If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Do ##class(Ens.Config.DefaultSettings).%DeleteId(id) } }',
+      'For i="EmailIn","EmailOut" { For n="POP3Server","POP3Port","SMTPServer","SMTPPort","Credentials","SSLConfig","SSLCheckServerIdentity","Enabled","OAuth2ApplicationName","OAuth2CallBackHandler","OAuth2Scope","OAuth2SessionId","OAuth2AuthProperties" { Set id="OcuTalon.Production||"_i_"||*||"_n If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Do ##class(Ens.Config.DefaultSettings).%DeleteId(id) } }',
       'If ##class(Ens.Config.Credentials).%ExistsId("OcuTalonMail") Do ##class(Ens.Config.Credentials).%DeleteId("OcuTalonMail")',
       'For k="email.address","email.owner","email.signIn","email.clientId","email.oauthOwned" { Set r=##class(OcuTalon.Data.Setting).KeyIndexOpen(k) If $IsObject(r) Do ##class(OcuTalon.Data.Setting).%DeleteId(r.%Id()) }',
       'Do ##class(OcuTalon.Test.Channel.EmailOAuth).Wipe()',
@@ -397,6 +397,44 @@ test('E6: an admin registers the OAuth2 client and signs in with Google, and no 
       }
     } finally {
       await other.dispose();
+    }
+
+    // QA (Story 21.8): the provider withdraws the grant while the access token is still valid. The next poll of EmailIn is refused at the stub, fails on the sign-in, and
+    // GET /v1/settings then says signedIn false: the README admin reads it (200) and so does a second admin session, the LIVE fixture user is refused (403) and sees no mailbox.
+    // The product always writes SSLConfig OcuTalonClient and the stub is plain, so the poll needs the fixture row that EmailLive.PlainStub writes (removeMailbox deletes it).
+    await irisScript('Do ##class(OcuTalon.Test.Channel.EmailLive).OAuthControl("revoke",{})\nDo ##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault("OcuTalon.Production","EmailIn","SSLConfig","","zz test fixture")');
+    const polled = await irisScript(
+      [
+        'Set m=##class(OcuTalon.Data.StatusMark).Get("emailPoll"),at=$Select(m="":"",1:{}.%FromJSON(m).at)',
+        'While ##class(OcuTalon.Data.Time).NowUtc()=at { Hang 0.1 }',
+        'Set s=##class(OcuTalon.Data.StatusMark).Get("emailSignIn"),sat=$Select(s="":"",1:{}.%FromJSON(s).at)',
+        'While \'(##class(OcuTalon.Data.Time).NowUtc()]sat) { Hang 0.1 }',
+        'Set item="OcuTalon.Production||EmailIn",a=##class(Ens.Director).TempStopConfigItem(item,1),b=##class(Ens.Director).TempStopConfigItem(item,0),end=$ZHorolog+60,o=""',
+        'For { Hang 0.5 Set m=##class(OcuTalon.Data.StatusMark).Get("emailPoll") Set o=$Select(m="":"",1:{}.%FromJSON(m)) If $IsObject(o),o.at\'=at Quit  If $ZHorolog>end Quit }',
+        'Write !,"CHK|poll|",$Select($IsObject(o)&&(o.at\'=at):o.ok_"|"_o.reason,1:"none")',
+      ].join('\n'),
+    );
+    expect(chk(polled, 'poll'), 'the poll after the withdrawn grant fails on the sign-in').toBe('0|The mail sign-in is no longer valid. Sign in again in Settings > Channels > Email.');
+    const revoked = await page.request.get(SETTINGS);
+    expect(revoked.status(), 'GET /v1/settings as the README admin is 200').toBe(200);
+    const revokedChannels = ((await revoked.json()) as { sections: { channels: Channels } }).sections.channels;
+    expect(revokedChannels.signedIn, 'GET says not signed in after the failed poll').toBe(false);
+    expect([revokedChannels.signIn, revokedChannels.clientSecretSet], 'and still shows the method and the registered client').toEqual(['google', true]);
+    const admin2 = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    const live2 = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    try {
+      await signInOverHttp(admin2, README_ACCOUNT.user, README_ACCOUNT.password);
+      const second = await admin2.get(SETTINGS);
+      expect(second.status(), "a second admin session's GET is 200").toBe(200);
+      expect(((await second.json()) as { sections: { channels: Channels } }).sections.channels.signedIn, 'and says not signed in too').toBe(false);
+      await signInOverHttp(live2, live.user, live.password);
+      const denied = await live2.get(SETTINGS);
+      expect(denied.status(), 'the LIVE fixture user\'s GET is 403').toBe(403);
+      const deniedText = await denied.text();
+      expect(deniedText.includes('signedIn') || deniedText.includes('e2e@example.com') || deniedText.includes(clientId), 'and holds nothing of the mailbox').toBe(false);
+    } finally {
+      await admin2.dispose();
+      await live2.dispose();
     }
   } finally {
     await page.context().unroute(/\/csp\/sys\/oauth2\/OAuth2\.Response\.cls\?auth=1/);

@@ -89,6 +89,9 @@
 #                  except the IPM load line of "Install it with IPM", word for word (Story 11.24)
 #   public-text    the not-affiliated note, the BMAD Method and Claude Code credit, the licence pointers; OpenClaw only in the
 #                  note; no other model provider, "from your phone", "per step", private infrastructure or IPv4 address
+#   gmail-section  the "Your own mailbox" bullet (T3) and the section "Gmail and Microsoft 365" (T4) are the approved text word for word, the
+#                  section is after "Telegram" and before "Stop, start and update", the bullet's #gmail-and-microsoft-365 link is the heading's
+#                  anchor, and README.md, GUIDE.md, docs/ and release/ say nothing of least or minimum privilege (Story 21.8, DW-1180)
 #   telegram-section  the section "Telegram" is there after "Sign in" and before "Stop, start and update", with its five numbered steps and
 #                  the facts a person needs to follow them (@BotFather, /newbot, /setjoingroups, TELEGRAM_BOT_TOKEN=, the restart
 #                  command, "its own bot", and that the steps are for "your own install")
@@ -1235,6 +1238,42 @@ telegram_mode() {
   if [ "$body" = '{ Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1' ]; then echo testonly; else echo included; fi
 }
 
+# gmail-section (Story 21.8, QA; Public text T3 and T4, DW-1180): the "Your own mailbox" bullet of "New since 1.0.0" and the section "Gmail and Microsoft 365" are the approved
+# text word for word (the bullet is the line GM_T3; the section is GM_T4, between its heading and the next one), the section sits after "Telegram" and before "Stop, start and update",
+# the bullet's link #gmail-and-microsoft-365 is the heading's own anchor, and nothing in the README, GUIDE.md, docs/ or release/ says or implies least privilege (DW-1180).
+# S1 is the README, S2 the text of GUIDE.md, docs/ and release/ (assembled from the files that exist). When 0.30 moves these texts to GUIDE.md, the rule follows them there.
+H_GM='Gmail and Microsoft 365'
+GM_ANCHOR='gmail-and-microsoft-365'
+GM_T3='- **Your own mailbox.** On your own install, an admin connects a POP3 mailbox in Settings > Channels > Email, with a password or by signing in with Google or Microsoft 365 (see [Gmail and Microsoft 365](#gmail-and-microsoft-365)). OcuTalon makes an attention decision on each email that arrives after that, sends the email to the model for it, and leaves your mail on the server. Email is read as untrusted content: nothing in an email can approve, change or run anything. With an outgoing mail server saved, Settings > Daily digest can also send your digest to that address. The online demo keeps its simulated mailbox.'
+IFS= read -r -d '' GM_T4 <<'GMEOF' || true
+Signing in with Google or Microsoft 365 is optional, and these steps are for your own install. OcuTalon then reads the mailbox over POP3 and sends over SMTP with the sign-in instead of a stored password, and IRIS renews the sign-in's access token when it expires. The provider steps below follow Google's and Microsoft's documentation; their consoles change, so check their current pages if a name differs.
+
+1. Open http://localhost:52773/ocutalon/, go to Settings > Channels > Email and choose the Sign-in method Google or Microsoft 365. The form shows the Redirect address: the address you opened OcuTalon at, followed by `/csp/sys/oauth2/OAuth2.Response.cls` (for example `http://localhost:52773/csp/sys/oauth2/OAuth2.Response.cls`). Google and Microsoft accept an `http://` Redirect address only for `localhost`, so open OcuTalon at `http://localhost:52773/ocutalon/` for this step, or serve it over `https://`.
+2. Create the OAuth2 client with the provider. **Google:** in the Google Cloud console, create an OAuth client ID of type Web application and add the Redirect address under Authorized redirect URIs; OcuTalon asks for the scope `https://mail.google.com/`. Turn on POP in the mailbox's Gmail settings. On the OAuth consent screen, add the mailbox's address as a test user. While the app's publishing status is Testing, Google ends the sign-in after 7 days, and you sign in again. **Microsoft 365:** in the Microsoft Entra admin center, register an application, add the Redirect address as a Web redirect URI, create a client secret, and add the delegated permissions `POP.AccessAsUser.All`, `SMTP.Send` and `offline_access`. POP and authenticated SMTP must be allowed for the mailbox.
+3. In the form, enter the Client ID and the Client secret, the mailbox's address, the incoming and outgoing servers (for example `pop.gmail.com:995` and `smtp.gmail.com:465`, or `outlook.office365.com:995` and `smtp.office365.com:587`) and the mailbox's address as the user name, then save.
+4. Press "Sign in with Google" (or Microsoft 365). The provider's consent page opens in a new tab; after you agree, the tab returns to Settings, which shows "Signed in with Google."
+
+If the sign-in is withdrawn at the provider, the next check of the mailbox fails with "The mail sign-in is no longer valid." and Settings offers the sign-in again. Saving the Password method removes the sign-in from IRIS. The online demo has no real mailbox and no sign-in.
+GMEOF
+LEAST_RE='least[- ]privilege|minimum privilege'
+chk_gmail_section() {
+  local f=$1 g=${2:-} sec="$tmp/sec.gm" want="$tmp/want.gm" order slug
+  if ! grep -qxF -- "$GM_T3" "$f"; then echo "gmail-section: the 'Your own mailbox' bullet is not the approved text (T3)"; fi
+  section "$f" "$H_GM" | awk '{ l[NR] = $0 } END { s = 1; while (s <= NR && l[s] == "") s++; e = NR; while (e >= s && l[e] == "") e--; for (i = s; i <= e; i++) print l[i] }' > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "gmail-section: no section '$H_GM'"
+  else
+    printf '%s' "$GM_T4" > "$want"
+    if ! cmp -s "$sec" "$want"; then echo "gmail-section: the section '$H_GM' is not the approved text (T4)"; fi
+  fi
+  order=$(headings "$f" | awk -F'\t' '$1 == 2 { print $3 }' | grep -xF -e 'Telegram' -e "$H_GM" -e 'Stop, start and update' | tr '\n' '|')
+  if [ "$order" != "Telegram|$H_GM|Stop, start and update|" ]; then echo "gmail-section: the section is not between 'Telegram' and 'Stop, start and update'"; fi
+  slug=$(printf '%s' "$H_GM" | tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9-')
+  if [ "$slug" != "$GM_ANCHOR" ] || ! grep -qF -- "(#$GM_ANCHOR)" "$f" || ! grep -qxF -- "## $H_GM" "$f"; then echo "gmail-section: the link #$GM_ANCHOR does not reach the heading '$H_GM'"; fi
+  if grep -qiE "$LEAST_RE" "$f"; then echo "gmail-section: $f says or implies least privilege (DW-1180)"; fi
+  if [ -n "$g" ] && [ -f "$g" ] && grep -qiE "$LEAST_RE" "$g"; then echo "gmail-section: GUIDE.md, docs/ or release/ says or implies least privilege (DW-1180)"; fi
+}
+
 # telegram-section (Story 12.9)
 H_TG='Telegram'
 TG_FACTS='@BotFather
@@ -2210,6 +2249,29 @@ rule_product_links() {
   fi
 }
 
+rule_gmail_section() {
+  local priv="$tmp/priv.in" f
+  : > "$priv"
+  while IFS= read -r f; do grep -hI '' "$f" >> "$priv" 2> /dev/null; done < <(find GUIDE.md docs release -type f 2> /dev/null)
+  rule_begin gmail-section "$README" "$priv" || return
+  st 'the heading renamed' 1 "$README" '/^## Gmail and Microsoft 365$/ { print "## Google mail"; next } { print }' chk_gmail_section
+  st 'the section removed' 1 "$README" '/^## Gmail and Microsoft 365$/ { skip = 1; next } skip && /^## / { skip = 0 } !skip' chk_gmail_section
+  st 'the bullet without the password' 1 "$README" '{ sub(/ with a password or by signing in with Google or Microsoft 365/, " by signing in with Google or Microsoft 365") } { print }' chk_gmail_section
+  st 'the bullet without the link' 1 "$README" '{ sub(/ \(see \[Gmail and Microsoft 365\]\(#gmail-and-microsoft-365\)\)/, "") } { print }' chk_gmail_section
+  st 'the bullet link pointing elsewhere' 1 "$README" '{ sub(/\(#gmail-and-microsoft-365\)/, "(#gmail)") } { print }' chk_gmail_section
+  st 'the bullet tail changed' 1 "$README" '{ sub(/The online demo keeps its simulated mailbox\./, "The online demo keeps its mailbox.") } { print }' chk_gmail_section
+  st 'the intro reworded' 1 "$README" '{ sub(/Signing in with Google or Microsoft 365 is optional/, "Signing in with Google or Microsoft 365 is easy") } { print }' chk_gmail_section
+  st 'step 1 reworded' 1 "$README" '{ sub(/Google and Microsoft accept an `http:\/\/` Redirect address only for `localhost`/, "Google and Microsoft accept any Redirect address") } { print }' chk_gmail_section
+  st 'the Google scope changed' 1 "$README" '/^## / { s = ($0 == "## Gmail and Microsoft 365") } s { sub(/scope `https:\/\/mail\.google\.com\/`/, "scope `mail`") } { print }' chk_gmail_section
+  st 'the Microsoft permissions changed' 1 "$README" '{ sub(/`POP.AccessAsUser.All`, `SMTP.Send` and `offline_access`/, "`Mail.Read`") } { print }' chk_gmail_section
+  st 'step 4 removed' 1 "$README" '/^## / { s = ($0 == "## Gmail and Microsoft 365") } !(s && /^4\. /)' chk_gmail_section
+  st 'the closing paragraph removed' 1 "$README" '/^If the sign-in is withdrawn at the provider/ { next } { print }' chk_gmail_section
+  st 'the section after Stop, start and update' 1 "$README" '{ l[NR] = $0 } /^## Gmail and Microsoft 365$/ { t = NR } END { e = t; while (e < NR && l[e + 1] !~ /^## /) e++; for (i = 1; i <= NR; i++) { if (t && i >= t && i <= e) continue; print l[i] } for (j = t; j <= e; j++) print l[j] }' chk_gmail_section
+  st_append 'a least-privilege claim in the README' 'The measured list is the least privilege that works.' chk_gmail_section
+  st 'a minimum-privilege claim in GUIDE.md, docs/ or release/' 2 "$priv" '{ print } END { print "This is the minimum privilege."}' chk_gmail_section
+  finish gmail-section 'the mailbox bullet and the Gmail and Microsoft 365 section are the approved text, in place, linked by their anchor, with no least-privilege wording anywhere' chk_gmail_section
+}
+
 rule_telegram_section() {
   local n
   rule_begin telegram-section "$README" || return
@@ -2401,7 +2463,7 @@ rule_docs() {
   finish docs 'the build 109 sentences of the bridge guide and the IPM page and the two ruled lines of the security overview are there, word for word' chk_docs
 }
 
-RULES='top try_it interesting measured use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
+RULES='top try_it interesting measured use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text gmail_section telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {

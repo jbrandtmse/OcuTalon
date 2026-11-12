@@ -644,6 +644,24 @@ oauth_app_untouched_by_install_paths() {
   [ "$n" -ge 40 ]
 }
 
+# QA of Story 21.8 (DW-1180, Never list): nothing that ships grants the privileges that registering the mail OAuth2 client was measured to need
+# (%Admin_OAuth2_Client, %DB_IRISSYS; Test.Channel.EmailOAuthPrivileges MEASURED), to any OcuTalon role or install path. No tracked file of the product, its images, scripts,
+# manifests, installer classes, tool metadata and guide names either resource; only the test class that measures them, the test scripts and the planning artifacts may. The list
+# comes from git, so a file added later is covered.
+measured_privileges_not_granted() {
+  local f n=0
+  while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    n=$((n + 1))
+    if grep -qE 'Admin_OAuth2_Client|DB_IRISSYS' "$f"; then
+      echo "names a measured OAuth2 privilege: $f"
+      return 1
+    fi
+  done < <(git ls-files -- Dockerfile 'docker-compose*.yml' install.sh module.xml .env.example README.md GUIDE.md docs 'docker/*' 'release/*' 'src/*' 'preload/*' '.github/*' 'ci/*' \
+    | grep -v -e '^docker/tests/' -e '/Test/' -e '^ci/mock/test/')
+  [ "$n" -ge 100 ]
+}
+
 # Only ci/compose.ci.yml sets the Bot API base and gives a bot token a value (Story 10.3): the file must exist, must not name the base and
 # must not hold the dummy token. A judge's file may still name TELEGRAM_BOT_TOKEN, as an empty key to fill in (.env.example) or as a
 # variable to read.
@@ -655,6 +673,7 @@ check "ci: the iris service sets OCUTALON_TEST_PLAIN_SMTP to \"1\", once, and no
 check "ci: the iris service sets OCUTALON_TEST_OAUTH_MOCK to \"1\", once, and no other line names it" ci_sets_oauth_mock_for_iris
 check "ci: no compose file or Dockerfile outside ci/compose.ci.yml names OCUTALON_TEST_OAUTH_MOCK" oauth_mock_only_in_ci
 check "install: no Dockerfile, compose file, script, manifest, CPF merge or preload names /csp/sys/oauth2 or IRIS's OAuth2 objects (the web application is enabled only by an admin's sign-in action)" oauth_app_untouched_by_install_paths
+check "install: no shipped file (image, script, manifest, installer class, tool metadata, guide) names %Admin_OAuth2_Client or %DB_IRISSYS, so no OcuTalon role or install path grants the measured privileges (DW-1180)" measured_privileges_not_granted
 check "ci: the iris service sets OCUTALON_TELEGRAM_API_BASE to the mock, once, and no other line names it" ci_sets_telegram_base_for_iris
 check "ci: the iris service sets TELEGRAM_BOT_TOKEN to the dummy, once, and no other line names it" ci_sets_telegram_token_for_iris
 check "ci: the dummy bot token matches no key pattern" ci_dummy_token_is_no_key

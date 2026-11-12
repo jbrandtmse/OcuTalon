@@ -1,12 +1,15 @@
 /// The privileges that registering the mail OAuth2 client needs (Story 21.8; DW-1180; AD-24). THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): it makes a
 /// role and a user in %SYS and registers IRIS's OAuth2 client OcuTalonMail through the real OcuTalon.Channel.Email.OAuth, and puts every object back.
 /// The production runs as the user _Ensemble, which holds %All on the stack that was measured, so the earlier runs of registering proved that the path works and
-/// not what it needs. This class measures what it needs with a fixture user, which holds only the fixture role ROLE, that logs in to a child process (the one-argument Login, no password): FLOOR
+/// not what it needs. This class measures what it needs with a fixture user, which holds only the fixture role ROLE, that logs in to a child process (the one-argument Login; its random password is never used): FLOOR
 /// is the set of resources that only lets such a user run OcuTalon's code, and MEASURED is what registering needs on top of it. The class makes no grant to any
 /// OcuTalon role or install path, and what it lists is what was measured, not a claim about the least a production could run with.
 ///   - TestRegisterNeedsEachPrivilege: with FLOOR and all of MEASURED the fixture user registers the client (it existed after the call) and removes it
 ///     again; with FLOOR and MEASURED minus one member, for each member, registering is refused and leaves no client OcuTalonMail and no new server definition
-///     or token row in %SYS; with MEASURED and no FLOOR registering is refused too. The list is printed in the test log, one line for each member with the error code of its refusal.
+///     or token row in %SYS, and the refusal is the one that member's absence gives (REFUSALS); with MEASURED and no FLOOR registering is refused too, with FLOORREFUSAL. The list
+///     is printed in the test log, one line for each member with the error of its refusal.
+///   - TestNothingIsGrantedToOcuTalonRoles: no role whose name starts with OcuTalon holds a MEASURED resource, %All or %Manager, in its resources or its granted roles;
+///     fixture roles that hold the measured resources, or that grant %Manager, show that the scan flags each.
 Class OcuTalon.Test.Channel.EmailOAuthPrivileges Extends %UnitTest.TestCase
 {
 
@@ -31,6 +34,11 @@ Parameter FLOOR = "%DB_OCUTALON_CODE:R";
 
 /// What registering needs on top of the floor (the measured list; a member is a resource and the permission).
 Parameter MEASURED = "%Admin_OAuth2_Client:USE,%DB_IRISSYS:R";
+
+/// The text that the refusal holds without each member of MEASURED, in the same order, and without FLOOR.
+Parameter REFUSALS = "ERROR #822,<PROTECT>";
+
+Parameter FLOORREFUSAL = "<PROTECT>";
 
 /// Why the class does not run ("" when it may).
 Property Missing As %String [ Private ];
@@ -111,17 +119,78 @@ Method TestRegisterNeedsEachPrivilege()
 		Do $$$AssertEquals(report.login, 1, member_": the job logged in")
 		Do $$$AssertEquals(report.user, ..#USER, member_": the job ran as the fixture user")
 		Do $$$AssertEquals(report.register, 0, "without "_member_", registering is refused")
+		Do $$$AssertTrue((report.registerError_report.error) [ $Piece(..#REFUSALS, ",", i), "without "_member_", the refusal is "_$Piece(..#REFUSALS, ",", i)_": "_report.registerError_report.error)
 		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).Snapshot(), clean, "without "_member_", no client, server definition or token row was made")
 		Do $$$LogMessage("DW-1180: without "_member_" registering is refused: "_report.registerError_report.error)
 		Do ..Clean()
 	}
 	Set report = ..Run(all, "withoutfloor")
 	If $IsObject(report) {
+		Do $$$AssertEquals(report.login_"|"_report.user, "1|"_..#USER, "without the floor: the job logged in as the fixture user")
 		Do $$$AssertEquals(report.register, 0, "without the floor "_..#FLOOR_" registering is refused")
+		Do $$$AssertTrue((report.registerError_report.error) [ ..#FLOORREFUSAL, "without the floor, the refusal is "_..#FLOORREFUSAL_": "_report.registerError_report.error)
 		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).Snapshot(), clean, "without the floor, no client, server definition or token row was made")
 		Do $$$LogMessage("DW-1180: without the floor "_..#FLOOR_" registering is refused: "_report.registerError_report.error)
 	}
 	Do ..Clean()
+}
+
+/// QA (Story 21.8; DW-1180; Never list): nothing measured here is granted to an OcuTalon role. Every role of the stack whose name starts with OcuTalon holds none of the
+/// MEASURED resources (so neither %Admin_OAuth2_Client nor %DB_IRISSYS), and neither %All nor %Manager, in its own resources or as a granted role. The controls make a fixture
+/// role of the measured resources, and one that grants %Manager, and show that the scan flags each, so both halves of the scan can fail.
+Method TestNothingIsGrantedToOcuTalonRoles()
+{
+	If '..Guard() Quit
+	Set found = ..RolesHolding("OcuTalon*")
+	Do $$$AssertTrue(found.roles > 0, "control: the stack has OcuTalon roles to scan ("_found.roles_")")
+	Do $$$AssertEquals(found.offenders, "", "no OcuTalon role holds a measured resource, %All or %Manager: "_found.offenders)
+	// the control: a fixture role that holds the measured resources is flagged by the same scan
+	Do $$$AssertStatusOK(..CreateUser(..#MEASURED), "control: the fixture role is made with the measured resources")
+	Set control = ..RolesHolding(..#ROLE)
+	Set oauthLine = ..#ROLE_" holds %Admin_OAuth2_Client", irisysLine = ..#ROLE_" holds %DB_IRISSYS"
+	Do $$$AssertTrue(control.offenders [ oauthLine, "control: the scan flags a role that holds %Admin_OAuth2_Client ("_control.offenders_")")
+	Do $$$AssertTrue(control.offenders [ irisysLine, "and one that holds %DB_IRISSYS")
+	Do ..DropUser()
+	Do $$$AssertStatusOK(..CreateRole("", "%Manager"), "control: a fixture role that grants %Manager is made (no user holds it)")
+	Set control = ..RolesHolding(..#ROLE)
+	Do $$$AssertTrue(control.offenders [ (..#ROLE_" holds %Manager"), "control: the scan flags a role that grants %Manager ("_control.offenders_")")
+	Do ..Clean()
+}
+
+/// The roles that match the pattern, and the offenders among them as "role holds resource" lines: a measured resource, %All or %Manager, in the role's own resources or in the roles it grants.
+ClassMethod RolesHolding(pattern As %String) As %DynamicObject [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	Set result = {"roles": 0, "offenders": ""}
+	Set bad = $ListBuild("%All", "%Manager")
+	For i = 1:1:$Length(..#MEASURED, ",") {
+		Set bad = bad_$ListBuild($Piece($Piece(..#MEASURED, ",", i), ":", 1))
+	}
+	Set bad = bad_$ListBuild("%DB_IRISSYS")
+	Set rs = ##class(%ResultSet).%New("Security.Roles:ListAll")
+	Set sc = rs.Execute(pattern)
+	If $$$ISERR(sc) {
+		Set result.offenders = "the role list could not be read"
+		Quit result
+	}
+	While rs.Next() {
+		Do result.%Set("roles", result.roles + 1)
+		Set held = ""
+		Set resources = rs.Get("Resources")
+		For j = 1:1:$Length(resources, ",") {
+			Set held = held_$ListBuild($Piece($Piece(resources, ",", j), ":", 1))
+		}
+		Set granted = rs.Get("GrantedRoles")
+		For j = 1:1:$Length(granted, ",") {
+			Set held = held_$ListBuild($Piece(granted, ",", j))
+		}
+		Set position = 0
+		While $ListNext(held, position, one) {
+			If $ListFind(bad, one) Set result.offenders = result.offenders_$Select(result.offenders = "": "", 1: "; ")_rs.Get("Name")_" holds "_one
+		}
+	}
+	Quit result
 }
 
 /// Runs the child as a user whose role holds the resources; answers its report (a dynamic object), or "" when it did not report.
@@ -182,9 +251,17 @@ Method CreateUser(resources As %String) As %Status [ Private ]
 	New $NAMESPACE
 	Set $NAMESPACE = "%SYS"
 	Do ..DropUser()
-	Set sc = ##class(Security.Roles).Create(..#ROLE, "OcuTalon test fixture", resources)
+	Set sc = ..CreateRole(resources)
 	If $$$ISERR(sc) Quit sc
 	Quit ##class(Security.Users).Create(..#USER, ..#ROLE, "Zz"_$SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.GenCryptRand(18))_"xY!9", "OcuTalon test fixture", , , , 0, 1)
+}
+
+/// Makes the fixture role with the resources and the granted roles (comma lists), and no user.
+Method CreateRole(resources As %String, granted As %String = "") As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	Quit ##class(Security.Roles).Create(..#ROLE, "OcuTalon test fixture", resources, granted)
 }
 
 /// Removes the fixture user and role.

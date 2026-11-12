@@ -1924,7 +1924,8 @@ ClassMethod SslFor(port As %Integer, item As %String = {..#MAILITEM}) As %String
 	Quit ##class(OcuTalon.Install.Step.SSL).#NAME_$Select(starttls: "*", 1: "")
 }
 
-/// The System Default Settings rows of EmailIn that a mailbox needs, as host and port: name, value pairs in a list.
+/// The System Default Settings rows of EmailIn that a mailbox needs, as host and port: name, value pairs in a list, and the OAuth2 rows of OAuthRows (with provider 0
+/// both marked for deletion, a third element 1).
 ClassMethod ItemRows(host As %String, port As %Integer, provider As %Boolean = 0) As %List [ Private ]
 {
 	Quit $ListBuild($ListBuild("POP3Server", host), $ListBuild("POP3Port", port), $ListBuild("Credentials", ..#CREDENTIAL), $ListBuild("SSLConfig", ..SslFor(port)), $ListBuild("Enabled", 1)) _ ..OAuthRows(provider)

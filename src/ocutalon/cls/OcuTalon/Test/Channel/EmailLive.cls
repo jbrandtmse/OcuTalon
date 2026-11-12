@@ -88,7 +88,8 @@
 ///     says not signed in, and a send that fails with the sign-in message and sends nothing; signing in again works;
 ///   - TestOAuthNotSignedInYet (DW-1179): a poll before the consent gives the sign-in sentence, makes no connection and raises no Workflow request, and a send fails with the sign-in message;
 ///   - TestOAuthMicrosoftScope: the token answer of the fake Microsoft leaves out offline_access and the poll and the send still succeed;
-///   - TestOAuthTokenOnlyInTheTokenStore (the leak AC): after a sign-in, three polls, a refresh and a send the tokens are in IRIS's token row and in no other store.
+///   - TestOAuthTokenOnlyInTheTokenStore (the leak AC): after a sign-in, three polls, a refresh and a send the tokens are in IRIS's token row and in no other store;
+///   - TestOAuthTokenNotLeakedByTheFailurePaths (the leak AC, QA): after a refresh refused, a login refused and the sends refused, none of the four tokens is in any store.
 Class OcuTalon.Test.Channel.EmailLive Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -1757,6 +1758,7 @@ Method TestOAuthSaveSignInAndRemove()
 	If '..Guard() Quit
 	Try {
 		Do ..OAuthBegin()
+		Do ##class(OcuTalon.Data.StatusMark).Record("emailPoll", "")
 		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 		Set warned = ##class(OcuTalon.Test.Channel.EmailOAuth).WarningCount()
 		Set result = ..ConnectOAuth("google")
@@ -1971,6 +1973,7 @@ Method OAuthMailbox(provider As %String, expiresIn As %Integer = 0) [ Private ]
 {
 	Do ..OAuthBegin()
 	Set ..WorkflowWas = ..WorkflowRequests()
+	Do $$$AssertTrue(..WorkflowWas >= 0, "control: the Workflow requests can be counted ("_..WorkflowWas_")")
 	If expiresIn Do $$$AssertTrue(..OAuthControl("mode", {"expiresIn": (expiresIn)}), "the fake server issues tokens of "_expiresIn_" seconds")
 	Set result = ..ConnectOAuth(provider, ..#STUBHOST_":"_..#SMTPPORT)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the real save with "_provider_" and an outgoing server is done")
@@ -2187,8 +2190,10 @@ Method TestOAuthRevokedGrant()
 		Do $$$AssertEquals(..PageSignedIn(), 0, "the page says not signed in")
 		Hang 2
 		Do $$$AssertEquals(..Decisions(), decisions, "still no Item")
+		Set smtpRefused = ..SmtpState().xoauth2Refused
 		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz after revoke two", "zz")
 		Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome_"|"_sent.Message, "0|failed|"_message, "a send fails with the sign-in message")
+		Do $$$AssertEquals(..SmtpState().xoauth2Refused, smtpRefused + 1, "after the SMTP stub refused its XOAUTH2 login (535)")
 		Do $$$AssertEquals(..SmtpState().messages.%Size()_"|"_..Deliveries(..Owner)_"|"_..NewWorkflowRequests(), "0|0|0", "no mail, no Delivery row and no Workflow request")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
@@ -2238,6 +2243,8 @@ Method TestOAuthMicrosoftScope()
 		Do $$$AssertEquals(pop.xoauth2_"|"_pop.xoauth2Refused, "1|0", "with one XOAUTH2 login")
 		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz microsoft", "zz")
 		Do $$$AssertEquals(sent.Outcome, "sent", "and a send is sent")
+		Set smtp = ..SmtpState()
+		Do $$$AssertEquals(smtp.xoauth2_"|"_smtp.xoauth2Refused, "1|0", "after one XOAUTH2 login at the SMTP stub")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
@@ -2282,6 +2289,62 @@ Method TestOAuthTokenOnlyInTheTokenStore()
 			Do $$$AssertEquals(..SysAuditHolds(text), 0, "no IRIS audit entry holds "_label)
 			Do $$$AssertEquals(mock_values_marks_answers [ text, 0, "neither the stubs' and fake server's state, nor the page's values, the status marks or the answers hold "_label)
 		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// QA (Story 21.8; NFR-11, AD-19): the failure paths leak nothing either. After a grant revoked with the token expired (IRIS's refresh answered invalid_grant), the sign-in
+/// again, and a grant revoked with the token still valid (the stub refused the XOAUTH2 login), with a poll and a send after each, the four tokens that were issued
+/// (two access tokens, two refresh tokens) are in no store: the failed polls and sends put the tokens in no log row, header, global, status mark, audit entry, answer or state.
+Method TestOAuthTokenNotLeakedByTheFailurePaths()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..Mailbox([(..Mail("f1", "zz baseline"))])
+		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Do ..OAuthMailbox("google", 2)
+		Do ..ConsentNow()
+		Set first = ..TokenRow()
+		Do $$$AssertTrue(..Poll(), "a poll while signed in")
+		Do ..WaitMark(1)
+		Do $$$AssertTrue(..OAuthControl("revoke", {}), "the grant is revoked at the provider")
+		Hang 4
+		Do $$$AssertTrue(..PollEnds(), "a poll after the token expired: the refresh is refused")
+		Set mark = ..WaitMark(0, "The mail sign-in is no longer valid. Sign in again in Settings > Channels > Email.")
+		Set answers = mark.reason
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz leak revoked", "zz")
+		Do $$$AssertEquals(sent.Outcome, "failed", "a send after the revoke is failed")
+		Set answers = answers_sent.Message_sent.Data
+		Hang 1.1
+		Do $$$AssertTrue(..OAuthControl("mode", {"expiresIn": 3600}), "tokens issued from now on last an hour")
+		Do ..ConsentNow()
+		Set second = ..TokenRow()
+		Do $$$AssertTrue(..Poll(), "a poll after signing in again")
+		Do ..WaitMark(1)
+		Do $$$AssertTrue(..OAuthControl("revoke", {}), "the grant is revoked again, with the access token valid")
+		Do $$$AssertTrue(..Poll(), "a poll with a token that the provider no longer accepts")
+		Set mark = ..WaitMark(0, "The mail sign-in is no longer valid. Sign in again in Settings > Channels > Email.")
+		Set answers = answers_mark.reason
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz leak revoked two", "zz")
+		Do $$$AssertEquals(sent.Outcome, "failed", "and a send is failed")
+		Set answers = answers_sent.Message_sent.Data
+		Do $$$AssertTrue(($Piece(first, "|", 4) '= "") && ($Piece(first, "|", 5) '= "") && ($Piece(second, "|", 4) '= "") && ($Piece(second, "|", 5) '= "") && ($Piece(first, "|", 4) '= $Piece(second, "|", 4)) && ($Piece(first, "|", 5) '= $Piece(second, "|", 5)), "control: there are two access tokens and two refresh tokens to look for")
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings")
+		Set state = ..OAuthMock().%ToJSON()_..StubState().%ToJSON()_..SmtpState().%ToJSON()_##class(OcuTalon.Core.SettingsOps).Values().%ToJSON()_##class(OcuTalon.Data.StatusMark).Get("emailPoll")_##class(OcuTalon.Data.StatusMark).Get("emailSignIn")
+		For what = $ListBuild("the first access token", $Piece(first, "|", 4)), $ListBuild("the first refresh token", $Piece(first, "|", 5)), $ListBuild("the second access token", $Piece(second, "|", 4)), $ListBuild("the second refresh token", $Piece(second, "|", 5)) {
+			Set text = $List(what, 2), label = $List(what, 1)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", text), 0, "no Ens.Util.Log row (log, trace or error) holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens.MessageHeader", "Description", text), 0, "no message header holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Data.Delivery", "ChannelMessageId", text), 0, "no Delivery row holds "_label)
+			Do $$$AssertEquals(entries.%ToJSON() [ text, 0, "no Settings audit entry holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(text), "", "no ^OcuTalon* global holds "_label)
+			Do $$$AssertEquals(..IsclogHolds(text), 0, "^ISCLOG holds nothing of "_label)
+			Do $$$AssertEquals(..SysAuditHolds(text), 0, "no IRIS audit entry holds "_label)
+			Do $$$AssertEquals(state_answers [ text, 0, "neither the stubs' and fake server's state, nor the page's values, the status marks or the answers of the failed poll and sends hold "_label)
+		}
+		Do $$$AssertEquals(..NewWorkflowRequests(), 0, "and no Workflow request was raised on any failure path")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}

@@ -1,6 +1,7 @@
 /// A stand-in for OcuTalon.Channel.Email.Token for the tests of the adapters (Story 21.8), so that no IRIS OAuth2 object is read. Its OnGetAccessToken answers by the
 /// process-private global ^||OcuTalonEmailInHandler("answer"): "" gives the token "zz-token-" and the call's number (an authorized, OK answer), error an error status
-/// with no token, empty an OK status that is not authorized with an empty token, and throw raises an exception. It records the arguments of each call under
+/// with no token, empty an OK status that is not authorized with an empty token, stale an OK status that is not authorized with a token "zz-stale-token" (a handler that
+/// says no and leaves a token behind), and throw raises an exception. It records the arguments of each call under
 /// ^||OcuTalonEmailInHandler("call", n) = $ListBuild(application name, session id, resource (the user name), scope), and counts the calls in ^||OcuTalonEmailInHandler("calls").
 /// The product never refers to it.
 Class OcuTalon.Test.Channel.EmailInHandler Extends Ens.Util.OAuth2.Handler
@@ -15,6 +16,10 @@ ClassMethod OnGetAccessToken(pCallerInstance As %RegisteredObject = "", pOAuth2G
 	If answer = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "SERVER-WORDS zzthrown@example.com"))
 	If answer = "error" Quit $SYSTEM.Status.Error(5001, "SERVER-WORDS zzhandler@example.com")
 	If answer = "empty" Quit $$$OK
+	If answer = "stale" {
+		Set pOAuth2AccessToken = "zz-stale-token"
+		Quit $$$OK
+	}
 	Set pOAuth2IsAuthorized = 1
 	Set pOAuth2AccessToken = "zz-token-"_n
 	Quit $$$OK

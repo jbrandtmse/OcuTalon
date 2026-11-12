@@ -7177,6 +7177,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: SaveEmail writes OcuTalonMail with an empty password in provider mode; adapters have no OAuth2 rows, handler or XOAUTH2 yet
 - 2026-11-12T05:15:24Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8's token use makes the poll and the send work in provider mode
 - 2026-11-12T06:03:18Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2
+- 2026-11-12T21:47:05Z status=resolved-by:21-8-read-and-send-mail-with-the-oauth2-sign-in by=adjudication note=d5440a3d+review:SettingsOps_writes_OAuth2ApplicationName/OAuth2CallBackHandler_rows;Channel.Email.Token;before_consent_the_poll_gives_REASONSIGNIN(T1)_not_the_refused-login_sentence;pinned_by_EmailIn.TestOAuthReasons,EmailLive.TestOAuthPollAndSendWithTheToken(mutations_red)
 
 ### DW-1180: The privileges that registering the mail OAuth2 client needs are measured only for the throwaway's production user (_Ensemble with %All)
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-story
@@ -7184,6 +7185,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=measure or state the least set, or accept _Ensemble as the documented production user
 - 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=privileges are a veto item; rec: name _Ensemble the measured user, measure AD-24 roles in 21.8 live run
 - 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=orchestrator note=Contest Planner ruling (prompts/epic-21-rulings-213.md, last section): accepted with conditions; 21.3's spec names _Ensemble as the measured production user, which held %All on the throwaway (the run proves the path, not least privilege); Story 21.8's live run lists each privilege that registration needs with a refused-without-it check (AC added to 21.8's block); no public text may claim least privilege
+- 2026-11-12T21:47:05Z status=resolved-by:21-8-read-and-send-mail-with-the-oauth2-sign-in by=adjudication note=EmailOAuthPrivileges_measured_with_fixture_user_zzOcuTalonOAuthPriv:registration_needs_%Admin_OAuth2_Client:USE,%DB_IRISSYS:R(+floor_%DB_OCUTALON_CODE:R),each_refused-without_check;TestNothingIsGrantedToOcuTalonRoles;_Ensemble(%All)_named;no_least-privilege_text(gmail_section_rule,grep);AD-24_S2_lists_the_measurement
 
 ### DW-1181: A SaveEmail that fails after IRIS's OAuth2 client was replaced, changed or removed puts OcuTalon's own stores back but cannot restore the client, its secret or its tokens
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: med | footprint: in-story
@@ -7337,3 +7339,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Adapter.ConnectReason gives REASONREFUSED/REASONSIGNIN only for ': -ERR'; stubs use -ERR; real Gmail/M365 reply after a rejected token not measured (inference)
 - 2026-11-12T20:33:04Z status=decision-pending owner=burndown by=harvest note=human=one sign-in with a real Gmail or Microsoft 365 test mailbox and a revoked grant (owner's own install), or the providers' protocol docs; fix is a small ConnectReason branch if the challenge form is confirmed
+- 2026-11-12T21:41:46Z occurrence=21-8-read-and-send-mail-with-the-oauth2-sign-in
+
+### DW-1230: In OAuth2 mode EmailIn sends the XOAUTH2 bearer token over whatever POP3 transport the item's settings give: a blank SSLConfig row (plain POP3) or SSLCheckServerIdentity 0 is honoured with no test-only switch, unlike Sender's PlainAllowed
+- source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Adapter.Poll passes the token to ConnectPort whatever SSLConfig holds; InboundAdapter.OnInit sets TLS only for a non-empty SSLConfig and copies SSLCheckServerIdentity; EmailLive and E6 reach the plain stub by blanking the row; the product never writes it (admin edit only)
+- 2026-11-12T21:41:47Z status=escalated owner=burndown by=cr note=security posture (veto window): rec gate the token on SSLConfig OcuTalonClient(*) + identity check, plain only with OCUTALON_TEST_OAUTH_MOCK=1 and host mock

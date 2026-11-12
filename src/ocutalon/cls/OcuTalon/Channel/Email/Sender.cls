@@ -14,7 +14,7 @@ Include Ensemble
 ///     credential or no user name the send fails (SMTPAUTHFailed) before any connection is made;
 ///   - with OAuth2ApplicationName set (a Google or Microsoft 365 sign-in) the handler OAuth2CallBackHandler (Channel.Email.Token) gives the access token,
 ///     which IRIS renews when it has expired, and the login is AUTH XOAUTH2 with the credential's user name; a token that cannot be had fails the send
-///     (SMTPAUTHFailed). The token is held in the authenticator for that send only and is emptied after it, whatever the outcome;
+///     (SMTPAUTHFailed). The token is held in the authenticator, and in the SASL mechanism of its login, for that send only and both are emptied after it, whatever the outcome;
 ///   - the message goes to %Net.SMTP once: ContinueAfterBadSend is 0 (a rejected recipient is the whole send's failure, no partial send) and a
 ///     failure is never repeated. Each command's timeout is TIMEOUT seconds (DATATIMEOUT for the end of the message), each under the 120 seconds that
 ///     the command gate waits; a whole send to a server that is slow at every command can still take longer than that.
@@ -122,11 +122,17 @@ Method SendMail(pMailMessage As %Net.MailMessage, Output pFailedRecipients As %L
 	Try {
 		Set sc = ..SMTP.Send(pMailMessage)
 	} Catch exception {
-		If ..OAuth2ApplicationName '= "" Set ..SMTP.authenticator.AccessToken = ""
+		If ..OAuth2ApplicationName '= "" Do ..ForgetToken()
 		Throw exception
 	}
-	If ..OAuth2ApplicationName '= "" Set ..SMTP.authenticator.AccessToken = ""
+	If ..OAuth2ApplicationName '= "" Do ..ForgetToken()
 	Quit sc
+}
+
+/// Empties the access token from the authenticator and drops the SASL mechanism that its login made, which holds a copy of the token (%Net.Authenticator.Start).
+Method ForgetToken() [ Private ]
+{
+	Set ..SMTP.authenticator.AccessToken = "", ..SMTP.authenticator.Mechanism = ""
 }
 
 /// What a failed send means: UNREACHABLE, REFUSED or REJECTED (see the class description). An OK status gives "".
