@@ -24,6 +24,12 @@
 ///     three fields, every other field empty, the SuperSession the owner's TraceRef; the text is cut to the size of the simulated mailbox's body (RULED V-COST);
 ///   - TestServiceRefusals: an input that is no email, an email with no UIDL, no owner or an owner without a session row, and a failed send, are error statuses and
 ///     send nothing (a failed send sends the one).
+///   - TestAdapterCarriesSentRef (DW-1167): the adapter gives the service the value of the header X-OcuTalon-Ref of an email, from the whole read and from the
+///     headers-only read, and an empty value for an email without it;
+///   - TestServiceSkipsOwnMail (DW-1167, ruling V4): the service makes no Item of an email only when its Ref is a sent email Delivery row's, its From is
+///     email.address and the Ref was not taken before; it takes the Ref's one use and logs the Ref and nothing of the email; the first email with the Ref and
+///     a From that is not email.address does not use it up; the claim row of an email that was not sent, a row of another channel, an unknown or forged Ref,
+///     an empty one and a second use each leave an Item as before.
 /// The run's number is n from ^OcuTalonTest("EmailIn","n") (never reset).
 Class OcuTalon.Test.Channel.EmailIn Extends %UnitTest.TestCase
 {
@@ -52,6 +58,12 @@ Property Refs As %String(MAXLEN = "");
 /// The mailbox identities that the run made, comma-separated.
 Property Mailboxes As %String(MAXLEN = "");
 
+/// The Refs of the Delivery rows a test made, comma-separated.
+Property Deliveries As %String(MAXLEN = "");
+
+/// The key email.address as found: $ListBuild(row exists, value).
+Property AddressFound As %List;
+
 /// The status mark emailPoll and the key email.owner as found: $ListBuild(mark, owner row exists, owner).
 Property Found As %List;
 
@@ -61,6 +73,9 @@ Method OnBeforeAllTests() As %Status
 	Set ..Number = $Increment(^OcuTalonTest("EmailIn", "n"))
 	Set ..Refs = ""
 	Set ..Mailboxes = ""
+	Set ..Deliveries = ""
+	Set address = ##class(OcuTalon.Data.Setting).KeyIndexOpen("email.address")
+	Set ..AddressFound = $ListBuild($IsObject(address), $Select($IsObject(address): address.Value, 1: ""))
 	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("email.owner")
 	Set ..Found = $ListBuild(##class(OcuTalon.Data.StatusMark).Get("emailPoll"), $IsObject(row), $Select($IsObject(row): row.Value, 1: ""))
 	Quit $$$OK
@@ -91,6 +106,15 @@ Method OnAfterAllTests() As %Status
 		Do ##class(OcuTalon.Data.Setting).KeyIndexDelete("email.owner")
 	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+	For i = 1:1:$Length(..Deliveries, ",") {
+		If $Piece(..Deliveries, ",", i) '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE ChannelMessageId = ?", $Piece(..Deliveries, ",", i))
+	}
+	If $List(..AddressFound, 1) {
+		Do ##class(OcuTalon.Data.Setting).Set("email.address", $List(..AddressFound, 2))
+	} Else {
+		Do ##class(OcuTalon.Data.Setting).KeyIndexDelete("email.address")
+	}
+	Kill ^||OcuTalon.Setting("email.address"), ^||OcuTalon.Setting("email.owner")
 	Quit $$$OK
 }
 
@@ -426,6 +450,123 @@ Method TestServiceRefusals()
 	Do $$$AssertEquals($Get(^OcuTalonTest("EmailInServiceProbe", ..Number), 0), 1, "after one send")
 }
 
+/// The adapter reads the header of the email.
+Method TestAdapterCarriesSentRef()
+{
+	Set adapter = ..Adapter("ref")
+	Do ..Mail("u1")
+	Do adapter.OnTask()
+	Do ..Mail("u2", "a@example.com", "zz s2", "zz b2", , , , "zzRefWhole00000000001"), ..Mail("u3", "a@example.com", "zz s3", "zz b3", , 2000000, , "zzRefHeaders0000000002"), ..Mail("u4")
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Delivered(), 3, "three emails are handed on")
+	Do $$$AssertEquals($Get(^||OcuTalonEmailInAdapter("delivered", 1, "ref"))_"|"_$Get(^||OcuTalonEmailInAdapter("delivered", 2, "ref"))_"|"_$Get(^||OcuTalonEmailInAdapter("delivered", 3, "ref")), "zzRefWhole00000000001|zzRefHeaders0000000002|", "the Ref of the whole read, the Ref of the headers-only read, and none for an email without the header")
+	Do $$$AssertEquals(..Count("Fetch")_"|"_..Count("FetchMessageHeaders"), "2|1", "the second was read as headers only")
+}
+
+/// DW-1167, ruling V4: an email that EmailOut sent to the mailbox makes no Item, once.
+Method TestServiceSkipsOwnMail()
+{
+	Set owner = ..Session("echo")
+	Set other = ..Session("echoother")
+	Do ##class(OcuTalon.Data.Setting).Set("email.owner", owner)
+	Do ##class(OcuTalon.Data.Setting).Set("email.address", "zzown@example.com")
+	Set sentRef = ..Row(owner, "email", "digest", "")
+	Set toolRef = ..Row(owner, "email", "", "")
+	Set pendingRef = ..Row(owner, "email", "", "pending")
+	Set failedRef = ..Row(owner, "email", "", "failed")
+	Set webRef = ..Row(owner, "web", "digest", "")
+	Set forged = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set service = ..Service()
+	// A sent Ref but a From that is not the own address: an Item, and the use of the Ref is kept.
+	Do ..Take(service, "u1", "zzother@example.com", sentRef)
+	Do $$$AssertEquals(..Sends(), 1, "a Ref of a sent email from another sender is an Item")
+	Do $$$AssertEquals(..Echoed(sentRef), "", "and does not use up the Ref")
+	Do ..Take(service, "u1b", "zzown@example.com.evil.net", sentRef)
+	Do ..Take(service, "u1c", "Zz Own <zzown@example.org>", sentRef)
+	Do $$$AssertEquals(..Sends(), 3, "a sender that only looks like the address is an Item too")
+	// All three hold: no Item, the use is taken, the Ref is logged.
+	Set before = ..LastLog()
+	Do ..Take(service, "u2", "OcuTalon <ZZOWN@Example.com>", sentRef)
+	Do $$$AssertEquals(..Sends(), 3, "a Ref of a sent email from the own address (a name and brackets, any case) makes no Item")
+	Do $$$AssertTrue(..Echoed(sentRef) ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "and the Ref's use is taken")
+	Set texts = ..InfoTexts(before)
+	Do $$$AssertEquals($ListToString(texts, "|"), "EmailIn made no item from its own email "_sentRef, "one information line, with the Ref and nothing of the email")
+	// The second use.
+	Do ..Take(service, "u3", "zzown@example.com", sentRef)
+	Do $$$AssertEquals(..Sends(), 4, "the same Ref again is an Item")
+	// A tool email's row is a sent email too.
+	Do ..Take(service, "u4", "zzown@example.com", toolRef)
+	Do $$$AssertEquals(..Sends(), 4, "the Ref of a sent tool email is skipped as well")
+	// Everything else is an Item.
+	Do ..Take(service, "u5", "zzown@example.com", forged)
+	Do $$$AssertEquals(..Sends(), 5, "a Ref that no row has (a forged one) is an Item")
+	Do ..Take(service, "u6", "zzown@example.com", "")
+	Do $$$AssertEquals(..Sends(), 6, "an email with no Ref is an Item")
+	Do ..Take(service, "u7", "zzown@example.com", pendingRef)
+	Do ..Take(service, "u8", "zzown@example.com", failedRef)
+	Do $$$AssertEquals(..Sends(), 8, "the Ref of a claim whose send did not finish or failed is an Item")
+	Do ..Take(service, "u9", "zzown@example.com", webRef)
+	Do $$$AssertEquals(..Sends(), 9, "the message id of a row of another channel is an Item")
+	Set padded = ..Row(owner, "email", "", "")
+	Do ..Take(service, "u10", "zzown@example.com", " "_padded)
+	Do $$$AssertEquals(..Sends(), 10, "a Ref with spaces around it is not the Ref")
+	Do $$$AssertEquals(..Echoed(padded), "", "and does not use up the Ref it was made from")
+	Do ##class(OcuTalon.Data.Setting).Set("email.address", "zzmoved@example.com")
+	Do ..Take(service, "u11", "zzown@example.com", ..Row(owner, "email", "digest", ""))
+	Do $$$AssertEquals(..Sends(), 11, "when the mailbox address has moved, the old address is not the own one")
+}
+
+/// A Delivery row for the owner; the Ref of the row (its ChannelMessageId), kept for the clean-up.
+Method Row(owner As %String, channel As %String, kind As %String, fallbackReason As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(owner, channel, ref, "", kind, "", "", "", fallbackReason), "a Delivery row is made")
+	Set ..Deliveries = ..Deliveries_$Select(..Deliveries = "": "", 1: ",")_ref
+	Quit ref
+}
+
+/// The email goes to the service with the Ref in its header.
+Method Take(service As OcuTalon.Test.Channel.EmailInServiceProbe, uidl As %String, from As %String, ref As %String) [ Private ]
+{
+	Set mail = ##class(OcuTalon.Channel.Email.Mail).%New()
+	Set mail.Uidl = uidl
+	Set mail.Sender = from
+	Set mail.Subject = "zz s"
+	Set mail.SentRef = ref
+	Do $$$AssertStatusOK(service.OnProcessInput(mail, .output), "the email "_uidl_" is accepted")
+}
+
+Method Sends() As %Integer [ Private ]
+{
+	Quit +$Get(^OcuTalonTest("EmailInServiceProbe", ..Number))
+}
+
+/// The EchoedAt of the sent email Delivery row of the Ref.
+ClassMethod Echoed(ref As %String) As %String [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT EchoedAt FROM OcuTalon_Data.Delivery WHERE ChannelMessageId = ?", ref)
+	Do result.%Next()
+	Quit result.%Get("EchoedAt")
+}
+
+ClassMethod LastLog() As %Integer [ Private ]
+{
+	Set last = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
+	Do last.%Next()
+	Quit +last.%GetData(1)
+}
+
+/// The texts of the log rows of EmailIn after the row id start, as a list.
+ClassMethod InfoTexts(start As %Integer) As %List [ Private ]
+{
+	Set texts = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Text [ 'EmailIn' ORDER BY ID", start)
+	While result.%Next() {
+		Set texts = texts_$ListBuild(result.%GetData(1))
+	}
+	Quit texts
+}
+
 /// --- helpers ---
 
 /// A new adapter for a mailbox of its own (the user name zzmailuser<tag><run>), made like the production makes one: the settings, then OnInit.
@@ -449,9 +590,9 @@ Method Adapter(tag As %String, first As %Boolean = 1, deleteSetting As %Boolean 
 }
 
 /// Adds an email to the stand-in's mailbox.
-ClassMethod Mail(uidl As %String, from As %String = "a@example.com", subject As %String = "zz subject", text As %String = "zz body", html As %String = "", size As %Integer = 0, parts As %Boolean = 0)
+ClassMethod Mail(uidl As %String, from As %String = "a@example.com", subject As %String = "zz subject", text As %String = "zz body", html As %String = "", size As %Integer = 0, parts As %Boolean = 0, ref As %String = "")
 {
-	Do ##class(OcuTalon.Test.Channel.EmailInPop3).Add(uidl, from, subject, text, html, size, parts)
+	Do ##class(OcuTalon.Test.Channel.EmailInPop3).Add(uidl, from, subject, text, html, size, parts, ref)
 }
 
 /// The number of emails handed on since the last Kill.

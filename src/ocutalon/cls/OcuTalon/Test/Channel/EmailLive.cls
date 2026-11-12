@@ -48,6 +48,17 @@
 ///     restarted) shows at the stub's next login;
 ///   - TestPasswordNotOnTheSendPath (ruling d, AC 3): after a save and a send no SendEmail message, log row, audit entry, Delivery row, stub state or ^OcuTalon* global
 ///     holds the dummy password, and no log row holds the address or the subject.
+/// Story 21.7 adds the daily digest by email and DW-1167 against the same stubs:
+///   - TestDigestReachesTheStub (Integration AC, O1, second-session isolation, ruling V1): the mailbox and the SMTP server are saved by the owner session, and a
+///     SendDigest submitted through Commands.Submit (origin web_admin) runs the real Digest, the real Notify and the real EmailOut: the stub holds one mail from
+///     and to the saved address, with the subject of email.digestSubject, the text of DigestText for email of the stored Sent row's Slots and the header
+///     X-OcuTalon-Ref equal to the ChannelMessageId of the new Delivery row (channel email, kind digest), and the web chat copy still arrives; with digest.channels
+///     naming email alone, and web and email with demo mode on, the mail arrives too; the digest of a second session, which is not the mailbox owner, sends the stub
+///     nothing and reaches its own web chat;
+///   - TestNotifyRoutesDigestToEmailOut: with EmailOut running, Notify's rule adds EmailOut to a digest exactly when digest.channels names email, the session is the
+///     mailbox owner, email.address is an address and it is not the online demo, and not while EmailOut has no job;
+///   - TestOwnMailPolledBackMakesNoItem (DW-1167, ruling V4): an email that EmailOut sent to the mailbox and that the POP3 stub serves with its X-OcuTalon-Ref
+///     header makes no Item and is recorded seen, once; an email with an unknown Ref, one with the Ref but another sender and a second use of the Ref are Items.
 /// Story 21.3 adds the OAuth2 sign-in against the mock's fake authorization server (host mock, control on 8080 under /_mock/oauth/) and IRIS's real %SYS OAuth2 objects on
 /// the throwaway. The job reads the CI-only variable OCUTALON_TEST_OAUTH_MOCK, which makes the registered endpoints the mock's plain HTTP ones (and logs a warning);
 /// every case asserts that the registered token endpoint starts with http://mock:8080/_mock/oauth/ before it signs in. The consent is driven without a browser by
@@ -931,6 +942,269 @@ Method TestToolSendReachesTheStub()
 		Do $$$AssertEquals(..Mails().%Size()_"|"_..Deliveries(..Owner), "1|1", "and nothing reached the stub")
 		Set again = ..ToolSend(..Owner, "zzlive@example.com", "zz after", "zz")
 		Do $$$AssertEquals(again.Outcome, "sent", "off the online demo the same send goes through")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// Restarts the item, which gives it a new job and so an empty per-process cache of the settings (Data.Setting.Get keeps a value 60 seconds).
+Method Restart(item As %String) [ Private ]
+{
+	Set config = "OcuTalon.Production||"_item
+	Do $$$AssertStatusOK(##class(Ens.Director).TempStopConfigItem(config, 1), item_" is stopped")
+	Do $$$AssertStatusOK(##class(Ens.Director).TempStopConfigItem(config, 0), item_" is started")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs(item, 1), item_" runs")
+}
+
+/// Saves digest.channels and restarts Digest and Notify, which read it, so that neither holds the earlier value.
+Method UseChannels(value As %String) [ Private ]
+{
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set("digest.channels", value), "digest.channels is "_value)
+	Do ..Restart("Digest")
+	Do ..Restart("Notify")
+}
+
+/// A SendDigest of the session, submitted as Api.SendDigest submits it.
+Method SubmitDigest(session As %String) [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.SendDigest).%New()
+	Set command.SessionRef = session
+	Set command.IdempotencyKey = "zzlive-digest-"_$SYSTEM.Util.CreateGUID()
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result), "the SendDigest is submitted with origin web_admin")
+	Do $$$AssertEquals($Select($IsObject($Get(result)): result.Ok_"|"_result.Outcome, 1: "none"), "1|sending", "and answered sending")
+}
+
+/// The number of Delivery rows of kind digest of the session on the channel.
+ClassMethod DigestRows(session As %String, channel As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = ? AND Kind = 'digest'", session, channel)
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// Waits until the count is reached within PATIENCE seconds; the count.
+Method WaitDigestRows(session As %String, channel As %String, count As %Integer) As %Integer [ Private ]
+{
+	Set end = $ZHorolog + ..#PATIENCE
+	While (..DigestRows(session, channel) < count) && ($ZHorolog < end) {
+		Hang 0.3
+	}
+	Quit ..DigestRows(session, channel)
+}
+
+/// Waits until the SMTP stub holds count mails within PATIENCE seconds; the mails.
+Method WaitMails(count As %Integer) As %DynamicArray [ Private ]
+{
+	Set end = $ZHorolog + ..#PATIENCE
+	While (..Mails().%Size() < count) && ($ZHorolog < end) {
+		Hang 0.3
+	}
+	Quit ..Mails()
+}
+
+/// The Slots of the newest Sent row of the session.
+ClassMethod SentSlots(session As %String) As %String [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Slots FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ? ORDER BY ID DESC", session)
+	Quit $Select(result.%Next(): result.%Get("Slots"), 1: "")
+}
+
+/// The ChannelMessageId of the newest Delivery row of channel email and kind digest of the session.
+ClassMethod DigestRef(session As %String) As %String [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ChannelMessageId FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'email' AND Kind = 'digest' ORDER BY ID DESC", session)
+	Quit $Select(result.%Next(): result.%Get("ChannelMessageId"), 1: "")
+}
+
+/// Asserts the mail of a digest of the session at the stub, at index n.
+Method AssertDigestMail(mails As %DynamicArray, n As %Integer, session As %String, label As %String) [ Private ]
+{
+	Set mail = mails.%Get(n)
+	Do $$$AssertEquals(mail.from_"|"_mail.to.%Get(0)_"|"_mail.to.%Size(), "zzlive@example.com|zzlive@example.com|1", label_": from and to the saved address")
+	Do $$$AssertEquals(mail.subject, "Your OcuTalon digest", label_": with the subject of email.digestSubject")
+	Do $$$AssertEquals($ZStrip(mail.text, ">WC"), ##class(OcuTalon.Channel.DigestText).Text(..SentSlots(session), "email"), label_": and the text of the digest for email, line for line")
+	Do $$$AssertEquals(mail.parts_"|"_mail.attachments, "1|0", label_": one plain part and no attachment")
+	Set ref = ..DigestRef(session)
+	Do $$$AssertTrue($Length(ref) = 22, label_": the digest has its Delivery row of channel email")
+	Do $$$AssertEquals(mail.xOcutalonRef, ref, label_": and the header X-OcuTalon-Ref is its message id")
+}
+
+/// Integration AC and O1: real SendDigest, real Digest, real Notify, real EmailOut, the CI stub.
+Method TestDigestReachesTheStub()
+{
+	If '..Guard() Quit
+	Set channelsWas = ##class(OcuTalon.Data.Setting).KeyIndexOpen("digest.channels")
+	Set channelsWas = $Select($IsObject(channelsWas): $ListBuild(1, channelsWas.Value), 1: $ListBuild(0, ""))
+	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .value, .updatedAt)
+	Try {
+		Set result = ..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the mailbox and the SMTP server are connected by the owner session")
+		Do ..MockServer()
+		Set other = ..Session("digestother")
+		Do ##class(OcuTalon.Test.Demo.Step).Remove()
+		// The owner's digest goes to the web chat and by email.
+		Do ..UseChannels("web,email")
+		Do ..SmtpControl("reset", {})
+		Do ..SubmitDigest(..Owner)
+		Set mails = ..WaitMails(1)
+		Do $$$AssertEquals(mails.%Size(), 1, "web and email: the stub holds one mail")
+		If mails.%Size() = 1 Do ..AssertDigestMail(mails, 0, ..Owner, "web and email")
+		Do $$$AssertEquals(..WaitDigestRows(..Owner, "web", 1), 1, "and the web chat copy arrived")
+		Do $$$AssertEquals(..DigestRows(..Owner, "email"), 1, "with one email Delivery row")
+		Do $$$AssertEquals(..SentChannels(..Owner), "web,email", "and the Sent row of the digest names both channels")
+		// Email alone: the digest composed by Digest goes to Notify whatever digest.channels names, and so reaches the mail and not the web chat.
+		Do ..UseChannels("email")
+		Do ..SmtpControl("reset", {})
+		Do ..SubmitDigest(..Owner)
+		Set mails = ..WaitMails(1)
+		Do $$$AssertEquals(mails.%Size(), 1, "email alone: the stub holds one mail")
+		If mails.%Size() = 1 Do ..AssertDigestMail(mails, 0, ..Owner, "email alone")
+		Hang 2
+		Do $$$AssertEquals(..DigestRows(..Owner, "web"), 1, "and the web chat got no second copy")
+		// Web and email with demo mode on: the phone is available and not named, a strict subset of the own channels.
+		Do ##class(OcuTalon.Test.Demo.Step).Put(1, "2030-01-02T03:04:05Z")
+		Do ..UseChannels("web,email")
+		Do ..SmtpControl("reset", {})
+		Do ..SubmitDigest(..Owner)
+		Set mails = ..WaitMails(1)
+		Do $$$AssertEquals(mails.%Size(), 1, "web and email with demo mode on: the stub holds one mail")
+		If mails.%Size() = 1 Do ..AssertDigestMail(mails, 0, ..Owner, "web and email with demo mode on")
+		Do $$$AssertEquals(..WaitDigestRows(..Owner, "web", 2), 2, "the web chat copy arrived")
+		Do $$$AssertEquals(..DigestRows(..Owner, "phone"), 0, "and the phone, which is not named, got none")
+		Do ##class(OcuTalon.Test.Demo.Step).Remove()
+		// A session that does not own the mailbox: its digest goes to its web chat and never to the stub.
+		Do ..UseChannels("web,email")
+		Do ..SmtpControl("reset", {})
+		Do ..SubmitDigest(other)
+		Do $$$AssertEquals(..WaitDigestRows(other, "web", 1), 1, "the second session's web chat copy arrives")
+		Hang 3
+		Do $$$AssertEquals(..Mails().%Size()_"|"_..DigestRows(other, "email"), "0|0", "and the stub receives nothing for it")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	If $List(channelsWas, 1) {
+		Do ##class(OcuTalon.Data.Setting).Set("digest.channels", $List(channelsWas, 2))
+	} Else {
+		Do ##class(OcuTalon.Data.Setting).KeyIndexDelete("digest.channels")
+	}
+	Kill ^||OcuTalon.Setting("digest.channels")
+	Do ##class(OcuTalon.Test.Demo.Step).PutBack(found, value, updatedAt)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE OwnerRef IN (SELECT Ref FROM OcuTalon_Data.Session WHERE Ref = ?)", $Get(other))
+	Do ..Disconnect()
+}
+
+/// The Channels of the newest digest Sent row of the session.
+ClassMethod SentChannels(session As %String) As %String [ Private ]
+{
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Channels FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ? ORDER BY ID DESC", session)
+	If 'rows.%Next() Quit ""
+	Quit rows.%Get("Channels")
+}
+
+/// The targets of Notify's rule for a Notification of the session (kind digest unless given), as the router's action list.
+ClassMethod RouteOf(session As %String, kind As %String = "digest") As %String [ Private ]
+{
+	Set engine = ##class(Ens.Host).GetShadowInstance("class||EnsLib.MsgRouter.RoutingEngine", .sc)
+	Set notification = ##class(OcuTalon.Msg.Notification).%New()
+	Set notification.SessionRef = session
+	Set notification.Kind = kind
+	Set engine.Document = notification
+	Set engine.MsgClass = $ClassName(notification)
+	Set engine.Source = "zzsource"
+	Set sc = ##class(Ens.Rule.RuleDefinition).EvaluateRulesEx("OcuTalon.Core.Rule.Notify", 0, engine, "", .return, .reason, 1, "e")
+	Quit $Select($$$ISOK(sc): $Get(return), 1: "ERROR")
+}
+
+/// Notify's rule DigestEmail adds EmailOut exactly when everything holds.
+Method TestNotifyRoutesDigestToEmailOut()
+{
+	If '..Guard() Quit
+	Set channelsWas = ##class(OcuTalon.Data.Setting).KeyIndexOpen("digest.channels")
+	Set channelsWas = $Select($IsObject(channelsWas): $ListBuild(1, channelsWas.Value), 1: $ListBuild(0, ""))
+	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .value, .updatedAt)
+	Try {
+		Set result = ..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the mailbox and the SMTP server are connected")
+		Set other = ..Session("routeother")
+		Do ##class(OcuTalon.Test.Demo.Step).Remove()
+		Do ##class(OcuTalon.Data.Setting).Set("digest.channels", "web,email")
+		Set both = "send:WebChatOut:;send:EmailOut:"
+		Do $$$AssertEquals(..RouteOf(..Owner), both, "the owner, email named, an address saved, EmailOut running: the web chat and EmailOut, one action each")
+		Do $$$AssertEquals(..RouteOf(other), "send:WebChatOut:", "another session: the web chat alone")
+		For kind = "tellnow", "incident", "answered" {
+			Do $$$AssertTrue(..RouteOf(..Owner, kind) '[ "EmailOut", "the owner, a Notification of kind "_kind_": no EmailOut, whatever the digest says")
+		}
+		Do $$$AssertEquals(..RouteOf(""), "send:WebChatOut:", "an empty session: the web chat alone")
+		Do ##class(OcuTalon.Data.Setting).Set("digest.channels", "email")
+		Do $$$AssertEquals(..RouteOf(..Owner), "send:EmailOut:", "email alone: EmailOut alone")
+		Do ##class(OcuTalon.Data.Setting).Set("digest.channels", "web")
+		Do $$$AssertEquals(..RouteOf(..Owner), "send:WebChatOut:", "email not named: the web chat alone")
+		Do ##class(OcuTalon.Data.Setting).Set("digest.channels", "web,phone,telegram")
+		Do $$$AssertEquals(..RouteOf(..Owner), "send:WebChatOut:", "the default names: the web chat alone, email is opt-in")
+		Do ##class(OcuTalon.Data.Setting).Set("digest.channels", "web,email")
+		Do ##class(OcuTalon.Data.Setting).Set("email.address", "")
+		Do $$$AssertEquals(..RouteOf(..Owner), "send:WebChatOut:", "no address: the web chat alone")
+		Do ##class(OcuTalon.Data.Setting).Set("email.address", "zzlive@example.com")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Do $$$AssertEquals(..RouteOf(..Owner), "send:WebChatOut:", "the online demo: the web chat alone, whatever the rows say")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..Online)
+		Do $$$AssertEquals(..RouteOf(..Owner), both, "control: off the online demo it is the web chat and EmailOut again")
+		Set item = "OcuTalon.Production||"_..#SENDITEM
+		Do $$$AssertStatusOK(##class(Ens.Director).TempStopConfigItem(item, 1), "EmailOut is stopped")
+		Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs(..#SENDITEM, 0), "and has no job")
+		Do $$$AssertEquals(..RouteOf(..Owner), "send:WebChatOut:", "no EmailOut job: the web chat alone, no digest waits in a stopped item's queue")
+		Do ##class(Ens.Director).TempStopConfigItem(item, 0)
+		Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs(..#SENDITEM, 1), "EmailOut runs again")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	If $List(channelsWas, 1) {
+		Do ##class(OcuTalon.Data.Setting).Set("digest.channels", $List(channelsWas, 2))
+	} Else {
+		Do ##class(OcuTalon.Data.Setting).KeyIndexDelete("digest.channels")
+	}
+	Kill ^||OcuTalon.Setting("digest.channels")
+	Do ##class(OcuTalon.Test.Demo.Step).PutBack(found, value, updatedAt)
+	Do ..Disconnect()
+}
+
+/// DW-1167, ruling V4: the digest that EmailOut sent to the mailbox comes back through the POP3 stub and makes no Item.
+Method TestOwnMailPolledBackMakesNoItem()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..Mailbox([(..Mail("b1", "zz baseline"))])
+		Set result = ..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the mailbox and the SMTP server are connected")
+		Do ..PlainStub()
+		Do ..SmtpControl("reset", {})
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz sent by EmailOut", "zz text")
+		Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome, "1|sent", "EmailOut sends a mail to the saved address")
+		Set mails = ..WaitMails(1)
+		Do $$$AssertEquals(mails.%Size(), 1, "the SMTP stub holds it")
+		Set ref = $Select(mails.%Size() = 1: mails.%Get(0).xOcutalonRef, 1: "")
+		Set row = ##class(OcuTalon.Data.Delivery).%OpenId(..DeliveryId())
+		Do $$$AssertEquals(ref, row.ChannelMessageId, "with the header X-OcuTalon-Ref of its Delivery row")
+		Do $$$AssertTrue(..Poll(), "the first poll of the mailbox is made")
+		Do $$$AssertEquals(..WaitMark(1).ok, 1, "and is ok")
+		Set decisions = ..Decisions()
+		Set forged = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set own = {"uidl": "own1", "from": "zzlive@example.com", "subject": "zz sent by EmailOut", "text": "zz text", "headers": {"X-OcuTalon-Ref": (ref)}}
+		Set unknown = {"uidl": "unk1", "from": "zzlive@example.com", "subject": "zz forged ref", "text": "zz text", "headers": {"X-OcuTalon-Ref": (forged)}}
+		Set stranger = {"uidl": "str1", "from": "Dana <dana@example.com>", "subject": "zz other sender", "text": "zz text", "headers": {"X-OcuTalon-Ref": (ref)}}
+		Do ..AddMail([(own), (unknown), (stranger)])
+		Do $$$AssertTrue(..Poll(), "a poll after three emails with a Ref")
+		Do $$$AssertEquals(..WaitDecisions(decisions + 2), decisions + 2, "two Items follow, the forged Ref's and the other sender's")
+		Hang 3
+		Do $$$AssertEquals(..Decisions(), decisions + 2, "and the email that EmailOut sent made none")
+		Do $$$AssertEquals(..Seen("Baseline = 0 AND Uidl = 'own1'"), 1, "it is recorded seen all the same, so that it is not read again")
+		Do $$$AssertEquals(..Seen("Baseline = 0 AND Uidl IN ('unk1', 'str1')"), 2, "like the other two")
+		Do $$$AssertStatusOK(row.%Reload(), "the Delivery row is read again")
+		Do $$$AssertTrue(row.EchoedAt '= "", "the Ref's one use is taken")
+		Do ..AddMail([{"uidl": "own2", "from": "zzlive@example.com", "subject": "zz second use", "text": "zz text", "headers": {"X-OcuTalon-Ref": (ref)}}])
+		Do $$$AssertTrue(..Poll(), "a poll after a second email with the same Ref")
+		Do $$$AssertEquals(..WaitDecisions(decisions + 3), decisions + 3, "it is an Item: a Ref is used once")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}

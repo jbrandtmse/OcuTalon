@@ -1033,7 +1033,7 @@ ClassMethod Refused(bad As %DynamicArray) As OcuTalon.Msg.CommandResult [ Privat
 }
 
 /// 1 when the body's value of the field is acceptable, and canonical is its form to store. A value that is missing, is not a JSON string or
-/// number, or holds "@{" is not; an int is a whole number of its range, a time is HH:MM, channels is a non-empty list of web, phone and telegram
+/// number, or holds "@{" is not; an int is a whole number of its range, a time is HH:MM, channels is a non-empty list of web, phone, telegram and email
 /// without a repeat (stored in that order), and a bridge value is a string of at most BRIDGEMAX characters (the bridge checks the rest).
 ClassMethod Field(field As %DynamicObject, changes As %DynamicObject, Output canonical As %String) As %Boolean [ Private ]
 {
@@ -1059,11 +1059,11 @@ ClassMethod Field(field As %DynamicObject, changes As %DynamicObject, Output can
 		Set picked = ""
 		For i = 1:1:$Length(text, ",") {
 			Set one = $Piece(text, ",", i)
-			If '$ListFind($ListBuild("web", "phone", "telegram"), one) || $ListFind(picked, one) Quit
+			If '$ListFind($ListBuild("web", "phone", "telegram", "email"), one) || $ListFind(picked, one) Quit
 			Set picked = picked_$ListBuild(one)
 		}
 		If $ListLength(picked) '= $Length(text, ",") Quit 0
-		For one = "web", "phone", "telegram" {
+		For one = "web", "phone", "telegram", "email" {
 			If $ListFind(picked, one) Set canonical = canonical_$Select(canonical = "": "", 1: ",")_one
 		}
 		Quit 1

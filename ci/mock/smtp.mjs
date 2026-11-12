@@ -11,12 +11,14 @@
 //        refuse: the connection is closed at once, with no greeting; auth: AUTH is answered 535; reject: RCPT is answered 550;
 //        error: DATA is answered 554
 //   POST /_mock/smtp/reset    no mail, no failure, every count 0
-//   GET  /_mock/smtp/state    {"messages":[{"from","to":[...],"subject","text","headerFrom","headerTo","contentType","parts","attachments"}],
+//   GET  /_mock/smtp/state    {"messages":[{"from","to":[...],"subject","text","headerFrom","headerTo","contentType","parts","attachments","xOcutalonRef"}],
 //                              "connections":n,"logins":n,"user":"<last user>","failure":"<mode>","commands":{"RCPT":n,...}}
 //                             (a line that is not a command word, such as the bytes of a TLS handshake, is counted under "(other)")
 // A message's from and to are the envelope (MAIL FROM and RCPT TO addresses); headerFrom and headerTo are the decoded header lines; subject
 // and text are decoded (encoded words, base64, quoted-printable, UTF-8); text is the first text/plain part; parts counts the MIME leaf parts
-// (1 for a message with no multipart) and attachments the parts that are marked as an attachment or carry a file name. Any other path is a 404.
+// (1 for a message with no multipart) and attachments the parts that are marked as an attachment or carry a file name.
+// xOcutalonRef is the value of the X-OcuTalon-Ref header (the name is matched without regard to case, a folded header is unfolded, the
+// value is trimmed) and '' when the mail has none. Any other path is a 404.
 
 import net from 'node:net';
 
@@ -114,6 +116,7 @@ export function parse(raw, envelope) {
     contentType: top.headers['content-type'] ?? 'text/plain',
     parts: all.length,
     attachments: all.filter((p) => /attachment/i.test(p.headers['content-disposition'] ?? '') || param(p.headers['content-disposition'], 'filename') !== null || param(p.headers['content-type'], 'name') !== null).length,
+    xOcutalonRef: top.headers['x-ocutalon-ref'] ?? '',
   };
 }
 

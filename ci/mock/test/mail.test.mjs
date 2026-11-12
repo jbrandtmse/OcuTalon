@@ -226,6 +226,65 @@ test('a message with a plain and an HTML body is multipart/alternative, plain pa
   });
 });
 
+test('a message with headers serves them in RETR and TOP, after the headers that the stub writes and before the body', async () => {
+  await withStub(async ({ control, port }) => {
+    const set = await control('mailbox', { messages: [{ uidl: 'h-1', subject: 'Ref', text: 'body words', headers: { 'X-OcuTalon-Ref': 'ref-42', 'Auto-Submitted': 'auto-generated', 'X-Wide': 'caf\u00e9' } }, { uidl: 'h-2', text: 'plain', html: '<p>x</p>', headers: { 'X-OcuTalon-Ref': 'ref-43' } }, { uidl: 'h-3', text: 'none' }] });
+    assert.equal(set.status, 200);
+    const c = await login(port);
+    const top = await c.multi('TOP 1 0');
+    assert.ok(top.lines.includes('X-OcuTalon-Ref: ref-42'));
+    assert.ok(top.lines.includes('Auto-Submitted: auto-generated'));
+    assert.ok(top.lines.some((l) => l.startsWith('X-Wide: =?utf-8?B?')), 'a non-ASCII value is an encoded word');
+    assert.ok(!top.lines.some((l) => l.includes('body words')));
+    const retr = await c.multi('RETR 1');
+    assert.ok(retr.lines.includes('X-OcuTalon-Ref: ref-42'));
+    assert.ok(retr.lines.indexOf('X-OcuTalon-Ref: ref-42') < retr.lines.indexOf(''), 'the header is in the header block');
+    assert.ok(retr.lines.indexOf('X-OcuTalon-Ref: ref-42') > retr.lines.indexOf('MIME-Version: 1.0'));
+    assert.ok(retr.lines.includes('body words'));
+    const alt = await c.multi('RETR 2');
+    assert.ok(alt.lines.includes('X-OcuTalon-Ref: ref-43'));
+    assert.ok(alt.lines.some((l) => l.startsWith('Content-Type: multipart/alternative')));
+    const bare = await c.multi('RETR 3');
+    assert.ok(!bare.lines.some((l) => l.startsWith('X-OcuTalon-Ref')));
+    c.close();
+    await control('reset', {});
+    assert.deepEqual((await control('state', undefined, 'GET')).json.uidls, []);
+  });
+});
+
+test('a bad headers value is a 400 and changes nothing', async () => {
+  await withStub(async ({ control }) => {
+    await control('mailbox', { messages: [{ uidl: 'keep' }] });
+    for (const headers of [
+      'X-A: b',
+      ['X-A'],
+      null,
+      { 'X A': 'b' },
+      { 'X-A:': 'b' },
+      { '': 'b' },
+      { 'X-A\r\nX-B': 'b' },
+      { 'X-A': 'b\r\nX-Injected: 1' },
+      { 'X-A': 'b\nc' },
+      { 'X-A': 7 },
+      { Subject: 'again' },
+      { 'content-type': 'text/html' },
+      { 'MESSAGE-ID': '<x@y>' },
+    ]) {
+      assert.equal((await control('mailbox', { messages: [{ uidl: 'a', headers }] })).status, 400, JSON.stringify(headers));
+      assert.equal((await control('add', { messages: [{ uidl: 'b', headers }] })).status, 400, JSON.stringify(headers));
+    }
+    assert.deepEqual((await control('state', undefined, 'GET')).json.uidls, ['keep']);
+    assert.equal((await control('add', { messages: [{ uidl: 'ok', headers: {} }] })).status, 200);
+  });
+});
+
+test('build puts the headers in the header block that TOP serves', () => {
+  const built = build({ uidl: 'b', subject: 'S', text: 'x', headers: { 'X-OcuTalon-Ref': 'r-1' } });
+  assert.ok(built.headers.includes('\r\nX-OcuTalon-Ref: r-1\r\n'));
+  assert.ok(built.raw.startsWith(built.headers));
+  assert.ok(!build({ uidl: 'b', text: 'x' }).raw.includes('X-OcuTalon-Ref'));
+});
+
 test('the password is never stored, logged or answered', async () => {
   await withStub(async ({ control, port, s }) => {
     await control('mailbox', { messages: [{ uidl: 'u-1' }] });

@@ -2,7 +2,7 @@
 title: 'Story 21.7: Send the daily digest by email'
 type: 'feature'
 created: '2026-11-11'
-status: 'in-review'
+status: 'done'
 baseline_revision: '90ab0f80c6fd278ef75a06c837a5700b03f07c37'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -10,7 +10,14 @@ context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-21-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-21-6-send-email-over-smtp.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The doc comments of Digest.Data.Sent (Failed, Attempts, class description) still say that a later tick sends the stored Slots to the channels of Failed again; O1 removed that resend (V9).
+    evidence: |-
+      src/ocutalon/cls/OcuTalon/Digest/Data/Sent.cls:5 and :53-58 describe a resend that no code performs after O1. The file is Lane A and outside O1's permission (Digest/Process.cls and the Lane A tests that pin it), so this story does not edit it. The columns stay, unused (ruling V9).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Digest/Data/Sent.cls:5,53-58
+    severity: low
 ---
 
 <intent-contract>
@@ -113,6 +120,50 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-12 -- Review pass (resume after implement attempt 1)
+- verdicts: 39 findings -- high 0, medium 4, low 23, false 12, maybe-false 0
+- fixed before the layers (verification loop): `Test.Digest.Thresholds.TestDigestSeeds` (Lane A) read `Digest.Process.CHANNELSDEFAULT`, which O1 deleted, and failed; it now compares Notify's reading of an absent `digest.channels` (`Functions.DigestNamed`) with the section's declared default. Found by the Digest-class loop run attempt 1 had not repeated.
+- findings (edge-case layer, then blind layer, verification-gap layer, intent auditor):
+  - `[low]` `[reject]` a fast echo before the Delivery row exists fails the check -- the failure is an untrusted Item (the safe direction), the window is milliseconds and the fix reorders the send/record pairs of all three paths
+  - `[low]` `[reject]` TakeEcho spent and the hand-off then fails -- again the safe direction (an Item), needs two failures in sequence
+  - `[low]` `[reject]` DigestKeyOf holds the UTC day, so a replay across 00:00 UTC sends twice -- the day is the design (decision 15; DecisionRef is empty on a fallback), the replay across midnight is theoretical
+  - `[low]` `[reject]` the Delivery row follows the send (no row if Record fails) -- a failed Record is logged as an error and needs a database fault (theoretical)
+  - `[low]` `[reject]` the lock is held across the SMTP send and a waiting digest of the same owner is dropped after CLAIMWAIT -- logged as a warning; one digest per owner per day
+  - `[low]` `[reject]` `Sent.Channels` is computed at compose time and Notify routes at handling time -- the Process doc says "the channels Notify routes it to"; the gap is a settings change in milliseconds
+  - `[low]` `[reject]` no resend of a missed channel -- ruled V9, a known limit of O1
+  - `[low]` `[defer]` Sent.cls doc comments still describe the resend -- real, but Sent.cls is outside O1's permission; recorded in `deferred:`
+  - `[false]` `[reject]` per-channel `Ens.Rule.Log` rows (LogRoute) are gone -- Notify's rule writes its own row for the one send (AD-26 holds)
+  - `[low]` `[reject]` two `X-OcuTalon-Ref` headers on a mail are not recognised -- EmailOut never writes two, and the failure is an Item
+  - `[low]` `[reject]` no index on ChannelMessageId -- the Never list forbids a new index; measured 7.9 ms at 10,000 rows (Measured d)
+  - `[low]` `[reject]` the V1(f) claim "a resend sends nothing" across midnight -- same as the DigestKeyOf row
+  - `[low]` `[reject]` the "sent at the same moments" claim loses the retry -- the first send is unchanged (regression tests per channel); the retry is V9
+  - `[low]` `[reject]` the Sent row can name a channel the email path then did not use -- same as the Sent.Channels row; every non-send is logged
+  - `[low]` `[reject]` old Sent rows with Failed set are stranded and Failed/Attempts are dead -- ruled V9
+  - `[low]` `[reject]` the row after the send leaves a failed Record without a key -- same as the Record row
+  - `[low]` `[reject]` the echo lookup scans Delivery -- same as the index row
+  - `[low]` `[reject]` the one-use rule fails open on a lock timeout or error and a redelivered UIDL becomes an Item -- fail-closed to an untrusted Item is the safe direction; the adapter marks a mail seen after OK so there is no redelivery
+  - `[low]` `[reject]` the UTC day in DigestKeyOf -- same as above
+  - `[low]` `[reject]` any admin can tick Email but only the owner's digest goes by email -- decided (decisions 1 and 3, V1); `digest.channels` is an instance setting
+  - `[false]` `[reject]` the live and e2e tests leave owner rows and rely on fixed sleeps -- `EmailLive` deletes the owner's email rows at its clean-up (:478) and the sleeps follow a positive signal
+  - `[false]` `[reject]` `ItemRunning` made public widens CommandsIn -- ruled V7, no behaviour change
+  - `[false]` `[reject]` unused parameters and a thin README line -- `CHANNELSSETTING` is read by `ProcessProbe`; R1 is the approved wording
+  - `[low]` `[reject]` the mock stubs accept a header name in two cases -- a fixture detail with no product effect
+  - `[medium]` `[patch]` the rule `DigestEmail`'s Kind clause had no test with a running EmailOut -- `EmailLive.RouteOf` takes a kind and the live test asserts that tellnow, incident and answered never route to EmailOut; mutation observed red
+  - `[medium]` `[patch]` `Routing.TestNotifyDigestEmail` asserted `1` where EmailOut runs -- now a log message, not an assertion; the half with a job and its mutations are pinned in `EmailLive` (Verification)
+  - `[medium]` `[patch]` the padded-Ref case of `TestServiceSkipsOwnMail` used a Ref whose use was already taken, so it passed whatever the lookup did -- it uses a fresh row and asserts that the row's use is not taken; mutation observed red
+  - `[medium]` `[patch]` pinning tests without a `mutation:` line -- ran and recorded the mutations (Verification); three tests were too weak and were tightened: a second digest must have another Ref (a constant digest Ref passed), `TestDigestFailures` asserts the exact log prefix per failure kind, and `EmailLive` asserts the Sent row names `web,email`
+  - `[low]` `[reject]` the tests cross 00:00 UTC -- a run would have to straddle midnight by seconds
+  - `[low]` `[reject]` the headers-only POP3 path is checked against the stand-in only -- own mail is far under the size that selects that path (Measured b)
+  - `[false]` `[reject]` fixed sleeps for the negative assertions -- each follows a positive signal
+  - `[low]` `[reject]` no test that a missed channel is retried -- ruled V9
+  - `[false]` `[reject]` (auditor) the resend removal reaches web, phone and Telegram -- ruled V9
+  - `[false]` `[reject]` (auditor) the alive-job gate is not in the intent -- decision 5, Measured c
+  - `[false]` `[reject]` (auditor) compose-time versus route-time reads can differ -- same as the Sent.Channels row
+  - `[false]` `[reject]` (auditor) the cap counts rows by owner session, not by address -- V1 says per mailbox, and the mailbox has one owner (`email.owner`)
+  - `[false]` `[reject]` (auditor) Lane A tests under Test/Digest are edited -- the O1 ruling permits the Lane A tests that pin Process
+  - `[false]` `[reject]` (auditor) two columns on Delivery -- ruled V8
+  - `[false]` `[reject]` (auditor) the skip logs the Ref -- V4 requires it, with no contents
+
 ### 2026-11-12 -- Implement stage halt (before the review layers)
 - verdicts: 2 findings, both from the implement-stage diff read, routed intent_gap; the review layers did not run (intent_gap makes lower entries moot)
 - findings:
@@ -192,12 +243,29 @@ Run every command from the worktree root. `<vars>` = `OCUTALON_LOCK_DIR="$(dirna
 - `web/scripts/settings-view.test.mjs` (mutations recorded by the web part): `digestChannelBoxes` with `email` never shown -> "shows the web chat always, the simulated phone only in demo mode, Telegram only when it is shown and Email only when it is shown" red; `emailBoxShown` without the outgoing check, or without the address check -> "shows the Email box only while an address and an outgoing mail server are both saved" red; `email` first in `DIGEST_CHANNELS` or left out of it -> the box-order, body-order and stored-order tests red; `digestChannelsBody` ignoring hidden channels -> "keeps a hidden channel as it is stored" red; `dailyDigest.email` changed to "E-mail" -> the pinned texts and `ux-strings.test.mjs` "has an entry for every inventory string" red.
 - `ci/mock/test/smtp.test.mjs`, `mail.test.mjs` (mutations recorded by the mock part): `xOcutalonRef` not parsed, not trimmed or not unfolded, read from a MIME leaf instead of the top -> the two SMTP header tests red; extra headers not emitted in RETR or TOP, a value not encoded, or the CR/LF, name-token, reserved-name or shape checks removed -> the POP3 header tests red.
 
+**Mutation lines added in the review pass (each applied, observed red, reverted byte-identical; warm stack `e21s7iw2`):**
+- `Test.Channel.EmailLive.TestNotifyRoutesDigestToEmailOut`: mutation: rule `DigestEmail` without `Document.Kind="digest" &&` -> the three non-digest-kind assertions red; `DigestEmail` without the online-demo check -> "the online demo" red; without the `IsAddress` check -> "no address" red; with `ItemRunning` replaced by 1 -> "no EmailOut job" red; without `DigestNamed("email")` -> "email not named" and "the default names" red.
+- `Test.Channel.EmailLive.TestDigestReachesTheStub`: mutation: `DigestChannels` without its `email` term -> "the Sent row of the digest names both channels" and "email alone: the stub holds one mail" red.
+- `Test.Channel.EmailOut.TestRefOnEveryPath`: mutation: the digest path's Ref a constant 22-character value -> "a second digest has another Ref" red; `TestDigestRenderAndCaps`: `CheckValues` skipped on the digest path -> "a text over the limit" red; `TestDigestLock`: the lock taken on another global -> red; `TestDigestDailyCap`: the count without its owner filter, without the day filter, or without the Kind filter -> red (each); `TestDigestFailures`: the row recorded after a failed send -> "no Delivery row" red; a second try -> "one try" red; a failed send that throws -> the log-prefix assertion red; `TestDigestEmail`: `email.digestSubject` changed -> "with the subject of email.digestSubject" red.
+- `Test.Channel.EmailIn.TestServiceSkipsOwnMail`: mutation: the Ref looked up with its spaces stripped -> "a Ref with spaces around it is not the Ref" red; the information line left out -> "one information line, with the Ref and nothing of the email" red.
+- `Test.Digest.Thresholds.TestDigestSeeds` (Lane A test, O1; the pin of `Process.CHANNELSDEFAULT` moved to Notify's reading of the section default): mutation: `Functions.DigestNamed` with a default of `web` instead of the section's -> the phone and telegram assertions red.
+- `Test.Core.Routing.TestNotifyDigestEmail` pins the no-job half only (it records a log message, not an assertion, where EmailOut runs); the half with a job, and every mutation of the rule and of `DigestEmail`, is in `EmailLive` above.
+
 **Shared surfaces:** Notify's digest targets (`Test.Core.Routing` `TestNotifyDigestTargets`, `TestRuleTargetsAreProductionItems`, `RoutingProduction`); the renderer's channel list and key counts (`Test.Msg.Catalog`); the `digest.channels` validation (`SettingsSave` pins `email` refused today); `DIGEST_CHANNELS` and the box list (`settings-view.test.mjs`, `ux-strings.test.mjs`, `settings.spec.ts` S10's boxes); `EmailOut`'s MessageMap and Send (`Test.Channel.EmailOut`, `EmailLive`); `EmailIn` intake (`EmailIn`, `EmailInPop3`, `EmailLive` POP3 cases); the mock's state shapes (`ci/mock/test/`). Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap (two veto-window items found at implement; see Clarification Needed below)
+Status: done
+Blocking condition: none
 
-(Lead, 2026-11-12: the plan halted on the O1 intent gap; O1 and the gate items are ruled (Spec Change Log), so the spec is reset to ready-for-dev.)
+Summary: Story 21.7 sends the daily digest by email. Notify's rule `DigestEmail` adds `EmailOut` for kind `digest` when `digest.channels` names `email`, the session owns the mailbox, `email.address` is set, EmailOut runs and it is not the online demo. `EmailOut`'s third path renders the subject (E1) and text, sends once to `email.address` only, caps at 10 per UTC day, and records a `Delivery` with a `DigestKey`. Every EmailOut mail carries a random `X-OcuTalon-Ref`; `EmailIn` skips a mail only on the three V4 conditions. `Digest.Process` hands every digest to Notify (O1). Settings accepts `email` and shows an Email box once address and outgoing are saved. The ruled V8 columns and V9 resend removal are kept.
 
+Files changed: the 38 paths of the applied attempt-1 patch (classes under `src/ocutalon/cls/OcuTalon/` for Channel/Email, Core, Data, Digest/Process, Msg and their tests; `ci/mock/` and its tests; `web/src/app/settings/` and its tests and `web/e2e/settings/email.spec.ts`; README R1, the spine S1-S5 and EXPERIENCE rows) and, from this pass, tests only: `Test/Digest/Thresholds.cls`, `Test/Channel/EmailLive.cls`, `Test/Channel/EmailOut.cls`, `Test/Channel/EmailIn.cls`, `Test/Core/Routing.cls`, `web/e2e/settings/email.spec.ts`.
+
+Review: 39 findings -- patches 4 medium (all test-side), deferred 1 (low, `Digest/Data/Sent.cls` comments), rejected the rest with reasons in the Review Triage Log. Also fixed: `Test.Digest.Thresholds` (red after O1 removed `CHANNELSDEFAULT`) and the E7 locator (strict-mode violation: the confirmation text is also in the live announcer).
+
+Follow-up review recommended: false. Four mediums were patched on this first pass, but all are test assertions; each was run green and its mutation observed red, and no product code changed in the pass, so no unverified risk can be named.
+
+Verification: warm stack `e21s7iw2` (lane C), every loop class green after the last patch (Msg.Catalog, Core.Routing, Channel.EmailOut, Channel.EmailIn, Channel.EmailLive, Core.SettingsSave, Core.SettingsRunTime, Core.RoutingProduction, Core.CommandsStep4, Digest.Thresholds and every `Test.Digest.*` class); `node --test ci/mock/test/` (167) and `web/scripts/` (1931) pass; `tsc -p tsconfig.e2e.json` and `npm run build` clean; fresh stack `e21s7i` `live sign-in-2 --part 13/15` 32 passed (E7 failed once on the locator, fixed, rerun green); `test-class-rules`, `test-boundaries`, `test-ci-config` pass; spine lint shows the 10 baseline low findings. Both stacks torn down.
+
+Residual risks: the known limit of O1 (V9: nothing re-sends a digest a channel missed); the headers-only POP3 path is pinned with the stand-in only (inference, unreachable for own mail); R1 landed in the README (0.26 had merged).

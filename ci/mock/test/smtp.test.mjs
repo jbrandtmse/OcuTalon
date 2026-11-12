@@ -181,6 +181,41 @@ test('a multipart mail counts its parts and its attachments, and a base64 body i
   assert.equal(m.subject, 'Both');
 });
 
+test('the state carries the X-OcuTalon-Ref header of a mail: any case of the name, trimmed, unfolded, and empty when absent', async () => {
+  await withStub(async ({ control, port }) => {
+    const { c } = await hello(port);
+    await mail(c, { head: ['Subject: plain', 'X-OcuTalon-Ref: ref-1'], body: 'one' });
+    await mail(c, { head: ['Subject: lower', 'x-ocutalon-ref:   ref-2 \t'], body: 'two' });
+    await mail(c, { head: ['Subject: folded', 'X-OCUTALON-REF:', ' ref-3-part-a', '\tref-3-part-b'], body: 'three' });
+    await mail(c, { head: ['Subject: none', 'X-Other-Ref: not-this'], body: 'four' });
+    await c.send('QUIT');
+    c.close();
+    const messages = (await control('state', undefined, 'GET')).json.messages;
+    assert.deepEqual(messages.map((m) => m.subject), ['plain', 'lower', 'folded', 'none']);
+    assert.deepEqual(messages.map((m) => m.xOcutalonRef), ['ref-1', 'ref-2', 'ref-3-part-a ref-3-part-b', '']);
+    await control('reset', {});
+    assert.deepEqual((await control('state', undefined, 'GET')).json.messages, []);
+  });
+});
+
+test('parse reads the X-OcuTalon-Ref header of the top of a multipart mail, not one inside a part', () => {
+  const raw = [
+    'Subject: Both',
+    'X-OcuTalon-Ref: top-ref',
+    'Content-Type: multipart/alternative; boundary="B1"',
+    '',
+    '--B1',
+    'Content-Type: text/plain; charset=utf-8',
+    'X-OcuTalon-Ref: part-ref',
+    '',
+    'words',
+    '--B1--',
+    '',
+  ].join('\r\n');
+  assert.equal(parse(raw, { from: 'a@example.com', to: ['b@example.com'] }).xOcutalonRef, 'top-ref');
+  assert.equal(parse('Subject: x\r\n\r\nbody', { from: 'a@example.com', to: [] }).xOcutalonRef, '');
+});
+
 test('decodeWords joins adjacent encoded words and reads the Q encoding', () => {
   assert.equal(decodeWords(`=?utf-8?B?${b64('Gr')}?= =?utf-8?B?${b64('\u00fc')}?=`), 'Gr\u00fc');
   assert.equal(decodeWords('=?utf-8?Q?caf=C3=A9_au_lait?='), 'caf\u00e9 au lait');

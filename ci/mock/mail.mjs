@@ -13,16 +13,21 @@
 //        refuse: the connection is closed at once, with no greeting; auth: PASS is answered -ERR; error: UIDL is answered -ERR
 //   POST /_mock/mail/reset     the mailbox empty, no failure, every count 0
 //   GET  /_mock/mail/state     {"uidls":[...],"connections":n,"logins":n,"user":"<last user>","deletes":n,"failure":"<mode>","commands":{"UIDL":n,...}}
-// A <message> is {"uidl","from","subject","text","html","bytes"}: uidl is required (1 to 70 printable characters, no space); text is the
+// A <message> is {"uidl","from","subject","text","html","bytes","headers"}: uidl is required (1 to 70 printable characters, no space); text is the
 // plain body and html the HTML body (html alone makes an HTML-only message, both make multipart/alternative); bytes pads the body with filler to that total size (at
 // most 4 MiB; an HTML-only message pads its HTML body and stays HTML-only), so that a message over a size limit needs no large request. A non-ASCII subject or body is encoded as a real mail
-// would send it (an encoded word, base64). Any other path is a 404.
+// would send it (an encoded word, base64). headers is optional, an object {name: value} of extra RFC 5322 headers that RETR and TOP both
+// serve (after MIME-Version, in the object's order): a name is one or more token characters (letters, digits and !#$%&'*+-.^_`|~) and
+// may not be one of the headers that the stub writes itself (From, To, Subject, Date, Message-ID, MIME-Version, Content-Type,
+// Content-Transfer-Encoding), a value is a string with no CR or LF (a non-ASCII value is sent as an encoded word). Any other path is a 404.
 
 import net from 'node:net';
 
 export const MAX_BYTES = 4 * 1024 * 1024;
 export const FAILURES = ['none', 'refuse', 'auth', 'error'];
 const UIDL = /^[\x21-\x7e]{1,70}$/;
+const HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+const OWN_HEADERS = ['from', 'to', 'subject', 'date', 'message-id', 'mime-version', 'content-type', 'content-transfer-encoding'];
 
 function encodeHeader(text) {
   return /^[\x20-\x7e]*$/.test(text) ? text : `=?utf-8?B?${Buffer.from(text, 'utf8').toString('base64')}?=`;
@@ -50,6 +55,7 @@ export function build(message) {
     `Message-ID: <${message.uidl}@stub.example>`,
     'MIME-Version: 1.0',
   ];
+  for (const [name, value] of Object.entries(message.headers ?? {})) head.push(`${name}: ${encodeHeader(value)}`);
   if (Number.isInteger(message.bytes) && message.bytes > 0) {
     const need = message.bytes - (head.join('\r\n').length + 400 + text.length + (html ?? '').length);
     const filler = need > 0 ? `\n${'x'.repeat(77)}`.repeat(Math.ceil(need / 79)) : '';
@@ -199,6 +205,13 @@ export function createMail() {
       if (m.bytes !== undefined && (!Number.isInteger(m.bytes) || m.bytes < 0 || m.bytes > MAX_BYTES)) return { problem: `bytes must be a whole number up to ${MAX_BYTES}` };
       for (const key of ['from', 'subject', 'text', 'html']) {
         if (m[key] !== undefined && typeof m[key] !== 'string') return { problem: `${key} must be a string` };
+      }
+      if (m.headers !== undefined) {
+        if (m.headers === null || typeof m.headers !== 'object' || Array.isArray(m.headers)) return { problem: 'headers must be an object of name and value' };
+        for (const [name, value] of Object.entries(m.headers)) {
+          if (!HEADER_NAME.test(name) || OWN_HEADERS.includes(name.toLowerCase())) return { problem: `the header name ${JSON.stringify(name)} is not allowed` };
+          if (typeof value !== 'string' || /[\r\n]/.test(value)) return { problem: `the value of the header ${name} must be a string without CR or LF` };
+        }
       }
       seen.add(m.uidl);
       made.push({ uidl: m.uidl, ...build(m) });

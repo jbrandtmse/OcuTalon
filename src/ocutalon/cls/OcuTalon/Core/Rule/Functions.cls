@@ -46,15 +46,15 @@ ClassMethod TelegramPaired(sessionRef As %String) As %Boolean
 	Quit paired
 }
 
-/// 1 when digest.channels names the channel (web, phone or telegram): the setting's comma-separated names, each trimmed and lowercased,
-/// or SettingsOps' declared default when the setting has no row. A name that is not one of the three never counts, and neither does an
+/// 1 when digest.channels names the channel (web, phone, telegram or email): the setting's comma-separated names, each trimmed and lowercased,
+/// or SettingsOps' declared default when the setting has no row. A name that is not one of the four never counts, and neither does an
 /// empty channel. Any error gives 0.
 ClassMethod DigestNamed(channel As %String) As %Boolean
 {
 	Try {
 		Set wanted = $ZConvert($ZStrip($Get(channel), "<>W"), "L")
 		Set named = 0
-		If $ListFind($ListBuild("web", "phone", "telegram"), wanted) {
+		If $ListFind($ListBuild("web", "phone", "telegram", "email"), wanted) {
 			Set default = ##class(OcuTalon.Core.SettingsOps).Section("daily-digest")
 			Set value = ##class(OcuTalon.Data.Setting).Get("digest.channels", $Select($IsObject(default): ..ChannelsDefault(default), 1: ""))
 			For i = 1:1:$Length(value, ",") {
@@ -65,6 +65,41 @@ ClassMethod DigestNamed(channel As %String) As %Boolean
 		Set named = 0
 	}
 	Quit named
+}
+
+/// 1 when a digest of the session goes by email (Story 21.7): not the online demo, digest.channels names email, the session is the mailbox owner
+/// (the product key email.owner), email.address is an address and EmailOut has an alive job. The keys are read from their rows, never the cache. Any
+/// error gives 0. The recipient is not decided here: EmailOut works it out itself from email.address.
+ClassMethod DigestEmail(sessionRef As %String) As %Boolean
+{
+	Try {
+		Set yes = 0
+		Set sessionRef = $Get(sessionRef)
+		If (sessionRef '= "") && (##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1) && ..DigestNamed("email") {
+			If (sessionRef = ##class(OcuTalon.Data.Setting).Fresh("email.owner")) && ##class(OcuTalon.Core.SettingsOps).IsAddress(##class(OcuTalon.Data.Setting).Fresh("email.address")) {
+				Set yes = ''##class(OcuTalon.Core.CommandsIn).ItemRunning("EmailOut")
+			}
+		}
+	} Catch exception {
+		Set yes = 0
+	}
+	Quit yes
+}
+
+/// The channels a digest of the session goes to, as a list in the order web, phone, telegram, email: the ones that digest.channels names and that are
+/// available to the session, which are the channels that Notify's rule for kind digest sends it to. The list is empty when none holds. Any error gives
+/// the channels found so far.
+ClassMethod DigestChannels(sessionRef As %String) As %List
+{
+	Set channels = ""
+	Try {
+		If ..DigestNamed("web") Set channels = channels_$ListBuild("web")
+		If ..DemoOn() && ..DigestNamed("phone") Set channels = channels_$ListBuild("phone")
+		If ..TelegramPaired(sessionRef) && ..DigestNamed("telegram") Set channels = channels_$ListBuild("telegram")
+		If ..DigestEmail(sessionRef) Set channels = channels_$ListBuild("email")
+	} Catch exception {
+	}
+	Quit channels
 }
 
 /// The declared default of the channels field of the daily-digest section.

@@ -4,8 +4,9 @@
 ///   - SendCompose saves the Compose (a queued digest is a body that the due check and the key check read) and records it, in order, as
 ///     ^||DigestProbe("compose", n) = $ListBuild(session, kind, dueAt, key, windowStart, windowEnd, id);
 ///   - SendNotice records the Notification as ^||DigestProbe("notice", n) = $ListBuild(session, kind, catalogKey, decisionRef, slots, item, superSession), item
-///     being the item it was sent to (Notify, or the item of a channel) and superSession the host's %SuperSession at the send, and fails when FailNotice is set or when the item is one of FailItems (comma-separated), and throws instead when the item is one of ThrowItems;
-///   - Own gives the session's own channels from OwnChannels (comma-separated) when it is set, else the product's (ReadOwn always gives the product's);
+///     being the item it was sent to (Notify) and superSession the host's %SuperSession at the send, and fails when FailNotice is set or when the item is one of FailItems (comma-separated), and throws instead when the item is one of ThrowItems;
+///   - Reachable gives the channels from OwnChannels (comma-separated, the channels available to the session) that digest.channels names, in the order of
+///     OwnChannels, when it is set, else the product's (Product always gives the product's);
 ///   - SendSummary records the request as ^||DigestProbe("summary", n) with the fields kind, provenance, sessionMode, seedText, ownerRef, itemId, input,
 ///     channel, systemNote, summary and traceRef, and fails when FailSummary is set;
 ///   - Rows records its window as ^||DigestProbe("rows", n) = $ListBuild(fromUtc, toUtc) and gives the rows of Test.Digest.CoverageProbe (healthy vital
@@ -14,7 +15,7 @@
 ///   - SendResult (Story 17.7) records the DigestResult as ^||DigestProbe("result", n) = $ListBuild(itemId, sourceItemId, catalogKey, allClear, named, checked,
 ///     decisionRef, fallback, fallbackReason), and fails when FailResult is set; Cost and Channels count their calls under ^||DigestProbe("cost") and
 ///     ^||DigestProbe("channels") and then do the product's own work;
-///   - Schedule and Resend work only for the sessions of Only (comma-separated), so that a tick queues and resends nothing for a session the test does not own;
+///   - Schedule works only for the sessions of Only (comma-separated), so that a tick queues nothing for a session the test does not own;
 ///   - Covered records each answer of the product's check, in order, as ^||DigestProbe("covered", n) = 0 or 1.
 /// Cost and NeedsYou are the product's own: the tests feed them with fixture rows. LOCKSECONDS is 1, so that a held lock costs the test a second.
 /// Hold and Held take and test the lock of a session's digest from another job; Hold can write a Sent row that covers a due time just before it lets go.
@@ -27,14 +28,14 @@ Parameter LOCKSECONDS = 1;
 
 Parameter PROBE = "OcuTalon.Test.Digest.CoverageProbe";
 
-/// The trace session id a test gives the host (%SessionId), so that the Ens.Rule.Log rows of its direct sends are its own: RouteRows reads them and Clean
-/// deletes them.
+/// The trace session id a test gives the host (%SessionId), so that the Ens.Rule.Log rows that Digest might write are its own: RouteRows reads them and
+/// Clean deletes them.
 Parameter TRACESESSION = -770017;
 
 /// The sessions that Schedule works for, comma-separated.
 Property Only As %String(MAXLEN = "") [ Transient ];
 
-/// The session's own channels, comma-separated; empty for the product's own reading.
+/// The channels available to the session, comma-separated; empty for the product's own reading.
 Property OwnChannels As %String [ Transient ];
 
 Property FailNotice As %Boolean [ InitialExpression = 0, Transient ];
@@ -211,12 +212,6 @@ Method Schedule(sessionRef As %String, due As %String, now As %String) As %Statu
 	Quit ##super(sessionRef, due, now)
 }
 
-Method Resend(id As %String, sessionRef As %String) As %Status [ Private ]
-{
-	If '$ListFind($ListFromString(..Only), sessionRef) Quit $$$OK
-	Quit ##super(id, sessionRef)
-}
-
 Method Covered(sessionRef As %String, due As %String) As %Boolean [ Private ]
 {
 	Set covered = ##super(sessionRef, due)
@@ -247,26 +242,32 @@ Method Cost(sessionRef As %String, at As %String, Output sc As %Status) As %Nume
 	Quit ##super(sessionRef, at, .sc)
 }
 
-Method Channels(sessionRef As %String, Output channels As %List, Output own As %List) As %Status [ Private ]
+Method Channels(sessionRef As %String, Output channels As %List) As %Status [ Private ]
 {
 	Do $Increment(^||DigestProbe("channels"))
-	Quit ##super(sessionRef, .channels, .own)
+	Quit ##super(sessionRef, .channels)
 }
 
-Method Own(sessionRef As %String) As %List [ Private ]
+Method Reachable(sessionRef As %String) As %List [ Private ]
 {
 	If ..OwnChannels = "" Quit ##super(sessionRef)
-	Quit $ListFromString(..OwnChannels)
+	Set channels = ""
+	Set position = 0
+	Set available = $ListFromString(..OwnChannels)
+	While $ListNext(available, position, channel) {
+		If ##class(OcuTalon.Core.Rule.Functions).DigestNamed(channel) Set channels = channels_$ListBuild(channel)
+	}
+	Quit channels
 }
 
-/// The product's own reading of the session's channels, whatever OwnChannels says.
-Method ReadOwn(sessionRef As %String) As %List
+/// The product's own reading of the channels a digest of the session goes to, whatever OwnChannels says.
+Method Product(sessionRef As %String) As %List
 {
 	Set was = ..OwnChannels
 	Set ..OwnChannels = ""
-	Set own = ..Own(sessionRef)
+	Set channels = ..Reachable(sessionRef)
 	Set ..OwnChannels = was
-	Quit own
+	Quit channels
 }
 
 Method SendNotice(notification As OcuTalon.Msg.Notification, item As %String) As %Status [ Private ]

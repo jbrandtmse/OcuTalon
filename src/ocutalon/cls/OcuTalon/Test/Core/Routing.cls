@@ -10,7 +10,9 @@
 ///   - TestNotifyTargets: each kind of Notification with demo mode on and off, with and without a pairing and with Telegram
 ///     included or not, a reply that came from the web and from Telegram, and a pairing notice with and without a ChatRef;
 ///     the kind digest on top of that for no digest.channels row and for each value the setting can hold;
-///   - TestFunctions: the five functions of the rules, and that the rules resolve them from OcuTalon.Core.Rule.Functions alone;
+///   - TestNotifyDigestEmail (Story 21.7): the rule DigestEmail adds no target to a digest while EmailOut has no alive job (the production here does not run it),
+///     whatever digest.channels, email.owner, email.address and the demo flag say; with a job it is the job of OcuTalon.Test.Channel.EmailLive;
+///   - TestFunctions: the functions of the rules, and that the rules resolve them from OcuTalon.Core.Rule.Functions alone;
 ///   - TestRuleTargetsAreProductionItems: the two router items use these rules, and every target and transform that a rule
 ///     names exists in the production.
 /// The fixture sessions come from Test.Data.Fixture. The test restores the demo.mode and digest.channels settings (as Test.Demo.Step
@@ -309,6 +311,56 @@ Method TestNotifyDigestTargets()
 	Do ..PutChannels("", 0)
 }
 
+/// Story 21.7: the rule DigestEmail adds a target only while EmailOut has an alive job. Here the production does not run EmailOut (the item is disabled until an
+/// outgoing server is saved), so a digest of the mailbox owner that names email, with an address saved and demo mode off or on, goes to the same targets as
+/// without email, and DigestEmail is 0; the cases with a job are those of OcuTalon.Test.Channel.EmailLive.
+Method TestNotifyDigestEmail()
+{
+	If ##class(OcuTalon.Core.CommandsIn).ItemRunning("EmailOut") {
+		Do $$$LogMessage("EmailOut runs on this stack, so the cases with a job are the live test's")
+		Quit
+	}
+	Set owner = ..Session("emailowner")
+	Set found = ""
+	For key = "email.owner", "email.address" {
+		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+		Set found = found_$ListBuild($ListBuild($IsObject(row), $Select($IsObject(row): row.Value, 1: "")))
+	}
+	Try {
+		Do ##class(OcuTalon.Data.Setting).Set("email.owner", owner)
+		Do ##class(OcuTalon.Data.Setting).Set("email.address", "zzrouting@example.com")
+		Do ..PutChannels("web,email")
+		For demo = 0, 1 {
+			Do ##class(OcuTalon.Test.Demo.Step).Put(demo, "2026-01-02T03:04:05Z")
+			Set notification = ##class(OcuTalon.Msg.Notification).%New()
+			Set notification.SessionRef = owner
+			Set notification.Kind = "digest"
+			Do $$$AssertEquals(..Route(..#NOTIFYRULE, notification), "send:WebChatOut:", "demo "_demo_": a digest naming web and email goes to the web chat alone while EmailOut has no job")
+			Do $$$AssertEquals($ClassMethod("OcuTalon.Core.Rule.Functions", "DigestEmail", owner), 0, "demo "_demo_": DigestEmail is 0 for the owner with a saved address")
+		}
+		Do ..PutChannels("email")
+		Set notification = ##class(OcuTalon.Msg.Notification).%New()
+		Set notification.SessionRef = owner
+		Set notification.Kind = "digest"
+		Do $$$AssertEquals(..Route(..#NOTIFYRULE, notification), "", "a digest naming email alone goes nowhere while EmailOut has no job")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the email routing test failed: "_exception.DisplayString())
+	}
+	Set position = 0
+	Set n = 0
+	For key = "email.owner", "email.address" {
+		Set n = n + 1
+		Set was = $List(found, n)
+		If $List(was, 1) {
+			Do ##class(OcuTalon.Data.Setting).Set(key, $List(was, 2))
+		} Else {
+			Do ##class(OcuTalon.Data.Setting).KeyIndexDelete(key)
+		}
+		Kill ^||OcuTalon.Setting(key)
+	}
+	Do ..PutChannels("", 0)
+}
+
 /// The five functions: IsSession is 1 only for the Ref of a session with a Session row; DemoOn follows the demo.mode setting
 /// ("1" is on, anything else and an absent row are off); TelegramOn follows Telegram.In.Included; TelegramPaired needs Telegram
 /// included and a Pairing row of the session; DigestNamed is 1 for a channel that digest.channels names, compared trimmed and
@@ -351,7 +403,13 @@ Method TestFunctions()
 	Do ..PutChannels("web,phone,telegram")
 	Do $$$AssertEquals($ClassMethod(functions, "DigestNamed", "fax"), 0, "DigestNamed: a name that the setting lists but that is not a channel is 0")
 	Do ..PutChannels("", 0)
-	For name = "IsSession", "DemoOn", "TelegramOn", "TelegramPaired", "DigestNamed" {
+	Do $$$AssertEquals($ClassMethod(functions, "DigestNamed", "email"), 0, "DigestNamed: email is not named when the setting has no row (email is opt-in)")
+	Do ..PutChannels("Web, EMAIL")
+	Do $$$AssertEquals($ClassMethod(functions, "DigestNamed", "email")_$ClassMethod(functions, "DigestNamed", " Email ")_$ClassMethod(functions, "DigestNamed", "phone"), "110", "DigestNamed: 'Web, EMAIL' names email, trimmed and lowercased, and not phone")
+	Do ..PutChannels("", 0)
+	Do $$$AssertEquals($ClassMethod(functions, "DigestEmail", "")_$ClassMethod(functions, "DigestEmail", session)_$ClassMethod(functions, "DigestEmail", "instance"), "000", "DigestEmail: an empty Ref, a session with no mailbox and the owner instance are 0")
+	Do $$$AssertEquals($ListToString($ClassMethod(functions, "DigestChannels", session)), "web", "DigestChannels: web alone for a session with demo mode off and no pairing, with no value saved")
+	For name = "IsSession", "DemoOn", "TelegramOn", "TelegramPaired", "DigestNamed", "DigestEmail", "DigestChannels" {
 		Kill class
 		Set sc = ##class(Ens.Rule.Utilities).ResolveFunction(name, .class, .method)
 		Do $$$AssertStatusOK(sc, name_" resolves as a rule function")
@@ -391,7 +449,7 @@ Method TestRuleTargetsAreProductionItems()
 		Do $$$AssertEquals(found, rule, router_" is routed by "_rule)
 	}
 	Set expected("OcuTalon.Core.Rule.Outcome") = "DigestStore,Notify"
-	Set expected("OcuTalon.Core.Rule.Notify") = "SimPhoneOut,TelegramOut,WebChatOut"
+	Set expected("OcuTalon.Core.Rule.Notify") = "EmailOut,SimPhoneOut,TelegramOut,WebChatOut"
 	Set rule = ""
 	For {
 		Set rule = $Order(expected(rule))

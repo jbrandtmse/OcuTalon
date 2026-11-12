@@ -37,6 +37,10 @@ Parameter MAXBYTES = 1048576;
 /// The status mark of the poll outcome (AD-14).
 Parameter MARK = "emailPoll";
 
+/// The header, in lower case, that EmailOut puts on every email it sends (Channel.Email.Out REFHEADER). The headers of a fetched email are matched
+/// without regard to case.
+Parameter REFHEADER = "x-ocutalon-ref";
+
 /// The reasons of a failed poll (Public text P1a to P1c).
 Parameter REASONUNREACHABLE = "OcuTalon couldn't reach the mail server.";
 
@@ -193,6 +197,7 @@ Method Read(n As %Integer, uidl As %String, size As %Integer, Output mail As Ocu
 		If $$$ISERR(sc) Quit sc
 		Set mail.Sender = ..Line($Get(headers("from")))
 		Set mail.Subject = ..Line($Get(headers("subject")))
+		Set mail.SentRef = $Extract(..Line($Get(headers(..#REFHEADER))), 1, 128)
 		Quit $$$OK
 	}
 	Set sc = ..MailServer.Fetch(n, .message)
@@ -203,8 +208,21 @@ Method Read(n As %Integer, uidl As %String, size As %Integer, Output mail As Ocu
 	Kill ..ReadFailures(uidl)
 	Set mail.Sender = ..Line(message.From)
 	Set mail.Subject = ..Line(message.Subject)
+	Set mail.SentRef = ..RefOf(message)
 	Set mail.Text = ..TextOf(message)
 	Quit $$$OK
+}
+
+/// The value of the header x-ocutalon-ref of the fetched email (the header name matched without regard to case), one line cut to 128 characters;
+/// "" when there is none.
+ClassMethod RefOf(message As %Net.MailMessagePart) As %String
+{
+	Set name = message.Headers.Next("")
+	While name '= "" {
+		If $ZConvert(name, "L") = ..#REFHEADER Quit
+		Set name = message.Headers.Next(name)
+	}
+	Quit $Select(name = "": "", 1: $Extract(..Line(message.Headers.GetAt(name)), 1, 128))
 }
 
 /// A header value as one line of at most 1000 characters: control characters become spaces.

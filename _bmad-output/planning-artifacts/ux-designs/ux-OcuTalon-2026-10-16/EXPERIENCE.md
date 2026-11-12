@@ -847,6 +847,8 @@ The digest is one message to a session. Its parts come in this order: a greeting
 | Items were saved and the summary request fell back | "Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). The most recent are under Recent decisions on your OcuTalon page." |
 | No item saved in the window | "Nothing was saved for later." |
 | Every digest (the cost) | "Yesterday's cost: {cost}." (two decimals, as the Formats rule says) |
+| The subject of the digest email (step 4, a mailbox and an outgoing mail server saved; [ADDED 2026-11-12, Story 21.7, Contest Planner ruling E1]) | "Your OcuTalon digest" (the same for every day, with no all-clear in it) |
+| The Email box of Settings › Daily digest (shows only once the address and the outgoing mail server are saved; [ADDED 2026-11-12, Story 21.7, Contest Planner ruling E2]) | "Email" |
 
 ### Incident notice with approval request (FR-24, FR-25, FR-8)
 
