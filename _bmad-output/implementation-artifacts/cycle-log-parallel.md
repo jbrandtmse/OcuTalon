@@ -3782,3 +3782,4 @@
 2026-11-12T18:44:28Z	Epic 0	ci_green_verified	head=05e29461 runs=43260265319(att3),43260265609 result=success flakes=DW-432,DW-1082_family(install-fresh,install-upgrade_att3_green)
 2026-11-12T18:44:28Z	Epic 0	amendments_verified	amendments=epics_0.30_block+spec_intent(Q1-Q3,DW-1199)+spine_Conventions_row(DW-1203) extensions=web(links,banner-stack,telegram-card,channels-section),Core/Allowance.cls,install.sh,release/notes+checklist(Q3_approved),EXPERIENCE,e2e,docker/tests ok=true
 2026-11-12T18:44:28Z	Epic 0	merge_enqueued	part=0.30 head=33f1cb03 code_head=05e29461 priority=1.0.8_blocker note=merged_by_orchestrator_at_green(runner_A_PART_READY_pending)
+2026-11-12T18:44:43Z	Epic 0	epic_merged_to_feature	part=0.30 feature_sha=36092ff1 merge_sha=36092ff1 code=05e29461(identical) verified_on_origin=yes
