@@ -2,7 +2,7 @@
 title: 'Story 0.30: A shorter README for judges, with the install, feature and admin material moved word for word to GUIDE.md'
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'af6d4bb1f91e4a000d03ceb77a4b1022fe906138'
 baseline_commit: '4c86e4ef840f23623f557d9f063465b4322a8ff3'
 review_loop_iteration: 0
@@ -131,6 +131,10 @@ deferred: []
 
 - [x] [Review] DW-1199 (ruled YES, orchestrator 2026-11-12 ~15:35Z): `src/ocutalon/cls/OcuTalon/Core/Allowance.cls:37` `INSTALLLINK` still points at `https://github.com/jbrandtmse/OcuTalon#install-it-yourself`, a README heading this story moved. The fix: the value becomes exactly `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself` (the class's doc comment at L36 says "The GUIDE.md section" instead of "The README section"); the pins that quote the old value follow: `Test/Core/{Allowance,AllowanceInProduction,BridgeSink,WebChatMessages,WebChatOut}.cls`, `web/e2e-online/allowance/{daily-cap,messages}.spec.ts`, `web/scripts/{allowance-sources,banner-view}.test.mjs` (grep the tree for `OcuTalon#install-it-yourself` and `INSTALLLINK`: after the fix no tracked file outside the spec and the ledger names the old URL). No visible text, route or privilege change. One mutation: INSTALLLINK back to the README URL -> `allowance-sources.test.mjs` (or the Test/Core pin) red. Verify the five IRIS classes with `ci/iris.sh class <Class>` on a lane-A throwaway (see the implement prompt), one class per call.
 
+- [ ] [Review] Planner CONDITION on DW-1199 (prompts/story-030-rulings.md, last section, ~16:00Z, binding): one sweep of every link to a moved README anchor, plus one new test. Lead sweep at 05e29461 (`git grep -nE 'OcuTalon#|README\.md#|README#|/blob/main/README'` over src, web/src, install.sh, docker, release, ci, docs, eval and the e2e specs, and then over every tracked file outside `_bmad-output/`, `_bmad/` and `.claude/`): no live link to a moved anchor is left beyond those Story 0.30 already changed (Q1's four web links and INSTALLLINK). The only hits are test-readme.sh's own negative self-test fixtures (`#x`, `#lit-address`, `#troubleshooting`, `#nowhere`). Re-run the sweep yourself; any live target whose heading moved to GUIDE.md becomes `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#<same anchor>` (link target only). Anchors that stayed don't change. The "(README)" links to the README top (DW-1200) are out of scope.
+  - THE TEST (must land even with no link change): a new rule in `docker/tests/test-readme.sh`, `readme-anchors` (add it to `RULES` and the header list). It scans every tracked file outside README.md (`git ls-files`; skip `_bmad-output/`, `_bmad/`, `.claude/`, binary files and test-readme.sh's self-test fixture lines, each with a one-line reason). It flags any link to a README anchor that README.md has no heading for, in every written form: `https://github.com/jbrandtmse/OcuTalon#<a>` (except `#readme`), `https://github.com/jbrandtmse/OcuTalon/blob/(main|HEAD)/README.md#<a>`, and a relative `README.md#<a>` with any `../` prefix. Slugs come from the rule file's existing `headings`/slug reader. It names the file:line and the anchor, and fails closed if README.md is missing. Self-tests (`st`), each red: a planted `README.md#install-it-yourself` in a scratch copy of a tracked doc; a planted `OcuTalon#set-a-model-key` in a .ts; a planted `../README.md#telegram` in docs/; and one green case, `README.md#measured`, which stays.
+  - Mutation: rename README's `## Measured` heading in a scratch copy -> `readme-anchors` red on GUIDE.md's `README.md#measured`. Record the line under Verification.
+
 **Acceptance Criteria:**
 - Given README.md after the story, when `bash docker/tests/test-readme.sh` runs, then `top`, `word-cap` and `guide` pass:
   - `top`: the new H2 order, the header with the two GUIDE badge URLs, word for word.
@@ -173,6 +177,8 @@ Rejected:
 - reject: commit 43b8745's message says "byte-identical except for link targets" while Edit 2 and the new `## New since 1.0.0` line differ (edge-case-hunter) — the spec records both as ruled structure and Edit 2; pushed history is not rewritten.
 
 ## Spec Change Log
+
+- 2026-11-12 ~16:40Z (lead, rework iteration 2, Planner condition on DW-1199 + DW-1203 ruling): (1) the Planner's condition (one sweep of links to moved README anchors, plus one repo-wide test) is a [Review] item; the lead's sweep found nothing live beyond the links already changed. (2) DW-1203 ruled by the orchestrator (decide): the spine's Consistency Conventions "README link" row was amended by the lead (Rule 20 light path, `[AMENDED 2026-11-12, Story 0.30 ...]`; lint_spine: the same 10 pre-existing low placeholder findings before and after, no ad_id or ad_fields finding; the spine has no .memlog.md, so none was appended). No AD changed.
 
 - 2026-11-12 ~15:35Z (lead, rework iteration 1, trigger=med_first_review): build-auto's four review layers found DW-1199 (Allowance.cls INSTALLLINK still at the README anchor that moved); it was deferred because `src/**` was closed. The orchestrator ruled YES (decide; the Planner may reverse): Q1 extends to that one link target and its pins. The intent's `src/**` line carries the [AMENDED] marker; one [Review] item re-opens the story.
 
