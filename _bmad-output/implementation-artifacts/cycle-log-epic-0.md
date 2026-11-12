@@ -996,3 +996,5 @@
 2026-11-12T19:56:52Z	Story 0.29	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=DW-1218_by-design,DW-1219_wontfix-accepted_born_terminal
 2026-11-12T19:56:52Z	Story 0.29	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=README+GUIDE_byte-equal_to_the_ruled_text(fills_from_compare.mjs);wc_-w_README_2171(cap_2300);test-readme,test-eval-set(readme-column,cases,compare,held-out*),test-boundaries_pass model=claude-opus-5-5
 2026-11-12T19:56:52Z	Story 0.29	fresh_check	env=clean-checkout(local_clone_of_HEAD+working-tree_patch) tests=4(test-readme,test-boundaries,test-eval-set_6_rules,4_web_scripts_tests_75) result=pass order=forward,reverse(bash_and_bash3.2)
+2026-11-12T19:56:52Z	Story 0.29	committed	sha=1228e7ad submodules= ci=hold(local_only,CI_HOLD_in_force) runs=none amendments=none code_commits=8d657523,1228e7ad readme_words=2171 note=LOCAL_READY;not_pushed
+2026-11-12T19:56:52Z	Story 0.29	story_cycle	plan_to_commit_min=45 implement_passes=1 reviews=1 rework=0 first_ci=pending(hold) models=plan:lead(spec_from_the_0.27_plan),implement:sonnet,qa:skipped,cr:opus
