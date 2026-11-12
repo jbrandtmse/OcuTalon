@@ -204,3 +204,6 @@
 2026-11-12T23:42:58Z	Epic 21	stage_spawned	stage=epic_context spawn_at=2026-11-12T23:42:58Z model=opus effort=high agent_name=epic-21-context-prewarm-7 reason=planning_artifact_newer(21.12_inserted,feature_merge)
 2026-11-12T23:45:33Z	Epic 21	epic_context_compiled	reason=planning_artifact_newer(21.12) model=opus header_ok=true
 2026-11-12T23:45:33Z	Story 21.12	stage_spawned	stage=plan spawn_at=2026-11-12T23:45:33Z model=opus effort=high agent_name=21-12-plan-1 cycle_iteration=1
+2026-11-12T23:59:38Z	Story 21.12	story_created	spawn_at=2026-11-12T23:46:10Z model=opus effort=high path=_bmad-output/implementation-artifacts/spec-21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do.md build_status=ready-for-dev warnings=oversized
+2026-11-12T23:59:38Z	Story 21.12	spec_validated	service_introducing=false integration_ac=n/a(test-only;CI_reads_the_exit_code) adr_constrained_acs=none decision_dependency=none owned_ledger=DW-1207 addressed=1 declined=0 mutates_shared_runtime=false amendment=epics.md_21.12_AC1_file_set_explicit(Rule5_tier1) model=claude-opus-5-5
+2026-11-12T23:59:38Z	Story 21.12	stage_spawned	stage=implement spawn_at=2026-11-12T23:59:38Z model=sonnet effort=high agent_name=21-12-implement-1 cycle_iteration=1 story_base=407b4daf

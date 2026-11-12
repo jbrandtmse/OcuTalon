@@ -7626,7 +7626,7 @@ So that moving or renaming a README section can never leave a dead link behind.
 
 **Acceptance Criteria:**
 
-**Given** any tracked Markdown file other than README.md (GUIDE.md and docs/*.md included) that links `README.md#<anchor>` (relative or by the repository URL)
+**Given** any tracked Markdown file other than README.md (GUIDE.md and docs/*.md included; the append-only records under `_bmad-output/`, the owner-only `_bmad/` and `.claude/`, and the frozen `release/records/` left out) that links `README.md#<anchor>` (relative or by the repository URL) [AMENDED 2026-11-12, Story 21.12 spec gate, Rule 5 tier 1: the file set made explicit so the check can pass on records nobody may edit]
 **When** the check runs in CI
 **Then** it fails, naming the file, line and anchor, for every anchor that is not a heading anchor of README.md as GitHub renders it, and passes when every such link resolves
 **And** the check proves it can fail: a planted dead link is flagged and a live one is not (DW-1207)
