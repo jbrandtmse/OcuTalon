@@ -2,7 +2,7 @@
 title: 'Story 25.3: Send a PDF, Word file or photo from the web app or Telegram'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'draft'
 baseline_revision: 'acb9c0459fc30bb6adf44f07cee69e5be18013ef'
 planned_against: 'feature b8780de6094a8e8186718832d926e1dc721bfc68 (integrated into OCT-epic25)'
 review_loop_iteration: 0
@@ -20,7 +20,7 @@ deferred: []
 
 **Problem:** A user cannot send OcuTalon a file. Nothing stores a sent file, `OcuTalon.Msg.Item` has no file fields, Lane A's `TelegramIn` (Story 26.2) has no file-store call to use, and the CI Telegram mock refuses `getFile` with a 404 that points at this story (FR-54, UX-DR147).
 
-**Approach:** Add Lane B's private file table `OcuTalon.Data.SentFile`, the file-store call `OcuTalon.Core.Files` (store with the size and type checks, owner-scoped open, Item fields, refusal texts) and four file fields on `Msg.Item`. Add `POST /api/v1/files` (`OcuTalon.Web.Files`), which stores the file and sends the Item through `WebChatIn`. `Conversation` takes a file Item as a turn, and `chat.message` carries the file. The composer gets a paperclip button and a drop on the chat. The CI mock gains `getFile` and the download path. The page refuses files before sending them. Sending files is off on the online demo (Design Notes → For the Planner, 1). This spec is the first child of the split proposed there; the replies (Add to documents, the Saved to memory chip, the read-failure reply) go to the proposed Story 25.6.
+**Approach:** Add Lane B's private file table `OcuTalon.Data.SentFile`, the file-store call `OcuTalon.Core.Files` (store with the size and type checks, owner-scoped open, Item fields, refusal texts) and four file fields on `Msg.Item`. Add `POST /api/v1/files` (`OcuTalon.Web.Files`), which stores the file and sends the Item through `WebChatIn`. `Conversation` takes a file Item as a turn, and `chat.message` carries the file. The composer gets a paperclip button and a drop on the chat. The CI mock gains `getFile` and the download path. The page refuses files before sending them. Sending files is off on the online demo (Planner ruling 1, option (a)). This spec is the first child of the approved split; the replies (Add to documents, the Saved to memory chip, the read-failure reply) are Story 25.6 (Planner ruling 2). Until Lane A's read path (Story 26.2) is merged, the paperclip and the chat drop stay hidden behind a `/v1/state` capability flag, and a file turn with no reader gets the fixed reply "I got {name}, but I can't read files yet." with no model call (Planner ruling 4). A file turn is untrusted provenance, the type is read from the bytes, no route serves a file's bytes back, and only a file's ref, name, type and size ever reach a log, the trace or a production message body (Planner ruling 3, four security conditions, each with a test). See Design Notes → Planner rulings (2026-11-12).
 
 ## Boundaries & Constraints
 
@@ -30,11 +30,17 @@ deferred: []
 - An Item and every production message carry the file's `Ref`, name, media type and size only, never its bytes or text (AD-4, AD-21). A file name renders as text only (AD-13).
 - The upload is a JSON body (`clientId`, `name`, `content` in base64), never multipart (AD-25). It needs the custom request header and a matching `Origin` (AD-13), and declares its own `BodyBounds` of 13,985,112 bytes.
 - On the online demo (`onlineDemo` 1) the route answers 409 `not_available` before the body is read, the page shows no paperclip, and a drop shows the off text. No file row is written on the demo.
-- Lane B files only. Visible strings are exactly those in Design Notes → PUBLIC TEXT, as the Planner rules them.
+- Lane B files only. Visible strings are exactly those in Design Notes → PUBLIC TEXT, as the Planner ruled them (rows 1-9 and the fixed reply, row 14).
+- Security condition (i): a turn that carries a `SentFile` is untrusted provenance (`Msg.Enum` PROVENANCE `untrusted`, as for an email), even with empty text; only read-only tools may run in such a turn, and the marking is kept on the Item, the Turn and whatever 26.2 later builds from it. `Conversation` admits a file Item with untrusted provenance as the one exception to its untrusted drop; every other drop is unchanged.
+- Security condition (ii): no route serves a stored file's bytes back (no GET, no download, no public or cross-session read); `Core.Files.Open` is a class call only, owner-scoped.
+- Security condition (iii): the type check uses the bytes' signature, never only the name or the declared type; a renamed `.exe` or `.html` (any name, any declared type) is `wrong_type`, refused with PUBLIC TEXT row 4.
+- Security condition (iv): nothing about a file reaches a log, the trace, the event log or a production message body except its ref, name, media type and size; the name is length-capped (255) and escaped wherever it is written into text.
+- The gap (ruling 4): `/v1/state` carries a capability flag for sending files that is true only when Lane A's read path (Story 26.2) is present in the code (a code-level probe, never a setting a user can flip); on this branch it is false, so the paperclip and the chat drop are hidden on every install until 26.2 merges. As defence in depth, a file turn with no reader is answered with the fixed reply "I got {name}, but I can't read files yet." and makes no model call.
 
 **Never:**
 - No edit to `TelegramIn`, `Agent.Input`, `Docs.Extract` or any other Lane A class. No change to `Data.Upload` or its contract.
-- No reply text, Add to documents control, Saved to memory chip or read-result rendering (proposed Story 25.6). No More to try item and no GUIDE.md or README line in this story.
+- No reply text other than the fixed no-reader reply; no Add to documents control, Saved to memory chip or read-result rendering (Story 25.6). No More to try item and no GUIDE.md or README line in this story (ruling 5: the line goes with 25.6 or 26.2).
+- No route that returns a stored file's bytes (ruling 3 (ii)).
 - No new role, grant, resource or web/Python dependency. Never widen `OcuTalonUser`. No `%Prepare` outside `Ownership.Rows`.
 - No edit to `Msg/Catalog.cls`, `Msg/Catalog/Core.cls`, `ci/mock/server.mjs` or `ci/mock/test/helpers.mjs` (contended with Epic 21).
 - No real Telegram bot and no api.telegram.org, only the CI mock. No test deleted, skipped, tagged off or shortened.
@@ -43,11 +49,15 @@ deferred: []
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Send each type | OcuTalonUser; `POST /api/v1/files` with a valid `.pdf`, `.docx`, `.jpg`/`.jpeg`, `.png` | 202 `{"clientId","file":{"ref","name","mediaType","size"}}` with media types `application/pdf`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `image/jpeg`, `image/png`. One `SentFile` row is written for the session, and one Item with Channel `web`, Provenance `user` and the four file fields reaches `Conversation`. A queued Turn has `SentFile` set. `chat.message` and `/v1/state` carry `sentFile` | No error expected |
+| Send each type | OcuTalonUser; `POST /api/v1/files` with a valid `.pdf`, `.docx`, `.jpg`/`.jpeg`, `.png` | 202 `{"clientId","file":{"ref","name","mediaType","size"}}` with media types `application/pdf`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `image/jpeg`, `image/png`. One `SentFile` row is written for the session, and one Item with Channel `web`, Provenance `untrusted` and the four file fields reaches `Conversation`. A queued Turn has `SentFile` set and is marked untrusted. `chat.message` and `/v1/state` carry `sentFile`. With no reader (this branch), the turn gets the fixed reply "I got {name}, but I can't read files yet." and no model request is made | No error expected |
 | Too large | Content of 10,485,761 bytes or more, within the body bound | No row, no Item | 400 `bad_file`, `reason` `too_large`, `size` in bytes |
 | Body over the bound | Body over 13,985,112 bytes (a 14 MB file) | Nothing parsed or stored | 413 `body_too_large` |
 | Empty | Content of 0 bytes | No row, no Item | 400 `bad_file`, `reason` `empty` |
-| Other type | `.txt`, `.md`, `.gif`, `.doc`, a `.png` name on PDF bytes, unknown bytes | No row, no Item | 400 `bad_file`, `reason` `wrong_type` |
+| Other type | `.txt`, `.md`, `.gif`, `.doc`, a `.png` name on PDF bytes, unknown bytes, a renamed `.exe` (MZ bytes) or `.html` named `x.pdf` or `x.png`, any declared type | No row, no Item | 400 `bad_file`, `reason` `wrong_type`; the page and `RefusalText` show PUBLIC TEXT row 4 |
+| No reader | A file Item reaches `Conversation` while Lane A's read path is absent | Turn saved (untrusted); the fixed reply "I got {name}, but I can't read files yet." with `{name}` escaped; zero model requests (CI mock call count unchanged) | — |
+| Capability flag | `/v1/state` on a local install on this branch | The flag is false; no paperclip, and a drop does nothing visible beyond today's behaviour; the route itself still works for the API tests | — |
+| No byte read-back | `GET` on `/api/v1/files`, `/api/v1/files/<ref>`, any other path naming a file `Ref` | No route returns the bytes | 404 (no route) |
+| Log and trace hygiene | A file whose bytes carry a marker string, and a name with `<script>` and 400 characters | The marker appears in no log, trace, event-log entry, production message body or Turn text; only ref, name (capped, escaped), type and size appear | — |
 | Bad body | Not JSON; `name` missing, empty after trim, over 255 characters or holding a control character; `content` missing, not a string or not base64; `clientId` missing, empty or over 128 characters | Nothing stored | 400 `bad_file` with no `reason` |
 | Duplicate clientId | Same `clientId` sent twice by one session | Second answer is 202 with the same `clientId`; no second row or Turn (the stored row is dropped when `WebChatIn` does not queue the Item) | — |
 | Body sessionRef | A `sessionRef` key in the body | Ignored; the row belongs to the caller's session | — |
@@ -242,6 +252,8 @@ Line numbers are on `acb9c045` (OCT-epic25, feature `b8780de6` integrated).
 
 ## Spec Change Log
 
+- 2026-11-12 (lead, spec gate): the Contest Planner's rulings (`story-253-rulings-20261112.md`) written into the intent contract and Design Notes; status reset to `draft` for a re-plan on this spec path. Rulings: demo OFF (a); split to Story 25.6 approved (inserted into epics.md); veto items approved with four security conditions, each with a test; the gap closed by a `/v1/state` capability flag (true only once 26.2's read path is merged) plus a fixed no-model reply; PUBLIC TEXT rows 1-9 approved verbatim, plus the fixed reply; rows 11-13 go with 25.6/26.2. Decided 6, 10 and 11 and For the Planner 8 are superseded where they differ.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -311,7 +323,16 @@ Line numbers are on `acb9c045` (OCT-epic25, feature `b8780de6` integrated).
 11. No More to try item (files are off on the demo, where the guide runs) and no GUIDE.md line in this child (For the Planner 5). No new live unit: the new classes join `image` and `shards-6`, the specs join `live:sign-in` (`shards-10`), and the mock tests run in the hosted `web` job.
 12. The demo pin is class-level (`FilesApi`, `onlineDemo` forced and restored, the `DocumentsApi.TestList` precedent) plus the chromium spec with `/state` stubbed. `live:online-demo` has no `--part` and takes about 9 minutes, so no `e2e-online` test is added (For the Planner 1).
 
-### For the Planner (spec gate)
+### Planner rulings (2026-11-12, Contest Planner under the owner's delegation; binding)
+
+1. Demo: (a) OFF as planned: the route returns 409 `not_available` before reading the body, the paperclip is hidden, a dropped file shows text 6, all pinned. Telegram never runs on the demo.
+2. Split to Story 25.6 APPROVED (inserted into epics.md, with the moved ACs and markers). U-326 (the reply-contract AC added to 37.1, DW-1231) stands. `getFile` stays in 25.3.
+3. Veto items APPROVED (route, `SentFile`, appended columns, payload and error code, CI mock, spine appends), plus FOUR SECURITY CONDITIONS, each with a test: (i) a turn that carries a `SentFile` is UNTRUSTED provenance from 25.3 on, even with empty text: only read-only tools run in that turn (as for a failed message or an email); when 26.2 reads the content, it keeps that marking. (ii) No route serves a stored file's bytes back, except possibly to its own session; no public or cross-session download (this story adds none at all). (iii) The type check uses the file's bytes, never only the name or the declared type; a renamed .exe or .html is refused with text 4. (iv) Nothing about a file goes into any log, trace or production message body except ref, name, type and size; the name is length-capped and escaped. The real-HTTP test list is approved as written.
+4. THE GAP: don't ship a half feature. Hide the paperclip and the chat drop behind a `/v1/state` capability flag that turns on only when 26.2's read path is merged. Defence in depth: a file turn with no reader gets a fixed code reply "I got {name}, but I can't read files yet." and NO model call. A judge on a local install must never see the model reply to an empty message. (Supersedes For the Planner 8's recommendation and Decided 10's "the paperclip is hidden only on the demo".)
+5. GUIDE "New since" line goes with 25.6 or 26.2, whichever makes it true; line 13 approved, each clause only once its story has merged. Not in 25.3.
+PUBLIC TEXT: rows 1-9 approved verbatim; rows 11 and 12 go with 25.6; row 13 under (5); plus the fixed reply (row 14).
+
+### For the Planner (spec gate, as sent; ruled above)
 
 1. **Online demo behaviour (ONLINE DEMO SAFETY vs the AC's demo clause).** This is the planned default; nothing else in this spec depends on the choice.
    - **(a) OFF, recommended.** The route answers 409 `not_available` with the off text before the body is read. The page shows no paperclip, and a drop shows the off text. It is pinned by `Test.Web.FilesApi` (`onlineDemo` 1) and by `files.spec.ts` (stubbed `/state`). The AC's demo clause becomes "refused on the demo, nothing stored, nothing counted". Session ownership, the sign-out drop and the purge still apply wherever files run. The allowance call is left out, because it can't be reached; (b) or (c) add it, with `TryConsume` before the store and its test.
@@ -376,7 +397,8 @@ Line numbers are on `acb9c045` (OCT-epic25, feature `b8780de6` integrated).
 | 10 | Drop hint | none (Decided 8) | — |
 | 11 | "Add to documents" control and accessible name | "Add to documents" | Given: EXPERIENCE :1091. Planned for 25.6 (`files-view.ts`), not in this story |
 | 12 | Photo reply chip | "Saved to memory" | Given: EXPERIENCE :1092. Planned for 25.6, not in this story |
-| 13 | GUIDE.md line | For the Planner 5 | New; recommended for 25.6 |
+| 13 | GUIDE.md line | For the Planner 5 | Approved for 25.6/26.2 (ruling 5); not in 25.3 |
+| 14 | `Core.Conversation` (or `Core.Files`) parameter, the no-reader reply; `FILES_TEXTS` if the page shows it | "I got {name}, but I can't read files yet." (`{name}` as escaped text) | Approved (ruling 4) |
 
 ### SPINE ROWS (this story's own; AD-33, Story 25.2's amended first AC)
 

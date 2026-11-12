@@ -8353,17 +8353,23 @@ So that OcuTalon can read it, keep it as a document, or remember what a photo sh
 **Then** it is refused before it is stored, with the UX's text (fixture "That file is 14 MB; the limit is 10 MB."), and nothing else happens (FR-54, UX-DR147)
 **And** a file of any other type is refused the same way with "I couldn't read that file: {reason}." and a plain reason (FR-54, UX-DR147)
 
-**Given** the result of reading a file (from Lane A's Stories 19.6, 26.2 and 26.3, under the contracts Stories 34.1 (was 19.1) and 37.1 (was 26.1) fix, or a fixture until they merge) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the extraction is Story 19.6's, and the Documents page's PDF and Word types are Story 34.2 (was 20.1)'s; the criterion "**And** the Documents page's **Add documents** accepts PDF and Word files as well as Markdown and plain text (FR-42, UX-DR144)" left this story]
-**When** the reply is sent
-**Then** a failure reads "I couldn't read that file: {reason}." with a plain reason; a file that was read gets a reply offering **Add to documents**, which adds it through the documents route; and a photo's reply shows a "Saved to memory" chip (FR-54, UX-DR147)
+**The reply to a file moved to Story 25.6** [AMENDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings): the split of Story 25.3 approved; the criterion "**Given** the result of reading a file (from Lane A's Stories 19.6, 26.2 and 26.3, under the contracts Stories 34.1 (was 19.1) and 37.1 (was 26.1) fix, or a fixture until they merge) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the extraction is Story 19.6's, and the Documents page's PDF and Word types are Story 34.2 (was 20.1)'s; the criterion "**And** the Documents page's **Add documents** accepts PDF and Word files as well as Markdown and plain text (FR-42, UX-DR144)" left this story] / **When** the reply is sent / **Then** a failure reads "I couldn't read that file: {reason}." with a plain reason; a file that was read gets a reply offering **Add to documents**, which adds it through the documents route; and a photo's reply shows a "Saved to memory" chip (FR-54, UX-DR147)" moved, whole and verbatim, to Story 25.6]
 
 **Given** the online demo
-**When** a visitor sends a file
-**Then** the file belongs to the session and is cleared at the reset, and the send counts as a message against the session's allowance (FR-15, FR-40, AD-4, AD-20)
+**When** a visitor opens the chat, or calls the file route
+**Then** sending files is off: the paperclip is hidden, a dropped file shows "Sending files is off on the online demo. It works on your own install.", and the route answers 409 `not_available` before reading the body, with nothing stored and nothing counted; Telegram never runs on the demo; wherever files do run, a sent file belongs to its session and is dropped at sign-out, at the reset and by the standard purge (FR-15, FR-40, AD-4, AD-20) [AMENDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings): ONLINE DEMO SAFETY, option (a) OFF; it read "**When** a visitor sends a file / **Then** the file belongs to the session and is cleared at the reset, and the send counts as a message against the session's allowance (FR-15, FR-40, AD-4, AD-20)"]
+
+**Given** a local install before Lane A's read path (Story 26.2) has merged
+**When** the page loads, or a file turn arrives with no reader
+**Then** the paperclip and the chat drop stay hidden behind a `/v1/state` capability flag that turns on only once 26.2's read path is merged; and, as defence in depth, a file turn with no reader gets the fixed reply "I got {name}, but I can't read files yet." with no model call, so nobody sees a model reply to an empty message (FR-54, UX-DR147) [AMENDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings): ruling 4, the gap; new criterion]
+
+**Given** a file sent from either channel
+**When** it is stored and becomes a turn
+**Then** the turn is untrusted provenance even with empty text, so only read-only tools run in it (and 26.2 keeps that marking when it reads the content); no route serves a stored file's bytes back to anyone but, at most, its own session; the type comes from the file's bytes, never only from the name or the declared type, so a renamed .exe or .html is refused with "it isn't a PDF, Word (.docx), JPEG or PNG file"; and nothing about a file reaches a log, the trace or a production message body except its ref, name, type and size, with the name length-capped and escaped; each condition has a test (FR-54, AD-4, AD-13, AD-21) [AMENDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings): ruling 3, the four security conditions of the approved veto items; new criterion]
 
 **Given** automated tests and a Playwright spec under `web/e2e/`, with fixture Telegram file Items
 **When** files of each type, a file of another type and an oversized file are sent from the page, and passed to the file-store call as Telegram files
-**Then** the Items, refusals and replies match, and no file content appears in a production message body; a mock test fetches a file through `getFile` and the download path (FR-54, AD-4, AD-22)
+**Then** the Items and refusals match, and no file content appears in a production message body; a mock test fetches a file through `getFile` and the download path (FR-54, AD-4, AD-22) [AMENDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings): the replies' part moved to Story 25.6; it read "**Then** the Items, refusals and replies match, and no file content appears in a production message body; a mock test fetches a file through `getFile` and the download path (FR-54, AD-4, AD-22)"]
 
 ### Story 25.4: Assign approver and viewer roles in Settings
 
@@ -8423,6 +8429,29 @@ So that I know who has to approve it.
 **Given** automated tests in `OcuTalon.Test.Core` and the REL-2 demo-path test, whose test setup creates `OcuTalonApprover`, the `OcuTalonApprover_<kind>` roles and `OcuTalonViewer` as fixture roles with the names Story 37.1 (was 26.1) fixes until Story 26.4's installer step creates them, and answer `Approval.MayAnswer` from a test double over those roles until Story 26.4 replaces Story 37.1 (was 26.1)'s stub, so no criterion here waits on Story 26.4
 **When** each kind is answered by a user holding only another kind's role, by a holder of `OcuTalonApprover`, and by the README account after an upgrade (holding the fixture `OcuTalonApprover` until Story 26.4's upgrade grants it)
 **Then** only the right roles answer, the others are told why on the page and the phone and get `not_allowed` from `AnswersIn`'s Telegram entry, and the demo path still passes (FR-11, FR-60, REL-2, AD-29)
+
+### Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure
+
+As a user,
+I want OcuTalon's reply to a file I sent to say whether it could read it, and to offer the next step,
+So that a read file can join my documents and a photo is remembered.
+
+[ADDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings, ruling 2): split from Story 25.3; its reply contract is Story 37.1's added criterion (inbox U-326, DW-1231)]
+
+**Acceptance Criteria:**
+
+**Given** the result of reading a file (from Lane A's Stories 19.6, 26.2 and 26.3, under the contracts Stories 34.1 (was 19.1) and 37.1 (was 26.1) fix, or a fixture until they merge) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the extraction is Story 19.6's, and the Documents page's PDF and Word types are Story 34.2 (was 20.1)'s; the criterion "**And** the Documents page's **Add documents** accepts PDF and Word files as well as Markdown and plain text (FR-42, UX-DR144)" left this story]
+**When** the reply is sent
+**Then** a failure reads "I couldn't read that file: {reason}." with a plain reason; a file that was read gets a reply offering **Add to documents**, which adds it through the documents route; and a photo's reply shows a "Saved to memory" chip (FR-54, UX-DR147)
+
+**Given** a Telegram file whose Item Story 26.2 has read
+**When** the reply is sent to the paired chat
+**Then** it carries the same failure text, and a file that was read can be added to the documents too, through the documents route taking the stored file's `Ref` (FR-54, AD-4, AD-29)
+
+**Given** automated tests and a Playwright spec under `web/e2e/`, with fixture read results until Stories 26.2, 26.3 and 37.1 merge
+**When** each type is sent and its reply arrives, read or failed
+**Then** the replies match, Add to documents adds the file, and across the whole flow no file content appears in a production message body (FR-54, AD-4)
+**And** the guide's "New since 1.0.0" gains its file line only with the clauses whose stories have merged ("offers to add it to your documents" with this story; "a photo's caption is saved to memory" with Story 26.3) (UX-DR147)
 
 ## Epic 26: Approver roles and reading files (step 6)
 
