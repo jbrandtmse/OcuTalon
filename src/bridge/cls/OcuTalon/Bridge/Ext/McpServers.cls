@@ -24,6 +24,10 @@
 ///     manager of a request, once, after the first MCP server was added to that manager, so a request that offers no MCP tool offers no proxy; it is in no agent's own
 ///     tools. The gate then runs every allowed native MCP call through it (it rewrites the call), and classifies a direct call of it exactly as the native call of the same
 ///     server and tool. The default is "", which is no proxy: the bridge alone, which names no server, rewrites nothing. A host that lists servers overrides it.
+///   - ServerOf says which of the host's servers a toolref belongs to (Story 22.4; AD-10, AD-31): the host's name for the server whose tools the toolref attaches, or ""
+///     for a toolref that the host does not know. The gate holds and replays a call of an MCP tool as the host's proxy call (the replay of an approved call takes the toolref
+///     of its grant only when ServerOf names the call's server), so a toolref that gets "" counts as unclassified: it is held and never run on its own. The default is "", which
+///     is no server: the bridge alone has no MCP server, so it holds and replays no MCP call. A host that lists servers overrides it.
 ///   - A failed or unavailable server never fails the build, and neither does an error from OnAttach: the runner logs it and goes on with the next server.
 Class OcuTalon.Bridge.Ext.McpServers
 {
@@ -53,6 +57,12 @@ ClassMethod OnAttach(server As %String, report As %DynamicObject) As %Status
 
 /// The class of the host's governed proxy toolset (see the class description), or "" for none. Gives "" by default.
 ClassMethod ProxyToolSet() As %String
+{
+	Quit ""
+}
+
+/// The host's name for the server that the toolref attaches (see the class description), or "" for a toolref that the host does not know. Gives "" by default.
+ClassMethod ServerOf(toolref As %String) As %String
 {
 	Quit ""
 }

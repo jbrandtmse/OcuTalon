@@ -13,6 +13,8 @@
 /// (server, toolref) pairs of the servers that the adapter recorded, the name that the host gives each server and its toolref (McpToolref, McpServerOf), so that the gate
 /// can classify a call of the governed proxy, which names a server and a tool, as it classifies the native call of the same tool, and can name the server in the proxy
 /// call that replaces a native one (Story 22.3). Like the grant, the map is not a field, and Begin and End kill it. A tool that is not in the map has no fingerprint.
+/// Story 22.4: once TakeGrant consumed the grant it keeps the approved call (source, name, ToolFingerprint) in a node of its own (ApprovedFingerprint), and the governed
+/// proxy notes the reason word of a replay that it refused (NoteReplayRefusal, ReplayRefusal); both nodes are outside FIELDS, and Begin and End kill them.
 Class OcuTalon.Bridge.Context Extends %RegisteredObject
 {
 
@@ -121,6 +123,12 @@ ClassMethod Put(name As %String, value As %String) As %Status
 
 /// The node of the grant of the replay, in the same process-private global as the context and outside FIELDS.
 Parameter GRANT = "grant";
+
+/// The node of the call that the grant approved, once TakeGrant consumed the grant (the source, the name and the ToolFingerprint of the approved row), in the same process-private global as the context and outside FIELDS.
+Parameter APPROVED = "approved";
+
+/// The node of the reason word of a refused replay (NoteReplayRefusal), in the same process-private global as the context and outside FIELDS.
+Parameter REFUSAL = "refusal";
 
 /// The node of the turn's MCP map, in the same process-private global as the context and outside FIELDS.
 Parameter MCP = "mcp";
@@ -260,7 +268,7 @@ ClassMethod IsMcpRef(toolRef As %String) As %Boolean [ Private ]
 }
 
 /// Builds the grant of the replay from the approval request with the Ref, in the context of this process: $ListBuild(Ref, ToolName, the hash of the
-/// canonical ToolArguments, ToolSource). Only a tool_call row in the state executing gives a grant (the replay starts the run first, StartExecution);
+/// canonical ToolArguments, ToolSource, ToolFingerprint). Only a tool_call row in the state executing gives a grant (the replay starts the run first, StartExecution);
 /// any other row, a missing row and a process with no context are an error and leave no grant. A grant already there is replaced.
 ClassMethod Grant(ref As %String) As %Status
 {
@@ -280,7 +288,8 @@ ClassMethod Grant(ref As %String) As %Status
 		Set failure = exception.AsStatus()
 	}
 	If hash = "" Quit failure
-	Set ^||OcuTalonBP.Context(..#GRANT) = $ListBuild(ref, row.ToolName, hash, row.ToolSource)
+	Kill ^||OcuTalonBP.Context(..#APPROVED), ^||OcuTalonBP.Context(..#REFUSAL)
+	Set ^||OcuTalonBP.Context(..#GRANT) = $ListBuild(ref, row.ToolName, hash, row.ToolSource, row.ToolFingerprint)
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -298,7 +307,36 @@ ClassMethod TakeGrant(name As %String, arguments As %RegisteredObject, source As
 	}
 	If (hash = "") || (name '= $ListGet(grant, 2)) || (hash '= $ListGet(grant, 3)) || (source '= $ListGet(grant, 4)) Quit 0
 	Kill ^||OcuTalonBP.Context(..#GRANT)
+	Set ^||OcuTalonBP.Context(..#APPROVED) = $ListBuild(source, name, $ListGet(grant, 5))
 	Quit 1
+}
+
+/// The ToolFingerprint of the approved call of the tool of the name, once TakeGrant has consumed the grant for it: the fingerprint the MCP tool had at the hold. It is
+/// "" for any other tool, for a call that took no grant, for a replay of a row that carries no fingerprint and for a process with no context. The governed proxy
+/// reads it to know that it runs an approved call and which fingerprint the tool must still have (Story 22.4). The node ends with the context.
+ClassMethod ApprovedFingerprint(tool As %String) As %String
+{
+	If '..Active() || '$Data(^||OcuTalonBP.Context(..#APPROVED)) Quit ""
+	Set approved = ^||OcuTalonBP.Context(..#APPROVED)
+	Quit $Select(tool = $ListGet(approved, 2): $ListGet(approved, 3), 1: "")
+}
+
+/// Notes the reason word of a replay that refused its call unrun (the proxy's changed, failed, timeout or demo), so that the replay can tell a refusal from a result: the
+/// tool answers a sentence either way. The last word noted stands. It does nothing for an empty word and when there is no context; it never throws.
+ClassMethod NoteReplayRefusal(word As %String)
+{
+	If '..Active() || ($Get(word) = "") Quit
+	Try {
+		Set ^||OcuTalonBP.Context(..#REFUSAL) = word
+	} Catch {
+	}
+}
+
+/// The reason word that NoteReplayRefusal noted in this context, or "" when there is none. It never throws.
+ClassMethod ReplayRefusal() As %String
+{
+	If '..Active() Quit ""
+	Quit $Get(^||OcuTalonBP.Context(..#REFUSAL))
 }
 
 /// The source of the grant (the ToolSource of the approved row), or "" when there is none.

@@ -164,7 +164,7 @@ ClassMethod Forget(port As %Integer)
 	Kill ^IRIS.Temp.OcuTalonMcpMock(port)
 }
 
-/// The requests the mock read on the port, in order, as a %DynamicArray of {"method", "tool", "auth", "answered", "client", "session"}.
+/// The requests the mock read on the port, in order, as a %DynamicArray of {"method", "tool", "auth", "answered", "client", "session", "arguments"} (arguments, Story 22.4: the JSON text of the arguments that a tools/call carried, "" for any other request).
 ClassMethod Requests(port As %Integer) As %DynamicArray
 {
 	Set requests = []
@@ -172,7 +172,7 @@ ClassMethod Requests(port As %Integer) As %DynamicArray
 	For {
 		Set n = $Order(^IRIS.Temp.OcuTalonMcpMock(port, "req", n), 1, entry)
 		Quit:n=""
-		Do requests.%Push({"method": ($List(entry, 1)), "tool": ($List(entry, 2)), "auth": ($List(entry, 3)), "answered": (+$ListGet(entry, 4, 1)), "client": ($ListGet(entry, 5, "other")), "session": ($ListGet(entry, 6, ""))})
+		Do requests.%Push({"method": ($List(entry, 1)), "tool": ($List(entry, 2)), "auth": ($List(entry, 3)), "answered": (+$ListGet(entry, 4, 1)), "client": ($ListGet(entry, 5, "other")), "session": ($ListGet(entry, 6, "")), "arguments": ($ListGet(entry, 7, ""))})
 	}
 	Quit requests
 }
@@ -283,7 +283,15 @@ ClassMethod Connection(socket As %IO.ServerSocket, port As %Integer, extra As %L
 	Set hold = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "silent"))
 	If (hold = "") && (method = "tools/call") && ($ListGet($Get(^IRIS.Temp.OcuTalonMcpMock(port, "call")), 1) = "silent") Set hold = 40
 	Set stall = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "stall"))
-	Set ^IRIS.Temp.OcuTalonMcpMock(port, "req", $Increment(^IRIS.Temp.OcuTalonMcpMock(port, "req"))) = $ListBuild(method, tool, auth, ((hold = "") && (stall = "")), client, session)
+	Set arguments = ""
+	If method = "tools/call" {
+		Try {
+			Set arguments = ##class(%DynamicAbstractObject).%FromJSON(body).%Get("params").%Get("arguments").%ToJSON()
+		} Catch {
+			Set arguments = ""
+		}
+	}
+	Set ^IRIS.Temp.OcuTalonMcpMock(port, "req", $Increment(^IRIS.Temp.OcuTalonMcpMock(port, "req"))) = $ListBuild(method, tool, auth, ((hold = "") && (stall = "")), client, session, arguments)
 	If (hold = "") && (stall '= "") {
 		Do socket.Write("HTTP/1.1 200 OK" _ $Char(13, 10) _ "Content-Type: text/event-stream" _ $Char(13, 10) _ "Content-Length: 1000" _ $Char(13, 10) _ "Connection: close" _ $Char(13, 10) _ $Char(13, 10))
 		Do socket.Flush()

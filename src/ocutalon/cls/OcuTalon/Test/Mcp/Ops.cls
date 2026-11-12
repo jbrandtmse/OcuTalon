@@ -75,6 +75,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	If ..DemoSaved Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedDemo)
 	Set ..DemoSaved = 0
+	Do ..DeleteRequests($Get(^||ZzOps("requests")))
 	Do ..Clean()
 	Do $$$AssertEquals(..Leftovers(), "", "the test leaves no row, resource, grant or session behind")
 	Kill ^||ZzOps
@@ -264,9 +265,19 @@ Method TestRemove()
 	Do ..MakeTool(other, "zz_one", "risky", "fpother")
 	Set resource = "OcuTalon_MCP_" _ server
 	Do $$$AssertEquals(..ResourceExists(resource), 1, "the resource exists before the remove")
+	// Story 22.4: a pending approval request for a tool of the server, and one for the other server's tool, held before the remove
+	Set pendingRef = ..PendingRequest(server)
+	Set otherRef = ..PendingRequest(other)
 	Set restarts = +$Get(^||ZzOps("restarts"))
 	Set result = ..Run(..#SENDER, ..Remove(server))
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "1|removed|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGEREMOVED, "the remove is answered removed")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ApprovalRows).Prop(pendingRef, "State") _ "|" _ ##class(OcuTalon.Test.Bridge.ApprovalRows).Prop(otherRef, "State"), "cancelled|pending", "the pending request for the removed server's tool is cancelled, and the other server's is not")
+	Set cancelled = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(..AuditMark, "OcuTalon", "Approval", "Approval", pendingRef)
+	Do $$$AssertEquals(cancelled.%Size(), 1, "one Approval entry exists for the cancelled request")
+	If cancelled.%Size() = 1 {
+		Set data = cancelled.%Get(0).data
+		Do $$$AssertEquals(data.change _ "|" _ data.from _ "|" _ data.to _ "|" _ data.irisUser _ "|" _ data.channel _ "|" _ data.sessionRef, "cancelled|pending|cancelled|" _ ..#USER _ "|web|" _ ##class(OcuTalon.Test.Bridge.ApprovalRows).Prop(pendingRef, "OwnerRef"), "it names the admin and the web channel, and the request's owner as the session, since the command carries none")
+	}
 	Do $$$AssertEquals(..Written(server), "", "the server's row and its tool rows are gone")
 	Do $$$AssertEquals(..ResourceExists(resource), 0, "the resource is gone")
 	Do $$$AssertEquals(..RoleResources(..#ROLE) [ (resource _ ":"), 0, "and so is the grant")
@@ -727,6 +738,26 @@ Method Server(suffix As %String) As %String [ Private ]
 	Set name = "zzmcpops" _ ..Number _ suffix
 	If '$ListFind($ListFromString(..Names), name) Set ..Names = ..Names _ $Select(..Names = "": "", 1: ",") _ name
 	Quit name
+}
+
+/// Saves a pending tool_call request (a fixture row, with no hold) for the tool zz_one of the server, with the server's toolref and a fingerprint, and returns its Ref
+/// (Story 22.4): the request that a removal of the server cancels.
+Method PendingRequest(server As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Test.Bridge.ApprovalRows).NewRow("tool_call", "zz_one", "{""id"":""1""}", ##class(OcuTalon.Mcp.Attach).Toolref(server), "ChatAgent")
+	Set row.ToolFingerprint = "fingerprintofzzone"
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.ApprovalRows).Save(row, "pending", 3600, , .ref), "a pending request for " _ server _ " is saved")
+	Set ^||ZzOps("requests") = $Get(^||ZzOps("requests")) _ $Select($Get(^||ZzOps("requests")) = "": "", 1: ",") _ ref
+	Quit ref
+}
+
+/// Deletes the approval rows of the Refs (a comma list).
+Method DeleteRequests(refs As %String) [ Private ]
+{
+	For i = 1:1:$Length(refs, ",") {
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen($Piece(refs, ",", i))
+		If $IsObject(row) Do ##class(OcuTalon.Bridge.Data.ApprovalRequest).%DeleteId(row.%Id())
+	}
 }
 
 /// Runs the command through a probe whose request header names the sender.

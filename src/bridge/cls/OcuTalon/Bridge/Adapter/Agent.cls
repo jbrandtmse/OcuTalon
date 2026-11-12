@@ -50,6 +50,9 @@ Include Ensemble
 /// runs every allowed native MCP call through the proxy and not AI Hub's client. A proxy toolset that cannot be registered is one warning, and the request goes on with a
 /// manager composed again that holds no MCP server (ComposeManager), because a manager cannot give a tool up. The map of the request also names each recorded server
 /// (Context SetMcpTools), so that the gate can name the server in a proxy call and classify a direct call of the proxy as the native call of the same tool.
+/// The replay of an approved MCP call (Story 22.4; AD-10, AD-21): the agent's own manager holds no MCP server, so the replay runs the call as the proxy's call on a manager
+/// that holds only the host's proxy toolset (ProxyManager, which asks the McpServersClass setting itself, as the agent may have been built before any server existed: governed like every manager of a request, swapped in as the agent's tool manager and put back by RestoreTools,
+/// which EndTurnTools shares), never the native tool and never the proxy in an agent's own tools.
 /// The skipped request (AD-6, AD-8, AD-20): a request of kind decide, diagnose or turn whose DecisionRef already has a Decision row (Concluded) is
 /// skipped, whatever its provenance and whether it is a first attempt, a rate-limit re-send or a second-model retry. Decide records that row when it
 /// concludes, and its timer starts when it sends, so a request taken once the row exists (it waited in the runner's queue past its timer, or its retry
@@ -757,15 +760,47 @@ Method OfferProxy(manager As %AI.ToolMgr) As %Boolean [ Private ]
 	Quit ok
 }
 
-/// Ends the tools of the request on every path: puts the agent's own tool manager back, lets go of the manager of the request and of its tools, and
-/// forgets the request's OwnerRef and kind.
-Method EndTurnTools() [ Private ]
+/// Swaps in, as the tool manager of the agent, a new manager that holds only the host's proxy toolset (McpServersClass ProxyToolSet), governed as every manager of a request
+/// is (Govern), for the replay of an approved MCP call (Story 22.4); the agent's own manager is kept in OwnTools until RestoreTools. manager is the new manager. The status is an
+/// error, and nothing is swapped, when the host has no proxy toolset (the bridge alone, and the online demo), the agent is not built or the toolset cannot be registered.
+Method ProxyManager(Output manager As %AI.ToolMgr) As %Status
+{
+	Set manager = ""
+	Set proxy = ""
+	Try {
+		Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("McpServersClass", "", "Decide", .sc)
+		If $$$ISOK(sc) Set proxy = $ClassMethod(class, "ProxyToolSet")
+	} Catch {
+		Set proxy = ""
+	}
+	If proxy = "" Quit $$$ERROR($$$GeneralError, "The MCP servers class names no proxy toolset, so an MCP call cannot be replayed")
+	If '$IsObject(..Agent) Quit $$$ERROR($$$GeneralError, "The agent is not built, so an MCP call cannot be replayed")
+	Set new = ##class(%AI.ToolMgr).%New()
+	Set sc = new.RegisterToolSet(proxy)
+	If $$$ISOK(sc) Set sc = ..Govern(new)
+	If $$$ISERR(sc) Quit sc
+	If '$IsObject(..OwnTools) Set ..OwnTools = ..Agent.ToolManager
+	Set ..Agent.ToolManager = new
+	Set manager = new
+	Quit $$$OK
+}
+
+/// Puts the agent's own tool manager back after ProxyManager or BuildTurnManager swapped another in, and lets go of the own manager held for it. It does nothing when none was
+/// swapped in, and it never throws.
+Method RestoreTools()
 {
 	Try {
 		If $IsObject(..OwnTools) && $IsObject(..Agent) Set ..Agent.ToolManager = ..OwnTools
 	} Catch {
 	}
 	Set ..OwnTools = ""
+}
+
+/// Ends the tools of the request on every path: puts the agent's own tool manager back (RestoreTools), lets go of the manager of the request and of its tools, and
+/// forgets the request's OwnerRef and kind.
+Method EndTurnTools() [ Private ]
+{
+	Do ..RestoreTools()
 	Set ..TurnManager = ""
 	Set ..TurnToolList = ""
 	Set ..TurnOpen = 0

@@ -15,12 +15,6 @@ Include Ensemble
 Class OcuTalon.Mcp.Classification Extends OcuTalon.Bridge.Ext.Classification
 {
 
-/// The part of a source before the Config Store entry's prefix (OcuTalon.Mcp.Attach ENTRYPREFIX) and the server's name.
-Parameter SOURCEHEAD = "mcp:remote:@{config:AI.MCP.";
-
-/// The part of a source after the server's name.
-Parameter SOURCETAIL = "}";
-
 ClassMethod ClassifyMcp(source As %String, name As %String, fingerprint As %String = "") As %DynamicObject
 {
 	Set server = ..ServerOf(source)
@@ -48,14 +42,10 @@ ClassMethod Clear(server As %String, name As %String, fingerprint As %String) As
 	Quit ##class(OcuTalon.Mcp.Ops).ClearChanged(server, name, fingerprint)
 }
 
-/// The name of the registered server that the source names, or "" when the source is not exactly the toolref that OcuTalon.Mcp.Attach attaches for a server name.
+/// The name of the server that the source names, or "" when the source is not exactly the toolref that OcuTalon.Mcp.Attach attaches for a server name (Attach ServerOf).
 ClassMethod ServerOf(source As %String) As %String [ Private ]
 {
-	Set head = ..#SOURCEHEAD _ ##class(OcuTalon.Mcp.Attach).#ENTRYPREFIX
-	If ($Extract(source, 1, $Length(head)) '= head) || ($Extract(source, *) '= ..#SOURCETAIL) Quit ""
-	Set server = $Extract(source, $Length(head) + 1, *-1)
-	If '$Match(server, ##class(OcuTalon.Mcp.Server).#NAMEPATTERN) Quit ""
-	Quit server
+	Quit ##class(OcuTalon.Mcp.Attach).ServerOf(source)
 }
 
 /// The answer of ClassifyMcp: the resource is added for a registered server only.

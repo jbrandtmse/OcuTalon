@@ -17,6 +17,11 @@ Include Ensemble
 ///     text parts of the result joined by line feeds, every other kind of part as "[non-text content omitted]"; (8) one audit entry (Bridge.Audit Record, type MCP, change called or
 ///     refused, the server, the tool and the outcome: ok, cut when the text is longer than room characters, or the reason word of the refusal), for every run that passed step 2
 ///     (a run that reached a registered server's tool). An audit that fails is one redacted warning, and the answer is still returned.
+///   - The replay of an approved call (Story 22.4; Bridge.Context ApprovedFingerprint(tool) is not empty, which only the gate's consumed grant sets) is the same run with two
+///     differences: step 2 requires the server's row only and not the tool's classification row (an unclassified tool's exact call can be approved), and step 5 compares the live
+///     fingerprint with the one the call was approved at (the request's ToolFingerprint) and not with the classification row, so that a tool changed in name, description or
+///     schema since the hold is not called. Every refusal of a replay, the demo's included, notes its reason word in the context (Context NoteReplayRefusal) for the replay
+///     to read.
 ///   - It writes no row and never clears a classification: a changed tool is refused, and the next turn's map clears the row (Story 22.8). The classes that this one runs inside
 ///     the callback make no AI Hub call and run no Python (AD-6).
 Class OcuTalon.Mcp.Proxy
@@ -32,37 +37,47 @@ Parameter OMITTED = "[non-text content omitted]";
 /// so that the audit entry can say cut; it changes nothing else.
 ClassMethod Call(server As %String, tool As %String, arguments As %DynamicObject = "", room As %Integer = "") As %DynamicObject
 {
-	If ..OnlineDemo() Quit ..Refusal("demo", "demo")
+	Set approved = ##class(OcuTalon.Bridge.Context).ApprovedFingerprint($Get(tool))
+	If ..OnlineDemo() Quit ..Noted(..Refusal("demo", "demo"), approved)
 	Set answer = ..Refusal("failed", "failed")
 	Set reached = 0
 	Try {
-		If '..Registered($Get(server), $Get(tool), .row) Quit
+		If '..Registered($Get(server), $Get(tool), approved '= "", .row) Quit
 		Set reached = 1
-		Set answer = ..Run(server, tool, row, arguments, room)
+		Set answer = ..Run(server, tool, row, arguments, room, approved)
 	} Catch exception {
 		Set answer = ..Refusal("failed", "failed")
 		$$$LOGWARNING("OcuTalon.Mcp.Proxy: a call of an MCP tool ended in an exception (" _ $Extract(exception.Name, 1, 40) _ "), so nothing is known to have run")
 	}
 	If reached Do ..Audit(server, tool, answer.outcome)
+	Quit ..Noted(answer, approved)
+}
+
+/// The answer, after noting the word of its refusal in the context when the call is the replay of an approved one (approved is the fingerprint it was approved at, not empty)
+/// and the answer is a refusal (Context NoteReplayRefusal), so that the replay can tell a refusal from a result. A call that is not a replay notes nothing.
+ClassMethod Noted(answer As %DynamicObject, approved As %String) As %DynamicObject [ Private ]
+{
+	If (approved '= "") && (answer.%GetTypeOf("refusal") = "string") Do ##class(OcuTalon.Bridge.Context).NoteReplayRefusal(answer.refusal)
 	Quit answer
 }
 
 /// 1 when the server is registered and the tool has a row of it: server matches the pattern of a name and has a row of OcuTalon.Mcp.Server, tool is a name of 1 to TOOLMAX
-/// characters with no control character; row is the tool's classification row.
-ClassMethod Registered(server As %String, tool As %String, Output row As %RegisteredObject) As %Boolean [ Private ]
+/// characters with no control character; row is the tool's classification row. For the replay of an approved call (replay 1) the server row is all that is required, because
+/// the approved fingerprint and not the classification rules the run: row is then the tool's row when it has one, else "".
+ClassMethod Registered(server As %String, tool As %String, replay As %Boolean, Output row As %RegisteredObject) As %Boolean [ Private ]
 {
 	Set row = ""
 	If $IsObject(server) || $IsObject(tool) Quit 0
 	If '$Match(server, ##class(OcuTalon.Mcp.Server).#NAMEPATTERN) || '##class(OcuTalon.Mcp.Server).NameIndexExists(server) Quit 0
 	If ($Length(tool) < 1) || ($Length(tool) > ..#TOOLMAX) || ($ZStrip(tool, "*C") '= tool) Quit 0
 	Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, tool)
-	Quit $IsObject(row)
+	Quit replay || $IsObject(row)
 }
 
 /// Steps 2 to 7 of the class description for a server and a tool that Registered found. The answer is {"text", "outcome"} or {"refusal", "outcome"}.
-ClassMethod Run(server As %String, tool As %String, row As OcuTalon.Mcp.ToolClassification, arguments As %DynamicObject, room As %Integer) As %DynamicObject [ Private ]
+ClassMethod Run(server As %String, tool As %String, row As OcuTalon.Mcp.ToolClassification, arguments As %DynamicObject, room As %Integer, approved As %String = "") As %DynamicObject [ Private ]
 {
-	If (row.Classification '= "read-only") && (row.Classification '= "risky") Quit ..Refusal("changed", "changed")
+	If (approved = "") && ((row.Classification '= "read-only") && (row.Classification '= "risky")) Quit ..Refusal("changed", "changed")
 	Set config = "AI.MCP." _ ##class(OcuTalon.Mcp.Attach).#ENTRYPREFIX _ server
 	Set sc = ##class(OcuTalon.Bridge.ConfigStore).Details(config, .details)
 	If $$$ISERR(sc) || '$IsObject(details) || (details.%GetTypeOf("url") '= "string") || (details.%GetTypeOf("transport") '= "string") Quit ..Refusal("failed", "failed")
@@ -72,14 +87,14 @@ ClassMethod Run(server As %String, tool As %String, row As OcuTalon.Mcp.ToolClas
 	If 'ok Quit ..Refusal("failed", "credential")
 	Set reason = ##class(OcuTalon.Mcp.Client).ListTool(url, header, tool, .definition, .session)
 	If reason '= "" Quit ..Reason(reason)
-	Set toolref = "mcp:remote:@{config:" _ config _ "}"
+	Set toolref = ##class(OcuTalon.Mcp.Attach).Toolref(server)
 	Set fingerprint = ""
 	Try {
 		Set fingerprint = ##class(OcuTalon.Bridge.Context).ToolFingerprint(toolref, tool, definition.%Get("description"), $Select(definition.%GetTypeOf("inputSchema") = "object": definition.inputSchema, 1: ""))
 	} Catch {
 		Set fingerprint = ""
 	}
-	If (fingerprint = "") || (fingerprint '= row.Fingerprint) Quit ..Refusal("changed", "changed")
+	If (fingerprint = "") || (fingerprint '= $Select(approved '= "": approved, 1: row.Fingerprint)) Quit ..Refusal("changed", "changed")
 	Set reason = ##class(OcuTalon.Mcp.Client).CallTool(url, header, tool, $Select($IsObject(arguments): arguments, 1: {}), .result, session)
 	If reason '= "" Quit ..Reason(reason)
 	Set text = ..TextOf(result)

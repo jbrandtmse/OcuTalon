@@ -199,7 +199,7 @@ ClassMethod LabelFor(toolClass As %String, name As %String, arguments As %String
 }
 
 /// The label of an MCP call or of a call of the governed proxy, or "" for any other call, and for a proxy call whose server is not a name of at most 40 letters, digits
-/// and underscores or whose tool the turn's MCP map does not hold. The tool of an MCP call is the call's name and its server is the name that the map holds for the
+/// and underscores or whose tool neither the turn's MCP map holds nor the approved call of a replay is (Context.ApprovedFingerprint, Story 22.4). The tool of an MCP call is the call's name and its server is the name that the map holds for the
 /// toolref (Context.McpServerOf): a toolref that the map does not name has no MCP label. Each of the two names is plain text: its control characters are spaces and
 /// a name over Policy.Gate LABELSLOTMAX characters keeps its first LABELSLOTMAX - 1 characters and ends in the ellipsis (U+2026).
 ClassMethod McpLabel(toolClass As %String, name As %String, arguments As %String = "", rerouted As %String = "") As %String [ Private ]
@@ -223,7 +223,8 @@ ClassMethod McpLabel(toolClass As %String, name As %String, arguments As %String
 		} Catch {
 			Set server = ""
 		}
-		If '$Match(server, "^[A-Za-z0-9_]{1,40}$") || (##class(OcuTalon.Bridge.Context).McpFingerprint(##class(OcuTalon.Bridge.Context).McpToolref(server), tool) = "") Quit ""
+		If '$Match(server, "^[A-Za-z0-9_]{1,40}$") Quit ""
+		If (##class(OcuTalon.Bridge.Context).McpFingerprint(##class(OcuTalon.Bridge.Context).McpToolref(server), tool) = "") && (##class(OcuTalon.Bridge.Context).ApprovedFingerprint(tool) = "") Quit ""
 	}
 	If (server = "") || (tool = "") Quit ""
 	Set text = $Replace($Replace($Parameter(gate, "MCPLABEL"), "{tool}", $Char(1)), "{server}", $Char(2))

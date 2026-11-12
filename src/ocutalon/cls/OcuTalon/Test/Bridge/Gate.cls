@@ -507,10 +507,11 @@ Method TestRiskyByCodeAndUnclassified()
 		Do ##class(OcuTalon.Bridge.Context).End()
 	}
 	Set request = ..Begin()
+	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_other"))
 	Kill ^||ZzProbeSink
 	Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:zzserver", ..Call("zz_mcp_other", {}), {}, ..#SINK)
 	Do $$$AssertEquals(..Sentence(sc), held, "(d) an MCP call is denied with HELD")
-	Do ..AssertHeld(request, "zz_mcp_other", "{}", "(d)", 1, "mcp:zzserver", "")
+	Do ..AssertHeld(request, "zz_mcp_other", "{}", "(d)", 1, "mcp:zzserver", "", ##class(OcuTalon.Bridge.Context).McpFingerprint("mcp:zzserver", "zz_mcp_other"))
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set request = ..Begin()
 	Kill ^||ZzProbeSink
@@ -670,6 +671,7 @@ Method TestMcpShadow()
 {
 	Do ..PutSetting("ClassificationClass", "OcuTalon.Bridge.Ext.Classification")
 	Do ..Begin()
+	Do ..McpMap("mcp:zzserver", $ListBuild("set_reminder"), , $ListBuild($ListBuild("MCP:zzserver", $ListBuild("set_reminder"))))
 	Set held = $Parameter(..#GATE, "HELD")
 	Set call = ..Call("set_reminder", {})
 	Set meta = ..Meta(..#REMINDERS)
@@ -697,7 +699,7 @@ Method TestExtension()
 {
 	Do ..PutSetting("McpServersClass", "OcuTalon.Bridge.Ext.McpServers")
 	Set request = ..Begin()
-	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_safe", "zz_mcp_other", "zz_mcp_args"))
+	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_safe", "zz_mcp_other", "zz_mcp_args"), , $ListBuild($ListBuild("mcp:otherserver", $ListBuild("zz_mcp_safe"))))
 	Do ..PutSetting("ClassificationClass", "OcuTalon.Test.Bridge.ZzGateClassification")
 	Set gate = ..#GATE
 	Set result = $ClassMethod(gate, "ClassificationOf", "mcp:zzserver", "zz_mcp_safe")
@@ -820,8 +822,8 @@ Method TestMcpMissingFingerprint()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set request = ..Begin()
 	Kill ^||ZzProbeSink
-	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_ro")), held, "in a user's turn with no map it is held")
-	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 1, "with a request")
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_ro")), failed, "in a user's turn with no map it is denied with FAILED: nothing is held that could not be replayed at its fingerprint (Story 22.4)")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 0, "with no request")
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set request = ..Begin()
 	Kill ^||ZzGateMcp
@@ -905,6 +907,14 @@ Method TestMcpUnregistered()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).GrantSource(), "mcp:zzserver", "the grant is still there, unused")
 	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef) _ "|" _ +$Get(^||ZzProbeSink) _ "|" _ ..Taint(), "0|0|0", "no request, no step, no taint")
 	Do ##class(OcuTalon.Bridge.Context).End()
+	// Story 22.4: the replay of the same row as the call of the governed proxy is denied alike (the toolref is the grant's, as the replay has no map)
+	Do ..PutSetting("McpServersClass", ..#PROXYSERVERS)
+	Set request = ..Begin("tool", "user", , , "ChatAgent")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Grant(ref), "a grant is built from the executing row again")
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals(..Sentence(..ProxyCheck("zzserver", "zz_mcp_gone", {})), unregistered, "the replay as a call of the proxy is denied with UNREGISTERED")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).GrantSource() _ "|" _ ..ApprovalRows(request.OwnerRef) _ "|" _ +$Get(^||ZzProbeSink) _ "|" _ ..Taint(), "mcp:zzserver|0|0|0", "the grant is still there, with no request, no step and no taint")
+	Do ##class(OcuTalon.Bridge.Context).End()
 }
 
 /// Story 22.8: with the bridge alone (the default class), an MCP tool is unclassified and held in a user's turn, whatever the map holds; the base never says
@@ -987,7 +997,7 @@ Method TestProxyDirectIsClassifiedAsTheNativeCall()
 	Do $$$AssertEquals(..DecisionOf(1, "zz_mcp_risky", "user", 0, names), held _ "|1||0", "control: the risky tool is held with one request, no step and no taint")
 	Do $$$AssertEquals(..DecisionOf(1, "zz_mcp_risky", "untrusted", 0, names), untrusted _ "|0||0", "control: in an untrusted turn it is denied with UNTRUSTED")
 	Do $$$AssertEquals(..DecisionOf(1, "zz_mcp_other", "user", 0, names), held _ "|1||0", "control: a tool with no classification is held")
-	Do $$$AssertEquals(..DecisionOf(1, "zz_mcp_missing", "user", 0, names), held _ "|1||0", "control: a tool that the map does not hold is unclassified, and held")
+	Do $$$AssertEquals(..DecisionOf(1, "zz_mcp_missing", "user", 0, names), $Parameter(..#GATE, "FAILED") _ "|0||0", "control: a tool that the map does not hold is unclassified, and not held: no fingerprint, no hold (Story 22.4)")
 	Do $$$AssertEquals(..DecisionOf(1, "zz_mcp_gone", "user", 0, names), unregistered _ "|0||0", "control: an unregistered server is denied with UNREGISTERED")
 	Do $$$AssertEquals(..DecisionOf(1, "zz_mcp_safe", "user", 0, names), "<OK>|0|Running zz_mcp_safe on zzserver|1", "control: a safe tool that is not read-only is allowed in a user's turn")
 }
@@ -1006,8 +1016,8 @@ Method TestProxyUnknownServer()
 	Set other = "zznone" _ ..Number()
 	Set request = ..Begin()
 	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_ro"), "zzserver")
-	Do $$$AssertEquals(..Sentence(..ProxyCheck(other, "zz_mcp_ro", {})), held, "a server that the map does not name is unclassified, and held in a user's turn")
-	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef) _ "|" _ ..Taint(), "1|0", "with its request and no taint")
+	Do $$$AssertEquals(..Sentence(..ProxyCheck(other, "zz_mcp_ro", {})), $Parameter(gate, "FAILED"), "a server that the map does not name is unclassified, and denied with FAILED in a user's turn: no toolref, no hold (Story 22.4)")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef) _ "|" _ ..Taint(), "0|0", "with no request and no taint")
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set request = ..Begin("turn", "untrusted")
 	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_ro"), "zzserver")
@@ -1030,6 +1040,80 @@ Method TestProxyUnknownServer()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set record = ..Begin()
 	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("zz_x", ..Call("zz_x", {}), ..Meta(..#PROXYCLASS), ..#SINK)), held, "control: a call of the proxy's class under another name is classified as any other tool")
+}
+
+/// Story 22.4 (AD-10, I/O row "Hold, direct proxy call"): a direct call of the governed proxy that the gate holds is held in the native form of the tool's call: ToolName the
+/// tool, ToolArguments the tool's own arguments (the arguments member of the proxy call, not the proxy call), ToolSource the toolref that the map holds for the server and
+/// ToolFingerprint the fingerprint the map holds for the tool. The native call of the same tool leaves the same row. A proxy call whose tool or server the map does not hold, or
+/// whose own arguments are not an object, is denied with FAILED and holds nothing.
+Method TestProxyHoldIsNativeForm()
+{
+	Do ..PutSetting("McpServersClass", ..#PROXYSERVERS)
+	Do ..PutSetting("ClassificationClass", "OcuTalon.Test.Bridge.ZzGateClassification")
+	Set held = $Parameter(..#GATE, "HELD")
+	Set failed = $Parameter(..#GATE, "FAILED")
+	Set names = $ListBuild("zz_mcp_risky", "zz_mcp_other")
+	Set request = ..Begin("turn", "user", , , "ChatAgent")
+	Do ..McpMap("mcp:zzserver", names, "zzserver")
+	Set fingerprint = ##class(OcuTalon.Bridge.Context).McpFingerprint("mcp:zzserver", "zz_mcp_risky")
+	Do $$$AssertEquals($Length(fingerprint), 64, "control: the map holds the tool's fingerprint")
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals(..Sentence(..ProxyCheck("zzserver", "zz_mcp_risky", {"b": 2, "a": {"y": 1, "x": "ops"}})), held, "a direct call of the proxy for a risky tool is held")
+	Set ref = ..AssertHeld(request, "zz_mcp_risky", "{""b"":2,""a"":{""y"":1,""x"":""ops""}}", "the proxy call", 1, "mcp:zzserver", "ChatAgent", fingerprint)
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set request = ..Begin("turn", "user", , , "ChatAgent")
+	Do ..McpMap("mcp:zzserver", names, "zzserver")
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check(..#MCPPROXYNAME, ..Call(..#MCPPROXYNAME, {"server": "zzserver", "tool": "zz_mcp_other"}), ..Meta(..#PROXYCLASS), ..#SINK)), held, "so is one with no arguments member")
+	Do ..AssertHeld(request, "zz_mcp_other", "{}", "the proxy call with no arguments", 1, "mcp:zzserver", "ChatAgent", ##class(OcuTalon.Bridge.Context).McpFingerprint("mcp:zzserver", "zz_mcp_other"))
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set request = ..Begin()
+	Do ..McpMap("mcp:zzserver", names, "zzserver")
+	Kill ^||ZzProbeSink
+	For case = 1:1:3 {
+		Set sc = $Case(case, 1: ..ProxyCheck("zzserver", "zz_mcp_missing", {}), 2: ..ProxyCheck("zznone", "zz_mcp_risky", {}), : ##class(OcuTalon.Bridge.Policy.Gate).Check(..#MCPPROXYNAME, ..Call(..#MCPPROXYNAME, {"server": "zzserver", "tool": "zz_mcp_risky", "arguments": [1]}), ..Meta(..#PROXYCLASS), ..#SINK))
+		Do $$$AssertEquals(..Sentence(sc), failed, $Case(case, 1: "a tool the map does not hold", 2: "a server the map does not name", : "arguments that are not an object") _ " is denied with FAILED")
+	}
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef) _ "|" _ +$Get(^||ZzProbeSink) _ "|" _ ..Taint(), "0|0|0", "with no request, no event and no taint")
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// Story 22.4 (AD-10, I/O row "No grant / second replay"; Decided in-stage 3): in a replay the call of the governed proxy is matched to the grant on the native triple (the tool,
+/// the tool's own arguments, the toolref). The toolref is the grant's source only when the host's ServerOf names exactly the call's server: a call that names another server, a
+/// host whose ServerOf names none, a call with other arguments and a call of another tool are each denied with FAILED and leave the grant; the exact call is allowed once
+/// (one step, labelled with the server and the tool, and Context.ApprovedFingerprint then names the row's fingerprint) and a second one is denied.
+Method TestReplayProxyMatchesTheNativeTriple()
+{
+	If ..Guard(1) Quit
+	Do ..PutSetting("McpServersClass", ..#PROXYSERVERS)
+	Do ..PutSetting("ClassificationClass", "OcuTalon.Test.Bridge.ZzGateClassification")
+	Set failed = $Parameter(..#GATE, "FAILED")
+	Set ref = ..ExecutingRow("zz_mcp_risky", "{""b"":2,""a"":1}", "mcp:zzserver")
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Set row.ToolFingerprint = ##class(OcuTalon.Bridge.Context).ToolFingerprint("mcp:zzserver", "zz_mcp_risky", "d", {})
+	Do $$$AssertStatusOK(row.%Save(), "the row holds a fingerprint")
+	Set fingerprint = row.ToolFingerprint
+	Set request = ..Begin("tool", "user", , , "ChatAgent")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Grant(ref), "a grant is built from the executing row")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).ApprovedFingerprint("zz_mcp_risky"), "", "nothing is approved before a call takes the grant")
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals(..Sentence(..ProxyCheck("zzother", "zz_mcp_risky", {"a": 1, "b": 2})), failed, "a call that names another server cannot take the grant: the toolref is not the grant's")
+	Do $$$AssertEquals(..Sentence(..ProxyCheck("zzserver", "zz_mcp_risky", {"a": 1, "b": 3})), failed, "nor can one with other arguments")
+	Do $$$AssertEquals(..Sentence(..ProxyCheck("zzserver", "zz_mcp_other", {"a": 1, "b": 2})), failed, "nor one of another tool")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink) _ "|" _ ##class(OcuTalon.Bridge.Context).ApprovedFingerprint("zz_mcp_risky"), "0|", "none was reported, and nothing is approved yet: the grant is whole")
+	Do ..PutSetting("McpServersClass", ..#BASESERVERS)
+	Do $$$AssertEquals(..Sentence(..ProxyCheck("zzserver", "zz_mcp_risky", {"a": 1, "b": 2})), failed, "a host whose ServerOf names no server (the bridge alone) counts the toolref as unknown: the call is denied")
+	Do ..PutSetting("McpServersClass", ..#PROXYSERVERS)
+	Do $$$AssertEquals(..Sentence(..ProxyCheck("zzserver", "zz_mcp_risky", {"a": 1, "b": 2})), "<OK>", "the call with the server, the tool and the arguments of the row (in another key order) takes the grant")
+	Do $$$AssertEquals(..StepLabels(), "Running zz_mcp_risky on zzserver", "it reports one step, labelled with the server and the tool, though a replay has no map")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).ApprovedFingerprint("zz_mcp_risky"), fingerprint, "and the approved fingerprint is the row's")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).ApprovedFingerprint("zz_mcp_other"), "", "for no other tool")
+	Do $$$AssertEquals(..Sentence(..ProxyCheck("zzserver", "zz_mcp_risky", {"a": 1, "b": 2})), failed, "a second call is denied: the grant was used once")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 0, "a replay raises no request")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do ..Begin("tool", "user", , , "ChatAgent")
+	Do $$$AssertEquals(..Sentence(..ProxyCheck("zzserver", "zz_mcp_risky", {"a": 1, "b": 2})), failed, "a replay with no grant is denied")
+	Do ##class(OcuTalon.Bridge.Context).End()
 }
 
 /// Story 22.3 (AD-10 rule 2, AD-24; AC "the service user without U"): the extension's answer for an MCP call may name the resource of the server, and the gate checks the service
@@ -1987,6 +2071,7 @@ Method TestRagNearMisses()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Policy.Gate).RagCall("documents", {"requires_auth": false}, "mcp:zzserver"), 0, "nor an MCP call named documents")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Policy.Gate).RagCall("documents", {"requires_auth": false}, "MCP:zzserver"), 0, "in any case")
 	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("search_docs", ..Call("search_docs", args), {"requires_auth": false}, ..#SINK)), held, "another name without a source is held as unclassified")
+	Do ..McpMap("mcp:zzserver", $ListBuild("documents"))
 	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:zzserver", ..Call("documents", args), {"requires_auth": false}, ..#SINK)), held, "an MCP documents call is held")
 	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("documents", ..Call("documents", args), ..Meta("OcuTalon.Tools.Zz"), ..#SINK)), held, "documents of another class is unclassified, so it is held, and the entry for the knowledge base does not apply")
 	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("zz_unknown", ..Call("zz_unknown", args), {"requires_auth": false}, ..#SINK)), held, "an unknown source is still held")
@@ -2544,10 +2629,11 @@ Method TestHeldRowNamesSourceAndRunner()
 	Do ..AssertHeld(request, "zz_gate_held", "{}", "a runner context", 1, ..#TOOLS, "ChatAgent")
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set request = ..Begin("turn", "user", , , "DeveloperAgent")
+	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_other"))
 	Kill ^||ZzProbeSink
 	Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:zzserver", ..Call("zz_mcp_other", {}), {}, ..#SINK)
 	Do $$$AssertEquals(..Sentence(sc), held, "an MCP call is held")
-	Do ..AssertHeld(request, "zz_mcp_other", "{}", "an MCP call", 1, "mcp:zzserver", "DeveloperAgent")
+	Do ..AssertHeld(request, "zz_mcp_other", "{}", "an MCP call", 1, "mcp:zzserver", "DeveloperAgent", ##class(OcuTalon.Bridge.Context).McpFingerprint("mcp:zzserver", "zz_mcp_other"))
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set request = ..Begin("turn", "user")
 	Kill ^||ZzProbeSink
@@ -2650,9 +2736,9 @@ ClassMethod ApprovalRef(owner As %String) As %String [ Private ]
 
 /// Asserts what a held call leaves (the I/O matrix of Story 3.6): exactly one row for the request's owner, pending, a tool_call with RequiredRole
 /// OcuTalonUser, the ToolName and the ToolArguments given, the OwnerRef and the TraceRef of the request and no ResultTarget, IncidentRef or DryRun; its
-/// task exists and exactly one hold is live. With a source and a runner (Story 30.3, DW-194) the row also names the gate's source and the runner item of the context. With checkSink (the private ProbeSink was the gate's sink), the sink got exactly one call, approval.raised,
+/// task exists and exactly one hold is live. With a source and a runner (Story 30.3, DW-194) the row also names the gate's source and the runner item of the context, and its ToolFingerprint is the fingerprint given (empty for a call that is not an MCP call, Story 22.4). With checkSink (the private ProbeSink was the gate's sink), the sink got exactly one call, approval.raised,
 /// with the OwnerRef and {"ref"}, at transaction level 0, with the row existing and pending, and no turn.step. Returns the row's Ref, or "".
-Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, arguments As %String, label As %String, checkSink As %Boolean = 1, source As %String = "<unchecked>", runner As %String = "<unchecked>") As %String [ Private ]
+Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, arguments As %String, label As %String, checkSink As %Boolean = 1, source As %String = "<unchecked>", runner As %String = "<unchecked>", fingerprint As %String = "") As %String [ Private ]
 {
 	Set owner = request.OwnerRef
 	Set refs = ..ApprovalRefs(owner)
@@ -2668,6 +2754,7 @@ Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, a
 	Do $$$AssertEquals(row.ResultTarget_row.IncidentRef_row.DryRun, "", label_": it has no ResultTarget, IncidentRef or DryRun")
 	If source '= "<unchecked>" Do $$$AssertEquals(row.ToolSource, source, label_": its ToolSource is the source the gate classified the call by")
 	If runner '= "<unchecked>" Do $$$AssertEquals(row.Runner, runner, label_": its Runner is the runner item of the context")
+	Do $$$AssertEquals(row.ToolFingerprint, fingerprint, label_": its ToolFingerprint is "_$Select(fingerprint = "": "empty", 1: "the one the turn's map holds for the tool"))
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Approval).WaitTask(ref, 10) '= "", label_": its task exists")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Approval).HoldCount(ref)_"|"_(##class(OcuTalon.Bridge.Approval).LiveHold(ref) '= ""), "1|1", label_": exactly one hold, and it is live")
 	If checkSink {
@@ -3072,13 +3159,19 @@ ClassMethod StoreDecideSetting(setting As %String, value As %String) As %Status
 }
 
 /// Sets the turn's MCP map in the context that Begin made: each name is a tool of the server (the toolref), with a description and parameters of its own, so
-/// that the context holds a fingerprint for it; host, when it is given, is the host's name for the server (Story 22.3). Returns nothing.
-Method McpMap(server As %String, names As %List, host As %String = "") [ Private ]
+/// that the context holds a fingerprint for it; host, when it is given, is the host's name for the server (Story 22.3); more, when it is given, is a list of further
+/// $ListBuild(server, names) groups of the same map (Story 22.4). Returns nothing.
+Method McpMap(server As %String, names As %List, host As %String = "", more As %List = "") [ Private ]
 {
 	Set catalog = []
-	Set position = 0
-	While $ListNext(names, position, name) {
-		Do catalog.%Push({"tool_ref": (server), "name": (name), "description": ("The tool "_name_"."), "parameters": {"type": "object"}})
+	Set groups = $ListBuild($ListBuild(server, names)) _ more
+	Set group = 0
+	While $ListNext(groups, group, one) {
+		Set position = 0
+		Set names1 = $List(one, 2)
+		While $ListNext(names1, position, name) {
+			Do catalog.%Push({"tool_ref": ($List(one, 1)), "name": (name), "description": ("The tool "_name_"."), "parameters": {"type": "object"}})
+		}
 	}
 	Set servers = $Select(host '= "": {}.%Set(host, server, "string"), 1: "")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).SetMcpTools(catalog, servers), "the turn's MCP map holds "_$ListLength(names)_" tool(s) of "_server_$Select(host '= "": " (the host's name for it is " _ host _ ")", 1: ""))

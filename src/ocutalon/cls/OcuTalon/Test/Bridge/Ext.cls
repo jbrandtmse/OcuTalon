@@ -219,6 +219,27 @@ Method TestExtensionBases()
 	Do $$$AssertEquals(##class(OcuTalon.Mcp.Attach).ProxyToolSet(), "OcuTalon.Tools.McpProxy", "OcuTalon's class offers the governed proxy toolset")
 }
 
+/// Story 22.4 (AD-10, AD-31; condition 4): ServerOf(toolref) of the McpServersClass extension. The bridge's base names no server for any toolref, so the bridge alone holds and replays
+/// no MCP call. OcuTalon's class (Mcp.Attach) names the server only for exactly mcp:remote:@{config:AI.MCP.OcuTalon_<name>} with a name that matches the pattern of a server name,
+/// and Toolref is its inverse (and gives nothing for a name that does not match). A toolref that the class does not know gets "": the call it classifies is unclassified.
+Method TestServerOf()
+{
+	Set base = "OcuTalon.Bridge.Ext.McpServers"
+	Set attach = "OcuTalon.Mcp.Attach"
+	Set known = "mcp:remote:@{config:AI.MCP.OcuTalon_zzdocs}"
+	Do $$$AssertEquals($ClassMethod(base, "ServerOf", known), "", "the base names no server for a toolref of OcuTalon's form")
+	Do $$$AssertEquals($ClassMethod(base, "ServerOf", "") _ $ClassMethod(base, "ServerOf", "mcp:zzserver"), "", "nor for any other")
+	Do $$$AssertEquals($ClassMethod(attach, "ServerOf", known), "zzdocs", "OcuTalon's class names the server for the form that it attaches")
+	Do $$$AssertEquals($ClassMethod(attach, "Toolref", "zzdocs"), known, "Toolref is the inverse")
+	Do $$$AssertEquals($ClassMethod(attach, "ServerOf", $ClassMethod(attach, "Toolref", "Zz_9")), "Zz_9", "also for a name with capitals, digits and an underscore")
+	Set unknown = $ListBuild("", "mcp:zzserver", "mcp:remote:@{config:AI.MCP.OcuTalon_}", "mcp:remote:@{config:AI.MCP.OcuTalon_1bad}", "mcp:remote:@{config:AI.MCP.OcuTalon_zz-docs}", "mcp:remote:@{config:AI.MCP.OcuTalon_zzdocs} ", "MCP:remote:@{config:AI.MCP.OcuTalon_zzdocs}", "mcp:remote:@{config:AI.MCP.Other_zzdocs}", "mcp:remote:@{config:AI.MCP.OcuTalon_zzdocs", "iris:Zz.Toolset", "mcp:remote:@{config:AI.MCP.OcuTalon_" _ $Justify("", 41) _ "}")
+	Set position = 0
+	While $ListNext(unknown, position, text) {
+		Do $$$AssertEquals($ClassMethod(attach, "ServerOf", $Translate(text, " ", "a")) _ $ClassMethod(attach, "ServerOf", text), "", "'" _ $Extract(text, 1, 50) _ "' is no toolref of a server")
+	}
+	Do $$$AssertEquals($ClassMethod(attach, "Toolref", "") _ $ClassMethod(attach, "Toolref", "1x") _ $ClassMethod(attach, "Toolref", "a b") _ $ClassMethod(attach, "Toolref", "zz}"), "", "Toolref gives nothing for a name that does not match")
+}
+
 /// Story 22.3: the proxy's pieces in the bridge. The base ClassifyMcp gives no resource (so the bridge alone checks no privilege for an MCP call), and OcuTalon's names the server's
 /// resource. SetMcpTools takes the host's names for the servers (a dynamic object of name to toolref) and McpToolref and McpServerOf read them both ways; a member that is not an
 /// MCP toolref, or whose name is empty or too long, is left out; a second SetMcpTools replaces them, one without servers clears them, Begin and End end them, and they are not a

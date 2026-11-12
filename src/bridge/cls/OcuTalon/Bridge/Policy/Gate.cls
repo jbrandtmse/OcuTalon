@@ -46,7 +46,12 @@ Include Ensemble
 ///      no turn.step and never reaches step 5, so no approval request can come from it. This holds for every request kind.
 ///   5. The result of a replay context (the Kind of the context is tool: Replay.Run, the approved call of an approval request, StartExecution done):
 ///      the call runs only when it matches the grant that the replay built from the executing row (Context.TakeGrant: the name, the hash of the
-///      canonical arguments and the source). A call with no source of its own takes the source of the grant (GrantSource). The grant stands in
+///      canonical arguments and the source). A call with no source of its own takes the source of the grant (GrantSource). The replay of an approved MCP call (Story 22.4;
+///      AD-10) is a call of the governed proxy (MCPPROXY, server, tool, arguments) that the replay makes itself, and its grant is matched on the native triple of the row:
+///      the tool, the tool's own arguments and the toolref, which is the grant's source only when the host's ServerOf names exactly the call's server (ReplayToolref; any
+///      other server gives the toolref "", which no grant holds). That call is classified, checked for the server's registration (UNREGISTERED, removed servers included) and for
+///      the permission on the resource like any proxy call, with the turn's map absent; the one-use grant consumed, Context.ApprovedFingerprint then names the fingerprint the
+///      tool had at the hold, which the proxy compares with the live listing. The grant stands in
 ///      place of step 4's hold: the first matching call consumes it and is allowed, and every other call (a second matching call, a call that
 ///      differs in the name, an argument value or the source, a call with no grant) is denied with FAILED, never held: a replay raises no approval
 ///      request. Classification, permissions and the provenance of the context still apply first (a replay is a user's turn: its Provenance must be user),
@@ -62,6 +67,9 @@ Include Ensemble
 ///        - the host sink of the gate (sinkClass, empty: the HostSinkClass setting of Decide) receives approval.raised from Raise, after the row is
 ///          saved and unlocked. Raise takes the trace session and the SuperSession from the context (AD-26), so the call's request is held in the
 ///          thread of its turn: the gate passes neither.
+///      A call of an MCP tool, native or through the proxy, is held in its native form (Story 22.4): ToolName the tool, ToolArguments the tool's own arguments (for a proxy
+///      call, the arguments member), ToolSource the toolref of its server and ToolFingerprint the one the turn's map holds for the tool (Approval.Raise requires it for an mcp:
+///      source). A proxy call whose server or tool the map does not hold, and a native MCP call with no fingerprint there, are denied with FAILED and hold nothing.
 ///      A held call fires no turn.step and does not taint the turn, and its only event is approval.raised. A Raise that fails (a lock it cannot
 ///      take, an open transaction, a hold that does not start, a row it refuses) is denied with FAILED, never HELD, because nothing is held: Check
 ///      logs its one warning with Raise's error, and no row, hold or event is left.
@@ -200,7 +208,7 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 	Set context = ##class(OcuTalon.Bridge.Context).Current()
 	Set replay = (context.Kind = ..#REPLAYKIND)
 	If replay && (source = "") Set source = ##class(OcuTalon.Bridge.Context).GrantSource()
-	Set classification = ..ClassificationOf(source, name, ..ArgumentsOf(call))
+	Set classification = ..ClassificationOf(source, name, ..ArgumentsOf(call), replay)
 	If classification.%Get("unregistered") = 1 Quit ..Denial(..#UNREGISTERED)
 	Set missing = ..MissingPrivilege(source, name, classification)
 	If missing '= "" Quit ..Denial($Replace(..#NOPRIVILEGE, "{privilege}", missing))
@@ -209,7 +217,12 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 	Set tainted = $Select(replay || marked: 0, 1: context.Tainted)
 	If ((context.Provenance '= ..#USERPROVENANCE) || (tainted '= 0)) && '((classification.classification = ..#SAFE) && (classification.readOnly = 1)) Quit ..Denial(..#UNTRUSTED)
 	If replay {
-		If '##class(OcuTalon.Bridge.Context).TakeGrant(name, ..ArgumentsOf(call), source) Quit ..Denial(..#FAILED)
+		If ..IsProxyCall(source, name) {
+			Set native = ..ReplayNative(call)
+			If '$IsObject(native) || '##class(OcuTalon.Bridge.Context).TakeGrant(native.tool, native.arguments, native.toolref) Quit ..Denial(..#FAILED)
+		} ElseIf '##class(OcuTalon.Bridge.Context).TakeGrant(name, ..ArgumentsOf(call), source) {
+			Quit ..Denial(..#FAILED)
+		}
 	} ElseIf classification.classification '= ..#SAFE {
 		Quit ..Hold(context, name, source, call, sinkClass)
 	}
@@ -237,7 +250,9 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 }
 
 /// Holds a call that is not safe: raises one tool_call request for it through Approval.Raise (see the class comment, step 5) and denies the
-/// call with HELD. It throws Raise's status when Raise fails, which Check turns into FAILED and one warning.
+/// call with HELD. It throws Raise's status when Raise fails, which Check turns into FAILED and one warning. A call of an MCP tool, native or through the governed proxy, is held
+/// in its native form (Story 22.4): the tool's name, the tool's own arguments, the toolref of its server and the fingerprint that the turn's map holds for the tool
+/// (HeldMcp); a call that has no toolref or no fingerprint there throws, so nothing is held that could never be replayed.
 ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, source As %String, call As %DynamicObject, sinkClass As %String) As %Status [ Private ]
 {
 	Set type = call.%GetTypeOf("arguments")
@@ -245,6 +260,17 @@ ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, source As 
 		$$$ThrowStatus($SYSTEM.Status.Error(5001, "The arguments of the call are of the type " _ type _ ", not an object or a JSON text"))
 	}
 	Set arguments = ..ArgumentsOf(call)
+	Set fingerprint = ""
+	If ..IsProxyCall(source, name) {
+		Set held = ..HeldMcp(arguments)
+		Set name = held.tool
+		Set source = held.toolref
+		Set arguments = held.arguments
+		Set fingerprint = held.fingerprint
+	} ElseIf ..IsMcp(source) {
+		Set fingerprint = ##class(OcuTalon.Bridge.Context).McpFingerprint(source, name)
+		If fingerprint = "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The turn's MCP map holds no fingerprint for the tool, so the call cannot be held"))
+	}
 	If $IsObject(arguments) {
 		Set text = arguments.%ToJSON()
 	} ElseIf $ZStrip(arguments, "*WC") '= "" {
@@ -257,12 +283,66 @@ ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, source As 
 	Set request.ToolName = name
 	Set request.ToolArguments = text
 	Set request.ToolSource = source
+	Set request.ToolFingerprint = fingerprint
 	Set request.Runner = context.Runner
 	Set request.OwnerRef = context.OwnerRef
 	Set request.TraceRef = context.TraceRef
 	Set sc = ##class(OcuTalon.Bridge.Approval).Raise(request, .ref, sinkClass)
 	If $$$ISERR(sc) $$$ThrowStatus(sc)
 	Quit ..Denial(..#HELD)
+}
+
+/// The native form of a held call of the governed proxy: {"tool", "toolref", "arguments", "fingerprint"}, from the proxy call's arguments (server, tool, arguments): the tool, the
+/// toolref that the turn's map holds for the server (Context.McpToolref), the tool's own arguments as an object ({} for none) and the map's fingerprint for the toolref and the
+/// tool. It throws when the proxy call names no server or tool, when the map holds no toolref or no fingerprint for them, and when the tool's arguments are not an object or
+/// the JSON text of one.
+ClassMethod HeldMcp(arguments As %RegisteredObject) As %DynamicObject [ Private ]
+{
+	Set object = ..ArgumentsObject(arguments)
+	If (object.%GetTypeOf("server") '= "string") || (object.%GetTypeOf("tool") '= "string") || (object.server = "") || (object.tool = "") {
+		$$$ThrowStatus($SYSTEM.Status.Error(5001, "The call of the proxy names no server or no tool"))
+	}
+	Set toolref = ##class(OcuTalon.Bridge.Context).McpToolref(object.server)
+	Set fingerprint = ##class(OcuTalon.Bridge.Context).McpFingerprint(toolref, object.tool)
+	If (toolref = "") || (fingerprint = "") $$$ThrowStatus($SYSTEM.Status.Error(5001, "The turn's MCP map holds no toolref or fingerprint for the tool of the proxy call, so the call cannot be held"))
+	Quit {"tool": (object.tool), "toolref": (toolref), "arguments": (..ToolArgumentsOf(object)), "fingerprint": (fingerprint)}
+}
+
+/// The tool's own arguments of a proxy call's arguments object, as an object: the member arguments when it is an object, the object of a JSON text when it is one, {} when
+/// there is none. It throws for any other type or text that is not a JSON object.
+ClassMethod ToolArgumentsOf(object As %DynamicObject) As %DynamicObject [ Private ]
+{
+	Set type = object.%GetTypeOf("arguments")
+	If (type = "unassigned") || (type = "null") Quit {}
+	If type = "object" Quit {}.%FromJSON(object.arguments.%ToJSON())
+	If type = "string" Quit ..ArgumentsObject(object.arguments)
+	$$$ThrowStatus($SYSTEM.Status.Error(5001, "The arguments of the tool in the proxy call are of the type " _ type _ ", not an object"))
+}
+
+/// The native form of the replay of an approved MCP call, which is a call of the governed proxy (Story 22.4): {"tool", "toolref", "arguments"}, where tool and arguments are the
+/// ones the proxy call names and toolref is the source of the grant, taken only when the host's ServerOf names exactly the server of the call; for any other server it is "", which
+/// no grant holds. "" when the call's arguments are not those of a proxy call or the host's ServerOf cannot be asked (the replay is then denied).
+ClassMethod ReplayNative(call As %DynamicObject) As %DynamicObject [ Private ]
+{
+	Try {
+		Set object = ..ArgumentsObject(..ArgumentsOf(call))
+		If (object.%GetTypeOf("server") '= "string") || (object.%GetTypeOf("tool") '= "string") || (object.server = "") || (object.tool = "") Quit
+		Set native = {"tool": (object.tool), "toolref": (..ReplayToolref(object.server)), "arguments": (..ToolArgumentsOf(object))}
+	} Catch {
+		Set native = ""
+	}
+	Quit $Get(native)
+}
+
+/// The toolref of the server in a replay: the source of the grant when the host's ServerOf names exactly this server for it, else "" (unclassified, and never the toolref of a
+/// grant). It throws when the McpServersClass setting names a class that is not usable.
+ClassMethod ReplayToolref(server As %String) As %String [ Private ]
+{
+	Set grant = ##class(OcuTalon.Bridge.Context).GrantSource()
+	If (server = "") || (grant = "") Quit ""
+	Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("McpServersClass", , , .sc)
+	If $$$ISERR(sc) $$$ThrowStatus(sc)
+	Quit $Select($ClassMethod(class, "ServerOf", grant) = server: grant, 1: "")
 }
 
 /// The source of the call: its toolref when that starts mcp:, else metadata.origin_class, else "".
@@ -408,11 +488,11 @@ ClassMethod ClampIn(arguments As %DynamicObject) As %Boolean [ Private ]
 /// checks). arguments is the call's arguments, an object or a JSON
 /// string, and is read only as the input of a code Classify method, and as the server and the tool of a call of the governed proxy (FromProxy); "" means none. It throws for a malformed ToolClassification setting, a
 /// ClassificationClass that is not usable, arguments that are not JSON, an exception of a code Classify method and an exception of ClassifyMcp.
-ClassMethod ClassificationOf(source As %String, name As %String, arguments As %RegisteredObject = "") As %DynamicObject
+ClassMethod ClassificationOf(source As %String, name As %String, arguments As %RegisteredObject = "", replay As %Boolean = 0) As %DynamicObject
 {
 	If (source = "") || (name = "") Quit ..Unclassified()
 	If ..IsMcp(source) Quit ..FromMcp(source, name)
-	If ..IsProxyCall(source, name) Quit ..FromProxy(arguments)
+	If ..IsProxyCall(source, name) Quit ..FromProxy(arguments, replay)
 
 	Set hook = ..HookFor(source, name)
 	If hook '= "" {
@@ -547,8 +627,9 @@ ClassMethod FromMcp(source As %String, name As %String) As %DynamicObject [ Priv
 
 /// The classification of a call of the governed proxy (Story 22.3; see the class comment): the server and the tool that the arguments name (a JSON object or a JSON text;
 /// anything else, a missing member and a member that is not text are unclassified) are classified as the native call of that tool is, by FromMcp for the toolref that
-/// the turn's map holds for the server ("" when it holds none) and the tool. It throws as FromMcp does.
-ClassMethod FromProxy(arguments As %RegisteredObject) As %DynamicObject [ Private ]
+/// the turn's map holds for the server ("" when it holds none) and the tool; in a replay (Story 22.4) the toolref is the grant's, when the host's ServerOf names this server
+/// for it (ReplayToolref), as the turn of a replay has no map. It throws as FromMcp does.
+ClassMethod FromProxy(arguments As %RegisteredObject, replay As %Boolean = 0) As %DynamicObject [ Private ]
 {
 	Set server = ""
 	Set tool = ""
@@ -561,7 +642,7 @@ ClassMethod FromProxy(arguments As %RegisteredObject) As %DynamicObject [ Privat
 		Set tool = ""
 	}
 	If (server = "") || (tool = "") Quit ..Unclassified()
-	Quit ..FromMcp(##class(OcuTalon.Bridge.Context).McpToolref(server), tool)
+	Quit ..FromMcp($Select(replay: ..ReplayToolref(server), 1: ##class(OcuTalon.Bridge.Context).McpToolref(server)), tool)
 }
 
 /// The classification with the resource of the extension's answer added when there is one.

@@ -11,6 +11,9 @@
 ///     no url, secret or error text is returned: the answer is "" or a code word.
 ///   - ProxyToolSet: OcuTalon.Tools.McpProxy, the toolset of the governed proxy call_mcp_tool (Story 22.3), which the runner registers on the tool manager of a request that holds
 ///     an MCP server; "" on the online demo, where no MCP server runs and the proxy is never offered.
+///   - ServerOf and Toolref (Story 22.4): the toolref of a server's entry is exactly mcp:remote:@{config:AI.MCP.OcuTalon_<name>}, the form that the runner attaches. ServerOf gives
+///     the name for exactly that form with a name that matches OcuTalon.Mcp.Server NAMEPATTERN, and "" for any other text; Toolref is its inverse and gives "" for a name that
+///     does not match the pattern.
 ///   - ToolsReadOnly: 1 only when the row's last attach was attached and every tool row of the server that is not in the row's RefusedTools (a refused tool never
 ///     runs) is classified read-only; an attached server with no such row counts as 1. A server whose last attach was unavailable or never happened, a server with no
 ///     row, an empty name and any error count as 0. It reads and writes nothing else (DW-724).
@@ -19,6 +22,11 @@ Class OcuTalon.Mcp.Attach Extends OcuTalon.Bridge.Ext.McpServers
 
 /// The prefix of a server's Config Store entry, after AI.MCP.
 Parameter ENTRYPREFIX = "OcuTalon_";
+
+/// The start and the end of a server's toolref around ENTRYPREFIX and the name: mcp:remote:@{config:AI.MCP.OcuTalon_<name>}.
+Parameter TOOLREFSTART = "mcp:remote:@{config:AI.MCP.";
+
+Parameter TOOLREFEND = "}";
 
 ClassMethod Servers(Output servers As %DynamicArray) As %Status
 {
@@ -57,6 +65,21 @@ ClassMethod OnAttach(server As %String, report As %DynamicObject) As %Status
 ClassMethod ProxyToolSet() As %String
 {
 	Quit $Select(##class(OcuTalon.Mcp.Proxy).OnlineDemo(): "", 1: "OcuTalon.Tools.McpProxy")
+}
+
+ClassMethod ServerOf(toolref As %String) As %String
+{
+	Set prefix = ..#TOOLREFSTART _ ..#ENTRYPREFIX
+	Set suffix = ..#TOOLREFEND
+	If $IsObject($Get(toolref)) || ($Extract(toolref, 1, $Length(prefix)) '= prefix) || ($Extract(toolref, *-$Length(suffix) + 1, *) '= suffix) Quit ""
+	Set name = $Extract(toolref, $Length(prefix) + 1, *-$Length(suffix))
+	Quit $Select($Match(name, ##class(OcuTalon.Mcp.Server).#NAMEPATTERN): name, 1: "")
+}
+
+ClassMethod Toolref(server As %String) As %String
+{
+	If $IsObject($Get(server)) || '$Match($Get(server), ##class(OcuTalon.Mcp.Server).#NAMEPATTERN) Quit ""
+	Quit ..#TOOLREFSTART _ ..#ENTRYPREFIX _ server _ ..#TOOLREFEND
 }
 
 ClassMethod ToolsReadOnly(server As %String) As %Boolean
