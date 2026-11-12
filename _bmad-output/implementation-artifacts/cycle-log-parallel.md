@@ -3647,3 +3647,23 @@
 2026-11-12T05:20:46Z	Run	ruling	question=21.2_README_bullet_placement_after_0.26_regroup category=veto choice=Your_own_mailbox_under_Your_integrations_after_Queue_backlogs(35.3_Webhooks_lands_between_per_its_ruling) rejected=runner_integrate(21.3_unreviewed_commits_on_its_branch) policy=5086036 note=sent_to_Planner
 2026-11-12T05:20:46Z	Run	ledger_routed_planned	story=22-7 entries=1(DW-1164) excess=0 by=merge_gate
 2026-11-12T05:20:46Z	Run	deps_hash_rerecorded	reason=ledger_routed,split(21.8_inserted) hash=5da3832d
+2026-11-12T05:20:49Z	Epic 21	epic_merged_to_feature	part=21.2+21.6 feature_sha=74ee76dc merge_sha=74ee76dc code=0a357e9b verified_on_origin=yes
+2026-11-12T05:21:14Z	Epic 21	runner_resumed	agent=ac5e5ed9a5908b7a3 with=merged_74ee76dc;continue_21.3 mode=message_to_ended_runner
+2026-11-12T05:21:14Z	Epic 35	runner_resumed	agent=aa1afdacf64c5bb19 with=feature_74ee76dc;README_pin_16;SecretHandoff_drop_copy mode=message_to_live_runner
+2026-11-12T05:21:41Z	Run	ci_cancel	runs=43159029439,43159029453(feature_f4fe3473) reason=Planner:superseded_by_74ee76dc;runners_busy fallback=b5057e5a;rerun_f4fe3473_if_74ee76dc_red_on_21.x
+2026-11-12T05:21:41Z	Run	owner_decision	id=21.2-README-placement via=contest_planner by=owner(delegation) answer=accepted;final_order_Queue_backlogs,Webhooks,Your_own_mailbox,History,Usage;pin_16_with_35.3
+2026-11-12T06:15:29Z	Epic 21	runner_clarification	kind=CI_WAIT(feature_74ee76dc) agent=ac5e5ed9a5908b7a3 story=21.3 local_code=40cf02e3 local_head=51f36780 origin=0a357e9b cr=3_HIGH_patched,unresolved_high_med=0 decisions_for_user=DW-1180,DW-1181 shas=verified
+2026-11-12T06:16:00Z	Run	owner_decision	id=21.3-DW-1180/1181 via=contest_planner by=owner(delegation) answer=DW-1180_accepted(+_Ensemble_%All_stated;21.8_AC_least-privilege_measurement;no_least-privilege_claim_until_then);DW-1181_wontfix-accepted_if_Settings_never_shows_old_provider_registered(test_or_fix_before_push) ref=prompts/epic-21-rulings-213.md
+2026-11-12T06:27:22Z	Epic 21	runner_clarification	kind=CI_WAIT(feature_74ee76dc) agent=ac5e5ed9a5908b7a3 story=21.3 local=ad2255ac(rulings_applied;DW-1181_state_lie_fixed+pinned;DW-1185_flake_routed_21.8) origin=0a357e9b state=parked_at_boundary shas=verified
+2026-11-12T06:48:49Z	Epic 23	runner_clarification	kind=CI_WAIT+PUBLIC_TEXT agent=afc4a2f06e7d322df story=23.9 head=e7c97dda(integrated_f4fe3473) runs=43170639261,43170639270 local=14a5f153 decision=DW-1186(P3_sentence_misleads_on_waiting_incident) DW-1068=resolved-by_23-9 next=Epic_23_ends_waiting_on_36 shas=verified
+2026-11-12T06:49:32Z	Run	resume_prompt_refreshed	block=AT_HOLD_20261112_0700Z(draft;finalized_at_hold)
+2026-11-12T06:49:43Z	Run	owner_decision	id=DW-1186 via=contest_planner by=owner(delegation) answer=fix_in_23.9_with_Planner_two-case_sentence+pin+empty-others_check;lane_D_after_23.9=DW-1159_only ref=prompts/epic-23-rulings-239.md
+2026-11-12T06:49:51Z	Epic 23	runner_resumed	agent=afc4a2f06e7d322df with=DW-1186_fix_in_23.9(Planner_sentence) mode=message_to_ended_runner
+2026-11-12T06:51:52Z	Epic 35	runner_ended	agent=aa1afdacf64c5bb19 reason=hold head_local=c6c099df(merge_61b7a59b_onto_74ee76dc;3_unpushed) origin=c27ff301 README=pin_16+intro+count SecretHandoff=dropped_copy+Discard_helper shas=verified
+2026-11-12T06:51:52Z	Run	ci_red_classified	sha=74ee76dc(feature) run=43160772937 job=iris(shards-4) test=live:sign-in-2_L1_poll_gap_2076ms class=flake(DW-1158) action=rerun_failed_once_when_run_completes
+2026-11-12T06:52:37Z	Run	ci_red_classified	sha=74ee76dc(feature) run=43160772937 job=iris(browser) test=demo-path_T8_sign-in_POST_timeout_60s class=flake(host_load;DW-1187) action=rerun_failed_once_when_run_completes
+2026-11-12T06:52:48Z	Epic 35	runner_ended_recorded	dispatch_state=held head_local=c6c099df unpushed=3
+2026-11-12T06:59:33Z	Run	hold_ordered	reason=owner_HOLD_NOW(account_switch;Planner_relay) dispatch=held live_runners=D(afc4a2f06e7d322df) ended=A,B,C keep_lock=yes
+2026-11-12T07:00:43Z	Run	hold_wip_pushed	by=orchestrator OCT-epic35=c6c099df(35.3_merged_onto_74ee76dc) OCT-epic21=ad2255ac(21.3_code_+bookkeeping) method=explicit_refspec_ff
+2026-11-12T07:08:17Z	Epic 23	runner_ended	agent=afc4a2f06e7d322df reason=hold head=109d59c8(pushed) story=23.9_rework1_DW-1186_built(e76fbea3)_re-review_pending
+2026-11-12T07:08:17Z	Run	hold_complete	shas=feature:74ee76dc,OCT-epic0:eff03a14,OCT-epic35:c6c099df,OCT-epic21:ad2255ac,OCT-epic23:109d59c8,OCT-epic22:3fc3e909 all_on_origin=yes worktrees=clean unpushed=none locks=none throwaways=none hold_patches=none lock=kept(no_run-end)

@@ -7032,6 +7032,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic23 96bc4b28, ci run 43037078949 job 130578626990 on ocutalon-ci-16 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: timing assert on the poll interval under CI load; 23.7 changes no live/poll code
 - 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); one rerun per occurrence; rerun deferred until RESUME (HOLD)
+- 2026-11-12T06:52:37Z occurrence=feature note=74ee76dc ci 43160772937 shards-4 live:sign-in-2 L1 poll gap 2076 ms vs 2000; one rerun
 ### DW-1143: K29 under sign-in-3 (no model, no CI mock) seeds the queue row instead of running press->turn->start_watch->row end to end
 - source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story(web/e2e/guide/more-to-try-queues.spec.ts)
 - evidence: sign-in-3 has no CI mock; K29 pins press->one prompt (mutation red); Test.Watch.Turns:TestQueuesThroughTheAgent pins prompt->start_watch(kind queues)->row->check event; rail-view.test.mjs and K29 pin the row render
@@ -7096,3 +7097,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: IncidentManager.cls:802 (Story 23.11 review, DW-1172) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Contest Planner ruling 2026-11-12: each form letters, spaces and hyphens only, at most 40 characters, else drop it and keep the code noun; a test with a hostile noun
 - 2026-11-12T03:39:15Z status=routed owner=burndown by=orchestrator note=not part of 23.11, not a 1.0.8 blocker; 23.11's SystemNote is constant text (DW-1172 ruling)
+
+### DW-1187: flake candidate (host load): live:demo-path telegram-approval.spec.ts T8 failed in sign-in: page.waitForResponse for the sign-in POST timed out at 60 s (SLOW loadedAfter the sign-in 60 s), before any approval step
+- source: feature 74ee76dc, ci run 43160772937 job iris (browser) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the failure is in sign-in/helpers.ts:61 submitSignIn, not the approval path; all 18 runners busy with the backlog; 74ee76dc's new code (21.2/21.6/23.11) doesn't touch sign-in
+- 2026-11-12T06:52:37Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun; a second red on the same head is real
