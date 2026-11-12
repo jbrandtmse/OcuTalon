@@ -114,8 +114,8 @@ test('R1: the rail is the region Status with its sections in order, live counts,
   ]);
   await expect(status.locator('app-telegram-card'), 'the Telegram card says it is not set up').toContainText('Telegram not set up');
   const setUp = status.getByRole('link', { name: 'How to set it up (opens in a new tab)', exact: true });
-  await expect(status.getByRole('link'), 'and holds the one README link').toHaveCount(1);
-  await expect(setUp, 'which opens the README\'s Telegram section').toHaveAttribute('href', /#telegram$/);
+  await expect(status.getByRole('link'), 'and holds the one guide link').toHaveCount(1);
+  await expect(setUp, 'which opens the guide\'s Telegram section').toHaveAttribute('href', /\/GUIDE\.md#telegram$/);
   await expect(status.locator('.empty'), 'each list shows its empty text').toHaveText([
     'None waiting.',
     'Nothing yet. Step 1 of the guide sets up a watch.',
@@ -486,7 +486,7 @@ test('R11: with Telegram included, the first section is the Telegram card with i
     await expect(status.locator('app-telegram-card'), 'the card says it is not set up').toContainText('Telegram not set up');
     const link = status.getByRole('link', { name: 'How to set it up (opens in a new tab)', exact: true });
     await expect(link, 'with a link to set it up').toHaveCount(1);
-    await expect(link, 'to the README\'s Telegram section').toHaveAttribute('href', 'https://github.com/jbrandtmse/OcuTalon#telegram');
+    await expect(link, 'to the guide\'s Telegram section').toHaveAttribute('href', 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#telegram');
     await expect(link, 'in a new tab').toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     await expect(page.locator('[data-banner="telegramPaused"]'), 'no Telegram banner').toHaveCount(0);

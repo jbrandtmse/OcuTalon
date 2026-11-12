@@ -1784,6 +1784,40 @@ So that I can trust what the agent adds.
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.30: A shorter README for judges, with the install, feature and admin material moved word for word to GUIDE.md
+
+[ADDED 2026-11-12, Contest Planner brief (owner-approved, 2026-11-12 ~04:30Z, prompts/story-030-shorter-readme.md, verbatim and binding); lane A, after Story 0.28; its plan may start at once, its implement waits for the Planner's PUBLIC TEXT ruling] Every outside review names README length as the weak spot (README.md was 6,373 words on b5057e5a). Footprint: `README.md`, `GUIDE.md` (new), `docker/tests/test-readme.sh`, and the release-tool and repository-layout checks that must accept `GUIDE.md` at the root.
+
+As a judge opening the repository,
+I want a README of about 2,000 words that shows the demo, the incident path, what is interesting and what was measured,
+So that I can judge the entry quickly and still find every install and admin detail one link away.
+
+**Acceptance Criteria:**
+
+**Given** README.md after this story
+**When** it is read
+**Then** it keeps the header, tagline, badges, lead paragraph, video lines and first screenshot; "Try it in two minutes" (the link bar, the demo paragraph and the 4 numbered steps, each step's "(...)" link now pointing into GUIDE.md); "For judges: where to look"; "One incident, end to end"; "What's interesting" with the Visual Trace screenshot; "Measured" (including Story 0.29's comparison once it lands); "Contest checklist"; and "Credits and licences" with the OpenClaw not-affiliated note
+**And** "New since 1.0.0" keeps its heading with a pointer of at most 2 sentences, and the only other new prose is a closing "More" paragraph of at most 4 lines linking GUIDE.md's main sections
+**And** `wc -w README.md` is about 2,000 and at most 2,300
+
+**Given** a new root file GUIDE.md titled "# OcuTalon guide: install, features and administration"
+**When** it is compared with the README before this story
+**Then** it holds, byte for byte except for links, the body of "New since 1.0.0"; What you can use it for; How you talk to it; What OcuTalon does; Install it yourself and all its subsections; Set a model key; Sign in; Telegram; Stop, start and update; Troubleshooting; and For admins and developers with all its subsections (Repository layout, Tests and CI)
+**And** every link from README.md into GUIDE.md is an absolute URL `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#<anchor>`; relative links inside GUIDE.md are fine; every anchor in both files resolves, and the existing link check covers GUIDE.md
+
+**Given** `docker/tests/test-readme.sh`
+**When** it runs
+**Then** every existing pin follows its text to the file it lands in; a word cap holds README.md to at most 2,300 words; a check finds GUIDE.md and a README.md link to it; and every count that follows the registry still passes (sixteen and fifteen, and the 0.28 rows as ruled)
+**And** the README tests and checks the release tools and repository-layout checks run accept GUIDE.md at the root
+
+**Given** this story's diff
+**When** it is inspected
+**Then** no app code, demo guide or catalog text changes, and nothing in README.md or GUIDE.md is committed before the Contest Planner rules on the spec gate's PUBLIC TEXT (the complete new README.md and the list of headings moved to GUIDE.md)
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.

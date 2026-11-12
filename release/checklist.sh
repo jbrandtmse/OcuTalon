@@ -471,7 +471,7 @@ author_rows() {
   rm -f "$lines"
 }
 
-CK_REGISTRY_TEXT="After this version was published to the package registry, the README's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output."
+CK_REGISTRY_TEXT="After this version was published to the package registry, the guide's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output."
 
 # registry_row <record>: the row registry-install, "confirmed" with the date from the author's own line in the record's "## Author confirmations"
 # section, otherwise "later" with a LATER line that names the line to add. A "later" row is neither a failure nor a missing confirmation.
