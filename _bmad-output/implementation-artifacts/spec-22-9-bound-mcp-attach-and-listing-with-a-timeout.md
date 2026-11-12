@@ -164,6 +164,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-12 (runner, lane change): Epic 22 moved to lane D (slot `ocutalon-slot-d`, lock folder `lane-d`, port 52804) by the Contest Planner's ruling; the Verification lane variables now name lane D. Nothing else changed.
+
 - 2026-11-11 (runner, rulings applied): the Contest Planner's rulings (verbatim under Design Notes) are applied: veto items accepted; residual (a), with Story 22.10 filed after 22.7 for the AD-21 amendment; spine S8-S11 written.
 
 - 2026-11-11 (runner, spec gate): validated. The Veto items, spine updates S8-S11 and the mid-request residual (options (a)/(b) under Design Notes) go to the Contest Planner (via the orchestrator) before the implement stage; this story implements only after Stories 22.2 and 22.8 are committed.
@@ -283,7 +285,7 @@ None new.
 
 ## Verification
 
-Each `ci/iris.sh` call carries the lane's variables: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=22 stage=implement'`.
+Each `ci/iris.sh` call carries the lane's variables: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-d" OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=22 stage=implement'`.
 - Check `ci/warm.sh status` first.
 - Run `OCUTALON_RUN_TAG=e22s9iw ci/warm.sh up` once, then `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e22s9iw` on each class call.
 - Run `ci/warm.sh down` at the end, even after a failure.
