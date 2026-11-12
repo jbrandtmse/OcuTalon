@@ -13,8 +13,12 @@ Include Ensemble
 ///   - TestDemoModeOffKeepsTheNotice (AC6): the request is approved while demo mode is off: it could not start with the NOTSETUP reason, no mail is saved, the row keeps the text, and the session gets result.partnerKept;
 ///     after it, demo mode is put back and the test waits until the production's jobs read it again (Data.Setting's cache), so that no later case runs with demo mode off;
 ///   - TestInjectedTurn (AC8): in an untrusted turn (the mock's partner-warning-injected, whose input names an address of an attacker) propose_fix is denied with UNTRUSTED: no command reaches CommandsIn, no request or draft exists and no mail goes to any address;
-///   - TestResolvedDraftSaysTheOrdersWentThrough (Story 23.10): a resolved incident whose cause carries the marker partner-notice-resolved: the one pending request is to contact 1 and its notice has neither "looking into" nor
-///     "will share updates", and the draft's request to the model holds "Incident state: resolved" and the instruction's sentence for a resolved incident;
+///   - TestResolvedDraftSaysTheOrdersWentThrough (Stories 23.10, 23.11): a resolved incident whose one fix run resent and completed all 3 messages, with the cause marker partner-notice-resolved: the one pending request is to
+///     contact 1 and its notice has neither "looking into" nor "will share updates" and says "went through", and the draft's request to the model holds "Incident state: resolved", the full-fix Outcome line and the
+///     instruction's sentence for an ending;
+///   - TestPartialFixDraft, TestReroutedDraft, TestPausedDraft (Story 23.11, AC7): the same for a partial fix (2 of 3 through), a reroute (to OrdersForReview, which the draft's request does not name) and a suspend of
+///     OrdersFromPartner, with the markers partner-notice-partial, -rerouted and -paused: each draft's request holds that ending's Outcome line, and the notice raised for approval says neither "went through", "looking into"
+///     nor "will share updates";
 ///   - TestSecondSessionAsks (AC8, AC11): a session that has no incident of its own is told that there is no open incident to warn about, and nothing is drafted or raised for the first session's incident.
 Class OcuTalon.Test.Fix.PartnerTurns Extends OcuTalon.Test.Watch.Case
 {
@@ -38,8 +42,12 @@ Property DemoWas As %String;
 
 Property DemoWasAt As %String;
 
+/// The Refs of the fixture rows of an ending (its request and its incident, which holds the run), comma-separated.
+Property Fixtures As %String(MAXLEN = "");
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
+	Set ..Fixtures = ""
 	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .was, .wasAt)
 	Set ..DemoFound = found, ..DemoWas = was, ..DemoWasAt = wasAt
 	Quit ##super(testname)
@@ -47,6 +55,8 @@ Method OnBeforeOneTest(testname As %String) As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	If ..Fixtures '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Fixtures)
+	Set ..Fixtures = ""
 	Do ##class(OcuTalon.Test.Demo.Step).PutBack(..DemoFound, ..DemoWas, ..DemoWasAt)
 	// the production's jobs keep the demo.mode they read for CACHESECONDS: wait until the value put back reaches them
 	If testname = "TestDemoModeOffKeepsTheNotice" Hang $Parameter("OcuTalon.Data.Setting", "CACHESECONDS") + 2
@@ -178,39 +188,41 @@ Method TestSecondSessionAsks()
 	Do $$$AssertEquals(..Approvals(a)_"|"_..Approvals(b)_"|"_..Requests(incident).%Size(), "0|0|0", "nothing is raised for either session or for the first session's incident")
 }
 
-/// Story 23.10: the draft of a resolved incident is asked with the instruction's sentence for a resolved incident and the incident's state, and the mock's notice for it says the orders went through.
+/// Stories 23.10 and 23.11: a resolved incident whose one fix run resent and completed all its messages is drafted with the full-fix Outcome line and the instruction for an ending, and the mock's notice for it says the orders went through.
 Method TestResolvedDraftSaysTheOrdersWentThrough()
 {
 	Set mark = $ClassMethod(..#MOCK, "LogMark")
-	If '..Asked("resolved", .a, .b, .incident, .one, , , , "partner-notice-resolved") Quit
-	Do $$$AssertEquals(one.kind_"|"_one.state_"|"_one.fixKind_"|"_one.fixTargets, "fix|pending|partner_warning|1", "a pending partner_warning request fixed to contact 1")
-	Set notice = {}.%FromJSON(one.fixParameters).text
-	Set dry = {}.%FromJSON(one.dryRun)
-	For shown = notice, dry.notice {
-		Set lower = $ZConvert(shown, "L")
-		Do $$$AssertTrue(shown '= "", "the notice is not empty")
-		Do $$$AssertEquals($Find(lower, "looking into")_"|"_$Find(lower, "will share updates"), "0|0", "the notice says neither that it is looking into it nor that updates will follow")
-	}
-	Do $$$AssertEquals(dry.recipients.%Get(0).name, "Orders Partner IT", "and it is addressed to Orders Partner IT")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(incident).State, "resolved", "the incident is as it was")
-	Do $$$AssertStatusOK($ClassMethod(..#MOCK, "LogSince", mark, .entries), "the mock's log is read")
-	Set drafts = 0
-	Set found = $ClassMethod(..#FIXTURE, "FindRequests", entries, "partner-notice-resolved")
-	Set iterator = found.%GetIterator()
-	While iterator.%GetNext(, .logged) {
-		Set messages = $ClassMethod(..#FIXTURE, "Messages", logged)
-		If '$Find(messages, "Write a short delay notice") Continue
-		Set drafts = drafts + 1
-		Do $$$AssertTrue($Find(messages, "Incident state: resolved") > 0, "the draft's request holds the incident's state")
-		Do $$$AssertTrue($Find(messages, $Parameter("OcuTalon.Fix.Kind.PartnerWarning", "SYSTEMNOTE")) > 0, "and the whole instruction")
-		Do $$$AssertTrue($Find(messages, "If the incident is resolved, say that the affected orders went through after the fix, and don't say that work is still going on or that updates will follow.") > 0, "with the sentence for a resolved incident")
-	}
-	Do $$$AssertEquals(drafts, 1, "exactly one draft request reached the model")
+	If '..Asked("resolved", .a, .b, .incident, .one, , , , "partner-notice-resolved", ..Ending("repair_resend", {"field": "OrderDate", "sourceFormat": "DD/MM/YYYY", "targetFormat": "YYYY-MM-DD"}, 3, 3, 3, 0, 0)) Quit
+	Do ..AssertEnding("partner-notice-resolved", mark, incident, one, "Outcome: all 3 affected orders went through after the fix.", 1)
+}
+
+/// Story 23.11 (AC7): a partial fix (2 of the 3 orders through) is drafted with its Outcome line, and the notice does not say that the orders went through.
+Method TestPartialFixDraft()
+{
+	Set mark = $ClassMethod(..#MOCK, "LogMark")
+	If '..Asked("partial", .a, .b, .incident, .one, , , , "partner-notice-partial", ..Ending("repair_resend", {"field": "OrderDate", "sourceFormat": "DD/MM/YYYY", "targetFormat": "YYYY-MM-DD"}, 3, 3, 2, 1, 0)) Quit
+	Do ..AssertEnding("partner-notice-partial", mark, incident, one, "Outcome: 2 of the 3 affected orders went through after the fix, and 1 did not.", 0)
+}
+
+/// Story 23.11 (AC7): a reroute is drafted with the reroute Outcome line, which does not name the route's target, and the notice does not say that the orders went through.
+Method TestReroutedDraft()
+{
+	Set mark = $ClassMethod(..#MOCK, "LogMark")
+	If '..Asked("rerouted", .a, .b, .incident, .one, , , , "partner-notice-rerouted", ..Ending("reroute", {"target": "OrdersForReview"}, 3, 3, 3, 0, 0)) Quit
+	Do ..AssertEnding("partner-notice-rerouted", mark, incident, one, "Outcome: the 3 affected orders were resent by another route.", 0, "OrdersForReview")
+}
+
+/// Story 23.11 (AC7): a suspend of the failed item is drafted with the paused Outcome line, and the notice does not say that the orders went through.
+Method TestPausedDraft()
+{
+	Set mark = $ClassMethod(..#MOCK, "LogMark")
+	If '..Asked("paused", .a, .b, .incident, .one, , , , "partner-notice-paused", ..Ending("suspend_item", {"item": "OrdersFromPartner"}, 1, 0, 1, 0, 0)) Quit
+	Do ..AssertEnding("partner-notice-paused", mark, incident, one, "Outcome: the affected flow was paused, and the 3 affected orders haven't gone through yet.", 0)
 }
 
 /// --- helpers ---
 /// Asks for the warning in a turn and waits for the request: 1 with a, b (a second session), the incident's Ref, the request (the row as Requests gives it), the time the turn ended, the time it began and the time the request was found (seconds, $ZHorolog).
-Method Asked(name As %String, Output a As %String, Output b As %String, Output incident As %String, Output one As %DynamicObject, Output turnEnded As %Decimal, Output started As %Decimal, Output raised As %Decimal, marker As %String = "partner-notice") As %Boolean [ Private ]
+Method Asked(name As %String, Output a As %String, Output b As %String, Output incident As %String, Output one As %DynamicObject, Output turnEnded As %Decimal, Output started As %Decimal, Output raised As %Decimal, marker As %String = "partner-notice", ending As %DynamicObject = "") As %Boolean [ Private ]
 {
 	Set (a, b, incident, one, turnEnded, started, raised) = ""
 	If '..Ready() Quit 0
@@ -218,7 +230,7 @@ Method Asked(name As %String, Output a As %String, Output b As %String, Output i
 	If '..UseReal() Quit 0
 	Set a = ..Session(name)
 	Set b = ..Session(name_"other")
-	Set incident = ..ResolvedIncident(a, marker)
+	Set incident = ..ResolvedIncident(a, marker, ending)
 	Set started = $ZHorolog
 	Set sc = ..Turn("user", ..#PROMPT_" [[mock:partner-warning]]", a, .request, .answer, .turnSession, .requests)
 	Set turnEnded = $ZHorolog
@@ -231,12 +243,12 @@ Method Asked(name As %String, Output a As %String, Output b As %String, Output i
 	}
 	Set end = $ZHorolog + 90
 	For {
-		Set mine = ..Requests(incident)
+		Set mine = ..Warnings(incident)
 		If mine.%Size() || ($ZHorolog > end) Quit
 		Hang 0.25
 	}
 	Set raisedAt = $ZHorolog
-	Do $$$AssertEquals(mine.%Size(), 1, "one request names the incident")
+	Do $$$AssertEquals(mine.%Size(), 1, "one partner_warning request names the incident")
 	If mine.%Size() '= 1 Quit 0
 	Set one = mine.%Get(0)
 	Set raised = raisedAt
@@ -244,12 +256,71 @@ Method Asked(name As %String, Output a As %String, Output b As %String, Output i
 }
 
 /// A resolved noticed incident of the session on the Orders production (no real failed message is needed: the draft reads the incident's rows only), whose cause carries the mock's marker (partner-notice unless marker says another), so that the
-/// draft's turn is answered with the marker's scenario; its Ref.
-Method ResolvedIncident(session As %String, marker As %String = "partner-notice") As %String [ Private ]
+/// draft's turn is answered with the marker's scenario; its Ref. ending, when given as {kind, parameters, run}, adds one done request of that kind with a FixRun of the run's counts, linked in the incident's RequestRefs.
+Method ResolvedIncident(session As %String, marker As %String = "partner-notice", ending As %DynamicObject = "") As %String [ Private ]
 {
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
 	Set row = ..Fixture(session, "1,2,3", ..#ORDERS, ..#ORDERSPRODUCTION, "h", {"State": "resolved", "OpenVariant": "", "NoticedAt": (now), "FirstAt": (now), "LastAt": (now), "ItemNoun": {"one": "order", "other": "orders"}.%ToJSON(), "Cause": ("The partner changed the date format. [[mock:"_marker_"]]")})
+	If $IsObject(ending) {
+		Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(session, row.Ref, "done", , {"FixKind": (ending.kind), "FixParameters": (ending.parameters.%ToJSON()), "FixTargets": "1"})
+		Do ##class(OcuTalon.Test.Data.Fixture).FixRun(row.Ref, request, ending.run)
+		Set ..Fixtures = ..Fixtures_","_request_","_row.Ref
+		Set row.RequestRefs = request
+		$$$ThrowOnError(row.%Save())
+	}
 	Quit row.Ref
+}
+
+/// The ending of a resolved incident of 3 failed messages as ResolvedIncident takes it: the kind, its parameters and the run's counts (Total, Resent, Completed, FailedAgain, Skipped).
+ClassMethod Ending(kind As %String, parameters As %DynamicObject, total As %Integer, resent As %Integer, completed As %Integer, failedAgain As %Integer, skipped As %Integer) As %DynamicObject [ Private ]
+{
+	Quit {"kind": (kind), "parameters": (parameters), "run": {"Total": (total), "Resent": (resent), "Completed": (completed), "FailedAgain": (failedAgain), "Skipped": (skipped), "Interrupted": 0}}
+}
+
+/// The partner_warning requests that name the incident (Requests, without the fixture's fix request).
+ClassMethod Warnings(incident As %String) As %DynamicArray [ Private ]
+{
+	Set found = []
+	Set all = ..Requests(incident)
+	For i = 0:1:all.%Size() - 1 {
+		If all.%Get(i).fixKind = "partner_warning" Do found.%Push(all.%Get(i))
+	}
+	Quit found
+}
+
+/// The asserts of a draft for a resolved incident that the mock answered under the marker (the log since mark): the one pending request is to contact 1 for Orders Partner IT, its notice (and the dry run's) says neither "looking into"
+/// nor "will share updates" and has "went through" exactly when wentThrough, and exactly one logged draft request (its messages hold "Write a short delay notice") holds the incident's state, the Outcome line, the instruction as rendered
+/// for the incident, the ruled sentence for an ending, and no word of absent (a name that the line must not carry; "" for none).
+Method AssertEnding(marker As %String, mark As %String, incident As %String, one As %DynamicObject, line As %String, wentThrough As %Boolean, absent As %String = "") [ Private ]
+{
+	Do $$$AssertEquals(one.kind_"|"_one.state_"|"_one.fixKind_"|"_one.fixTargets, "fix|pending|partner_warning|1", "a pending partner_warning request fixed to contact 1")
+	Set notice = {}.%FromJSON(one.fixParameters).text
+	Set dry = {}.%FromJSON(one.dryRun)
+	For shown = notice, dry.notice {
+		Set lower = $ZConvert(shown, "L")
+		Do $$$AssertTrue(shown '= "", "the notice is not empty")
+		Do $$$AssertEquals($Find(lower, "looking into")_"|"_$Find(lower, "will share updates"), "0|0", "the notice says neither that it is looking into it nor that updates will follow")
+		Do $$$AssertEquals($Find(lower, "went through") > 0, +wentThrough, "the notice says the orders went through exactly when the incident was fixed in full")
+	}
+	Do $$$AssertEquals(dry.recipients.%Get(0).name, "Orders Partner IT", "and it is addressed to Orders Partner IT")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(incident).State, "resolved", "the incident is as it was")
+	Do $$$AssertStatusOK($ClassMethod(..#MOCK, "LogSince", mark, .entries), "the mock's log is read")
+	Set instruction = ##class(OcuTalon.Fix.Kind.PartnerWarning).SystemNote(##class(OcuTalon.Data.Incident).RefIndexOpen(incident))
+	Set drafts = 0
+	Set found = $ClassMethod(..#FIXTURE, "FindRequests", entries, marker)
+	Set iterator = found.%GetIterator()
+	While iterator.%GetNext(, .logged) {
+		Set messages = $ClassMethod(..#FIXTURE, "Messages", logged)
+		If '$Find(messages, "Write a short delay notice") Continue
+		Set drafts = drafts + 1
+		Do $$$AssertTrue($Find(messages, "Incident state: resolved") > 0, "the draft's request holds the incident's state")
+		Do $$$AssertTrue($Find(messages, line) > 0, "and the Outcome line "_line)
+		Do $$$AssertEquals(($Length(messages, "Outcome: ") - 1), 1, "and no other Outcome line")
+		Do $$$AssertTrue($Find(messages, instruction) > 0, "and the whole instruction")
+		Do $$$AssertTrue($Find(messages, "If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the orders went through.") > 0, "with the ruled sentence for an ending")
+		If absent '= "" Do $$$AssertEquals($Find(messages, absent), 0, "and it does not name "_absent)
+	}
+	Do $$$AssertEquals(drafts, 1, "exactly one draft request reached the model")
 }
 
 /// The sent mail of the session as Test.Fix.PartnerWarning reads it, once count of them exist (the wait is up to 30 seconds; 0 waits not at all).

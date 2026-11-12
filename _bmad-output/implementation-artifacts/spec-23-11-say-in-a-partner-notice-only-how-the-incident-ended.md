@@ -2,14 +2,22 @@
 title: 'Story 23.11: Say in a partner notice only how the incident ended'
 type: 'bugfix'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '4a1b0d0ec605238e2e8c0db452004ded1989d728'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      The incident's plural item noun, supplied by the model in the diagnosis payload, now enters the trusted SystemNote of the partner-notice draft.
+    evidence: |-
+      Watch.Notice.Noun checks only that both forms are non-empty (no length or character check); IncidentManager stores diagnosis.itemNoun as given. The substitution is the Planner's ruled design. Settled by showing that the diagnosis payload check caps the noun, or by normalising it in SystemNote.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Fix/Kind/PartnerWarning.cls SystemNote
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -111,18 +119,18 @@ All rows: incident State `resolved`, Count 50, one failure group at `OrdersFromP
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `src/ocutalon/cls/OcuTalon/Fix/Kind/PartnerWarning.cls` (DW-1165):
+- [x] `src/ocutalon/cls/OcuTalon/Fix/Kind/PartnerWarning.cls` (DW-1165):
   - add `ClassMethod Outcome(incident As OcuTalon.Data.Incident) As %String`. It returns the one ruled line, or "", exactly by the Design Notes mapping, with `{N}`, `{A}` and `{R}` as plain whole numbers;
   - in `Facts`, right after the "Incident state:" line, append `$Char(10)_line` when `Outcome` gives a line;
   - `SYSTEMNOTE`: replace 23.10's sentence, verbatim, by the 2b text;
   - the class doc's Facts bullet names the Outcome line (code-built from the incident's records, only when resolved), and `Outcome` gets a contract doc comment.
-- [ ] `ci/mock/scenarios/A/partner-notice-partial.json`, `partner-notice-rerouted.json`, `partner-notice-paused.json` -- new marker scenarios, the shape of `partner-notice.json`, one reply each:
+- [x] `ci/mock/scenarios/A/partner-notice-partial.json`, `partner-notice-rerouted.json`, `partner-notice-paused.json` -- new marker scenarios, the shape of `partner-notice.json`, one reply each:
   - partial: "Orders sent from your feed failed because the date format of the orders changed. After the fix, some of the affected orders were processed and the rest were not.";
   - rerouted: "Orders sent from your feed failed because the date format of the orders changed. The affected orders were resent by another route.";
   - paused: "Orders sent from your feed failed because the date format of the orders changed. The affected flow was paused, and the affected orders have not been processed yet.".
 
   `partner-notice-resolved.json` stays unchanged as the full-fix case.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerWarning.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerWarning.cls`:
   - the SYSTEMNOTE pin (100) gains the 2b text in place of 23.10's sentence;
   - append the tests and a helper `Ran(owner, incident, kind, parameters, run, state)`. It makes one request (`Test.Data.Fixture.Approval`, default state `done`) and its `FixRun` (`Fixture.FixRun`), appends the request's Ref to the incident's `RequestRefs` and registers both rows for cleanup. The tests:
     - `TestOutcomeFullFix`: the Full fix row, and Facts holds the line right after "Incident state: resolved";
@@ -131,8 +139,8 @@ All rows: incident State `resolved`, Count 50, one failure group at `OrdersFromP
     - `TestOutcomeSuspend`: the Suspend row, and the Suspend, other item / unchanged rows;
     - `TestNoOutcome`: every No fix, Other endings, Unknown counts, Several runs and Not resolved row, plus a resolved incident with no fix and Count 0, and a run with all counts 0. Each gives "" and Facts without "Outcome:".
   - add the header bullets.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerDraft.cls` -- append `TestDraftRequestCarriesOutcome` (the consumer): a resolved incident with a reroute run (Count, Total and Resent equal, target `OrdersForReview`) -> the one Decide request's `input` holds "Outcome: the <Count> affected orders were resent by another route." and no "OrdersForReview". A resolved incident with no run -> its `input` holds no "Outcome:". Add a header bullet.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerTurns.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerDraft.cls` -- append `TestDraftRequestCarriesOutcome` (the consumer): a resolved incident with a reroute run (Count, Total and Resent equal, target `OrdersForReview`) -> the one Decide request's `input` holds "Outcome: the <Count> affected orders were resent by another route." and no "OrdersForReview". A resolved incident with no run -> its `input` holds no "Outcome:". Add a header bullet.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerTurns.cls`:
   - `ResolvedIncident` gains a trailing `ending As %DynamicObject = ""` ({kind, parameters, run}). When it is given, it adds one `done` request of that kind with the run counts and links it in `RequestRefs`. `Asked` gains the same trailing argument and passes it on (existing callers unchanged);
   - `TestResolvedDraftSaysTheOrdersWentThrough` passes a full-fix ending (3/3/3/0/0) and asserts:
     - the draft holds "Outcome: all 3 affected orders went through after the fix.";
@@ -167,6 +175,29 @@ All rows: incident State `resolved`, Count 50, one failure group at `OrdersFromP
 - 2026-11-12 (plan): Story inserted 2026-11-12 from the Contest Planner's ruling on DW-1165 (~00:20Z, owner's delegation). Lane D, after 23.10 and before 23.9.
 
 ## Review Triage Log
+
+### 2026-11-11 - Review pass
+- verdicts: 19 findings - high 0, medium 4, low 11, false 3, maybe-false 1 (the intent-alignment layer reported readings only; the four review-layer reports merge to these rows)
+- findings:
+  - `[low]` `[reject]` blind: a count of 1 reads "all 1 affected orders" - ruled (Planner (2): N=1 accepted as is, plural noun always); the fix would edit the ruled strings.
+  - `[maybe-false]` `[defer]` blind: the incident's plural noun (model-supplied `diagnosis.itemNoun`, no length or character check in `Watch.Notice.Noun`) now enters the trusted SystemNote; the substitution is the Planner's ruled design, what would settle it is whether the diagnosis payload check caps the noun.
+  - `[low]` `[reject]` blind: the notice assertions in the PartnerTurns cases read the mock's canned replies - by design (ruling 2d, CI proves what the code sends; the model-facing wording is on the Planner's RC-eval list); the code is pinned by the logged-request assertions.
+  - `[medium]` `[patch]` blind + gap: edge cases of `Outcome` untested (a fix with Completed = Count but one failed again; a duplicate ref is conservative and needs no row; a reroute with Completed above Count) - rows added to `TestNoOutcome`.
+  - `[low]` `[reject]` blind: the reroute is detected by NAME - the spec's mapping says "NAME `reroute`"; no other kind reroutes.
+  - `[false]` `[reject]` blind + edge: `DraftRequest` falls back to the raw `SYSTEMNOTE` when `SystemNote` is missing - the ruled hook ("when the kind class defines that method"); `PartnerWarning` is the only drafted kind and defines it, and `TestDraftRequestCarriesOutcome` asserts no `{noun}` token reaches the request.
+  - `[low]` `[reject]` blind: a suspend in a `resolved` incident reads oddly - the paused line is ruled (2a).
+  - `[false]` `[reject]` edge: `SystemNote` or `Noun` could throw in `DraftRequest` - `Facts` calls the same `Noun` in the same method, so no new failure path.
+  - `[low]` `[reject]` edge: Count grown after the run gives the partial line - the mapping rule 5 says so (Completed < N whatever the reason).
+  - `[low]` `[reject]` edge: Resent above Completed + FailedAgain - the executor's waited ending has them equal; the ruled test is Completed (the executor's own).
+  - `[low]` `[reject]` edge: duplicate ref or a non-done request with a run - gives no line (conservative); a failed request with a run has Resent 0 and gives none.
+  - `[low]` `[reject]` edge: a reroute whose copies failed again - ruled: the line says resent, not went through.
+  - `[low]` `[reject]` edge: a suspended item re-enabled by hand before the incident resolves - speculative; a resume is a second moving run and gives no line.
+  - `[false]` `[reject]` edge: the second `BeginDraft` in `TestDraftRequestCarriesOutcome` could be deduped - the test asserts a count of 2 and passes.
+  - `[medium]` `[patch]` gap: the `MOVES` skip of a partner_warning run was pinned by no test - a full fix plus a later notice run row added to `TestOutcomeFullFix`; mutation recorded.
+  - `[medium]` `[patch]` gap: the Total and Completed above Count guards were masked by later guards - two rows added to `TestNoOutcome`; mutations recorded.
+  - `[medium]` `[patch]` gap: a request of another incident and a ref with no row untested - two rows added to `TestNoOutcome`; mutation recorded.
+  - `[low]` `[patch]` gap: the Try/Catch on FixParameters unexercised - two rows added (not JSON; item not a string).
+  - `[low]` `[reject]` gap: the notice assertions read canned mock replies and `TestDraftRequest` compares with `SystemNote(...)` - the literal checks sit in `TestDraftRequestCarriesOutcome` and `TestOutcomeUsesTheItemNoun`; no mutation line for the DraftRequest hook is needed beyond AC6/AC7.
 
 ## Design Notes
 
@@ -335,9 +366,36 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC6: `SYSTEMNOTE` keeping 23.10's sentence -> the SYSTEMNOTE pin (`TestContract`) and `PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough`.
 - AC7: `Facts` without the Outcome line -> `PartnerTurns:TestReroutedDraft` (the logged draft request) and `PartnerDraft:TestDraftRequestCarriesOutcome`. Also `partner-notice-rerouted`'s reply given "They went through." -> `TestReroutedDraft`.
 
+Recorded mutations (Rule 19; each applied, observed red, reverted from a backup, tree byte-identical):
+- mutation: AC1: the full-fix condition requires FailedAgain > 0 instead of = 0 -> `PartnerWarning:TestOutcomeFullFix` red ("the full-fix line", "Facts holds it right after the state line")
+- mutation: AC2: R computed as FailedAgain + Skipped instead of N - A -> `PartnerWarning:TestOutcomePartialFix` red (the Partial by count row)
+- mutation: AC3: the reroute's Resent = N check dropped -> `PartnerWarning:TestOutcomeReroute` red ("a reroute that left two out gives no line")
+- mutation: AC4: the failed-item check dropped from the suspend case -> `PartnerWarning:TestOutcomeSuspend` red ("a suspend of an item that did not fail gives no line")
+- mutation: AC5: the single-run rule dropped (runs < 1 instead of runs '= 1, the last run used) -> `PartnerWarning:TestNoOutcome` red (the "a full fix and then a suspend" row)
+- mutation: AC5: the partner_warning skip (the MOVES filter) dropped -> `PartnerWarning:TestOutcomeFullFix` red ("a notice sent after the fix does not count as a second run")
+- mutation: AC5: the incident-ownership check of a request dropped -> `PartnerWarning:TestNoOutcome` red ("the full-fix request of another incident")
+- mutation: AC5: the Total-above-Count guard dropped -> `PartnerWarning:TestNoOutcome` red ("a Total above Count with Completed below it"); the Completed-above-Count guard dropped -> `TestNoOutcome` red ("a reroute with a Completed above Count")
+- mutation: AC6: `SYSTEMNOTE` keeping 23.10's sentence -> `PartnerWarning:TestContract` red (the SYSTEMNOTE pin) and `PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough` red ("with the ruled sentence for an ending"), on a re-upped warm stack
+- mutation: AC7: `Facts` without the Outcome line -> `PartnerDraft:TestDraftRequestCarriesOutcome` red and `PartnerTurns:TestReroutedDraft` red ("and the Outcome line ...", "and no other Outcome line"), on a re-upped warm stack
+- mutation: AC7: `partner-notice-rerouted`'s reply given "They went through." -> `PartnerTurns:TestReroutedDraft` red ("the notice says the orders went through exactly when the incident was fixed in full"), on a re-upped warm stack
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). No code changed. The Outcome mapping, the Planner question Q1 ("Failed item" against ruling 2c), the observations, the RC-eval items and the contended hunks are under Design Notes. No PUBLIC TEXT adjustment (ruling 2e not used).
+**Implemented.** `PartnerWarning.Outcome(incident)` builds the one ruled Outcome line (or "") from the incident's own records and `Facts` appends it after the state line; `SYSTEMNOTE` carries the ruled 2b sentence with a `{noun}` token, `PartnerWarning.SystemNote(incident)` fills it with `Watch.Notice.Noun(incident).other`, and `IncidentManager.DraftRequest` uses the kind's `SystemNote(incident)` when the class defines it. The "Failed item" line is unchanged. DW-1165 closed by AC1-AC7.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Fix/Kind/PartnerWarning.cls`: `Outcome`, `SystemNote`, the Facts line, the SYSTEMNOTE text, the class doc.
+- `src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls`: the one-line `DraftRequest` extension.
+- `ci/mock/scenarios/A/partner-notice-{partial,rerouted,paused}.json`: the three new marker scenarios.
+- `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerWarning.cls`: the SYSTEMNOTE pin, six new tests (`TestOutcome*`, `TestNoOutcome`, `TestOutcomeUsesTheItemNoun`) and the `Ran`, `Link`, `Resolved`, `Counts`, `OutcomeOf`, `FactsOf` helpers.
+- `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerDraft.cls`: `TestDraftRequestCarriesOutcome`; `TestDraftRequest` compares with the rendered `SystemNote`.
+- `src/ocutalon/cls/OcuTalon/Test/Fix/PartnerTurns.cls`: `Asked` / `ResolvedIncident` take an `ending`; the 23.10 test is the full-fix case; `TestPartialFixDraft`, `TestReroutedDraft`, `TestPausedDraft`, `AssertEnding`; `Warnings` filters `partner_warning` requests; `Fixtures` is cleaned after each test.
+
+**Review.** 19 findings: patches applied 4 (all added test rows for `Outcome` branches no test pinned: the partner_warning skip, the Total and Completed above Count guards, a request of another incident, a ref with no row, unparsable and non-string suspend parameters, a fix with one failed again, a reroute with Completed above Count); deferred 1 (the model-supplied noun entering the SystemNote, unverified medium); rejected 14 with reasons in the triage log. Follow-up review recommended: false.
+
+**Verification.** `(loop)`: `PartnerWarning`, `PartnerDraft`, `PartnerTurns` x4 cases and `docker/tests/test-mock.sh` passed on the warm stack (`PartnerWarning` again after the review patches). `(once)`: the five other `PartnerTurns` methods passed warm; `TestReroutedDraft` passed on a fresh stack; all 32 `CHECK_SCRIPTS` scripts passed (`eval-set` 210 s, `release-sequence` 235 s and `online-host` 113 s needed a longer call than the 150 s target). Mutations demonstrated for AC1-AC7 and for the four review-added rows (see Verification); each reverted byte-identical. No `web/` file changed. Warm stack and tags torn down.
+
+**Residual risks.** Model-facing wording is proven only as far as what the code sends; the Planner's RC-eval items (full fix, reroute-ended) remain. The deferred noun finding.

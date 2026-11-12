@@ -23,7 +23,14 @@ Include Ensemble
 ///   - TestFailedSendIsReported (AC4): a recipient whose copy errs is skipped with NOSTART, and a run in which nothing was saved could not start with it;
 ///   - TestNoApprovedRowSendsNothing (AC8): a request that is pending, rejected, expired or cancelled, a tool_call and a Ref with no row are refused: nothing is saved or sent, no FixRun is written and one info line names the Ref;
 ///   - TestResultKeys (AC4, AC16): Notice.ResultKey and ResultSlots give result.partnerSent, partnerSentSome, partnerNotSent and partnerKept, and each renders for the web, the phone and Telegram with the
-///     Simulated mailbox or the draft in it and no word that says an email was sent.
+///     Simulated mailbox or the draft in it and no word that says an email was sent;
+///   - TestOutcomeFullFix (AC1, Story 23.11): a resolved incident whose one fix run resent and completed every one of its Count messages has "Outcome: all N affected orders went through after the fix." right after the state line;
+///   - TestOutcomePartialFix (AC2): a fix that completed fewer than Count gives "A of the N ... and R did not", with A = Completed, N = Count and R = N - A, for a partial run, for none through and for a Count above the run's Total;
+///   - TestOutcomeReroute (AC3): a reroute that resent all Count messages gives "the N affected orders were resent by another route", with no item or target name; one that left some out gives no line;
+///   - TestOutcomeSuspend (AC4): a suspend of one of the incident's failed items that changed it gives the paused line; a suspend of another item, or one that changed nothing, gives none;
+///   - TestNoOutcome (AC5): no fix, a rejected request, a notice only, a resume, an interrupted run, a run that could not start or resent nothing, an unknown kind, unknown counts, several runs and an incident that is not resolved
+///     give "" and a Facts without "Outcome:";
+///   - TestOutcomeUsesTheItemNoun (AC6): the Outcome line and SystemNote(incident) use the plural of the incident's item noun, and the demo incident's SystemNote ends "whether the orders went through."
 Class OcuTalon.Test.Fix.PartnerWarning Extends %UnitTest.TestCase
 {
 
@@ -97,7 +104,7 @@ Method TestContract()
 	Do $$$AssertEquals($Parameter(kind, "RECHECK"), "{name} is no longer a partner contact of {production}", "the re-check reason")
 	Do $$$AssertEquals($Parameter(kind, "NOSTART"), "OcuTalon couldn't deliver the delay notice", "NOSTART")
 	Do $$$AssertEquals($Parameter(kind, "NOREAD"), $Parameter(kind, "NOSTART"), "and NOREAD, the reason of a run that failed before anything was sent, has the same words")
-	Do $$$AssertEquals($Parameter(kind, "SYSTEMNOTE"), "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed. If the incident is resolved, say that the affected orders went through after the fix, and don't say that work is still going on or that updates will follow.", "the draft instruction")
+	Do $$$AssertEquals($Parameter(kind, "SYSTEMNOTE"), "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed. If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the {noun} went through.", "the draft instruction, with the {noun} token")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Fix.Kind).Check("partner_warning", {"text": "A notice.", "to": (..#ADDRESS)}, []), "the diagnosis's check refuses it")
 	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).DiagnosedNames(), $ListBuild("repair_resend"), "and names only repair_resend")
 	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS"), "affected,resend,leftOut,field,before,after,itemNoun,item,from,to,example,notice,recipients,simulated", "the stored dry run has the keys notice, recipients and simulated")
@@ -560,6 +567,234 @@ ClassMethod ResultOf(fields As %DynamicObject) As OcuTalon.Fix.Msg.FixResult
 		If ##class(%Dictionary.CompiledProperty).%ExistsId("OcuTalon.Fix.Msg.FixResult||"_name) Set $Property(result, name) = value
 	}
 	Quit result
+}
+
+/// A resolved fixture incident of the owner with the count, a failure group at OrdersFromPartner and the orders noun; its Ref.
+Method Resolved(owner As %String, count As %Integer = 50, fields As %DynamicObject = "") As %String
+{
+	Set all = {"State": "resolved", "Count": (count), "NoticeCount": (count)}
+	If $IsObject(fields) {
+		Set iterator = fields.%GetIterator()
+		While iterator.%GetNext(.name, .value) {
+			Do all.%Set(name, value)
+		}
+	}
+	Quit ..Incident(owner, all)
+}
+
+/// A request of the kind (default state done) of the incident with the parameters, its FixRun with the counts of run (a dynamic object of FixRun properties; "" for a request with no run), and the request's Ref
+/// added to the incident's RequestRefs; both rows are registered for cleanup. The request's Ref.
+Method Ran(owner As %String, incident As %String, kind As %String, parameters As %DynamicObject, run As %DynamicObject = "", state As %String = "done") As %String
+{
+	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, state, , {"FixKind": (kind), "FixParameters": (parameters.%ToJSON()), "FixTargets": "1"})
+	Set ..Refs = ..Refs_","_request
+	If $IsObject(run) Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, run)
+	Do ..Link(incident, request)
+	Quit request
+}
+
+/// Adds the request Ref to the incident's RequestRefs.
+Method Link(incident As %String, request As %String)
+{
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.RequestRefs = row.RequestRefs_$Select(row.RequestRefs = "": "", 1: ",")_request
+	$$$ThrowOnError(row.%Save())
+}
+
+/// The counts of a run as FixRun properties: Total, Resent, Completed, FailedAgain, Skipped, with Interrupted 0.
+ClassMethod Counts(total As %Integer, resent As %Integer, completed As %Integer, failedAgain As %Integer, skipped As %Integer) As %DynamicObject
+{
+	Quit {"Total": (total), "Resent": (resent), "Completed": (completed), "FailedAgain": (failedAgain), "Skipped": (skipped), "Interrupted": 0}
+}
+
+/// The Outcome line of the incident.
+Method OutcomeOf(incident As %String) As %String
+{
+	Quit $ClassMethod(..#KIND, "Outcome", ##class(OcuTalon.Data.Incident).RefIndexOpen(incident))
+}
+
+/// The Facts of the incident.
+Method FactsOf(incident As %String) As %String
+{
+	Quit $ClassMethod(..#KIND, "Facts", ##class(OcuTalon.Data.Incident).RefIndexOpen(incident))
+}
+
+/// Story 23.11 (AC1): a fix that resent and completed all 50 messages gives the full line, right after the state line.
+Method TestOutcomeFullFix()
+{
+	Set owner = ..Owner("full")
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {"field": "OrderDate", "sourceFormat": "DD/MM/YYYY", "targetFormat": "YYYY-MM-DD"}, ..Counts(50, 50, 50, 0, 0))
+	Set line = "Outcome: all 50 affected orders went through after the fix."
+	Do $$$AssertEquals(..OutcomeOf(incident), line, "the full-fix line")
+	Do $$$AssertTrue($Find(..FactsOf(incident), $Char(10)_"Incident state: resolved"_$Char(10)_line_$Char(10)_"Failed item: OrdersFromPartner"_$Char(10)) > 0, "Facts holds it right after the state line")
+	Do ..Ran(owner, incident, "partner_warning", {"text": "A notice.", "to": (..#ADDRESS)}, ..Counts(1, 0, 1, 0, 0))
+	Do $$$AssertEquals(..OutcomeOf(incident), line, "a notice sent after the fix does not count as a second run")
+}
+
+/// Story 23.11 (AC2): the partial line for a partial run, for none through and for a Count above the run's Total.
+Method TestOutcomePartialFix()
+{
+	Set owner = ..Owner("partial")
+	Set partial = ..Resolved(owner, 50)
+	Do ..Ran(owner, partial, "repair_resend", {}, ..Counts(50, 48, 45, 3, 2))
+	Do $$$AssertEquals(..OutcomeOf(partial), "Outcome: 45 of the 50 affected orders went through after the fix, and 5 did not.", "a partial fix")
+	Do $$$AssertTrue($Find(..FactsOf(partial), $Char(10)_"Incident state: resolved"_$Char(10)_"Outcome: 45 of the 50") > 0, "and Facts holds it after the state line")
+	Set none = ..Resolved(owner, 50)
+	Do ..Ran(owner, none, "repair_resend", {}, ..Counts(50, 50, 0, 50, 0))
+	Do $$$AssertEquals(..OutcomeOf(none), "Outcome: 0 of the 50 affected orders went through after the fix, and 50 did not.", "none through")
+	Set byCount = ..Resolved(owner, 52)
+	Do ..Ran(owner, byCount, "repair_resend", {}, ..Counts(50, 50, 50, 0, 0))
+	Do $$$AssertEquals(..OutcomeOf(byCount), "Outcome: 50 of the 52 affected orders went through after the fix, and 2 did not.", "a Count above what the run completed counts the rest as not gone through")
+}
+
+/// Story 23.11 (AC3): a reroute that resent all 50 gives the reroute line with no item or target name; one that left some out gives none.
+Method TestOutcomeReroute()
+{
+	Set owner = ..Owner("reroute")
+	Set all = ..Resolved(owner, 50)
+	Do ..Ran(owner, all, "reroute", {"target": "OrdersForReview"}, ..Counts(50, 50, 40, 10, 0))
+	Set line = ..OutcomeOf(all)
+	Do $$$AssertEquals(line, "Outcome: the 50 affected orders were resent by another route.", "the reroute line, whatever failed again")
+	Do $$$AssertEquals($Find(line, "OrdersForReview") + $Find(line, "OrdersFromPartner"), 0, "and it names neither the target nor the item")
+	Set left = ..Resolved(owner, 50)
+	Do ..Ran(owner, left, "reroute", {"target": "OrdersForReview"}, ..Counts(48, 48, 48, 0, 0))
+	Do $$$AssertEquals(..OutcomeOf(left), "", "a reroute that left two out (the dry run) gives no line")
+	Set skipped = ..Resolved(owner, 50)
+	Do ..Ran(owner, skipped, "reroute", {"target": "OrdersForReview"}, ..Counts(50, 49, 49, 0, 1))
+	Do $$$AssertEquals(..OutcomeOf(skipped), "", "and neither does one that skipped a message")
+}
+
+/// Story 23.11 (AC4): a suspend of the failed item that changed it gives the paused line; another item, or nothing changed, gives none.
+Method TestOutcomeSuspend()
+{
+	Set owner = ..Owner("suspend")
+	Set paused = ..Resolved(owner, 50)
+	Do ..Ran(owner, paused, "suspend_item", {"item": "OrdersFromPartner"}, ..Counts(1, 0, 1, 0, 0))
+	Set line = ..OutcomeOf(paused)
+	Do $$$AssertEquals(line, "Outcome: the affected flow was paused, and the 50 affected orders haven't gone through yet.", "the paused line")
+	Do $$$AssertEquals($Find(line, "OrdersFromPartner"), 0, "without the item's name")
+	Set other = ..Resolved(owner, 50)
+	Do ..Ran(owner, other, "suspend_item", {"item": "OrdersToWarehouse"}, ..Counts(1, 0, 1, 0, 0))
+	Do $$$AssertEquals(..OutcomeOf(other), "", "a suspend of an item that did not fail gives no line")
+	Set unchanged = ..Resolved(owner, 50)
+	Do ..Ran(owner, unchanged, "suspend_item", {"item": "OrdersFromPartner"}, ..Counts(1, 0, 0, 0, 1))
+	Do $$$AssertEquals(..OutcomeOf(unchanged), "", "and a suspend that changed nothing gives none")
+	Set noItem = ..Resolved(owner, 50)
+	Do ..Ran(owner, noItem, "suspend_item", {}, ..Counts(1, 0, 1, 0, 0))
+	Do $$$AssertEquals(..OutcomeOf(noItem), "", "and a suspend whose request holds no item gives none")
+}
+
+/// Story 23.11 (AC5): every ending that the records do not map onto one ruled line, and an incident that is not resolved, gives "" and a Facts without "Outcome:".
+Method TestNoOutcome()
+{
+	Set owner = ..Owner("none")
+	Set full = ..Counts(50, 50, 50, 0, 0)
+	Set n = 0
+	Set incident = ..Resolved(owner, 50)
+	Set case($Increment(n)) = incident_"|no request"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, "", "rejected")
+	Set case($Increment(n)) = incident_"|a rejected request with no run"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, "", "expired")
+	Set case($Increment(n)) = incident_"|an expired request with no run"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "partner_warning", {"text": "A notice.", "to": (..#ADDRESS)}, ..Counts(1, 0, 1, 0, 0))
+	Set case($Increment(n)) = incident_"|only a partner_warning run"
+	For state = "open", "awaiting_approval", "fixing" {
+		Set incident = ..Resolved(owner, 50, {"State": (state)})
+		Do ..Ran(owner, incident, "repair_resend", {}, full)
+		Set case($Increment(n)) = incident_"|a full-fix run of a "_state_" incident"
+	}
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "resume_item", {"item": "OrdersFromPartner"}, ..Counts(1, 0, 1, 0, 0))
+	Set case($Increment(n)) = incident_"|a resume"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, {"Total": 50, "Resent": 30, "Completed": 20, "FailedAgain": 0, "Skipped": 20, "Interrupted": 10})
+	Set case($Increment(n)) = incident_"|an interrupted run"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, ..Counts(50, 0, 0, 0, 0), "failed")
+	Set case($Increment(n)) = incident_"|a run that could not start"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, ..Counts(50, 0, 0, 0, 50))
+	Set case($Increment(n)) = incident_"|nothing resent"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, ..Counts(0, 0, 0, 0, 0))
+	Set case($Increment(n)) = incident_"|a run with all counts 0"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "zz_unknown_kind", {}, full)
+	Set case($Increment(n)) = incident_"|an unknown kind"
+	Set incident = ..Resolved(owner, 0)
+	Do ..Ran(owner, incident, "repair_resend", {}, full)
+	Set case($Increment(n)) = incident_"|Count 0"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, {"EndedAt": "", "Total": 50, "Resent": 50, "Completed": 50, "FailedAgain": 0, "Skipped": 0, "Interrupted": 0})
+	Set case($Increment(n)) = incident_"|a run without EndedAt"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, ..Counts(51, 51, 50, 1, 0))
+	Set case($Increment(n)) = incident_"|a Total above Count"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, ..Counts(50, 50, 51, 0, 0))
+	Set case($Increment(n)) = incident_"|a Completed above Count"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, full)
+	Do ..Ran(owner, incident, "suspend_item", {"item": "OrdersFromPartner"}, ..Counts(1, 0, 1, 0, 0))
+	Set case($Increment(n)) = incident_"|a full fix and then a suspend"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, ..Counts(50, 50, 20, 30, 0))
+	Do ..Ran(owner, incident, "reroute", {"target": "OrdersForReview"}, ..Counts(30, 30, 30, 0, 0))
+	Set case($Increment(n)) = incident_"|a partial fix and then a reroute"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, ..Counts(50, 50, 50, 1, 0))
+	Set case($Increment(n)) = incident_"|a fix that completed all but had one fail again"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "repair_resend", {}, ..Counts(60, 50, 45, 5, 10))
+	Set case($Increment(n)) = incident_"|a Total above Count with Completed below it"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "reroute", {"target": "OrdersForReview"}, ..Counts(50, 50, 51, 0, 0))
+	Set case($Increment(n)) = incident_"|a reroute with a Completed above Count"
+	Set other = ..Resolved(owner, 50)
+	Set foreign = ..Ran(owner, other, "repair_resend", {}, full)
+	Set incident = ..Resolved(owner, 50)
+	Do ..Link(incident, foreign)
+	Set case($Increment(n)) = incident_"|the full-fix request of another incident"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Link(incident, "no-such-request-"_..Number)
+	Set case($Increment(n)) = incident_"|a request ref with no row"
+	Set incident = ..Resolved(owner, 50)
+	Set suspend = ..Ran(owner, incident, "suspend_item", {"item": "OrdersFromPartner"}, ..Counts(1, 0, 1, 0, 0))
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(suspend)
+	Set row.FixParameters = "not json"
+	$$$ThrowOnError(row.%Save())
+	Set case($Increment(n)) = incident_"|a suspend whose parameters are not JSON"
+	Set incident = ..Resolved(owner, 50)
+	Do ..Ran(owner, incident, "suspend_item", {"item": {"name": "OrdersFromPartner"}}, ..Counts(1, 0, 1, 0, 0))
+	Set case($Increment(n)) = incident_"|a suspend whose item is not a string"
+	For i = 1:1:n {
+		Set ref = $Piece(case(i), "|"), label = $Piece(case(i), "|", 2)
+		Do $$$AssertEquals(..OutcomeOf(ref), "", label_": no Outcome line")
+		Do $$$AssertEquals($Find(..FactsOf(ref), "Outcome:"), 0, label_": Facts has no Outcome line")
+	}
+}
+
+/// Story 23.11 (AC6): the Outcome line and the rendered instruction use the plural of the incident's item noun, "orders" on the demo.
+Method TestOutcomeUsesTheItemNoun()
+{
+	Set owner = ..Owner("noun")
+	Set incident = ..Resolved(owner, 7, {"ItemNoun": ({"one": "message", "other": "messages"}.%ToJSON())})
+	Do ..Ran(owner, incident, "reroute", {"target": "OrdersForReview"}, ..Counts(7, 7, 7, 0, 0))
+	Do $$$AssertEquals(..OutcomeOf(incident), "Outcome: the 7 affected messages were resent by another route.", "the Outcome line uses the incident's noun")
+	Set note = $ClassMethod(..#KIND, "SystemNote", ##class(OcuTalon.Data.Incident).RefIndexOpen(incident))
+	Set tail = "If there is no Outcome fact, don't say whether the messages went through."
+	Set ends = ($Extract(note, $Length(note) - $Length(tail) + 1, $Length(note)) = tail)
+	Do $$$AssertTrue(ends, "the instruction ends with the noun")
+	Do $$$AssertEquals($Find(note, "{noun}"), 0, "and holds no token")
+	Set demo = ..Incident(owner, {"State": "resolved"})
+	Set note = $ClassMethod(..#KIND, "SystemNote", ##class(OcuTalon.Data.Incident).RefIndexOpen(demo))
+	Set tail = "If there is no Outcome fact, don't say whether the orders went through."
+	Set ends = ($Extract(note, $Length(note) - $Length(tail) + 1, $Length(note)) = tail)
+	Do $$$AssertTrue(ends, "and the demo incident's ends with orders")
 }
 
 }
