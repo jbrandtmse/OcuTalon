@@ -6740,6 +6740,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z note=see also DW-1095 (possible shared cause: before/after session-row comparisons)
 - 2026-11-11T06:26:54Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page note=OCT-epic25 284e8904 ci run 42966931010 iris (shards-6) lane-b@rest TestOnlyTheMarkerChanges/TestRunAgain; classified flake by the orchestrator; no rework
 - 2026-11-11T06:26:39Z occurrence=25-2 by=orchestrator note=run 42966931010 job 130346188889 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges + TestRunAgain (ci-12); OCT-epic25 284e8904
+- 2026-11-12T02:34:04Z occurrence=21-6-send-email-over-smtp
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
