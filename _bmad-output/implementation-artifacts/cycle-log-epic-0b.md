@@ -54,3 +54,5 @@
 2026-11-12T15:28:50Z	Story 0.27	part_merge	merged_into_feature=90777cf8 merged_head=f0f853d1 by=orchestrator
 2026-11-12T15:40:43Z	Epic 0	integrated_forward	feature=90777cf8 head=8387a3ba conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(feature_side+regenerate+0-31=done) suite=test-eval-set_all_parts,test-eval-personas_pass
 2026-11-12T15:41:19Z	Story 0.31	pushed	sha=34428e24 code_sha=38c3f267 ci=pending runs=43250436386,43250436407 missing=none
+2026-11-12T15:47:10Z	Epic 0	story_inserted	story=0.32 key=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and source=orchestrator_continue_planner_standing_burndown_ruling dw=DW-1082,DW-1195 marker=ADDED_2026-11-12_Contest_Planner_standing_burndown_ruling
+2026-11-12T15:47:10Z	Story 0.32	ledger_routed_planned	story=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and entries=2 excess=0 by=lane_order

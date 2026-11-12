@@ -6679,6 +6679,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T10:33:24Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_109d59c8_run_43172863798_install-upgrade_row7_start_with_failing_step_not_ended_200s;superseded_head
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_install-upgrade_row6_upgrade_not_ready_200s;rerun_failed_jobs_green(attempt2)
 - 2026-11-12T10:09:42Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662764_iris(install-upgrade)_live:install-upgrade_row_6_'the_upgrade_did_not_end_ready_within_200_s'_on_OCT-epic21_ad2255ac(first_start_took_6_min:host_load;21.3_changes_no_install_or_startup_path);judged_again_on_the_integrated_head
+- 2026-11-12T15:47:10Z status=routed owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=lane_order note=Contest Planner standing burndown ruling 2026-11-12 (CI time-budget audit); inserted Story 0.32 with a DW-1082 acceptance bullet
 
 ### DW-1083: flake candidate: live:reminder-restart 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then the first start did not end ready within 400 s
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7295,6 +7296,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci 43227065531 feature 150b49c5 iris (shards-10) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Timed out waiting 757s for the test suite to run; 24 did not run; no test failed
 - 2026-11-12T14:15:46Z status=routed owner=burndown by=orchestrator note=one rerun per occurrence; if recurrent, size the shard's suite budget or split the shard
+- 2026-11-12T15:47:10Z status=routed owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=lane_order note=Contest Planner standing burndown ruling 2026-11-12 (CI time-budget audit); inserted Story 0.32 with a DW-1195 acceptance bullet
 
 ### DW-1192: Held-out incident snapshots are never compared with a fresh recording in CI; HeldOutCases errorHas markers are read nowhere
 - source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: med | fix-risk: low | footprint: in-story
