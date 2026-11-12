@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-11-12'
 status: 'done'
 baseline_revision: 'b21decb42982ba0f14ee283afa5637c56ac8152d'
-baseline_commit: '793840c5af3873540913aceac72b1086083d0b7e'
+baseline_commit: 'b21decb42982ba0f14ee283afa5637c56ac8152d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -121,6 +121,22 @@ Rejected:
 - (low) the `release/checklist.sh` hunk also rewords one header sentence beyond the row -- it keeps the header true about the row's network call; recorded in Design Notes; the lead's RELEASE TOOL report names it.
 - (note) at the cap the FAIL line says "within the 150 s cap" instead of "after 3 tries" -- loud, never skipped; consistent with the matrix's intent.
 - (note) 206 to a one-byte range counts as 200 -- documented implement-stage decision; the oEmbed must answer a true 200, pinned.
+
+Code review 2026-11-12, rework re-review iteration 1 (diff `b21decb4..HEAD` plus working tree, HEAD `eb366184`; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; all four reported). 0 decision-needed, 0 patch, 0 defer, 10 rejected. Clean review: no high, no medium.
+
+DW-1178 checklist, confirmed done: the allowance in `outward_hits` is a second `grep -vx -e` pattern anchored to `docker/tests/test-readme[.]sh:[0-9]*:`, and its content equals the live `ALLOWED_HOSTS='...'` line byte for byte (checked by unescaping the pattern); that line is unchanged, and the only change in `test-readme.sh` is the comment directly above it; `outward-rows` pins the line passing in that file and flagged in another file (`release/o.sh`), in a same-named file elsewhere, changed, and followed by more text; the header names both allowed lines; the earlier pattern, root and OEMBED cases are unchanged; `test-release-checklist.sh` all 16 rules passed (run by two layers); the row's `outward_hits` over its 107 files reports nothing on this tree (two independent scratch scans), and without the allowances it reports exactly the two allowed lines. The `[Review][Defer]` DW-1178 line above is closed by this rework.
+
+Rejected:
+- (spec edit) the Review Triage Log rejects a front-matter finding saying `baseline_commit` keeps the first baseline, but the front matter now records the rework baseline `b21decb4` (the lead's bookkeeping); the first pass's baseline `793840c5` is no longer named in the spec, but the cycle log's first-pass entries, the ledger's DW-1178 evidence and the spec's git history keep it. The fix edits the spec under review.
+- (spec edit) `## Verification`'s first-pass line `git diff <baseline> -- release` (only the `readme-video` row) reads wrong against the new baseline -- it is the first pass's check; the rework's paragraph states this pass's expectation.
+- (spec edit) the first pass's `[Review][Defer]` DW-1178 line and Residual risk (2) still read as open -- closed by the note above; the ledger disposition is the lead's adjudication.
+- (spec edit) the triage log says "the 14-host pattern"; the line and the allowance each hold 16 hosts -- a count in a record; the pattern itself matches the line exactly.
+- (spec edit) the triage log labels the "duplicate line passes at release time" finding `[false]` -- at release time the allowance does accept any line number; the per-push `grep -cx` count requiring exactly one line is the mitigation, so the outcome is still reject.
+- (by-design) a README host added to `ALLOWED_HOSTS` now also needs a hand edit of the escaped allowance in `release/checklist.sh` -- this is the ruling's "as it is now, full-line match, fails closed" form; `outward-rows` fails per push on any drift.
+- (low) the new comment above `ALLOWED_HOSTS` does not name the check that fails (`outward-rows`) -- the comment's content is the ruled sentence; drift fails loudly per push and names the line.
+- (low, outside the rework range) no per-push test runs `outward_hits` over the real tree, so a new outward string surfaces only at the RC run -- pre-existing since the row was added; the RC row fails loudly before anything ships; closing it adds a new per-push gate beyond DW-1178's ruled scope; not high, so not filed under a rework re-review.
+- (note) the spec front matter says `done` while `sprint-status.yaml` says `review` -- synced by this review's sprint-status update.
+- (edge-case-hunter, duplicate) the `baseline_commit` triage-log contradiction -- same root cause as the first rejection.
 
 ## Ruled README change
 
