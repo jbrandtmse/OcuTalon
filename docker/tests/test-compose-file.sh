@@ -615,14 +615,14 @@ plain_smtp_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_TEST_PLAIN_SMTP' "$1"; 
 # Only ci/compose.ci.yml sets the OAuth2 mock switch (Story 21.3): no surface that ships or that a developer starts without the CI override names it.
 oauth_mock_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_TEST_OAUTH_MOCK' "$1"; }
 
-# Every compose file of the repository outside the CI override, and every Dockerfile, is free of the OAuth2 mock switch (the shipped compose files and
+# Every compose file of the repository outside the CI override, and every Dockerfile, is free of the given CI-only switch (the shipped compose files and
 # the image never set it). The list comes from git, so a compose file added later is covered.
-oauth_mock_only_in_ci() {
+switch_only_in_ci() {
   local f n=0
   while IFS= read -r f; do
     [ "$f" = "$ci" ] && continue
     n=$((n + 1))
-    oauth_mock_absent "$f" || return 1
+    [ -f "$f" ] && ! grep -q "$1" "$f" || return 1
   done < <(git ls-files -- '*compose*.yml' '*compose*.yaml' 'Dockerfile' '*/Dockerfile' | grep -v '\.cls$')
   [ "$n" -ge 5 ]
 }
@@ -671,7 +671,8 @@ check "ci: the file is exactly the mock's wiring (project name, iris variables a
 check "ci: the iris service sets OCUTALON_MOCK_KEY_HEADER to \"1\", once, and no other line names it" ci_sets_mock_key_header_for_iris
 check "ci: the iris service sets OCUTALON_TEST_PLAIN_SMTP to \"1\", once, and no other line names it" ci_sets_plain_smtp_for_iris
 check "ci: the iris service sets OCUTALON_TEST_OAUTH_MOCK to \"1\", once, and no other line names it" ci_sets_oauth_mock_for_iris
-check "ci: no compose file or Dockerfile outside ci/compose.ci.yml names OCUTALON_TEST_OAUTH_MOCK" oauth_mock_only_in_ci
+check "ci: no compose file or Dockerfile outside ci/compose.ci.yml names OCUTALON_TEST_OAUTH_MOCK" switch_only_in_ci OCUTALON_TEST_OAUTH_MOCK
+check "ci: no compose file or Dockerfile outside ci/compose.ci.yml names OCUTALON_TEST_PLAIN_SMTP (it also lets EmailIn send its token over plain POP3 to mock)" switch_only_in_ci OCUTALON_TEST_PLAIN_SMTP
 check "install: no Dockerfile, compose file, script, manifest, CPF merge or preload names /csp/sys/oauth2 or IRIS's OAuth2 objects (the web application is enabled only by an admin's sign-in action)" oauth_app_untouched_by_install_paths
 check "install: no shipped file (image, script, manifest, installer class, tool metadata, guide) names %Admin_OAuth2_Client or %DB_IRISSYS, so no OcuTalon role or install path grants the measured privileges (DW-1180)" measured_privileges_not_granted
 check "ci: the iris service sets OCUTALON_TELEGRAM_API_BASE to the mock, once, and no other line names it" ci_sets_telegram_base_for_iris

@@ -368,8 +368,13 @@ Method TestOAuthTransport()
 		Do $$$AssertEquals(+$Get(^||OcuTalonEmailInHandler("calls")), 0, label_": the handler is never asked, so no token is fetched")
 		Do $$$AssertEquals(..Count("ConnectPort") _ "|" _ $Get(^||OcuTalonEmailInPop3("token")), "0|", label_": no connection is made and no token is sent")
 	}
-	// the job's own switch is the sender's: the adapter answers what Sender.SwitchOn answers
-	Do $$$AssertEquals(##class(OcuTalon.Channel.Email.Adapter).SwitchOn(), ##class(OcuTalon.Channel.Email.Sender).SwitchOn(), "the adapter's switch of the plain exception is the sender's")
+	// the real switch (every test host stands in for it) is the sender's, and the sender's reads the CI-only variable and nothing else
+	For name = "Adapter||SwitchOn", "Sender||SwitchOn" {
+		Set method = ##class(%Dictionary.MethodDefinition).%OpenId("OcuTalon.Channel.Email."_name)
+		Set code(name) = $Select($IsObject(method): $ZConvert($ZStrip(method.Implementation.Read(1000000), "*WC"), "U"), 1: "")
+	}
+	Do $$$AssertEquals(code("Adapter||SwitchOn"), "QUIT##CLASS(OCUTALON.CHANNEL.EMAIL.SENDER).SWITCHON()", "the adapter's switch of the plain exception is Sender.SwitchOn")
+	Do $$$AssertEquals(code("Sender||SwitchOn"), "QUIT..ISON($SYSTEM.UTIL.GETENVIRON(..#PLAINVARIABLE))", "Sender.SwitchOn is IsOn of the CI-only variable's value")
 	// TLS polls: implicit TLS and STARTTLS, the name checked
 	For config = "OcuTalonClient", "OcuTalonClient*", " OcuTalonClient " {
 		Kill ^||OcuTalonEmailInPop3, ^||OcuTalonEmailInAdapter, ^||OcuTalonEmailInHandler
