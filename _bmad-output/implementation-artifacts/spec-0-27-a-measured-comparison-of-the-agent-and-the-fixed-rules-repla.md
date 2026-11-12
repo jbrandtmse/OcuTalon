@@ -287,6 +287,77 @@ Held-out commit: `6af31dab5f265ca76343127c8b2ee4d7c3cd7970` (on `origin/OCT-epic
 - Also ruled (spec corrections the implement stage found, both `decide`, within intent): (1) the main set's items and incidents are `scores.items` and `scores.incidents`, which already count the `heldOut`-flagged cases (Tasks and Scoring corrected); (2) `eval/run.sh`'s mock request count counts model requests only (Telegram Bot API polls in `requests.jsonl` are not model requests): the "mock request count unchanged" check of Boundaries means model requests.
 - Re-dispatch: the pass-1 work stays in the tree (uncommitted, the story's own code) and is absorbed by this pass; continue from "Not done" in `## Auto Run Result
 
+## Verification
+
+(Lead, 2026-11-12 ~13:00Z: the finalize edit of implement pass 2 dropped the `## Verification` and `## Auto Run Result` headings and the planned Verification text. The planned text is restored below from the pre-finalize spec (00eb3212), then the QA stage's record. Pass 2's own run record is in `## Auto Run Result`.)
+
+### Planned (restored from 00eb3212)
+
+Shared surfaces:
+- `test-readme.sh`: the `video` rule's teaser-address places, the new rules `checklist-video`, `judges-usability` and `comparison`, the `public-text` phrase list, and its `RULES` count.
+- The web tests' README count sentence.
+- `CHECK_SCRIPTS` (test-ci-config.sh's `units` rule).
+- `test-eval-set.sh`:
+  - the `cases` folder rule (`eval/results/`);
+  - the accepted arguments in `rc-guard` and `record-guard`, and the strings pinned by `run-guard`, `rc-flow` and `rc-stack`;
+  - the held-out counts (12: 8 items, 4 incidents) and the 12 digests.
+- The top-level case counts (62) are unchanged, so `Test.Eval.Cases`, the `set` and `incidents` rules and `eval/run.sh`'s incident count are unaffected.
+- `test-eval-personas.sh`'s argument forms.
+- `eval/run.sh`'s CHK lines and report names: `held-out`, `rules-only`, `rules-only-held-out`, `comparison`.
+- `Report`'s JSON gains `rulesOnly`. The key proof's nine lines and counts line are unchanged.
+- The lane-A `evaluation` job's time.
+
+Standing criterion: every test added or changed passes on a fresh environment, in either order.
+
+**Commands** (from the worktree root, one per call, each finishing in about 150 s; lane-B variables on every throwaway (this story runs on lane B, worktree `.worktrees/epic-0b`): `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-b OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=0b stage=<stage>'`, and every `OCUTALON_RUN_TAG` starts with `e0bs27`):
+- `git diff --exit-code 6af31dab5f265ca76343127c8b2ee4d7c3cd7970 HEAD -- 'eval/held-out/*/case.json' && shasum -a 256 eval/held-out/*/case.json` (once, first) -- expected: empty diff and the 12 values of `## Held-out set`.
+- `bash docker/tests/test-readme.sh` (loop, about 25 s) -- expected: `test-readme: all rules passed`.
+- `/bin/bash docker/tests/test-readme.sh` (once) -- expected: the same under bash 3.2.
+- `EVAL_SET_ONLY='cases held-out held-out-frozen held-out-names compare rc-guard record-guard run-guard rc-flow rc-stack' bash docker/tests/test-eval-set.sh` (loop) -- expected: those rules PASS.
+- `EVAL_SET_EXCEPT='<the same list>' bash docker/tests/test-eval-set.sh` (once) -- expected: the rest PASS. If either part runs over about 150 s, move rules between the parts and record the split here.
+- `bash docker/tests/test-eval-personas.sh` (loop) -- expected: all pass.
+- `bash docker/tests/test-boundaries.sh` (loop, about 11 s) -- expected: `test-boundaries: all rules passed`.
+- Warm stack:
+  - `OCUTALON_RUN_TAG=e0bs27iw bash ci/warm.sh up` (once);
+  - `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e0bs27iw bash ci/iris.sh class OcuTalon.Test.Eval.Report` (loop) -- expected: `CLASS ... passed`;
+  - the same for `OcuTalon.Test.Eval.Record` and `OcuTalon.Test.Eval.FeedGrant` (once each, Fixture changed);
+  - `OCUTALON_RUN_TAG=e0bs27iw bash ci/warm.sh down` (once, also after a failure).
+- `OCUTALON_RUN_TAG=e0bs27i bash ci/iris.sh class OcuTalon.Test.Eval.Report` (once, fresh), then `OCUTALON_RUN_TAG=e0bs27i bash ci/iris.sh teardown` (once).
+- `OCUTALON_RUN_TAG=e0bs27r<k> bash docker/tests/record-eval.sh held-out <name>` (once per incident, 4 calls, k = 1 to 4) -- expected: one `snapshot.json` written, and `git status --short eval/held-out` shows only it.
+- `OCUTALON_RUN_TAG=e0bs27rm bash eval/run.sh --rules-only main` and `OCUTALON_RUN_TAG=e0bs27rh bash eval/run.sh --rules-only held-out` (once each; Task 0, and the committed run; each about 3 min on lane B, so run each as `( <lane-B vars> OCUTALON_RUN_TAG=<tag> bash eval/run.sh --rules-only <set>; echo "EXIT=$?" ) > <stage scratch>/<tag>.log 2>&1` in ONE foreground call with `timeout: 600000`; if the harness moves the call to the background, poll `tail -3 <log>` in bounded foreground calls (about 120 s each, `sleep 10` loops) until the `EXIT=` line, doing nothing else meanwhile; the call must end inside the 10-minute cap -- lead ruling R1) -- expected: the rules-only PASS lines, `REPORT <dir>` and `eval/run: all checks passed`. Then `bash ci/iris.sh teardown` with each tag (once each).
+- `node eval/compare.mjs <scratch dir> eval/results` (once, a smoke run on real reports: the scratch dir, in the stage's own scratch folder, holds `set.json` and `held-out.json` copied from the two committed reports) -- expected: `COMPARISON <file>` and exit 0.
+- `for f in eval/run.sh eval/compare.mjs docker/tests/record-eval.sh docker/tests/test-eval-set.sh docker/tests/test-eval-personas.sh; do LC_ALL=C tr -d '\011\012\040-\176' < "$f" | wc -c; done` (once) -- expected: all 0.
+- `git diff --name-only <baseline> -- .github release _bmad` (once) -- expected: empty. `git diff <baseline> -- ci README.md web` (once) -- expected: empty (this story changes no CI script, README line or web test).
+- `git grep -n -i 'never used for tuning' -- . ':!_bmad-output'` (once) -- expected: no output.
+- Lead (once): CI on the head, every workflow green. The push run of `bash eval/run.sh` (local about 4-5 min, too long for one call) and `bash eval/key-proof.sh` are proven in lane A's `evaluation` job: its log shows the rules-only PASS lines and `COMPARISON`, and its summary shows the table (the Integration AC). The hosted `checks` job shows `readme-video` passed.
+
+Mutations (one per AC; the stage that writes or changes a pinning test records `mutation: <change> -> <test that went red>` here, then reverts and checks that `git status --short` and `git diff --stat` are unchanged):
+- AC rules-only: in `Report.Score`, keep `'fallback` for rules-only -> the Test.Eval.Report rules-only scoring test; skip the `Keys.Status` refusal -> the `rc-guard` or `run-guard` flow variant that pins it.
+- AC held-out: change one byte of a held-out `case.json` -> `held-out-frozen`; copy a held-out subject into a mock scenario -> `held-out-names`.
+- AC compare: count an agent fallback as right -> the `compare` rule's fallback row; drop the false-all-clear kind -> the `compare` unsafe row; drop `tellNowMissed` from the needed-you-now count -> the `compare` needed-you-now row.
+- Integration and CI ACs: (lead) CI evidence; the hermetic rows stand in for them locally.
+
+### QA record
+
+
+(QA stage, 2026-11-12. The implement stage's `## Verification` was dropped when the spec was finalized, so the mutation record is rebuilt here.)
+
+Tests added or changed by QA:
+- (QA) `docker/tests/test-eval-set.sh`, rule `cases`: the committed `eval/results/*.json` must be the fixed rules' own run, not only `rulesOnly` true. Every fallback row has the reason `no_key` (and there is at least one); `modelAnswered`, `otherFallbacks`, `notComplete`, `unscored`, `skipped` and `tellNowMissed` are empty; `cost.priced` is 0 with nothing unpriced; `size.largestTokens` is null; the four action counts are 0; at least one scored case. This pins AC 1's "every model-backed case is a `no_key` fallback" on the committed report. `RULESONLY()` now carries those members and ten bad variants (`bad-results-model-answered`, `-other-fallback`, `-fallback-reason`, `-no-fallbacks`, `-no-cases`, `-skipped`, `-told-missed`, `-priced`, `-request-size`, `-acted`). The real committed reports pass.
+
+Commands run (lane B, no key): `EVAL_SET_ONLY='cases held-out held-out-frozen held-out-names compare'` under `/bin/bash` (about 30 s) passed; `OcuTalon.Test.Eval.Report` on a warm stack (tag e0bs27qw, torn down) passed before and after the mutation below.
+
+Mutations (each reverted from a backup in the stage scratch folder; `git status --short` and `git diff --stat` identical to before each time):
+- mutation: AC rules-only, `Report.Score` scores only `'row.fallback` as decided (drop `|| ..NoKey(row, rulesOnly)`) -> `TestRulesOnlyScoring` and `TestRulesOnlyModelAnswered` (Test.Eval.Report) went red.
+- mutation: AC rules-only, the committed run's check on the fallback reason dropped (`every(one => isObject(one))`) -> `cases` bad variant `bad-results-fallback-reason` is no longer flagged (red).
+- mutation: AC rules-only, refusal on a runner key: `rules_only_keys` reads `0` in place of `Keys.Status` -> `rules-flow` red (the stub no longer sees a `Keys).Status` call before the first run).
+- mutation: AC held-out, one appended byte in `eval/held-out/mail-unsubscribed/case.json` -> `held-out-frozen` red naming the file.
+- mutation: AC compare, `eval/compare.mjs` false-all-clear branch disabled (`if (false && ...)`) -> `compare` red (the false-all-clear and unsafe-total rows).
+- mutation: Integration AC, the `node "$root/eval/compare.mjs" ...` call of the push run replaced by an `echo` -> `rules-flow` red (the maker of its bad samples no longer finds the pinned text; a text edit of the flow moves a pin).
+- CI AC: lead (CI evidence).
+
+## Auto Run Result
+
 Status: done
 Blocking condition: none
 
