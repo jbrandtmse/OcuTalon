@@ -2,7 +2,8 @@
 title: 'Story 0.27: A measured comparison of the agent and the fixed rules replaces the worked-out one'
 type: 'feature'
 created: '2026-11-11'
-status: 'ready-for-dev'
+status: 'in-progress'
+baseline_revision: 'cfc961fc0e4c5c98df423d8494ef24033b0aed36'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -126,9 +127,9 @@ deferred: []
   - The push run: after its existing steps, `eval_run held-out` on the mock, then the rules-only half on the same stack (both sets), then `node eval/compare.mjs "$report_dir" "$report_dir"`, the `COMPARISON <file>` line and the step summary append.
   - `--release-candidate` (both forms): after the attempts, `eval_run held-out`, outside the verdict.
   - Update the header docs and the usage line.
-  - Task 0: the first `--rules-only main` and `--rules-only held-out` runs are the measurement. Record under Design Notes, "Measured (implement)": each kind's fallback rows, the cost and size fields, the skipped cases, the mock request count and each call's wall time. If any model-backed case does not fall back with `no_key`, HALT with an intent gap. If either call runs over about 165 s, HALT blocked with the timings.
+  - Task 0: the first `--rules-only main` and `--rules-only held-out` runs are the measurement. Record under Design Notes, "Measured (implement)": each kind's fallback rows, the cost and size fields, the skipped cases, the mock request count and each call's wall time. If any model-backed case does not fall back with `no_key`, HALT with an intent gap. If either call runs over the 10-minute cap, HALT blocked with the timings. A call that runs over about 150-180 s is NOT a HALT (lead ruling R1, Design Notes): run it as `## Verification` says, with its output in a log file and a closing `EXIT=` line, and wait for it if the harness moves it to the background.
 - `eval/compare.mjs` -- new (Node standard library only; exit 0, 1, 2). It implements the matrix's compare rows. Definitions:
-  - the main set's items are `scores.items` plus `scores.heldOutItems` of the main report, and its incidents are `scores.incidents` plus `scores.heldOutIncidents`;
+  - the main set's items are `scores.items` of the main report, and its incidents are `scores.incidents` (both already count the cases flagged `heldOut`; adding `heldOutItems`/`heldOutIncidents` would count them twice -- lead ruling R1, Measured (implement));
   - the held-out row adds the held-out report's items and incidents;
   - "needed you now but weren't told now" is the count of `tellNowMissed[]` entries of the main and held-out reports together;
   - unsafe outcomes are the three kinds of Design Notes;
@@ -183,6 +184,8 @@ Held-out commit: `6af31dab5f265ca76343127c8b2ee4d7c3cd7970` (on `origin/OCT-epic
 
 ## Spec Change Log
 
+- 2026-11-12 ~11:10Z, lane-B runner: implement pass 1 HALTed at Task 0 (timing). Lead ruling R1 (Design Notes): the two stack-starting rules-only calls run under the 10-minute cap with a logged `EXIT=` line and bounded polls; main-set counts are `scores.items`/`scores.incidents` (no double count); the mock count is model requests only. Status reset to `in-progress` for re-implement; the pass-1 tree is kept.
+
 - 2026-11-12 ~10:45Z, lane-B runner (spec gate, re-dispatch after the account switch): this story runs on LANE B (worktree `.worktrees/epic-0b`, branch `OCT-epic0b`, slot ocutalon-slot-b, port 52802), integrated forward onto feature eb289caf (0.26, 1.0.7 merge-back, 22.2, 23.7, 22.8, 23.10, 23.11, 21.2/21.6, 35.3). Every local throwaway uses lane-B variables and `e0bs27*` run tags (the lane-A values were written before the lane move). Story 0.28 (Part A) is not on this branch: the CI AC no longer requires `readme-video`, the ASCII check drops `test-readme-video.sh`, and the `ci` diff check expects no change. No intent change.
 
 - 2026-11-12 ~02:10Z, lead: three-way split (Contest Planner ~02:05Z, owner's delegation; orchestrator): this story is Part B only, the measuring tools, run on LANE B in the second Epic 0 worktree (`.worktrees/epic-0b`, branch `OCT-epic0b`, cycle log `cycle-log-epic-0b.md`), branched from feature after Story 0.26 merges. Part C (README comparison: tasks, the README AC, ruled parts C1 and C2, the `README column drifts` matrix row, the `--column` fill command and its mutation) moved whole to Story 0.29 (`spec-0-29-...`); the committed `eval/results/` report stays HERE. Story 0.28 (Part A) lands before or beside this story; this story touches no README line. The held-out revert `600d0d8d` is reverted first, on OCT-epic0b. References to Parts A and C elsewhere in this spec (Code Map, Design Notes, size note, footprint list) are historical.
@@ -213,9 +216,25 @@ Held-out commit: `6af31dab5f265ca76343127c8b2ee4d7c3cd7970` (on `origin/OCT-epic
 - The real path then runs end to end: `Intake` copies the fallback onto the `ItemDecision`, `IncidentManager.EvalCase` gives an empty cause, element and fix, turns get the "couldn't answer" reply with no catalog key, and digests run on code.
 - (inference until Task 0 confirms it on a throwaway.)
 
+**Measured (implement).** Task 0, `bash eval/run.sh --rules-only main` on a lane-B throwaway (tags e0bs27rm; two runs of the same code, the second after the mock-count fix below), no key:
+- Every model-backed case fell back with the reason `no_key`: 59 of the 62 cases. The other 3 are the digest cases, which run on code (no decision, no cost, no size) and are scored by the digest rule (3 of 3 right). Kinds, fallback and right: item 26 / 26 / 7, incident 11 / 11 / 0, injection 6 / 6 / 1 (`heartbeat-injected-decision`), all-clear 3 / 3 / 0, command 4 / 4 / 0, documents 3 / 3 / 0, user-turn 6 / 6 / 0, digest 3 / 0 / 3. No other fallback reason, no unscored case, no case not complete, `skipped` empty (no setup turn was asked, so no skipped no-reply case in the main set), `actions` all 0, no eval watch row left, `Report.Problems` empty.
+- Cost and size: `cost.priced` 0, `cost.unpriced` and `cost.decisions` empty, `size.largestTokens` null, `size.unknown` empty. No priced decision and no request size, so `--column` can print its two "none: no model request" cells.
+- Scores (`scores`): items 6 of 24 (the 7 right item cases are 6 plus the precedent case `memory-noise-none`, which `scores.items` leaves out of SM-1's items), incidents 0 of 11, heldOutItems 1 of 4, heldOutIncidents 0 of 2, injections 1 of 6, allClear 3 of 6 (the digests), commands 0 of 1, `tellNowMissed` 0.
+- FINDING (spec correction, applied in `eval/compare.mjs`): `scores.items` and `scores.incidents` ALREADY count the cases flagged `heldOut` (`Report.Tally` adds a held-out case to its group and to the held-out group), so the main set's items are `scores.items` (24) and its incidents `scores.incidents` (11), which are v1.0.4's 24 and 11. "scores.items plus scores.heldOutItems" would count the 4 and the 2 twice (28 and 13). The "26 items" inference above counts item-kind cases (26) and includes the two precedent cases that `scores.items` leaves out.
+- The mock's request log (`requests.jsonl`) also holds the Telegram items' Bot API polls (`tokenLength` set); the first run counted 5 of them as "requests". `mock_requests` in `eval/run.sh` now counts the model requests only (`tokenLength` null); the second run: 0 model requests before and after.
+- Wall time (the whole call, shell `time`): 2 min 50.7 s (first run, stack ready 135 s, restore and key check 7 s, the run 25 s) and about 3 min 5 s (second run: stack ready 147 s, keys 7 s, run 24 s, then the teardown). The stack start alone (preflight, web bundle, build, `up --wait`) is 135-147 s on this host with other lanes running, against the 81-100 s the draft assumed, so the standalone `--rules-only main` call is OVER the 165 s bound of Task 0 and the harness moves it to the background at about 180 s. The `--rules-only held-out` call was not run: it starts the same stack and would take as long. HALT (blocked), as Task 0 says.
+
+**Lead ruling R1 (2026-11-12 ~11:10Z, lane-B runner, unattended `decide`; clarification round 1 of 3, implement stage, Task 0 timing HALT).**
+- Question: the stack-starting `--rules-only main` / `--rules-only held-out` calls take about 2 min 50 s - 3 min 5 s on lane B (stack start 135-147 s with other lanes running), over Task 0's 165 s HALT bound, and the harness moves a call to the background at about 170-180 s.
+- Choice: the 165 s bound is replaced by the owner's 10-minute cap for these two calls only. Each runs as ONE foreground call with `timeout: 600000`, its output sent to a log in the stage's scratch folder with a closing `EXIT=<code>` line; if the harness moves the call to the background, the stage waits for the `EXIT=` line in bounded foreground polls and does nothing else meanwhile (the standing rule of 2026-11-09: "If a call is moved to the background anyway, wait for it to exit in bounded foreground polls ... before anything else"). The Boundaries line "Every command a stage runs finishes in about 150 s" stays the rule for every other command.
+- Rejected: (a) a warm-stack path for `--rules-only` -- new scope in `eval/run.sh`, and a warm stack is not the fresh stack the committed report and CI should come from; (b) splitting the stack start out of `eval/run.sh` -- new modes and pins for a local-only convenience; (c) deliberately backgrounding the run -- forbidden.
+- Why: the limit is an implementation detail (a timeout), the owner's cap is 10 minutes and the run fits it three times over; nothing in the product, the CI job or the committed report changes.
+- Also ruled (spec corrections the implement stage found, both `decide`, within intent): (1) the main set's items and incidents are `scores.items` and `scores.incidents`, which already count the `heldOut`-flagged cases (Tasks and Scoring corrected); (2) `eval/run.sh`'s mock request count counts model requests only (Telegram Bot API polls in `requests.jsonl` are not model requests): the "mock request count unchanged" check of Boundaries means model requests.
+- Re-dispatch: the pass-1 work stays in the tree (uncommitted, the story's own code) and is absorbed by this pass; continue from "Not done" in `## Auto Run Result`.
+
 **Scoring and counts.**
 - For the fixed rules, a `no_key` fallback is their answer. For the agent, each case is right as its own report scored it, so an agent fallback is never right, as in the release evaluation.
-- The main set is every case directly under `eval/`, those flagged `heldOut` included, because they have been run at every release. Its routine items are `scores.items` plus `scores.heldOutItems`, and its incidents are `scores.incidents` plus `scores.heldOutIncidents` (v1.0.4's 24 and 11 are those sums). On HEAD: 26 items and 11 incidents (inference until the run).
+- The main set is every case directly under `eval/`, those flagged `heldOut` included, because they have been run at every release. Its routine items are `scores.items` and its incidents are `scores.incidents`, which already include the cases flagged `heldOut` (`Report.Tally`; measured: 24 and 11, v1.0.4's numbers). [Corrected 2026-11-12 by lead ruling R1: the plan read them as sums with `heldOutItems`/`heldOutIncidents`, which would double-count.]
 - Expected for the fixed rules (inference until Task 0): main items right 7 of 26 (the Tell now ones), incidents 0 of 11, held-out 2 of 12, needed-you-now 0, unsafe 0.
 
 **Unsafe outcome (three kinds, as ruled; the report counts each per case where it can, and in total, per side):**
@@ -333,7 +352,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
   - `OCUTALON_RUN_TAG=e0bs27iw bash ci/warm.sh down` (once, also after a failure).
 - `OCUTALON_RUN_TAG=e0bs27i bash ci/iris.sh class OcuTalon.Test.Eval.Report` (once, fresh), then `OCUTALON_RUN_TAG=e0bs27i bash ci/iris.sh teardown` (once).
 - `OCUTALON_RUN_TAG=e0bs27r<k> bash docker/tests/record-eval.sh held-out <name>` (once per incident, 4 calls, k = 1 to 4) -- expected: one `snapshot.json` written, and `git status --short eval/held-out` shows only it.
-- `OCUTALON_RUN_TAG=e0bs27rm bash eval/run.sh --rules-only main` and `OCUTALON_RUN_TAG=e0bs27rh bash eval/run.sh --rules-only held-out` (once each; Task 0, and the committed run) -- expected: the rules-only PASS lines, `REPORT <dir>` and `eval/run: all checks passed`. Then `bash ci/iris.sh teardown` with each tag (once each).
+- `OCUTALON_RUN_TAG=e0bs27rm bash eval/run.sh --rules-only main` and `OCUTALON_RUN_TAG=e0bs27rh bash eval/run.sh --rules-only held-out` (once each; Task 0, and the committed run; each about 3 min on lane B, so run each as `( <lane-B vars> OCUTALON_RUN_TAG=<tag> bash eval/run.sh --rules-only <set>; echo "EXIT=$?" ) > <stage scratch>/<tag>.log 2>&1` in ONE foreground call with `timeout: 600000`; if the harness moves the call to the background, poll `tail -3 <log>` in bounded foreground calls (about 120 s each, `sleep 10` loops) until the `EXIT=` line, doing nothing else meanwhile; the call must end inside the 10-minute cap -- lead ruling R1) -- expected: the rules-only PASS lines, `REPORT <dir>` and `eval/run: all checks passed`. Then `bash ci/iris.sh teardown` with each tag (once each).
 - `node eval/compare.mjs <scratch dir> eval/results` (once, a smoke run on real reports: the scratch dir, in the stage's own scratch folder, holds `set.json` and `held-out.json` copied from the two committed reports) -- expected: `COMPARISON <file>` and exit 0.
 - `for f in eval/run.sh eval/compare.mjs docker/tests/record-eval.sh docker/tests/test-eval-set.sh docker/tests/test-eval-personas.sh; do LC_ALL=C tr -d '\011\012\040-\176' < "$f" | wc -c; done` (once) -- expected: all 0.
 - `git diff --name-only <baseline> -- .github release _bmad` (once) -- expected: empty. `git diff <baseline> -- ci README.md web` (once) -- expected: empty (this story changes no CI script, README line or web test).
@@ -348,8 +367,15 @@ Mutations (one per AC; the stage that writes or changes a pinning test records `
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: in-progress (re-dispatched after lead ruling R1)
+Blocking condition: none (was: Task 0 timing HALT: `bash eval/run.sh --rules-only main` on a lane-B throwaway takes over the 165 s bound (stack start alone 135-147 s with other lanes running, against the spec's 81-100 s; whole calls 2 min 50.7 s and about 3 min 5 s, the harness backgrounds a call at about 180 s). `--rules-only held-out` starts the same stack and was not run. The two committed-report runs cannot be done inside one call's cap as specified. Recommended resolution: allow a longer-running call for the stack-starting `--rules-only` runs, or a warm-stack path (`ci/warm.sh`) for `--rules-only`, then re-dispatch for the remaining work.)
+
+Implement pass 1 state (uncommitted in the worktree, HEAD unchanged at the baseline, nothing pushed):
+- Done: `Report.cls` `rulesOnly` flag (not yet compiled or unit-tested); `Feed/Fixture.cls` held-out set argument and `HeldOutCases`; `record-eval.sh held-out [<name>]`; `eval/run.sh` `--rules-only [main|held-out]`, push-run fold, release-candidate held-out run, docs; `eval/compare.mjs` (`--column` and usage smoke-tested only); the 4 held-out `snapshot.json` files recorded (12 `case.json` files byte-identical, SHA-256 pins match); Task 0 `main` measurement under Design Notes "Measured (implement)".
+- Not done: `--rules-only held-out` measurement; `eval/results/*.json`; Report unit tests; all `test-eval-set.sh` work (`EVAL_SET_ONLY`/`EXCEPT`, `cases` exemption, guard updates, rules `held-out`, `held-out-frozen`, `held-out-names`, `compare`); `test-eval-personas.sh` forms; `mutation:` lines; likely fixes to `rc-flow`, `rc-stack`, `run-guard` pins.
+- Spec corrections found: `scores.items`/`scores.incidents` already include the `heldOut`-flagged cases, so adding `heldOutItems`/`heldOutIncidents` would double-count (compare.mjs uses `scores.items` 24 and `scores.incidents` 11); the mock's `requests.jsonl` also logs Telegram Bot API polls, so `mock_requests` counts model requests only.
+
+(The older planning-stage note that followed here is superseded.)
 
 Re-planned from the draft to Story 0.27's scope and halted after planning, as dispatched. Lead inputs before implement:
 - `git revert 600d0d8d` (restores the 12 held-out `case.json` files; implement checks the diff against 6af31dab and the SHA-256 pins first).
