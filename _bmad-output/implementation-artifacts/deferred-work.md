@@ -7358,3 +7358,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: OfferServers AddTool(spec) runs before OfferProxy RegisterToolSet; AttachServers refuses only names of the agent's own tools, so a server tool named call_mcp_tool is not refused. Either outcome (registration error drops every server; the server's tool shadows the proxy) is unmeasured.
 - 2026-11-12T21:11:47Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=cr note=maybe-false, would be medium: settle with a mock tool named call_mcp_tool; refuse the name at attach or register the proxy first
+
+### DW-1232: The mcp.replayToolChanged notice (R1) renders no text on the web chat and phone cards: Channel.WebChat.Out.ToolCallCard draws only the bridge sink's five toolCall.* keys
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls
+- evidence: the row ends failed, the audit records the refusal and nothing runs, but the owner sees an empty notice; Channel files are Epic 21's (contended); Telegram render unchecked
+- 2026-11-12T23:13:35Z status=escalated owner=burndown by=harvest note=needs a ruling: add the key to Channel/WebChat/Out.cls and the phone card (Epic 21 contended), or route to an Epic 21 story
+
+### DW-1233: Approval.Raise writes no 'raised' Approval audit entry although 22.4's AC names one for the held MCP request
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Approval.cls
+- evidence: the request has Approval entries answered, started and finished only
+- 2026-11-12T23:13:35Z status=open owner=22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=harvest note=in-story: CR patches it (or closes it against the AC wording)
