@@ -6681,6 +6681,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_install-upgrade_row6_upgrade_not_ready_200s;rerun_failed_jobs_green(attempt2)
 - 2026-11-12T10:09:42Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662764_iris(install-upgrade)_live:install-upgrade_row_6_'the_upgrade_did_not_end_ready_within_200_s'_on_OCT-epic21_ad2255ac(first_start_took_6_min:host_load;21.3_changes_no_install_or_startup_path);judged_again_on_the_integrated_head
 - 2026-11-12T17:26:24Z occurrence=0-30 by=runner note=run_43260265319_job_131329319104_iris(install-upgrade)_on_ocutalon-ci-13_row_6_'the_upgrade_did_not_end_ready_within_200_s';OCT-epic0_05e29461;one_rerun_of_failed_jobs(lane_B_owns_the_fix)
+- 2026-11-12T18:16:53Z occurrence=0-30 by=runner note=run_43260265319_attempt_2_job_131370762952_iris(install-upgrade)_on_ocutalon-ci-9_row_7_'the_next_good_image_did_not_end_ready_within_200_s'(attempt_1_was_row_6_on_ci-13);second_red_of_the_unit_on_05e29461
 
 ### DW-1083: flake candidate: live:reminder-restart 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then the first start did not end ready within 400 s
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7155,6 +7156,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749161 attempt 2)
 - 2026-11-12T10:33:23Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_e7c97dda_run_43170639261_install-fresh_live:install-start_row3_dev_start_not_ready_200s;superseded_head
 - 2026-11-12T17:09:34Z occurrence=0-30 by=runner note=run_43260265319_job_131329318850_iris(install-fresh)_on_ocutalon-ci-13_live:install-start_row_4_'the_restart_did_not_end_ready_within_200_s'(after_STEP_merge_OK_3s;no_quiesce_error;rows_1-3_passed);OCT-epic0_05e29461;one_rerun_of_failed_jobs
+- 2026-11-12T18:07:04Z occurrence=0-30 by=runner note=run_43260265319_attempt_2_job_131370762866_iris(install-fresh)_on_ocutalon-ci-17_live:install-start_row_3_'the_dev_start_did_not_end_ready_within_200_s'(after_STEP_merge_OK_5s;rows_1-2_passed);attempt_1_was_row_4_on_ci-13;second_red_of_the_unit_on_05e29461
 
 ### DW-1161: CI headroom: lane-a ipm-install takes 28-30 min against its 35-min job timeout; under host load it times out (cancelled at 35m0s) with no test failed
 - source: feature c33e0916, lane-a run 43099749306 job ipm-install on ocutalon-ci-10 | severity: low | fix-risk: low | footprint: out-of-footprint
