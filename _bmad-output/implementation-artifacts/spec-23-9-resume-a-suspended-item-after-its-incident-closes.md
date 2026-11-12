@@ -2,7 +2,7 @@
 title: 'Story 23.9: Resume a suspended item after its incident closes'
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'c7427fa4f23d60edc729a10b338e84acd8ae400d'
 baseline_commit: 'c7427fa4f23d60edc729a10b338e84acd8ae400d'
 review_loop_iteration: 0
@@ -110,6 +110,8 @@ deferred: []
 - [ ] [Ruling U-321, P3] `src/ocutalon/cls/OcuTalon/Agent/Chat.cls:65` -- replace the second sentence ("To undo a suspend while its incident is open, call it with resume_item and the same item.") with, verbatim: "To undo a suspend while its incident is open, call it with resume_item and the same item; if the answer is no_incident, say that the incident is closed and that the item can be enabled again on the production's configuration page in the Management Portal." Update its instruction pins in `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls` (find them by the line's text; add a pin for the new clause if none covers it). A footprint extension (uncontended).
 - [ ] [Ruling U-321, conditions] `Test.Watch.Transitions` covers every split AD-15 row (`resolved` and `open`, noticed: `dismiss`; `closeQuiet` and `closeForReplay` with and without a held suspend) and each refused move (`closeQuiet` / `closeForReplay` while held). One test or an existing pin proves the online demo unchanged (suspend and resume refused there, so no incident holds a suspend). `dismiss` always closes, held or not (a pin).
 
+- [ ] [Review] DW-1186 (Contest Planner ruling, owner's delegation, 2026-11-12 ~06:55Z, `.coordination/prompts/epic-23-rulings-239.md` last section; rework iteration 1) -- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls:65` -- replace P3's sentence, verbatim, with: "To undo a suspend while its incident is open, call it with resume_item and the same item; if the answer is no_incident and others lists an incident, say that the item can't be resumed while that incident's fix waits for approval (awaiting_approval) or is running (fixing); if others is empty, say that the incident is closed and that the item can be enabled again on the production's configuration page in the Management Portal." -- the fix must: (1) pin the exact line in `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls`; (2) keep `Test.Fix.AskedTurns:TestUndoTurn`'s second resume ask (others non-empty) as the busy-case evidence; (3) if no test drives the empty-others `no_incident` through a chat turn, add a CI mock-scenario check that the reply names the Management Portal (append-only, in an existing class or a new `ci/mock/scenarios/A/` file); (4) model-facing text only: no catalog, README or web change. Update the `mutation:` lines for the touched pins.
+
 **Acceptance Criteria:**
 - AC1: Given a resolved incident whose executed suspend still holds an item, when Checks' quiet sweep sends closeQuiet after 15 quiet minutes or Break the feed sends closeForReplay, then IncidentManager answers `not_allowed`, and the incident stays `resolved` with no ClosedAt, no summary and nothing sent (`Test.Watch.Lifecycle:TestHeldBySuspend`; `Test.Watch.Transitions`).
 - AC2: Given an open, noticed incident that holds a suspend, with demo mode off, when closeQuiet arrives, then it is refused. Dismiss still closes any held incident (`TestHeldBySuspend`, `Test.Watch.Transitions`).
@@ -147,6 +149,8 @@ Rejected:
 - `low` Auditor 4: the "Replay close held" row is not driven through BreakFeedIn - already rejected (Intent 1); BreakFeedIn is unchanged and `TestCloseRefused` pins its refusal path.
 
 ## Spec Change Log
+
+- 2026-11-12 ~06:55Z (Contest Planner, DW-1186): P3 replaced by the Planner's sentence (both no_incident cases: others lists an incident -> can't resume while its fix waits or runs; others empty -> closed, Portal). Rework iteration 1 for that item only.
 
 - 2026-11-12 (lead, U-321 at=2026-11-12T04:43:08Z#985): Contest Planner ruled option (b) under the owner's delegation. Written verbatim under Design Notes. Applied: AD-15 (two split close rows + the bullet "An incident that holds a suspend") in the spine; PRD FR-24 (three bullets) and FR-16 (Break the feed); EXPERIENCE.md:698 and :1210, each with `[AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation]`. P1 and P2 declined; P3 added as a task; the conditions added as a task; known limit 4 accepted.
 

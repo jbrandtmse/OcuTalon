@@ -7028,3 +7028,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-9-resume-a-suspended-item-after-its-incident-closes.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: WatchAnswers.ResolveIncident:131 returns no_incident with others=[busy]; Test.Fix.AskedTurns:TestUndoTurn's second resume ask reads exactly that; the dismiss bullet branches on others, P3 does not
 - 2026-11-12T06:39:32Z status=decision-pending owner=burndown by=cr note=Planner text call on ruled P3 (U-321): e.g. 'if the answer is no_incident and others is empty'; ruled text unchanged
+- 2026-11-12T06:50:09Z status=routed owner=23-9-resume-a-suspended-item-after-its-incident-closes by=owner note=Contest_Planner_ruling_06:55Z(owner_delegation;prompts/epic-23-rulings-239.md):_fix_in_23.9_with_the_Planner's_sentence;rework_iteration_1
