@@ -973,3 +973,4 @@
 2026-11-12T18:46:58Z	Epic 0	story_inserted	story=0.31 source=standing_ruling_DW-1191(test-only_burndown) amendments=epics.md:Story_0.31_block(inserted,[ADDED_2026-11-12]) deps_hash=orchestrator
 2026-11-12T18:46:58Z	Story 0.31	story_created	path=_bmad-output/implementation-artifacts/spec-0-31-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne.md build_status=ready-for-dev note=lead-written(fully_specified_by_ruling;precedent_0.28,0.29) model=claude-opus-5-5
 2026-11-12T18:46:58Z	Story 0.31	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-22 decision_dependency=none sections_created=none owned_ledger=DW-1191 addressed=1 declined=0 mutates_shared_runtime=false(lane-A_throwaway) model=claude-opus-5-5
+2026-11-12T18:46:58Z	Story 0.31	stage_spawned	stage=implement spawn_at=2026-11-12T18:46:58Z model=sonnet effort=high agent_name=0-31-implement-1 cycle_iteration=1 story_base=e400090c
