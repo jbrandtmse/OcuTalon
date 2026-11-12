@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-12-2026 02:42
+last_updated: 11-12-2026 05:18
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -311,7 +311,7 @@ development_status:
 
   epic-21: in-progress
   21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp: done
-  21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2: in-progress
+  21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2: review
   21-8-read-and-send-mail-with-the-oauth2-sign-in: backlog
   21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings: backlog
   21-5-set-up-source-polls-and-answer-tool-call-approval-requests: backlog

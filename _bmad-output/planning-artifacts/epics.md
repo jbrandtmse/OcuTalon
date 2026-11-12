@@ -7342,6 +7342,8 @@ So that it works without storing my mail password.
 **When** this story merges
 **Then** it explains creating the OAuth2 client with Google and with Microsoft, the redirect address to register with each, and connecting the mailbox in Settings (FR-44, FR-58)
 
+- DW-1179: a provider-mode mailbox keeps EmailIn and EmailOut on the password-less stored credential, so the poll fails with the refused-login sentence until the adapters get their OAuth2 settings (ledger; routed by harvest 2026-11-12)
+
 ### Story 21.4: Add, remove and classify MCP servers and tools in Settings
 
 > [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1041] The MCP settings write (IRIS Wallet secret and Config Store entry) moves into `McpOps`, an operation, never the REST process; AD-1 stays unchanged. Story 35.2 left the routes as stubs that change nothing; this story replaces them and adds the `/v1/settings/mcp` route with the standing real-HTTP route tests.

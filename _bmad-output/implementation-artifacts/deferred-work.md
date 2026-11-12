@@ -7055,3 +7055,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Contest Planner ruling 2(a) (22.8 AC 1) is implemented in Context.ToolFingerprint(server, name, description, parameters); the spine's S1-S7 updates for 22.8 did not restate rule 1 or S3, so 22.3/22.4 builders reading the spine would hash the old form
 - 2026-11-11T22:18:46Z status=routed owner=burndown by=cr note=lead: Rule 20 spine write (AD-10 rule 1, AD-21 S3) recording ruling 2(a); no code change
 - 2026-11-11T22:20:57Z status=resolved-by:22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=adjudication note=spine_AD-10_rule1_and_AD-21_S3_now_state_SHA-256_hex_over_server_id,name,description,schema(Rule20_record_of_Planner_ruling_2(a));lint_unchanged
+
+### DW-1179: A provider-mode mailbox keeps EmailIn and EmailOut on the stored credential, which then has no password, so EmailIn's poll fails with the refused-login sentence until the adapters get their OAuth2 settings
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: SaveEmail writes OcuTalonMail with an empty password in provider mode; adapters have no OAuth2 rows, handler or XOAUTH2 yet
+- 2026-11-12T05:15:24Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8's token use makes the poll and the send work in provider mode
+
+### DW-1180: The privileges that registering the mail OAuth2 client needs are measured only for the throwaway's production user (_Ensemble with %All)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Channel/Email/OAuth.cls Sys ran under _Ensemble (%All on the throwaway); OAuth2.Client/ServerDefinition need %Admin_OAuth2_Client:USE and Security.Applications access on a narrower user (unverified)
+- 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=measure or state the least set, or accept _Ensemble as the documented production user
+
+### DW-1181: A SaveEmail that fails after IRIS's OAuth2 client was replaced, changed or removed puts OcuTalon's own stores back but cannot restore the client, its secret or its tokens
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: PutBackEmail restores keys, credential and rows; only a client first registered from Password is removed again
+- 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=hold the old client until the save completes, or accept with a probe
