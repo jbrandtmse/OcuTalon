@@ -84,3 +84,4 @@
 2026-11-12T19:46:05Z	Story 0.32	ledger_adjudicated	owned=0 resolved=4 reowned=0 terminal=0 entries=DW-1212,DW-1213,DW-1214,DW-1161(by=orchestrator_Planner_approved) note=Planner_DW-1214(lane-a)=ledger_DW-1161 model=claude-opus-5-5
 2026-11-12T19:46:05Z	Story 0.32	smoke_complete	method=cli result=pass iterations=2 defects_caught=0 evidence=test-ci-config_budgets(four_timeouts,REL4_rows_stub_clock)_pass;test-ci-changes_pass;MEASURED/over_REL-4_on_real_runner_proven_only_on_the_CI_head model=claude-opus-5-5
 2026-11-12T19:46:05Z	Story 0.32	fresh_check	env=clean-tree(hermetic) tests=test-ci-config.sh,test-ci-changes.sh,test-boundaries.sh result=pass order=forward
+2026-11-12T19:46:05Z	Story 0.32	committed	sha=8cacf063 submodules= ci=none_yet pushed=no reason=CI_HOLD release_tool_hunks=ci.yml(checks_25,iris_50),lane-a.yml(ipm-install_45,ipm-install-p_45)_Planner_approved
