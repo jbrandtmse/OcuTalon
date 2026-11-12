@@ -6990,3 +6990,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Contest Planner ruling 2(a) (22.8 AC 1) is implemented in Context.ToolFingerprint(server, name, description, parameters); the spine's S1-S7 updates for 22.8 did not restate rule 1 or S3, so 22.3/22.4 builders reading the spine would hash the old form
 - 2026-11-11T22:18:46Z status=routed owner=burndown by=cr note=lead: Rule 20 spine write (AD-10 rule 1, AD-21 S3) recording ruling 2(a); no code change
 - 2026-11-11T22:20:57Z status=resolved-by:22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=adjudication note=spine_AD-10_rule1_and_AD-21_S3_now_state_SHA-256_hex_over_server_id,name,description,schema(Rule20_record_of_Planner_ruling_2(a));lint_unchanged
+
+### DW-1172: The incident's plural item noun, supplied by the model in the diagnosis payload, now enters the trusted SystemNote of the partner-notice draft (Story 23.11 noun ruling)
+- source: spec-23-11-say-in-a-partner-notice-only-how-the-incident-ended.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Watch.Notice.Noun checks only that both forms are non-empty; IncidentManager stores diagnosis.itemNoun as given; PartnerWarning.SystemNote substitutes noun.other into the code-written instruction (AD-10/AD-14 trust boundary)
+- 2026-11-12T03:35:32Z status=open owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=by=harvest note=unverified MED: settle at code review (show the diagnosis check caps the noun, or normalise it in SystemNote to a short plain word with the 'orders' fallback the Planner ruled for no noun)
+- 2026-11-12T03:35:47Z status=open owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=harvest note=corrects_the_by_field_of_the_first_trailer(typo_by=by=harvest)
