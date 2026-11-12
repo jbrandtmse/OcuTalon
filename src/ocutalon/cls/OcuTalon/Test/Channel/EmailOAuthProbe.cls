@@ -20,4 +20,10 @@ ClassMethod SwitchOn() As %Boolean
 	Quit ..IsOn($Get(^||OcuTalonEmailOAuthProbe("env")))
 }
 
+/// Calls the private Sys with an action, as the production job would (the tests of the actions Sys does not know).
+ClassMethod CallSys(action As %String, ByRef in, Output out) As %Status
+{
+	Quit ..Sys(action, .in, .out)
+}
+
 }

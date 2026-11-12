@@ -701,6 +701,19 @@ Method TestSignInStart()
 	Do $$$AssertEquals(result.Data [ "url", 0, "and answers no address")
 }
 
+/// Story 21.3 (c2, review): a start that IRIS refuses after it enabled the web application is failed, and the enable is still audited and kept in the owned list.
+Method TestSignInStartFailsAfterEnable()
+{
+	Do ..SeedProvider("google", "client,server")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "owned") = "client,server,app"
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = "enabled"
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+	Set result = ..SignIn("start")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a start that IRIS refuses after the enable is failed")
+	Do $$$AssertEquals(..Forms(), "email.oauthApp|disabled|enabled;email.oauthOwned|client,server|client,server,app", "and the enable is audited")
+	Do $$$AssertEquals(..Row("email.oauthOwned"), "client,server,app", "and kept in the owned list, so a removal disables it")
+}
+
 /// Story 21.3 (c2): a start whose enable of the web application cannot be audited is failed and answers no address; the owned list still names the enable.
 Method TestSignInStartUnaudited()
 {

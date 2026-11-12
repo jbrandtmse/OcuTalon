@@ -1505,6 +1505,7 @@ Method TestOAuthForeignClientIsLeftAlone()
 	Try {
 		Do ..OAuthBegin()
 		Do ##class(OcuTalon.Data.Setting).Set("email.address", "zzearlier@example.com")
+		Do ##class(OcuTalon.Test.Channel.EmailOAuth).MakeServer("http://mock:8080/_mock/oauth/google", "http://mock:8080/_mock/oauth/google/authorize", "http://mock:8080/_mock/oauth/google/token", "")
 		Do ##class(OcuTalon.Test.Channel.EmailOAuth).MakeClient("OcuTalonMail", "http://mock:8080/_mock/oauth/google", "zz-foreign-id")
 		Set before = ##class(OcuTalon.Test.Channel.EmailOAuth).Snapshot()
 		Set result = ..ConnectOAuth("google")

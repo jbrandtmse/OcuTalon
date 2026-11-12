@@ -1666,7 +1666,7 @@ ClassMethod SignedInMark(provider As %String) As %Boolean [ Private ]
 /// Carries out a MailSignIn and returns the CommandResult to answer (see the class description). The online demo is not_available; an action that is not start
 /// or check is refused naming action; a mailbox without a provider and a client ID is refused naming signIn, and a page origin that is not an http or https
 /// origin naming origin, both before anything is called. A start that has to enable the web application writes the Settings audit entry of that
-/// (email.oauthApp) and keeps email.oauthOwned; a failure, an unrecorded enable included, is failed (Ok 0) and answers no address, with email.oauthOwned still naming the enable.
+/// (email.oauthApp) and keeps email.oauthOwned; a failure, an unrecorded enable or a start that IRIS refuses after the enable included, is failed (Ok 0) and answers no address, with the enable still recorded.
 Method SignIn(command As OcuTalon.Msg.Command.MailSignIn) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	If ..OnlineDemo() Quit ..Result(0, "not_available", ..#MESSAGEUNAVAILABLE)
@@ -1689,6 +1689,10 @@ Method SignIn(command As OcuTalon.Msg.Command.MailSignIn) As OcuTalon.Msg.Comman
 	Set sc = ..OAuthStart(signIn, command.PageOrigin, owned, .url, .nowOwned, .app)
 	If $$$ISERR(sc) {
 		$$$LOGERROR("The mail sign-in could not be started: "_$SYSTEM.Status.GetErrorText(sc))
+		If ($Get(app) '= "") || ($Get(nowOwned, owned) '= owned) {
+			Set nowOwned = $Get(nowOwned, owned)
+			If $$$ISERR(..RecordOAuth(command, [], owned, nowOwned, $Get(app))) && (nowOwned '= owned) Do ..Apply("email.oauthOwned", nowOwned)
+		}
 		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	}
 	Set todo = []

@@ -366,12 +366,18 @@ test('E6: an admin registers the OAuth2 client and signs in with Google, and no 
     expect(consent.searchParams.get('code_challenge_method'), 'and a PKCE challenge').toBe('S256');
     await tab.close();
 
+    const tokens = await irisScript(['Set t=##class(OcuTalon.Test.Channel.EmailLive).TokenRow()', 'Write !,"CHK|token|",$Piece(t,"|",1,3)', 'Write !,"CHK|values|",$Piece(t,"|",4,5)'].join('\n'));
+    expect(chk(tokens, 'token'), "IRIS's token row holds an access token and a refresh token and no error").toBe('1|1|');
+    const [accessToken, refreshToken] = (chk(tokens, 'values') ?? '').split('|');
+    expect([accessToken, refreshToken].every((value) => value !== undefined && value.startsWith('mock-')), "the tokens are the fake server's dummy values").toBe(true);
+
     const after = await page.request.get(SETTINGS);
     const afterText = await after.text();
     expect(afterText.includes(clientSecret), 'GET holds no client secret after the sign-in either').toBe(false);
+    expect(afterText.includes(accessToken!), 'GET holds no access token').toBe(false);
+    expect(afterText.includes(refreshToken!), 'GET holds no refresh token').toBe(false);
+    expect(/mock-(at|rt)-|consent-/.test(afterText), 'GET holds nothing of the fake server\'s tokens or authorization code').toBe(false);
     expect((JSON.parse(afterText) as { sections: { channels: Channels } }).sections.channels.signedIn, 'GET says signed in').toBe(true);
-    const tokens = await irisScript(['Set t=##class(OcuTalon.Test.Channel.EmailLive).TokenRow()', 'Write !,"CHK|token|",$Piece(t,"|",1,3)'].join('\n'));
-    expect(chk(tokens, 'token'), "IRIS's token row holds an access token and a refresh token and no error").toBe('1|1|');
 
     // A second session reads none of it and cannot start or check.
     const other = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });

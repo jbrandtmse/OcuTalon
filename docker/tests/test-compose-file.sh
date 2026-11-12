@@ -627,6 +627,23 @@ oauth_mock_only_in_ci() {
   [ "$n" -ge 5 ]
 }
 
+# Story 21.3 (U-320 conditions 2 and 7): nothing that installs or starts the product touches IRIS's OAuth2 objects or the web application /csp/sys/oauth2. The web
+# application is enabled only by Channel.Email.OAuth during an admin's register or sign-in action (the class test TestOnlyOneCallerOfTheClass pins the classes), so no
+# Dockerfile, compose file, install script, package manifest, CPF merge, start or health script, preload, web-application folder or Python source names it, on the
+# online demo or anywhere else. The list comes from git, so a file added later is covered.
+oauth_app_untouched_by_install_paths() {
+  local f n=0
+  while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    n=$((n + 1))
+    if grep -qiE 'csp/sys/oauth2|OAuth2\.(Client|ServerDefinition|AccessToken)' "$f"; then
+      echo "names IRIS's OAuth2 objects or /csp/sys/oauth2: $f"
+      return 1
+    fi
+  done < <(git ls-files -- Dockerfile 'docker-compose*.yml' install.sh module.xml .env.example 'docker/*' 'release/*' 'src/cpf/*' 'src/module.xml' 'src/preload/*' 'preload/*' 'src/ocutalon/csp/*' 'src/ocutalon/python/*' '.github/*' ci/compose.ci.yml 'ci/*.sh' | grep -v '^docker/tests/')
+  [ "$n" -ge 40 ]
+}
+
 # Only ci/compose.ci.yml sets the Bot API base and gives a bot token a value (Story 10.3): the file must exist, must not name the base and
 # must not hold the dummy token. A judge's file may still name TELEGRAM_BOT_TOKEN, as an empty key to fill in (.env.example) or as a
 # variable to read.
@@ -637,6 +654,7 @@ check "ci: the iris service sets OCUTALON_MOCK_KEY_HEADER to \"1\", once, and no
 check "ci: the iris service sets OCUTALON_TEST_PLAIN_SMTP to \"1\", once, and no other line names it" ci_sets_plain_smtp_for_iris
 check "ci: the iris service sets OCUTALON_TEST_OAUTH_MOCK to \"1\", once, and no other line names it" ci_sets_oauth_mock_for_iris
 check "ci: no compose file or Dockerfile outside ci/compose.ci.yml names OCUTALON_TEST_OAUTH_MOCK" oauth_mock_only_in_ci
+check "install: no Dockerfile, compose file, script, manifest, CPF merge or preload names /csp/sys/oauth2 or IRIS's OAuth2 objects (the web application is enabled only by an admin's sign-in action)" oauth_app_untouched_by_install_paths
 check "ci: the iris service sets OCUTALON_TELEGRAM_API_BASE to the mock, once, and no other line names it" ci_sets_telegram_base_for_iris
 check "ci: the iris service sets TELEGRAM_BOT_TOKEN to the dummy, once, and no other line names it" ci_sets_telegram_token_for_iris
 check "ci: the dummy bot token matches no key pattern" ci_dummy_token_is_no_key

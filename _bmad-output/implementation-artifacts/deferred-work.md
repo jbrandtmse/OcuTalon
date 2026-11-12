@@ -7060,13 +7060,31 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: SaveEmail writes OcuTalonMail with an empty password in provider mode; adapters have no OAuth2 rows, handler or XOAUTH2 yet
 - 2026-11-12T05:15:24Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8's token use makes the poll and the send work in provider mode
+- 2026-11-12T06:03:18Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2
 
 ### DW-1180: The privileges that registering the mail OAuth2 client needs are measured only for the throwaway's production user (_Ensemble with %All)
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Channel/Email/OAuth.cls Sys ran under _Ensemble (%All on the throwaway); OAuth2.Client/ServerDefinition need %Admin_OAuth2_Client:USE and Security.Applications access on a narrower user (unverified)
 - 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=measure or state the least set, or accept _Ensemble as the documented production user
+- 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=privileges are a veto item; rec: name _Ensemble the measured user, measure AD-24 roles in 21.8 live run
 
 ### DW-1181: A SaveEmail that fails after IRIS's OAuth2 client was replaced, changed or removed puts OcuTalon's own stores back but cannot restore the client, its secret or its tokens
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: PutBackEmail restores keys, credential and rows; only a client first registered from Password is removed again
 - 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=hold the old client until the save completes, or accept with a probe
+- 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=fix-risk high (old secret unrecoverable once replaced); rec: wontfix-accepted reopen_if=a failed provider save in CI/smoke
+
+### DW-1182: The tab where the admin pressed Sign in keeps its state line at Not signed in yet until reloaded; only the landing tab checks
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: email-section.ts: only the signin=1 landing tab posts check; the original tab has no re-check on focus or visibility; spec is silent on it
+- 2026-11-12T06:03:19Z status=wontfix-accepted owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=reopen_if=a smoke or user report confuses the stale original tab with a failed sign-in
+
+### DW-1183: OAuth.SwitchOn with the CI variable unset is never run; TestSwitchOnReadsTheVariable pins its source text only
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: every CI IRIS process has OCUTALON_TEST_OAUTH_MOCK=1 and other tests use the probe's SwitchOn; changing the process env risks other tests
+- 2026-11-12T06:03:19Z status=wontfix-accepted owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=reopen_if=SwitchOn's body changes or the text pin is edited
+
+### DW-1184: The install-path scans for /csp/sys/oauth2 read method code and listed files only; a class Parameter naming the path would pass both
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestOnlyOneCallerOfTheClass reads method code; test-compose-file.sh oauth_app_untouched_by_install_paths lists no src/ocutalon/cls path
+- 2026-11-12T06:03:19Z status=wontfix-theoretical owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=real if an Install step gains a Parameter or XData naming /csp/sys/oauth2

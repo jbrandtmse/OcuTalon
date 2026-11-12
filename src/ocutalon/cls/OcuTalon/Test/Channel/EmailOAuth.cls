@@ -3,6 +3,7 @@
 /// /csp/sys/oauth2 and the OAuth2 objects are put back as they were found (the throwaway has none). No provider is reached; no client secret, token or ID is real.
 ///   - TestEndpointsAreHttps, TestMockSwitchIsExactlyOne, TestScopesAreTheMinimum: the provider constants are https, the CI-only switch is exactly the value 1, and the scopes
 ///     are the minimum for POP3 and SMTP (c4, c5);
+///   - TestSysTouchesOnlyTheS1Objects, TestSysRefusesUnknownActions (QA): the class names only the S1 objects, and Sys refuses any other action (c1);
 ///   - TestSysIsTheOneNamespaceMethod, TestOnlyOneCallerOfTheClass: Sys is the one method that holds the namespace switch, and SettingsOps the one class that calls the class (c1, c2);
 ///   - TestSysRefusesOutsideTheJob, TestSysRefusesOnTheOnlineDemo: outside SettingsOps' production job, and on the online demo, every action refuses and changes nothing in %SYS (c1, c7);
 ///   - TestRegisterAndRemove: the client and the server definition with the fixed https endpoints, the client's fields, a re-register that keeps the tokens, a changed client
@@ -131,6 +132,82 @@ Method TestSysIsTheOneNamespaceMethod()
 		If method.Name = "Sys" Do $$$AssertTrue(code [ "NEW $NAMESPACE", "Sys saves the namespace with New")
 	}
 	Do $$$AssertEquals(switching, "Sys", "Sys is the one method that holds the namespace")
+}
+
+/// c1 (QA): the class does only what S1 lists. Its code names only IRIS's OAuth2 client, server definition and token classes, the web application class (always with the one
+/// path /csp/sys/oauth2, and only Exists, Initialize and Modify), one read-only count of the clients, the authorization-address call, a scope normaliser, the product's own
+/// online-demo flag and TLS configuration name, and the status and environment helpers; it uses no global, no Execute, no $ZF or $ZUTIL call, no dynamic class or method call, no
+/// user or role class, and no write other than through those objects. A new %SYS read or write is a new name here, so it fails this test and is a review HIGH.
+Method TestSysTouchesOnlyTheS1Objects()
+{
+	Set definition = ##class(%Dictionary.ClassDefinition).%OpenId("OcuTalon.Channel.Email.OAuth")
+	Do $$$AssertTrue($IsObject(definition), "the class definition is read")
+	Set refs = "", system = "", applications = 0, sql = 0, bad = ""
+	For i = 1:1:definition.Methods.Count() {
+		Set method = definition.Methods.GetAt(i)
+		Set code = $ZConvert(method.Implementation.Read(1000000), "U")
+		Set pos = 1
+		For {
+			Set pos = $Find(code, "##CLASS(", pos)
+			Quit:pos=0
+			Set end = $Find(code, ")", pos)
+			Set refs($Extract(code, pos, end - 2)) = ""
+			If $Extract(code, pos, end - 2) = "SECURITY.APPLICATIONS" {
+				Set applications = applications + 1
+				Set call = $Extract(code, end, end + 60)
+				If '((call?1"."1(1"EXISTS",1"MODIFY")1"("0.E) && (call [ "..#APPPATH")) Set bad = bad_$Select(bad = "": "", 1: ",")_method.Name_" calls Security.Applications other than Exists or Modify on the one path (S1 sets the flag; it creates no web application)"
+			}
+		}
+		Set pos = 1
+		For {
+			Set pos = $Find(code, "$SYSTEM.", pos)
+			Quit:pos=0
+			Set end = $Find(code, "(", pos)
+			Set system($Extract(code, pos, end - 2)) = ""
+		}
+		Set pos = 1
+		For {
+			Set pos = $Find(code, "%EXECDIRECT", pos)
+			Quit:pos=0
+			Set sql = sql + 1
+			Do $$$AssertTrue($Extract(code, pos, pos + 70) [ """SELECT COUNT(*) FROM OAUTH2.CLIENT""", "the one SQL statement is a read-only count of the OAuth2 clients ("_method.Name_")")
+		}
+		For forbidden = "XECUTE", "$ZF(", "$ZU", "$ZOBJ", "$CLASSMETHOD", "$METHOD", "$ZCALL", "$ROLES", "$ZUTIL", "^", "INSERT ", "UPDATE ", "DELETE ", "DROP ", "SECURITY.USERS", "SECURITY.ROLES", "%SYS.AUDIT", "$SYSTEM.SECURITY", "$SYSTEM.SQL", "OPEN ", "ZSYSTEM", "%OPENID", "%OPEN(", "%SAVE", "%DELETEID", "%KILLEXTENT", "%NEW" {
+			If code [ forbidden Set bad = bad_$Select(bad = "": "", 1: ",")_method.Name_" holds "_forbidden
+		}
+	}
+	Set names = "", name = ""
+	For {
+		Set name = $Order(refs(name))
+		Quit:name=""
+		Set names = names_$Select(names = "": "", 1: ",")_name
+	}
+	Do $$$AssertEquals(names, "%OAUTH2.UTILS,%SQL.STATEMENT,%SYS.OAUTH2.AUTHORIZATION,OAUTH2.ACCESSTOKEN,OAUTH2.CLIENT,OAUTH2.SERVERDEFINITION,OCUTALON.DATA.SETTING,OCUTALON.INSTALL.STEP.SSL,SECURITY.APPLICATIONS", "the class names exactly the S1 classes")
+	Set names = "", name = ""
+	For {
+		Set name = $Order(system(name))
+		Quit:name=""
+		Set names = names_$Select(names = "": "", 1: ",")_name
+	}
+	Do $$$AssertEquals(names, "STATUS.ERROR,UTIL.GETENVIRON", "and uses only the status and environment helpers of $SYSTEM")
+	Do $$$AssertEquals(sql, 1, "one SQL statement")
+	Do $$$AssertTrue(applications >= 3, "the web application class is called ("_applications_" times)")
+	Do $$$AssertEquals(bad, "", "nothing else is read, written, executed or called dynamically")
+}
+
+/// c1 (QA): inside the production job, Sys answers an action that is not register, remove, enable or state with a refusal and changes nothing in %SYS.
+Method TestSysRefusesUnknownActions()
+{
+	If '..Guard() Quit
+	Set before = ..Snapshot()
+	Set appBefore = ..AppEnabled()
+	For action = "", "kill", "delete", "export", "Register", "REMOVE", "register,remove", "purge" {
+		Kill in, out
+		Set in("provider") = "google", in("clientId") = ..#CLIENTID, in("secret") = "zz-dummy-secret", in("origin") = ..#ORIGIN
+		Do $$$AssertStatusNotOK($ClassMethod(..#PROBE, "CallSys", action, .in, .out), "the action '"_action_"' is refused inside the job")
+	}
+	Do $$$AssertEquals(..Snapshot(), before, "%SYS is as it was")
+	Do $$$AssertEquals(..AppEnabled(), appBefore, "and so is the web application")
 }
 
 /// c1, c2: nothing but SettingsOps calls the class, so no install, start or background path can reach IRIS's OAuth2 objects or the web application; the CI-only variable is read
@@ -316,6 +393,52 @@ Method TestAdminDisabledAppStaysDisabled()
 	Do $$$AssertEquals($$$ISOK(sc)_"|"_app_"|"_nowOwned2, "1||"_nowOwned, "a start with the application enabled changes nothing")
 }
 
+/// c2 (review): a changed provider re-creates the client, and IRIS's save enables the application; when an admin had disabled it, the flag is put back and
+/// nothing is recorded, so only the next explicit sign-in enables it.
+Method TestProviderChangeKeepsTheAppDisabled()
+{
+	If '..Guard() Quit
+	Set sc = $ClassMethod(..#PROBE, "Register", "google", ..#CLIENTID, "zz-dummy-secret", ..#ORIGIN, "", .changed, .owned, .app)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_app_"|"_..AppEnabled(), "1|enabled|1", "the first register enabled it")
+	Do ..SetApp(0)
+	Set sc = $ClassMethod(..#PROBE, "Register", "microsoft", "zz-oauth-client-3.example", "zz-dummy-secret-2", ..#ORIGIN, owned, .changed, .owned2, .app)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_changed_"|"_app_"|"_..AppEnabled(), "1|1||0", "a changed provider leaves the disabled application disabled and records no enable")
+	Do $$$AssertEquals($Piece(..ClientFields(), "|", 8), "https://login.microsoftonline.com/common/v2.0", "and the client is the new provider's")
+	Set sc = $ClassMethod(..#PROBE, "Start", "microsoft", ..#ORIGIN, owned2, .url, .nowOwned, .app)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_app_"|"_..AppEnabled(), "1|enabled|1", "the next sign-in enables it")
+}
+
+/// c2 (review): a start that enables an application OcuTalon did not enable at register adds app to the owned list, and a removal with that list disables it.
+Method TestStartRecordsItsEnable()
+{
+	If '..Guard() Quit
+	Do ..SetApp(1)
+	Set sc = $ClassMethod(..#PROBE, "Register", "google", ..#CLIENTID, "zz-dummy-secret", ..#ORIGIN, "", .changed, .owned, .app)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_..Norm(owned)_"|"_app, "1|client,server|", "an application already enabled at register is not OcuTalon's")
+	Do ..SetApp(0)
+	Set sc = $ClassMethod(..#PROBE, "Start", "google", ..#ORIGIN, owned, .url, .nowOwned, .app)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_app_"|"_..Norm(nowOwned)_"|"_..AppEnabled(), "1|enabled|app,client,server|1", "the start enables it and the owned list names app")
+	Set sc = $ClassMethod(..#PROBE, "Remove", nowOwned, .nowOwned2, .app)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_nowOwned2_"|"_app_"|"_..AppEnabled(), "1||disabled|0", "so the removal disables it")
+}
+
+/// c1, c7 (review): with a client registered, a start outside the job or on the online demo refuses and leaves the disabled application disabled.
+Method TestStartRefusesWithAClient()
+{
+	If '..Guard() Quit
+	Set sc = $ClassMethod(..#PROBE, "Register", "google", ..#CLIENTID, "zz-dummy-secret", ..#ORIGIN, "", .changed, .owned, .app)
+	Do $$$AssertStatusOK(sc, "the client is registered")
+	Do ..SetApp(0)
+	Set before = ..Snapshot()
+	For flag = "demo", "job" {
+		Set ^||OcuTalonEmailOAuthProbe(flag) = $Select(flag = "demo": 1, 1: 0)
+		Set sc = $ClassMethod(..#PROBE, "Start", "google", ..#ORIGIN, owned, .url, .nowOwned, .app)
+		Do $$$AssertStatusNotOK(sc, "a start refuses ("_flag_")")
+		Do $$$AssertEquals(..AppEnabled()_"|"_$Get(url)_"|"_..Snapshot(), "0||"_before, "and the application stays disabled with no address ("_flag_")")
+		Kill ^||OcuTalonEmailOAuthProbe(flag)
+	}
+}
+
 /// c2: a start with no client registered is an error and enables nothing.
 Method TestStartNeedsAClient()
 {
@@ -331,24 +454,27 @@ Method TestStartNeedsAClient()
 Method TestState()
 {
 	If '..Guard() Quit
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
+	Do rs.%Next()
+	Set logFrom = +rs.%GetData(1)
 	Do $$$AssertStatusOK($ClassMethod(..#PROBE, "State", .signedIn), "State is OK with no row")
 	Do $$$AssertEquals(signedIn, 0, "no token row: not signed in")
 	Do ..SeedToken("zz-dummy-access", "zz-dummy-refresh", "")
-	Do $ClassMethod(..#PROBE, "State", .signedIn)
+	Do $$$AssertStatusOK($ClassMethod(..#PROBE, "State", .signedIn), "State is OK")
 	Do $$$AssertEquals(signedIn, 1, "an access token and no error: signed in")
 	Do ..Wipe()
 	Do ..SeedToken("", "zz-dummy-refresh", "access_denied")
-	Do $ClassMethod(..#PROBE, "State", .signedIn)
+	Do $$$AssertStatusOK($ClassMethod(..#PROBE, "State", .signedIn), "State is OK")
 	Do $$$AssertEquals(signedIn, 0, "a row with an error and no access token: not signed in")
 	Do ..Wipe()
 	Do ..SeedToken("zz-dummy-access", "zz-dummy-refresh", "server_error")
-	Do $ClassMethod(..#PROBE, "State", .signedIn)
+	Do $$$AssertStatusOK($ClassMethod(..#PROBE, "State", .signedIn), "State is OK")
 	Do $$$AssertEquals(signedIn, 0, "a row with an error, whatever else it holds: not signed in")
 	Do ..Wipe()
 	Do ..SeedToken("", "", "")
-	Do $ClassMethod(..#PROBE, "State", .signedIn)
+	Do $$$AssertStatusOK($ClassMethod(..#PROBE, "State", .signedIn), "State is OK")
 	Do $$$AssertEquals(signedIn, 0, "a pending row with no access token: not signed in")
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE Text [ 'zz-dummy-'")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Text [ 'zz-dummy-'", logFrom)
 	Do rs.%Next()
 	Do $$$AssertEquals(rs.%GetData(1), 0, "no token value reached the Interoperability log")
 }

@@ -425,7 +425,7 @@ export class EmailSection {
     );
   };
 
-  /** Sign in with {provider}: asks the server for IRIS's authorization address and opens it in a new tab, within the press's activation. */
+  /** Sign in with {provider}: asks the server for IRIS's authorization address and opens it in a new tab once the answer comes. */
   protected readonly startSignIn = (): Observable<unknown> => {
     this.signInFailed.set(false);
     return this.api.signInMail('start').pipe(

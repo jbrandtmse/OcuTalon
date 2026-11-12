@@ -16,9 +16,10 @@ Include Ensemble
 ///   - Start enables the web application when it is disabled (an explicit sign-in, the only time besides Register) and asks IRIS for the authorization
 ///     address, which redirects to the provider's consent page with PKCE (S256), the provider's scopes and a state.
 ///   - State says whether the token row of the mailbox holds an access token and no error. It makes no outward call.
-/// The web application /csp/sys/oauth2 is enabled only by Register (IRIS enables it when it saves the new client) and by Start. A re-save of a registered
-/// client leaves a disabled application disabled.
-/// Sys is the one method that switches namespace (to %SYS) and the one that does anything in %SYS; it refuses unless it is called in the production job of
+/// The web application /csp/sys/oauth2 is enabled only by a first Register (IRIS enables it when it saves the new client) and by Start. A re-save of a registered
+/// client, a changed provider included, leaves a disabled application disabled.
+/// Sys is the one method that switches namespace (to %SYS) and the one that changes OcuTalon's objects there; the one other call that reaches %SYS is Start's
+/// request to IRIS's own authorization API, which IRIS answers by writing the pending token row in its token store, after Sys enabled the sign-in. Sys refuses unless it is called in the production job of
 /// SettingsOps (InJob), and on the online demo. Only IRIS's own classes and this class's constants exist in %SYS, so everything else comes in through its input. Provider endpoints are https constants (Endpoints); the CI-only environment variable OCUTALON_TEST_OAUTH_MOCK
 /// set to exactly 1 (SwitchOn) swaps them for the CI mock's plain HTTP endpoints and logs a warning each time it is used; no setting, row, route or form value
 /// can switch it on.
@@ -247,6 +248,7 @@ ClassMethod SysRegister(ByRef in, Output out) As %Status [ Private ]
 	Set clientExists = ##class(OAuth2.Client).Exists(..#APPLICATION, .client)
 	If clientExists && '..Has(owned, "client") Quit $SYSTEM.Status.Error(5001, ..#MESSAGEFOREIGN)
 	If clientExists && '$IsObject(client.ServerDefinition) Quit $SYSTEM.Status.Error(5001, ..#MESSAGEFOREIGN)
+	Set hadClient = clientExists
 	Set sameIssuer = clientExists && (client.ServerDefinition.IssuerEndpoint = in("issuer"))
 	If 'sameIssuer && (in("secret") = "") Quit $SYSTEM.Status.Error(5001, ..#MESSAGENOTREGISTERED)
 	Set sc = $$$OK
@@ -272,10 +274,6 @@ ClassMethod SysRegister(ByRef in, Output out) As %Status [ Private ]
 			Set sc = ##class(OAuth2.Client).Create(..#APPLICATION, .cl)
 			If $$$ISERR(sc) $$$ThrowStatus(sc)
 			Set owned = ..Add(owned, "client"), out("changed") = 1
-			If appWas '= 1 {
-				Set out("app") = "enabled"
-				Set owned = ..Add(owned, "app")
-			}
 		} Else {
 			Do ..ClientProperties(.in, .cl)
 			Kill mod
@@ -294,10 +292,14 @@ ClassMethod SysRegister(ByRef in, Output out) As %Status [ Private ]
 				Set sc = ##class(OAuth2.Client).Modify(..#APPLICATION, .mod)
 				If $$$ISERR(sc) $$$ThrowStatus(sc)
 				Set out("changed") = 1
-				If (appWas = 0) && (..AppEnabled() = 1) {
-					Set sc = ..SetApp(0)
-					If $$$ISERR(sc) $$$ThrowStatus(sc)
-				}
+			}
+		}
+		If (appWas '= 1) && (..AppEnabled() = 1) {
+			If (appWas = 0) && hadClient {
+				Set sc = ..SetApp(0)
+				If $$$ISERR(sc) $$$ThrowStatus(sc)
+			} Else {
+				Set out("app") = "enabled", owned = ..Add(owned, "app")
 			}
 		}
 		TCOMMIT
@@ -438,21 +440,22 @@ ClassMethod AppEnabled() As %String [ Private ]
 	Quit +app.Enabled
 }
 
-/// Sets the enabled flag of the web application; a web application that does not exist is created by IRIS's own initialiser when it is to be enabled.
+/// Sets the enabled flag of the web application; a web application that does not exist is not created (S1 sets the flag only), so enabling it is an error.
 ClassMethod SetApp(enabled As %Boolean) As %Status [ Private ]
 {
 	If '##class(Security.Applications).Exists(..#APPPATH) {
 		If 'enabled Quit $$$OK
-		Quit ##class(Security.Applications).Initialize(, , ..#APPPATH)
+		Quit $SYSTEM.Status.Error(5001, ..#MESSAGEREFUSED)
 	}
 	Set props("Enabled") = +enabled
 	Quit ##class(Security.Applications).Modify(..#APPPATH, .props)
 }
 
-/// The number of OAuth2 clients.
+/// The number of OAuth2 clients; -1 when it cannot be read, so that a removal keeps the web application (and the ownership of its enable) rather than disable it for others.
 ClassMethod ClientTotal() As %Integer [ Private ]
 {
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OAuth2.Client")
+	If rs.%SQLCODE < 0 Quit -1
 	If 'rs.%Next() Quit 0
 	Quit +rs.%GetData(1)
 }

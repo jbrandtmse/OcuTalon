@@ -1,7 +1,7 @@
 /// Starts or checks the mailbox's OAuth2 sign-in (AD-1, AD-19; Story 21.3). CommandsIn takes it from origin web_admin only, and SettingsOps carries it out:
 /// start answers the address that opens IRIS's authorization flow in a new tab (the Data of the CommandResult is {"url"}), and check answers whether IRIS's
-/// OAuth2 client holds the mailbox's tokens ({"signedIn"}). It carries no secret and no token, and writes no setting; a start that has to enable IRIS's
-/// redirection endpoint writes the Settings audit entry of that, in the name of ActingUser.
+/// OAuth2 client holds the mailbox's tokens ({"signedIn"}). It carries no secret and no token; the only setting it writes is email.oauthOwned, when a start has to enable
+/// IRIS's redirection endpoint, with the Settings audit entry of that in the name of ActingUser.
 Class OcuTalon.Msg.Command.MailSignIn Extends OcuTalon.Msg.Command
 {
 
