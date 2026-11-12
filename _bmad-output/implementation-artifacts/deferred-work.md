@@ -7335,13 +7335,26 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Mcp/Client.cls
 - evidence: Exchange sets OpenTimeout/Timeout only; same property as 22.9 Probe; AD-21 accepts the residual for this release
 - 2026-11-12T20:12:17Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=harvest note=measure a 1-byte/s trickle; bound in 22.10's bounded client
+- 2026-11-12T21:11:47Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy
 
 ### DW-1222: Gate rewrite mark ^||OcuTalonBP.McpRewrite is a single slot; two native MCP calls whose first passes interleave would mis-handle the second pass (unverified)
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
 - evidence: ExecuteTool runs first pass, tool, second pass sequentially in one process; Task 0 measured one call only
 - 2026-11-12T20:12:17Z status=open owner=22-3-call-mcp-tools-only-through-the-governed-proxy by=harvest note=QA: shadow-runner test with two native MCP calls in one turn
+- 2026-11-12T21:15:11Z status=resolved-by:22-3-call-mcp-tools-only-through-the-governed-proxy by=adjudication note=not_reproduced:Test.Mcp.Attach_TestTwoNativeCalls(three_native_calls_one_turn,each_rewritten_once)+Test.Mcp.ProxyJob_part2(two_calls_one_model_response);mutation_McpRewrittenBefore=0_red
 
 ### DW-1223: The proxy's wallet read at call time was measured in a session with the runner job's roles, not inside a runner job (condition (e) rests on an inference)
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Mcp/Proxy.cls
 - evidence: evidence 22-3-task0-proxy.md section 2 labels the in-job result (inference)
 - 2026-11-12T20:12:17Z status=open owner=22-3-call-mcp-tools-only-through-the-governed-proxy by=harvest note=lead smoke: real chat turn through a runner job against the mock with a wallet-backed entry
+- 2026-11-12T21:15:11Z status=resolved-by:22-3-call-mcp-tools-only-through-the-governed-proxy by=adjudication note=verified_in_a_real_runner_job:Test.Mcp.ProxyJob_TestRunnerJob(ChatAgent_job_reads_the_wallet_secret;mock_matched;audit_by_job_user);mutation_Header_no_secret_resolve_red
+
+### DW-1227: Proxy result text [non-text content omitted] (Mcp.Proxy OMITTED) is model-facing text named in the spec's Task but not in its approved Public text table
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Proxy.TextOf puts OMITTED in place of each non-text part of a tools/call result; the text reaches the model and the step summary's Result. The Planner approved Public text 1-10 only; this string is in Task 3 step 7, not the table.
+- 2026-11-12T21:11:47Z status=decision-pending owner=burndown by=cr note=veto window (public text): recommend approve verbatim; alternative drop the marker. Planner decides at the decision sheet
+
+### DW-1228: A server tool named call_mcp_tool, added before the proxy toolset in OfferServers, may collide with or shadow the governed proxy (unverified)
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: OfferServers AddTool(spec) runs before OfferProxy RegisterToolSet; AttachServers refuses only names of the agent's own tools, so a server tool named call_mcp_tool is not refused. Either outcome (registration error drops every server; the server's tool shadows the proxy) is unmeasured.
+- 2026-11-12T21:11:47Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=cr note=maybe-false, would be medium: settle with a mock tool named call_mcp_tool; refuse the name at attach or register the proxy first

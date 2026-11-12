@@ -101,9 +101,9 @@ Parameter REMINDERREFERENCE = "ocutalon[._]data[._]reminder|ocutalonp\.reminder|
 /// request (the Approval API and the other bridge classes of approvals, ApprovalStartIn, the table or globals, AnswersIn, EnsLib.Workflow), classifying a tool
 /// (the names ToolClassification and ClassificationClass), changing a setting (SettingsOps, the Setting table or globals, Accessor.WriteDefault, Timeouts.Apply
 /// and Restart, the writers of the public settings, every Ens.Director method that changes a production, and the creation or deletion of an Ens.Config
-/// object: reading one is not flagged), adding an MCP server (OcuTalon.Mcp, McpOps; the one class OcuTalon.Mcp.Proxy, which only calls a registered server's tool, is allowed: Story 22.3), pairing a chat (SessionOps, the Pairing table or globals) and a command
+/// object: reading one is not flagged), adding an MCP server (OcuTalon.Mcp, McpOps; the one class OcuTalon.Mcp.Proxy, which only calls a registered server's tool, is allowed: Story 22.3) or granting the permission on its resource (Install.Step.Mcp Grant, Grants and Revoke; its reader ResourceOf is not flagged), pairing a chat (SessionOps, the Pairing table or globals) and a command
 /// class outside the package OcuTalon.Msg.Command (IncidentCommand).
-Parameter GOVERNANCE = "ocutalon[._]bridge[._](\w+[._])?approval|ocutalonbp\.approval|approvalstartin|answersin|enslib[._]workflow|toolclassification|classificationclass|settingsops|ocutalon[._]data[._]setting|ocutalonp\.(setting|pairing)|accessor\W{1,4}writedefault\b|ocutalon[._]bridge[._]timeouts\W{1,4}(apply|restart)\b|public[._]settings\W{1,4}(set|setready|clearready)\b|ens\.director\W{1,6}(updateproduction|startproduction|stopproduction|restartproduction|recoverproduction|cleanproduction|deleteproduction|killproductionglobals|moveensruntimetoenssuspended|actualizeproductiondifferences|enableconfigitem|tempstopconfigitem|restartautoaddeditem|setautostart\w*|(set|remove)productionshutdowngroup|systemstart|systemstop|set\w*settingvalue)\b|ens\.config\.\w+\W{1,4}(%new|%deleteid|%delete|%deleteextent|%killextent)\b|ocutalon[._]mcp(?![._]proxy(?![\w.]))|mcpops|sessionops|ocutalon[._]data[._]pairing|msg[._]\w+command\b";
+Parameter GOVERNANCE = "ocutalon[._]bridge[._](\w+[._])?approval|ocutalonbp\.approval|approvalstartin|answersin|enslib[._]workflow|toolclassification|classificationclass|settingsops|ocutalon[._]data[._]setting|ocutalonp\.(setting|pairing)|accessor\W{1,4}writedefault\b|ocutalon[._]bridge[._]timeouts\W{1,4}(apply|restart)\b|public[._]settings\W{1,4}(set|setready|clearready)\b|ens\.director\W{1,6}(updateproduction|startproduction|stopproduction|restartproduction|recoverproduction|cleanproduction|deleteproduction|killproductionglobals|moveensruntimetoenssuspended|actualizeproductiondifferences|enableconfigitem|tempstopconfigitem|restartautoaddeditem|setautostart\w*|(set|remove)productionshutdowngroup|systemstart|systemstop|set\w*settingvalue)\b|ens\.config\.\w+\W{1,4}(%new|%deleteid|%delete|%deleteextent|%killextent)\b|ocutalon[._]mcp(?![._]proxy(?![\w.]))|install[._]step[._]mcp\W{1,4}(grants?|revoke)\b|mcpops|sessionops|ocutalon[._]data[._]pairing|msg[._]\w+command\b";
 
 /// The command classes that a tool may submit (AD-1: the verbs that CommandsIn accepts from origin tool and that exist): any other
 /// OcuTalon.Msg.Command.<Verb> in tool code is a governance command (Pair, Unpair, SetDemoMode, EndSession). ProposePersona is the persona tool's verb (Story 40.5). SendDigest (Story 17.6) takes no recipient. SaveMemory and ForgetMemory are the memory tools' verbs (Story 19.3). ProposeFix is the fix tool's verb (Story 23.2).
@@ -885,6 +885,8 @@ Method TestToolCodeScan()
 		tab_"Set server = ##class(OcuTalon.Mcp.Server).%New()",
 		tab_"Do ##class(OcuTalon.Mcp.ProxyWriter).Add(""x"")",
 		tab_"Do ##class(OcuTalon.Mcp.Proxy.Extra).Add(""x"")",
+		tab_"Do ##class(OcuTalon.Install.Step.Mcp).Grant(server)",
+		tab_"Set sc = ##class(OcuTalon.Install.Step.Mcp).Revoke(server)",
 		tab_"Do ##class(OcuTalon.Mcp).Add(""x"")",
 		tab_"Do ##class(OcuTalon.Core.McpOps).Add(""x"")",
 		tab_"Do ##class(OcuTalon.Core.SessionOps).Pair(code)",
@@ -939,7 +941,8 @@ Method TestToolCodeScan()
 		tab_"Set text =""Say that you approve it, and that the setting is ToolOption or a classification word"""_lf_
 		tab_"Set result = ##class(OcuTalon.Msg.CommandResult).%New()"_lf_
 		tab_"Set answer = ##class(OcuTalon.Mcp.Proxy).Call(server, tool, arguments, room)"_lf_
-		tab_"Set answer = $ClassMethod(""OcuTalon.Mcp.Proxy"", ""Call"", server, tool)"
+		tab_"Set answer = $ClassMethod(""OcuTalon.Mcp.Proxy"", ""Call"", server, tool)"_lf_
+		tab_"Set resource = ##class(OcuTalon.Install.Step.Mcp).ResourceOf(server, .sc)"
 	Set clean = ..ToolCodeClean("", .problems, governed)
 	Do $$$AssertEquals(clean, 1, "and one that submits the tool commands, creates a business service, reads an Ens.Config object, says approve in a string, calls the one class of OcuTalon.Mcp that a tool may name (the governed proxy, Story 22.3) and has the governance names in comments: "_problems)
 	Do $$$AssertEquals(problems, "", "and has nothing to say")

@@ -52,6 +52,10 @@
 ///     result longer than the step's room is cut and marked, and the step's total stays within 40,000 characters), TestDirectCall (the model calls call_mcp_tool itself: a read-only tool
 ///     runs, a risky one is held in a user's turn and denied in an untrusted one, an unregistered server is denied UNREGISTERED, and a service user without the Use permission on the server's
 ///     resource is denied for the native call and the proxy call alike);
+///   - Story 22.3, QA: TestTwoNativeCalls (DW-1222: two native calls of a read-only tool back to back in one turn, and a third with the first one's arguments: each is rewritten once, runs with
+///     its own arguments through OcuTalon's client, and has one step, one step record and one audit entry; no tools/call from AI Hub's client), TestDemoOffersNoProxy (the online-demo flag on,
+///     with a server row: Servers lists no server, a build records no MCP spec, a request offers none of the server's tools and no call_mcp_tool, the native call and the proxy call are not
+///     found, the proxy answers demo and the tool MCPDEMO, and the server gets no request from either client; with the flag off the server is attached and the proxy offered once);
 ///   - TestNoServerNoProxy (Story 22.3): with OcuTalon's host and no server registered, a request that composes a manager offers no call_mcp_tool; TestProxyToolSetFails: a host whose
 ///     proxy toolset cannot be registered is one warning, and the request goes on with a manager that offers neither the proxy nor any tool of the server;
 ///   - TestBridgeAlone (row 6): the base class attaches nothing, probes nothing and the mock sees no request; TestFreshInstall: with no Mcp.Server row the build attaches nothing
@@ -1317,6 +1321,143 @@ Method TestDirectCall()
 	Do adapter.CloseTurn()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
+}
+
+/// Story 22.3, DW-1222 (QA): the gate's rewrite mark ^||OcuTalonBP.McpRewrite is a single slot. Two native calls of a read-only tool run back to back in one turn through the shadow
+/// runner (each ExecuteTool runs the first policy pass, the tool and the second pass in order), and then a third call with the first one's arguments. Each is rewritten once and
+/// runs through OcuTalon's client with its own arguments (the mock echoes them), and each has one step, one step record and one audit entry; no call is held or denied UNTRUSTED
+/// (the first call tainted the turn, and the second is a read-only tool); AI Hub's client sent no tools/call. A mark left by one call must not hide a later call with the same arguments.
+Method TestTwoNativeCalls()
+{
+	If ..Guard() Quit
+	Do ..UseTurn(1)
+	Do ..Use("HostSinkClass", "OcuTalon.Test.Bridge.ProbeSink")
+	Do ..Register(, 1)
+	Set adapter = ..Runner().Adapter
+	Do ..Ok(adapter.BuildAgent(), "the agent builds with the server attached")
+	If '$IsObject(adapter.Agent) Quit
+	Do ..Classify("zz_lookup", "read-only")
+	Do ##class(OcuTalon.Test.Mcp.Mock).Call(..Port, "echo")
+	Kill ^||ZzProbeSink
+	Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).Start(100)
+	Do ..BeginTurn("user")
+	Do ..Ok(adapter.OpenTurn("zz-mcp-owner"), "a user's turn composes its manager")
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set before = ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%Size()
+	Set values = ""
+	For id = "1", "2", "1" {
+		Set value = adapter.CallValue("zz_lookup", {"id": (id)})
+		Set values = values _ $ListBuild(value)
+		Do $$$AssertEquals(value, "echo:" _ {"id": (id)}.%ToJSON(), "the call with id " _ id _ " ran once with its own arguments, through the proxy: " _ value)
+	}
+	Set viaIris = ""
+	Set native = ""
+	Set iterator = ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%GetIterator()
+	While iterator.%GetNext(.index, .request) {
+		If index < before Continue
+		If request.client = "iris" {
+			If request.method = "tools/call" Set viaIris = viaIris _ $ListBuild(request.method)
+		} Else {
+			Set native = native _ $ListBuild(request.method)
+		}
+	}
+	Do $$$AssertEquals($ListLength(viaIris), 3, "the mock logged three tools/call from OcuTalon's client, one for each call")
+	Do $$$AssertTrue(native '= "", "AI Hub's client sent its own tools/list")
+	Do $$$AssertEquals($Length($ListToString(native), "tools/call"), 1, "and from AI Hub's client no tools/call: " _ $ListToString(native))
+	Set label = "Running zz_lookup on " _ ..Server
+	Do $$$AssertEquals(..StepLabels(), label _ $Char(10) _ label _ $Char(10) _ label, "three turn.step events were reported, one for each call, none twice")
+	Set records = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Records()
+	Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).End()
+	Set tools = 0
+	Set iterator = records.%GetIterator()
+	While iterator.%GetNext(, .record) {
+		If record.kind = "tool" Set tools = tools + 1
+	}
+	Do $$$AssertEquals(tools, 3, "and three step records are kept")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().Tainted, 1, "the turn is tainted")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..Server, , 3)
+	Do $$$AssertEquals(entries.%Size(), 3, "three MCP audit entries exist")
+	Set outcomes = ""
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set outcomes = outcomes _ $ListBuild(entry.data.change _ "|" _ entry.data.tool _ "|" _ entry.data.outcome)
+	}
+	Do $$$AssertEquals($ListToString(outcomes, ","), "called|zz_lookup|ok,called|zz_lookup|ok,called|zz_lookup|ok", "each says called, the tool and ok")
+	Do adapter.CloseTurn()
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
+}
+
+/// Story 22.3, the online-demo safety (AD-25: MCP never runs on the online demo, attach and listing included): with the online-demo flag on, MCP is off by
+/// the demo check of Mcp.Attach Servers, not by the absence of rows, even when a server row exists (a state that the demo cannot reach, since it refuses every MCP admin command).
+/// First, with the flag off, a build attaches the server, zz_lookup is classified read-only and a request offers call_mcp_tool once (the control, which also shows the native call
+/// would be allowed). Then, with the flag on: Servers lists no server; a new build records no MCP spec and sends the server nothing; the request's manager offers none of the
+/// server's tools and no call_mcp_tool, so the native call and a call of call_mcp_tool are not found; a direct call of the proxy answers demo and the tool answers MCPDEMO; and
+/// the mock got no request at all, from either client, while the flag was on. The flag is put back whatever happens.
+Method TestDemoOffersNoProxy()
+{
+	If ..Guard() Quit
+	Do ..UseTurn(1)
+	Do ..Register(, 1)
+	Set adapter = ..Runner().Adapter
+	Do ..Ok(adapter.BuildAgent(), "control: with the flag off the agent builds with the server attached")
+	If '$IsObject(adapter.Agent) Quit
+	Do ..Classify("zz_lookup", "read-only")
+	Do ..BeginTurn("user")
+	Do ..Ok(adapter.OpenTurn("zz-mcp-owner"), "control: with the flag off a user's turn composes its manager")
+	Do $$$AssertEquals(..Listed(adapter.Agent.ToolManager, "call_mcp_tool") _ "|" _ ..Listed(adapter.Agent.ToolManager, "zz_lookup"), "1|1", "which offers call_mcp_tool and zz_lookup once each")
+	Do adapter.CloseTurn()
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set settings = "OcuTalon.Data.Public.Settings"
+	Set saved = $ClassMethod(settings, "Get", "onlineDemo")
+	Set failure = ""
+	Set (listed, specs, offered, native, direct, proxied, tool, before, after) = ""
+	Try {
+		Do ..Ok($ClassMethod(settings, "Set", "onlineDemo", 1), "the online-demo flag is on")
+		Set before = ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%Size()
+		Set sc = ##class(OcuTalon.Mcp.Attach).Servers(.servers)
+		Set listed = $Select($$$ISOK(sc) && $IsObject($Get(servers)): servers.%ToJSON(), 1: "error")
+		Set demo = ..Runner().Adapter
+		Do ..Ok(demo.BuildAgent(), "a new agent builds on the demo")
+		If $IsObject(demo.Agent) {
+			Set specs = $ListToString(demo.AttachedSpecs())
+			Do ..BeginTurn("user")
+			Do ..Ok(demo.OpenTurn("zz-mcp-owner"), "a user's turn composes its manager on the demo")
+			Set offered = ..Listed(demo.Agent.ToolManager, "call_mcp_tool") _ "|" _ ..Listed(demo.Agent.ToolManager, "zz_lookup") _ "|" _ ..Listed(demo.Agent.ToolManager, "zz_delete_ticket")
+			Set native = demo.CallValue("zz_lookup", {"id": "1"})
+			Set direct = demo.CallValue("call_mcp_tool", {"server": (..Server), "tool": "zz_lookup", "arguments": {}})
+			Do demo.CloseTurn()
+			Do ##class(OcuTalon.Bridge.Context).End()
+		}
+		Set proxied = ##class(OcuTalon.Mcp.Proxy).Call(..Server, "zz_lookup", {}).%Get("refusal")
+		Set tool = ##class(OcuTalon.Tools.McpCall).CallMcpTool(..Server, "zz_lookup", {})
+		Set after = ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%Size()
+	} Catch exception {
+		Set failure = exception.DisplayString()
+	}
+	Do ..Ok($ClassMethod(settings, "Set", "onlineDemo", saved), "the flag is put back")
+	Do $$$AssertEquals(failure, "", "the demo part ran without an exception")
+	Do $$$AssertEquals(listed, "[]", "on the demo Mcp.Attach Servers lists no server, although the row exists")
+	Do $$$AssertTrue((specs '= "") && (specs '[ "mcp:"), "the build records the agent's own spec and no MCP spec: " _ specs)
+	Do $$$AssertEquals(offered, "0|0|0", "the request's manager offers no call_mcp_tool and none of the server's tools")
+	Do $$$AssertTrue(native [ "ToolNotFound", "the native call of zz_lookup is not found: " _ $Extract(native, 1, 120))
+	Do $$$AssertTrue(direct [ "ToolNotFound", "a call of call_mcp_tool is not found: " _ $Extract(direct, 1, 120))
+	Do $$$AssertEquals(proxied, "demo", "a direct call of the proxy is refused demo")
+	Do $$$AssertEquals(tool, $Parameter("OcuTalon.Tools.McpCall", "MCPDEMO"), "and the tool answers the demo sentence")
+	Do $$$AssertEquals(after, before, "the server got no request from either client while the flag was on: no probe, no listing and no tools/call")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.Mock).Calls(..Port, "zz_lookup"), 0, "the mock never ran the tool")
+	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
+}
+
+/// The number of tools/call requests that the mock has logged so far, from any client.
+Method ToolCalls() As %Integer [ Private ]
+{
+	Set count = 0
+	Set iterator = ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%GetIterator()
+	While iterator.%GetNext(, .request) {
+		If request.method = "tools/call" Set count = count + 1
+	}
+	Quit count
 }
 
 /// The labels of the turn.step events the probe sink got so far, in order, separated by line feeds.

@@ -33,7 +33,7 @@
 ///     Without it the schema is {"type": "object", "properties": {"id": {"type": "string"}}}.
 ///   - Story 22.3 (the governed proxy's client and calls): Call(port, mode, value) sets how the mock answers tools/call until Stop (the default answers the text "The mock ran <tool>"): text
 ///     (the text is value), long (a text of value characters), echo (the text is "echo:" and the JSON of the call's arguments), mixed (a text part, an image part and a text part), iserror
-///     (a result whose isError is true, with a text that a failing server might give), rpcerror (a JSON-RPC error object), sse (the default answer as a one-event text/event-stream body),
+///     (a result whose isError is true, with a text that a failing server might give), rpcerror (a JSON-RPC error object), sse (the default answer as a one-event text/event-stream body, and so the answer to an unpaged tools/list),
 ///     status (the HTTP status line in value, with no body) and silent (the request is read, logged and not answered, as Silence does it, but for tools/call alone, and the connection is held for 40 seconds, longer than the client's limit for a call). Pages(port, size) makes
 ///     tools/list answer size tools to a page with a nextCursor (p2, p3...), and with size -1 one tool named zz_page_<k> to a page and a nextCursor without end. Session(port, id) makes the
 ///     answer to initialize carry the header Mcp-Session-Id: id. Requests also gives session, the Mcp-Session-Id header that the request carried ("" for none).
@@ -357,6 +357,10 @@ ClassMethod Reply(body As %String, extra As %List, port As %Integer, Output meth
 			Quit answer.%ToJSON()
 		}
 		Set answer = {"jsonrpc": "2.0", "id": (id), "result": {"tools": (tools)}}
+		If $ListGet($Get(^IRIS.Temp.OcuTalonMcpMock(port, "call")), 1) = "sse" {
+			Set contentType = "text/event-stream"
+			Quit "event: message" _ $Char(10) _ "data: " _ answer.%ToJSON() _ $Char(10) _ $Char(10)
+		}
 		Quit answer.%ToJSON()
 	}
 	If method = "tools/call" {

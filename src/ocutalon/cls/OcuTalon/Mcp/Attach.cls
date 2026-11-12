@@ -1,7 +1,8 @@
 /// The MCP servers class of OcuTalon (AD-21, AD-31): names the registered servers to the runners and takes each runner's attach report. It is the value of
 /// the McpServersClass setting of the Decide item in OcuTalon.Production.
 ///   - Servers: one {"server", "config"} for each row of OcuTalon.Mcp.Server in the order of the names, the config being AI.MCP.OcuTalon_<Name>. The
-///     row holds no URL and no credential: the Config Store entry does.
+///     row holds no URL and no credential: the Config Store entry does. On the online demo (Mcp.Proxy OnlineDemo) it lists no server, whatever rows exist, so
+///     no runner attaches, probes, lists or offers an MCP server there (AD-25).
 ///   - OnAttach: hands the report ({"status", "reason", "tools", "refused"} and, for an attached server, "fingerprints": each listed tool's name to its
 ///     fingerprint) to OcuTalon.Mcp.Ops.RecordAttach, which writes the server's row and its tool rows and sends the admin notices. RecordAttach
 ///     looks up the administrators' sessions through OcuTalon.Data.Ownership AdminSessions to address the notices. OnAttach itself does nothing else.
@@ -22,6 +23,7 @@ Parameter ENTRYPREFIX = "OcuTalon_";
 ClassMethod Servers(Output servers As %DynamicArray) As %Status
 {
 	Set servers = []
+	If ##class(OcuTalon.Mcp.Proxy).OnlineDemo() Quit $$$OK
 	Set statement = ##class(%SQL.Statement).%New()
 	Set sc = statement.%Prepare("SELECT Name FROM OcuTalon_Mcp.Server ORDER BY Name")
 	If $$$ISERR(sc) Quit sc

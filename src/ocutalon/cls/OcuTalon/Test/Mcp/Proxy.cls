@@ -219,25 +219,48 @@ Method TestServerFailures()
 	Set mock = ..#MOCK
 	For mode = "rpcerror", "iserror", "status" {
 		Do $ClassMethod(mock, "Call", ..Port, mode, "500 Internal Server Error")
-		Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set mark = ..Mark()
 		Set answer = $ClassMethod(proxy, "Call", ..Server, "zz_lookup", {})
 		Do $$$AssertEquals(answer.refusal _ "|" _ answer.outcome _ "|" _ answer.%IsDefined("text"), "failed|failed|0", mode _ ": refused failed, with no text")
 		Do $$$AssertTrue(answer.%ToJSON() '[ "mock-failure-text", "and none of the server's text")
-		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..Server)
-		If entries.%Size() Do $$$AssertEquals(entries.%Get(0).data.change _ "|" _ entries.%Get(0).data.outcome, "refused|failed", mode _ ": one refused entry")
+		Set refused = ..RefusedEntries(mark)
+		Do $$$AssertEquals(refused, "refused|failed", mode _ ": one refused entry that says failed: " _ refused)
 	}
 	Do $ClassMethod(mock, "Call", ..Port, "silent")
+	Set mark = ..Mark()
 	Set start = $ZHorolog
 	Set answer = $ClassMethod(proxy, "Call", ..Server, "zz_lookup", {})
 	Set elapsed = $ZHorolog - start
 	Do $$$AssertEquals(answer.refusal _ "|" _ answer.outcome, "timeout|timeout", "a silent tools/call is refused timeout")
 	Do $$$AssertTrue(elapsed < ..#CALLBOUND, "within " _ ..#CALLBOUND _ " seconds: " _ $Number(elapsed, 1))
+	Do $$$AssertEquals(..RefusedEntries(mark), "refused|timeout", "with one refused entry that says timeout")
 	Do $ClassMethod(mock, "Call", ..Port, "text", "late")
 	Do $ClassMethod(mock, "Stop", ..Port)
+	Set mark = ..Mark()
 	Set start = $ZHorolog
 	Set answer = $ClassMethod(proxy, "Call", ..Server, "zz_lookup", {})
-	Do $$$AssertEquals(answer.refusal _ "|" _ answer.outcome, "failed|unreachable", "a server that is gone is refused failed, with the reason unreachable")
 	Do $$$AssertTrue($ZHorolog - start < 4, "at once")
+	Do $$$AssertEquals(answer.refusal _ "|" _ answer.outcome, "failed|unreachable", "a server that is gone is refused failed, with the reason unreachable")
+	Do $$$AssertEquals(..RefusedEntries(mark), "refused|unreachable", "with one refused entry that says unreachable")
+}
+
+/// A mark of AuditLog Now that is later than every entry written so far: the entry of the call before can share the millisecond of a mark taken right after it.
+ClassMethod Mark() As %String [ Private ]
+{
+	Hang 0.01
+	Quit ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+}
+
+/// The change and the outcome of the MCP audit entries of the fixture server since the mark, joined by commas, once the first is readable ("" when none is).
+Method RefusedEntries(mark As %String) As %String [ Private ]
+{
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..Server)
+	Set text = ""
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set text = text _ $Select(text = "": "", 1: ",") _ entry.data.change _ "|" _ entry.data.outcome
+	}
+	Quit text
 }
 
 Method TestCredentialTypes()
