@@ -2,21 +2,14 @@
 title: 'Story 0.30: A shorter README for judges, with the install, feature and admin material moved word for word to GUIDE.md'
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '4c86e4ef840f23623f557d9f063465b4322a8ff3'
 baseline_commit: '4c86e4ef840f23623f557d9f063465b4322a8ff3'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred:
-  - summary: >-
-      The notice cards' install link in src/ocutalon/cls/OcuTalon/Core/Allowance.cls still gives the README anchor #install-it-yourself, which moved to GUIDE.md.
-    evidence: |-
-      INSTALLLINK (Allowance.cls:37) is https://github.com/jbrandtmse/OcuTalon#install-it-yourself. README.md no longer has that heading, so the link opens the README top, while the banner action of the same state (banner-stack.ts) opens GUIDE.md#install-it-yourself. src/** is outside the Q1-Q3 rulings, so the story could not change it. Needs a Planner ruling: GUIDE_URL#install-it-yourself in INSTALLLINK, with the pins that quote it (OcuTalon.Test.Core.Allowance, AllowanceInProduction, web/scripts/chat-view.test.mjs, allowance-sources.test.mjs, web/e2e-online/allowance/daily-cap.spec.ts and messages.spec.ts:132), and test-readme's product-links resolving address-form anchors (OcuTalon#x) against the README headings only. product-links accepts the anchor today because GUIDE.md has the heading.
-    location: >-
-      src/ocutalon/cls/OcuTalon/Core/Allowance.cls:37
-    severity: medium
+deferred: []
 ---
 
 <intent-contract>
@@ -51,7 +44,7 @@ deferred:
 
 **Never:**
 - Change any README or GUIDE text beyond the ruled drafts and the two ruled edits.
-- Change app code (`web/src/**`, `src/**`), the demo guide or catalog text, `install.sh`, `release/**`, `.github/**`, `ci/**`, `_bmad/**` or `eval/**`, beyond exactly the Q1-Q3 lines ruled above (the link targets and `GUIDE_URL` in Q1's four web files, Q2's three install.sh lines, Q3's two release lines).
+- Change app code (`web/src/**`, `src/**`), the demo guide or catalog text, `install.sh`, `release/**`, `.github/**`, `ci/**`, `_bmad/**` or `eval/**`, beyond exactly the Q1-Q3 lines ruled above (the link targets and `GUIDE_URL` in Q1's four web files, Q2's three install.sh lines, Q3's two release lines). [AMENDED 2026-11-12 ~15:35Z, DW-1199, orchestrator ruling (category=decide; the Contest Planner may reverse): Q1 extends to one more link target, `src/ocutalon/cls/OcuTalon/Core/Allowance.cls` `Parameter INSTALLLINK = "https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself"`, with no visible text, route or privilege change, and its pins: `src/ocutalon/cls/OcuTalon/Test/Core/{Allowance,AllowanceInProduction,BridgeSink,WebChatMessages,WebChatOut}.cls`, `web/e2e-online/allowance/{daily-cap,messages}.spec.ts`, `web/scripts/{allowance-sources,banner-view}.test.mjs`.]
 - Weaken any pin, or add README anchors (Q1 option B) or land the app links at the README top (option C).
 - Retype moved text.
 - Keep the byte-identity check as a permanent rule. It pins a one-time move, so a later ruled edit of GUIDE text (Story 0.29's pointer) would fail it.
@@ -136,6 +129,8 @@ deferred:
 - [Condition 1] GUIDE.md in every scan README.md is in: `test-boundaries.sh` must-scan list (L131) and test-readme's link (`readme-links`), anchor and `ALLOWED_HOSTS` checks; one mutation each on GUIDE.md proving it is scanned (a home-folder path in GUIDE → test-boundaries red; a broken `#x` in GUIDE → `readme-links` red; a link to a host outside `ALLOWED_HOSTS` in GUIDE → red). Do not edit the `ALLOWED_HOSTS=` line itself (release/checklist.sh's no-outward allowance pins it whole); scanning GUIDE.md with it needs no edit to that line.
 - [Conditions 2, 4] `word-cap` counts README.md whole (0.29's H3 included when it lands); if 0.29 has landed first, its H3 stays under "## Measured", before "## More".
 
+- [ ] [Review] DW-1199 (ruled YES, orchestrator 2026-11-12 ~15:35Z): `src/ocutalon/cls/OcuTalon/Core/Allowance.cls:37` `INSTALLLINK` still points at `https://github.com/jbrandtmse/OcuTalon#install-it-yourself`, a README heading this story moved. The fix: the value becomes exactly `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself` (the class's doc comment at L36 says "The GUIDE.md section" instead of "The README section"); the pins that quote the old value follow: `Test/Core/{Allowance,AllowanceInProduction,BridgeSink,WebChatMessages,WebChatOut}.cls`, `web/e2e-online/allowance/{daily-cap,messages}.spec.ts`, `web/scripts/{allowance-sources,banner-view}.test.mjs` (grep the tree for `OcuTalon#install-it-yourself` and `INSTALLLINK`: after the fix no tracked file outside the spec and the ledger names the old URL). No visible text, route or privilege change. One mutation: INSTALLLINK back to the README URL -> `allowance-sources.test.mjs` (or the Test/Core pin) red. Verify the five IRIS classes with `ci/iris.sh class <Class>` on a lane-A throwaway (see the implement prompt), one class per call.
+
 **Acceptance Criteria:**
 - Given README.md after the story, when `bash docker/tests/test-readme.sh` runs, then `top`, `word-cap` and `guide` pass:
   - `top`: the new H2 order, the header with the two GUIDE badge URLs, word for word.
@@ -150,6 +145,8 @@ deferred:
 - Given this story's diff, when inspected, then nothing changed outside the files the Code Map names, the Q1-Q3 rulings permitting.
 
 ## Spec Change Log
+
+- 2026-11-12 ~15:35Z (lead, rework iteration 1, trigger=med_first_review): build-auto's four review layers found DW-1199 (Allowance.cls INSTALLLINK still at the README anchor that moved); it was deferred because `src/**` was closed. The orchestrator ruled YES (decide; the Planner may reverse): Q1 extends to that one link target and its pins. The intent's `src/**` line carries the [AMENDED] marker; one [Review] item re-opens the story.
 
 - 2026-11-12 ~13:10Z (lead, after the Contest Planner's rulings, prompts/story-030-rulings.md): the plan HALTed `blocked` on intent gap Q1-Q3 (Q1: the page's README links to #install-it-yourself, #set-a-model-key and #telegram land on moved sections while condition 5 forbade app changes; Q2: install.sh names "The Troubleshooting section of README.md"; Q3: release/notes.sh:79 and release/checklist.sh:474 say "the README's two commands"). Ruled A, A, A; condition 5 amended only that far (Boundaries, [AMENDED 2026-11-12]). PUBLIC TEXT approved with Edit 1 (Usability row link target to GUIDE.md#new-since-100) and Edit 2 (GUIDE "of this README" -> "of the README"). Added: Q1-Q3 files to the Code Map (banner-stack's telegramUrl included: its #telegram anchor also moves), the extra-AC sweep (no notes/checklist row extracts moved text; note-readme and product-name get post-move tests), conditions 1-4, and the matching Verification commands and mutations. Status reset blocked -> ready-for-dev by the lead's spec gate.
 
@@ -188,6 +185,8 @@ deferred:
 - AD-23: the one image recipe; GUIDE.md is not in the build context.
 - AD-13: Q1 is ruled A. The lead checked the spine: no AD's Rule governs the page's outbound documentation links, and Q1 changes link targets only, with no new route, privilege, script or visible text.
 - No AD is contradicted and none is amended.
+
+**DW-1199 ruling (2026-11-12 ~15:35Z, orchestrator, category=decide; the Planner may still reverse).** Extend Q1 to one more link target: `Core/Allowance.cls` `INSTALLLINK = "https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself"`. No visible text, route or privilege change, and its pins follow. Footprint gains `src/ocutalon/cls/OcuTalon/Core/Allowance.cls` and the five Test/Core classes.
 
 **Planner rulings (2026-11-12 ~13:00Z, Contest Planner under the owner's delegation; prompts/story-030-rulings.md, binding).**
 - Q1 A: `GUIDE_URL = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md'` in links.ts. The app links to `#install-it-yourself`, `#set-a-model-key` and `#telegram` go to GUIDE.md. No visible text changes. EXPERIENCE.md "(README)" becomes "(GUIDE.md)" on those rows only. The pins follow and prove GUIDE.md has the three anchors. Not B (no README anchors), not C (nothing weakened). The full web CI run is accepted.
