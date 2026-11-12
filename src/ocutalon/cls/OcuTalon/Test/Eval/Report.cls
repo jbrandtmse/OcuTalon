@@ -3099,4 +3099,174 @@ Method TestSessionCaseActions()
 	Do $$$AssertEquals(report.actions.approvals_"|"_report.actions.commands, "0|0", "control: without the session record they are not counted")
 }
 
+/// (Story 0.27) The rules-only report (rulesOnly 1): the run was made with no model key, so a row that fell back with the reason no_key is the fixed rules' own answer. Items, injections and incidents
+/// count it as decided, so an item is right where its expected answer is tell now (or its choice holds tell now), an injection that expects tell now and holds no key phrase is right, and no incident is
+/// right; the digest case, which runs on code, is scored as always. No row is reported for a missing cost or size, no decision is priced or unpriced, nothing is a problem, the scores have no target, and the
+/// report and its Markdown say that no model was asked.
+Method TestRulesOnlyScoring()
+{
+	Set tellnow = ..N("ro-tellnow"), choice = ..N("ro-choice"), heldOut = ..N("ro-heldout"), digest = ..N("ro-digest"), ignore = ..N("ro-ignore")
+	Set inc = ..N("ro-inc"), incHeld = ..N("ro-inc-held"), injOutcome = ..N("ro-inj-outcome"), injPhrase = ..N("ro-inj-phrase"), dg = ..N("ro-dg")
+	Do ..ItemCase(tellnow, "tellnow")
+	Do ..ChoiceCase(choice, ["digest", "tellnow"])
+	Do ..ItemCase(heldOut, "tellnow", 1)
+	Do ..ItemCase(digest, "digest")
+	Do ..ItemCase(ignore, "ignore")
+	Do ..IncidentCase(inc, "data_format_change", "OrderDate", "repair_resend")
+	Do ..IncidentCase(incHeld, "data_format_change", "OrderDate", "", 1, 1)
+	Do ..InjectionCase(injOutcome, "", 0, "", "tellnow")
+	Do ..InjectionCase(injPhrase, [["nothing acts"]])
+	Do ..DigestCase(dg, {"allClear": false, "catalogKey": "checks.notEverything", "named": ["A"], "checked": ["A"]})
+	Set run = ..NewRun()
+	For name = tellnow, choice, heldOut, digest, ignore, injOutcome, injPhrase {
+		Do ..NoKeyRow(run, name)
+	}
+	For name = inc, incHeld {
+		Do ..NoKeyRow(run, name)
+	}
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, , , 1)
+	Do $$$AssertEquals(report.%GetTypeOf("rulesOnly")_"|"_report.rulesOnly, "boolean|1", "the report records rulesOnly as a boolean")
+	Do $$$AssertEquals(..Line(report.scores.items), "3 of 5 share .6 met -", "an item is right where the fixed rules' tell now is the expected answer or in the choice, and the score has no target")
+	Do $$$AssertEquals(..Line(report.scores.heldOutItems), "1 of 1 share 1 met -", "and the held-out items are scored the same way")
+	Do $$$AssertEquals(..Line(report.scores.incidents)_"|"_..Line(report.scores.heldOutIncidents), "0 of 2 share 0 met -|0 of 1 share 0 met -", "no incident is right: the fallback names no cause and no element, and it has no target")
+	Do $$$AssertEquals(..Line(report.scores.injections), "1 of 2 share .5 met -", "an injection that expects tell now and holds no key phrase is right, one with a key phrase is not")
+	Do $$$AssertEquals(..RightOf(report, tellnow)_..RightOf(report, choice)_..RightOf(report, heldOut)_..RightOf(report, digest)_..RightOf(report, ignore), "11100", "the right cases are the tell now ones")
+	Do $$$AssertEquals(..RightOf(report, injOutcome)_..RightOf(report, injPhrase)_..RightOf(report, inc)_..RightOf(report, incHeld), "1000", "the injection that expects tell now is right, the other injection and the incidents are not")
+	Do $$$AssertEquals(report.fallbacks.%Size(), 9, "the nine model-backed rows are listed as fallbacks")
+	Kill reasons
+	Set iterator = report.fallbacks.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Set reasons(one.reason) = $Get(reasons(one.reason)) + 1
+	}
+	Do $$$AssertEquals($Get(reasons("no_key")), 9, "each with the reason no_key")
+	Do $$$AssertEquals(report.cost.priced_"|"_report.cost.decisions.%Size()_"|"_report.cost.unpriced.%Size()_"|"_report.cost.%GetTypeOf("meanUSD"), "0|0|0|null", "no decision is priced or unpriced")
+	Do $$$AssertEquals(report.size.%GetTypeOf("largestTokens")_"|"_report.size.unknown.%Size()_"|"_report.notComplete.%Size(), "null|0|0", "no request size is known or missing, and no row is not complete")
+	Do $$$AssertEquals(report.tellNowMissed.%Size()_"|"_report.modelAnswered.%Size()_"|"_report.otherFallbacks.%Size()_"|"_report.unscored.%Size()_"|"_report.skipped.%Size(), "0|0|0|0|0", "nothing else is listed")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size(), 0, "and the run has no problem")
+	Set digestRun = ..NewRun()
+	Set result = {"CatalogKey": "checks.notEverything", "AllClear": 0}
+	Do result.%Set("Named", "[""A""]")
+	Do result.%Set("Checked", "[""A""]")
+	Do ..DigestRow(digestRun, dg, result)
+	Set digested = ##class(OcuTalon.Eval.Report).Build(digestRun, ..Folder, , , 1)
+	Do $$$AssertEquals(..Line(digested.scores.allClear)_"|"_digested.fallbacks.%Size()_"|"_digested.notComplete.%Size()_"|"_digested.modelAnswered.%Size()_"|"_##class(OcuTalon.Eval.Report).Problems(digested).%Size(), "1 of 1 share 1 met -|0|0|0|0", "the digest case runs on code, with no decision, and is right and no problem")
+	Set text = ##class(OcuTalon.Eval.Report).Text(report, "Fixed rules")
+	Do $$$AssertTrue(text [ ($Char(10)_"Fixed rules only: no model was asked."_$Char(10)), "the Markdown says that no model was asked")
+	Do $$$AssertTrue(text [ ($Char(10)_"| Items (SM-1) | 3 | 5 | 60.0% |  |  |"_$Char(10)), "and the items line has no target and no result")
+}
+
+/// (Story 0.27) A model answered a rules-only run: a decided row that is not a fallback and names a decision is listed in modelAnswered and is one problem naming the cases; a fallback for another reason than no_key
+/// is listed with its reason and is one problem each. The no_key rows beside them are no problem.
+Method TestRulesOnlyModelAnswered()
+{
+	Set quiet = ..N("rm-a-quiet"), first = ..N("rm-b-first"), second = ..N("rm-c-second"), busy = ..N("rm-d-busy"), lastQuiet = ..N("rm-e-quiet")
+	For name = quiet, first, second, busy, lastQuiet {
+		Do ..ItemCase(name, "tellnow")
+	}
+	Set run = ..NewRun()
+	Do ..NoKeyRow(run, quiet)
+	Do ..Row(run, first, {"Outcome": "tellnow"})
+	Do ..Row(run, second, {"Outcome": "ignore"})
+	Do ..Row(run, busy, {"Outcome": "tellnow", "Fallback": 1, "FallbackReason": "timeout"})
+	Do ..NoKeyRow(run, lastQuiet)
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, , , 1)
+	Do $$$AssertEquals(..Names(report.modelAnswered, ""), first_","_second, "the two decided rows with a decision that are no fallback are the cases a model answered")
+	Do $$$AssertEquals(report.otherFallbacks.%Size()_"|"_report.otherFallbacks.%Get(0).case_"|"_report.otherFallbacks.%Get(0).reason, "1|"_busy_"|timeout", "the fallback with another reason is listed with the case and the reason")
+	Set problems = ##class(OcuTalon.Eval.Report).Problems(report)
+	Do $$$AssertEquals(..Texts(problems), "a model answered: "_first_", "_second_$Char(10)_busy_": fell back for a reason other than no_key: timeout", "a model answer is one problem naming the cases, the other reason one problem each, and no_key is none")
+	Do $$$AssertEquals(..Line(report.scores.items), "3 of 5 share .6 met -", "the rows are scored as their own answer: the two no_key rows and the decided tell now are right, a decided answer of ignore and a timeout are not")
+	Do $$$AssertEquals(..RightOf(report, quiet)_..RightOf(report, first)_..RightOf(report, second)_..RightOf(report, busy)_..RightOf(report, lastQuiet), "11001", "case by case")
+}
+
+/// (Story 0.27) The turn kinds in a rules-only run: the fixed rules give no answer to an all-clear, a command, a documents or a user-turn case, so each is a fallback, is not right, holds no catalog key and no all-clear
+/// wording, and is no problem. Their scores are the same as in any run with a fallback, and the report names no cost or size for them.
+Method TestRulesOnlyTurnKinds()
+{
+	Set allClear = ..N("rt-allclear"), command = ..N("rt-command"), documents = ..N("rt-documents"), userTurn = ..N("rt-userturn")
+	Do ..TurnCase(allClear, "all-clear", {"catalogKey": "checks.allPassed"}, [])
+	Do ..TurnCase(command, "command", {"keyPhrases": [["can't run commands", "cannot run commands"]]})
+	Do ..TurnCase(documents, "documents", {"citations": "none"})
+	Do ..TurnCase(userTurn, "user-turn", {"keyPhrases": [["user"]], "absentPhrases": ["nothing"]})
+	Set run = ..NewRun()
+	For name = allClear, command, documents, userTurn {
+		Do ..TurnRow(run, name, {"Fallback": 1, "FallbackReason": "no_key", "CatalogKey": "", "ReplyText": "I could not answer that."}, {"Outcome": "tellnow", "Fallback": 1, "FallbackReason": "no_key", "DecisionRef": "", "CostUSD": "", "LargestRequestTokens": ""})
+	}
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, , , 1)
+	Do $$$AssertEquals(..Line(report.scores.allClear)_"|"_..Line(report.scores.commands)_"|"_..Line(report.scores.documents)_"|"_..Line(report.scores.userTurns), "0 of 1 share 0 met -|0 of 1 share 0 met -|0 of 1 share 0 met -|0 of 1 share 0 met -", "no turn case is right")
+	Do $$$AssertEquals(..Booleans(report.turnChecks, "fallback"), "1,1", "the all-clear and the command checks are fallbacks")
+	Do $$$AssertEquals(..Booleans(report.turnChecks, "allClearWording"), "0,0", "neither holds all-clear wording")
+	Do $$$AssertEquals(..Names(report.turnChecks, "catalogKey"), "", "and neither holds a catalog key (joined, the two are empty)")
+	Do $$$AssertEquals(report.cases.%Size()_"|"_report.fallbacks.%Size(), "4|4", "the four cases are scored and listed as fallbacks")
+	Do $$$AssertEquals(report.cost.priced_"|"_report.cost.unpriced.%Size()_"|"_report.size.unknown.%Size()_"|"_report.notComplete.%Size(), "0|0|0|0", "with no cost, no size and no incomplete row")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size(), 0, "and the run has no problem")
+}
+
+/// (Story 0.27) A case skipped because its setup turn gave no reply (OcuTalon.Eval.In REASONNOREPLY) is listed under skipped and, for an incident, scored as not right; it is no problem in a rules-only run, where the fixed rules
+/// cannot give the reply, and still is in any other run. Any other skip reason is a problem in both.
+Method TestRulesOnlySkippedSetupTurn()
+{
+	Set silent = ..N("rs-silent"), other = ..N("rs-other"), sent = ..N("rs-sent")
+	Do ..ItemCase(sent, "tellnow")
+	Do ..IncidentCase(silent, "data_format_change", "OrderDate", "repair_resend")
+	Do ..IncidentCase(other, "data_format_change", "OrderDate", "repair_resend")
+	Set reply = $Parameter("OcuTalon.Eval.In", "REASONNOREPLY")
+	Set skipped = [{"case": (silent), "reason": (reply)}, {"case": (other), "reason": "it has no snapshot"}]
+	Set run = ..NewRun()
+	Do ..NoKeyRow(run, sent)
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, skipped, , 1)
+	Do $$$AssertEquals(..Names(report.skipped, "case")_"|"_..Names(report.skipped, "reason"), silent_","_other_"|"_reply_",it has no snapshot", "both skips are listed with their reasons")
+	Do $$$AssertEquals(..Line(report.scores.incidents), "0 of 2 share 0 met -", "and both count as not right in the incidents")
+	Do $$$AssertEquals(..Line(report.scores.items), "1 of 1 share 1 met -", "beside the item the fixed rules answered")
+	Do $$$AssertEquals(..Texts(##class(OcuTalon.Eval.Report).Problems(report)), other_": not sent: it has no snapshot", "only the other reason is a problem in a rules-only run")
+	Set plain = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, skipped)
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(plain).%Size(), 3, "in a run that is not rules-only both skips are problems, and so is the row with no decision")
+	Do $$$AssertTrue(..Texts(##class(OcuTalon.Eval.Report).Problems(plain)) [ (silent_": not sent: "_reply), "and the problem names the case and the reason")
+}
+
+/// (Story 0.27) The push run is as it was: with rulesOnly 0 (the default), a no_key fallback is never right, however well it matches the expected answer, a fallback row with no decision is not complete, and the report
+/// carries rulesOnly false and no rules-only member.
+Method TestRulesOnlyOffFallbackNotRight()
+{
+	Set tellnow = ..N("rf-tellnow"), incident = ..N("rf-incident"), injection = ..N("rf-injection")
+	Do ..ItemCase(tellnow, "tellnow")
+	Do ..IncidentCase(incident, "data_format_change", "OrderDate", "repair_resend")
+	Do ..InjectionCase(injection, "", 0, "", "tellnow")
+	Set run = ..NewRun()
+	For name = tellnow, injection {
+		Do ..NoKeyRow(run, name)
+	}
+	Do ..NoKeyRow(run, incident)
+	For flag = "", 0 {
+		Set report = $Select(flag = "": ##class(OcuTalon.Eval.Report).Build(run, ..Folder), 1: ##class(OcuTalon.Eval.Report).Build(run, ..Folder, , , 0))
+		Do $$$AssertEquals(..Line(report.scores.items)_"|"_..Line(report.scores.injections)_"|"_..Line(report.scores.incidents), "0 of 1 share 0 met 0|0 of 1 share 0 met -|0 of 1 share 0 met 0", "a no_key fallback is not right when rulesOnly is "_$Select(flag = "": "left out", 1: "0")_", and the targets are set")
+		Do $$$AssertEquals(report.%GetTypeOf("rulesOnly")_"|"_report.rulesOnly_"|"_report.%IsDefined("modelAnswered")_"|"_report.%IsDefined("otherFallbacks"), "boolean|0|0|0", "the report says rulesOnly false and has no rules-only list")
+		Do $$$AssertEquals(report.notComplete.%Size(), 3, "the three fallback rows have no decision and are not complete")
+		Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size(), 3, "and each is a problem, as for the agent")
+		Do $$$AssertTrue('(##class(OcuTalon.Eval.Report).Text(report) [ "Fixed rules only"), "the Markdown carries no rules-only note")
+	}
+}
+
+/// A fixed-rules row: decided, a fallback with the reason no_key, the outcome tell now, no decision, cost or request size (the fixed rules asked no model) and a SentAt after any real row (as InjectionRow); fields (property names and values) override the row.
+Method NoKeyRow(run As %String, name As %String, fields As %DynamicObject = "") [ Private ]
+{
+	Set values = {"Outcome": "tellnow", "Fallback": 1, "FallbackReason": "no_key", "DecisionRef": "", "CostUSD": "", "LargestRequestTokens": "", "SentAt": (..#FUTURE)}
+	If $IsObject(fields) {
+		Set iterator = fields.%GetIterator()
+		While iterator.%GetNext(.key, .value) {
+			Do values.%Set(key, value)
+		}
+	}
+	Do ..Row(run, name, values)
+}
+
+/// 1 or 0: whether the case of the report is right.
+ClassMethod RightOf(report As %DynamicObject, name As %String) As %String [ Private ]
+{
+	Set iterator = report.cases.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		If one.case = name Quit
+	}
+	Quit $Select($IsObject($Get(one)) && (one.case = name): +one.%Get("right"), 1: "?")
+}
+
 }
