@@ -86,8 +86,12 @@
 #                 feed (src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls); the failure names the file, never the text;
 #   main-set-texts  (Story 0.35) the subject, the text, the sender and the precedent summaries of every top-level eval/<case>/case.json are read at run time, and
 #                 the body of no XData INSTRUCTIONS block of a tracked or not-ignored .cls below src/ holds 5 consecutive words of one of them (lower-cased, punctuation
-#                 folded), a whole subject of 3 or more words, or a distinctive token of one (with an @, an inner capital, a digit mixed with other characters or a dotted
-#                 name; tokens that start with OcuTalon are exempt); the failure names the file, never the text;
+#                 folded), a whole subject of 3 or more words, or a distinctive token of one (4 or more characters with an @, an inner capital, a digit mixed with other
+#                 characters or a dotted name, matched in any letter case; a token is also read in the parts between its ', =, |, <, >, @ and -; tokens that start with
+#                 OcuTalon are exempt); a block whose body can't be read, or no block at all, fails too; the failure names the file, never the text;
+#   held-out-texts  (Story 0.35, QA) the same reading of every eval/held-out/<case>/case.json (subject, text, sender, precedent summaries): the body of no XData
+#                 INSTRUCTIONS block of a tracked or not-ignored .cls below src/ holds 5 consecutive words of one of them, a whole subject of 3 or more words or a
+#                 distinctive token of one; the failure names the file, never the text;
 #   compare       (Story 0.27) eval/compare.mjs, on synthetic report folders of Report.Build's shape: the comparison of an agent folder and a rules-only folder
 #                 (comparison.json of ocutalon.evalComparison/1 and comparison.md in the agent folder, the COMPARISON line), per case and in total, with the main
 #                 set's items and incidents, the held-out row, the needed-you-now count, the three unsafe kinds and the cost of each side; set-1.json read before
@@ -892,8 +896,11 @@ import path from 'node:path';
 // four incident names and nothing else of them). A failure names the file, never the text.
 // With the third argument main (Story 0.35) the program reads the main set instead: the subject, text and sender of every top-level eval/<case>/case.json and the
 // summaries of its precedents, and flags each tracked .cls below src/ whose XData INSTRUCTIONS body holds 5 consecutive words of one of them (lower-cased,
-// punctuation folded), a whole subject of 3 or more words, or a distinctive token of one (an @, an inner capital, a digit mixed with other characters or a dotted
-// name; a token that starts with OcuTalon is the product's own name and is exempt). Item texts anywhere else pass. A failure names the file, never the text.
+// punctuation folded), a whole subject of 3 or more words, or a distinctive token of one (4 or more characters with an @, an inner capital, a digit mixed with
+// other characters or a dotted name, matched in any letter case; each part of a token between ', =, |, <, >, @ and - is read as a token too; a token that starts
+// with OcuTalon is the product's own name and is exempt). An INSTRUCTIONS header with no body on its next line, and a tree with no INSTRUCTIONS block, are
+// violations. Item texts anywhere else pass. A failure names the file, never the text.
+// With the third argument held (Story 0.35, QA) it does the same for the cases of eval/held-out/, so no prompt holds a run or token of the held-out set either.
 const [root, filesPath, mode] = process.argv.slice(2);
 const FIXTURE = 'src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls';
 const ALLOWED = ['eval/held-out/', 'eval/results/', '_bmad-output/', '_bmad/'];
@@ -946,15 +953,17 @@ const words = (s) => s.toLowerCase().replace(/\u2019/g, "'").replace(/[^a-z0-9']
 const distinctive = (w) => w.length >= 4 && !/^ocutalon/i.test(w) && (w.includes('@') || /[a-z][A-Z]/.test(w) || (/\d/.test(w) && /\D/.test(w)) || /[a-z]\.[a-z]/i.test(w));
 const regexEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-function mainSetTexts(all) {
+function mainSetTexts(all, held = false) {
+  const label = held ? 'held-out-texts' : 'main-set-texts';
+  const caseFile = held ? /^eval\/held-out\/[^/]+\/case\.json$/ : /^eval\/[^/]+\/case\.json$/;
   const texts = [];
   const subjects = [];
-  for (const file of all.filter((f) => /^eval\/[^/]+\/case\.json$/.test(f) && !/^eval\/(held-out|mock-wrong|persona-cases)\//.test(f))) {
+  for (const file of all.filter((f) => caseFile.test(f) && (held || !/^eval\/(held-out|mock-wrong|persona-cases)\//.test(f)))) {
     let c;
     try {
       c = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
     } catch {
-      bad(file, 'could not be read as a case (main-set-texts)');
+      bad(file, `could not be read as a case (${label})`);
       continue;
     }
     if (!isObject(c) || !isObject(c.item)) continue;
@@ -962,7 +971,7 @@ function mainSetTexts(all) {
     if (typeof c.item.subject === 'string' && words(c.item.subject).length >= SUBJECTWORDS) subjects.push(words(c.item.subject).join(' '));
     if (Array.isArray(c.precedents)) for (const p of c.precedents) if (isObject(p) && typeof p.summary === 'string' && p.summary.trim() !== '') texts.push(p.summary);
   }
-  if (texts.length === 0) bad('eval', 'holds no main-set item text to read (main-set-texts)');
+  if (texts.length === 0) bad(held ? 'eval/held-out' : 'eval', `holds no ${held ? 'held-out' : 'main-set'} item text to read (${label})`);
   const runs = new Set();
   const tokens = new Set();
   for (const text of texts) {
@@ -970,10 +979,14 @@ function mainSetTexts(all) {
     for (let i = 0; i + RUN <= w.length; i++) runs.add(w.slice(i, i + RUN).join(' '));
     for (const raw of text.split(/[\s/,;:()]+/)) {
       const token = raw.replace(/^[^A-Za-z0-9@]+|[^A-Za-z0-9]+$/g, '');
-      if (distinctive(token)) tokens.add(token);
+      for (const part of [token, ...token.split(/['\u2019=|<>@-]+/)]) {
+        const t = part.replace(/^[^A-Za-z0-9@]+|[^A-Za-z0-9]+$/g, '');
+        if (distinctive(t)) tokens.add(t);
+      }
     }
   }
   const patterns = [...tokens].map((token) => new RegExp(`(?<![A-Za-z0-9])${regexEscape(token)}(?![A-Za-z0-9])`, 'i'));
+  let prompts = 0;
   for (const file of all.filter((f) => f.startsWith('src/') && f.endsWith('.cls'))) {
     let source;
     try {
@@ -987,7 +1000,11 @@ function mainSetTexts(all) {
       if (!/^\s*XData\s+INSTRUCTIONS\b/i.test(lines[i])) continue;
       let j = i + 1;
       while (j < lines.length && lines[j].trim() === '') j++;
-      if (lines[j] === undefined || lines[j].trim() !== '{') continue;
+      if (lines[j] === undefined || lines[j].trim() !== '{') {
+        bad(file, `has an XData INSTRUCTIONS block whose body could not be read (${label})`);
+        continue;
+      }
+      prompts++;
       const body = [];
       for (j++; j < lines.length && !/^\}\s*$/.test(lines[j]); j++) body.push(lines[j]);
       const bodyText = body.join('\n');
@@ -997,13 +1014,15 @@ function mainSetTexts(all) {
       if (!hit) hit = subjects.some((s) => joined.includes(` ${s} `));
       if (!hit) hit = patterns.some((re) => re.test(bodyText));
     }
-    if (hit) bad(file, 'names a main-set item text in a prompt (main-set-texts)');
+    if (hit) bad(file, `names a ${held ? 'held-out' : 'main-set'} item text in a prompt (${label})`);
   }
+  if (prompts === 0) bad('src', `holds no XData INSTRUCTIONS block to read (${label})`);
 }
 
 try {
   const all = fs.readFileSync(filesPath, 'utf8').split('\n').filter(Boolean);
   if (mode === 'main') mainSetTexts(all);
+  else if (mode === 'held') mainSetTexts(all, true);
   else if (mode === undefined) heldOutNames(all);
   else bad('check-held-out-names', 'unknown mode');
 } catch {
@@ -2560,6 +2579,35 @@ variant('main-set-texts', 'bad-token-joined', MAINHIT, mainTree('Ask the user ab
 variant('main-set-texts', 'bad-brace-in-body', MAINHIT, mainTree(`${GENERIC}\n  }\n${MAINSENTENCE}`));
 variant('main-set-texts', 'bad-unreadable-case', 'eval/zz-bad/case.json: could not be read as a case (main-set-texts)', mainTree(GENERIC, (f) => { f['eval/zz-bad/case.json'] = '{not json'; }));
 variant('main-set-texts', 'bad-no-cases', 'eval: holds no main-set item text to read (main-set-texts)', mainTree(GENERIC, (f) => { delete f['eval/zz-main-1/case.json']; }));
+variant('main-set-texts', 'bad-token-digit', MAINHIT, mainTree('Ask the user about zz4711 today.', (f) => { f['eval/zz-main-1/case.json'].item.text += ' Build zz4711 is out.'; }));
+variant('main-set-texts', 'bad-token-dotted', MAINHIT, mainTree('Read zzfeed.config before you decide.', (f) => { f['eval/zz-main-1/case.json'].item.text += ' See zzfeed.config for it.'; }));
+variant('main-set-texts', 'bad-token-suffixed', MAINHIT, mainTree('Ask whether ZzLoader should run.', (f) => { f['eval/zz-main-1/case.json'].item.text += " The ZzLoader's queue grew."; }));
+variant('main-set-texts', 'bad-unread-header', `${MAINPROMPT}: has an XData INSTRUCTIONS block whose body could not be read (main-set-texts)`, mainTree(GENERIC, (f) => { f[MAINPROMPT] = f[MAINPROMPT].replace('text/markdown ]\n{', 'text/markdown ] {'); }));
+variant('main-set-texts', 'bad-no-prompts', 'src: holds no XData INSTRUCTIONS block to read (main-set-texts)', mainTree(GENERIC, (f) => { delete f[MAINPROMPT]; }));
+const OTHERSENTENCE = 'The quarterly zz roster audit found three duplicate ZzRoster entries in the ledger today.';
+variant('main-set-texts', 'good-other-folders-not-read', '', mainTree(OTHERSENTENCE, (f) => {
+  for (const dir of ['held-out', 'mock-wrong', 'persona-cases']) f[`eval/${dir}/zz-other/case.json`] = { ...mainCase(), item: { ...mainCase().item, subject: 'Quarterly zz roster audit', text: OTHERSENTENCE }, precedents: [] };
+}));
+
+// held-out-texts (Story 0.35, QA): the same detectors over the held-out cases. heldTextTree is mainTree with the case moved below eval/held-out/.
+const HELDCASE = 'eval/held-out/zz-held-1/case.json';
+const heldTextTree = (prompt, mutate = () => {}) => mainTree(prompt, (f) => {
+  f[HELDCASE] = f['eval/zz-main-1/case.json'];
+  delete f['eval/zz-main-1/case.json'];
+  mutate(f);
+});
+const HELDHIT = `${MAINPROMPT}: names a held-out item text in a prompt (held-out-texts)`;
+variant('held-out-texts', 'good', '', heldTextTree(GENERIC));
+variant('held-out-texts', 'good-four-words', '', heldTextTree('Watch for a job that stopped sending files at night, which is a digest item.'));
+variant('held-out-texts', 'good-main-set-text-not-read', '', mainTree(MAINSENTENCE, (f) => {
+  f[HELDCASE] = { ...mainCase(), item: { ...mainCase().item, subject: 'Unrelated held topic', sender: 'Other <other@elsewhere.test>', text: 'A held out message about something else altogether.' }, precedents: [] };
+}));
+variant('held-out-texts', 'bad-five-words', HELDHIT, heldTextTree('Treat feed stopped sending files at the weekend as a digest item.'));
+variant('held-out-texts', 'bad-sentence-in-prompt', HELDHIT, heldTextTree(MAINSENTENCE));
+variant('held-out-texts', 'bad-subject', HELDHIT, heldTextTree('Treat a zz roster review as a digest item.', (f) => { f[HELDCASE].item.subject = 'Zz roster review'; }));
+variant('held-out-texts', 'bad-token', HELDHIT, heldTextTree('Ask the user whether ZzImporter should be restarted.'));
+variant('held-out-texts', 'bad-precedent-summary', HELDHIT, heldTextTree('Treat a nightly archive skipped on purpose as a digest item.'));
+variant('held-out-texts', 'bad-no-cases', 'eval/held-out: holds no held-out item text to read (held-out-texts)', heldTextTree(GENERIC, (f) => { delete f[HELDCASE]; }));
 
 // compare: the good sample is the repository's eval/compare.mjs, and each bad sample is it with one edit (compared throws when the text to edit is missing, so a
 // bad sample never silently equals the good one).
@@ -2723,6 +2771,12 @@ check_held_out_names() {
 check_main_set_texts() {
   feed_files "$1" > "$tmp/files.txt"
   node "$tmp/check-held-out-names.mjs" "$1" "$tmp/files.txt" main 2>&1 || echo "check-main-set-texts: the program failed"
+}
+
+# check_held_out_texts <root>: the files that hold a held-out item text in an XData INSTRUCTIONS block (see check-held-out-names.mjs, third argument held).
+check_held_out_texts() {
+  feed_files "$1" > "$tmp/files.txt"
+  node "$tmp/check-held-out-names.mjs" "$1" "$tmp/files.txt" held 2>&1 || echo "check-held-out-texts: the program failed"
 }
 
 # check_compare <root>: the violations of eval/compare.mjs of the tree on synthetic report folders (see check-compare.mjs).
@@ -4330,6 +4384,7 @@ rule held-out "eval/held-out/ holds exactly 12 case folders, 8 items (2 for each
 rule held-out-frozen "the SHA-256 of each of the 12 eval/held-out/*/case.json files is one of the 12 pinned values (the commit 6af31dab), and every pinned value is the value of a file" check_held_out_frozen
 rule held-out-names "no tracked or not-ignored file outside eval/held-out/, eval/results/, the specs and the feed's fixture (the four incident names only) names a held-out case, subject line or item text, which are read from eval/held-out/*/case.json" check_held_out_names
 rule main-set-texts "no XData INSTRUCTIONS block of a tracked or not-ignored .cls below src/ holds 5 consecutive words, a whole subject of 3 or more words or a distinctive token (tokens that start with OcuTalon excepted) of a main-set item's subject, text, sender or precedent summary, which are read from the top-level eval/*/case.json" check_main_set_texts
+rule held-out-texts "no XData INSTRUCTIONS block of a tracked or not-ignored .cls below src/ holds 5 consecutive words, a whole subject of 3 or more words or a distinctive token (tokens that start with OcuTalon excepted) of a held-out item's subject, text, sender or precedent summary, which are read from eval/held-out/*/case.json" check_held_out_texts
 rule compare "eval/compare.mjs writes the comparison of an agent folder and a rules-only folder with the per-case and total figures, the three unsafe kinds and the needed-you-now count, prints the column, reads set-1.json first, refuses a mismatch, a missing file and a file that is not a report with exit 1 and nothing written, and a wrong usage with exit 2" check_compare
 rule readme-column "the README comparison of the agent and the fixed rules has the date, the main set's routine item and incident counts and every fixed-rules cell that node eval/compare.mjs --column eval/results gives, row by row" check_readme_column
 rule feed "no file that ships or installs the product names the test feed or its namespace (CON-3): only the test classes, eval/, the specs and the two scripts of the feed may" check_feed
