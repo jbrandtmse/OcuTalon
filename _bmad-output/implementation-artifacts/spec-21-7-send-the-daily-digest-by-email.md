@@ -2,7 +2,8 @@
 title: 'Story 21.7: Send the daily digest by email'
 type: 'feature'
 created: '2026-11-11'
-status: 'ready-for-dev'
+status: 'blocked'
+baseline_revision: '90ab0f80c6fd278ef75a06c837a5700b03f07c37'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -110,6 +111,12 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-12 -- Implement stage halt (before the review layers)
+- verdicts: 2 findings, both from the implement-stage diff read, routed intent_gap; the review layers did not run (intent_gap makes lower entries moot)
+- findings:
+  - `[medium]` `[intent_gap]` Two new columns on `Data.Delivery` (`DigestKey`, `EchoedAt`) and the `Test.Data.Tables` contract that pins them. Rulings V1(f) (a digest sends once) and V4 (a Ref has one recorded use) need persisted state; the spec's approved V3 names only Delivery rows (channel `email`, Kind `digest`) and `digest.channels`, so a column is a schema change beyond the approved veto items. Evidence: `git apply` of the saved patch shows `Delivery.cls` Storage values 13 and 14 and `Tables.cls` contract lines.
+  - `[medium]` `[intent_gap]` O1 as built deletes `Digest.Process` `Resends`/`Resend`/`Resent` (and `MAXATTEMPTS`), because they sent through the deleted `SendDirect`. The spec's O1 text names `Own`, the direct sends and `ROUTEREASON` only. The tick no longer re-sends a digest to a channel it missed (up to 3 tries, 18.x behaviour); weakening a stated guarantee is a veto-window item. Evidence: patch hunks in `Digest/Process.cls`, Design Notes decision (17).
+
 ## Design Notes
 
 **Governing ADs (Rule 6):** AD-32 (only `*Out` render, through the one renderer; digest = one Notification of `parts`/`lines`; Lane B owns `Catalog.Render` and adds channels), AD-14 (Notify the one outbound routing rule; `digest` only to `digest.channels`; each `*Out` records its `Delivery`; the Email sub-bullets of 21.2/21.6), AD-1 (only business operations send outbound channel traffic; the digest email is a Notification, not a command, so no origin and no `CommandsIn`), AD-19 (`digest.channels` written only by `SettingsOps`), AD-25 (online demo), AD-28 (no all-clear except from `Checks.Render`), AD-22 (mock), AD-33 (ownership: Notify, Functions, Catalog, `EmailIn`/`EmailOut`, `Delivery` are Lane B; `Digest.Process` Lane A). No AC contradicts an AD Rule; S1-S5 are additive. AD-14's own text names the dependency: "until a Lane A story routes every digest through Notify (DW-820)".
@@ -172,7 +179,18 @@ Run every command from the worktree root. `<vars>` = `OCUTALON_LOCK_DIR="$(dirna
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap (two veto-window items found at implement; see Clarification Needed below)
 
 (Lead, 2026-11-12: the plan halted on the O1 intent gap; O1 and the gate items are ruled (Spec Change Log), so the spec is reset to ready-for-dev.)
+
+## Clarification Needed
+
+The implementation is complete and was verified on the lane-C stacks by the handoff subagent (Catalog, Routing, RoutingProduction, SettingsSave, EmailOut, EmailIn, EmailLive, Delivery, Tables and the Digest classes green; mock 167 and web 1931 node tests, tsc and build clean; E7 on a fresh stack 32/32; mutation lines written). The attempt is saved as `_bmad-output/implementation-artifacts/spec-21-7-attempt-1.patch` (a `git diff` against `baseline_revision`, including the spec's own additions: Verification mutation lines, Design Notes "Measured" and decisions 14-20) and the code is reverted. Two choices fall in the veto-window categories and need a ruling before finalize; the review layers have not run.
+
+1. Schema: rulings V1(f) and V4 need persisted state. The attempt adds two nullable columns to `OcuTalon.Data.Delivery`: `DigestKey` (22 chars; makes one digest go by email once) and `EchoedAt` (UTC; the one recorded use of a Ref), pinned in `Test.Data.Tables`; no table, index or grant is new. Recommended: approve (additive, storage block only grows, no migration). Alternative if refused: `DigestKey` becomes the Notification's DecisionRef on the `Delivery` row, and the one-use record moves to a new global, which is also stored data and also needs a ruling.
+2. Resend: O1 deletes `Digest.Process.Resends`, `Resend`, `Resent` and `MAXATTEMPTS`, since they could send only through the deleted direct sends. After O1 a digest is handed to Notify once and each channel's own item records its delivery; nothing re-sends a digest to a channel the old direct path missed. `Sent.Failed` and `Attempts` stay in the table, unused; a `Sent` row written before still naming a missed channel is left as it is. Recommended: approve and have the lead record the loss of the retry as a known limit of O1 (the Sent `Failed` list is empty on every new row). Alternative: keep the retry by having Digest hand a missed channel's slice to Notify again, which is a bigger Lane A edit.
+
+Also for the lead: the mutation named for `DigestEmail` ignoring the owner check cannot be seen by `Test.Core.Routing.TestNotifyDigestTargets` (`EmailOut` is not running there); the attempt pins it in `EmailLive.TestNotifyRoutesDigestToEmailOut`. The browser test is E7, not E6 (E6 is Story 21.3's). E1 stays "Your OcuTalon digest": the web digest card has no date heading. R1 was added to the README (0.26 had merged). The mock's `ci/mock/test/` showed one intermittent failure in about 1 of 20 runs ("refuse closes with no greeting ... error answers DATA 554"); not checked against the baseline.
+
+To resume after the rulings: `git apply --exclude='_bmad-output/implementation-artifacts/spec-21-7-send-*' _bmad-output/implementation-artifacts/spec-21-7-attempt-1.patch` from the worktree root (the spec's additions in the patch, mutation lines and Design Notes decisions 14-20, are then copied by hand from `git apply --include` of that one file into a scratch checkout), reset the spec `status` to `in-progress`, and re-dispatch at review (Verification commands first, then the review layers).
