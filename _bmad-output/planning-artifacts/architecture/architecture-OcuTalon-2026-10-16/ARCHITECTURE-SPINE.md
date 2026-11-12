@@ -7,7 +7,7 @@ paradigm: 'Message-driven Interoperability production (pipes and filters) with p
 scope: 'OcuTalon: the 1.0.0 kit and release, build steps 2 to 6, the personality epics (39 to 41), and step 7 after the contest'
 status: final
 created: '2026-10-16'
-updated: '2026-11-11'
+updated: '2026-11-12'
 binds: [FR-1..FR-74, NFR-1..NFR-28, CON-1..CON-5, REL-1..REL-11, UJ-1, UJ-2]
 sources:
   - _bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md
@@ -540,14 +540,15 @@ From step 3, `OcuTalon.Tools` may call `OcuTalon.Memory.Search` and `OcuTalon.Me
     | `fixing` | a later request rejected or expired | `fixing` |
     | `fixing` | final `FixResult` while an approved request waits | `fixing`; `IncidentManager` sends the earliest waiting request's `Execute` |
     | `awaiting_approval`, `fixing` or `resolved` | a later request is raised | `awaiting_approval` (`fixing` stays `fixing`) |
-    | `resolved` | `closeQuiet`, `dismiss` or `closeForReplay` | `closed` |
-    | `open`, noticed | `dismiss`; `closeQuiet` only with demo mode off | `closed` |
+    | `resolved` | `dismiss`; `closeQuiet` or `closeForReplay` while it holds no suspend | `closed` |
+    | `open`, noticed | `dismiss`; `closeQuiet` only with demo mode off and while it holds no suspend | `closed` |
 
     Every other move is refused, for example `dismiss` while awaiting approval or fixing, and anything on a closed incident. When requests overlap, one rule decides the state: `fixing` while a fix runs; otherwise `awaiting_approval` while any request is pending; otherwise the latest request's outcome. The latest request's outcome is the outcome that arrived last: a finished fix (`resolved`), or a rejection or an expiry (`open`). A cancelled request sends no `ApprovalOutcome`, and the incident stays as it is: a fix request is cancelled only when its session ends on the online demo, and the reset clears that session's incidents. The open variant (`IncidentOpenVariant`: `fallback`, `no_fix`, `rejected`, `expired`) is stored beside the state, so the PRD's five states stay as they are.
   - **Results per request.** The `incident` event's payload lists each of the incident's approval requests with its `Ref`, state and result (its `Requests`, AD-12). On the page each approval request card in the incident card carries its own answered status and result band, and the incident's state chip follows the table above.
   - **Time budget for the demo incident:** pickup under 3 s, settle about 12 s, diagnosis under 12 s, delivery under 2 s, about 30 to 35 s typical against NFR-7's 60 s. The 10-run gate measures diagnosis; the end-to-end time is measured in 20 runs in the clean-machine rehearsal and on the online demo.
   - **The incident summary** [ADDED 2026-11-09, Story 23.6, Contest Planner ruling]. On every move into `closed`, `IncidentManager` composes the incident's summary in code (`Watch.Summary`), stores it on the row in the same save and sends the `summary` notification.
   - **A fix asked in the chat** [ADDED 2026-11-09, Story 23.2, Contest Planner ruling]. `IncidentManager` raises a chat-asked request from a `ProposeFix` command (one synchronous dry run, then `Approval.Raise`); an `open`, noticed incident whose chat-asked request is raised moves to `awaiting_approval`, and a rejected or expired one returns it to `open`.
+  - **An incident that holds a suspend** [ADDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation; re-architecture under U7: the two `closed` rows above were split from "`resolved` | `closeQuiet`, `dismiss` or `closeForReplay` | `closed`" and "`open`, noticed | `dismiss`; `closeQuiet` only with demo mode off | `closed`"]. An incident holds a suspend while an item's newest item-kind run that changed it, in that production, is a `suspend_item` run of one of its requests (`Fix.Run`). It is closed only by `dismiss`, or by `closeQuiet` once a resume has ended the hold. After a held incident is dismissed, `Checks` reports the item once as disabled, at the suspend's time.
   - **A partner-warning request never moves the incident's state** [ADDED 2026-11-10, Story 23.5, Contest Planner ruling]. Its kind has `MOVES` 0: raising, approving, rejecting or expiring it changes no incident state and is not counted in the transition table's facts. `IncidentManager` drafts it through an asynchronous self-sent `Watch.Msg.Draft` and a `Decide` turn before raising it.
 
 ### AD-16: Fixes come from a fixed set, and the executor trusts only the row

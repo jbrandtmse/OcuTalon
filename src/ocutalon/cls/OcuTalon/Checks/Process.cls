@@ -50,14 +50,14 @@
 ///     state other than timeout, unknown and ""; a run that is not_checked only because the read was cut or the incidents could not be read still counts),
 ///     the state and the disabled items are compared with what the row last reported (BackgroundCheck.Reported, JSON {"stopped": 1 while the stop has been
 ///     reported, "disabled": [the names reported disabled], "ours": [the names of the disabled items that OcuTalon suspended, only when there is one]}); Findings applies the rule. A production stopped or suspended since the last run is one finding,
-///     and each item disabled since is one, in the order the reader gave them; an item that OcuTalon itself suspended (Fix.Run Suspended, Story 23.2) is recorded in Reported but gets no finding, and a disable by anyone else after that (the item enabled and disabled again) does, while a second suspend by OcuTalon does not;
+///     and each item disabled since is one, in the order the reader gave them; an item that OcuTalon itself suspended (Fix.Run Suspended, Story 23.2) is recorded in Reported but gets no finding, and a disable by anyone else after that (the item enabled and disabled again) does, while a second suspend by OcuTalon does not; an item whose suspend belongs to a closed incident (Fix.Run Suspended's released, Story 23.9) and that was in the previous ours is reported once, with the suspend's end as its time, and leaves ours;
 ///     troubled, network_stopped and a restart are not stops, and a restart makes the
 ///     next stop new. A row whose Reported is empty (a new watch, or one from before this story) only records its baseline: the first reading run reports
 ///     nothing. A run that read no state leaves Reported as it was. Each finding is one OcuTalon.Msg.Item for Intake only (Channel system, Provenance
 ///     untrusted, a new ItemId, the row's SessionRef as owner, the Text TEXTSTOPPED or TEXTDISABLED with the display name, CatalogKey watch.productionStopped or
 ///     watch.itemDisabled, and Slots {"production", "time"} or {"itemName", "production", "time"}): producers never render. {time} is the stop time that IRIS
 ///     recorded for a stopped production (UTC to the second), else the time of the run; for a disabled item, which IRIS gives no time for, it is the run time,
-///     so it can be up to one check interval after the change (AD-15 states that a change's time is known only to within the check interval).
+///     so it can be up to one check interval after the change (AD-15 states that a change's time is known only to within the check interval); for an item that OcuTalon suspended and whose incident was then closed it is the end of the suspend.
 ///   - Result, the first rule that holds: not_checked with one reason (REASONUNREADABLE, REASONNOTCURRENT, REASONTIMEOUT, REASONREAD when the read
 ///     threw, the state is unknown or the incidents could not be read, REASONTOOMANY when the read was cut at its limit and none of its rows is the
 ///     session's); failed when the state is not running, or the session has a new failure, or an unclosed incident; else passed. The finding of a
@@ -588,15 +588,15 @@ Method Run(row As %DynamicObject, tickAt As %String, keep As %Boolean = 0) [ Pri
 	Set reported = row.reported
 	Set items = ##class(%ListOfObjects).%New()
 	If (outcome = "read") && 'threw {
-		Set suspended = ##class(OcuTalon.Fix.Run).Suspended(row.namespace, row.production, row.lastRunAt, .fresh)
-		Set found = ..Findings(row.reported, state, disabled, .reported, suspended, fresh)
+		Set suspended = ##class(OcuTalon.Fix.Run).Suspended(row.namespace, row.production, row.lastRunAt, .fresh, , .released)
+		Set found = ..Findings(row.reported, state, disabled, .reported, suspended, fresh, released)
 		Set iterator = found.%GetIterator()
 		While iterator.%GetNext(, .one) {
 			If one.kind = "stopped" {
 				Set at = ##class(OcuTalon.Watch.Mark).FailedAt(stoppedAt)
 				Do items.Insert(..FindingItem(row, ..#KEYSTOPPED, ..#TEXTSTOPPED, {}, $Select(at '= "": at, 1: runAt)))
 			} Else {
-				Do items.Insert(..FindingItem(row, ..#KEYDISABLED, ..#TEXTDISABLED, {"itemName": (one.item)}, runAt))
+				Do items.Insert(..FindingItem(row, ..#KEYDISABLED, ..#TEXTDISABLED, {"itemName": (one.item)}, $Select(one.at '= "": one.at, 1: runAt)))
 			}
 		}
 	}
@@ -630,15 +630,17 @@ Method Record(row As %DynamicObject, tickAt As %String, runAt As %String, result
 
 /// The findings of a run (pure; see the class description, rows 1-9 of the story's matrix): previous is the row's Reported before the run, state the
 /// production's running state, disabled the dynamic array of the names of its disabled items. The result is a dynamic array of {"kind": "stopped"} and
-/// {"kind": "disabled", "item"}, the stop first and the items in the order of disabled, and reported is the Reported to store. Empty previous (or one
+/// {"kind": "disabled", "item"} (with "at", the time of the suspend, for an item of released), the stop first and the items in the order of disabled, and reported is the Reported to store. Empty previous (or one
 /// that is not JSON) is a baseline: no finding, and reported records the state. A state of timeout, unknown or "" was not read: no finding, and reported
 /// is previous, unchanged. suspended is a list of the item names that OcuTalon itself suspended (Fix.Run Suspended); reported may also carry "ours", the names of those items that
 /// were disabled when sighted, written only when there is one. A disabled item that suspended lists gets no finding when it is not in the previous ours (it is added to ours), so that a
 /// suspend the user approved is not reported as a new state change (Story 23.2); when it is in the previous ours and was not in the previous disabled, someone else disabled it again
 /// and it is a finding, unless fresh (Fix.Run Suspended's names whose suspending run ended since the previous run) lists it: then OcuTalon suspended it again. The new ours is the
 /// previous ours restricted to suspended, plus the names just added; a baseline records the disabled names that suspended lists. An item that
-/// suspended does not list follows the plain rule: a finding when it was not in the previous disabled.
-ClassMethod Findings(previous As %String, state As %String, disabled As %DynamicArray, Output reported As %String, suspended As %List = "", fresh As %List = "") As %DynamicArray
+/// suspended does not list follows the plain rule: a finding when it was not in the previous disabled, except that released (Fix.Run Suspended's released: a %DynamicObject
+/// from an item whose suspend belongs to a closed incident to that suspend's end, or "") gives a disabled item that is in the previous ours the finding {"kind": "disabled", "item",
+/// "at": the released time} whether or not it was in the previous disabled, and it is not kept in ours, so that it is reported once.
+ClassMethod Findings(previous As %String, state As %String, disabled As %DynamicArray, Output reported As %String, suspended As %List = "", fresh As %List = "", released As %DynamicObject = "") As %DynamicArray
 {
 	Set found = []
 	Set reported = $Get(previous)
@@ -683,6 +685,8 @@ ClassMethod Findings(previous As %String, state As %String, disabled As %Dynamic
 			} ElseIf '$Data(seen(name)) && '$ListFind(fresh, name) {
 				Do found.%Push({"kind": "disabled", "item": (name)})
 			}
+		} ElseIf $IsObject(released) && $Data(wasOurs(name)) && (released.%Get(name) '= "") {
+			Do found.%Push({"kind": "disabled", "item": (name), "at": (released.%Get(name))})
 		} ElseIf $IsObject(before) && '$Data(seen(name)) {
 			Do found.%Push({"kind": "disabled", "item": (name)})
 		}

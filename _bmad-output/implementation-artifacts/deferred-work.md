@@ -2077,6 +2077,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T20:15:23Z occurrence=feature-1d75fbf1 by=orchestrator note=run 42874524463 job 130034187062 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; merge of 0.22 (web/guide) + v1.0.6 bump; rerun of failed jobs
 - 2026-11-10T22:52:54Z occurrence=23-2 by=orchestrator note=run 42897677403 job 130115016835 iris(production) row 21 got ''; OCT-epic23 f73a09d5 (23.2 integrated onto 56c61cea); rerun of failed jobs
 - 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870677_iris(production)_live:production_on_ocutalon-ci-15:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
+- 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_production_row21_WatchOps;rerun_failed_jobs_green(attempt2)
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6611,6 +6612,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T06:27:51Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=merge_gate note=Planner_ruling_2026-11-10_option_a(resume_after_close_scoped;no_state_move;second-session_proof);rework_iteration_1
 - 2026-11-10T07:55:00Z status=routed owner=23-9-resume-a-suspended-item-after-its-incident-closes by=merge_gate note=Planner_re-ruling_2026-11-10_~07:20Z:(c)_text_limit_in_23.2;resume_after_close_parked_as_Story_23.9(after_voting;(a)_or_(b),Planner_leans_(b))
 - 2026-11-10T08:23:02Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run
+- 2026-11-12T06:41:07Z status=resolved-by:23-9-resume-a-suspended-item-after-its-incident-closes by=adjudication note=option_(b)_per_U-321:held_incident_refuses_closeQuiet/closeForReplay_(Watch/Transitions,IncidentManager.Holds,Fix.Run.Suspended;bf7ba73b),Dismiss_always_closes,Checks_reports_the_still-disabled_item_once_after_a_held_dismiss_(Checks/Process);pinned_by_Transitions:TestRefusedMoves,Lifecycle:TestHeldBySuspend,Checks.Runs:TestDismissedSuspendIsReportedOnce,Fix.Asked:TestHeldIncidentResumeIsTheSessions(mutations_red);residual_text_case=DW-1186(Planner)
 
 ### DW-1069: AD-33 exception list of Story 23.2 does not name four Lane B paths the story edits under other rulings: README.md, docker/tests/lib-live.sh, web/e2e/support/iris.ts, Test/Core/CommandsRouting.cls
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6673,6 +6675,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340066; rows before passed; readiness timeout under a full queue (DW-686/DW-999 family)
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:install-upgrade_row7;one_rerun_with_the_next_push
+- 2026-11-12T10:33:24Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_109d59c8_run_43172863798_install-upgrade_row7_start_with_failing_step_not_ended_200s;superseded_head
+- 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_install-upgrade_row6_upgrade_not_ready_200s;rerun_failed_jobs_green(attempt2)
 
 ### DW-1083: flake candidate: live:reminder-restart 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then the first start did not end ready within 400 s
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7143,6 +7147,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: no test assertion failed; live:online-demo-path in the same job passed; same start-not-ready family as DW-612 (row 2) and DW-1082 (install-upgrade row 7); all 18 runners busy with the outage backlog
 - 2026-11-11T21:32:07Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun of the failed job when the run completes
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749161 attempt 2)
+- 2026-11-12T10:33:23Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_e7c97dda_run_43170639261_install-fresh_live:install-start_row3_dev_start_not_ready_200s;superseded_head
 
 ### DW-1161: CI headroom: lane-a ipm-install takes 28-30 min against its 35-min job timeout; under host load it times out (cancelled at 35m0s) with no test failed
 - source: feature c33e0916, lane-a run 43099749306 job ipm-install on ocutalon-ci-10 | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7185,3 +7190,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature 74ee76dc, ci run 43160772937 job iris (browser) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the failure is in sign-in/helpers.ts:61 submitSignIn, not the approval path; all 18 runners busy with the backlog; 74ee76dc's new code (21.2/21.6/23.11) doesn't touch sign-in
 - 2026-11-12T06:52:37Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun; a second red on the same head is real
+### DW-1186: Agent/Chat.cls:65 P3 tells the model to say the incident is closed on every no_incident, but resume_item also gets no_incident while the session's incident is awaiting_approval or fixing (others lists it)
+- source: spec-23-9-resume-a-suspended-item-after-its-incident-closes.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: WatchAnswers.ResolveIncident:131 returns no_incident with others=[busy]; Test.Fix.AskedTurns:TestUndoTurn's second resume ask reads exactly that; the dismiss bullet branches on others, P3 does not
+- 2026-11-12T06:39:32Z status=decision-pending owner=burndown by=cr note=Planner text call on ruled P3 (U-321): e.g. 'if the answer is no_incident and others is empty'; ruled text unchanged
+- 2026-11-12T06:50:09Z status=routed owner=23-9-resume-a-suspended-item-after-its-incident-closes by=owner note=Contest_Planner_ruling_06:55Z(owner_delegation;prompts/epic-23-rulings-239.md):_fix_in_23.9_with_the_Planner's_sentence;rework_iteration_1
+- 2026-11-12T10:21:56Z status=resolved-by:23-9-resume-a-suspended-item-after-its-incident-closes by=adjudication note=e76fbea3:Agent/Chat.cls:65_Planner_sentence_verbatim;Test.Agent.Instructions_exact-line_pin(mutation_while->whilst_red);TestUndoTurn_others=awaiting_approval(busy);TestUndoClosedTurn+propose-fix-undo-closed.json(empty_others;AssertTurn_reply_names_Management_Portal;closed-incident_fixture_by_re-review)

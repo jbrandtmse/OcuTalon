@@ -696,7 +696,7 @@ The single source for the incident lifecycle, approval request states, answered 
 | **Fixing** | Fixing | In the approved request's card, its answered status, then "Repairing and resending 50 orders…" | Show details |
 | **Resolved** | Resolved | In each approved request's card, its own result notice and audit line | Dismiss, Show details |
 | Resolved, partial or couldn't start | Resolved | The partial result, or the "Couldn't start" result, in its request's card. Messages that failed again are reported, not retried (FR-25); new failures with the same cause get their own approval request. | Dismiss, Show details |
-| **Closed** | Closed | Compacted to the headline and each request's result. A resolved incident closes after 15 quiet minutes, by Dismiss, or by the replay rule `[ASSUMPTION: 15 minutes]`; an open one closes by Dismiss, and outside demo mode also after 15 quiet minutes (PRD FR-24, P26). Awaiting approval and fixing never close on their own | Show details |
+| **Closed** | Closed | Compacted to the headline and each request's result. A resolved incident closes after 15 quiet minutes, by Dismiss, or by the replay rule `[ASSUMPTION: 15 minutes]` (while an item that OcuTalon suspended for it is still suspended, only by Dismiss) [AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation]; an open one closes by Dismiss, and outside demo mode also after 15 quiet minutes (PRD FR-24, P26). Awaiting approval and fixing never close on their own | Show details |
 | Open, fallback | Open, with the fallback flag | The fallback notice and the failure groups, with no fix (FR-4) | Dismiss, Show details |
 | Open, cause found, no fix | Open | The no-fix notice: the headline, the cause, the evidence line and the failure groups, with no fix and no approval request (PRD FR-24, P25) | Dismiss, Show details |
 | Open, rejected | Open | The rejected answered status (PRD FR-24) | Dismiss, Show details |
@@ -1219,4 +1219,4 @@ Changes 1 to 5 and 8 were adopted into the PRD on October 16, and changes 6 and 
 - The "From the demo guide" tag is display-only; the message text stays exact (FR-16).
 - The splash screen states the PRD's assumed defaults: a 4-hour reset and 50 messages an hour.
 - The online demo allows 20 simulated emails an hour per session (PRD FR-40 assumption).
-- Approval requests expire after 24 hours, and incidents close after 15 quiet minutes (both PRD assumptions).
+- Approval requests expire after 24 hours, and incidents close after 15 quiet minutes (both PRD assumptions) (an incident that still holds a suspend closes only by Dismiss, or after the item is resumed) [AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation].
