@@ -73,6 +73,8 @@ deferred: []
 - Tests (each with its `mutation:` line): `Test.Msg.Catalog` (every key renders on `email` equal to `phone`; `email` no longer refused; E1 fixture); `Test.Core.Routing` (digest targets gain `EmailOut` exactly when named + owner + address + running + not demo; `DigestEmail` cases; target is a production item); `Test.Core.SettingsSave` (`email` accepted, order); `Test.Channel.EmailOut` (Notification path: owner/non-owner, demo, wrong kind, render error, caps, header on all three paths, Delivery Kind `digest` only on success, no address in log); `Test.Channel.EmailIn` (+POP3) (known Ref skipped and seen, unknown/forged Ref -> Item); `Test.Channel.EmailLive` (Integration ACs below); `web/scripts/settings-view.test.mjs`, `ux-strings.test.mjs`; `web/e2e/settings/email.spec.ts` E6.
 - After the gate rulings: spine S1-S5 with `[ADDED <date>, Story 21.7]`, memlog line (lead), lint; `EXPERIENCE.md` rows for E1/E2 as ruled.
 
+- **O1 ruling (orchestrator, 2026-11-12 ~01:40Z, veto item sent to the Contest Planner; `prompts/epic-21-rulings-217-o1.md`; DW-820):** one-time AD-33 Lane A exception (precedents 17.10, 35.3 R5, 22.4 R1): this story edits `src/ocutalon/cls/OcuTalon/Digest/Process.cls` so that `Deliver` hands EVERY composed digest to Notify whatever `digest.channels` names, Notify alone routes kind `digest` (honouring `digest.channels`, incl. `email`), and `Digest.Process.Own`, the `SendDigest` direct sends to WebChatOut/SimPhoneOut/TelegramOut and `ROUTEREASON` are deleted; the Lane A tests that pin `Own` and the direct sends are changed with it (Lane A test files under `Test/Digest/**`, only those that pin this). Before implement, re-check that no open epic branch or worktree touches `Digest/` or the Notify files (`git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<M>` for each open branch); a new hunk there is a Clarification. Reversal: if the Planner routes DW-820's residual to a Lane A story instead, 21.7 waits on that story's merge and drops this task.
+
 **Acceptance Criteria:**
 - (Integration) Given the mailbox and SMTP server saved on the CI stubs by owner session S and `digest.channels` naming S's own channels plus `email`, when S's admin submits `SendDigest` through `Commands.Submit` (origin `web_admin`), then real Digest -> real Notify -> real `EmailOut` deliver one mail to the stub, From and To `email.address`, subject E1, text equal to the `DigestText` rendering for `email` of the stored `Digest.Data.Sent` Slots, header `X-OcuTalon-Ref` equal to a new `Delivery` row of channel `email`, Kind `digest`; the web chat copy still arrives.
 - (needs O1) Given `digest.channels` = `email` alone, or `web,email` with demo mode on, when S's digest is composed, then the same mail is delivered.
@@ -84,7 +86,11 @@ deferred: []
 - Given CI, then every digest email goes to the mock's SMTP stub (the test asserts the `SMTPServer` row is `mock` first).
 - Given the finished diff, then no Lane A path or Never-list item appears and each contended touch is the one Design Notes names.
 
+- (O1, DW-820) Given a composed digest and any `digest.channels` value (only `email`; `email` with a strict subset of the own channels; only the own channels; none), when `Digest.Process.Deliver` runs, then it hands the digest to Notify once, Notify routes it to exactly the channels `digest.channels` names that are available (email only through 21.7's rule), `Digest.Process.Own` and the direct sends no longer exist, and the existing web/phone/telegram digest tests still pass through Notify.
+
 ## Spec Change Log
+
+- 2026-11-12 (lead): O1 RULED by the orchestrator (one-time AD-33 Lane A exception for `Digest/Process.cls` and the Lane A tests that pin it; DW-820 routed to this story by=orchestrator, resolved-by this key at adjudication); written as a task and an acceptance criterion. The spec stays `blocked` until the Contest Planner rules V1-V7, E1, E2, R1 and S1-S5 (and O1 itself as a veto item); then reset per the re-dispatch protocol.
 
 ## Review Triage Log
 

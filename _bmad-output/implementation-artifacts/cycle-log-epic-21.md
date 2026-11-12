@@ -85,3 +85,5 @@
 2026-11-12T01:27:25Z	Story 21.3	spine_updated	ad=AD-3 reason=owner_decision(U-320) by=runner story=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 marker=[AMENDED_2026-11-12,Story_21.3,owner_delegation_via_the_Contest_Planner] lint=10_low_baseline memlog=absent_in_worktree
 2026-11-12T01:27:25Z	Story 21.3	story_unparked	story=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 via=inbox(U-320) story_base=none(no_code) state=ready-for-dev_rulings_written(conditions_1-7_ACs,N5) implement_waits=7c6dec3c_CI(resolution_point_1)
 2026-11-12T01:27:25Z	Epic 21	applied	U-320 at=2026-11-12T01:15:03Z#982 result=spec_and_spine_written
+2026-11-12T01:29:10Z	Story 21.7	ruling	question=O1(Lane_A_Digest_dependency) choice=one-time_AD-33_Lane_A_exception(Digest/Process.cls+its_Lane_A_tests;DW-820_routed_to_21-7_by=orchestrator) category=veto via=orchestrator(prompts/epic-21-rulings-217-o1.md) recheck=no_open_branch_touches_Digest/_or_Notify(01:30Z) spec_state=blocked_until_planner_rules_V1-V7,E1,E2,R1,S1-S5
+2026-11-12T01:29:10Z	Story 21.7	ledger_routed_planned	story=21-7-send-the-daily-digest-by-email entries=1(DW-820) excess=0 by=orchestrator

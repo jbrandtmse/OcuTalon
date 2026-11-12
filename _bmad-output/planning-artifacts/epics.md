@@ -7446,6 +7446,7 @@ So that I get it in my own mailbox.
 **And** this story adds the `email` channel to `OcuTalon.Msg.Catalog.Render` as the renderer's owner (Lane B), as plain text under the `phone` channel's rules, so `EmailOut` renders the digest here and the pages of Story 24.3, and the render tests cover every key `EmailOut` sends (AD-32)
 
 - DW-1167: EmailIn takes in the mail OcuTalon itself sent to its own address (a tool email, and with this story every digest) as a new untrusted item; mark EmailOut's mail and have EmailIn skip it, or rule it harmless (ledger; routed by cr 2026-11-12)
+- DW-820: Digest.Process.Own copies Notify's generic route; Deliver hands every digest to Notify, which alone routes kind digest by digest.channels, and Own and the direct sends are removed (ledger; routed by orchestrator 2026-11-12, O1 one-time AD-33 exception)
 
 ## Epic 22: Extend OcuTalon with MCP servers, governed like built-in tools (step 4)
 
