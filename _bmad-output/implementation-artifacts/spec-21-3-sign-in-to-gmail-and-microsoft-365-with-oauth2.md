@@ -2,7 +2,7 @@
 title: 'Story 21.3: Register the mail OAuth2 client and sign in to Gmail or Microsoft 365 (first child of 21.3)'
 type: 'feature'
 created: '2026-11-11'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '2a2a7e3e8214af436264cc34d414994e33bec0ec'
 baseline_commit: '2a2a7e3e8214af436264cc34d414994e33bec0ec'
 review_loop_iteration: 0
@@ -128,6 +128,8 @@ deferred:
 - (U-320 c5) Given the provider constants, then the scopes are exactly the minimum listed above, and Design Notes "Measured" records PKCE support (used if supported).
 - (U-320 c7) Given the online-demo flag, when a save or sign-in request arrives, then `/csp/sys/oauth2` stays disabled.
 
+- [ ] [CI] iris (production) shard:lane-a@Channel: `Test.Channel.EmailLive` TestOAuthSaveSignInAndRemove failed 'IRIS's own audit entry of the client shows its secret masked' (DW-1185, second occurrence: once on a local warm stack, once in CI) — https://github.com/jbrandtmse/OcuTalon/actions/runs/43172123661/job/131027662676 — `src/ocutalon/cls/OcuTalon/Test/Channel/EmailLive.cls` `SysAuditMasks` — make the check deterministic, never weaker: find out from IRIS's own source (`irissys/OAuth2/Client.cls`, `irissys/Security/System.cls`; never load or compile them) how and when the client-creation audit entry is written (event name, the exact EventData text for create versus modify, whether it is buffered), then look for THIS test's entry only (entries after a time mark taken just before the save, or the entry's own id) and poll long enough for a loaded CI host (bounded, for example up to 30 s), still asserting that the entry exists and masks the secret. The assertion must still go red when the secret is not masked (mutation line updated). Closes DW-1185.
+
 ### Review Findings
 
 Code review 2026-11-12 (`bmad-code-review`, full mode, baseline `2a2a7e3e`, HEAD `1dde9f1f` plus the uncommitted QA tree). Layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all full-opus (no `model-overrides.yaml`), none failed, none mutated the tree. 0 `decision-needed`, 12 `patch` (all applied), 6 `defer` (ledger), 19 rejected.
@@ -173,6 +175,8 @@ Rejected:
 - low: VG parameter-scan gap duplicate (merged into DW-1184).
 
 ## Spec Change Log
+
+- 2026-11-12 (lead, rework iteration 1, trigger ci): the [CI] item above (DW-1185).
 
 - 2026-11-12 (lead, after code review, Contest Planner rulings on DW-1180 and DW-1181, `prompts/epic-21-rulings-213.md` last section): DW-1180 -- the measured production user is `_Ensemble`, which held `%All` on the throwaway: this story proves the path, not least privilege; the least set is Story 21.8's (new AC in its `epics.md` block); no text here claims least privilege. DW-1181 -- the state lie is fixed: after a failed save that already replaced, changed or removed IRIS's client of the old provider, `SettingsOps.ForgetClient` removes the old provider's client ID (audited set -> removed) and records the mark not signed in, so Settings shows the provider neither registered nor signed in (existing texts `secretNotSet` and the not-signed-in line); the IRIS client itself is not restored (wontfix-accepted with reopen_if). Lead commit, one method plus its call; pinned by `Test.Core.SettingsEmail` `TestFailedReplaceShowsNotRegistered`.
 

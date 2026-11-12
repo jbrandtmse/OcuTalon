@@ -6669,6 +6669,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340066; rows before passed; readiness timeout under a full queue (DW-686/DW-999 family)
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:install-upgrade_row7;one_rerun_with_the_next_push
+- 2026-11-12T10:09:42Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662764_iris(install-upgrade)_live:install-upgrade_row_6_'the_upgrade_did_not_end_ready_within_200_s'_on_OCT-epic21_ad2255ac(first_start_took_6_min:host_load;21.3_changes_no_install_or_startup_path);judged_again_on_the_integrated_head
 
 ### DW-1083: flake candidate: live:reminder-restart 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then the first start did not end ready within 400 s
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7095,3 +7096,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: lane-C warm e21s3xw 2026-11-12 ~06:22Z: FAIL 'IRIS's own audit entry of the client shows its secret masked'; passed on e21s3fw forward and reverse; implement saw one earlier and added a 5 s wait
 - 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8 extends EmailLive's OAuth cases: wait on the entry by its own id or poll longer; one rerun + occurrence= meanwhile
+- 2026-11-12T10:09:41Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662676_iris(production)_shard:lane-a@Channel_on_OCT-epic21_ad2255ac:FAIL_'IRIS's_own_audit_entry_of_the_client_shows_its_secret_masked'(second_occurrence:local_warm_06:22Z+CI)
+- 2026-11-12T10:09:42Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=ci note=21.3's_own_new_test_red_in_CI_on_its_own_head:class=story([CI]_rework_in_21.3,lane_prompt);fix_the_SysAuditMasks_wait(scope_to_this_test's_mark,poll_longer_or_by_entry_id);21.8's_bullet_then_reads_resolved
+
+### DW-1188: flake candidate: lane-b@rest Test.Schedule.Reminders TestFiresOnEveryChannel ('the session has one web card', 'one phone message', 'one notification event is published', 'and one phone event') red once in CI shards-6
+- source: CI run 43172123661 (OCT-epic21 ad2255ac) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 131027662801 iris (shards-6) shard:lane-b@rest 2026-11-12T08:01Z: 4 asserts red, 1 of 51 classes; Story 21.3 changes no Schedule, Reminder, Notify or channel-out class; first sighting
+- 2026-11-12T10:09:42Z status=routed owner=burndown by=ci note=flake rule: one rerun; judged again on the integrated 21.3 head's CI
