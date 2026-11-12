@@ -287,3 +287,4 @@
 2026-11-12T06:48:25Z	Story 23.9	story_cycle	plan_to_commit_min=146 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-12T06:50:09Z	Story 23.9	ruling	question=DW-1186_P3_no_incident_cases choice=Planner_sentence_verbatim(others_lists->cannot_resume_while_fix_waits/runs;others_empty->closed+Portal) category=owner_delegate by=contest_planner ref=prompts/epic-23-rulings-239.md(06:55Z) policy=5086036
 2026-11-12T06:50:09Z	Story 23.9	rework_opened	cycle_iteration=2 iteration=1 trigger=med_first_review(decision:DW-1186_Planner_ruling) items=DW-1186 scope_baseline=14a5f153 note=tracker_done->in-progress(sanctioned);e7c97dda_CI_superseded
+2026-11-12T06:50:21Z	Story 23.9	stage_spawned	stage=implement spawn_at=2026-11-12T06:50:21Z model=sonnet effort=high agent_name=23-9-rework-1-implement cycle_iteration=2 rework=1 items=DW-1186
