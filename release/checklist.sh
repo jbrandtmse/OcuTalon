@@ -21,6 +21,8 @@
 #                      assets/licenses/ holds the same non-empty files as the source folder
 #   web-bundle         src/ocutalon/csp/index.html exists (Story 11.5 commits the built page on the candidate branch)
 #   readme             docker/tests/test-readme.sh exits 0 (its note, links, anchors and heading slugs are checked offline)
+#   readme-video       docker/tests/check-readme-video.sh exits 0 (online: every address of the README's Video row answers, and each
+#                      YouTube id's oEmbed does; this row needs the network)
 #   bridge-guide       docker/tests/test-bridge-guide.sh exits 0 (docs/bridge-guide.md names every setting, field and value of the bridge,
 #                      holds the U-229 sentence, follows the public-text rules, and matches the commands that the standalone-bridge job runs;
 #                      the live proof of those commands is that job on the candidate)
@@ -29,7 +31,10 @@
 #   iris-source        irislib/ and irissys/ are ignored, and no tracked path has an irislib/ or irissys/ component or a component that
 #                      starts with a percent sign
 #   no-outward         no script of release/, ci/, eval/ or docker/, install.sh or workflow publishes a release, changes the repository's
-#                      visibility or settings, or names a public site that posts are made to
+#                      visibility or settings, or names a public site that posts are made to; two lines are allowed, each as it is and only
+#                      in its own file: the OEMBED= line of docker/tests/check-readme-video.sh, the video site's oEmbed address, which that
+#                      script reads with GET; and the ALLOWED_HOSTS= line of docker/tests/test-readme.sh, the hosts the README may link
+#                      (an edit of that line must update this allowance in the same commit)
 # The author's rows, which only the author's own line confirms. They are read from the record's "## Author confirmations" section, one
 # line each, in this form and no other (the date is a real calendar date; the text after it is optional):
 #   - <id>: confirmed <YYYY-MM-DD>[ <text>]
@@ -48,8 +53,8 @@
 #   pass.
 # Story 11.5 accepts exit 0 with "Result: pass" only.
 # Exit codes: 0 pass; 1 fail or not confirmed; 2 a refusal (usage, version, rc, candidate or record), with nothing written.
-# The script makes no network call. Sourced, it defines the row functions and runs nothing; Story 11.13 runs, from the repository root,
-# row_public_text <its draft notes file> on its draft.
+# The script makes no network call of its own; only the script that the readme-video row runs does. Sourced, it defines the row
+# functions and runs nothing; Story 11.13 runs, from the repository root, row_public_text <its draft notes file> on its draft.
 umask 077
 
 ck_self=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
@@ -82,6 +87,7 @@ ck_pass_text() {
     licences) echo "every font, icon and package licence notice is present" ;;
     web-bundle) echo "the built web bundle is in the checkout" ;;
     readme) echo "docker/tests/test-readme.sh passed: README links, anchors and headings checked offline" ;;
+    readme-video) echo "docker/tests/check-readme-video.sh passed: every address of the README's Video row answered, and each YouTube id's oEmbed did" ;;
     bridge-guide) echo "docker/tests/test-bridge-guide.sh passed: the bridge guide matches the code of this release" ;;
     public-text) echo "docker/tests/test-boundaries.sh passed, and the draft notes hold no local path or key-like text" ;;
     iris-source) echo "irislib/ and irissys/ are ignored, and none of their files is tracked" ;;
@@ -306,6 +312,8 @@ row_script() {
 
 row_readme() { row_script readme docker/tests/test-readme.sh; }
 
+row_readme_video() { row_script readme-video docker/tests/check-readme-video.sh; }
+
 row_bridge_guide() { row_script bridge-guide docker/tests/test-bridge-guide.sh; }
 
 # row_public_text [<notes file>]: from the repository root; the notes file defaults to the one of the run (ck_notes).
@@ -369,12 +377,15 @@ row_iris_source() {
   fi
 }
 
-# outward_hits <file>...: file:line of each line that publishes a release, changes the repository's settings or names a public site.
+# outward_hits <file>...: file:line of each line that publishes a release, changes the repository's settings or names a public site,
+# except the two allowed lines of the no-outward row (the header says which): each is matched whole, with its file and any line number.
 outward_hits() {
   grep -nHIE -e 'gh[ ]+release[ ]+(create|edit|upload|delete)' -e 'gh[ ]+repo[ ]+edit' -e '--visibilit[y]' -e 'action-gh-releas[e]' \
     -e 'create-releas[e]' -e '(^|[^.A-Za-z0-9-])community[.]intersystems[.]com' -e 'openexchange[.]intersystems[.]com' \
     -e 'twitter[.]com' -e '(^|[^A-Za-z0-9._-])x[.]com/' -e 'linkedin[.]com' -e 'youtube[.]com' -e 'medium[.]com' \
-    -e '(^|[^A-Za-z0-9._-])dev[.]to/' -e 'reddit[.]com' "$@" 2> /dev/null | cut -d: -f1,2
+    -e '(^|[^A-Za-z0-9._-])dev[.]to/' -e 'reddit[.]com' "$@" 2> /dev/null \
+    | grep -vx -e 'docker/tests/check-readme-video[.]sh:[0-9]*:OEMBED="https://www[.]youtube[.]com/oembed"' \
+      -e "docker/tests/test-readme[.]sh:[0-9]*:ALLOWED_HOSTS='localhost demo[.]ocutalon[.]com youtu[.]be github[.]com/jbrandtmse/OcuTalon github[.]com/bmad-code-org claude[.]com console[.]anthropic[.]com docs[.]anthropic[.]com evaluation[.]intersystems[.]com docs[.]intersystems[.]com www[.]intersystems[.]com ideas[.]intersystems[.]com docs[.]docker[.]com learn[.]microsoft[.]com community[.]intersystems[.]com openexchange[.]intersystems[.]com'" | cut -d: -f1,2
 }
 
 row_no_outward() {
@@ -609,6 +620,7 @@ checklist_main() {
   row_licences
   row_web_bundle
   row_readme
+  row_readme_video
   row_bridge_guide
   row_public_text
   row_iris_source
