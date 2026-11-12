@@ -23,6 +23,9 @@
 ///     its fields, trace and Reported; none while it stays stopped; a new one after a restart; the run time when IRIS gave none), TestSuspendedAndTroubled (row 9),
 ///     TestDisabledItemsAreReportedOnce (rows 5 and 6), TestFirstRunIsABaseline (row 7), TestNotCheckedReportsNothing (row 8, and a cut read or an unreadable incident table that still compares),
 ///     TestDeletedMeanwhileSendsNothing (row 10), TestFailedSendIsNeverRetried and TestThrownSendIsNeverRetried (row 11) and TestFindingsRender (each Item's key and slots render to the UX text);
+///   - Story 23.9 (AC5; DW-1068, second half): TestSuspendedByOcuTalonIsNotReported (the suspend's incident is resolved, so it holds the item), TestSuspendedHoldersAndReleased (Fix.Run Suspended's holders and released: the
+///     newest changing run decides, an item of a closed incident is released and leaves names and fresh, a resume or another incident's suspend moves the hold), TestReleasedFindings (the pure rule of
+///     Findings for released) and TestDismissedSuspendIsReportedOnce (a dismissed incident's suspend is reported once, at the suspend's end, and then no more);
 ///   - Findings, QA (Story 30.4): TestAnUnreadFirstRunLeavesTheBaselineForTheFirstRead (rows 7 and 8: a first run that cannot read leaves Reported empty, and the first read is the baseline) and
 ///     TestEachRowRemembersItsOwnReport (two watches of one production: each Item to its own session and trace, and a run records its own row only);
 ///   - TestStoppedMeanwhile ("Stopped meanwhile"): the row is deleted by the read: nothing is recorded, published or logged and the row stays deleted;
@@ -548,8 +551,8 @@ Method TestSuspendedItemsGetNoFinding()
 	Do $$$AssertEquals(reported, "{""stopped"":0,""disabled"":[""A"",""B""]}", "and no ours key when there is none")
 }
 
-/// Story 23.2 (AC5, Integration): Checks reads Fix.Run Suspended. An item that OcuTalon suspended (a done suspend_item that changed it) is not reported as disabled; once a resume_item
-/// changed it again, the same item disabled by anyone else is reported.
+/// Story 23.2 (AC5, Integration): Checks reads Fix.Run Suspended. An item that OcuTalon suspended (a done suspend_item that changed it) is not reported as disabled while its incident is not
+/// closed; once a resume_item changed it again, the same item disabled by anyone else is reported.
 Method TestSuspendedByOcuTalonIsNotReported()
 {
 	Set host = ..Host()
@@ -558,7 +561,7 @@ Method TestSuspendedByOcuTalonIsNotReported()
 	Set production = "Zz.Suspended"
 	Set ref = ..Watch(a, production)
 	Do ..Step(host, production, 0, "running")
-	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(a, , "ZZNS", production, {"State": "closed", "OpenVariant": ""})
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(a, , "ZZNS", production, {"State": "resolved", "OpenVariant": ""})
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_incident
 	Do ..Done(a, incident, "suspend_item", "A")
 	Do $$$AssertEquals($ListToString(##class(OcuTalon.Fix.Run).Suspended("ZZNS", production)), "A", "Fix.Run Suspended names A")
@@ -586,12 +589,130 @@ Method TestSuspendedByOcuTalonIsNotReported()
 	If items.%Size() = 2 Do $$$AssertEquals(..Slot(items.%Get(1).slots, "itemName"), "A", "for A")
 }
 
-/// A done request of the kind for the item of the incident, with a run that changed it (completed 1) or skipped it (completed 0).
-Method Done(owner As %String, incident As %String, kind As %String, item As %String, completed As %Integer = 1) [ Private ]
+/// Story 23.9 (AC5, AC6; Integration): Fix.Run Suspended gives holders (each item that is suspended now, with the incident of the run that suspended it) and released (each item whose
+/// current suspension is a run of a closed incident, with that run's EndedAt). A released item is not in names or fresh. The newest changing run decides: a resume ends the suspension,
+/// a later suspend by another incident moves the holder, a run that changed nothing does neither. Holds is 1 for the holder of an item only.
+Method TestSuspendedHoldersAndReleased()
+{
+	Set a = ..Owner("holders")
+	Set production = "Zz.Holders"
+	Set first = ##class(OcuTalon.Test.Data.Fixture).Incident(a, , "ZZNS", production, {"State": "resolved", "OpenVariant": ""})
+	Set second = ##class(OcuTalon.Test.Data.Fixture).Incident(a, , "ZZNS", production, {"State": "resolved", "OpenVariant": ""})
+	Set other = ##class(OcuTalon.Test.Data.Fixture).Incident(a, , "ZZNS", "Zz.HoldersOther", {"State": "resolved", "OpenVariant": ""})
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_first_","_second_","_other
+	Do ..Done(a, first, "suspend_item", "A")
+	Do ..Done(a, first, "suspend_item", "B")
+	Do ..Done(a, second, "suspend_item", "C", 0)
+	Set names = ##class(OcuTalon.Fix.Run).Suspended("ZZNS", production, "2000-01-01T00:00:00Z", .fresh, .holders, .released)
+	Do $$$AssertEquals($ListToString(names)_"|"_$ListToString(fresh), "A,B|A,B", "two items suspended for a resolved incident are named and fresh")
+	Do $$$AssertEquals(holders.%ToJSON(), "{""A"":"""_first_""",""B"":"""_first_"""}", "and the incident holds both (a run that changed nothing holds nothing)")
+	Do $$$AssertEquals(released.%ToJSON(), "{}", "and nothing is released")
+	Set firstRow = ##class(OcuTalon.Data.Incident).RefIndexOpen(first)
+	Set secondRow = ##class(OcuTalon.Data.Incident).RefIndexOpen(second)
+	Set otherRow = ##class(OcuTalon.Data.Incident).RefIndexOpen(other)
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Run).Holds(firstRow)_"|"_##class(OcuTalon.Fix.Run).Holds(secondRow)_"|"_##class(OcuTalon.Fix.Run).Holds(otherRow), "1|0|0", "Holds is 1 for the holder only, and 0 for an incident of another production")
+	// a suspend of A by the second incident moves the hold
+	Do ..Done(a, second, "suspend_item", "A")
+	Do ##class(OcuTalon.Fix.Run).Suspended("ZZNS", production, , , .holders)
+	Do $$$AssertEquals(holders.%ToJSON(), "{""A"":"""_second_""",""B"":"""_first_"""}", "a later suspend of A by the second incident moves its hold to that incident (the newest run decides)")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Run).Holds(firstRow)_"|"_##class(OcuTalon.Fix.Run).Holds(secondRow), "1|1", "the first still holds B, the second holds A")
+	// a resume of A (through the first incident) ends the suspension
+	Do ..Done(a, first, "resume_item", "A")
+	Do ##class(OcuTalon.Fix.Run).Suspended("ZZNS", production, , , .holders)
+	Do $$$AssertEquals(holders.%ToJSON(), "{""B"":"""_first_"""}", "a resume that changed A ends it: A has no holder")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Run).Holds(secondRow), 0, "and the second incident holds nothing")
+	// a resume that changed nothing ends nothing
+	Do ..Done(a, second, "resume_item", "B", 0)
+	Do ##class(OcuTalon.Fix.Run).Suspended("ZZNS", production, , , .holders)
+	Do $$$AssertEquals(holders.%ToJSON(), "{""B"":"""_first_"""}", "a resume that changed nothing leaves the hold")
+	// the first incident closes: B is released, at the end of its suspending run
+	Set firstRow.State = "closed"
+	Do $$$AssertStatusOK(firstRow.%Save(), "the first incident is closed")
+	Set names = ##class(OcuTalon.Fix.Run).Suspended("ZZNS", production, "2000-01-01T00:00:00Z", .fresh, .holders, .released)
+	Set ended = ..EndOfSuspend(first, "B")
+	Do $$$AssertTrue(ended '= "", "the suspending run of B has an EndedAt")
+	Do $$$AssertEquals($ListLength(names)_"|"_$ListLength(fresh)_"|"_released.%ToJSON(), "0|0|{""B"":"""_ended_"""}", "B, whose incident is closed, is released with its run's EndedAt and leaves names and fresh")
+	Do $$$AssertEquals(holders.%ToJSON(), "{""B"":"""_first_"""}", "and the holder is still told")
+}
+
+/// Story 23.9 (AC5): the pure rule of Findings for released. An item that suspended does not list, that is in the previous ours and disabled, and that released lists, is one finding with the
+/// suspend's time, and it leaves ours; every other name follows the plain rule.
+Method TestReleasedFindings()
+{
+	Set sighted = "{""stopped"":0,""disabled"":[""A"",""B""],""ours"":[""A""]}"
+	Set released = {"A": "2030-01-01T10:00:00Z", "B": "2030-01-01T11:00:00Z"}
+	Set found = ##class(OcuTalon.Checks.Process).Findings(sighted, "running", ["A", "B"], .reported, "", "", released)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[{""kind"":""disabled"",""item"":""A"",""at"":""2030-01-01T10:00:00Z""}]|{""stopped"":0,""disabled"":[""A"",""B""]}", "A, in the previous ours and released, is one finding at the suspend's time and leaves ours; B, which was never ours, is not reported")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(reported, "running", ["A", "B"], .reported, "", "", released)
+	Do $$$AssertEquals(found.%Size()_"|"_reported, "0|{""stopped"":0,""disabled"":[""A"",""B""]}", "and the next run reports nothing")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(sighted, "running", ["B"], .reported, "", "", released)
+	Do $$$AssertEquals(found.%Size()_"|"_reported, "0|{""stopped"":0,""disabled"":[""B""]}", "an item that is enabled now sends nothing and leaves ours")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(sighted, "running", ["A", "B"], .reported, $ListBuild("A"), "", {})
+	Do $$$AssertEquals(found.%Size()_"|"_reported, "0|{""stopped"":0,""disabled"":[""A"",""B""],""ours"":[""A""]}", "with an empty released the rule is unchanged")
+	Set found = ##class(OcuTalon.Checks.Process).Findings("", "running", ["A"], .reported, "", "", released)
+	Do $$$AssertEquals(found.%Size()_"|"_reported, "0|{""stopped"":0,""disabled"":[""A""]}", "a baseline reports nothing")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(sighted, "timeout", ["A"], .reported, "", "", released)
+	Do $$$AssertEquals(found.%Size()_"|"_reported, "0|"_sighted, "a state that was not read reports nothing and keeps Reported")
+}
+
+/// Story 23.9 (AC5; DW-1068, second half; Integration): an item that OcuTalon suspended is not reported while its incident is not closed; after the user dismisses the incident the next run sends
+/// exactly one Item for it, with the suspend's end as the time, and takes it out of ours; the run after that sends none. An item that a resume enabled sends none.
+Method TestDismissedSuspendIsReportedOnce()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("dismissed")
+	Set production = "Zz.Dismissed"
+	Set ref = ..Watch(a, production)
+	Do ..Step(host, production, 0, "running")
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(a, , "ZZNS", production, {"State": "resolved", "OpenVariant": ""})
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_incident
+	Do ..Done(a, incident, "suspend_item", "A", 1, "2030-04-30T08:15:42Z")
+	Do ..Done(a, incident, "suspend_item", "B")
+	Do ..Step(host, production, 1, "running", ["A", "B"])
+	Do $$$AssertEquals(..Items().%Size(), 0, "A and B, suspended by OcuTalon for a resolved incident, send nothing")
+	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":0,""disabled"":[""A"",""B""],""ours"":[""A"",""B""]}", "and both are ours")
+	Do ..Done(a, incident, "resume_item", "B")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.State = "closed"
+	Do $$$AssertStatusOK(row.%Save(), "the user dismisses the incident")
+	Set ended = ..EndOfSuspend(incident, "A")
+	Do $$$AssertEquals(ended, "2030-04-30T08:15:42Z", "the suspend of A ended at a time of its own, not the run's")
+	Do ..Step(host, production, 2, "running", ["A"])
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "the next run sends one Item, for A (B was resumed and sends none)")
+	If items.%Size() = 1 {
+		Do $$$AssertEquals(..Slot(items.%Get(0).slots, "itemName"), "A", "for A")
+		Do $$$AssertEquals(..Slot(items.%Get(0).slots, "time"), ended, "with the end of the suspend as the time")
+		Do $$$AssertEquals(items.%Get(0).catalogKey, "watch.itemDisabled", "under watch.itemDisabled")
+	}
+	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":0,""disabled"":[""A""]}", "A has left ours")
+	Do ..Step(host, production, 3, "running", ["A"])
+	Do $$$AssertEquals(..Items().%Size(), 1, "the run after that sends none")
+}
+
+/// The EndedAt of the incident's done suspend_item run for the item (the first one), "" when there is none.
+ClassMethod EndOfSuspend(incident As %String, item As %String) As %String
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT r.EndedAt, a.FixParameters FROM OcuTalon_Data.FixRun r JOIN OcuTalon_Bridge_Data.ApprovalRequest a ON a.Ref = r.ApprovalRef WHERE r.IncidentRef = ? AND a.FixKind = 'suspend_item' ORDER BY r.ID", incident)
+	Set ended = ""
+	While rs.%Next() {
+		If {}.%FromJSON(rs.%GetData(2)).item = item {
+			Set ended = rs.%GetData(1)
+			Quit
+		}
+	}
+	Quit ended
+}
+
+/// A done request of the kind for the item of the incident, with a run that changed it (completed 1) or skipped it (completed 0); the run ends at endedAt when that is given, else now.
+Method Done(owner As %String, incident As %String, kind As %String, item As %String, completed As %Integer = 1, endedAt As %String = "") [ Private ]
 {
 	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, "done", , {"FixKind": (kind), "FixParameters": ({"item": (item)}.%ToJSON()), "FixTargets": "1"})
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_request
-	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, {"Total": 1, "Completed": (completed), "Skipped": (1 - completed)})
+	Set fields = {"Total": 1, "Completed": (completed), "Skipped": (1 - completed)}
+	If endedAt '= "" Do fields.%Set("EndedAt", endedAt)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, fields)
 }
 
 /// Row 7: the first run of a row with nothing reported only records the state.

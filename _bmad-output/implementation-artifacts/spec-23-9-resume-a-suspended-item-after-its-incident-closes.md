@@ -2,7 +2,8 @@
 title: 'Story 23.9: Resume a suspended item after its incident closes'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'c7427fa4f23d60edc729a10b338e84acd8ae400d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -124,6 +125,34 @@ deferred: []
 - 2026-11-12 (lead, U-321 at=2026-11-12T04:43:08Z#985): Contest Planner ruled option (b) under the owner's delegation. Written verbatim under Design Notes. Applied: AD-15 (two split close rows + the bullet "An incident that holds a suspend") in the spine; PRD FR-24 (three bullets) and FR-16 (Break the feed); EXPERIENCE.md:698 and :1210, each with `[AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation]`. P1 and P2 declined; P3 added as a task; the conditions added as a task; known limit 4 accepted.
 
 ## Review Triage Log
+
+### 2026-11-12 - Review pass
+- verdicts: 24 rows (a row groups findings that share a root cause) - high 0, medium 1, low 19, false 4, maybe-false 0
+- findings:
+  - `[low]` `reject` Blind 1: the P3 sentence says "closed" for every `no_incident` answer - the sentence is the Planner's ruled text (U-321, verbatim); a fix would edit ruled text.
+  - `[low]` `reject` Blind 2 (and Edge 4, Intent 7): the hold is read from OcuTalon's rows, so an enable by hand in the Portal keeps the incident held until Dismiss - ruled known limit 4, accepted in U-321.
+  - `[low]` `reject` Blind 3 (and Intent 8): on the first run after the upgrade an item in the previous `ours` whose incident is closed is reported once - this is the DW-1068 behaviour the story is for; no baseline wanted.
+  - `[low]` `reject` Blind 4 and Edge 1: a released item whose suspend run has an empty EndedAt is never reported - a done run with Completed above 0 has EndedAt (Interrupt sets it for a cut run); not reachable in everyday use and the fix adds a guard.
+  - `[low]` `reject` Blind 5 and Edge 2: an unreadable holds read warns on every attempt and also blocks closeForReplay and demo-mode closes - the spec rules a read failure as held with a Type 3 warning (Decided in-stage 2; matrix row "Hold unreadable").
+  - `[low]` `reject` Blind 6: Facts runs the holds query for incidents the table refuses anyway - spec-bound (Decided in-stage 2 reads holds for the two verbs); a state guard adds a branch for a cheap indexed read.
+  - `[false]` `reject` Blind 7: the last assertion of `TestDismissedSuspendIsReportedOnce` is cumulative - the count staying at 1 after the second run is exactly "sends none"; the mutation run on `one.at` and on `released` shows the test discriminates.
+  - `[false]` `reject` Blind 8: the spec's `Status: ready-for-dev` under Auto Run Result - rewritten at finalize.
+  - `[low]` `reject` Blind 9: some behaviours have no recorded mutation (released item leaving names/fresh, ours) - they are asserted in `TestSuspendedHoldersAndReleased` and `TestReleasedFindings`; Rule 19 is one mutation per AC, and AC5 and AC6 have theirs.
+  - `[low]` `reject` Edge 3: Break the feed can close earlier resolved incidents and then be refused by a held one - refusals by awaiting or open incidents already behaved so before this story, and the spec forbids a change to Break the feed's code.
+  - `[low]` `reject` Edge 5: a released item that is not in the previous `ours` is reported with the run time - the spec's Findings rule says "in the previous ours"; nothing else was sighted, so the plain rule applies.
+  - `[medium]` `patch` Gap 1: the holds-read restriction to closeQuiet and closeForReplay was not pinned - mutating `closing` to 1 kept every test green. Patched: `TestHeldBySuspend` asserts that the dismiss under `FailHolds` logs no second warning; mutation demonstrated red, reverted (tree byte-identical), recorded in `## Verification`.
+  - `[false]` `reject` Gap 2: `Holds` scoping to the production is not pinned - the production filter is in the SELECT that `names` and `holders` share, and `TestSuspendedByOcuTalonIsNotReported`'s "nothing for another production" pins it; a `Holds` that passed the wrong production would return 0 for every held incident and fail `TestHeldBySuspend`.
+  - `[low]` `patch` Gap 3a: AC2 dismiss half, AC6 "changed nothing" half and AC8 had no recorded mutation. Patched: three mutations applied, observed red, reverted, recorded in `## Verification`.
+  - `[low]` `reject` Gap 4: `HoldsIs 0` in the last `TestHeldBySuspend` case cannot detect an override that ignores it - the `HoldsIs 1` case exercises the seam, which mirrors `DemoModeIs`; low and the fix adds fixtures.
+  - `[low]` `reject` Gap 5 and 6 (seam with one consumer; `If '$IsObject(host) Quit`): the seam mirrors `DemoModeIs`, and the host helpers assert the host exists.
+  - `[false]` `reject` Gap 7 (hermeticity): none found; Gap notes only.
+  - `[low]` `reject` Intent 1: the close triggers (`Sweep`, `BreakFeedIn`) are not driven against a held incident - the matrix row "Replay close held" is `incident_in_progress` through existing code, and `Test.Demo.BreakFeedIn` stays green; a driver test would need a second host fixture for a path with no change.
+  - `[low]` `reject` Intent 2: callers keep their handling of `not_allowed`; the intent forbids changing Break the feed.
+  - `[low]` `reject` Intent 3 and 4: Dismiss and the chat undo are tested at the manager, table and `Asked` levels - the ownership API and the page route are unchanged and covered by `Test.Core.CommandsRouting` and `Test.Fix.AskedTurns` (both green).
+  - `[low]` `reject` Intent 5: the Checks finding is end-to-end only through a stubbed reader - matches the AC5 test design (the real reader is the 22.x suites' subject).
+  - `[low]` `reject` Intent 6: the new chat sentence - it is P3, ruled verbatim in U-321.
+  - `[low]` `reject` Intent 7: see Blind 2.
+  - `[low]` `reject` Intent 8: see Blind 3.
 
 ## Design Notes
 
@@ -334,11 +363,36 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - AC7: the catch in `Holds` counts as not held → `TestHeldBySuspend` (`FailHolds`).
 - AC8: none (unchanged behaviour; the existing suites are the evidence).
 
+**Mutations run (implement, warm tag e23s9iw; each applied, observed red, reverted with `cmp` against the backup showing the tree byte-identical):**
+- mutation: AC1, `Transitions` resolved branch ignores `holds` (closeForReplay/closeQuiet accepted at h1) -> red: `Test.Watch.Transitions:TestRefusedMoves` (resolved + closeQuiet/closeForReplay at holds 1, and the two pins) and `Test.Watch.Lifecycle:TestHeldBySuspend`. `TestRows` stays green, because the mutation still accepts every h0 row it lists; the refused h1 moves are `TestRefusedMoves`'s.
+- mutation: AC2, the open-noticed closeQuiet ignores `holds` -> red: `Test.Watch.Transitions:TestRefusedMoves` (17 fails, `d0 h1`) and `Lifecycle:TestHeldBySuspend` (3 fails).
+- mutation: AC3, `Suspended` never ends a holder on a resume (the `Kill holder(item)` removed) -> red: `Lifecycle:TestHeldBySuspend` (the summary lacks itemResumed and closedQuiet, and the resume through another incident still holds).
+- mutation: AC4, `Asked` skips the recipients check -> red: `Test.Fix.Asked:TestHeldIncidentResumeIsTheSessions` (3 fails).
+- mutation: AC5, `Findings` ignores `released` (the branch off) -> red: `Test.Checks.Runs:TestDismissedSuspendIsReportedOnce` (the one Item, and the run after).
+- mutation: AC5, `Run` passes the run time instead of `one.at` -> red: `Test.Checks.Runs:TestDismissedSuspendIsReportedOnce` ("with the end of the suspend as the time"; the suspend's EndedAt is fixed to 2030-04-30T08:15:42Z so that it differs from the run time).
+- mutation: AC6, `Suspended` keeps the first suspend's incident as the holder -> red: `Lifecycle:TestHeldBySuspend` (the moved hold, 3 fails).
+- mutation: AC7, the catch in `Holds` counts as not held -> red: `Lifecycle:TestHeldBySuspend` (`FailHolds`, 3 fails).
+- mutation: AC2 (dismiss half), the resolved branch of `Transitions` closes on dismiss only when holds is 0 -> red: `Test.Watch.Transitions:TestRows` (every resolved + dismiss row at holds 1).
+- mutation: AC6 (a suspend run that changed nothing holds nothing), the `r.Completed > 0` condition removed from `Fix.Run.Suspended` -> red: `Lifecycle:TestHeldBySuspend` ("a suspend run that changed nothing holds nothing").
+- mutation: AC8 / ruling condition (online demo unchanged), the resolved branch requires demo mode 0 for closeQuiet and closeForReplay -> red: `Test.Watch.Transitions:TestRefusedMoves` (resolved + closeForReplay and closeQuiet at demoMode 1, holds 0, "is a row but was refused").
+- mutation: Facts reads holds for every event (`closing` set to 1) -> red: `Lifecycle:TestHeldBySuspend` ("and the dismiss logged no further holds warning").
+- mutation: P3, `Chat.cls` loses the no_incident clause -> red: `Test.Agent.Instructions:TestChat` (the new pin).
+- AC8 / online demo: no mutation; `Test.Fix.ItemKinds` (`ONLINESHARED`, passed), `Test.Demo.BreakFeedIn`, `Lifecycle:TestCloseQuiet` and `TestCloseForReplay` (passed) are the evidence, and `Test.Watch.Transitions:TestRefusedMoves` pins that a resolved incident with `holds` 0 still closes by closeQuiet with demo mode on.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-- Planned at the spec gate as a decision brief for the Planner: option (b) is recommended and fully planned, with option (a)'s deltas, both cost estimates and every PUBLIC TEXT candidate under Design Notes and `## PUBLIC TEXT for the Planner`.
-- Implement waits for the Planner's ruling on the option, the AD-15 amendment (a re-architecture under U7 (b) and (c)) and the PRD FR-16/FR-24 and EXPERIENCE.md 698/1210 wording (ask-first, Rule 5). After the ruling, the lead writes them and re-runs the epic-context pre-warm.
-- Epic context: reused. Continuity: Story 23.2's spec (the design this extends). No Task 0 is needed: everything was answered from the code, and nothing ran on IRIS.
+- Implemented option (b) as ruled (U-321): an incident that holds a suspend is not closed by closeQuiet or closeForReplay, and Dismiss always closes. Checks reports the item once after the incident closes, with the suspend's end as its time.
+- Files changed:
+  - `Fix/Run.cls`: `Suspended` gains `holders` and `released`; new `Holds`.
+  - `Watch/Transitions.cls`: the `holds` fact and the split close rows.
+  - `Watch/IncidentManager.cls`: `Facts` reads `holds` for the two close verbs through `Holds` and the seam `ReadHolds`; a failed read counts as held with one `LOGHOLDS` warning.
+  - `Checks/Process.cls`: `Run` passes `released` to `Findings`, which reports a released item once at the suspend's time.
+  - `Agent/Chat.cls` and `Test/Agent/Instructions.cls`: P3, verbatim, with its pin.
+  - Tests: `Test/Watch/IncidentProbe.cls`, `Test/Watch/Transitions.cls`, `Test/Watch/Lifecycle.cls` (`TestHeldBySuspend`), `Test/Checks/Runs.cls`, `Test/Fix/Asked.cls` (`TestHeldIncidentResumeIsTheSessions`).
+- Review: 24 triage rows from four layers; patches applied: 2 (a holds-read pin in `TestHeldBySuspend`; three missing mutation lines); deferred: 0; the other findings are rejected with their reasons in the Review Triage Log.
+- Follow-up review recommended: false (one medium patched, no high).
+- Verification: on the warm stack `Test.Watch.Transitions`, `Test.Watch.Lifecycle` (whole), `Test.Checks.Runs` (whole), `Test.Fix.Asked`, `Test.Agent.Instructions`, `Test.Demo.BreakFeedIn`, `Test.Watch.Summary`, `Test.Fix.ItemKinds`, `Test.Fix.AskedTurns`, `Test.Core.CommandsRouting` and `Test.Fix.Runs` passed; `Lifecycle:TestHeldBySuspend` passed on a fresh stack after the last patch; the 33 check scripts passed after the implementation pass, and `class-rules`, `boundaries` and `storage` were run again after the last patch. Every AC has a demonstrated mutation (see `## Verification`).
+- Residual risks: the production's jobs were not exercised against the new code in a warm re-up (CI's live runs cover it); the shards, `live:demo-path` and the lead's fresh-environment check, forward and reverse, are left to CI.
