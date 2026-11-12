@@ -992,3 +992,7 @@
 2026-11-12T19:37:25Z	Story 0.29	adr_verifications_complete	result=none_required mutations=none
 2026-11-12T19:37:25Z	Story 0.29	qa_complete	skipped=the_deliverable_is_ruled_text_plus_its_test_rules;implement_demonstrated_5_mutations,one_per_AC tests_added=0
 2026-11-12T19:37:25Z	Story 0.29	stage_spawned	stage=code-review spawn_at=2026-11-12T19:37:25Z model=opus effort=high agent_name=0-29-code-review-1 cycle_iteration=1
+2026-11-12T19:56:52Z	Story 0.29	cr_complete	spawn_at=2026-11-12T19:37:25Z model=opus effort=high resolved=7 fixed_at_source=7 by_design=0 wontfix_theoretical=0 routed=0 escalated=0 decision_pending=0 deferred=0(+DW-1218_occurrence) dismissed=18 high=0 med=2 low=5 rows=1 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus note=measured_scoped_above_first_H3;self-tests_survive_the_RC_fill
+2026-11-12T19:56:52Z	Story 0.29	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=DW-1218_by-design,DW-1219_wontfix-accepted_born_terminal
+2026-11-12T19:56:52Z	Story 0.29	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=README+GUIDE_byte-equal_to_the_ruled_text(fills_from_compare.mjs);wc_-w_README_2171(cap_2300);test-readme,test-eval-set(readme-column,cases,compare,held-out*),test-boundaries_pass model=claude-opus-5-5
+2026-11-12T19:56:52Z	Story 0.29	fresh_check	env=clean-checkout(local_clone_of_HEAD+working-tree_patch) tests=4(test-readme,test-boundaries,test-eval-set_6_rules,4_web_scripts_tests_75) result=pass order=forward,reverse(bash_and_bash3.2)

@@ -1279,7 +1279,8 @@ try {
         for (const [label, cell] of labels) {
           const found = rows.filter((row) => row[0] === label);
           if (found.length !== 1) bad(`row "${label}": the table has ${found.length} rows with this first cell, not 1`);
-          else if (found[0].length !== 3 || found[0][2] !== cell) bad(`row "${label}": the fixed-rules cell is "${found[0][2]}", compare.mjs --column gives "${cell}"`);
+          else if (found[0].length !== 3) bad(`row "${label}": the row has ${found[0].length} cells, not 3`);
+          else if (found[0][2] !== cell) bad(`row "${label}": the fixed-rules cell is "${found[0][2]}", compare.mjs --column gives "${cell}"`);
         }
       }
     }
@@ -2515,6 +2516,9 @@ variant('readme-column', 'bad-main-items', 'the routine item count is "5", compa
 variant('readme-column', 'bad-main-incidents', 'the incident count is "3", compare.mjs --column gives "2"', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '4', '3'); });
 variant('readme-column', 'bad-no-heading', 'no heading "### With the agent and with fixed rules only"', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace(COLUMNHEAD, '### With and without'); });
 variant('readme-column', 'bad-no-report', 'does not end with exit 0', (f) => { columnGood(f); delete f['eval/results/rules-only.json']; });
+variant('readme-column', 'bad-no-held-out-report', 'does not end with exit 0', (f) => { columnGood(f); delete f['eval/results/rules-only-held-out.json']; });
+variant('readme-column', 'bad-row-four-cells', 'row "Unsafe outcomes": the row has 4 cells, not 3', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('| Unsafe outcomes | measured at release 1.0.9 | 0 |', '| Unsafe outcomes | measured at release 1.0.9 | 0 | x |'); });
+variant('readme-column', 'bad-paragraph-unreadable', 'the paragraph under the heading has no date, routine item count and incident count to read', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('on the recorded evaluation set', 'on the evaluation set'); });
 variant('readme-column', 'bad-no-readme', 'README.md: the file is missing', (f) => { columnGood(f); delete f['README.md']; });
 EOF
 

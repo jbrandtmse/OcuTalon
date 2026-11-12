@@ -61,6 +61,33 @@ See Story 0.27's spec (`spec-0-27-a-measured-comparison-of-the-agent-and-the-fix
 - Given the README comparison, when it is read, then it is the ruled variant R text, and every fixed-rules cell, the date, `<I>` and `<J>` equal `compare.mjs --column eval/results`; `readme-column` and `comparison` pass and fail on their bad variants; "never used for tuning" is nowhere in the README.
 - Given CI on this story's head, when it finishes, then every workflow is green.
 
+### Review Findings
+
+Code review 2026-11-12 (epic-cycle stage; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; diff `git diff 65a75b5c` over the four footprint files). 7 patch, 0 decision-needed, 0 defer, 18 rejected (13 lines below; same-cause findings share a line). No HIGH; no AD mismatch (AD-22, AD-19). README.md and GUIDE.md were not edited (ruled text).
+
+- [x] [Review][Patch] [medium] `measured` read the whole "Measured" section, so the comparison table's repeated label "Cost of one attention decision" satisfied it and removing the main table's row passed (a weakened existing rule); it now reads the section above its first H3, with a self-test that removes only the main table's row [docker/tests/test-readme.sh:chk_measured, rule_measured]
+- [x] [Review][Patch] [medium] three `comparison` self-tests (empty agent cell, differing routine cell, agreeing routine cell) edited the literal "measured at release 1.0.9", so the RC fork's fill (variant F) would turn `comparison` red, against Design Notes ("needs no rule change"); they now edit the agent cell by its place in the row and take the main row's number from the README; checked with the agent column filled on a scratch copy (PASS) [docker/tests/test-readme.sh:rule_comparison]
+- [x] [Review][Patch] [low] the separator-row and the empty-line-before-the-sentence clauses of `comparison` had no self-test [docker/tests/test-readme.sh:rule_comparison]
+- [x] [Review][Patch] [low] the three-cell guards of both rules and readme-column's unreadable-paragraph branch had no bad variant; added `comparison` "a row of four cells" and `readme-column` samples bad-row-four-cells and bad-paragraph-unreadable [docker/tests/test-readme.sh:rule_comparison, docker/tests/test-eval-set.sh:mksamples]
+- [x] [Review][Patch] [low] a README row with other than three cells was reported as "the fixed-rules cell is X, compare.mjs --column gives X"; it now says the row has N cells, not 3 [docker/tests/test-eval-set.sh:check-readme-column.mjs]
+- [x] [Review][Patch] [low] no `readme-column` sample for a missing rules-only-held-out.json; added bad-no-held-out-report [docker/tests/test-eval-set.sh:mksamples]
+- [x] [Review][Patch] [low] `comparison` checked only that the money line is somewhere above the H3, not C1's "the money line, a blank line, then the block"; it now requires the heading right after the money line and one empty line, with a self-test [docker/tests/test-readme.sh:chk_comparison]
+
+Rejected:
+- `low` Blind/Edge: the agent column is a placeholder that no test makes go away, and the guide's pointer says "measured side by side" meanwhile: already ledgered DW-1218 (by-design, the RC fork replaces it); occurrence appended.
+- `low` Blind: the guide pointer drops the inline figures; the H3 adds about 250 words: ruled C2/C1 text; `word-cap` passes at 2,171.
+- `low` Blind/Edge: the one-number check ties the 1.0.4 main table to the 1.0.9 column, covers only the routine row, not the cost row or other number forms: Planner ruling 3 sets that check and has the fork refresh the main table (by-design).
+- `low` Blind: the agent side has no committed report: the agent column is the RC fork's (variant F); out of this story's ruled scope.
+- `low` Blind: no row for what fixed rules get wrong; rows 4-7 do not say which cases they cover; "keeps their names and text out of every prompt" claims too much: ruled PUBLIC TEXT, applied verbatim.
+- `low` Blind: only the main report's date is read, as a UTC date: `compare.mjs` (Story 0.27) takes it from rules-only.json; both reports are one run; fix is out of footprint for an unreached case.
+- `low` Edge: CRLF README fails with "no heading": fails closed; the repository's README is LF.
+- `false` Edge: README rows missing from the column go unchecked: `comparison` pins exactly the seven labels and the block's line count, and the `compare` rule pins the column's rows.
+- `low` Edge: spawnSync has no timeout: compare.mjs reads two small committed files; a hang meets the job timeout.
+- `low` VG: `labels.length === 0` unpinned: the `compare` rule pins the exact `--column` output.
+- `low` AA: the one-number check runs only when the cell starts with `<n> of <m>`: the spec's literal wording; ruled.
+- `low` AA: the Verification grep's pathspec and expectation: fix edits the spec's own command (rejected by triage rule).
+- `note` AA: AC2 (CI green) cannot be checked under the CI hold: the lead's CI gate owns it.
+
 ## Ruled README change
 
 Verbatim text (the Contest Planner's rulings of 2026-11-12, part (b) and the 02:05Z section). `<FILL: ...>` marks the only values implement writes, each from `node eval/compare.mjs --column eval/results`.
@@ -166,6 +193,10 @@ mutation: the worked-out sentence ("Worked out from the expected answers of the 
 mutation: "These cases were never used for tuning." appended to README.md -> `public-text` (test-readme.sh)
 mutation: chk_comparison's one-number check weakened (the agent routine cell compared with itself) -> `comparison` self-test "a filled agent routine cell that differs from the main table: not flagged" (FAIL comparison: a broken copy was not flagged)
 mutation: check-readme-column.mjs's date check disabled -> `readme-column` samples bad-date and bad-date-report (the rule does not flag the sample)
+mutation: (code review) chk_measured's cut at the first H3 removed (the whole section read) -> `measured` self-test "a row removed whose label the comparison table repeats: not flagged"
+mutation: (code review) chk_comparison's separator-row check disabled -> `comparison` self-test "the separator row changed: not flagged"
+mutation: (code review) check-readme-column.mjs's three-cell check disabled -> `readme-column` (the rule does not flag the sample bad-row-four-cells)
+Code review also filled the agent column on a scratch copy (routine cell 21 of 24, the rest 11 of 11): `comparison` and `measured` PASS, so no self-test depends on the placeholder text. The review's mutations ran on a scratch copy of the tree; the worktree was never mutated.
 Each mutation was reverted; `git diff` of the tree was byte-identical to the state before it. The one-liner `git grep -n -i 'never used for tuning' -- . ':!_bmad-output'` now also lists docker/tests/test-readme.sh, which must hold the phrase (the forbidden-phrase pattern, its self-test and the header comment); README.md and GUIDE.md hold none.
 
 ## Auto Run Result

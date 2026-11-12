@@ -31,9 +31,9 @@
 #                  least one image line, every image line in it is the decision trace, docs/images/vt-decision.png (the owner's
 #                  decision of 2026-11-05, reversing U-242 Q2's layout), and its only H3 is "New since 1.0.0"
 #   measured       "Measured" has a table row for each of its eight row labels, each label word for word as the row's first cell
-#                  (Story 11.25); its numbers and other wording are not pinned
+#                  (Story 11.25), above the section's first H3; its numbers and other wording are not pinned
 #   comparison     (Story 0.29) "Measured" ends with the H3 "With the agent and with fixed rules only" (its only H3, the last heading before
-#                  "More", after the money line), which holds the ruled paragraph word for word (the date as "Month D", <I> and <J> as
+#                  "More", right after the money line and one empty line), which holds the ruled paragraph word for word (the date as "Month D", <I> and <J> as
 #                  numbers), the ruled header row, the seven ruled row labels in order as first cells with a non-empty agent cell and
 #                  fixed-rules cell, and the ruled sentence under the table; the guide's "What OcuTalon does" holds the ruled pointer to
 #                  the H3 right above the model paragraph; once the agent column's routine cell is filled with "<n> of <m>" it equals
@@ -682,7 +682,7 @@ Model cost of the always-on online demo
 LABELS
 chk_measured() {
   local sec="$tmp/sec.meas" label
-  section "$1" "$H_MEAS" > "$sec"
+  section "$1" "$H_MEAS" | awk '/^### / { exit } { print }' > "$sec"
   if [ ! -s "$sec" ]; then
     echo "$1: no section '$H_MEAS'"
     return
@@ -752,8 +752,7 @@ chk_comparison() {
       if (!at) { print "comparison: no heading \"" h3 "\" in the section"; exit }
       last = n
       while (last > at && line[last] == "") last--
-      for (i = 1; i < at; i++) if (index(line[i], "Where the money goes and how to cap it") == 1) money = i
-      if (!money) print "comparison: the line \"Where the money goes and how to cap it\" is not above the heading"
+      if (at < 3 || index(line[at - 2], "Where the money goes and how to cap it") != 1 || line[at - 1] != "") print "comparison: the heading does not follow the line \"Where the money goes and how to cap it\" and one empty line"
       if (last - at != 7 + nw) { print "comparison: the heading is followed by " (last - at) " lines, not the ruled paragraph, table (header, separator, " nw " rows) and sentence, one empty line between each"; exit }
       if (line[at + 1] != "" || line[at + 3] != "" || line[at + 6 + nw] != "") print "comparison: the paragraph, the table and the sentence are not each set off by one empty line"
       p = line[at + 2]
@@ -1936,6 +1935,7 @@ rule_measured() {
   st_move 'a row moved out of the section' "$H_MEAS" '| Routine attention decisions right |' chk_measured
   st 'a row label not in the first cell' 1 "$README" '{ sub(/^\| Cost of one attention decision \| /, "| Cost | Cost of one attention decision | ") } { print }' chk_measured
   st 'a row label extended in its cell' 1 "$README" '{ sub(/^\| Routine attention decisions right \|/, "| Routine attention decisions right today |") } { print }' chk_measured
+  st 'a row removed whose label the comparison table repeats' 1 "$README" '/^## / { m = ($0 == "## Measured") } /^### / { m = 0 } m && /^\| Cost of one attention decision \|/ { next } { print }' chk_measured
   # A changed number, intro line or result is not flagged: the rule pins the heading and the row labels, not the numbers or wording.
   mutate "$README" '/^\| Routine attention decisions right \|/ { n += sub(/21 of 24/, "20 of 24") } /^From the real-model evaluation of release/ { $0 = "From the evaluations."; n++ } /^\| Prompt-injection attempts/ { n += sub(/ 0 /, " 1 ") } { print } END { exit (n != 3) }' || st_note 'an edit of the numbers or the intro did not apply'
   if [ -n "$(chk_measured "$tmp/m")" ]; then st_note 'a changed number, result or intro line is flagged'; fi
@@ -1950,6 +1950,7 @@ rule_comparison() {
   st 'the heading renamed' 1 "$README" '/^### With the agent and with fixed rules only$/ { print "### With the agent and fixed rules"; next } { print }' chk_comparison
   st 'a second H3 in Measured' 1 "$README" '/^## More$/ { print "### Another"; print "" } { print }' chk_comparison
   st 'the money line after the heading' 1 "$README" '/^Where the money goes and how to cap it/ { held = $0; next } /^## More$/ { print held; print "" } { print }' chk_comparison
+  st 'a paragraph between the money line and the heading' 1 "$README" '/^### With the agent and with fixed rules only$/ { print "A stray paragraph."; print "" } { print }' chk_comparison
   st 'a word of the paragraph changed' 1 "$README" '{ sub(/own fallback/, "own default") } { print }' chk_comparison
   st 'the commit link changed' 1 "$README" '{ sub(/commit\/6af31dab/, "commit/6af31dac") } { print }' chk_comparison
   st 'the date not written as Month D' 1 "$README" '{ sub(/no key on November 12 on/, "no key on 2026-11-12 on") } { print }' chk_comparison
@@ -1958,17 +1959,20 @@ rule_comparison() {
   st 'two row labels swapped' 1 "$README" '/^\| Items that needed you now but/ { held = $0; next } /^\| Unsafe outcomes \| measured/ { print; print held; next } { print }' chk_comparison
   st 'a row removed' 1 "$README" '!/^\| Largest model request \|/' chk_comparison
   st 'an empty fixed-rules cell' 1 "$README" '/^\| Unsafe outcomes \|/ { sub(/ \| 0 \|$/, " |  |") } { print }' chk_comparison
-  st 'an empty agent cell' 1 "$README" '/^\| Unsafe outcomes \|/ { sub(/ \| measured at release 1\.0\.9 \| /, " |  | ") } { print }' chk_comparison
+  st 'an empty agent cell' 1 "$README" '/^\| Unsafe outcomes \|/ { split($0, c, / \| /); $0 = c[1] " |  | " c[3] } { print }' chk_comparison
   st 'the header row reworded' 1 "$README" '{ sub(/\| Fixed rules only \|$/, "| Rules only |") } { print }' chk_comparison
+  st 'the separator row changed' 1 "$README" '{ sub(/^\| --- \| --- \| --- \|$/, "| --- | --- |") } { print }' chk_comparison
+  st 'the empty line before the sentence replaced' 1 "$README" '{ if (p ~ /^\| Largest model request \|/ && $0 == "") $0 = "x"; p = $0; print }' chk_comparison
+  st 'a row of four cells' 1 "$README" '/^\| Unsafe outcomes \|/ { $0 = $0 " x |" } { print }' chk_comparison
   st 'the sentence under the table changed' 1 "$README" '{ sub(/^An unsafe outcome is a change/, "An unsafe outcome is any change") } { print }' chk_comparison
-  st 'a filled agent routine cell that differs from the main table' 1 "$README" '/^\| Routine attention decisions right \(main set\) \|/ { sub(/measured at release 1\.0\.9/, "20 of 24") } { print }' chk_comparison
+  st 'a filled agent routine cell that differs from the main table' 1 "$README" '/^\| Routine attention decisions right \|/ { if (match($0, /[0-9]+ of [0-9]+/)) { split(substr($0, RSTART, RLENGTH), v, " of "); off = (v[1] + 1) " of " v[2] } } /^\| Routine attention decisions right \(main set\) \|/ { split($0, c, / \| /); $0 = c[1] " | " off " | " c[3] } { print }' chk_comparison
   st 'the pointer removed from the guide' 2 "$GUIDE" 'index($0, "**What changes without the agent?**") != 1' chk_comparison
   st 'the pointer anchor changed' 2 "$GUIDE" '{ sub(/#with-the-agent-and-with-fixed-rules-only/, "#fixed-rules-only") } { print }' chk_comparison
   st 'a paragraph between the pointer and the model paragraph' 2 "$GUIDE" '{ print } index($0, "**What changes without the agent?**") == 1 { print ""; print "A stray paragraph." }' chk_comparison
   st 'the worked-out sentence restored in the guide' 2 "$GUIDE" 'index($0, "**What changes without the agent?**") == 1 { $0 = "**What changes without the agent?** Worked out from the expected answers of the recorded evaluation set." } { print }' chk_comparison
   st_append 'the worked-out sentence restored in the README' 'Worked out from the expected answers of the recorded evaluation set.' chk_comparison
-  # A filled agent routine cell that agrees with the main table's routine row, and the cell as it stands, are not flagged.
-  if ! mutate "$README" '/^\| Routine attention decisions right \(main set\) \|/ { sub(/measured at release 1\.0\.9/, "21 of 24") } { print }'; then
+  # A filled agent routine cell that agrees with the main table's routine row is not flagged (the cell as it stands is the real-tree check).
+  if ! awk '/^\| Routine attention decisions right \|/ { if (match($0, /[0-9]+ of [0-9]+/)) same = substr($0, RSTART, RLENGTH) } /^\| Routine attention decisions right \(main set\) \|/ { split($0, c, / \| /); $0 = c[1] " | " same " | " c[3] } { print }' "$README" > "$tmp/m" || ! grep -q '^| Routine attention decisions right (main set) | [0-9][0-9]* of [0-9][0-9]* | ' "$tmp/m"; then
     st_note 'the agreeing routine cell did not apply'
   elif [ -n "$(chk_comparison "$tmp/m" "$S2" "$S3" "$S4")" ]; then
     st_note 'a filled agent routine cell that agrees with the main table is flagged'

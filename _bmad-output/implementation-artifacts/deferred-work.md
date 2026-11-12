@@ -7357,6 +7357,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil.md | severity: med | fix-risk: low | footprint: in-footprint
 - evidence: README.md agent column; the spec leaves it unpinned by ruling (variant F fills it in the RC fork); the Planner's RC checklist greps for the phrase (story-029-rulings 2026-11-12 item 1)
 - 2026-11-12T19:37:14Z status=by-design owner=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil by=harvest note=ruled:the_1.0.9_RC_fork_replaces_it_and_the_Planner's_RC_grep_requires_the_phrase_never_reaches_main
+- 2026-11-12T19:52:11Z occurrence=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil
 
 ### DW-1219: test-readme.sh st() self-test harness passes whenever the checker prints anything, so a mutation that trips two clauses does not pin each clause alone
 - source: spec-0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil.md | severity: low | fix-risk: med | footprint: out-of-footprint
