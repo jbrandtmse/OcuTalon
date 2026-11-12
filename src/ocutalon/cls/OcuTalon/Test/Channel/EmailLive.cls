@@ -77,6 +77,18 @@
 ///   - TestOAuthAdminDisabledAppStaysDisabled (U-320 2): an admin who disables the web application sees it stay disabled through a re-save, and the next sign-in start
 ///     enables it and audits that;
 ///   - TestOAuthOnlineDemo (U-320 7): the online demo refuses the save, the start and the check, and the web application stays disabled.
+/// Story 21.8 adds the use of the sign-in: the save also writes the rows OAuth2ApplicationName and OAuth2CallBackHandler on EmailIn and EmailOut, and the real EmailIn and EmailOut log
+/// in with XOAUTH2 and the token of IRIS's client, against the stubs that accept only a token the fake server issued and that is neither expired nor revoked. Each case ends with the
+/// state put back, the Settings rows named scope, session and auth-properties included.
+///   - TestOAuthPollAndSendWithTheToken (Integration AC): the POP3 stub records XOAUTH2 logins for the saved user name and no USER or PASS, new mail becomes Items, and a tool send
+///     reaches the SMTP stub after an XOAUTH2 login, with its Delivery row;
+///   - TestOAuthRefreshWithoutTheAdmin: an expired token is refreshed by IRIS (the fake server records a refresh_token grant with the client pair) and the next poll and send log in
+///     with the new token; the stub refuses the expired one;
+///   - TestOAuthRevokedGrant: a grant revoked at the provider, with the token expired and with it still valid, gives the sign-in sentence, no Item, no Workflow request, a page that
+///     says not signed in, and a send that fails with the sign-in message and sends nothing; signing in again works;
+///   - TestOAuthNotSignedInYet (DW-1179): a poll before the consent gives the sign-in sentence, makes no connection and raises no Workflow request, and a send fails with the sign-in message;
+///   - TestOAuthMicrosoftScope: the token answer of the fake Microsoft leaves out offline_access and the poll and the send still succeed;
+///   - TestOAuthTokenOnlyInTheTokenStore (the leak AC): after a sign-in, three polls, a refresh and a send the tokens are in IRIS's token row and in no other store.
 Class OcuTalon.Test.Channel.EmailLive Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -133,6 +145,9 @@ Property Online As %String [ Private ];
 Property AppWas As %String [ Private ];
 
 Property OAuthFound As %List [ Private ];
+
+/// Story 21.8: the number of Workflow request messages when the case began.
+Property WorkflowWas As %Integer [ Private ];
 
 Method OnBeforeAllTests() As %Status
 {
@@ -472,7 +487,7 @@ Method Disconnect() [ Private ]
 {
 	Do ..DisconnectOAuth()
 	For item = ..#ITEM, ..#SENDITEM {
-		For name = "POP3Server", "POP3Port", "SMTPServer", "SMTPPort", "Credentials", "SSLConfig", "SSLCheckServerIdentity", "Enabled" {
+		For name = "POP3Server", "POP3Port", "SMTPServer", "SMTPPort", "Credentials", "SSLConfig", "SSLCheckServerIdentity", "Enabled", "OAuth2ApplicationName", "OAuth2CallBackHandler", "OAuth2Scope", "OAuth2SessionId", "OAuth2AuthProperties" {
 			Set id = "OcuTalon.Production||"_item_"||*||"_name
 			If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
 		}
@@ -588,6 +603,7 @@ Method TestBaselineAndNewMail()
 		Set state = ..StubState()
 		Do $$$AssertEquals(state.deletes_"|"_state.uidls.%Size(), "0|5", "the stub counted 0 deletions and still holds all five emails")
 		Do $$$AssertEquals(state.user, "zzlive", "the log-in used the credential's user name")
+		Do $$$AssertEquals(state.xoauth2_"|"_state.commands.%IsDefined("USER"), "0|1", "password mode: the log-in was USER and PASS, not XOAUTH2")
 		Do $$$AssertEquals(..Seen("Baseline = 0 AND Uidl LIKE 'n%'"), 3, "control: the three new emails are recorded seen")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
@@ -916,6 +932,8 @@ Method TestToolSendReachesTheStub()
 		Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome_"|"_sent.Message, "1|sent|The email was sent.", "the owner's tool SendEmail to the saved address is sent (Q1)")
 		Set mails = ..Mails()
 		Do $$$AssertEquals(mails.%Size(), 1, "the stub holds exactly one mail")
+		Set smtp = ..SmtpState()
+		Do $$$AssertEquals(smtp.logins_"|"_smtp.xoauth2, "1|0", "password mode: the login was not XOAUTH2")
 		Set mail = mails.%Get(0)
 		Do $$$AssertEquals(mail.from_"|"_mail.to.%Get(0)_"|"_mail.to.%Size(), "zzlive@example.com|zzlive@example.com|1", "from and to the saved address")
 		Do $$$AssertEquals(mail.subject, subject, "with the subject as sent (UTF-8 kept)")
@@ -1584,16 +1602,17 @@ Method DisconnectOAuth() [ Private ]
 }
 
 /// The body of a save of the fixture mailbox with a provider, the client ID and the page origin; the client secret member is the reference, or left out when "".
-ClassMethod ProviderBody(provider As %String, uri As %String) As %DynamicObject [ Private ]
+ClassMethod ProviderBody(provider As %String, uri As %String, outgoing As %String = "") As %DynamicObject [ Private ]
 {
 	Set body = {"address": "zzlive@example.com", "incoming": (..#STUBHOST_":"_..#POP3PORT), "user": "zzlive", "signIn": (provider), "clientId": (..#OAUTHCLIENT), "origin": ("http://"_..#IRISWEB_":"_..#IRISPORT)}
 	If uri '= "" Do body.%Set("clientSecret", uri, "string")
+	If outgoing '= "" Do body.%Set("outgoing", outgoing, "string")
 	Quit body
 }
 
 /// Registers the mailbox with a provider through a real save as the fixture session's admin: the dummy client pair is told to the fake server, the dummy secret is offered
 /// to the hand-off, and the SaveSettings is submitted with origin web_admin. Answers the CommandResult.
-Method ConnectOAuth(provider As %String = "google") As OcuTalon.Msg.CommandResult [ Private ]
+Method ConnectOAuth(provider As %String = "google", outgoing As %String = "") As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set ..Owner = ..Session("owner")
 	Set ..Dummy = "Zz-live-secret-"_..Number_"-"_$Random(1000000)
@@ -1602,13 +1621,14 @@ Method ConnectOAuth(provider As %String = "google") As OcuTalon.Msg.CommandResul
 	Do $$$AssertStatusOK(sc, "the client secret is offered to the hand-off")
 	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
 	Set command.Slug = "channels"
-	Set command.Changes = ..ProviderBody(provider, uri).%ToJSON()
+	Set command.Changes = ..ProviderBody(provider, uri, outgoing).%ToJSON()
 	Set command.ActingUser = "zzlivecycle"
 	Set command.SessionRef = ..Owner
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
 	Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0)
 	Kill left
 	Do $$$AssertEquals($$$ISOK(sc)_"|"_$IsObject($Get(result)), "1|1", "the save is submitted and answered")
+	If outgoing '= "" && $IsObject($Get(result)) && result.Ok Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs(..#SENDITEM, 1), "EmailOut runs after the save")
 	Quit $Get(result)
 }
 
@@ -1751,6 +1771,10 @@ Method TestOAuthSaveSignInAndRemove()
 		Do $$$AssertTrue(##class(OcuTalon.Test.Channel.EmailOAuth).WarningCount() > warned, "the job logged the warning that the mock's endpoints are in use")
 		Set mark = {}.%FromJSON(##class(OcuTalon.Data.StatusMark).Get("emailSignIn"))
 		Do $$$AssertEquals(mark.provider_"|"_mark.signedIn, "google|0", "the mark says google, not signed in")
+		Do $$$AssertTrue(..WaitJob(), "EmailIn runs")
+		Set polled = ..WaitMark(0, "The mail sign-in is no longer valid. Sign in again in Settings > Channels > Email.")
+		Do $$$AssertEquals(polled.ok_"|"_polled.reason, "0|The mail sign-in is no longer valid. Sign in again in Settings > Channels > Email.", "its first poll, before the consent, gives the sign-in sentence")
+		Hang 1.1
 		Set check = ..SignIn("check")
 		Do $$$AssertEquals(check.Outcome_"|"_check.Data, "checked|{""signedIn"":false}", "before the consent a check says not signed in")
 		Set start = ..SignIn("start")
@@ -1936,6 +1960,331 @@ Method TestOAuthOnlineDemo()
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..Online)
+	Do ..Disconnect()
+}
+
+/// --- Story 21.8: the sign-in used by the adapters ---
+
+/// A signed-in-to-be mailbox on the fake provider: the mock reset with the dummy client and the access tokens' expires_in (when given), a real save with the provider and
+/// both servers, the rows of both items checked, the registered endpoints checked, and EmailIn's SSLConfig blanked for the plain stub. The consent is not given.
+Method OAuthMailbox(provider As %String, expiresIn As %Integer = 0) [ Private ]
+{
+	Do ..OAuthBegin()
+	Set ..WorkflowWas = ..WorkflowRequests()
+	If expiresIn Do $$$AssertTrue(..OAuthControl("mode", {"expiresIn": (expiresIn)}), "the fake server issues tokens of "_expiresIn_" seconds")
+	Set result = ..ConnectOAuth(provider, ..#STUBHOST_":"_..#SMTPPORT)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the real save with "_provider_" and an outgoing server is done")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs(..#ITEM, 1), "EmailIn runs after the save")
+	For item = ..#ITEM, ..#SENDITEM {
+		Do $$$AssertEquals(..Row(item, "OAuth2ApplicationName")_"|"_..Row(item, "OAuth2CallBackHandler"), "OcuTalonMail|OcuTalon.Channel.Email.Token", item_" has the application and the handler rows")
+		Do $$$AssertEquals(..Row(item, "OAuth2Scope")_..Row(item, "OAuth2SessionId")_..Row(item, "OAuth2AuthProperties"), "", item_" has no scope, session or auth-properties row")
+	}
+	Do ..AssertMockEndpoints(provider)
+	Do ..PlainStub()
+}
+
+/// The consent without a browser: the start address and the fake provider's steps; asserts that IRIS sends the browser to Settings with signin=1, records the sign-in with a
+/// check, and asserts that the check says signed in.
+Method ConsentNow() [ Private ]
+{
+	Set start = ..SignIn("start")
+	Do $$$AssertEquals(start.Outcome, "started", "the start is started")
+	Set status = ..Consent({}.%FromJSON(start.Data).url, .end, .page)
+	Do $$$AssertEquals(status_"|"_end, "302|http://"_..#IRISWEB_":"_..#IRISPORT_"/ocutalon/#/settings/channels?signin=1", "IRIS exchanges the code and sends the browser to Settings > Channels")
+	Set check = ..SignIn("check")
+	Do $$$AssertEquals(check.Outcome_"|"_check.Data, "checked|{""signedIn"":true}", "a check says signed in")
+}
+
+/// A poll now, for a poll that may make no connection: the item is stopped and started, and the call answers 1 when the emailPoll mark carries a later time within PATIENCE seconds.
+Method PollEnds() As %Boolean [ Private ]
+{
+	Set earlier = ..Mark()
+	Set at = $Select($IsObject(earlier): earlier.at, 1: "")
+	While ##class(OcuTalon.Data.Time).NowUtc() = at {
+		Hang 0.1
+	}
+	Set item = "OcuTalon.Production||"_..#ITEM
+	Set sc = ##class(Ens.Director).TempStopConfigItem(item, 1)
+	Set sc2 = ##class(Ens.Director).TempStopConfigItem(item, 0)
+	Set end = $ZHorolog + ..#PATIENCE
+	While $ZHorolog < end {
+		Set mark = ..Mark()
+		If $IsObject(mark) && (mark.at '= at) Quit
+		Hang 0.3
+	}
+	Quit $$$ISOK(sc) && $$$ISOK(sc2) && $IsObject(mark) && (mark.at '= at)
+}
+
+/// The number of messages whose body class is IRIS's Workflow request for an authorization (the request that IRIS's own handler raises to ask a person to sign in).
+ClassMethod WorkflowRequests() As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName [ 'OAuth2Request'")
+	If result.%SQLCODE < 0 Quit -1
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// The Workflow requests made since OAuthMailbox began the case.
+Method NewWorkflowRequests() As %Integer [ Private ]
+{
+	Quit ..WorkflowRequests() - ..WorkflowWas
+}
+
+/// The scope of the mailbox's token row, read in %SYS.
+ClassMethod TokenScope() As %String [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	Set token = ##class(OAuth2.AccessToken).OpenForSession("OcuTalonMail", "OcuTalonMail")
+	Quit $Select($IsObject(token): token.Scope, 1: "<no row>")
+}
+
+/// The page's signedIn for the saved provider, as the REST surface shows it.
+ClassMethod PageSignedIn() As %Boolean [ Private ]
+{
+	Quit ''##class(OcuTalon.Core.SettingsOps).Values().sections.channels.signedIn
+}
+
+/// Epics AC 1 (token use), the Integration AC: the real EmailIn and EmailOut in the running production log in with XOAUTH2 and the token that IRIS's client holds, through the
+/// real handler and the real adapters' OAuth2 settings, against the stubs that accept only an issued token. New mail becomes Items, and a tool send reaches the stub with its
+/// Delivery row.
+Method TestOAuthPollAndSendWithTheToken()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..Mailbox([(..Mail("t1", "zz baseline one")), (..Mail("t2", "zz baseline two"))])
+		Do ..OAuthMailbox("google")
+		Do ..ConsentNow()
+		Do $$$AssertTrue(..Poll(), "the first poll is made")
+		Set mark = ..WaitMark(1)
+		Do $$$AssertEquals(mark.ok_"|"_mark.reason, "1|", "it is ok: the mailbox was read with the sign-in")
+		Set pop = ..StubState()
+		Do $$$AssertEquals(pop.logins_"|"_pop.xoauth2_"|"_pop.xoauth2Refused_"|"_pop.user, "1|1|0|zzlive", "the POP3 stub recorded one XOAUTH2 login for the saved user name")
+		Do $$$AssertEquals(pop.commands.%IsDefined("USER")_"|"_pop.commands.%IsDefined("PASS"), "0|0", "and no USER or PASS")
+		Set decisions = ..Decisions()
+		Hang 2
+		Do $$$AssertEquals(..Decisions(), decisions, "the first poll baselined: the mail that was there made no Item")
+		Do ..AddMail([(..Mail("t3", "zz new one", "first text")), (..Mail("t4", "zz new two", "second text"))])
+		Do $$$AssertTrue(..Poll(), "a poll after two new emails")
+		Do $$$AssertEquals(..WaitDecisions(decisions + 2), decisions + 2, "the two new emails became Items with a decision each")
+		Set pop = ..StubState()
+		Do $$$AssertEquals(pop.logins_"|"_pop.xoauth2_"|"_pop.xoauth2Refused, "2|2|0", "the second poll logged in with XOAUTH2 again")
+		Set row = ..TokenRow()
+		Do $$$AssertEquals($Piece(row, "|", 1, 3)_"|"_$Extract($Piece(row, "|", 4), 1, 8), "1|1||mock-at-", "IRIS's token row holds the fake server's access token and a refresh token, and no error")
+		Set mock = ..OAuthMock()
+		Do $$$AssertEquals(mock.issued_"|"_mock.refreshed_"|"_mock.token.%Size(), "1|0|1", "the token was issued once and never refreshed")
+		// the send
+		Set subject = "zz oauth send"
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", subject, "zz oauth text")
+		Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome_"|"_sent.Message, "1|sent|The email was sent.", "the owner's tool send is sent (Q1)")
+		Set smtp = ..SmtpState()
+		Do $$$AssertEquals(smtp.messages.%Size()_"|"_smtp.logins_"|"_smtp.xoauth2_"|"_smtp.xoauth2Refused_"|"_smtp.user, "1|1|1|0|zzlive", "the SMTP stub holds the mail, after one XOAUTH2 login for the saved user name")
+		Do $$$AssertEquals(smtp.messages.%Get(0).subject_"|"_smtp.messages.%Get(0).to.%Get(0), subject_"|zzlive@example.com", "the mail is the one that was sent, to the saved address")
+		Do $$$AssertEquals(..Deliveries(..Owner), 1, "with its Delivery row")
+		Do $$$AssertEquals(..NewWorkflowRequests(), 0, "and IRIS raised no Workflow request")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// Epics AC 2, first half: a token that has expired is refreshed by IRIS with no admin action, over the fake server's refresh grant with the client pair, and the next poll and
+/// the next send log in with the new token.
+Method TestOAuthRefreshWithoutTheAdmin()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..Mailbox([(..Mail("r1", "zz baseline"))])
+		Do ..OAuthMailbox("google", 2)
+		Do ..ConsentNow()
+		Do $$$AssertTrue(..Poll(), "a poll with the fresh token")
+		Do ..WaitMark(1)
+		Set first = ..TokenRow()
+		Do $$$AssertEquals(..OAuthMock().refreshed, 0, "no refresh yet")
+		Hang 4
+		Set expired = ##class(%Net.POP3).%New()
+		Set sc = expired.ConnectPort(..#STUBHOST, ..#POP3PORT, "zzlive", "", $Piece(first, "|", 4))
+		Do $$$AssertStatusNotOK(sc, "control: the POP3 stub refuses the token that has expired, so only a refreshed one can log in")
+		Set refusedBefore = ..StubState().xoauth2Refused
+		Do $$$AssertTrue(..Poll(), "a poll after the token expired")
+		Set mark = ..WaitMark(1)
+		Do $$$AssertEquals(mark.ok_"|"_mark.reason, "1|", "it is ok: no admin action was needed")
+		Set mock = ..OAuthMock()
+		Do $$$AssertEquals(mock.refreshed, 1, "the fake server answered one refresh")
+		Set grants = ""
+		For i = 0:1:mock.token.%Size() - 1 {
+			Set grants = grants_$Select(grants = "": "", 1: ",")_mock.token.%Get(i).grantType_":"_mock.token.%Get(i).secretMatched_":"_mock.token.%Get(i).refreshOk
+		}
+		Do $$$AssertEquals(grants, "authorization_code:1:0,refresh_token:1:1", "as a refresh_token grant with the client pair and a good refresh token")
+		Set second = ..TokenRow()
+		Do $$$AssertEquals($Piece(second, "|", 1, 3), "1|1|", "the token row holds an access token and a refresh token, and no error")
+		Do $$$AssertTrue(($Piece(second, "|", 4) '= $Piece(first, "|", 4)) && ($Extract($Piece(second, "|", 4), 1, 8) = "mock-at-"), "the access token is a new one")
+		Do $$$AssertEquals($Piece(second, "|", 5), $Piece(first, "|", 5), "and the refresh token is the one it was")
+		Set pop = ..StubState()
+		Do $$$AssertEquals(pop.logins_"|"_pop.xoauth2_"|"_(pop.xoauth2Refused - refusedBefore), "2|2|0", "both polls logged in with XOAUTH2, and the stub (which accepts only an unexpired token) refused neither")
+		// the send after another expiry
+		Hang 4
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz refresh send", "zz")
+		Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome, "1|sent", "a send after the token expired again is sent")
+		Do $$$AssertEquals(..OAuthMock().refreshed, 2, "after a second refresh")
+		Set smtp = ..SmtpState()
+		Do $$$AssertEquals(smtp.messages.%Size()_"|"_smtp.xoauth2_"|"_smtp.xoauth2Refused, "1|1|0", "and the SMTP stub took one XOAUTH2 login with the new token")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// Epics AC 2, second half: a grant revoked at the provider fails the poll with the sign-in reason, whether the access token has expired (IRIS's refresh is answered
+/// invalid_grant) or not (the stub refuses the login); no Item, no Workflow request, the page says not signed in, and a send is failed with the sign-in message and sends nothing.
+Method TestOAuthRevokedGrant()
+{
+	If '..Guard() Quit
+	Try {
+		Set signIn = "The mail sign-in is no longer valid. Sign in again in Settings > Channels > Email."
+		Set message = "The mail sign-in is no longer valid, so the email wasn't sent. Sign in again in Settings > Channels > Email."
+		Do ..Mailbox([(..Mail("v1", "zz baseline"))])
+		Do ..OAuthMailbox("google", 2)
+		Do ..ConsentNow()
+		Do $$$AssertTrue(..Poll(), "a poll while signed in")
+		Do ..WaitMark(1)
+		Do $$$AssertEquals(..PageSignedIn(), 1, "the page says signed in")
+		Set decisions = ..Decisions()
+		// the token has expired and the grant is revoked
+		Do $$$AssertTrue(..OAuthControl("revoke", {}), "the grant is revoked at the provider")
+		Do ..AddMail([(..Mail("v2", "zz would be new"))])
+		Hang 4
+		Do $$$AssertTrue(..PollEnds(), "a poll after the token expired")
+		Set mark = ..WaitMark(0, signIn)
+		Do $$$AssertEquals(mark.ok_"|"_mark.reason, "0|"_signIn, "it fails with the sign-in sentence: the mailbox counts as not checked")
+		Set row = ..TokenRow()
+		Do $$$AssertEquals($Piece(row, "|", 1)_"|"_($Piece(row, "|", 3) '= ""), "0|1", "IRIS's token row has an error and no access token")
+		Set mock = ..OAuthMock()
+		Do $$$AssertEquals(mock.refreshed_"|"_mock.token.%Get(mock.token.%Size() - 1).grantType_"|"_mock.token.%Get(mock.token.%Size() - 1).refreshOk, "0|refresh_token|0", "the refresh was asked of the fake server and refused (invalid_grant)")
+		Do $$$AssertEquals(..PageSignedIn(), 0, "the page says not signed in")
+		Hang 2
+		Do $$$AssertEquals(..Decisions(), decisions, "no Item was made")
+		Do $$$AssertEquals(..NewWorkflowRequests(), 0, "and no Workflow request was raised")
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz after revoke", "zz")
+		Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome_"|"_sent.Message, "0|failed|"_message, "a send answers failed with the sign-in message (T2)")
+		Do $$$AssertEquals(..SmtpState().messages.%Size()_"|"_..Deliveries(..Owner), "0|0", "no mail was sent and there is no Delivery row")
+		Do $$$AssertEquals(..NewWorkflowRequests(), 0, "and the send raised no Workflow request either")
+		// signed in again; the grant is revoked while the access token is still valid
+		Hang 1.1
+		Do $$$AssertTrue(..OAuthControl("mode", {"expiresIn": 3600}), "tokens issued from now on last an hour")
+		Do ..ConsentNow()
+		Do $$$AssertTrue(..Poll(), "a poll after signing in again")
+		Do ..WaitMark(1)
+		Do $$$AssertEquals(..PageSignedIn(), 1, "signing in again makes the page say signed in")
+		Do $$$AssertEquals(..WaitDecisions(decisions + 1), decisions + 1, "and the email that waited during the outage is read now: one Item")
+		Set decisions = decisions + 1
+		Do $$$AssertTrue(..OAuthControl("revoke", {}), "the grant is revoked again, with the access token valid")
+		Set refused = ..StubState().xoauth2Refused
+		Do $$$AssertTrue(..Poll(), "a poll with a token that the provider no longer accepts")
+		Set mark = ..WaitMark(0, signIn)
+		Do $$$AssertEquals(mark.ok_"|"_mark.reason, "0|"_signIn, "it fails with the same sentence")
+		Do $$$AssertEquals(..StubState().xoauth2Refused, refused + 1, "after the stub refused the XOAUTH2 login")
+		Do $$$AssertEquals(..PageSignedIn(), 0, "the page says not signed in")
+		Hang 2
+		Do $$$AssertEquals(..Decisions(), decisions, "still no Item")
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz after revoke two", "zz")
+		Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome_"|"_sent.Message, "0|failed|"_message, "a send fails with the sign-in message")
+		Do $$$AssertEquals(..SmtpState().messages.%Size()_"|"_..Deliveries(..Owner)_"|"_..NewWorkflowRequests(), "0|0|0", "no mail, no Delivery row and no Workflow request")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// DW-1179: a provider-mode mailbox that has not been signed in yet fails its poll with the sign-in sentence, not the refused-login sentence, makes no connection and raises no
+/// Workflow request; a send fails with the sign-in message.
+Method TestOAuthNotSignedInYet()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..Mailbox([(..Mail("n1"))])
+		Do ..OAuthMailbox("google")
+		Do $$$AssertTrue(..PollEnds(), "a poll before the consent")
+		Set mark = ..WaitMark(0, "The mail sign-in is no longer valid. Sign in again in Settings > Channels > Email.")
+		Do $$$AssertEquals(mark.ok_"|"_mark.reason, "0|The mail sign-in is no longer valid. Sign in again in Settings > Channels > Email.", "it fails with the sign-in sentence")
+		Do $$$AssertTrue(mark.reason '= ..#REFUSED, "and not with the refused-login sentence")
+		Set pop = ..StubState()
+		Do $$$AssertEquals(pop.connections_"|"_pop.logins_"|"_pop.xoauth2Refused, "0|0|0", "no connection was made, so no USER and PASS reached the stub")
+		Do $$$AssertEquals(..NewWorkflowRequests(), 0, "no Workflow request was raised")
+		Do $$$AssertEquals(..PageSignedIn(), 0, "the page says not signed in")
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz before consent", "zz")
+		Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome_"|"_sent.Message, "0|failed|The mail sign-in is no longer valid, so the email wasn't sent. Sign in again in Settings > Channels > Email.", "a send fails with the sign-in message")
+		Set smtp = ..SmtpState()
+		Do $$$AssertEquals(smtp.connections_"|"_smtp.messages.%Size()_"|"_..Deliveries(..Owner)_"|"_..NewWorkflowRequests(), "0|0|0|0", "with no connection, no mail, no Delivery row and no Workflow request")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// Microsoft's token answer leaves out offline_access (the fake server copies the documented behaviour): the poll still succeeds, because no scope row makes IRIS check one.
+Method TestOAuthMicrosoftScope()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..Mailbox([(..Mail("m1"))])
+		Do ..OAuthMailbox("microsoft")
+		Do ..ConsentNow()
+		Do $$$AssertEquals(..TokenScope(), "https://outlook.office.com/POP.AccessAsUser.All https://outlook.office.com/SMTP.Send", "the token row's scope leaves out offline_access, as the fake Microsoft answered")
+		Do $$$AssertTrue(..Poll(), "a poll is made")
+		Set mark = ..WaitMark(1)
+		Do $$$AssertEquals(mark.ok_"|"_mark.reason, "1|", "it is ok")
+		Set pop = ..StubState()
+		Do $$$AssertEquals(pop.xoauth2_"|"_pop.xoauth2Refused, "1|0", "with one XOAUTH2 login")
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz microsoft", "zz")
+		Do $$$AssertEquals(sent.Outcome, "sent", "and a send is sent")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// The leak AC: after a sign-in, polls, a refresh and a send, the access tokens and the refresh token are in IRIS's token row and nowhere else.
+Method TestOAuthTokenOnlyInTheTokenStore()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..Mailbox([(..Mail("l1", "zz baseline"))])
+		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Do ..OAuthMailbox("google", 2)
+		Do ..ConsentNow()
+		Set first = ..TokenRow()
+		Do $$$AssertTrue(..Poll(), "a first poll")
+		Do ..AddMail([(..Mail("l2", "zz new"))])
+		Do $$$AssertTrue(..Poll(), "a second poll")
+		Hang 4
+		Do $$$AssertTrue(..Poll(), "a third poll, after the token expired: IRIS refreshes it")
+		Do ..WaitMark(1)
+		Set second = ..TokenRow()
+		Do $$$AssertEquals(..OAuthMock().refreshed, 1, "control: one refresh happened")
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz leak send", "zz")
+		Do $$$AssertEquals(sent.Outcome, "sent", "and a send is sent")
+		Do $$$AssertTrue(($Piece(first, "|", 4) '= $Piece(second, "|", 4)) && ($Piece(first, "|", 4) '= "") && ($Piece(second, "|", 4) '= "") && ($Piece(second, "|", 5) '= ""), "control: there are two access tokens and a refresh token to look for")
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings")
+		Set mock = ..OAuthMock().%ToJSON()_..StubState().%ToJSON()_..SmtpState().%ToJSON()
+		Set values = ##class(OcuTalon.Core.SettingsOps).Values().%ToJSON()
+		Set marks = ##class(OcuTalon.Data.StatusMark).Get("emailPoll")_##class(OcuTalon.Data.StatusMark).Get("emailSignIn")
+		Set answers = sent.Message_sent.Data
+		For what = $ListBuild("the first access token", $Piece(first, "|", 4)), $ListBuild("the refreshed access token", $Piece(second, "|", 4)), $ListBuild("the refresh token", $Piece(second, "|", 5)) {
+			Set text = $List(what, 2), label = $List(what, 1)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.SaveSettings", "Changes", text)_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.MailSignIn", "PageOrigin", text)_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.SendEmail", "Text", text)_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.SendEmail", "Subject", text), "0000", "no command message holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", text), 0, "no Ens.Util.Log row holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens.MessageHeader", "Description", text), 0, "no message header holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Data.Delivery", "ChannelMessageId", text), 0, "no Delivery row holds "_label)
+			Do $$$AssertEquals(entries.%ToJSON() [ text, 0, "no Settings audit entry holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(text), "", "no ^OcuTalon* global holds "_label)
+			Do $$$AssertEquals(..IsclogHolds(text), 0, "^ISCLOG holds nothing of "_label)
+			Do $$$AssertEquals(..SysAuditHolds(text), 0, "no IRIS audit entry holds "_label)
+			Do $$$AssertEquals(mock_values_marks_answers [ text, 0, "neither the stubs' and fake server's state, nor the page's values, the status marks or the answers hold "_label)
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
 	Do ..Disconnect()
 }
 

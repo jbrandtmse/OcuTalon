@@ -1,5 +1,6 @@
-// Tests of the POP3 stub of the CI mock (Story 21.2; AD-22): the commands, the control routes, the failure modes, the rule that DELE is
-// counted and never applied, and the rule that a password is never stored, logged or answered. Each test starts its own server on
+// Tests of the POP3 stub of the CI mock (Stories 21.2 and 21.8; AD-22): the commands, AUTH XOAUTH2 (accepted for an issued token, refused for an unknown,
+// expired or revoked one, a malformed frame and the failure mode auth; the token never stored), the control routes, the failure modes, the rule that
+// DELE is counted and never applied, and the rule that a password is never stored, logged or answered. Each test starts its own server on
 // 127.0.0.1 with the OS picking both ports and stops it afterwards (helpers.mjs). The password is built at run time. Needs Node 24
 // and nothing else.
 
@@ -9,7 +10,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from '../mail.mjs';
-import { spawnServer } from './helpers.mjs';
+import { oauthSession, spawnServer } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SERVER = path.join(HERE, '..', 'server.mjs');
@@ -25,7 +26,7 @@ async function withStub(fn) {
       const res = await fetch(`${base}/_mock/mail/${route}`, { method: verb, headers: body === undefined ? {} : { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
       return { status: res.status, json: await res.json() };
     };
-    await fn({ control, port: pop.port, s });
+    await fn({ control, port: pop.port, s, oauth: oauthSession(base) });
   } finally {
     s.child.kill();
     await s.exited;
@@ -297,5 +298,87 @@ test('the password is never stored, logged or answered', async () => {
     assert.equal(state.json.logins, 1);
     assert.equal(s.stdout().includes(SECRET), false);
     assert.equal(s.stderr().includes(SECRET), false);
+  });
+});
+
+const frame = (user, token) => Buffer.from(`user=${user}\x01auth=Bearer ${token}\x01\x01`, 'utf8').toString('base64');
+
+// xoauth2(port, response): a client that asks AUTH XOAUTH2 and answers the "+ " with the response; answers {challenge, final, c}.
+async function xoauth2(port, response) {
+  const c = client(port);
+  assert.match(await c.line(), /^\+OK/);
+  const challenge = await c.send('AUTH XOAUTH2');
+  const final = await c.send(response);
+  return { challenge, final, c };
+}
+
+test('AUTH XOAUTH2 answers "+ ", logs in for an issued token with the user of the frame, and keeps neither the token nor a password', async () => {
+  await withStub(async ({ control, port, s, oauth }) => {
+    await control('mailbox', { messages: [{ uidl: 'u-1' }] });
+    const { accessToken } = await oauth.issue();
+    const { challenge, final, c } = await xoauth2(port, frame('owner@example.com', accessToken));
+    assert.equal(challenge, '+ ');
+    assert.match(final, /^\+OK/);
+    assert.match(await c.send('STAT'), /^\+OK 1 /);
+    c.close();
+    const state = (await control('state', undefined, 'GET')).json;
+    assert.deepEqual([state.logins, state.xoauth2, state.xoauth2Refused, state.user], [1, 1, 0, 'owner@example.com']);
+    assert.equal(state.commands.USER, undefined);
+    assert.equal(state.commands.PASS, undefined);
+    for (const text of [JSON.stringify(state), s.stdout(), s.stderr()]) assert.equal(text.includes(accessToken), false);
+  });
+});
+
+test('AUTH XOAUTH2 is refused for an unknown token, a malformed frame and the failure mode auth, and the session is not logged in', async () => {
+  await withStub(async ({ control, port, oauth }) => {
+    const { accessToken } = await oauth.issue();
+    for (const response of [frame('owner@example.com', 'mock-at-never-issued'), 'bm90IGEgZnJhbWU=', frame('owner@example.com', '')]) {
+      const { final, c } = await xoauth2(port, response);
+      assert.match(final, /^-ERR \[AUTH\]/);
+      assert.match(await c.send('STAT'), /^-ERR/);
+      c.close();
+    }
+    await control('failure', { mode: 'auth' });
+    const denied = await xoauth2(port, frame('owner@example.com', accessToken));
+    assert.match(denied.final, /^-ERR \[AUTH\]/);
+    denied.c.close();
+    const state = (await control('state', undefined, 'GET')).json;
+    assert.deepEqual([state.logins, state.xoauth2, state.xoauth2Refused], [0, 0, 4]);
+  });
+});
+
+test('AUTH XOAUTH2 is refused for an expired token and for a revoked one, and works again for a token issued afterwards', async () => {
+  await withStub(async ({ control, port, oauth }) => {
+    const short = await oauth.issue('google', 1);
+    await new Promise((resolve) => setTimeout(resolve, 2100));
+    const expired = await xoauth2(port, frame('owner@example.com', short.accessToken));
+    assert.match(expired.final, /^-ERR \[AUTH\]/);
+    expired.c.close();
+    const long = await oauth.issue('google', 3600);
+    await oauth.control('revoke');
+    const revoked = await xoauth2(port, frame('owner@example.com', long.accessToken));
+    assert.match(revoked.final, /^-ERR \[AUTH\]/);
+    revoked.c.close();
+    const again = await oauth.issue('google', 3600);
+    const ok = await xoauth2(port, frame('owner@example.com', again.accessToken));
+    assert.match(ok.final, /^\+OK/);
+    ok.c.close();
+    const state = (await control('state', undefined, 'GET')).json;
+    assert.deepEqual([state.logins, state.xoauth2, state.xoauth2Refused], [1, 1, 2]);
+  });
+});
+
+test('a password login is unchanged by XOAUTH2 and counts no XOAUTH2 login; reset clears the XOAUTH2 counts', async () => {
+  await withStub(async ({ control, port, oauth }) => {
+    const c = await login(port);
+    c.close();
+    const { accessToken } = await oauth.issue();
+    (await xoauth2(port, frame('owner@example.com', accessToken))).c.close();
+    (await xoauth2(port, frame('owner@example.com', 'mock-at-never-issued'))).c.close();
+    const state = (await control('state', undefined, 'GET')).json;
+    assert.deepEqual([state.logins, state.xoauth2, state.xoauth2Refused], [2, 1, 1]);
+    await control('reset');
+    const clear = (await control('state', undefined, 'GET')).json;
+    assert.deepEqual([clear.logins, clear.xoauth2, clear.xoauth2Refused], [0, 0, 0]);
   });
 });

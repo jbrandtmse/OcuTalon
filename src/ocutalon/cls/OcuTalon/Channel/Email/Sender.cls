@@ -4,7 +4,7 @@ Include Ensemble
 /// address of every recipient that failed and sets the business host's Retry on a connect error, so that a send could repeat after DATA; this
 /// adapter sends once and logs nothing. Its settings are the parent's: SMTPServer, SMTPPort, Credentials (the Interoperability credential
 /// OcuTalonMail), SSLConfig (OcuTalonClient for implicit TLS, OcuTalonClient* for STARTTLS) and SSLCheckServerIdentity, which the product writes as
-/// 1 and OnInit forces to 1; the OAuth2 settings stay for Story 21.3.
+/// 1 and OnInit forces to 1, and the OAuth2 settings of Story 21.8.
 /// The transport is TLS only (V7, ruling c). Each send, in order:
 ///   - Transport decides how to connect: "tls" when SSLConfig is exactly OcuTalonClient or OcuTalonClient* (with the server's host name checked),
 ///     "plain" only when PlainAllowed holds (the CI-only environment variable OCUTALON_TEST_PLAIN_SMTP is 1 AND the server host is exactly
@@ -12,12 +12,15 @@ Include Ensemble
 ///     connection is made. No setting, row, route or form value can switch plain on;
 ///   - the credential OcuTalonMail is read again (never kept from an earlier send), so that a changed password applies at the next send; with no
 ///     credential or no user name the send fails (SMTPAUTHFailed) before any connection is made;
+///   - with OAuth2ApplicationName set (a Google or Microsoft 365 sign-in) the handler OAuth2CallBackHandler (Channel.Email.Token) gives the access token,
+///     which IRIS renews when it has expired, and the login is AUTH XOAUTH2 with the credential's user name; a token that cannot be had fails the send
+///     (SMTPAUTHFailed). The token is held in the authenticator for that send only and is emptied after it, whatever the outcome;
 ///   - the message goes to %Net.SMTP once: ContinueAfterBadSend is 0 (a rejected recipient is the whole send's failure, no partial send) and a
 ///     failure is never repeated. Each command's timeout is TIMEOUT seconds (DATATIMEOUT for the end of the message), each under the 120 seconds that
 ///     the command gate waits; a whole send to a server that is slow at every command can still take longer than that.
 /// SendMail answers the status of %Net.SMTP, and Classify says what a status means for the person: unreachable (the server could not be reached or
 /// used: connection, TLS, STARTTLS, a first answer that is not a greeting, a timeout), refused (the user name or password was refused or there was
-/// none), or rejected (the server answered the sender, a recipient or the message with an error).
+/// none, or in OAuth2 mode the token could not be had or was refused), or rejected (the server answered the sender, a recipient or the message with an error).
 Class OcuTalon.Channel.Email.Sender Extends EnsLib.EMail.OutboundAdapter
 {
 
@@ -107,12 +110,22 @@ Method SendMail(pMailMessage As %Net.MailMessage, Output pFailedRecipients As %L
 	Set ..SMTP.ContinueAfterBadSend = 0
 	If ..OAuth2ApplicationName '= "" {
 		Set granted = 0, token = ""
-		Set sc = $ClassMethod(..OAuth2CallBackHandler, "OnGetAccessToken", $This, ..OAuth2GrantType, ..OAuth2ApplicationName, ..OAuth2SessionId, ..%CredentialsObj.Username, ..OAuth2Scope, ..OAuth2AuthProperties, ..OAuth2GrantTypeSpecific, .granted, .token)
-		If $$$ISERR(sc) Quit $$$ERROR($$$SMTPAUTHFailed)
+		Try {
+			Set sc = $ClassMethod(..OAuth2CallBackHandler, "OnGetAccessToken", $This, ..OAuth2GrantType, ..OAuth2ApplicationName, ..OAuth2SessionId, ..%CredentialsObj.Username, ..OAuth2Scope, ..OAuth2AuthProperties, ..OAuth2GrantTypeSpecific, .granted, .token)
+		} Catch exception {
+			Set sc = exception.AsStatus(), token = ""
+		}
+		If $$$ISERR(sc) || '$Get(granted) || (token = "") Quit $$$ERROR($$$SMTPAUTHFailed)
 		Set ..SMTP.authenticator.AccessToken = token
+		Kill token
 	}
-	Set sc = ..SMTP.Send(pMailMessage)
-	If $$$ISERR(sc) && (..OAuth2ApplicationName '= "") Set ..SMTP.authenticator.AccessToken = ""
+	Try {
+		Set sc = ..SMTP.Send(pMailMessage)
+	} Catch exception {
+		If ..OAuth2ApplicationName '= "" Set ..SMTP.authenticator.AccessToken = ""
+		Throw exception
+	}
+	If ..OAuth2ApplicationName '= "" Set ..SMTP.authenticator.AccessToken = ""
 	Quit sc
 }
 

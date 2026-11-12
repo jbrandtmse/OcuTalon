@@ -85,8 +85,8 @@
 #   admin-commands the OCUTALON and %SYS terminal sessions and the password line, as the README walkthrough ran them
 #   after-start-log  the README's after-start log command names the path that docker/after-start.sh writes, and says which lines to
 #                  look for (the walkthrough ran it)
-#   dev-only       no ##class(, class name or error code outside the section "For admins and developers", except the IPM load
-#                  line of "Install it with IPM", word for word (Story 11.24)
+#   dev-only       no ##class(, class name or error code outside the sections "For admins and developers" and "Gmail and Microsoft 365",
+#                  except the IPM load line of "Install it with IPM", word for word (Story 11.24)
 #   public-text    the not-affiliated note, the BMAD Method and Claude Code credit, the licence pointers; OpenClaw only in the
 #                  note; no other model provider, "from your phone", "per step", private infrastructure or IPv4 address
 #   telegram-section  the section "Telegram" is there after "Sign in" and before "Stop, start and update", with its five numbered steps and
@@ -1168,13 +1168,13 @@ chk_must_scan() {
   ' "$1"
 }
 
-# dev-only: file:line of each line outside the H2 section "For admins and developers" with a ##class( call, a class name (a dotted
+# dev-only: file:line of each line outside the H2 sections "For admins and developers" and "Gmail and Microsoft 365" (which names the provider consoles' own settings) with a ##class( call, a class name (a dotted
 # name whose parts start with an upper-case letter, a leading % allowed), an ERROR #<digits> code or an <UPPER> error name.
 # The IPM load line (IPM_LOAD) is exempt, word for word.
 dev_names() {
   awk -v ipmload="$IPM_LOAD" '
     FNR == 1 { stop = 0 }
-    /^## / { stop = ($0 == "## For admins and developers") }
+    /^## / { stop = ($0 == "## For admins and developers" || $0 == "## Gmail and Microsoft 365") }
     stop { next }
     $0 == ipmload { next }
     /##class\(/ || /ERROR #[0-9]+/ || /<[A-Z][A-Z][A-Z]+>/ || /(^|[^A-Za-z0-9_])%?[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)+/ { print FILENAME ":" FNR }
@@ -1495,7 +1495,7 @@ chk_product_links() {
 
 # readme-links (Design Notes 8 and 9)
 # Any edit to the ALLOWED_HOSTS line below must update the no-outward allowance in release/checklist.sh in the same commit.
-ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com community.intersystems.com openexchange.intersystems.com'
+ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com community.intersystems.com openexchange.intersystems.com mail.google.com'
 URL_RE='https?://[^][:space:])>"<`]+'
 # url_allowed <url> [extra hosts]: the allow-list, plus the extra hosts (space separated) when given.
 url_allowed() {

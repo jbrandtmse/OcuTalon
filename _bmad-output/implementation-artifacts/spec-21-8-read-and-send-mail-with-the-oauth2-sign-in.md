@@ -2,7 +2,8 @@
 title: 'Story 21.8: Read and send mail with the OAuth2 sign-in'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'acb7c2e1a9bb3d9ad9c8e3f1aa91f6c91cab1d38'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -10,7 +11,14 @@ context:
   - '{project-root}/_bmad-output/implementation-artifacts/spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-21-6-send-email-over-smtp.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      A real provider may answer a rejected XOAUTH2 token with a continuation challenge (POP3 "+ <base64 JSON>", SMTP "334 <json>") instead of the plain -ERR or 535 that the CI mock answers, so the reason could be "couldn't reach" instead of the sign-in sentence.
+    evidence: |-
+      %Net.POP3 turns any non-+OK reply to the token into a MailError(line), and Adapter.ConnectReason gives REASONREFUSED (and so REASONSIGNIN) only when the text holds ": -ERR". Both stubs and the EmailIn unit row use the -ERR form. What Gmail and Microsoft 365 send after a rejected token on POP3 and SMTP was not measured (inference); a real-provider run or the providers' protocol documentation settles it. No real provider may be used in a test or CI run.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Channel/Email/Adapter.cls ConnectReason; ci/mock/mail.mjs, ci/mock/smtp.mjs
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -95,6 +103,43 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-12 — Review pass
+- verdicts: 32 findings — high 0, medium 4, low 25, false 1, maybe-false 2
+- findings:
+  - `[low]` `[reject]` Blind 1: a refresh that failed on a network or 5xx error reads as a withdrawn sign-in — spec-bound: Design Notes decision (5) and T1 define one reason for a token that cannot be had; a transient outage waits for the next poll like any other failed one.
+  - `[low]` `[reject]` Blind 2: a refused login for a user name that is not the signed-in account reads as "sign in again" — same decision (5); one reason by the approved text.
+  - `[maybe-false]` `[defer]` Blind 3: the stubs answer a rejected token with a plain -ERR/535, real providers may send a continuation challenge — deferred (frontmatter `deferred`), settled only by a real provider or its protocol documentation.
+  - `[low]` `[reject]` Blind 4: the POP3 stub does not take an initial response on the AUTH line — IRIS's %Net.POP3 always waits for "+", so the form never occurs; a guard would add complexity for no reachable case.
+  - `[low]` `[reject]` Blind 5: the mock never rotates the refresh token — IRIS's own `ProcessResponse` stores a rotated one, the path is IRIS's, not OcuTalon's.
+  - `[medium]` `[patch]` Blind 6: `Sender.SendMail` clears the authenticator token only on the normal return path — patched: `Try`/`Catch` around `SMTP.Send` clears the token and rethrows; pinned by `EmailOut` `TestSenderOAuth2Paths` (mutations recorded).
+  - `[low]` `[patch]` Blind 7: spine AD-24 sub-bullet omits that the narrower user's removal leaves `/csp/sys/oauth2` enabled — patched: one clause added; lint unchanged (same 10 baseline findings).
+  - `[low]` `[patch]` Blind 8: the Results paragraph says test-boundaries fails on the 21.4/21.5 specs, which the same diff edits — patched: the line states the passing result and the edit.
+  - `[low]` `[reject]` Blind 9: T4 in README.md breaks at the GUIDE.md move — ruled placement (gate rulings A); the move is recorded for the 0.30 integrate-forward and the anchor is pinned by `test-readme.sh` readme-links.
+  - `[low]` `[reject]` Blind 10: the Microsoft 365 steps leave gaps — T4 is approved verbatim; new wording needs a veto item.
+  - `[low]` `[reject]` Blind 11: wall-clock sleeps in the live cases — each waits for the observable (mark change, stub count) and the sleeps only cover the expiry the test creates; not met in everyday use.
+  - `[low]` `[reject]` Edge 1: any POP3 -ERR becomes REASONSIGNIN in OAuth2 mode — same as Blind 1/2 (decision 5).
+  - `[medium]` `[patch]` Edge 2: the token stays in the authenticator when `SMTP.Send` throws — same root cause as Blind 6, patched there.
+  - `[low]` `[reject]` Edge 3: `SaveEmail` feeds the derived `SignedInMark` into `RecordSignIn` — needs a failed poll, an unchanged re-save and a later recovery; the page then offers the sign-in button, which is already there (N4).
+  - `[low]` `[reject]` Edge 4: a Check after a failed poll clears the derived false until the next poll — the next poll (at most one interval) restores it; not worth a second input.
+  - `[low]` `[reject]` Edge 5: a failure in the mark's own second is ignored — recorded as Design Notes decision (14); the literal rule broke E6.
+  - `[low]` `[reject]` Edge 6: the POP3 stub takes no inline initial response — same as Blind 4.
+  - `[low]` `[reject]` Edge 7: a missing credential in OAuth2 mode reads "sign-in no longer valid" — the save always writes the user name in provider mode; not reachable by an admin.
+  - `[false]` `[reject]` Edge 8: the mock's `checkAccessToken` claim hides a grace — the contract header (`ci/mock/oauth.mjs` lines 25 and 36) names the one second of grace.
+  - `[low]` `[reject]` Edge 9: spec says "not before", code says after — decision (14); same as Edge 5.
+  - `[low]` `[reject]` Edge 10: `SignedInMark` is not a pure reader because `SaveEmail` stores its value — same as Edge 3.
+  - `[medium]` `[patch]` Edge 11: the Sender doc claims the token is emptied whatever the outcome — true after the Blind 6 patch.
+  - `[medium]` `[patch]` Verification-gap 1: no unit test for `Sender`'s OAuth2 failure paths and token clearing — patched: `EmailOut` `TestSenderOAuth2Paths` (handler ok, error, empty, throw; `SMTP.Send` throws), `EmailOutSmtp` records the held token; three mutations recorded red.
+  - `[low]` `[patch]` Verification-gap 2a: no mutation line for the Password-deletes-rows / put-back AC — patched: `OAuthRows(0)` answering "" turns `SettingsEmail` `TestProviderRows` red; line written.
+  - `[low]` `[patch]` Verification-gap 2b: no mutation line for the guide AC — patched: renaming the heading turns `test-readme.sh` red; line written.
+  - `[low]` `[reject]` Verification-gap 2c: the "finished diff has no Lane A path / grant" AC has no mutation — a structural diff-listing AC, held by `test-boundaries.sh` and the review; no runtime test can pin it.
+  - `[low]` `[patch]` Verification-gap 3: no refused-without check for the floor `%DB_OCUTALON_CODE:R` — patched: `TestRegisterNeedsEachPrivilege` also runs with the measured set and no floor (refused); mutation recorded.
+  - `[low]` `[reject]` Verification-gap 4: negative "no Item" assertions after a fixed `Hang 2` — the `emailPoll` mark assertion in the same case already fails when an Item path ran.
+  - `[low]` `[reject]` Verification-gap 5: a send slower than the 2 s expiry could refresh a third token that the leak scan does not see — rare timing, the scan covers the tokens of both polls and the same stores.
+  - `[maybe-false]` `[defer]` Verification-gap 6: the XOAUTH2 failure shape is an unchecked assumption — grouped with Blind 3, deferred.
+  - `[low]` `[patch]` Verification-gap 7: the Results line contradicts the diff — same as Blind 8.
+  - `[low]` `[reject]` Verification-gap 8: the README dev-only rule exempts the whole new section — the section names the providers' console settings; a future ##class( in an end-user section would still be caught elsewhere; not worth a finer rule.
+- Intent-alignment auditor: no findings (descriptive); its divergences (the privileges measured through the probe in a child process, the floor and removal caveats, stand-in handler in unit tests with the real chain in `EmailLive`) are the ones recorded in Design Notes "Measured" and decisions 7, 13-14.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):** AD-1 (no new command or route; `SettingsOps` is the only writer of the item rows), AD-3 (no new switching class: IRIS's own `GetAccessToken` switches to `%SYS` inside the call, just as 21.3's `Start` reaches `%SYS.OAuth2.Authorization`; `Channel.Email.OAuth` keeps its one caller and its S1 scope), AD-10 (no new tool path; the tool send keeps its AD-10 rules), AD-14 (email channel, `emailPoll` contract, the Delivery rows), AD-17 (no new audit entry: the rows follow the `email.signIn` change already audited), AD-19 (token homes; S1), AD-22 (mock; S3), AD-24 (no grant, the production as `_Ensemble`; S2), AD-25 (online demo), AD-29/AD-33 (Lane B). No AC contradicts an AD Rule. AD-19's 21.3 bullet says "OcuTalon reads only whether the row holds an access token ..., never a value, and never refreshes or revokes" and in the same bullet "Token use by the adapters, refresh and revocation are Story 21.8's". This story reads that sentence as describing 21.3's registration and state code (`Channel.Email.OAuth`), which stays as it is, and adds the adapters' token use as S1 (veto V5).
@@ -119,7 +164,24 @@ deferred: []
 
 **Measured in plan (source reads only; no runtime was started):** see the IRIS lines of the Code Map. A narrower production user's token use is expected to work without a grant, because `GetAccessToken` adds `%All` temporarily (inference; the DW-1180 AC covers registering only). Production user (DW-1180 ruling): every 21.3 register, removal, enable and state read ran as `_Ensemble`, which held `%All` on the lane-C throwaway. That proves the path, not least privilege.
 
-**Measured (Task 0, implement):** the implement stage records Task 0 (a)-(f) here, the DW-1180 list as a table (privilege | what in registering needs it | the assertion that is red without it), with `_Ensemble` named as the production user that holds `%All`.
+**Measured (Task 0, implement)** on the lane-C warm throwaway `e21s8iw` (the mock's fake provider; `_Ensemble`, the production user, held `%All` there, so every run through the production job proves that the path works and not least privilege):
+- (a) After a mock sign-in a real `EmailIn` poll got the token through `Token.OnGetAccessToken`: the POP3 stub counted one XOAUTH2 login for the saved user name (commands `AUTH` 1, `UIDL` 1, `QUIT` 1; no `USER` or `PASS`), and IRIS held one `OAuth2.AccessToken` row, application and session `OcuTalonMail` (the handler's default session; no other row).
+- (b) Refresh: the mock issued `expires_in` 2; after 4 s the next poll made IRIS post `grant_type=refresh_token` (the mock recorded `secretMatched` and `refreshOk`), the row then held a new access token and the same refresh token, and the poll was ok. IRIS counts expiry in whole seconds (`%OAuth2.Utils.TimeInSeconds` floors, and `IsExpired` is `now>Expires`), so it hands out a token for up to a second after `expires_in`; the mock therefore accepts a token for one second of grace, so that it never refuses a token that IRIS still thinks valid (from the source; a refusal in that second was not observed).
+- (c) Revoke with the token expired: the refresh was answered `invalid_grant`; the row then had `Error` `invalid_grant`, no access token and its refresh token; `IsAuthorized` returned 0 with that error; `emailPoll` was `{ok: 0, reason: REASONSIGNIN}`; and no message of a Workflow request class appeared (count 0). With the `OnNotAuthorizedGrantAuthCode` override removed IRIS's default raised such requests, which is why the four overrides exist.
+- (d) POP3: `AUTH XOAUTH2`, the stub's `+ `, one base64 line, `+OK` (state: `xoauth2` 1, `logins` 1). SMTP: EHLO `AUTH PLAIN LOGIN XOAUTH2`; an OAuth2-mode send logged in with XOAUTH2 (`xoauth2` 1); a password-mode send logged in with `logins` 1 and `xoauth2` 0, so the client still picks PLAIN (`Authenticator.Start` walks the server's list in order). A live case pins both.
+- (e) DW-1180, registering and removing the client through `EmailOAuthProbe.Register`/`Remove` with the real https endpoints (the CI switch off: with it on the call logs a warning into OcuTalon's data database and the floor would need `%DB_OCUTALON_DATA`), by the fixture user `zzOcuTalonOAuthPriv`. IRIS allows no user and role of one name (ERROR #942), so the fixture role is `zzOcuTalonOAuthPrivRole`. The floor is `%DB_OCUTALON_CODE:R` (without it the job cannot load OcuTalon's classes: `<PROTECT>` on the code database; measured by hand, not a pinned assertion). `InJob` and `OnlineDemo` are the probe's stand-ins; the real `OnlineDemo` reads `Data.Setting`, which the measurement does not cover.
+
+| Privilege | What in registering needs it | The assertion that is red without it |
+| --- | --- | --- |
+| `%Admin_OAuth2_Client:USE` | `OAuth2.ServerDefinition.Create` and `OAuth2.Client.Create` (resource required by those classes) | `Test.Channel.EmailOAuthPrivileges` `TestRegisterNeedsEachPrivilege`: "without %Admin_OAuth2_Client:USE, registering is refused" (status `ERROR #822: Access Denied`) and no client, server definition or token row is left |
+| `%DB_IRISSYS:R` | `Sys` switches to `%SYS` (`Set $NAMESPACE = "%SYS"`) | same test, "without %DB_IRISSYS:R, registering is refused" (`<PROTECT>` in `Sys` on the `%SYS` database directory) |
+
+Measured and not needed: `%Admin_Secure:USE` (register and remove succeed without it; adding it to the set turns the test red at its own refused-without-it check), `%DB_IRISSYS:RW` (read is enough; a role with `:W` alone also succeeded, unexplained and not pinned). The removal by this user succeeds but leaves the web application `/csp/sys/oauth2` enabled, because `ClientTotal`'s `SELECT COUNT(*) FROM OAuth2.Client` is refused for it (SQLCODE -99), so the "disable when no client remains" step is skipped (reported, not fixed here). Not measured: the sign-in start (it enables the web application) and the state read (`OpenForSession` checks `%Admin_Secure:USE` for a caller without `%All`; inference from the source), and the production's token use (`GetAccessToken` adds all roles temporarily; inference). No OcuTalon role or install path was changed, and no text says or implies least privilege.
+- (f) Leak scan: `TestOAuthTokenOnlyInTheTokenStore` looks for both access tokens and the refresh token, after a sign-in, three polls, a refresh and a send, in the SaveSettings, MailSignIn and SendEmail messages, `Ens.Util.Log`, `Ens.MessageHeader`, Delivery rows, the Settings audit entries, every `^OcuTalon*` global, `^ISCLOG` (default level), IRIS's audit log, the stubs' and the fake server's state, the page's values, the status marks and the answers: none holds a token.
+
+**Decided in implement:** (13) The mock's token check has one second of grace (see (b)). (14) `signedIn` is false after a poll that failed on the sign-in LATER (by the second) than the `emailSignIn` mark. The spec says "not before", which counts the same second; the existing browser case E6 (`web/e2e/settings/email.spec.ts`) failed on its final "GET says signed in" because the poll that fails just before the consent shares a second with the sign-in check, so a tie is not counted (the one-line change is `poll.at ] since` in `SettingsOps.PollFailedOnSignIn`; a failing poll in the check's own second is then missed until the next poll). (15) `EmailLive` `Disconnect` also removes rows named scope, session and auth-properties, so a failed case can never leave one. (16) T4 is in README.md after the Telegram section as `## Gmail and Microsoft 365` because GUIDE.md is not on this branch (Story 0.30 has not merged); at the 0.30 integrate-forward T4 moves to GUIDE.md after its Telegram section and README.md keeps 0.30's pointer. (17) T4 names `https://mail.google.com/`, the dotted names `OAuth2.Response.cls` and `POP.AccessAsUser.All`: `docker/tests/test-readme.sh` gets `mail.google.com` in `ALLOWED_HOSTS` (and `release/checklist.sh` its matching allowance line) and its dev-only rule exempts the section "Gmail and Microsoft 365", like "For admins and developers". (18) The adapters empty the authenticator's token after every send, success included.
+
+**Memlog line for the lead** (the memlog is not in the worktree): `uv run --no-cache _bmad/scripts/memlog.py append --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16 --type decision --text "Story 21.8 (2026-11-12): the mail items sign in with OAuth2 through System Default Settings rows OAuth2ApplicationName and OAuth2CallBackHandler (OcuTalon.Channel.Email.Token, an Ens.Util.OAuth2.Handler subclass); the token stays in IRIS's OAuth2.AccessToken and the adapter job's memory; spine AD-19, AD-24 (measured privileges, no least-privilege claim), AD-22 and AD-14 amended additively."`
 
 **Planner rulings at the spec gate (Contest Planner, owner's delegation, 2026-11-12 ~18:10Z, `prompts/gate-rulings-20261112-1810.md` A; binding):** V1-V8 APPROVED. Online demo: never runs; `/csp/sys/oauth2` stays disabled there (U-320); no least-privilege claim anywhere (AD-24 lists what was measured, nothing more). PUBLIC TEXT: T1, T2, T3 approved verbatim; T4 approved with three added sentences (a) end of the first paragraph, (b) after step 1's Redirect-address sentence, (c) end of step 2's Google part, written into T4 below verbatim; everything else in T4 verbatim. T4 goes in GUIDE.md after the Telegram section; T3's anchor `#gmail-and-microsoft-365` is checked by the guide's anchor rule. If GUIDE.md is absent on the base at implement time (0.30 not merged), T4 goes where the plan says (README, after Telegram) and moves to GUIDE.md at the 0.30 integrate-forward.
 
@@ -173,9 +235,37 @@ Run every command from the worktree root after `git rev-parse --show-toplevel` m
 - `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` (once, after S1-S4) -- `"ok": true`, no finding beyond the baseline.
 - `<vars> OCUTALON_RUN_TAG=e21s8iw ci/warm.sh down` (once, also after a failure).
 
+**Mutations (Rule 19; each applied, observed red, reverted byte-identical with `cmp`):**
+- mutation: `oauth.mjs` accepts a refresh token after `revoke` → `oauth.test.mjs` "a refresh is refused for an unknown refresh token, one of the other provider, a bad pair, and after revoke" red.
+- mutation: `checkAccessToken` ignores expiry → `oauth.test.mjs` "checkAccessToken accepts ... an expired one", `mail.test.mjs` "AUTH XOAUTH2 is refused for an expired token ..." and `smtp.test.mjs` "AUTH XOAUTH2 is answered 535 for an expired token ..." red; on the live stack (after `warm.sh down` and `up`) `EmailLive` `TestOAuthRefreshWithoutTheAdmin` red ("the POP3 stub refuses the token that has expired").
+- mutation: the `OnNotAuthorizedGrantAuthCode` override removed → `EmailToken` `TestNotAuthorizedRaisesNothing` red (the method is inherited, and its status holds IRIS's text); live, `EmailLive` `TestOAuthRevokedGrant` red (IRIS's default raised Workflow request messages: "no Workflow request was raised").
+- mutation: the online-demo check of `Token.OnGetAccessToken` replaced by `If 0` → `EmailToken` `TestOnlineDemoRefusesBeforeIris` red.
+- mutation: the handler-error branch of `Adapter.Poll` gives `REASONREFUSED` → `EmailIn` `TestOAuthReasons` red (error, empty and throw rows); the refused-login mapping `oauth && reason = REASONREFUSED` removed → `TestOAuthReasons` red (the ConnectPort -ERR row).
+- mutation: `Out.Send` answers `MESSAGEREFUSEDLOGIN` in OAuth2 mode → `EmailOut` `TestSignInMessage` red.
+- mutation: `OutRows` always takes `OAuthRows(0)` (no provider rows on EmailOut) → `SettingsEmail` `TestProviderRows` and `TestProviderRowsPutBack` red; an `OAuth2Scope` row added to `OAuthRows` → `TestProviderRows` red; `PollFailedOnSignIn` without its time test → `TestSignedInFollowsThePoll` red (the poll from before the mark and the one in the mark's second).
+- mutation: `GetDefaultSessionIdForRunningHostItem` not overridden → `EmailLive` `TestOAuthPollAndSendWithTheToken` red (no token, no login, no mail); an `OAuth2Scope` row with the Microsoft scope → `TestOAuthMicrosoftScope` red (run after restarting the SettingsOps item, because the job loads its code at its start); `$$$LOGINFO` of the token in `Token.OnGetAccessToken` → `TestOAuthTokenOnlyInTheTokenStore` red ("no Ens.Util.Log row holds the first access token").
+- mutation: `MEASURED` without `%DB_IRISSYS:R` → `EmailOAuthPrivileges` red at "with the floor and all of the measured set, registering succeeds"; `MEASURED` plus `%Admin_Secure:USE` → red at "without %Admin_Secure:USE, registering is refused".
+- mutation: `Sender.SendMail` without `|| '$Get(granted) || (token = "")` → `EmailOut` `TestSenderOAuth2Paths` red (the "empty" handler answer reaches %Net.SMTP).
+- mutation: `Sender.SendMail` without the clearing of the authenticator after the send → `EmailOut` `TestSenderOAuth2Paths` red ("and is empty after it"); without the clearing in the Catch → the same test red (the exception case).
+- mutation: `OAuthRows(0)` answers "" (no delete marks for Password) → `SettingsEmail` `TestProviderRows` red.
+- mutation: the README heading "Gmail and Microsoft 365" renamed → `docker/tests/test-readme.sh` red (readme-links, dev-only).
+- mutation: the floor check of `EmailOAuthPrivileges` run with `FLOOR` added to the resources → `TestRegisterNeedsEachPrivilege` red (registering succeeds with the floor, so the floor is needed).
+
+**Results (implement, 2026-11-12):** `node --test ci/mock/test/` 182 pass (the three files alone: 48); on the warm throwaway `e21s8iw`: `EmailToken`, `EmailIn`, `EmailOut`, `SettingsEmail`, `EmailOAuthPrivileges`, `EmailOAuth`, `SettingsApi` and `SettingsSave` pass, the six new `EmailLive` cases pass, and the 21.x regressions `TestOAuthSaveSignInAndRemove`, `TestSaveAndFirstPoll`, `TestFailedPollReasons`, `TestSendFailuresByStubMode`, `TestToolSendReachesTheStub` and `TestBaselineAndNewMail` pass. On a fresh stack `e21s8i` the browser part `live sign-in-2 --part 13/15` (E6) passes (it failed once, before decision 14). `test-readme.sh`, `test-class-rules.sh`, `test-compose-file.sh` and `test-release-checklist.sh` pass; `test-boundaries.sh` passes (its "paths" rule had failed on an absolute local path in the tracked specs of 21.4 line 190 and 21.5 line 308, not on any file of this story; the finalize stage replaced the path in those two lines with "the worktree root"). The least-privilege grep finds nothing. `lint_spine.py` reports the same 10 low-severity placeholder findings (`{time}`, `{n}`, ...) as the spine before this story, none new.
+
 **Shared surfaces:** the System Default Settings rows of `EmailIn`/`EmailOut` (`Test.Core.SettingsEmail`, `EmailLive` `TestSaveAndFirstPoll`/`TestOutgoingSave` row assertions); `SettingsOps.Values()` channels `signedIn` (`Test.Web.SettingsApi` `TestGetShape`, `SettingsEmail` `TestValues`, E6); the `emailPoll` reasons (`EmailLive` `TestFailedPollReasons`); `EmailOut`'s messages (`EmailOut`, `EmailLive` `TestSendFailuresByStubMode`); the mock's routes, EHLO line and state shapes (`ci/mock/test/*`, the EmailLive stub assertions); IRIS's `%SYS` OAuth2 objects, the `/csp/sys/oauth2` flag and the role and user lists on the throwaway (each test restores what it changed; fixture names start `zz`). Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Mail now logs in with the OAuth2 sign-in: `SettingsOps` writes `OAuth2ApplicationName`/`OAuth2CallBackHandler` for a provider (deletes them for Password, puts them back on a failed save); new `Channel.Email.Token` (an `Ens.Util.OAuth2.Handler` subclass: session `OcuTalonMail`, online demo refuses, no Workflow request); `Adapter` gives `REASONSIGNIN` (T1), `Out` gives `MESSAGESIGNIN` (T2); GET `signedIn` is false after a poll failed on the sign-in; the CI mock gained refresh, revoke, `expiresIn`, the Microsoft scope answer and XOAUTH2 on both stubs; `EmailOAuthPrivileges` lists the privileges registering needs (DW-1180; nothing granted, no least-privilege claim); T3 and T4 are in README.md (move to GUIDE.md after the Telegram section at the 0.30 integrate-forward); spine S1-S4 written.
+
+**Files changed (one line each).** `Channel/Email/Token.cls` new handler; `Adapter.cls`, `Sender.cls`, `Out.cls` sign-in reason, message and token handling; `Core/SettingsOps.cls` rows and `signedIn`; `ci/mock/oauth.mjs`, `mail.mjs`, `smtp.mjs`, `server.mjs` and their tests; `Test/Channel/EmailToken`, `EmailTokenProbe`, `EmailInHandler`, `EmailOAuthPrivileges` new; `EmailIn`, `EmailInPop3`, `EmailOut`, `EmailOutProbe`, `EmailOutSmtp`, `EmailLive`, `Test/Core/SettingsEmail` and probe extended; `README.md` T3/T4; `docker/tests/test-readme.sh` and `release/checklist.sh` allow `mail.google.com` and exempt the new section from the dev-only rule; the ARCHITECTURE-SPINE (S1-S4); the specs of 21.4 and 21.5 lose one absolute local path each (test-boundaries rule).
+
+**Review.** 32 findings (medium 4, low 25, false 1, maybe-false 2, high 0). Patches applied (3 entries): the `Sender` token clearing on an exception with `TestSenderOAuth2Paths` (medium, four findings), the floor check and three missing mutation lines plus the spine caveat and the Results line (low). Deferred: 1 (the real providers' XOAUTH2 failure shape, medium unverified). Rejected with reasons: see the Review Triage Log.
+
+**Verification.** After the last patch on the warm throwaway `e21s8iw`: `EmailOut`, `EmailToken`, `SettingsEmail`, `EmailOAuthPrivileges`, `EmailOAuth`, `EmailLive` `TestOAuthPollAndSendWithTheToken`, `TestOAuthRevokedGrant`, `TestToolSendReachesTheStub`, `TestSendFailuresByStubMode` pass; the implement pass's runs of `EmailIn`, `SettingsApi`, `SettingsSave`, the other `EmailLive` cases and E6 stand. Mock tests 48 pass; `test-boundaries.sh`, `test-readme.sh`, `test-class-rules.sh` pass; the least-privilege grep finds nothing; `lint_spine.py` shows the baseline 10 findings. Both stacks are down.
+
+**Residual risks.** The deferred XOAUTH2 failure shape; the provider console steps and the Microsoft scope answer are inference; the removal by a narrower user leaves `/csp/sys/oauth2` enabled (recorded in the spine; production removal runs as `_Ensemble`).

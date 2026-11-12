@@ -4,12 +4,18 @@ Include Ensemble
 /// records each message it is given under ^||OcuTalonEmailOutProbe("sent", n) = $ListBuild(from, to (comma-separated), subject, text, charset, multipart,
 /// parts, attachments, the value of the header X-OcuTalon-Ref) and counts the calls in ^||OcuTalonEmailOutProbe("calls"), and the FallbackReason of the newest Delivery row of channel email at
 /// the time of the call under ^||OcuTalonEmailOutProbe("claim", n). It answers by ^||OcuTalonEmailOutProbe("answer"): "" for OK, unreachable
-/// (SMTPOpen), refused (SMTPAUTHFailed), rejected (SMTPResponse, whose text holds SERVER-WORDS and an address) or throw. The product never refers to it.
+/// (SMTPOpen), refused (SMTPAUTHFailed), rejected (SMTPResponse, whose text holds SERVER-WORDS and an address) or throw. OAuth2Mode answers ^||OcuTalonEmailOutProbe("oauth") (1 stands in for an adapter
+/// with OAuth2ApplicationName set, Story 21.8). The product never refers to it.
 Class OcuTalon.Test.Channel.EmailOutProbe Extends OcuTalon.Channel.Email.Out
 {
 
 /// A held lock costs a test a second, not ten.
 Parameter CLAIMWAIT = 1;
+
+Method OAuth2Mode() As %Boolean [ Private ]
+{
+	Quit +$Get(^||OcuTalonEmailOutProbe("oauth"))
+}
 
 Method Deliver(message As %Net.MailMessage) As %Status [ Private ]
 {

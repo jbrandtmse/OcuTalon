@@ -305,7 +305,7 @@ There is no new command, grant, role, privilege, table, column, retention or web
 
 ## Verification
 
-Run every command from `/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/epic-21`, after `git rev-parse --show-toplevel` matches it.
+Run every command from the worktree root, after `git rev-parse --show-toplevel` matches it.
 - `<vars>` = `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=21 stage=<stage>'`.
 - Tags: warm `e21s5iw` and fresh `e21s5i`; QA `e21s5qw`/`e21s5q`; review `e21s5rw`/`e21s5r`. The production-changing checks (the live units) run only on the lane-C fresh throwaway `e21s5i`.
 - One command per foreground call, with `timeout: 600000`, each sized to about 150 s (the harness backgrounds a call at about 170-180 s).

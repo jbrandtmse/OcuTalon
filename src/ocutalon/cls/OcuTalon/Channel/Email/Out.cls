@@ -25,7 +25,9 @@
 ///   - the message is one text/plain part in UTF-8 with no attachment, sent once through Deliver. Success records a Data.Delivery row (owner: the
 ///     command's SessionRef, or instance when it has none; channel email; the Ref of the header as the message id; the approval's Ref for a system send) and
 ///     answers sent (Ok 1, MESSAGESENT). A failure answers failed (Ok 0) with the message of Sender.Classify's class: MESSAGEUNREACHABLE,
-///     MESSAGEREFUSEDLOGIN or MESSAGEREJECTED, and records nothing for a tool send.
+///     MESSAGEREFUSEDLOGIN or MESSAGEREJECTED, and records nothing for a tool send. With a provider sign-in (the adapter's OAuth2ApplicationName is set,
+///     Story 21.8) the refused class means that the sign-in cannot be used, so its message is MESSAGESIGNIN instead of MESSAGEREFUSEDLOGIN; a failed send
+///     of the digest path is logged by its class, as a refused one, and nothing is recorded.
 /// The third path is the daily digest (OnNotification): an OcuTalon.Msg.Notification of Kind digest that Notify routes here (rule DigestEmail). It
 /// answers nothing and always returns OK. Nothing in the Notification chooses the recipient: the email goes to the product key email.address, read from
 /// its row, and only when the Notification's SessionRef is the product key email.owner. In order:
@@ -100,6 +102,9 @@ Parameter MESSAGEREJECTED = "The mail server didn't accept the email, so it wasn
 Parameter MESSAGEUNREACHABLE = "OcuTalon couldn't reach the mail server.";
 
 Parameter MESSAGEREFUSEDLOGIN = "The mail server refused the user name or password.";
+
+/// The Message of a send that fails on the sign-in in OAuth2 mode (Public text T2).
+Parameter MESSAGESIGNIN = "The mail sign-in is no longer valid, so the email wasn't sent. Sign in again in Settings > Channels > Email.";
 
 Parameter MESSAGEUNAVAILABLE = "Email can't be connected on the online demo. Nothing was changed.";
 
@@ -186,7 +191,7 @@ Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef re
 		Quit ..Result(1, "sent", ..#MESSAGESENT)
 	}
 	Set class = ##class(OcuTalon.Channel.Email.Sender).Classify(sc)
-	Set errorMessage = $Select(class = ##class(OcuTalon.Channel.Email.Sender).#REFUSED: ..#MESSAGEREFUSEDLOGIN, class = ##class(OcuTalon.Channel.Email.Sender).#REJECTED: ..#MESSAGEREJECTED, 1: ..#MESSAGEUNREACHABLE)
+	Set errorMessage = $Select(class = ##class(OcuTalon.Channel.Email.Sender).#REFUSED: $Select(..OAuth2Mode(): ..#MESSAGESIGNIN, 1: ..#MESSAGEREFUSEDLOGIN), class = ##class(OcuTalon.Channel.Email.Sender).#REJECTED: ..#MESSAGEREJECTED, 1: ..#MESSAGEUNREACHABLE)
 	If $IsObject(claim) {
 		Set claim.FallbackReason = "failed"
 		Set saved = claim.%Save()
@@ -194,6 +199,12 @@ Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef re
 	}
 	$$$LOGWARNING("EmailOut did not send the email: "_class)
 	Quit ..Result(0, "failed", errorMessage)
+}
+
+/// 1 when the adapter signs in with OAuth2 (its OAuth2ApplicationName is set). A test subclass overrides it to stand in for the adapter.
+Method OAuth2Mode() As %Boolean [ Private ]
+{
+	Quit $IsObject(..Adapter) && (..Adapter.OAuth2ApplicationName '= "")
 }
 
 /// The one message of every path: from, the recipients (recipients(1..n)), the subject and the text as one text/plain UTF-8 part, with the header

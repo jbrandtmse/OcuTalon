@@ -1,9 +1,11 @@
 // The POP3 stub of the CI mock (Story 21.2; AD-22, Lane B mock behaviour): a plain-TCP POP3 server with a fixture mailbox and a control
 // side. It is a test fixture: no real mail server, no real credentials, no TLS. createMail() returns
 //   {listen(port, host, cb), close(), handleControl(req, res, pathname, raw), state(), reset()}.
-// The POP3 side answers USER, PASS, STAT, LIST [n], UIDL [n], TOP n m, RETR n, DELE n, NOOP, RSET and QUIT. USER and PASS are accepted
+// The POP3 side answers USER, PASS, AUTH XOAUTH2, STAT, LIST [n], UIDL [n], TOP n m, RETR n, DELE n, NOOP, RSET and QUIT. USER and PASS are accepted
 // whatever they hold (unless the failure mode says otherwise); the password is never stored, logged or echoed: the stub keeps only
-// the count of the logins that it accepted and the last user name. DELE is counted and answered +OK but never applied, so a test can
+// the count of the logins that it accepted and the last user name. AUTH XOAUTH2 (Story 21.8) answers "+ ", reads one base64 line and checks it with the
+// validator that createMail({checkAccessToken}) was given (the fake OAuth2 server's, so only an unexpired, unrevoked token passes; with none, nothing
+// passes): "+OK" logs in, anything else is "-ERR [AUTH] invalid token"; the token is checked and dropped, never stored, logged or echoed. DELE is counted and answered +OK but never applied, so a test can
 // see that a client asked for a deletion, and the mailbox stays as it is; no command changes the mailbox.
 // The control side is served by the mock's HTTP port (server.mjs routes /_mock/mail/ here):
 //   POST /_mock/mail/mailbox   {"messages":[<message>,...]}   replaces the mailbox
@@ -12,7 +14,9 @@
 //   POST /_mock/mail/failure   {"mode":"none"|"refuse"|"auth"|"error"}
 //        refuse: the connection is closed at once, with no greeting; auth: PASS is answered -ERR; error: UIDL is answered -ERR
 //   POST /_mock/mail/reset     the mailbox empty, no failure, every count 0
-//   GET  /_mock/mail/state     {"uidls":[...],"connections":n,"logins":n,"user":"<last user>","deletes":n,"failure":"<mode>","commands":{"UIDL":n,...}}
+//   GET  /_mock/mail/state     {"uidls":[...],"connections":n,"logins":n,"xoauth2":n,"xoauth2Refused":n,"user":"<last user>","deletes":n,"failure":"<mode>",
+//                              "commands":{"UIDL":n,...}}   (logins counts every accepted login, xoauth2 those that were XOAUTH2; the failure mode auth
+//                              refuses XOAUTH2 too; no token value is ever in it)
 // A <message> is {"uidl","from","subject","text","html","bytes","headers"}: uidl is required (1 to 70 printable characters, no space); text is the
 // plain body and html the HTML body (html alone makes an HTML-only message, both make multipart/alternative); bytes pads the body with filler to that total size (at
 // most 4 MiB; an HTML-only message pads its HTML body and stays HTML-only), so that a message over a size limit needs no large request. A non-ASCII subject or body is encoded as a real mail
@@ -22,6 +26,7 @@
 // Content-Transfer-Encoding), a value is a string with no CR or LF (a non-ASCII value is sent as an encoded word). Any other path is a 404.
 
 import net from 'node:net';
+import { parseXoauth2 } from './oauth.mjs';
 
 export const MAX_BYTES = 4 * 1024 * 1024;
 export const FAILURES = ['none', 'refuse', 'auth', 'error'];
@@ -84,21 +89,21 @@ function stuff(raw) {
   return raw.split('\r\n').map((line) => (line.startsWith('.') ? `.${line}` : line)).join('\r\n');
 }
 
-export function createMail() {
+export function createMail({ checkAccessToken = () => false } = {}) {
   let mailbox = [];
   let failure = 'none';
-  let counts = { connections: 0, logins: 0, deletes: 0, commands: {}, user: '' };
+  let counts = { connections: 0, logins: 0, xoauth2: 0, xoauth2Refused: 0, deletes: 0, commands: {}, user: '' };
   const sockets = new Set();
   let server = null;
 
   function reset() {
     mailbox = [];
     failure = 'none';
-    counts = { connections: 0, logins: 0, deletes: 0, commands: {}, user: '' };
+    counts = { connections: 0, logins: 0, xoauth2: 0, xoauth2Refused: 0, deletes: 0, commands: {}, user: '' };
   }
 
   function state() {
-    return { uidls: mailbox.map((m) => m.uidl), connections: counts.connections, logins: counts.logins, user: counts.user, deletes: counts.deletes, failure, commands: { ...counts.commands } };
+    return { uidls: mailbox.map((m) => m.uidl), connections: counts.connections, logins: counts.logins, xoauth2: counts.xoauth2, xoauth2Refused: counts.xoauth2Refused, user: counts.user, deletes: counts.deletes, failure, commands: { ...counts.commands } };
   }
 
   function session(socket) {
@@ -112,13 +117,32 @@ export function createMail() {
     socket.on('error', () => {});
     let user = null;
     let authed = false;
+    let awaitingToken = false;
     let buffer = '';
     const send = (text) => socket.write(`${text}\r\n`);
     const nth = (arg) => {
       const n = Number(arg);
       return Number.isInteger(n) && n >= 1 && n <= mailbox.length ? n : 0;
     };
+    const xoauth2 = (line) => {
+      const parsed = failure === 'auth' ? null : parseXoauth2(line);
+      if (parsed !== null && checkAccessToken(parsed.token)) {
+        authed = true;
+        counts.logins += 1;
+        counts.xoauth2 += 1;
+        counts.user = parsed.user;
+        send('+OK logged in');
+      } else {
+        counts.xoauth2Refused += 1;
+        send('-ERR [AUTH] invalid token');
+      }
+    };
     const handle = (line) => {
+      if (awaitingToken) {
+        awaitingToken = false;
+        xoauth2(line);
+        return;
+      }
       const space = line.indexOf(' ');
       const verb = (space === -1 ? line : line.slice(0, space)).toUpperCase();
       const arg = space === -1 ? '' : line.slice(space + 1);
@@ -133,6 +157,9 @@ export function createMail() {
           user = arg;
           counts.user = arg;
           send('+OK');
+        } else if (verb === 'AUTH' && arg.trim().toUpperCase() === 'XOAUTH2') {
+          awaitingToken = true;
+          send('+ ');
         } else if (verb === 'PASS' && user !== null) {
           if (failure === 'auth') {
             send('-ERR [AUTH] authentication failed');

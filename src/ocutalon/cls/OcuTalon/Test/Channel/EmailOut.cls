@@ -18,6 +18,9 @@ Include Ensemble
 ///   - TestMessageShape (ruling b): the message is from the saved address, to the recipients, one plain part in UTF-8 with no attachment, and keeps
 ///     non-ASCII text; a tool send records one Delivery row of channel email with the owner and a new Ref, and no approval;
 ///   - TestFailureClasses (Q4, P1a, P1b): unreachable, refused and rejected sends answer failed with their sentences, once, with no Delivery row;
+///   - TestSignInMessage (Story 21.8, T2): with a provider sign-in (the stand-in adapter has OAuth2ApplicationName set) a refused send answers failed with
+///     MESSAGESIGNIN on the tool and system paths, once, with no Delivery row, and the digest path logs it as a refused send; an unreachable or rejected send keeps
+///     its sentence, and in password mode a refused send keeps MESSAGEREFUSEDLOGIN;
 ///   - TestNoDoubleSend (ruling f): a system send is claimed by its approval: the same approval again, after a restart of the operation, answers already_sent and
 ///     delivers nothing more; the claim is written pending before the send and cleared once the email is sent; after a failed send, an error after the claim,
 ///     or a claim whose send never finished, it answers failed and delivers nothing; the claim row of a failed send says failed;
@@ -519,6 +522,7 @@ Method TestTexts()
 	Do $$$AssertEquals($Parameter(class, "MESSAGEUNREACHABLE"), "OcuTalon couldn't reach the mail server.", "P1a")
 	Do $$$AssertEquals($Parameter(class, "MESSAGEREFUSEDLOGIN"), "The mail server refused the user name or password.", "P1b")
 	Do $$$AssertEquals($Parameter(class, "MESSAGEUNAVAILABLE"), "Email can't be connected on the online demo. Nothing was changed.", "P2")
+	Do $$$AssertEquals($Parameter(class, "MESSAGESIGNIN"), "The mail sign-in is no longer valid, so the email wasn't sent. Sign in again in Settings > Channels > Email.", "T2")
 	Do $$$AssertEquals($Parameter("OcuTalon.Core.CommandsIn", "MESSAGENOTCONNECTED"), $Parameter(class, "MESSAGENOTCONNECTED"), "CommandsIn answers Q3 as well")
 }
 
@@ -726,6 +730,40 @@ Method TestFailureClasses()
 		Do $$$AssertEquals(result.Message_result.Data [ "SERVER-WORDS", 0, $Piece(case, "|", 1)_": the answer holds no server words")
 	}
 	Do $$$AssertEquals(..Deliveries(..#OWNER), 0, "no failed send leaves a Delivery row")
+}
+
+/// Story 21.8, T2: in OAuth2 mode a send whose login is refused answers MESSAGESIGNIN on every path; the other classes and password mode keep their sentences.
+Method TestSignInMessage()
+{
+	Do ..Mailbox()
+	Set signIn = "The mail sign-in is no longer valid, so the email wasn't sent. Sign in again in Settings > Channels > Email."
+	Set cases = $ListBuild("oauth|refused|"_signIn, "oauth|unreachable|OcuTalon couldn't reach the mail server.", "oauth|rejected|The mail server didn't accept the email, so it wasn't sent.", "password|refused|The mail server refused the user name or password.")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Kill ^||OcuTalonEmailOutProbe
+		Set ^||OcuTalonEmailOutProbe("answer") = $Piece(case, "|", 2)
+		Set ^||OcuTalonEmailOutProbe("oauth") = ($Piece(case, "|", 1) = "oauth")
+		Set label = $Piece(case, "|", 1)_" "_$Piece(case, "|", 2)
+		Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, "ok", "ok")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|failed|"_$Piece(case, "|", 3), label_": the tool send answers failed with its sentence")
+		Set approval = ..Approval("zzemailoutap0210", ..#ADDRESS)
+		Set system = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", approval)
+		Do $$$AssertEquals(system.Ok_"|"_system.Outcome_"|"_system.Message, "0|failed|"_$Piece(case, "|", 3), label_": and so does the system send")
+		Do $$$AssertEquals(..Delivered(), 2, label_": one try each, no retry")
+		Do $$$AssertEquals(..Deliveries(..#OWNER), 1, label_": the only Delivery row is the claim of the system send, none for the tool send")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(approval)).FallbackReason, "failed", label_": and it says failed")
+		Do ..Reset()
+		Do ..Mailbox()
+	}
+	Kill ^||OcuTalonEmailOutProbe
+	Set ^||OcuTalonEmailOutProbe("answer") = "refused"
+	Set ^||OcuTalonEmailOutProbe("oauth") = 1
+	Set before = ..LastLog()
+	Do ..Notify("digest", ..#OWNER, ..DigestSlots(31))
+	Set texts = ..LogTexts(before)
+	Do $$$AssertEquals(..Delivered()_"|"_..Deliveries(..#OWNER)_"|"_$ListLength(texts), "1|0|1", "the digest path tries once, records nothing and logs one line")
+	Do $$$AssertEquals($List(texts, 1), "EmailOut did not send the digest email: refused", "which says refused and nothing of the sign-in or the server")
+	Kill ^||OcuTalonEmailOutProbe
 }
 
 /// Ruling f: a system send is sent once per approval, also after a restart and after a failure.
@@ -941,6 +979,52 @@ Method TestSenderTlsSettings()
 		Do $$$AssertEquals($Get(^||OcuTalonEmailOutSender("sent")), $List(case, 4), label_": %Net.SMTP gets STARTTLS, configuration, identity check and no partial send as expected")
 	}
 	Kill ^||OcuTalonEmailOutSender
+}
+
+/// With OAuth2ApplicationName set (Story 21.8) the send logs in with the handler's token only: an authorized answer puts the token into the authenticator for the send and
+/// the authenticator is empty again after it, also when %Net.SMTP raises an exception; a handler error, an OK answer that is not authorized, an empty token and an
+/// exception of the handler each fail the send as SMTPAUTHFailed (classified refused) before %Net.SMTP is called, so that no stored credential is used.
+Method TestSenderOAuth2Paths()
+{
+	For answer = "", "error", "empty", "throw" {
+		Kill ^||OcuTalonEmailOutSender, ^||OcuTalonEmailInHandler
+		Set ^||OcuTalonEmailInHandler("answer") = answer
+		Set ^||OcuTalonEmailOutSender("switch") = 0
+		Set ^||OcuTalonEmailOutSender("user") = "zzuser"
+		Set adapter = ##class(OcuTalon.Test.Channel.EmailOutSender).%New()
+		Set adapter.SMTP = ##class(OcuTalon.Test.Channel.EmailOutSmtp).%New(), adapter.SMTP.authenticator = ##class(%Net.Authenticator).%New()
+		Set adapter.SMTPServer = "smtp.example.com", adapter.SSLConfig = "OcuTalonClient"
+		Set adapter.OAuth2ApplicationName = "OcuTalonMail", adapter.OAuth2CallBackHandler = "OcuTalon.Test.Channel.EmailInHandler"
+		Set sc = adapter.SendMail(..Message())
+		Set label = "handler answer '"_answer_"'"
+		If answer = "" {
+			Do $$$AssertStatusOK(sc, label_": the send goes to %Net.SMTP")
+			Do $$$AssertEquals($Get(^||OcuTalonEmailOutSender("token")), "zz-token-1", label_": the authenticator held the handler's token during the send")
+			Do $$$AssertEquals(adapter.SMTP.authenticator.AccessToken, "", label_": and is empty after it")
+		} Else {
+			Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 6167, label_": the send fails with the authentication error")
+			Do $$$AssertEquals(##class(OcuTalon.Channel.Email.Sender).Classify(sc), "refused", label_": classified refused")
+			Do $$$AssertNotTrue($Data(^||OcuTalonEmailOutSender("sent")), label_": %Net.SMTP was not called")
+			Do $$$AssertEquals(adapter.SMTP.authenticator.AccessToken, "", label_": no token reached the authenticator")
+		}
+	}
+	Kill ^||OcuTalonEmailOutSender, ^||OcuTalonEmailInHandler
+	Set ^||OcuTalonEmailInHandler("answer") = ""
+	Set ^||OcuTalonEmailOutSender("switch") = 0, ^||OcuTalonEmailOutSender("user") = "zzuser", ^||OcuTalonEmailOutSender("throw") = 1
+	Set adapter = ##class(OcuTalon.Test.Channel.EmailOutSender).%New()
+	Set adapter.SMTP = ##class(OcuTalon.Test.Channel.EmailOutSmtp).%New(), adapter.SMTP.authenticator = ##class(%Net.Authenticator).%New()
+	Set adapter.SMTPServer = "smtp.example.com", adapter.SSLConfig = "OcuTalonClient"
+	Set adapter.OAuth2ApplicationName = "OcuTalonMail", adapter.OAuth2CallBackHandler = "OcuTalon.Test.Channel.EmailInHandler"
+	Set raised = 0
+	Try {
+		Do adapter.SendMail(..Message())
+	} Catch {
+		Set raised = 1
+	}
+	Do $$$AssertEquals(raised, 1, "an exception of %Net.SMTP reaches the caller")
+	Do $$$AssertEquals($Get(^||OcuTalonEmailOutSender("token")), "zz-token-1", "the authenticator held the token when it was raised")
+	Do $$$AssertEquals(adapter.SMTP.authenticator.AccessToken, "", "and is empty after it")
+	Kill ^||OcuTalonEmailOutSender, ^||OcuTalonEmailInHandler
 }
 
 /// A send with an empty or foreign SSLConfig, or with no credential, fails at once: the host would take seconds to fail a connection.
