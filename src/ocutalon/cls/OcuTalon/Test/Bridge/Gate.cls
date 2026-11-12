@@ -20,6 +20,17 @@
 ///   - TestArgumentDependent (6): a code Classify method decides by the arguments, which arrive as an object or a JSON string;
 ///   - TestSameNameAnotherClass, TestMcpShadow, TestExtension (7, 8, 9): the classification is by (source, name), an mcp: toolref only through the
 ///     extension, and the extension class must be usable;
+///   - Story 22.8 (AD-10, AD-21, AD-31): an MCP call is classified by ClassifyMcp(source, name, fingerprint), the fingerprint being the one the turn's map holds
+///     (Context SetMcpTools; the tests set it with McpMap). TestMcpReadOnly: a tool the extension says is safe with readOnly 1 is allowed in a user's, an untrusted and a tainted
+///     turn, reports one step and taints the turn (an MCP tool is never trusted output), while a risky one, a safe one with readOnly 0, and a risky one with readOnly 1 are held in
+///     a user's turn and denied with UNTRUSTED in an untrusted or tainted one; TestMcpMissingFingerprint: a tool that the map does not hold is unclassified whatever the
+///     extension says, and so is one without a map or a context; TestMcpMalformedAnswers: an answer that is no object, has another classification, a readOnly that is
+///     no number, or none, is unclassified and never read-only; TestMcpUnregistered: registered 0 is denied with UNREGISTERED before the privilege, the provenance
+///     and the hold, raising no request, reporting no step and not tainting, also in an untrusted turn and for a replay of an executing row, whose grant stays; TestMcpExtensionFails:
+///     a ClassifyMcp that throws is FAILED with one warning; TestMcpBridgeAlone: with the base class, an MCP tool is unclassified and held, the base never denies it as
+///     unregistered; TestMcpJsonConfiguration (DW-174, Task 0): the toolref that AI Hub hands for a tool added from its JSON configuration is an MCP source too, and is
+///     denied as unregistered by OcuTalon's class. Rows that need the bridge alone, or a fixture extension, put the ClassificationClass setting of Decide to it in the stored
+///     configuration (PutSetting), because the production names OcuTalon.Mcp.Classification and a System Default Settings row would not override it;
 ///   - TestCallContentCannotClassify (10): nothing in the call or the context classifies it, and the call is not modified;
 ///   - TestPrivilegeHeld, TestOneLetterPerCall, TestPrivilegeMissing (11 to 13): the service user's privileges, one letter per call;
 ///   - TestNoContext, TestMalformedCall (14): no context, and a call that is no object or has no name, are denied with FAILED;
@@ -139,6 +150,12 @@ Property SavedRows As %List;
 /// The setting of Decide's HostSinkClass before a test put its own (RunnerFixture.UseItemSetting), "" when none was put.
 Property SavedSink As %DynamicObject;
 
+/// The ClassificationClass setting of Decide as the production names it, kept when the first PutSetting of the test replaces it in the stored configuration, and 1 while it
+/// is replaced (OnAfterOneTest puts it back).
+Property SavedClassification As %String(MAXLEN = 128);
+
+Property ClassificationSwapped As %Boolean [ InitialExpression = 0 ];
+
 /// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark).
 Property SessionMark As %Integer;
 
@@ -198,6 +215,11 @@ Method OnAfterOneTest(testname As %String) As %Status
 	If $IsObject(..SavedCommands) && ..SavedCommands.%IsDefined("className") {
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreItemClass("CommandsIn", ..SavedCommands), "the real CommandsIn is put back behind its item")
 		Set ..SavedCommands = ""
+	}
+	If ..ClassificationSwapped {
+		Do $$$AssertStatusOK(..StoreDecideSetting("ClassificationClass", ..SavedClassification), "Decide's ClassificationClass is put back")
+		Set ..ClassificationSwapped = 0
+		Set ..SavedClassification = ""
 	}
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..SavedRows), "the System Default Settings rows of the test are put back")
 	Set ..SavedRows = ""
@@ -404,6 +426,7 @@ Method TestEveryBuiltInToolIsClassified()
 /// call's hold had and its SuperSession a new Ref, and the hold's start is in them (AD-26).
 Method TestRiskyByCodeAndUnclassified()
 {
+	Do ..PutSetting("ClassificationClass", "OcuTalon.Bridge.Ext.Classification")
 	Set held = $Parameter(..#GATE, "HELD")
 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
 	Set first = ..Begin()
@@ -618,6 +641,7 @@ Method TestSameNameAnotherClass()
 /// the parameters of ReminderTools are never read, and no ToolClassification entry is either: only the extension could classify it.
 Method TestMcpShadow()
 {
+	Do ..PutSetting("ClassificationClass", "OcuTalon.Bridge.Ext.Classification")
 	Do ..Begin()
 	Set held = $Parameter(..#GATE, "HELD")
 	Set call = ..Call("set_reminder", {})
@@ -645,6 +669,7 @@ Method TestMcpShadow()
 Method TestExtension()
 {
 	Set request = ..Begin()
+	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_safe", "zz_mcp_other", "zz_mcp_args"))
 	Do ..PutSetting("ClassificationClass", "OcuTalon.Test.Bridge.ZzGateClassification")
 	Set gate = ..#GATE
 	Set result = $ClassMethod(gate, "ClassificationOf", "mcp:zzserver", "zz_mcp_safe")
@@ -678,6 +703,241 @@ Method TestExtension()
 	Do $$$AssertEquals(..SinkCalls("turn.step"), 2, "the sink got a step for each of the two allowed calls")
 	Do $$$AssertEquals(..SinkCalls("approval.raised"), 3, "and a request for each of the three held calls (zz_mcp_other, zz_mcp_safe of another server, zz_mcp_args)")
 	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 5, "and no more: the denials with FAILED reported nothing")
+}
+
+/// Story 22.8: the MCP shapes of the extension's answer. A tool that the extension says is safe with readOnly 1 is read-only: allowed in a user's turn, in an
+/// untrusted turn and in a tainted one, it fires one turn.step and taints the turn (an MCP tool is never trusted output); a risky tool, a safe tool with readOnly 0
+/// and a risky tool whose readOnly is 1 are held in a user's turn and denied with UNTRUSTED in an untrusted or tainted one, with no step, no request and no taint.
+Method TestMcpReadOnly()
+{
+	Set untrusted = $Parameter(..#GATE, "UNTRUSTED")
+	Set held = $Parameter(..#GATE, "HELD")
+	Set gate = ..#GATE
+	Do ..PutSetting("ClassificationClass", "OcuTalon.Test.Bridge.ZzGateClassification")
+	Set names = $ListBuild("zz_mcp_ro", "zz_mcp_risky", "zz_mcp_risky_ro", "zz_mcp_safe")
+	Set request = ..Begin()
+	Do ..McpMap("mcp:zzserver", names)
+	Do $$$AssertEquals($ClassMethod(gate, "ClassificationOf", "mcp:zzserver", "zz_mcp_ro").%ToJSON(), {"classification": "safe", "readOnly": 1, "trustedOutput": 0, "by": "extension"}.%ToJSON(), "safe with readOnly 1 is read-only, and never trusted output")
+	Do $$$AssertEquals($ClassMethod(gate, "ClassificationOf", "mcp:zzserver", "zz_mcp_risky").%ToJSON(), {"classification": "risky", "readOnly": 0, "trustedOutput": 0, "by": "extension"}.%ToJSON(), "risky is risky")
+	Do $$$AssertEquals($ClassMethod(gate, "ClassificationOf", "mcp:zzserver", "zz_mcp_risky_ro").%ToJSON(), {"classification": "risky", "readOnly": 0, "trustedOutput": 0, "by": "extension"}.%ToJSON(), "and risky stays not read-only, whatever the flag says")
+	Do $$$AssertEquals($ClassMethod(gate, "ClassificationOf", "mcp:zzserver", "zz_mcp_safe").%ToJSON(), {"classification": "safe", "readOnly": 0, "trustedOutput": 0, "by": "extension"}.%ToJSON(), "safe with readOnly 0 is safe and not read-only")
+	Do ##class(OcuTalon.Bridge.Context).End()
+
+	// a user's turn: the read-only tool runs and taints; a risky one and a safe one that is not read-only (also tainted) behave as before
+	Set request = ..Begin()
+	Do ..McpMap("mcp:zzserver", names)
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_ro")), "<OK>", "in a user's turn the read-only MCP tool is allowed")
+	Do $$$AssertEquals(..SinkCalls("turn.step"), 1, "and reports one step")
+	Do $$$AssertEquals(..Taint(), 1, "and taints the turn, because MCP output is never trusted")
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_ro")), "<OK>", "a tainted turn runs it again")
+	Do $$$AssertEquals(..SinkCalls("turn.step"), 2, "with a step each time")
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_safe")), untrusted, "while the safe tool that is not read-only is denied in the tainted turn")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 0, "with no request")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set request = ..Begin()
+	Do ..McpMap("mcp:zzserver", names)
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_risky")), held, "in a user's turn the risky MCP tool is held")
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_risky_ro")), held, "and so is the risky one with readOnly 1")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 2, "each with its request")
+	Do $$$AssertEquals(..Taint() _ "|" _ ..SinkCalls("turn.step"), "0|0", "and a held call neither taints nor reports a step")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set request = ..Begin()
+	Do ..McpMap("mcp:zzserver", names)
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_safe")), "<OK>", "in a user's turn the safe MCP tool that is not read-only is allowed")
+	Do $$$AssertEquals(..Taint(), 1, "and taints the turn")
+	Do ##class(OcuTalon.Bridge.Context).End()
+
+	// an untrusted turn and a tainted one
+	For provenance = "untrusted", "user" {
+		Set tainted = (provenance = "user")
+		Set request = ..Begin("turn", provenance)
+		If tainted Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Put("Tainted", 1), "the turn is tainted")
+		Do ..McpMap("mcp:zzserver", names)
+		Kill ^||ZzProbeSink
+		Set label = $Select(tainted: "a tainted turn", 1: "an untrusted turn")
+		Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_ro")), "<OK>", label_" runs the read-only MCP tool")
+		Do $$$AssertEquals(..SinkCalls("turn.step") _ "|" _ ..Taint(), "1|1", label_": one step, and the turn is tainted")
+		Do ##class(OcuTalon.Bridge.Context).End()
+		Set request = ..Begin("turn", provenance)
+		If tainted Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Put("Tainted", 1), "the turn is tainted")
+		Do ..McpMap("mcp:zzserver", names)
+		Kill ^||ZzProbeSink
+		For name = "zz_mcp_risky", "zz_mcp_risky_ro", "zz_mcp_safe" {
+			Do $$$AssertEquals(..Sentence(..McpCheck(name)), untrusted, label_": "_name_" is denied with UNTRUSTED")
+		}
+		Do $$$AssertEquals(..ApprovalRows(request.OwnerRef) _ "|" _ +$Get(^||ZzProbeSink) _ "|" _ ..Taint(), "0|0|" _ tainted, label_": no request, nothing reported, the taint as it was")
+		Do ##class(OcuTalon.Bridge.Context).End()
+	}
+}
+
+/// Story 22.8 (AD-10, "missing from the map"): a tool that the turn's map does not hold is unclassified, whatever the extension says, and the extension is asked
+/// with an empty fingerprint; a tool the map holds is asked with the fingerprint of the map. A turn with no map at all, and a call with no context, never run an MCP tool.
+Method TestMcpMissingFingerprint()
+{
+	Set untrusted = $Parameter(..#GATE, "UNTRUSTED")
+	Set held = $Parameter(..#GATE, "HELD")
+	Set failed = $Parameter(..#GATE, "FAILED")
+	Set gate = ..#GATE
+	Do ..PutSetting("ClassificationClass", "OcuTalon.Test.Bridge.ZzGateClassification")
+	Set request = ..Begin("turn", "untrusted")
+	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_safe"))
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_ro")), untrusted, "a read-only tool that is not in the map is denied in an untrusted turn")
+	Do $$$AssertEquals($ClassMethod(gate, "ClassificationOf", "mcp:zzserver", "zz_mcp_ro").%ToJSON(), {"classification": "", "readOnly": 0, "trustedOutput": 0, "by": ""}.%ToJSON(), "it is unclassified")
+	Do $$$AssertEquals($ClassMethod(gate, "ClassificationOf", "mcp:otherserver", "zz_mcp_safe").%ToJSON(), {"classification": "", "readOnly": 0, "trustedOutput": 0, "by": ""}.%ToJSON(), "so is a tool of another server, although the map holds its name")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set request = ..Begin()
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_ro")), held, "in a user's turn with no map it is held")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 1, "with a request")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set request = ..Begin()
+	Kill ^||ZzGateMcp
+	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_fingerprint"))
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_fingerprint")), "<OK>", "a tool that the map holds is classified")
+	Set expected = ##class(OcuTalon.Bridge.Context).McpFingerprint("mcp:zzserver", "zz_mcp_fingerprint")
+	Do $$$AssertEquals($Length(expected), 64, "the map holds its fingerprint")
+	Do $$$AssertEquals($Get(^||ZzGateMcp("fingerprint")), expected, "and the extension is given exactly that fingerprint")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set request = ..Begin("turn", "untrusted")
+	Kill ^||ZzGateMcp
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_fingerprint")), untrusted, "with no map the same tool is denied in an untrusted turn")
+	Do $$$AssertEquals($Data(^||ZzGateMcp("fingerprint")) _ "|" _ $Get(^||ZzGateMcp("fingerprint")), "1|", "and the extension was asked with an empty fingerprint")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Kill ^||ZzGateMcp
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_ro")), failed, "with no context the check fails closed")
+}
+
+/// Story 22.8: an answer of the extension that is no object, names a classification other than safe or risky, has none, or has a registered or a readOnly that is neither a number
+/// nor a boolean is unclassified, never read-only and never unregistered; a ClassifyMcp that throws is denied with FAILED and one warning that names the tool, its source and
+/// the class.
+Method TestMcpMalformedAnswers()
+{
+	Set untrusted = $Parameter(..#GATE, "UNTRUSTED")
+	Set failed = $Parameter(..#GATE, "FAILED")
+	Set gate = ..#GATE
+	Set class = "OcuTalon.Test.Bridge.ZzGateClassification"
+	Do ..PutSetting("ClassificationClass", class)
+	Set request = ..Begin("turn", "untrusted")
+	Set names = $ListBuild("zz_mcp_text", "zz_mcp_other_class", "zz_mcp_flag_text", "zz_mcp_registered_text", "zz_mcp_none", "zz_mcp_throws")
+	Do ..McpMap("mcp:zzserver", names)
+	Kill ^||ZzProbeSink
+	Set position = 0
+	While $ListNext(names, position, name) {
+		If name = "zz_mcp_throws" Continue
+		Do $$$AssertEquals($ClassMethod(gate, "ClassificationOf", "mcp:zzserver", name).%ToJSON(), {"classification": "", "readOnly": 0, "trustedOutput": 0, "by": ""}.%ToJSON(), name_": the answer is unclassified")
+		Do $$$AssertEquals(..Sentence(..McpCheck(name)), untrusted, name_": and the call is denied in an untrusted turn")
+	}
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink) _ "|" _ ..Taint(), "0|0", "nothing was reported and the taint is as it was")
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_throws")), failed, "an extension that throws: FAILED")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, gate, "Warn", $ListBuild("zz_mcp_throws", "mcp:zzserver")), 1, "with one warning that names the tool and its source")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink) _ "|" _ ..Taint(), "0|0", "and nothing was reported")
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// Story 22.8 (AD-10, AD-21, S7): an answer with registered exactly 0 is denied with UNREGISTERED right after the classification, before the privilege, the
+/// provenance and taint rule, the hold and the replay step: in a user's turn and in an untrusted one, whether or not the map holds the tool, it raises no
+/// request, reports no step and does not taint; the replay of an executing row for such a tool is denied alike and its grant stays. A registered as text is
+/// not a 0.
+Method TestMcpUnregistered()
+{
+	If ..Guard(1) Quit
+	Set gate = ..#GATE
+	Set unregistered = $Parameter(gate, "UNREGISTERED")
+	Do $$$AssertEquals(unregistered, "this tool's MCP server is not registered, so nothing was run.", "the sentence is the approved one")
+	Do ..PutSetting("ClassificationClass", "OcuTalon.Test.Bridge.ZzGateClassification")
+	For provenance = "user", "untrusted" {
+		For mapped = 1, 0 {
+			Set request = ..Begin("turn", provenance)
+			If mapped Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_gone"))
+			Kill ^||ZzProbeSink
+			Set label = provenance_" turn, "_$Select(mapped: "tool in the map", 1: "tool not in the map")
+			Do $$$AssertEquals($ClassMethod(gate, "ClassificationOf", "mcp:zzserver", "zz_mcp_gone").unregistered, 1, label_": the classification says unregistered")
+			Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_gone")), unregistered, label_": denied with UNREGISTERED")
+			Do $$$AssertEquals(..ApprovalRows(request.OwnerRef) _ "|" _ +$Get(^||ZzProbeSink) _ "|" _ ..Taint(), "0|0|0", label_": no request, no step, no taint")
+			Do ##class(OcuTalon.Bridge.Context).End()
+		}
+	}
+	// a registered that is text is not a 0
+	Set request = ..Begin("turn", "untrusted")
+	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_registered_text"))
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_registered_text")), $Parameter(gate, "UNTRUSTED"), "a registered that is the text 0 is a malformed answer, which is unclassified, and not UNREGISTERED")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	// the replay of an executing row: denied before the grant is looked at
+	Set ref = ..ExecutingRow("zz_mcp_gone", "{}", "mcp:zzserver")
+	Set request = ..Begin("tool", "user", , , "ChatAgent")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Grant(ref), "a grant is built from the executing row of the removed server's tool")
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_gone")), unregistered, "its replay is denied with UNREGISTERED")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).GrantSource(), "mcp:zzserver", "the grant is still there, unused")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef) _ "|" _ +$Get(^||ZzProbeSink) _ "|" _ ..Taint(), "0|0|0", "no request, no step, no taint")
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// Story 22.8: with the bridge alone (the default class), an MCP tool is unclassified and held in a user's turn, whatever the map holds; the base never says
+/// unregistered; and with OcuTalon's class (the production's), a toolref of a server with no Mcp.Server row is denied with UNREGISTERED, which includes the
+/// toolref that the runner attaches for a name that is not registered.
+Method TestMcpBridgeAlone()
+{
+	Set held = $Parameter(..#GATE, "HELD")
+	Set unregistered = $Parameter(..#GATE, "UNREGISTERED")
+	Set gate = ..#GATE
+	Do ..UseClassification("OcuTalon.Mcp.Classification")
+	Set request = ..Begin()
+	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_ro"))
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_ro")), unregistered, "OcuTalon's class (the production's) does not register mcp:zzserver: UNREGISTERED")
+	Set own = "mcp:remote:@{config:AI.MCP.OcuTalon_zznoserver" _ ..Number() _ "}"
+	Do ..McpMap(own, $ListBuild("zz_lookup"))
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check(own, ..Call("zz_lookup", {}), {"requires_auth": true}, ..#SINK)), unregistered, "so is the toolref of a name with no Mcp.Server row")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef) _ "|" _ ..SinkCalls("turn.step") _ "|" _ ..Taint(), "0|0|0", "with no request, no step and no taint")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do ..PutSetting("ClassificationClass", "OcuTalon.Bridge.Ext.Classification")
+	Set request = ..Begin()
+	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_ro"))
+	Do $$$AssertEquals($ClassMethod(gate, "ClassificationOf", "mcp:zzserver", "zz_mcp_ro").%ToJSON(), {"classification": "", "readOnly": 0, "trustedOutput": 0, "by": ""}.%ToJSON(), "with the base class the tool is unclassified")
+	Do $$$AssertEquals(..Sentence(..McpCheck("zz_mcp_ro")), held, "and held in a user's turn")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 1, "with its request")
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// Story 22.8's Task 0 (DW-174): a tool added from AI Hub's JSON configuration reaches the gate with the configuration text as its toolref, which does not start
+/// mcp:. The gate takes a JSON object whose type starts mcp: (in any case) for an MCP call, before the origin_class, and the stdio form (mcp:stdio:...) by its prefix.
+/// OcuTalon's class registers neither, so both are denied with UNREGISTERED. A JSON object of another type, text that is not JSON and an object with no type are not MCP.
+Method TestMcpJsonConfiguration()
+{
+	Do ..UseClassification("OcuTalon.Mcp.Classification")
+	Set gate = ..#GATE
+	Set unregistered = $Parameter(gate, "UNREGISTERED")
+	Set json = "{""type"":""mcp:remote"",""url"":""http://127.0.0.1:53999/mcp""}"
+	Set meta = {"requires_auth": true}
+	Do $$$AssertEquals($ClassMethod(gate, "Source", json, meta, "zz_lookup"), json, "the source of a tool added from its JSON configuration is the configuration text")
+	Do $$$AssertEquals($ClassMethod(gate, "Source", " " _ $Replace(json, "mcp:remote", "MCP:Remote"), meta, "zz_lookup"), " " _ $Replace(json, "mcp:remote", "MCP:Remote"), "in any case, after white space")
+	Do $$$AssertEquals($ClassMethod(gate, "Source", json, {"origin_class": "OcuTalon.Tools.ReminderTools", "requires_auth": true}, "set_reminder"), json, "before the origin_class, so that a tool that shadows a built-in never takes its class")
+	Do $$$AssertEquals($ClassMethod(gate, "Source", "mcp:stdio:python3 server.py", meta, "zz_lookup"), "mcp:stdio:python3 server.py", "the stdio form starts mcp:")
+	For other = "{""type"":""rust:filesystem"",""config"":{}}", "{""type"":""mcpx""}", "{""transport"":""remote""}", "{""type"":5}", "{""type"":", "{not json", "[""mcp:remote""]", "{}" {
+		Do $$$AssertEquals($ClassMethod(gate, "Source", other, meta, "zz_lookup"), "", other_" is not an MCP source")
+	}
+	Set request = ..Begin()
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check(json, ..Call("zz_lookup", {}), meta, ..#SINK)), unregistered, "a JSON configuration is denied with UNREGISTERED by OcuTalon's class")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:stdio:python3 server.py", ..Call("zz_lookup", {}), meta, ..#SINK)), unregistered, "and so is the stdio form")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef) _ "|" _ +$Get(^||ZzProbeSink) _ "|" _ ..Taint(), "0|0|0", "with no request, no step and no taint")
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// The decision for the call of the tool of mcp:zzserver, with no arguments and the sink of the tests, and the context as the call left it.
+ClassMethod McpCheck(name As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:zzserver", ..Call(name, {}), {"requires_auth": true}, ..#SINK)
+}
+
+/// A number for a server name that no row has.
+ClassMethod Number() As %Integer [ Private ]
+{
+	Quit $Increment(^OcuTalonTest("Gate", "n"))
 }
 
 /// Row 10: nothing in the call or the context classifies it. zz_gate_held, with metadata {"CLASSIFICATION":"safe","ReadOnly":"1"}, the arguments
@@ -1319,9 +1579,10 @@ Method TestTaintFollowsTrustedOutput()
 	Do ##class(OcuTalon.Bridge.Context).End()
 
 	Do ..PutSetting("ClassificationClass", "OcuTalon.Test.Bridge.ZzGateClassification")
+	Do ..Begin()
+	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_safe"))
 	Set result = ##class(OcuTalon.Bridge.Policy.Gate).ClassificationOf("mcp:zzserver", "zz_mcp_safe")
 	Do $$$AssertEquals(result.%ToJSON(), {"classification": "safe", "readOnly": 0, "trustedOutput": 0, "by": "extension"}.%ToJSON(), "the MCP tool is safe by extension, and neither read-only nor trusted output")
-	Do ..Begin()
 	Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:zzserver", ..Call("zz_mcp_safe", {}), {}, ..#SINK)
 	Do $$$AssertEquals(..Sentence(sc), "<OK>", "in a user's turn it is allowed")
 	Do $$$AssertEquals(..Taint(), 1, "and taints the turn")
@@ -1380,6 +1641,7 @@ Method TestRagFallback()
 
 Method TestRagNearMisses()
 {
+	Do ..PutSetting("ClassificationClass", "OcuTalon.Bridge.Ext.Classification")
 	Set gate = ..#GATE
 	Set entries = []
 	Do entries.%Push(..Entry("%AI.RAG.KnowledgeBase", "documents", "safe", {"readOnly": 1, "trustedOutput": 0}))
@@ -1943,6 +2205,7 @@ Method TestReplayGovernance()
 Method TestHeldRowNamesSourceAndRunner()
 {
 	If ..Guard(1) Quit
+	Do ..PutSetting("ClassificationClass", "OcuTalon.Bridge.Ext.Classification")
 	Set held = $Parameter(..#GATE, "HELD")
 	Set request = ..Begin("turn", "user", , , "ChatAgent")
 	Kill ^||ZzProbeSink
@@ -2125,6 +2388,7 @@ Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label 
 	Kill ^||ZzProbeSink
 	Set request = ..Begin("turn", provenance)
 	If tainted Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Put("Tainted", 1), "the turn is tainted")
+	Do ..McpMap("mcp:zzserver", $ListBuild("zz_mcp_safe"))
 	Set cases = $ListBuild($ListBuild("set_reminder", ..#REMINDERS), $ListBuild("cancel_reminder", ..#REMINDERS), $ListBuild("start_watch", ..#WATCHING), $ListBuild("stop_watch", ..#WATCHING), $ListBuild("dismiss_incident", ..#WATCHING), $ListBuild("propose_fix", ..#WATCHING), $ListBuild("zz_change_endpoint", ..#TOOLS), $ListBuild("zz_gate_held", ..#TOOLS), $ListBuild("zz_gate_risky_read", ..#TOOLS), $ListBuild("zz_approve_requests", ..#TOOLS), $ListBuild("zz_mcp_safe", "mcp:zzserver"))
 	Set position = 0
 	While $ListNext(cases, position, case) {
@@ -2375,7 +2639,7 @@ ClassMethod Taint() As %Boolean [ Private ]
 /// The number of approval requests that the owner has. The gate raises one for every held call (Story 3.6), so a count of 0 shows that a call was never
 /// held: an untrusted or tainted call, a missing privilege, a failed check and a safe call raise none, and a call that wrongly reached the result
 /// branch makes the count 1.
-ClassMethod ApprovalRows(owner As %String) As %Integer [ Private ]
+ClassMethod ApprovalRows(owner As %String) As %Integer
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ?", owner)
 	Do result.%Next()
@@ -2418,10 +2682,61 @@ ClassMethod Entry(class As %String, tool As %String, classification As %String, 
 /// Writes the System Default Settings row of the setting of Decide, after remembering the row as it was (put back after the test).
 Method PutSetting(setting As %String, value As %String) [ Private ]
 {
+	If setting = "ClassificationClass" {
+		Do ..UseClassification(value)
+		Quit
+	}
 	Set rows = ..SavedRows
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.rows, "Decide", setting)
 	Set ..SavedRows = rows
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).PutDefault("Decide", setting, value), "the row of "_setting_" is written")
+}
+
+/// Puts the ClassificationClass setting of Decide to the class in the stored configuration of the production, without updating the running production: the gate
+/// reads the setting from the stored configuration (Accessor ValueFor), where the production's own value comes before any System Default Settings row. The first
+/// call of a test keeps the value that the production names, and OnAfterOneTest puts it back.
+Method UseClassification(class As %String) [ Private ]
+{
+	If '..ClassificationSwapped {
+		Set ..SavedClassification = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ClassificationClass")
+		Set ..ClassificationSwapped = 1
+	}
+	Do $$$AssertStatusOK(..StoreDecideSetting("ClassificationClass", class), "the ClassificationClass of Decide is "_class)
+}
+
+/// Puts the Host setting of Decide to the value in the stored configuration of the active production (Ens.Config.Production, read by Accessor ValueFor) and
+/// saves only that: the running production is not updated and the production class is not written, so its XData keeps the lane markers. For the tests of
+/// this class and Test.Bridge.Decide, which put the value they changed back the same way.
+ClassMethod StoreDecideSetting(setting As %String, value As %String) As %Status
+{
+	Try {
+		Set production = ##class(Ens.Config.Production).%OpenId(##class(Ens.Director).GetActiveProductionName())
+		Set item = $Select($IsObject(production): production.FindItemByConfigName("Decide"), 1: "")
+		If '$IsObject(item) Return $SYSTEM.Status.Error(5001, "The stored configuration of the active production has no Decide item")
+		Set entry = item.FindSettingByName(setting, "Host")
+		If '$IsObject(entry) {
+			Set entry = ##class(Ens.Config.Setting).%New()
+			Set entry.Target = "Host"
+			Set entry.Name = setting
+			Do item.Settings.Insert(entry)
+		}
+		Set entry.Value = value
+		Return production.%Save()
+	} Catch exception {
+		Return exception.AsStatus()
+	}
+}
+
+/// Sets the turn's MCP map in the context that Begin made: each name is a tool of the server (the toolref), with a description and parameters of its own, so
+/// that the context holds a fingerprint for it. Returns nothing.
+Method McpMap(server As %String, names As %List) [ Private ]
+{
+	Set catalog = []
+	Set position = 0
+	While $ListNext(names, position, name) {
+		Do catalog.%Push({"tool_ref": (server), "name": (name), "description": ("The tool "_name_"."), "parameters": {"type": "object"}})
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).SetMcpTools(catalog), "the turn's MCP map holds "_$ListLength(names)_" tool(s) of "_server)
 }
 
 /// Ends the context and the step buffer, and kills the process-private globals of the tools and the sink.
