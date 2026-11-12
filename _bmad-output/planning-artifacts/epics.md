@@ -7492,6 +7492,8 @@ So that I decide which added tools OcuTalon may use, and how.
 
 ### Story 21.5: Set up source polls and answer tool-call approval requests
 
+> [AMENDED 2026-11-12, split at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] The approval-request criteria (2, 3 and 4) moved verbatim to Story 21.10; this story keeps the source poll (criterion 1).
+
 As an admin,
 I want to set a read-only tool as a source, and see exactly what a held tool call will run before I approve it,
 So that sources feed OcuTalon new items and I approve only calls I understand.
@@ -7502,6 +7504,16 @@ So that sources feed OcuTalon new items and I approve only calls I understand.
 **When** an admin sets it up as a source poll with a name, its arguments and an interval, and saves
 **Then** the form uses the wording the author accepted from Story 35.2 (was 21.1)'s proposal, the admin-checked route submits the source-poll command to Lane A's `McpOps`, which Lane A's Story 22.5 runs, the source belongs to the admin's session, and a tool that isn't Read-only can't be chosen, with the reason shown beside it (FR-50, FR-33, UX-DR145, UX-DR133)
 **And** until Story 22.5 merges, the tests submit the source-poll command to a `McpOps` test double that records it (AD-29)
+
+### Story 21.10: Answer tool-call and standalone approval requests on every channel
+
+> [AMENDED 2026-11-12, split from Story 21.5 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.5 (criteria 2, 3 and 4); runs after Lane A's Story 22.4 merges (fixture requests for 22.4 and 22.7 until they merge); it needs nothing from 21.4 or 22.5.
+
+As an admin,
+I want to see exactly what a held tool call or a standalone fix request will run before I approve it,
+So that I approve only calls I understand.
+
+**Acceptance Criteria:**
 
 **Given** a pending approval request of kind `tool_call` with no incident, raised by Lane A's Story 22.4 (a fixture request until it merges)
 **When** it shows in the web chat
