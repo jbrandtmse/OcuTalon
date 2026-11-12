@@ -978,3 +978,7 @@
 2026-11-12T18:58:19Z	Story 0.31	adr_verifications_complete	result=none_required mutations=none
 2026-11-12T18:58:19Z	Story 0.31	qa_complete	skipped=test-only_story(the_deliverable_is_the_test;its_mutation_demonstrated_at_implement) tests_added=0 mutations_demonstrated=0
 2026-11-12T18:58:19Z	Story 0.31	stage_spawned	stage=code-review spawn_at=2026-11-12T18:58:19Z model=opus effort=high agent_name=0-31-code-review-1 cycle_iteration=1
+2026-11-12T19:07:54Z	Story 0.31	cr_complete	spawn_at=2026-11-12T18:58:19Z model=opus effort=high resolved=1 fixed_at_source=1 by_design=0 wontfix_theoretical=0 routed=0 escalated=0 decision_pending=0 deferred=0 dismissed=9 high=0 med=1 low=4 rows=0 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus note=MED_patched(xHash_fixed-salt_pass);lead_ran_the_class+AC1_mutation_on_lane-A
+2026-11-12T19:07:54Z	Story 0.31	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0
+2026-11-12T19:07:54Z	Story 0.31	smoke_complete	method=other(IRIS_test_class_on_lane-A_warm_throwaway_e0s31cw) result=pass iterations=1 defects_caught=0 evidence=class_green;AC1_mutation_red_on_xHash_pass;reverted_identical;green;torn_down model=claude-opus-5-5
+2026-11-12T19:07:54Z	Story 0.31	fresh_check	env=recipe(fresh_lane-A_throwaway_built_by_ci/warm.sh_up_from_the_tree) tests=1(OcuTalon.Test.Data.Webhook) result=pass order=forward,reverse(one_class:run_twice_around_the_mutation) note=test-boundaries_pass;ASCII_only

@@ -56,6 +56,23 @@ deferred: []
 - Given a literal salt that starts with "x", when the choice is applied, then the result differs in the first character only.
 - Given the diff, when inspected, then only `Test/Data/Webhook.cls` changed, and no assertion was removed or weakened.
 
+### Review Findings
+
+Code review 2026-11-12 (full mode; Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor). 1 patch, 0 decision-needed, 0 defer, 9 rejected.
+
+- [x] [Review][Patch] AC 1's loop entry `firstChanged_"."_digest` had no deterministic pin: reverting just that entry to the old fixed "x" left every assertion green about 63 runs in 64 (Rule 19: an AC whose pinning assertion cannot go red deterministically, MED in-story, fix-risk low: test-only, about 10 lines, the expected digest uses the same formula as `TestHashFormat`). Fixed: the stored-value cases now run over the random hash and over `xHash`, built from the canonical fixed salt `xAbCdEfGhIjKlMnOpQrStQ` (16 bytes) with a control that `Matches(xHash, secret)` is 1, and `firstChanged '= salt` moved inside that loop, so it too is deterministic. [src/ocutalon/cls/OcuTalon/Test/Data/Webhook.cls:72-86] (source: verification-gap+acceptance-auditor+blind-hunter)
+
+Rejected:
+- edge-case-hunter, assert that an "x" salt gets exactly "y": `low`, over-specifies. The spec's Design Notes say any character other than the salt's first is equally correct, and the proof asserts exactly that.
+- blind-hunter, use the `lastChanged` idiom inline instead of a helper (and add a matching `LastChanged`): `false` as a defect. The spec's Execution item sanctions the helper so the list and the proof share one choice (Rule 2), and the reviewer names no harm.
+- blind-hunter, the loop's message (first 20 characters) cannot tell the salt-prefixed cases apart: `low`, pre-existing diagnostics, seen only on a red run. Labelling every case adds structure. After the patch the two passes differ in their first character.
+- blind-hunter, the comments describe the helper but not its history: `false`. Rule 14 keeps history in the spec. The doc comment states the contract ("never equals the value"), and the header bullet was rewritten for the patch.
+- acceptance-auditor, `FirstChanged` is public, not `[ Private ]`: `low`, no harm. The spec offers private only as an example, and the name has no `Test` prefix, so the runner never runs it.
+- acceptance-auditor, the Verification `git diff --name-only` line is narrower than the bookkeeping files the process writes: `low`, and the fix would edit the spec under review. AC 3's source-only condition holds.
+- verification-gap, no `mutation:` line for the non-x branch: `false` under Rule 19, which asks for one mutation per AC, not per assertion. AC 2's is recorded.
+- verification-gap, AC 3 has no pinning test or mutation: `false`. AC 3 is an inspection check, answered by `git diff --name-only 7d2891ba`: only the test class among source files.
+- verification-gap + blind-hunter + acceptance-auditor, `firstChanged '= salt` cannot fail on its own: merged into the patch above (the assertion now runs on the fixed x salt, where the always-"x" mutation turns it red).
+
 ## Spec Change Log
 
 - 2026-11-12 ~18:50Z (lead): spec written by the lead from the ruling (precedent: 0.28 and 0.29), no plan spawn; the fix is fully specified by the Contest Planner's standing ruling.
@@ -98,7 +115,8 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 Mutations (one per AC; record `mutation: <change> -> <test that went red>`, then revert and check that `git status --short` and `git diff --stat` are unchanged):
 - AC deterministic proof: make the choice always "x" again -> the proof assertion goes red.
 
-- mutation: `FirstChanged` made to always answer "x"_$Extract(value, 2, *) (the old defect) -> `OcuTalon.Test.Data.Webhook` TestMatches went red on the warm stack ("a salt starting with x is changed", "in its first character"); reverted, `git status --short`, `git diff --stat` and the file checksum identical, class green again on the same stack. The random-salt assertions of the first AC (the loop entry and `firstChanged '= salt`) can fail only on a salt starting with "x" (about 1 run in 64), so no deterministic mutation exists for them; they share `FirstChanged` with the proof assertions, which the mutation above turns red.
+- mutation: `FirstChanged` made to always answer "x"_$Extract(value, 2, *) (the old defect) -> `OcuTalon.Test.Data.Webhook` TestMatches went red on the warm stack ("a salt starting with x is changed", "in its first character"); reverted, `git status --short`, `git diff --stat` and the file checksum identical, class green again on the same stack. (Recorded before the code-review patch; the patch made the loop run over a fixed x-salt hash as well, so the AC 1 mutation below is now deterministic.)
+- mutation (AC 1, demonstrated by the lead after code review, lane-A warm throwaway e0s31cw): the loop entry `firstChanged_"."_digest` reverted to the old `"x"_$Extract(salt, 2, *)_"."_digest` -> `OcuTalon.Test.Data.Webhook` TestMatches red on the xHash pass ("'xAbCdEfGhIjKlMnOpQrS' is not a stored value of the secret"); reverted (file checksum and `git status --short` identical), the class green again; the patched class green before the mutation; throwaway torn down.
 
 ## Auto Run Result
 

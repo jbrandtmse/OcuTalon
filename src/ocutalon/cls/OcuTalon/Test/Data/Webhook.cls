@@ -5,7 +5,8 @@
 ///   - TestHashFormat: HashSecret gives 66 characters, a 22-character salt, a dot and a 43-character hash, all base64url; the same secret hashes differently
 ///     each time (a new salt), the secret itself is not in the value, and the value matches its secret, a secret with non-ASCII characters included;
 ///   - TestMatches: a wrong, empty, longer or shorter secret, and every malformed stored value, do not match and never throw; DUMMYHASH is well formed and
-///     matches nothing that is tried; FirstChanged gives the real salt with only its first character changed, whatever that is, so that it is never the real salt;
+///     matches nothing that is tried; the malformed values are tried against a random hash and against one made from a fixed salt that starts with "x", and
+///     FirstChanged changes only the first character of a salt, so that the result is never the real salt, an "x" included;
 ///   - TestMatchesHasNoEarlyExit: the source of Matches has no Quit or Return inside its comparison loop, which runs over all 43 characters;
 ///   - TestFieldProblems: NameProblem and SecretProblem give the catalog key of each refusal, at the boundaries;
 ///   - TestTable: Lookup finds a Ref and nothing for a malformed or unknown one, ForSession lists a session's Refs in creation order, a name is taken without
@@ -69,15 +70,20 @@ Method TestMatches()
 	For other = secret_"x", $Extract(secret, 1, *-1), "", "ZZ-MATCH-SECRET-0123456789", " "_secret, "nope" {
 		Do $$$AssertEquals(##class(OcuTalon.Data.Webhook).Matches(hash, other), 0, "'"_other_"' does not match")
 	}
-	Set salt = $Piece(hash, ".", 1), digest = $Piece(hash, ".", 2)
-	Set lastChanged = $Extract(digest, 1, 42)_$Select($Extract(digest, 43) = "A": "B", 1: "A")
-	Set firstChanged = ..FirstChanged(salt)
-	For stored = "", "x", ".", "a.b", salt, salt_".", "."_digest, salt_"."_$Extract(digest, 1, 42), salt_"."_digest_"x", salt_"."_lastChanged, firstChanged_"."_digest, salt_"."_digest_".x", $Piece(hash, ".", 2)_"."_$Piece(hash, ".", 1) {
-		Set matched = ##class(OcuTalon.Data.Webhook).Matches(stored, secret)
-		Do $$$AssertEquals(matched, 0, "'"_$Extract(stored, 1, 20)_"' is not a stored value of the secret")
+	Set xSalt = "xAbCdEfGhIjKlMnOpQrStQ"
+	Set xHash = xSalt_"."_$Translate($SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(256, $SYSTEM.Encryption.Base64Decode($Translate(xSalt, "-_", "+/")_"==")_$ZConvert(secret, "O", "UTF8")), 1), "+/=", "-_")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Webhook).Matches(xHash, secret), 1, "a stored value whose salt starts with x matches its secret")
+	For real = hash, xHash {
+		Set salt = $Piece(real, ".", 1), digest = $Piece(real, ".", 2)
+		Set lastChanged = $Extract(digest, 1, 42)_$Select($Extract(digest, 43) = "A": "B", 1: "A")
+		Set firstChanged = ..FirstChanged(salt)
+		For stored = "", "x", ".", "a.b", salt, salt_".", "."_digest, salt_"."_$Extract(digest, 1, 42), salt_"."_digest_"x", salt_"."_lastChanged, firstChanged_"."_digest, salt_"."_digest_".x", digest_"."_salt {
+			Set matched = ##class(OcuTalon.Data.Webhook).Matches(stored, secret)
+			Do $$$AssertEquals(matched, 0, "'"_$Extract(stored, 1, 20)_"' is not a stored value of the secret")
+		}
+		Do $$$AssertTrue(firstChanged '= salt, "the changed-first salt '"_firstChanged_"' is not the real salt")
 	}
-	Do $$$AssertTrue(firstChanged '= salt, "the changed-first salt is never the real salt")
-	Set xSalt = "xAbCdEfGhIjKlMnOpQrStU", xChanged = ..FirstChanged(xSalt)
+	Set xChanged = ..FirstChanged(xSalt)
 	Do $$$AssertTrue(xChanged '= xSalt, "a salt starting with x is changed")
 	Do $$$AssertEquals($Length(xChanged), $Length(xSalt), "with the same length")
 	Do $$$AssertTrue($Extract(xChanged) '= $Extract(xSalt), "in its first character")
