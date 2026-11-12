@@ -1,0 +1,10 @@
+2026-11-12T19:48:47Z	Epic 36	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-12T19:48:47Z	Epic 36	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-12T19:48:47Z	Epic 36	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-12T19:48:47Z	Epic 36	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=first_dispatch_epic_36_20261112 lane=B slot=ocutalon-slot-b port=52802 hold=absent inbox_verify=ok head=90777cf8 model=claude-opus-5-5
+2026-11-12T19:48:47Z	Epic 36	epic_branch_checked_out	repos=. head=90777cf8 branch=OCT-epic36 ci=gh workflows=ci,lane-a bootstrap_check=ok visibility=PUBLIC feature=36092ff1 pushed=no(CI_HOLD_until_HOLD_OFF)
+2026-11-12T19:48:47Z	Epic 36	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-12T19:48:47Z	Epic 36	ledger_load	total=1190 open=0 routed=141 escalated=2 decision_pending=5 terminal=1042 owner_unknown=0 burndown=124 reowned_none=0 owned_epic36=0
+2026-11-12T19:49:36Z	Epic 36	sprint_planning_complete	gate=CONCERNS model=claude-opus-5-5 in_sync=true note=readiness_recheck_U8 concerns=36.1_step5_contracts_partly_delivered_by_epic23(judge_ACs_vs_code),36.1_EXPERIENCE_catalog_public_text,36.1_Ens_ProductionConfig_grant_veto,36.2_README_AC_waits_epic22 warnings=standard_unparsed_headings
+2026-11-12T19:49:36Z	Epic 36	ruling	question=x0_input_with_nonempty_sources choice=skip_x0 why=no_entry_owned_by_36-*;124_burndown_entries_are_run-wide_residue_in_other_epics_footprints_for_the_final_ledger_sweep;DW-1021_decision-pending_owner_parked;action_items:8_user_or_owner_owned;retro:none(gates.retrospective=skip) rejected=x0_relabelling_residue category=decide policy=5086036
+2026-11-12T19:49:36Z	Epic 36	retro_review_skipped	reason=no_x0_input_in_authority sources=ledger_owned_epic36:0,burndown:124(none_in_epic36_authority),to_x0:0,action_items:8_user_or_owner_owned,retro:none(gates.retrospective=skip) dispatch=first_dispatch
