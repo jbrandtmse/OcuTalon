@@ -6996,3 +6996,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic21 8fc11a6e ci run 43114341467 iris (image) (Story 21.2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 21.2's EmailInPop3 passed smoke and fresh check locally and failed live:storage-roundtrip in CI; the Planner asked for a cheap pre-CI check
 - 2026-11-12T00:03:53Z status=routed owner=burndown by=orchestrator note=Contest Planner 2026-11-12: if cheap, run the storage-roundtrip (or its committed-vs-compiled Storage comparison) in the lead's smoke for stories that add a class with a storage definition
+
+### DW-1175: No per-push test runs check-readme-video.sh's own logic (retry, cap, status handling); its self-tests run only online and the release checklist's test stubs it
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: a stub-curl test needs a new test-*.sh in a ci/units.sh list, outside 0.28's boundary; a regression shows as a loud FAIL on the readme-video release row
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=the_readme-video_release_row_fails_for_a_script_bug_rather_than_a_dead_link
+
+### DW-1176: ci/units.sh NOT_IRIS_INPUT_PATTERN omits docker/tests/check-readme-video.sh, so a later edit of that script runs every CI group
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/units.sh:251 lists record-eval.sh and test-*.sh only; one alternative fixes it; cost is extra CI minutes on later edits of the script only
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=a_push_that_edits_only_check-readme-video.sh_runs_every_IRIS_group
+
+### DW-1177: Nothing per push checks that docker/tests/check-readme-video.sh exists, is executable and parses (test-release-checklist.sh stubs it)
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: a deleted or non-executable script fails the readme-video row at release time (row_script reports it), not per push
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=the_readme-video_release_row_reports_a_missing_or_non-executable_script

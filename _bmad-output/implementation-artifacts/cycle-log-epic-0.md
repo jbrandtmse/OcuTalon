@@ -887,3 +887,6 @@
 2026-11-12T03:31:16Z	Story 0.26	ci_resolved	story=0.26 sha=540dfce5 runs=43134792360,43134792086 result=success failed=none via=none resolved_at=merge_gate note=lane-a_ipm-install_rerun_once(DW-1119_infra);first_ci=infra
 2026-11-12T03:32:38Z	Epic 0	integrated_forward	feature=a9a3cb4a head=a9a3cb4a conflicts_resolved=none note=fast-forward_to_a9a3cb4a(0.26_merged_by_orchestrator)
 2026-11-12T03:32:38Z	Story 0.28	stage_spawned	stage=implement spawn_at=2026-11-12T03:32:38Z model=sonnet effort=high agent_name=0-28-implement-1 cycle_iteration=1 story_base=a9a3cb4a
+2026-11-12T04:02:33Z	Story 0.28	dev_complete	spawn_at=2026-11-12T03:32:38Z model=sonnet effort=high build_sha=59be546e baseline_revision=793840c5 story_base=793840c5 review_loop_iteration=0 followup_review_recommended=false deferred=3(DW-1175,DW-1176,DW-1177_wontfix-accepted_reopen_if) cycle_iteration=1 note=count_fifteen(registry_15;35.3_not_on_feature_b5057e5a);check-readme-video_online_pass;oEmbed_host_split_in_two_to_pass_release_no-outward_row(for_Planner)
+2026-11-12T04:02:33Z	Story 0.28	adr_verifications_complete	result=none_required mutations=none model=claude-opus-5-5
+2026-11-12T04:02:34Z	Story 0.28	stage_spawned	stage=qa spawn_at=2026-11-12T04:02:34Z model=sonnet effort=high agent_name=0-28-qa-1 cycle_iteration=1
