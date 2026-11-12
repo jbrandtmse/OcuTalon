@@ -3802,3 +3802,5 @@
 2026-11-12T20:19:53Z	Epic 36	runner_reported	PLANNER_REPORT story=36.1_plan(ready-for-dev,oversized) veto=V1-V6 public_text=13_catalog+security-overview local=05d75393
 2026-11-12T20:19:53Z	Run	ruling	question=contended_Checks/Process.cls(36.1_one-line_Tick_insert_vs_22.5/22.11) choice=36.1_first;22.5/22.11_integrate_forward_after(they_already_wait_on_22.4->21.4) category=decide policy=5086036
 2026-11-12T20:22:09Z	Epic 36	owner_decision	via=contest_planner what=36.1_gate(V1=b_no_grant;V2-V5_approved;V3_conditions;no_public_text) file=prompts/story-361-rulings-20261112.md ac_moved_to=23.3 ledger=DW-1225 relay=runner_36_at_turn_end
+2026-11-12T20:54:44Z	Epic 36	runner_reported	PLANNER_REPORT story=36.2_gate(V1-V7,PUBLIC_TEXT_settings_step5) splits=36.3(Jira_link,waits_22.6),36.4(on-call_Settings) local=8b45a6b8
+2026-11-12T20:54:44Z	Run	deps_hash_rerecorded	reason=split note=story_waits_36.2->36.3(epic-22);36.4_added_no_wait;hash_rerecord_at_Epic36_merge(epics.md_change_on_OCT-epic36_only)
