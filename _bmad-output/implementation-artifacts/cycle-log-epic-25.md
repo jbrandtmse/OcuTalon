@@ -71,3 +71,4 @@
 2026-11-11T10:42:42Z	Story 25.2	story_cycle	plan_to_commit_min=971 implement_passes=3 reviews=3 rework=2(ci,ci) first_ci=story models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=includes_~6h_wait_on_37.2
 2026-11-11T10:42:42Z	Epic 25	part_merge	story=25.2 head=4af29b25 feature=5ed39411(51a53f69+25.2) ci=success(42995845667_attempt_2,42995845639) merged_by=orchestrator more_to_try=fourteen epic_25=in-progress parked=25.3,25.4,25.5(scope_closed_by_owner) burndown_gate=not_run
 2026-11-11T10:42:42Z	Epic 25	epic_runner_complete	stories_completed=1(25.2) part_merge=25.2 epic_open=true
+2026-11-12T22:25:15Z	Epic 25	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_253_20261112 lane=A slot=ocutalon-slot-a port=52801 lock=lane-a ci_hold=on model=claude-opus-5-5
