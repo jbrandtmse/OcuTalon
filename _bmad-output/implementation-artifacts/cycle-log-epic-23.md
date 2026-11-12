@@ -246,3 +246,5 @@
 2026-11-12T03:35:47Z	Story 23.11	protocol_violation	stage=implement depth=1-2 agent=implement_stage+handoff violation=(a)handoff_echo_call_in_same_message_as_a_test_run;(b)stage_ran_git_add_-N_._before_finalize;(c)checks.sh_batched_several_per_call(3_over_150s) consequence=none(HEAD_unchanged_until_finalize;index_clean_after) detected_by=self-report outcome=noted
 2026-11-12T03:35:47Z	Story 23.11	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none model=claude-opus-5-5
 2026-11-12T03:35:47Z	Story 23.10	ci_resolved	story=23.10 sha=0ee635dc(integrated_on_cf6fcb39) runs=43136084417,43136084465 result=success failed=none via=none resolved_at=part_ready
+2026-11-12T03:37:22Z	Epic 23	note	23.10_merged_by_orchestrator(feature=b5057e5a;0ee635dc_verified_on_origin)
+2026-11-12T03:37:22Z	Story 23.11	stage_spawned	stage=qa spawn_at=2026-11-12T03:37:22Z model=sonnet effort=high agent_name=23-11-partner-notice-outcome-qa-1 cycle_iteration=1
