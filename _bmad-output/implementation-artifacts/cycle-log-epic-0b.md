@@ -38,3 +38,4 @@
 2026-11-12T14:19:40Z	Story 0.31	stage_spawned	stage=plan spawn_at=2026-11-12T14:19:40Z model=opus agent_name=0-31-plan-1 cycle_iteration=1
 2026-11-12T14:28:50Z	Story 0.31	story_created	spawn_at=2026-11-12T14:19:40Z model=opus path=_bmad-output/implementation-artifacts/spec-0-31-dw-1123-the-memory-documents-remember-eval-accepts-document.md build_status=ready-for-dev epic_context=reused
 2026-11-12T14:28:50Z	Story 0.31	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-22,AD-29,AD-21 decision_dependency=none sections_created=none owned_ledger=DW-1123 addressed=1 declined=0 mutates_shared_runtime=false results_rerun=rules-only_main(R1_arrangement) model=claude-opus-5-5
+2026-11-12T14:29:05Z	Story 0.31	stage_spawned	stage=implement spawn_at=2026-11-12T14:29:05Z model=sonnet agent_name=0-31-implement-1 cycle_iteration=1 story_base=706428c9 note=0.27_ci_pending_on_0f86f096_orchestrator_no_idle_ruling
