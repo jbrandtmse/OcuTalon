@@ -7303,6 +7303,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-7-send-the-daily-digest-by-email.md (QA) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 21.7 QA 2026-11-12: baseline 90ab0f80 4/240 and this tree 3/160 smtp.test.mjs runs red under load; foreign bodies '<!doctype', 'not found', 'WebSockets'; serial 1/60; CI containers not expected to share a loopback (inference)
 - 2026-11-12T16:32:46Z status=routed owner=burndown by=ci note=fix: ci/mock/server.mjs --host 127.0.0.1 for the stubs, or a spawn helper that checks the control route answers with the mock's own JSON
+- 2026-11-12T21:57:15Z occurrence=21-8-read-and-send-mail-with-the-oauth2-sign-in note=local_node_--test_ci/mock/test_1/182_red_after_21.8_commit,green_on_one_unchanged_rerun_(182/182)
 
 ### DW-1208: The spine's record of Story 21.7's O1 is incomplete: AD-33 lists no exception for 21.7's Lane A edit (Digest/Process.cls and Test/Digest/{Compose,Due,ProcessProbe,Thresholds}.cls), the AD-14 'As built in Story 18.2' bullet still says Digest narrows and sends directly until DW-820 with no superseded marker, and no contract row names Lane A Digest.Process.Reachable calling Lane B Functions.DigestChannels
 - source: spec-21-7-send-the-daily-digest-by-email.md | severity: med | fix-risk: low | footprint: out-of-footprint
