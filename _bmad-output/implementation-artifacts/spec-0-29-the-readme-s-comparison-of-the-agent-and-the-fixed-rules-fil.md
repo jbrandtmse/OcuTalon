@@ -4,25 +4,12 @@ type: 'feature'
 created: '2026-11-12'
 status: 'done'
 baseline_revision: '65a75b5c22d515e22c01e69c9de447c69d5c5fb8'
+baseline_commit: '65a75b5c22d515e22c01e69c9de447c69d5c5fb8'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: []
-deferred:
-  - summary: >-
-      Nothing in the test suite fails while the agent column still reads "measured at release 1.0.9" (the placeholder), so it could reach main.
-    evidence: |-
-      The spec fixes the agent column's text as unpinned (the release fork replaces it) and the Planner's ruling says the placeholder never reaches main; the fork's RC checklist is to grep for it. Not located in this tree by the verification-gap layer; settle by confirming the RC checklist step.
-    location: >-
-      README.md (agent column of "With the agent and with fixed rules only")
-    severity: medium (unverified)
-  - summary: >-
-      test-readme.sh's st() self-test harness accepts any flag from a checker, so a mutation that trips two clauses of chk_comparison does not pin each clause alone.
-    evidence: |-
-      st() passes whenever the checker prints anything; this is the shape of every st in the script, so the fix is a harness-wide change outside this story.
-    location: >-
-      docker/tests/test-readme.sh:st
-    severity: low
+deferred: []
 ---
 
 <intent-contract>
