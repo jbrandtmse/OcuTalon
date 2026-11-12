@@ -7229,3 +7229,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rows 7-12 online-demo specs: 1 failed (R2, 2.3 s) at resume.spec.ts:143 page.goto ERR_ABORTED; spec unchanged since 83a6f3c1 (Nov 4); the head changes README.md and test-readme.sh over feature eb289caf; 18 runners busy
 - 2026-11-12T11:14:12Z status=routed owner=burndown by=runner note=flake class (first occurrence): one rerun of failed jobs; a second red on the same head is real; likely fix: gotoSettled at L143 as DW-690 did
 - 2026-11-12T12:22:47Z status=routed owner=burndown by=runner note=rerun_attempt_2_of_run_43202138313_green_on_2a6cfc67(flake_confirmed)
+
+### DW-1199: The allowance notice cards' install link (Allowance.cls INSTALLLINK) still points at README#install-it-yourself, which Story 0.30 moved to GUIDE.md: on the online demo the link opens the README top while the banner of the same state opens GUIDE.md
+- source: spec-0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm.md | severity: med | fix-risk: low | footprint: in-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Core/Allowance.cls:37 INSTALLLINK=https://github.com/jbrandtmse/OcuTalon#install-it-yourself; used at L236,L251 (slots.readmeLink); pinned by Test/Core/{Allowance,AllowanceInProduction,BridgeSink,WebChatMessages,WebChatOut}.cls, web/e2e-online/allowance/{daily-cap,messages}.spec.ts, web/scripts/{allowance-sources,banner-view}.test.mjs; found by 4 build-auto review layers
+- 2026-11-12T15:25:32Z status=decision-pending owner=0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm by=harvest note=planner:extend_Q1_to_INSTALLLINK(GUIDE_URL#install-it-yourself)+its_pins?src/**_closed_by_the_intent;recommended_yes(same_ruled_change,link_target_only)
