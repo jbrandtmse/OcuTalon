@@ -49,7 +49,7 @@ deferred: []
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Rules-only, happy path | `bash eval/run.sh --rules-only` on a lane-A throwaway, no key | Every item, injection and incident row is a fallback with reason `no_key`. Items are right only where the expected answer is `tellnow` (or contains it), and 0 incidents are right. The run writes `rules-only.json/.md` and `rules-only-held-out.json/.md`, prints `PASS rules-only: ...`, `REPORT <dir>` and `eval/run: all checks passed`, and exits 0 | No error expected |
+| Rules-only, happy path | `bash eval/run.sh --rules-only` on a lane-B throwaway (this lane), no key | Every item, injection and incident row is a fallback with reason `no_key`. Items are right only where the expected answer is `tellnow` (or contains it), and 0 incidents are right. The run writes `rules-only.json/.md` and `rules-only-held-out.json/.md`, prints `PASS rules-only: ...`, `REPORT <dir>` and `eval/run: all checks passed`, and exits 0 | No error expected |
 | Rules-only, one set | `--rules-only main` or `--rules-only held-out` | As above, for that set only (its own stack) | No error expected |
 | A model is reached | A decided non-fallback row, or a mock request during a rules-only run | `Report.Problems` names "a model answered" with the cases; `FAIL rules-only: the mock received <n> request(s)` | exit 1 |
 | A key is present | Any runner's `Keys.Status` is 1 after `RestoreKeys` | `FAIL rules-only: a runner has a model key`; no case is sent | exit 1 |
@@ -115,7 +115,7 @@ deferred: []
   - add XData `HeldOutCases`: the inputs of the 4 held-out incidents (`name`, `item`, `messageClass`, three `messages`, `errorHas`), with no expectation, no `heldOut` and no description;
   - add a set argument to `Definitions`, `Start` and `Record` (default `Cases`, so every existing caller is unchanged); `Record` of the held-out set writes `snapshot.json` only.
   - The messages: claims to ClaimsToBilling with Amount `125,40`, `80,00` and `310,25` (billing-amount-decimal-comma); returns to ReturnsToLedger with Weight `2,5`, `1,0` and `0,5` (returns-weight-decimal-comma); shipments to ShipmentsToLedger with ShippedAt `16/10/2026 09:30:00`, `16/10/2026 09:45:00` and `17/10/2026 10:00:00` (shipments-day-first-date); shipments to ShipmentsToLedger with Weight `-3.0`, `-1.5` and `-0.5` (shipments-negative-weight). The other fields and the ids follow the existing cases' pattern, with new id ranges; `errorHas` comes from the first recording.
-- `docker/tests/record-eval.sh` -- add mode `held-out [<name>]`: one throwaway per call (lane-A variables); copies out only `snapshot.json` into `eval/held-out/<name>/`; dies if the folder's `case.json` is missing, or if any `case.json` under `eval/held-out/` changed (checksum before and after). Then record the 4 snapshots, one call each, before any `test-eval-set.sh` run of `cases` is relied on.
+- `docker/tests/record-eval.sh` -- add mode `held-out [<name>]`: one throwaway per call (the lane variables of `## Verification`); copies out only `snapshot.json` into `eval/held-out/<name>/`; dies if the folder's `case.json` is missing, or if any `case.json` under `eval/held-out/` changed (checksum before and after). Then record the 4 snapshots, one call each, before any `test-eval-set.sh` run of `cases` is relied on.
 - `src/ocutalon/cls/OcuTalon/Eval/Report.cls` -- add `rulesOnly As %Boolean = 0` to `Run`, `Build`, `Complete` and `Score`, recorded as `report.rulesOnly`.
   - In rules-only, a row whose fallback reason is `no_key` counts as decided for items, injections and incidents; in `Complete` such rows are not reported for a missing cost or size and add no unpriced decision.
   - `Problems` adds: a decided non-fallback row with a decision ("a model answered: <cases>"), and a fallback for another reason (the case and the reason). A skipped no-reply case is not a Problem in rules-only.
@@ -152,7 +152,7 @@ deferred: []
 - Given the held-out commit, when the story's head is checked, then `git diff --exit-code 6af31dab5f265ca76343127c8b2ee4d7c3cd7970 HEAD -- 'eval/held-out/*/case.json'` is empty, and `cases`, `held-out`, `held-out-frozen` and `held-out-names` pass and each fails on its bad variant.
 - Given an agent report folder and a rules-only folder of the same cases, when `node eval/compare.mjs` runs, then it writes the per-case and total comparison, with the three unsafe kinds and the needed-you-now count, on recorded files, without a key or a stack.
 - Integration (Rule 1): Given the consumer, CI's lane-A `evaluation` job, when its `bash eval/run.sh` push run has written `set.json`, `held-out.json` and the rules-only reports, then `eval/compare.mjs` reads them, and the effect is observable in the job's log (the rules-only PASS lines, `COMPARISON <file>`, `eval/run: all checks passed`) and in its step summary as the comparison table; no workflow file changed.
-- Given CI on the story's head, when it finishes, then every workflow is green, including the hosted `checks` job's `readme-video`.
+- Given CI on the story's head, when it finishes, then every workflow is green (the hosted `checks` job includes `readme-video` only once Story 0.28 is on the head; this story adds no check script).
 
 ## Ruled README change
 
@@ -182,6 +182,8 @@ d2003cd1a835c3f028a66af4690c7f4741c0d398e8663445ca6742ac51da599d  eval/held-out/
 Held-out commit: `6af31dab5f265ca76343127c8b2ee4d7c3cd7970` (on `origin/OCT-epic0`; never rebased or amended; the README links it).
 
 ## Spec Change Log
+
+- 2026-11-12 ~10:45Z, lane-B runner (spec gate, re-dispatch after the account switch): this story runs on LANE B (worktree `.worktrees/epic-0b`, branch `OCT-epic0b`, slot ocutalon-slot-b, port 52802), integrated forward onto feature eb289caf (0.26, 1.0.7 merge-back, 22.2, 23.7, 22.8, 23.10, 23.11, 21.2/21.6, 35.3). Every local throwaway uses lane-B variables and `e0bs27*` run tags (the lane-A values were written before the lane move). Story 0.28 (Part A) is not on this branch: the CI AC no longer requires `readme-video`, the ASCII check drops `test-readme-video.sh`, and the `ci` diff check expects no change. No intent change.
 
 - 2026-11-12 ~02:10Z, lead: three-way split (Contest Planner ~02:05Z, owner's delegation; orchestrator): this story is Part B only, the measuring tools, run on LANE B in the second Epic 0 worktree (`.worktrees/epic-0b`, branch `OCT-epic0b`, cycle log `cycle-log-epic-0b.md`), branched from feature after Story 0.26 merges. Part C (README comparison: tasks, the README AC, ruled parts C1 and C2, the `README column drifts` matrix row, the `--column` fill command and its mutation) moved whole to Story 0.29 (`spec-0-29-...`); the committed `eval/results/` report stays HERE. Story 0.28 (Part A) lands before or beside this story; this story touches no README line. The held-out revert `600d0d8d` is reverted first, on OCT-epic0b. References to Parts A and C elsewhere in this spec (Code Map, Design Notes, size note, footprint list) are historical.
 
@@ -316,7 +318,7 @@ Shared surfaces:
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
-**Commands** (from the worktree root, one per call, each finishing in about 150 s; lane-A variables on every throwaway: `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-a OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=0 stage=<stage>'`):
+**Commands** (from the worktree root, one per call, each finishing in about 150 s; lane-B variables on every throwaway (this story runs on lane B, worktree `.worktrees/epic-0b`): `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-b OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=0b stage=<stage>'`, and every `OCUTALON_RUN_TAG` starts with `e0bs27`):
 - `git diff --exit-code 6af31dab5f265ca76343127c8b2ee4d7c3cd7970 HEAD -- 'eval/held-out/*/case.json' && shasum -a 256 eval/held-out/*/case.json` (once, first) -- expected: empty diff and the 12 values of `## Held-out set`.
 - `bash docker/tests/test-readme.sh` (loop, about 25 s) -- expected: `test-readme: all rules passed`.
 - `/bin/bash docker/tests/test-readme.sh` (once) -- expected: the same under bash 3.2.
@@ -325,16 +327,16 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - `bash docker/tests/test-eval-personas.sh` (loop) -- expected: all pass.
 - `bash docker/tests/test-boundaries.sh` (loop, about 11 s) -- expected: `test-boundaries: all rules passed`.
 - Warm stack:
-  - `OCUTALON_RUN_TAG=e0s27iw bash ci/warm.sh up` (once);
-  - `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e0s27iw bash ci/iris.sh class OcuTalon.Test.Eval.Report` (loop) -- expected: `CLASS ... passed`;
+  - `OCUTALON_RUN_TAG=e0bs27iw bash ci/warm.sh up` (once);
+  - `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e0bs27iw bash ci/iris.sh class OcuTalon.Test.Eval.Report` (loop) -- expected: `CLASS ... passed`;
   - the same for `OcuTalon.Test.Eval.Record` and `OcuTalon.Test.Eval.FeedGrant` (once each, Fixture changed);
-  - `OCUTALON_RUN_TAG=e0s27iw bash ci/warm.sh down` (once, also after a failure).
-- `OCUTALON_RUN_TAG=e0s27i bash ci/iris.sh class OcuTalon.Test.Eval.Report` (once, fresh), then `OCUTALON_RUN_TAG=e0s27i bash ci/iris.sh teardown` (once).
-- `OCUTALON_RUN_TAG=e0s27r<k> bash docker/tests/record-eval.sh held-out <name>` (once per incident, 4 calls, k = 1 to 4) -- expected: one `snapshot.json` written, and `git status --short eval/held-out` shows only it.
-- `OCUTALON_RUN_TAG=e0s27rm bash eval/run.sh --rules-only main` and `OCUTALON_RUN_TAG=e0s27rh bash eval/run.sh --rules-only held-out` (once each; Task 0, and the committed run) -- expected: the rules-only PASS lines, `REPORT <dir>` and `eval/run: all checks passed`. Then `bash ci/iris.sh teardown` with each tag (once each).
+  - `OCUTALON_RUN_TAG=e0bs27iw bash ci/warm.sh down` (once, also after a failure).
+- `OCUTALON_RUN_TAG=e0bs27i bash ci/iris.sh class OcuTalon.Test.Eval.Report` (once, fresh), then `OCUTALON_RUN_TAG=e0bs27i bash ci/iris.sh teardown` (once).
+- `OCUTALON_RUN_TAG=e0bs27r<k> bash docker/tests/record-eval.sh held-out <name>` (once per incident, 4 calls, k = 1 to 4) -- expected: one `snapshot.json` written, and `git status --short eval/held-out` shows only it.
+- `OCUTALON_RUN_TAG=e0bs27rm bash eval/run.sh --rules-only main` and `OCUTALON_RUN_TAG=e0bs27rh bash eval/run.sh --rules-only held-out` (once each; Task 0, and the committed run) -- expected: the rules-only PASS lines, `REPORT <dir>` and `eval/run: all checks passed`. Then `bash ci/iris.sh teardown` with each tag (once each).
 - `node eval/compare.mjs <scratch dir> eval/results` (once, a smoke run on real reports: the scratch dir, in the stage's own scratch folder, holds `set.json` and `held-out.json` copied from the two committed reports) -- expected: `COMPARISON <file>` and exit 0.
-- `for f in eval/run.sh eval/compare.mjs docker/tests/record-eval.sh docker/tests/test-eval-set.sh docker/tests/test-readme.sh docker/tests/test-readme-video.sh docker/tests/test-eval-personas.sh; do LC_ALL=C tr -d '\011\012\040-\176' < "$f" | wc -c; done` (once) -- expected: all 0.
-- `git diff --name-only <baseline> -- .github release _bmad` (once) -- expected: empty. `git diff <baseline> -- ci` (once) -- expected: only `readme-video` added to `CHECK_SCRIPTS`, plus its comment.
+- `for f in eval/run.sh eval/compare.mjs docker/tests/record-eval.sh docker/tests/test-eval-set.sh docker/tests/test-eval-personas.sh; do LC_ALL=C tr -d '\011\012\040-\176' < "$f" | wc -c; done` (once) -- expected: all 0.
+- `git diff --name-only <baseline> -- .github release _bmad` (once) -- expected: empty. `git diff <baseline> -- ci README.md web` (once) -- expected: empty (this story changes no CI script, README line or web test).
 - `git grep -n -i 'never used for tuning' -- . ':!_bmad-output'` (once) -- expected: no output.
 - Lead (once): CI on the head, every workflow green. The push run of `bash eval/run.sh` (local about 4-5 min, too long for one call) and `bash eval/key-proof.sh` are proven in lane A's `evaluation` job: its log shows the rules-only PASS lines and `COMPARISON`, and its summary shows the table (the Integration AC). The hosted `checks` job shows `readme-video` passed.
 
