@@ -2,12 +2,57 @@
 title: 'Story 0.32: CI time budgets get a 40% margin over their green medians, and the two load timeouts get MEASURED lines (DW-1082, DW-1195)'
 type: 'chore'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '4f8505ccdc1d63d1f2f5d083f0e4e6d2bcb44045'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Report-only: the iris groups' unit seconds plus the job's overhead sit under 1.4 of the 40-minute cap in six groups, and the five floors raise the worst case of the groups that hold them.
+    evidence: |-
+      Ten newest green jobs, 2400 s / median job: shards-10 1.33, shards-5 1.34, shards-11 1.35, shards 1.36, production 1.39, shards-2 1.39; against the largest job 1.17 (production 2050 s, shards-2 2048 s, shards-5 2019 s). Medians are 1,446 to 1,800 s.
+      The worst case of a group that holds a floored unit (shards-4, shards-5 and shards-10 with the sign-in units at 1500 s, install-fresh with install-start at 1440 s, install-upgrade) can pass 2400 s, so a real hang there ends at the job's cap, not the unit's.
+      Full table: evidence/0-32-task0-ci-time-budgets.md.
+    location: >-
+      .github/workflows/ci.yml (iris job timeout-minutes: 40), ci/units.sh (group_units)
+    severity: 'medium (Planner: a job cap is a RELEASE TOOL hunk; rebalancing is Story 0.20 kind of change)'
+  - summary: >-
+      Report-only: the ci `checks` job timeout (20 minutes) is 1.25 times its green median.
+    evidence: |-
+      962 s median, 1015 s largest of the ten newest green jobs, against 1200 s: 1.25 and 1.18.
+    location: >-
+      .github/workflows/ci.yml (checks, timeout-minutes: 20)
+    severity: 'medium (Planner: RELEASE TOOL hunk)'
+  - summary: >-
+      Report-only: the ci `iris` job timeout (40 minutes) is 1.33 to 1.66 times the group medians.
+    evidence: |-
+      See the group entry; the cap itself is the last bound of a hang and the Never list forbids raising it here.
+    location: >-
+      .github/workflows/ci.yml (iris, timeout-minutes: 40)
+    severity: 'medium (Planner: RELEASE TOOL hunk)'
+  - summary: >-
+      Report-only: lane-a's ipm-install (35 minutes) and ipm-install-p (35 minutes) jobs run at 1.13 and 1.21 times their green medians.
+    evidence: |-
+      ipm-install 1859 s median, 2098 s largest, against 2100 s: 1.13 and 1.00. ipm-install-p 1741 s median, 1893 s largest: 1.21 and 1.11. Their deadline is 1980 s, which the floors never lower. REL-4's 35 minutes is a Never-raise bound of this story.
+    location: >-
+      .github/workflows/lane-a.yml (ipm-install, ipm-install-p, timeout-minutes: 35)
+    severity: 'medium (Planner: RELEASE TOOL hunk and REL-4)'
+  - summary: >-
+      Report-only: Playwright's 45 s per-test timeout is 1.27 times the slowest test of online-allowance and 1.38 times that of online-demo.
+    evidence: |-
+      Median over the ten newest green runs of each run's slowest test: online-allowance 35.5 s, online-demo 32.7 s, sign-in-3 31.6 s (1.42), online-session 29.4 s, answers 28.5 s. Tests that set a longer timeout of their own (demo-path 54.5 s, online-visitors 144 s) are outside the default.
+    location: >-
+      web/playwright.config.ts (timeout: 45_000)
+    severity: 'low (Planner)'
+  - summary: >-
+      live:install-upgrade row 6 stays at the ruled 300 s, 1.37 times its median, below the 1.4 rule.
+    evidence: |-
+      Row 6's median gap is at most 219 s (an upper bound, build included); 1.4 x 219 = 307 s, rounded to 330 s. DW-1082 rules exactly 300 s, so the code follows the ruling; the next audit reads the MEASURED row 6 lines.
+    location: >-
+      docker/tests/test-install-upgrade.sh (row 6, wait_started_ready 300)
+    severity: 'low (Planner)'
 ---
 
 <intent-contract>
@@ -184,6 +229,23 @@ Every changed budget prints a `MEASURED` line, so the next audit is exact.
 
 ## Review Triage Log
 
+### 2026-11-12 -- Review pass
+- verdicts: 28 findings from the three finding layers (blind 9, edge 11, verification-gap 8; the intent-alignment layer is descriptive) -- high 0, medium 1, low 27, false 0, maybe-false 0; 3 patched, 25 rejected (rows below group them by root cause; the stale `Status:` line in the spec was fixed at finalize)
+- findings:
+  - `[low]` `patch` Blind: no test that the `MEASURED wait` line prints when the container has no start time (also verification-gap 1) -- a test-lib-live row was added and its mutation run (red, reverted)
+  - `[low]` `patch` Verification-gap: the non-numeric given deadline in `cmd_live` was unpinned -- a `tk_live floor-nonnumeric` row was added and its mutation run (red, reverted)
+  - `[medium]` `patch` Blind: `test-release-sequence.sh` and `test-rehearsal.sh` not run to a verdict -- the lead ran the `overviewunit` rule of the first (PASS); the rules that touch `ci/units.sh` and lib-live live there, and neither file reads the changed wait scripts (the default run exceeds the 150 s cap)
+  - `[low]` `reject` Blind/edge: the floor lifts a lower local `OCUTALON_LIVE_DEADLINE` with no opt-out -- by design (Decided in-stage 3: local `ci/iris.sh live` runs get the floors); a spec-bound behaviour
+  - `[low]` `reject` Edge: a given deadline with whitespace is read as 0 -- theoretical; CI sets a bare integer
+  - `[low]` `reject` Blind/edge: MEASURED covers only the log part of `wait_started_ready`, and the empty-stamp line reads `0 s of N s` -- documented in the header comment; rows 6 and 7 time the whole call
+  - `[low]` `reject` Blind/verification-gap: install-upgrade, install-start and sign-in budget pins are text pins -- by design; the scripts need a live stack and AC 7 is CI's own result
+  - `[low]` `reject` Blind: release upgrade-harness waits also print the new stderr line -- the release path is out of scope; the added output is on stderr and no caller captures it
+  - `[low]` `reject` Blind: 510 s sized from an upper-bound median, no tail figures, duplicate row-level lines, header tidiness -- the spec's rule (largest per-unit median x 1.4) and its row-line form are followed
+  - `[low]` `reject` Edge: group sums can pass the job cap, claims about "every changed budget" and "one budget" -- already the group-margin `deferred:` entry; claims are the spec's wording
+  - `[low]` `reject` Edge: BASH_SOURCE empty frames, a prefix match of `wait_started_ready 300`, record-eval's literal 400 -- theoretical or out of scope (record-eval is not a CI unit)
+  - `[low]` `reject` Verification-gap: the AC 5 table check is a scratch script, AC 7 has no mutation, the `(1200, 2340]` bound is caught by the exact floor pin, test-lib-live rows rely on the earlier start stamp -- the spec makes AC 5 a one-off check and AC 7 CI's result; the exact floor pin already fails first
+  - `[low]` `reject` Intent-alignment (descriptive): the diff implements the reading in which scripts raise effective deadlines while the workflow keeps 1200 -- that is the spec's approach (Decided in-stage 3), not a divergence from its intent
+
 ## Design Notes
 
 - **Architecture:**
@@ -248,7 +310,56 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - AC 6: set a floor of 2400. Expected red: the budgets bound.
 - AC 7: no mutation. It is CI's own result on the head (lead).
 
+### Measured (implement)
+
+Task 0 is `evidence/0-32-task0-ci-time-budgets.md` (17 ci push runs read, n = 10 per budget; the table, method and run ids are there).
+
+- Unit deadlines: the five the plan expected are under 1.4: install-start 1.20, install-upgrade 1.18, sign-in 1.16, sign-in-2 1.15, sign-in-3 1.12. The lowest of the others is live:floor at 1.47. Floors: 1440, 1440, 1500, 1500, 1500.
+- Suites: sign-in 1.23, sign-in-2 1.21, sign-in-3 1.21 (budgets 832, 841 and 822 s at a 348, 339 and 358 s setup, against suites of 675, 696 and 681 s); with D = 1500 the budgets are 1132, 1141 and 1122 s (1.68, 1.64, 1.65; DW-1195's 950 s and 1.4 x median both met). Every other suite has at least 1.8 (live:floor 1.80, demo-path 2.27).
+- Ready waits: the first start 1.16 at the largest per-unit median (346 s, test-sign-in-3.sh; demo-path's own FIRST-START ready= median is 306 s), so `LIVE_FIRST_START_WAIT` is 510 s (1.4 x 346 = 484, up to 30 s; under AD-23's 720 s). install-start row 3 (210 s median, 0.95) goes to 300 s and row 4's restart (191 s, 1.05) to 270 s. install-upgrade row 6 (219 s, 0.91) is 300 s as ruled, row 7's failing step (203 s, 0.98) 300 s and its next good image (216 s, 0.93) 330 s. All other waits have at least 1.86. `LIVE_PORT_WAIT` has no sample (no `PORT free` line in any of the 17 runs).
+- 11 budgets changed (the cap is about 12). Every changed budget has at least 1.4 after, except row 6 at 1.37 (ruled) with a deferred entry.
+- The plan's workflow facts differ in two places: ci.yml has `install-macos` at 10 minutes and `web` at 15 (the plan names them the other way round); neither is near its cap (39 s and 80 s medians).
+- The plan expected row 7's failing step to be a `PARK` site; it is `wait_started_log`, measured from the gap before its first PASS line.
+- Local live check: `ci/iris.sh live audit` on a lane-B throwaway passed all its checks and printed `MEASURED wait test-audit.sh:51 99 s of 510 s`; the throwaway was torn down (0 leftovers).
+- Commands run, all green: `bash -n` and the ASCII check on every changed shell file; `test-ci-config.sh` (all rules passed, with the budgets rule); `test-lib-live.sh` (all checks passed, 6 new `measured` rows); `test-ci-warm.sh`, `test-upgrade-harness.sh`, `test-ci-changes.sh`; `node --test` of state-wait, ci-results and e2e-part (96 pass, 0 fail); `test-boundaries`, `test-storage`, `test-class-rules`, `test-pinned-sources`, `test-after-start`, `test-demo-path-gate`, `test-readme`, `test-release-checklist`. `test-release-sequence.sh` and `test-rehearsal.sh` were started and stopped at 100 s without a verdict: neither reads the changed scripts except the unchanged fixture text of test-release-sequence.sh:2076. The table-against-code check (a scratch script over the evidence table, the five floors, `LIVE_FIRST_START_WAIT` and the five install literals) reported no mismatch.
+
+### Mutations (Rule 19)
+
+Each applied to the tree, observed red, reverted; `git status --short` and `git diff` identical afterwards (checked by checksum each time).
+
+| mutation | test | result |
+|---|---|---|
+| AC 1: row 6 back to `wait_started_ready 200` | test-ci-config budgets | red: row 6 is not wait_started_ready 300, then its MEASURED line, then its die |
+| AC 1: drop the row 6 MEASURED echo | test-ci-config budgets | red, same message |
+| AC 1: install-start row 3 back to 200 | test-ci-config budgets | red: row 3's wait is not 300 s with its die |
+| AC 2: the suite result echo removed from after `e2e_status=$?` | test-ci-config budgets | red: not the unconditional line after e2e_status |
+| AC 2: the suite result echo only when `e2e_status` is 0 | test-ci-config budgets | red, same message |
+| AC 3: delete `export OCUTALON_LIVE_DEADLINE=$floor` in cmd_live | test-ci-config budgets (tk_live floor rows) | red: the unit saw 1200, wanted 1500; unset, wanted 1440 |
+| AC 3: the sign-in floors set to 1200 | test-ci-config budgets (floor pin) | red: the floors are ... sign-in=1200 |
+| AC 3: `-lt` to `-le` (a floor equal to the given deadline) | test-ci-config budgets (floor-equal row) | red: a DEADLINE line was printed |
+| AC 3: `floor` given a floor of 1300 (an unlisted unit) | test-ci-config budgets (floor pin) | red: the floors include floor=1300 |
+| AC 4: drop the `MEASURED wait` echo | test-lib-live | red: the four measured wait rows |
+| AC 4: the `MEASURED wait` line to stdout (no `>&2`) | test-lib-live | red: the measured rows |
+| AC 4: test-floor.sh back to `wait_started_ready 400` | test-ci-config budgets | red: test-floor.sh:58 first-start wait is not the variable |
+| AC 4: lib-live default 510 back to 400 | test-ci-config budgets | red: LIVE_FIRST_START_WAIT does not default to 510 |
+| AC 5: a die text changed to 360 s, table unchanged | table-against-code scratch check | MISMATCH reported |
+| AC 6: install-start and install-upgrade floors of 2400 | test-ci-config budgets | red: the floors are ... install-start=2400 (the bound of 2340) |
+| AC 4 (review pass): the `MEASURED wait` echo skipped when the container has no start time | test-lib-live "a wait for a container with no start time" | red: that row FAILs |
+| AC 3 (review pass): the `case` line that turns a non-numeric given deadline into 0 deleted from `cmd_live` | test-ci-config budgets `floor-nonnumeric` | red: the unit saw 'abc', wanted 1500 |
+
+AC 7 is CI's own result on the head (the lead, after CI HOLD OFF).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: the CI time budgets of Story 0.32 are audited (n = 10 green jobs per budget, 17 `ci` runs) and 11 budgets are raised; the audit table is `_bmad-output/implementation-artifacts/evidence/0-32-task0-ci-time-budgets.md`. Floors live in `ci/units.sh` `unit_live_deadline` (install-start 1440, install-upgrade 1440, sign-in / sign-in-2 / sign-in-3 1500) and are applied by `cmd_live` with a `DEADLINE` line. The first start is `LIVE_FIRST_START_WAIT` (510 s) in 23 scripts. Row 6 is 300 s (ruled), row 7 waits 300 s and 330 s, install-start rows 3 and 4 are 300 s and 270 s. `wait_started_log` prints `MEASURED wait <script>:<line> <s> s of <max> s` on stderr on every return. Rows 6 and 7 and the sign-in suites print their MEASURED lines on both outcomes.
+
+Files changed: `ci/units.sh` (floors), `ci/iris.sh` (floor in `cmd_live`), `docker/tests/lib-live.sh` (constant and MEASURED wait line), 23 first-start live scripts (constant), `docker/tests/test-install-upgrade.sh`, `docker/tests/test-install-start.sh`, `docker/tests/test-sign-in.sh` (budgets and MEASURED lines), `docker/tests/test-ci-config.sh` (budgets rule and `tk_live` floor rows), `docker/tests/test-lib-live.sh` (measured rows), the evidence file and this spec.
+
+Review: 28 findings from the three finding layers; patches applied 3 (empty-start-stamp MEASURED row, non-numeric-deadline floor row, release-sequence `overviewunit` run); deferred none beyond the implement stage's six entries; 25 rejected with the reasons in `## Review Triage Log`. followup_review_recommended false (no patched HIGH, one patched MEDIUM).
+
+Verification: `bash -n` and the ASCII check pass on every changed shell file; `test-ci-config.sh` (budgets rule PASS), `test-lib-live.sh`, `test-ci-warm.sh`, `test-upgrade-harness.sh`, `test-ci-changes.sh` all pass; the three node test files pass (96); `test-release-sequence.sh overviewunit` passes; the implement stage's `ci/iris.sh live audit` ran green on lane B with its throwaway torn down. Mutations are in `## Verification`; both review-pass mutations went red and the tree was byte-identical after each revert. `test-release-sequence.sh` (all rules) and `test-rehearsal.sh` were not run to a verdict (over the 150 s call cap); neither reads the changed scripts.
+
+Residual risks: the install-upgrade, install-start and sign-in budget pins are text pins (the scripts need a live stack); AC 7 (CI green on the pushed head, MEASURED and DEADLINE lines in the logs) waits for CI HOLD OFF and the lead. The five floors raise their groups' worst case toward the job's 40-minute cap (deferred entry for the Planner).

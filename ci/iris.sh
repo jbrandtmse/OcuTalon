@@ -661,7 +661,7 @@ class_method_ok() {
 }
 
 cmd_live() {
-  local name=${1:-} mode rc
+  local name=${1:-} mode rc floor given
   if [ -z "$name" ] || ! live_known "$name" || [ ! -f "docker/tests/test-$name.sh" ]; then
     echo "unknown live unit '$name'; see: ci/iris.sh list"
     exit 2
@@ -690,6 +690,15 @@ cmd_live() {
     export OCUTALON_E2E_TRACE=$mode
   else
     echo "TRACE off: $(traces_on)"
+  fi
+  # A unit with a floor (unit_live_deadline in ci/units.sh) never runs with a lower deadline; a higher given value stays.
+  if command -v unit_live_deadline > /dev/null 2>&1 && floor=$(unit_live_deadline "$name"); then
+    given=${OCUTALON_LIVE_DEADLINE:-540}
+    case $given in '' | *[!0-9]*) given=0 ;; esac
+    if [ "$given" -lt "$floor" ]; then
+      export OCUTALON_LIVE_DEADLINE=$floor
+      echo "DEADLINE live:$name $floor s"
+    fi
   fi
   # The retries of the unit's tests are appended to this file (web/e2e/support/bounds.ts reportRetry).
   export OCUTALON_E2E_RETRY_LOG

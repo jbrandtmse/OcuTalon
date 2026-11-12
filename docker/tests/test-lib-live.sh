@@ -5,6 +5,9 @@
 #   - start_log_complete, wait_started_log, wait_started_ready: a start's log counts only when it began at or after
 #     the container's start and ends with the end line, and readiness counts only when that line says ready and
 #     Docker reports healthy for the same start, so a previous start's log or health is never taken for this one;
+#   - the MEASURED line (Story 0.32): wait_started_log, also through wait_started_ready, prints exactly one "MEASURED wait <script>:<line>
+#     <s> s of <max> s" line to stderr on every return, met or timed out, naming the calling script and line outside lib-live.sh, and
+#     nothing extra to stdout; LIVE_FIRST_START_WAIT defaults to 510 s, under AD-23's 720 s;
 #   - copy_build_context: exactly the files the Dockerfile's COPY lines name, a directory expanded to its files;
 #   - log_steps, bump_patch, manifest_version: the reductions the live tests compare;
 #   - check_log (Story 0.14): the one sanctioned recovery, `STEP merge RETRY 1 after #453` straight before `STEP merge OK`, passes
@@ -159,6 +162,39 @@ set_health healthy
 rejects "wait for readiness: a container that started again meanwhile is not accepted" wait_started_ready 60
 rm -f "$tmp/restart-on-health"
 container_started "2026-10-18T10:00:00.123456789Z"
+
+# --- the MEASURED line of the waits (Story 0.32): one on stderr per return, naming this script and the calling line ---
+
+# measured_check <label> <rc wanted> <max> <line of the call> <stdout file> <stderr file> <rc>: one MEASURED line, the wanted status, no stdout.
+measured_check() {
+  local label=$1 want=$2 max=$3 line=$4 out=$5 err=$6 rc=$7
+  if [ "$rc" -eq "$want" ] && [ ! -s "$out" ] && [ "$(grep -c . "$err")" -eq 1 ] \
+    && grep -Eqx "MEASURED wait test-lib-live\.sh:$line [0-9]+ s of $max s" "$err"; then
+    pass "$label"
+  else
+    echo "  status $rc (wanted $want), stdout '$(cat "$out")', stderr '$(cat "$err")', call on line $line"
+    fail "$label"
+  fi
+}
+set_health healthy
+write_log 2026-10-18T10:00:07Z yes
+wait_started_log 60 > "$tmp/m.out" 2> "$tmp/m.err"; m_rc=$?; m_line=$LINENO
+measured_check "measured: a met wait_started_log prints one MEASURED line on stderr and nothing on stdout" 0 60 "$m_line" "$tmp/m.out" "$tmp/m.err" "$m_rc"
+wait_started_ready 60 > "$tmp/m.out" 2> "$tmp/m.err"; m_rc=$?; m_line=$LINENO
+measured_check "measured: a met wait_started_ready names its caller, not lib-live.sh" 0 60 "$m_line" "$tmp/m.out" "$tmp/m.err" "$m_rc"
+write_log 2026-10-18T09:59:59Z yes
+wait_started_log 1 > "$tmp/m.out" 2> "$tmp/m.err"; m_rc=$?; m_line=$LINENO
+measured_check "measured: a timed-out wait_started_log prints one MEASURED line and returns 1" 1 1 "$m_line" "$tmp/m.out" "$tmp/m.err" "$m_rc"
+wait_started_ready 1 > "$tmp/m.out" 2> "$tmp/m.err"; m_rc=$?; m_line=$LINENO
+measured_check "measured: a timed-out wait_started_ready prints one MEASURED line and returns 1" 1 1 "$m_line" "$tmp/m.out" "$tmp/m.err" "$m_rc"
+container_started ""
+wait_started_log 5 > "$tmp/m.out" 2> "$tmp/m.err"; m_rc=$?; m_line=$LINENO
+measured_check "measured: a wait for a container with no start time still prints one MEASURED line and returns 1" 1 5 "$m_line" "$tmp/m.out" "$tmp/m.err" "$m_rc"
+container_started "2026-10-18T10:00:00.123456789Z"
+write_log 2026-10-18T10:00:07Z yes
+m_captured=$(wait_started_log 60 2> /dev/null)
+if [ -z "$m_captured" ]; then pass "measured: a caller that captures stdout with \$(...) gets nothing from the wait"; else fail "measured: stdout of the wait was '$m_captured'"; fi
+if [ "$LIVE_FIRST_START_WAIT" = 510 ] && [ "$LIVE_FIRST_START_WAIT" -lt 720 ]; then pass "measured: LIVE_FIRST_START_WAIT defaults to 510 s, under AD-23's 720 s"; else fail "measured: LIVE_FIRST_START_WAIT is '$LIVE_FIRST_START_WAIT'"; fi
 
 # --- live_park_telegram and its place in wait_started_ready (Story 12.9) ---
 

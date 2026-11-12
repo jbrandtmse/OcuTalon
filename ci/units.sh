@@ -201,6 +201,20 @@ shard_unit_areas() {
   printf '%s\n' "$out"
 }
 
+# unit_live_deadline <unit>: the floor, in seconds, of OCUTALON_LIVE_DEADLINE for a live unit (its name without live:); returns 1 for
+# any other name. ci/iris.sh live runs a listed unit with at least this deadline, so the CI env's 1200 s does not cap it, and never
+# lowers a higher given value. A floor is the larger of 1.4 times the unit's green median in seconds and, for the three sign-in units,
+# the deadline that leaves their browser run 950 s or 1.4 times its median (Story 0.32, DW-1082, DW-1195; the audit is
+# _bmad-output/implementation-artifacts/evidence/0-32-task0-ci-time-budgets.md), rounded up to 60 s and at most 2340 s, under the 40
+# minutes of the iris job.
+unit_live_deadline() {
+  case $1 in
+    install-start | install-upgrade) echo 1440 ;;
+    sign-in | sign-in-2 | sign-in-3) echo 1500 ;;
+    *) return 1 ;;
+  esac
+}
+
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
 BROWSER_UNITS="demo-path sign-in sign-in-2 sign-in-3 floor online-demo demo-switch answers cards online-session online-allowance online-demo-path online-visitors"
 

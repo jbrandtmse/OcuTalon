@@ -44,8 +44,10 @@
 # The project is unique and receives no keys. It publishes its web port only on 127.0.0.1, on the first free port of
 # 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in, chat, panel, decision, notice, rail, thread, links and banners users
 # get random passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
-# Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default and 1200 s in CI, counted from the moment the
-# throwaway lock is held), so even a failing run ends within it; the browser run's global timeout is what is left of it minus 20 s.
+# Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, counted from the moment the throwaway lock is held: 540 s by default,
+# 1200 s in CI, raised to the unit's floor in ci/units.sh, unit_live_deadline), so even a failing run ends within it; the browser run's
+# global timeout is what is left of it minus 20 s. Before the browser run the unit prints "MEASURED live:<unit> suite budget <s> s" and
+# after it, whatever the outcome, "MEASURED live:<unit> suite <s> s" (wall-clock seconds), so that the next audit reads both.
 # Prints one PASS or FAIL line per check, and after the browser run one "SPEC <file> <n> tests <s>s" line per spec file that ran (the
 # list reporter's times summed by file; a file's beforeAll counts in its first test), so that the sign-in units can be balanced
 # from CI's own numbers; exits 0 only when all pass.
@@ -230,10 +232,10 @@ live_track_image
 cid=$(dc ps -q iris)
 [ -n "$cid" ] || die "no iris container in project $P"
 
-if ! wait_started_ready 400; then
+if ! wait_started_ready "$LIVE_FIRST_START_WAIT"; then
   start_log | tail -n 30 | cut -c1-200
   dc logs --tail 20 iris 2>&1 | cut -c1-200
-  die "the first start did not end ready within 400 s"
+  die "the first start did not end ready within $LIVE_FIRST_START_WAIT s"
 fi
 pass "the first start ended ready"
 check_no_key "sign-in"
@@ -328,6 +330,9 @@ fi
 # The browser log is printed on every outcome, and a failed fill step can echo what was typed: the fixture's
 # password is replaced before anything reaches the terminal.
 show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/$decisionpassword/<redacted>/g; s/$noticepassword/<redacted>/g; s/$railpassword/<redacted>/g; s/$threadpassword/<redacted>/g; s/$linkspassword/<redacted>/g; s/$bannerspassword/<redacted>/g; s/^/  /"; }
+suite_unit=${unit_name#test-}
+echo "MEASURED live:$suite_unit suite budget $((remaining - 20)) s"
+suite_began=$SECONDS
 OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_NOROLE_USER="$noroleuser" \
   OCUTALON_NOROLE_PASSWORD="$noropassword" \
@@ -365,6 +370,7 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_E2E_TIMEOUT_MS=$(((remaining - 20) * 1000)) \
   npm --prefix web run "$e2e_script" ${part_args[@]+"${part_args[@]}"} > "$e2e_log" 2>&1
 e2e_status=$?
+echo "MEASURED live:$suite_unit suite $((SECONDS - suite_began)) s"
 # Each spec file's seconds, in run order: the list reporter's line of each test that ran ends with its time, (525ms), (1.8s) or (1.2m).
 LC_ALL=C awk '
   {

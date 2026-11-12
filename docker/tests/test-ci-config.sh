@@ -70,6 +70,12 @@
 #     answers), the FAIL line and exit 1 come before any stack starts when every pull fails, and a present image is never pulled;
 #   - mock wrapper (Story 0.11): docker/tests/test-mock.sh runs node --test on every file of ci/mock/test/ and exits with node's
 #     status (a stub node answers), so a red mock test turns the web job's step red;
+#   - budgets (Story 0.32; DW-1082, DW-1195): unit_live_deadline holds exactly the audited floors, each a live unit of a group, an integer in
+#     (1200, 2340], and returns 1 for any other name; the real cmd_live (over a fake checkout) runs a unit with a floor with at least the
+#     floor and prints one DEADLINE line when it raised the deadline, and leaves a higher given deadline and any unlisted unit alone; the
+#     first-start wait is LIVE_FIRST_START_WAIT (default 510 s) in every live script, whose die names it; the three waits of
+#     live:install-upgrade and the two audited waits of live:install-start have their budgets, and the MEASURED lines of the upgrade's
+#     waits come before their dies; test-sign-in.sh prints the suite budget before the browser run and the suite seconds right after it;
 #   - lane-a: lane-a.yml exists and has the job standalone-bridge; both .yml and .yaml files are workflow files;
 #   - checks.sh, class verdict, shard order, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh
 #     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
@@ -2050,15 +2056,18 @@ tk_mode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
 # tk_traces <folder>: the first trace file or Playwright artifacts folder below the folder, or nothing.
 tk_traces() { find "$1" \( -name 'trace*.zip' -o -name '.playwright-artifacts-*' \) 2>/dev/null | head -n 1; }
 # tk_live <row> <variable=value...>: the real cmd_live of a sourced ci/iris.sh over a fake checkout of the row ($tk_dir/checkout), whose fake unit
-# script records OCUTALON_E2E_TRACE, leaves t1/trace.zip, t2/state-diagnosis.txt and an artifacts folder below OCUTALON_E2E_OUTPUT, and exits 1.
-# Every variable the code reads is set by the row or unset. Sets tk_dir, tk_rc and tk_out.
+# script (docker/tests/test-$TK_UNIT.sh, fake by default) records OCUTALON_E2E_TRACE, leaves t1/trace.zip, t2/state-diagnosis.txt and an artifacts folder
+# below OCUTALON_E2E_OUTPUT, runs the row's TK_UNIT_EXTRA, and exits 1. Every variable the code reads is set by the row or unset. Sets tk_dir, tk_rc and tk_out.
 tk_live() {
-  local row=$1 assignment
+  local row=$1 assignment unit=fake
   shift
+  for assignment in "$@"; do
+    case $assignment in TK_UNIT=*) unit=${assignment#TK_UNIT=} ;; esac
+  done
   tk_dir="$tmp/tk-$row"
   rm -rf "$tk_dir"
   mkdir -p "$tk_dir/checkout/docker/tests" "$tk_dir/checkout/web" "$tk_dir/work" "$tk_dir/home"
-  cat > "$tk_dir/checkout/docker/tests/test-fake.sh" <<'EOS'
+  cat > "$tk_dir/checkout/docker/tests/test-$unit.sh" <<'EOS'
 #!/usr/bin/env bash
 printf '%s\n' "${OCUTALON_E2E_TRACE-unset}" > "$FAKE_RECORD"
 out="web/$OCUTALON_E2E_OUTPUT"
@@ -2070,7 +2079,7 @@ echo kept > "$out/t2/state-diagnosis.txt"
 exit 1
 EOS
   (
-    unset GITHUB_ACTIONS RUNNER_ENVIRONMENT GITHUB_WORKSPACE OCUTALON_TRACE_DIR OCUTALON_RUN_TAG OCUTALON_E2E_TRACE OCUTALON_WARM RUNNER_NAME OCUTALON_TEST_WEB_PORT
+    unset GITHUB_ACTIONS RUNNER_ENVIRONMENT GITHUB_WORKSPACE OCUTALON_TRACE_DIR OCUTALON_RUN_TAG OCUTALON_E2E_TRACE OCUTALON_WARM RUNNER_NAME OCUTALON_TEST_WEB_PORT OCUTALON_LIVE_DEADLINE
     export HOME="$tk_dir/home" FAKE_RECORD="$tk_dir/record"
     for assignment in "$@"; do export "$assignment"; done
     [ -z "${TK_SETUP:-}" ] || eval "$TK_SETUP"
@@ -2082,7 +2091,8 @@ EOS
     warm_check() { :; }
     setup_tag() { :; }
     preflight() { :; }
-    cmd_live fake
+    npx() { :; }
+    cmd_live "$unit"
   ) > "$tk_dir/out" 2>&1
   tk_rc=$?
   tk_out=$(cat "$tk_dir/out")
@@ -2202,6 +2212,161 @@ if [ -z "$tk_fail" ]; then
   echo "PASS traces kept: a failing unit's trace moves to <root>/<tag>/<unit>/ (folders mode 700, the trace 600) on a self-hosted runner, and one that cannot be moved or is a link is deleted; it is deleted on a hosted one, with no runner, with a root inside the workspace or the checkout, behind a link, through .. or not absolute, and nothing is touched off CI; the exit status stays; traces_prune removes only run folders older than 7 days and cmd_group calls it after setup_tag"
 else
   echo "FAIL traces kept:$tk_fail"
+  fails=$((fails + 1))
+fi
+
+# --- budgets (Story 0.32; DW-1082, DW-1195): the floors of unit_live_deadline, the one first-start budget, and the audited waits ---
+
+# budget_pos <file> <fixed text>: the line number of the one line that holds the text; nothing when it occurs on none or on several.
+budget_pos() {
+  local n
+  n=$(grep -nF -e "$2" "$1" | cut -d: -f1)
+  case $n in '' | *[!0-9]*) return 1 ;; esac
+  printf '%s\n' "$n"
+}
+# budget_seq <file> <wait text> <measured text> <die text>: 0 when the three lines are each unique and come in that order, which
+# puts the MEASURED line before the die on a failing wait too.
+budget_seq() {
+  local a b c
+  a=$(budget_pos "$1" "$2") || return 1
+  b=$(budget_pos "$1" "$3") || return 1
+  c=$(budget_pos "$1" "$4") || return 1
+  [ "$a" -lt "$b" ] && [ "$b" -lt "$c" ]
+}
+
+# budget_live_units: the live units of the groups, one name per line without live:.
+budget_live_units() {
+  (
+    . "$root/ci/units.sh"
+    for g in $IRIS_GROUPS; do
+      for u in $(group_units "$g"); do
+        case $u in
+          live:*) echo "${u#live:}" ;;
+        esac
+      done
+    done
+  )
+}
+# budget_floor_report: "SEEN <unit>=<floor>..." for the live units that have a floor, and a BAD line for a floor outside (1200, 2340] or
+# not an integer, and for a name that has a floor but should not.
+budget_floor_report() {
+  (
+    . "$root/ci/units.sh"
+    seen=""
+    for n in $(budget_live_units); do
+      if v=$(unit_live_deadline "$n"); then
+        case $v in
+          '' | *[!0-9]*) echo "BAD $n: floor '$v' is not an integer" ;;
+          *) if [ "$v" -le 1200 ] || [ "$v" -gt 2340 ]; then echo "BAD $n: floor $v is not in (1200, 2340]"; fi ;;
+        esac
+        seen="$seen $n=$v"
+      fi
+    done
+    echo "SEEN$seen"
+    for n in floor cards nonesuch "" live:sign-in sign-in-4 SIGN-IN; do
+      if unit_live_deadline "$n" > /dev/null; then echo "BAD '$n' has a floor"; fi
+    done
+  )
+}
+
+tk_fail=""
+# The floors: exactly these units, each a live unit of a group, an integer above CI's 1200 s and at most 2340 s; any other name returns 1.
+budget_floors=$(budget_floor_report)
+budget_seen=$(printf '%s\n' "$budget_floors" | sed -n 's/^SEEN//p' | tr ' ' '\n' | sed '/^$/d' | LC_ALL=C sort | tr '\n' ' ')
+case "$budget_seen" in
+  "install-start=1440 install-upgrade=1440 sign-in-2=1500 sign-in-3=1500 sign-in=1500 ") ;;
+  *) tk_bad "the floors are '$budget_seen', wanted install-start=1440 install-upgrade=1440 sign-in-2=1500 sign-in-3=1500 sign-in=1500 (each a live unit of a group)" ;;
+esac
+printf '%s\n' "$budget_floors" | grep -q '^BAD' && tk_bad "unit_live_deadline: $(printf '%s\n' "$budget_floors" | grep '^BAD' | head -n 3 | tr '\n' ';')"
+
+# The first start: one budget, LIVE_FIRST_START_WAIT, whose default is the audited 510 s and stays under AD-23's 720 s; no live script
+# keeps a literal, and every first-start die names the variable.
+grep -qx 'LIVE_FIRST_START_WAIT=${LIVE_FIRST_START_WAIT:-510}' docker/tests/lib-live.sh || tk_bad "lib-live.sh: LIVE_FIRST_START_WAIT does not default to 510"
+budget_first=0
+for budget_unit in $(budget_live_units); do
+  budget_file="docker/tests/test-$budget_unit.sh"
+  [ -f "$budget_file" ] || continue
+  for budget_line in $(grep -n 'the first start did not end ready within' "$budget_file" | cut -d: -f1); do
+    budget_first=$((budget_first + 1))
+    budget_text=$(sed -n "${budget_line}p" "$budget_file")
+    case $budget_text in
+      *'within $LIVE_FIRST_START_WAIT s"') ;;
+      *) tk_bad "$budget_file:$budget_line: the first-start die does not name \$LIVE_FIRST_START_WAIT" ;;
+    esac
+    budget_wait=$(sed -n "$((budget_line > 8 ? budget_line - 8 : 1)),${budget_line}p" "$budget_file" | grep 'wait_started_ready' | tail -n 1)
+    case $budget_wait in
+      *'wait_started_ready "$LIVE_FIRST_START_WAIT"; then') ;;
+      *) tk_bad "$budget_file:$budget_line: the first-start wait is not wait_started_ready \"\$LIVE_FIRST_START_WAIT\"" ;;
+    esac
+  done
+done
+[ "$budget_first" -ge 23 ] || tk_bad "only $budget_first first-start dies in the live scripts, wanted 23"
+for budget_file in docker/tests/test-*.sh; do
+  case $budget_file in */test-ci-config.sh | */test-release-sequence.sh | */test-lib-live.sh | */test-upgrade-harness.sh) continue ;; esac
+  if grep -v '^ *#' "$budget_file" | grep -q 'first start did not end ready within [0-9]'; then tk_bad "$budget_file: a first-start die names a literal budget"; fi
+done
+
+# DW-1082: the three waits of live:install-upgrade, each timed before its die; row 6 is 300 s (ruled), row 7 at least 300 s.
+budget_up=docker/tests/test-install-upgrade.sh
+budget_seq "$budget_up" 'wait_started_ready 300' 'echo "MEASURED row 6: the upgrade took $((SECONDS - wait_began)) s to ready"' 'die "row 6 the upgrade did not end ready within 300 s"' \
+  || tk_bad "$budget_up: row 6 is not wait_started_ready 300, then its MEASURED line, then its die"
+budget_seq "$budget_up" 'wait_started_log 300' 'echo "MEASURED row 7: the start with a failing step took $((SECONDS - wait_began)) s to end"' 'die "row 7 the start with a failing step did not end within 300 s"' \
+  || tk_bad "$budget_up: row 7's failing step is not wait_started_log 300, then its MEASURED line, then its die"
+budget_seq "$budget_up" 'wait_started_ready 330' 'echo "MEASURED row 7: the next good image took $((SECONDS - wait_began)) s to ready"' 'die "row 7 the next good image did not end ready within 330 s"' \
+  || tk_bad "$budget_up: row 7's next good image is not wait_started_ready 330, then its MEASURED line, then its die"
+[ "$(grep -c 'wait_started_\(ready\|log\) [0-9]' "$budget_up")" -eq 3 ] || tk_bad "$budget_up: not three literal waits"
+
+# DW-1195: the sign-in suite prints its budget before the npm run and its seconds right after e2e_status=$?, whatever the outcome.
+budget_si=docker/tests/test-sign-in.sh
+budget_b=$(budget_pos "$budget_si" 'echo "MEASURED live:$suite_unit suite budget $((remaining - 20)) s"') || budget_b=0
+budget_n=$(budget_pos "$budget_si" 'npm --prefix web run "$e2e_script"') || budget_n=0
+budget_s=$(budget_pos "$budget_si" 'e2e_status=$?') || budget_s=0
+{ [ "$budget_b" -gt 0 ] && [ "$budget_b" -lt "$budget_n" ] && [ "$(sed -n "$((budget_b + 1))p" "$budget_si")" = 'suite_began=$SECONDS' ]; } \
+  || tk_bad "$budget_si: the suite budget line is missing, or does not come right before the browser run's start time and command"
+[ "$budget_s" -gt "$budget_n" ] && [ "$(sed -n "$((budget_s + 1))p" "$budget_si")" = 'echo "MEASURED live:$suite_unit suite $((SECONDS - suite_began)) s"' ] \
+  || tk_bad "$budget_si: the suite result line is not the unconditional line after e2e_status=\$?"
+[ "$(sed -n "$((budget_s - 2)),$((budget_s))p" "$budget_si" | grep -c 'npm --prefix web run')" -eq 1 ] || tk_bad "$budget_si: e2e_status=\$? does not follow the npm run"
+[ "$(grep -c '^suite_unit=\${unit_name#test-}$' "$budget_si")" -eq 1 ] || tk_bad "$budget_si: suite_unit is not the unit name without test-"
+
+# The other audited waits of live:install-start.
+budget_is=docker/tests/test-install-start.sh
+budget_pos "$budget_is" 'die "row 3 the dev start did not end ready within 300 s"' > /dev/null && [ "$(grep -B2 'row 3 the dev start did not end ready within 300 s' "$budget_is" | grep -c 'wait_started_ready 300; then')" -eq 1 ] \
+  || tk_bad "$budget_is: row 3's wait is not 300 s with its die"
+budget_pos "$budget_is" 'die "row 4 the restart did not end ready within 270 s"' > /dev/null && [ "$(grep -B2 'row 4 the restart did not end ready within 270 s' "$budget_is" | grep -c 'wait_started_ready 270; then')" -eq 1 ] \
+  || tk_bad "$budget_is: row 4's restart wait is not 270 s with its die"
+
+# The floor in cmd_live, through the real cmd_live and the real unit_live_deadline over a fake checkout whose unit script records the
+# deadline it sees (the rows that the consumer reads the producer's value).
+budget_rec='printf "%s\n" "${OCUTALON_LIVE_DEADLINE-unset}" > "$FAKE_RECORD.deadline"'
+tk_live floor-1200 TK_UNIT=sign-in OCUTALON_LIVE_DEADLINE=1200 TK_UNIT_EXTRA="$budget_rec"
+[ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1500 ] || tk_bad "floor over 1200: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1500"
+printf '%s\n' "$tk_out" | grep -qx 'DEADLINE live:sign-in 1500 s' || tk_bad "floor over 1200: no 'DEADLINE live:sign-in 1500 s' line"
+tk_live floor-unset TK_UNIT=install-upgrade TK_UNIT_EXTRA="$budget_rec"
+[ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1440 ] || tk_bad "floor, deadline unset: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1440"
+printf '%s\n' "$tk_out" | grep -qx 'DEADLINE live:install-upgrade 1440 s' || tk_bad "floor, deadline unset: no 'DEADLINE live:install-upgrade 1440 s' line"
+tk_live floor-above TK_UNIT=sign-in-2 OCUTALON_LIVE_DEADLINE=1980 TK_UNIT_EXTRA="$budget_rec"
+[ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1980 ] || tk_bad "floor below the given deadline: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1980"
+printf '%s\n' "$tk_out" | grep -q '^DEADLINE' && tk_bad "floor below the given deadline: a DEADLINE line was printed"
+tk_live floor-equal TK_UNIT=sign-in-3 OCUTALON_LIVE_DEADLINE=1500 TK_UNIT_EXTRA="$budget_rec"
+[ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1500 ] || tk_bad "floor equal to the given deadline: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1500"
+printf '%s\n' "$tk_out" | grep -q '^DEADLINE' && tk_bad "floor equal to the given deadline: a DEADLINE line was printed"
+tk_live floor-nonnumeric TK_UNIT=sign-in OCUTALON_LIVE_DEADLINE=abc TK_UNIT_EXTRA="$budget_rec"
+[ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1500 ] || tk_bad "floor over a non-numeric deadline: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1500"
+printf '%s\n' "$tk_out" | grep -qx 'DEADLINE live:sign-in 1500 s' || tk_bad "floor over a non-numeric deadline: no 'DEADLINE live:sign-in 1500 s' line"
+tk_live floor-none TK_UNIT=floor OCUTALON_LIVE_DEADLINE=1200 TK_UNIT_EXTRA="$budget_rec"
+[ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1200 ] || tk_bad "a unit with no floor: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1200"
+printf '%s\n' "$tk_out" | grep -q '^DEADLINE' && tk_bad "a unit with no floor: a DEADLINE line was printed"
+tk_live floor-none-unset TK_UNIT=floor TK_UNIT_EXTRA="$budget_rec"
+[ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = unset ] || tk_bad "a unit with no floor and no deadline: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted it unset"
+printf '%s\n' "$tk_out" | grep -q '^DEADLINE' && tk_bad "a unit with no floor and no deadline: a DEADLINE line was printed"
+live_body=$(awk '/^cmd_live\(\) \{/ { on = 1 } on { print } on && /^}/ { exit }' ci/iris.sh)
+printf '%s\n' "$live_body" | grep -q 'unit_live_deadline "\$name"' || tk_bad "cmd_live does not read unit_live_deadline"
+printf '%s\n' "$live_body" | grep -q 'OCUTALON_E2E_OUTPUT="test-results/\$name" bash "docker/tests/test-\$name.sh" "\$@"' || tk_bad "cmd_live's run line changed"
+
+if [ -z "$tk_fail" ]; then
+  echo "PASS budgets (Story 0.32): unit_live_deadline holds exactly the five floors (${budget_seen% }), each a live unit of a group in (1200, 2340], cmd_live raises a lower or unset deadline to the floor with one DEADLINE line and keeps a higher one and any unlisted unit, the $budget_first first-start waits use LIVE_FIRST_START_WAIT (510 s) with dies that name it, and the audited waits of live:install-start and live:install-upgrade, with the MEASURED lines before the dies, and the sign-in suite's two MEASURED lines are in place"
+else
+  echo "FAIL budgets (Story 0.32):$tk_fail"
   fails=$((fails + 1))
 fi
 
