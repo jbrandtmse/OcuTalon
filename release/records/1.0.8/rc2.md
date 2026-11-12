@@ -37,3 +37,42 @@ Run: 2026-11-12T20:59:15Z to 2026-11-12T21:24:40Z
 | push | pass | release/1.0.8-rc2 pushed to origin on the author's word |
 | notes | fail | release/notes.sh: RESULT fail; draft release/records/1.0.8/rc2-notes.md (not committed) |
 | record | committed, not pushed | the author's word was not given |
+
+## Release checklist
+
+Result: not confirmed
+Candidate: 1.0.8 rc2 at 886cee317abbca7a8ea5a5a5ca1c5da042db6fe4
+Notes: release/records/1.0.8/rc2-notes.md
+Run: 2026-11-12T21:26:06Z
+Author's actions: Posts, articles, the video and bonus claims are the author's actions, done by hand. No script or workflow posts anything or claims a bonus.
+
+| Item | Result | Detail |
+| --- | --- | --- |
+| checkout | pass | the checkout is the candidate commit, with no uncommitted change outside release/records/ |
+| note-readme | pass | README.md holds the not-affiliated note word for word |
+| note-about | pass | the About dialog's source and the built page hold the note word for word |
+| product-name | pass | no product name holds the name from the note |
+| name-only-in-note | pass | outside the planning files, the name appears only in the note |
+| licences | pass | every font, icon and package licence notice is present |
+| web-bundle | pass | the built web bundle is in the checkout |
+| readme | pass | docker/tests/test-readme.sh passed: README links, anchors and headings checked offline |
+| readme-video | pass | docker/tests/check-readme-video.sh passed: every address of the README's Video row answered, and each YouTube id's oEmbed did |
+| bridge-guide | pass | docker/tests/test-bridge-guide.sh passed: the bridge guide matches the code of this release |
+| public-text | pass | docker/tests/test-boundaries.sh passed, and the draft notes hold no local path or key-like text |
+| iris-source | pass | irislib/ and irissys/ are ignored, and none of their files is tracked |
+| no-outward | pass | no script or workflow publishes a release, changes the repository's settings or posts to a public site |
+| no-copied-code | not confirmed | No code, prompts or workflows are copied from the project named in the not-affiliated note, or from a project like it. |
+| no-artwork | not confirmed | None of that project's logo or artwork is used. |
+| no-ai-hub-copy | not confirmed | Nothing is copied from InterSystems' published AI Hub examples. |
+| public-review | not confirmed | Before the repository went public, the author reviewed every planning file under _bmad-output/ and the agent instructions (CLAUDE.md and the .claude/ and _bmad/ folders) for keys, local machine paths, private infrastructure details and names of other contest entrants. |
+| public-links | not confirmed | On the public repository page, every README link and section link opens, and the README's clone command works. |
+| overview-review | not confirmed | The hand-written sections of docs/security-overview.md were reviewed against this release, and each statement is true of it; the public-text row passed on the overview. |
+| demo-protections | not confirmed | Each online-demo protection that docs/security-overview.md states was checked against the running online demo for this release. |
+| registry-install | later | After this version was published to the package registry, the guide's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output. |
+
+## Carried over from rc1 by identity, and the Planner's overrides (owner's delegation, 2026-11-12)
+
+- rc2 = rc1 (e7b1ccf4) + the test-only hotfix Story 0.34 (four cherry-picked commits) + the cut commit. Outside _bmad-output, rc2's tree differs from rc1 ONLY in docker/tests/test-compose-file.sh. The built web bundle is byte-identical, and src/, web/, eval/, install.sh, release/, .github/ and the start scripts are unchanged (release-evidence/1.0.8-gates/rc2-carryover.md, which holds `git diff --stat release/1.0.8-rc1 release/1.0.8-rc2`).
+- So these carry over from rc1: the real-model RC evaluation and its override under the owner's standing 1.0.2 decision (SM-1 21, 20 and 20 of 24; S6 all 0; demo gate 30 of 30); the upgrade harness, overridden for the one first-start log line of the new public class, with release-evidence/1.0.8-gates/upgrade-hookbase-proof.md (all three proofs pass); and the greps (no "measured at release 1.0.8", no "least privilege", no claim that the digest is re-sent).
+- Re-run on rc2: the release steps (all pass; IPM artifact 6,736,209 bytes, accepted as over 5,000,000, as for 1.0.7), docker/tests/test-compose-file.sh (all checks passed, the U-320 row with the bundle committed), and this checklist (the 13 automated rows pass).
+- rc1's PR #12 was closed for the U-320 row (the check scanned the committed bundle). rc2's PR is #13.
