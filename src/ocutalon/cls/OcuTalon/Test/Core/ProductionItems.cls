@@ -19,6 +19,8 @@ XData Items [ MimeType = application/json ]
  {"lane": "B", "name": "WebChatOut", "class": "OcuTalon.Channel.WebChat.Out", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "B", "name": "SimMailboxIn", "class": "OcuTalon.Channel.SimMailbox.In", "pool": 0, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "B", "name": "SimMailboxOut", "class": "OcuTalon.Channel.SimMailbox.Out", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
+ {"lane": "B", "name": "EmailIn", "class": "OcuTalon.Channel.Email.In", "pool": 1, "enabled": 0, "stub": 0, "settings": [{"target": "Adapter", "name": "CallInterval", "value": "60"}]},
+ {"lane": "B", "name": "EmailOut", "class": "OcuTalon.Channel.Email.Out", "pool": 1, "enabled": 0, "stub": 0, "settings": []},
  {"lane": "B", "name": "SimPhoneOut", "class": "OcuTalon.Channel.SimPhone.Out", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "B", "name": "AnswersIn", "class": "OcuTalon.Core.AnswersIn", "pool": 0, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "B", "name": "AnswerOps", "class": "OcuTalon.Core.AnswerOps", "pool": 1, "enabled": 1, "stub": 0, "settings": []},

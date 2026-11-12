@@ -6,7 +6,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map, Observable } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
-import type { AgentModels, Prices, ProviderRow, SettingsBody, SettingsSections } from '../api/api-types';
+import type { AgentModels, EmailValues, Prices, ProviderRow, SettingsBody, SettingsSections } from '../api/api-types';
 import { LiveState, LOAD_FAILED } from '../live/live-state';
 import { telegramPaused } from '../rail/telegram-card/telegram-card-view';
 import { Announcer } from '../shared/announcer';
@@ -67,7 +67,7 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
                   />
                 }
                 @case ('channels') {
-                  <app-channels-section />
+                  <app-channels-section [email]="email()" (emailSaved)="keepEmail($event)" (dirtyChange)="dirty.set($event)" />
                 }
                 @case ('daily-digest') {
                   <app-daily-digest-section
@@ -230,6 +230,8 @@ export class SettingsPage {
   protected readonly label = computed(() => sectionLabel(this.active()));
   protected readonly thresholds = computed<ThresholdNumbers>(() => this.data()?.sections['check-thresholds'] ?? { diskFreePercent: 10, journalFreePercent: 10, licenseUsePercent: 90, queueMessages: 100, queueWaitMinutes: 10 });
   protected readonly demoMode = computed(() => this.data()?.sections['demo-mode']?.demoMode === true);
+  /** The mailbox values of the Email group (Story 21.2); the server sends none on the online demo. */
+  protected readonly email = computed(() => this.data()?.sections.channels);
   protected readonly digest = computed(() => this.data()?.sections['daily-digest'] ?? { time: '08:00', channels: 'web,phone,telegram' });
   /** The instance zone that the server holds ("" for the server's own): the bridge value, as GET /v1/settings has it. */
   protected readonly zone = computed(() => {
@@ -307,6 +309,10 @@ export class SettingsPage {
 
   protected keepBudgets(values: BudgetTexts): void {
     this.data.update((one) => (one === undefined ? one : { ...one, bridge: { ...one.bridge, DecisionTokenBudget: values.tokens, DailyCostCapUSD: values.cap } }));
+  }
+
+  protected keepEmail(values: EmailValues): void {
+    this.data.update((one) => (one === undefined ? one : { ...one, sections: { ...one.sections, channels: values } }));
   }
 
   protected keepDemoMode(value: boolean): void {

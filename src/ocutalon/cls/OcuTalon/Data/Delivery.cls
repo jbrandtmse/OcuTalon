@@ -37,7 +37,8 @@ Property DecisionRef As %String(MAXLEN = 22);
 /// When the thing a reminder card is about is due, UTC to the second.
 Property DueAt As %String(MAXLEN = 20);
 
-/// The fallback reason the card shows: one of Msg.Enum FALLBACKREASON; empty when the card is not a fallback.
+/// The fallback reason the card shows: one of Msg.Enum FALLBACKREASON; empty when the card is not a fallback. On EmailOut's claim of an approval (a row
+/// of channel email with an ApprovalRef) it is instead pending while the send has not finished, failed when it did not go through, and empty once sent.
 Property FallbackReason As %String(MAXLEN = 32);
 
 /// The check rows of a web digest card, as the JSON array of the digest's Slots rows ({result, entry, finding, checkedAt}); empty for any other row.

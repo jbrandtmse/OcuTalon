@@ -9,6 +9,16 @@
 ///   - TestSendEmailOwnAddress: a tool's SendEmail is routed only when email.owner is the command's SessionRef and every recipient is
 ///     email.address, ignoring case and surrounding spaces; a foreign recipient, an empty list, no address, another owner and, inside a
 ///     bridge context, another SessionRef are refused with nothing sent;
+///   - TestSendEmailTurnMustBeClean (Story 21.6, ruling e; AD-10): inside a bridge context a tool's SendEmail to the own address is routed only when the
+///     context's Provenance is user and its turn is not tainted; an untrusted, an empty-provenance and a tainted context are refused with the chat text
+///     and nothing reaches EmailOut; the context of a replay of an approved call (Kind tool, provenance user) is routed whatever its taint says, because the
+///     gate taints it when it allows the call and reads no taint in a replay; a replay context that is not provenance user is refused;
+///   - TestSendEmailNotConnected (Story 21.6, matrix "Not connected"): a SendEmail whose send fails with the dispatch error of an item that the production
+///     does not register answers not_connected with the accepted sentence (the answers of the other errors are unchanged); with no EmailOut job the real
+///     gate answers not_connected at once, without the whole TIMEOUT wait of a send to a disabled item, and sends nothing;
+///   - TestSendEmailAfterSave (Story 21.2, matrix row 13; DW-1042): the keys that the real SettingsOps.SaveEmail writes route the saving session's tool SendEmail to
+///     the saved address and refuse another session and another address; when another admin saves, the first session is refused and the second routed, also over
+///     a cache that still names the first;
 ///   - TestToolVerbs: the real TOOLVERBS holds SendEmail and no MCP verb, and the real Routes send the five MCP verbs to McpOps from web_admin
 ///     only and SendEmail to EmailOut from tool and system;
 ///   - TestRestartRunnersWithoutProduction: RestartRunners' work answers OK and restarts nothing for no running production or another one;
@@ -48,6 +58,8 @@ Method OnAfterAllTests() As %Status
 	Kill ^OcuTalonTest("CommandsRouting", ..Run)
 	Do ..PutBack("email.owner", $List(..Found, 1), $List(..Found, 2))
 	Do ..PutBack("email.address", $List(..Found, 3), $List(..Found, 4))
+	Kill ^OcuTalonTest("SettingsOpsProbe")
+	Kill ^||OcuTalonSettingsEmailProbe
 	Quit $$$OK
 }
 
@@ -161,6 +173,7 @@ Method TestSendEmailOwnAddress()
 	Do ..SetMailbox("zzsessA", "me@example.org")
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
 	Set request.OwnerRef = "zzsessB"
+	Set request.Provenance = "user"
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, "zzss"_..Run), "a context of session B begins")
 	Try {
 		Do probe.OnProcessInput(..NewEmail("system", "zzsessA", "me@example.org"), .output)
@@ -187,6 +200,99 @@ Method TestSendEmailOwnAddress()
 	Do $$$AssertEquals(..Calls(), before + 1, "and is sent")
 	Do probe.OnProcessInput(..NewEmail("system", "zzsessB", ""), .output)
 	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "1|test", "origin system with an empty list is the owner's to validate")
+}
+
+/// The keys that the real save writes (Story 21.2, matrix row 13; DW-1042): SettingsOps.SaveEmail, through a probe whose credential, settings rows and
+/// production update are stand-ins, writes email.address and email.owner, and CommandsIn then routes a tool's SendEmail to the saved address for the saving
+/// session only. When another admin saves, the mailbox moves: even with this process's cache holding the first admin's pair, as another process's would
+/// for up to a minute, the first session is refused and the second is routed (CommandsIn reads both keys from their rows).
+Method TestSendEmailAfterSave()
+{
+	Set refused = "That can't be done from the chat. Nothing was changed."
+	Do ..SaveMailbox("zzsessA", "Me@Example.org")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get("email.owner")_"|"_##class(OcuTalon.Data.Setting).Get("email.address"), "zzsessA|Me@Example.org", "the real save wrote the owner and the address")
+	Set probe = ..NewProbe()
+	Do probe.OnProcessInput(..NewEmail("tool", "zzsessA", "me@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "1|test", "the saving session's tool SendEmail to the saved address is routed")
+	Do $$$AssertEquals(..Call(..Calls(), "target"), "EmailOut", "to EmailOut")
+	Do probe.OnProcessInput(..NewEmail("tool", "zzsessB", "me@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_allowed|"_refused, "another session's identical command is refused")
+	Do probe.OnProcessInput(..NewEmail("tool", "zzsessA", "other@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_allowed|"_refused, "another address is refused")
+	Set before = ..Calls()
+	Do ..SaveMailbox("zzsessB", "Me@Example.org")
+	Set ^||OcuTalon.Setting("email.owner") = $ListBuild("zzsessA", 1, $ZHorolog)
+	Set ^||OcuTalon.Setting("email.address") = $ListBuild("Me@Example.org", 1, $ZHorolog)
+	Do probe.OnProcessInput(..NewEmail("tool", "zzsessA", "me@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_allowed|"_refused, "after the mailbox moves to B, A is refused even over a cache that still names A")
+	Do probe.OnProcessInput(..NewEmail("tool", "zzsessB", "me@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "1|test", "and B is routed")
+	Do $$$AssertEquals(..Calls(), before + 1, "only B's command was sent")
+}
+
+/// Story 21.6, ruling e (AD-10): a tool's SendEmail to the own address inside a bridge context needs a clean turn.
+Method TestSendEmailTurnMustBeClean()
+{
+	Set refused = "That can't be done from the chat. Nothing was changed."
+	Do ..SetMailbox("zzsessA", "me@example.org")
+	Set probe = ..NewProbe()
+	Set before = ..Calls()
+	Set cases = $ListBuild("user|0|1", "user|1|0", "untrusted|0|0", "untrusted|1|0", "|0|0", "|1|0", "other|0|0", "user|1|1|tool", "user|0|1|tool", "untrusted|0|0|tool", "|1|0|tool")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+		Set request.OwnerRef = "zzsessA"
+		Set request.Provenance = $Piece(case, "|", 1)
+		If $Piece(case, "|", 4) '= "" Set request.Kind = $Piece(case, "|", 4)
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, "zzss"_..Run), "a context begins")
+		If $Piece(case, "|", 2) Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Put("Tainted", 1), "and is tainted")
+		Try {
+			Do probe.OnProcessInput(..NewEmail("tool", "zzsessA", "me@example.org"), .output)
+			If $Piece(case, "|", 3) {
+				Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "1|test", "provenance '"_$Piece(case, "|", 1)_"', tainted "_$Piece(case, "|", 2)_", kind '"_$Piece(case, "|", 4)_"': routed")
+			} Else {
+				Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_allowed|"_refused, "provenance '"_$Piece(case, "|", 1)_"', tainted "_$Piece(case, "|", 2)_", kind '"_$Piece(case, "|", 4)_"': refused")
+			}
+		} Catch exception {
+			Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
+		}
+		Do ##class(OcuTalon.Bridge.Context).End()
+	}
+	Do $$$AssertEquals(..Calls(), before + 3, "only the clean user turn and the user replays (tainted or not) reached EmailOut")
+	Do probe.OnProcessInput(..NewEmail("tool", "zzsessA", "me@example.org"), .output)
+	Do $$$AssertEquals(output.Outcome, "test", "outside a context (no turn) the own-address rule alone decides, as before")
+}
+
+/// Story 21.6 (matrix "Not connected"): the not-registered dispatch error and a missing EmailOut job answer not_connected.
+Method TestSendEmailNotConnected()
+{
+	Set sentence = "No outgoing mail server is connected, so the email wasn't sent."
+	Set probe = ..NewProbe("unregistered")
+	Do probe.OnProcessInput(..NewEmail("system", "zzsessA", "anyone@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_connected|"_sentence, "the not-registered dispatch error of a SendEmail is not_connected")
+	Set probe = ..NewProbe("unregistered")
+	Do probe.OnProcessInput(..NewCommand("AddMcpServer", "web_admin", "zzsessA"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|failed", "the same error for another verb is failed, as before")
+	Set probe = ..NewProbe("error")
+	Do probe.OnProcessInput(..NewEmail("system", "zzsessA", "anyone@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|failed", "another error of a SendEmail is failed")
+	Set probe = ..NewProbe("stub-op")
+	Do probe.OnProcessInput(..NewEmail("system", "zzsessA", "anyone@example.org"), .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_built", "and a stub's 5003 is not_built, as before")
+	Set item = "OcuTalon.Production||EmailOut"
+	Set wasRunning = '##class(OcuTalon.Test.Channel.LiveCase).WaitJobs("EmailOut", 0)
+	If wasRunning {
+		Do $$$AssertStatusOK(##class(Ens.Director).TempStopConfigItem(item, 1), "EmailOut runs here, so the test stops it")
+		Do $$$AssertTrue(##class(OcuTalon.Test.Channel.LiveCase).WaitJobs("EmailOut", 0), "and it has no job")
+	}
+	Kill ^OcuTalonTest("CommandsRouting", ..Run)
+	Set service = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Core.CommandsIn", .sc)
+	Do $$$AssertStatusOK(sc, "the real gate is made")
+	Set started = $ZHorolog
+	Set sc = service.OnProcessInput(..NewEmail("system", "zzsessA", "anyone@example.org"), .real)
+	Do $$$AssertEquals($Select($IsObject($Get(real)): real.Ok_"|"_real.Outcome_"|"_real.Message, 1: "no answer"), "0|not_connected|"_sentence, "with no EmailOut job the real gate answers not_connected")
+	Do $$$AssertTrue($ZHorolog - started < 10, "at once, not after the wait of a send to a disabled item")
+	If wasRunning Do $$$AssertStatusOK(##class(Ens.Director).TempStopConfigItem(item, 0), "and EmailOut is started again")
 }
 
 /// The real TOOLVERBS and Routes: SendEmail is a tool verb and no MCP verb is; the five MCP verbs go to McpOps from web_admin only, and
@@ -384,6 +490,26 @@ Method SetMailbox(owner As %String, address As %String) [ Private ]
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set("email.address", address), "email.address is set")
 }
 
+/// Saves the mailbox for the session through the real SaveEmail, run by a SettingsEmailProbe (stand-in credential, settings rows and production update).
+Method SaveMailbox(session As %String, address As %String) [ Private ]
+{
+	Set secret = "zzstep4pw"_$Job_$Random(100000)
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(secret, .uri)
+	Do $$$AssertStatusOK(sc, "the password is offered")
+	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
+	Set command.Slug = "channels"
+	Set command.Changes = {"address": (address), "incoming": "pop.example.com", "user": "zzstep4", "password": (uri)}.%ToJSON()
+	Set command.ActingUser = "zzadmin"
+	Set command.SessionRef = session
+	Set command.Origin = "web_admin"
+	Set save = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.SettingsEmailProbe", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the settings probe is made")
+	Set sc = save.OnMessage(command, .result)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the real save is done")
+	Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .discard, 0)
+	Kill discard, secret
+}
+
 /// Puts a key back as found: its row with the value, or no row.
 ClassMethod PutBack(key As %String, existed As %Boolean, value As %String) [ Private ]
 {
@@ -463,7 +589,8 @@ XData Contracts [ MimeType = application/json ]
    "SessionRef": "%String(MAXLEN=22)",
    "Recipients": "%String(MAXLEN=2000)",
    "Subject": "%String(MAXLEN=200)",
-   "Text": "%String(MAXLEN=)"
+   "Text": "%String(MAXLEN=)",
+   "ApprovalRef": "%String(MAXLEN=22)"
   }
  }
 }

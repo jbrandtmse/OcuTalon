@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 
+import type { EmailValues } from '../api/api-types';
 import { CHAT_TEXTS } from '../chat/chat-view';
 import { pageTime } from '../chat/page-time';
 import { Icon } from '../icon/icon';
@@ -7,12 +8,13 @@ import { LiveState } from '../live/live-state';
 import { README_URL } from '../links';
 import { RAIL_TEXTS, readmeSection, TELEGRAM_ANCHOR } from '../rail/rail-view';
 import { TELEGRAM_CARD_TEXTS, telegramCardView } from '../rail/telegram-card/telegram-card-view';
+import { EmailSection } from './email-section';
 import { channelsView, SETTINGS_TEXTS } from './settings-view';
 
 /**
  * The Channels section (Story 18.2; FR-21, FR-22): the state of Telegram, read from the snapshot's Telegram block and the live status conditions that the
- * status rail's card reads (telegramCardView), and nothing else. It has no form, no Save button and no field for the bot token, which this page never shows
- * or asks for:
+ * status rail's card reads (telegramCardView), and below it the Email group (EmailSection, Story 21.2). The Telegram part has no form, no Save button and no
+ * field for the bot token, which this page never shows or asks for:
  *   - not set up (the bot is off or was rejected): "Telegram not set up" and the link "How to set it up" to the README's Telegram section, in a new tab;
  *   - paused: "Telegram paused" and "Trying again at {time}", the time in the browser's zone;
  *   - otherwise (on): "Telegram on";
@@ -21,7 +23,7 @@ import { channelsView, SETTINGS_TEXTS } from './settings-view';
  */
 @Component({
   selector: 'app-channels-section',
-  imports: [Icon],
+  imports: [EmailSection, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @switch (view().kind) {
@@ -45,6 +47,7 @@ import { channelsView, SETTINGS_TEXTS } from './settings-view';
         </div>
       }
     }
+    <app-email-section [values]="email()" (saved)="emailSaved.emit($event)" (dirtyChange)="dirtyChange.emit($event)" />
   `,
   styles: `
     :host {
@@ -74,6 +77,15 @@ import { channelsView, SETTINGS_TEXTS } from './settings-view';
 })
 export class ChannelsSection {
   private readonly live = inject(LiveState);
+
+  /** The mailbox values that the settings page loaded; nothing on the online demo. */
+  readonly email = input<EmailValues | undefined>();
+
+  /** The new mailbox values after a save, for the page to keep. */
+  readonly emailSaved = output<EmailValues>();
+
+  /** Whether the Email form differs from its saved values. */
+  readonly dirtyChange = output<boolean>();
 
   protected readonly texts = SETTINGS_TEXTS;
   protected readonly rail = RAIL_TEXTS;
