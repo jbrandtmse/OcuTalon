@@ -77,3 +77,5 @@
 2026-11-12T01:13:47Z	Story 21.3	unattended_stop	unit=Story_21.3 reason=waits_U-320 set_aside=none(no_code) dependents=21.8_waits_on_21.3
 2026-11-12T01:13:47Z	Story 21.8	story_waiting	story=21-8-read-and-send-mail-with-the-oauth2-sign-in on=21.3(U-320)
 2026-11-12T01:13:47Z	Epic 21	stage_spawned	stage=epic_context spawn_at=2026-11-12T01:13:47Z model=opus effort=high agent_name=epic-21-context-prewarm-4 reason=planning_artifact_newer(21.3_split,21.8_inserted)
+2026-11-12T01:14:53Z	Epic 21	epic_context_compiled	spawn_at=2026-11-12T01:13:47Z reason=planning_artifact_newer(21.3_split) model=opus effort=high
+2026-11-12T01:14:53Z	Story 21.7	stage_spawned	stage=plan spawn_at=2026-11-12T01:14:53Z model=opus effort=high agent_name=21-7-send-the-daily-digest-by-email-plan-1 cycle_iteration=1
