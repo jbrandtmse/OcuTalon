@@ -3804,3 +3804,7 @@
 2026-11-12T20:22:09Z	Epic 36	owner_decision	via=contest_planner what=36.1_gate(V1=b_no_grant;V2-V5_approved;V3_conditions;no_public_text) file=prompts/story-361-rulings-20261112.md ac_moved_to=23.3 ledger=DW-1225 relay=runner_36_at_turn_end
 2026-11-12T20:54:44Z	Epic 36	runner_reported	PLANNER_REPORT story=36.2_gate(V1-V7,PUBLIC_TEXT_settings_step5) splits=36.3(Jira_link,waits_22.6),36.4(on-call_Settings) local=8b45a6b8
 2026-11-12T20:54:44Z	Run	deps_hash_rerecorded	reason=split note=story_waits_36.2->36.3(epic-22);36.4_added_no_wait;hash_rerecord_at_Epic36_merge(epics.md_change_on_OCT-epic36_only)
+2026-11-12T20:57:46Z	Epic 0	ci_green_verified	head=1327fa1b runs=43300084082,43300084119 result=success story=0.34
+2026-11-12T20:57:46Z	Epic 0	amendments_verified	amendments=epics_0.34_block extensions=docker/tests/test-compose-file.sh_only(csp/_dropped_from_scan;fixture_pins) ok=true
+2026-11-12T20:57:46Z	Epic 0	merge_enqueued	part=0.34 head=0d6f4725 code_head=1327fa1b priority=1.0.8_release_blocker exempt_from_hold=yes
+2026-11-12T20:57:46Z	Epic 36	owner_decision	via=contest_planner what=36.2_gate(splits_approved;V1-V6;V3_audit_from/to_values_only_IRIS_audit+leak-scan;V7_verbatim_except_onCallOffOnDemo+sqlHelp)
