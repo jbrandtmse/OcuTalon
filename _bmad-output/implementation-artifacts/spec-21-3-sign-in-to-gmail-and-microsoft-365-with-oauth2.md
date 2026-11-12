@@ -2,11 +2,11 @@
 title: 'Story 21.3: Register the mail OAuth2 client and sign in to Gmail or Microsoft 365 (first child of 21.3)'
 type: 'feature'
 created: '2026-11-11'
-status: 'in-progress'
-baseline_revision: '2a2a7e3e8214af436264cc34d414994e33bec0ec'
+status: 'done'
+baseline_revision: '74bc7f2734343dce094649559d94a5d544b3908b'
 baseline_commit: '2a2a7e3e8214af436264cc34d414994e33bec0ec'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-21-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-21-6-send-email-over-smtp.md'
@@ -128,7 +128,7 @@ deferred:
 - (U-320 c5) Given the provider constants, then the scopes are exactly the minimum listed above, and Design Notes "Measured" records PKCE support (used if supported).
 - (U-320 c7) Given the online-demo flag, when a save or sign-in request arrives, then `/csp/sys/oauth2` stays disabled.
 
-- [ ] [CI] iris (production) shard:lane-a@Channel: `Test.Channel.EmailLive` TestOAuthSaveSignInAndRemove failed 'IRIS's own audit entry of the client shows its secret masked' (DW-1185, second occurrence: once on a local warm stack, once in CI) — https://github.com/jbrandtmse/OcuTalon/actions/runs/43172123661/job/131027662676 — `src/ocutalon/cls/OcuTalon/Test/Channel/EmailLive.cls` `SysAuditMasks` — make the check deterministic, never weaker: find out from IRIS's own source (`irissys/OAuth2/Client.cls`, `irissys/Security/System.cls`; never load or compile them) how and when the client-creation audit entry is written (event name, the exact EventData text for create versus modify, whether it is buffered), then look for THIS test's entry only (entries after a time mark taken just before the save, or the entry's own id) and poll long enough for a loaded CI host (bounded, for example up to 30 s), still asserting that the entry exists and masks the secret. The assertion must still go red when the secret is not masked (mutation line updated). Closes DW-1185.
+- [x] [CI] iris (production) shard:lane-a@Channel: `Test.Channel.EmailLive` TestOAuthSaveSignInAndRemove failed 'IRIS's own audit entry of the client shows its secret masked' (DW-1185, second occurrence: once on a local warm stack, once in CI) — https://github.com/jbrandtmse/OcuTalon/actions/runs/43172123661/job/131027662676 — `src/ocutalon/cls/OcuTalon/Test/Channel/EmailLive.cls` `SysAuditMasks` — make the check deterministic, never weaker: find out from IRIS's own source (`irissys/OAuth2/Client.cls`, `irissys/Security/System.cls`; never load or compile them) how and when the client-creation audit entry is written (event name, the exact EventData text for create versus modify, whether it is buffered), then look for THIS test's entry only (entries after a time mark taken just before the save, or the entry's own id) and poll long enough for a loaded CI host (bounded, for example up to 30 s), still asserting that the entry exists and masks the secret. The assertion must still go red when the secret is not masked (mutation line updated). Closes DW-1185.
 
 ### Review Findings
 
@@ -177,6 +177,8 @@ Rejected:
 ## Spec Change Log
 
 - 2026-11-12 (lead, rework iteration 1, trigger ci): the [CI] item above (DW-1185).
+
+- 2026-11-12 (implement, rework 1, DW-1185): measured root cause on warm throwaway `e21s3i2w`. IRIS writes the client-creation entry synchronously in the saving call (`OAuth2.Client.AuditUpdate` from `%OnBeforeSave` -> `%SYS.Audit.WriteToAuditFile`: Event `OAuth2`, a create text for a first save and a `Modify` text for a re-register, written only while instance auditing and the event are on), and `SELECT ... WHERE UTCTimeStamp >= ?` sees it at once (0.4 s after the save), but `WHERE Event = 'OAuth2'` goes through the Event index, which `%SYS.Audit.UpdateIndices` refreshes about once a minute: the entry first showed to that query 34 s later (inference for the cause from the source; the delay measured). The old check passed only when an earlier run's entry was already indexed or the indexer ran inside its 5 s. `SysAuditMasks(since)` now reads rows by time stamp from the test's own mark taken before the save, compares the event in code, requires the entry for `OcuTalonMail` with this test's client ID and the mask on the `ClientSecret:` line itself (measured: every creation entry also holds `*****` on the ClientPassword, PrivateJWKS, PublicJWKS and SymmetricJWKS lines, and other test methods leave creation entries of other client IDs on the stack, so the old check could pass without this test's secret being masked), and polls up to 30 s. `docker/tests/test-audit.sh` and `test-demo-switch.sh` query `%SYS.Audit` by `Event =` too (not touched here).
 
 - 2026-11-12 (lead, after code review, Contest Planner rulings on DW-1180 and DW-1181, `prompts/epic-21-rulings-213.md` last section): DW-1180 -- the measured production user is `_Ensemble`, which held `%All` on the throwaway: this story proves the path, not least privilege; the least set is Story 21.8's (new AC in its `epics.md` block); no text here claims least privilege. DW-1181 -- the state lie is fixed: after a failed save that already replaced, changed or removed IRIS's client of the old provider, `SettingsOps.ForgetClient` removes the old provider's client ID (audited set -> removed) and records the mark not signed in, so Settings shows the provider neither registered nor signed in (existing texts `secretNotSet` and the not-signed-in line); the IRIS client itself is not restored (wontfix-accepted with reopen_if). Lead commit, one method plus its call; pinned by `Test.Core.SettingsEmail` `TestFailedReplaceShowsNotRegistered`.
 
@@ -259,6 +261,18 @@ Rejected:
   - `[low]` `[reject]` Intent: a re-save puts back a disabled application beyond the matrix — Decided 16 and the ruling's condition 2; by-design
   - `[false]` `[reject]` Intent: edits outside the Lane B list (spine, EXPERIENCE, security overview) — the spine S2-S6, the accepted N1-N5 and the spec's own tasks require them
   - `[low]` `[reject]` Intent: the new tab is opened after the async POST (R-new tab) — as the Blind popup row
+
+### 2026-11-12 — Review pass (rework 1, DW-1185)
+- verdicts: 15 findings — high 0, medium 4, low 10, false 1, maybe-false 0 (seven rows are members of two grouped entries)
+- findings:
+  - `[medium]` `[patch]` Blind 1, Edge 2, Edge 7, Gap 1: the mask was tested as a substring of the whole entry, and every creation entry holds `*****` on four other lines (measured), so an unmasked ClientSecret line would pass — now the `ClientSecret:` line must hold the mask (patched; mutation: the line renamed -> red)
+  - `[low]` `[patch]` Blind 2, Edge 1, Edge 6, Intent B: the entry was not tied to this test's client; other methods leave creation entries of other client IDs on the stack (measured: `zz-foreign-id`) — now the entry must name `OcuTalonMail` and `OAUTHCLIENT` (patched; mutation: a foreign ID -> red)
+  - `[low]` `[reject]` Blind 3, Edge 3: a failed query reads as "not masked" with no message — the statement is static and runs on every pass of the test, a bad one would fail on the first run; reopen_if a run fails with SQLCODE < 0
+  - `[low]` `[reject]` Blind 4: the 30 s wait is unexplained — it is the bound the item sets, nothing waits on the index any more, and only a red run costs 30 s
+  - `[low]` `[reject]` Edge 4: EventData is cut at 16384 characters — the entry is about 1.8 KB (measured); theoretical
+  - `[low]` `[reject]` Edge 5, Gap 2: instance auditing or the OAuth2 event off makes the check wait 30 s and fail — the check asserts the entry exists by design (the item), `Install.Step.Audit` warns when auditing is off, and the throwaway has it on
+  - `[false]` `[reject]` Gap 3: the one-minute index refresh is unconfirmed — `%SYS.Audit.UpdateIndices` says it runs every 60 s and the entry first showed to the `Event = 'OAuth2'` query 34 s after the save (measured)
+  - `[low]` `[reject]` Intent: no test of the helper itself, the red path is not run by the suite — Rule 19 asks for a demonstrated mutation, recorded in Verification (three red runs); a seeded-row test of a private helper would need the audit write that only IRIS makes
 
 ## Design Notes
 
@@ -362,6 +376,7 @@ Run every command from the worktree root after `git rev-parse --show-toplevel` m
 - mutation: the client secret written into its audit entry -> `SettingsEmail` `TestNoClientSecretAnywhere` red; `SaveChannels` not offering `clientSecret` to the hand-off -> `SettingsApi` `TestChannelsRoute` red (the leak AC).
 - mutation: the `email.clientSecret` audit entry omitted -> `SettingsEmail` `TestProviderFirstSave` red (AC 4); provider mode keeping the stored password -> `TestProviderClearsPassword` red.
 - mutation: `RedirectionEndpoint` from a fixed host -> `EmailLive` `TestOAuthSaveSignInAndRemove` red (AC 3); `State` reading an error row as signed in -> `EmailOAuth` `TestState` red.
+- mutation (rework 1, DW-1185): the ClientSecret line the audit check requires renamed to `ClientSecretX` (so no line holds the mask) -> `EmailLive` `TestOAuthSaveSignInAndRemove` red at "IRIS's own audit entry of the client shows its secret masked" after the 30 s poll; the client ID the entry must name changed to `zz-foreign-id` (an entry another test method left on the same warm stack, outside this test's time window) -> the same assertion red; earlier on the first version of the check, the mask text `*****` -> `#####` and the time mark taken after the save -> the same red. Each reverted; the class green again on the same warm stack (`e21s3i3w`). Not mutable here: IRIS writing the secret unmasked (IRIS's own code).
 - mutation: `IsSettingsUrl` skipping the sign-in path -> `SettingsApi` `TestNonAdminIs403Everywhere` red (AC 5).
 - mutation: `emailBody` sending the password in a provider mode -> `web/scripts/email-view.test.mjs` red; `signInReady` ignoring the dirty form -> red.
 - mutation: the section's `check` on landing removed -> `live:sign-in-2` part 13/15, E6 red (fresh stack `e21s3i`).
@@ -405,3 +420,16 @@ Blocking condition: none
 **Verification performed (final tree):** warm throwaway `e21s3iw`: `EmailOAuth`, `SettingsEmail`, `EmailLive`, `SettingsApi`, `Web.Api`, `SettingsSave`, `Msg.Contracts`, `Core.Routing`, `CommandsStep4`, `SettingsOps`, `SettingsCommands` pass; `EmailOAuth` also passes on a fresh stack (`e21s3i`); `live sign-in-2` parts 13/15 (E1-E6) and 14/15 pass on a fresh stack (run before the last two Core patches; `EmailLive` re-passed after them); `node --test web/scripts/` 1923 and `ci/mock/test/oauth.test.mjs` pass, `tsc -p tsconfig.e2e.json` and `npm run build` clean; the four `docker/tests` scripts pass; the spine lint showed only the 10 baseline findings. Throwaways started were torn down.
 
 **Residual risks:** a provider-mode mailbox's `EmailIn` poll fails until Story 21.8 (deferred, known by the split); the privileges are measured only for `_Ensemble` (deferred); the restore after a failed save (deferred); a strict popup blocker can block the sign-in tab.
+
+### Rework 1 (DW-1185, the `[CI]` item) -- this pass only
+
+Status: done
+Blocking condition: none
+
+**Changed:** `src/ocutalon/cls/OcuTalon/Test/Channel/EmailLive.cls` only: `SysAuditMasks(since)` and its call in `TestOAuthSaveSignInAndRemove`. Root cause (measured on throwaway `e21s3i2w`, see the Spec Change Log): the creation entry is written in the saving call and a `UTCTimeStamp` read sees it at once, but `WHERE Event = 'OAuth2'` uses the Event index, which first showed the entry 34 s later. The old check passed only through an earlier entry already indexed. The check now reads rows from the test's own mark, requires the entry for `OcuTalonMail` with this test's client ID and the mask on the `ClientSecret:` line, and polls up to 30 s.
+
+**Review:** 15 findings -- high 0, medium 4, low 10, false 1 (rows in the Review Triage Log). Patched: the mask tied to the ClientSecret line and the entry tied to this client (one pass, two entries). Rejected: five lows and one false, each with its reason. Deferred: none. Follow-up review recommended: false (the pass patched no high).
+
+**Verification performed:** warm throwaway `e21s3i3w` (lane C): `EmailLive` green with the final code, red under the three mutations in Verification and green again after each revert; torn down with `ci/warm.sh down`. Not run: other classes (the item touches one test class).
+
+**Residual risks:** `docker/tests/test-audit.sh` and `test-demo-switch.sh` also count `%SYS.Audit` rows by `Event =` (the stale-index path); not touched, outside this item.

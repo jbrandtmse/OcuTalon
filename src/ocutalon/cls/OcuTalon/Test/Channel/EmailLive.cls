@@ -1340,16 +1340,24 @@ ClassMethod SysAuditHolds(text As %String) As %Integer [ Private ]
 	Quit +result.%GetData(1)
 }
 
-/// 1 when IRIS's audit entry of the client's creation shows the secret masked; the entry is looked for for up to five seconds.
-ClassMethod SysAuditMasks() As %Boolean [ Private ]
+/// 1 when IRIS's audit entry of the creation of this test's client, written at or after since (a mark of AuditLog.Now), shows the secret masked: an OAuth2 entry
+/// for the client OcuTalonMail with the client ID of OAUTHCLIENT whose ClientSecret line holds the mask. IRIS writes the entry in the saving call, but the Event
+/// index of %SYS.Audit is brought up to date only about once a minute, so the rows are read by their time stamp and the event is compared here. The entry is
+/// looked for for up to 30 seconds.
+ClassMethod SysAuditMasks(since As %String) As %Boolean [ Private ]
 {
 	New $NAMESPACE
 	Set $NAMESPACE = "%SYS"
-	For attempt = 1:1:10 {
-		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM %SYS.Audit WHERE Event = 'OAuth2' AND EventData [ 'Create OAuth2 Client' AND EventData [ 'ClientSecret' AND EventData [ '*****'")
+	Set deadline = $ZHorolog + 30
+	Set maskLine = "(?s).*\r\nClientSecret: +\*{5}\r\n.*"
+	For {
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Event, EventData FROM %SYS.Audit WHERE UTCTimeStamp >= ? AND EventData [ 'Create OAuth2 Client: OcuTalonMail'", since)
 		If result.%SQLCODE < 0 Quit
-		Do result.%Next()
-		If +result.%GetData(1) > 0 Return 1
+		While result.%Next() {
+			Set data = result.%GetData(2)
+			If (result.%GetData(1) = "OAuth2") && (data [ (" "_..#OAUTHCLIENT_$Char(13, 10))) && $Match(data, maskLine) Return 1
+		}
+		If $ZHorolog > deadline Quit
 		Hang 0.5
 	}
 	Quit 0
@@ -1437,7 +1445,7 @@ Method TestOAuthSaveSignInAndRemove()
 			Do $$$AssertEquals(##class(OcuTalon.Core.SettingsOps).Values().%ToJSON() [ text, 0, "the page's values hold no "_label)
 			Do $$$AssertEquals(result.Message_result.Data_start.Message_start.Data_check.Message_check.Data [ text, 0, "no answer holds "_label)
 		}
-		Do $$$AssertEquals(..SysAuditMasks(), 1, "IRIS's own audit entry of the client shows its secret masked")
+		Do $$$AssertEquals(..SysAuditMasks(since), 1, "IRIS's own audit entry of the client shows its secret masked")
 		Set forms = ""
 		For i = 0:1:entries.%Size() - 1 {
 			Set forms = forms_$Select(forms = "": "", 1: ";")_entries.%Get(i).data.setting
