@@ -3813,3 +3813,10 @@
 2026-11-12T20:58:48Z	Epic 0	runner_complete	runner=epic-runner-0c story=0.34 merged=b8780de6 unpushed=none
 2026-11-12T20:58:48Z	Epic 0	runner_resumed	runner=epic-runner-0 lane=A next=Story_0.35(plan_first) prompt=prompts/story-035-ruling-20261112.md
 2026-11-12T20:59:12Z	Run	ci_cancelled	head=b8780de6 runs=43305495207,43305495213 by=contest_planner reason=free_runners_for_rc2_PR rerun_after_HOLD_OFF=yes
+2026-11-12T21:20:07Z	Epic 0	runner_reported	PLANNER_REPORT story=0.35_plan(blocked:no_reliable_honest_change;odds_30-51pct_all3) recommends=25.3_instead local=96988e7e
+2026-11-12T21:21:06Z	Epic 0	owner_decision	via=contest_planner what=0.35_option2_narrowed(Triage_L26-27_fix+main-set-texts_guard;no_eval_case_change;DW_for_conflict;Planner_A/B_measurement_after_HOLD_OFF;new_ship_rule_a-e) file=prompts/story-035-ruling-20261112.md
+2026-11-12T22:23:47Z	Epic 0	runner_reported	LOCAL_READY story=0.35 local=e27bd379 split_point=ab9bc6f7(0.33+0.29_code_only) plan_at_HOLD_OFF=push_ab9bc6f7_first(CI,merge_0.33+0.29),then_e27bd379_for_Planner_A/B
+2026-11-12T22:23:47Z	Epic 25	runner_dispatched	model=opus runner=epic-runner-25 lane=A slot=ocutalon-slot-a story=25.3_plan prompt=prompts/dispatch-epic-25-253-20261112.md note=lane_A_runner_0_idle_until_HOLD_OFF
+2026-11-12T22:24:18Z	Epic 21	runner_reported	PLANNER_REPORT+RELEASE_TOOL story=21.8_LOCAL_READY(code_c3448279,local_2cc947a4) release_tool=release/checklist.sh_mail.google.com_exemption decisions=DW-1226(decision-pending_human),DW-1230(escalated_plain-POP3_bearer) gate=21.10(V1-V7,T1-T2) split=21.11
+2026-11-12T22:24:18Z	Epic 25	runner_dispatched_id	runner=aa000b22fa7fb6f0c
+2026-11-12T22:24:18Z	Run	deps_hash_rerecorded	reason=split note=epic-21_story_waits_21.9/21.10/21.11_added(hash_rerecord_at_merge)
