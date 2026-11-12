@@ -1,6 +1,8 @@
 /// Tests of Demo.Features (Story 4.11; AD-12, AD-29): the feature catalog of the demo guide's "Other things to try" panel.
-///   - TestIds: the pure mapping from probe flags to ids: with no flag the seven constants (incidentSummary, Story 23.6, first; reroute, Story 23.2, after rejectFix; partnerWarning, Story 23.5, after reroute; queueWatch, Story 23.7, after partnerWarning) and usage and history, each flag alone adds exactly its id in its
-///     place (memory adds memory and memoryCard, in that order), all flags give the fifteen in order, sources only with memory or documents and usage then history always last, and a false or missing flag adds nothing;
+///   - TestIds: the pure mapping from probe flags to ids: with no flag the seven constants (incidentSummary, Story 23.6, first; reroute, Story 23.2, after rejectFix; partnerWarning, Story 23.5, after reroute; queueWatch, Story 23.7, after partnerWarning) and usage and history, each flag alone adds exactly its id (webhooks, Story 35.3, right after heartbeat) in its
+///     place (memory adds memory and memoryCard, in that order), all flags give the sixteen in order, sources only with memory or documents and usage then history always last, and a false or missing flag adds nothing;
+///   - TestWebhooksOffOnDemo (Story 35.3): Present() lists webhooks when the webhook dispatch class is compiled and the online-demo flag is off, and leaves it out
+///     with the flag on; the flag is put back;
 ///   - TestPresentFollowsTheProbes: Present() equals Ids of the probes this test computes itself (the persona and heartbeat command
 ///     classes compiled; the memory and document operations compiled and not marked STUB = 1);
 ///   - TestStubsAreNotFeatures: while the memory and document operations carry STUB = 1 their ids are absent from Present(); once a
@@ -56,7 +58,10 @@ Method TestIds()
 	Do $$$AssertEquals(..IdsOf({"documents": 1}), base_",documents,sources,usage,history", "documents alone follows the constants, then sources, then usage and history")
 	Do $$$AssertEquals(..IdsOf({"heartbeat": 1}), base_",heartbeat,usage,history", "heartbeat alone follows the constants and brings no sources")
 	Do $$$AssertEquals(..IdsOf({"memory": 1, "heartbeat": 1}), base_",memory,memoryCard,heartbeat,sources,usage,history", "two flags keep the order, sources, usage and history last")
-	Do $$$AssertEquals(..IdsOf({"heartbeat": true, "documents": true, "memory": true, "persona": true}), "incidentSummary,persona,suspiciousEmail,rejectFix,reroute,partnerWarning,queueWatch,demoView,memory,memoryCard,documents,heartbeat,sources,usage,history", "all flags: the fifteen in order, whatever the order the flags were written in")
+	Do $$$AssertEquals(..IdsOf({"heartbeat": true, "documents": true, "memory": true, "persona": true}), "incidentSummary,persona,suspiciousEmail,rejectFix,reroute,partnerWarning,queueWatch,demoView,memory,memoryCard,documents,heartbeat,sources,usage,history", "the four older flags: the fifteen in order, whatever the order the flags were written in")
+	Do $$$AssertEquals(..IdsOf({"webhooks": 1}), base_",webhooks,usage,history", "webhooks alone follows the constants and brings no sources")
+	Do $$$AssertEquals(..IdsOf({"heartbeat": 1, "webhooks": 1, "memory": 1}), base_",memory,memoryCard,heartbeat,webhooks,sources,usage,history", "webhooks follows heartbeat and precedes sources")
+	Do $$$AssertEquals(..IdsOf({"webhooks": true, "heartbeat": true, "documents": true, "memory": true, "persona": true}), "incidentSummary,persona,suspiciousEmail,rejectFix,reroute,partnerWarning,queueWatch,demoView,memory,memoryCard,documents,heartbeat,webhooks,sources,usage,history", "all five flags: the sixteen in order")
 	Do $$$AssertEquals(..IdsOf({"unknown": 1}), base_",usage,history", "a flag the catalog does not know adds nothing")
 }
 
@@ -75,8 +80,26 @@ Method TestPresentFollowsTheProbes()
 	Set flags.memory = ..Built("OcuTalon.Memory.Ops")
 	Set flags.documents = ..Built("OcuTalon.Docs.Ops")
 	Set flags.heartbeat = ''##class(%Dictionary.CompiledClass).%ExistsId("OcuTalon.Msg.Command.RunHeartbeat")
+	Set flags.webhooks = ''##class(%Dictionary.CompiledClass).%ExistsId("OcuTalon.Web.Hook") && (##class(OcuTalon.Data.Public.Settings).Get("onlineDemo") '= 1)
 	Do $$$AssertEquals(..Text(##class(OcuTalon.Demo.Features).Present()), ..IdsOf(flags), "Present() is the mapping of the instance's own probes")
 	Do $$$AssertEquals($ListLength(##class(OcuTalon.Demo.Features).Present()) >= 3, 1, "the constants are always listed")
+}
+
+/// The webhook item is off on the online demo, which has no webhook address, and on off it.
+Method TestWebhooksOffOnDemo()
+{
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set error = ""
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Do $$$AssertEquals($ListFind(##class(OcuTalon.Demo.Features).Present(), "webhooks") > 0, 1, "off the online demo, webhooks is listed")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Do $$$AssertEquals($ListFind(##class(OcuTalon.Demo.Features).Present(), "webhooks"), 0, "on the online demo, it is not")
+	} Catch exception {
+		Set error = exception.DisplayString()
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
 }
 
 /// A stub is not a feature: while a story is open its operation carries STUB = 1, and Present() then leaves its id out.

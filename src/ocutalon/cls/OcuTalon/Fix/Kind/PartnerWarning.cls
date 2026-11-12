@@ -5,7 +5,7 @@
 ///   - The targets are the ids of the production's partner contacts (TARGETTYPE contact), in ascending order; Fix.PartnerContacts holds them, demo mode only. The parameter
 ///     text is the notice, one line of at most NOTICEMAX characters (Normalise leaves it as it is), and to is the comma-separated addresses of the recipients, exactly the
 ///     production's contacts' in id order.
-///   - Facts is the code-built input of the draft: the partner names, the production, the incident's state (underscores read as spaces), the failed items, the count with its item noun, the first and last failure and the stored
+///   - Facts is the code-built input of the draft: the partner names, the production, the incident's state (underscores read as spaces), then, only for a resolved incident whose records give it, the Outcome line (built by Outcome, in code, never by the model), the failed items, the count with its item noun, the first and last failure and the stored
 ///     plain cause. It holds no message body, sample error, setting value or evidence.
 ///   - DryRun refuses a production with no contact (NOCONTACTS) and a to that is not the contacts' addresses; its answer is {"notice", "recipients": [{"name", "address"}],
 ///     "simulated": 1}. Ready is 0 with NOTSETUP when demo mode is off, so that an approved notice is kept as a draft and says so.
@@ -34,8 +34,8 @@ Parameter MOVES = 0;
 /// The most characters of the notice.
 Parameter NOTICEMAX = 1000;
 
-/// The instruction that the draft's turn is given (agent text, never shown to a user).
-Parameter SYSTEMNOTE = "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed. If the incident is resolved, say that the affected orders went through after the fix, and don't say that work is still going on or that updates will follow.";
+/// The instruction that the draft's turn is given (agent text, never shown to a user). It is constant: no incident data enters it.
+Parameter SYSTEMNOTE = "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed. If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the affected items went through.";
 
 Parameter NOTSETUP = "email delivery isn't set up yet";
 
@@ -68,6 +68,8 @@ ClassMethod Facts(incident As OcuTalon.Data.Incident) As %String
 	Set text = "Partner: "_##class(OcuTalon.Fix.PartnerContacts).Names(##class(OcuTalon.Fix.PartnerContacts).For(incident.Production))
 	Set text = text_$Char(10)_"Production: "_..ProductionName(incident)_" ("_incident.Production_")"
 	Set text = text_$Char(10)_"Incident state: "_$Translate(incident.State, "_", " ")
+	Set outcome = ..Outcome(incident)
+	If outcome '= "" Set text = text_$Char(10)_outcome
 	Set text = text_$Char(10)_"Failed item: "_items
 	Set text = text_$Char(10)_"Failures: "_+incident.Count_" "_$Select(+incident.Count = 1: noun.one, 1: noun.other)
 	Set text = text_$Char(10)_"First failure: "_##class(OcuTalon.Tools.CommandCall).TimeLabel(incident.FirstAt, online)
@@ -75,6 +77,79 @@ ClassMethod Facts(incident As OcuTalon.Data.Incident) As %String
 	Set cause = ..Normalise(incident.Cause)
 	If cause '= "" Set text = text_$Char(10)_"Cause: "_cause
 	Quit text
+}
+
+/// The instruction of the draft's turn for the incident: SYSTEMNOTE, the same for every incident. No incident data, the item noun included, enters it.
+ClassMethod SystemNote(incident As OcuTalon.Data.Incident) As %String
+{
+	Quit ..#SYSTEMNOTE
+}
+
+/// How the incident ended, as one ruled line for Facts, or "" when its records do not map exactly onto one (the model never computes it). Only a resolved incident has one, and only
+/// when exactly one of its requests of a kind that moves the incident (MOVES 1; an unknown kind counts) has a run, that run has ended with Interrupted 0, and the incident's Count (N) is above 0
+/// and not below the run's Total or Completed. By the kind of the run:
+///   - a fix (a diagnosed kind whose targets are messages): nothing resent gives ""; Resent, Completed and N equal with nothing failed again or skipped gives "all N went through after
+///     the fix"; Completed below N gives "A of the N went through after the fix, and R did not" (A is Completed, R is N - A); any other count gives "";
+///   - the reroute: Resent equal to N and nothing skipped gives "the N were resent by another route", else "";
+///   - a kind that disables an item (ENABLE 0): Completed above 0 and a request parameter item that is the ItemName of one of the incident's failure groups gives "the affected flow was paused,
+///     and the N haven't gone through yet", else "";
+///   - any other kind gives "".
+/// The line holds numbers and the incident's plural item noun only: no item, target, production or partner name, setting value, message content or reason. It reads rows and changes none.
+ClassMethod Outcome(incident As OcuTalon.Data.Incident) As %String
+{
+	If incident.State '= "resolved" Quit ""
+	Set count = +incident.Count
+	If count < 1 Quit ""
+	Set runs = 0
+	Set position = 0
+	Set refs = $ListFromString(incident.RequestRefs)
+	While $ListNext(refs, position, ref) {
+		If ref = "" Continue
+		Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+		If '$IsObject(request) || (request.IncidentRef '= incident.Ref) Continue
+		Set candidate = ##class(OcuTalon.Data.FixRun).OfRequest(request.Ref)
+		If '$IsObject(candidate) Continue
+		Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
+		If (class '= "") && '$Parameter(class, "MOVES") Continue
+		Set runs = runs + 1
+		Set run = candidate
+		Set kind = class
+		Set owner = request
+	}
+	If runs '= 1 Quit ""
+	If (run.EndedAt = "") || (+run.Interrupted > 0) || (+run.Total > count) || (+run.Completed > count) Quit ""
+	If kind = "" Quit ""
+	Set noun = ##class(OcuTalon.Watch.Notice).Noun(incident).other
+	If ($Parameter(kind, "TARGETTYPE") = "message") && $Parameter(kind, "DIAGNOSED") {
+		If +run.Resent < 1 Quit ""
+		If (+run.Resent = count) && (+run.Completed = count) && (+run.FailedAgain = 0) && (+run.Skipped = 0) {
+			Quit "Outcome: all "_count_" affected "_noun_" went through after the fix."
+		}
+		If +run.Completed >= count Quit ""
+		Quit "Outcome: "_+run.Completed_" of the "_count_" affected "_noun_" went through after the fix, and "_(count - run.Completed)_" did not."
+	}
+	If $Parameter(kind, "NAME") = "reroute" {
+		If (+run.Resent '= count) || (+run.Skipped '= 0) Quit ""
+		Quit "Outcome: the "_count_" affected "_noun_" were resent by another route."
+	}
+	If ($Parameter(kind, "TARGETTYPE") = "item") && '$Parameter(kind, "ENABLE") {
+		If +run.Completed < 1 Quit ""
+		Set item = ""
+		Try {
+			Set parsed = {}.%FromJSON(owner.FixParameters)
+			If $IsObject(parsed) && parsed.%IsA("%Library.DynamicObject") Set item = parsed.item
+		} Catch {
+			Set item = ""
+		}
+		If (item '= "") && '$IsObject(item) {
+			Set groups = ##class(OcuTalon.Data.FailureGroup).OfIncident(incident.Ref)
+			For i = 1:1:groups.Count() {
+				If groups.GetAt(i).ItemName = item Return "Outcome: the affected flow was paused, and the "_count_" affected "_noun_" haven't gone through yet."
+			}
+		}
+		Quit ""
+	}
+	Quit ""
 }
 
 /// The text as one line: each run of white space (line breaks included) is one space, the control characters, the invisible format characters and the bidirectional controls go

@@ -468,6 +468,19 @@ XData Contracts [ MimeType = application/json ]
    "RefIndex": "Ref unique"
   }
  },
+ "OcuTalon.Data.MailSeen": {
+  "super": "%Persistent",
+  "props": {
+   "Mailbox": "%String(COLLATION=EXACT,MAXLEN=64)",
+   "Uidl": "%String(COLLATION=EXACT,MAXLEN=70)",
+   "Baseline": "%Boolean",
+   "SeenAt": "%String(MAXLEN=20)"
+  },
+  "indexes": {
+   "MailboxUidlIndex": "Mailbox,Uidl unique",
+   "MailboxIndex": "Mailbox"
+  }
+ },
  "OcuTalon.Data.Precedent": {
   "super": "%Persistent",
   "props": {
@@ -488,6 +501,21 @@ XData Contracts [ MimeType = application/json ]
    "SourceRefIndex": "SourceRef unique",
    "OwnerRefIndex": "OwnerRef",
    "OwnerKeyIndex": "OwnerRef,Channel,MatchKey"
+  }
+ },
+ "OcuTalon.Data.Webhook": {
+  "super": "%Persistent",
+  "props": {
+   "Ref": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "Name": "%String(MAXLEN=64)",
+   "SessionRef": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "SecretHash": "%String(COLLATION=EXACT,MAXLEN=66)",
+   "CreatedAt": "%String(MAXLEN=20)"
+  },
+  "indexes": {
+   "RefIndex": "Ref unique",
+   "NameIndex": "Name unique",
+   "SessionRefIndex": "SessionRef"
   }
  },
  "OcuTalon.Data.Reminder": {
@@ -754,6 +782,11 @@ XData Registry [ MimeType = application/json ]
   "class": "OcuTalon.Data.Handled"
  },
  {
+  "short": "MailSeen",
+  "global": "^OcuTalonP.MailSeen",
+  "class": "OcuTalon.Data.MailSeen"
+ },
+ {
   "short": "Memory",
   "global": "^OcuTalonP.Memory",
   "class": "OcuTalon.Data.Memory"
@@ -772,6 +805,11 @@ XData Registry [ MimeType = application/json ]
   "short": "Precedent",
   "global": "^OcuTalonP.Precedent",
   "class": "OcuTalon.Data.Precedent"
+ },
+ {
+  "short": "Webhook",
+  "global": "^OcuTalonP.Webhook",
+  "class": "OcuTalon.Data.Webhook"
  },
  {
   "short": "Reminder",

@@ -73,6 +73,10 @@ XData ProductionDefinition
   <Item Name="WebChatOut" ClassName="OcuTalon.Channel.WebChat.Out" PoolSize="1" Enabled="true"/>
   <Item Name="SimMailboxIn" ClassName="OcuTalon.Channel.SimMailbox.In" PoolSize="0" Enabled="true"/>
   <Item Name="SimMailboxOut" ClassName="OcuTalon.Channel.SimMailbox.Out" PoolSize="1" Enabled="true"/>
+  <Item Name="EmailIn" ClassName="OcuTalon.Channel.Email.In" PoolSize="1" Enabled="false">
+    <Setting Target="Adapter" Name="CallInterval">60</Setting>
+  </Item>
+  <Item Name="EmailOut" ClassName="OcuTalon.Channel.Email.Out" PoolSize="1" Enabled="false"/>
   <Item Name="SimPhoneOut" ClassName="OcuTalon.Channel.SimPhone.Out" PoolSize="1" Enabled="true"/>
   <Item Name="AnswersIn" ClassName="OcuTalon.Core.AnswersIn" PoolSize="0" Enabled="true"/>
   <Item Name="AnswerOps" ClassName="OcuTalon.Core.AnswerOps" PoolSize="1" Enabled="true"/>
@@ -97,6 +101,7 @@ XData ProductionDefinition
   <Item Name="BreakFeedIn" ClassName="OcuTalon.Demo.BreakFeedIn" PoolSize="0" Enabled="true"/>
   <Item Name="PartnerTrigger" ClassName="OcuTalon.Demo.PartnerTrigger" PoolSize="1" Enabled="true"/>
   <Item Name="PrecedentOps" ClassName="OcuTalon.Core.PrecedentOps" PoolSize="1" Enabled="true"/>
+  <Item Name="WebhookIn" ClassName="OcuTalon.Channel.Webhook.In" PoolSize="0" Enabled="true"/>
   <!-- lane B: end -->
 </Production>
 }

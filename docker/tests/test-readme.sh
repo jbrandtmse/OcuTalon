@@ -29,13 +29,13 @@
 #   checklist-video  in "Contest checklist", the row right after the "| Online demo |" row is the ruled Video row (DW-1171), word for
 #                  word, and that row is in the README once; the link #one-incident-end-to-end reaches the heading "One incident, end to
 #                  end" (by its slug)
-#   judges-usability  "For judges: where to look" has one "| Usability |" row, and it opens with the two ruled sentences (DW-1171), word
-#                  for word but for the count word, which may be any lower-case word (the web tests pin it against the More to try
-#                  registry)
+#   judges-usability  "For judges: where to look" has one "| Usability |" row, and it opens with the two ruled sentences (DW-1171, in
+#                  the combined form ruled with Story 35.3: "..., fifteen of them on the online demo"), word for word but for the count
+#                  word, which may be any lower-case word (the web tests pin it against the More to try registry)
 #   path           "One incident, end to end" holds its intro line and its seven numbered steps, word for word, in order and nothing
 #                  else; "Two things to look at in the demo" is nowhere in the README
 #   new-since      "### New since 1.0.0" sits under "What's interesting", after its image line, with its intro line, then the three
-#                  #### headings in order and, under them, the 14 bullets by bold name, each once, in the ruled order
+#                  #### headings in order and, under them, the 16 bullets by bold name, each once, in the ruled order
 #   teaser         the full-video line is there once, word for word, two lines below the opening paragraph and the teaser line once,
 #                  word for word, two lines below it, each with an empty line between and above the first H2 section; no HTML media tag, no image inside a link, and no image that is not an
 #                  inline docs/images/<name>.png image; the one exception is the <img> tags of the header block (the logo's src is
@@ -244,7 +244,7 @@ H_JUDGES='### For judges: where to look'
 ONLINE_ROW='| Online demo |'
 VIDEO_ROW='| Video | [One incident, approved from a phone, traced]('"$YT_FULL"') (3:04, also as an [MP4 file]('"$MP4_FULL"')), and the [35-second teaser]('"$TEASER_URL"'). |'
 USE_HEAD='| Usability | The demo guide walks [one incident, end to end](#one-incident-end-to-end) in about two minutes, and [the full video]('"$YT_FULL"') shows it in 3:04. Its More to try panel has '
-USE_TAIL=' more things to try ([New since 1.0.0](#new-since-100)).'
+USE_TAIL=' more things to try, fifteen of them on the online demo ([New since 1.0.0](#new-since-100)).'
 # The approved header block (Story 0.21): README.md lines 1 to HEADER_LINES, word for word, as a quoted heredoc, because the lines
 # hold quotes, with its trailing newline stripped. HEADER_IMAGE_HOSTS are the image hosts and paths that only those lines may use;
 # one of its entries, HEADER_RAW_DIR, is the path of this repository's images on its main branch (the logo's address).
@@ -856,8 +856,8 @@ chk_path() {
   if grep -qF -e 'Two things to look at in the demo' "$f"; then echo "path: 'Two things to look at in the demo' is back"; fi
 }
 
-# new-since: the H3, its intro line, the three H4 groups and the 14 bullets (by bold name) of "New since 1.0.0", in the ruled order.
-NS_INTRO='Each item says where to try it on the online demo. Visual Trace there is shared, so save and add nothing personal.'
+# new-since: the H3, its intro line, the three H4 groups and the 16 bullets (by bold name) of "New since 1.0.0", in the ruled order.
+NS_INTRO='Each item says where to try it. Visual Trace on the online demo is shared, so save and add nothing personal.'
 NS_G1='Your integrations'
 NS_G2='Your documents and memory'
 NS_G3='Personas, the heartbeat checklist and the digest'
@@ -867,6 +867,8 @@ B Incident summaries
 B Suspend, resume and reroute
 B Partner delay notices
 B Queue backlogs between digests
+B Webhooks
+B Your own mailbox
 B A History page
 B A Usage page
 H $NS_G2
@@ -1809,7 +1811,9 @@ rule_judges_usability() {
   st 'the second sentence reworded' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/ Its More to try panel has /, " Its panel has ") } { print }' chk_judges_usability
   st 'the two sentences folded back into one' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/, and \[the full video\]\(https:\/\/youtu\.be\/HIyCG5E6-JQ\) shows it in 3:04\. Its More/, ", and its More") } { print }' chk_judges_usability
   st 'the count as a number' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/ has [a-z]+ more things/, " has 15 more things") } { print }' chk_judges_usability
-  st 'the second sentence cut after the count word' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/ more things to try \(\[New since 1\.0\.0\]\(#new-since-100\)\)\./, " more things.") } { print }' chk_judges_usability
+  st 'the second sentence cut after the count word' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/ more things to try, fifteen of them on the online demo \(\[New since 1\.0\.0\]\(#new-since-100\)\)\./, " more things.") } { print }' chk_judges_usability
+  st 'the online-demo count changed' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/, fifteen of them on the online demo/, ", fourteen of them on the online demo") } { print }' chk_judges_usability
+  st 'the online-demo clause removed' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/, fifteen of them on the online demo/, "") } { print }' chk_judges_usability
   st 'the row removed' 1 "$README" 'index($0, "| Usability |") != 1' chk_judges_usability
   st 'the row twice' 1 "$README" '{ print } index($0, "| Usability |") == 1 { print }' chk_judges_usability
   st 'the row moved out of the For judges table' 1 "$README" 'index($0, "| Usability |") == 1 { held = $0; next } { print } END { print ""; print held }' chk_judges_usability
@@ -1868,7 +1872,7 @@ rule_new_since() {
   st 'the heading removed' 1 "$README" '!/^### New since 1.0.0$/' chk_new_since
   st 'the heading renamed' 1 "$README" '/^### New since 1.0.0$/ { print "### Since 1.0.0"; next } { print }' chk_new_since
   st 'the heading above the image line' 1 "$README" '/^!\[Visual Trace of one whole decision/ { held = $0; next } { print } /^Each item says where/ { print ""; print held }' chk_new_since
-  st 'the intro line reworded' 1 "$README" '/^Each item says where/ { sub(/Visual Trace there/, "Visual Trace here") } { print }' chk_new_since
+  st 'the intro line reworded' 1 "$README" '/^Each item says where/ { sub(/Visual Trace on the online demo/, "Visual Trace here") } { print }' chk_new_since
   st 'the intro line removed' 1 "$README" '/^Each item says where/ { getline; next } { print }' chk_new_since
   for g in "$NS_G1" "$NS_G2" "$NS_G3"; do
     st "the group heading $g removed" 1 "$README" "\$0 != \"#### $g\"" chk_new_since
@@ -1897,7 +1901,7 @@ rule_new_since() {
   st 'the Usage bullet moved to the next group' 1 "$README" 'index($0, "- **A Usage page.**") == 1 { held = $0; next } { print } /^#### Your documents and memory$/ { print held }' chk_new_since
   st 'a bullet that is not in the list' 1 "$README" '{ print } index($0, "- **A Usage page.**") == 1 { print "- **A new thing.** Text." }' chk_new_since
   st 'a bullet above the first group heading' 1 "$README" '/^Each item says where/ { print; print ""; print "- **A new thing.** Text."; next } { print }' chk_new_since
-  finish new-since 'New since 1.0.0 sits under What'"'"'s interesting with its intro line, the three group headings in order and the 14 bullets, each once, in the ruled order' chk_new_since
+  finish new-since 'New since 1.0.0 sits under What'"'"'s interesting with its intro line, the three group headings in order and the 16 bullets, each once, in the ruled order' chk_new_since
 }
 
 rule_teaser() {

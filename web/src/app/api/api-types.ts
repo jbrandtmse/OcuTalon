@@ -235,6 +235,20 @@ export interface SettingsSections {
   };
   'daily-digest': { time: string; channels: string };
   'demo-mode': { demoMode: boolean };
+  /** The mailbox (Story 21.2): never on the online demo. `passwordSet` says that a password is stored; the password itself is never sent. */
+  channels?: EmailValues;
+}
+
+/**
+ * The values of the Email form: the saved address, incoming server (host, or host:port off port 995), outgoing server (host, or host:port off port 587; empty
+ * for none) and user name, and whether a password is stored.
+ */
+export interface EmailValues {
+  address: string;
+  incoming: string;
+  outgoing: string;
+  user: string;
+  passwordSet: boolean;
 }
 
 /** The body of a Time zone save: the IANA zone name, or "" for the server's own zone. The zone is a bridge value, so the 200 answer's sections do not hold it. */
@@ -257,6 +271,38 @@ export interface SettingsSaved {
 export interface SettingsError {
   error: { code: string; message: string };
   fields?: string[];
+}
+
+/** A webhook as the settings routes list it (Story 35.3): its Ref, name and path below the host, and when it was made. It never holds a secret or a hash. */
+export interface WebhookRow {
+  ref: string;
+  name: string;
+  path: string;
+  createdAt: string;
+}
+
+/** The 200 answer to GET /ocutalon/api/v1/settings/channels/webhooks: the session's own webhooks in creation order. */
+export interface WebhooksList {
+  webhooks: WebhookRow[];
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/channels/webhooks: the new webhook. */
+export interface WebhookCreated {
+  result: 'done';
+  message: string;
+  webhook: WebhookRow;
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/channels/webhooks/<ref>/secret. */
+export interface WebhookSecretSaved {
+  result: 'done';
+  message: string;
+}
+
+/** The error body of a refused webhook call: `{error: {code, message}}`, and for `bad_webhook` the refused fields, each with its text. */
+export interface WebhookError {
+  error: { code: string; message: string };
+  fields?: { name?: string; secret?: string };
 }
 
 /** GET /ocutalon/api/v1/documents: the session's documents (an install's, on a local install), newest first; the same view as the `document` event. */

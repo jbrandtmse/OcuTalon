@@ -32,6 +32,14 @@ ClassMethod Post(input As %RegisteredObject, Output output As %String) As %Statu
 }
 
 /// The roles of the signed-in user: the test's, when it set them.
+/// The submit of SaveChannels: an error status, as a production that does not take the command, when ^OcuTalonTest("ApiProbe", "submit") is "fail";
+/// otherwise the real one.
+ClassMethod SubmitChannels(command As OcuTalon.Msg.Command.SaveSettings, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	If $Get(^OcuTalonTest("ApiProbe", "submit")) = "fail" Quit $SYSTEM.Status.Error(5001, "zz the production is not running")
+	Quit ##super(command, .result)
+}
+
 ClassMethod Roles() As %String [ Private ]
 {
 	If $Data(^OcuTalonTest("ApiProbe", "roles")) Quit ^OcuTalonTest("ApiProbe", "roles")
