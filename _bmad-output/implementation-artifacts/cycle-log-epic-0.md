@@ -1000,3 +1000,5 @@
 2026-11-12T19:56:52Z	Story 0.29	story_cycle	plan_to_commit_min=45 implement_passes=1 reviews=1 rework=0 first_ci=pending(hold) models=plan:lead(spec_from_the_0.27_plan),implement:sonnet,qa:skipped,cr:opus
 2026-11-12T21:00:13Z	Epic 0	integrated_forward	feature=b8780de6 head=ca8d29b9 conflicts_resolved=epics.md(union:0.33+0.34_blocks),sprint-status.yaml(feature_side,regenerated,re-set_0-29=done,0-33=done) note=local_only(CI_HOLD)
 2026-11-12T21:00:49Z	Epic 0	story_inserted	story=0.35 source=prompts/story-035-ruling-20261112.md(Contest_Planner,owner_delegation,~20:30Z) amendments=epics.md:Story_0.35_block(inserted,[ADDED_2026-11-12]) deps_hash=orchestrator
+2026-11-12T21:02:45Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.35_inserted;0.34_merged) model=claude-opus-5-5 effort=high lines=81
+2026-11-12T21:02:45Z	Story 0.35	stage_spawned	stage=plan spawn_at=2026-11-12T21:02:45Z model=opus effort=high agent_name=0-35-plan-1 cycle_iteration=1
