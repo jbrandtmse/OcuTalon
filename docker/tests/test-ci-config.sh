@@ -79,7 +79,7 @@
 #     browser run and the suite seconds right after it; the evidence table's new-value column equals the code's values; the four job
 #     timeouts of DW-1212, DW-1213 and DW-1214 (ci.yml iris 50 and checks 25 minutes, lane-a.yml ipm-install and ipm-install-p 45), and the REL-4 lines of
 #     the two lane-a IPM jobs: `build` takes a start stamp and `teardown` prints `MEASURED <job> N s` and, over 2100 s, `over REL-4` to the log and the
-#     step summary (a stub clock; no line for another job or a run with no stamp);
+#     step summary (a stub clock; no line for another job, a run with no stamp or a stamp that is not a number);
 #   - lane-a: lane-a.yml exists and has the job standalone-bridge; both .yml and .yaml files are workflow files;
 #   - checks.sh, class verdict, shard order, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh
 #     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
@@ -2495,6 +2495,10 @@ printf '%s\n' "$budget_out$budget_sum" | grep -q -e 'MEASURED' -e 'over REL-4' &
 budget_job rel4-nostamp ipm-install none 9000
 printf '%s\n' "$budget_out" | grep -q '^TEARDOWN tag bud-run1' || tk_bad "no start stamp: the teardown did not run to its TEARDOWN line"
 printf '%s\n' "$budget_out$budget_sum" | grep -q -e 'MEASURED' -e 'over REL-4' && tk_bad "no start stamp: a REL-4 line was printed"
+budget_job rel4-badstamp ipm-install x1000 9000
+printf '%s\n' "$budget_out" | grep -q '^TEARDOWN tag bud-run1' || tk_bad "a stamp that is not a number: the teardown did not run to its TEARDOWN line"
+printf '%s\n' "$budget_out$budget_sum" | grep -q -e 'MEASURED' -e 'over REL-4' && tk_bad "a stamp that is not a number: a REL-4 line was printed"
+[ -z "$(ls "$tmp/budget-job-rel4-badstamp/tmp" 2>/dev/null)" ] || tk_bad "a stamp that is not a number: the stamp is still there after teardown"
 
 live_body=$(awk '/^cmd_live\(\) \{/ { on = 1 } on { print } on && /^}/ { exit }' ci/iris.sh)
 printf '%s\n' "$live_body" | grep -q 'unit_live_deadline "\$name"' || tk_bad "cmd_live does not read unit_live_deadline"

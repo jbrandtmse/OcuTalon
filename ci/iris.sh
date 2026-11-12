@@ -345,11 +345,13 @@ cmd_port() {
   echo "${OCUTALON_TEST_WEB_PORT:-auto}"
 }
 
-# --- the wall time of the lane-a IPM jobs against REL-4's 35 minutes (Story 0.32, DW-1214) ---
+# --- the time of the lane-a IPM jobs, from `build` to `teardown`, against REL-4's 35 minutes (Story 0.32, DW-1214) ---
 # The jobs ipm-install and ipm-install-p (REL4_JOBS of ci/units.sh) have a timeout-minutes of 45, which only stops a hang; REL-4's 35 minutes
 # (REL4_TARGET_SECONDS) stays the target. `build`, the first script of each job, takes a start stamp; `teardown`, the last step (if: always()),
 # prints `MEASURED <job> N s` with the seconds since the stamp and, when N is over the target, `over REL-4: ...` to the log and to
-# GITHUB_STEP_SUMMARY. Any other job, or a run with no stamp, prints nothing. job_now is the clock (a test replaces it).
+# GITHUB_STEP_SUMMARY. N leaves out the job's setup and checkout before `build` and the teardown's own cleanup after the line, so it
+# reads a little under the job's duration. Any other job, or a run with no stamp or a stamp that is not a number, prints nothing.
+# job_now is the clock (a test replaces it).
 
 job_now() { date +%s; }
 

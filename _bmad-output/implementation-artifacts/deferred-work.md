@@ -7167,6 +7167,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T11:30:04Z occurrence=0-28 by=runner note=lane-a_run_43202138310_job_131127975712_ipm-install_on_ocutalon-ci-19_all_steps_success_then_cancelled_at_35m0s(10:52:33-11:27:33Z);host_load;OCT-epic0_2a6cfc67;rerun_failed_jobs_11:30Z
 - 2026-11-12T17:27:03Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_lane-a_43250436407_attempt1_ipm-install_cancelled_at_35m_job_timeout(job_131293987013?),attempt2_cancelled_again(job_131330870015);no_test_failed;infra_headroom;workflow_timeout_is_a_RELEASE_TOOL_item
 - 2026-11-12T17:27:26Z occurrence=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and note=0.32_Task0:ipm-install_1859s_median,2098s_largest_vs_2100s(1.13,1.00);ipm-install-p_1741s/1893s(1.21,1.11);REL-4_35min_is_a_Never-raise_bound_of_0.32;Planner:RELEASE_TOOL_and_REL-4
+- 2026-11-12T19:37:39Z by=cr note=0.32 rework 1 (Planner-approved, relayed as DW-1214): ipm-install/-p timeout 35->45, REL-4 35 min kept as target via MEASURED lines
+- 2026-11-12T19:41:25Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved (relayed as DW-1214): lane-a.yml ipm-install and ipm-install-p timeout-minutes 35 -> 45 as a hang backstop; REL-4's 35 min stays the target: ci/iris.sh teardown prints 'MEASURED <job> N s' and flags 'over REL-4' (log + step summary) over 2100 s (b24d2c64 + review patches)
 
 ### DW-1163: CI ops: GitHub Actions outage left zombie runs (queued at attempt 1; cancel says completed, rerun says running, force-cancel says not queued); recovery = a fresh push of a bookkeeping-only head, its result read by identity
 - source: OCT-epic21 2242c77d runs 43096469670, 43096469722 (2026-11-11 Actions major outage) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7342,18 +7344,21 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 0.32 Task 0: ten newest green jobs, 2400 s / median: shards-10 1.33, shards-5 1.34, shards-11 1.35, shards 1.36, production 1.39, shards-2 1.39; largest job 1.17
 - 2026-11-12T17:27:25Z status=escalated owner=burndown by=harvest note=for the Planner: a job cap is a RELEASE TOOL hunk; rebalancing is a Story 0.20 kind of change
 - 2026-11-12T18:06:01Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs, no-op jobs out): shards-10 1.29, shards/11 1.35, shards-6 1.37, production/shards-2 1.39
+- 2026-11-12T19:41:24Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved (2026-11-12 ~18:30Z, relayed): ci.yml iris timeout-minutes 40 -> 50 (b24d2c64); no group rebalancing until after Sunday
 
 ### DW-1213: CI checks job timeout (20 min) is 1.25x its green median (962 s; largest 1015 s)
 - source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: 0.32 Task 0: ten newest green ci checks jobs
 - 2026-11-12T17:27:25Z status=escalated owner=burndown by=harvest note=for the Planner: workflow timeout-minutes is a RELEASE TOOL hunk
 - 2026-11-12T18:06:13Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs incl. red/cancelled): checks median 950 s, 1.26; largest 1015 s, 1.18
+- 2026-11-12T19:41:24Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved: ci.yml checks timeout-minutes 20 -> 25 (b24d2c64)
 
 ### DW-1214: CI iris job timeout (40 min) is 1.33-1.66x the group medians; it is the last bound of a hang
 - source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: 0.32 Task 0; see the group entry
 - 2026-11-12T17:27:26Z status=escalated owner=burndown by=harvest note=for the Planner: RELEASE TOOL hunk; 0.32's Never list forbids raising the 40-minute cap
 - 2026-11-12T18:06:13Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs, no-op jobs out): iris job cap 1.29-1.70x the group job medians; 1.17x the largest
+- 2026-11-12T19:41:25Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved: ci.yml iris timeout-minutes 40 -> 50 (b24d2c64); the Planner's 'DW-1214' (lane-a ipm-install) is ledger DW-1161
 
 ### DW-1215: Playwright's 45 s per-test timeout is 1.27x the slowest online-allowance test and 1.38x online-demo's (medians of each run's slowest test)
 - source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: low | fix-risk: med | footprint: out-of-footprint

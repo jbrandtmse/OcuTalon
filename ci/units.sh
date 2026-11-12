@@ -216,7 +216,7 @@ unit_live_deadline() {
   esac
 }
 
-# The lane-a jobs whose wall time is measured against REL-4's 35-minute TARGET (Story 0.32, DW-1214): each prints `MEASURED <job> N s`
+# The lane-a jobs whose time from build to teardown is measured against REL-4's 35-minute TARGET (Story 0.32, DW-1214): each prints `MEASURED <job> N s`
 # and, over the target, `over REL-4`. Their timeout-minutes of 45 in lane-a.yml is only the hang backstop. ci/iris.sh build takes the
 # job's start stamp and ci/iris.sh teardown (the job's last step, if: always()) prints the lines.
 REL4_JOBS="ipm-install ipm-install-p"

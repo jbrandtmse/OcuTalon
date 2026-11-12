@@ -273,6 +273,32 @@ Rejected:
 - `low` Verification-gap: AC 5's "every budget of the inventory has a row" and AC 6's "nothing removed" have no automated pin -- by-design, one-off checks of the record and of the diff (both held at this review: 29 U rows equal the groups' live units; no test, unit, group or job removed).
 - `low` Acceptance: QA's test-ci-config.sh change is uncommitted -- not a defect; the lead commits it with this review's patches.
 
+### Review Findings (round 2)
+
+Code review 2026-11-12 (rework re-review, iteration 1 of 3; full mode, baseline b161e20e; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all on the session model). 22 raw findings (blind 8, edge 7, verification-gap 0, acceptance 7 incl. checklist notes); 0 decision-needed, 4 patch entries (all applied), 0 defer, 13 rejected. Rule 3: exempt (CI tooling, no user-facing surface). Rule 6: no AD mismatch (AD-22 followed: the lines live in `ci/iris.sh`, the constants in `ci/units.sh`; AD-29: see Rejected).
+
+Checklist: (1) DW-1212 ci.yml `iris` 50, delivered; (2) DW-1213 ci.yml `checks` 25, delivered; (3) DW-1214 lane-a.yml `ipm-install` and `ipm-install-p` 45, `MEASURED <job> N s` from `ci/iris.sh teardown` and `over REL-4` (log and `$GITHUB_STEP_SUMMARY`) above 2100 s, delivered; both jobs run `ci/iris.sh build` first and `ci/iris.sh teardown` under `if: always()` last, so the lines print on a failed step and on a cancel at the timeout; `release/ipm-install.sh` tears down through `live_start`'s trap, never `cmd_teardown`, so the stamp is not used up between parts; `GITHUB_JOB` is the job id (`ipm-install`, `ipm-install-p`); the stamp is `${TMPDIR:-/tmp}/ocutalon-jobstart-<run_id>-<attempt>-ipm[-p]`, unique per job and attempt, so it never reaches another job or run; (4) `git diff b161e20e -- .github/` is exactly the four values; (5) no other live statement of 40/20/35 (README, GUIDE, docs, ci, docker, release); REL-4's target wording kept; (6) every hunk has a recorded mutation (three added below).
+
+- [x] [Review][Patch] [low] The comments called N "the wall time" of the job, but it counts from `build` to the start of `teardown` (setup, checkout and the teardown's cleanup left out) [ci/iris.sh:348-353, ci/units.sh:219] -- comments now say so; moving the stamp is spec-bound ("a timestamp the job's existing scripts take at their start") (edge-case-hunter+blind-hunter)
+- [x] [Review][Patch] [low] The non-numeric-stamp guard in `job_wall_report` had no row: without it a bad stamp kills `teardown` under `set -u` before any cleanup [docker/tests/test-ci-config.sh budgets, rel4-badstamp] -- row added (TEARDOWN line, no REL-4 line, stamp removed) with its mutation (blind-hunter+acceptance-auditor)
+- [x] [Review][Patch] [low] Rule 19: no recorded mutation for `REL4_JOBS` itself or for the stamp's `rm -f` [spec Verification] -- both applied, red, reverted; lines below (acceptance-auditor)
+- [x] [Review][Patch] [low] The relayed approval labels the lane-a change DW-1214, while the ledger's DW-1214 is the iris job cap and the lane-a headroom finding is DW-1161 (routed burndown, note "never a longer timeout") [ledger] -- a `by=cr` note on DW-1161 cross-references the approved change; every one of DW-1212/1213/1214 is substantively addressed by the four values (iris 50 covers 1212 and 1214); the lead resolves them (acceptance-auditor)
+
+Rejected:
+- `false` Acceptance [HIGH as filed]: AD-29 gives `lane-a.yml` to Lane A, so a lane-B worktree may not edit it -- this is Epic 0, which may edit any lane's files (owner-fixed value 2; epics.md:1323 "only Epic 0 may edit together (AD-29)"), and the Planner's approval names `lane-a.yml`.
+- `false` Edge: no mutation shows the timeout pins reject a changed value -- four recorded mutations (each value reverted -> budgets red).
+- `false` Blind: the 2340 s floor cap no longer follows from the 50-minute cap -- the comment's claim (one unit alone stays under the iris job's cap) still holds; 2340 was not re-derived and nothing says it was.
+- `low` Edge: a cancelled or failed job prints a MEASURED line like a full one -- the audit selects green jobs by conclusion; tagging the outcome adds a branch.
+- `low` Edge/blind: a REL-4 job with no stamp (a hang before `build`, a failed write) prints nothing -- the tested contract; the job's own timeout shows in the run; only reachable before `build`.
+- `low` Edge: a stamp is left in the shared /tmp when teardown never runs -- a few bytes; the name carries the run id, attempt and job, so no other job reads it.
+- `low` Blind: the evidence file's floored-group worst case is not recomputed against 3,000 s -- the group table is labelled as the pre-DW-1212 measurement; a re-measure is the next audit.
+- `low` Blind/acceptance: the Never list (line 87), the frontmatter `deferred:` text and the first Auto Run Result still say 40/35 -- the fix edits the spec under review (the amendment at line 85 governs).
+- `low` Acceptance: epics.md:1501 (Story 0.20's "So that"), epic-0-context.md:47 and the ledger titles state the old caps -- another story's frozen text, a generated cache and append-only ledger bodies; history, not live claims.
+- `low` Blind: no `::warning::` annotation for an over-REL-4 job -- the item asks for the log and the step summary; by-design.
+- `low` Blind: the iris jobs get no REL-4 line -- the Planner scoped the lines to the two IPM jobs; by-design.
+- `low` Edge: N leaves out setup, checkout and teardown cleanup (behaviour) -- spec-bound; the comments now say so (patch 1).
+- (verification-gap: no gaps found.)
+
 ## Spec Change Log
 
 - 2026-11-12 ~18:30Z, lane-B runner: rework iteration 1 opened for the Contest Planner's approval of the RELEASE TOOL hunks DW-1212 (iris 40 -> 50 min), DW-1213 (checks 20 -> 25 min) and DW-1214 (ipm-install and ipm-install-p 35 -> 45 min, REL-4's 35 min kept as the target with MEASURED and over-REL-4 lines); the Boundaries line on workflows is amended for exactly those four values. Follow-up DW-1217 (CI host memory, a proposal for the Planner) filed, routed burndown.
@@ -432,6 +458,9 @@ Done: `ci.yml` `iris` 40 -> 50 and `checks` 20 -> 25, `lane-a.yml` `ipm-install`
 - mutation (review pass): `[ -f "$f" ] ||` removed from `job_start_stamp` (a second build overwrites the stamp) -> budgets red ("REL-4 with a second build: the stamp of the first build was not kept"); reverted, `git status --short` and `git diff` checksums identical.
 - mutation (review pass): `job_is_rel4 || return 0` deleted from `job_start_stamp` -> budgets red ("another job (iris): a start stamp was written"); reverted, checksums identical.
 - mutation (review pass): `TEARDOWN tag` echo renamed in `cmd_teardown` -> budgets red in the three negative rows ("the teardown did not run to its TEARDOWN line"); reverted, checksums identical.
+- mutation (code review round 2): the `case $start in '' | *[!0-9]*) return 0 ;; esac` guard deleted from `job_wall_report` -> budgets red ("a stamp that is not a number: the teardown did not run to its TEARDOWN line"); reverted, `git status --short` and `git diff` checksum identical.
+- mutation (code review round 2): `rm -f "$f"` deleted from `job_wall_report` -> budgets red ("REL-4 over: the start stamp is still there after teardown", and the same for the non-number row); reverted, checksum identical.
+- mutation (code review round 2): `REL4_JOBS="ipm-install ipm-install-p"` -> `"ipm-install"` -> budgets red (the constants pin and the four ipm-install-p rows); reverted, checksum identical.
 
 Verification: `bash -n` and the ASCII check on ci/iris.sh, ci/units.sh and test-ci-config.sh; `test-ci-config.sh` (all rules passed), `test-cpf.sh`, `test-ci-changes.sh`, `test-ci-warm.sh` pass; `node --test` of state-wait, ci-results and e2e-part (96 pass). Nothing needed a live stack.
 
