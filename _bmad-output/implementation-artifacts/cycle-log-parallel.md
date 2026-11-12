@@ -3783,3 +3783,11 @@
 2026-11-12T18:44:28Z	Epic 0	amendments_verified	amendments=epics_0.30_block+spec_intent(Q1-Q3,DW-1199)+spine_Conventions_row(DW-1203) extensions=web(links,banner-stack,telegram-card,channels-section),Core/Allowance.cls,install.sh,release/notes+checklist(Q3_approved),EXPERIENCE,e2e,docker/tests ok=true
 2026-11-12T18:44:28Z	Epic 0	merge_enqueued	part=0.30 head=33f1cb03 code_head=05e29461 priority=1.0.8_blocker note=merged_by_orchestrator_at_green(runner_A_PART_READY_pending)
 2026-11-12T18:44:43Z	Epic 0	epic_merged_to_feature	part=0.30 feature_sha=36092ff1 merge_sha=36092ff1 code=05e29461(identical) verified_on_origin=yes
+2026-11-12T18:45:01Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=36092ff1 result=green_by_identity via=05e29461(ci_43260265319_att3,lane-a_43260265609) own_runs=43283013813,43283013786(queued) note=1.0.8_base_candidate
+2026-11-12T18:45:12Z	Epic 0	runner_reported	PART_READY part=0.30 head=7fb861ce code_head=05e29461 (already merged from ancestor 33f1cb03 as 36092ff1; 7fb861ce=+1 records commit) sweep_rework_withdrawn=361b46b2_saved_as_evidence
+2026-11-12T18:53:20Z	Run	owner_decision	via=contest_planner what=1.0.8_cut_started_from_36092ff1 hold="CI HOLD until main push CI after release merge is GREEN (README badge)" feature_runs=let_finish
+2026-11-12T19:09:14Z	Epic 0	ruling	question=Story_0.31_number_collision(lane_A_DW-1191_vs_lane_B_DW-1123,both_unpushed) choice=lane_A_renumbers_to_0.33(lane_B_0.31/0.32_inserted_first) category=decide policy=5086036
+2026-11-12T19:09:14Z	Epic 0	runner_reported	LOCAL_READY story=0.31(DW-1191)->renumber_0.33 local=8f12f771 + PUBLIC_TEXT_0.29_draft(release_number_question)
+2026-11-12T19:12:01Z	Epic 0	owner_decision	via=contest_planner what=0.29_PUBLIC_TEXT_approved(1.0.9,+sentence,one_number_per_measure_test,C2) file=prompts/story-029-rulings-20261112.md
+2026-11-12T19:12:01Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=36092ff1 runs=43283013813,43283013786 result=success note=own_runs_green(1.0.8_base)
+2026-11-12T19:12:01Z	Epic 0	runner_reported	LOCAL_READY story=0.33(DW-1191,renumbered) local=6726db3d
