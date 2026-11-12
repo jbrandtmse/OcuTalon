@@ -1701,6 +1701,26 @@ So that I can check the interoperability story quickly and trust what the agent 
 **Then** it leads with the incident path a judge can check: failures, then one incident, diagnosis, dry run, approval (web, phone or Telegram), fix, and Visual Trace with tokens and cost; then "What's interesting"; then the "New since 1.0.0" list, moved below that and grouped interop first (watching, suspend/resume/reroute, partner notice, history, usage, documents, memory), with personas, reminders and the digest last, in one short group
 **And** no feature is removed and no claim is added, every number keeps its source, and `docker/tests/test-readme.sh` pins the new order (its existing rules keep passing, none deleted or weakened)
 
+[AMENDED 2026-11-12, Contest Planner PUBLIC TEXT ruling (split, owner's delegation), Rule 5 split recorded by the lead: the rules-only mode, the held-out set, the report script and the README comparison moved to Story 0.27, a split sibling planned next in Epic 0; the held-out expected answers stay committed as 6af31dab in this story's branch history, never rebased or amended. The README text of this story is the Planner's ruled text, verbatim (prompts/story-026-rulings.md, part (a)).]
+
+**Given** the README diff, the comparison table's wording and the held-out case list
+**When** the story reaches its spec gate
+**Then** they go to the Contest Planner as PUBLIC TEXT before implement, with placeholders for the measured numbers, and nothing of them is committed before the ruling
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+### Story 0.27: A measured comparison of the agent and the fixed rules replaces the worked-out one
+
+[ADDED 2026-11-12, split from Story 0.26 by the Contest Planner's PUBLIC TEXT ruling (owner's delegation; orchestrator ruling U5 decide: a split sibling planned next in Epic 0)] Part (b) of the Contest Planner's Story 0.26 scope (2026-11-11 ~14:45Z, owner-approved), with the ruling of 2026-11-12 ~00:55Z (prompts/story-026-rulings.md, part (b) and (c)), which binds word for word: variant R on feature; the R paragraph and the seven rows exactly as ruled (including the new row "Items that needed you now but weren't told now", counted over all cases); the under-table sentence as ruled; the rules-only cells only from a committed rules-only report, with a README test that the rules column equals it. The held-out expected answers were committed in 6af31dab (Story 0.26's branch history; never rebased or amended), and the README paragraph links that commit as it lands on origin. The phrases "never used for tuning" and "measured at release 1.0.8" never reach main (the latter is variant R's agent-column text on feature only; the Planner's release-candidate fork writes variant F). Footprint as Story 0.26's, plus the evaluation classes the plan names. Runners never hold a model key: the agent half runs at the 1.0.8 release-candidate evaluation, by the Contest Planner's release fork.
+
+As a judge reading the README,
+I want a comparison with fixed rules that was measured rather than worked out,
+So that I can trust what the agent adds.
+
+**Acceptance Criteria:**
+
 **Given** the existing evaluation cases under `eval/`
 **When** the evaluation runs in a new rules-only mode
 **Then** it scores every case with OcuTalon's fixed rules only (the fallback the product uses without a model), with no model and no key, so it runs in the lane and in CI
@@ -1716,9 +1736,12 @@ So that I can check the interoperability story quickly and trust what the agent 
 **Then** it sets them side by side, per case and in total, including unsafe outcomes
 **And** the README's "without the agent" table shows measured numbers with the date, the model and the set size, whatever they are; until the agent half runs at the 1.0.8 release-candidate evaluation, it carries placeholders (or the rules-only half only), per the Contest Planner's ruling
 
-**Given** the README diff, the comparison table's wording and the held-out case list
-**When** the story reaches its spec gate
-**Then** they go to the Contest Planner as PUBLIC TEXT before implement, with placeholders for the measured numbers, and nothing of them is committed before the ruling
+**Given** the README's comparison (variant R)
+**When** it is read
+**Then** it is a new H3 at the end of "Measured" with the ruled paragraph (main set and held-out set stated apart, the held-out commit linked), the ruled column headers and the seven ruled rows, and the ruled sentence under the table; the "What changes without the agent?" sentence becomes the ruled pointer to it
+**And** every fixed-rules cell comes from the committed rules-only report (the JSON `eval/compare.mjs` reads), and a README test checks that the column equals that report
+**And** `compare.mjs` reports the new row "Items that needed you now but weren't told now", counted over all cases
+**And** neither "never used for tuning" nor any wording the ruling forbids appears in the README
 
 **Given** CI on this story's head
 **When** it finishes
