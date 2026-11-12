@@ -658,6 +658,37 @@ Method TestForeignObjects()
 	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("cred"), $ListBuild(..#USER, ""), "and the credential keeps no password")
 }
 
+/// Story 21.3 (DW-1181, Contest Planner ruling): a save that fails after it replaced or removed IRIS's client of the old provider is failed, and Settings
+/// then shows the old provider neither registered nor signed in (no client ID, clientSecretSet and signedIn false), audited; a failed save whose register
+/// changed nothing keeps the old provider as it was.
+Method TestFailedReplaceShowsNotRegistered()
+{
+	Do ..SeedProvider("google", "client,server,app")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = ""
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+	Set result = ..Save(..ProviderBody("microsoft", ..Offer(..Secret("replaced")), "zz-client-ms.example"))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a provider change whose update fails after the register is failed")
+	Set values = ..Values().sections.channels
+	Do $$$AssertEquals(values.signIn_"|"_values.clientId_"|"_values.clientSecretSet_"|"_values.signedIn, "google||0|0", "Settings shows the old provider, not registered and not signed in")
+	Do $$$AssertTrue(..Forms() [ "email.clientId|set|removed", "the removed client ID is audited")
+	Do ..Reset()
+	Do ..SeedProvider("google", "client,server,app")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+	Set result = ..Save(..PasswordBody(..Offer(..Secret("removed"))))
+	Do $$$AssertEquals(result.Outcome, "failed", "a removal whose update fails is failed")
+	Set values = ..Values().sections.channels
+	Do $$$AssertEquals(values.signIn_"|"_values.clientSecretSet_"|"_values.signedIn, "google|0|0", "and the removed client is not shown as registered or signed in")
+	Do ..Reset()
+	Do ..SeedProvider("google", "client,server,app")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "changed") = 0
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = ""
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+	Set result = ..Save(..ProviderBody("google", ""))
+	Do $$$AssertEquals(result.Outcome, "failed", "a re-save whose register changed nothing and whose update fails is failed")
+	Set values = ..Values().sections.channels
+	Do $$$AssertEquals(values.signIn_"|"_values.clientId_"|"_values.clientSecretSet_"|"_values.signedIn, "google|"_..#CLIENTID_"|1|1", "and the untouched client stays registered and signed in")
+}
+
 /// Story 21.3 (U-320 2): the audit of an enabled or disabled web application, and of the list of what OcuTalon owns, follows the register, the removal and the start.
 Method TestOAuthAudits()
 {

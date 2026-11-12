@@ -1444,7 +1444,7 @@ Method TestModel(command As OcuTalon.Msg.Command.TestModel) As OcuTalon.Msg.Comm
 /// deletes the server rows, and with none saved before changes nothing), IRIS's OAuth2 client (RegisterOAuth with a provider, RemoveOAuth when a provider is
 /// left; email.oauthOwned and the audit of an enabled or disabled web application follow), the production update that starts or restarts the items and the
 /// mark emailSignIn. A failure after the transaction puts the product keys, the credential and the settings rows back as they were (PutBackEmail) and audits
-/// the keys put back; a client first registered by this save (from Password) is removed again, and a client that this save replaced, changed or removed in IRIS is not restored. A save that changes nothing writes the settings rows that differ and nothing else, but still runs the update
+/// the keys put back; a client first registered by this save (from Password) is removed again, and a client that this save replaced, changed or removed in IRIS is not restored: the old provider's client ID is removed and its mark says not signed in (ForgetClient). A save that changes nothing writes the settings rows that differ and nothing else, but still runs the update
 /// (StartItem). The secrets are held in local variables only, and killed on every path.
 Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
 {
@@ -1531,7 +1531,7 @@ Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 		Kill secret, clientSecret, oldPassword
 		Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	}
-	Set written = "", newOwned = oldOwned, changed = 0, app = "", didRegister = 0
+	Set written = "", newOwned = oldOwned, changed = 0, app = "", didRegister = 0, didRemove = 0
 	Set sc = $$$OK
 	Kill rows
 	Try {
@@ -1552,6 +1552,7 @@ Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 			If $$$ISOK(sc) Set sc = ..RecordOAuth(command, todo, oldOwned, newOwned, app)
 		} ElseIf $$$ISOK(sc) && (oldSignIn '= "password") {
 			Set sc = ..RemoveOAuth(oldOwned, .newOwned, .app)
+			If $$$ISOK(sc) Set didRemove = 1
 			If $$$ISOK(sc) Set sc = ..RecordOAuth(command, todo, oldOwned, newOwned, app)
 		}
 		If $$$ISOK(sc) Set sc = ..StartItem()
@@ -1570,6 +1571,7 @@ Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 			}
 		}
 		Do ..PutBackEmail(command, todo, $ListFind(written, "credential"), exists, oldUser, oldPassword, .rows)
+		If (oldSignIn '= "password") && (didRemove || (didRegister && changed)) Do ..ForgetClient(command, oldSignIn, oldClientId)
 		Kill secret, clientSecret, oldPassword
 		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	}
@@ -1580,6 +1582,19 @@ Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 	}
 	Kill secret, clientSecret, oldPassword
 	Quit ..Result(1, "done", ..#MESSAGESECTIONSAVED)
+}
+
+/// After a failed save that already replaced, changed or removed IRIS's client of the old provider, which PutBackEmail cannot restore: the old
+/// provider's client ID is removed (audited as email.clientId set to removed; not written when that audit fails) and the mark emailSignIn says not
+/// signed in, so that Settings never shows the old provider as registered and signed in over a client that is no longer there (DW-1181).
+Method ForgetClient(command As OcuTalon.Msg.Command.SaveSettings, provider As %String, clientId As %String) [ Private ]
+{
+	If clientId '= "" {
+		Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "email.clientId", "set", "removed"))
+		If $$$ISOK(sc) Set sc = ..Apply("email.clientId", "")
+		If $$$ISERR(sc) $$$LOGERROR("The client ID of the mail OAuth2 client replaced by a failed save could not be removed: "_$SYSTEM.Status.GetErrorText(sc))
+	}
+	Do ..RecordSignIn(provider, 0)
 }
 
 /// The sign-in method that is saved: password, google or microsoft (an absent key is password).

@@ -7067,12 +7067,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Channel/Email/OAuth.cls Sys ran under _Ensemble (%All on the throwaway); OAuth2.Client/ServerDefinition need %Admin_OAuth2_Client:USE and Security.Applications access on a narrower user (unverified)
 - 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=measure or state the least set, or accept _Ensemble as the documented production user
 - 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=privileges are a veto item; rec: name _Ensemble the measured user, measure AD-24 roles in 21.8 live run
+- 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=orchestrator note=Contest Planner ruling (prompts/epic-21-rulings-213.md, last section): accepted with conditions; 21.3's spec names _Ensemble as the measured production user, which held %All on the throwaway (the run proves the path, not least privilege); Story 21.8's live run lists each privilege that registration needs with a refused-without-it check (AC added to 21.8's block); no public text may claim least privilege
 
 ### DW-1181: A SaveEmail that fails after IRIS's OAuth2 client was replaced, changed or removed puts OcuTalon's own stores back but cannot restore the client, its secret or its tokens
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: PutBackEmail restores keys, credential and rows; only a client first registered from Password is removed again
 - 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=hold the old client until the save completes, or accept with a probe
 - 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=fix-risk high (old secret unrecoverable once replaced); rec: wontfix-accepted reopen_if=a failed provider save in CI/smoke
+- 2026-11-12T06:23:54Z status=wontfix-accepted by=orchestrator note=Contest Planner ruling (prompts/epic-21-rulings-213.md, last section): the state lie is fixed in 21.3 (SettingsOps.ForgetClient: after a failed save that already replaced, changed or removed IRIS's client of the old provider, the old provider's client ID is removed, audited, and its mark says not signed in; pinned by Test.Core.SettingsEmail TestFailedReplaceShowsNotRegistered, mutation observed); the IRIS client itself is still not restored; reopen_if=a failed provider save in CI or a smoke leaves Settings showing a provider registered or signed in, or a Register/Remove that IRIS refuses part-way leaves a changed client behind
 
 ### DW-1182: The tab where the admin pressed Sign in keeps its state line at Not signed in yet until reloaded; only the landing tab checks
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: med | footprint: in-story
@@ -7088,3 +7090,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: TestOnlyOneCallerOfTheClass reads method code; test-compose-file.sh oauth_app_untouched_by_install_paths lists no src/ocutalon/cls path
 - 2026-11-12T06:03:19Z status=wontfix-theoretical owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=real if an Install step gains a Parameter or XData naming /csp/sys/oauth2
+
+### DW-1185: flake: Test.Channel.EmailLive TestOAuthSaveSignInAndRemove's check for IRIS's own masked-secret audit entry of the OAuth2 client failed once on a warm stack after passing twice (the entry appears late)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: lane-C warm e21s3xw 2026-11-12 ~06:22Z: FAIL 'IRIS's own audit entry of the client shows its secret masked'; passed on e21s3fw forward and reverse; implement saw one earlier and added a 5 s wait
+- 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8 extends EmailLive's OAuth cases: wait on the entry by its own id or poll longer; one rerun + occurrence= meanwhile
