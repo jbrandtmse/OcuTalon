@@ -7050,6 +7050,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner, 1.0.7 RC eval wording ruling, 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 1.0.7 RC eval, 3 real-model attempts: the model refused to save runbook text, cited 'Results runbook / Clearing the queue' and quoted it, but said 'runbook', failing only the phrase check
 - 2026-11-11T11:02:31Z status=routed owner=burndown by=owner note=ruled by the Contest Planner: widen eval/memory-documents-remember's phrase check to document|runbook|file; report-only; Epic 41's eval files; next free lane, ~30 min, after RELEASE DONE
+- 2026-11-12T14:17:29Z status=routed owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=lane_order note=orchestrator 2026-11-12: lane B's next item, inserted as Story 0.31 (DW-1123 acceptance bullet in epics.md)
 
 ### DW-1133: A classified MCP tool that its server stops listing loses its ToolClassification row at the next attach with no Tool audit entry and no admin notice
 - source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story

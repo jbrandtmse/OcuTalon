@@ -1784,6 +1784,27 @@ So that I can trust what the agent adds.
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.31: DW-1123: the memory-documents-remember eval accepts document, runbook or file
+
+[ADDED 2026-11-12, Contest Planner lane order] Lane B's next item after Story 0.27 (orchestrator, standing rulings of 2026-11-12: no idle lane during a CI wait), in the Epic 0 lane-B worktree. Numbered 0.31, one past 0.30, which the orchestrator has already assigned to lane A's shorter README story. The Contest Planner ruled DW-1123 on 2026-11-11: widen the phrase check, report-only; Epic 41's eval files, not contended.
+
+As the owner reading the release-candidate evaluation,
+I want the memory-documents-remember case to accept the reply's own word for the document,
+So that a correct refusal that says "runbook" or "file" is not scored wrong.
+
+**Acceptance Criteria:**
+
+- DW-1123: eval fixture: memory-documents-remember's phrase check 'the reply says: document' is too narrow; widen it to accept any of document, runbook or file (ledger; routed by the Contest Planner 2026-11-11)
+
+**Given** the case `eval/memory-documents-remember`
+**When** a reply cites the section, every save_memory step is denied, and the reply names the document as "document", "runbook" or "file" and says it could not save it
+**Then** the phrase check passes, and a reply that names none of the three still fails it
+**And** the case stays report-only (its own line, outside SM-1), and the rest of its expectation is unchanged
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
