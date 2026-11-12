@@ -3755,3 +3755,8 @@
 2026-11-12T15:46:24Z	Epic 0	runner_resumed	lane=B next=CI_time-budget_audit_story(DW-1082,DW-1195,audit) per=Planner_ruling hold_from=18:15Z note=DW-1191_stays_lane_A
 2026-11-12T16:18:50Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=90777cf8 runs=43248166848,43248166726 result=success note=newest_fully_green_feature_head(150b49c5+0.27)
 2026-11-12T16:31:02Z	Epic 23	ci_red_classified	sha=4444bda0 run=43235350028 attempt=2 job=iris(shards-4) test=live.spec.ts:86_L1_poll_gap_2088ms class=flake(DW-1158,first_on_this_head_for_this_test) shards-11=green_on_rerun(filed_DW-1205) action=rerun_shards-4_once_more_before_18:15Z_hold
+2026-11-12T16:36:10Z	Epic 0	runner_reported	CI_WAIT story=0.30 head=05e29461 runs=43260265319,43260265609 base=90777cf8 cr=high0_med5(patched/ledgered)_unresolved0 decisions=DW-1203
+2026-11-12T16:36:10Z	Run	ci_cancelled	runs=43235350028(23.12_ci_attempt3_queued) reason=Planner_CI_hold_rule2(0.30_pushed;cancel_queued_non-0.30) rerun_after_release=yes note=23.12_lane-a_43235350476_att2_cancelled(ipm-install_timeout)
+2026-11-12T16:36:32Z	Epic 0	ruling	question=0.30_DW-1203_spine_Conventions_README-link_row_lags_Q1 choice=update_row(GUIDE_URL_for_install/setup_anchors;README_keeps_judges_sections) rejected=leave_lagging why=documentation_of_ruled_Q1/DW-1199;no_AD_change category=decide policy=5086036
+2026-11-12T16:36:32Z	Epic 0	runner_resumed	story=0.30 item=DW-1199_sweep_condition(Planner)+DW-1203 push=one_new_head_exempt_from_hold
+2026-11-12T16:44:12Z	Epic 0	owner_decision	via=contest_planner what=STOP_DW-1199_sweep_rework ruling="sweep met at 05e29461 (Planner grep: no moved-anchor links); ship 05e29461; no new push; generic dead-anchor test -> burndown DW-1207 for 1.0.9; DW-1200 wontfix; DW-1203 ACK"

@@ -7315,3 +7315,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci 43235350028 OCT-epic23 4444bda0 iris (shards-11) attempt 1 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: logic assertion (not a timeout) under a saturated CI host ~15:00Z; passed on attempt 2; 23.12 changes web live-store only
 - 2026-11-12T16:31:02Z status=routed owner=burndown by=orchestrator note=Planner rule: a logic red is not a load flake by default; investigate ordering/state the copies counter depends on; a second red on any head = real
+
+### DW-1207: test: one check that fails when any file outside README.md (docs/*.md included) links a README anchor README.md doesn't have
+- source: Contest Planner 0.30 DW-1199 sweep, 2026-11-12 | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Planner swept 05e29461: no live link to a moved README anchor; test-readme product-links covers page links; docs/*.md has no generic dead-anchor check
+- 2026-11-12T16:44:12Z status=routed owner=burndown by=orchestrator note=1.0.9; does not hold 1.0.8
