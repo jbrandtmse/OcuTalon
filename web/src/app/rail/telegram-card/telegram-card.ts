@@ -7,7 +7,7 @@ import { CHAT_TEXTS } from '../../chat/chat-view';
 import { pageTime } from '../../chat/page-time';
 import { Icon } from '../../icon/icon';
 import { LiveState } from '../../live/live-state';
-import { README_URL } from '../../links';
+import { GUIDE_URL } from '../../links';
 import { Announcer } from '../../shared/announcer';
 import { ServerButton } from '../../shared/server-button';
 import { RAIL_TEXTS, readmeSection, TELEGRAM_ANCHOR } from '../rail-view';
@@ -194,7 +194,7 @@ export class TelegramCard {
   protected readonly cardTexts = TELEGRAM_CARD_TEXTS;
   protected readonly pausedText = TELEGRAM_CARD_TEXTS.paused;
   protected readonly opensInNewTab = CHAT_TEXTS.opensInNewTab;
-  protected readonly href = readmeSection(README_URL, TELEGRAM_ANCHOR);
+  protected readonly href = readmeSection(GUIDE_URL, TELEGRAM_ANCHOR);
   /** The Unpair button's call: one press, one DELETE, no confirmation. */
   protected readonly unpair = () => this.api.unpair();
 

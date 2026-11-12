@@ -405,12 +405,13 @@ describe('(c) every quoted on-screen name equals its source', () => {
     assert.match(header, new RegExp(`the registry of\\s+\\*\\s+its ${words[MORE_TO_TRY_ITEMS.length]} items`), `the header comment says ${words[MORE_TO_TRY_ITEMS.length]} items`);
   });
 
-  it('counts the items by the registry in the README (line 30) and in EXPERIENCE.md, whatever the number is after the merges (Story 23.6, AC 18)', () => {
+  it('counts the items by the registry in the README (the Usability row) and in EXPERIENCE.md, whatever the number is after the merges (Story 23.6, AC 18)', () => {
     const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen'];
     const word = words[MORE_TO_TRY_ITEMS.length];
     const readme = readFileSync(join(here, '..', '..', 'README.md'), 'utf8');
     assert.match(readme, new RegExp(`Its More to try panel has ${word} more things to try`), `the README says ${word} more things to try`);
-    assert.match(readme, /Incident summaries\.\*\* When an incident closes/, 'and holds the incident summary bullet');
+    const guideText = readFileSync(join(here, '..', '..', 'GUIDE.md'), 'utf8');
+    assert.match(guideText, /Incident summaries\.\*\* When an incident closes/, 'and the guide holds the incident summary bullet');
     const ux = readFileSync(join(here, '..', '..', '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
     assert.match(ux, new RegExp(`There are ${word} items, in this order`), `EXPERIENCE.md says ${word} items`);
   });

@@ -9,7 +9,7 @@ import type { AllowanceWindow } from '../live/allowance-view';
 import { DemoBusyState } from '../live/demo-busy-state';
 import { LiveState } from '../live/live-state';
 import type { StatusPayload } from '../live/payloads';
-import { README_URL } from '../links';
+import { GUIDE_URL } from '../links';
 import { renderPageText } from '../msg/catalog';
 import { readmeSection, TELEGRAM_ANCHOR } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
@@ -17,7 +17,7 @@ import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { Popovers } from '../shared/popover';
 import { activeBanners, type BannerFormat, type BannerId, type BannerInput, bannersView, bannerText, type BannerView, closeBanner, closeName, type OwnCondition, REPLACED_BY, retainClosed, telegramOn } from './banner-view';
 
-/** The anchors of the README sections that "Install it yourself" and "How to set a key" open (DW-361). */
+/** The anchors of the guide sections that "Install it yourself" and "How to set a key" open (DW-361). */
 const INSTALL_ANCHOR = 'install-it-yourself';
 const SET_KEY_ANCHOR = 'set-a-model-key';
 
@@ -26,9 +26,9 @@ const FORMAT: BannerFormat = {
   text: (key, slots) => renderPageText(key, slots),
   time: (iso) => pageTime(iso),
   cost: (amount) => formatCost(amount),
-  installUrl: readmeSection(README_URL, INSTALL_ANCHOR),
-  setKeyUrl: readmeSection(README_URL, SET_KEY_ANCHOR),
-  telegramUrl: readmeSection(README_URL, TELEGRAM_ANCHOR),
+  installUrl: readmeSection(GUIDE_URL, INSTALL_ANCHOR),
+  setKeyUrl: readmeSection(GUIDE_URL, SET_KEY_ANCHOR),
+  telegramUrl: readmeSection(GUIDE_URL, TELEGRAM_ANCHOR),
 };
 
 /**
