@@ -1,0 +1,12 @@
+{
+  "name": "partner-notice-resolved",
+  "match": {
+    "marker": "partner-notice-resolved"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Orders sent from your feed failed because the date format of the orders changed. The fix has run, and the affected orders went through after it."
+    }
+  ]
+}

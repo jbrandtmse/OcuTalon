@@ -1,0 +1,22 @@
+{
+  "name": "propose-fix-undo-closed",
+  "match": {
+    "marker": "propose-fix-undo-closed"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "propose_fix",
+        "input": {
+          "kind": "resume_item",
+          "item": "OrdersToWarehouse"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "That incident is closed. You can enable the item again on the production's configuration page in the Management Portal."
+    }
+  ]
+}

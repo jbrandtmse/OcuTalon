@@ -1,14 +1,18 @@
-/// OcuTalon.Mcp.Ops, the part Story 35.1 builds (AD-21, AD-29): the Tools(server) stub that Story 21.4 calls until Story 22.2, and RecordAttach.
-///   - TestToolsStub: any server name (a registered one, an unknown one, an empty one) gives OK and an empty %DynamicArray;
+/// OcuTalon.Mcp.Ops, the reads and the attach report (AD-21, AD-29): Tools(server), which Story 21.4 calls, and RecordAttach.
+///   - TestTools: an unknown server and an empty name are an error; a registered server gives its tool rows as {"name", "classification", "status"}, sorted by name
+///     (capital letters before small ones), with the status refused for a name in RefusedTools, else unavailable while the last attach was unavailable, else
+///     available; a registered server with no tool rows gives an empty array; the tools of another server are not listed;
 ///   - TestRecordAttachUnknownServer: a report for a server that has no row, or names none, is an error and writes no row;
 ///   - TestRecordAttach: the report's status, reason, refused tools and, for an attached server, the time are written to the server's row; a reason that
 ///     is not a code word of the bridge is stored as empty, so no text of AI Hub reaches the row; an unavailable report keeps the time of the last
 ///     attach; a report that is no object is an error and changes nothing.
-/// The fixture row is zzmcptools, which the test creates and removes itself.
+/// The fixture rows are the server zzmcptools and its tool rows, and a second server's, which the test creates and removes itself.
 Class OcuTalon.Test.Mcp.Tools Extends %UnitTest.TestCase
 {
 
 Parameter SERVER = "zzmcptools";
+
+Parameter OTHER = "zzmcptoolsb";
 
 Method OnBeforeOneTest(testname As %String) As %Status
 {
@@ -22,16 +26,35 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Quit $$$OK
 }
 
-Method TestToolsStub()
+Method TestTools()
 {
-	Set row = ..Add()
-	For server = ..#SERVER, "zzmcpnosuch", "" {
+	For server = "zzmcpnosuch", "" {
 		Kill tools
-		Set sc = ##class(OcuTalon.Mcp.Ops).Tools(server, .tools)
-		Do $$$AssertStatusOK(sc, "Tools of '"_server_"' is OK")
-		Do $$$AssertTrue($IsObject(tools) && tools.%IsA("%Library.DynamicArray"), "and gives a %DynamicArray")
-		If $IsObject(tools) Do $$$AssertEquals(tools.%Size(), 0, "which is empty")
+		Do $$$AssertStatusNotOK(##class(OcuTalon.Mcp.Ops).Tools(server, .tools), "Tools of '" _ server _ "' is an error")
 	}
+	Do ..Add()
+	Kill tools
+	Do $$$AssertStatusOK(##class(OcuTalon.Mcp.Ops).Tools(..#SERVER, .tools), "Tools of a registered server is OK")
+	Do $$$AssertTrue($IsObject(tools) && tools.%IsA("%Library.DynamicArray"), "and gives a %DynamicArray")
+	If $IsObject(tools) Do $$$AssertEquals(tools.%Size(), 0, "which is empty while the server has no tool rows")
+	Do ..Tool(..#SERVER, "zz_lookup", "read-only")
+	Do ..Tool(..#SERVER, "Zz_Upper", "risky")
+	Do ..Tool(..#SERVER, "zz_delete_ticket", "unclassified")
+	Do ..Tool(..#SERVER, "zz_shadow", "unclassified")
+	Do ..Tool(..#OTHER, "zz_other", "risky")
+	Do $$$AssertEquals(..Listed(), "Zz_Upper|risky|available;zz_delete_ticket|unclassified|available;zz_lookup|read-only|available;zz_shadow|unclassified|available", "the rows of the server, sorted by name, all available while no attach was recorded")
+	Set row = ##class(OcuTalon.Mcp.Server).NameIndexOpen(..#SERVER)
+	Set row.AttachStatus = "attached"
+	Set row.RefusedTools = $ListBuild("zz_shadow")
+	Do row.%Save()
+	Do $$$AssertEquals(..Listed(), "Zz_Upper|risky|available;zz_delete_ticket|unclassified|available;zz_lookup|read-only|available;zz_shadow|unclassified|refused", "a refused tool is refused")
+	Set row.AttachStatus = "unavailable"
+	Set row.RefusedTools = ""
+	Do row.%Save()
+	Do $$$AssertEquals(..Listed(), "Zz_Upper|risky|unavailable;zz_delete_ticket|unclassified|unavailable;zz_lookup|read-only|unavailable;zz_shadow|unclassified|unavailable", "every tool is unavailable while the last attach was")
+	Set row.RefusedTools = $ListBuild("zz_shadow")
+	Do row.%Save()
+	Do $$$AssertEquals(..Listed(), "Zz_Upper|risky|unavailable;zz_delete_ticket|unclassified|unavailable;zz_lookup|read-only|unavailable;zz_shadow|unclassified|refused", "and a refused one stays refused")
 }
 
 Method TestRecordAttachUnknownServer()
@@ -68,6 +91,35 @@ Method TestRecordAttach()
 	Do $$$AssertEquals(row.AttachStatus _ "|" _ row.AttachReason _ "|" _ row.AttachedAt, before, "and changes nothing")
 }
 
+/// The tool rows that Tools gives for the fixture server, as "name|classification|status" joined by ";".
+Method Listed() As %String [ Private ]
+{
+	Set text = ""
+	Do ##class(OcuTalon.Mcp.Ops).Tools(..#SERVER, .tools)
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		Set text = text _ $Select(text = "": "", 1: ";") _ tool.name _ "|" _ tool.classification _ "|" _ tool.status
+	}
+	Quit text
+}
+
+/// A tool row of the server, made as the fixture; the server's own row is made too when it is the second fixture server.
+Method Tool(server As %String, name As %String, classification As %String) [ Private ]
+{
+	If (server = ..#OTHER) && '##class(OcuTalon.Mcp.Server).NameIndexExists(server) {
+		Set other = ##class(OcuTalon.Mcp.Server).%New()
+		Set other.Name = server
+		Set other.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+		Do $$$AssertStatusOK(other.%Save(), "the second fixture row " _ server _ " is saved")
+	}
+	Set row = ##class(OcuTalon.Mcp.ToolClassification).%New()
+	Set row.Server = server
+	Set row.Tool = name
+	Set row.Classification = classification
+	Set row.Fingerprint = "fp"
+	Do $$$AssertStatusOK(row.%Save(), "the fixture tool " _ name _ " is saved")
+}
+
 /// The fixture row, new.
 Method Add() As OcuTalon.Mcp.Server [ Private ]
 {
@@ -78,16 +130,21 @@ Method Add() As OcuTalon.Mcp.Server [ Private ]
 	Quit row
 }
 
-/// Removes the fixture row.
+/// Removes the fixture rows: the tool rows and the rows of both fixture servers.
 Method Remove() [ Private ]
 {
-	If ##class(OcuTalon.Mcp.Server).NameIndexExists(..#SERVER, .id) Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
+	For server = ..#SERVER, ..#OTHER {
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", server)
+		If ##class(OcuTalon.Mcp.Server).NameIndexExists(server, .id) Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
+	}
 }
 
-/// The number of fixture rows.
+/// The number of fixture rows of the server: its row and its tool rows.
 Method Count() As %Integer [ Private ]
 {
-	Quit +##class(OcuTalon.Mcp.Server).NameIndexExists(..#SERVER)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", ..#SERVER)
+	Do result.%Next()
+	Quit +##class(OcuTalon.Mcp.Server).NameIndexExists(..#SERVER) + result.%GetData(1)
 }
 
 }

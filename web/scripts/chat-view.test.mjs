@@ -24,7 +24,7 @@ const turn = (ref, over = {}) => ({
 const incident = (ref) => ({ type: 'incident', payload: { ref, state: 'open' } });
 const notice = (ref, over = {}) => ({ type: 'notification', payload: { ref, kind: 'reminder', text: 'Reminder: stretch.', createdAt: '2026-10-22T14:12:00Z', ...over } });
 const tellNow = (ref, over = {}) => notice(ref, { kind: 'tellnow', text: 'zz Dana: Invoice', whyNow: 'Why now: zz first.', dueAt: '', ...over });
-const ALLOWANCE_TEXT = "You've used this session's 50 messages for the hour. You can send more at 15:00 ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself";
+const ALLOWANCE_TEXT = "You've used this session's 50 messages for the hour. You can send more at 15:00 ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself";
 const allowance = (ref, over = {}) => notice(ref, { kind: 'allowance', text: ALLOWANCE_TEXT, ...over });
 const DIGEST_TEXT = 'Good morning.\nI checked the Chat agent (all running, no errors, no backlog).\nYesterday\'s cost: $0.04.';
 const digest = (ref, over = {}) => notice(ref, { kind: 'digest', text: DIGEST_TEXT, ...over });

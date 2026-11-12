@@ -2,19 +2,28 @@
 # Hermetic self-test of the release checklist (Story 11.4; release/checklist.sh, notes_path of release/lib-release.sh, local_path of
 # docker/tests/lib-scan.sh), with no container, no network call and no model. It builds one synthetic git repository in a temporary
 # folder (copies of the checklist and its three libraries, fixture files, a fixture bundle, and stubs for test-readme.sh,
-# test-bridge-guide.sh and test-boundaries.sh that fail only when a marker file exists), copies it for each case and pins:
+# check-readme-video.sh, test-bridge-guide.sh and test-boundaries.sh that fail only when a marker file exists), copies it for each case
+# and pins:
 #   - base: a record with a rehearsal section and all seven confirmations gives RESULT pass and exit 0; both other sections stay byte for
 #     byte; the checklist section appears once and is replaced by a second run;
 #   - rows: each automated row, mutated in a fresh copy, fails with file:line (or a count) and without the planted text, and with no other
 #     row failing but the ones that must (a name outside the note fails name-only-in-note as well);
+#   - guide-rows: on the tree after Story 0.30 (a GUIDE.md next to the README) note-readme and product-name still find their text in
+#     README.md and fail when the note is only in the guide or the name is on line 1 of the README; no row reads text from the guide;
 #   - author: the author rows are read from the record only: no section, a malformed line, an impossible date, another word, a leap day,
 #     a date with text, the precedence of fail over not confirmed, and the section never changed;
 #   - refusals: each refusal exits 2 with one line, and the record is neither created nor changed;
 #   - no-network: stubs for curl, wget, gh, ssh and nc leave no marker after any case (it runs after the cases and fails when no stubbed
 #     run happened);
 #   - sourcing: sourcing the checklist runs nothing, and lib-scan.sh defines local_path;
-#   - tmpfail: with no temporary file (mktemp fails), readme, bridge-guide, public-text and the author rows each still write a FAIL or CONFIRM line and a
-#     result line, so the result cannot be a pass; and a run with no temporary folder refuses with one line;
+#   - tmpfail: with no temporary file (mktemp fails), readme, readme-video, bridge-guide, public-text and the author rows each still write a
+#     FAIL or CONFIRM line and a result line, so the result cannot be a pass; and a run with no temporary folder refuses with one line;
+#   - video-script: the real docker/tests/check-readme-video.sh (a byte copy, with a curl and a sleep that answer from a plan, so no
+#     network call is made) is executable, parses and is ASCII; it passes when every address answers (206 to the MP4's range), fails at
+#     once on a 404, 403 or 206 without a range, tries 5xx, 429 and a transport failure 3 times with a 5 s pause and then fails loudly,
+#     stops at its 150 s cap (no request once it is reached, no pause that would pass it, --max-time no longer than what is left), flags
+#     its self-tests only on a status, fails with no request when the row or an address is missing (a row in a code fence does not
+#     count) or there is no temporary folder, and reads the repository's README.md when given no file (it runs before no-network);
 #   - static: mode 100755, umask 077, ASCII, the main guard, no network command, and no line that holds the inspiration's name without
 #     the note (first run on a synthetic file that breaks each rule).
 # The samples that break a rule are built by concatenation, so that this file keeps the rules it tests. Prints one PASS or FAIL line per
@@ -96,9 +105,11 @@ mkbase() {
   cp -p "$root/release/checklist.sh" "$root/release/lib-release.sh" "$b/release/"
   cp -p "$root/docker/tests/lib-scan.sh" "$root/docker/tests/lib-keys.sh" "$b/docker/tests/"
   stub "$b/docker/tests/test-readme.sh" readme
+  stub "$b/docker/tests/check-readme-video.sh" readme-video
   stub "$b/docker/tests/test-bridge-guide.sh" bridge-guide
   stub "$b/docker/tests/test-boundaries.sh" boundaries
   printf '# OcuTalon\n\n%s\n' "$NOTE" > "$b/README.md"
+  printf '# OcuTalon guide: install, features and administration\n\nA plain sentence.\n' > "$b/GUIDE.md"
   printf '<div>\n  <p>%s</p>\n</div>\n' "$NOTE" > "$b/web/src/app/about/about-dialog.ts"
   printf '<Export>\n  <Document name="ocutalon.ZPM">\n    <Module>\n      <Name>ocutalon</Name>\n      <Version>1.0.0</Version>\n    </Module>\n  </Document>\n</Export>\n' > "$b/src/module.xml"
   printf '{\n  "name": "ocutalon-web",\n  "dependencies": {\n    "@angular/core": "1",\n    "qrcode-generator": "2",\n    "rxjs": "7"\n  },\n  "devDependencies": {\n    "typescript": "5"\n  }\n}\n' > "$b/web/package.json"
@@ -190,7 +201,7 @@ t_base() {
   eq "the record's earlier bytes are kept" "$(head -c "$size" "$rec" | cksum)" "$prefix"
   has "result" "$out" "RESULT pass"
   has "record line" "$out" "RECORD $rec"
-  eq "PASS lines" "$(printf '%s\n' "$out" | grep -c '^PASS ')" 19
+  eq "PASS lines" "$(printf '%s\n' "$out" | grep -c '^PASS ')" 20
   eq "no FAIL or CONFIRM line" "$(printf '%s\n' "$out" | grep -c -e '^FAIL ' -e '^CONFIRM ')" 0
   eq "rehearsal section kept" "$(sect "$rec" "## Clean-machine rehearsal")" "$before_r"
   eq "confirmations kept" "$(sect "$rec" "## Author confirmations")" "$before_a"
@@ -307,6 +318,40 @@ t_name_rows() {
   has "first line: place" "$out" "README.md:1"
 }
 
+# The tree after Story 0.30 moved the install, feature and admin material to GUIDE.md: the rows that read the README (note-readme and
+# product-name) still find their text in README.md, and no row extracts text from the guide.
+t_guide_rows() {
+  newcase
+  std
+  eq "post-move tree: exit" "$rc" 0
+  eq "post-move tree: no failed row" "$(failed_ids)" ""
+  has "post-move tree: note-readme passes" "$out" "PASS note-readme"
+  has "post-move tree: product-name passes" "$out" "PASS product-name"
+  # The note in the guide and not in the README: note-readme fails.
+  newcase
+  printf '# OcuTalon\n\nA plain sentence.\n' > "$W/README.md"
+  printf '# OcuTalon guide: install, features and administration\n\n%s\n' "$NOTE" > "$W/GUIDE.md"
+  commit_all
+  std
+  eq "note moved to the guide: exit" "$rc" 1
+  has "note moved to the guide: note-readme fails" "$(failed_ids)" "note-readme "
+  has "note moved to the guide: the row names README.md" "$out" "README.md: the note is missing or not word for word"
+  # The name from the note on line 1 of the README: product-name fails on the post-move tree.
+  newcase
+  printf '# %s\n\n%s\n' "$NAME" "$NOTE" > "$W/README.md"
+  commit_all
+  std
+  has "name on README line 1: product-name fails" "$(failed_ids)" "product-name "
+  has "name on README line 1: the place" "$out" "README.md:1"
+  # The same name on line 1 of the guide, with a clean README: product-name reads the README alone, so it passes.
+  newcase
+  printf '# %s guide\n\nA plain sentence.\n' "$NAME" > "$W/GUIDE.md"
+  commit_all
+  std
+  has "name on guide line 1: product-name passes" "$out" "PASS product-name"
+  lacks "name on guide line 1: product-name is not among the failed rows" "$(failed_ids)" "product-name "
+}
+
 t_licence_rows() {
   newcase
   : > "$W/web/public/assets/licenses/a-OFL.txt"
@@ -359,6 +404,11 @@ t_script_rows() {
   newcase
   : > "$marks/readme"
   expect_fail "test-readme.sh fails" "readme "
+  newcase
+  : > "$marks/readme-video"
+  expect_fail "check-readme-video.sh fails" "readme-video "
+  has "check-readme-video.sh fails: the script and its exit" "$out" "FAIL readme-video docker/tests/check-readme-video.sh failed (exit 1)"
+  has "check-readme-video.sh fails: its FAIL line" "$out" "  FAIL fixture marker"
   newcase
   : > "$marks/bridge-guide"
   expect_fail "test-bridge-guide.sh fails" "bridge-guide "
@@ -484,6 +534,51 @@ t_outward_rows() {
   for f in release/j.sh release/k.sh release/l.sh; do
     has "second group: $f" "$out" "$f:2"
   done
+  # The one allowed line: check-readme-video.sh's OEMBED= line, as it is. Another line of that file naming the site, the same line in
+  # another file, or the line changed, is still flagged.
+  local oem='OEMBED="https://www.you''tube.com/oembed"'
+  newcase
+  printf '%s\n' "$oem" >> "$W/docker/tests/check-readme-video.sh"
+  commit_all
+  std
+  eq "the allowed oEmbed line of check-readme-video.sh: exit" "$rc" 0
+  newcase
+  printf '%s\n' "$oem" 'curl -X POST "https://www.you''tube.com/upload"' >> "$W/docker/tests/check-readme-video.sh"
+  printf '#!/bin/sh\n%s\n' "$oem" > "$W/release/m.sh"
+  printf '#!/bin/sh\n%s\n' "${oem%\"} " > "$W/release/n.sh"
+  commit_all
+  expect_fail "the allowed line elsewhere, changed, or another line of that file" "no-outward "
+  lacks "allowed line: not listed" "$out" "docker/tests/check-readme-video.sh:7"
+  has "another line of that file" "$out" "docker/tests/check-readme-video.sh:8"
+  has "the allowed line in another file" "$out" "release/m.sh:2"
+  has "the allowed line changed" "$out" "release/n.sh:2"
+  # The other allowed line: test-readme.sh's ALLOWED_HOSTS= line, as it is, and only in that file. The same line in another file, or the
+  # line changed, is still flagged.
+  local hosts_line
+  hosts_line=$(grep -x "ALLOWED_HOSTS='.*'" "$root/docker/tests/test-readme.sh")
+  eq "test-readme.sh holds one ALLOWED_HOSTS line" "$(grep -cx "ALLOWED_HOSTS='.*'" "$root/docker/tests/test-readme.sh")" 1
+  newcase
+  printf '%s\n' "$hosts_line" >> "$W/docker/tests/test-readme.sh"
+  commit_all
+  std
+  eq "the allowed ALLOWED_HOSTS line of test-readme.sh: exit" "$rc" 0
+  newcase
+  printf '%s\n' "$hosts_line" >> "$W/docker/tests/test-readme.sh"
+  printf '#!/bin/sh\n%s\n' "$hosts_line" > "$W/release/o.sh"
+  printf '#!/bin/sh\n%s\n' "${hosts_line%\'} example.org'" > "$W/release/p.sh"
+  printf '%s\n' "${hosts_line%\'} example.org'" >> "$W/docker/tests/test-readme.sh"
+  printf '%s\n' "$hosts_line ; true" >> "$W/docker/tests/test-readme.sh"
+  printf '#!/bin/sh\n%s\n' "$hosts_line" > "$W/release/test-readme.sh"
+  printf '#!/bin/sh\n%s\n' "$hosts_line" > "$W/docker/test-readme.sh"
+  commit_all
+  expect_fail "the allowed hosts line elsewhere or changed" "no-outward "
+  lacks "hosts line: not listed" "$out" "docker/tests/test-readme.sh:7"
+  has "the hosts line in another file" "$out" "release/o.sh:2"
+  has "the hosts line changed, in another file" "$out" "release/p.sh:2"
+  has "the hosts line changed, in test-readme.sh" "$out" "docker/tests/test-readme.sh:8"
+  has "the hosts line followed by more text, in test-readme.sh" "$out" "docker/tests/test-readme.sh:9"
+  has "the hosts line in release/test-readme.sh" "$out" "release/test-readme.sh:2"
+  has "the hosts line in docker/test-readme.sh" "$out" "docker/test-readme.sh:2"
 }
 
 t_checkout_rows() {
@@ -679,17 +774,19 @@ t_tmpfail() {
     : > "$ck_results"
     ck_tmp=
     row_readme
+    row_readme_video
     row_bridge_guide
     row_public_text "$2"
     author_rows "$3"
     echo "RESULT $(checklist_result "$ck_results")"
     echo "LINES $(wc -l < "$ck_results" | tr -d " ")"' _ "$res" "$notes" "$rec" 2>&1)
   has "readme: a FAIL line" "$o" "FAIL readme no temporary file"
+  has "readme-video: a FAIL line" "$o" "FAIL readme-video no temporary file"
   has "bridge-guide: a FAIL line" "$o" "FAIL bridge-guide no temporary file"
   has "public-text: a FAIL line" "$o" "FAIL public-text no temporary file"
   eq "author rows: seven CONFIRM lines" "$(printf '%s\n' "$o" | grep -c '^CONFIRM .*no temporary file')" 7
   has "result" "$o" "RESULT fail"
-  has "every row has a result line (3 rows and 7 author rows)" "$o" "LINES 10"
+  has "every row has a result line (4 rows and 7 author rows)" "$o" "LINES 11"
   # The author rows alone: a record that confirms all seven still reads not confirmed when it cannot be read.
   o=$(cd "$W" && TMPDIR="$tmp/no-such-dir" bash -c '
     . release/checklist.sh
@@ -753,7 +850,7 @@ t_registry_row() {
   has "absent: result" "$out" "RESULT pass"
   has "absent: the LATER line" "$out" "$line $rec"
   eq "absent: one LATER line" "$(printf '%s\n' "$out" | grep -c '^LATER ')" 1
-  has "absent: the table row" "$(sect "$rec" "## Release checklist")" "| registry-install | later | After this version was published to the package registry, the README's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output. |"
+  has "absent: the table row" "$(sect "$rec" "## Release checklist")" "| registry-install | later | After this version was published to the package registry, the guide's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output. |"
   has "absent: the section's result" "$(sect "$rec" "## Release checklist")" "Result: pass"
   lacks "absent: no confirmed row" "$(sect "$rec" "## Release checklist")" "| registry-install | confirmed |"
   eq "absent: the seven author rows are unchanged" "$(printf '%s\n' "$out" | grep -c '^PASS .* the record says the author confirmed this on ')" 7
@@ -802,9 +899,195 @@ t_registry_row() {
   eq "confirmed with a missing author row: the CONFIRM ids" "$(printf '%s\n' "$out" | sed -n 's/^CONFIRM \([a-z-]*\):.*$/\1/p' | tr '\n' ' ')" "demo-protections "
 }
 
+# --- the real check-readme-video.sh, offline (Story 0.28 QA; DW-1171) ---
+
+# rv_run <plan lines> <readme file | default:<file>> [<extra arg>]: runs a byte copy of the real docker/tests/check-readme-video.sh, at
+# the same place in a copy of the tree, with a curl that answers from a plan and a sleep that only counts; default:<file> copies <file>
+# to that tree's README.md and gives the script no file. The plan has one line per address: "<address> <code:curl exit>[,<next try>
+# ...]"; the line whose address is the one asked wins, the last answer repeats, and an address with no line answers 200. rv_env holds
+# extra VAR=value words for the script's environment (SECONDS, TMPDIR). The network stubs come after the plan's curl, so any other
+# network command leaves a mark for no-network. Sets rv_out, rv_rc, rv_log (each address asked, one per line), rv_args (each curl
+# command line) and rv_sleeps (each pause).
+rv_env=""
+rv_run() {
+  local d=$tmp/rv file=$2
+  rm -rf "$d"
+  mkdir -p "$d/bin" "$d/docker/tests"
+  case $file in
+    default:*)
+      cp "${file#default:}" "$d/README.md"
+      file=""
+      ;;
+  esac
+  printf '%s\n' "$1" > "$d/plan"
+  : > "$d/log"
+  : > "$d/args"
+  : > "$d/sleeps"
+  cp -p "$root/docker/tests/check-readme-video.sh" "$d/docker/tests/check-readme-video.sh"
+  printf '%s\n' '#!/bin/sh' \
+    'for a; do u=$a; done' \
+    'n=$(grep -cxF "$u" "$RV_DIR/log")' \
+    'printf "%s\n" "$u" >> "$RV_DIR/log"' \
+    'printf "%s\n" "$*" >> "$RV_DIR/args"' \
+    'seq=$(awk -v u="$u" '"'"'$1 == u { print $2; exit }'"'"' "$RV_DIR/plan")' \
+    '[ -n "$seq" ] || seq=200:0' \
+    'tok=$(printf "%s\n" "$seq" | awk -F, -v n="$n" '"'"'{ i = n + 1; if (i > NF) i = NF; print $i }'"'"')' \
+    'printf "%s" "${tok%%:*}"' \
+    'exit "${tok##*:}"' > "$d/bin/curl"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$1" >> "$RV_DIR/sleeps"' 'exit 0' > "$d/bin/sleep"
+  chmod 755 "$d/bin/curl" "$d/bin/sleep"
+  # shellcheck disable=SC2086 # rv_env is split into VAR=value words on purpose
+  rv_out=$(cd "$tmp" && env $rv_env PATH="$d/bin:$tmp/bin:$PATH" RV_DIR="$d" NETMARK="$netm" \
+    bash "$d/docker/tests/check-readme-video.sh" ${file:+"$file"} ${3:+"$3"} 2>&1)
+  rv_rc=$?
+  rv_log=$(cat "$d/log")
+  rv_args=$(cat "$d/args")
+  rv_sleeps=$(cat "$d/sleeps")
+}
+
+t_video_script() {
+  local f=$tmp/rv-readme.md yt=https://youtu.be/abcdefghijk mp4=https://files.invalid/dl/v1.mp4 t2=https://youtu.be/bcdefghijkl oe unk
+  local oe2 mis n site="https://www.you""tube.com/oembed"
+  oe="$site?url=https://youtu.be/abcdefghijk&format=json"
+  oe2="$site?url=https://youtu.be/bcdefghijkl&format=json"
+  unk="$site?url=https://youtu.be/AAAAAAAAAAA&format=json"
+  mis="https://files.invalid/dl/ocutalon-missing-0.0.0.mp4"
+  printf '# T\n\n## Contest checklist\n\n| Item | Where |\n| Online demo | x |\n| Video | [v](%s) (also an [MP4 file](%s)), and [t](%s). |\n| Other | [o](https://other.invalid/o) |\n\n## Next\n' "$yt" "$mp4" "$t2" > "$f"
+  # The real file: executable, parses, ASCII.
+  [ -x docker/tests/check-readme-video.sh ] || { echo "  docker/tests/check-readme-video.sh is not executable"; bad=1; }
+  bash -n docker/tests/check-readme-video.sh || { echo "  docker/tests/check-readme-video.sh does not parse"; bad=1; }
+  eq "the script is ASCII" "$(LC_ALL=C tr -d '\011\012\040-\176' < docker/tests/check-readme-video.sh | wc -c | tr -d ' ')" 0
+  # Every address answers: PASS lines, the two self-tests flag the swapped addresses, exit 0. The MP4 is asked for one byte (a range),
+  # the oEmbed is not, and 206 to the range counts as 200.
+  rv_run "$(printf '%s\n' "$unk 404:0" "$mis 404:0" "$mp4 206:0")" "$f"
+  eq "all answer: exit" "$rv_rc" 0
+  has "all answer: the summary" "$rv_out" "check-readme-video: all checks passed"
+  has "all answer: the video" "$rv_out" "PASS readme-video: $yt answered"
+  has "all answer: the MP4 (206 to its range)" "$rv_out" "PASS readme-video: $mp4 answered"
+  has "all answer: the oEmbed" "$rv_out" "PASS readme-video: the oEmbed of youtu.be/abcdefghijk answered"
+  has "all answer: the second video's oEmbed" "$rv_out" "PASS readme-video: the oEmbed of youtu.be/bcdefghijkl answered"
+  eq "all answer: each address in the order of the row" "$(printf '%s\n' "$rv_log" | head -n 5 | tr '\n' ' ')" "$yt $oe $mp4 $t2 $oe2 "
+  has "all answer: unknown id flagged" "$rv_out" "PASS readme-video self-test: an unknown video id is flagged"
+  has "all answer: missing MP4 flagged" "$rv_out" "PASS readme-video self-test: a missing MP4 name is flagged"
+  has "all answer: row removed flagged" "$rv_out" "PASS readme-video self-test: the row removed is flagged with no request"
+  lacks "all answer: no other row asked" "$rv_log" "other.invalid"
+  has "all answer: the MP4 asked with a range" "$rv_args" "-s -L --max-redirs 10 -r 0-0 -o /dev/null -w %{http_code} --max-time 15 $mp4"
+  has "all answer: the oEmbed follows redirects" "$rv_args" "-s -L --max-redirs 10 -o /dev/null -w %{http_code} --max-time 15 $oe"
+  eq "all answer: the oEmbed asked without a range" "$(printf '%s\n' "$rv_args" | grep -F "$oe" | grep -c -e '-r 0-0')" 0
+  eq "all answer: no pause" "$rv_sleeps" ""
+  # A gone address fails at once: no retry, no pause, the next addresses are not asked.
+  rv_run "$yt 404:0" "$f"
+  eq "404: exit" "$rv_rc" 1
+  has "404: the FAIL line" "$rv_out" "FAIL readme-video: $yt answered 404"
+  eq "404: asked once" "$rv_log" "$yt"
+  eq "404: no pause" "$rv_sleeps" ""
+  rv_run "$mp4 403:0" "$f"
+  eq "403: exit" "$rv_rc" 1
+  has "403: the FAIL line" "$rv_out" "FAIL readme-video: $mp4 answered 403"
+  eq "403: asked once" "$(printf '%s\n' "$rv_log" | grep -cxF "$mp4")" 1
+  rv_run "$oe 404:0" "$f"
+  eq "oEmbed 404: exit" "$rv_rc" 1
+  has "oEmbed 404: the FAIL line" "$rv_out" "FAIL readme-video: $oe answered 404"
+  lacks "oEmbed 404: the MP4 after it is not asked" "$rv_log" "files.invalid"
+  rv_run "$oe 206:0" "$f"
+  eq "oEmbed 206: exit" "$rv_rc" 1
+  has "oEmbed 206 (no range asked) is not a 200" "$rv_out" "FAIL readme-video: $oe answered 206"
+  # Retried: 5xx, 429 and a transport failure, then 200; a pause of 5 s between tries.
+  rv_run "$(printf '%s\n' "$unk 404:0" "$mis 404:0" "$yt 503:0,200:0")" "$f"
+  eq "503 then 200: exit" "$rv_rc" 0
+  eq "503 then 200: the pause" "$(printf '%s\n' "$rv_sleeps" | head -n 1)" 5
+  eq "503 then 200: one pause" "$rv_sleeps" 5
+  eq "503 then 200: the video asked twice, then its oEmbed once" "$(printf '%s\n' "$rv_log" | head -n 3 | tr '\n' ' ')" "$yt $yt $oe "
+  rv_run "$(printf '%s\n' "$unk 404:0" "$mis 404:0" "$mp4 429:0,200:0")" "$f"
+  eq "429 then 200: exit" "$rv_rc" 0
+  eq "429 then 200: the pause" "$(printf '%s\n' "$rv_sleeps" | head -n 1)" 5
+  rv_run "$(printf '%s\n' "$unk 404:0" "$mis 404:0" "$yt 000:7,200:0")" "$f"
+  eq "no route then 200: exit" "$rv_rc" 0
+  eq "no route then 200: one pause" "$rv_sleeps" 5
+  # The 150 s cap on the whole run (the script's clock set through SECONDS): reached, no request; a pause that would pass it is not
+  # taken; a request's --max-time is no longer than what is left.
+  rv_env="SECONDS=150"
+  rv_run "" "$f"
+  eq "cap reached: exit" "$rv_rc" 1
+  has "cap reached: the FAIL line" "$rv_out" "FAIL readme-video: $yt could not be reached within the 150 s cap"
+  eq "cap reached: no request" "$rv_log" ""
+  rv_env="SECONDS=147"
+  rv_run "$yt 503:0" "$f"
+  eq "cap near, 503: exit" "$rv_rc" 1
+  has "cap near, 503: the FAIL line" "$rv_out" "FAIL readme-video: $yt could not be reached within the 150 s cap (503)"
+  eq "cap near, 503: asked once, no pause" "$rv_log|$rv_sleeps" "$yt|"
+  rv_env="SECONDS=140"
+  rv_run "" "$f"
+  eq "cap near: the first request's --max-time is what is left" \
+    "$(printf '%s\n' "$rv_args" | head -n 1 | grep -cE -e "--max-time (9|10) $yt\$")" 1
+  # No temporary folder: a FAIL line and no request.
+  rv_env="TMPDIR=$tmp/no-such-folder"
+  rv_run "" "$f"
+  eq "no temporary folder: exit" "$rv_rc" 1
+  has "no temporary folder: the FAIL line" "$rv_out" "FAIL readme-video: no temporary folder"
+  eq "no temporary folder: no request" "$rv_log" ""
+  rv_env=""
+  # Three tries, then the loud FAIL with the reason; never a pass.
+  rv_run "$yt 502:0" "$f"
+  eq "502 three times: exit" "$rv_rc" 1
+  has "502 three times: the FAIL line" "$rv_out" "FAIL readme-video: $yt could not be reached after 3 tries (502)"
+  eq "502 three times: asked three times" "$(printf '%s\n' "$rv_log" | grep -cxF "$yt")" 3
+  eq "502 three times: two pauses of 5 s" "$(printf '%s\n' "$rv_sleeps" | tr '\n' ' ')" "5 5 "
+  rv_run "$yt 000:7" "$f"
+  eq "offline: exit" "$rv_rc" 1
+  has "offline: the FAIL line" "$rv_out" "FAIL readme-video: $yt could not be reached after 3 tries (curl exit 7)"
+  eq "offline: asked three times" "$(printf '%s\n' "$rv_log" | grep -cxF "$yt")" 3
+  lacks "offline: not a pass" "$rv_out" "PASS"
+  rv_run "$yt 429:0" "$f"
+  has "429 three times: the FAIL line" "$rv_out" "FAIL readme-video: $yt could not be reached after 3 tries (429)"
+  # The self-tests can fail: an unknown id whose oEmbed still answers 200 is not flagged, and a transport failure does not count as
+  # flagged.
+  rv_run "" "$f"
+  eq "unknown id answers 200: exit" "$rv_rc" 1
+  has "unknown id answers 200: named" "$rv_out" "FAIL readme-video self-test: an unknown video id is not flagged"
+  has "missing MP4 answers 200: named" "$rv_out" "FAIL readme-video self-test: a missing MP4 name is not flagged"
+  rv_run "$(printf '%s\n' "$unk 000:7" "$mis 404:0")" "$f"
+  eq "unknown id unreachable: exit" "$rv_rc" 1
+  has "unknown id unreachable: not flagged" "$rv_out" "FAIL readme-video self-test: an unknown video id is not flagged"
+  # No Video row in the section (a row in another section does not count), or no address in the row: a FAIL with
+  # no request.
+  printf '# T\n\n## Contest checklist\n\n| Online demo | x |\n\n## Other\n\n| Video | [v](%s) |\n' "$yt" > "$tmp/rv-norow.md"
+  rv_run "" "$tmp/rv-norow.md"
+  eq "no row: exit" "$rv_rc" 1
+  has "no row: the FAIL line" "$rv_out" "has no '| Video |' row in '## Contest checklist'"
+  eq "no row: no request" "$rv_log" ""
+  printf '# T\n\n## Contest checklist\n\n```\n| Video | [v](%s) |\n```\n' "$yt" > "$tmp/rv-fenced.md"
+  rv_run "" "$tmp/rv-fenced.md"
+  eq "a row in a code fence only: exit" "$rv_rc" 1
+  has "a row in a code fence only: the FAIL line" "$rv_out" "has no '| Video |' row in '## Contest checklist'"
+  eq "a row in a code fence only: no request" "$rv_log" ""
+  printf '# T\n\n## Contest checklist\n\n| Video | none yet |\n' > "$tmp/rv-noaddr.md"
+  rv_run "" "$tmp/rv-noaddr.md"
+  eq "no address: exit" "$rv_rc" 1
+  has "no address: the FAIL line" "$rv_out" "holds no address"
+  eq "no address: no request" "$rv_log" ""
+  # Usage: a missing file fails; two arguments are a usage error (2); neither asks anything.
+  rv_run "" "$tmp/no-such-readme.md"
+  eq "missing file: exit" "$rv_rc" 1
+  has "missing file: the FAIL line" "$rv_out" "FAIL readme-video: no file "
+  eq "missing file: no request" "$rv_log" ""
+  rv_run "" "$f" extra
+  eq "two arguments: exit" "$rv_rc" 2
+  eq "two arguments: no request" "$rv_log" ""
+  # Given no file, the script reads README.md at the root of its tree (two folders above it), as the release row runs it.
+  rv_run "$(printf '%s\n' "$unk 404:0" "$mis 404:0")" "default:$f"
+  eq "no file given: exit" "$rv_rc" 0
+  eq "no file given: the tree's README is read" "$(printf '%s\n' "$rv_log" | head -n 1)" "$yt"
+  # The default file is the repository's README, which has exactly one Video row for the script to read.
+  n=$(grep -c '^| Video |' README.md)
+  eq "the repository README has one Video row" "$n" 1
+  rm -rf "$tmp/rv" "$f" "$tmp/rv-norow.md" "$tmp/rv-noaddr.md" "$tmp/rv-fenced.md"
+}
+
 rule base t_base
 rule note-rows t_note_rows
 rule name-rows t_name_rows
+rule guide-rows t_guide_rows
 rule licence-rows t_licence_rows
 rule script-rows t_script_rows
 rule source-rows t_source_rows
@@ -812,6 +1095,7 @@ rule outward-rows t_outward_rows
 rule checkout-rows t_checkout_rows
 rule author t_author
 rule refusals t_refusals
+rule video-script t_video_script
 rule no-network t_nonetwork
 rule sourcing t_sourcing
 rule tmpfail t_tmpfail

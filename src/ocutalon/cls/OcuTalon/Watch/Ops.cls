@@ -17,12 +17,21 @@
 ///     row of owner eval, which has no Session row, for an entry of OcuTalon.Watch.Reader. It is never due (NextDueAt is EVALNEXTDUE), is never
 ///     polled (FailurePoller skips the owner eval) and sends no CheckChanged and no message. OnStop refuses it for want of a Session row, so
 ///     only RemoveEvalWatch removes it, and only a row of owner eval, when the run ends.
+///   - The queue-backlog check (Story 23.7; AD-18): a StartWatch or StopWatch whose Kind is QUEUEKIND (an empty Kind is a production watch) is the
+///     session's one row of Kind queues, with an empty Namespace and Production and the DisplayName QUEUESNAME. Its natural key is SessionRef and Kind. A
+///     start needs no production of the reader and is allowed on the online demo; a repeat answers already_watching, and a stop answers stopped or
+///     not_watching, with the same lock, answers and CheckChanged as a production watch. Its messages are MESSAGEALREADYQUEUES and MESSAGENOTWATCHINGQUEUES.
 /// The messages are plain sentences for the model and the caller, never rendered from the catalog (AD-32).
 Class OcuTalon.Watch.Ops Extends Ens.BusinessOperation
 {
 
 /// The kind of the row.
 Parameter KIND = "production";
+
+/// The kind of the queue-backlog row, and its display name (public text: the rail's title, the digest's entry and check_status's entry).
+Parameter QUEUEKIND = "queues";
+
+Parameter QUEUESNAME = "Queue-backlog check";
 
 Parameter MESSAGESTARTED = "The watch was started.";
 
@@ -31,6 +40,10 @@ Parameter MESSAGEALREADY = "The session already watches this production, so noth
 Parameter MESSAGESTOPPED = "The watch was stopped.";
 
 Parameter MESSAGENOTWATCHING = "The session does not watch this production, so nothing was removed.";
+
+Parameter MESSAGEALREADYQUEUES = "The session already watches queue backlogs, so nothing was added.";
+
+Parameter MESSAGENOTWATCHINGQUEUES = "The session does not watch queue backlogs, so nothing was removed.";
 
 Parameter MESSAGENOSESSION = "The command names no session, so nothing was done.";
 
@@ -73,7 +86,9 @@ Method OnStart(request As OcuTalon.Msg.Command.StartWatch, Output response As Oc
 	Set response = ""
 	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(request.SessionRef)
 	If '$IsObject(session) Quit ..Answer(.response, 0, "no_session", ..#MESSAGENOSESSION)
-	If '##class(OcuTalon.Watch.Reader).Admits(request.Namespace, request.Production, .displayName) {
+	Set queues = (request.Kind = ..#QUEUEKIND)
+	Set displayName = ..#QUEUESNAME
+	If 'queues && '##class(OcuTalon.Watch.Reader).Admits(request.Namespace, request.Production, .displayName) {
 		If ##class(OcuTalon.Watch.Reader).OnlineDemo() Quit ..Answer(.response, 0, "only_orders", ..#MESSAGEONLYORDERS)
 		Quit ..Answer(.response, 0, "unknown_production", ..#MESSAGEUNKNOWN)
 	}
@@ -81,16 +96,16 @@ Method OnStart(request As OcuTalon.Msg.Command.StartWatch, Output response As Oc
 	If 'lock Quit ..Answer(.response, 0, "failed", ..#MESSAGEFAILED)
 	Set sc = $$$OK
 	Try {
-		Set ref = ..RefOf(request.SessionRef, request.Namespace, request.Production)
+		Set ref = ..RefOf(request.SessionRef, request.Namespace, request.Production, , $Select(queues: ..#QUEUEKIND, 1: ..#KIND))
 		If ref '= "" {
-			Set sc = ..Answer(.response, 1, "already_watching", ..#MESSAGEALREADY, ref)
+			Set sc = ..Answer(.response, 1, "already_watching", $Select(queues: ..#MESSAGEALREADYQUEUES, 1: ..#MESSAGEALREADY), ref)
 		} Else {
 			Set row = ##class(OcuTalon.Data.BackgroundCheck).%New()
 			Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 			Set row.SessionRef = request.SessionRef
-			Set row.Kind = ..#KIND
-			Set row.Namespace = request.Namespace
-			Set row.Production = request.Production
+			Set row.Kind = $Select(queues: ..#QUEUEKIND, 1: ..#KIND)
+			Set row.Namespace = $Select(queues: "", 1: request.Namespace)
+			Set row.Production = $Select(queues: "", 1: request.Production)
 			Set row.DisplayName = displayName
 			Set row.AskedBy = session.IrisUser
 			Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
@@ -121,12 +136,13 @@ Method OnStop(request As OcuTalon.Msg.Command.StopWatch, Output response As OcuT
 	If 'lock Quit ..Answer(.response, 0, "failed", ..#MESSAGEFAILED)
 	Set sc = $$$OK
 	Try {
-		Set ref = ..RefOf(request.SessionRef, request.Namespace, request.Production, .id)
+		Set queues = (request.Kind = ..#QUEUEKIND)
+		Set ref = ..RefOf(request.SessionRef, request.Namespace, request.Production, .id, $Select(queues: ..#QUEUEKIND, 1: ..#KIND))
 		If ref = "" {
-			Set sc = ..Answer(.response, 0, "not_watching", ..#MESSAGENOTWATCHING)
+			Set sc = ..Answer(.response, 0, "not_watching", $Select(queues: ..#MESSAGENOTWATCHINGQUEUES, 1: ..#MESSAGENOTWATCHING))
 		} Else {
 			Set row = ##class(OcuTalon.Data.BackgroundCheck).%OpenId(id)
-			Set kind = $Select($IsObject(row): row.Kind, 1: ..#KIND)
+			Set kind = $Select($IsObject(row): row.Kind, queues: ..#QUEUEKIND, 1: ..#KIND)
 			Set namespace = $Select($IsObject(row): row.Namespace, 1: request.Namespace)
 			Set production = $Select($IsObject(row): row.Production, 1: request.Production)
 			Set displayName = $Select($IsObject(row): row.DisplayName, 1: "")
@@ -242,12 +258,17 @@ Method SendChanged(message As OcuTalon.Checks.Msg.CheckChanged) As %Status [ Pri
 	Quit ..SendRequestAsync(..#CHECKS, message)
 }
 
-/// The Ref of the session's row for the namespace and production (its id in id), or "" when it has none. The natural key of a watch is
-/// SessionRef, Kind, Namespace and Production.
-ClassMethod RefOf(sessionRef As %String, namespace As %String, production As %String, Output id As %String) As %String [ Private ]
+/// The Ref of the session's row of the kind for the namespace and production (its id in id), or "" when it has none. The natural key of a production watch
+/// is SessionRef, Kind, Namespace and Production, and of a queue-backlog row (kind QUEUEKIND) SessionRef and Kind alone: an empty namespace binds as NULL, so
+/// a queue row is never matched by it.
+ClassMethod RefOf(sessionRef As %String, namespace As %String, production As %String, Output id As %String, kind As %String = {..#KIND}) As %String [ Private ]
 {
 	Set id = ""
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID, Ref FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? AND Kind = ? AND Namespace = ? AND Production = ? ORDER BY ID", sessionRef, ..#KIND, namespace, production)
+	If kind = ..#QUEUEKIND {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID, Ref FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? AND Kind = ? ORDER BY ID", sessionRef, kind)
+	} Else {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID, Ref FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? AND Kind = ? AND Namespace = ? AND Production = ? ORDER BY ID", sessionRef, kind, namespace, production)
+	}
 	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "WatchOps could not read the watches of the session: "_rs.%Message))
 	If 'rs.%Next() Quit ""
 	Set id = rs.%Get("ID")

@@ -33,8 +33,8 @@ Parameter EMAILLIMIT = 20;
 /// The messages a session may send in the window when messageAllowance is not a whole number of 1 or more.
 Parameter DEFAULTLIMIT = 50;
 
-/// The README section that both allowance messages point to (the install-it-yourself section).
-Parameter INSTALLLINK = "https://github.com/jbrandtmse/OcuTalon#install-it-yourself";
+/// The GUIDE.md section that both allowance messages point to (the install-it-yourself section).
+Parameter INSTALLLINK = "https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself";
 
 /// The state of a Turn that an allowance refused.
 Parameter REFUSED = "refused";

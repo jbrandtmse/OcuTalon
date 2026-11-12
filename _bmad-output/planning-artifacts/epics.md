@@ -1681,6 +1681,172 @@ So that no CI job fails with "FAIL web port" while an earlier unit's stack is on
 - DW-1100: the port guard's loud failure does not name what holds the port (ledger; routed by load 2026-11-11)
 - DW-1101: test-install-script-live.sh step 5's use of live_port_guard is pinned hermetically only by a grep of the script's text (ledger; routed by load 2026-11-11)
 
+### Story 0.26: The README leads with the full video and the incident path, and a measured comparison replaces the worked-out one
+
+[ADDED 2026-11-11, Contest Planner ruling, owner-approved] SC-5 re-open of Epic 0 (lane A), after Story 0.25. A cross-cutting README and evaluation-tooling story, as Stories 0.19 to 0.25; the scope below is the Contest Planner's (2026-11-11 ~14:45Z, owner-approved), and it must merge before the 1.0.8 cut. Footprint: `README.md`, `EXPERIENCE.md` only if a line moves, `eval/**` (the new held-out set and the rules-only mode), `eval/run.sh` or the report script, `docker/tests/test-readme.sh` and `docker/tests/test-eval-set.sh`. Any `.github/workflows` hunk goes to the Contest Planner (RELEASE TOOL) before it merges. Runners never hold a model key: the agent half of the comparison runs at the 1.0.8 release-candidate evaluation, by the Contest Planner's release fork.
+
+As a judge reading the README,
+I want to see the full video and the incident path first, and a comparison with fixed rules that was measured rather than worked out,
+So that I can check the interoperability story quickly and trust what the agent adds.
+
+**Acceptance Criteria:**
+
+**Given** the README
+**When** it is read from the top
+**Then** near the top it links the full narrated video (https://youtu.be/HIyCG5E6-JQ, "One incident, approved from a phone, traced", 3:04) and its no-sign-in MP4 on the v1.0.6 GitHub release asset; the 35-second teaser becomes the secondary link; and the video is in the link bar
+**And** `docker/tests/test-readme.sh` pins both video links, the teaser as the secondary link and the link-bar entry
+
+**Given** the README
+**When** it is read from the top
+**Then** it leads with the incident path a judge can check: failures, then one incident, diagnosis, dry run, approval (web, phone or Telegram), fix, and Visual Trace with tokens and cost; then "What's interesting"; then the "New since 1.0.0" list, moved below that and grouped interop first (watching, suspend/resume/reroute, partner notice, history, usage, documents, memory), with personas, reminders and the digest last, in one short group
+**And** no feature is removed and no claim is added, every number keeps its source, and `docker/tests/test-readme.sh` pins the new order (its existing rules keep passing, none deleted or weakened)
+
+[AMENDED 2026-11-12, Contest Planner PUBLIC TEXT ruling (split, owner's delegation), Rule 5 split recorded by the lead: the rules-only mode, the held-out set, the report script and the README comparison moved to Story 0.27, a split sibling planned next in Epic 0; the held-out expected answers stay committed as 6af31dab in this story's branch history, never rebased or amended. The README text of this story is the Planner's ruled text, verbatim (prompts/story-026-rulings.md, part (a)).]
+
+**Given** the README diff, the comparison table's wording and the held-out case list
+**When** the story reaches its spec gate
+**Then** they go to the Contest Planner as PUBLIC TEXT before implement, with placeholders for the measured numbers, and nothing of them is committed before the ruling
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+### Story 0.27: A measured comparison of the agent and the fixed rules replaces the worked-out one
+
+[ADDED 2026-11-12, split from Story 0.26 by the Contest Planner's PUBLIC TEXT ruling (owner's delegation; orchestrator ruling U5 decide: a split sibling planned next in Epic 0)] Part (b) of the Contest Planner's Story 0.26 scope (2026-11-11 ~14:45Z, owner-approved), with the ruling of 2026-11-12 ~00:55Z (prompts/story-026-rulings.md, part (b) and (c)), which binds word for word: variant R on feature; the R paragraph and the seven rows exactly as ruled (including the new row "Items that needed you now but weren't told now", counted over all cases); the under-table sentence as ruled; the rules-only cells only from a committed rules-only report, with a README test that the rules column equals it. The held-out expected answers were committed in 6af31dab (Story 0.26's branch history; never rebased or amended), and the README paragraph links that commit as it lands on origin. The phrases "never used for tuning" and "measured at release 1.0.8" never reach main (the latter is variant R's agent-column text on feature only; the Planner's release-candidate fork writes variant F). Footprint as Story 0.26's, plus the evaluation classes the plan names. Runners never hold a model key: the agent half runs at the 1.0.8 release-candidate evaluation, by the Contest Planner's release fork.
+
+As a judge reading the README,
+I want a comparison with fixed rules that was measured rather than worked out,
+So that I can trust what the agent adds.
+
+[AMENDED 2026-11-12, orchestrator ruling (split, U5 decide; the Contest Planner pre-authorized it): Part A, DW-1171, moved whole to Story 0.28 so it makes the 1.0.8 cut.] [AMENDED 2026-11-12 ~02:05Z, Contest Planner ruling (owner's delegation) + orchestrator: three-way split; this story is Part B only, the measuring tools (the rules-only mode, the 4 held-out snapshots, `eval/compare.mjs`, the eval-set rules, the CI step, the committed `eval/results/` report), run on lane B in a second Epic 0 worktree (`.worktrees/epic-0b`, branch `OCT-epic0b`, its own cycle log `cycle-log-epic-0b.md`); Part C, the README comparison, moved whole to Story 0.29, which waits on this story's merge.]
+
+**Acceptance Criteria:**
+
+**Given** the existing evaluation cases under `eval/`
+**When** the evaluation runs in a new rules-only mode
+**Then** it scores every case with OcuTalon's fixed rules only (the fallback the product uses without a model), with no model and no key, so it runs in the lane and in CI
+**And** it runs in CI in the existing evaluation group with the most headroom (no new job or group)
+**And** the rules-only report that `eval/compare.mjs` reads is committed under `eval/results/` (Story 0.29's README column is filled from it)
+
+**Given** a new held-out set of about 12 new incidents and routine items under `eval/`
+**When** it is added
+**Then** its expected answers are committed in their own commit before any agent run, and the set is never used for tuning; that commit's sha is recorded in the spec
+**And** `docker/tests/test-eval-set.sh` checks the held-out set's structure as it checks the existing cases
+
+**Given** agent results and rules-only results for the same cases
+**When** the report script runs
+**Then** it sets them side by side, per case and in total, including unsafe outcomes
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+### Story 0.28: DW-1171 follow-up: the README's Contest checklist gets a Video row, and the For judges Usability row links the incident path and the full video
+
+[ADDED 2026-11-12, split from Story 0.27 by orchestrator ruling (U5 decide; the Contest Planner pre-authorized the split for the 1.0.8 cut)] Part A of Story 0.27's plan: the Contest Planner's DW-1171 ruling (2026-11-12 ~01:55Z, owner's delegation, prompts/story-026-rulings.md item 2), wording verbatim. Runs after Story 0.26 merges and before Story 0.27. Footprint: `README.md`, `docker/tests/test-readme.sh`, a new networked check script under `docker/tests/` (NOT in per-push CI: [AMENDED 2026-11-12 ~02:05Z, Contest Planner ruling: left out of `CHECK_SCRIPTS`, run instead by one line in the release candidate checks, `release/checklist.sh`]), and the two web count tests (`web/scripts/sources-docs.test.mjs`, `web/scripts/more-to-try-view.test.mjs`). No `.github/workflows` hunk.
+
+As a judge reading the README,
+I want the Contest checklist and the "For judges" table to point at the full video and the incident path,
+So that I find them from wherever I start.
+
+**Acceptance Criteria:**
+
+**Given** the README (DW-1171, ruled by the Contest Planner 2026-11-12 ~01:55Z, owner's delegation; wording verbatim from prompts/story-026-rulings.md item 2)
+**When** it is read
+**Then** the Contest checklist has a new row right after "Online demo": `| Video | [One incident, approved from a phone, traced](https://youtu.be/HIyCG5E6-JQ) (3:04, also as an [MP4 file](https://github.com/jbrandtmse/OcuTalon/releases/download/v1.0.6/ocutalon-1.0.6.mp4)), and the [35-second teaser](https://youtu.be/wycbyfnXFMU). |`
+**And** the "For judges" Usability row's first sentence becomes "The demo guide walks [one incident, end to end](#one-incident-end-to-end) in about two minutes, and [the full video](https://youtu.be/HIyCG5E6-JQ) shows it in 3:04. Its More to try panel has fifteen more things to try ([New since 1.0.0](#new-since-100))." with the rest of the row unchanged; the count ("fifteen", or "sixteen" once Story 35.3 is in) matches the More to try panel, whichever of 35.3 and this story merges second sets it, and a README test pins it against the catalog
+**And** a README test checks that the anchor `#one-incident-end-to-end` resolves to a heading and that the Video row's links return 200
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green (the network check runs at the release candidate's checklist, not per push)
+- DW-1171: README Contest checklist has no Video row, and the For judges Usability row links neither the full video nor the incident path (ledger; routed by owner 2026-11-12; re-owned to 0.28 by the orchestrator, split)
+
+### Story 0.29: The README's comparison of the agent and the fixed rules, filled from the committed rules-only report
+
+[ADDED 2026-11-12 ~02:05Z, split from Story 0.27 by the Contest Planner's ruling (owner's delegation) and the orchestrator: Part C, the README comparison; lane A, after Story 0.28 and after Story 0.27 merges (it needs 0.27's committed rules-only report)] The ruling binds word for word (prompts/story-026-rulings.md, parts (b) and (c), the ~01:55Z and ~02:05Z sections): variant R on feature; the R paragraph as ruled, ending "..., and a CI check keeps their names and text out of every prompt and mock scenario." (option (c), 02:05Z); the ruled column headers and seven rows; the ruled sentence under the table; the "What changes without the agent?" pointer. "never used for tuning" and "measured at release 1.0.8" never reach main (the latter is variant R's agent-column text on feature only; the Planner's release-candidate fork writes variant F).
+
+As a judge reading the README,
+I want the comparison of the agent and the fixed rules to show measured numbers with their source,
+So that I can trust what the agent adds.
+
+**Acceptance Criteria:**
+
+**Given** the README's comparison (variant R)
+**When** it is read
+**Then** it is a new H3 at the end of "Measured" with the ruled paragraph (main set and held-out set stated apart, the held-out commit linked), the ruled column headers and the seven ruled rows, and the ruled sentence under the table; the "What changes without the agent?" sentence becomes the ruled pointer to it
+**And** every fixed-rules cell comes from the committed rules-only report (the JSON `eval/compare.mjs` reads), and a README test checks that the column equals that report
+**And** `compare.mjs` reports the new row "Items that needed you now but weren't told now", counted over all cases
+**And** neither "never used for tuning" nor any wording the ruling forbids appears in the README
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+### Story 0.30: A shorter README for judges, with the install, feature and admin material moved word for word to GUIDE.md
+
+[ADDED 2026-11-12, Contest Planner brief (owner-approved, 2026-11-12 ~04:30Z, prompts/story-030-shorter-readme.md, verbatim and binding); lane A, after Story 0.28; its plan may start at once, its implement waits for the Planner's PUBLIC TEXT ruling] Every outside review names README length as the weak spot (README.md was 6,373 words on b5057e5a). Footprint: `README.md`, `GUIDE.md` (new), `docker/tests/test-readme.sh`, and the release-tool and repository-layout checks that must accept `GUIDE.md` at the root.
+
+As a judge opening the repository,
+I want a README of about 2,000 words that shows the demo, the incident path, what is interesting and what was measured,
+So that I can judge the entry quickly and still find every install and admin detail one link away.
+
+**Acceptance Criteria:**
+
+**Given** README.md after this story
+**When** it is read
+**Then** it keeps the header, tagline, badges, lead paragraph, video lines and first screenshot; "Try it in two minutes" (the link bar, the demo paragraph and the 4 numbered steps, each step's "(...)" link now pointing into GUIDE.md); "For judges: where to look"; "One incident, end to end"; "What's interesting" with the Visual Trace screenshot; "Measured" (including Story 0.29's comparison once it lands); "Contest checklist"; and "Credits and licences" with the OpenClaw not-affiliated note
+**And** "New since 1.0.0" keeps its heading with a pointer of at most 2 sentences, and the only other new prose is a closing "More" paragraph of at most 4 lines linking GUIDE.md's main sections
+**And** `wc -w README.md` is about 2,000 and at most 2,300
+
+**Given** a new root file GUIDE.md titled "# OcuTalon guide: install, features and administration"
+**When** it is compared with the README before this story
+**Then** it holds, byte for byte except for links, the body of "New since 1.0.0"; What you can use it for; How you talk to it; What OcuTalon does; Install it yourself and all its subsections; Set a model key; Sign in; Telegram; Stop, start and update; Troubleshooting; and For admins and developers with all its subsections (Repository layout, Tests and CI)
+**And** every link from README.md into GUIDE.md is an absolute URL `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#<anchor>`; relative links inside GUIDE.md are fine; every anchor in both files resolves, and the existing link check covers GUIDE.md
+
+**Given** `docker/tests/test-readme.sh`
+**When** it runs
+**Then** every existing pin follows its text to the file it lands in; a word cap holds README.md to at most 2,300 words; a check finds GUIDE.md and a README.md link to it; and every count that follows the registry still passes (sixteen and fifteen, and the 0.28 rows as ruled)
+**And** the README tests and checks the release tools and repository-layout checks run accept GUIDE.md at the root
+
+**Given** this story's diff
+**When** it is inspected
+**Then** no app code, demo guide or catalog text changes, and nothing in README.md or GUIDE.md is committed before the Contest Planner rules on the spec gate's PUBLIC TEXT (the complete new README.md and the list of headings moved to GUIDE.md)
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+### Story 0.34: The install-path OAuth2 check skips the built web bundle, so a release candidate passes it
+
+[ADDED 2026-11-12, Contest Planner 1.0.8 hotfix ruling] (owner's delegation, ~20:00Z; a 1.0.8 release blocker, one-story lever on OCT-epic0c, precedent the 0.27 lever). PR #12 (release/1.0.8-rc1 e7b1ccf4) fails its `checks` job on test-compose-file's row "install: no Dockerfile, compose file, script, manifest, CPF merge or preload names /csp/sys/oauth2 or IRIS's OAuth2 objects" (21.3's U-320 check): `oauth_app_untouched_by_install_paths` scans git-tracked files including `src/ocutalon/csp/*`, which is untracked on the feature branch but committed by the release cut, and the built main-*.js holds the displayed redirect path "/csp/sys/oauth2/OAuth2.Response.cls" (web/src/app/settings/email-view.ts REDIRECT_PATH). Footprint: `docker/tests/test-compose-file.sh` only; no product change.
+
+As the release owner cutting 1.0.8,
+I want the install-path OAuth2 check to skip the built browser bundle while still scanning every install path,
+So that a release candidate passes CI without weakening the check that nothing installs or starts the OAuth2 web application.
+
+**Acceptance Criteria:**
+
+**Given** `oauth_app_untouched_by_install_paths` in `docker/tests/test-compose-file.sh`
+**When** it scans the git-tracked install paths
+**Then** it no longer scans the built web bundle under `src/ocutalon/csp/` (a browser bundle cannot enable a server web application)
+**And** every other path in its list (Dockerfiles, compose files, install and CI scripts, module.xml, CPF merges, preloads, the Python sources, `.github/`, `release/`) is still scanned, and its file-count floor still holds on the feature branch and on a release candidate
+
+**Given** a throwaway git repository fixture
+**When** the check runs on it
+**Then** the string "/csp/sys/oauth2/OAuth2.Response.cls" in `src/ocutalon/csp/x.js` passes
+**And** the same string in a `Dockerfile`, or in `docker/merge.cpf`, still fails
+**And** undoing the exclusion turns the bundle fixture red (a demonstrated mutation, reverted byte for byte)
+
+**Given** this story's diff
+**When** it is inspected
+**Then** nothing outside `docker/tests/test-compose-file.sh` changes except bookkeeping, and `bash docker/tests/test-compose-file.sh` and `bash ci/checks.sh` pass
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
@@ -7258,6 +7424,8 @@ An admin connects a real mailbox and SMTP server and creates webhooks with their
 
 ### Story 21.2: Read a mailbox and send email over POP3 and SMTP
 
+> [AMENDED 2026-11-11, Story 21.2 spec gate, split ruled by the Epic 21 runner (unattended, decide: doctrine U5, split into siblings planned next in Epic 21)] This story now delivers the POP3 half: connecting the mailbox (criterion 1 for POP3, its credentials, the address, the `EmailIn` host settings, within a minute, audit, ownership), criterion 2 with its And, criterion 4 for `EmailIn` and the settings, and criterion 5's POP3 stub. Criterion 1's SMTP parts and its And (`SendEmail` reaches `EmailOut`), criterion 4 for `EmailOut` and criterion 5's SMTP stub moved verbatim to Story 21.6; criterion 3 and its And (the digest by email, the `email` render channel) moved verbatim to Story 21.7. The criteria below stand as the epic's whole promise.
+
 As an admin,
 I want to connect my mailbox and an SMTP server,
 So that each new email gets an attention decision and OcuTalon can email me.
@@ -7286,8 +7454,11 @@ So that each new email gets an attention decision and OcuTalon can email me.
 **Given** CI
 **When** the email tests run
 **Then** a POP3 and SMTP stub in the CI-only override serves fixture mail, and the tests cover one item per new email, no repeats after a restart, untrusted provenance, mail left on the server, and a failed poll recorded with its reason (FR-44, REL-4, CON-3, AD-22)
+- DW-1042: CommandsIn.OwnAddressOnly reads email.owner and email.address through Data.Setting.Get's 60 s cache, so a moved mailbox can pair a stale owner with a fresh address (ledger; routed by spec_gate 2026-11-11)
 
 ### Story 21.3: Sign in to Gmail and Microsoft 365 with OAuth2
+
+> [AMENDED 2026-11-12, Story 21.3 spec gate, split ruled by the Epic 21 runner (unattended, decide: doctrine U5, split into siblings planned next in Epic 21)] This story now delivers registering the mail OAuth2 client and signing in: criterion 1 whole, criterion 2's consent half ("the provider's consent page opens in a new tab, and after consent IRIS's OAuth2 client holds the tokens"), and criterion 4. Criterion 2's token-use half ("which `EmailIn` and `EmailOut` use through the adapters' OAuth2 settings for POP3 and SMTP"), criterion 3 and criterion 5 (README) moved verbatim to Story 21.8, which runs right after this story. The criteria below stand as the epic's whole promise.
 
 As an admin,
 I want to connect a Gmail or Microsoft 365 mailbox by signing in with OAuth2,
@@ -7314,6 +7485,37 @@ So that OcuTalon reads and sends mail without storing my mail password.
 **Given** the README
 **When** this story merges
 **Then** it explains creating the OAuth2 client with Google and with Microsoft, the redirect address to register with each, and connecting the mailbox in Settings (FR-44, FR-58)
+
+### Story 21.8: Read and send mail with the OAuth2 sign-in
+
+> [AMENDED 2026-11-12, split from Story 21.3 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.3 (criterion 2 for its token-use half, criteria 3 and 5); runs right after 21.3, which registers the client and signs in.
+
+As an admin,
+I want OcuTalon to read and send my Gmail or Microsoft 365 mail with the OAuth2 sign-in,
+So that it works without storing my mail password.
+
+**Acceptance Criteria:**
+
+**Given** the client is registered
+**When** the admin starts the sign-in
+**Then** the provider's consent page opens in a new tab, and after consent IRIS's OAuth2 client holds the tokens, which `EmailIn` and `EmailOut` use through the adapters' OAuth2 settings for POP3 and SMTP (FR-44, AD-19)
+
+**Given** an access token expires
+**When** the next poll or send runs
+**Then** the adapter gets a fresh token from the OAuth2 client without the admin's help; if the grant was revoked, the poll fails with a plain reason and the mailbox counts as not checked (FR-44, FR-36)
+
+**Given** the README
+**When** this story merges
+**Then** it explains creating the OAuth2 client with Google and with Microsoft, the redirect address to register with each, and connecting the mailbox in Settings (FR-44, FR-58)
+
+
+**Given** the live run of this story on a lane throwaway
+**When** the mail OAuth2 client is registered by a production user narrower than `_Ensemble`
+**Then** the story lists each privilege that registering needs (resources and roles), each with a check that registering is refused without it; no text claims least privilege (DW-1180) [AMENDED 2026-11-12, Contest Planner ruling on DW-1180 (owner delegation), recorded by the Epic 21 runner]
+
+- DW-1179: a provider-mode mailbox keeps EmailIn and EmailOut on the password-less stored credential, so the poll fails with the refused-login sentence until the adapters get their OAuth2 settings (ledger; routed by harvest 2026-11-12)
+- DW-1180: the privileges that registering the mail OAuth2 client needs were measured only for `_Ensemble` (which held %All on the throwaway); list them with refused-without-it checks (ledger; routed by orchestrator 2026-11-12)
+- DW-1185: flake: EmailLive TestOAuthSaveSignInAndRemove's IRIS masked-secret audit-entry check appears late (ledger; routed by harvest 2026-11-12)
 
 ### Story 21.4: Add, remove and classify MCP servers and tools in Settings
 
@@ -7349,7 +7551,7 @@ So that I decide which added tools OcuTalon may use, and how.
 
 **Given** the online demo
 **When** anyone signs in
-**Then** only the preconfigured allow-listed servers exist, the demo account sees no settings, and nobody can add or remove a server (FR-47, FR-59, AD-25)
+**Then** MCP settings are off: no MCP endpoint runs on the demo, the demo account sees no settings, nobody can add or remove a server, and the demo says so in a plain line (public text at this story's spec gate) (FR-47, FR-59, AD-25) [AMENDED 2026-11-11, Contest Planner ruling: the online-demo safety rule; no MCP endpoint runs on the demo] (it read: "only the preconfigured allow-listed servers exist, the demo account sees no settings, and nobody can add or remove a server")
 
 ### Story 21.5: Set up source polls and answer tool-call approval requests
 
@@ -7378,6 +7580,49 @@ So that sources feed OcuTalon new items and I approve only calls I understand.
 **When** the cancellation arrives
 **Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 35.2 (was 21.1)'s proposal (FR-47, FR-8, AD-11)
 
+### Story 21.6: Send email over SMTP
+
+> [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.2 and before 21.3, which reuses `EmailIn` and `EmailOut`.
+
+As an admin,
+I want to connect an SMTP server,
+So that OcuTalon can email me.
+
+**Acceptance Criteria:**
+
+**Given** an admin in Settings › Channels on a local or IPM install, with a mailbox connected (Story 21.2)
+**When** they enter an SMTP server with its credentials and save
+**Then** `SettingsOps` stores the credentials in IRIS Interoperability credentials (write-only fields, `@{` refused), sets the `EmailOut` host settings with the installer's client SSL configuration, applies them within a minute and audits the change without secrets (FR-44, FR-17, FR-9, NFR-11, AD-19)
+**And** a `SendEmail` command reaches `EmailOut` from origin `tool` only when every recipient is the session user's own address, and is refused otherwise, as Story 35.2 (was 21.1) fixed; Lane A's email tool (Story 22.7) relies on this (FR-44, AD-1)
+
+**Given** the online demo
+**When** it runs
+**Then** `EmailOut` stays disabled and no email settings show (FR-44, FR-59)
+
+**Given** CI
+**When** the email tests run
+**Then** an SMTP stub in the CI-only override receives the mail, and no real email is ever sent (FR-44, REL-4, CON-3, AD-22)
+
+- DW-1139: SettingsOps.SaveEmail starts the production update only when a settings row changed, so an identical re-save after a failed update leaves the email item unapplied; settle it on the shared apply path (ledger; routed by adjudication 2026-11-11)
+
+### Story 21.7: Send the daily digest by email
+
+> [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.6. [AMENDED 2026-11-11, Contest Planner ruling Q1] The digest is routed through Notify, which gains the email channel; `Digest.Process` (Lane A) keeps building the content and gets no email knowledge (ledger DW-820).
+
+As an admin,
+I want the daily digest by email,
+So that I get it in my own mailbox.
+
+**Acceptance Criteria:**
+
+**Given** email chosen as a digest channel in Settings › Daily digest, which offers it once a mailbox is connected
+**When** `EmailOut` sends the digest
+**Then** it goes only to the user's own address, as plain text rendered from the catalog, recorded as a `Delivery` (FR-44, FR-35, FR-17, AD-14, AD-32)
+**And** this story adds the `email` channel to `OcuTalon.Msg.Catalog.Render` as the renderer's owner (Lane B), as plain text under the `phone` channel's rules, so `EmailOut` renders the digest here and the pages of Story 24.3, and the render tests cover every key `EmailOut` sends (AD-32)
+
+- DW-1167: EmailIn takes in the mail OcuTalon itself sent to its own address (a tool email, and with this story every digest) as a new untrusted item; mark EmailOut's mail and have EmailIn skip it, or rule it harmless (ledger; routed by cr 2026-11-12)
+- DW-820: Digest.Process.Own copies Notify's generic route; Deliver hands every digest to Notify, which alone routes kind digest by digest.channels, and Own and the direct sends are removed (ledger; routed by orchestrator 2026-11-12, O1 one-time AD-33 exception)
+
 ## Epic 22: Extend OcuTalon with MCP servers, governed like built-in tools (step 4)
 
 Tools from an added MCP server become OcuTalon's tools under the same gate, classification, approval and audit, unclassified counting as risky and changed tools losing their classification; a read-only MCP tool can be polled as a source on the digest's coverage list, with a worked Jira example.
@@ -7386,7 +7631,7 @@ Tools from an added MCP server become OcuTalon's tools under the same gate, clas
 
 ### Story 22.2: Classify MCP tools by server and name
 
-> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1013] Attaching an MCP server gets a bounded timeout with a clear error, so a server that accepts the connection and never answers cannot block `AddTool` or the manager's listing (measure rmcp's own timeout on a throwaway first).
+> [AMENDED 2026-11-11, Story 22.2 spec gate, runner ruling (split, unattended decide U5; product default 6): Story 22.2 is split in two. This story keeps the add, remove and classify commands, `Tools(server)`, the per-server resource, the classification rows and their fingerprints from the attach report, the changed-tool clear found at an attach, and the admin notices. Story 22.8, planned next, takes the gate half: the turn's fingerprint map and the gate's classification (the criterion "Given a turn starting"), the clause "the gate denies any call to them" of the remove criterion, the changed-tool clear for a change found during a turn, the DW-1013 attach timeout (the amendment that stood here, moved whole to Story 22.8) and DW-174. No criterion is dropped.]
 
 [AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1 on Story 35.1, relayed by the orchestrator: (1) the admin chat notices for an unavailable MCP server and for a refused tool whose name shadows a built-in move here from Story 35.1's attach criterion, beside the changed-tool notice this story already sends; they use the accepted texts `mcp.serverUnavailable` and `mcp.toolShadowsBuiltIn` in `OcuTalon.Msg.Catalog.Watch`, read the attach report Story 35.1 records on the `OcuTalon.Mcp.Server` row, and reach the sessions whose user held `OcuTalonAdmin` at their latest sign-in through Story 35.2's read API (no run-time `%SYS` read, no AD-3 exception); (2) `OcuTalon.Core.SettingsOps` writes the server's Config Store entry `AI.MCP.OcuTalon_<server>` and its IRIS Wallet secret, called from Lane B's MCP settings route (Story 35.2), and `McpOps` writes only the `OcuTalon.Mcp.Server` row and calls `RestartRunners()`, so where the criteria below have `McpOps` write the Config Store entry, `SettingsOps` writes it; no command, log, test output or record ever carries a secret value, only a `secret://` reference]
 
@@ -7402,7 +7647,7 @@ So that a new or changed tool can never act without my say.
 
 **Given** a remove command
 **When** `McpOps` handles it
-**Then** the server's tools go at once: the gate denies any call to them, the runners restart without the server through `RestartRunners()`, its entry, row, classifications and resource are removed, and the removal is audited (FR-47, FR-9, AD-21)
+**Then** the server's tools go at once: the gate denies any call to them [AMENDED 2026-11-11, split: this clause is delivered by Story 22.8], the runners restart without the server through `RestartRunners()`, its entry, row, classifications and resource are removed, and the removal is audited (FR-47, FR-9, AD-21)
 
 **Given** a registered server whose tools the runners discovered
 **When** Lane B's settings page calls `OcuTalon.Mcp.Ops.Tools(server)`, which this story builds in place of Story 35.1 (was 22.1)'s stub
@@ -7417,12 +7662,10 @@ So that a new or changed tool can never act without my say.
 **When** `McpOps` handles it
 **Then** `OcuTalon.Mcp.ToolClassification` stores read-only or risky for (server, tool name) with a fingerprint of the tool's description and canonical input schema, and the change is audited (FR-48, FR-9, AD-17, AD-21)
 
-**Given** a turn starting
-**When** the runner prepares it
-**Then** it fingerprints each MCP tool from `ToolManager.%Discover()` before `Chat` and keeps the map in the bridge context, and the gate, through OcuTalon's `ClassificationClass`, treats a tool missing from the map, without a classification, or with a changed fingerprint as unclassified, which counts as risky (FR-48, AD-10, AD-31)
+[AMENDED 2026-11-11, split: the criterion "Given a turn starting" (the turn's fingerprint map and the gate's classification) moved whole to Story 22.8]
 
 **Given** a classified tool whose description or inputs changed
-**When** the change is found
+**When** the change is found [AMENDED 2026-11-11, split: at an attach here; a change found during a turn is Story 22.8's, through the clear this story builds]
 **Then** its classification is cleared, the change is audited, and each admin's chat gets a notice card, in the wording the author accepted from Story 35.1 (was 22.1)'s proposal, so the settings page shows the tool Unclassified (FR-48, FR-9, AD-32, UX-DR145)
 
 **Given** an MCP tool with the same name as a built-in tool, or one carrying annotations such as `readOnlyHint`
@@ -7432,7 +7675,7 @@ So that a new or changed tool can never act without my say.
 **Given** the model, an item's content or a tool result
 **When** it tries to classify a tool
 **Then** nothing changes: no tool can classify, and `McpOps` accepts a classify command only with origin `web_admin`, behind `CommandsIn`'s refusal of origin `tool` (Lane B's Story 21.4) (FR-7, FR-49, NFR-14, AD-1)
-- DW-174: Whether AI Hub gives an MCP tool a toolref that starts `mcp:` is unmeasured; another form (the JSON configuration form of `%AI.Tool.Resolver`) would take `metadata.origin_class` as the source, so a shadowing MCP tool could take a built-in's classification. Measure a real MCP tool's toolref and metadata in `%CanExecute` (stdio, remote, JSON configuration) when step 4 registers MCP servers (ledger; routed by harvest 2026-10-24)
+- DW-1038: flake family in `OcuTalon.Test.Mcp.Attach` (TestShadow, TestAttach, TestRequestServerDown red under CI load): make the mock-dependent attach tests robust (ledger; routed by burndown 2026-11-09)
 
 ### Story 22.3: Call MCP tools only through the governed proxy
 
@@ -7446,6 +7689,7 @@ So that adding an MCP server never opens a path around OcuTalon's governance.
 **When** it runs
 **Then** the gate rewrites it into the governed proxy tool `call_mcp_tool(server, tool, arguments)`, which calls the server with OcuTalon's minimal Streamable HTTP client (`initialize`, `tools/call`) and returns the result through `OcuTalon.Tools.Result`, cut and marked as cut so that all results of one model step pass at most 10,000 tokens (FR-49, NFR-3, AD-10, AD-21)
 **And** a direct call to `call_mcp_tool` is classified by its (server, tool) arguments the same way (AD-21)
+**And** [AMENDED 2026-11-11, Contest Planner ruling on Story 22.8's veto, condition (1): the fingerprint must match the classification at call time] just before `tools/call`, the proxy lists the tool with its own client and refuses the call, unrun, when the tool's fingerprint (Story 22.2's `ToolFingerprint`) no longer matches the one its classification was given for, so a tool changed between the turn's listing and the call is caught (FR-48, AD-10)
 **And** `call_mcp_tool`'s name is added to `OcuTalon.Tools.Names` and to the CI mock's scripts (AD-22) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L5]
 
 **Given** any MCP call
@@ -7538,6 +7782,10 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the worked example **When** it is followed in step 4's hands-on pass on a clean local install with a real Jira MCP server **Then** the tools appear unclassified, a read-only search runs, a risky call waits for approval, and new tickets assigned to the user become items with decisions in Visual Trace (FR-50, FR-49, REL-7)"]
 
+**Given** the governance documentation [AMENDED 2026-11-11, Contest Planner rulings on Stories 22.8 and 22.9]
+**When** it describes Read-only MCP tools and the attach bound
+**Then** it says plainly that a Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so an admin classifies a tool Read-only only when they trust its server with what OcuTalon reads (the sentence goes to the Contest Planner at this story's spec gate), and it documents Story 22.9's residual: a server that stops answering after its probe passed, within one request, holds that runner until it closes the connection, until Story 22.10 lands (FR-48, FR-61, AD-10, AD-21)
+
 **Given** the worked example's guidance on classifying MCP tools, which the README's admin section (the admin guide) repeats
 **When** it describes classifying MCP tools
 **Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.2 (was 24.1) copies that sentence into the README's admin section with the link (FR-10, FR-61)
@@ -7572,6 +7820,67 @@ So that email to me just goes and email to anyone else waits for my approval.
 **Given** the tests with the mocked model
 **When** they run
 **Then** email to the user reaches `EmailOut` without approval, email to anyone else doesn't reach it without an approved request and reaches it exactly once after approval, one test sends `Execute` with no approved row and expects nothing, and the tool inventory and security overview list the tool with its classification (FR-44, FR-7, FR-61, NFR-13, AD-16)
+- DW-1164: EmailOut's system path (Story 21.6) needs this story to fill SendEmail.ApprovalRef, the approval row's FixKind 'email' and FixParameters.recipients, and to replay with a context of Kind tool and provenance user; today only seeded rows test it (ledger; routed by cr 2026-11-12)
+
+### Story 22.8: Classify MCP calls by fingerprint in the gate
+
+[AMENDED 2026-11-11, Story 22.2 spec gate, runner ruling (split, unattended decide U5): split from Story 22.2, planned next after it; these criteria and entries are Story 22.2's, moved whole or in the part named, with their wording kept]
+
+[AMENDED 2026-11-11, Story 22.8 spec gate, runner ruling (split, unattended decide U5): the DW-1013 attach timeout (the amendment that stood here and the DW-1013 entry) moved whole to Story 22.9, planned after this story]
+
+As an admin,
+I want every MCP call classified by the gate from my classification of that tool, as it is now,
+So that a new or changed tool can never act without my say.
+
+**Acceptance Criteria:**
+
+**Given** a turn starting
+**When** the runner prepares it
+**Then** it fingerprints each MCP tool from `ToolManager.%Discover()` before `Chat` and keeps the map in the bridge context, and the gate, through OcuTalon's `ClassificationClass`, treats a tool missing from the map, without a classification, or with a changed fingerprint as unclassified, which counts as risky (FR-48, AD-10, AD-31)
+
+**Given** a server removed by Story 22.2's remove command
+**When** a call to one of its tools reaches the gate
+**Then** the gate denies it at once (FR-47, FR-9, AD-21)
+
+**Given** a classified tool whose description or inputs changed
+**When** the change is found during a turn
+**Then** its classification is cleared through Story 22.2's `McpOps.ClearChanged`, the change is audited, and each admin's chat gets the `mcp.toolChanged` notice card, so the settings page shows the tool Unclassified (FR-48, FR-9, AD-32, UX-DR145)
+
+- DW-174: Whether AI Hub gives an MCP tool a toolref that starts `mcp:` is unmeasured; another form (the JSON configuration form of `%AI.Tool.Resolver`) would take `metadata.origin_class` as the source, so a shadowing MCP tool could take a built-in's classification. Measure a real MCP tool's toolref and metadata in `%CanExecute` (stdio, remote, JSON configuration) when step 4 registers MCP servers (ledger; routed by harvest 2026-10-24; moved from Story 22.2 by the 2026-11-11 split)
+- DW-724: `Decide.ToolsReadOnly` judges only an agent's compiled TOOLSETS, so MCP servers attached at step 4 (AD-21) are invisible to the U-282 rule; when MCP servers are attached to an agent, `ToolsReadOnly` must count them (an unclassified or non-read-only server's tool means not read-only) (ledger; routed by harvest 2026-11-05; moved from Story 22.2 by the 2026-11-11 split)
+
+### Story 22.9: Bound MCP attach and listing with a timeout
+
+[AMENDED 2026-11-11, Story 22.8 spec gate, runner ruling (split, unattended decide U5): split from Story 22.8 (itself split from Story 22.2), planned after Story 22.8; it carries the Contest Planner's DW-1013 ruling whole]
+
+> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1013; moved here from Story 22.2 through Story 22.8 by the 2026-11-11 splits] Attaching an MCP server gets a bounded timeout with a clear error, so a server that accepts the connection and never answers cannot block `AddTool` or the manager's listing (measure rmcp's own timeout on a throwaway first).
+
+As an admin,
+I want an MCP server that stops answering to be given up on in bounded time, with a clear error,
+So that one hung server can never hold OcuTalon's runners.
+
+**Acceptance Criteria:**
+
+**Given** a registered MCP server that accepts the connection and never answers
+**When** a runner attaches it at a build, or lists its tools for a request
+**Then** the attach or the listing gives up within a bounded time with a clear error, the server is reported unavailable as Story 35.1's attach report records it, and the runner and the turn go on without that server's tools (FR-47, AD-21, AD-31)
+
+- DW-1013: An attached MCP server that accepts the connection and never answers may block `AddTool` and the manager's listing with no deadline, at the build and in every request (ledger; routed by merge_gate 2026-11-09; moved from Story 22.2 through Story 22.8 by the 2026-11-11 splits)
+
+### Story 22.10: List and offer MCP tools through OcuTalon's own bounded client
+
+[AMENDED 2026-11-11, Contest Planner ruling on Story 22.9's residual, option (a): a new story in Epic 22's backlog, after Story 22.7; it amends AD-21]
+
+As an admin,
+I want OcuTalon to list and offer an MCP server's tools through its own bounded client, rather than AI Hub's MCP client,
+So that a server that stops answering in the middle of a request can never hold a runner.
+
+**Acceptance Criteria:**
+
+**Given** a registered MCP server that answers its probe and then stops answering within the same request
+**When** the runner lists its tools or the model calls one of them
+**Then** OcuTalon's own Streamable HTTP client (Story 22.3's, with Story 22.9's bounds) does the listing and the call, both give up within a bounded time with a clear error, and the turn goes on without that server's tools; AI Hub's MCP client is no longer used for listing or calling, and the gate, classification by fingerprint, approval and audit apply exactly as before (FR-47, FR-48, FR-49, AD-10, AD-21, AD-31)
+**And** AD-21's "AI Hub lists, OcuTalon calls" rule and its Story 22.9 residual note are amended to match (AD-21)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 
@@ -7802,7 +8111,7 @@ So that I can watch a data condition without giving OcuTalon any way to change d
 
 ### Story 23.9: Resume a suspended item after its incident closes
 
-[ADDED 2026-11-10, Contest Planner ruling (DW-1068 re-ruling), PARKED until after voting; not for 1.0.6 or 1.0.7] Split from Story 23.2, whose `result.itemSuspended` text limits the undo to while the incident is open and points to the Management Portal after it closes.
+[ADDED 2026-11-10, Contest Planner ruling (DW-1068 re-ruling), PARKED until after voting; not for 1.0.6 or 1.0.7] [AMENDED 2026-11-11, un-parked: scope reopened by the owner via the Contest Planner - see the story change log] Split from Story 23.2, whose `result.itemSuspended` text limits the undo to while the incident is open and points to the Management Portal after it closes.
 
 As a production developer,
 I want to undo a suspend OcuTalon made even after its incident has closed,
@@ -7814,6 +8123,77 @@ So that a suspended item is never left disabled without a governed way back.
 **When** the user asks OcuTalon to resume the item
 **Then** the spec chooses between (a) a resume raised on the closed incident, which never moves its state, and (b) an incident with an active suspend stays open until a resume or Dismiss (the Planner leans to (b)); either way exactly one approval request with its own dry run is raised, the item is re-checked before running, and a second session or a user outside the incident's ownership scope cannot resume it (FR-26, AD-15, AD-16)
 - DW-1068: After a suspend's incident closes the user cannot ask to resume the item (ledger; routed by merge_gate 2026-11-10)
+[AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation: option (b) chosen. An incident that holds an active suspend is not closed by the 15-quiet-minutes close or the replay close; it closes only on Dismiss, or by the quiet close once a resume has ended the hold; Dismiss always closes; after a held incident is dismissed, Checks reports the still-disabled item once. AD-15, PRD FR-16/FR-24 and EXPERIENCE.md amended to match. Known limit accepted: an enable by hand in the Management Portal keeps the incident held until Dismiss. The online demo is unchanged (suspend and resume stay refused there). 1.0.8 only if green on feature by the cut, else 1.0.9.]
+
+### Story 23.10: Partner notice and summary polish from the 1.0.7 demo pass
+
+[ADDED 2026-11-11, Contest Planner ruling from the 1.0.7 demo pass] From the Contest Planner's hands-on pass of 1.0.7 on the live demo (ruling text: the orchestrator's `prompts/epic-23-story-2310-ruling.md`). Judge-visible; it runs after Story 23.7 and before Story 23.9.
+
+As a production developer watching the demo's Orders feed,
+I want the partner notice to name the right partner and to match the incident's state, and the incident summary and the status rail to read cleanly,
+So that what OcuTalon drafts and shows is accurate.
+
+**Acceptance Criteria:**
+
+**Given** the online demo's partner contact fixture (Story 23.5)
+**When** the guide's Orders incident drafts a partner notice
+**Then** its recipient is "Orders Partner IT" <it@orders-partner.example> (ruled public text), keyed to the Orders production if the fixture keys contacts by production; the README and EXPERIENCE.md lines that name the recipient and the tests say the same (FR-29)
+
+**Given** an incident that is resolved when its partner notice is drafted
+**When** the draft is written
+**Then** the draft's facts include the incident's state, and the draft instruction carries, verbatim: "If the incident is resolved, say that the affected orders went through after the fix, and don't say that work is still going on or that updates will follow."; an eval or CI mock case shows a resolved incident's draft without "looking into" or "will share updates" (FR-29, AD-16)
+
+**Given** an incident summary (Story 23.6)
+**When** its "Fix:" line is rendered
+**Then** the line ends with its full stop, and its pin says so (FR-30, AD-32)
+
+**Given** an approval request the user rejects
+**When** the status rail's Approval requests refresh
+**Then** the rejected request leaves the rail at once if the cause is a one-line refresh; otherwise the gap is filed in the ledger with its cause (LOW, FR-8)
+
+### Story 23.11: Say in a partner notice only how the incident ended
+
+[ADDED 2026-11-12, DW-1165, Contest Planner ruling] Follow-up to Story 23.10 (ledger DW-1165; ruling text: the orchestrator's `prompts/epic-23-story-2311-ruling.md`, ~00:20Z, under the owner's delegation). A partner notice must never claim more than OcuTalon knows. Lane D, after Story 23.10 and before Story 23.9.
+
+As a production developer warning a partner about a delay,
+I want the drafted notice to say how the incident actually ended, from OcuTalon's own records,
+So that a notice never tells the partner the orders went through when some did not, or when the flow was paused or rerouted.
+
+**Acceptance Criteria:**
+
+**Given** a resolved incident whose fix resent every affected message, none failed again or skipped
+**When** its partner notice is drafted
+**Then** the draft's facts carry, built by OcuTalon's code from the incident's records, "Outcome: all {N} affected orders went through after the fix." (FR-29, AD-16)
+
+**Given** a resolved incident whose fix left some messages failed again or skipped
+**When** its partner notice is drafted
+**Then** the facts carry "Outcome: {A} of the {N} affected orders went through after the fix, and {R} did not."
+
+**Given** an incident ended by a reroute
+**When** its partner notice is drafted
+**Then** the facts carry "Outcome: the {N} affected orders were resent by another route."
+
+**Given** an incident ended by a suspend
+**When** its partner notice is drafted
+**Then** the facts carry "Outcome: the affected flow was paused, and the {N} affected orders haven't gone through yet."
+
+**Given** any other ending, or counts that are unknown
+**When** the partner notice is drafted
+**Then** the facts carry no Outcome line
+
+**Given** any partner notice draft
+**When** the draft instruction is sent to the model
+**Then** Story 23.10's resolved-incident sentence is replaced, verbatim, by "If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the orders went through."; and the facts still carry no item or target names, setting values or message contents (AD-16, Story 23.5)
+
+**Given** the CI mock
+**When** each outcome's draft is answered
+**Then** there is one mock case per outcome, "went through" appears only in the all-through case, and none contains "looking into" or "will share updates"; each outcome builder has a unit test, including zero counts and a resolved incident with no fix
+
+**Given** the incident's records cannot support a line exactly as written
+**When** the spec is gated
+**Then** the wording may be adjusted to fit, and the changed wording goes to the Contest Planner as public text before commit
+
+- DW-1165: The ruled resolved-incident sentence has the partner notice say the affected orders went through, but Facts carry only the state, so a resolved incident whose fix left messages failed again or skipped, or that a suspend or reroute resolved, gets the same claim (ledger; routed by owner 2026-11-12)
 
 ## Epic 24: On-call, partner and check settings (step 5)
 
@@ -9381,6 +9761,8 @@ So that other systems can tell OcuTalon what happened and it decides what needs 
 
 [AMENDED 2026-11-09, parked: owner re-plan 2026-11-09 (voting week), relayed by the Contest Planner and the orchestrator: no plan or implement until after voting; Epic 35 merges Stories 35.1 and 35.2 as a part merge and stays in progress; the story's criteria, and the roles-heading and public-path test items Story 35.2's plan found for it, are unchanged]
 
+[AMENDED 2026-11-11, un-parked: scope reopened by the owner via the Contest Planner]
+
 As an admin,
 I want to create webhooks, each with its own secret, that turn any JSON event into an item,
 So that other systems can tell OcuTalon what happened and it decides what needs me.
@@ -9399,7 +9781,7 @@ So that other systems can tell OcuTalon what happened and it decides what needs 
 **When** it arrives
 **Then** it gets the same 401, the secret is compared as a salted hash in constant time, nothing becomes an item, and the rejection is recorded in the audit log at a capped rate (FR-45, FR-14, AD-13, AD-17)
 **And** a body over the cap, or one that isn't JSON, is refused without becoming an item (FR-45, AD-13)
-**And** a test calling `/ocutalon/hook` and every other OcuTalon path without signing in finds only a webhook `POST` with its secret accepted (FR-14, AD-25)
+**And** a test calling `/ocutalon/hook` and every other OcuTalon path without signing in finds only a webhook `POST` with its secret accepted, apart from the product's two public paths, the sign-in page with its images and `GET /ocutalon/public/status` (FR-14, AD-25) [AMENDED 2026-11-11, Story 35.3 spec gate, Rule 5 tier 1 (intent unchanged): names the two public paths PRD FR-14 already allows]
 **Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; the criterion read "**And** a test calling `/ocutalon/hook` and every other OcuTalon path without signing in finds only a webhook `POST` with its secret accepted, and on the online demo the proxy's allow-list blocks the webhook path (FR-14, AD-25)", and its repository test stays above]
 
 
@@ -9577,6 +9959,7 @@ So that what the automated tests can't see is found and fixed before the first r
 - DW-299: Story 6.2's AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds with the demo guide open: the guide reaches DESIGN's 56 px compact form while its Break the feed box shows, and 6.2's A6 check runs without Hide guide (ledger; routed by merge_gate 2026-10-28)
 - DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
 - DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend (ledger; routed by merge_gate 2026-10-30)
+- DW-1125: Real-model check of Story 23.7's queue watch: for "Watch the queue backlogs." the model calls start_watch with kind queues, and for its stop calls stop_watch with kind queues (only the CI mock scripts it today) (ledger; routed by cr 2026-11-11)
 
 ### Story 38.2: The clean-machine rehearsal runs on the author's hosts and times the demo path on the real model
 

@@ -388,13 +388,15 @@ Method TestBridgeAuditFails()
 	Do $$$AssertEquals($Get(^||OcuTalonSettingsOpsProbe("n", "set")), 2, "the second value was never set (one Set and one put-back)")
 }
 
-/// Every key that a section writes is on the allow-list, and every key on it but demo.mode is in a section.
+/// Every key that a section writes is on the allow-list, and every key on it but demo.mode is in a section (the email section writes email.address, email.owner, email.signIn,
+/// email.clientId and email.oauthOwned).
 Method TestAllowList()
 {
 	Set allowed = $ListFromString($Parameter(..#PROBE, "ALLOWLIST"))
 	Set found = ""
 	Set iterator = ##class(OcuTalon.Core.SettingsOps).Sections().%GetIterator()
 	While iterator.%GetNext(, .section) {
+		If section.kind = "email" Set found = found_$ListBuild("email.address", "email.owner", "email.signIn", "email.clientId", "email.oauthOwned")
 		Set fields = section.fields.%GetIterator()
 		While fields.%GetNext(, .field) {
 			If field.%IsDefined("key") {
@@ -426,7 +428,14 @@ Method TestValues()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "daily-digest,check-thresholds,demo-mode", "the sections that hold values")
+	Do $$$AssertEquals(keys, "daily-digest,check-thresholds,demo-mode,channels", "the sections that hold values, the channels last (not on the online demo)")
+	Set channels = body.sections.channels
+	Set shape = ""
+	Set iterator = channels.%GetIterator()
+	While iterator.%GetNext(.key, , .type) {
+		Set shape = shape_$Select(shape = "": "", 1: ",")_key_":"_type
+	}
+	Do $$$AssertEquals(shape, "address:string,incoming:string,outgoing:string,user:string,passwordSet:boolean,signIn:string,clientId:string,clientSecretSet:boolean,signedIn:boolean", "the channels hold the address, both servers, the user name, whether a password is set, and the sign-in method with its client ID, whether a client is registered and whether it is signed in")
 	Do $$$AssertEquals(body.sections.%Get("check-thresholds").%ToJSON(), "{""diskFreePercent"":10,""journalFreePercent"":10,""licenseUsePercent"":90,""queueMessages"":100,""queueWaitMinutes"":10}", "an absent row reads as the default, as a number")
 	Do $$$AssertEquals(body.sections.%Get("daily-digest").%ToJSON(), "{""time"":""08:00"",""channels"":""web,phone,telegram""}", "the digest defaults")
 	Do $$$AssertEquals(body.sections.%Get("demo-mode").%GetTypeOf("demoMode"), "boolean", "demoMode is a boolean")
@@ -443,7 +452,7 @@ Method TestValues()
 	}
 	Do $$$AssertTrue(listed > 0, "control: the stack has priced models")
 	Do $$$AssertEquals(body.prices.%IsDefined("gpt-5.4-mini")_"|"_body.prices.%IsDefined("gemini-3.1-pro-preview"), "0|0", "the models of providers that are not supported have no entry")
-	Do $$$AssertTrue($ZConvert(body.%ToJSON(), "L") '[ "secret", "the body has no secret")
+	Do $$$AssertTrue($Replace($ZConvert(body.%ToJSON(), "L"), "clientsecretset", "") '[ "secret", "the body has no secret (clientSecretSet is a boolean: whether a client is registered)")
 	Do $$$AssertTrue($ZConvert(body.%ToJSON(), "L") '[ "apikey", "and no API key")
 	Do ..Save("check-thresholds", {"diskFreePercent": 33, "journalFreePercent": 10, "licenseUsePercent": 90, "queueMessages": 100, "queueWaitMinutes": 10})
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get("checks.thresholds.diskFreePercent"), "33", "the cache of this process now holds 33")

@@ -327,8 +327,8 @@ Method EndReminders(command As OcuTalon.Msg.Command.EndSession) As %Integer [ Pr
 	Quit failed
 }
 
-/// End's watches: one StopWatch for each production watch of the session, sent to the WatchOps item. The result is the number of
-/// watches that could not be stopped; a watch that is already gone is not a failure.
+/// End's watches: one StopWatch for each production watch and for the queue-backlog check of the session (with the row's Kind), sent to the
+/// WatchOps item. The result is the number of watches that could not be stopped; a watch that is already gone is not a failure.
 Method EndWatches(command As OcuTalon.Msg.Command.EndSession) As %Integer [ Private ]
 {
 	Set failed = 0
@@ -337,10 +337,11 @@ Method EndWatches(command As OcuTalon.Msg.Command.EndSession) As %Integer [ Priv
 		If $$$ISERR($Get(sc, 1)) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
 		For i = 1:1:rows.Count() {
 			Set check = rows.GetAt(i)
-			If check.Kind '= ##class(OcuTalon.Watch.Ops).#KIND Continue
+			If (check.Kind '= ##class(OcuTalon.Watch.Ops).#KIND) && (check.Kind '= ##class(OcuTalon.Watch.Ops).#QUEUEKIND) Continue
 			Set stop = ##class(OcuTalon.Msg.Command.StopWatch).%New()
 			Set stop.SessionRef = command.SessionRef
 			Set stop.Origin = command.Origin
+			Set stop.Kind = check.Kind
 			Set stop.Namespace = check.Namespace
 			Set stop.Production = check.Production
 			Set failed = failed + ..Carry(..#WATCHITEM, stop, "a watch of session " _ command.SessionRef _ " was not stopped")

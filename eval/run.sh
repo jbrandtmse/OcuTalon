@@ -9,6 +9,7 @@
 #   bash eval/run.sh --override "<reason>"                                       the author's override of a blocked result
 #   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --personas                           the persona sweep, on the CI mock (Story 40.7)
 #   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --release-candidate --personas       the persona sweep, on the real model (the Planner's measurement)
+#   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --rules-only [main|held-out]         the fixed rules alone, with no model and no key (Story 0.27)
 # Any other argument prints a usage line and exits 2, before any call to the container tool. Every mode but --override sources ci/iris.sh
 # (which sources ci/units.sh and docker/tests/lib-live.sh), starts a throwaway of its own that is built from this checkout, and reaches the
 # container only through the functions of those files (stack_start, stack_ready, check_session, iris_script, dc exec). It never pulls the
@@ -30,6 +31,16 @@
 #                             puts it in a session. In every other mode (the push run, --override and --on-mock without --key-path) the
 #                             script unsets it before anything else, whatever the caller's environment holds, so that neither compose, npm
 #                             nor IRIS ever sees it
+# The rules-only run (--rules-only [main|held-out], Story 0.27; AD-22, AD-8, AD-19). It measures the product's own fallback, the one it uses when it
+# has no model key, through the real evaluation path (EvalIn, Intake, Decide and EvalSink): the stack of the push run starts with ANTHROPIC_API_KEY
+# unset, RunnerFixture.ReadyReason() must be empty, RestoreKeys puts every runner and retry runner back on the key placeholder (PointKeys is never called),
+# each of them must record its key state again (WaitRecords), and Keys.Status must be 0 for each of them or the run fails before it sends any case. The mock's request count is read before the first run and after
+# the last. Then OcuTalon.Eval.Report.Run (rulesOnly 1: a no_key fallback is the fixed rules' answer) runs over the main set (eval/, saved as
+# rules-only.json and rules-only.md) and/or the held-out set (eval/held-out/, saved as rules-only-held-out.json and .md); "main" or "held-out" runs
+# one of them (each about 2 to 3 minutes on a developer machine, most of it the stack's start), no argument runs both. The checks print one PASS or FAIL line each, named rules-only or
+# rules-only-held-out: the run started, it has no problem (every model-backed case is a no_key fallback), no run acted, no eval watch row was left, the
+# report was saved; and, over the runs, "the mock received <n> request(s)" (0 passes). REPORT <folder> and "eval/run: all checks passed" close the run.
+# Exit 0, 1 a failed check (a runner has a key, a model answered, the mock was reached), 2 a refused argument.
 # The push run (no argument):
 #   1. the throwaway starts and the production runs with every item (RunnerFixture.ReadyReason() is empty); the runners' keys are
 #      pointed at the mock with RunnerFixture.PointKeys(), as the live units do;
@@ -42,6 +53,10 @@
 #      demo.json; then Gate.Attempt reads set.json and demo.json and saves attempt.json. The checks are structural (the mock's one diagnosis
 #      is the demo's right answer): 10 runs, 10 passed, no fallback, valid parameters and a diagnosis time for each. The attempt's
 #      targets are printed as an INFO line and never fail the run;
+#   3c. run 4, the held-out set (eval/held-out/, held-out.json and .md) on the mock, with its own checks; then the keys are restored (RestoreKeys), the
+#      rules-only half runs on the same stack over both sets (rules-only.json and rules-only-held-out.json, the checks above), and
+#      `node eval/compare.mjs "$report_dir" "$report_dir"` writes comparison.json and comparison.md, prints "COMPARISON <file>" and has the Markdown
+#      appended to $GITHUB_STEP_SUMMARY;
 #   4. the files are copied out into the report folder, the Markdown texts are printed and appended to $GITHUB_STEP_SUMMARY when
 #      that is set, and "REPORT <folder>" is printed before the closing line "eval/run: all checks passed" (or "... check(s) failed").
 # The checks print one PASS or FAIL line each: each run started and finished (a disabled EvalIn fails with the director's text, and so
@@ -77,6 +92,8 @@
 #      called. Before the exit lines the run proves the key is stored and shown nowhere (the key proof, below);
 #   2. attempt k (k = 1; then 2 and 3 when attempt 1 did not meet every target) is the set over /opt/ocutalon/eval/ (set-k.json and .md), the demo
 #      gate (demo-k.json) and Gate.Attempt (attempt-k.json) with its targets SM-1, SM-2, the demo gate, NFR-3, NFR-4, the model and no problem;
+#      after the attempts the held-out set runs once on the same stack (held-out.json and .md in the report folder only): it is outside Gate.Result's
+#      verdict and the result pair, and a held-out run that does not save only prints a NOTE;
 #   3. Gate.Result applies REL-5's rule (pass at the first attempt, or at 2 of 3) and saves release-candidate.json and .md (ocutalon.evalResult/1),
 #      with the commit, branch and tree state that the script read before the stack was built;
 #   4. the files are copied out into the report folder, and the result's Markdown is printed and appended to $GITHUB_STEP_SUMMARY only when it holds
@@ -135,6 +152,7 @@ mode=push
 onmock=0
 keypath=0
 personas=0
+rules_set=both
 override_reason=
 if [ $# -eq 0 ]; then
   :
@@ -156,8 +174,13 @@ elif [ $# -eq 1 ] && [ "$1" = --personas ]; then
 elif [ $# -eq 2 ] && [ "$1" = --release-candidate ] && [ "$2" = --personas ]; then
   mode=rc
   personas=1
+elif [ $# -eq 1 ] && [ "$1" = --rules-only ]; then
+  mode=rulesonly
+elif [ $# -eq 2 ] && [ "$1" = --rules-only ] && { [ "$2" = main ] || [ "$2" = held-out ]; }; then
+  mode=rulesonly
+  rules_set=$2
 else
-  echo 'usage: bash eval/run.sh [--release-candidate [--on-mock [--key-path]] | --override "<reason>"]'
+  echo 'usage: bash eval/run.sh [--release-candidate [--on-mock [--key-path]] | --override "<reason>" | --personas | --rules-only [main|held-out]]'
   exit 2
 fi
 
@@ -290,13 +313,15 @@ EVAL_FOLDER=/opt/ocutalon/eval/
 # The outcome that the mock's scenario eval-tellnow-ignored answers to the test-only case (ci/mock/scenarios/A/eval-tellnow-ignored.json).
 MOCK_WRONG_ANSWER=ignore
 
-# eval_run <name> <case folder in the container> <title>: one run in its own IRIS session. The session runs Report.Run, prints the
-# CHK lines of the run, and saves the report as <name>.json and <name>.md in the container. The lines are in $tmp/<name>.chk.
+# eval_run <name> <case folder in the container> <title> [<rules only 0|1>]: one run in its own IRIS session. The session runs Report.Run (with
+# rulesOnly 1 for a rules-only run), prints the CHK lines of the run, and saves the report as <name>.json and <name>.md in the container. The lines
+# are in $tmp/<name>.chk.
 eval_run() {
-  local name=$1 folder=$2 title=$3 begun=$SECONDS
+  local name=$1 folder=$2 title=$3 rules=${4:-0} begun=$SECONDS rules_arg=
+  if [ "$rules" = 1 ]; then rules_arg=',1'; fi
   printf '%s\n' \
     'Write !,"CHK|started|1"' \
-    "Set sc=##class(OcuTalon.Eval.Report).Run(\"$folder\",\"\",$limit,.report)" \
+    "Set sc=##class(OcuTalon.Eval.Report).Run(\"$folder\",\"\",$limit,.report$rules_arg)" \
     'Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)' \
     'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?",##class(OcuTalon.Data.Ownership).#EVAL) Do rs.%Next() Write !,"CHK|leftwatches|",+rs.%GetData(1)' \
     'If $SYSTEM.Status.IsError(sc) { Write !,"CHK|error|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  ") Halt }' \
@@ -304,6 +329,7 @@ eval_run() {
     'Write !,"CHK|problems|",problems.%Size()' \
     'For i=0:1:problems.%Size()-1 { Write !,"CHK|problem|",$Translate(problems.%Get(i),$Char(13,10),"  ") }' \
     'Write !,"CHK|democase|",##class(OcuTalon.Eval.Report).#DEMOCASE' \
+    'Set a=report.actions Write !,"CHK|actions|",a.approvals+a.commands+a.settingChanges+a.fixRuns' \
     'Write !,"CHK|cases|",report.cases.%Size()' \
     'For i=0:1:report.cases.%Size()-1 { Set c=report.cases.%Get(i) Write !,"CHK|case|",c.case,"|",c.%Get("right"),"|",$Translate($Select($IsObject(c.got):c.got.causeCategory_"/"_c.got.elementAtFault_"/"_c.got.fixKind,1:c.got),"|"_$Char(13,10),"   "),"|",c.%Get("fallback"),"|",c.%Get("kind") }' \
     'For i=0:1:report.fallbacks.%Size()-1 { Set f=report.fallbacks.%Get(i) Write !,"CHK|fallback|",f.case,"|",$Translate(f.reason,"|"_$Char(13,10),"   ") }' \
@@ -624,8 +650,108 @@ elif [ "$keypath" -eq 1 ]; then
 fi
 stack_ready "evaluation" "$begun"
 
+# --- the fixed rules alone (Story 0.27) ---
+
+# rules_only_keys <ready 0|1>: RestoreKeys over the runners and the retry runners (the placeholder of the Provider step, no key), a wait until each of
+# them has recorded its key state again in a job that runs (RunnerFixture.WaitRecords: a restarted runner's job is alive a moment before its OnInit
+# records the state, so a read before that sees the record of the job before the restart), then a check that Keys.Status is 0 for each of them. With ready 1 RunnerFixture.ReadyReason() must be empty first (the standalone run starts the stack; the push run
+# has checked it already). Prints a FAIL line and returns 1 when the keys cannot be restored or any runner has a key; nothing has been sent then.
+rules_only_keys() {
+  local ready=$1 begun=$SECONDS lines=
+  if [ "$ready" -eq 1 ]; then lines='Write !,"CHK|ready|",##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()'; fi
+  printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    "$lines" \
+    'Set all=##class(OcuTalon.Test.Agent.RunnerFixture).#RUNNERS_","_##class(OcuTalon.Test.Agent.RunnerFixture).#RETRYRUNNERS' \
+    'Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(all) Write !,"CHK|restored|",$SYSTEM.Status.IsOK(sc) Write:$SYSTEM.Status.IsError(sc) !,"CHK|why|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  ")' \
+    'Write !,"CHK|records|",##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords(all)' \
+    'Set st="" For i=1:1:$Length(all,",") { Set st=st_$Select(i>1:",",1:"")_##class(OcuTalon.Bridge.Keys).Status($Piece(all,",",i)) } Write !,"CHK|status|",st' \
+    'Halt' | iris_script OCUTALON > "$tmp/rules-keys.chk"
+  if [ ! -s "$tmp/rules-keys.chk" ]; then
+    fail "rules-only: the IRIS session printed nothing"
+    return 1
+  fi
+  if [ "$ready" -eq 1 ] && [ -n "$(chk_value rules-keys ready)" ]; then
+    fail "rules-only: the production is not ready: $(chk_value rules-keys ready)"
+    return 1
+  fi
+  if [ "$(chk_value rules-keys restored)" != 1 ]; then
+    fail "rules-only: the runners' keys could not be restored: $(chk_value rules-keys why)"
+    return 1
+  fi
+  if [ "$(chk_value rules-keys records)" != 1 ]; then
+    fail "rules-only: a runner or retry runner did not record its key state after the restart; no case is sent"
+    return 1
+  fi
+  case $(chk_value rules-keys status) in
+    '' | *[!0,]*)
+      fail "rules-only: a runner has a model key (Keys.Status $(chk_value rules-keys status)) or its status is not known; no case is sent"
+      return 1
+      ;;
+  esac
+  pass "rules-only: no runner or retry runner has a model key"
+  echo "KEYS restored and checked $((SECONDS - begun))s"
+}
+
+# mock_requests: the number of model requests the CI mock has logged (the lines of its request log, which the iris container mounts, that are not a Bot
+# API call: tokenLength null), or nothing. The Telegram items poll the mock's Bot API all the while, which is no model request.
+mock_requests() {
+  dc exec -T iris sh -c 'if [ -f /opt/ocutalon/mock-log/requests.jsonl ]; then grep -c "tokenLength.:null" /opt/ocutalon/mock-log/requests.jsonl; else echo 0; fi' 2> /dev/null | tr -d '\r' | head -n 1
+}
+
+# rules_only_run <name> <case folder in the container> <title>: one rules-only run (rulesOnly 1) and its checks, each a PASS or FAIL line named <name>:
+# it started, it has no problem (every model-backed case is a no_key fallback and no model answered), nothing acted, no eval watch row is left, and the
+# report is saved and copied out as <name>.json and <name>.md.
+rules_only_run() {
+  local name=$1 folder=$2 title=$3 acted left
+  eval_run "$name" "$folder" "$title" 1
+  if run_started "$name"; then
+    if [ "$(chk_value "$name" problems)" = 0 ]; then
+      pass "$name: the run has no problem ($(chk_value "$name" cases) case(s) scored, $(grep -c '^CHK|fallback|' "$tmp/$name.chk" || true) fixed-rules fallback(s))"
+    else
+      fail "$name: the run has $(chk_value "$name" problems) problem(s): $(sed -n 's/^CHK|problem|//p' "$tmp/$name.chk" | head -n 3 | paste -s -d';' -)"
+    fi
+    acted=$(chk_value "$name" actions)
+    if [ "$acted" = 0 ]; then pass "$name: the run acted on nothing"; else fail "$name: the run acted (${acted:-no count})"; fi
+    left=$(chk_value "$name" leftwatches)
+    if [ "$left" = 0 ]; then pass "$name: the run left no eval watch row"; else fail "$name: the run left eval watch rows (leftwatches: ${left:-no count})"; fi
+    if [ "$(chk_value "$name" saved)" = 1 ]; then fetch "$name"; else fail "$name: the report could not be saved"; fi
+  fi
+}
+
+# rules_only_half <main|held-out|both>: the rules-only runs of the set(s), with the mock's request count read before the first and after the last: it
+# must not change (the fixed rules ask no model).
+rules_only_half() {
+  local which=$1 before after
+  before=$(mock_requests)
+  case $before in
+    '' | *[!0-9]*)
+      fail "rules-only: the mock's request count could not be read"
+      return 1
+      ;;
+  esac
+  if [ "$which" != held-out ]; then rules_only_run rules-only "$EVAL_FOLDER" "Evaluation set, fixed rules only"; fi
+  if [ "$which" != main ]; then rules_only_run rules-only-held-out "${EVAL_FOLDER}held-out/" "Held-out cases, fixed rules only"; fi
+  after=$(mock_requests)
+  case $after in
+    '' | *[!0-9]*) fail "rules-only: the mock's request count could not be read after the runs" ;;
+    *)
+      if [ "$after" = "$before" ]; then
+        pass "rules-only: the mock received 0 request(s)"
+      else
+        fail "rules-only: the mock received $((after - before)) request(s)"
+      fi
+      ;;
+  esac
+}
+
 keys_begun=$SECONDS
-if [ "$mode" = rc ] && [ "$onmock" -eq 0 ]; then
+if [ "$mode" = rulesonly ]; then
+  if ! rules_only_keys 1; then
+    echo "eval/run: $fails check(s) failed (project $P)"
+    exit 1
+  fi
+elif [ "$mode" = rc ] && [ "$onmock" -eq 0 ]; then
   # The real endpoint: the runners hold the key that the override passed, and no part of the mock is in the way. Presence only: Keys.Status
   # never reads the key. PointKeys, RestoreKeys and ReadyReason (the mock's guard) are never called here.
   check_session "the production runs with every item, every runner has its key, no mock is in the way and the model is claude-haiku-5-5" OCUTALON \
@@ -868,6 +994,19 @@ if [ "$personas" -eq 1 ]; then
   exit 0
 fi
 
+# --- the rules-only run ---
+
+if [ "$mode" = rulesonly ]; then
+  rules_only_half "$rules_set"
+  echo "REPORT $report_dir"
+  if [ "$fails" -ne 0 ]; then
+    echo "eval/run: $fails check(s) failed (project $P)"
+    exit 1
+  fi
+  echo "eval/run: all checks passed"
+  exit 0
+fi
+
 # --- the release-candidate run ---
 
 if [ "$mode" = rc ]; then
@@ -895,6 +1034,12 @@ if [ "$mode" = rc ]; then
     fi
     number=$((number + 1))
   done
+
+  # the held-out set, once, on the same stack: outside the verdict, in the report folder only (a run that does not save only prints a NOTE)
+  if [ "$fails" -eq 0 ]; then
+    eval_run held-out "${EVAL_FOLDER}held-out/" "Held-out cases, release candidate"
+    if [ "$(chk_value held-out saved)" = 1 ]; then fetch held-out; else echo "NOTE held-out: the report could not be saved (the run is outside the verdict)"; fi
+  fi
 
   # the thinking-history smoke test: on the real model only, once, after the attempts (a failed smoke is recorded, never a failure of the run)
   smoke=
@@ -1111,6 +1256,51 @@ else
   if attempt_checks attempt; then
     echo "INFO attempt on the CI mock: met $(chk_value attempt met); below: $(chk_value attempt below)"
     fetch attempt json
+  fi
+fi
+
+# --- run 4: the held-out set on the mock, then the fixed rules, then the comparison (Story 0.27) ---
+
+eval_run held-out "${EVAL_FOLDER}held-out/" "Held-out cases against the CI mock"
+if run_started held-out; then
+  if [ "$(chk_value held-out problems)" = 0 ]; then
+    pass "held-out: the run has no problem ($(chk_value held-out cases) case(s))"
+  else
+    fail "held-out: the run has $(chk_value held-out problems) problem(s): $(sed -n 's/^CHK|problem|//p' "$tmp/held-out.chk" | head -n 3 | paste -s -d';' -)"
+  fi
+  left=$(chk_value held-out leftwatches)
+  if [ "$left" = 0 ]; then pass "held-out: the run left no eval watch row"; else fail "held-out: the run left eval watch rows (leftwatches: ${left:-no count})"; fi
+  if [ "$(chk_value held-out saved)" = 1 ]; then fetch held-out; else fail "held-out: the report could not be saved"; fi
+fi
+if rules_only_keys 0; then
+  rules_only_half both
+fi
+if [ -s "$report_dir/rules-only.json" ] && [ -s "$report_dir/rules-only-held-out.json" ] && { [ -s "$report_dir/set.json" ] || [ -s "$report_dir/set-1.json" ]; } && [ -s "$report_dir/held-out.json" ]; then
+  if comparison=$(node "$root/eval/compare.mjs" "$report_dir" "$report_dir" 2>&1); then
+    echo "$comparison"
+    pass "comparison: the agent and the fixed rules are set side by side"
+    if [ -s "$report_dir/comparison.md" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+      { echo "On this push run the agent's side is the CI mock's scripted answers, not a model."; echo; cat "$report_dir/comparison.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
+    fi
+  else
+    echo "$comparison"
+    fail "comparison: eval/compare.mjs did not write the comparison"
+  fi
+else
+  fail "comparison: a report it reads is missing (set, held-out, rules-only or rules-only-held-out)"
+fi
+# The committed rules-only run (eval/results/, the figures of the README's fixed-rules column) is compared with this run's fixed-rules column,
+# apart from the date. A difference is reported as a NOTE, never a failure: a case another story adds changes the column, and the release
+# fork re-runs the fixed rules and re-commits eval/results/ when the cases changed.
+if [ -s "$report_dir/rules-only.json" ] && [ -s "$report_dir/rules-only-held-out.json" ]; then
+  fresh_column=$(node "$root/eval/compare.mjs" --column "$report_dir" 2>&1) || fresh_column=
+  committed_column=$(node "$root/eval/compare.mjs" --column "$root/eval/results" 2>&1) || committed_column=
+  fresh_column=$(printf '%s\n' "$fresh_column" | grep -v '^date|')
+  committed_column=$(printf '%s\n' "$committed_column" | grep -v '^date|')
+  if [ -n "$fresh_column" ] && [ "$fresh_column" = "$committed_column" ]; then
+    pass "comparison: the committed eval/results/ gives the fixed rules' column of this run"
+  else
+    echo "NOTE comparison: the committed eval/results/ is not this run's fixed rules' column; the release fork re-runs bash eval/run.sh --rules-only and commits its rules-only.json and rules-only-held-out.json"
   fi
 fi
 

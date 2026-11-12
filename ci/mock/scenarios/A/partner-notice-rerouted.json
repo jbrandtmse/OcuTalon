@@ -1,0 +1,12 @@
+{
+  "name": "partner-notice-rerouted",
+  "match": {
+    "marker": "partner-notice-rerouted"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Orders sent from your feed failed because the date format of the orders changed. The affected orders were resent by another route."
+    }
+  ]
+}

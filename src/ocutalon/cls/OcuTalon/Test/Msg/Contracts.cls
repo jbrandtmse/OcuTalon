@@ -39,7 +39,7 @@ Method TestContracts()
 Method TestVerbsInheritTheCommonFields()
 {
 	Set classes = $ListBuild("IncidentCommand")
-	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession", "SetHeartbeat", "RunHeartbeat", "MarkNoise", "ForgetPrecedent", "AddMcpServer", "RemoveMcpServer", "ClassifyTool", "SetSourcePoll", "RemoveSourcePoll", "SendEmail", "ProposeFix")
+	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession", "SetHeartbeat", "RunHeartbeat", "MarkNoise", "ForgetPrecedent", "AddMcpServer", "RemoveMcpServer", "ClassifyTool", "SetSourcePoll", "RemoveSourcePoll", "SendEmail", "ProposeFix", "CreateWebhook", "SetWebhookSecret")
 	Set position = 0
 	While $ListNext(verbs, position, verb) {
 		Set classes = classes _ $ListBuild("Command."_verb)
@@ -288,7 +288,8 @@ XData Contracts [ MimeType = application/json ]
    "SessionRef": "%String(MAXLEN=22)",
    "Namespace": "%String(MAXLEN=128)",
    "Production": "%String(MAXLEN=128)",
-   "DisplayName": "%String(MAXLEN=128)"
+   "DisplayName": "%String(MAXLEN=128)",
+   "Kind": "%String(MAXLEN=32)"
   }
  },
  "OcuTalon.Msg.Command.StopWatch": {
@@ -298,7 +299,8 @@ XData Contracts [ MimeType = application/json ]
    "IdempotencyKey": "%String(MAXLEN=128)",
    "SessionRef": "%String(MAXLEN=22)",
    "Namespace": "%String(MAXLEN=128)",
-   "Production": "%String(MAXLEN=128)"
+   "Production": "%String(MAXLEN=128)",
+   "Kind": "%String(MAXLEN=32)"
   }
  },
  "OcuTalon.Msg.Command.Dismiss": {
@@ -526,7 +528,30 @@ XData Contracts [ MimeType = application/json ]
    "SessionRef": "%String(MAXLEN=22)",
    "Recipients": "%String(MAXLEN=2000)",
    "Subject": "%String(MAXLEN=200)",
-   "Text": "%String(MAXLEN=)"
+   "Text": "%String(MAXLEN=)",
+   "ApprovalRef": "%String(MAXLEN=22)"
+  }
+ },
+ "OcuTalon.Msg.Command.CreateWebhook": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Name": "%String(MAXLEN=1000)",
+   "Handoff": "%String(MAXLEN=128)",
+   "ActingUser": "%String(MAXLEN=160)"
+  }
+ },
+ "OcuTalon.Msg.Command.SetWebhookSecret": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "WebhookRef": "%String(MAXLEN=22)",
+   "Handoff": "%String(MAXLEN=128)",
+   "ActingUser": "%String(MAXLEN=160)"
   }
  },
  "OcuTalon.Msg.Command.TestModel": {
@@ -536,6 +561,17 @@ XData Contracts [ MimeType = application/json ]
    "IdempotencyKey": "%String(MAXLEN=128)",
    "SessionRef": "%String(MAXLEN=22)",
    "Agent": "%String(MAXLEN=32)"
+  }
+ },
+ "OcuTalon.Msg.Command.MailSignIn": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Action": "%String(MAXLEN=16)",
+   "PageOrigin": "%String(MAXLEN=300)",
+   "ActingUser": "%String(MAXLEN=160)"
   }
  },
  "OcuTalon.Msg.CommandResult": {

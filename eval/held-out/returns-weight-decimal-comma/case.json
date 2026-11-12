@@ -1,0 +1,13 @@
+{
+  "name": "returns-weight-decimal-comma",
+  "kind": "incident",
+  "heldOut": true,
+  "description": "Three returned shipments from the test feed with the weight written with a decimal comma (2,5); the ledger operation expects a decimal point.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "data_format_change",
+    "elementAtFault": "Weight",
+    "fixKind": "repair_resend"
+  },
+  "recordedBy": "expected answer written before the recording (Story 0.26); snapshot recorded by docker/tests/record-eval.sh held-out"
+}

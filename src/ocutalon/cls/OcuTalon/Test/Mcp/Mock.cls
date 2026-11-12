@@ -2,8 +2,11 @@
 /// MCP Config Store entry at, and stops. It is a test fixture and never part of a production; Epic 22 reuses it. It is not a test case.
 ///   - Start(port, extra, header, expected) opens a listener in a job of its own on 127.0.0.1 only and on a free port (port, a port of 53200 to 53999
 ///     that is not in use) and answers once the listener is open. The listener is the %IO.ServerSocket one, whose Open with a timeout ignores the
-///     interface it is given when its ConnectionQueueSize is above 0 and its KeepAliveInterval is not -1 (the defaults); the mock sets both (Task 0,
-///     evidence 35-1-task0-mcp-attach.md), and the bind is pinned by OcuTalon.Test.Mcp.Loopback.
+///     interface it is given when its ConnectionQueueSize is above 0 and its KeepAliveInterval is not -1 (the defaults); the mock sets
+///     KeepAliveInterval to -1 and ConnectionQueueSize to BACKLOG, so that connections that arrive while the single job answers another wait in the
+///     listener's queue and are not refused. With ConnectionQueueSize 5 a run of OcuTalon.Test.Mcp.Loopback was green (measured), so the loopback-only
+///     bind holds (evidence 35-1-task0-mcp-attach.md). That the queue guards against connections refused under CI load is (inference): no run under
+///     load was made.
 ///   - The tools it lists are zz_lookup (readOnlyHint true) and zz_delete_ticket (destructiveHint true), and one more tool of the same shape for each
 ///     name in the list extra, so that a test can offer a tool with the name of a tool the agent already has. Calling a tool answers a text.
 ///   - It answers initialize, notifications (202 with no body), tools/list and tools/call with plain application/json replies, which AI Hub's client
@@ -12,6 +15,10 @@
 ///     and compared there: it is never stored, logged or returned.
 ///   - Requests(port) is the log of the requests the mock answered, in order, as {"method", "tool", "auth"}: auth is none when no header is checked,
 ///     and matched, mismatch or absent otherwise. Calls(port, tool) counts the tools/call requests for a tool.
+///   - Describe(port, text) sets the description that the mock lists for zz_lookup (its input schema stays), so that a test can change the tool between
+///     two builds; Stop(port) clears it. Without it the description is "Looks up a ticket.".
+///   - Shape(port, json) sets the input schema that the mock lists for zz_lookup, as JSON text (its description stays), for the same purpose; Stop(port) clears it.
+///     Without it the schema is {"type": "object", "properties": {"id": {"type": "string"}}}.
 ///   - Stop(port) ends the listener and its job and leaves the log; Forget(port) removes the log. A test calls both in its teardown, so that no job and no
 ///     node outlive it. The state is under ^IRIS.Temp.OcuTalonMcpMock(port).
 Class OcuTalon.Test.Mcp.Mock
@@ -27,6 +34,9 @@ Parameter PORTCOUNT = 800;
 
 /// The most seconds Start waits for the listener of one try.
 Parameter OPENWAIT = 8;
+
+/// The length of the listener's queue of connections that wait to be accepted.
+Parameter BACKLOG = 5;
 
 /// The most seconds Stop waits for the job to end before it ends the job.
 Parameter STOPWAIT = 8;
@@ -61,6 +71,18 @@ ClassMethod Stop(port As %Integer)
 	If '$Data(^IRIS.Temp.OcuTalonMcpMock(port)) Quit
 	Set job = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "job"))
 	Do ..End(port, job)
+}
+
+/// Sets the description that the mock on the port lists for zz_lookup, until Stop.
+ClassMethod Describe(port As %Integer, text As %String)
+{
+	Set ^IRIS.Temp.OcuTalonMcpMock(port, "description") = text
+}
+
+/// Sets the input schema (JSON text) that the mock on the port lists for zz_lookup, until Stop.
+ClassMethod Shape(port As %Integer, json As %String)
+{
+	Set ^IRIS.Temp.OcuTalonMcpMock(port, "schema") = json
 }
 
 /// Removes the log of the port.
@@ -106,7 +128,7 @@ ClassMethod End(port As %Integer, job As %String) [ Private ]
 	Set ^IRIS.Temp.OcuTalonMcpMock(port, "stop") = 1
 	Set state = ..WaitFor(port, "stopped,failed", ..#STOPWAIT)
 	If (state = "") && (job '= "") && ##class(%SYS.ProcessQuery).%ExistsId(job) Do $SYSTEM.Process.Terminate(job)
-	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "job"), ^IRIS.Temp.OcuTalonMcpMock(port, "stop")
+	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "job"), ^IRIS.Temp.OcuTalonMcpMock(port, "stop"), ^IRIS.Temp.OcuTalonMcpMock(port, "description"), ^IRIS.Temp.OcuTalonMcpMock(port, "schema")
 }
 
 /// The state of the mock on the port once it is one of the states (comma-separated), or "" after the seconds.
@@ -128,7 +150,7 @@ ClassMethod Serve(port As %Integer, extra As %List, header As %String, expected 
 {
 	Set socket = ##class(%IO.ServerSocket).%New()
 	Set socket.LocalInterface = ..#INTERFACE
-	Set socket.ConnectionQueueSize = 0
+	Set socket.ConnectionQueueSize = ..#BACKLOG
 	Set socket.KeepAliveInterval = -1
 	Set timeout = 5
 	If 'socket.Open(port, .timeout, .sc) {
@@ -176,14 +198,14 @@ ClassMethod Connection(socket As %IO.ServerSocket, port As %Integer, extra As %L
 		Set body = body _ socket.Read(length - $Length(body), .timeout, .sc)
 		If timeout = 0 Quit
 	}
-	Set reply = ..Reply(body, extra, .method, .tool, .code)
+	Set reply = ..Reply(body, extra, port, .method, .tool, .code)
 	Set ^IRIS.Temp.OcuTalonMcpMock(port, "req", $Increment(^IRIS.Temp.OcuTalonMcpMock(port, "req"))) = $ListBuild(method, tool, auth)
 	Do socket.Write("HTTP/1.1 " _ code _ $Char(13, 10) _ "Content-Type: application/json" _ $Char(13, 10) _ "Content-Length: " _ $Length(reply) _ $Char(13, 10) _ "Connection: close" _ $Char(13, 10) _ $Char(13, 10) _ reply)
 	Do socket.Flush()
 }
 
 /// The reply to one JSON-RPC body, with the method and the tool name of the request and the status line code.
-ClassMethod Reply(body As %String, extra As %List, Output method As %String, Output tool As %String, Output code As %String) As %String [ Private ]
+ClassMethod Reply(body As %String, extra As %List, port As %Integer, Output method As %String, Output tool As %String, Output code As %String) As %String [ Private ]
 {
 	Set method = "", tool = "", code = "200 OK"
 	Set request = ""
@@ -205,7 +227,10 @@ ClassMethod Reply(body As %String, extra As %List, Output method As %String, Out
 	}
 	If method = "tools/list" {
 		Set tools = []
-		Do tools.%Push({"name": "zz_lookup", "description": "Looks up a ticket.", "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}}}, "annotations": {"readOnlyHint": true}})
+		Set lookup = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "description"), "Looks up a ticket.")
+		Set shape = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "schema"))
+		Set lookupSchema = $Select(shape = "": {"type": "object", "properties": {"id": {"type": "string"}}}, 1: ##class(%DynamicAbstractObject).%FromJSON(shape))
+		Do tools.%Push({"name": "zz_lookup", "description": (lookup), "inputSchema": (lookupSchema), "annotations": {"readOnlyHint": true}})
 		Do tools.%Push({"name": "zz_delete_ticket", "description": "Deletes a ticket.", "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}}}, "annotations": {"destructiveHint": true}})
 		Set position = 0
 		While $ListNext(extra, position, name) {
