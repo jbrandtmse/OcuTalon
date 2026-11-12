@@ -3716,3 +3716,4 @@
 2026-11-12T12:32:37Z	Epic 0	amendments_verified	amendments=0 extensions=6 ok=true release_tool=release/checklist.sh(approved_by_Planner) overlap_with_feature_since_base=none
 2026-11-12T12:32:37Z	Epic 0	ci_green_verified	head=2a6cfc67 runs=43202138313,43202138310 result=success
 2026-11-12T12:32:37Z	Epic 0	merge_enqueued	part=0.28 head=42b613eb
+2026-11-12T12:33:04Z	Epic 0	epic_merged_to_feature	part=0.28 feature_sha=3caf52ab merge_sha=3caf52ab code=2a6cfc67+23.9 verified_on_origin=yes
