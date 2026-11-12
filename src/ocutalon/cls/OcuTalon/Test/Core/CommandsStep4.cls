@@ -24,6 +24,9 @@
 ///   - TestRestartRunnersWithoutProduction: RestartRunners' work answers OK and restarts nothing for no running production or another one;
 ///   - TestMcpEntryStubs: SaveMcpEntry writes no Config Store entry, RemoveMcpEntry leaves the entry the test made, both answer code 5003 and
 ///     leave the IRIS wallet (its collections and secrets) as found, and the test's own entry, collection and secret are gone afterwards;
+///   - TestWebhookVerbs (Story 35.3): CreateWebhook and SetWebhookSecret by every origin reach SettingsOps from web_admin only and are refused from the others
+///     (the chat text for tool, also inside a bridge context; the admin-only text for web_user, system, telegram, timer, "zz" and ""), with nothing sent; the
+///     real TOOLVERBS holds neither, and the real Routes send both to SettingsOps from web_admin only;
 ///   - TestNoMcpSettingsRoute: Web.Api's XData UrlMap holds no route under /v1/settings/mcp until Story 21.4 adds them.
 /// The run's calls are kept under ^OcuTalonTest("CommandsRouting", "step4<n>") and deleted after the tests; email.owner and email.address are
 /// put back as found; the context of the test process is ended before and after the tests.
@@ -360,6 +363,60 @@ Method TestMcpEntryStubs()
 	Do $$$AssertEquals(..WalletIds(), found, "and the wallet is left as the test found it")
 }
 
+/// The webhook verbs go to SettingsOps from web_admin only (Story 35.3): every origin, "zz" and "" against the oracle, a bridge context, TOOLVERBS and Routes.
+Method TestWebhookVerbs()
+{
+	Set origins = $ListFromString($Parameter("OcuTalon.Msg.Enum", "ORIGIN")) _ $ListBuild("zz", "")
+	Set tried = 0
+	For verb = "CreateWebhook", "SetWebhookSecret" {
+		For o = 1:1:$ListLength(origins) {
+			Set origin = $List(origins, o)
+			Set probe = ..NewProbe()
+			Set tried = tried + 1
+			Set command = ..NewCommand(verb, origin, "zzsess"_verb)
+			Set sc = probe.OnProcessInput(command, .output)
+			Set label = verb_" from '"_origin_"'"
+			Do $$$AssertStatusOK(sc, label_" is answered with a status that is OK")
+			If origin = "web_admin" {
+				Do $$$AssertEquals(..Calls(), 1, label_" is routed")
+				Do $$$AssertEquals(..Call(1, "target"), "SettingsOps", label_" goes to SettingsOps")
+				Set same = (probe.LastRequest = command)
+				Do $$$AssertEquals(same, 1, label_": the owner got the very object")
+			} Else {
+				Do $$$AssertEquals(..Calls(), 0, label_" sends nothing")
+				Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", label_" is not_allowed")
+				Do $$$AssertEquals(output.Message, $Select(origin = "tool": "That can't be done from the chat. Nothing was changed.", 1: "Only an OcuTalon admin can change settings. Nothing was changed."), label_" says why")
+			}
+		}
+	}
+	Do $$$AssertEquals(tried, 16, "both verbs by all eight origins")
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.OwnerRef = "zzsessA"
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, "zzss"_..Run), "a context of session A begins")
+	Try {
+		Set probe = ..NewProbe()
+		For verb = "CreateWebhook", "SetWebhookSecret" {
+			Do probe.OnProcessInput(..NewCommand(verb, "web_admin", "zzsessA"), .output)
+			Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_allowed|That can't be done from the chat. Nothing was changed.", verb_" inside a context is refused")
+		}
+	} Catch exception {
+		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do $$$AssertEquals(..Calls(), 0, "and nothing reaches SettingsOps")
+	Do $$$AssertTrue(($Parameter("OcuTalon.Core.CommandsIn", "TOOLVERBS") '[ "Webhook"), "the real TOOLVERBS holds no webhook verb")
+	Set routes = ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Core.CommandsIn||Routes").Data)
+	Set found = 0
+	For i = 0:1:routes.%Size() - 1 {
+		Set route = routes.%Get(i)
+		If (route.verb = "CreateWebhook") || (route.verb = "SetWebhookSecret") {
+			Set found = found + 1
+			Do $$$AssertEquals(route.owner_"|"_route.origins, "SettingsOps|web_admin", route.verb_" goes to SettingsOps from web_admin only")
+		}
+	}
+	Do $$$AssertEquals(found, 2, "both routes are in the table")
+}
+
 /// The MCP settings routes belong to Story 21.4, which moves the wallet and Config Store write into McpOps: until then Web.Api's XData UrlMap
 /// holds no route (Url or Map Prefix) under /v1/settings/mcp.
 Method TestNoMcpSettingsRoute()
@@ -466,7 +523,7 @@ Method Call(n As %Integer, field As %String) As %String [ Private ]
 /// The owner item of the verb, as this test's oracle has it.
 ClassMethod OwnerOf(verb As %String) As %String [ Private ]
 {
-	Quit $Select(verb = "SendEmail": "EmailOut", 1: "McpOps")
+	Quit $Case(verb, "SendEmail": "EmailOut", "CreateWebhook": "SettingsOps", "SetWebhookSecret": "SettingsOps", : "McpOps")
 }
 
 /// The oracle of the origin rules with no mailbox set: "" when the verb from the origin is routed, otherwise the text of its refusal.

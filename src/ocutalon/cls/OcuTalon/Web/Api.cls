@@ -98,6 +98,8 @@
 ///     buckets by local day, agent, channel, model and Estimated, with the request-size limit.
 ///   - The history routes (Story 25.2; GET /v1/history/decisions?outcome=&channel=&day=&fallback=&page= and GET /v1/history/incidents?page=) are OcuTalon.Web.History's, forwarded
 ///     by its own map: the CSP session's own decisions, filtered and paged, and the incidents it sees, paged, with the stored summary as text.
+///   - The webhook routes (Story 35.3; GET and POST /v1/settings/channels/webhooks, POST /v1/settings/channels/webhooks/:ref/secret) are OcuTalon.Web.HookSettings', forwarded
+///     by its own map: admin only, for the CSP session's own webhooks, with the secret handed to SettingsOps through SecretHandoff and never in a command.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -279,6 +281,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Map Prefix="/v1/documents" Forward="OcuTalon.Web.Documents"/>
 <Map Prefix="/v1/usage" Forward="OcuTalon.Web.Usage"/>
 <Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>
+<Map Prefix="/v1/settings/channels/webhooks" Forward="OcuTalon.Web.HookSettings"/>
 </Routes>
 }
 

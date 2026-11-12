@@ -2937,6 +2937,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T05:58:07Z occurrence=23-5 by=orchestrator note=run 42963531773 job 130335378855 iris(shards) live:online-allowance D1 S1 daily-cap banner not found (ci-10); OCT-epic23 52db267d
 - 2026-11-11T05:58:31Z occurrence=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva note=CI run 42963531773 (52db267d) iris (shards) live:online-allowance D1 S1 the daily cap banner shows (ci-10); classified FLAKE by the orchestrator
 - 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625133 iris(shards) live:online-allowance D1 daily-cap banner (ci-13); OCT-epic25 4af29b25; rerun of failed jobs
+- 2026-11-12T06:04:38Z occurrence=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=ci run 43156101436 iris(shards) live:online-allowance D1 S1 banner on c27ff301; head superseded by the next integrate-forward, so not rerun
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -5844,6 +5845,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Bridge Decision has no Channel; only Usage rows (model calls) carry one; 41.3 veto U-310
 - 2026-11-08T10:38:56Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: a Lane A bridge story appends Decision.Channel (AD-5); DailyNote then prefers it (one line); inbox U-310
 - 2026-11-09T08:06:55Z status=routed owner=burndown by=merge_gate note=decision_sheet_Epic_41_part1(Planner_agreed):a_Lane_A_bridge_story_appends_Decision.Channel_set_from_the_request
+- 2026-11-11T14:12:18Z occurrence=35-3-send-events-to-ocutalon-through-a-webhook note=cr: the History channel filter 'Webhook', which More to try item 12 (T5) and the README line point to, shows nothing for a webhook decision on an install with no model key (fallback, no usage row; spec Measured (g)); Web.History DecisionChannel reads usage rows only
 
 ### DW-961: The sessionStart context is unobserved past Conversation.Request: ConversationStartProbe records it before ##super, so Request -> Intake.RequestFor -> Agent.Input.Render forwarding can drop it with every 41.3 test green
 - source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: med | fix-risk: low | footprint: in-epic
@@ -6903,6 +6905,87 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: The page shows nothing new for a second failure; the press waits only for the route fulfil. Observed in order in the no-retract mutation run (H15 red, 2 announcements), not guaranteed.
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=give H15 an observed precondition (a page-side marker of the refused read) and a mutation line
 
+### DW-1127: 35.3: rotation's Settings audit entry shows [redacted] for from/to where C3 said empty strings
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Bridge.Audit.Record redacts sensitive settings (webhook.<Ref>.secret); neither secret nor hash is recorded
+- 2026-11-11T13:32:00Z status=by-design owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=existing Redact convention; C3 wording superseded
+
+### DW-1128: 35.3: W8 asserts measured answers for dot-segment paths (web server normalizes to /ocutalon/api -> 401 signed_out; encoded slash -> stock 404) where ruling R6(b) says all 404
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: high | footprint: out-of-footprint
+- evidence: measured on e35s3iw; nothing reaches the hook, nothing 2xx; the web server resolves dot segments before choosing an application
+- 2026-11-11T13:32:00Z status=decision-pending owner=burndown by=harvest note=planner: confirm the measured answers satisfy R6(b)
+- 2026-11-11T20:07:22Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=owner note=ruled by the Contest Planner (owner delegation) 2026-11-11: R6(b) reading accepted; W8 conditions (i)-(iii); rides code review 2
+- 2026-11-11T21:05:08Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=adjudication note=W8 (web/e2e/api/webhooks.spec.ts) pins the ruled conditions: (i) ^OcuTalonP.WebhookC and WebhookIn messages unchanged across every traversal request; (ii) 401 body equals the signed_out envelope exactly; (iii) traversal with the valid hook secret still 401; each with a mutation line (Verification, code review 2), red seen and reverted; green live sign-in part 4/22 28/28 on fresh lane-B throwaway e35s3c2
+
+### DW-1129: 35.3: failed webhook-list load shows the create form and an empty list
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: webhooks-section.ts stateOf returns ready for errors other than 403/409; a load-failure text is not accepted
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA/CR: reuse an existing accepted load-failure text if one exists, else wontfix with probe
+- 2026-11-11T14:12:19Z note=cr decision: reusing the accepted LOAD_FAILED text with Retry (live-state.ts:30, as settings-page.ts:111-113 does for the Settings load) in webhooks-section.ts stateOf is a correct, honest reuse; patch with an e2e pin is a rework item of this story (story back to in-progress)
+- 2026-11-11T15:04:01Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=adjudication note=rework1_dfa9a7d0:webhooks-section.ts_LOAD_FAILED+Retry;e2e_WS4
+
+### DW-1130: 35.3: Install.Step.Web.Run's removal of a stale /ocutalon/hook on the online demo is not pinned from Run
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestRemoveHook calls RemoveHook directly
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA: pin through Run with the flag set
+- 2026-11-11T14:12:19Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=cr note=QA pin confirmed: test-online-demo.sh row 11 'Install.Step.Web.Run deletes a stale /ocutalon/hook application on the online demo' (live online-demo red under the RemoveHook-skip mutation, green before); cr fixed its cleanup line to run RemoveHook in OCUTALON
+
+### DW-1131: 35.3: a local install switched to the online demo keeps a stale OcuTalonWebhook role
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Roles step (Lane A) never deletes roles; role holds only the three DB grants; no user holds it; demo installs are fresh
+- 2026-11-11T13:32:00Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=reopen_if=an existing local install is ever converted to an online demo in place
+- 2026-11-11T14:12:19Z occurrence=35-3-send-events-to-ocutalon-through-a-webhook note=cr (edge-case layer): Install.Step.Web.Run deletes a stale /ocutalon/hook but nothing deletes an existing OcuTalonWebhook role on a converted install; same root cause, reopen_if unchanged
+
+### DW-1132: 35.3: the hook's 503 with the real Hand (production not running) is not exercised at a live surface
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Test.Web.Hook drives 503 via HookProbe only
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA: exercise the real 503 or close with probe
+- 2026-11-11T14:12:19Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=cr note=QA pin confirmed: Test.Web.HookProductionStopped TestProductionStopped runs the real Web.Hook.Hand (HookProbe mode real) with the production stopped; red under the ignore-failed-hand-over mutation, green on warm throwaway e35s3qw
+
+### DW-1145: 35.3: SettingsOps.SetWebhookSecret writes its audit entry before the save and writes no undoing entry when the save fails (CreateWebhook does)
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Core/SettingsOps.cls SetWebhookSecret: WriteAudit then row.%Save; on error only LOGERROR + failed
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=real only if a %Save of an existing row that changes only SecretHash fails (disk, lock or journal error); the rotation entry reads [redacted] both ways, so an undo entry would carry nothing new
+
+### DW-1146: 35.3: Data.Webhook.Reject drops a rejection uncounted when the slot lock is not granted within 2 s
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Data/Webhook.cls Reject: Lock +@lockName:2, If '$Test Quit 0
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=real only if one slot's lock is held 2 s, i.e. a flood of thousands of rejections a second on one Ref; the 401 is still answered
+
+### DW-1147: 35.3: a SecretHandoff event resource outlives a REST process killed between Put and Discard
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Core/SecretHandoff.cls: Discard runs on every path of Web.HookSettings, but not if the process is killed in between
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=real only if a CSP process is killed in the milliseconds between Put and the command's submit; the resource is in shared memory only and goes at restart
+
+### DW-1148: 35.3: Web.Hook timing differs between a malformed Ref (no index read), an unknown Ref and a known Ref
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Web/Hook.cls Authenticated: IsRef check before the index probe; class doc says the same time
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=a Ref is an address, not a secret (it is shown in Settings and sent in the URL); real only if Ref existence were ever treated as secret
+
+### DW-1149: 35.3: SecurityOverview labels an application 'none (unauthenticated)' only when AutheEnabled is exactly 64
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Install/SecurityOverview.cls: $Select(AutheEnabled=64: none, ...)
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=Definitions fixes every OcuTalon application at 32 or 64; real only if an application is given a combined bitmask such as 96
+
+### DW-1150: 35.3: lib-live check_security now requires /ocutalon/hook and OcuTalonWebhook, and test-install-upgrade.sh (row 15 after the upgrade) calls it, but no upgrade run was made in this story
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: docker/tests/lib-live.sh check_security; test-install-upgrade.sh not in the spec's Verification runs
+- 2026-11-11T14:12:40Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=reopen_if=the live install-upgrade unit fails on a hook or OcuTalonWebhook row in CI
+
+### DW-1151: 35.3: channels-section.ts (contended with Epic 21) also got two class-doc line edits beside the allowed import, imports name and template element
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: web/src/app/settings/channels-section.ts doc: 'Its Telegram part has no form...' and 'The Webhooks group (Story 35.3) follows it'
+- 2026-11-11T14:12:40Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=reopen_if=the integrate of OCT-epic21 conflicts in channels-section.ts's class doc
+
+### DW-1152: 35.3: the More to try webhook item shows to a local non-admin user (OcuTalonUser only), whose Settings open says 'Only OcuTalon admins can open settings.'
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Demo/Features.cls Present: webhooks when Web.Hook compiled and not online demo, no admin check; every webhook route is admin-only
+- 2026-11-11T14:12:40Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=reopen_if=a non-admin local account is part of a demo path or the guide hides other admin-only items by role
+
+### DW-1153: 35.3: the webhook_rejected audit entry counts 401, 413, 400 and 429 together and does not say why
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Data/Webhook.cls RecordRejection: counts.rejected only
+- 2026-11-11T14:12:40Z status=by-design owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=B3 (AD-17 amendment, Story 35.2) defines one capped entry per slot with counts.rejected; a per-reason count needs an AD amendment
 ### DW-1138: EmailIn: a permanently unreadable or undeliverable email at the head of the new mail stops every poll at that email, so later mail never reaches Intake
 - source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Channel/Email/Adapter.cls Poll quits on the first Read/Deliver failure and records nothing for it

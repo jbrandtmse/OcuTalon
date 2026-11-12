@@ -503,6 +503,21 @@ XData Contracts [ MimeType = application/json ]
    "OwnerKeyIndex": "OwnerRef,Channel,MatchKey"
   }
  },
+ "OcuTalon.Data.Webhook": {
+  "super": "%Persistent",
+  "props": {
+   "Ref": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "Name": "%String(MAXLEN=64)",
+   "SessionRef": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "SecretHash": "%String(COLLATION=EXACT,MAXLEN=66)",
+   "CreatedAt": "%String(MAXLEN=20)"
+  },
+  "indexes": {
+   "RefIndex": "Ref unique",
+   "NameIndex": "Name unique",
+   "SessionRefIndex": "SessionRef"
+  }
+ },
  "OcuTalon.Data.Reminder": {
   "super": "%Persistent",
   "props": {
@@ -790,6 +805,11 @@ XData Registry [ MimeType = application/json ]
   "short": "Precedent",
   "global": "^OcuTalonP.Precedent",
   "class": "OcuTalon.Data.Precedent"
+ },
+ {
+  "short": "Webhook",
+  "global": "^OcuTalonP.Webhook",
+  "class": "OcuTalon.Data.Webhook"
  },
  {
   "short": "Reminder",

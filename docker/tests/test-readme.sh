@@ -27,7 +27,7 @@
 #   path           "One incident, end to end" holds its intro line and its seven numbered steps, word for word, in order and nothing
 #                  else; "Two things to look at in the demo" is nowhere in the README
 #   new-since      "### New since 1.0.0" sits under "What's interesting", after its image line, with its intro line, then the three
-#                  #### headings in order and, under them, the 15 bullets by bold name, each once, in the ruled order
+#                  #### headings in order and, under them, the 16 bullets by bold name, each once, in the ruled order
 #   teaser         the full-video line is there once, word for word, two lines below the opening paragraph and the teaser line once,
 #                  word for word, two lines below it, each with an empty line between and above the first H2 section; no HTML media tag, no image inside a link, and no image that is not an
 #                  inline docs/images/<name>.png image; the one exception is the <img> tags of the header block (the logo's src is
@@ -783,8 +783,8 @@ chk_path() {
   if grep -qF -e 'Two things to look at in the demo' "$f"; then echo "path: 'Two things to look at in the demo' is back"; fi
 }
 
-# new-since: the H3, its intro line, the three H4 groups and the 15 bullets (by bold name) of "New since 1.0.0", in the ruled order.
-NS_INTRO='Each item says where to try it on the online demo. Visual Trace there is shared, so save and add nothing personal.'
+# new-since: the H3, its intro line, the three H4 groups and the 16 bullets (by bold name) of "New since 1.0.0", in the ruled order.
+NS_INTRO='Each item says where to try it. Visual Trace on the online demo is shared, so save and add nothing personal.'
 NS_G1='Your integrations'
 NS_G2='Your documents and memory'
 NS_G3='Personas, the heartbeat checklist and the digest'
@@ -794,6 +794,7 @@ B Incident summaries
 B Suspend, resume and reroute
 B Partner delay notices
 B Queue backlogs between digests
+B Webhooks
 B Your own mailbox
 B A History page
 B A Usage page
@@ -1752,7 +1753,7 @@ rule_new_since() {
   st 'the heading removed' 1 "$README" '!/^### New since 1.0.0$/' chk_new_since
   st 'the heading renamed' 1 "$README" '/^### New since 1.0.0$/ { print "### Since 1.0.0"; next } { print }' chk_new_since
   st 'the heading above the image line' 1 "$README" '/^!\[Visual Trace of one whole decision/ { held = $0; next } { print } /^Each item says where/ { print ""; print held }' chk_new_since
-  st 'the intro line reworded' 1 "$README" '/^Each item says where/ { sub(/Visual Trace there/, "Visual Trace here") } { print }' chk_new_since
+  st 'the intro line reworded' 1 "$README" '/^Each item says where/ { sub(/Visual Trace on the online demo/, "Visual Trace here") } { print }' chk_new_since
   st 'the intro line removed' 1 "$README" '/^Each item says where/ { getline; next } { print }' chk_new_since
   for g in "$NS_G1" "$NS_G2" "$NS_G3"; do
     st "the group heading $g removed" 1 "$README" "\$0 != \"#### $g\"" chk_new_since
@@ -1781,7 +1782,7 @@ rule_new_since() {
   st 'the Usage bullet moved to the next group' 1 "$README" 'index($0, "- **A Usage page.**") == 1 { held = $0; next } { print } /^#### Your documents and memory$/ { print held }' chk_new_since
   st 'a bullet that is not in the list' 1 "$README" '{ print } index($0, "- **A Usage page.**") == 1 { print "- **A new thing.** Text." }' chk_new_since
   st 'a bullet above the first group heading' 1 "$README" '/^Each item says where/ { print; print ""; print "- **A new thing.** Text."; next } { print }' chk_new_since
-  finish new-since 'New since 1.0.0 sits under What'"'"'s interesting with its intro line, the three group headings in order and the 15 bullets, each once, in the ruled order' chk_new_since
+  finish new-since 'New since 1.0.0 sits under What'"'"'s interesting with its intro line, the three group headings in order and the 16 bullets, each once, in the ruled order' chk_new_since
 }
 
 rule_teaser() {

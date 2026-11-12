@@ -6,6 +6,8 @@
 ///     text, which holds neither the reference nor a secret;
 ///   - TestDiscard: Take with timeoutSec 0 takes what is queued and deletes the resource, so that a later Take fails; on a reference that
 ///     was already taken it fails harmlessly;
+///   - TestDiscardHelper: Discard deletes a secret nobody took, so that Take then fails with an empty secret, and Discard of a
+///     reference already discarded, an empty one or a malformed one is not an error;
 ///   - TestEmptySecretRefused: Put of an empty value fails and creates no resource;
 ///   - TestWaitAndTimeout: a Take of a reference with no queued secret ends after its timeout and deletes the resource;
 ///   - TestCrossProcess: a second job takes the secret that this process put (the secret reaches another process), and the resource is gone;
@@ -95,6 +97,17 @@ Method TestDiscard()
 	Set sc = $ClassMethod(..#CLASS, "Take", taken, .late, 0)
 	Do $$$AssertStatusNotOK(sc, "the discard of a reference that was already taken fails harmlessly")
 	Do $$$AssertEquals(late, "", "with no secret")
+}
+
+Method TestDiscardHelper()
+{
+	Do ##class(OcuTalon.Core.SecretHandoff).Put("zz-discard-secret-0123456789", .uri)
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Discard(uri), "Discard")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, .secret, 0), "the event is gone")
+	Do $$$AssertEquals(secret, "", "and held nothing")
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Discard(uri), "a second Discard is not an error")
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Discard(""), "nor an empty uri")
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Discard("junk"), "nor a malformed one")
 }
 
 Method TestEmptySecretRefused()

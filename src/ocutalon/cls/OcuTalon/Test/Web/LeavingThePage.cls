@@ -1,7 +1,8 @@
 /// The server side of "leaving the page frees its place" that needs no production (Story 16.4, acceptance criteria 1 and 2; AD-4, AD-24).
 ///   - TestOnlineFlagChangesOnlyTheTimeout: the Web step's applications with the online-demo flag on and with it off differ in the Timeout of
-///     the four sign-in-group applications and in nothing else (so the story adds no role, no grant, no event class and no permitted class
-///     under the flag), and /ocutalon/public keeps its Timeout;
+///     the four sign-in-group applications and in one thing more, ruled by Story 35.3 (AC8): /ocutalon/hook exists with the flag off
+///     and is absent with it on. No other application, and no other key of an application (matching roles, event class, permitted
+///     classes), differs under the flag, and /ocutalon/public keeps its Timeout;
 ///   - TestNoProductClassEndsASessionOnTimeout: no class of the product defines OnTimeout or OnEndSession, and OnLogout is defined by
 ///     OcuTalon.Web.SessionEvents alone, so that a CSP session that ends (a closed page, the idle cap, the timeout) ends nothing else and
 ///     no CSP session's end can reach an OcuTalon session. OnLogout runs at a sign-out only and changes nothing but the local install's
@@ -13,8 +14,9 @@
 Class OcuTalon.Test.Web.LeavingThePage Extends %UnitTest.TestCase
 {
 
-/// Definitions and the OCUORDERS trace application with the flag on and with it off differ only in Timeout; the four sign-in-group
-/// applications differ in it (120 against 28800), /ocutalon/public does not, and no other key differs or is missing on either side.
+/// Definitions and the OCUORDERS trace application with the flag on and with it off differ only in Timeout and in the hook application: the
+/// four sign-in-group applications differ in Timeout (120 against 28800), /ocutalon/public does not, /ocutalon/hook is present with the flag
+/// off and absent with it on, and no other application or key differs or is missing on either side.
 Method TestOnlineFlagChangesOnlyTheTimeout()
 {
 	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
@@ -28,6 +30,11 @@ Method TestOnlineFlagChangesOnlyTheTimeout()
 		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Definitions(.on), "Definitions with the flag on")
 		Do ##class(OcuTalon.Install.Step.Web).TraceApp("OCUORDERS", .onOrders)
 		Merge on(orders) = onOrders
+
+		Set hook = ##class(OcuTalon.Install.Step.Web).#HOOKAPP
+		Do $$$AssertEquals($Data(off(hook)) > 0, 1, "with the flag off the hook application is defined")
+		Do $$$AssertEquals($Data(on(hook)), 0, "with the flag on the hook application is absent")
+		Kill off(hook)
 
 		Set other = "", timeouts = ""
 		Set name = ""

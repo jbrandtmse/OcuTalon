@@ -273,6 +273,38 @@ export interface SettingsError {
   fields?: string[];
 }
 
+/** A webhook as the settings routes list it (Story 35.3): its Ref, name and path below the host, and when it was made. It never holds a secret or a hash. */
+export interface WebhookRow {
+  ref: string;
+  name: string;
+  path: string;
+  createdAt: string;
+}
+
+/** The 200 answer to GET /ocutalon/api/v1/settings/channels/webhooks: the session's own webhooks in creation order. */
+export interface WebhooksList {
+  webhooks: WebhookRow[];
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/channels/webhooks: the new webhook. */
+export interface WebhookCreated {
+  result: 'done';
+  message: string;
+  webhook: WebhookRow;
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/channels/webhooks/<ref>/secret. */
+export interface WebhookSecretSaved {
+  result: 'done';
+  message: string;
+}
+
+/** The error body of a refused webhook call: `{error: {code, message}}`, and for `bad_webhook` the refused fields, each with its text. */
+export interface WebhookError {
+  error: { code: string; message: string };
+  fields?: { name?: string; secret?: string };
+}
+
 /** GET /ocutalon/api/v1/documents: the session's documents (an install's, on a local install), newest first; the same view as the `document` event. */
 export interface DocumentsList {
   documents: DocumentPayload[];

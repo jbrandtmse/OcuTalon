@@ -3690,3 +3690,4 @@
 2026-11-12T10:29:21Z	Epic 35	amendments_verified	amendments=3 extensions=5 ok=true note=epics.md_35.3_un-park+L2,EXPERIENCE.md_sixteen_items(tier-1,markers_present;line_numbers_shifted)
 2026-11-12T10:29:21Z	Epic 35	ci_green_verified	runs=43172109907,43172110020 head=c6c099df result=success
 2026-11-12T10:29:21Z	Epic 35	merge_enqueued	part=35.3 head=90cec339
+2026-11-12T10:29:47Z	Run	spine_reconciled	ads_merged=0 lint=baseline(10_low_placeholder) part=35.3

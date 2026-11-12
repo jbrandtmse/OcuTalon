@@ -71,6 +71,19 @@ ClassMethod Take(uri As %String, Output secret As %String, timeoutSec As %Intege
 	Quit $Select(found: $$$OK, 1: ..Failed())
 }
 
+/// Deletes the reference's resource and the secret queued in it, if any, without reading it: for a caller whose submit failed
+/// or threw. A reference that is malformed, unknown or already taken is not an error. It writes nothing.
+ClassMethod Discard(uri As %String) As %Status
+{
+	Set resource = ..Resource($Get(uri))
+	If resource = "" Quit $$$OK
+	Try {
+		If $SYSTEM.Event.Defined(resource) Do $SYSTEM.Event.Delete(resource)
+	} Catch {
+	}
+	Quit $$$OK
+}
+
 /// The event resource of a reference, or "" when the text is not a reference of Put: the prefix and 32 upper-case hexadecimal digits.
 ClassMethod Resource(uri As %String) As %String [ Private ]
 {

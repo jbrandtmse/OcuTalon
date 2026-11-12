@@ -73,6 +73,13 @@
 /// TestModel (origin web_admin) sends Bridge.Settings.TestRequest's request to Decide synchronously, waits at most TESTWAIT seconds, and answers the outcome
 /// tested with Data {answered, seconds, reason} (an expired wait gives reason timeout), or refused with Data {"fields": ["agent"]} for an agent that
 /// TestRequest refuses. It writes no setting and no audit entry; the Decision and Usage rows of the test request are Decide's, as Bridge.Settings.TestRequest describes.
+/// CreateWebhook and SetWebhookSecret (Story 35.3, origin web_admin) take the secret from the command's Handoff uri through SecretHandoff.Take, never from a
+/// property, a message or a log. On the online demo both answer not_available and write nothing. CreateWebhook validates the name and the secret (Data.Webhook
+/// NameProblem, SecretProblem, NameTaken), writes the Settings audit entry first (setting webhook.<Ref>, from empty, to the name), then saves the Webhook row
+/// with the salted hash for the session's own Ref. SetWebhookSecret needs a row of the command's own session (else not_found), validates the secret, audits
+/// webhook.<Ref>.secret, then replaces the hash. The outcomes: done (Ok 1; Data {ref, name, createdAt} for a create); refused and name_taken (Ok 0; Data
+/// {"fields": {name, secret}} with each refused field's catalog text); not_found, no_session, not_available, not_audited and failed (Ok 0). The secret and its hash
+/// are in no result, audit entry or log line.
 Class OcuTalon.Core.SettingsOps Extends Ens.BusinessOperation
 {
 
@@ -162,6 +169,8 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	If class = "OcuTalon.Msg.Command.SetPersona" Quit ..SavePersona(command)
 	If class = "OcuTalon.Msg.Command.ProposePersona" Quit ..Propose(command)
 	If class = "OcuTalon.Msg.Command.SetHeartbeat" Quit ..SaveHeartbeat(command)
+	If class = "OcuTalon.Msg.Command.CreateWebhook" Quit ..CreateWebhook(command)
+	If class = "OcuTalon.Msg.Command.SetWebhookSecret" Quit ..SetWebhookSecret(command)
 	Quit ..Result(0, "unknown_command", ##class(OcuTalon.Core.CommandsIn).#MESSAGEUNKNOWN)
 }
 
@@ -1913,6 +1922,108 @@ Method BridgeTest(agent As %String, Output answer As %DynamicObject, Output refu
 		Do answer.%Set("reason", "timeout", "string")
 	}
 	Quit $$$OK
+}
+
+/// The Message of a saved webhook (the accepted settings text).
+Parameter MESSAGEWEBHOOKSAVED = "Saved. Applies within a minute. Recorded in the audit log.";
+
+/// The seconds that TakeSecret waits for a handoff message that the REST process has already signaled.
+Parameter HANDOFFWAIT = 2;
+
+/// Carries out a CreateWebhook and returns the CommandResult to answer; see the class description.
+Method CreateWebhook(command As OcuTalon.Msg.Command.CreateWebhook) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set secret = ""
+	Set taken = ..TakeSecret(command.Handoff, .secret)
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..WebhookFieldText("settings.webhooksOffOnDemo"))
+	If $$$ISERR(taken) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	If '..HasSession(command.SessionRef) Quit ..Result(0, "no_session", ..#MESSAGENOTSAVED)
+	Set name = $ZStrip(command.Name, "<>W")
+	Set fields = {}
+	Set problem = ##class(OcuTalon.Data.Webhook).NameProblem(command.Name)
+	If problem '= "" Do fields.%Set("name", ..WebhookFieldText(problem, "@{"))
+	Set problem = ##class(OcuTalon.Data.Webhook).SecretProblem(secret)
+	If problem '= "" Do fields.%Set("secret", ..WebhookFieldText(problem, "@{"))
+	If (fields.name = "") && ##class(OcuTalon.Data.Webhook).NameTaken(name) Do fields.%Set("name", ..WebhookFieldText("settings.webhookNameTaken", name))
+	If fields.%Size() Quit ..WebhookResult("refused", fields)
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set setting = "webhook."_ref
+	Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, setting, "", name))
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The Settings audit entry of a webhook could not be written")
+		Quit ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
+	}
+	Set row = ##class(OcuTalon.Data.Webhook).%New()
+	Set row.Ref = ref
+	Set row.Name = name
+	Set row.SessionRef = command.SessionRef
+	Set row.SecretHash = ##class(OcuTalon.Data.Webhook).HashSecret(secret)
+	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set sc = row.%Save()
+	If $$$ISERR(sc) {
+		Set undone = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, setting, name, ""))
+		If ##class(OcuTalon.Data.Webhook).NameTaken(name) {
+			Set fields = {}
+			Do fields.%Set("name", ..WebhookFieldText("settings.webhookNameTaken", name))
+			Quit ..WebhookResult("name_taken", fields)
+		}
+		$$$LOGERROR("A webhook could not be saved")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Set data = {"ref": (ref), "name": (name), "createdAt": (row.CreatedAt)}
+	Quit ..Result(1, "done", ..#MESSAGEWEBHOOKSAVED, data.%ToJSON())
+}
+
+/// Carries out a SetWebhookSecret and returns the CommandResult to answer; see the class description.
+Method SetWebhookSecret(command As OcuTalon.Msg.Command.SetWebhookSecret) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set secret = ""
+	Set taken = ..TakeSecret(command.Handoff, .secret)
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..WebhookFieldText("settings.webhooksOffOnDemo"))
+	If $$$ISERR(taken) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	If '..HasSession(command.SessionRef) Quit ..Result(0, "no_session", ..#MESSAGENOTSAVED)
+	Set row = ##class(OcuTalon.Data.Webhook).Lookup(command.WebhookRef)
+	If '$IsObject(row) || (row.SessionRef '= command.SessionRef) Quit ..Result(0, "not_found", ..#MESSAGENOTSAVED)
+	Set problem = ##class(OcuTalon.Data.Webhook).SecretProblem(secret)
+	If problem '= "" {
+		Set fields = {}
+		Do fields.%Set("secret", ..WebhookFieldText(problem, "@{"))
+		Quit ..WebhookResult("refused", fields)
+	}
+	Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "webhook."_row.Ref_".secret", "", ""))
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The Settings audit entry of a webhook secret could not be written")
+		Quit ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
+	}
+	Set row.SecretHash = ##class(OcuTalon.Data.Webhook).HashSecret(secret)
+	Set sc = row.%Save()
+	If $$$ISERR(sc) {
+		$$$LOGERROR("A webhook secret could not be saved")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Quit ..Result(1, "done", ..#MESSAGEWEBHOOKSAVED)
+}
+
+/// The secret behind a handoff uri (SecretHandoff.Take, waiting at most HANDOFFWAIT seconds); the status is an error when there is none. The secret goes
+/// into no message, log or global.
+ClassMethod TakeSecret(handoff As %String, Output secret As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.SecretHandoff).Take(handoff, .secret, ..#HANDOFFWAIT)
+}
+
+/// The refusal of a webhook command: Ok 0, the outcome (refused or name_taken), the plain not-saved Message and Data {"fields": {name, secret}}.
+ClassMethod WebhookResult(outcome As %String, fields As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Quit ..Result(0, outcome, ..#MESSAGENOTSAVED, {"fields": (fields)}.%ToJSON())
+}
+
+/// The web text of a webhook catalog key: settings.refusedExpansion takes value as its marker, settings.webhookNameTaken as its name; every other key has no slot.
+/// The REST route renders its field errors here too. An unreadable key gives the plain not-saved text.
+ClassMethod WebhookFieldText(key As %String, value As %String = "") As %String
+{
+	Set slots = $Case(key, "settings.refusedExpansion": {"marker": (value)}, "settings.webhookNameTaken": {"name": (value)}, : {})
+	Set text = ##class(OcuTalon.Msg.Catalog).Render(key, slots, "web", .sc)
+	Quit $Select($$$ISERR(sc) || (text = ""): ..#MESSAGENOTSAVED, 1: text)
 }
 
 }

@@ -1,6 +1,6 @@
 /**
  * The demo guide's "Other things to try" panel (Story 4.11; EXPERIENCE: Demo guide and controls): its fixed strings, the registry of
- * its fifteen items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
+ * its sixteen items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
  * as it is and the strings test reads it.
  *
  * The catalog is the server's (AD-12): `guide.features` is the list of feature ids that Demo.Features.Present gives, in the guide's
@@ -101,6 +101,12 @@ export const MORE_TO_TRY_TEXTS = {
         'In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in\'s outcome and its cost in the card.',
       button: 'Go to the Heartbeat checklist card',
     },
+    webhooks: {
+      label: 'Send an event through a webhook',
+      lookFor:
+        'In Settings, Channels, create a webhook with a name and a secret of at least 16 characters. Then send it any JSON with POST to the address it shows, with the secret in the X-OcuTalon-Webhook-Secret header. On the History page, filter by the channel Webhook to read OcuTalon\'s decision on the event, with a link to its trace.',
+      button: 'Open Channels settings',
+    },
     sources: {
       label: 'See where an answer came from',
       lookFor:
@@ -134,7 +140,7 @@ export const RESOLVED_CHIP = '.chip-resolved';
 export const DISMISS_BUTTON = 'app-incident-dismiss button';
 
 /** The hand-off that an item's control makes. */
-export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'partnerWarning' | 'queueWatch' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat' | 'usage' | 'history';
+export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'partnerWarning' | 'queueWatch' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat' | 'webhooks' | 'usage' | 'history';
 
 /**
  * One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off,
@@ -164,6 +170,7 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'memoryCard', ...MORE_TO_TRY_TEXTS.items.memoryCard, action: 'memoryCard', group: 'Memory and documents' },
   { id: 'documents', ...MORE_TO_TRY_TEXTS.items.documents, action: 'documents', group: 'Memory and documents' },
   { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat', group: 'Safety and settings' },
+  { id: 'webhooks', ...MORE_TO_TRY_TEXTS.items.webhooks, action: 'webhooks', group: 'Safety and settings' },
   { id: 'sources', ...MORE_TO_TRY_TEXTS.items.sources, action: 'documents', group: 'Memory and documents' },
   { id: 'usage', ...MORE_TO_TRY_TEXTS.items.usage, action: 'usage', group: 'Usage and history' },
   { id: 'history', ...MORE_TO_TRY_TEXTS.items.history, action: 'history', group: 'Usage and history' },

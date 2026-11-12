@@ -9688,6 +9688,8 @@ So that other systems can tell OcuTalon what happened and it decides what needs 
 
 [AMENDED 2026-11-09, parked: owner re-plan 2026-11-09 (voting week), relayed by the Contest Planner and the orchestrator: no plan or implement until after voting; Epic 35 merges Stories 35.1 and 35.2 as a part merge and stays in progress; the story's criteria, and the roles-heading and public-path test items Story 35.2's plan found for it, are unchanged]
 
+[AMENDED 2026-11-11, un-parked: scope reopened by the owner via the Contest Planner]
+
 As an admin,
 I want to create webhooks, each with its own secret, that turn any JSON event into an item,
 So that other systems can tell OcuTalon what happened and it decides what needs me.
@@ -9706,7 +9708,7 @@ So that other systems can tell OcuTalon what happened and it decides what needs 
 **When** it arrives
 **Then** it gets the same 401, the secret is compared as a salted hash in constant time, nothing becomes an item, and the rejection is recorded in the audit log at a capped rate (FR-45, FR-14, AD-13, AD-17)
 **And** a body over the cap, or one that isn't JSON, is refused without becoming an item (FR-45, AD-13)
-**And** a test calling `/ocutalon/hook` and every other OcuTalon path without signing in finds only a webhook `POST` with its secret accepted (FR-14, AD-25)
+**And** a test calling `/ocutalon/hook` and every other OcuTalon path without signing in finds only a webhook `POST` with its secret accepted, apart from the product's two public paths, the sign-in page with its images and `GET /ocutalon/public/status` (FR-14, AD-25) [AMENDED 2026-11-11, Story 35.3 spec gate, Rule 5 tier 1 (intent unchanged): names the two public paths PRD FR-14 already allows]
 **Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; the criterion read "**And** a test calling `/ocutalon/hook` and every other OcuTalon path without signing in finds only a webhook `POST` with its secret accepted, and on the online demo the proxy's allow-list blocks the webhook path (FR-14, AD-25)", and its repository test stays above]
 
 

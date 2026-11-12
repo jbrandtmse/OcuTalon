@@ -10,6 +10,7 @@ import { RAIL_TEXTS, readmeSection, TELEGRAM_ANCHOR } from '../rail/rail-view';
 import { TELEGRAM_CARD_TEXTS, telegramCardView } from '../rail/telegram-card/telegram-card-view';
 import { EmailSection } from './email-section';
 import { channelsView, SETTINGS_TEXTS } from './settings-view';
+import { WebhooksSection } from './webhooks-section';
 
 /**
  * The Channels section (Story 18.2; FR-21, FR-22): the state of Telegram, read from the snapshot's Telegram block and the live status conditions that the
@@ -19,11 +20,11 @@ import { channelsView, SETTINGS_TEXTS } from './settings-view';
  *   - paused: "Telegram paused" and "Trying again at {time}", the time in the browser's zone;
  *   - otherwise (on): "Telegram on";
  *   - a release that does not include Telegram: no Telegram block.
- * The state follows the live updates, as the rail's card does.
+ * The state follows the live updates, as the rail's card does. The Webhooks group (Story 35.3) follows the Email group: app-webhooks-section.
  */
 @Component({
   selector: 'app-channels-section',
-  imports: [EmailSection, Icon],
+  imports: [EmailSection, Icon, WebhooksSection],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @switch (view().kind) {
@@ -48,6 +49,7 @@ import { channelsView, SETTINGS_TEXTS } from './settings-view';
       }
     }
     <app-email-section [values]="email()" (saved)="emailSaved.emit($event)" (dirtyChange)="dirtyChange.emit($event)" />
+    <app-webhooks-section />
   `,
   styles: `
     :host {
