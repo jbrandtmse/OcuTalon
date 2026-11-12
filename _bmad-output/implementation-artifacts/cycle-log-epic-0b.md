@@ -53,3 +53,4 @@
 2026-11-12T15:27:41Z	Story 0.31	story_cycle	plan_to_commit_min=50 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-12T15:28:50Z	Story 0.27	part_merge	merged_into_feature=90777cf8 merged_head=f0f853d1 by=orchestrator
 2026-11-12T15:40:43Z	Epic 0	integrated_forward	feature=90777cf8 head=8387a3ba conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(feature_side+regenerate+0-31=done) suite=test-eval-set_all_parts,test-eval-personas_pass
+2026-11-12T15:41:19Z	Story 0.31	pushed	sha=34428e24 code_sha=38c3f267 ci=pending runs=43250436386,43250436407 missing=none
