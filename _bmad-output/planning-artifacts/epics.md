@@ -7519,6 +7519,8 @@ So that sources feed OcuTalon new items and I approve only calls I understand.
 
 ### Story 21.10: Answer tool-call and standalone approval requests on every channel
 
+> [AMENDED 2026-11-12, split at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] The standalone fix request criterion moved verbatim to Story 21.11; this story keeps the tool-call card and the cancelled request.
+
 > [AMENDED 2026-11-12, split from Story 21.5 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.5 (criteria 2, 3 and 4); runs after Lane A's Story 22.4 merges (fixture requests for 22.4 and 22.7 until they merge); it needs nothing from 21.4 or 22.5.
 
 As an admin,
@@ -7532,14 +7534,24 @@ So that I approve only calls I understand.
 **Then** the card shows "Approval needed", "Why:" with its reason, "Run {tool} on {server}", the exact inputs as labelled lines, "No dry run is available for this tool. Approving runs exactly this call once.", **Approve**, **Reject** and the expiry, under release 1's approval card rules (FR-8, FR-49, UX-DR75, UX-DR145)
 **And** the rail's approval row, the phone notification and the Telegram message carry the same content as plain text with **Approve** and **Reject**, and the first answer wins everywhere (FR-8, FR-20, UX-DR52, UX-DR83, UX-DR114)
 
+**Given** a pending request that Lane A's Story 22.4 cancelled because its server was removed
+**When** the cancellation arrives
+**Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 35.2 (was 21.1)'s proposal (FR-47, FR-8, AD-11)
+
+### Story 21.11: Show standalone fix requests with their reason and dry run on every channel
+
+> [AMENDED 2026-11-12, split from Story 21.10 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criterion moved verbatim from Story 21.10 (originally Story 21.5's); runs after Lane A's Story 22.7 merges (a fixture request until it does), since 22.7 fixes the email request row's shape.
+
+As an admin,
+I want a fix request that has no incident to show its reason and its exact dry run on every channel,
+So that I approve only what I understand.
+
+**Acceptance Criteria:**
+
 **Given** a standalone fix request, such as an email to someone other than the user from Lane A's Story 22.7 (a fixture request until it merges)
 **When** it shows on any channel
 **Then** it carries "Why:" and its dry run with the exact text and every recipient (FR-8, FR-44, UX-DR75)
 **And** because it has no incident, its `approval`, `answered` and `result` notifications come from `OcuTalon.Core.BridgeSink` through `NoticesIn`, as a tool call's do, and this story builds that (`IncidentManager` sends them only for an incident's fix requests), so the phone and Telegram get the buttons and in-place edits (FR-8, AD-31, AD-32)
-
-**Given** a pending request that Lane A's Story 22.4 cancelled because its server was removed
-**When** the cancellation arrives
-**Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 35.2 (was 21.1)'s proposal (FR-47, FR-8, AD-11)
 
 ### Story 21.6: Send email over SMTP
 
