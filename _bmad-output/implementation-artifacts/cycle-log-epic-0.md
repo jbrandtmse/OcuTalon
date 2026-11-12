@@ -974,3 +974,7 @@
 2026-11-12T18:46:58Z	Story 0.31	story_created	path=_bmad-output/implementation-artifacts/spec-0-31-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne.md build_status=ready-for-dev note=lead-written(fully_specified_by_ruling;precedent_0.28,0.29) model=claude-opus-5-5
 2026-11-12T18:46:58Z	Story 0.31	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-22 decision_dependency=none sections_created=none owned_ledger=DW-1191 addressed=1 declined=0 mutates_shared_runtime=false(lane-A_throwaway) model=claude-opus-5-5
 2026-11-12T18:46:58Z	Story 0.31	stage_spawned	stage=implement spawn_at=2026-11-12T18:46:58Z model=sonnet effort=high agent_name=0-31-implement-1 cycle_iteration=1 story_base=e400090c
+2026-11-12T18:58:19Z	Story 0.31	dev_complete	spawn_at=2026-11-12T18:46:58Z model=sonnet effort=high build_sha=12351bfc baseline_revision=7d2891ba story_base=7d2891ba review_loop_iteration=0 followup_review_recommended=false deferred=0 files=1 cycle_iteration=1 note=FirstChanged_helper;6_assertions;mutation_red_on_warm_e0s31iw(down)
+2026-11-12T18:58:19Z	Story 0.31	adr_verifications_complete	result=none_required mutations=none
+2026-11-12T18:58:19Z	Story 0.31	qa_complete	skipped=test-only_story(the_deliverable_is_the_test;its_mutation_demonstrated_at_implement) tests_added=0 mutations_demonstrated=0
+2026-11-12T18:58:19Z	Story 0.31	stage_spawned	stage=code-review spawn_at=2026-11-12T18:58:19Z model=opus effort=high agent_name=0-31-code-review-1 cycle_iteration=1
