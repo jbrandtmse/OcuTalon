@@ -1,4 +1,4 @@
-// Tests that the written texts of Story 25.2 follow the More to try registry (src/app/guide/more-to-try-view.ts) and the code: the README's History bullet in
+// Tests that the written texts of Story 25.2 follow the More to try registry (src/app/guide/more-to-try-view.ts) and the code: the guide's History bullet in
 // "New since 1.0.0" (the Planner-ruled text, word for word, once, after the Queue backlogs bullet), EXPERIENCE.md's history item line (label, look-for and control as the
 // registry has them, the marker, right after the usage item under the "Usage and history" heading) and its sentence that the item's control is a link to the History
 // page, and the three rows of the architecture spine (AD-33: the ownership API, the header entry and page, the REST surface), the REST row naming exactly the routes
@@ -14,23 +14,23 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
 const { MORE_TO_TRY_ITEMS } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts')).href);
 
-const README = readFileSync(join(root, 'README.md'), 'utf8');
+const GUIDE = readFileSync(join(root, 'GUIDE.md'), 'utf8');
 const EXPERIENCE = readFileSync(join(root, '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
 const SPINE = readFileSync(join(root, '_bmad-output', 'planning-artifacts', 'architecture', 'architecture-OcuTalon-2026-10-16', 'ARCHITECTURE-SPINE.md'), 'utf8');
 const HISTORY_CLASS = readFileSync(join(root, 'src', 'ocutalon', 'cls', 'OcuTalon', 'Web', 'History.cls'), 'utf8');
 
-/** The Planner-ruled README bullet (Story 25.2, public text 31), word for word. */
+/** The Planner-ruled bullet of the guide (Story 25.2, public text 31), word for word. */
 const BULLET =
   '- **A History page.** Open History in the header to look back at the decisions OcuTalon made on your messages, filtered by outcome, channel, date and fallback, each with its reasons and a link to its trace, and at your incidents with their state and, once closed, their summary. On the online demo you see only your own session\'s decisions and incidents. Try it: More to try, *Look back at past decisions*.';
 
 const history = MORE_TO_TRY_ITEMS.find((item) => item.id === 'history');
 const STORY = /\[ADDED \d{4}-\d{2}-\d{2}, Story 25\.2[^\]]*\]/;
 
-/** The lines of the README's "New since 1.0.0" section that are bullets, in order. */
+/** The lines of the guide's "New since 1.0.0" section that are bullets, in order. */
 const bullets = (() => {
-  const start = README.indexOf('\n### New since 1.0.0\n');
-  assert.ok(start >= 0, 'New since 1.0.0 is in the README');
-  const rest = README.slice(start + '\n### New since 1.0.0\n'.length);
+  const start = GUIDE.indexOf('\n## New since 1.0.0\n');
+  assert.ok(start >= 0, 'New since 1.0.0 is in the guide');
+  const rest = GUIDE.slice(start + '\n## New since 1.0.0\n'.length);
   const end = rest.search(/\n#{1,3} /);
   return (end < 0 ? rest : rest.slice(0, end)).split('\n').filter((line) => line.startsWith('- '));
 })();
@@ -44,7 +44,7 @@ function sectionOf(heading) {
   return (end < 0 ? rest : rest.slice(0, end)).split('\n');
 }
 
-describe('README, the History bullet of "New since 1.0.0"', () => {
+describe('GUIDE.md, the History bullet of "New since 1.0.0"', () => {
   it('is the ruled line, word for word, once', () => {
     assert.equal(bullets.filter((line) => line === BULLET).length, 1);
   });
@@ -58,7 +58,7 @@ describe('README, the History bullet of "New since 1.0.0"', () => {
   it('names the item it points to as the registry does, and claims no more than the page does', () => {
     assert.ok(history, 'the registry has the history item');
     const shown = bullets.find((line) => line.startsWith('- **A History page.**')) ?? '';
-    assert.ok(shown.includes(`Try it: More to try, *${history.label}*.`), 'the README bullet names the registry\'s label');
+    assert.ok(shown.includes(`Try it: More to try, *${history.label}*.`), 'the guide bullet names the registry\'s label');
     assert.ok(shown.includes('On the online demo you see only your own session\'s decisions and incidents.'), 'it says the online demo shows only the visitor\'s own rows');
   });
 });

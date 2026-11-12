@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-12-2026 19:38
+last_updated: 11-12-2026 23:43
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -66,8 +66,10 @@ development_status:
   0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide: done
   0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil: 
     ready-for-dev
+  0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm: done
   0-31-dw-1123-the-memory-documents-remember-eval-accepts-document: done
   0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and: done
+  0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so: done
   epic-0-retrospective: optional
 
   epic-1: done

@@ -5,7 +5,7 @@ import { CHAT_TEXTS } from '../chat/chat-view';
 import { pageTime } from '../chat/page-time';
 import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
-import { README_URL } from '../links';
+import { GUIDE_URL } from '../links';
 import { RAIL_TEXTS, readmeSection, TELEGRAM_ANCHOR } from '../rail/rail-view';
 import { TELEGRAM_CARD_TEXTS, telegramCardView } from '../rail/telegram-card/telegram-card-view';
 import { EmailSection } from './email-section';
@@ -93,7 +93,7 @@ export class ChannelsSection {
   protected readonly rail = RAIL_TEXTS;
   protected readonly card = TELEGRAM_CARD_TEXTS;
   protected readonly opensInNewTab = CHAT_TEXTS.opensInNewTab;
-  protected readonly href = readmeSection(README_URL, TELEGRAM_ANCHOR);
+  protected readonly href = readmeSection(GUIDE_URL, TELEGRAM_ANCHOR);
 
   /** Which view shows: from the store's Telegram block and status conditions, through the Telegram card's own view. */
   protected readonly view = computed(() => {

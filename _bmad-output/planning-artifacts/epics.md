@@ -1784,6 +1784,40 @@ So that I can trust what the agent adds.
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.30: A shorter README for judges, with the install, feature and admin material moved word for word to GUIDE.md
+
+[ADDED 2026-11-12, Contest Planner brief (owner-approved, 2026-11-12 ~04:30Z, prompts/story-030-shorter-readme.md, verbatim and binding); lane A, after Story 0.28; its plan may start at once, its implement waits for the Planner's PUBLIC TEXT ruling] Every outside review names README length as the weak spot (README.md was 6,373 words on b5057e5a). Footprint: `README.md`, `GUIDE.md` (new), `docker/tests/test-readme.sh`, and the release-tool and repository-layout checks that must accept `GUIDE.md` at the root.
+
+As a judge opening the repository,
+I want a README of about 2,000 words that shows the demo, the incident path, what is interesting and what was measured,
+So that I can judge the entry quickly and still find every install and admin detail one link away.
+
+**Acceptance Criteria:**
+
+**Given** README.md after this story
+**When** it is read
+**Then** it keeps the header, tagline, badges, lead paragraph, video lines and first screenshot; "Try it in two minutes" (the link bar, the demo paragraph and the 4 numbered steps, each step's "(...)" link now pointing into GUIDE.md); "For judges: where to look"; "One incident, end to end"; "What's interesting" with the Visual Trace screenshot; "Measured" (including Story 0.29's comparison once it lands); "Contest checklist"; and "Credits and licences" with the OpenClaw not-affiliated note
+**And** "New since 1.0.0" keeps its heading with a pointer of at most 2 sentences, and the only other new prose is a closing "More" paragraph of at most 4 lines linking GUIDE.md's main sections
+**And** `wc -w README.md` is about 2,000 and at most 2,300
+
+**Given** a new root file GUIDE.md titled "# OcuTalon guide: install, features and administration"
+**When** it is compared with the README before this story
+**Then** it holds, byte for byte except for links, the body of "New since 1.0.0"; What you can use it for; How you talk to it; What OcuTalon does; Install it yourself and all its subsections; Set a model key; Sign in; Telegram; Stop, start and update; Troubleshooting; and For admins and developers with all its subsections (Repository layout, Tests and CI)
+**And** every link from README.md into GUIDE.md is an absolute URL `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#<anchor>`; relative links inside GUIDE.md are fine; every anchor in both files resolves, and the existing link check covers GUIDE.md
+
+**Given** `docker/tests/test-readme.sh`
+**When** it runs
+**Then** every existing pin follows its text to the file it lands in; a word cap holds README.md to at most 2,300 words; a check finds GUIDE.md and a README.md link to it; and every count that follows the registry still passes (sixteen and fifteen, and the 0.28 rows as ruled)
+**And** the README tests and checks the release tools and repository-layout checks run accept GUIDE.md at the root
+
+**Given** this story's diff
+**When** it is inspected
+**Then** no app code, demo guide or catalog text changes, and nothing in README.md or GUIDE.md is committed before the Contest Planner rules on the spec gate's PUBLIC TEXT (the complete new README.md and the list of headings moved to GUIDE.md)
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
 ### Story 0.31: DW-1123: the memory-documents-remember eval accepts document, runbook or file
 
 [ADDED 2026-11-12, Contest Planner lane order] Lane B's next item after Story 0.27 (orchestrator, standing rulings of 2026-11-12: no idle lane during a CI wait), in the Epic 0 lane-B worktree. Numbered 0.31, one past 0.30, which the orchestrator has already assigned to lane A's shorter README story. The Contest Planner ruled DW-1123 on 2026-11-11: widen the phrase check, report-only; Epic 41's eval files, not contended.
@@ -1823,6 +1857,35 @@ So that load alone stops turning green work red and forcing reruns, while a real
 **Then** every budget with less than 40% margin over its median is raised to at least 1.4x it (or its unit is split), and the audit table (budget, median, runs read, margin before and after) is committed with the story
 **And** a real hang still fails: every budget stays finite, and no test is deleted, skipped, tagged off or shortened
 **And** no CI job or group is renamed, added or removed, and any workflow or `release/**` hunk goes to the Contest Planner (RELEASE TOOL) before it merges
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+### Story 0.34: The install-path OAuth2 check skips the built web bundle, so a release candidate passes it
+
+[ADDED 2026-11-12, Contest Planner 1.0.8 hotfix ruling] (owner's delegation, ~20:00Z; a 1.0.8 release blocker, one-story lever on OCT-epic0c, precedent the 0.27 lever). PR #12 (release/1.0.8-rc1 e7b1ccf4) fails its `checks` job on test-compose-file's row "install: no Dockerfile, compose file, script, manifest, CPF merge or preload names /csp/sys/oauth2 or IRIS's OAuth2 objects" (21.3's U-320 check): `oauth_app_untouched_by_install_paths` scans git-tracked files including `src/ocutalon/csp/*`, which is untracked on the feature branch but committed by the release cut, and the built main-*.js holds the displayed redirect path "/csp/sys/oauth2/OAuth2.Response.cls" (web/src/app/settings/email-view.ts REDIRECT_PATH). Footprint: `docker/tests/test-compose-file.sh` only; no product change.
+
+As the release owner cutting 1.0.8,
+I want the install-path OAuth2 check to skip the built browser bundle while still scanning every install path,
+So that a release candidate passes CI without weakening the check that nothing installs or starts the OAuth2 web application.
+
+**Acceptance Criteria:**
+
+**Given** `oauth_app_untouched_by_install_paths` in `docker/tests/test-compose-file.sh`
+**When** it scans the git-tracked install paths
+**Then** it no longer scans the built web bundle under `src/ocutalon/csp/` (a browser bundle cannot enable a server web application)
+**And** every other path in its list (Dockerfiles, compose files, install and CI scripts, module.xml, CPF merges, preloads, the Python sources, `.github/`, `release/`) is still scanned, and its file-count floor still holds on the feature branch and on a release candidate
+
+**Given** a throwaway git repository fixture
+**When** the check runs on it
+**Then** the string "/csp/sys/oauth2/OAuth2.Response.cls" in `src/ocutalon/csp/x.js` passes
+**And** the same string in a `Dockerfile`, or in `docker/merge.cpf`, still fails
+**And** undoing the exclusion turns the bundle fixture red (a demonstrated mutation, reverted byte for byte)
+
+**Given** this story's diff
+**When** it is inspected
+**Then** nothing outside `docker/tests/test-compose-file.sh` changes except bookkeeping, and `bash docker/tests/test-compose-file.sh` and `bash ci/checks.sh` pass
 
 **Given** CI on this story's head
 **When** it finishes

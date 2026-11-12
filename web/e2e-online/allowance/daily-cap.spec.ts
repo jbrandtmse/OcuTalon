@@ -51,7 +51,7 @@ import { CHAT_A, MOCK_MS, buttonsOf, finishTelegram, pairChat, pressAnswers, pre
  */
 test.describe.configure({ mode: 'serial', timeout: 300_000 });
 
-const INSTALL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
+const INSTALL = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself';
 const CAPPED_CARD = "The online demo has used today's model allowance. Decisions use fixed rules until ";
 const MARKER = '[[mock:daily-cap]]';
 
