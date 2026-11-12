@@ -7288,3 +7288,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 43206845957 (OCT-epic21 368c7a09) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 131144052048 iris (image) shard:lane-b@Contract,Core,Data,Live: printed stored value 'xrvjRiPqHbxlagA8SDES' starts with x; salt = base64url(GenCryptRand(16)); the 21.3 merge changes no line of Data/Webhook, Test/Data/Webhook, SecretHandoff or Data/Setting vs green eb289caf (git diff empty); 6 local passes on lane-C warm e21s3cw
 - 2026-11-12T12:25:40Z status=routed owner=burndown by=ci note=fix (Epic 35's test, one line): pick the replacement first character as lastChanged does, e.g. $Select($Extract(salt) = "x": "y", 1: "x"); one rerun meanwhile
+
+### DW-1201: Digest.Data.Sent's doc comments (class description, Failed, Attempts) still describe the digest resend that O1 removed (V9 known limit)
+- source: spec-21-7-send-the-daily-digest-by-email.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Digest/Data/Sent.cls:5,53-58 describe a resend no code performs after O1; Lane A file outside O1's permission
+- 2026-11-12T15:53:27Z status=wontfix-accepted owner=21-7-send-the-daily-digest-by-email by=harvest note=reopen_if=a Lane A story edits Digest/Data/Sent.cls (fix the three comments then) or the columns are reused
