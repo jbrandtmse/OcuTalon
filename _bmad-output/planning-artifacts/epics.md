@@ -9796,13 +9796,15 @@ So that an incident can later name the change that came just before the failures
 **Then** both changes appear as `SettingChange` rows after the next heartbeat that sees the counter move, each detected time is within the check interval, no row names who made the change, and taking a snapshot changes nothing in the watched production (AD-15, FR-27)
 **And** both tables commit their storage blocks with `DEFAULTGLOBAL` from the short-name registry, and their rows older than `daysToKeep` (90 by default) are purged through the area's `Purge(daysToKeep)` declaration (AD-3, AD-5, AD-27, NFR-19)
 
-### Story 36.2: Set the on-call person and backup in Settings
+### Story 36.2: Fix Lane B's step 5 contracts: paging, escalation and the SQL query watch verb
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 24.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 24 waited for Story 23.1 while Epic 23's Stories 23.4 and 23.8 waited for Story 24.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
 
-As an admin,
-I want to choose the on-call person and the backup, each paged by Telegram, email or both (both by default), and the time before escalation, [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "each with a channel, and the time before escalation,"]
-So that incidents page the right people on a channel that can reach them.
+[AMENDED 2026-11-12, Story 36.2 split, unattended ruling (doctrine U5, split 2 of 6): retitled from "Set the on-call person and backup in Settings"; its user story and the five on-call section criteria moved verbatim to Story 36.4, planned next, because the contracts and the section are two standard-size stories; every "Story 36.2 fixes" reference in Epics 23 and 24 stays true; the epic's promise is unchanged]
+
+As the builders of Epics 23 and 24,
+we want step 5's Lane B names fixed in the spine and created as code contracts,
+So that both lanes build paging, escalation and the SQL query watch in parallel.
 
 **Acceptance Criteria:**
 
@@ -9812,6 +9814,16 @@ So that incidents page the right people on a channel that can reach them.
 **And** the step-5 additions that Lane A's Story 36.1 (was 23.1) asks for in `OcuTalon.Msg` and `OcuTalon.Data` are appended by Lane B as their owner, and Lane A's stories never edit them (AD-29, AD-33)
 **And** the section names and texts the UX doesn't give (the on-call, partner-contact and SQL query watch sections and their field errors) are proposed to the author as additions to `EXPERIENCE.md` › Later Steps › Step 5 and the Message Catalog, every other text is the step-2 settings text, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR141)
 [AMENDED 2026-11-12, Story 36.2 split, unattended ruling (doctrine U5, split 1 of 6): the criterion "with Epic 22 merged, this story adds the README link to Lane A's worked Jira example ..." moved verbatim to Story 36.3, because it alone waits on Epic 22 (Story 22.6's worked example); the epic's promise is unchanged]
+
+### Story 36.4: Set the on-call person and backup in Settings
+
+[AMENDED 2026-11-12, split from Story 36.2, unattended ruling (doctrine U5, split 2 of 6): Story 36.2's user story and its five on-call section criteria, moved verbatim; it depends on Story 36.2's contracts and keeps Lane B's files]
+
+As an admin,
+I want to choose the on-call person and the backup, each paged by Telegram, email or both (both by default), and the time before escalation, [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "each with a channel, and the time before escalation,"]
+So that incidents page the right people on a channel that can reach them.
+
+**Acceptance Criteria:**
 
 **Given** an admin opens the on-call section
 **When** they choose the on-call person and the backup
@@ -9833,7 +9845,6 @@ So that incidents page the right people on a channel that can reach them.
 **Given** automated tests in `OcuTalon.Test.Core` and a Playwright spec under `web/e2e/`
 **When** an admin saves, corrects and saves the section again
 **Then** the stored values, the audit entries and the page's states match, and the section works by keyboard with every control labelled (NFR-25, UX-DR125, UX-DR130)
-
 
 ### Story 36.3: Link the worked Jira example from the admin docs
 
