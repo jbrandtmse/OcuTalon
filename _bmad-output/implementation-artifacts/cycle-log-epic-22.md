@@ -125,3 +125,4 @@
 2026-11-12T20:12:53Z	Story 22.3	ledger_routed_planned	story=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie entries=1(DW-1221) excess=0 by=harvest
 2026-11-12T20:12:53Z	Story 22.3	spine_updated	ad=AD-10(S14_record) reason=rule20(Task0_measured_reroute_mechanism) by=runner story=22-3 lint=unchanged(10_pre-existing_low)
 2026-11-12T20:12:53Z	Story 22.3	adr_verifications_complete	tool=none acs=none result=none_required evidence=spec_Verification(mutation_lines_by_implement) mutations=none model=claude-opus-5-5
+2026-11-12T20:13:00Z	Story 22.3	stage_spawned	stage=qa spawn_at=2026-11-12T20:13:00Z model=sonnet agent_name=22-3-call-mcp-tools-only-through-the-governed-proxy-qa-1 cycle_iteration=1 effort=high
