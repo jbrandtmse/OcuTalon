@@ -27,7 +27,7 @@ deferred: []
 - Shell stays ASCII and bash 3.2 compatible. Every command a stage runs finishes in about 150 s.
 
 **Never:**
-- "never used for tuning" appears nowhere in the README. "measured at release 1.0.8" is variant R's agent-column text on feature only (the Planner's release-candidate fork replaces it).
+- "never used for tuning" appears nowhere in the README. "measured at release 1.0.9" is variant R's agent-column text on feature only (the Planner's release-candidate fork replaces it).
 - No `eval/results/` change (it is 0.27's committed run). No `.github/workflows`, `release/**` or `_bmad/**` hunk. No absolute local path in any tracked file.
 
 ## I/O & Edge-Case Matrix
@@ -49,9 +49,10 @@ See Story 0.27's spec (`spec-0-27-a-measured-comparison-of-the-agent-and-the-fix
 **Execution:**
 - `README.md` -- apply `## Ruled README change` parts C1 and C2 verbatim, filling each `<FILL: ...>` from `node eval/compare.mjs --column eval/results` and nothing else.
 - `docker/tests/test-readme.sh`:
-  - new rule `comparison`: "## Measured" ends with the H3 "With the agent and with fixed rules only" (its only H3, after the money line), holding the ruled paragraph word for word (the date matched as `[A-Z][a-z]+ [0-9]{1,2}`, `<I>` and `<J>` as numbers), the ruled header row, the seven ruled row labels in order as first cells, a non-empty agent and fixed-rules cell in each row, and the ruled sentence under the table; the ruled pointer paragraph sits in "What OcuTalon does" directly above the model paragraph, and its link resolves to the H3; "Worked out from the expected answers" appears nowhere. The agent column's text is not pinned (the release fork replaces it).
+  - new rule `comparison`: "## Measured" ends with the H3 "With the agent and with fixed rules only" (its only H3, after the money line), holding the ruled paragraph word for word (the date matched as `[A-Z][a-z]+ [0-9]{1,2}`, `<I>` and `<J>` as numbers), the ruled header row, the seven ruled row labels in order as first cells, a non-empty agent and fixed-rules cell in each row, and the ruled sentence under the table; the H3 is the last heading before `## More`; the ruled pointer paragraph sits in GUIDE.md's "What OcuTalon does" directly above the model paragraph, and its link `README.md#with-the-agent-and-with-fixed-rules-only` resolves to the H3; ONE NUMBER PER MEASURE (Planner ruling 3): once the agent column's routine cell is filled with `<n> of <m>` (the RC fork's variant F), it must equal the `<n> of <m>` of the main Measured table's "Routine attention decisions right" row, while the cell still reads "measured at release 1.0.9" the check passes; "Worked out from the expected answers" appears nowhere. The agent column's text is not pinned (the release fork replaces it).
   - `public-text`: add "never used for tuning" to the forbidden phrases (with a self-test).
-  - Self-tests, one bad variant per way to break `comparison` (H3 renamed or moved, a word of the paragraph changed, the commit link changed, a label reworded or two swapped, the sentence changed, the pointer's anchor changed, the worked-out sentence restored). Update `RULES` and the header comment.
+  - Self-tests, one bad variant per way to break `comparison` (the added sentence removed or changed; the H3 moved after `## More`; a filled agent routine cell that differs from the main table's routine row, plus one that agrees, which passes; H3 renamed or moved, a word of the paragraph changed, the commit link changed, a label reworded or two swapped, the sentence changed, the pointer's anchor changed, the worked-out sentence restored). Update `RULES` and the header comment.
+- README.md stays at most 2,300 words (`bash docker/tests/test-readme.sh` `word-cap`; about 2,170 with C1).
 - `docker/tests/test-eval-set.sh` -- new rule `readme-column`: the README comparison's fixed-rules column, its date, `<I>` and `<J>` equal `node eval/compare.mjs --column eval/results`, row by row. Self-tests: a README cell changed, a report value changed, a row missing.
 
 **Acceptance Criteria:**
@@ -62,33 +63,35 @@ See Story 0.27's spec (`spec-0-27-a-measured-comparison-of-the-agent-and-the-fix
 
 Verbatim text (the Contest Planner's rulings of 2026-11-12, part (b) and the 02:05Z section). `<FILL: ...>` marks the only values implement writes, each from `node eval/compare.mjs --column eval/results`.
 
-**C1. End of "## Measured"** -- after the line that starts "Where the money goes and how to cap it", a blank line, then:
+**C1. End of "## Measured"** -- after the line that starts "Where the money goes and how to cap it", a blank line, then the block below, which therefore sits directly before `## More` (Planner condition 4 of Story 0.30):
 
 ```markdown
 ### With the agent and with fixed rules only
 
-Fixed rules only is OcuTalon's own fallback, the one it uses when it has no model key. It ran with no model and no key on <FILL: date> on the recorded evaluation set ([eval](eval)): <FILL: main-items> routine items and <FILL: main-incidents> incidents in the main set, plus 12 held-out cases (8 routine items and 4 incidents) written for this comparison. The held-out cases' expected answers were committed ([6af31dab](https://github.com/jbrandtmse/OcuTalon/commit/6af31dab5f265ca76343127c8b2ee4d7c3cd7970)) before either side ran on them, and a CI check keeps their names and text out of every prompt and mock scenario. The agent's column is measured on the same cases with Claude Haiku 5.5 at the release 1.0.8 evaluation.
+Fixed rules only is OcuTalon's own fallback, the one it uses when it has no model key. It ran with no model and no key on <FILL: date> on the recorded evaluation set ([eval](eval)): <FILL: main-items> routine items and <FILL: main-incidents> incidents in the main set, plus 12 held-out cases (8 routine items and 4 incidents) written for this comparison. The held-out cases' expected answers were committed ([6af31dab](https://github.com/jbrandtmse/OcuTalon/commit/6af31dab5f265ca76343127c8b2ee4d7c3cd7970)) before either side ran on them, and a CI check keeps their names and text out of every prompt and mock scenario. The agent's column is measured on the same cases with Claude Haiku 5.5 at the release 1.0.9 evaluation. Rules written for these exact cases could score higher; this measures what the model adds to OcuTalon itself.
 
 | What was measured | With the agent (Claude Haiku 5.5) | Fixed rules only |
 | --- | --- | --- |
-| Routine attention decisions right (main set) | measured at release 1.0.8 | <FILL: row 1> |
-| Incidents with the right cause and the right field or item at fault (main set) | measured at release 1.0.8 | <FILL: row 2> |
-| Held-out cases right (8 items, 4 incidents) | measured at release 1.0.8 | <FILL: row 3> |
-| Items that needed you now but weren't told now | measured at release 1.0.8 | <FILL: row 4> |
-| Unsafe outcomes | measured at release 1.0.8 | <FILL: row 5> |
-| Cost of one attention decision | measured at release 1.0.8 | <FILL: row 6> |
-| Largest model request | measured at release 1.0.8 | <FILL: row 7> |
+| Routine attention decisions right (main set) | measured at release 1.0.9 | <FILL: row 1> |
+| Incidents with the right cause and the right field or item at fault (main set) | measured at release 1.0.9 | <FILL: row 2> |
+| Held-out cases right (8 items, 4 incidents) | measured at release 1.0.9 | <FILL: row 3> |
+| Items that needed you now but weren't told now | measured at release 1.0.9 | <FILL: row 4> |
+| Unsafe outcomes | measured at release 1.0.9 | <FILL: row 5> |
+| Cost of one attention decision | measured at release 1.0.9 | <FILL: row 6> |
+| Largest model request | measured at release 1.0.9 | <FILL: row 7> |
 
 An unsafe outcome is a change made without a person's approval, a prompt injection that led to an action, or a false all-clear. The numbers come from `bash eval/run.sh --rules-only`, set beside the agent's run by `node eval/compare.mjs`.
 ```
 
-**C2. "What OcuTalon does"** -- the paragraph that starts `**What changes without the agent?** Worked out from the expected answers` is replaced, whole, by:
+**C2. "What OcuTalon does"** -- since Story 0.30 this section is in `GUIDE.md` (its paragraph that starts `**What changes without the agent?** Worked out from the expected answers`, GUIDE.md line 77). That paragraph is replaced, whole, by the text below, with its link target `README.md#with-the-agent-and-with-fixed-rules-only` (the relative README link GUIDE.md already uses for `#measured`; approved by the Planner 2026-11-12 ~19:30Z):
 
 ```markdown
-**What changes without the agent?** OcuTalon's fixed rules were run on the same evaluation cases as the agent, with no model, and the two are measured side by side in [With the agent and with fixed rules only](#with-the-agent-and-with-fixed-rules-only).
+**What changes without the agent?** OcuTalon's fixed rules were run on the same evaluation cases as the agent, with no model, and the two are measured side by side in [With the agent and with fixed rules only](README.md#with-the-agent-and-with-fixed-rules-only).
 ```
 
 ## Spec Change Log
+
+- 2026-11-12 ~19:15Z (lead, after Story 0.30 and the Contest Planner's PUBLIC TEXT ruling, prompts/story-029-rulings-20261112.md, binding): "1.0.9" in both places (1.0.8 was cut without this story); the added sentence at the end of the H3's first paragraph; the `comparison` rule's one-number-per-measure check; C1 placed before `## More`; C2 now in GUIDE.md with the relative README link; README stays at most 2,300 words (`word-cap`, Story 0.30). Fill values verified against `node eval/compare.mjs --column eval/results`: November 12, 24, 11; 6 of 24, 0 of 11, 2 of 12, 0, 0, none: no model request (x2).
 
 - 2026-11-12 ~02:10Z, lead: split out of the original Story 0.27 plan (Part C) by the Contest Planner's 02:05Z ruling and the orchestrator; bullets moved whole; the R paragraph's last clause changed to the ruled option (c). Needs no new plan; re-check the Code Map's anchors on the tree after 0.27 merges.
 
@@ -96,9 +99,11 @@ An unsafe outcome is a change made without a person's approval, a prompt injecti
 
 ## Design Notes
 
+**Contest Planner ruling (2026-11-12 ~19:30Z, owner's delegation; prompts/story-029-rulings-20261112.md, binding).** (1) "1.0.9" in both places; the 1.0.9 RC fork fills the agent column from its RC run (variant F); "measured at release 1.0.9" never reaches main; a poor held-out result for the agent goes to the owner before the merge. (2) The added sentence at the end of the H3's first paragraph. (3) One number per measure: at the 1.0.9 RC, variant F also refreshes the main Measured table's eval rows and the intro's release line from the same run; the `comparison` rule checks that the main table's routine row and the agent column's routine cell agree once filled. (4) C2 with the relative README link approved; everything else verbatim; the tests approved.
+
 **Governing ADs:** AD-22 (the comparison reports the product's own evaluation path), AD-19 (no key-like text). No AD is amended.
 
-**"measured at release 1.0.8" on feature.** Variant R's agent-column text on feature only; the Planner's release-candidate fork replaces it with variant F's text before anything reaches main (its RC checklist greps for it). No test-readme rule pins the agent column, so the fork's change needs no rule change.
+**"measured at release 1.0.9" on feature.** Variant R's agent-column text on feature only; the Planner's release-candidate fork replaces it with variant F's text before anything reaches main (its RC checklist greps for it). No test-readme rule pins the agent column, so the fork's change needs no rule change.
 
 **PUBLIC TEXT beyond the ruling:** none. Cell forms come from the approved variant R draft: rows 1-3 `<right> of <total>`, rows 4-5 a bare count, rows 6-7 `none: no model request`; the date written as the README writes dates ("November 12").
 
