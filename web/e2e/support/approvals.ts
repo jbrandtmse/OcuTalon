@@ -10,7 +10,7 @@ import { publishIncident, seedApproval, sendNotification, sinkEvent } from './ir
  * it (an `incident` event), and a pending request whose `approval` event reaches the page through BridgeSink. incidentOf and raise are
  * the shared home of the two for those specs (cards/approval-card.spec.ts keeps its own copies). noticeSlots and noticeOnPhone put
  * the incident notice of a request on the simulated phone, and phoneOf and messageOf find the phone and a message of it; the
- * answers specs and the rail's answer spec (rail/rail-answer.spec.ts) share them. A request of the payload is `{ref, state?, result?}`: pending with
+ * answers spec (answers/answers.spec.ts) and the rail's answer spec (rail/rail-answer.spec.ts) share them. A request of the payload is `{ref, state?, result?}`: pending with
  * no result unless given, so that a case can publish the same incident again with a request answered, executing or finished (Story 6.4).
  */
 

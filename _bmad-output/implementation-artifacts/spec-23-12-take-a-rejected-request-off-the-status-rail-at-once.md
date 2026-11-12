@@ -154,6 +154,34 @@ Tests:
 - Given any of the matrix's store states, when `withAnswer` runs, then it gives the matrix's result, and the rail view counts accordingly (live-store and rail-view tests).
 - Integration (Rule 1): given the status rail (`status-rail.ts` via `railView` and `pendingApprovals`) reading the live store, when a press reply reaches `LiveState.applyAnswer` while the polls are held, then the rail's row leaves, an effect that the reply alone produces (RA1, RA2).
 
+### Review Findings
+
+Code review 2026-11-12 (first review; full mode; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 25 rows, 3 entries, all low and patched; no decision-needed, no defer). Rule 3: RA1, RA2, PA2 and PA3 are real-browser tests. Rule 6: no AC contradicts AD-12, AD-11, AD-4, AD-25, AD-32, AD-33 or AD-22 as written (ruling G2).
+
+- [x] [Review][Patch] The 409 cases of the answer-press test did not check that `local` holds the request before `answered`, nor the expired reply's notice, though the QA line says they do [web/scripts/answer-press.test.mjs:76]: added `localThen` checks for `already_answered` and `expired`, and the expired reply's empty notice.
+- [x] [Review][Patch] The "hands nothing over" test skipped the notice for 404 and no connection [web/scripts/answer-press.test.mjs:92]: they now expect `APPROVAL_TEXTS.gone` and `APPROVAL_TEXTS.busyNotice`, and every case checks its notice.
+- [x] [Review][Patch] The header of `support/approvals.ts` said that "the answers specs" share `phoneOf` and `messageOf`, but `answers/close-loop.spec.ts` keeps its own copies [web/e2e/support/approvals.ts:13]: narrowed to `answers/answers.spec.ts` and `rail/rail-answer.spec.ts`.
+
+Rejected:
+- `false`: `answer-press.test.mjs` is untracked, so CI would lose it. QA's tests are left uncommitted by design, the lead commits them after the smoke gate, the file is not ignored, and `npm --prefix web test` runs it (1,938 tests).
+- `low`: the Auto Run Result and the four-file loop command leave out QA's test. The fix edits the spec under review, and the Auto Run Result covers only the implement pass (Rule 14).
+- `low`: the non-`HttpErrorResponse` error branch is not exercised. It calls the same `replied(call, 0, ...)` as status 0, whose notice is now pinned.
+- `low`, by-design: the option name `answered` sits beside `BusyState.answered`. The spec names the option.
+- `false`: a reply whose Ref differs from the pressed one. `Api.AnswerResponse` builds the view with `FromRow` of the row that the pressed Ref loads.
+- `false`: a non-string `ref` or `state` in the reply. The payload is the server's `%JSON.Adaptor` view, read with the same cast as an event in `applyEvent`.
+- `low`: `nextReply` is left unawaited when the press throws. The test already fails on the click's own error, and `answers.spec.ts` uses the same pattern.
+- `low`, by-design (ruling G1): PA2 and PA3 also pass without the fix at the real poll rate. RA1 and RA2, with the polls held, pin "the reply alone". Closing the socket keeps PA2 and PA3 faithful to the online demo, where polling is the only live path. On a local install, X2 and X9 (socket open) and PA1 still cover the socket path, where `withAnswer` does nothing by design.
+- `false`: PA3 waits with `phoneShows` and does not call `noticeOnPhone`. The persona flow sends the notice itself, and `noticeOnPhone` would send a second one (Design Notes 9).
+- `low`, by-design: "phone view" is read as the simulated phone (Design Notes 1). The narrow layout renders the same rail component from the same store.
+- `low`: no browser check covers the header Status count or Approve. The header reads `pendingApprovals`, which the rail-view test pins, and Design Notes 4 covers Approve.
+- `false`: the words rule of `answer-press.ts`. The diff adds none of the words, and the source pin passes. The two baseline comment lines predate the story.
+- `low`, by-design (G2, Rule 6 checked): AD-12 does not name the press reply as a source. It contradicts neither AD-12's Rule nor its Prevents: the reply is the same `FromRow` view (no drift), no cursor moves (no false gap), the state is the server's, and no extra poll runs (no double batch).
+- `low`, by-design: a snapshot taken before the answer committed can bring `pending` back for one poll (Design Notes 6, wontfix-theoretical).
+- `low`: the guards of `applyAnswer` are pinned by source text, and LiveState has no executed host. This review tried a Node host in `answer-press.test.mjs`, but Node's type stripping cannot load the `@Injectable` modules (SyntaxError). The source pin's mutation was observed red, and a reply after `stop()` changes nothing the user sees. reopen_if: a decorator-capable Node host lands in `web/scripts`.
+- `low`: RA1's and RA2's "R1 does not come back" checks cannot fail through this change. They are dwell checks, and the live-store test carries criterion 4 with its mutation line. The fix would edit the spec's criterion.
+- `low`: `floor/guide.spec.ts` has its own local `holdPolls`. It predates the story, it lives in a spec outside the story, and nothing collides at compile time.
+- `low` (Rule 2, reviewer's own check): `rail-answer.spec.ts` defines its own `requestCard`, `rowOfRequest` and `nextReply` locators. Per-spec locators are the e2e tree's convention (`requestCard` is defined in five specs), and the shared helpers the spec named were moved, not copied.
+
 ## Spec Change Log
 
 - 2026-11-12 (lead spec gate): added PA3 (phone Reject on a real request, gone within 5 s of the press), its AC and mutation; rulings G1-G3 under Design Notes.
@@ -296,6 +324,13 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: real request on the phone within 5 s of the press, the phone host's `answered` removed AND `POLL_DELAY_MS` set to 8000 (same run as the web one, same socket closure) -> PA3 red at the same assertion; applied, observed red, reverted. Unmutated, PA2 and PA3 pass with the row gone about 100 ms after the press.
 - mutation: later approval event (AC 4, matrix "Later approval event"), `withAnswer` returns the store it was given -> the live-store "is followed by the request's own event" test red (it asserts the reply's view before any event), and the "replaces a pending request" test and the rail-view test red; applied, observed red, reverted.
 - mutation: page stopped / no store (matrix "Page stopped"), `applyAnswer` without the `this.stopped` test -> the approval-sources "takes the reply into the live store only while the page runs" pin red; applied, observed red, reverted. (LiveState has no executing test host in `web/scripts`; the pin is the repo's style for it.)
+- (QA) `web/scripts/answer-press.test.mjs` (new, run by `npm --prefix web test`): runs the real `AnswerPress` (real Angular signals, `HttpErrorResponse` and RxJS; a resolve hook gives the sources' relative imports their `.ts`) and pins the matrix rows that were only source-pinned: a 200 (Reject and Approve), a 409 `already_answered` and a 409 `expired` with a payload hand the request to `answered` once, after `local` holds it; a 403, 404, 400, 500, no connection, an empty 200 and a 409 without the request hand nothing over and leave the notice; and the hand-over through `withAnswer` takes the request off `pendingApprovals` while a failed press leaves it.
+- (QA) mutation: reply with a payload, `replied` without `this.options.answered(approval)` -> answer-press.test.mjs red in three tests (200, late/expired, rail chain); applied, observed red, reverted.
+- (QA) mutation: failed press (matrix "Failed press"), `answered` called outside the `if (approval !== undefined)` -> answer-press.test.mjs "hands nothing over for a reply with no payload" and the rail chain test red; applied, observed red, reverted.
+- (QA) mutation: order, `answered` called before `this.local.set(approval)` -> answer-press.test.mjs "hands the request of a 200 over once, after local holds it" red; applied, observed red, reverted.
+- (QA) mutation: host wiring, the card's and the phone's `answered` replaced by `() => undefined` -> the approval-sources "hands every reply" pin and the phone-request-sources "press through AnswerPress" pin red; applied, observed red, reverted.
+- (QA) re-observed at the unit level (each applied, red, reverted): `withAnswer` a no-op (4 tests red: live-store, rail-view, answer-press), without the `pending` guard (live-store "has left pending"), accepting an unknown Ref (live-store "a Ref the store does not hold"), replacing the whole map (rail-view, live-store, answer-press), accepting a `pending` reply (live-store "still pending"), `applyAnswer` without `this.stopped` (approval-sources pin). The browser mutations (RA1, RA2, PA2, PA3) were observed by the implement stage and not re-run: no browser spec changed in QA.
+- (review) mutation: failed press notice (matrix "Failed press"), `noticeOf`'s `gone` case returns `''` -> answer-press.test.mjs "hands nothing over for a reply with no payload ... and leaves the notice" red; applied, observed red, reverted (tree byte-identical).
 
 ## Auto Run Result
 
