@@ -3607,3 +3607,8 @@
 2026-11-12T03:31:56Z	Epic 0	merge_enqueued	part=0.26 head=4725422f(code_540dfce5_green) by=orchestrator
 2026-11-12T03:32:09Z	Epic 0	merge_gate	part=0.26 head=4725422f conflicts=none tracker=valid lint=baseline amendments=0.26_split,0.27/0.28/0.29_inserted
 2026-11-12T03:32:09Z	Run	deps_hash_rerecorded	reason=split note=0.26->0.26/0.27/0.28/0.29 hash=1534f6e5
+2026-11-12T03:32:11Z	Epic 0	epic_merged_to_feature	part=0.26 feature_sha=a9a3cb4a merge_sha=a9a3cb4a code=540dfce5 verified_on_origin=yes
+2026-11-12T03:32:36Z	Epic 0	worktree_provisioned	worktree=.worktrees/epic-0b branch=OCT-epic0b base=a9a3cb4a(feature;0.26_merged+split) bootstrapped=ok reason=0.27_lever(lane_B_after_35.3) unpushed=branch_created_by_runner_first_push
+2026-11-12T03:36:41Z	Epic 23	runner_clarification	kind=PART_READY agent=afc4a2f06e7d322df story=23.10 head=0ee635dc(integrated_cf6fcb39) runs=43136084417,43136084465 23.11=implemented_local(cd99e4af;QA_next;DW-1172_in-story_MED) shas=verified
+2026-11-12T03:36:41Z	Run	ruling	question=merge_23.10_onto_moved_feature_a9a3cb4a category=decide choice=orchestrator_merge(no_code_overlap_with_0.26:README/tests_only;tracker-only_conflict) rejected=another_runner_integrate(+1_CI_round) policy=5086036
+2026-11-12T03:36:41Z	Epic 23	merge_enqueued	part=23.10 head=0ee635dc
