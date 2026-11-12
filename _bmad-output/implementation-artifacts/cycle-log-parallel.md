@@ -3669,3 +3669,4 @@
 2026-11-12T07:08:17Z	Run	hold_complete	shas=feature:74ee76dc,OCT-epic0:eff03a14,OCT-epic35:c6c099df,OCT-epic21:ad2255ac,OCT-epic23:109d59c8,OCT-epic22:3fc3e909 all_on_origin=yes worktrees=clean unpushed=none locks=none throwaways=none hold_patches=none lock=kept(no_run-end)
 2026-11-12T07:08:54Z	Run	ci_cancelled_record_only	head=0a73299f runs=43173052041,43173052133 reason=records_only_over_74ee76dc(green_by_identity_once_74ee76dc_resolves)
 2026-11-12T07:09:05Z	Run	inbox_hold_item	id=U-322
+2026-11-12T07:38:45Z	Epic 0	ci_red_classified	sha=eff03a14 run=43159935962 job=iris(production) test=live:production_row21_WatchOps class=flake(DW-306) action=rerun_DEFERRED_to_resume(HOLD) lane-a=success
