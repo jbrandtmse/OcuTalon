@@ -1,5 +1,5 @@
 // Tests that the written counts and texts of Story 20.2 follow the More to try registry (src/app/guide/more-to-try-view.ts): the README's
-// "more things to try" count, its "New since 1.0.0" line about the chips, EXPERIENCE.md's item count and its items 6 and 8, and the
+// "more things to try" count, the guide's "New since 1.0.0" line about the chips, EXPERIENCE.md's item count and its items 6 and 8, and the
 // registry's own header comments, and that EXPERIENCE.md numbers the items in the registry's order. The registry is the source of the
 // count; the words are written out here so that an item another story adds fails these tests until every place that counts says the new
 // number.

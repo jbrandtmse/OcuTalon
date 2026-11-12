@@ -1,7 +1,7 @@
-// Tests that the written texts of Story 37.2 follow the More to try registry (src/app/guide/more-to-try-view.ts): the README's Usage bullet in "New since 1.0.0"
+// Tests that the written texts of Story 37.2 follow the More to try registry (src/app/guide/more-to-try-view.ts): the guide's Usage bullet in "New since 1.0.0"
 // (the Planner-ruled text, word for word, once, after the History bullet), and EXPERIENCE.md's usage item line (label, look-for and control as the registry has
 // them, the marker, under its own heading), its sentence that the usage item's control is a link to the Usage page, and its Cost format row's
-// Usage-page exact-zero text (the page's own constant) with the DW-1089 marker. The counts follow the registry and are pinned by sources-docs.test.mjs. The README
+// Usage-page exact-zero text (the page's own constant) with the DW-1089 marker. The counts follow the registry and are pinned by sources-docs.test.mjs. The guide
 // bullet is not pinned as the very last one, so that a story that merges later and appends its own line does not fail this test.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';

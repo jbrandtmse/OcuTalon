@@ -114,7 +114,7 @@ test('R1: the rail is the region Status with its sections in order, live counts,
   ]);
   await expect(status.locator('app-telegram-card'), 'the Telegram card says it is not set up').toContainText('Telegram not set up');
   const setUp = status.getByRole('link', { name: 'How to set it up (opens in a new tab)', exact: true });
-  await expect(status.getByRole('link'), 'and holds the one README link').toHaveCount(1);
+  await expect(status.getByRole('link'), 'and holds the one guide link').toHaveCount(1);
   await expect(setUp, 'which opens the guide\'s Telegram section').toHaveAttribute('href', /\/GUIDE\.md#telegram$/);
   await expect(status.locator('.empty'), 'each list shows its empty text').toHaveText([
     'None waiting.',

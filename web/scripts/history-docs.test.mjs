@@ -1,4 +1,4 @@
-// Tests that the written texts of Story 25.2 follow the More to try registry (src/app/guide/more-to-try-view.ts) and the code: the README's History bullet in
+// Tests that the written texts of Story 25.2 follow the More to try registry (src/app/guide/more-to-try-view.ts) and the code: the guide's History bullet in
 // "New since 1.0.0" (the Planner-ruled text, word for word, once, after the Queue backlogs bullet), EXPERIENCE.md's history item line (label, look-for and control as the
 // registry has them, the marker, right after the usage item under the "Usage and history" heading) and its sentence that the item's control is a link to the History
 // page, and the three rows of the architecture spine (AD-33: the ownership API, the header entry and page, the REST surface), the REST row naming exactly the routes

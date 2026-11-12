@@ -121,7 +121,8 @@
 #                  outside the section that mentions Telegram says "your own install" (U-228: the online demo has no bot)
 #   no-telegram    no "Telegram" in the README or the guide while Included() has its test-only body
 #   product-links  every anchor the page or the server text can show reaches a heading of the README or the guide (#readme is the README's top),
-#                  and install-it-yourself, set-a-model-key and telegram, which the page opens on GUIDE.md, are headings of the guide (Story 0.30)
+#                  and install-it-yourself, set-a-model-key and telegram, which the page opens on GUIDE.md, are headings of the guide (Story 0.30);
+#                  a written address reaches a heading of the file it names (a README address the README's, a GUIDE.md address the guide's)
 #   readme-links   every link of the README and of the guide, Markdown or HTML (href and src values), reaches a heading of the file it names
 #                  (a #x its own, README.md#x or this repository's #x address the README's, a GUIDE.md address the guide's; the README
 #                  links the guide only by its absolute address), a file or folder of the repository, or an allow-listed host, and the
@@ -1471,7 +1472,7 @@ chk_ipm() {
   if [ -n "$load" ] && { [ -z "$first" ] || [ "$load" -le "$first" ]; }; then echo 'ipm: the folder install (zpm "load) comes before the registry install'; fi
   if [ "$(grep -cxF -- "$IPM_LOAD" "$sec")" -ne 1 ] || [ "$(( $(grep -cxF -- "$IPM_LOAD" "$1") + $(grep -cxF -- "$IPM_LOAD" "${3:-/dev/null}") ))" -ne 1 ]; then echo 'ipm: the section does not give the IPM 0.10.10 load line word for word, once, and nowhere else in the guide or the README'; fi
   if ! ipm_in_order "$sec"; then echo 'ipm: the IPM load line, the map step and the registry line are not in this order before the first install'; fi
-  if ! ipm_in_order "$2"; then echo "ipm: $IPM_DOC does not give the README's IPM lines in order before its first install"; fi
+  if ! ipm_in_order "$2"; then echo "ipm: $IPM_DOC does not give the guide's IPM lines in order before its first install"; fi
   if grep -qF -e 'Until the package is published' -e '/tmp/ocutalon-repo' "$2"; then echo "ipm: $IPM_DOC keeps the local-repository sentence or path"; fi
   if ! awk '/^## Install from the package folder/ { exit } /^\[OCUTALON\|ocutalon\]\tReload START \(\/usr\/irissys\/ipm\/ocutalon\// { f = 1 } END { exit !f }' "$2"; then
     echo "ipm: $IPM_DOC has no registry reload line in its registry install"
@@ -1555,21 +1556,31 @@ chk_telegram_demo() {
   ' "$1" "$2"
 }
 
-# inventory <list file>: the README anchors that the files of the list can link to, one per line, sorted: the part after # of a
-# jbrandtmse/OcuTalon# address, the section argument of a readmeSection(..., '<x>') call, and the value of a *_ANCHOR constant of
+# address_anchors <list file> <readme|guide>: the part after # of each written address of the README (jbrandtmse/OcuTalon#x) or of
+# the guide (jbrandtmse/OcuTalon/blob/main/GUIDE.md#x) in the files of the list, one per line, sorted.
+address_anchors() {
+  local re='jbrandtmse/OcuTalon#[A-Za-z0-9_-]+'
+  if [ "$2" = guide ]; then re='jbrandtmse/OcuTalon/blob/main/GUIDE\.md#[A-Za-z0-9_-]+'; fi
+  tr '\n' '\0' < "$1" | xargs -0 grep -hoE "$re" /dev/null 2>/dev/null | sed 's/.*#//' | sort -u
+}
+
+# inventory <list file>: the anchors that the files of the list can link to, one per line, sorted: the part after # of a README or
+# guide address (address_anchors), the section argument of a readmeSection(..., '<x>') call, and the value of a *_ANCHOR constant of
 # a TypeScript file.
 inventory() {
   {
-    tr '\n' '\0' < "$1" | xargs -0 grep -hoE 'jbrandtmse/OcuTalon#[A-Za-z0-9_-]+' /dev/null 2>/dev/null | sed 's/.*#//'
+    address_anchors "$1" readme
+    address_anchors "$1" guide
     tr '\n' '\0' < "$1" | xargs -0 grep -hoE "readmeSection\\([^,)]*,[[:space:]]*'[^']*'" /dev/null 2>/dev/null | sed "s/.*'\\([^']*\\)'\$/\\1/"
     grep -E '\.ts$' "$1" | tr '\n' '\0' | xargs -0 grep -hoE "[A-Z][A-Z_]*_ANCHOR[^=']*=[[:space:]]*'[^']*'" /dev/null 2>/dev/null | sed "s/.*'\\([^']*\\)'\$/\\1/"
   } | sort -u
 }
 
-# product-links: chk_product_links <readme> <list file> <In.cls> <guide>: every anchor reaches a heading of the README or the guide, and the
-# three anchors that the page opens on GUIDE_URL (install-it-yourself, set-a-model-key and telegram) are headings of the guide.
+# product-links: chk_product_links <readme> <list file> <In.cls> <guide>: every anchor reaches a heading of the README or the guide, the
+# three anchors that the page opens on GUIDE_URL (install-it-yourself, set-a-model-key and telegram) are headings of the guide, and
+# each written address reaches a heading of the file it names (a README address the README's, a GUIDE.md address the guide's).
 chk_product_links() {
-  local anchors mode slugs guide_slugs a
+  local anchors mode slugs readme_slugs guide_slugs a
   anchors=$(inventory "$2")
   for a in readme telegram install-it-yourself set-a-model-key; do
     if ! printf '%s\n' "$anchors" | grep -qxF -- "$a"; then
@@ -1591,6 +1602,18 @@ chk_product_links() {
         if ! printf '%s\n' "$guide_slugs" | grep -qxF -- "$a"; then echo "product-links: the page opens GUIDE.md#$a, and GUIDE.md has no heading with that slug"; fi
         ;;
     esac
+  done
+  readme_slugs=$(headings "$1" | cut -f2)
+  address_anchors "$2" readme | while IFS= read -r a; do
+    case $a in
+      readme) continue ;;
+      telegram) if [ "$mode" = testonly ]; then continue; fi ;;
+    esac
+    if ! printf '%s\n' "$readme_slugs" | grep -qxF -- "$a"; then echo "product-links: the code names the README address '#$a', and the README has no heading with that slug"; fi
+  done
+  address_anchors "$2" guide | while IFS= read -r a; do
+    if [ "$a" = telegram ] && [ "$mode" = testonly ]; then continue; fi
+    if ! printf '%s\n' "$guide_slugs" | grep -qxF -- "$a"; then echo "product-links: the code names the guide address 'GUIDE.md#$a', and GUIDE.md has no heading with that slug"; fi
   done
 }
 
@@ -2395,6 +2418,14 @@ rule_product_links() {
   lits=$(chk_product_links "$README" "$tmp/inv/with-lits.list" "$included_p" "$GUIDE")
   case $lits in *"'#lit-section'"*) ;; *) st_note 'a readmeSection literal with no heading is not named' ;; esac
   case $lits in *"'#lit-address'"*) ;; *) st_note 'an address literal with no heading is not named' ;; esac
+  # A written address reaches a heading of the file it names: a guide address to a README-only heading, a README address to a
+  # guide-only heading and a guide address to no heading are each named.
+  printf '/// https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#measured\n/// https://github.com/jbrandtmse/OcuTalon#troubleshooting\n/// https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#lit-guide\n' > "$tmp/inv/Addr.cls"
+  { cat "$tmp/product.list"; printf '%s\n' "$tmp/inv/Addr.cls"; } > "$tmp/inv/with-addr.list"
+  lits=$(chk_product_links "$README" "$tmp/inv/with-addr.list" "$included_p" "$GUIDE")
+  case $lits in *"'GUIDE.md#measured'"*) ;; *) st_note 'a guide address to a README-only heading is not named' ;; esac
+  case $lits in *"README address '#troubleshooting'"*) ;; *) st_note 'a README address to a guide-only heading is not named' ;; esac
+  case $lits in *"'GUIDE.md#lit-guide'"*) ;; *) st_note 'a guide address with no heading is not named' ;; esac
   # Included() with another body, or no In.cls, covers #telegram: a README without a heading with that slug is flagged. While
   # the body is the test-only one, #telegram is left out. The guide of these cases has any Telegram heading renamed.
   awk '/^#+ [Tt]elegram$/ { sub(/[Tt]elegram$/, "Zz") } { print }' "$GUIDE" > "$tmp/inv/GUIDE.md"

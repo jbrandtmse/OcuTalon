@@ -2926,6 +2926,7 @@ t_static() {
   # The ruled disclosure bullet (the Contest Planner's ruling of 2026-11-07, DW-829), in the install page only, so it is no part of the pairing above.
   eq "(DW-829, DW-857) the install page's bullet on the shared Python folder is the ruled text" "$(grep -cxF -e "- The second command puts these packages in the instance's shared Python folder, mgr/python in the IRIS install directory. Where that folder already holds other versions of certifi, charset_normalizer, idna, requests, typing_extensions or urllib3, which IPM installs for itself, the second command replaces them with the versions OcuTalon pins. IPM's own packages work with these versions." "$root/docs/install-ipm.md")" 1
   eq "(DW-829) the README has no such bullet (it keeps the licence bullet of A5)" "$(grep -c 'shared Python folder' "$root/README.md")" 0
+  eq "(DW-829) GUIDE.md's IPM section has no such bullet either (the install page holds it alone)" "$(grep -c 'shared Python folder' "$root/GUIDE.md")" 0
   # The two extraction reasons that reuse the web app's catalog (U-284) carry its exact bytes (A1).
   for reason in "it isn't a Markdown, plain-text, PDF or Word (.docx) file." "that file is {size}; the limit is 10 MB."; do
     eq "(A1) the web catalog and Docs.Extract both hold: $reason" "$(grep -cF -e "$reason" "$root/web/src/app/documents/documents-view.ts")/$(grep -cF -e "\"$reason\"" "$root/src/ocutalon/cls/OcuTalon/Docs/Extract.cls")" "1/1"

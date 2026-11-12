@@ -23,7 +23,7 @@
 #     checks and the changes, not before them, every other state before the run (none, starting, unhealthy, no health check, restarting,
 #     paused, exited, dead, created) runs `compose up -d` and waits, unhealthy keeps waiting,
 #     the published port is the one printed, a timeout and a stopped container (exited, dead, none) exit 1 with the logs command and
-#     the README section, `up -d` failing exits 1 with compose's own messages on screen, the folder of the script is the working
+#     the guide section, `up -d` failing exits 1 with compose's own messages on screen, the folder of the script is the working
 #     folder (also for `bash install.sh`), the two overrides take whole seconds only, and the wait is 15 minutes (900 s) by default
 #     and by every fallback;
 #   - across all cases: every docker call is on the allow-list with its exact arguments, no sudo, every sleep of the judges' path is at
@@ -252,7 +252,7 @@ ready_block() { # ready_block <port>: the ready block with the address and the a
   out_has "OcuTalon is ready after " && out_has "http://localhost:$1/ocutalon/" && out_has "User:      ocutalon" && out_has "Password:  ocutalon"
 }
 failure_help() { # the logs command, the guide section and the promise that nothing was removed
-  out_has "docker compose logs iris" && out_has "Troubleshooting section of GUIDE.md" && out_has "Nothing was removed"
+  out_has "docker compose logs iris" && out_has "The Troubleshooting section of GUIDE.md lists the usual causes and fixes." && out_has "Nothing was removed"
 }
 
 # --- first run ---
@@ -960,6 +960,10 @@ check "fmt_time: 125 s is '2 min 5 s'" test "$(fmt_time 125)" = "2 min 5 s"
 code=$(grep -v '^[[:space:]]*#' "$script")
 forbidden='docker( (compose|image|volume|container|system|builder|buildx|network))? +(push|login|logout|pull|save|export|rm|rmi|prune|kill)([[:space:]]|$)|compose +(down|stop|rm|config|convert)([[:space:]]|$)|(image|volume) +rm([[:space:]]|$)|(^|[;&|(!])[[:space:]]*sudo([[:space:]]|$)|(^|[[:space:]])(if|then|do|else|elif|while|until)[[:space:]]+sudo([[:space:]]|$)|[$][(][[:space:]]*sudo'
 check "install.sh text: no forbidden docker word or sudo command" test -z "$(printf '%s\n' "$code" | grep -nE "$forbidden")"
+# Story 0.30 Q2 (QA): the ruled pointer sentence, word for word, on each of the three failure messages and nowhere in README form.
+Q2_LINE='"The Troubleshooting section of GUIDE.md lists the usual causes and fixes."'
+check "install.sh text: the ruled GUIDE.md pointer sentence is on exactly three lines" test "$(printf '%s\n' "$code" | grep -cF -- "$Q2_LINE")" -eq 3
+check "install.sh text: no line points at a section of README.md" test -z "$(grep -n 'section of README' "$script")"
 insp=inspect
 check "install.sh text: every image inspect call has --format" test -z "$(printf '%s\n' "$code" | grep -E "docker( image)? $insp" | grep -v -e '--format')"
 key_shape='sk-ant-[A-Za-z0-9_-]{8,}|[0-9]{8,10}:[A-Za-z0-9_-]{35}'

@@ -144,6 +144,34 @@ deferred: []
 - Given the web tests and the check scripts, when they run, then every pin that followed its text passes, and the registry counts ("sixteen", "fifteen" and the 0.28 rows) pass unchanged.
 - Given this story's diff, when inspected, then nothing changed outside the files the Code Map names, the Q1-Q3 rulings permitting.
 
+### Review Findings
+
+Code review 2026-11-12 (bmad-code-review, first review of the whole story, baseline 4c86e4ef; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 31 raw findings, 10 entries after grouping (high 0, medium 5, low 5), 11 rejected.
+
+- [x] [Review][Patch] `product-links` lost the server text's GUIDE address and resolved every anchor against both files [docker/tests/test-readme.sh:1558-1612] (blind-hunter+acceptance-auditor+verification-gap+edge-case-hunter; medium, fix-risk low: test-only, the real tree passes) — since DW-1199 `inventory` matched only `jbrandtmse/OcuTalon#x`, so `Allowance.cls` INSTALLLINK (`.../blob/main/GUIDE.md#x`) was unchecked, and a README address to a guide-only heading passed the README-or-guide union. Fixed: `address_anchors` reads both address forms; each written address must be a heading of the file it names; three self-tests (a guide address to a README-only heading, a README address to a guide-only heading, a guide address to no heading). Mutations under Verification.
+- [x] [Review][Patch] The DW-829 "no shared-folder bullet" pin still read only README.md after the IPM section moved [docker/tests/test-release-sequence.sh:2929] (blind-hunter+acceptance-auditor+verification-gap; medium, Rule 19 shared surface left in its old shape; fix-risk low: one assertion) — added the same zero-count on GUIDE.md.
+- [x] [Review][Patch] `names_outside_section` on the real tree ran only on README.md, which no longer holds the admin section or the IPM load line [docker/tests/test-release-notes.sh:919-923] (verification-gap; medium, Rule 19; fix-risk low) — the loop and its `eq` now cover GUIDE.md, header comment updated.
+- [x] [Review][Patch] `rail-view.test.mjs` still asserted the dead README address `OcuTalon#telegram` [web/scripts/rail-view.test.mjs:142-146] (blind-hunter+acceptance-auditor; low, two-way door) — asserts the guide's Telegram address and keeps the `#readme` replacement on a live README heading (`#measured`).
+- [x] [Review][Patch] Stale "README" wording in test files this story touched [docker/tests/test-install-script.sh:26, docker/tests/test-readme.sh:1474, web/scripts/{history-docs,usage-docs,sources-docs}.test.mjs headers, web/e2e/rail/rail.spec.ts:118] (blind-hunter, plus the reviewer; low, comments and messages only) — now say "the guide".
+- [x] [Review][Patch] The Q2 three-line count also counted a commented-out copy [docker/tests/test-install-script.sh:965] (edge-case-hunter; low, direct correction) — counts on the comment-stripped `$code`.
+- [x] [Review][Patch] AC "nothing outside the Code Map" had no `mutation:` line (verification-gap; low) — applied, observed, reverted; line written under Verification.
+- [x] [Review][Defer] CI runs no web job for a README.md-, GUIDE.md- or Allowance.cls-only change, though web/scripts tests read them [ci/units.sh:219] — deferred: DW-1202 (medium, routed, owner burndown; pre-existing for README.md, `ci/**` closed by the intent, and "the guide runs no group" is spec-mandated).
+- [x] [Review][Defer] The spine's Consistency Conventions "README link" row (ARCHITECTURE-SPINE.md:1255) still names the README's `#telegram` for the rail link and has no GUIDE_URL convention [ARCHITECTURE-SPINE.md:1255] — deferred: DW-1203 (medium, escalated, owner burndown; the substance is ruled by Q1 and DW-1199, a spine amendment is a veto-window item; proposed text in the entry).
+- [x] [Review][Defer] `Install/Step/Users.cls:310` account comment says "the README says how to change the password" [src/ocutalon/cls/OcuTalon/Install/Step/Users.cls:310] — deferred: occurrence appended to DW-1200 (wontfix-accepted, same root, `src/**` closed by the intent).
+
+Rejected:
+- low, wontfix-theoretical: `./GUIDE.md#x`, `GUIDE.md?plain=1#x` and `blob/HEAD/...#x` link spellings bypass `readme-links` (blind-hunter, edge-case-hunter) — neither file has such a link; real if one is written, then add the spellings to the case arms.
+- low, wontfix-theoretical: `chk_readme_links` compares a bare `README.md`/`GUIDE.md` link with the slot path, so a self-test copy could be flagged falsely (edge-case-hunter) — neither file has a bare link (GUIDE's one link is `README.md#measured`); real if one is added.
+- by-design: GUIDE.md jumps from H2 to H4 under "New since 1.0.0" (blind-hunter) — Design Notes 1 keeps every moved heading's level and bytes.
+- by-design: `release/checklist.sh:104` manual `public-links` row names "the README's clone command" (blind-hunter, edge-case-hunter) — `release/**` closed beyond Q3; the Code Map carries the note for the Planner, who opens every GUIDE link at the RC.
+- by-design: stale "README" comments in `web/src` (`links.ts`, `rail-view.ts`, `banner-stack.ts:85`, `banner-view.ts`) (blind-hunter) — comment-only, closed by the Never list beyond the Q1 lines (as in the build review).
+- by-design: EXPERIENCE.md L398 and L795-796 still say README (acceptance-auditor note) — Q1 rules "(GUIDE.md)" on the banner rows only.
+- by-design: the byte-identity check lives only in scratch (verification-gap) — the Never list forbids keeping it as a permanent rule; the reviewer's own re-run of the splice gave 12 differing lines, only Edit 2 beyond link targets.
+- false: `guide_p` not added (acceptance-auditor note) — a recorded deviation (Design Notes), no functional effect.
+- false: GUIDE links 404 until the merge (edge-case-hunter) — `blob/main` is the Planner's ruled address; the release order is the Planner's.
+- reject (fix edits the spec): the Verification scope command's expected list omits the DW-1199 files (verification-gap) — the rework record and this review's mutation list the actual files.
+- reject: commit 43b8745's message says "byte-identical except for link targets" while Edit 2 and the new `## New since 1.0.0` line differ (edge-case-hunter) — the spec records both as ruled structure and Edit 2; pushed history is not rewritten.
+
 ## Spec Change Log
 
 - 2026-11-12 ~15:35Z (lead, rework iteration 1, trigger=med_first_review): build-auto's four review layers found DW-1199 (Allowance.cls INSTALLLINK still at the README anchor that moved); it was deferred because `src/**` was closed. The orchestrator ruled YES (decide; the Planner may reverse): Q1 extends to that one link target and its pins. The intent's `src/**` line carries the [AMENDED] marker; one [Review] item re-opens the story.
@@ -387,6 +415,30 @@ Mutations (each applied, observed red, reverted; after each revert `git diff`, `
 
 - mutation (rework, DW-1199): `Allowance.cls` INSTALLLINK back to `https://github.com/jbrandtmse/OcuTalon#install-it-yourself` -> `allowance-sources.test.mjs` red (the new INSTALLLINK ratchet) and, on a warm lane-A stack, `OcuTalon.Test.Core.Allowance` red (`TestNotices`, `TestNoticeOnAnotherDay`, `TestNoticeCarriesTheConfiguredLimit`); reverted, `git diff` hashed identical, the class green again on the same stack. `AllowanceInProduction` quotes the value in three literals; `BridgeSink`, `WebChatMessages` and `WebChatOut` read `#INSTALLLINK` through the parameter, so they follow either value and the literal pins above are the ones that go red.
 - rework verification: `OcuTalon.Test.Core.Allowance`, `AllowanceInProduction`, `BridgeSink`, `WebChatMessages` and `WebChatOut` each passed on a warm lane-A throwaway (one class per call; the stack is down); `(cd web && node --test scripts/allowance-sources.test.mjs scripts/banner-view.test.mjs scripts/chat-view.test.mjs)` 132 pass; `npm run lint` clean (type-checks the two e2e-online specs, which CI runs); `bash docker/tests/test-boundaries.sh` and `bash docker/tests/test-readme.sh` pass; the grep for the old URL finds it in no tracked file outside the spec, the ledger and earlier stories' spec records.
+
+### QA stage (2026-11-12)
+
+Gap audit against the Tasks & Acceptance and the I/O matrix: the word cap at 2,300/2,301 (self-test in `word-cap`), GUIDE.md missing (`no-guide` loop), a relative README link to GUIDE.md with and without an anchor (`readme-links` self-test), the three app anchors as GUIDE heading slugs (`product-links`, `allowance-sources.test.mjs`; INSTALLLINK's value is pinned equal to the install-it-yourself address there), the Q3 lines (whole-string pins), Planner Edits 1 and 2 (`judges-usability`, `guide`) and GUIDE.md in test-boundaries' must-scan, `readme-links` and `ALLOWED_HOSTS` were already pinned with recorded mutations. One gap: Q2's sentence was pinned only as the substring "Troubleshooting section of GUIDE.md", so the tail "lists the usual causes and fixes." could drift.
+
+Tests added or changed (QA):
+- (QA) `docker/tests/test-install-script.sh`: `failure_help` now requires the whole ruled sentence "The Troubleshooting section of GUIDE.md lists the usual causes and fixes." (it runs on all three failure paths: up fails, container stops, never ready), plus two static checks, "the ruled GUIDE.md pointer sentence is on exactly three lines" and "no line points at a section of README.md".
+
+Mutations (QA; each applied, observed red, reverted; `git status --short` and the `shasum` of install.sh identical afterwards):
+- mutation: install.sh line 389 tail "lists the usual causes and fixes." -> "lists the usual causes." -> `test-install-script.sh` red (`container stops (exited|dead|NONE)` via `failure_help`, and "the ruled GUIDE.md pointer sentence is on exactly three lines").
+
+QA runs green: `test-readme.sh`, `test-boundaries.sh`, `test-install-script.sh` (also under /bin/bash), `npm run lint`.
+
+### Code review stage (2026-11-12)
+
+Mutations (each applied, observed red, reverted; the file's `shasum` identical afterwards):
+- mutation (AC scope): `// zz` appended to `web/src/app/about/about-dialog.ts` (outside the Code Map) -> `git diff --name-only 4c86e4ef -- web/src src install.sh release .github ci _bmad eval` lists it beside the ruled files (the inspection goes red).
+- mutation (product-links, review patch): `Allowance.cls` INSTALLLINK anchor `#install-it-yourself` -> `#install-it-yourselff` -> `product-links` red (the union line and the new "the code names the guide address 'GUIDE.md#install-it-yourselff'" line).
+- mutation (product-links, per-file resolution): INSTALLLINK anchor -> `GUIDE.md#measured` (a README-only heading) -> `product-links` red on the new guide-address line alone (the union still passes).
+- mutation (DW-829 on GUIDE.md, review patch): a shared-Python-folder bullet appended to GUIDE.md -> `test-release-sequence.sh static` red ("GUIDE.md's IPM section has no such bullet either").
+- mutation (names_outside_section on GUIDE.md, review patch): "The class OcuTalon.Core.Allowance does it." added above `## Install it yourself` in GUIDE.md -> `test-release-notes.sh static` red (`names_outside_section on GUIDE.md: got 'GUIDE.md:87'`).
+- mutation (Q2 count, review patch): install.sh's "never ready" pointer line replaced and a commented copy of the sentence appended -> `test-install-script.sh` red ("the ruled GUIDE.md pointer sentence is on exactly three lines", and `failure_help` on never ready).
+
+Code review runs green after the patches: `test-readme.sh` (also under /bin/bash 3.2.57), `test-release-sequence.sh static`, `test-release-notes.sh`, `test-release-checklist.sh`, `test-install-script.sh`, `test-boundaries.sh`, the web script tests (sources-docs, more-to-try-view, usage-docs, history-docs, allowance-sources, rail-view: 153 pass), `npm run lint`; non-ASCII count 0 in the four edited check scripts.
 
 ## Auto Run Result
 
