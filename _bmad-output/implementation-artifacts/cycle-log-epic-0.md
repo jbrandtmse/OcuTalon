@@ -918,3 +918,10 @@
 2026-11-12T11:30:05Z	Story 0.28	ci_red_classified	run=43202138310 workflow=.github/workflows/lane-a.yml class=infra test=ipm-install(timeout_35m_no_test_failed) job=131127975712 ledger=DW-1161(occurrence) note=rerun_failed_jobs
 2026-11-12T11:57:15Z	Story 0.28	ci_rerun	run=43202138313 attempt=2 jobs=iris(browser),iris(shards-9) reason=flakes(DW-1190,DW-1083) note=rest_of_attempt_1_green
 2026-11-12T12:22:47Z	Story 0.28	ci_resolved	story=0.28 sha=2a6cfc67 runs=43202138313,43202138310 result=success failed=none via=none resolved_at=merge_gate note=integrated_forward_head(feature_eb289caf);ci_attempt_1_flakes_DW-1190(browser,new)+DW-1083(shards-9)_rerun_green_12:22Z;lane-a_attempt_1_infra_DW-1161(ipm-install_35m_timeout)_rerun_green_12:10Z;verified_by_runner(CI_status_result=success);first_ci=flake
+2026-11-12T12:33:45Z	Story 0.28	part_merge	feature_merge=3caf52ab merged_head=42b613eb by=orchestrator note=tracker_feature_side+regenerate+0-28=done;verified_on_origin_by_runner(merge-base)
+2026-11-12T12:33:45Z	Epic 0	integrated_forward	feature=3caf52ab head=3caf52ab conflicts_resolved=none note=fast-forward;before_0.30_plan
+2026-11-12T12:35:43Z	Epic 0	epic_reopened	story=0.30 by=runner source=prompts/story-030-shorter-readme.md(Contest_Planner_brief,owner-approved,2026-11-12~04:30Z) amendments=epics.md:Story_0.30_block(inserted,[ADDED_2026-11-12]) note=orchestrator_continue_12:3xZ
+2026-11-12T12:35:43Z	Epic 0	ledger_load	total=1176 open=0 routed=135 escalated=2 decision_pending=5 terminal=1034 owner_unknown=0 reowned_none=0
+2026-11-12T12:35:43Z	Epic 0	sprint_planning_complete	gate=PASS mode=headless note=0.30_traces_to_Planner_brief;no_new_AD_or_UX_decision model=claude-opus-5-5
+2026-11-12T12:35:43Z	Epic 0	retro_review_skipped	reason=skipped(policy)_epic_0_reopen_story_as_for_0.26-0.29
+2026-11-12T12:35:48Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
