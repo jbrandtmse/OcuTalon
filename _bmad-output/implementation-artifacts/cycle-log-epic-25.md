@@ -76,3 +76,5 @@
 2026-11-12T22:26:13Z	Epic 25	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final highest=AD-33
 2026-11-12T22:26:13Z	Epic 25	ledger_load	total=1198 open=0 routed=145 escalated=2 decision_pending=5 terminal=1046 owner_unknown=0 burndown=127 reowned_none=0 owned_epic25=0
 2026-11-12T22:27:00Z	Epic 25	sprint_planning_complete	gate=CONCERNS model=claude-opus-5-5 in_sync=true findings=demo_ac_vs_planner_demo_off,new_file_table_and_route_not_in_spine,read_results_unmerged(fixtures) veto=U-325
+2026-11-12T22:31:11Z	Epic 25	protocol_violation	stage=epic-context depth=1 agent=pre-warm violation=agent_call_backgrounded_by_harness_despite_run_in_background_false consequence=none(lead_waited_for_completion_notice,no_concurrent_writer) detected_by=lead outcome=waited
+2026-11-12T22:31:11Z	Epic 25	epic_context_compiled	reason=planning_artifact_newer model=opus words=1495 note=focus_25.3

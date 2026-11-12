@@ -4,48 +4,87 @@
 
 ## Goal
 
-Step 6 gives a signed-in user a look back at, and more ways into, OcuTalon. A History page lets them filter past attention decisions and see past incidents with their state and summary. Files and photos can be sent from the web app or Telegram. Approver and viewer roles decide who may answer each kind of approval request. The Usage page that used to be this epic's first story now lives in Epic 37 (Story 37.2), so that step 6's two feature epics (25 and 26) don't wait on each other's merge. The epic is in Lane B's files, runs in the pool (runner C in this run), and ships in the first daily release after it merges.
+Step 6 gives a signed-in user a look back at OcuTalon and more ways into it. A History page filters past decisions and incidents (done). Users can send a PDF, Word file or photo from the web chat or from Telegram, and it becomes an Item that OcuTalon can read, add as a document, or remember. Approver and viewer roles decide who may answer each kind of approval request. The Usage page that was this epic's first story now lives in Epic 37 (Story 37.2, done). The epic is built in Lane B's files. Lane A's Epic 26 depends on it: Story 26.2 reads files, 26.3 captions photos and 26.4 enforces roles.
 
 ## Stories
 
-- Story 25.1: moved to Story 37.2 (the Usage page, on another branch, not yet merged)
-- Story 25.2: Filter past decisions and incidents on the History page (the only story planned in this run)
-- Story 25.3: Send a PDF, Word file or photo from the web app or Telegram
+- Story 25.1: moved to Story 37.2 (Usage page, done)
+- Story 25.2: Filter past decisions and incidents on the History page (done)
+- Story 25.3: Send a PDF, Word file or photo from the web app or Telegram (next to plan)
 - Story 25.4: Assign approver and viewer roles in Settings
 - Story 25.5: Answer only with the right approver role, and say why otherwise
 
 ## Requirements & Constraints
 
-- **History (decisions):** decisions can be filtered by outcome, channel, date and fallback. Each decision opens to show its reasons and a link to its trace.
-- **History (incidents):** incidents are listed with their state and summary. From step 6 the incident summary written when an incident closes appears here.
-- **History outlives the message purge.** It reads OcuTalon's and the bridge's own decision and incident tables, never production messages. Retention keeps bridge decisions and incidents for the purge task's day count (90 by default).
-- **Isolation:** a user sees only what the ownership API lets their session see. Another session's decisions or incidents must never appear. An `instance` incident on a local install belongs to every session that watches that production.
-- **Accessibility floor:** the page works by keyboard alone, every control is labelled, text contrast meets WCAG 2.1 AA, and no cue relies on colour alone.
-- **Testing:** automated tests plus a Playwright spec under `web/e2e/`, with fixture decisions and incidents across two sessions. Fixture incidents carry summary fields wherever the real summary isn't available.
-- Later stories in the epic, for orientation only: files are limited to 10 MB and refused with a clear message; file bytes never travel in a production message; a viewer is read-only and every state-changing route refuses them with 403.
+- **Accepted files:** PDF, Word (.docx), and JPEG or PNG photos, sent from the web chat or from the paired Telegram chat.
+- **Size limit:** 10 MB, which is 10,485,760 bytes, the same constant as the documents route and the extractor. A larger file is refused before anything is stored, with "That file is 14 MB; the limit is 10 MB." (the size is filled in), and nothing else happens.
+- **Other types and read failures:** any other type is refused the same way with "I couldn't read that file: {reason}." and a plain reason. A file that couldn't be read gets that same sentence as its reply.
+- **Replies:** a file that was read gets a reply offering **Add to documents**, which adds it through the existing documents route. A photo's reply shows a "Saved to memory" chip.
+- **The Item:** a file becomes an Item carrying the file's `Ref`, name, media type and size, never its bytes. No file content may appear in a production message body.
+- **Online demo:**
+  - A file belongs to its session and is cleared at the reset.
+  - Each send counts as one message against the session's allowance: 50 an hour, rolling, shared by chat, Telegram and guide prompts.
+  - Sprint planning raised a concern about this criterion, because the Planner's online-demo safety rule decides what is switched on on the demo. The spec must say how the criterion is met and tested.
+- **Accessibility:** the paperclip button is labelled and works by keyboard. Drag-and-drop is never the only way to send a file. Keyboard-only use, labelled controls and WCAG 2.1 AA contrast apply throughout.
+- **Tests:** automated tests plus a Playwright spec under `web/e2e/`, using fixture Telegram file Items. They send each accepted type, a file of another type and an oversized file, from the page and through the file-store call as Telegram files. A mock test fetches a file through `getFile` and the download path.
+- **Viewers (25.4):** a viewer is read-only, with no composer. Every state-changing route refuses a viewer with 403.
 
 ## Technical Decisions
 
-- **The ownership API is the only read path.** `OcuTalon.Data.Ownership` (Lane B) applies the caller's `SessionRef` and re-checks owner or scope. No endpoint accepts a `SessionRef` from the client. The signed-in user holds no SQL grant, so the API's queries skip the SQL privilege check and enforce ownership in the query itself. A CI check allows those unchecked prepares only in named methods (`Ownership.Rows` among them), so new history queries belong there and not in ad-hoc prepares.
-- **Bridge records are read-only to OcuTalon.** Web and Core read `OcuTalon.Bridge.Data` (the `Decision` rows: outcome, reasons, `Fallback`, `FallbackReason`, `TraceSessionId`) through the ownership API and keep no copies.
-- **Trace links:** every trace URL comes from the one builder, `OcuTalon.Web.TraceLink`. A decision's target is the session holding its decision message (`Decision.TraceSessionId`). An incident's target is its diagnosis session.
-- **Incident summary:** `IncidentManager` composes it in code (`Watch.Summary`) on every move into `closed` and stores it on the incident row. Incident states are open, awaiting approval, fixing, resolved and closed, with the open variant stored beside the state.
-- **Spine and contracts (AD-29, AD-33):** each story adds its own step-6 spine rows (Contest Planner ruling, 2026-11-10; the step-pairing rule no longer applies). Story 37.2 adds the usage read and the header navigation's Usage entry; Story 25.2 adds the history read in the REST and ownership tables and the header navigation's History entry; the file upload route, the private file table and the Roles routes come only with Stories 25.3, 25.4/25.5 and 37.1. Story 25.2 builds on 37.2's header and ownership names. Any new route, table or event type goes into the ownership tables in the same change, and only the owning lane edits a class.
-- **Web envelope:** API routes live under `/ocutalon/api/v1`. A request without a session gets 401 `signed_out`, and a user without the OcuTalon role gets 403 `no_role`. State-changing calls need JSON, `X-OcuTalon-Request: 1` and a matching `Origin`. Untrusted text, model text included, renders as text only.
+- **Web envelope:**
+  - State-changing calls need JSON, `X-OcuTalon-Request: 1` and a matching `Origin`.
+  - A request with no session gets 401 `signed_out`. A user without the role gets 403 `no_role`.
+  - The API's default body limit is 256 KB. A route that takes a file declares its own bound in `XData BodyBounds`, as the documents route does: its `BODYMAX` of 13,985,112 bytes covers 10 MB in base64 plus the JSON around it. It refuses a larger body with 413 `body_too_large` before parsing and reads the bytes from the request stream, never through a string.
+  - Untrusted text, including file names and model text, renders as text only.
+- **What exists from step 3:**
+  - `POST /api/v1/documents` takes `{name, content}`, with the bytes in base64. It maps the extension to `ContentType` and refuses `wrong_type`, `too_large` and `empty` with 400 `bad_document` before it submits.
+  - It stages the bytes in `OcuTalon.Data.Upload` (Lane B; `Ref` plus `SessionRef` matched exactly through `Ownership.Upload`), because a message body can't hold a global stream. `AddDocument` carries the `UploadRef`.
+  - `Upload.Take(ref, sessionRef)` deletes the row it returns. `Upload.Purge` drops untaken rows after an hour. `Upload.DropSession` runs in `SessionOps.End`.
+  - Because of the purge and the delete-on-take, the existing Upload table doesn't obviously fit a file that must outlive its Item. The spec decides whether to reuse it or add a private file table.
+- **Extraction (Lane A, built):** `OcuTalon.Docs.Extract.Read` picks the parser from the bytes' signature. It returns text or a machine code: `too_large`, `wrong_type`, `encrypted`, `damaged`, `no_text`, `legacy_doc`, `contents_too_large`, `timed_out` or `failed`. `Failure(code)` fits each code into "I couldn't read that file: <reason>.", and the `too_large` and `wrong_type` reasons match the web catalog's text exactly.
+- **New contracts 25.3 adds in the same change** (AD-29, AD-33):
+  - the upload route in the REST table
+  - the private file table in the ownership tables
+  - the file fields on `OcuTalon.Msg.Item`, which today has none
+  - the file-store call that Lane A's `TelegramIn` will call, in the cross-area API table
+  - None of these are in the spine yet. Only the owning lane edits a class, so 25.3 must not edit `TelegramIn` (Lane A).
+- **Items and provenance:** every inbound message is an `OcuTalon.Msg.Item` with `SessionRef`, `Channel`, `Provenance` and content. File text reaches the model only as quoted, untrusted data through `OcuTalon.Agent.Input`, which is Story 26.2's job.
+- **Telegram:**
+  - The bot token comes from the environment and never enters a setting, a status text or a log line.
+  - Chat ids and display names never reach the audit writer, logs or step summaries.
+  - On the online demo, an outbound gateway swaps a dummy token for the real one. Its file-path route is a release check for Story 26.2.
+- **CI mock (Lane B):**
+  - Telegram scenarios name a Bot API method and reply with `status`, `headers`, `delayMs` and `body`. The control endpoint records every call.
+  - The mock currently refuses `getFile` with a 404 that points at Story 25.3. 25.3 adds `getFile` and the download path `/file/bot<token>/<file path>`.
+  - The token is logged by length only, in the URL path as everywhere else.
+- **Online demo data:** a reset restores a golden copy that holds no sessions. A sign-out runs `SessionOps.End`, which drops the session's uploads, documents and memories. `Core.Allowance` is called synchronously before a turn is queued. On refusal, `POST /messages` returns 429 with `retryAt`.
+- **Roles (25.4/25.5):**
+  - Role names: `OcuTalonApprover`, `OcuTalonApprover_<kind>`, `OcuTalonViewer`.
+  - `Approval.MayAnswer(Ref, IrisUser)` and the role-assignment method are Lane A's. Story 37.1 (still in the backlog) supplies stubs until Story 26.4 builds them. Until then tests create the roles as fixtures.
+  - `AnswersIn` returns `not_allowed` with the kind. From step 6 the demo account holds `OcuTalonApprover`, and the owning-session rule still applies.
 
 ## UX & Interaction Patterns
 
-- Reached from the header navigation (History and Usage join in step 6), with `aria-current="page"`. The page title is "History · OcuTalon". The page has a hidden `h1` and an `h2` per region.
-- Two tabs, Decisions and Incidents. They use `aria-selected`, work by keyboard and never switch by themselves.
-- History table: rows at least 40px tall, with the outcome chip (Ignore, Digest, Tell now, Act) in the first column. Chips are icon plus label, distinct without colour, and can't take focus.
-- The filters persist in the address, so a reload or a shared link keeps them. The list pages and never scrolls without end.
-- A decision row's disclosure is an `aria-expanded` button that expands its reasons in place, never as a dialog. Its trace link is a sibling of the button, not inside it. The link is underlined and opens in a new tab, saying "(opens in a new tab)". On local and IPM installs, until the sign-in popover has been seen in the session, the link reads "Open in Visual Trace (shows sign-in help first)", with `aria-haspopup="dialog"`.
-- Incidents show a state chip (static pill per state), headline, times, summary and a trace link.
-- Empty filter result: "No decisions match these filters."
+- **Composer:**
+  - It is labelled "Message OcuTalon", persistently. Enter sends; Shift+Enter adds a new line.
+  - Step 6 adds a paperclip button in the composer, with drag-and-drop on the chat as a second way. Telegram files follow the same rules.
+  - When the allowance is used up, the composer is `aria-disabled` with its reason as visible text above it, linked by `aria-describedby`.
+  - Styling: a surface text area with the strong border and a primary "Send" button.
+- **File texts:**
+  - "That file is 14 MB; the limit is 10 MB."
+  - "I couldn't read that file: {reason}."
+  - the **Add to documents** offer on a file's reply
+  - the "Saved to memory" chip on a photo's reply
+  - Telegram and the simulated phone share each catalog text exactly, as plain text with no Markdown.
+- **Viewers:** see everything read-only, with no composer.
+- **Roles UI:** a Settings › Roles section. Where a user can't answer, the request reads "Only an approver for resends can answer this request." (the fixture sentence for one kind), with no **Approve** or **Reject**.
 
 ## Cross-Story Dependencies
 
-- **Story 37.2 (Epic 37, not yet merged):** Story 25.2's implementation waits for it to merge (the header navigation and the ownership names 25.2 extends). Story 25.2's spec can be written ahead of that merge, against 37.2's spec and spine rows.
-- **Story 37.1:** fixes the step-6 role names and the stubs for `Approval.MayAnswer` and role assignment, which Stories 25.4 and 25.5 call.
-- **Story 23.6 (Lane A):** the source of the incident summary that Story 25.2 lists.
-- **Epic 26** depends on this epic. Story 26.2 needs Story 25.3's file-store call and the CI mock's `getFile`. Story 26.4 needs Story 25.5's `not_allowed` result from `AnswersIn`. Story 25.3 needs Epic 20 (the Documents page's **Add documents**). Story 25.4 needs Epics 16 and 18 (the online demo account and a Settings section).
+- **Story 25.3 provides for Epic 26:**
+  - Story 26.2 needs 25.3's file-store call and the mock's `getFile`; `TelegramIn` will check the size, download, store the file and send the Item.
+  - Story 26.3 needs 25.3's photo Items; its reply carries the caption and the memory's reference for the chip.
+- **25.3 builds against results it doesn't have yet:**
+  - The read results come from Lane A's Stories 19.6 (built), 26.2 and 26.3, all unmerged except 19.6. 25.3 uses fixture results and fixture Telegram file Items until they merge.
+  - Story 37.1 hasn't fixed a photo-caption name yet.
+- **Stories 25.4 and 25.5:** depend on Story 37.1's stubs. Story 26.4 needs 25.5's `not_allowed` from `AnswersIn`. Story 25.4 builds on the online demo account and the step-2 Settings sections.
