@@ -2,7 +2,7 @@
 title: 'Story 21.7: Send the daily digest by email'
 type: 'feature'
 created: '2026-11-11'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -75,6 +75,14 @@ deferred: []
 
 - **O1 ruling (orchestrator, 2026-11-12 ~01:40Z, veto item sent to the Contest Planner; `prompts/epic-21-rulings-217-o1.md`; DW-820):** one-time AD-33 Lane A exception (precedents 17.10, 35.3 R5, 22.4 R1): this story edits `src/ocutalon/cls/OcuTalon/Digest/Process.cls` so that `Deliver` hands EVERY composed digest to Notify whatever `digest.channels` names, Notify alone routes kind `digest` (honouring `digest.channels`, incl. `email`), and `Digest.Process.Own`, the `SendDigest` direct sends to WebChatOut/SimPhoneOut/TelegramOut and `ROUTEREASON` are deleted; the Lane A tests that pin `Own` and the direct sends are changed with it (Lane A test files under `Test/Digest/**`, only those that pin this). Before implement, re-check that no open epic branch or worktree touches `Digest/` or the Notify files (`git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<M>` for each open branch); a new hunk there is a Clarification. Reversal: if the Planner routes DW-820's residual to a Lane A story instead, 21.7 waits on that story's merge and drops this task.
 
+- **Gate rulings (Contest Planner, owner's delegation, 2026-11-12 ~01:50Z; `prompts/epic-21-rulings-217.md`; binding; they win over any line above or in the matrix that differs):**
+  - (O1 conditions) The digest a user already gets in the web chat and in Telegram stays byte-identical and is sent at the same moments: one regression test per channel (web chat, Simulated phone, Telegram) comparing the delivered text before and after the Notify-only route; the demo's "Send my digest now" e2e (`web/e2e/settings/settings.spec.ts` S11) passes unchanged. `MESSAGENOCHANNEL` behaviour (no channel available) stays covered by a test. 21.7 does NOT merge onto a cut 1.0.8 RC base (it goes into the next release after it; the lead reports this at PART READY).
+  - (V1) The digest path is the THIRD path enumerated inside `EmailOut`, next to 21.6 ruling (a)'s tool and system paths: `EmailOut` works out the recipient itself from `email.address` (`Setting.Fresh`); nothing passed in (no recipient field, no header, no message property) can choose it. 21.6 conditions (b) header guard and caps, (c) TLS with host-name check and no plain fallback, (e) taint/clean-turn rule where it applies, (f) no double send (a digest is keyed to its digest send/Delivery so a resend of the same Notification sends nothing), and (g) `not_available` on the online demo apply to this path, each with a pinning test. Addition: at most 10 digest emails per mailbox per UTC day; the 11th is refused, nothing is sent, and the refusal is recorded (a `Delivery` row or log entry with no contents) -- a test sends 11.
+  - (V4, DW-1167, narrower) `EmailIn` skips a mail only if ALL hold: its `X-OcuTalon-Ref` names a SENT email `Delivery` row; its From is the configured `email.address`; that Ref has not been skipped before (one use only, recorded). Each skip leaves a trace or log line with the Ref and no contents. Anything else (unknown, forged, reused Ref, other From) is taken in as an untrusted item as before. Tests for each of the three conditions failing.
+  - (V5) The Ref is random (at least 120 bits; e.g. `Bridge.Ids.NewRef` if it gives >= 120 bits of randomness -- Task 0 records its entropy, else a `$SYSTEM.Encryption.GenCryptRand`-based value), never a sequence number or derived from the session or address, and goes on EVERY `EmailOut` mail (tool, system, digest; partner notices included if they ever use EmailOut). A test asserts the header on each path and that two sends get different Refs.
+  - (E1) If the digest already formats its date for the chat heading, the subject is "Your OcuTalon digest for {date}" with that same date format (so mail apps do not thread every day's digest into one conversation); otherwise "Your OcuTalon digest" as drafted. Record which under Design Notes "Decided in-stage". E2 "Email" approved. R1 approved only if "Settings > Daily digest" matches the page's real labels; it goes into the README after 0.26's README merge (rebase the line onto the new README; if 0.26 has not merged when 21.7 commits, record R1 as pending in the spec and leave the README untouched).
+  - V2, V3, V6, V7 approved as drafted; spine S1-S5 as drafted (additive), with V1's third path and V4/V5's conditions in S2.
+
 **Acceptance Criteria:**
 - (Integration) Given the mailbox and SMTP server saved on the CI stubs by owner session S and `digest.channels` naming S's own channels plus `email`, when S's admin submits `SendDigest` through `Commands.Submit` (origin `web_admin`), then real Digest -> real Notify -> real `EmailOut` deliver one mail to the stub, From and To `email.address`, subject E1, text equal to the `DigestText` rendering for `email` of the stored `Digest.Data.Sent` Slots, header `X-OcuTalon-Ref` equal to a new `Delivery` row of channel `email`, Kind `digest`; the web chat copy still arrives.
 - (needs O1) Given `digest.channels` = `email` alone, or `web,email` with demo mode on, when S's digest is composed, then the same mail is delivered.
@@ -88,7 +96,15 @@ deferred: []
 
 - (O1, DW-820) Given a composed digest and any `digest.channels` value (only `email`; `email` with a strict subset of the own channels; only the own channels; none), when `Digest.Process.Deliver` runs, then it hands the digest to Notify once, Notify routes it to exactly the channels `digest.channels` names that are available (email only through 21.7's rule), `Digest.Process.Own` and the direct sends no longer exist, and the existing web/phone/telegram digest tests still pass through Notify.
 
+- (ruling O1) Given the web chat and Telegram digests (and the Simulated phone's), when they are delivered through Notify only, then each text is byte-identical to before and sent at the same moment (regression test per channel); "Send my digest now" e2e passes unchanged; `MESSAGENOCHANNEL` stays tested.
+- (ruling V1) Given `EmailOut`'s digest path, then the recipient is always `email.address` and nothing passed in can change it; 21.6 (b), (c), (f), (g) hold on this path; the 11th digest email to a mailbox in one UTC day is refused, recorded and not sent.
+- (ruling V4) Given an inbound mail, then `EmailIn` skips it only when its `X-OcuTalon-Ref` names a sent email `Delivery`, its From is `email.address`, and the Ref was not skipped before; each skip is traced with the Ref and no contents; any other mail is an untrusted item as before.
+- (ruling V5) Given any `EmailOut` mail, then it carries a random `X-OcuTalon-Ref` of at least 120 bits, different on every send, never derived from a sequence, session or address.
+- (ruling E1) Given a digest email, then its subject is "Your OcuTalon digest for {date}" in the chat heading's date format when the digest formats one, else "Your OcuTalon digest".
+
 ## Spec Change Log
+
+- 2026-11-12 (lead, spec gate): Contest Planner rulings applied (`prompts/epic-21-rulings-217.md`): O1 accepted with conditions; V1 approved as the third path inside `EmailOut` with a 10-per-UTC-day cap; V2, V3, V6, V7 approved; V4 narrowed (sent Delivery + From is the own address + one use, each skip traced); V5 random Ref >= 120 bits on every mail; E1 dated if the chat heading formats a date; E2 approved; R1 conditional and after 0.26's README merge. Written as tasks and ACs. The intent gap is resolved; status reset to `ready-for-dev` per the re-dispatch protocol (the plan was otherwise complete; the lead validated it).
 
 - 2026-11-12 (lead): O1 RULED by the orchestrator (one-time AD-33 Lane A exception for `Digest/Process.cls` and the Lane A tests that pin it; DW-820 routed to this story by=orchestrator, resolved-by this key at adjudication); written as a task and an acceptance criterion. The spec stays `blocked` until the Contest Planner rules V1-V7, E1, E2, R1 and S1-S5 (and O1 itself as a veto item); then reset per the re-dispatch protocol.
 
@@ -156,5 +172,7 @@ Run every command from the worktree root. `<vars>` = `OCUTALON_LOCK_DIR="$(dirna
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: Story 21.7 depends on an unscheduled Lane A change. Digest.Process.Deliver (Lane A, Digest/** which this Lane B story must not edit) hands a digest to Notify only when digest.channels names exactly the session's own web/phone/telegram channels; otherwise it sends to WebChatOut/SimPhoneOut/TelegramOut directly, and with none of those named it fails MESSAGENOCHANNEL. So under the Planner's ruling Q1 (Notify routes email; Digest gets no email knowledge) email alone, or email beside a strict subset of the own channels (demo mode on, or Telegram paired), never reaches Notify and no digest email is sent. The fix is DW-820's Lane A residual (owner burndown, no Lane A story key). Question (dependency statement, owner-only): route DW-820's residual -- "Digest hands every composed digest to Notify whatever digest.channels names, and Notify alone routes kind digest" -- to a Lane A story that lands before 21.7's implement (recommended; Epic 21 can run 21.4 and 21.5 meanwhile), or grant Story 21.7 an AD-33 exception to make that edit in Digest/Process.cls and its Lane A tests. The rest of the spec is planned; veto items O1, V1-V7, public text E1, E2 (R1 optional) and spine S1-S5 await the gate.
+Status: ready-for-dev
+Blocking condition: none
+
+(Lead, 2026-11-12: the plan halted on the O1 intent gap; O1 and the gate items are ruled (Spec Change Log), so the spec is reset to ready-for-dev.)
