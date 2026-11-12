@@ -10,7 +10,8 @@
 #                                         here and in `shard` may be a piece, <shard>@<Area>,... or <shard>@rest (shard_unit_areas
 #                                         of ci/units.sh), which keeps only those areas of the shard
 #   ci/iris.sh port                       the web port that the browser units would publish: 52810 + n (runners 0 to 9), 52819 - n (10 to 19), or auto
-#   ci/iris.sh build                      checks the base image and builds the web bundle from this checkout
+#   ci/iris.sh build                      checks the base image and builds the web bundle from this checkout; in the lane-a jobs ipm-install and
+#                                         ipm-install-p (GITHUB_JOB) it also takes the job's start stamp
 #   ci/iris.sh shard <name> [--reverse] [--part k/n]
 #                                         one throwaway; every test class of the shard's areas through %UnitTest.Manager, in
 #                                         name order (reversed with --reverse); one "CLASS <name> passed|failed <s>s" line each.
@@ -29,7 +30,8 @@
 #   ci/iris.sh group <name>               the units of a group in order, each in its own process and project; one
 #                                         "UNIT <unit> passed|failed <s>s" line each; exit 1 naming the failed units
 #   ci/iris.sh teardown                   removes only the projects, volumes, networks and images of the tag (ocutalon-<label>-<tag>-<epoch>-<pid>),
-#                                         and the tag's warm state and warm-iris.lock (ci/warm.sh)
+#                                         and the tag's warm state and warm-iris.lock (ci/warm.sh); in the jobs ipm-install and ipm-install-p it first
+#                                         prints `MEASURED <job> N s` (since the stamp of `build`) and, over REL-4's 2100 s, `over REL-4` (log and step summary)
 #   ci/iris.sh all                        every group in turn
 # OCUTALON_RUN_TAG (lower-case letters, digits and hyphens, at least 3 characters, no "slot") names the run: the pieces of one run
 # share it and `teardown` needs it. It defaults to local-<epoch>-<pid>, which makes each call its own run. In CI the web port of
@@ -343,8 +345,56 @@ cmd_port() {
   echo "${OCUTALON_TEST_WEB_PORT:-auto}"
 }
 
+# --- the wall time of the lane-a IPM jobs against REL-4's 35 minutes (Story 0.32, DW-1214) ---
+# The jobs ipm-install and ipm-install-p (REL4_JOBS of ci/units.sh) have a timeout-minutes of 45, which only stops a hang; REL-4's 35 minutes
+# (REL4_TARGET_SECONDS) stays the target. `build`, the first script of each job, takes a start stamp; `teardown`, the last step (if: always()),
+# prints `MEASURED <job> N s` with the seconds since the stamp and, when N is over the target, `over REL-4: ...` to the log and to
+# GITHUB_STEP_SUMMARY. Any other job, or a run with no stamp, prints nothing. job_now is the clock (a test replaces it).
+
+job_now() { date +%s; }
+
+job_start_file() { printf '%s\n' "${TMPDIR:-/tmp}/ocutalon-jobstart-$1"; }
+
+# job_is_rel4: true when GITHUB_JOB is one of REL4_JOBS.
+job_is_rel4() {
+  local j
+  for j in $REL4_JOBS; do
+    [ "${GITHUB_JOB:-}" = "$j" ] && return 0
+  done
+  return 1
+}
+
+# job_start_stamp: writes the start stamp of the tag once (a second `build` of the job keeps the first), for a REL-4 job only.
+job_start_stamp() {
+  local f
+  job_is_rel4 || return 0
+  f=$(job_start_file "${OCUTALON_RUN_TAG:-}")
+  [ -f "$f" ] || job_now > "$f" 2>/dev/null
+  return 0
+}
+
+# job_wall_report <tag>: the MEASURED line (and the over REL-4 flag) of a REL-4 job that has a stamp; removes the stamp.
+job_wall_report() {
+  local f start n line
+  job_is_rel4 || return 0
+  f=$(job_start_file "$1")
+  [ -f "$f" ] || return 0
+  start=$(cat "$f" 2>/dev/null)
+  rm -f "$f"
+  case $start in '' | *[!0-9]*) return 0 ;; esac
+  n=$(($(job_now) - start))
+  echo "MEASURED $GITHUB_JOB $n s"
+  if [ "$n" -gt "$REL4_TARGET_SECONDS" ]; then
+    line="over REL-4: $GITHUB_JOB took $n s, the target is $REL4_TARGET_SECONDS s"
+    echo "$line"
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then echo "$line" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null; fi
+  fi
+  return 0
+}
+
 cmd_build() {
   setup_tag
+  job_start_stamp
   preflight
   LIVE_REBUILD_WEB=1 ensure_web_bundle || exit 1
   echo "BUILD the web bundle is built from this checkout"
@@ -804,6 +854,7 @@ cmd_teardown() {
     echo "FAIL OCUTALON_RUN_TAG '$tag' $LIVE_TAG_RULE"
     exit 2
   fi
+  job_wall_report "$tag"
   pattern="^ocutalon-[a-z0-9-]+-$tag-[0-9]{10}-[0-9]+([-_:]|\$)"
   c=0
   v=0

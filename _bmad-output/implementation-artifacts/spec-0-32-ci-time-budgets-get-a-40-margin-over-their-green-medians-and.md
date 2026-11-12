@@ -2,8 +2,8 @@
 title: 'Story 0.32: CI time budgets get a 40% margin over their green medians, and the two load timeouts get MEASURED lines (DW-1082, DW-1195)'
 type: 'chore'
 created: '2026-11-12'
-status: 'in-progress'
-baseline_revision: '4f8505ccdc1d63d1f2f5d083f0e4e6d2bcb44045'
+status: 'done'
+baseline_revision: 'b161e20e2cf01583116aa1df6a555696fb3e057d'
 baseline_commit: '4f8505ccdc1d63d1f2f5d083f0e4e6d2bcb44045'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -18,28 +18,28 @@ deferred:
       Full table: evidence/0-32-task0-ci-time-budgets.md.
     location: >-
       .github/workflows/ci.yml (iris job timeout-minutes: 40), ci/units.sh (group_units)
-    severity: 'medium (Planner: a job cap is a RELEASE TOOL hunk; rebalancing is Story 0.20 kind of change)'
+    severity: 'medium (Planner: a job cap is a RELEASE TOOL hunk; rebalancing is Story 0.20 kind of change); changed (Planner-approved, DW-1212): the iris job cap is now 50 minutes, no rebalancing'
   - summary: >-
       Report-only: the ci `checks` job timeout (20 minutes) is 1.25 times its green median.
     evidence: |-
       962 s median, 1015 s largest of the ten newest green jobs, against 1200 s: 1.25 and 1.18.
     location: >-
       .github/workflows/ci.yml (checks, timeout-minutes: 20)
-    severity: 'medium (Planner: RELEASE TOOL hunk)'
+    severity: 'medium (Planner: RELEASE TOOL hunk); changed (Planner-approved, DW-1213): now 25 minutes'
   - summary: >-
       Report-only: the ci `iris` job timeout (40 minutes) is 1.33 to 1.66 times the group medians.
     evidence: |-
       See the group entry; the cap itself is the last bound of a hang and the Never list forbids raising it here.
     location: >-
       .github/workflows/ci.yml (iris, timeout-minutes: 40)
-    severity: 'medium (Planner: RELEASE TOOL hunk)'
+    severity: 'medium (Planner: RELEASE TOOL hunk); changed (Planner-approved, DW-1212): now 50 minutes'
   - summary: >-
       Report-only: lane-a's ipm-install (35 minutes) and ipm-install-p (35 minutes) jobs run at 1.13 and 1.21 times their green medians.
     evidence: |-
       ipm-install 1859 s median, 2098 s largest, against 2100 s: 1.13 and 1.00. ipm-install-p 1741 s median, 1893 s largest: 1.21 and 1.11. Their deadline is 1980 s, which the floors never lower. REL-4's 35 minutes is a Never-raise bound of this story.
     location: >-
       .github/workflows/lane-a.yml (ipm-install, ipm-install-p, timeout-minutes: 35)
-    severity: 'medium (Planner: RELEASE TOOL hunk and REL-4)'
+    severity: 'medium (Planner: RELEASE TOOL hunk and REL-4); changed (Planner-approved, DW-1214): both jobs now 45 minutes as a hang backstop, REL-4 stays the 35-minute target with MEASURED and over REL-4 lines'
   - summary: >-
       Report-only: Playwright's 45 s per-test timeout is 1.27 times the slowest test of online-allowance and 1.38 times that of online-demo.
     evidence: |-
@@ -76,7 +76,7 @@ Every changed budget prints a `MEASURED` line, so the next audit is exact.
   - DW-1082: (a) every run prints "MEASURED row 6: the upgrade took N s to ready", pass or fail; (b) the row 6 ready budget goes from 200 s to 300 s; (c) it still fails at 300 s.
   - DW-1195: (a) every run prints "MEASURED live:sign-in suite N s"; (b) the suite timeout is at least 1.4 times the green median (about 950 s), or the suite is split. The sign-in-2 and sign-in-3 suites (755 s and 770 s) are covered the same way.
   - Audit: "Audit every CI time budget (unit, suite and ready waits) against its green median from the last 10 runs, and raise any with less than 40% margin ... A real hang still fails, just later."
-- Every budget stays finite, so a real hang still fails. A raised budget never shortens, skips, deletes or tags off a test, and the job's own 40-minute cap still ends a run.
+- Every budget stays finite, so a real hang still fails. A raised budget never shortens, skips, deletes or tags off a test, and the job's own cap (50 minutes for the `iris` job since DW-1212) still ends a run.
 - Each changed budget gets a pin in `docker/tests/test-ci-config.sh` or `docker/tests/test-lib-live.sh`, with a demonstrated mutation.
 - Lane B: worktree `.worktrees/epic-0b`, branch `OCT-epic0b`. Every live call carries `<lane-B>`: `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-b OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=0b stage=<stage>'`, with an `OCUTALON_RUN_TAG` that starts with `e0bs32`. Shell code is ASCII and runs on bash 3.2.
 - CI HOLD (Planner, from 18:15Z): the story may be built and committed locally. Its push waits for "CI HOLD OFF", which the lead handles.
@@ -156,8 +156,8 @@ Every changed budget prints a `MEASURED` line, so the next audit is exact.
   - `:1-60` is the header list of rules; add the new rule there.
 - `docker/tests/test-lib-live.sh:135-160` -- the `wait_started_log` / `wait_started_ready` rows, with a fixture log, `deadline` and `set_health`. Extend them.
 - `.github/workflows/ci.yml` (read only):
-  - `checks` 20 min, `web` 10, `install-macos` 15, `iris` 40 (`:32,47,58,104`); the iris env has `OCUTALON_LIVE_DEADLINE: "1200"`.
-  - `lane-a.yml`: 25, 30, 35 and 35 min.
+  - `checks` 20 min, `web` 10, `install-macos` 15, `iris` 40 (`:32,47,58,104`); the iris env has `OCUTALON_LIVE_DEADLINE: "1200"`. Rework iteration 1 changed `checks` to 25 and `iris` to 50 (DW-1213, DW-1212).
+  - `lane-a.yml`: 25, 30, 35 and 35 min; rework iteration 1 changed the last two (`ipm-install`, `ipm-install-p`) to 45 (DW-1214).
 
   Report-only rows.
 - `_bmad-output/implementation-artifacts/evidence/` -- the project's Task 0 record folder (for example `35-1-task0-mcp-attach.md`).
@@ -218,10 +218,10 @@ Every changed budget prints a `MEASURED` line, so the next audit is exact.
 - `docker/tests/test-lib-live.sh` -- add rows: a met wait and a timed-out wait (the existing rejects at `wait_started_log 1`) each print exactly one `MEASURED wait test-lib-live.sh:<line> <s> s of <max> s` on stderr, through `wait_started_ready` too, and nothing extra on stdout.
 
 *Rework iteration 1 (Planner-approved RELEASE TOOL hunks, 2026-11-12 ~18:30Z; work ONLY these items):*
-- [ ] [Planner] DW-1212: `.github/workflows/ci.yml` job `iris` `timeout-minutes: 40` -> `50` (a hang backstop; no group rebalancing until after Sunday). Pin the value in the test that already pins the workflows (`docker/tests/test-ci-config.sh` or `docker/tests/test-ci-changes.sh`, wherever workflow facts are pinned), with a mutation.
-- [ ] [Planner] DW-1213: `.github/workflows/ci.yml` job `checks` `timeout-minutes: 20` -> `25`. Pin and mutation as above.
-- [ ] [Planner] DW-1214: `.github/workflows/lane-a.yml` jobs `ipm-install` and `ipm-install-p` `timeout-minutes: 35` -> `45` as a hang backstop, with REL-4's 35 minutes kept as the TARGET: each of the two jobs prints `MEASURED <job> N s` (its own wall time so far, measured from a timestamp the job's existing scripts take at their start) and, when N is over 2100 s (35 minutes), flags `over REL-4` in the run summary (`$GITHUB_STEP_SUMMARY`) and the log. Both lines come from the scripts the jobs already run (no new workflow step, key or line other than the two `timeout-minutes` values). Pin the values and the MEASURED / over REL-4 behaviour (a hermetic test with a stub clock or a fixed start time), with mutations.
-- [ ] [Planner] Update every comment, doc line and existing pin in the repository that states the old values (for example a "40-minute job cap is never raised" note in `ci/units.sh` or a test), so nothing claims 40/20/35 any more; REL-4's 35-minute TARGET wording stays where it is a target. Update the evidence file's report-only rows for DW-1212/1213/1214 to "changed (Planner-approved)".
+- [x] [Planner] DW-1212: `.github/workflows/ci.yml` job `iris` `timeout-minutes: 40` -> `50` (a hang backstop; no group rebalancing until after Sunday). Pin the value in the test that already pins the workflows (`docker/tests/test-ci-config.sh` or `docker/tests/test-ci-changes.sh`, wherever workflow facts are pinned), with a mutation.
+- [x] [Planner] DW-1213: `.github/workflows/ci.yml` job `checks` `timeout-minutes: 20` -> `25`. Pin and mutation as above.
+- [x] [Planner] DW-1214: `.github/workflows/lane-a.yml` jobs `ipm-install` and `ipm-install-p` `timeout-minutes: 35` -> `45` as a hang backstop, with REL-4's 35 minutes kept as the TARGET: each of the two jobs prints `MEASURED <job> N s` (its own wall time so far, measured from a timestamp the job's existing scripts take at their start) and, when N is over 2100 s (35 minutes), flags `over REL-4` in the run summary (`$GITHUB_STEP_SUMMARY`) and the log. Both lines come from the scripts the jobs already run (no new workflow step, key or line other than the two `timeout-minutes` values). Pin the values and the MEASURED / over REL-4 behaviour (a hermetic test with a stub clock or a fixed start time), with mutations.
+- [x] [Planner] Update every comment, doc line and existing pin in the repository that states the old values (for example a "40-minute job cap is never raised" note in `ci/units.sh` or a test), so nothing claims 40/20/35 any more; REL-4's 35-minute TARGET wording stays where it is a target. Update the evidence file's report-only rows for DW-1212/1213/1214 to "changed (Planner-approved)".
 
 **Acceptance Criteria:**
 - Given `ci/iris.sh live install-upgrade`, when row 6's upgrade start is waited for, then the log shows `MEASURED row 6: the upgrade took N s to ready` whether it passes or fails, the budget is 300 s, and a start not ready within it fails row 6 (DW-1082). Row 7's two waits behave the same way with their own lines and audited budgets (at least 300 s).
@@ -295,6 +295,24 @@ Rejected:
   - `[low]` `reject` Edge: BASH_SOURCE empty frames, a prefix match of `wait_started_ready 300`, record-eval's literal 400 -- theoretical or out of scope (record-eval is not a CI unit)
   - `[low]` `reject` Verification-gap: the AC 5 table check is a scratch script, AC 7 has no mutation, the `(1200, 2340]` bound is caught by the exact floor pin, test-lib-live rows rely on the earlier start stamp -- the spec makes AC 5 a one-off check and AC 7 CI's result; the exact floor pin already fails first
   - `[low]` `reject` Intent-alignment (descriptive): the diff implements the reading in which scripts raise effective deadlines while the workflow keeps 1200 -- that is the spec's approach (Decided in-stage 3), not a divergence from its intent
+
+### 2026-11-12 -- Review pass (rework iteration 1)
+- verdicts: 14 findings (blind 8, edge 6; verification-gap 2 entries with 2 sub-items; the intent-alignment layer is descriptive; the first verification-gap launch had a mistyped diff path, read nothing and was run again) -- high 0, medium 1, low 13, false 1, maybe-false 0; 2 patched (one root cause each), 12 rejected
+- findings:
+  - `[medium]` `patch` Verification-gap: the three negative REL-4 rows (another job, no GITHUB_JOB, no stamp) assert only an absence on output and never that the teardown ran -- each now also asserts the `TEARDOWN tag` line (mutation: the line renamed -> the three rows red)
+  - `[low]` `patch` Verification-gap / blind / edge: no row for a second `build` keeping the first stamp, and none that a non-REL-4 job writes no stamp -- `budget_job` takes a fifth argument (a second build), a `rel4-twice` row and a stamp-folder check on `rel4-other` were added (mutations: the keep-first guard removed, `job_is_rel4 || return 0` removed in `job_start_stamp` -> both red)
+  - `[low]` `reject` Blind: the Never list (line 87) still says never raise `timeout-minutes` -- inside the read-only intent-contract; the amendment at line 85 carves out the four values; a fix would edit this build's spec
+  - `[low]` `reject` Blind / edge: the deferred entries keep the old 40/20/35 wording -- they record the audit's findings as they stood; the rows' severity lines say changed; a fix would edit the spec's record
+  - `[low]` `reject` Blind: no `::warning::` annotation for an over-REL-4 job -- the item asks for the run summary and the log; by-design
+  - `[low]` `reject` Blind / edge / verification-gap / intent: N counts from `build`, so it leaves out runner setup and checkout -- the item says "measured from a timestamp the job's existing scripts take at their start"; the script and its comment say "since the stamp of `build`"; spec-bound
+  - `[low]` `reject` Blind: no pin that the two jobs run `build` first and `teardown` last -- `false`: test-cpf.sh pins `ci/iris.sh build` before the install script in both jobs and test-ci-config's teardown rule pins an `if: always()` teardown step for every job that runs `ci/iris.sh`
+  - `[low]` `false` Blind: wiring of teardown is unpinned (see the row above) -- refuted there
+  - `[low]` `reject` Blind / edge: a backwards clock prints a negative N; a stamp left by a killed runner; an unwritable stamp -- wontfix-theoretical; the tag carries the run id and attempt, so a stale stamp is never read by another run
+  - `[low]` `reject` Edge: no rows for a non-numeric stamp, an unset or unwritable step summary -- defensive guards with no user-reachable failure
+  - `[low]` `reject` Blind: the longer caps hold a runner longer on a hang, and the units.sh note on the 50-minute bound is looser -- Planner-approved (DW-1212, DW-1214); by-design
+  - `[low]` `reject` Verification-gap: the sourced test host and stub clock do not prove `GITHUB_JOB` or `GITHUB_STEP_SUMMARY` on the runner -- CI's own result on the head (AC 7, the lead)
+  - `[low]` `reject` Verification-gap: the pre-existing teardown fixture would print extra lines inside an ipm-install job -- not reachable by CI (the checks job runs it)
+  - `[low]` `reject` Intent-alignment (descriptive): the diff implements the script-surface reading (the amendment's wording) -- not a divergence
 
 ## Design Notes
 
@@ -397,6 +415,26 @@ Each applied to the tree, observed red, reverted; `git status --short` and `git 
 | AC 4 (review pass): the `MEASURED wait` echo skipped when the container has no start time | test-lib-live "a wait for a container with no start time" | red: that row FAILs |
 | AC 3 (review pass): the `case` line that turns a non-numeric given deadline into 0 deleted from `cmd_live` | test-ci-config budgets `floor-nonnumeric` | red: the unit saw 'abc', wanted 1500 |
 
+**Rework iteration 1 (DW-1212, DW-1213, DW-1214; Planner-approved RELEASE TOOL hunks).** Each mutation applied to the tree, `bash docker/tests/test-ci-config.sh` observed red, reverted; `git status --short` and `git diff` checksums identical afterwards (a scratch script compared them each time).
+
+Done: `ci.yml` `iris` 40 -> 50 and `checks` 20 -> 25, `lane-a.yml` `ipm-install` and `ipm-install-p` 35 -> 45 (nothing else in a workflow). `ci/units.sh` holds `REL4_JOBS` and `REL4_TARGET_SECONDS` (2100). `ci/iris.sh build` (the first script of each IPM job) writes the job's start stamp, and `ci/iris.sh teardown` (the job's last step, `if: always()`) prints `MEASURED <job> N s` and, above 2100 s, `over REL-4: <job> took N s, the target is 2100 s` to the log and `$GITHUB_STEP_SUMMARY`; any other job, or a run with no stamp, prints nothing. No workflow step, key or line was added and `release/**` is untouched. Old values in `ci/units.sh` comments now read "then 40-minute" (history) or 50 minutes (the floors' bound); the evidence file's report-only rows are marked changed (Planner-approved). The pins are in test-ci-config.sh's `budgets` rule (the four timeouts, the two constants, and a hermetic run of the real `cmd_build` and `cmd_teardown` with a stub clock and stub docker: under, exactly at and over 2100 s, another job, no job, no stamp, stamp removed).
+
+- mutation: ci.yml `iris` back to `timeout-minutes: 40` -> test-ci-config budgets red ("job iris has timeout-minutes '40', wanted 50").
+- mutation: ci.yml `checks` back to 20 -> budgets red ("job checks has timeout-minutes '20', wanted 25").
+- mutation: lane-a.yml `ipm-install` back to 35 -> budgets red ("job ipm-install has timeout-minutes '35', wanted 45").
+- mutation: lane-a.yml `ipm-install-p` back to 35 -> budgets red ("job ipm-install-p has timeout-minutes '35', wanted 45").
+- mutation: `job_start_stamp` call deleted from `cmd_build` -> budgets red (the MEASURED and over REL-4 rows).
+- mutation: `job_wall_report "$tag"` deleted from `cmd_teardown` -> budgets red (the MEASURED rows and the stamp-still-there row).
+- mutation: `-gt` to `-ge` in `job_wall_report` -> budgets red ("REL-4 exactly at 2100 s: an 'over REL-4' flag was printed").
+- mutation: the `$GITHUB_STEP_SUMMARY` write deleted -> budgets red ("no 'over REL-4' line in the step summary").
+- mutation: `REL4_TARGET_SECONDS=2100` -> 2400 in ci/units.sh -> budgets red (the constants pin and the over rows).
+- mutation: `job_is_rel4` accepts any non-empty `GITHUB_JOB` -> budgets red ("another job (iris): a REL-4 line was printed").
+- mutation (review pass): `[ -f "$f" ] ||` removed from `job_start_stamp` (a second build overwrites the stamp) -> budgets red ("REL-4 with a second build: the stamp of the first build was not kept"); reverted, `git status --short` and `git diff` checksums identical.
+- mutation (review pass): `job_is_rel4 || return 0` deleted from `job_start_stamp` -> budgets red ("another job (iris): a start stamp was written"); reverted, checksums identical.
+- mutation (review pass): `TEARDOWN tag` echo renamed in `cmd_teardown` -> budgets red in the three negative rows ("the teardown did not run to its TEARDOWN line"); reverted, checksums identical.
+
+Verification: `bash -n` and the ASCII check on ci/iris.sh, ci/units.sh and test-ci-config.sh; `test-ci-config.sh` (all rules passed), `test-cpf.sh`, `test-ci-changes.sh`, `test-ci-warm.sh` pass; `node --test` of state-wait, ci-results and e2e-part (96 pass). Nothing needed a live stack.
+
 AC 7 is CI's own result on the head (the lead, after CI HOLD OFF).
 
 ### QA record (2026-11-12, recorded by the lead from the QA stage's return)
@@ -419,3 +457,18 @@ Review: 28 findings from the three finding layers; patches applied 3 (empty-star
 Verification: `bash -n` and the ASCII check pass on every changed shell file; `test-ci-config.sh` (budgets rule PASS), `test-lib-live.sh`, `test-ci-warm.sh`, `test-upgrade-harness.sh`, `test-ci-changes.sh` all pass; the three node test files pass (96); `test-release-sequence.sh overviewunit` passes; the implement stage's `ci/iris.sh live audit` ran green on lane B with its throwaway torn down. Mutations are in `## Verification`; both review-pass mutations went red and the tree was byte-identical after each revert. `test-release-sequence.sh` (all rules) and `test-rehearsal.sh` were not run to a verdict (over the 150 s call cap); neither reads the changed scripts.
 
 Residual risks: the install-upgrade, install-start and sign-in budget pins are text pins (the scripts need a live stack); AC 7 (CI green on the pushed head, MEASURED and DEADLINE lines in the logs) waits for CI HOLD OFF and the lead. The five floors raise their groups' worst case toward the job's 40-minute cap (deferred entry for the Planner).
+
+### Rework iteration 1 (DW-1212, DW-1213, DW-1214; this pass only)
+
+Status: done
+Blocking condition: none
+
+Summary: four `timeout-minutes` values changed and nothing else in a workflow: ci.yml `iris` 50 and `checks` 25, lane-a.yml `ipm-install` and `ipm-install-p` 45. The two lane-a jobs print `MEASURED <job> N s` at `ci/iris.sh teardown` (N counts from a stamp that `ci/iris.sh build` takes) and, over 2100 s, `over REL-4` to the log and `$GITHUB_STEP_SUMMARY`; `REL4_JOBS` and `REL4_TARGET_SECONDS` are in `ci/units.sh`. Old values in comments and in the evidence file's report-only rows are updated.
+
+Files changed: `.github/workflows/ci.yml`, `.github/workflows/lane-a.yml`, `ci/iris.sh`, `ci/units.sh`, `docker/tests/test-ci-config.sh` (timeout pins, hermetic REL-4 rows), the evidence file and this spec.
+
+Review: 14 findings; patches 2 (medium 1, low 1: positive controls on the negative REL-4 rows, a second-build row and a no-stamp-for-other-jobs check, with three mutations); deferred none; 12 rejected with the reasons in `## Review Triage Log`. followup_review_recommended false (no patched HIGH).
+
+Verification: `bash -n` and the ASCII check on `ci/iris.sh`, `ci/units.sh` and `test-ci-config.sh`; `test-ci-config.sh` all rules passed (budgets rule PASS) before and after the review patches; the implement stage also ran `test-cpf.sh`, `test-ci-changes.sh`, `test-ci-warm.sh` and the three node test files. Mutations are in `### Mutations (Rule 19)`.
+
+Residual risks: AC 7 for these lines (that `GITHUB_JOB` and `GITHUB_STEP_SUMMARY` give the MEASURED and `over REL-4` lines on the runner) is CI's own result on the head, after CI HOLD OFF (the lead). N leaves out the runner's setup and checkout before `build`.

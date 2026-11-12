@@ -76,7 +76,10 @@
 #     first-start wait is LIVE_FIRST_START_WAIT (default 510 s) in every live script, whose die names it; the three waits of
 #     live:install-upgrade and the two audited waits of live:install-start have their budgets, and the MEASURED lines of the upgrade's
 #     waits come before their dies and are unconditional (printed on a pass too); test-sign-in.sh prints the suite budget before the
-#     browser run and the suite seconds right after it; the evidence table's new-value column equals the code's values;
+#     browser run and the suite seconds right after it; the evidence table's new-value column equals the code's values; the four job
+#     timeouts of DW-1212, DW-1213 and DW-1214 (ci.yml iris 50 and checks 25 minutes, lane-a.yml ipm-install and ipm-install-p 45), and the REL-4 lines of
+#     the two lane-a IPM jobs: `build` takes a start stamp and `teardown` prints `MEASURED <job> N s` and, over 2100 s, `over REL-4` to the log and the
+#     step summary (a stub clock; no line for another job or a run with no stamp);
 #   - lane-a: lane-a.yml exists and has the job standalone-bridge; both .yml and .yaml files are workflow files;
 #   - checks.sh, class verdict, shard order, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh
 #     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
@@ -2426,12 +2429,79 @@ printf '%s\n' "$tk_out" | grep -q '^DEADLINE' && tk_bad "a unit with no floor: a
 tk_live floor-none-unset TK_UNIT=floor TK_UNIT_EXTRA="$budget_rec"
 [ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = unset ] || tk_bad "a unit with no floor and no deadline: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted it unset"
 printf '%s\n' "$tk_out" | grep -q '^DEADLINE' && tk_bad "a unit with no floor and no deadline: a DEADLINE line was printed"
+# The four job timeouts (DW-1212, DW-1213, DW-1214): the backstops of a hang. REL-4's 35 minutes is the target the IPM jobs measure below.
+budget_timeout() { # budget_timeout <workflow> <job>: the one timeout-minutes of the job
+  awk -v job="$2" '/^  [A-Za-z0-9_-]+:[ \t]*$/ { cur = $1; sub(/:$/, "", cur) } cur == job && /^    timeout-minutes:/ { print $2; n++ } END { exit (n == 1 ? 0 : 1) }' "$1"
+}
+budget_to=""
+for budget_row in ci.yml:iris:50 ci.yml:checks:25 lane-a.yml:ipm-install:45 lane-a.yml:ipm-install-p:45; do
+  budget_f=.github/workflows/${budget_row%%:*}
+  budget_rest=${budget_row#*:}
+  budget_have=$(budget_timeout "$budget_f" "${budget_rest%%:*}") || budget_have="(no single timeout)"
+  [ "$budget_have" = "${budget_rest#*:}" ] || tk_bad "$budget_f: job ${budget_rest%%:*} has timeout-minutes '$budget_have', wanted ${budget_rest#*:}"
+  budget_to="$budget_to ${budget_rest%%:*}=$budget_have"
+done
+[ "$(. "$root/ci/units.sh"; printf '%s/%s' "$REL4_JOBS" "$REL4_TARGET_SECONDS")" = "ipm-install ipm-install-p/2100" ] \
+  || tk_bad "ci/units.sh: REL4_JOBS / REL4_TARGET_SECONDS are not 'ipm-install ipm-install-p' / 2100"
+
+# The REL-4 lines of the two lane-a IPM jobs, through the real cmd_build (the start stamp) and cmd_teardown (the lines) of a sourced
+# ci/iris.sh, with a stub clock and stub docker. budget_job <row> <job or none> <start second or none> <end second> [<second build's second>]:
+# sets budget_out (the output of the build and of the teardown, which always ends with the TEARDOWN line) and budget_sum (the step summary
+# file); a fifth argument runs `build` a second time at that second.
+budget_job() {
+  local d="$tmp/budget-job-$1"
+  rm -rf "$d"
+  mkdir -p "$d/tmp" "$d/locks"
+  (
+    export TMPDIR="$d/tmp" GITHUB_STEP_SUMMARY="$d/summary" OCUTALON_RUN_TAG=bud-run1 OCUTALON_LOCK_DIR="$d/locks"
+    unset RUNNER_NAME OCUTALON_TEST_WEB_PORT
+    if [ "$2" = none ]; then unset GITHUB_JOB; else export GITHUB_JOB=$2; fi
+    . "$root/ci/iris.sh"
+    preflight() { :; }
+    ensure_web_bundle() { return 0; }
+    docker() { return 0; }
+    budget_at=$3
+    if [ "$3" != none ]; then
+      job_now() { echo "$budget_at"; }
+      cmd_build
+      if [ -n "${5:-}" ]; then budget_at=$5; cmd_build; fi
+    fi
+    budget_at=$4
+    cmd_teardown
+  ) > "$d/out" 2>&1
+  budget_out=$(cat "$d/out")
+  budget_sum=$(cat "$d/summary" 2>/dev/null)
+}
+budget_job rel4-under ipm-install 1000 3000
+printf '%s\n' "$budget_out" | grep -qx 'MEASURED ipm-install 2000 s' || tk_bad "REL-4 under: no 'MEASURED ipm-install 2000 s' line"
+printf '%s\n' "$budget_out$budget_sum" | grep -q 'over REL-4' && tk_bad "REL-4 under the target: an 'over REL-4' flag was printed"
+budget_job rel4-edge ipm-install-p 1000 3100
+printf '%s\n' "$budget_out" | grep -qx 'MEASURED ipm-install-p 2100 s' || tk_bad "REL-4 at the target: no 'MEASURED ipm-install-p 2100 s' line"
+printf '%s\n' "$budget_out$budget_sum" | grep -q 'over REL-4' && tk_bad "REL-4 exactly at 2100 s: an 'over REL-4' flag was printed"
+budget_job rel4-over ipm-install-p 1000 3101
+printf '%s\n' "$budget_out" | grep -qx 'MEASURED ipm-install-p 2101 s' || tk_bad "REL-4 over: no 'MEASURED ipm-install-p 2101 s' line"
+printf '%s\n' "$budget_out" | grep -qx 'over REL-4: ipm-install-p took 2101 s, the target is 2100 s' || tk_bad "REL-4 over: no 'over REL-4' line in the log"
+printf '%s\n' "$budget_sum" | grep -qx 'over REL-4: ipm-install-p took 2101 s, the target is 2100 s' || tk_bad "REL-4 over: no 'over REL-4' line in the step summary"
+[ -z "$(ls "$tmp/budget-job-rel4-over/tmp" 2>/dev/null)" ] || tk_bad "REL-4 over: the start stamp is still there after teardown"
+budget_job rel4-twice ipm-install 1000 3101 2500
+printf '%s\n' "$budget_out" | grep -qx 'over REL-4: ipm-install took 2101 s, the target is 2100 s' || tk_bad "REL-4 with a second build: the stamp of the first build was not kept"
+budget_job rel4-other iris 1000 9000
+printf '%s\n' "$budget_out" | grep -q '^TEARDOWN tag bud-run1' || tk_bad "another job (iris): the teardown did not run to its TEARDOWN line"
+printf '%s\n' "$budget_out$budget_sum" | grep -q -e 'MEASURED' -e 'over REL-4' && tk_bad "another job (iris): a REL-4 line was printed"
+[ -z "$(ls "$tmp/budget-job-rel4-other/tmp" 2>/dev/null)" ] || tk_bad "another job (iris): a start stamp was written"
+budget_job rel4-nojob none 1000 9000
+printf '%s\n' "$budget_out" | grep -q '^TEARDOWN tag bud-run1' || tk_bad "no GITHUB_JOB: the teardown did not run to its TEARDOWN line"
+printf '%s\n' "$budget_out$budget_sum" | grep -q -e 'MEASURED' -e 'over REL-4' && tk_bad "no GITHUB_JOB: a REL-4 line was printed"
+budget_job rel4-nostamp ipm-install none 9000
+printf '%s\n' "$budget_out" | grep -q '^TEARDOWN tag bud-run1' || tk_bad "no start stamp: the teardown did not run to its TEARDOWN line"
+printf '%s\n' "$budget_out$budget_sum" | grep -q -e 'MEASURED' -e 'over REL-4' && tk_bad "no start stamp: a REL-4 line was printed"
+
 live_body=$(awk '/^cmd_live\(\) \{/ { on = 1 } on { print } on && /^}/ { exit }' ci/iris.sh)
 printf '%s\n' "$live_body" | grep -q 'unit_live_deadline "\$name"' || tk_bad "cmd_live does not read unit_live_deadline"
 printf '%s\n' "$live_body" | grep -q 'OCUTALON_E2E_OUTPUT="test-results/\$name" bash "docker/tests/test-\$name.sh" "\$@"' || tk_bad "cmd_live's run line changed"
 
 if [ -z "$tk_fail" ]; then
-  echo "PASS budgets (Story 0.32): unit_live_deadline holds exactly the five floors (${budget_seen% }), each a live unit of a group in (1200, 2340], cmd_live raises a lower or unset deadline to the floor with one DEADLINE line and keeps a higher one and any unlisted unit, the $budget_first first-start waits use LIVE_FIRST_START_WAIT (510 s) with dies that name it, and the audited waits of live:install-start and live:install-upgrade, with the MEASURED lines before the dies, and the sign-in suite's two MEASURED lines are in place, and the evidence table's new-value column equals the code"
+  echo "PASS budgets (Story 0.32): unit_live_deadline holds exactly the five floors (${budget_seen% }), each a live unit of a group in (1200, 2340], cmd_live raises a lower or unset deadline to the floor with one DEADLINE line and keeps a higher one and any unlisted unit, the $budget_first first-start waits use LIVE_FIRST_START_WAIT (510 s) with dies that name it, and the audited waits of live:install-start and live:install-upgrade, with the MEASURED lines before the dies, and the sign-in suite's two MEASURED lines are in place, and the evidence table's new-value column equals the code, the job timeouts are${budget_to} minutes, and the lane-a IPM jobs print MEASURED <job> N s at teardown and flag over REL-4 (log and step summary) above 2100 s only"
 else
   echo "FAIL budgets (Story 0.32):$tk_fail"
   fails=$((fails + 1))

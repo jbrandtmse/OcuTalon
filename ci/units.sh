@@ -65,7 +65,7 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # Epic 12's close (2026-11-03, an orchestrator ruling, carried to the Contest Planner for main's required checks) added the ninth
 # group shards-4 for shard:lane-a@Channel alone: that unit took 704 s in CI (ci run 41618490851), and on feature run 41612880963 the
 # eight groups' steps took 24 to 31 minutes, so it fitted under 33 minutes in none of them; beside production-restart and
-# reminder-restart it had also met the 40-minute job timeout (DW-591).
+# reminder-restart it had also met the then 40-minute job timeout (DW-591).
 # Split by Contest Planner ruling 2026-11-05: live:sign-in 1047 s over the 1,000 s line. On ci run 42086496017 (OCT-epic34, attempt 2)
 # browser took 2,043 s (demo-path 550, sign-in 1047, answers 446) and its job 34.5 minutes, and on 42087551083 (OCT-epic40, attempt 2)
 # sign-in took 1,118 s and browser 2,206 s (37.3 minutes), against the 1,200 s deadline and the 35-minute budget (REL-4). About 260 s
@@ -90,7 +90,7 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # shard:lane-a@Bridge,Agent, so that shard:lane-a@rest in shards-2 no longer runs the Bridge and Agent areas (rest is computed from the
 # pieces the groups name, so every area of lane-a stays in exactly one piece). The new unit is not in NO_WEB_BUNDLE_UNITS, as shard:lane-a@rest
 # is not, so shards-5 runs and skips on the inputs that its areas had in shards-2. Measured on part 1's head (ci run 42373301364): the
-# shards-2 job was cancelled at its 40-minute timeout after 2,421 s, in the Memory area and before Tools (Fix 755, Bridge 665, Agent 282,
+# shards-2 job was cancelled at its then 40-minute timeout after 2,421 s, in the Memory area and before Tools (Fix 755, Bridge 665, Agent 282,
 # Eval 178, Memory 76 so far, Docs 67 and Digest 37 s of classes, READY 267 s); Tools took 27 s on ci run 42375447084. Bridge and Agent
 # are 947 s of that, so shards-2 is about 1,500 s and shards-5 about 1,250 s (inference until a run measures them).
 # Story 19.4 (2026-11-07) added live:documents: the real /v1/documents routes over HTTP, four chat turns, a container restart and the 10 MB size check.
@@ -117,7 +117,7 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # Story 0.20 (2026-11-09; the Contest Planner's rulings on DW-1025, relayed by the orchestrator: 16 groups, each planned to about 29 minutes; every
 # shard: unit of two or more areas at 900 s or less, a single-area unit whole; no longer timeout) added shards-6 to shards-11 and cut lane-a into
 # eight pieces and lane-b into two. On ci runs 42634825529, 42633085173, 42603815732 and 42583599821 every iris job took 31 to 41 minutes, and
-# install-upgrade, shards-2, image, shards-3 and shards-4 met the 40-minute timeout with no failing test. Planned from the largest unit seconds of
+# install-upgrade, shards-2, image, shards-3 and shards-4 met the then 40-minute timeout with no failing test. Planned from the largest unit seconds of
 # those runs; a new piece is its areas' largest class seconds plus 423 s, the largest stack start and teardown measured; a job adds 53 s. Pieces:
 # Agent 633, Bridge 1,167, Channel 841, Docs 1,056, Fix 1,192 and Watch 937 s, one area each; Install, Digest and Eval 890 s; lane-a's rest (Checks,
 # Tools and Memory) 866 s, 896 s with Epic 35's Mcp area; lane-b's Contract, Core, Data and Live 899 s and its rest (Demo, Msg, Schedule and Web)
@@ -130,7 +130,7 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # runs (shards 1,233 s of units in run 42730214385 and 1,346 s in run 42718893543; shards-7 1,341 and 1,288; image 1,287 and 1,353; shards-3 1,266 and 1,386;
 # shards-10 1,451 holds the contended live:reminder-restart). The unit is estimated at 350 to 450 s (inference: live:compose-start is 173 to 191 s for a start,
 # and a plain restart took 23 s in live:reminder-restart), so shards becomes about 1,580 to 1,800 s of units, about 27 to 30 minutes a job: inside REL-4's 35
-# minutes and the 40-minute timeout, and possibly above Story 0.20's 1,687 s a group (inference until a run measures it). Locally, on a loaded ARM developer machine, the unit did 521 s of work (a first start of 276 s, restart 1 26 s to
+# minutes and the then 40-minute timeout, and possibly above Story 0.20's 1,687 s a group (inference until a run measures it). Locally, on a loaded ARM developer machine, the unit did 521 s of work (a first start of 276 s, restart 1 26 s to
 # ready, the first tick 62 s after ready, restart 2 44 s), so the CI figure is the one to confirm. The unit reads no web bundle, but it is not added to NO_WEB_BUNDLE_UNITS: shards holds units that read
 # it, so listing it would change no skip (list it if it ever moves to a group whose other units read no bundle). No group is added, renamed or given a longer deadline.
 group_units() {
@@ -206,7 +206,7 @@ shard_unit_areas() {
 # lowers a higher given value. A floor is the larger of 1.4 times the unit's green median in seconds and, for the three sign-in units,
 # the deadline that leaves their browser run 950 s or 1.4 times its median (Story 0.32, DW-1082, DW-1195; the audit is
 # _bmad-output/implementation-artifacts/evidence/0-32-task0-ci-time-budgets.md), rounded up to 60 s and at most 2340 s, so that one
-# unit alone stays under the 40 minutes of the iris job (the other units of its group are not counted in that bound).
+# unit alone stays under the 50 minutes of the iris job (DW-1212; the other units of its group are not counted in that bound).
 unit_live_deadline() {
   case $1 in
     install-start | install-upgrade) echo 1440 ;;
@@ -215,6 +215,12 @@ unit_live_deadline() {
     *) return 1 ;;
   esac
 }
+
+# The lane-a jobs whose wall time is measured against REL-4's 35-minute TARGET (Story 0.32, DW-1214): each prints `MEASURED <job> N s`
+# and, over the target, `over REL-4`. Their timeout-minutes of 45 in lane-a.yml is only the hang backstop. ci/iris.sh build takes the
+# job's start stamp and ci/iris.sh teardown (the job's last step, if: always()) prints the lines.
+REL4_JOBS="ipm-install ipm-install-p"
+REL4_TARGET_SECONDS=2100
 
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
 BROWSER_UNITS="demo-path sign-in sign-in-2 sign-in-3 floor online-demo demo-switch answers cards online-session online-allowance online-demo-path online-visitors"

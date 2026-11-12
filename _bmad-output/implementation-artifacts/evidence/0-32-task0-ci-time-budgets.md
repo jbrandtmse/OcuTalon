@@ -171,22 +171,22 @@ a deferred entry in the spec). The lowest unchanged budget is live:floor's unit 
 | test-compose-start.sh:374 restarts | 90 | gap, `PARK done` or next line | 10 | <= 22 s | >= 4.05 | none (at least 1.4) | 90 | >= 4.05 |
 | test-install-script-live.sh:157 plain up healthy | 600 | gap, `PARK done` or next line | 10 | <= 23 s | >= 26.14 | none (at least 1.4) | 600 | >= 26.14 |
 
-## Report-only rows (nothing here is changed; each row under 1.4 is a `deferred:` entry of the spec, for the Planner)
+## Report-only rows (each row under 1.4 was a `deferred:` entry of the spec for the Planner; the four marked changed were approved and changed in rework iteration 1, nothing else here is changed)
 
 ### Workflow job timeouts against the job's green median (10 newest green jobs)
 
 | workflow job | timeout | median | max | timeout / median | timeout / max |
 |---|---|---|---|---|---|
-| ci checks | 20 min (1200 s) | 950 s | 1015 s | 1.26 | 1.18 |
+| ci checks | 20 min (1200 s); changed (Planner-approved, DW-1213) to 25 min (1500 s) | 950 s | 1015 s | 1.26 -> 1.58 | 1.18 -> 1.48 |
 | ci install-macos | 10 min (600 s) | 42 s | 45 s | 14.1 | 13.3 |
 | ci web | 15 min (900 s) | 82 s | 103 s | 11.0 | 8.7 |
-| ci iris (16 groups, below) | 40 min (2400 s) | 1410 to 1855 s | 2050 s | 1.29 to 1.70 | 1.17 |
+| ci iris (16 groups, below) | 40 min (2400 s); changed (Planner-approved, DW-1212) to 50 min (3000 s) | 1410 to 1855 s | 2050 s | 1.29 to 1.70 -> 1.62 to 2.13 | 1.17 -> 1.46 |
 | lane-a standalone-bridge | 25 min (1500 s) | 494 s | 604 s | 3.04 | 2.48 |
 | lane-a evaluation | 30 min (1800 s) | 1022 s | 1172 s | 1.76 | 1.54 |
-| lane-a ipm-install | 35 min (2100 s) | 1859 s | 2098 s | 1.13 | 1.00 |
-| lane-a ipm-install-p | 35 min (2100 s) | 1741 s | 1893 s | 1.21 | 1.11 |
+| lane-a ipm-install | 35 min (2100 s); changed (Planner-approved, DW-1214) to 45 min (2700 s), REL-4's 35 minutes kept as the target (`MEASURED ipm-install N s`, `over REL-4`) | 1859 s | 2098 s | 1.13 -> 1.45 | 1.00 -> 1.29 |
+| lane-a ipm-install-p | 35 min (2100 s); changed (Planner-approved, DW-1214) to 45 min (2700 s), REL-4's 35 minutes kept as the target (`MEASURED ipm-install-p N s`, `over REL-4`) | 1741 s | 1893 s | 1.21 -> 1.55 | 1.11 -> 1.43 |
 
-### Each iris group's unit seconds plus the job's overhead against 2,400 s
+### Each iris group's unit seconds plus the job's overhead against 2,400 s (the measured cap before DW-1212; the job cap is now 3,000 s)
 
 Both columns of a row come from the same 10 runs: the newest whose job for the group concluded `success` and printed its
 `GROUP <g> passed` line.
@@ -212,7 +212,8 @@ Both columns of a row come from the same 10 runs: the newest whose job for the g
 
 The floors raise only the caps of five units, not their run time. Where a group holds a floored unit (install-fresh: install-start;
 install-upgrade: install-upgrade; shards-4, shards-5 and shards-10: the sign-in units), the worst case of its units can pass the 40
-minutes; a real hang there ends at the job's own cap. Raising a job cap is a RELEASE TOOL hunk and the Planner's call.
+minutes (the cap then); a real hang there ends at the job's own cap, now 50 minutes (DW-1212, Planner-approved, rework iteration 1). No group
+is rebalanced.
 
 ### Playwright's 45 s per-test timeout (the slowest test of each project, median over the 10 newest runs)
 
