@@ -127,7 +127,7 @@ fi
 check_session "row 15: a terminal session reads the extension classes and a runner's model from the active production" OCUTALON \
   "CHK|HostSinkClass|OcuTalon.Core.BridgeSink|1
 CHK|ReplyFilterClass|OcuTalon.Checks.ReplyGuard|1
-CHK|ClassificationClass|OcuTalon.Bridge.Ext.Classification|1
+CHK|ClassificationClass|OcuTalon.Mcp.Classification|1
 CHK|model|TriageAgent|claude-haiku-5-5" \
   'For s="HostSinkClass","ReplyFilterClass","ClassificationClass" { Set c=##class(OcuTalon.Bridge.Ext.Accessor).ClassFor(s,,,.sc) Write !,"CHK|",s,"|",c,"|",$SYSTEM.Status.IsOK(sc) }' \
   'Write !,"CHK|model|TriageAgent|",##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("TriageAgent")' \

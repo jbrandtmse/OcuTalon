@@ -19,7 +19,8 @@
 ///     changed tool, and one notice per transition;
 ///   - TestNoAddressOrSecretInAnyText (AC 7): the address a command gives, and a failure's text that holds a credential, show in no result, audit entry, notice,
 ///     or event-log row of the add, classify, remove and attach paths (a refusal, a failed audit and a failed restart included);
-///   - TestToolFingerprint: the fingerprint changes with the description or the input schema, not with the order of the schema's keys.
+///   - TestToolFingerprint: the fingerprint (Story 22.8) is 64 hexadecimal characters that change with the server, the name, the description or the input schema, not with the
+///     order of the schema's keys.
 Class OcuTalon.Test.Mcp.Ops Extends %UnitTest.TestCase
 {
 
@@ -555,23 +556,36 @@ Method TestNoAddressOrSecretInAnyText()
 	Do $$$AssertEquals($IsObject(row), 0, "no row of a removed server is left")
 }
 
-/// The fingerprint of a tool: it follows the description and the input schema and nothing else.
+/// The fingerprint of a tool (Story 22.8): 64 lower-case hexadecimal characters that follow the server, the name, the description and the input schema and nothing
+/// else; the order of the schema's keys does not matter.
 Method TestToolFingerprint()
 {
+	Set context = "OcuTalon.Bridge.Context"
+	Set server = "mcp:remote:@{config:AI.MCP.OcuTalon_zz}"
 	Set schema = {"type": "object", "properties": {"id": {"type": "string", "description": "the id"}, "limit": {"type": "integer"}}, "required": ["id"]}
-	Set base = ##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket.", schema)
-	Do $$$AssertEquals($Length(base), 44, "a fingerprint is 44 characters")
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket.", schema), base, "the same tool has the same fingerprint")
+	Set base = $ClassMethod(context, "ToolFingerprint", server, "zz_lookup", "Looks up a ticket.", schema)
+	Do $$$AssertEquals($Length(base), 64, "a fingerprint is 64 characters")
+	Do $$$AssertEquals($Translate(base, "0123456789abcdef"), "", "of lower-case hexadecimal digits")
+	Do $$$AssertEquals($ClassMethod(context, "ToolFingerprint", server, "zz_lookup", "Looks up a ticket.", schema), base, "the same tool has the same fingerprint")
 	Set changedSchema = {"type": "object", "properties": {"id": {"type": "string", "description": "the id"}, "limit": {"type": "string"}}, "required": ["id"]}
-	Do $$$AssertNotEquals(##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket.", changedSchema), base, "a change of the schema alone changes the fingerprint")
-	Do $$$AssertNotEquals(##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket by id.", schema), base, "a change of the description alone changes the fingerprint")
+	Do $$$AssertNotEquals($ClassMethod(context, "ToolFingerprint", server, "zz_lookup", "Looks up a ticket.", changedSchema), base, "a change of the schema alone changes the fingerprint")
+	Do $$$AssertNotEquals($ClassMethod(context, "ToolFingerprint", server, "zz_lookup", "Looks up a ticket by id.", schema), base, "a change of the description alone changes the fingerprint")
+	Do $$$AssertNotEquals($ClassMethod(context, "ToolFingerprint", server, "zz_find", "Looks up a ticket.", schema), base, "a change of the tool's name alone changes the fingerprint")
+	Do $$$AssertNotEquals($ClassMethod(context, "ToolFingerprint", "mcp:remote:@{config:AI.MCP.OcuTalon_zy}", "zz_lookup", "Looks up a ticket.", schema), base, "a change of the server alone changes the fingerprint")
+	Do $$$AssertNotEquals($ClassMethod(context, "ToolFingerprint", server, "zz_lookup", "Looks up a ticket. ", schema), base, "a space more in the description changes it")
 	Set reordered = {"required": ["id"], "properties": {"limit": {"type": "integer"}, "id": {"description": "the id", "type": "string"}}, "type": "object"}
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket.", reordered), base, "the order of the schema's keys, nested ones included, does not change it")
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket.", schema.%ToJSON()), base, "a schema given as JSON text is the same as the object")
-	Set empty = ##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket.", {})
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket.", ""), empty, "blank parameters are the same as {}")
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).ToolFingerprint("Looks up a ticket.", "  "), empty, "and so is parameters of spaces")
+	Do $$$AssertEquals($ClassMethod(context, "ToolFingerprint", server, "zz_lookup", "Looks up a ticket.", reordered), base, "the order of the schema's keys, nested ones included, does not change it")
+	Do $$$AssertEquals($ClassMethod(context, "ToolFingerprint", server, "zz_lookup", "Looks up a ticket.", schema.%ToJSON()), base, "a schema given as JSON text is the same as the object")
+	Set empty = $ClassMethod(context, "ToolFingerprint", server, "zz_lookup", "Looks up a ticket.", {})
+	Do $$$AssertEquals($ClassMethod(context, "ToolFingerprint", server, "zz_lookup", "Looks up a ticket.", ""), empty, "blank parameters are the same as {}")
+	Do $$$AssertEquals($ClassMethod(context, "ToolFingerprint", server, "zz_lookup", "Looks up a ticket.", "  "), empty, "and so is parameters of spaces")
 	Do $$$AssertNotEquals(empty, base, "and {} differs from a real schema")
+	// the canonical form is the hash of {description, name, parameters, server} with the keys sorted, so the value is not the hash of any other form
+	Set canonical = "{""description"":""Looks up a ticket."",""name"":""zz_lookup"",""parameters"":{},""server"":""" _ server _ """}"
+	Set digest = $SYSTEM.Encryption.SHAHash(256, $ZConvert(canonical, "O", "UTF8"))
+	Set hex = ""
+	For i = 1:1:$Length(digest) Set hex = hex _ $ZConvert($Extract($ZHex(256 + $Ascii(digest, i)), 2, 3), "L")
+	Do $$$AssertEquals(empty, hex, "it is the SHA-256 in hexadecimal of the canonical text with the keys in order, computed here by hand")
 }
 
 Method TestChangedTool()

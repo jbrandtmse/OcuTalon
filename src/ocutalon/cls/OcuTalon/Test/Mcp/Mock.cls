@@ -17,6 +17,8 @@
 ///     and matched, mismatch or absent otherwise. Calls(port, tool) counts the tools/call requests for a tool.
 ///   - Describe(port, text) sets the description that the mock lists for zz_lookup (its input schema stays), so that a test can change the tool between
 ///     two builds; Stop(port) clears it. Without it the description is "Looks up a ticket.".
+///   - Shape(port, json) sets the input schema that the mock lists for zz_lookup, as JSON text (its description stays), for the same purpose; Stop(port) clears it.
+///     Without it the schema is {"type": "object", "properties": {"id": {"type": "string"}}}.
 ///   - Stop(port) ends the listener and its job and leaves the log; Forget(port) removes the log. A test calls both in its teardown, so that no job and no
 ///     node outlive it. The state is under ^IRIS.Temp.OcuTalonMcpMock(port).
 Class OcuTalon.Test.Mcp.Mock
@@ -77,6 +79,12 @@ ClassMethod Describe(port As %Integer, text As %String)
 	Set ^IRIS.Temp.OcuTalonMcpMock(port, "description") = text
 }
 
+/// Sets the input schema (JSON text) that the mock on the port lists for zz_lookup, until Stop.
+ClassMethod Shape(port As %Integer, json As %String)
+{
+	Set ^IRIS.Temp.OcuTalonMcpMock(port, "schema") = json
+}
+
 /// Removes the log of the port.
 ClassMethod Forget(port As %Integer)
 {
@@ -120,7 +128,7 @@ ClassMethod End(port As %Integer, job As %String) [ Private ]
 	Set ^IRIS.Temp.OcuTalonMcpMock(port, "stop") = 1
 	Set state = ..WaitFor(port, "stopped,failed", ..#STOPWAIT)
 	If (state = "") && (job '= "") && ##class(%SYS.ProcessQuery).%ExistsId(job) Do $SYSTEM.Process.Terminate(job)
-	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "job"), ^IRIS.Temp.OcuTalonMcpMock(port, "stop"), ^IRIS.Temp.OcuTalonMcpMock(port, "description")
+	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "job"), ^IRIS.Temp.OcuTalonMcpMock(port, "stop"), ^IRIS.Temp.OcuTalonMcpMock(port, "description"), ^IRIS.Temp.OcuTalonMcpMock(port, "schema")
 }
 
 /// The state of the mock on the port once it is one of the states (comma-separated), or "" after the seconds.
@@ -220,7 +228,9 @@ ClassMethod Reply(body As %String, extra As %List, port As %Integer, Output meth
 	If method = "tools/list" {
 		Set tools = []
 		Set lookup = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "description"), "Looks up a ticket.")
-		Do tools.%Push({"name": "zz_lookup", "description": (lookup), "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}}}, "annotations": {"readOnlyHint": true}})
+		Set shape = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "schema"))
+		Set lookupSchema = $Select(shape = "": {"type": "object", "properties": {"id": {"type": "string"}}}, 1: ##class(%DynamicAbstractObject).%FromJSON(shape))
+		Do tools.%Push({"name": "zz_lookup", "description": (lookup), "inputSchema": (lookupSchema), "annotations": {"readOnlyHint": true}})
 		Do tools.%Push({"name": "zz_delete_ticket", "description": "Deletes a ticket.", "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}}}, "annotations": {"destructiveHint": true}})
 		Set position = 0
 		While $ListNext(extra, position, name) {
