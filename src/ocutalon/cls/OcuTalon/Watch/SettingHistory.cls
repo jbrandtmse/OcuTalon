@@ -4,13 +4,14 @@ Include Ensemble
 /// the change that came just before its failures. Checks calls Watch from each Tick, and the Watch area's purge calls Purge.
 ///   - Watch visits each watched production (FailurePoller Watched) and reads the marks through Reader.Settings: the namespace's production-change counter
 ///     (Interoperability's ^IRIS.Temp.EnsProdModCounter, which moves when a saved production definition or System Default Setting changes while that production runs,
-///     is lost at an IRIS restart and killed by UpdateProduction) and the production's start mark (^Ens.Runtime StartTime and CheckSum). The settings are read, and
+///     is lost at an IRIS restart and killed when the production stops) and the production's start mark (^Ens.Runtime StartTime and CheckSum). The settings are read, and
 ///     a snapshot is taken, only when the production has no snapshot, a mark differs from the one on its newest snapshot (a missing counter counts as a value of its
 ///     own), or the newest snapshot was last checked an hour or more ago (the safety net for a change the counter does not show). When the settings are the same as
 ///     the newest snapshot's, only that row's marks and CheckedAt are updated in place; otherwise a new SettingSnapshot is written with one SettingChange for each
 ///     difference (none for the production's first snapshot), in one transaction, DetectedAt being the Tick's time. A change is therefore dated at the first Tick
-///     that reads it: the first after it while the production runs; one made while the production was stopped, the first Tick after the start or the hourly check
-///     while it is stopped, whichever is earlier.
+///     that reads it: for a saved definition or System Default Setting, the first after it while the production runs; for a change the counter does not show (a
+///     recompiled class default, a service-registry value), the hourly check; for one made while the production was stopped, the first Tick after the start or the
+///     hourly check while it is stopped, whichever is earlier.
 ///   - A snapshot only reads: it saves nothing, updates no production and writes nothing to Ens.Config, so the counter does not move because of it. Reader is the only
 ///     class that enters the watched namespace. A secret value never leaves the Reader; its change shows only through a salted hash kept in the snapshot, and its
 ///     change row has both values blank (Reader.Settings, Data.SettingSnapshot).

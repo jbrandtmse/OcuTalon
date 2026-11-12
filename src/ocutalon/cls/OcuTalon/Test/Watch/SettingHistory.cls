@@ -12,14 +12,17 @@ Include Ensemble
 ///     hour or more later it checks again, and settings that are the same only refresh the marks;
 ///   - TestChangesRecorded: a first snapshot has no change; a setting saved in the definition and then a System Default Setting that applies each give one
 ///     SettingChange (Source production and default) on the next Tick, detected within the check interval, with only the columns the tables are specified to have
-///     (none names a user);
+///     (none names a user); a class setting that nothing sets has the source class, and one that the definition sets the source production;
+///   - TestRestartAndCounterGone (QA): a start mark that differs from the newest snapshot's (a restart) with the counter as it was reads the settings, and a setting
+///     that differs gives one change and a snapshot with the live start mark; a counter that is gone (an IRIS restart) reads them too, and settings that are the same
+///     only refresh CheckedAt and the marks;
 ///   - TestSnapshotChangesNothing: taking snapshots leaves the counter, the saved definition and the System Default Settings as they were;
 ///   - TestCredentialsReference: a setting that holds an Ens.Config.Credentials ID is recorded with the IDs, as a plain value;
 ///   - TestSecretValue: a setting whose value is a secret is recorded with both values blank and its hash in the snapshot only, and the same secret read again with
 ///     the earlier hash is no change;
 ///   - TestSkippedReads: a watched production whose namespace the service user cannot read (unreadable) or that is not the namespace's own (not_current) gets
 ///     no snapshot and no warning;
-///   - TestReadFailure: a production whose read throws gets no row and one warning, and the next watched production is still snapshotted;
+///   - TestReadFailure: a production whose read throws gets no row and a warning, and the next watched production is still snapshotted;
 ///   - TestOnlineDemoOff: with onlineDemo on, a Tick takes no snapshot and writes no row.
 Class OcuTalon.Test.Watch.SettingHistory Extends OcuTalon.Test.Watch.Case [ DependsOn = OcuTalon.Test.Watch.OrdersDefinition ]
 {
@@ -38,6 +41,9 @@ Parameter SDSVALUE = 7;
 /// The spelling of the Orders namespace that a test made watched in addition to the exact one, "" when none: its Orders history is removed with the test.
 Property Other As %String;
 
+/// The production-change counter of OCUORDERS that a test took away, "" when none: OnAfterOneTest puts it back if it is still gone.
+Property TakenCounter As %String;
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
@@ -48,6 +54,10 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
+	If ..TakenCounter '= "" {
+		If $Get(^IRIS.Temp.EnsProdModCounter(..#ORDERS)) = "" Set ^IRIS.Temp.EnsProdModCounter(..#ORDERS) = ..TakenCounter
+		Set ..TakenCounter = ""
+	}
 	Set sc = $SYSTEM.Status.AppendStatus(sc, $ClassMethod(..#DEFINITION, "Put", 0))
 	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DropDefault())
 	Do ..DropHistory()
@@ -248,6 +258,10 @@ Method TestChangesRecorded()
 	Set interval = ##class(OcuTalon.Checks.Process).#INTERVALSECONDS
 	Set sdsBefore = ..Entry(..Newest(), ..#ITEMNAME, ..#SDSSETTING)
 	Do $$$AssertTrue($IsObject(sdsBefore), "the snapshot holds the class setting that a System Default Setting will override")
+	If $IsObject(sdsBefore) Do $$$AssertEquals(sdsBefore.source, "class", "a class setting that nothing sets has the source class")
+	Set target = ..Entry(..Newest(), ..#DEFINEDITEM, "TargetConfigName")
+	Do $$$AssertTrue($IsObject(target), "the snapshot holds a class setting that the production definition sets")
+	If $IsObject(target) Do $$$AssertEquals(target.value_"|"_target.source, ..#ITEMNAME_"|production", "with the definition's value and the source production")
 	Set from = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertStatusOK($ClassMethod(..#DEFINITION, "Put", 1, "", "first value", ..#NOTE), "a setting is saved in the definition of an item")
 	Set savedAt = ##class(OcuTalon.Data.Time).NowUtc()
@@ -258,7 +272,7 @@ Method TestChangesRecorded()
 	If note.%Size() = 1 {
 		Set row = note.%Get(0)
 		Do $$$AssertEquals(row.item_"|"_row.target_"|"_row.setting_"|"_row.oldValue_"|"_row.newValue_"|"_row.source_"|"_row.credential, ..#DEFINEDITEM_"|Host|"_..#NOTE_"||first value|production|0", "it names the item, the target, the setting, both values and the source")
-		Do $$$AssertTrue(from '] row.detectedAt, "it was detected at or after the change")
+		Do $$$AssertTrue(##class(OcuTalon.Data.Time).AddSeconds(from, -interval) '] row.detectedAt, "it was detected by a Tick no earlier than the check interval before the change (a real Tick sent just before it may be the one that reads it)")
 		Do $$$AssertTrue(row.detectedAt '] ##class(OcuTalon.Data.Time).AddSeconds(savedAt, interval), "and within the check interval of it: "_row.detectedAt)
 	}
 	Set from = ##class(OcuTalon.Data.Time).NowUtc()
@@ -299,6 +313,53 @@ ClassMethod PropertyNames(class As %String) As %String
 	Quit names
 }
 
+Method TestRestartAndCounterGone()
+{
+	If '..Ready() Quit
+	Do ..Watched()
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Do $$$AssertEquals(..Snapshots(), 1, "the first Tick takes the production's first snapshot")
+	Set snapshot = ..Newest()
+	If '$IsObject(snapshot) Quit
+	Set started = snapshot.Started
+	Do $$$AssertTrue($Length(started, "|") = 2, "which holds the start mark: "_started)
+	// a restart that came with a setting changed while the production was stopped: another start mark, the counter as it was, an earlier value in the snapshot
+	Set list = ##class(%Library.DynamicAbstractObject).%FromJSON(snapshot.Settings)
+	Set iterator = list.%GetIterator()
+	Set picked = ""
+	While iterator.%GetNext(, .entry) {
+		If (entry.item = ..#DEFINEDITEM) && (entry.setting = "TargetConfigName") && 'entry.credential Set picked = entry.value Do entry.%Set("value", "zz-before-the-restart") Quit
+	}
+	Do $$$AssertTrue(picked '= "", "the snapshot holds a class setting of the item to give an earlier value: "_picked)
+	Do snapshot.Settings.Clear()
+	Do snapshot.Settings.Write(list.%ToJSON())
+	Set snapshot.Started = "zz-before|1"
+	Do $$$AssertStatusOK(snapshot.%Save(), "the newest snapshot is made to look as it did before a restart")
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Set changes = ..Changes("TargetConfigName")
+	Do $$$AssertEquals(changes.%Size(), 1, "a start mark that differs is read: the setting that differs is one change")
+	If changes.%Size() = 1 {
+		Set row = changes.%Get(0)
+		Do $$$AssertEquals(row.item_"|"_row.oldValue_"|"_row.newValue, ..#DEFINEDITEM_"|zz-before-the-restart|"_picked, "from the earlier value to the live one")
+	}
+	Set newest = ..Newest()
+	Do $$$AssertEquals(..Snapshots()_"|"_newest.Started, "2|"_started, "in a new snapshot that holds the live start mark")
+	// the counter is gone, as after an IRIS restart: the same settings, so only the marks and CheckedAt are refreshed
+	Set checked = newest.CheckedAt
+	Hang 1.1
+	Set counter = ..Counter()
+	Do $$$AssertTrue(counter '= "", "the live counter is there to be taken away: "_counter)
+	Set ..TakenCounter = counter
+	Kill ^IRIS.Temp.EnsProdModCounter(..#ORDERS)
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Set after = ..Newest()
+	If counter '= "" Set ^IRIS.Temp.EnsProdModCounter(..#ORDERS) = counter
+	Set ..TakenCounter = ""
+	Do $$$AssertEquals(after.Counter, "", "the missing counter is read, as a value of its own")
+	Do $$$AssertTrue(after.CheckedAt ] checked, "the settings were checked again: CheckedAt moved from "_checked_" to "_after.CheckedAt)
+	Do $$$AssertEquals(..Snapshots()_"|"_..Changes().%Size(), "2|1", "and settings that are the same wrote no snapshot and no change")
+}
+
 Method TestSnapshotChangesNothing()
 {
 	If '..Ready() Quit
@@ -320,8 +381,8 @@ Method TestSnapshotChangesNothing()
 Method TestCredentialsReference()
 {
 	If '..Ready() Quit
-	Do ..Watched()
 	Do $$$AssertStatusOK($ClassMethod(..#DEFINITION, "Put", 1, "ZzCredA", "", "Credentials"), "the item's Credentials setting holds the ID ZzCredA")
+	Do ..Watched()
 	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
 	Set entry = ..Entry(..Newest(), ..#DEFINEDITEM, "Credentials")
 	Do $$$AssertTrue($IsObject(entry), "the first snapshot holds the setting")
@@ -339,10 +400,10 @@ Method TestCredentialsReference()
 Method TestSecretValue()
 {
 	If '..Ready() Quit
-	Do ..Watched()
 	Set first = "zz-secret-one-"_$Random(1000000000)
 	Set second = "zz-secret-two-"_$Random(1000000000)
 	Do $$$AssertStatusOK($ClassMethod(..#DEFINITION, "Put", 1, first, "", "ApiKey"), "the item's ApiKey setting holds a secret")
+	Do ..Watched()
 	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
 	Set entry = ..Entry(..Newest(), ..#DEFINEDITEM, "ApiKey")
 	Do $$$AssertTrue($IsObject(entry), "the first snapshot holds the setting")
@@ -411,7 +472,8 @@ Method TestReadFailure()
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
 	Set start = $Parameter("OcuTalon.Watch.SettingHistory", "LOGPRODUCTION")_..#ORDERSPRODUCTION_" in "_..#ORDERS_": "
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Watch", start), 1, "a read that throws logs one warning for that production")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Watch", start)
+	Do $$$AssertTrue(warned '< 1, "a read that throws logs a warning for that production, one for each Tick that reads it (a real Tick may also run): "_warned)
 	Set kept = ..Newest()
 	Do $$$AssertEquals(..Snapshots()_"|"_kept.Settings.Read(100000000)_"|"_..Changes().%Size(), "1|"_broken_"|0", "and writes nothing")
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.SettingSnapshot WHERE Namespace = ? AND Production = ?", follower, ..#ORDERSPRODUCTION)
@@ -422,8 +484,8 @@ Method TestReadFailure()
 Method TestOnlineDemoOff()
 {
 	If '..Ready() Quit
-	Do ..Watched()
 	Do ..SetOnlineDemo(1)
+	Do ..Watched()
 	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
 	Do $$$AssertEquals(..Snapshots()_"|"_..Changes().%Size(), "0|0", "with onlineDemo on, a Tick takes no snapshot and writes no change")
 	Do ..SetOnlineDemo(0)

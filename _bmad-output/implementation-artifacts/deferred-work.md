@@ -2168,6 +2168,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: same 8 findings on the spine at HEAD and after 9.1's Tables-line edit; they are prose format examples ({time}, {day}, {what happened}, {reason}, {entry}, {finding}, {n}), not template tokens
 - 2026-10-28T15:22:57Z status=by-design owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=harvest note=known baseline (Epic 9 start: lint=baseline 8 low placeholder, no AD findings; line 923's HostData row, U-120); the gate for a spine write is no new finding and no ad_id/ad_fields finding
 - 2026-11-12T22:55:31Z occurrence=36-1-record-the-setting-history-of-each-watched-production by=harvest note=same_placeholder_findings(10_low_on_baseline_9ca1d94a;none_added_by_36.1;no_ad_id/ad_fields)
+- 2026-11-12T23:28:28Z occurrence=36-1-record-the-setting-history-of-each-watched-production by=cr note=code_review_confirms_same_10_low_placeholder_findings_after_review_patches;none_new
 
 ### DW-352: 9.1's task 11 memlog entry (AD-33: OcuTalon.Eval.Data.CaseResult is Lane A's) was not appended: the spine's .memlog.md is gitignored and exists only in the main checkout
 - source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7350,3 +7351,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 0.30 DW-1199 sweep, 2026-11-12 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Planner swept 05e29461: no live link to a moved README anchor; test-readme product-links covers page links; docs/*.md has no generic dead-anchor check
 - 2026-11-12T16:44:12Z status=routed owner=burndown by=orchestrator note=1.0.9; does not hold 1.0.8
+
+### DW-1235: Setting history records only host and adapter settings: an item's core properties (Enabled, PoolSize, Schedule, ClassName) are not snapshotted, so turning an item off or changing its pool size gives no SettingChange
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Reader.Current builds entries from PopulateVirtualSettings (Host/Adapter only, irislib Ens/Config/Item.cls) plus stored Settings; GetStaticSettings (Core) is never read
+- 2026-11-12T23:28:28Z status=by-design owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=spec_bound: Decided 2 and ruling V2 fix Target Host|Adapter; reopen only by a spec amendment (Story 23.3 or a Planner call)
+
+### DW-1236: Reader.Settings turns a fault inside Reader.Current into a throw, but no test makes Current fault during a settings read, so dropping that throw would go unnoticed
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TestReadFailure throws from SettingHistory.Salts after the marks read; no test faults Current itself (needs a fault seam inside the namespace switch)
+- 2026-11-12T23:28:28Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=reopen_if=a production whose settings read faults inside Reader.Current logs no SettingHistory warning
+
+### DW-1237: Install.Step.Watch.Purge running the history purge after the incident purge returned an error is not pinned by a test
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TestPurgeFirstError fails both purges with day count 0; TestPurgeTriesBoth fails only the history side; pinning needs an old closed incident whose delete fails
+- 2026-11-12T23:28:28Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=reopen_if=a purge run whose IncidentManager.Purge returns an error leaves SettingSnapshot or SettingChange rows older than daysToKeep

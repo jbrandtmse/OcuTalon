@@ -5,6 +5,7 @@
 ///     with a blank old or new value;
 ///   - TestFirstSnapshot: the first snapshot of a production gives no change; a changed second gives a new snapshot and one change for each difference, dated at the
 ///     Tick, with the new snapshot's Ref; a same second only updates the marks and CheckedAt of the newest row;
+///   - TestLongValueCut: a change whose value is longer than VALUEMAX is saved, its row keeping the first VALUEMAX characters and its snapshot the whole value;
 ///   - TestSecretEntries: a secret setting differs when its hash does, and its two values are blank; the same hash is no difference; a Credentials reference
 ///     is diffed as a plain value;
 ///   - TestSettingEntries: Reader.SettingEntry keeps the ID of a Credentials reference, whether it is named Credentials or is marked a reference by its editor
@@ -12,7 +13,10 @@
 ///   - TestDue: no snapshot, a start mark that differs (a restart), a counter that differs or is gone, and an hour since the last check each make the settings
 ///     due; the same marks and a check under an hour old do not;
 ///   - TestPurge: through Install.Step.Watch.Purge(90), changes detected and snapshots taken 91 days ago are gone, those of 89 days stay, and the newest snapshot of a
-///     watched production stays however old (a production that is not watched keeps nothing older than 90 days); a day count that is not a whole number of at least 1 is an error and deletes nothing.
+///     watched production stays however old (a production that is not watched keeps nothing older than 90 days); a day count that is not a whole number of at least 1 is an error and deletes nothing;
+///   - TestPurgeFirstError (QA): that error is the first one, the setting changes' own (SettingChange before SettingSnapshot, IncidentManager before the history);
+///   - TestPurgeTriesBoth (QA): a change row that cannot be deleted (another process holds its lock) makes the Watch purge return an error, yet the other old change and
+///     the old snapshots are deleted all the same: every table is tried whatever the other returned.
 Class OcuTalon.Test.Watch.SettingDiff Extends %UnitTest.TestCase
 {
 
@@ -38,9 +42,14 @@ Method OnBeforeOneTest(testname As %String) As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	If $Get(^OcuTalonTest("SettingDiff", "hold", "ready")) && '$Get(^OcuTalonTest("SettingDiff", "hold", "done")) {
+		Set ^OcuTalonTest("SettingDiff", "hold", "release") = 1
+		Do ..WaitFor($Name(^OcuTalonTest("SettingDiff", "hold", "done")), 30)
+	}
 	Do ..Drop()
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
+	Kill ^OcuTalonTest("SettingDiff")
 	Quit $$$OK
 }
 
@@ -179,6 +188,22 @@ Method TestFirstSnapshot()
 	Do $$$AssertEquals(+rs.%GetData(1), 3, "each change is dated at the Tick and names the new snapshot")
 }
 
+Method TestLongValueCut()
+{
+	Set marks = {"counter": "3", "started": "start|1"}
+	Set at = ##class(OcuTalon.Data.Time).NowUtc()
+	Set max = $Parameter(..#HISTORY, "VALUEMAX")
+	Set long = $Translate($Justify("", max + 500), " ", "v")
+	Do $ClassMethod(..#HISTORY, "Record", ..#NAMESPACE, ..#PRODUCTION, at, "", marks, [(..Entry("A", "S", "short"))])
+	Set first = ##class(OcuTalon.Data.SettingSnapshot).%OpenId(##class(OcuTalon.Data.SettingSnapshot).Newest(..#NAMESPACE, ..#PRODUCTION))
+	Set changes = $ClassMethod(..#HISTORY, "Record", ..#NAMESPACE, ..#PRODUCTION, ##class(OcuTalon.Data.Time).AddSeconds(at, 60), first, marks, [(..Entry("A", "S", long))])
+	Do $$$AssertEquals(changes.%Size()_"|"_..Snapshots(..#PRODUCTION)_"|"_..ChangeRows(..#PRODUCTION), "1|2|1", "a value longer than a change row keeps is one change, saved with its snapshot")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT OldValue, NewValue FROM OcuTalon_Data.SettingChange WHERE Namespace = ? AND Production = ?", ..#NAMESPACE, ..#PRODUCTION)
+	If rs.%Next() Do $$$AssertEquals(rs.%GetData(1)_"|"_rs.%GetData(2), "short|"_$Extract(long, 1, max), "the row keeps the first VALUEMAX characters of the new value")
+	Set newest = ##class(OcuTalon.Data.SettingSnapshot).%OpenId(##class(OcuTalon.Data.SettingSnapshot).Newest(..#NAMESPACE, ..#PRODUCTION))
+	Do $$$AssertTrue(newest.Settings.Read(100000) [ long, "while the snapshot keeps the whole value")
+}
+
 Method TestSettingEntries()
 {
 	Set reader = "OcuTalon.Watch.Reader"
@@ -252,6 +277,68 @@ Method TestPurge()
 	Set rest = ##class(OcuTalon.Data.SettingSnapshot).%OpenId(##class(OcuTalon.Data.SettingSnapshot).Newest(..#NAMESPACE, ..#UNWATCHED))
 	Do $$$AssertTrue(rest.TakenAt ] ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -90 * day), "the one of 89 days")
 	Do $$$AssertEquals(..Snapshots(..#GONE), 0, "and a production that is not watched has no snapshot kept as its newest, however old")
+}
+
+Method TestPurgeFirstError()
+{
+	Set history = ##class(OcuTalon.Watch.SettingHistory).Purge(0)
+	Do $$$AssertStatusNotOK(history, "the history purge refuses a day count of 0")
+	Set text = $SYSTEM.Status.GetErrorText(history)
+	Do $$$AssertTrue(text [ "OcuTalon.Data.SettingChange.Purge", "and returns the first error, the one of the setting changes: "_text)
+	Do $$$AssertEquals(text [ "SettingSnapshot", 0, "not the second table's")
+	Set step = ##class(OcuTalon.Install.Step.Watch).Purge(0)
+	Do $$$AssertStatusNotOK(step, "the Watch area's purge refuses it too")
+	Set text = $SYSTEM.Status.GetErrorText(step)
+	Do $$$AssertTrue(text [ "OcuTalon.Watch.IncidentManager.Purge", "and returns the first error, the incidents': "_text)
+	Do $$$AssertEquals((text [ "SettingChange") || (text [ "SettingSnapshot"), 0, "not the history's")
+}
+
+/// Job body of TestPurgeTriesBoth: takes the lock that deleting the setting change of the id needs and holds it until released.
+ClassMethod Holder(id As %String)
+{
+	Lock +^OcuTalonP.SettingChangeD(id):5
+	If '$Test {
+		Set ^OcuTalonTest("SettingDiff", "hold", "ready") = 0
+		Quit
+	}
+	Set ^OcuTalonTest("SettingDiff", "hold", "ready") = 1
+	Set deadline = $ZHorolog + 60
+	While '$Get(^OcuTalonTest("SettingDiff", "hold", "release")) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	Lock -^OcuTalonP.SettingChangeD(id)
+	Set ^OcuTalonTest("SettingDiff", "hold", "done") = 1
+}
+
+/// Waits at most seconds for the global node (the name given by $Name) to hold a value.
+ClassMethod WaitFor(node As %String, seconds As %Integer)
+{
+	Set deadline = $ZHorolog + seconds
+	While ($Get(@node) = "") && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+}
+
+Method TestPurgeTriesBoth()
+{
+	Set day = 86400
+	Set locked = ..Change(..#PRODUCTION, 91 * day)
+	Set free = ..Change(..#PRODUCTION, 91 * day)
+	Do ..Snapshot(..#UNWATCHED, 91 * day)
+	Do $$$AssertEquals(..ChangeRows(..#PRODUCTION)_"|"_..Snapshots(..#UNWATCHED), "2|1", "two old change rows and an old snapshot are there")
+	Kill ^OcuTalonTest("SettingDiff", "hold")
+	Job ##class(OcuTalon.Test.Watch.SettingDiff).Holder(locked.%Id())
+	Do ..WaitFor($Name(^OcuTalonTest("SettingDiff", "hold", "ready")), 30)
+	Do $$$AssertEquals($Get(^OcuTalonTest("SettingDiff", "hold", "ready")), 1, "another process holds the lock of one change row")
+	Set result = ##class(OcuTalon.Install.Step.Watch).Purge(90)
+	Set ^OcuTalonTest("SettingDiff", "hold", "release") = 1
+	Do ..WaitFor($Name(^OcuTalonTest("SettingDiff", "hold", "done")), 30)
+	Do $$$AssertEquals($Get(^OcuTalonTest("SettingDiff", "hold", "done")), 1, "the holder lets go")
+	Do $$$AssertStatusNotOK(result, "the Watch area's purge returns the error of the row it could not delete")
+	Do $$$AssertEquals(..ChangeRows(..#PRODUCTION), 1, "while the other old change row is deleted: one failed row does not stop the table")
+	Do $$$AssertEquals(..Snapshots(..#UNWATCHED), 0, "and the old snapshot is deleted: the second table is tried although the first returned an error")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Watch).Purge(90), "once the lock is free, the purge is OK")
+	Do $$$AssertEquals(..ChangeRows(..#PRODUCTION), 0, "and deletes the row that was held")
 }
 
 }
