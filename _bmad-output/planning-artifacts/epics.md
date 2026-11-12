@@ -7445,13 +7445,13 @@ So that I get it in my own mailbox.
 **Then** it goes only to the user's own address, as plain text rendered from the catalog, recorded as a `Delivery` (FR-44, FR-35, FR-17, AD-14, AD-32)
 **And** this story adds the `email` channel to `OcuTalon.Msg.Catalog.Render` as the renderer's owner (Lane B), as plain text under the `phone` channel's rules, so `EmailOut` renders the digest here and the pages of Story 24.3, and the render tests cover every key `EmailOut` sends (AD-32)
 
+- DW-1167: EmailIn takes in the mail OcuTalon itself sent to its own address (a tool email, and with this story every digest) as a new untrusted item; mark EmailOut's mail and have EmailIn skip it, or rule it harmless (ledger; routed by cr 2026-11-12)
+
 ## Epic 22: Extend OcuTalon with MCP servers, governed like built-in tools (step 4)
 
 Tools from an added MCP server become OcuTalon's tools under the same gate, classification, approval and audit, unclassified counting as risky and changed tools losing their classification; a read-only MCP tool can be polled as a source on the digest's coverage list, with a worked Jira example.
 
 **Story 22.1 moved to Story 35.1** (step 4 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 35, so that neither of step 4's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
-
-- DW-1167: EmailIn takes in the mail OcuTalon itself sent to its own address (a tool email, and with this story every digest) as a new untrusted item; mark EmailOut's mail and have EmailIn skip it, or rule it harmless (ledger; routed by cr 2026-11-12)
 
 ### Story 22.2: Classify MCP tools by server and name
 
