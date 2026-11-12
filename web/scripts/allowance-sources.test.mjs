@@ -73,6 +73,13 @@ describe('the guide sections that the banner actions open (AC 10, DW-361)', () =
     assert.notEqual(README_URL, readmeSection(GUIDE_URL, 'install-it-yourself'));
   });
 
+  it('the server\'s notice cards (Allowance.cls INSTALLLINK) point at the same install section of GUIDE.md', () => {
+    const allowanceClass = readFileSync(join(here, '..', '..', 'src', 'ocutalon', 'cls', 'OcuTalon', 'Core', 'Allowance.cls'), 'utf8');
+    const found = /^Parameter INSTALLLINK = "([^"]*)";$/m.exec(allowanceClass);
+    assert.ok(found, 'Allowance.cls names INSTALLLINK');
+    assert.equal(found[1], readmeSection(GUIDE_URL, 'install-it-yourself'));
+  });
+
   it('GUIDE.md has a heading for each of the two anchors', () => {
     assert.ok(slugs.includes('install-it-yourself'), `the headings: ${slugs.join(', ')}`);
     assert.ok(slugs.includes('set-a-model-key'));
@@ -189,7 +196,7 @@ describe('the browser case\'s notice card text holds at any time of day (Story 1
   assert.ok(found, 'messages.spec.ts names CARD_TEXT as a regular expression');
   const card = new Function(`return ${found[1]};`)();
   const head = "You've used this session's 50 messages for the hour. You can send more ";
-  const tail = ' ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
+  const tail = ' ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself';
 
   it('takes the clock alone, as the catalog shows a time on the day of the reading', () => {
     assert.match(`${head}at 15:02${tail}`, card);

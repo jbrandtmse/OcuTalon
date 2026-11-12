@@ -2,14 +2,22 @@
 title: 'Story 0.30: A shorter README for judges, with the install, feature and admin material moved word for word to GUIDE.md'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
-baseline_revision: '4c86e4ef840f23623f557d9f063465b4322a8ff3'
+status: 'done'
+baseline_revision: 'af6d4bb1f91e4a000d03ceb77a4b1022fe906138'
 baseline_commit: '4c86e4ef840f23623f557d9f063465b4322a8ff3'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      WatchTools.READMELINK (`...OcuTalon#readme`), the {readmeLink} of the watch.onlyOrders answer, and the Splash and busy-page "Install it yourself (README)" links open the README top, where the install section no longer lives.
+    evidence: |-
+      Real but outside DW-1199's ruling: Q1 and the amendment name four web files and Allowance.cls INSTALLLINK only, and the intent's Never list closes `src/**` and the catalog text beyond them. The README top still reaches GUIDE.md through its More section and the pointer, so the link lands on a live page, not a dead anchor. Settling it needs a ruling on whether these links move to GUIDE.md#install-it-yourself.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Tools/WatchTools.cls:47
+    severity: low
+
 ---
 
 <intent-contract>
@@ -129,7 +137,7 @@ deferred: []
 - [Condition 1] GUIDE.md in every scan README.md is in: `test-boundaries.sh` must-scan list (L131) and test-readme's link (`readme-links`), anchor and `ALLOWED_HOSTS` checks; one mutation each on GUIDE.md proving it is scanned (a home-folder path in GUIDE → test-boundaries red; a broken `#x` in GUIDE → `readme-links` red; a link to a host outside `ALLOWED_HOSTS` in GUIDE → red). Do not edit the `ALLOWED_HOSTS=` line itself (release/checklist.sh's no-outward allowance pins it whole); scanning GUIDE.md with it needs no edit to that line.
 - [Conditions 2, 4] `word-cap` counts README.md whole (0.29's H3 included when it lands); if 0.29 has landed first, its H3 stays under "## Measured", before "## More".
 
-- [ ] [Review] DW-1199 (ruled YES, orchestrator 2026-11-12 ~15:35Z): `src/ocutalon/cls/OcuTalon/Core/Allowance.cls:37` `INSTALLLINK` still points at `https://github.com/jbrandtmse/OcuTalon#install-it-yourself`, a README heading this story moved. The fix: the value becomes exactly `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself` (the class's doc comment at L36 says "The GUIDE.md section" instead of "The README section"); the pins that quote the old value follow: `Test/Core/{Allowance,AllowanceInProduction,BridgeSink,WebChatMessages,WebChatOut}.cls`, `web/e2e-online/allowance/{daily-cap,messages}.spec.ts`, `web/scripts/{allowance-sources,banner-view}.test.mjs` (grep the tree for `OcuTalon#install-it-yourself` and `INSTALLLINK`: after the fix no tracked file outside the spec and the ledger names the old URL). No visible text, route or privilege change. One mutation: INSTALLLINK back to the README URL -> `allowance-sources.test.mjs` (or the Test/Core pin) red. Verify the five IRIS classes with `ci/iris.sh class <Class>` on a lane-A throwaway (see the implement prompt), one class per call.
+- [x] [Review] DW-1199 (ruled YES, orchestrator 2026-11-12 ~15:35Z): `src/ocutalon/cls/OcuTalon/Core/Allowance.cls:37` `INSTALLLINK` still points at `https://github.com/jbrandtmse/OcuTalon#install-it-yourself`, a README heading this story moved. The fix: the value becomes exactly `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself` (the class's doc comment at L36 says "The GUIDE.md section" instead of "The README section"); the pins that quote the old value follow: `Test/Core/{Allowance,AllowanceInProduction,BridgeSink,WebChatMessages,WebChatOut}.cls`, `web/e2e-online/allowance/{daily-cap,messages}.spec.ts`, `web/scripts/{allowance-sources,banner-view}.test.mjs` (grep the tree for `OcuTalon#install-it-yourself` and `INSTALLLINK`: after the fix no tracked file outside the spec and the ledger names the old URL). No visible text, route or privilege change. One mutation: INSTALLLINK back to the README URL -> `allowance-sources.test.mjs` (or the Test/Core pin) red. Verify the five IRIS classes with `ci/iris.sh class <Class>` on a lane-A throwaway (see the implement prompt), one class per call.
 
 **Acceptance Criteria:**
 - Given README.md after the story, when `bash docker/tests/test-readme.sh` runs, then `top`, `word-cap` and `guide` pass:
@@ -176,6 +184,24 @@ deferred: []
   - `[false]` `[reject]` `settings.spec.ts` S12 assertion is conditional (verification-gap) - existing structure of an e2e spec that the story only re-pointed.
   - `[false]` `[reject]` `printf: write error: Broken pipe` noise in test-readme.sh (verification-gap) - present before the story (14 lines then, 15 now); the run ends green.
   - `[false]` `[reject]` Intent-alignment readings A to D (intent-alignment) - descriptive; the one divergence it names is the INSTALLLINK item above.
+
+### 2026-11-12 - Review pass (rework iteration 1, DW-1199)
+- verdicts: 14 findings - high 0, medium 0, low 6, false 8, maybe-false 0
+- findings:
+  - `[low]` `[patch]` `banner-view.test.mjs` `SET_KEY_URL` and the comment above it still name the README form (blind hunter; verification-gap, same root) - patched: `SET_KEY_URL` is the `GUIDE.md#set-a-model-key` form and the comment says "the guide's sections".
+  - `[low]` `[defer]` `WatchTools.READMELINK`, the Splash and busy-page links still open the README top (blind hunter; intent-alignment names the same links) - outside the DW-1199 ruling and closed by the intent's Never list; the README top reaches GUIDE.md. Deferred.
+  - `[low]` `[reject]` The new ratchet compares only `Allowance.cls`, and nine hand-copied literals remain (blind hunter) - the ratchet pins the production value; the literals are the tests' own expected values, as everywhere in the suite.
+  - `[low]` `[reject]` The ratchet's regex needs the line to end `";` (blind hunter) - a changed line fails loudly with "names INSTALLLINK"; a guard would add complexity for a theoretical edit.
+  - `[false]` `[reject]` The spec has no record of the rework (blind hunter) - the parent records the item, the mutation and the verification in this pass.
+  - `[false]` `[reject]` `BridgeSink`, `WebChatMessages`, `WebChatOut` untouched (blind hunter) - they read `#INSTALLLINK`; all three ran green.
+  - `[false]` `[reject]` Stale names and comments, the `readmeLink` slot name (blind hunter) - the slot name belongs to the catalog (closed by the intent); the `messages.spec.ts` comment was already replaced.
+  - `[low]` `[reject]` Cards already delivered keep the old URL (edge-case hunter) - the demo resets sessions (P10) and an old card opens the README top, a live page.
+  - `[false]` `[reject]` Online e2e needs the demo host deployed first (edge-case hunter) - the specs run in CI against the stack built from the same commit.
+  - `[false]` `[reject]` `chat-view.test.mjs` is outside the ruled list (edge-case hunter) - the item's own grep rule (no tracked file outside the spec and the ledger names the old URL) requires it.
+  - `[false]` `[reject]` "No visible text change" while the card text carries a new URL (edge-case hunter) - the ruling is exactly that value; the wording is not changed.
+  - `[false]` `[reject]` An older spec record (`spec-16-9-...`) still names the old URL (edge-case hunter) - a done story's historical record, not code or a pin.
+  - `[low]` `[reject]` `banner-view` `INSTALL_URL`, `chat-view` `ALLOWANCE_TEXT` and the `tail` in `allowance-sources` are passthrough fixtures that cannot fail (verification-gap) - they only follow the value; the pinning tests are the ratchet and the IRIS literals, each with a recorded mutation.
+  - `[false]` `[reject]` Readings A to E, divergences (intent-alignment) - descriptive; its one actionable item is the stale `SET_KEY_URL` above.
 
 ## Design Notes
 
@@ -367,6 +393,9 @@ Mutations (each applied, observed red, reverted; after each revert `git diff`, `
 - mutation (review pass, usage-docs, history-docs): GUIDE's `## New since 1.0.0` renamed `## New since 1.0.1` -> both `usage-docs.test.mjs` and `history-docs.test.mjs` red.
 - mutation (review pass, test-ci-changes): `[^/]+\.md$` in `ci/units.sh` NOT_IRIS_INPUT_PATTERN narrowed to `README\.md$` (temporarily) -> `test-ci-changes.sh` red on "the guide runs no group" (and CLAUDE.md); reverted, `git diff` unchanged.
 
+- mutation (rework, DW-1199): `Allowance.cls` INSTALLLINK back to `https://github.com/jbrandtmse/OcuTalon#install-it-yourself` -> `allowance-sources.test.mjs` red (the new INSTALLLINK ratchet) and, on a warm lane-A stack, `OcuTalon.Test.Core.Allowance` red (`TestNotices`, `TestNoticeOnAnotherDay`, `TestNoticeCarriesTheConfiguredLimit`); reverted, `git diff` hashed identical, the class green again on the same stack. `AllowanceInProduction` quotes the value in three literals; `BridgeSink`, `WebChatMessages` and `WebChatOut` read `#INSTALLLINK` through the parameter, so they follow either value and the literal pins above are the ones that go red.
+- rework verification: `OcuTalon.Test.Core.Allowance`, `AllowanceInProduction`, `BridgeSink`, `WebChatMessages` and `WebChatOut` each passed on a warm lane-A throwaway (one class per call; the stack is down); `(cd web && node --test scripts/allowance-sources.test.mjs scripts/banner-view.test.mjs scripts/chat-view.test.mjs)` 132 pass; `npm run lint` clean (type-checks the two e2e-online specs, which CI runs); `bash docker/tests/test-boundaries.sh` and `bash docker/tests/test-readme.sh` pass; the grep for the old URL finds it in no tracked file outside the spec, the ledger and earlier stories' spec records.
+
 ## Auto Run Result
 
 Status: done
@@ -387,3 +416,9 @@ Review: 21 findings from four layers. Patches applied: 4 (one medium, three low)
 Verification (after the last patch): `test-readme.sh` (also under /bin/bash), `wc -w` 1,855, byte identity pass, the six web script tests (110 pass), `test-boundaries.sh`, `test-release-sequence.sh static`, `test-ci-changes.sh`, `test-install-script.sh`, `test-release-notes.sh`, `test-release-checklist.sh`, `check-readme-video.sh`, `npm run lint`, `npm run build`, `npm test` (1,926 pass), `bash ci/checks.sh` (all scripts passed), non-ASCII count 0 in the edited check scripts, and the `git diff --name-only` scope check lists exactly the ruled files. The e2e specs are not run here (they need a running stack; CI runs them).
 
 Residual risks: the `INSTALLLINK` item above; GUIDE links use `blob/main` and 404 until the merge; the e2e pins are type-checked only.
+
+### Rework pass 1 (DW-1199)
+
+`Core/Allowance.cls` `INSTALLLINK` is now `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself` (doc comment: "The GUIDE.md section"). Pins followed: `Test/Core/Allowance` (five literals), `Test/Core/AllowanceInProduction` (three), `e2e-online/allowance/{daily-cap,messages}.spec.ts` (`messages.spec.ts` now has one `INSTALL`), `allowance-sources`, `banner-view` and `chat-view` test.mjs; `BridgeSink`, `WebChatMessages` and `WebChatOut` read `#INSTALLLINK` and needed no edit. `allowance-sources.test.mjs` gained a ratchet that reads the value from `Allowance.cls`. The earlier "INSTALLLINK item" residual risk is resolved; GUIDE links still 404 until the merge and the e2e pins are type-checked only.
+
+Review: 14 findings from four layers; patched 1 (low), deferred 1 (low: the watch, Splash and busy-page links to the README top), rejected 12 (reasons in the Review Triage Log). Follow-up review recommended: false (no high patched).
