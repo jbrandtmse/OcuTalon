@@ -39,6 +39,7 @@ const RULED = {
   summaryPrompt: 'Show me the incident summary',
   reroutePrompt: 'Reroute the failed orders to OrdersForReview.',
   partnerPrompt: 'Warn the partner about the delay.',
+  queuePrompt: 'Watch the queue backlogs.',
   items: {
     incidentSummary: {
       label: 'Read the incident summary',
@@ -75,6 +76,12 @@ const RULED = {
       lookFor:
         'This asks OcuTalon in the chat to warn the partner about an incident\'s delay, so it needs an incident that isn\'t closed: if you closed the guide\'s incident, do "Reject a fix" first. OcuTalon drafts a short notice from the incident\'s counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox.',
       button: 'Ask for a partner warning',
+    },
+    queueWatch: {
+      label: 'Watch queue backlogs',
+      lookFor:
+        'This asks OcuTalon in the chat to watch the queue backlogs. Look for the Queue-backlog check under Background checks, with its schedule, last run and result. Every minute it reads the Orders production\'s queues, and when one holds more than 100 messages, or its oldest message has waited over 10 minutes, OcuTalon decides once whether to tell you. On a quiet demo it reads Passed. To stop, ask "Stop watching the queue backlogs."',
+      button: 'Ask to watch queues',
     },
     demoView: {
       label: 'See the page as on your own install',
@@ -125,6 +132,9 @@ const RULED = {
   },
 };
 
+/** The display name of the queue-backlog check (Watch.Ops QUEUESNAME). */
+const QUEUE_CHECK = 'Queue-backlog check';
+
 // The registry's own ids, so that an item another story adds joins the count and the order pins; RULED is the independent text oracle, and
 // a registry entry with no RULED text (or a RULED text with no entry) fails the tests below.
 const IDS = MORE_TO_TRY_ITEMS.map((item) => item.id);
@@ -138,6 +148,7 @@ const GROUP_OF = {
   rejectFix: 'Incidents and fixes',
   reroute: 'Incidents and fixes',
   partnerWarning: 'Incidents and fixes',
+  queueWatch: 'Incidents and fixes',
   memory: 'Memory and documents',
   memoryCard: 'Memory and documents',
   documents: 'Memory and documents',
@@ -325,6 +336,17 @@ describe('(c) every quoted on-screen name equals its source', () => {
     assert.equal(MORE_TO_TRY_ITEMS[MORE_TO_TRY_ITEMS.findIndex((item) => item.id === 'reroute') + 1]?.id, 'partnerWarning', 'it follows the reroute item');
   });
 
+  it('names the Background checks and the Queue-backlog check as the rail does, and the prompt that the queue item sends (Story 23.7)', () => {
+    has(items.queueWatch.lookFor, `Look for the ${QUEUE_CHECK} under ${RAIL_TEXTS.checks},`);
+    has(items.queueWatch.lookFor, 'when one holds more than 100 messages, or its oldest message has waited over 10 minutes');
+    has(items.queueWatch.lookFor, 'To stop, ask "Stop watching the queue backlogs."');
+    assert.equal(MORE_TO_TRY_TEXTS.queuePrompt, RULED.queuePrompt);
+    assert.equal(RULED.queuePrompt, 'Watch the queue backlogs.');
+    assert.equal(RAIL_TEXTS.checkScheduleQueues, 'A check every minute');
+    assert.equal(MORE_TO_TRY_ITEMS.find((item) => item.id === 'queueWatch')?.group, 'Incidents and fixes');
+    assert.equal(MORE_TO_TRY_ITEMS[MORE_TO_TRY_ITEMS.findIndex((item) => item.id === 'partnerWarning') + 1]?.id, 'queueWatch', 'it follows the partner warning item');
+  });
+
   it('names the Simulated devices and the Demo view switch as the page does', () => {
     has(items.demoView.lookFor, `the ${DEVICE_TEXTS.region} are hidden`);
     has(items.demoView.lookFor, `Turn ${DEMO_VIEW_TEXTS.label} back on`);
@@ -368,12 +390,12 @@ describe('(c) every quoted on-screen name equals its source', () => {
 
   it('counts the items by the registry: the header comment of the module says how many there are', () => {
     const header = readFileSync(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts'), 'utf8');
-    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen'];
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen'];
     assert.match(header, new RegExp(`the registry of\\s+\\*\\s+its ${words[MORE_TO_TRY_ITEMS.length]} items`), `the header comment says ${words[MORE_TO_TRY_ITEMS.length]} items`);
   });
 
   it('counts the items by the registry in the README (line 30) and in EXPERIENCE.md, whatever the number is after the merges (Story 23.6, AC 18)', () => {
-    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen'];
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen'];
     const word = words[MORE_TO_TRY_ITEMS.length];
     const readme = readFileSync(join(here, '..', '..', 'README.md'), 'utf8');
     assert.match(readme, new RegExp(`its More to try panel has ${word} more things to try`), `the README says ${word} more things to try`);

@@ -94,6 +94,9 @@ Parameter READONLYPROPOSEFIX = 0;
 
 Parameter TRUSTEDOUTPUTPROPOSEFIX = 1;
 
+/// The answer of start_watch and stop_watch for a kind of watch that is neither production nor queues (text for the model).
+Parameter UNKNOWNKIND = "That kind of watch is not one OcuTalon has, so nothing was done.";
+
 /// The states of the incidents that propose_fix may name (AD-15), and, for partner_warning, which never moves an incident (Story 23.5), every state but closed.
 Parameter FIXABLE = "open,resolved";
 
@@ -107,10 +110,21 @@ Parameter NOWARNING = "There's no open incident to warn the partner about, so no
 /// name to say. already_watching: the user already watches it. unknown_production: no production has that name, and the answer gives the list
 /// of names to offer. only_orders: this is the online demo, which watches only the Orders production. ambiguous: two productions have that
 /// name, so ask the user which one they meant. Anything else: the message says why nothing was done.
-ClassMethod StartWatch(name As %String(DESCRIPTION = "The name of the production, exactly as the user gave it, such as Orders."), namespace As %String(DESCRIPTION = "Only when an earlier answer was ambiguous: the namespace of the production that the user picked. Otherwise leave it out.") = "") As %DynamicObject
+/// With kind queues it starts the queue-backlog check instead: every minute OcuTalon looks at the queues it can read and tells the user about a queue that backs
+/// up past its threshold. The name is then ignored, no production is looked up, and the answer has outcome started or already_watching and check, the name
+/// of the check. A kind that is neither production nor queues answers unknown_kind.
+ClassMethod StartWatch(name As %String(DESCRIPTION = "The name of the production, exactly as the user gave it, such as Orders."), namespace As %String(DESCRIPTION = "Only when an earlier answer was ambiguous: the namespace of the production that the user picked. Otherwise leave it out.") = "", kind As %String(DESCRIPTION = "production (the default) or queues: queues watches every queue OcuTalon can read for a backlog, and then name is ignored.") = "") As %DynamicObject
 {
 	Set refusal = ##class(OcuTalon.Tools.CommandCall).Session()
 	If $IsObject(refusal) Quit ..Return(refusal)
+	If kind = ##class(OcuTalon.Watch.Ops).#QUEUEKIND {
+		Set command = ##class(OcuTalon.Msg.Command.StartWatch).%New()
+		Set command.Kind = kind
+		Set refusal = ##class(OcuTalon.Tools.CommandCall).Run(command, .result)
+		If $IsObject(refusal) Quit ..Return(refusal)
+		Quit ..Return(##class(OcuTalon.Tools.WatchAnswers).Queued(result))
+	}
+	If '##class(OcuTalon.Tools.WatchAnswers).KnownKind(kind) Quit ..Return({"ok": false, "outcome": "unknown_kind", "message": (..#UNKNOWNKIND)})
 	Set refusal = ##class(OcuTalon.Tools.WatchAnswers).Resolve(name, namespace, .match)
 	If $IsObject(refusal) Quit ..Return(refusal)
 	Set command = ##class(OcuTalon.Msg.Command.StartWatch).%New()
@@ -126,10 +140,20 @@ ClassMethod StartWatch(name As %String(DESCRIPTION = "The name of the production
 /// conversation are read first (through the ownership API), then the list of the productions. The answer has
 /// an outcome. stopped: the watch is off. not_watching: the user was not watching it. unknown_production, only_orders and ambiguous are as for
 /// start_watch. Anything else: the message says why nothing was done.
-ClassMethod StopWatch(name As %String(DESCRIPTION = "The name of the production, exactly as the user gave it, such as Orders."), namespace As %String(DESCRIPTION = "Only when an earlier answer was ambiguous: the namespace of the production that the user picked. Otherwise leave it out.") = "") As %DynamicObject
+/// With kind queues it stops the queue-backlog check instead (the name is ignored, and the answer has outcome stopped or not_watching and check, the name
+/// of the check). A kind that is neither production nor queues answers unknown_kind.
+ClassMethod StopWatch(name As %String(DESCRIPTION = "The name of the production, exactly as the user gave it, such as Orders."), namespace As %String(DESCRIPTION = "Only when an earlier answer was ambiguous: the namespace of the production that the user picked. Otherwise leave it out.") = "", kind As %String(DESCRIPTION = "production (the default) or queues: queues stops the queue-backlog check, and then name is ignored.") = "") As %DynamicObject
 {
 	Set refusal = ##class(OcuTalon.Tools.CommandCall).Session(.context)
 	If $IsObject(refusal) Quit ..Return(refusal)
+	If kind = ##class(OcuTalon.Watch.Ops).#QUEUEKIND {
+		Set command = ##class(OcuTalon.Msg.Command.StopWatch).%New()
+		Set command.Kind = kind
+		Set refusal = ##class(OcuTalon.Tools.CommandCall).Run(command, .result)
+		If $IsObject(refusal) Quit ..Return(refusal)
+		Quit ..Return(##class(OcuTalon.Tools.WatchAnswers).Queued(result))
+	}
+	If '##class(OcuTalon.Tools.WatchAnswers).KnownKind(kind) Quit ..Return({"ok": false, "outcome": "unknown_kind", "message": (..#UNKNOWNKIND)})
 	Set refusal = ##class(OcuTalon.Tools.WatchAnswers).ResolveStop(name, namespace, context.OwnerRef, .match)
 	If $IsObject(refusal) Quit ..Return(refusal)
 	Set command = ##class(OcuTalon.Msg.Command.StopWatch).%New()
@@ -203,7 +227,7 @@ ClassMethod ProposeFix(kind As %String(DESCRIPTION = "One of suspend_item, resum
 	Quit ..Return(answer)
 }
 
-/// Reads the latest results of the user's background checks in this conversation, one per watched production. Call it when the user asks whether everything
+/// Reads the latest results of the user's background checks in this conversation, one per watched production and one for the queue-backlog check when the user watches queue backlogs. Call it when the user asks whether everything
 /// is fine, OK or working, or how the watched productions are doing. The answer is ok with checks, a list in a fixed order. Each check has result: passed,
 /// failed, not_checked when the last run could not check, or empty when the check has not run yet; entry: the name to say, such as Orders production;
 /// finding: what the last run found, or why it could not check; and checked: when it last ran, in the instance's time, empty before its first run. An empty

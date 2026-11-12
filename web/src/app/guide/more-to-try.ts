@@ -86,8 +86,8 @@ let panels = 0;
                   type="button"
                   class="button button-secondary"
                   data-guide-focus="moreItem"
-                  [attr.aria-disabled]="(item.action === 'memory' || item.action === 'reroute' || item.action === 'partnerWarning') && blocked() ? 'true' : null"
-                  [attr.aria-describedby]="item.action === 'memory' || item.action === 'reroute' || item.action === 'partnerWarning' ? describedBy() : null"
+                  [attr.aria-disabled]="(item.action === 'memory' || item.action === 'reroute' || item.action === 'partnerWarning' || item.action === 'queueWatch') && blocked() ? 'true' : null"
+                  [attr.aria-describedby]="item.action === 'memory' || item.action === 'reroute' || item.action === 'partnerWarning' || item.action === 'queueWatch' ? describedBy() : null"
                   (click)="press(item)"
                 >{{ sampleFirst() && item.action === 'documents' ? documentsTexts.sample : item.button }}</button>
               }
@@ -259,6 +259,11 @@ export class MoreToTry {
       case 'partnerWarning':
         if (!this.blocked()) {
           this.outbox.send(MORE_TO_TRY_TEXTS.partnerPrompt);
+        }
+        break;
+      case 'queueWatch':
+        if (!this.blocked()) {
+          this.outbox.send(MORE_TO_TRY_TEXTS.queuePrompt);
         }
         break;
       case 'demoView':

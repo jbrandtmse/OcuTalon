@@ -371,9 +371,9 @@ ClassMethod Live(check As OcuTalon.Data.BackgroundCheck, entry As %String, spanS
 	Set nowSeconds = ##class(OcuTalon.Data.Time).Seconds(now)
 	Set iterator = queues.%GetIterator()
 	While iterator.%GetNext(, .queue) {
-		If (queue.count > limit.queueMessages) && (queue.count > most) Set most = queue.count
-		Set oldest = ##class(OcuTalon.Data.Time).Seconds(queue.oldestAt)
-		If (oldest '= "") && (queue.count > 0) && (nowSeconds - oldest > (limit.queueWaitMinutes * 60)) && (nowSeconds - oldest > longest) Set longest = nowSeconds - oldest
+		Do ##class(OcuTalon.Checks.Queues).Over(queue, limit, nowSeconds, .byCount, .waited)
+		If byCount && (queue.count > most) Set most = queue.count
+		If waited > longest Set longest = waited
 	}
 	If most > 0 Set parts = parts_$ListBuild(..Fill(..#FINDINGQUEUED, {"count": (most)}))
 	If longest > 0 Set parts = parts_$ListBuild(..Fill(..#FINDINGWAITING, {"minutes": (longest \ 60)}))
@@ -486,6 +486,12 @@ ClassMethod RecordRun(ref As %String, sessionRef As %String, ranAt As %String, r
 	} Catch exception {
 		Do ##class(Ens.Util.Log).LogWarning("OcuTalon.Checks.Coverage", "RecordRun", "A run of check "_$Get(ref)_" could not be recorded: "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
+}
+
+/// The thresholds as numbers (Limits): the one source of them for the digest's live read and for the queue-backlog check (Checks.Queues Over).
+ClassMethod CurrentLimits() As %DynamicObject
+{
+	Quit ..Limits()
 }
 
 }

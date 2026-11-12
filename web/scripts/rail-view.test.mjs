@@ -118,6 +118,7 @@ describe('the fixed strings', () => {
         expires: 'expires {when}',
         checkTitle: '{name} production',
         checkSchedule: 'Live, plus a check every minute',
+        checkScheduleQueues: 'A check every minute',
         lastRun: 'Last run {when}',
         lastRunLate: 'Last run {when} (late)',
         titleWithCountdown: '{text}{separator}{countdown}',
@@ -382,6 +383,17 @@ describe('background checks', () => {
     assert.equal(rows[0].detail, 'Live, plus a check every minute');
     assert.equal(rows[1].detail, undefined);
     assert.equal(rows[0].kind, 'check');
+  });
+
+  it('names the queue-backlog check by its display name alone, with the schedule "A check every minute", its last run and result, and its trace link (Story 23.7, AC9)', () => {
+    const queue = check('q1', { kind: 'queues', namespace: '', production: '', displayName: 'Queue-backlog check', finding: '1 queue over its threshold', result: 'failed', traceUrl: '/trace/q1' });
+    assert.equal(checkTitle(queue), 'Queue-backlog check');
+    const row = section(viewOf({ checks: [queue] }), 'checks').rows[0];
+    assert.equal(row.title, 'Queue-backlog check');
+    assert.equal(row.detail, 'A check every minute');
+    assert.deepEqual(row.meta, ['Last run 14:13', '1 queue over its threshold']);
+    assert.equal(row.traceUrl, '/trace/q1');
+    assert.equal(row.kind, 'check');
   });
 
   it('shows the last run and the finding: "Last run 14:13 \u00B7 50 new failures"', () => {

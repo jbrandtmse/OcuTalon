@@ -7935,7 +7935,7 @@ So that I can watch a data condition without giving OcuTalon any way to change d
 
 ### Story 23.9: Resume a suspended item after its incident closes
 
-[ADDED 2026-11-10, Contest Planner ruling (DW-1068 re-ruling), PARKED until after voting; not for 1.0.6 or 1.0.7] Split from Story 23.2, whose `result.itemSuspended` text limits the undo to while the incident is open and points to the Management Portal after it closes.
+[ADDED 2026-11-10, Contest Planner ruling (DW-1068 re-ruling), PARKED until after voting; not for 1.0.6 or 1.0.7] [AMENDED 2026-11-11, un-parked: scope reopened by the owner via the Contest Planner - see the story change log] Split from Story 23.2, whose `result.itemSuspended` text limits the undo to while the incident is open and points to the Management Portal after it closes.
 
 As a production developer,
 I want to undo a suspend OcuTalon made even after its incident has closed,
@@ -7947,6 +7947,32 @@ So that a suspended item is never left disabled without a governed way back.
 **When** the user asks OcuTalon to resume the item
 **Then** the spec chooses between (a) a resume raised on the closed incident, which never moves its state, and (b) an incident with an active suspend stays open until a resume or Dismiss (the Planner leans to (b)); either way exactly one approval request with its own dry run is raised, the item is re-checked before running, and a second session or a user outside the incident's ownership scope cannot resume it (FR-26, AD-15, AD-16)
 - DW-1068: After a suspend's incident closes the user cannot ask to resume the item (ledger; routed by merge_gate 2026-11-10)
+
+### Story 23.10: Partner notice and summary polish from the 1.0.7 demo pass
+
+[ADDED 2026-11-11, Contest Planner ruling from the 1.0.7 demo pass] From the Contest Planner's hands-on pass of 1.0.7 on the live demo (ruling text: the orchestrator's `prompts/epic-23-story-2310-ruling.md`). Judge-visible; it runs after Story 23.7 and before Story 23.9.
+
+As a production developer watching the demo's Orders feed,
+I want the partner notice to name the right partner and to match the incident's state, and the incident summary and the status rail to read cleanly,
+So that what OcuTalon drafts and shows is accurate.
+
+**Acceptance Criteria:**
+
+**Given** the online demo's partner contact fixture (Story 23.5)
+**When** the guide's Orders incident drafts a partner notice
+**Then** its recipient is "Orders Partner IT" <it@orders-partner.example> (ruled public text), keyed to the Orders production if the fixture keys contacts by production; the README and EXPERIENCE.md lines that name the recipient and the tests say the same (FR-29)
+
+**Given** an incident that is resolved when its partner notice is drafted
+**When** the draft is written
+**Then** the draft's facts include the incident's state, and the draft instruction carries, verbatim: "If the incident is resolved, say that the affected orders went through after the fix, and don't say that work is still going on or that updates will follow."; an eval or CI mock case shows a resolved incident's draft without "looking into" or "will share updates" (FR-29, AD-16)
+
+**Given** an incident summary (Story 23.6)
+**When** its "Fix:" line is rendered
+**Then** the line ends with its full stop, and its pin says so (FR-30, AD-32)
+
+**Given** an approval request the user rejects
+**When** the status rail's Approval requests refresh
+**Then** the rejected request leaves the rail at once if the cause is a one-line refresh; otherwise the gap is filed in the ledger with its cause (LOW, FR-8)
 
 ## Epic 24: On-call, partner and check settings (step 5)
 
@@ -9710,6 +9736,7 @@ So that what the automated tests can't see is found and fixed before the first r
 - DW-299: Story 6.2's AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds with the demo guide open: the guide reaches DESIGN's 56 px compact form while its Break the feed box shows, and 6.2's A6 check runs without Hide guide (ledger; routed by merge_gate 2026-10-28)
 - DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
 - DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend (ledger; routed by merge_gate 2026-10-30)
+- DW-1125: Real-model check of Story 23.7's queue watch: for "Watch the queue backlogs." the model calls start_watch with kind queues, and for its stop calls stop_watch with kind queues (only the CI mock scripts it today) (ledger; routed by cr 2026-11-11)
 
 ### Story 38.2: The clean-machine rehearsal runs on the author's hosts and times the demo path on the real model
 
