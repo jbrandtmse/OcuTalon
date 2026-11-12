@@ -1,5 +1,5 @@
 ---
-title: 'Story 0.31: DW-1191: the webhook secret test''s malformed-salt case can never equal the real salt'
+title: 'Story 0.33: DW-1191: the webhook secret test''s malformed-salt case can never equal the real salt'
 type: 'bugfix'
 created: '2026-11-12'
 status: 'done'

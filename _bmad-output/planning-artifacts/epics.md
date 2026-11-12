@@ -1818,7 +1818,7 @@ So that I can judge the entry quickly and still find every install and admin det
 **When** it finishes
 **Then** every workflow is green
 
-### Story 0.31: DW-1191: the webhook secret test's malformed-salt case can never equal the real salt
+### Story 0.33: DW-1191: the webhook secret test's malformed-salt case can never equal the real salt
 
 [ADDED 2026-11-12, burndown by the Contest Planner's standing ruling (owner's delegation, prompts/standing-rulings-20261112.md, DW-1191: test-only, burndown; lane A after 0.30)] `OcuTalon.Test.Data.Webhook` `TestMatches` builds a malformed stored value by putting "x" in front of the salt's second character on; when the random salt already starts with "x" (about 1 run in 64) that value is the real one and `Matches` rightly answers 1, so the test fails at random. Footprint: `src/ocutalon/cls/OcuTalon/Test/Data/Webhook.cls` only.
 
