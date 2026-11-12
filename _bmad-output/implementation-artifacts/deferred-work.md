@@ -6672,6 +6672,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340066; rows before passed; readiness timeout under a full queue (DW-686/DW-999 family)
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:install-upgrade_row7;one_rerun_with_the_next_push
+- 2026-11-12T10:33:24Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_109d59c8_run_43172863798_install-upgrade_row7_start_with_failing_step_not_ended_200s;superseded_head
 
 ### DW-1083: flake candidate: live:reminder-restart 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then the first start did not end ready within 400 s
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7060,6 +7061,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: no test assertion failed; live:online-demo-path in the same job passed; same start-not-ready family as DW-612 (row 2) and DW-1082 (install-upgrade row 7); all 18 runners busy with the outage backlog
 - 2026-11-11T21:32:07Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun of the failed job when the run completes
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749161 attempt 2)
+- 2026-11-12T10:33:23Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_e7c97dda_run_43170639261_install-fresh_live:install-start_row3_dev_start_not_ready_200s;superseded_head
 
 ### DW-1161: CI headroom: lane-a ipm-install takes 28-30 min against its 35-min job timeout; under host load it times out (cancelled at 35m0s) with no test failed
 - source: feature c33e0916, lane-a run 43099749306 job ipm-install on ocutalon-ci-10 | severity: low | fix-risk: low | footprint: out-of-footprint
