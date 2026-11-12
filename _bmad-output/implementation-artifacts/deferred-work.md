@@ -7185,3 +7185,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature 74ee76dc, ci run 43160772937 job iris (browser) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the failure is in sign-in/helpers.ts:61 submitSignIn, not the approval path; all 18 runners busy with the backlog; 74ee76dc's new code (21.2/21.6/23.11) doesn't touch sign-in
 - 2026-11-12T06:52:37Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun; a second red on the same head is real
+
+### DW-1192: Held-out incident snapshots are never compared with a fresh recording in CI; HeldOutCases errorHas markers are read nowhere
+- source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Test.Eval.Record (TestCommittedIsCurrent, TestFeedCasesRecorded) covers the default Cases set and top-level eval/ incidents only; a stale held-out snapshot would pass CI (agent measurement quality, not safety)
+- 2026-11-12T12:47:26Z status=open owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=harvest note=implement pass 2 deferred; extend Test.Eval.Record to the HeldOutCases set (Rule 2)
