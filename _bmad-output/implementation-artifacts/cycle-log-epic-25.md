@@ -78,3 +78,4 @@
 2026-11-12T22:27:00Z	Epic 25	sprint_planning_complete	gate=CONCERNS model=claude-opus-5-5 in_sync=true findings=demo_ac_vs_planner_demo_off,new_file_table_and_route_not_in_spine,read_results_unmerged(fixtures) veto=U-325
 2026-11-12T22:31:11Z	Epic 25	protocol_violation	stage=epic-context depth=1 agent=pre-warm violation=agent_call_backgrounded_by_harness_despite_run_in_background_false consequence=none(lead_waited_for_completion_notice,no_concurrent_writer) detected_by=lead outcome=waited
 2026-11-12T22:31:11Z	Epic 25	epic_context_compiled	reason=planning_artifact_newer model=opus words=1495 note=focus_25.3
+2026-11-12T22:31:23Z	Story 25.3	stage_spawned	stage=plan spawn_at=2026-11-12T22:31:23Z model=opus agent_name=25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram-plan-1 cycle_iteration=1
