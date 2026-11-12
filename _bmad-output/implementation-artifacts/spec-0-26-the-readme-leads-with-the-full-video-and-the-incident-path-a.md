@@ -2,7 +2,8 @@
 title: 'Story 0.26: The README leads with the full video and the incident path, and a measured comparison replaces the worked-out one'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'b41f331b8c36695ebfb221494bc7d0046cf672de'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -181,6 +182,30 @@ The Contest Planner's ruled text (prompts/story-026-rulings.md part (a), 2026-11
 
 ## Review Triage Log
 
+### 2026-11-12 -- Review pass
+- verdicts: 20 findings -- high 0, medium 0, low 13, false 7, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: Usability / Developer Experience rows of "For judges" do not point to the new section -- the README text is the Planner's ruled text and the spec forbids any text beyond the ruled diff.
+  - `[low]` `[reject]` Blind: the intro "check each step yourself on the online demo" vs the Telegram clause of step 5 -- ruled wording, applied verbatim (byte-identical to the ruled diff, checked); editing it needs a new ruling.
+  - `[low]` `[reject]` Blind: the incident narrated in three places -- ruled structure, each pinned by its own rule by design.
+  - `[low]` `[reject]` Blind: usage-docs comment vs `new-since` flagging an unexpected bullet -- the comment is true for that node test; the exact-14-bullets pin is the spec's own Task ("each exactly once").
+  - `[false]` `[reject]` Blind: `chk_facts` runs on the whole section -- the verification-gap layer showed the 5 facts were already satisfied before the change and Interoperability, AI Hub and audit log are only in the section's own text; nothing newly weakened.
+  - `[low]` `[reject]` Blind: v1.0.6 MP4 URL hard-coded in mutation strings -- negligible; the release asset exists (reviewer checked with gh).
+  - `[low]` `[reject]` Blind: one over-long header comment line -- cosmetic, no harm.
+  - `[low]` `[reject]` Blind: no file size on the MP4 link / no pin of "3:04" -- ruled text; adding text is not allowed.
+  - `[low]` `[reject]` Edge: awk bullet parse takes the name up to the first `.**` -- theoretical, the exact-name and order checks catch real moves.
+  - `[false]` `[reject]` Edge: MP4 asset existence not tested -- hermetic by design; the asset exists on v1.0.6.
+  - `[low]` `[reject]` Edge: two failure lines when the link bar is missing -- noise only, still red.
+  - `[false]` `[reject]` Edge: teaser spacing measured from the first full-video copy -- the count check fails the duplicate.
+  - `[low]` `[patch]` VGap: AC video had no `mutation:` line for the `video` rule -- added (MP4 link removed -> `top`, `video`, `teaser` red).
+  - `[low]` `[patch]` VGap: the changed History order assertion had no mutation -- added (Queue backlogs and History swapped -> red in `history-docs.test.mjs`).
+  - `[false]` `[reject]` VGap: AC CI-green has no pinning test -- a CI-state criterion; judged on the pushed head.
+  - `[low]` `[reject]` VGap: MP4 asset URL pinned as a string only -- same as the Edge row, hermetic.
+  - `[low]` `[patch]` VGap: two `teaser` self-test labels name the opening-to-teaser gap -- relabelled for the full-video line (cosmetic, same mutations).
+  - `[false]` `[reject]` Intent: readings R1 to R4 -- descriptive; the diff implements the ruled text plus the pinning rules; the README is byte-identical to the ruled diff (checked with patch on the baseline README).
+  - `[false]` `[reject]` Intent: tests pin source text, not the rendered page -- by design for test-readme.sh.
+  - `[false]` `[reject]` Intent: `images` mutation rewritten to the hero image anchor -- the same mutation on the real README, no weakening.
+
 ## Design Notes
 
 **Governing ADs:** none binds README text or test-readme.sh (AD-29: Epic 0 may edit any lane's files). No AD is amended.
@@ -211,12 +236,30 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 Mutations (one per AC; record `mutation: <change> -> <test that went red>` here, revert, check `git status --short` and `git diff --stat` unchanged):
 - AC video: swap the full-video and teaser lines -> `teaser` and `top`.
+  mutation: swapped the text of the full-video line and the teaser line -> `top` and `teaser` red (tree restored byte-identical from a scratch backup).
+  mutation: removed the MP4 link from the full-video line -> `top`, `video` and `teaser` red.
 - AC order: move "New since 1.0.0" back under "Try it" -> `new-since` and `interesting`; drop one bullet -> `new-since`; restore "Two things to look at in the demo" -> `path`.
+  mutation: moved the "New since 1.0.0" block to just before "One incident, end to end" -> `new-since` and `interesting` red.
+  mutation: dropped the "Partner delay notices" bullet -> `new-since` red.
+  mutation: added "Two things to look at in the demo:" under "Measured" -> `path` red.
 - AC web tests: (covered by the order assertions' own red on the old order).
+  mutation: moved the History bullet after the Usage bullet -> "comes after the History bullet" red in `usage-docs.test.mjs` (1 failed of 18 in the two files).
+  mutation: swapped the Queue backlogs and History bullets -> "comes after the Queue backlogs bullet" red in `history-docs.test.mjs`.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Written by the lead after the Contest Planner's split ruling; implement next.
+Summary: the README now leads with the full video (3:04, YouTube and the v1.0.6 MP4) above the teaser and in the link bar; a new H2 "One incident, end to end" holds the seven ruled steps; "New since 1.0.0" sits under "What's interesting" in three ruled groups; "Two things to look at in the demo" is removed. The README is byte-identical to the ruled diff.
+
+Files changed:
+- `README.md` -- the ruled diff, verbatim.
+- `docker/tests/test-readme.sh` -- `top`, `teaser`, `interesting` and `images` moved to the new anchors; new rules `video`, `path` and `new-since`, each with self-tests; `RULES` and header updated.
+- `web/scripts/usage-docs.test.mjs`, `web/scripts/history-docs.test.mjs` -- order assertions only (History after Queue backlogs, Usage after History).
+
+Review: 20 findings from four layers; 3 patched (two mutation lines in `## Verification`, relabelled `teaser` self-tests), 0 deferred, 17 rejected with their reasons in the triage log. Follow-up review recommended: false (patched: 0 high, 0 medium).
+
+Verification: `bash docker/tests/test-readme.sh` all rules passed; web docs tests 0 failed; mutations recorded in `## Verification`.
+
+Residual risk: the MP4 asset and the video length are not checked by the hermetic tests; CI on the pushed head is judged by the lead.
