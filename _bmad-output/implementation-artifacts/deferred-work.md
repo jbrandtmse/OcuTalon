@@ -7103,3 +7103,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 43172123661 (OCT-epic21 ad2255ac) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 131027662801 iris (shards-6) shard:lane-b@rest 2026-11-12T08:01Z: 4 asserts red, 1 of 51 classes; Story 21.3 changes no Schedule, Reminder, Notify or channel-out class; first sighting
 - 2026-11-12T10:09:42Z status=routed owner=burndown by=ci note=flake rule: one rerun; judged again on the integrated 21.3 head's CI
+
+### DW-1189: docker/tests/test-audit.sh and test-demo-switch.sh count %SYS.Audit rows with WHERE Event = ..., which goes through the Event index that %SYS.Audit.UpdateIndices refreshes about once a minute, so a fresh entry can be invisible for up to ~60 s (flake risk)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md (rework 1) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: measured on lane-C warm e21s3i2w 2026-11-12: a UTCTimeStamp read saw the OAuth2 creation entry 0.4 s after the save, WHERE Event = 'OAuth2' first saw it 34 s later; the same pattern sits in the two scripts
+- 2026-11-12T10:41:28Z status=routed owner=burndown by=harvest note=fix: read rows from a time mark (UTCTimeStamp) and compare Event in code, as EmailLive.SysAuditMasks now does; owner docker/tests (Epic 15 area)
