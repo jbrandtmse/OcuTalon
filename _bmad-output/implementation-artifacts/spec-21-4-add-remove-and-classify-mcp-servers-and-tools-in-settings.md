@@ -99,7 +99,11 @@ deferred: []
 - Given the online demo, when an admin of that install opens the section or calls any MCP settings route, then T1 shows (409 `not_available`), nothing is offered, submitted or written, and the demo account (no admin role) sees no settings (B5, `McpSettingsApi`, `SettingsMcp`).
 - Given the spine after this story, when AD-19, AD-21, the Seed and the REST rows are read, then none says that `SettingsOps` or a route writes the MCP entry, and each names McpOps' job and `ListMcpServers`.
 
+- [ ] (Planner condition B) Given an add with a secret at a non-loopback `http://` address, when it is submitted (route and McpOps), then it is refused with `MESSAGEADDRESS` and no wallet key, Config Store entry or row is written; a test pins it (mutation: the address check skipped when a secret is present -> red).
+
 ## Spec Change Log
+
+- 2026-11-12 (lead, spec gate): Planner rulings B applied (V1-V12 approved; the plain-HTTP-with-secret condition added as an AC; 21.9 split written into epics.md; T1-T11 verbatim; implement after 22.4 merges).
 
 ## Review Triage Log
 
@@ -145,6 +149,8 @@ deferred: []
 - S4 AD-21 :815: "and never at run time on the online demo, whose installer preconfigures only the servers on the demo's allow-list (FR-47)" becomes "and never on the online demo, where no MCP endpoint runs and every MCP settings route answers 409 [AMENDED 2026-11-11, Contest Planner ruling: the online-demo safety rule]".
 - S5 Seed :1471: replace the row with "`McpOps` writes an MCP server's entry and wallet secret (AD-19, AD-21); the `SettingsOps` stubs of Story 35.2 are removed | A | Story 21.4 (DW-1041 exception)". Add a row "`ListMcpServers` (AD-1, AD-21), answered by `SettingsOps`; `Ownership.PendingToolCalls(server, *sc)` | B | Story 21.4". REST :1658-1660: GET -> `ListMcpServers` in SettingsOps' job (body as the Matrix); POST servers -> `SecretHandoff`, then `AddMcpServer`; DELETE -> `RemoveMcpServer`; classify -> `ClassifyTool`. Each is 409 `not_available` on the online demo before the body.
 - S6 AD-1, after the MCP verbs sub-bullet: "`ListMcpServers` comes from `web_admin` only, to `SettingsOps`; it changes nothing." [ADDED 2026-11-12, Story 21.4]
+
+**Planner rulings at the spec gate (Contest Planner, owner's delegation, 2026-11-12 ~18:10Z, `prompts/gate-rulings-20261112-1810.md` B; binding):** V1-V12 APPROVED. V3 with `RequireTLS` 0 is fine (22.2's address rule allows `http://` only to this computer). CONDITION (now a Tasks & Acceptance item): one test pins that adding a server WITH a secret at a non-loopback `http://` address is refused with `MESSAGEADDRESS` (the secret never goes out over plain HTTP). V5: a needed grant stops the story, as written. V10: the 21.9 split approved (written into `epics.md`). Demo: every MCP route returns 409 with T1 before reading the body, with real-HTTP tests. PUBLIC TEXT: T1-T11 approved verbatim, T9 included; T9 lands in GUIDE.md's "New since 1.0.0" once 0.30 is merged (README until then). Order (orchestrator): implement only after Epic 22's 22.4 merges, integrating forward first (22.4 -> 21.4 -> 22.5).
 
 ## Veto items
 

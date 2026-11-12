@@ -91,6 +91,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-12 (lead, spec gate): Planner rulings A applied (V1-V8 approved; T1-T3 verbatim; T4 with the three added sentences; GUIDE.md placement; no least-privilege claim).
+
 ## Review Triage Log
 
 ## Design Notes
@@ -119,6 +121,8 @@ deferred: []
 
 **Measured (Task 0, implement):** the implement stage records Task 0 (a)-(f) here, the DW-1180 list as a table (privilege | what in registering needs it | the assertion that is red without it), with `_Ensemble` named as the production user that holds `%All`.
 
+**Planner rulings at the spec gate (Contest Planner, owner's delegation, 2026-11-12 ~18:10Z, `prompts/gate-rulings-20261112-1810.md` A; binding):** V1-V8 APPROVED. Online demo: never runs; `/csp/sys/oauth2` stays disabled there (U-320); no least-privilege claim anywhere (AD-24 lists what was measured, nothing more). PUBLIC TEXT: T1, T2, T3 approved verbatim; T4 approved with three added sentences (a) end of the first paragraph, (b) after step 1's Redirect-address sentence, (c) end of step 2's Google part, written into T4 below verbatim; everything else in T4 verbatim. T4 goes in GUIDE.md after the Telegram section; T3's anchor `#gmail-and-microsoft-365` is checked by the guide's anchor rule. If GUIDE.md is absent on the base at implement time (0.30 not merged), T4 goes where the plan says (README, after Telegram) and moves to GUIDE.md at the 0.30 integrate-forward.
+
 ## Veto items
 
 | # | Item | Recommended | Online demo |
@@ -141,9 +145,9 @@ None of these appear on the online demo: no real mailbox, sign-in, rows or polls
 - T2 `Out.MESSAGESIGNIN` (a send's answer in OAuth2 mode): "The mail sign-in is no longer valid, so the email wasn't sent. Sign in again in Settings > Channels > Email."
 - T3 the "Your own mailbox" bullet (where "New since 1.0.0" lives at merge; the standing ruling): its first sentence becomes "On your own install, an admin connects a POP3 mailbox in Settings > Channels > Email, with a password or by signing in with Google or Microsoft 365 (see [Gmail and Microsoft 365](#gmail-and-microsoft-365))." The rest stays as it is.
 - T4 new section "Gmail and Microsoft 365" (after Telegram). Draft; the provider console steps and server names come from the providers' public documentation and were not reached (inference):
-  > Signing in with Google or Microsoft 365 is optional, and these steps are for your own install. OcuTalon then reads the mailbox over POP3 and sends over SMTP with the sign-in instead of a stored password, and IRIS renews the sign-in's access token when it expires.
-  > 1. Open http://localhost:52773/ocutalon/, go to Settings > Channels > Email and choose the Sign-in method Google or Microsoft 365. The form shows the Redirect address: the address you opened OcuTalon at, followed by `/csp/sys/oauth2/OAuth2.Response.cls` (for example `http://localhost:52773/csp/sys/oauth2/OAuth2.Response.cls`).
-  > 2. Create the OAuth2 client with the provider. **Google:** in the Google Cloud console, create an OAuth client ID of type Web application and add the Redirect address under Authorized redirect URIs; OcuTalon asks for the scope `https://mail.google.com/`. Turn on POP in the mailbox's Gmail settings. **Microsoft 365:** in the Microsoft Entra admin center, register an application, add the Redirect address as a Web redirect URI, create a client secret, and add the delegated permissions `POP.AccessAsUser.All`, `SMTP.Send` and `offline_access`. POP and authenticated SMTP must be allowed for the mailbox.
+  > Signing in with Google or Microsoft 365 is optional, and these steps are for your own install. OcuTalon then reads the mailbox over POP3 and sends over SMTP with the sign-in instead of a stored password, and IRIS renews the sign-in's access token when it expires. The provider steps below follow Google's and Microsoft's documentation; their consoles change, so check their current pages if a name differs.
+  > 1. Open http://localhost:52773/ocutalon/, go to Settings > Channels > Email and choose the Sign-in method Google or Microsoft 365. The form shows the Redirect address: the address you opened OcuTalon at, followed by `/csp/sys/oauth2/OAuth2.Response.cls` (for example `http://localhost:52773/csp/sys/oauth2/OAuth2.Response.cls`). Google and Microsoft accept an `http://` Redirect address only for `localhost`, so open OcuTalon at `http://localhost:52773/ocutalon/` for this step, or serve it over `https://`.
+  > 2. Create the OAuth2 client with the provider. **Google:** in the Google Cloud console, create an OAuth client ID of type Web application and add the Redirect address under Authorized redirect URIs; OcuTalon asks for the scope `https://mail.google.com/`. Turn on POP in the mailbox's Gmail settings. On the OAuth consent screen, add the mailbox's address as a test user. While the app's publishing status is Testing, Google ends the sign-in after 7 days, and you sign in again. **Microsoft 365:** in the Microsoft Entra admin center, register an application, add the Redirect address as a Web redirect URI, create a client secret, and add the delegated permissions `POP.AccessAsUser.All`, `SMTP.Send` and `offline_access`. POP and authenticated SMTP must be allowed for the mailbox.
   > 3. In the form, enter the Client ID and the Client secret, the mailbox's address, the incoming and outgoing servers (for example `pop.gmail.com:995` and `smtp.gmail.com:465`, or `outlook.office365.com:995` and `smtp.office365.com:587`) and the mailbox's address as the user name, then save.
   > 4. Press "Sign in with Google" (or Microsoft 365). The provider's consent page opens in a new tab; after you agree, the tab returns to Settings, which shows "Signed in with Google."
   > If the sign-in is withdrawn at the provider, the next check of the mailbox fails with "The mail sign-in is no longer valid." and Settings offers the sign-in again. Saving the Password method removes the sign-in from IRIS. The online demo has no real mailbox and no sign-in.

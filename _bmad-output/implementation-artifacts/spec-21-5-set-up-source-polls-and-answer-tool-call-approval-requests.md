@@ -166,6 +166,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-12 (lead, spec gate): split ruled (21.10); 22.5 item 9 routed here by the Planner, so the rail line is in scope.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -264,6 +266,8 @@ All are real instances in S1-S3 and B6-B7.
 **Spine items (after the gate; additive):**
 - **S1, REST row :1661:** append: "POST body `{server, tool, name, arguments, intervalMinutes}`; the route refuses a shape error, `@{` and arguments that are not a JSON object, and McpOps judges the rest; DELETE removes only a `source` row of the caller's session (else 404); both 409 `not_available` on the online demo before the body [ADDED, Story 21.5]".
 - **S2, AD-21's `ListMcpServers` sentence (as 21.4's S3 writes it):** "its answer also lists the caller's session's source rows (`ref`, `name`, `server`, `tool`, `intervalMinutes`; never the arguments) [ADDED, Story 21.5]".
+
+**Rulings so far:** the split into 21.5 + 21.10 is ruled by the Epic 21 runner (decide, doctrine U5; `epics.md` written; the orchestrator records the graph hash, reason=split). The Contest Planner ruled 22.5's item 9 YES (`prompts/gate-rulings-20261112-1810.md` C): "Polled every {n} minutes" comes to this story as a DW bullet and its text is approved, so the "Pending routing" section above is IN SCOPE (V7 applies). V1-V6 and T1-T7 await the Planner.
 
 ## Veto items
 

@@ -7456,6 +7456,8 @@ So that it works without storing my mail password.
 
 ### Story 21.4: Add, remove and classify MCP servers and tools in Settings
 
+> [AMENDED 2026-11-12, split at its spec gate, Contest Planner ruling V10 (owner's delegation)] The changed-tool banner criterion moved verbatim to Story 21.9; this story keeps the rest.
+
 > [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1041] The MCP settings write (IRIS Wallet secret and Config Store entry) moves into `McpOps`, an operation, never the REST process; AD-1 stays unchanged. Story 35.2 left the routes as stubs that change nothing; this story replaces them and adds the `/v1/settings/mcp` route with the standing real-HTTP route tests.
 
 As an admin,
@@ -7482,13 +7484,23 @@ So that I decide which added tools OcuTalon may use, and how.
 **When** the admin picks an option
 **Then** it saves at once through the classify command, confirms with "Saved", and is audited by `McpOps` (FR-48, FR-9, UX-DR145, UX-DR130)
 
-**Given** a tool whose description or inputs changed, which Lane A's Story 22.2 made Unclassified
-**When** an admin opens Settings
-**Then** a banner, in the wording the author accepted from Story 35.2 (was 21.1)'s proposal, names the tool, and its control shows Unclassified, alongside the notice card the admin's chat gets (FR-48, UX-DR145)
-
 **Given** the online demo
 **When** anyone signs in
 **Then** MCP settings are off: no MCP endpoint runs on the demo, the demo account sees no settings, nobody can add or remove a server, and the demo says so in a plain line (public text at this story's spec gate) (FR-47, FR-59, AD-25) [AMENDED 2026-11-11, Contest Planner ruling: the online-demo safety rule; no MCP endpoint runs on the demo] (it read: "only the preconfigured allow-listed servers exist, the demo account sees no settings, and nobody can add or remove a server")
+
+### Story 21.9: Show the changed-tool banner in Settings
+
+> [AMENDED 2026-11-12, split from Story 21.4 at its spec gate, Contest Planner ruling V10 (owner's delegation)] Criterion moved verbatim from Story 21.4; runs after 21.4; it needs Lane A's Tools(server) to say which unclassified tools McpOps cleared after a fingerprint change (21.4's C1, a cross-epic ask to Epic 22).
+
+As an admin,
+I want Settings to tell me which tool changed and was made Unclassified,
+So that I classify it again knowingly.
+
+**Acceptance Criteria:**
+
+**Given** a tool whose description or inputs changed, which Lane A's Story 22.2 made Unclassified
+**When** an admin opens Settings
+**Then** a banner, in the wording the author accepted from Story 35.2 (was 21.1)'s proposal, names the tool, and its control shows Unclassified, alongside the notice card the admin's chat gets (FR-48, UX-DR145)
 
 ### Story 21.5: Set up source polls and answer tool-call approval requests
 
