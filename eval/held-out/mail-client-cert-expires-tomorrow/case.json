@@ -1,0 +1,18 @@
+{
+  "name": "mail-client-cert-expires-tomorrow",
+  "kind": "item",
+  "heldOut": true,
+  "description": "The client certificate that the user's production presents to a partner expires tomorrow at noon: only the user can install the new one and the deadline is close, so the user is told now.",
+  "expectation": {
+    "outcome": "tellnow"
+  },
+  "recordedBy": "written for the held-out set before any run (Story 0.26)",
+  "item": {
+    "itemId": "mail-client-cert-expires-tomorrow",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Results Partner IT <it@results-partner.example>",
+    "subject": "Your client certificate for our results service expires tomorrow",
+    "text": "Hello, the client certificate your production uses to connect to our results service expires tomorrow at 12:00 UTC. A new certificate is ready for you in our partner portal. Install it before then, or we will refuse your connections. Thanks, Results Partner IT"
+  }
+}
