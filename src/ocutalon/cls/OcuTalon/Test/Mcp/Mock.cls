@@ -13,8 +13,16 @@
 ///     accepts. It keeps no session.
 ///   - When header names a header, every request is checked against expected, and the log records only whether it matched. The value is passed to the job
 ///     and compared there: it is never stored, logged or returned.
-///   - Requests(port) is the log of the requests the mock answered, in order, as {"method", "tool", "auth"}: auth is none when no header is checked,
-///     and matched, mismatch or absent otherwise. Calls(port, tool) counts the tools/call requests for a tool.
+///   - Requests(port) is the log of the requests the mock read, in order, as {"method", "tool", "auth", "answered", "client"}: auth is none when no header is
+///     checked, and matched, mismatch or absent otherwise; answered is 1 when the mock replied and 0 when it was silent (Silence); client is iris when the
+///     User-Agent header names InterSystems IRIS (the %Net.HttpRequest of OcuTalon's probe, Story 22.9) and other for any other client (AI Hub's own).
+///     Calls(port, tool) counts the tools/call requests for a tool.
+///   - Silence(port, hold) makes the mock on the port accept, read and log each request and answer none, holding each connection open until Speak, Stop or
+///     hold seconds (20 by default, so that a test that forgets Speak is slow and never hangs), checking every 0.1 s; then it closes the connection. Speak(port)
+///     ends the silence. Silence is off by default, binds nothing new and is cleared by Stop and Forget. While the single job holds a silent connection, later
+///     connections wait in the listener's queue.
+///   - Status(port, line) makes the mock on the port answer every request with the HTTP status line (for example "401 Unauthorized") and an empty body, until Stop;
+///     it is off by default.
 ///   - Describe(port, text) sets the description that the mock lists for zz_lookup (its input schema stays), so that a test can change the tool between
 ///     two builds; Stop(port) clears it. Without it the description is "Looks up a ticket.".
 ///   - Shape(port, json) sets the input schema that the mock lists for zz_lookup, as JSON text (its description stays), for the same purpose; Stop(port) clears it.
@@ -85,13 +93,32 @@ ClassMethod Shape(port As %Integer, json As %String)
 	Set ^IRIS.Temp.OcuTalonMcpMock(port, "schema") = json
 }
 
+/// Makes the mock on the port silent until Speak or Stop: it logs each request it reads and answers none. hold is the most seconds that it keeps one connection
+/// open.
+ClassMethod Silence(port As %Integer, hold As %Integer = 20)
+{
+	Set ^IRIS.Temp.OcuTalonMcpMock(port, "silent") = hold
+}
+
+/// Ends the silence of the mock on the port: it answers again, and releases the connection that it holds.
+ClassMethod Speak(port As %Integer)
+{
+	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "silent")
+}
+
+/// Makes the mock on the port answer every request with the HTTP status line (for example "401 Unauthorized") and an empty body, until Stop.
+ClassMethod Status(port As %Integer, line As %String)
+{
+	Set ^IRIS.Temp.OcuTalonMcpMock(port, "status") = line
+}
+
 /// Removes the log of the port.
 ClassMethod Forget(port As %Integer)
 {
 	Kill ^IRIS.Temp.OcuTalonMcpMock(port)
 }
 
-/// The requests the mock answered on the port, in order, as a %DynamicArray of {"method", "tool", "auth"}.
+/// The requests the mock read on the port, in order, as a %DynamicArray of {"method", "tool", "auth", "answered", "client"}.
 ClassMethod Requests(port As %Integer) As %DynamicArray
 {
 	Set requests = []
@@ -99,7 +126,7 @@ ClassMethod Requests(port As %Integer) As %DynamicArray
 	For {
 		Set n = $Order(^IRIS.Temp.OcuTalonMcpMock(port, "req", n), 1, entry)
 		Quit:n=""
-		Do requests.%Push({"method": ($List(entry, 1)), "tool": ($List(entry, 2)), "auth": ($List(entry, 3))})
+		Do requests.%Push({"method": ($List(entry, 1)), "tool": ($List(entry, 2)), "auth": ($List(entry, 3)), "answered": (+$ListGet(entry, 4, 1)), "client": ($ListGet(entry, 5, "other"))})
 	}
 	Quit requests
 }
@@ -128,7 +155,7 @@ ClassMethod End(port As %Integer, job As %String) [ Private ]
 	Set ^IRIS.Temp.OcuTalonMcpMock(port, "stop") = 1
 	Set state = ..WaitFor(port, "stopped,failed", ..#STOPWAIT)
 	If (state = "") && (job '= "") && ##class(%SYS.ProcessQuery).%ExistsId(job) Do $SYSTEM.Process.Terminate(job)
-	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "job"), ^IRIS.Temp.OcuTalonMcpMock(port, "stop"), ^IRIS.Temp.OcuTalonMcpMock(port, "description"), ^IRIS.Temp.OcuTalonMcpMock(port, "schema")
+	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "job"), ^IRIS.Temp.OcuTalonMcpMock(port, "stop"), ^IRIS.Temp.OcuTalonMcpMock(port, "description"), ^IRIS.Temp.OcuTalonMcpMock(port, "schema"), ^IRIS.Temp.OcuTalonMcpMock(port, "silent"), ^IRIS.Temp.OcuTalonMcpMock(port, "status")
 }
 
 /// The state of the mock on the port once it is one of the states (comma-separated), or "" after the seconds.
@@ -182,12 +209,14 @@ ClassMethod Connection(socket As %IO.ServerSocket, port As %Integer, extra As %L
 	If line = "" Quit
 	Set length = 0
 	Set auth = $Select(header = "": "none", 1: "absent")
+	Set client = "other"
 	For {
 		Set timeout = 3
 		Set field = $ZStrip(socket.ReadLine(8000, .timeout, .sc), "<>", cr)
 		If field = "" Quit
 		Set name = $ZConvert($Piece(field, ":", 1), "L")
 		If name = "content-length" Set length = +$ZStrip($Piece(field, ":", 2, *), "<>W")
+		If (name = "user-agent") && ($Piece(field, ":", 2, *) [ "InterSystems IRIS") Set client = "iris"
 		If (header '= "") && (name = $ZConvert(header, "L")) {
 			Set auth = $Select($ZStrip($Piece(field, ":", 2, *), "<>W") = expected: "matched", 1: "mismatch")
 		}
@@ -199,7 +228,17 @@ ClassMethod Connection(socket As %IO.ServerSocket, port As %Integer, extra As %L
 		If timeout = 0 Quit
 	}
 	Set reply = ..Reply(body, extra, port, .method, .tool, .code)
-	Set ^IRIS.Temp.OcuTalonMcpMock(port, "req", $Increment(^IRIS.Temp.OcuTalonMcpMock(port, "req"))) = $ListBuild(method, tool, auth)
+	Set forced = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "status"))
+	If forced '= "" Set code = forced, reply = ""
+	Set hold = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "silent"))
+	Set ^IRIS.Temp.OcuTalonMcpMock(port, "req", $Increment(^IRIS.Temp.OcuTalonMcpMock(port, "req"))) = $ListBuild(method, tool, auth, (hold = ""), client)
+	If hold '= "" {
+		Set until = $ZHorolog + hold
+		While ($ZHorolog < until) && ($Get(^IRIS.Temp.OcuTalonMcpMock(port, "silent")) '= "") && '$Get(^IRIS.Temp.OcuTalonMcpMock(port, "stop")) {
+			Hang 0.1
+		}
+		Quit
+	}
 	Do socket.Write("HTTP/1.1 " _ code _ $Char(13, 10) _ "Content-Type: application/json" _ $Char(13, 10) _ "Content-Length: " _ $Length(reply) _ $Char(13, 10) _ "Connection: close" _ $Char(13, 10) _ $Char(13, 10) _ reply)
 	Do socket.Flush()
 }

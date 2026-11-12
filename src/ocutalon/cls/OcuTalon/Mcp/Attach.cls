@@ -5,6 +5,9 @@
 ///   - OnAttach: hands the report ({"status", "reason", "tools", "refused"} and, for an attached server, "fingerprints": each listed tool's name to its
 ///     fingerprint) to OcuTalon.Mcp.Ops.RecordAttach, which writes the server's row and its tool rows and sends the admin notices. RecordAttach
 ///     looks up the administrators' sessions through OcuTalon.Data.Ownership AdminSessions to address the notices. OnAttach itself does nothing else.
+///   - Probe: the entry's url, read through OcuTalon.Bridge.ConfigStore Details (which resolves no placeholder and no secret), goes to OcuTalon.Mcp.Client
+///     Probe, an unauthenticated initialize with a 2 second limit. A server whose entry or url is missing counts as failed. Nothing else is read or written, and
+///     no url, secret or error text is returned: the answer is "" or a code word.
 ///   - ToolsReadOnly: 1 only when the row's last attach was attached and every tool row of the server that is not in the row's RefusedTools (a refused tool never
 ///     runs) is classified read-only; an attached server with no such row counts as 1. A server whose last attach was unavailable or never happened, a server with no
 ///     row, an empty name and any error count as 0. It reads and writes nothing else (DW-724).
@@ -26,6 +29,20 @@ ClassMethod Servers(Output servers As %DynamicArray) As %Status
 		Do servers.%Push({"server": (result.%Get("Name")), "config": ("AI.MCP."_..#ENTRYPREFIX_result.%Get("Name"))})
 	}
 	Quit sc
+}
+
+ClassMethod Probe(server As %String, config As %String) As %String
+{
+	Set answer = "failed"
+	Try {
+		Set sc = ##class(OcuTalon.Bridge.ConfigStore).Details($Get(config), .details)
+		If $$$ISOK(sc) && $IsObject(details) && (details.%GetTypeOf("url") = "string") {
+			Set answer = ##class(OcuTalon.Mcp.Client).Probe(details.url)
+		}
+	} Catch {
+		Set answer = "failed"
+	}
+	Quit answer
 }
 
 ClassMethod OnAttach(server As %String, report As %DynamicObject) As %Status

@@ -178,7 +178,7 @@ ClassMethod AccessorProbe(number As %Integer, production As %String)
 
 /// Row 6: HostSink accepts each of its eight event types and lists exactly those in EVENTS, builds the three payloads
 /// with exactly their keys, and BridgeSink extends it, does nothing and writes no live event; the reply filter and
-/// ReplyGuard removes a reserved sentence (Story 5.7), Classify returns "", TurnTools gives no tool and McpServers lists no server (Story 35.1).
+/// ReplyGuard removes a reserved sentence (Story 5.7), Classify returns "", TurnTools gives no tool and McpServers lists no server (Story 35.1) and probes none (Story 22.9).
 Method TestExtensionBases()
 {
 	Set expected = $ListBuild("turn.step", "decision.recorded", "approval.raised", "approval.answered", "approval.expired", "approval.cancelled", "approval.result", "budget.capped")
@@ -213,6 +213,7 @@ Method TestExtensionBases()
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.McpServers).Servers(.servers), "McpServers answers OK")
 	Do $$$AssertTrue($IsObject(servers) && servers.%IsA("%Library.DynamicArray") && (servers.%Size() = 0), "and names no server (Story 35.1)")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.McpServers).OnAttach("zz", {"status": "attached", "reason": "", "tools": [], "refused": []}), "and takes any report without doing anything")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.McpServers).Probe("zz", "AI.MCP.OcuTalon_zz"), "", "and probes nothing: Probe gives an empty string, which is no probe (Story 22.9)")
 	Do $$$AssertTrue($ClassMethod("OcuTalon.Mcp.Attach", "%Extends", "OcuTalon.Bridge.Ext.McpServers"), "OcuTalon.Mcp.Attach extends McpServers")
 }
 

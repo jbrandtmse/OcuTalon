@@ -11,6 +11,12 @@
 ///     because a tool with that name was already on the agent's manager. fingerprints is an object from each attached tool's name to its fingerprint
 ///     (OcuTalon.Bridge.Context ToolFingerprint of the tool's toolref, name, description and input schema), so that a host can tell that a tool changed. The report
 ///     holds code words, tool names and fingerprints only, never AI Hub's error text, which can name a URL or hold a credential.
+///   - Probe asks whether a server answers, before the runner adds the server's tools to a tool manager, at the build and again for each request that composes a
+///     manager, always in the runner's job and outside every callback (AD-6). It returns "" when the server answers and otherwise one word of REASONS (any other
+///     answer, and an exception, count as failed). AI Hub's own client has no deadline, so a server that accepts a connection and never answers would hold the
+///     job for minutes: an answer that says no keeps that server's tools off the manager. It must return within a few seconds and must not call AI Hub. It returns
+///     "" by default, which is no probe, so that the bridge alone, which names no server, is unchanged. A host that lists servers overrides it. The runner rests
+///     a server that failed the probe (RESTSECONDS of the adapter) before it asks again.
 ///   - ToolsReadOnly says whether every tool of a server that a runner can call is classified read-only, so that Decide may retry a timed-out request whose
 ///     agent has such servers (AD-8). The default says no.
 ///   - A failed or unavailable server never fails the build, and neither does an error from OnAttach: the runner logs it and goes on with the next server.
@@ -25,6 +31,13 @@ ClassMethod Servers(Output servers As %DynamicArray) As %Status
 {
 	Set servers = []
 	Quit $$$OK
+}
+
+/// Asks whether the server answers (see the class description): "" when it does, else a word of REASONS. Gives "" by default, which is no probe. server is the
+/// host's name for the server and config the name of its Config Store entry, as Servers gave them.
+ClassMethod Probe(server As %String, config As %String) As %String
+{
+	Quit ""
 }
 
 /// Receives the report of one attach. Returns OK and does nothing by default.
