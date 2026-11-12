@@ -3728,3 +3728,4 @@
 2026-11-12T13:24:17Z	Epic 21	runner_reported	PART_READY part=21.3 head=cb13fddc code_head=368c7a09 ci=success runs=43206845957(att2),43206845590
 2026-11-12T13:24:17Z	Epic 21	amendments_verified	amendments=2 extensions=4 ok=true note=AD-3_S1-S6(U-320,markers),epics_21.3_split+21.8 overlap_with_feature_since_base=none
 2026-11-12T13:24:17Z	Epic 21	merge_enqueued	part=21.3 head=cb13fddc
+2026-11-12T13:24:51Z	Epic 21	epic_merged_to_feature	part=21.3 feature_sha=150b49c5 merge_sha=150b49c5 code=368c7a09+23.9+0.28 verified_on_origin=yes
