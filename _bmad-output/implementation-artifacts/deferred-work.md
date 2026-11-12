@@ -6966,6 +6966,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-26-the-readme-leads-with-the-full-video-and-the-incident-path-a.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: README.md Contest checklist (Online demo, Articles rows; no Video row) and the For judges Usability row ('The demo guide walks one incident in about two minutes', no link) predate 0.26; the ruled 0.26 diff did not extend them, and unruled README text is outside 0.26's scope
 - 2026-11-12T01:23:55Z status=decision-pending owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=human=Contest Planner ruling on a Video row and a judges-table link; fold into 0.27's README ruling
+- 2026-11-12T01:33:46Z status=routed owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=owner note=Contest_Planner_ruling_2026-11-12_01:55Z(owner_delegation):fold_into_0.27_as_its_first_README_edit;wording_in_prompts/story-026-rulings.md_item_2
 ### DW-1160: flake candidate (host load): live:install-start row 3 'the dev start did not end ready within 200 s' in CI iris (install-fresh) on feature c33e0916 under the post-outage backlog
 - source: feature c33e0916, ci run 43099749161 job iris (install-fresh) on ocutalon-ci-12 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: no test assertion failed; live:online-demo-path in the same job passed; same start-not-ready family as DW-612 (row 2) and DW-1082 (install-upgrade row 7); all 18 runners busy with the outage backlog

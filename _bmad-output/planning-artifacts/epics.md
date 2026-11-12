@@ -1736,6 +1736,12 @@ So that I can trust what the agent adds.
 **Then** it sets them side by side, per case and in total, including unsafe outcomes
 **And** the README's "without the agent" table shows measured numbers with the date, the model and the set size, whatever they are; until the agent half runs at the 1.0.8 release-candidate evaluation, it carries placeholders (or the rules-only half only), per the Contest Planner's ruling
 
+**Given** the README (DW-1171, ruled by the Contest Planner 2026-11-12 ~01:55Z, owner's delegation; this story's FIRST README edit; wording verbatim from prompts/story-026-rulings.md item 2) [AMENDED 2026-11-12, Contest Planner ruling on DW-1171]
+**When** it is read
+**Then** the Contest checklist has a new row right after "Online demo": `| Video | [One incident, approved from a phone, traced](https://youtu.be/HIyCG5E6-JQ) (3:04, also as an [MP4 file](https://github.com/jbrandtmse/OcuTalon/releases/download/v1.0.6/ocutalon-1.0.6.mp4)), and the [35-second teaser](https://youtu.be/wycbyfnXFMU). |`
+**And** the "For judges" Usability row's first sentence becomes "The demo guide walks [one incident, end to end](#one-incident-end-to-end) in about two minutes, and [the full video](https://youtu.be/HIyCG5E6-JQ) shows it in 3:04. Its More to try panel has fifteen more things to try ([New since 1.0.0](#new-since-100))." with the rest of the row unchanged; the count ("fifteen", or "sixteen" once Story 35.3 is in) matches the More to try panel, whichever of 35.3 and this story merges second sets it, and a README test pins it against the catalog
+**And** a README test checks that the anchor `#one-incident-end-to-end` resolves to a heading and that the Video row's links return 200
+
 **Given** the README's comparison (variant R)
 **When** it is read
 **Then** it is a new H3 at the end of "Measured" with the ruled paragraph (main set and held-out set stated apart, the held-out commit linked), the ruled column headers and the seven ruled rows, and the ruled sentence under the table; the "What changes without the agent?" sentence becomes the ruled pointer to it
@@ -1746,6 +1752,7 @@ So that I can trust what the agent adds.
 **Given** CI on this story's head
 **When** it finishes
 **Then** every workflow is green
+- DW-1171: README Contest checklist has no Video row, and the For judges Usability row links neither the full video nor the incident path (ledger; routed by owner 2026-11-12)
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
