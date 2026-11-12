@@ -3746,3 +3746,4 @@
 2026-11-12T15:27:54Z	Epic 0	ci_green_verified	head=0f86f096 runs=43234781487(att2),43234781475 result=success story=0.27
 2026-11-12T15:27:54Z	Epic 0	amendments_verified	amendments=0 extensions=13(eval,Eval/*.cls,Test/Eval/*,Test/Agent/RunnerFixture.cls,docker/tests/*eval*) ok=true held_out_sha=6af31dab overlap_with_feature_since_base=none
 2026-11-12T15:27:54Z	Epic 0	merge_enqueued	part=0.27 head=f0f853d1 code_head=0f86f096 contract=runner_CI_WAIT_report(fields_given) note=merged_by_orchestrator_before_runner_PART_READY_to_free_queue_for_0.30
+2026-11-12T15:28:28Z	Epic 0	epic_merged_to_feature	part=0.27 feature_sha=90777cf8 merge_sha=90777cf8 code=0f86f096+23.9+0.28+21.3 verified_on_origin=yes
