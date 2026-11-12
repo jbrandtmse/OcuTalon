@@ -28,7 +28,12 @@ Include Ensemble
 /// never fails the request: AI Hub's listing of a manager that holds it throws), the tools of the class (each answers AddToManager), the gate and the step
 /// audit policy (Govern), assigns it to the agent, and
 /// keeps the agent's own manager and the tools referenced; Answer puts the agent's own manager back and lets go of the rest on every path when the request
-/// ends. A request is composed at most once, however many session configs it makes (a compaction makes two or three). An agent that declares skills
+/// ends. When an MCP server is attached, the composed request also gets the turn's MCP map (MapMcpTools, AD-10): right after the manager that serves the request
+/// is settled, which is the agent's own manager when the agent declares skills, the adapter lists that manager (%Discover) and keeps, in the context, the
+/// fingerprint of each tool whose tool_ref starts mcp: (Context SetMcpTools), so that the gate can tell a tool from the one an admin classified. It then asks
+/// ClassifyMcp of the ClassificationClass setting once for each of those tools, outside every callback, so that a host finds a changed tool at the start of the
+/// turn and clears it there; the answers are ignored. Each failure is one redacted warning that holds no text of AI Hub, and the request goes on: a tool that is
+/// not in the map counts as unclassified. A request is composed at most once, however many session configs it makes (a compaction makes two or three). An agent that declares skills
 /// cannot take tools of its own, because UseSkill keeps its catalog on the agent and not on a manager: such a request fails with an error that names the
 /// agent, and keeps the agent's own manager when the class gives it none. A named class that is missing, or does not extend the base, fails the request with that error. A request of kind tool composes nothing.
 /// The skipped request (AD-6, AD-8, AD-20): a request of kind decide, diagnose or turn whose DecisionRef already has a Decision row (Concluded) is
@@ -310,7 +315,8 @@ Method AttachServers(agent As %AI.Agent) As %Status [ Private ]
 
 /// The report of attaching one server: {"status", "reason", "tools", "refused"} and, for an attached server, "fingerprints" (OcuTalon.Bridge.Ext.McpServers).
 /// builtin is the list of the names of the tools on the manager before the first server was attached. A tool's fingerprint is Context ToolFingerprint of
-/// the description and the input schema that AI Hub lists for it.
+/// the spec (the toolref under which AI Hub lists the tool, which the turn's map uses as the server too), the tool's name, and the description and the input
+/// schema that AI Hub lists for it.
 Method AttachOne(agent As %AI.Agent, config As %String, builtin As %List) As %DynamicObject [ Private ]
 {
 	Set report = {"status": "unavailable", "reason": "", "tools": [], "refused": []}
@@ -333,7 +339,7 @@ Method AttachOne(agent As %AI.Agent, config As %String, builtin As %List) As %Dy
 			Set state = tool.%Get("status")
 			If (state = "") || (state = "available") {
 				Do report.tools.%Push(name)
-				Do fingerprints.%Set(name, ##class(OcuTalon.Bridge.Context).ToolFingerprint(tool.%Get("description"), tool.%Get("parameters")), "string")
+				Do fingerprints.%Set(name, ##class(OcuTalon.Bridge.Context).ToolFingerprint(spec, name, tool.%Get("description"), tool.%Get("parameters")), "string")
 			} ElseIf $ListFind(builtin, name) {
 				Do report.refused.%Push(name)
 			}
@@ -479,7 +485,53 @@ Method ComposeTurnTools() As %Status [ Private ]
 	} Catch exception {
 		Set ..TurnStatus = ##class(%AI.System).HandleError(exception, 1)
 	}
+	If $$$ISOK(..TurnStatus) && ..HasMcp() Do ..MapMcpTools()
 	Quit ..TurnStatus
+}
+
+/// 1 when OnAfterAgentInit attached an MCP server (a recorded spec that starts mcp:).
+Method HasMcp() As %Boolean [ Private ]
+{
+	Set found = 0
+	Set position = 0
+	While 'found && $ListNext(..Attached, position, spec) {
+		If $Extract(spec, 1, 4) = "mcp:" Set found = 1
+	}
+	Quit found
+}
+
+/// The turn's MCP map (see the class description): lists the tool manager that serves the request, hands the list to Context SetMcpTools, and asks
+/// ClassifyMcp of the ClassificationClass setting once for each MCP tool that the manager lists, with the fingerprint that the map holds for it (none for a tool the map left out). It never throws and never changes the status of the request.
+Method MapMcpTools() [ Private ]
+{
+	Try {
+		Set catalog = ..Agent.ToolManager.%Discover()
+	} Catch {
+		$$$LOGWARNING("The tools of the MCP servers could not be listed for this request, so every MCP tool counts as unclassified in it")
+		Return
+	}
+	Set sc = ##class(OcuTalon.Bridge.Context).SetMcpTools(catalog)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING("The MCP map of this request could not be kept, so every MCP tool counts as unclassified in it: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Return
+	}
+	Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("ClassificationClass", "", "Decide", .sc)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING("The ClassificationClass setting is not usable, so the MCP tools of this request were not checked for a change: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Return
+	}
+	Set iterator = catalog.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		If '$IsObject(tool) || (tool.%GetTypeOf("tool_ref") '= "string") || (tool.%GetTypeOf("name") '= "string") Continue
+		Set server = tool.%Get("tool_ref")
+		Set name = tool.%Get("name")
+		If $ZConvert($Extract(server, 1, 4), "L") '= "mcp:" Continue
+		Try {
+			Do $ClassMethod(class, "ClassifyMcp", server, name, ##class(OcuTalon.Bridge.Context).McpFingerprint(server, name))
+		} Catch exception {
+			$$$LOGWARNING("The check of the MCP tool "_##class(OcuTalon.Bridge.Redact).Text($Extract(name, 1, 64))_" for a change failed: "_##class(OcuTalon.Bridge.Redact).Text($Extract(exception.DisplayString(), 1, 300)))
+		}
+	}
 }
 
 /// The work of ComposeTurnTools; an exception is its caller's to handle.
@@ -490,11 +542,7 @@ Method BuildTurnManager() As %Status [ Private ]
 	Set sc = $ClassMethod(class, "Tools", ..TurnOwner, ..TurnKind, .tools)
 	If $$$ISERR(sc) Quit sc
 	Set count = $Select($IsObject($Get(tools)): tools.Count(), 1: 0)
-	Set mcp = 0
-	Set position = 0
-	While 'mcp && $ListNext(..Attached, position, spec) {
-		If $Extract(spec, 1, 4) = "mcp:" Set mcp = 1
-	}
+	Set mcp = ..HasMcp()
 	If (count = 0) && 'mcp Quit $$$OK
 	If $IsObject(..Agent.AvailableSkills) && (..Agent.AvailableSkills.%Size() > 0) {
 		If count = 0 Quit $$$OK
