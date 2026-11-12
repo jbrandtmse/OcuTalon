@@ -51,3 +51,4 @@
 2026-11-12T15:27:19Z	Story 0.31	fresh_check	env=recipe(ci/iris.sh_shard_lane-a@Eval_fresh_throwaways_lane-b) tests=OcuTalon.Test.Eval.Report,OcuTalon.Test.Eval.Cases result=pass order=forward,reverse evidence=part3/5_fwd(Report),part1/5_fwd(Cases),rev_part2/5(Report),rev_part5/5(Cases)
 2026-11-12T15:27:41Z	Story 0.31	committed	sha=876d4f17 submodules= ci=none_yet runs=none pushed=no reason=held_local_until_orchestrator_continue(0.27_merge_of_f0f853d1) amendments=epics.md:Story_0.31_inserted
 2026-11-12T15:27:41Z	Story 0.31	story_cycle	plan_to_commit_min=50 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-12T15:28:50Z	Story 0.27	part_merge	merged_into_feature=90777cf8 merged_head=f0f853d1 by=orchestrator
