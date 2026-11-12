@@ -202,3 +202,5 @@
 2026-11-12T23:42:58Z	Epic 21	ruling	question=DW-1207_placement choice=new_Story_21.12(next_free_number;test-only) rejected=charter_the_epic_burn-down_story_now(it_is_chartered_once_at_epic_close) category=decide via=orchestrator(Planner_ruling_E) note=deps_hash(reason=gap_fill)_is_the_orchestrator%27s
 2026-11-12T23:42:58Z	Story 21.12	ledger_routed_planned	story=21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do entries=1(DW-1207) excess=0 by=burndown
 2026-11-12T23:42:58Z	Epic 21	stage_spawned	stage=epic_context spawn_at=2026-11-12T23:42:58Z model=opus effort=high agent_name=epic-21-context-prewarm-7 reason=planning_artifact_newer(21.12_inserted,feature_merge)
+2026-11-12T23:45:33Z	Epic 21	epic_context_compiled	reason=planning_artifact_newer(21.12) model=opus header_ok=true
+2026-11-12T23:45:33Z	Story 21.12	stage_spawned	stage=plan spawn_at=2026-11-12T23:45:33Z model=opus effort=high agent_name=21-12-plan-1 cycle_iteration=1

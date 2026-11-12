@@ -4,7 +4,7 @@
 
 ## Goal
 
-This is Lane B's step 4 feature epic. The email half is built. An admin connects a real mailbox (POP3 and SMTP, with a password or with a Gmail or Microsoft 365 OAuth2 sign-in), each new email becomes an untrusted item with its own attention decision, and OcuTalon emails the user, the daily digest included. What remains is the MCP half. Admins add, remove and classify MCP servers and their tools in Settings, see which changed tool was made Unclassified, set Read-only tools up as source polls, and answer held tool calls and standalone fix requests with full knowledge of what will run, on every channel. Webhooks shipped in Story 35.3 and Story 21.1 became Story 35.2, so the title's webhook part has no work here.
+This is Lane B's step 4 feature epic. The email half is done. An admin connects a real mailbox over POP3 and SMTP, using a password or a Gmail or Microsoft 365 OAuth2 sign-in. Each new email becomes an untrusted item with its own decision, and OcuTalon emails the user, including the daily digest. What remains is the MCP half. Admins add, remove and classify MCP servers and tools in Settings. They see which changed tool was made Unclassified, and they set Read-only tools up as source polls. Held tool calls and standalone fix requests show exactly what will run, on every channel. Webhooks shipped in Story 35.3 (21.1 became 35.2), so no webhook work is left here. One test-only story guards the README's anchors.
 
 ## Stories
 
@@ -12,42 +12,61 @@ This is Lane B's step 4 feature epic. The email half is built. An admin connects
 - Story 21.6: Send email over SMTP (done)
 - Story 21.7: Send the daily digest by email (done)
 - Story 21.3: Register the mail OAuth2 client and sign in (done)
-- Story 21.8: Read and send mail with the OAuth2 sign-in (done; local commit, not pushed while the Planner's CI hold lasts)
-- Story 21.4: Add, remove and classify MCP servers and tools in Settings (ruled spec, ready-for-dev)
-- Story 21.9: Show the changed-tool banner in Settings (split from 21.4)
-- Story 21.5: Set up source polls (ruled spec, ready-for-dev; its approval criteria moved to 21.10)
-- Story 21.10: Answer tool-call and standalone approval requests on every channel (next to plan)
+- Story 21.8: Read and send mail with the OAuth2 sign-in (done, with security rework 1)
+- Story 21.4: Add, remove and classify MCP servers and tools in Settings (ready-for-dev)
+- Story 21.9: Show the changed-tool banner in Settings (backlog)
+- Story 21.5: Set up source polls (ready-for-dev)
+- Story 21.10: Answer tool-call approval requests on every channel (ready-for-dev, Planner-ruled)
+- Story 21.11: Show standalone fix requests with their reason and dry run on every channel (backlog)
+- Story 21.12: A check fails on a link to a README anchor that README.md does not have (backlog; next to plan)
 
 ## Requirements & Constraints
 
-- **Online demo safety (standing rule, which overrides any "preconfigured" or "allow-listed" wording):** no real mail, OAuth or MCP endpoint ever runs on the demo. Every MCP settings route (and `ListMcpServers`) answers 409 `not_available` with the accepted line "MCP servers are off on the online demo: nobody can add one, and OcuTalon reaches none. They work on your own install." before it reads the body. The section shows that line in place of its content, and real-HTTP tests pin all of this.
-- **Secrets:** every secret field is write-only, and any admin value containing `@{` is refused. No secret ever appears in a command, log, trace, audit entry, global, GET or test output. Only references do. MCP secrets live in the IRIS Wallet, referenced from the Config Store entry `AI.MCP.OcuTalon_<server>`. A server added with a secret at a non-loopback `http://` address is refused with `MESSAGEADDRESS` (a Planner condition on 21.4).
-- **Sources:** only a Read-only tool can be a source. A source belongs to the admin's session. The web DELETE removes only the caller's own source (404 for anyone else's), and the GET never returns a source's arguments.
-- **Approvals:** first answer wins on every channel. A held tool call shows exactly what it will run. A standalone fix shows "Why:" and a dry run with the exact text and every recipient. A cancelled request stops its buttons everywhere.
-- **Only accepted text ships.** New public text goes to the author first. 21.4's T1-T11 and 22.5's rail line "Polled every {n} minutes" (now in 21.5) are approved.
-- **CI** uses only the CI mock: POP3/SMTP stubs with XOAUTH2, the fake OAuth2 server, and the MCP mock (`Test.Mcp.Mock`). It never reaches a real provider and never sends real email.
+- **Online demo safety:** no real mail, OAuth or MCP endpoint ever runs on the demo. Every MCP settings route answers 409 `not_available` with the accepted line "MCP servers are off on the online demo: nobody can add one, and OcuTalon reaches none. They work on your own install." before it reads the body.
+- **Secrets:** fields are write-only, and any value containing `@{` is refused. A secret never appears in a log, trace, audit entry, global, GET or test output. MCP secrets live in the IRIS Wallet. A secret sent to a non-loopback `http://` address is refused with `MESSAGEADDRESS`.
+- **Mail tokens (21.8 rework, DW-1230):** in OAuth2 mode the bearer token goes out only over TLS. Plain POP3 or SMTP is allowed only with the CI-only switch on and the host exactly `mock` (the shared `Sender.PlainFor` rule). Any other setting refuses before a token is fetched. The CI-only switches never appear in a compose file or an image. No text may claim least privilege (DW-1180).
+- **Approvals:** the first answer wins on every channel. A cancelled request stops its buttons everywhere. **Telegram condition (21.10 V4):** when the full request would go over 4,096 characters, Telegram shows the head of the request, no Approve button, and the line "The inputs are too long to show here. See them on your OcuTalon page before you approve." The web card shows everything (collapsible is fine). A test pins both channels.
+- **Only accepted text ships.** Text that is already accepted:
+  - 21.4's T1-T11 and the rail line "Polled every {n} minutes";
+  - for 21.10, T1 "Why: {tool} counts as risky, so it runs only after an approval." and T2 (the "Inputs:" line, then "{name}: {value}" lines with JSON values, or "{}");
+  - the full `toolCall.requestOnServer` text and `answered.canceled`.
+- **Guide placement:** since Story 0.30, the install, admin and how-to text lives in `GUIDE.md`, including 21.8's T3 bullet and T4 section "Gmail and Microsoft 365". README.md keeps the pointers. New how-to text goes in GUIDE.md.
+- **CI** uses only the CI mock: POP3 and SMTP stubs with XOAUTH2, a fake OAuth2 server, and `Test.Mcp.Mock`. It never reaches a real provider.
 
 ## Technical Decisions
 
-- **Lanes:** Lane B owns `Core/**`, `Web/**`, `Channel/**`, `Data/**` (its own tables), `Msg/Command/**`, `Msg/Catalog/Core.cls` and `web/`. Lane A owns `Mcp/**`, `Fix/**`, `Digest/**`, `Tools/Email*`, `src/bridge/**` and `Install/**`.
-- **Commands (AD-1):** every change is a production message. An admin-checked `/v1/settings` route submits it with origin `web_admin`, and the REST process writes nothing. Secrets reach their writer through `Core.SecretHandoff`. `CommandsIn` refuses every MCP verb from origin `tool`.
-- **MCP writes (DW-1041 ruling):** `McpOps` (`Mcp/Ops.cls`, Lane A, built in 22.2) is the one writer of a server's row, its wallet secret, its Config Store entry and its resource (AD-33). 21.4 replaces the `SettingsOps.SaveMcpEntry`/`RemoveMcpEntry` stubs and their pins, and it corrects the spine passages that still say the routes or `SettingsOps` write the entry. `McpOps` audits each change without the secret. The tools and their counts come from `Mcp.Ops.Tools(server)`.
-- **Routes:** 21.4 adds `Web.McpSettings` with `GET /api/v1/settings/mcp`, `POST .../mcp/servers`, `DELETE .../mcp/servers/<server>` and `POST .../mcp/classify`, plus the `Refusal` and `Submit` seams. 21.5 extends it with `POST .../mcp/sources` and `DELETE .../mcp/sources/<ref>`, and the GET gains `sources`. Every route has real-HTTP tests.
-- **Approvals (AD-10, AD-11, AD-16, AD-31, AD-32):** the `Bridge.Approval` row is the truth, and `Cancel` fires `approval.cancelled`. `Core.BridgeSink` is the only place that turns bridge events into live events. It sends the `approval`, `answered` and `result` notifications through `NoticesIn` for `tool_call` requests and for a fix request with no incident. `IncidentManager` sends them only for an incident's fix requests. The spine still says Story 21.5 builds the no-incident part; 21.10 now does, so 21.10 should correct that wording. `BridgeSink` sends asynchronously and never waits on a lock for more than one second.
-- **Starting point for 21.10 (from 21.5's read of this branch):**
-  - Already met: the tool-call notices (`BridgeSink.ToolNoticeOf`, `toolCall.requestOnServer`, pinned by `Test.Core.ToolCallNotices`), the first-answer lock, the card's heading, buttons and expiry, and a cancelled request leaving the rail.
-  - Gaps: no reason column or "Why:"; the inputs show as one truncated line; the payload has no `server` member; there is no notice for `approval.cancelled`, so the phone and Telegram keep their buttons; `answered.canceled` is unused; a cancelled card shows no status; a fix with no incident gets no notice and no web card; the `email` fix kind does not exist yet (22.7).
-  - Related: DW-592 (an answered tool-call card after a page reload).
+- **Lanes:** Lane B owns `Core/**`, `Web/**`, `Channel/**` except `Channel/Telegram/**`, `Data/**`, `Msg/Command/**`, `Msg/Catalog/Core.cls` and `web/`. Lane A owns `Mcp/**`, `Fix/**`, `Watch/**`, `Digest/**`, `src/bridge/**`, `Install/**` and `release/**`.
+- **Commands (AD-1):** every change is a production message. Admin-checked `/v1/settings` routes submit commands with origin `web_admin`, and the REST process writes nothing. `CommandsIn` refuses MCP verbs from origin `tool`.
+- **MCP writes:** `McpOps` (Lane A) is the only writer of a server's row, its wallet secret, its Config Store entry `AI.MCP.OcuTalon_<server>` and its resource.
+  - 21.4 replaces the `SettingsOps` stubs and adds `Web.McpSettings` (GET `/api/v1/settings/mcp`, POST servers, DELETE `servers/<server>`, POST classify).
+  - 21.5 adds the sources routes.
+  - Tools and counts come from `Mcp.Ops.Tools(server)`.
+- **Notices (AD-31, AD-32):** producers never render text. `BridgeSink` provides the slots, and `Msg.Catalog.Render` writes the text for every channel. `BridgeSink` stays asynchronous and waits on no lock for more than 1 s.
+- **21.10's plan:**
+  - Extend `BridgeSink.ToolNoticeOf` with a new `inputs` slot type: exact, uncut, one JSON value per line, still masked by `Bridge.Redact`.
+  - The approval payload gains `server` and `cancelledAt`.
+  - Send `answered.canceled` only when the server's `Mcp.Server` row is gone. A session end also cancels requests, and those send nothing.
+  - The reason line is written by code, never by the model.
+- **21.11:** builds the `approval`, `answered` and `result` notices for a fix request that has no incident, plus its web card and rail title. It reuses 21.10's branches. `IncidentManager` keeps an incident's fix requests.
+- **21.12 (DW-1207, test-only):** `docker/tests/test-readme.sh` already has the `readme-links` rule, but it checks only README.md and GUIDE.md. The new check covers every other tracked Markdown file (`docs/*.md` included). It catches `README.md#x` links, relative or by the repository URL, whose anchor is not a GitHub heading slug of README.md. It reports the file, line and anchor, and proves it can fail with a planted dead link. No product change.
 
 ## UX & Interaction Patterns
 
-- **Settings › Tools and MCP servers:** a server list and a tools table with an "Unclassified only" filter. Each tool has a `role="radiogroup"` ("Unclassified (counts as risky)", "Read-only", "Risky"; the selected option shows a check icon) that saves at once and confirms with "Saved". Remove asks first, with sentences for every count of tools and pending requests (21.4's T7). 21.9 adds a banner, in the accepted wording, that names a changed tool.
-- **Sources (21.5):** a Read-only tool has "Use as a source", which opens a form with Source name, Arguments (JSON) and Check every (a select of six choices, 15 minutes by default). Sources are listed under "Your sources". A tool that is not Read-only shows "Only a Read-only tool can be a source." The rail's source row reads "Polled every {n} minutes".
-- **Tool-call card (21.10):** "Approval needed", "Why:", "Run {tool} on {server}", the exact inputs as labelled lines, "No dry run is available for this tool. Approving runs exactly this call once.", Approve, Reject and the expiry. The rail row, the phone notification and Telegram carry the same content as plain text. A cancelled request shows `answered.canceled` and leaves the rail within one live update.
+- **Settings › Tools and MCP servers:** a server list and a tools table with an "Unclassified only" filter. Each tool has a `role="radiogroup"` control (Unclassified (counts as risky), Read-only, Risky) that saves at once and shows "Saved". Remove asks for confirmation first. 21.9 adds the changed-tool banner.
+- **Sources (21.5):** "Use as a source" on a Read-only tool opens a form with name, arguments as JSON, and an interval (6 choices, 15 minutes by default). Other tools show "Only a Read-only tool can be a source."
+- **Tool-call card (21.10):** "Approval needed", "Why:", "Run {tool} on {server}", the labelled inputs, the no-dry-run sentence, Approve, Reject and the expiry. Rail rows have no answer buttons (UX-DR52). A cancelled card shows "Canceled at HH:MM: the MCP server {server} was removed. Nothing was changed." and leaves the rail within one live update.
 
 ## Cross-Story Dependencies
 
-- **Order (rulings):** 22.4 → 21.4 → 22.5. 21.4 implements only after Lane A's 22.4 merges and is integrated first. 21.9 follows 21.4 and needs `Tools(server)` to report which tools `McpOps` cleared after a fingerprint change (a cross-epic ask to Epic 22). 21.5 implements only after both 21.4 and 22.5 have merged. 21.10 follows the 22.4 merge, uses fixture requests for 22.4 and 22.7 until they merge, and needs nothing from 21.4 or 22.5.
-- **Lane A status:** 22.2 and 22.8 are done; 22.3, 22.4 and 22.9 are ready-for-dev; 22.5 and 22.7 are in the backlog.
-- **Contention:** `Mcp/Ops.cls` (21.4's write, beside 22.4's `CancelPending` and 22.5's message map). In `Core.BridgeSink`, ruling R1 allows 22.4 to add exactly one branch (result `changed` gives `mcp.replayToolChanged`) and one `Test.Core.ToolCallNotices` row, merged as a plain union with 21.10's changes.
-- **Downstream:** Story 24.3 sends pages by email through `EmailOut` and the `email` renderer. 22.6 documents the MCP settings and the source form.
+- **Order:** 22.4 → 21.4 → 22.5 → 21.5.
+  - 21.9 follows 21.4 and needs `Tools(server)` to report the tools that were cleared.
+  - 21.10 implements after 22.4 merges. Integrate forward first, and use fixture requests for 22.4 until it merges.
+  - 21.11 follows 22.7, which fixes the email request row's shape.
+  - 21.12 depends on nothing and can run in idle time.
+- **Lane A status:** 22.2 and 22.8 are done. 22.3, 22.4 and 22.9 are ready-for-dev. 22.5, 22.7 and 22.10 are in the backlog.
+- **Contention:**
+  - `Mcp/Ops.cls`.
+  - `Core/BridgeSink.cls`: 22.4 may add one branch (`mcp.replayToolChanged`) and one `Test.Core.ToolCallNotices` row, merged as a union.
+  - `Core/SettingsOps.cls`.
+  - README.md, GUIDE.md and `test-readme.sh`, which every story's findability lines touch: placed edits only.
+- **Downstream:** 24.3 sends email through `EmailOut`. 22.6 documents the MCP settings.
