@@ -2,7 +2,7 @@
 title: 'Story 36.1: Record the setting history of each watched production'
 type: 'feature'
 created: '2026-11-12'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -62,69 +62,60 @@ deferred: []
 ## Code Map
 
 - `src/ocutalon/cls/OcuTalon/Checks/Process.cls:216-283` -- `Tick`. Insert the one SettingHistory call between the queue loop (ends :255) and `Set items = ""` (:256). `INTERVALSECONDS` = 60 (:92) is the check interval.
-- `src/ocutalon/cls/OcuTalon/Watch/Reader.cls` -- `Current` (:556), the one namespace switch (`New $NAMESPACE`, :571-573). Extend it the way `listItems`/`Items` (:513) did. `Readable` (:202), `OnlineDemo()` (:175), `CredentialName` and `CREDENTIALPARTS` (:101, :526). Already `Include (Ensemble, EnsConstants, EnsErrors)`.
+- `src/ocutalon/cls/OcuTalon/Watch/Reader.cls` -- `Current` (:556), the one namespace switch (`New $NAMESPACE`, :571-573); its last parameters are `listItems`/`items`, added for `Items` (:513). Extend it the same way. `Readable` (:202), `OnlineDemo()` (:175), `CredentialName` (:526) and `CREDENTIALPARTS` (:101; it holds `credential`, so it matches `Credentials`). Already `Include (Ensemble, EnsConstants, EnsErrors)`.
 - `src/ocutalon/cls/OcuTalon/Watch/FailurePoller.cls:57-75` -- `Watched()`, the set of watched productions (Kind `production` rows, eval rows excluded). Reuse it.
-- `src/ocutalon/cls/OcuTalon/Data/Webhook.cls:82,90` -- `HashSecret(secret)` and `Matches(stored, secret)`, the salted SHA-256 scheme. Reuse it for credential change detection.
+- `src/ocutalon/cls/OcuTalon/Data/Webhook.cls:82,90` -- `HashSecret(secret)` and `Matches(stored, secret)`, the salted SHA-256 scheme. Reuse it for secret-value change detection.
 - `src/ocutalon/cls/OcuTalon/Data/Handled.cls:10,61-79` -- DEFAULTGLOBAL, storage and a `Purge` sibling (`Bridge.Time.DaysCutoff`).
 - `src/ocutalon/cls/OcuTalon/Install/Step/Watch.cls:8-11` -- the Watch area's `Purge(daysToKeep)`. `Install/Step/Digest.cls:22-31` is the pattern for running several purges.
 - `src/short-names.tsv` -- the registry (`short global class lane`), checked by `docker/tests/test-storage.sh`.
-- `src/ocutalon/cls/OcuTalon/Fix/Kind.cls:34-75,225` -- kind parameters, `KINDS`, `Ready`. Siblings: `Fix/Kind/SuspendItem.cls:15-39,77-82` (ONLINEGRANT 0, `Refusal`) and `Fix/Kind/ResumeItem.cls`.
-- `src/ocutalon/cls/OcuTalon/Install/Step/Fix.cls:36-59` -- `GrantsOf` already turns `RESOURCES` into service-role grants and drops `ONLINEGRANT` 0 kinds online. No change needed.
-- `src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls:13,54-56` -- `FORBIDDEN` and its check in `Add`. This is where the single exception goes.
-- `src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls:35,209-256` -- `ONLINESTATEMENT`, `FixKindRows`, `RoleRows`. Regenerating writes `docs/security-overview.md`, and `docker/tests/test-security-overview.sh` checks it for drift.
-- Tests that pin those surfaces: `Test/Install/Registry.cls:625-653,721-759`, `Test/Web/Install.cls:329-380,687-691`, `Test/Fix/Kind.cls:202-231`, `Test/Fix/ItemKinds.cls:56-70`, `Test/Install/SecurityOverview.cls:252-298,342-371`, `Test/Install/Retention.cls:149-160` (`TestNoSettingRead`, pattern `ocutalon\.data\.setting`), `Test/Install/RetentionRules.cls:41`.
-- `src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls` -- base for OCUORDERS tests: `Tick(tickAt)` (:686), `SetItemDefault`/`ITEMNAME` (:153-159), cleanup in `OnAfterOneTest`. `Test/Watch/OrdersDefinition.cls:26` -- `Put(on, credentialValue, noteValue)` saves credential and plain settings on the saved Orders definition (throwaway only).
-- `irislib/Ensemble.inc:254-270` -- `$$$EnsProdModCounterGet` = `^IRIS.Temp.EnsProdModCounter($namespace)`. `irislib/Ens/Config/Production.cls:1968-1976` (`SetModified` increments only while that production runs). `irislib/Ens/Config/DefaultSettings.cls:265-293,336-346` (SDS saves move the same counter). `irislib/Ens/Director.cls:103-106,251-252` (`^Ens.Runtime("StartTime")`/`("CheckSum")` set at each start; `UpdateProduction` kills the counter). `irislib/Ens/Config/Item.cls:83-87,642-735` (`PopulateVirtualSettings`: `$LB(Target,Name,Value,ValueType,...,EditorContext)`, with item, SDS and default precedence). `irislib/EnsLib/EMail/OutboundAdapter.cls:56` (`credentialsSelector` in the `EditorContext`).
+- `src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls:149-160` (`TestNoSettingRead`, pattern `ocutalon\.data\.setting`) and `Test/Install/RetentionRules.cls:41` (pins the literal `IncidentManager).Purge(daysToKeep)`).
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls` -- base for OCUORDERS tests: `Tick(tickAt)` (:686), `SetItemDefault`/`ITEMNAME` (:153-159), cleanup in `OnAfterOneTest`.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/OrdersDefinition.cls:15,26-58` -- `CREDENTIALS` = `Credentials,SMTPPassword,BotToken,ApiKey`; `Put(on, credentialValue, noteValue)` writes one value into all four plus `NOTE`. Callers: `Test/Watch/Evidence.cls:53,298,316`, `Test/Eval/Record.cls:173,666,678,960`. `Defined()` (:60).
+- `src/ocutalon/cls/OcuTalon/Test/Core/SecretHandoff.cls:177-209` -- `Leaks(text)` (every `^OcuTalon*` global, `OcuTalonTest` excluded, data and subscripts) and `TableHolds(table, column, text)`. Reuse both; `Test/Core/SettingsEmail.cls:473` and `Test/Web/SettingsApi.cls:617` call them the same way.
+- `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls:1319` `Routes(class)` (the UrlMap as `METHOD url call`), `:1407` `Written(.sc, class, method, args...)`, `:1346` `CallSession` (stand-in `%request`/`%response`/`%session`); `Test/Web/StubRequest.cls` `Make(application)`. `Data/Ownership.cls:68,293` -- `SESSIONKEY` and `SessionRef` (a `%session.Data(SESSIONKEY)` ref whose `IrisUser` is `$Username`); `Data/Session.cls:84` `ForUser(irisUser, .sc)`.
+- GET routes (UrlMaps): `Web/Api.cls:250-277` (`/v1/state`, `/v1/events`, persona, heartbeat, the four memory lists, `/v1/settings`), `Web/History.cls:23-24`, `Web/Usage.cls:20`, `Web/Documents.cls:59,61`, `Web/HookSettings.cls:28`, `Web/Public/Status.cls:37`. `Web/Public/Shell.cls:45-47` serves only the built bundle's files.
+- `src/ocutalon/cls/OcuTalon/Test/Digest/Compose.cls:138-147` (`Route`: `ProcessProbe` `Reset`, `Feed`, `Host`, `Handle` of a `Compose`) and `Test/Digest/ProcessProbe.cls` (records each Notification as `^||DigestProbe("notice", n)`). `Watch/Notice.cls:164,182` (`Key`, `Slots`), `Msg/Catalog.cls:52` (`Render(key, slots, channel, .sc)`).
+- `src/ocutalon/cls/OcuTalon/Eval/Record.cls:57` -- `Capture(case, namespace, production, item, keys, folder, .pack)`, which writes `snapshot.json` and `case.json`. `Test/Eval/Record.cls:950-990` is the pattern (send one failing batch through `Test.Demo.Production`, key `h<header id>`, a temporary folder, cleanup).
+- `irislib/Ensemble.inc:254-270` -- `$$$EnsProdModCounterGet` = `^IRIS.Temp.EnsProdModCounter($namespace)`. `irislib/Ens/Config/Production.cls:1968-1976` (`SetModified` increments only while that production runs). `irislib/Ens/Config/DefaultSettings.cls:265-293,336-346` (SDS saves move the same counter). `irislib/Ens/Director.cls:103-106,251-252` (`^Ens.Runtime("StartTime")`/`("CheckSum")` set at each start; `UpdateProduction` kills the counter). `irislib/Ens/Config/Item.cls:83-87,642-735` (`PopulateVirtualSettings`: `$LB(Target,Name,Value,ValueType,...,EditorContext)`, with item, SDS and default precedence). `irislib/EnsLib/EMail/OutboundAdapter.cls:56` (`credentialsSelector` in the `EditorContext` of a `Credentials` reference).
 - Spine `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- AD-15 SettingHistory L519-523, payload L427-428, summary L550, kinds L571-572, AD-18 L590-593, AD-24 L943-945, AD-29 L1054, Catalog L1077/L1159, ownership tables L1383-1512 (tables paragraph L1418), S15 L1709, Deferred L1722-1724.
-- `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- Message Catalog L757, Step 5 L1080-1082; key rows look like `| Case (\`key\`) | "text" |`.
 
 ## Tasks & Acceptance
 
 **Execution:**
-- `src/ocutalon/cls/OcuTalon/Test/Watch/SettingHistory.cls` -- **Task 0 (measure first, on the lane-B warm throwaway)**. While Orders runs in OCUORDERS, record `^IRIS.Temp.EnsProdModCounter("OCUORDERS")` before and after: (i) `OrdersDefinition.Put`; (ii) saving a test-owned SDS row for `ITEMNAME`; (iii) a full Reader settings read. Also record whether `PopulateVirtualSettings` lists stored item settings that are not class settings. Write the measured values into this spec under a new `### Measured` heading at the end of Design Notes. If (i) or (ii) does not move the counter, or (iii) does, HALT `intent gap`. Do not plan around it.
-- `src/ocutalon/cls/OcuTalon/Watch/Reader.cls` -- add a public `Settings(namespace, production, full, salts, Output marks, Output settings) As %String`, with outcomes as `Items`.
-  - It goes through a new `Current` flag. `marks` = {counter, started}.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/SettingHistory.cls` -- **Task 0 (measure first, on the lane-B warm throwaway)**. While Orders runs in OCUORDERS, record `^IRIS.Temp.EnsProdModCounter("OCUORDERS")` before and after: (i) `OrdersDefinition.Put`; (ii) saving a test-owned SDS row for `ITEMNAME`; (iii) a full Reader settings read. Also record whether `PopulateVirtualSettings` lists stored item settings that are not class settings. Write the values into this spec under a new `### Measured` heading at the end of Design Notes. If (i) or (ii) does not move the counter, or (iii) does, HALT `intent gap`. Do not plan around it.
+- `src/ocutalon/cls/OcuTalon/Watch/Reader.cls` -- add a public `Settings(namespace, production, full, salts, Output marks, Output settings) As %String`, with outcomes as `Items`:
+  - It goes through a new trailing `Current` flag. `marks` = {counter, started}.
   - With `full`, `settings` is a sorted array of {item, target, setting, value, source, credential, hash}: the union of each item's `PopulateVirtualSettings` entries and its stored `Settings`.
-  - A credential-type value (EditorContext starting `credentialsSelector`, checked inside; or `CredentialName(name)`, checked after switching back) has `value` "". Its `hash` is the matching old salt.hash from `salts` (`Webhook.Matches`), else a new `Webhook.HashSecret`.
-  - Writes nothing. -- One reader, one switch (AD-3). The value never leaves the Reader.
+  - Inside `Current`, an entry whose EditorContext starts with `credentialsSelector` is marked a Credentials reference. After switching back, a setting named `Credentials` (any case) is one too. A reference keeps its value (the ID) with `credential` 0.
+  - Every other setting whose name `CredentialName` matches is a secret value: `value` "", `credential` 1, `hash` the matching old `salt.hash` from `salts` (`Webhook.Matches`), else a new `Webhook.HashSecret`.
+  - Writes nothing. -- One reader, one switch (AD-3). A secret never leaves the Reader.
 - `src/ocutalon/cls/OcuTalon/Data/SettingSnapshot.cls` and `src/ocutalon/cls/OcuTalon/Data/SettingChange.cls` -- new persistent tables, fields as in Design Notes › Veto items V2. Each has `DEFAULTGLOBAL`, a committed `Storage Default` block, indexes, and its own `Purge(daysToKeep)` modelled on `Data/Handled.cls`. -- AD-3, AD-5, AD-27.
 - `src/short-names.tsv` -- append `SettingSnap	^OcuTalonP.SettingSnap	OcuTalon.Data.SettingSnapshot	A` and `SettingChange	^OcuTalonP.SettingChange	OcuTalon.Data.SettingChange	A`.
 - `src/ocutalon/cls/OcuTalon/Watch/SettingHistory.cls` -- new class. `Watch(tickAt) As %Status`, which never throws:
   - On an online-demo install it returns at once.
   - For each `FailurePoller.Watched()` entry it reads the marks. It takes a full snapshot only when there is no snapshot, the counter or start mark differs, or the newest row's `CheckedAt` is 3600+ s old.
-  - It diffs against the newest snapshot. If the content is the same, it updates the marks in place. If it differs, or this is the first snapshot, it inserts a new snapshot plus one `SettingChange` per difference (none for a first snapshot), in one transaction, with `DetectedAt` = tickAt.
+  - It diffs against the newest snapshot. If the content is the same, it updates the marks in place. If it differs, or this is the first snapshot, it inserts a new snapshot plus one `SettingChange` per difference (none for a first snapshot), in one transaction, with `DetectedAt` = tickAt. A secret-value difference (hash changed) gets `OldValue` = `NewValue` = "" and `Credential` 1.
   - Each production has its own Try, logging one redacted warning that carries no value.
   - `Purge(daysToKeep)` runs both tables' purges.
-- `src/ocutalon/cls/OcuTalon/Checks/Process.cls` -- in `Tick`, insert one line `Do ##class(OcuTalon.Watch.SettingHistory).Watch(tickAt)` after the queue-loop Try block. -- AD-18 (the heartbeat drives it). This is the only edit to this contended file.
+- `src/ocutalon/cls/OcuTalon/Checks/Process.cls` -- in `Tick`, insert one line `Do ##class(OcuTalon.Watch.SettingHistory).Watch(tickAt)` after the queue-loop Try block. -- AD-18. This is the only edit to this contended file.
 - `src/ocutalon/cls/OcuTalon/Install/Step/Watch.cls` -- `Purge` runs `IncidentManager.Purge` and `SettingHistory.Purge`, each whatever the other returned, and returns the first error (the `Install/Step/Digest.cls` pattern). Keep the literal `IncidentManager).Purge(daysToKeep)`, which RetentionRules pins.
-- `src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls` -- in `TestNoSettingRead`, end the pattern at a word boundary (`ocutalon\.data\.setting\b`). Add scanner assertions that `OcuTalon.Data.SettingChange` is not flagged and `OcuTalon.Data.Setting).Get` still is. Add `OcuTalon.Watch.SettingHistory`, `OcuTalon.Data.SettingSnapshot` and `OcuTalon.Data.SettingChange` to its class list.
-- `src/ocutalon/cls/OcuTalon/Fix/Kind/RollbackSetting.cls` -- new declare-only kind:
-  - Parameters: `NAME` `rollback_setting`, `PARAMETERS` `change` (a `SettingChange` Ref), `RESOURCES` `%Ens_ProductionConfig:W`, `TARGETTYPE` `setting`, `DIAGNOSED` 0, `ASKED` 0, `ONLINEGRANT` 0, plus `NOTSETUP`, `NOTALLOWED` and `ONLINESHARED` (the accepted texts).
-  - `Ready` returns 0 with `NOTSETUP`. `DryRun` returns an error: `ONLINESHARED` on the online demo, else `NOTSETUP`.
-  - Extends `Fix.Kind`, with `Refusal` modelled on SuspendItem's.
-- `src/ocutalon/cls/OcuTalon/Fix/Kind.cls` -- append `,OcuTalon.Fix.Kind.RollbackSetting` to `KINDS`, and `setting` to the `TARGETTYPE` doc line.
-- `src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls` -- add an exception parameter for exactly role `Users.#SERVICEROLE` + `%Ens_ProductionConfig` + `W`, declared by area `OcuTalon.Install.Step.Fix`. `Add` lets only that triple through. Every other forbidden pair, holder, area or permission (`R`, `RW`, `U`) is still refused. -- AD-24.
-- `src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls` -- reword `ONLINESTATEMENT` and add the not-offered-yet sentence (accepted texts only). Then regenerate `docs/security-overview.md` (`bash docker/tests/test-security-overview.sh --write` on the throwaway).
-- Forbidden-privilege and grant tests -- update `Test/Install/Registry.cls` (`TestForbiddenGrantRefused`, `TestEveryRole`), `Test/Web/Install.cls` (`CheckGrants`/`Forbidden`), `Test/Fix/Kind.cls` (`TestGrants`), `Test/Fix/ItemKinds.cls` (`TestGrants`) and `Test/Install/SecurityOverview.cls` (`TestFixKindRows` expected rows and statement, `TestRoleRowsDeclaredBy` line pin).
-  - They allow exactly the one triple and still fail on any other forbidden resource, holder, permission or area.
-  - Each gains one negative case: the same resource on another role, and `RW` on the service role, are refused.
-- `src/ocutalon/cls/OcuTalon/Test/Watch/SettingDiff.cls` -- pure tests (no other namespace): the diff (added, removed, changed, unchanged, item added or removed), first snapshot gives no changes, credential entries (blank values, change detected through the hash), the purge (fixtures at 91 and 89 days; the newest snapshot of a watched production is kept), and online-demo off.
+- `src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls` -- in `TestNoSettingRead`, end the pattern at a word boundary (`ocutalon\.data\.setting\b`). Add scanner assertions that `OcuTalon.Data.SettingChange` is not flagged and `OcuTalon.Data.Setting).Get` still is. Add `OcuTalon.Watch.SettingHistory`, `OcuTalon.Data.SettingSnapshot` and `OcuTalon.Data.SettingChange` to its class list. -- The new `Data.Setting*` names would otherwise trip the guard; it stays and its coverage grows.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/OrdersDefinition.cls` -- extend `Put` with a trailing optional `only As %String = ""`: a comma list of names from `CREDENTIALS` and `NOTE`. When set, only those are taken out and put back; "" keeps today's behaviour, so its current callers are unchanged. Update the header. -- Lets a test set `Credentials` (a reference) and `ApiKey` (a secret) to different values (Rule 2: extend, don't copy).
+- `src/ocutalon/cls/OcuTalon/Test/Watch/SettingDiff.cls` -- tests with no other namespace: the diff (added, removed, changed, unchanged, item added or removed); a first snapshot gives no changes; secret entries (blank values, change detected through the hash, same secret with the old salt gives no change); a Credentials reference diffs as a plain value; restart and hourly marks; and the purge (fixtures at 91 and 89 days; the newest snapshot of a watched production is kept).
 - `src/ocutalon/cls/OcuTalon/Test/Watch/SettingHistory.cls` -- live tests on OCUORDERS, extending `Test.Watch.Case` (THROWAWAY STACKS AND CI ONLY):
-  - Task 0's measurements.
-  - Drive everything through `Tick(tickAt)`.
-  - Delete only its own production's history rows at the start.
-  - Restore every changed setting and SDS row in `OnAfterOneTest`.
+  - Task 0's measurements; `TestCounterUnchanged`, `TestChangesRecorded`, `TestSnapshotChangesNothing`, `TestCredentialsReference`, `TestSecretValue`, `TestOnlineDemoOff`.
+  - Drive everything through `Tick(tickAt)`. Delete only its own production's history rows at the start. Restore every changed setting (`OrdersDefinition.Put(0)`) and SDS row in `OnAfterOneTest`.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/SettingSecret.cls` -- the ONE leak-scan test, `TestSecretAppearsNowhere`, extending `Test.Watch.Case` (THROWAWAY STACKS AND CI ONLY). It is described in Design Notes › Leak-scan test.
 - Spine (`ARCHITECTURE-SPINE.md`) -- write the additions in Design Notes › Spine additions. Then `memlog.py append` and `lint_spine.py` (`"ok": true`), and refresh `updated:` (Rule 20).
-- `EXPERIENCE.md` -- add a Message Catalog row with its key for each accepted proposal, plus rows that quote the already-accepted Story 23.2/23.5/23.6 catalog texts by key (Design Notes › Proposed public text).
 
 **Acceptance Criteria:**
-- Given the spine after this story, when the step-5 Lane A contracts are looked up, then every item of the first AC is there with the Design Notes › Spine additions, including the Lane B list that Story 36.2 fixes and the paging channels with how a page is acknowledged on each. `lint_spine.py` reports `"ok": true`.
-- Given a local install, when the installer composes roles, then `OcuTalonServiceRole` holds `%Ens_ProductionConfig:W`, declared by `Fix` from `rollback_setting`'s `RESOURCES`. The security overview's fix-kinds table and privileges list show it. Epic 3's forbidden-privilege tests pass with that one grant and fail for any other forbidden privilege or holder.
-- Given an online-demo install, when the installer composes roles, then the service role holds neither `%Ens_ConfigItemRun:U` nor `%Ens_ProductionConfig:W`.
-- Given any request for `rollback_setting`, when it reaches `Fix.Kind.Check`, ProposeFix or `DryRun`, then it is refused with the kind's plain reason, and nothing changes.
-- Given Orders running in OCUORDERS on a throwaway, when a test changes an item setting through the production configuration, and then an SDS row that applies, then after the next Tick that sees the counter move each change is one `SettingChange` row, with `DetectedAt` at most `INTERVALSECONDS` after the change and no user named in any column or value.
+- Given the spine after this story, when the step-5 Lane A contracts are looked up, then every item of the epic's first AC is there as Design Notes › Spine additions list it, with `rollback_setting` named as Story 23.3's and AD-24 holding the ruled sentence word for word, the Lane B list that Story 36.2 fixes, and the paging channels with how a page is acknowledged on each. `lint_spine.py` reports `"ok": true`.
+- Given a watched production with a snapshot, when a Tick runs with the counter and start mark unchanged and `CheckedAt` under 60 minutes old, then no settings are read and no row is written (`CheckedAt` unchanged). With `CheckedAt` 60+ minutes old, a snapshot is taken, and unchanged content only refreshes the marks.
+- Given Orders running in OCUORDERS on a throwaway and its first snapshot taken (zero `SettingChange` rows), when a test changes an item setting through the production configuration and then an SDS row that applies, then after the next Tick that sees the counter move each change is one `SettingChange` row, `Source` `production` and `default`, with `DetectedAt` at most `INTERVALSECONDS` after the change and no user named in any column or value.
 - Given a snapshot is taken, when the counter and the saved definition (`OrdersDefinition.Defined()`, the SDS global) are compared before and after, then nothing changed.
-- Given a credential setting set to a unique sentinel and then changed, when history runs, then a row records the change with both values blank. The sentinel is absent from every `SettingSnapshot` stream, every `SettingChange` row, the OCUTALON event log and the OCUTALON message bodies written since the test began.
+- Given the item's `Credentials` setting holds the ID `ZzCredA`, when it is changed to `ZzCredB` and a Tick runs, then one change row holds `OldValue` `ZzCredA`, `NewValue` `ZzCredB` and `Credential` 0.
+- Given the item's `ApiKey` setting holds a unique sentinel, when it is changed to a second sentinel and a Tick runs, then one change row holds `OldValue` = `NewValue` = "" and `Credential` 1, and the snapshot's entry for it has `value` "" and a `hash` that `Webhook.Matches` the second sentinel.
+- Given that secret-value change recorded, when every surface of Design Notes › Leak-scan test is read, then neither sentinel nor the stored hash appears in any of them, and the hash appears only in `SettingSnapshot`'s own globals.
 - Given `onlineDemo` 1, when a Tick runs, then no snapshot or change row is written for any production.
 - Given rows older than 90 days, when `OcuTalon.Install.Step.Watch.Purge(90)` runs, then they are gone, newer rows remain, and the newest snapshot of each watched production is kept.
 - Given the storage checks, when `test-storage.sh` runs, then both tables' `DEFAULTGLOBAL` values match `short-names.tsv` and their storage blocks are committed.
@@ -132,6 +123,7 @@ deferred: []
 ## Spec Change Log
 
 - 2026-11-12, Contest Planner rulings on V1-V6 (binding; `.coordination/prompts/story-361-rulings-20261112.md`), applied by the runner inside the intent contract and Design Notes; status reset to `draft` to re-plan only what V1(b) removes: V1 option (b): no `RollbackSetting`, no RESOURCES entry, no `%Ens_ProductionConfig:W`, no forbidden-list exception, no overview or ONLINESTATEMENT change (moved to Story 23.3 as an AC, ledgered DW-1225 routed to 23-3). V2 tables approved. V3 approved with conditions (Credentials reference stores its ID; only a secret value is hashed; the hash never leaves its table; one leak-scan test; change row values blank). V4 demo off, pinned: approved. V5 spine approved, with AD-24 adjusted to "%Ens_ProductionConfig:W is granted by Story 23.3 together with rollback_setting; the demo install leaves it out."; AD-18's sql_query mechanism stays (inference). Task 0 approved (HALT if the counter misbehaves). Public text: 36.1 ships none and no GUIDE line; the proposed strings are approved catalog text for 36.2/23.3 (NOTSETUP dropped).
+- 2026-11-12, re-plan (cycle_iteration 2) for those rulings. Removed: the `Fix/Kind/RollbackSetting.cls` task, the `KINDS` and `TARGETTYPE` edits to `Fix/Kind.cls`, the `Roles.cls` exception, the `SecurityOverview.cls` and `docs/security-overview.md` changes, the test changes to `Test/Install/Registry.cls`, `Test/Web/Install.cls`, `Test/Fix/Kind.cls`, `Test/Fix/ItemKinds.cls` and `Test/Install/SecurityOverview.cls` (none must change for another reason: 36.1 no longer touches `KINDS`, `FORBIDDEN`, the roles or the overview), their Code Map rows and Verification runs, the `live security-overview` command, the `lane-a@Fix` shard parts, the grant, online-demo-roles and rollback-refusal ACs, their Shared-surfaces entries and the exception mutation, and the EXPERIENCE.md task. V3: the name heuristic no longer hashes a Credentials reference; one leak-scan test (`Test/Watch/SettingSecret.cls`) and the `OrdersDefinition.Put` extension were added. Added the counter-gating AC (the epic's "only when the counter moved ... once an hour") with its own mutation, the spine-terms check, and the spine's naming of the summary property (the epic's first AC; it was listed as still missing but had no addition).
 
 ## Review Triage Log
 
@@ -147,7 +139,7 @@ deferred: []
 - **Public text:** 36.1 ships NO public text and NO GUIDE.md line. The proposed `page.*`, roll-back, `incident.settingChangeCause`, NOTALLOWED and ONLINESHARED strings are approved catalog text for the stories that first show them (36.2, 23.3); NOTSETUP is dropped. The spine's catalog-key list may NAME those keys as step-5 contracts (owner stories 36.2 / 23.3), but 36.1 adds no string to `Msg.Catalog.Watch` or EXPERIENCE.md.
 - **Contended order:** 36.1 goes first on `Checks/Process.cls` `Tick`; Epic 22's 22.5/22.11 integrate forward after it. All local until CI HOLD OFF.
 
-**Ledger inbox (Rule 17):** none owned by this story key.
+**Ledger inbox (Rule 17):** none owned by this story key. DW-1225 is Story 23.3's and is not addressed here.
 
 **Governing ADs (Rule 6):**
 
@@ -155,37 +147,36 @@ deferred: []
 | --- | --- |
 | AD-3 | Only the Reader switches namespace, in one method |
 | AD-5 | Durable state only, with append-only schema evolution: the "last seen" values are stored, never kept in memory |
-| AD-15 | SettingHistory, Lane A; one owner per table |
-| AD-16 | Kinds with a parameter schema and declared resources; the executor runs a kind only if the service user holds them |
+| AD-15 | SettingHistory, Lane A; one owner per table; no credential value stored |
+| AD-16 | Spine only: each kind's parameter schema and declared resources (`rollback_setting` as 23.3's) |
 | AD-17 | No secrets in audit data |
 | AD-18 | Heartbeat `Tick` → `Checks`; BackgroundCheck is the one check table |
 | AD-22 | `%UnitTest` under `OcuTalon.Test.<Area>`; destructive tests on throwaways |
-| AD-23 | The installer is the one install path |
-| AD-24 | No role holds `%Ens_ProductionConfig`, except the roll-back kind's WRITE |
+| AD-24 | Spine only: no role holds `%Ens_ProductionConfig` today; 23.3 grants its WRITE |
 | AD-27 | Area `Purge(daysToKeep)`, 90 days |
 | AD-29 | Lane files; 36.1/36.2 split |
 | AD-33 | Ownership tables updated in the same change |
 
-No AC contradicts an AD's Rule. AD-24 L943 already writes the exception that this story implements.
+No AC contradicts an AD's Rule. AD-24 L943 already names the roll-back kind's WRITE as the one exception from step 5; the ruled sentence says who grants it and when.
 
 **Already met (no new work; evidence on this branch):**
 - Kinds reroute, suspend, resume and partner warning, with their resources. `Fix/Kind.cls:75` lists them in `KINDS`. `Reroute.cls:16-24` declares `target` and `%Ens_MessageResend:U`. `SuspendItem.cls:15-27` declares `item`, `%Ens_ConfigItemRun:U` and ONLINEGRANT 0, which `ResumeItem.cls:6` inherits. `PartnerWarning.cls:18-28` declares `text,to`, no resources, and `contact`. Spine L571-572 and L943-945 record them; only the per-kind parameter schema is still missing from the spine.
-- The installer composes service grants from `RESOURCES` (`Install/Step/Fix.cls:36-59`), and the overview lists are generated from them (`SecurityOverview.cls:209-256`). Only the `Roles.Add` forbidden check blocks the new grant.
+- The installer composes service grants from `RESOURCES` (`Install/Step/Fix.cls:36-59`), and the overview lists are generated from them (`SecurityOverview.cls:209-256`). 23.3 adds its grant through that path; 36.1 does not touch it.
 - The queue-backlog check type: `Kind` `queues` (`Checks/Process.cls:857`, `Watch/Ops.cls:29,32`, spine L593).
-- Incident summary storage: `Data/Incident.cls:94` `Summary`, written by `Watch.Summary`; notification kind `summary` (`Msg/Enum.cls:30`); spine L550 and L1159. The spine still needs to name the property.
+- Incident summary storage: `Data/Incident.cls:94` `Summary`, written by `Watch.Summary`; notification kind `summary` (`Msg/Enum.cls:30`); spine L550 and L1159. The spine still needs to name the property (Spine additions).
 - ProposeFix (`IncidentManager.cls:1082-1089`).
 - PRD Open Question 5 already reads as answered (`prd.md` L1702), so no PRD amendment is needed. The spine records it, which the AC asks for.
-- Catalog texts for suspend, resume, reroute, partner warning and summary already exist and were approved by the Contest Planner (`Msg/Catalog/Watch.cls`: `incident.suspendRequest` :817, `incident.resumeRequest` :826, `incident.rerouteRequest` :835, `result.itemSuspended` :865, `result.itemSkipped` :881, `result.itemNotChanged` :889, `result.rerouted` :896, `incident.partnerRequest` :959, `result.partner*`, `summary.*` :619-781, `partner.subject`). The handled line is `handled.marked` "Marked as handled at {time}" (:430), and the button is `button.gotIt` (:425). None of these get a new proposal; EXPERIENCE.md only mirrors them by key.
+- The epic's text AC (texts proposed with catalog keys, none shipped unaccepted): the texts were proposed in this spec and the Planner approved them as catalog text for 36.2 and 23.3. 36.1 ships none, so neither `Msg.Catalog.Watch` nor EXPERIENCE.md changes; the spine names the keys with their owner stories. Existing approved texts (`incident.suspendRequest`, `incident.rerouteRequest`, `incident.partnerRequest`, `result.*`, `summary.*`, `handled.marked`, `button.gotIt`) are reused by key.
 
 **Integration ACs (Rule 1).**
-- Consumers inside this story: the installer (`Step/Fix.GrantsOf` → `Roles`) reads `rollback_setting`'s `RESOURCES`, and the service role holds `%Ens_ProductionConfig:W`. The overview generator reads the same declaration, and its lists show the line. Both are pinned by the second AC.
-- SettingHistory and its tables have no consumer in this story; the first consumer will be Story 23.3.
+- `Reader.Settings` is consumed in this story by `SettingHistory.Watch`. The live Tick ACs (changes recorded, Credentials reference, secret value) exercise that consumer against the real Reader and a real production in OCUORDERS.
+- SettingHistory and its tables: No consumers in this story; the first consumer will be Story 23.3. With V1(b) the installer and security-overview consumers are gone.
 - Consumed-by:
-  - 23.3: `EvidencePack.Build` lists `SettingChange` rows from the 24 h before the first failure, and the roll-back kind restores a change's old value.
+  - 23.3: `EvidencePack.Build` lists `SettingChange` rows from the 24 h before the first failure, and its roll-back kind restores a change's old value. A secret-value row has blank values, so 23.3 cannot offer to roll it back.
   - 23.4: the `Data.Page` contract named here.
   - 23.8: the SQL-query contract named here.
   - 36.2: the Lane B names listed here.
-- Consumes: `FailurePoller.Watched`, `Watch.Reader`, `Data.Webhook.HashSecret`/`Matches`, `Bridge.Time.DaysCutoff`, `Install.Step.Fix.GrantsOf`.
+- Consumes: `FailurePoller.Watched`, `Watch.Reader`, `Data.Webhook.HashSecret`/`Matches`, `Bridge.Time.DaysCutoff`.
 
 **Extend, don't copy (Rule 2).**
 
@@ -193,43 +184,60 @@ No AC contradicts an AD's Rule. AD-24 L943 already writes the exception that thi
 | --- | --- |
 | `Reader.Settings` | Extends `Current` the way `Items` (:513) did. No second switch. |
 | The watched set | `FailurePoller.Watched()` |
-| Credential hashing | `Data.Webhook.HashSecret`/`Matches`, called (not edited) from Lane A |
+| Secret hashing | `Data.Webhook.HashSecret`/`Matches`, called (not edited) from Lane A |
+| Secret detection | `Reader.CredentialName`, minus Credentials references |
 | Table purges | Copy `Data/Handled.cls:61-79` with `DaysCutoff`. Each table owns its purge, which is the codebase convention. |
 | The Watch step's purge | The `Install/Step/Digest.cls:22-31` pattern |
-| `RollbackSetting` | Extends `Fix.Kind`. Its refusal follows `SuspendItem.Refusal`/`ONLINESHARED`. A separate class rather than a subclass of `SuspendItem`, because it is not an item kind. |
-| Tests | `Test.Watch.Case` (`Tick`, cleanup) and `OrdersDefinition.Put` |
+| Test settings | `OrdersDefinition.Put`, extended with `only` |
+| Leak scan | `SecretHandoff.Leaks`/`TableHolds`, `Test.Web.Api.Routes`/`Written`, `Test.Digest.ProcessProbe`, `Eval.Record.Capture` |
+| Tests | `Test.Watch.Case` (`Tick`, cleanup) |
 
 **Decided in-stage:**
 1. "Watched production" means `FailurePoller.Watched()` (Kind `production` rows; eval rows excluded).
 2. A snapshot is each item's effective settings (`PopulateVirtualSettings`, which applies SDS) together with its stored `Settings`. An SDS change therefore shows on each item it applies to, with `Source` `default`.
 3. The "last value seen" (counter, start mark, `CheckedAt`) lives on the newest `SettingSnapshot` row and is updated in place. A new row is written only for a first snapshot or changed content (AD-5: no in-memory state).
 4. `DetectedAt` is the Tick's time. It is within the check interval while the production runs. A change made while the production is stopped is dated at the first Tick after the start, because no earlier time can be read. The spine says so.
-5. Credential detection is a `credentialsSelector` EditorContext, or a name matching `Reader.CREDENTIALPARTS`.
+5. Secret detection (V3). A Credentials reference is an entry whose EditorContext starts with `credentialsSelector`, or a setting named `Credentials` (any case; the fixture's stored `Credentials` setting has no class EditorContext). It stores its ID and diffs like any setting. A secret value is any other setting whose name `Reader.CredentialName` matches. A non-secret whose name matches (for example `AuthType`) is hashed too. That errs on the safe side, and its change row is blank. The plain name heuristic is not used on its own any more, because `CREDENTIALPARTS` holds `credential` and would hash every `Credentials` reference.
 6. An item added or removed gives one row per setting.
-7. The roll-back kind: class `RollbackSetting`, name `rollback_setting`, parameter `change`, target type `setting`. The type is new because Fix.Run, Notice and Summary treat `item` kinds as suspend/resume. It is declare-only until 23.3.
+7. The roll-back kind is not declared in 36.1. The spine names `rollback_setting` (parameter `change`, `%Ens_ProductionConfig:W`, ONLINEGRANT 0) as Story 23.3's plan (ruling V1(b)). Its target type is left to 23.3.
 8. The Tick hook is a single line, and `Watch` handles its own errors.
 9. The Watch step purges through `SettingHistory.Purge`. `TestNoSettingRead`'s pattern gains a word boundary so that `Data.SettingChange` is not mistaken for `Data.Setting`. The guard stays, and its coverage grows.
 10. Short names `SettingSnap` and `SettingChange`.
-11. New tests sit under `Test/Watch/`, so they join `shard:lane-a@Watch` in group `shards-8` by area mapping. No `ci/units.sh` edit is needed (`test-ci-config.sh:42-46`). `new_units: none`. Their added time is about 1 min (inference).
-12. Not judge-visible: back end, contracts and the security overview only, so no GUIDE.md "New since 1.0.0" line.
+11. New tests sit under `Test/Watch/`, so they join `shard:lane-a@Watch` in group `shards-8` by area mapping. No `ci/units.sh` edit is needed (`test-ci-config.sh:42-46`). `new_units: none`. Their added time is about 1-2 min (inference; the leak scan sends one failing batch).
+12. Not judge-visible: back end and contracts only, so no GUIDE.md "New since 1.0.0" line.
 13. Spine contract names (Spine additions below) are chosen within the spine's existing step-5 text. Paging stays with IncidentManager, which owns the AckPage verb's routing, as with ProposeFix (L1098).
+14. The test fixtures use `Credentials` for the reference case and `ApiKey` for the secret case, set separately through `OrdersDefinition.Put(..., only)`. `Put` without `only` still writes one value into all four names, as `Evidence` and `Eval.Record` need.
+15. The ACs about the grant, the online-demo roles and the roll-back refusal are dropped with V1(b). The online-demo omission of `%Ens_ConfigItemRun:U` stays pinned by Story 23.2's delivered tests.
+16. `Test.Eval.Record` (Eval area, CI's `shards-2`) calls `Put` only without `only`, so its path is unchanged and it is not run locally. Its time is unmeasured and could exceed one call. `Test.Watch.Evidence` covers `Put`'s default path locally.
+17. The approved catalog strings stay in this spec verbatim (Approved catalog text, below) as the reference for 36.2 and 23.3. They are not shipped here.
 
-**Spine additions (the implement stage writes them).**
+### Leak-scan test (V3; `Test/Watch/SettingSecret.cls` `TestSecretAppearsNowhere`; throwaway only)
+Setup: `ApiKey` is set to sentinel A (`Put(1, A, , "ApiKey")`), a Tick runs, then it is set to sentinel B and a Tick runs, so a blank change row exists. `hash` is that entry's stored value, read from the newest `SettingSnapshot`. Each surface below is read after that and must hold neither A, B nor `hash`. Each read is also checked to have produced output, so an empty read cannot pass.
+- **Stored data (trace bodies, digests, notices, decisions, every OcuTalon table):** `SecretHandoff.Leaks(A)` and `Leaks(B)` are "". `Leaks(hash)` names only `SettingSnapshot`'s own globals: its `DEFAULTGLOBAL` and the stream global derived from it. It must name at least that one, which is the positive control.
+- **Trace:** `TableHolds("Ens.MessageHeader", "Description", x)` is 0 in OCUTALON. Message bodies are `^OcuTalon*` globals, so `Leaks` covers them.
+- **Log:** `TableHolds("Ens_Util.Log", "Text", x)` is 0 in OCUTALON. The Reader writes nothing in OCUORDERS (AD-3).
+- **GET routes and `/v1/state`:** every `GET` route of `Test.Web.Api.Routes(c)` for `OcuTalon.Web.Api`, `Web.History`, `Web.Usage`, `Web.Documents`, `Web.HookSettings` and `Web.Public.Status`. Each is called through `Test.Web.Api.Written` with a `StubRequest.Make` request, a `%CSP.Response`, and a `%CSP.Session` stand-in whose `Data(Data.Ownership.#SESSIONKEY)` is the ref of `Data.Session.ForUser($Username)`, so `Ownership.SessionRef` resolves it. A route with a `:ref` parameter (`Documents /:ref`) is called once for each ref its list route returned. `/v1/events` gets `after` and `afterInstance` 0. `/v1/state` is asserted by name and must answer a JSON object. `Web.Public.Shell` is left out because it serves only the built bundle's files, which no runtime value reaches.
+- **Digest:** one requested `Compose` for that session on a shadow `Test.Digest.ProcessProbe`, as `Test.Digest.Compose.Route` does (`Reset`, `Feed`, `Host`, `Handle`). Every recorded `^||DigestProbe("notice", n)` list, and each one's `Msg.Catalog.Render(key, slots, "telegram")`, is scanned.
+- **Notice:** a fixture incident on the Orders production (`Test.Data.Fixture` `Incident`, removed after). `Msg.Catalog.Render(Watch.Notice.Key(i), Watch.Notice.Slots(i), "telegram")` and the slots' JSON are scanned.
+- **Eval output:** `Eval.Record.Capture` of one failing Orders batch into a temporary folder, as `Test.Eval.Record` does at :950-990. The batch is sent through `Test.Demo.Production` while the Orders WatchMark is held (`HoldFailures`, then `ReleaseFailures`), so no incident is made. Its headers, folder and settings are removed in `OnAfterOneTest`. The `snapshot.json` and `case.json` texts are scanned.
+
+### Spine additions (the implement stage writes them)
 - **AD-15 L519-523.**
   - The counter is `^IRIS.Temp.EnsProdModCounter(<namespace>)` (`$$$EnsProdModCounterGet`), read inside `Reader.Current`. It moves on production-config and SDS saves only while that production runs, it is lost at an IRIS restart, and `UpdateProduction` kills it. Any difference, a missing value included, counts as moved.
   - The start mark is `^Ens.Runtime("StartTime")` with `("CheckSum")`.
   - The hourly net uses `CheckedAt`.
-  - The table field lists; credential values are never stored, only a salted hash; the detected-time scope (item 4 above).
+  - The table field lists. A Credentials reference stores its ID. A secret value is never stored, only a salted hash used to detect a change, and the hash never leaves `SettingSnapshot`; its change row is blank. Also the detected-time scope (Decided 4).
   - Off on an online-demo install.
-  - The watched set; purge through `SettingHistory.Purge` from the Watch area, keeping the newest snapshot of each watched production.
+  - The watched set, and the purge through `SettingHistory.Purge` from the Watch area, which keeps the newest snapshot of each watched production.
   - The Task 0 measurements, or "(inference)" until they are measured.
+- **AD-15 L550.** The incident summary is stored in `OcuTalon.Data.Incident.Summary`, written by `Watch.Summary`, and sent as a `summary` notification.
 - **AD-16 L571.** A per-kind parameter schema and `RESOURCES`:
   - `reroute`: `target`, `%Ens_MessageResend:U`
   - `suspend_item` / `resume_item`: `item`, `%Ens_ConfigItemRun:U`, ONLINEGRANT 0
   - `partner_warning`: `text,to`, no resources
-  - `rollback_setting`: `change`, `%Ens_ProductionConfig:W`, ONLINEGRANT 0, `TARGETTYPE` `setting`. Declared in 36.1; Story 23.3 builds its `DryRun`/`Recheck`/`Execute` and flips `DIAGNOSED`.
+  - `rollback_setting` (Story 23.3's, not yet declared): `change` (a `SettingChange` Ref), `%Ens_ProductionConfig:W`, ONLINEGRANT 0.
   - A note for 23.3 (inference, from `irislib`): the `Ens.Config.*` classes check no resource, so a write needs WRITE on the target's database, and SDS writes match `%Ens_SystemDefaultConfig` in the portal. 23.3 measures this.
-- **AD-24 L943-945.** The online-demo install leaves `%Ens_ProductionConfig:W` out as well.
+- **AD-24 L943-945.** A new bullet `[ADDED 2026-11-12, Story 36.1, Contest Planner ruling V5]` that reads exactly: "%Ens_ProductionConfig:W is granted by Story 23.3 together with rollback_setting; the demo install leaves it out."
 - **Paging (new, step 5):**
   - The paging owner is `IncidentManager` (Lane A). Its table is `OcuTalon.Data.Page` (Lane A, Story 23.4): Ref, IncidentRef, Role `oncall|backup`, Person (OcuTalon user name or email address, never a Telegram identity), Channels, SentAt, AcknowledgedAt, AcknowledgedChannel, EscalationRef. It is purged with its incidents.
   - The escalation message is `OcuTalon.Msg.Escalation` (IncidentRef, PageRef), which `ReminderTimer` sends to `IncidentManager` when an escalation-kind `Reminder` falls due. Story 36.2 creates the class as `Msg` owner.
@@ -240,7 +248,10 @@ No AC contradicts an AD's Rule. AD-24 L943 already writes the exception that thi
     - Email: it carries no acknowledgement. The person presses Got it on their OcuTalon page or in Telegram, and a reply never acknowledges, because email is untrusted content.
     - Any acknowledgement stops escalation, and every copy shows `handled.marked`.
 - **AD-18 L590-593.** SQL-query check: `BackgroundCheck` `Kind` `sql_query`, owned by the admin's session, scheduled by Epic 22's `IntervalMinutes`. Story 23.8 appends its query and result-hash columns. It runs as the IRIS user `OcuTalonSqlReader`, which has no OcuTalon role and only the SQL `SELECT` an admin grants, over a separate xDBC loopback connection, never the production's user. The mechanism and how its password is kept are measured and decided in 23.8 (inference; a veto item there). This replaces Deferred L1724's candidate.
-- **Catalog keys (`Msg.Catalog.Watch`):** `page.onCall`, `page.onCallEmail`, `page.backup`, `page.backupEmail`, `page.subject`, `incident.rollbackRequest`, `result.settingRestored`, `result.settingChangedSince`, `summary.requestedRollback`, `summary.settingRestored`, `incident.settingChangeCause`. Existing keys are reused as listed above.
+- **Catalog keys (`Msg.Catalog.Watch`), names only, no text:**
+  - Story 36.2: `page.onCall`, `page.onCallEmail`, `page.backup`, `page.backupEmail`, `page.subject`.
+  - Story 23.3: `incident.rollbackRequest`, `result.settingRestored`, `result.settingChangedSince`, `summary.requestedRollback`, `summary.settingRestored`, `incident.settingChangeCause`, and the `rollback_setting` reasons NOTALLOWED and ONLINESHARED.
+  - Existing keys are reused as listed under Already met.
 - **`incident` payload (L427-428):** `SettingChange` {item, target, setting, oldValue, newValue, credential, detectedAt} and `GapMinutes` (23.3); `Page` {state `paged|acknowledged|escalated`, pagedAt, acknowledgedAt, channel} (23.4). The summary stays a `summary` notification, not a payload field.
 - **Lane B list (AD-29 L1054):** Story 36.2 fixes:
   - the `page` notification kind and its `Notify` route;
@@ -251,8 +262,8 @@ No AC contradicts an AD's Rule. AD-24 L943 already writes the exception that thi
   - `Msg.Escalation`.
   Lane A never edits them.
 - **Ownership tables (AD-33):**
-  - Tables paragraph L1418: `Page` from step 5.
-  - Cross-area rows: `OcuTalon.Watch.SettingHistory` (A, 36.1), `OcuTalon.Fix.Kind.RollbackSetting` (A, 36.1 declares, 23.3 builds).
+  - Tables paragraph L1418: `SettingSnapshot` and `SettingChange` (A, 36.1); `Page` from step 5 (A, 23.4).
+  - Cross-area row: `OcuTalon.Watch.SettingHistory` (A, 36.1).
   - Deferred L1722-1724 updated.
 
 ### Contended overlaps
@@ -262,87 +273,85 @@ No AC contradicts an AD's Rule. AD-24 L943 already writes the exception that thi
 | `Checks/Coverage.cls` | nothing | — |
 | `Data/BackgroundCheck.cls` (Epic 22) | nothing (SQL-query columns are 23.8's; spine only) | — |
 | `Data/SettingSnapshot.cls`, `Data/SettingChange.cls` | new files in `Data/` | append-only |
-| `Watch/SettingHistory.cls`, `Fix/Kind/RollbackSetting.cls` | new files | append-only |
+| `Watch/SettingHistory.cls`, `Test/Watch/SettingDiff.cls`, `Test/Watch/SettingHistory.cls`, `Test/Watch/SettingSecret.cls` | new files | append-only |
+| `Test/Watch/OrdersDefinition.cls` | `Put` gains a trailing optional parameter | non-append (not named as contended) |
 | `src/short-names.tsv` | two appended rows | append-only |
 | `Core/SettingsOps.cls`, `Test/Core/SettingsSave.cls`, `Test/Web/SettingsApi.cls`, `Test/Core/Routing.cls`, `Mcp/Ops.cls` (Epic 21) | nothing | — |
-| `README.md`, `GUIDE.md` (Epics 0, 21) | nothing | — |
-| `Test/Web/Install.cls` | `CheckGrants`/`Forbidden`: one exception | non-append (not named as contended) |
-| Spine, `EXPERIENCE.md` | paragraph edits and appended rows | shared planning artifacts; other lanes may edit them too |
+| `README.md`, `GUIDE.md` (Epics 0, 21), `EXPERIENCE.md` | nothing | — |
+| `Fix/*`, `Install/Step/Roles.cls`, `Install/SecurityOverview.cls`, `docs/security-overview.md`, `Test/Web/Install.cls` | nothing (V1(b)) | — |
+| Spine | paragraph edits and appended rows | shared planning artifact; other lanes may edit it too |
 
-### Veto and security items (pending the Planner's ruling; the runner sends them before any implement spawn)
-- **V1: the `%Ens_ProductionConfig` grant.**
-  - (a) **Recommended.** 36.1 ships a declare-only `rollback_setting` (schema and RESOURCES, no behaviour, never offered, refused if invoked). The grant, the overview lines and the one test exception land now. This matches spine AD-24 L943 and Story 23.3's "grant from Story 36.1".
-    - Cost: until 23.3 merges, the service role holds a WRITE privilege that nothing uses. The overview says so.
-    - Online demo: the grant is OFF (ONLINEGRANT 0), and the kind refuses with `ONLINESHARED`.
-  - (b) The spine records it only. The grant, overview line and test exception move to Story 23.3, an AC move to a not-yet-planned story of another epic in the same release. 23.3's "grant from Story 36.1" would need amending.
-    - Online demo: unchanged.
-- **V2: new stored data.** Retention: 90 days (`daysToKeep`) through the Watch area's purge, keeping the newest snapshot of each still-watched production regardless of age, so history never restarts as "first".
+### Veto and security items (all RULED by the Contest Planner, 2026-11-12; nothing pending)
+- **V1: the `%Ens_ProductionConfig` grant. RULED: option (b).** The spine records it as Story 23.3's. The kind, the grant, the overview lines and the test exception all move to 23.3 (DW-1225). The online demo is unchanged.
+- **V2: new stored data. RULED: approved as drafted.** Retention: 90 days (`daysToKeep`) through the Watch area's purge, keeping the newest snapshot of each still-watched production regardless of age, so history never restarts as "first".
   - `SettingSnapshot` (`^OcuTalonP.SettingSnap`, Lane A): Ref, Namespace (128), Production (128), TakenAt (UTC), CheckedAt (UTC), Counter, Started, Settings (`%Stream.GlobalCharacter`, a JSON array of {item, target, setting, value, source, credential, hash}).
   - `SettingChange` (`^OcuTalonP.SettingChange`, Lane A): Ref, SnapshotRef, Namespace, Production, Item, Target (`Host|Adapter`), Setting, OldValue, NewValue (MAXLEN 2000), Source (`production|default|class`), Credential (boolean), DetectedAt (UTC).
   - No user columns.
-- **V3: credentials (NFR-11, AD-15).**
-  - The value is dropped inside the Reader. Only a salted SHA-256 hash (Webhook's `salt.hash`) is stored, and only so that a change can be detected. Recommended.
-  - Alternatives: no hash, which makes credential changes undetectable and fails the AC; or a keyed HMAC, which needs a stored key.
-- **V4: online demo.** Setting history is OFF on an online-demo install. Reasons: every visitor shares one Orders production, and nothing there consumes the history (only reroute is offered, UX L1082). Pinned by the online-demo AC.
-- **V5: AD amendments.** The additions to AD-15, AD-16, AD-18 and AD-24 and the new paging and SQL-query contract names above. They are within step 5's existing spine text, but they amend AD Rules.
-- **V6: public text.** The texts below, the overview statement included.
+- **V3: credentials (NFR-11, AD-15). RULED: approved with conditions,** as Decided 5 and the leak-scan test apply them. A Credentials reference stores its ID. Only a secret value is dropped in the Reader and hashed (`Webhook`'s `salt.hash`) for change detection only. The hash never leaves its table, its change row is blank, and one leak-scan test pins it.
+- **V4: online demo. RULED: approved.** Setting history is OFF on an online-demo install, pinned by `TestOnlineDemoOff`.
+- **V5: AD amendments. RULED: approved,** with the AD-24 sentence as worded above; AD-18's `sql_query` mechanism stays (inference) until 23.8.
+- **V6: public text. RULED:** 36.1 ships none and no GUIDE.md line. The proposals are approved catalog text for 36.2 and 23.3; NOTSETUP, the `ONLINESTATEMENT` rewording and the overview sentence are dropped with V1(b).
 
-### Proposed public text (verbatim; none ships until accepted)
-- `page.onCall` (EXPERIENCE.md Message Catalog › Step 5; web card and Telegram, with Got it): "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. Press Got it to show you're on it; if nobody does within {minutes} minutes, I'll page {backup}."
-- `page.onCallEmail` (email): "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. To show you're on it, press Got it on your OcuTalon page; if nobody does within {minutes} minutes, I'll page {backup}. Replying to this email doesn't count."
-- `page.backup` (escalation; web card and Telegram): "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within {minutes} minutes. Press Got it to show you're on it."
-- `page.backupEmail`: "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within {minutes} minutes. To show you're on it, press Got it on your OcuTalon page. Replying to this email doesn't count."
-- `page.subject`: "OcuTalon page: {production} incident"
-- `incident.rollbackRequest`: "{count} {itemNoun} failed since {time}. {cause}. I can put {setting} on {target} back to its earlier value. Approve?\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."
-- `result.settingRestored`: "{setting} on {target} is back to {after}. To undo it, ask me to undo the rollback."
-- `result.settingChangedSince`: "{setting} on {target} was not changed: it changed again after the dry run. It needs a new approval."
-- `summary.requestedRollback`: "{time}: OcuTalon asked for approval to put {setting} on {target} back."
-- `summary.settingRestored`: "{time}: {setting} on {target} was put back to its earlier value."
-- `incident.settingChangeCause` (the UX fixture "The feed broke four minutes after this setting changed."; {minutes} is a duration slot): "The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}."
-- `RollbackSetting.NOTSETUP` (kind reason): "OcuTalon can't put settings back yet"
-- `RollbackSetting.NOTALLOWED`: "OcuTalon isn't allowed to change settings in that production"
-- `RollbackSetting.ONLINESHARED`: "On the online demo every visitor shares the Orders production, so OcuTalon doesn't change its settings there; on your own install it can"
-- `SecurityOverview.ONLINESTATEMENT` (`docs/security-overview.md`): "On the online demo, OcuTalonServiceRole holds neither %Ens_ConfigItemRun:U nor %Ens_ProductionConfig:W, so OcuTalon can't suspend or resume items or change settings there."
-- New overview sentence after it: "`rollback_setting` is declared so that OcuTalonServiceRole holds its grant, but OcuTalon doesn't offer it yet and refuses any request for it."
-- GUIDE.md: none (not judge-visible).
+### Public text
+36.1 ships no public text: no string is added to `Msg.Catalog.Watch`, EXPERIENCE.md, the security overview or GUIDE.md. The strings below are the approved catalog text (Planner, 2026-11-12) for the stories that first show them. They are kept here only as their reference (Decided 17).
+
+Approved catalog text (reference only):
+- Story 36.2:
+  - `page.onCall`: "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. Press Got it to show you're on it; if nobody does within {minutes} minutes, I'll page {backup}."
+  - `page.onCallEmail`: "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. To show you're on it, press Got it on your OcuTalon page; if nobody does within {minutes} minutes, I'll page {backup}. Replying to this email doesn't count."
+  - `page.backup`: "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within {minutes} minutes. Press Got it to show you're on it."
+  - `page.backupEmail`: "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within {minutes} minutes. To show you're on it, press Got it on your OcuTalon page. Replying to this email doesn't count."
+  - `page.subject`: "OcuTalon page: {production} incident"
+- Story 23.3:
+  - `incident.rollbackRequest`: "{count} {itemNoun} failed since {time}. {cause}. I can put {setting} on {target} back to its earlier value. Approve?\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."
+  - `result.settingRestored`: "{setting} on {target} is back to {after}. To undo it, ask me to undo the rollback."
+  - `result.settingChangedSince`: "{setting} on {target} was not changed: it changed again after the dry run. It needs a new approval."
+  - `summary.requestedRollback`: "{time}: OcuTalon asked for approval to put {setting} on {target} back."
+  - `summary.settingRestored`: "{time}: {setting} on {target} was put back to its earlier value."
+  - `incident.settingChangeCause`: "The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}."
+  - `rollback_setting` NOTALLOWED: "OcuTalon isn't allowed to change settings in that production"
+  - `rollback_setting` ONLINESHARED: "On the online demo every visitor shares the Orders production, so OcuTalon doesn't change its settings there; on your own install it can"
 
 ## Verification
 
-Every command uses the lane-B variables `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=36 stage=implement'` (written `<lane-b vars>` below; expand it on each call). The fresh tag is `e36s1i`, the warm tag `e36s1iw`. Run one per call, `timeout: 600000`, each about 150 s at most. Never slot B. At the end, also after a failure, run `<lane-b vars> OCUTALON_RUN_TAG=e36s1iw bash ci/warm.sh down` and `<lane-b vars> OCUTALON_RUN_TAG=e36s1i bash ci/iris.sh teardown`.
+Every command uses the lane-B variables `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=36 stage=implement'` (written `<lane-b vars>` below; expand it on each call). The fresh tag is `e36s1i` and the warm tag `e36s1iw`. Run one command per call, with `timeout: 600000`, each about 150 s at most. Never use slot B. At the end, also after a failure, run `<lane-b vars> OCUTALON_RUN_TAG=e36s1iw bash ci/warm.sh down` and `<lane-b vars> OCUTALON_RUN_TAG=e36s1i bash ci/iris.sh teardown`.
 
 **Commands:**
 - (loop) `<lane-b vars> OCUTALON_RUN_TAG=e36s1iw bash ci/warm.sh up` -- once per stage; expected: a ready stack
-- (loop) `<lane-b vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e36s1iw bash ci/iris.sh class <C>`, one call for each of `OcuTalon.Test.Watch.SettingHistory`, `OcuTalon.Test.Watch.SettingDiff`, `OcuTalon.Test.Fix.Kind`, `OcuTalon.Test.Fix.ItemKinds`, `OcuTalon.Test.Install.Registry`, `OcuTalon.Test.Install.SecurityOverview`, `OcuTalon.Test.Install.Retention`, `OcuTalon.Test.Install.RetentionRules`, `OcuTalon.Test.Web.Install` -- expected: `CLASS ... passed`
+- (loop) `<lane-b vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e36s1iw bash ci/iris.sh class <C>`, one call for each of `OcuTalon.Test.Watch.SettingHistory`, `OcuTalon.Test.Watch.SettingDiff`, `OcuTalon.Test.Watch.SettingSecret`, `OcuTalon.Test.Watch.Evidence`, `OcuTalon.Test.Install.Retention`, `OcuTalon.Test.Install.RetentionRules` -- expected: `CLASS ... passed`
 - (loop) `bash docker/tests/test-storage.sh` -- expected: pass
 - (loop) `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` -- expected: `"ok": true`
-- (once) `<lane-b vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e36s1iw bash ci/iris.sh shard lane-a@Watch --part k/4` for k = 1..4, then the same for `lane-a@Checks --part k/3`, `lane-a@Fix --part k/3` and `lane-a@Install --part k/3`, one call each -- expected: all passed. If a part nears 150 s, raise n. That `--part` works on a piece is (inference).
+- (loop) spine-terms check -- `F=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md; for t in '%Ens_ProductionConfig:W is granted by Story 23.3 together with rollback_setting; the demo install leaves it out.' 'EnsProdModCounter' 'OcuTalon.Watch.SettingHistory' 'OcuTalon.Data.SettingSnapshot' 'OcuTalon.Data.SettingChange' 'OcuTalon.Data.Incident.Summary' 'OcuTalon.Data.Page' 'OcuTalon.Msg.Escalation' 'OcuTalonSqlReader' 'page.onCall' 'incident.settingChangeCause' 'SaveSqlWatch'; do grep -qF -- "$t" "$F" || echo "MISSING $t"; done` -- expected: no output
+- (once) `<lane-b vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e36s1iw bash ci/iris.sh shard lane-a@Watch --part k/4` for k = 1..4, then the same for `lane-a@Checks --part k/3` and `lane-a@Install --part k/3`, one call each -- expected: all passed. If a part nears 150 s, raise n. That `--part` works on a piece is (inference).
 - (once) `<lane-b vars> OCUTALON_RUN_TAG=e36s1i bash ci/iris.sh class OcuTalon.Test.Watch.SettingHistory` -- a fresh stack proves the `Tick` change; expected: passed
-- (once) `<lane-b vars> OCUTALON_RUN_TAG=e36s1i bash ci/iris.sh live security-overview` -- expected: no DRIFT
 - (once) `bash docker/tests/test-ci-config.sh` and `bash ci/checks.sh`, one per call -- expected: pass
 
 **Shared surfaces:**
-- `Fix.Kind` `KINDS` and the fix-kinds table: `Test/Fix/Kind.cls` `TestGrants`, `Test/Fix/ItemKinds.cls`, `Test/Install/SecurityOverview.cls` `TestFixKindRows`.
-- The forbidden-privilege lists: `Roles.FORBIDDEN`, `Test/Install/Registry.cls`, `Test/Web/Install.cls` `Forbidden`.
-- The security overview's generated fix-kinds and privileges lists, and `docs/security-overview.md`.
 - `src/short-names.tsv` (`test-storage.sh`).
-- The Watch purge declaration (`RetentionRules.cls:41`, `Retention.cls` `TestNoSettingRead`).
-- `Checks.Tick`'s steps.
+- The Watch purge declaration (`RetentionRules.cls:41`, `Retention.cls` `TestNoSettingRead` and its class list).
+- `Checks.Tick`'s steps (every test that drives `Test.Watch.Case.Tick`).
+- `OrdersDefinition.Put` (`Test/Watch/Evidence.cls`, `Test/Eval/Record.cls`): its default call is unchanged.
+- `Reader.Current`'s parameter list (every Reader method calls it; the new flag is appended last).
+- The `^OcuTalon*` global set that `SecretHandoff.Leaks` scans: the two new globals hold no other test's secret.
 - The spine's ownership tables.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
-**Mutations (Rule 19; the implement stage records each as `mutation: <change> → <red test>`):**
-- Skip the counter compare (snapshot every Tick) → the counter-unchanged test.
-- Store the raw credential value → the sentinel test.
-- Write a change on the first snapshot → the first-snapshot test.
-- Drop the online-demo guard → the online-demo test.
-- Let the exception admit any holder → the Registry negative case.
-- Purge the newest snapshot → the purge test.
-- Call `%Save` on the production in the read → the snapshot-changes-nothing test.
+**Mutations (Rule 19; one per AC, in AC order; the implement stage records each as `mutation: <change> → <red test>`):**
+- Spine: delete the AD-24 sentence → the spine-terms check prints `MISSING`.
+- Gating: skip the counter compare (full snapshot on every Tick) → `SettingHistory.TestCounterUnchanged` (`CheckedAt` moves).
+- Changes recorded: read stored settings only, without the `PopulateVirtualSettings` entries → `SettingHistory.TestChangesRecorded` (no `default` row).
+- Read-only: call `%Save` on the production definition in the read → `SettingHistory.TestSnapshotChangesNothing`.
+- Credentials reference: treat the name `Credentials` as a secret → `SettingHistory.TestCredentialsReference` (blank values).
+- Secret value: skip the secret check in `Reader.Settings` (keep the value, no hash) → `SettingHistory.TestSecretValue`.
+- Leak scan: store the new hash in `SettingChange.NewValue` → `SettingSecret.TestSecretAppearsNowhere` (`Leaks(hash)` also names `SettingChange`'s global).
+- Online demo: drop the online-demo guard → `SettingHistory.TestOnlineDemoOff`.
+- Purge: purge the newest snapshot too → `SettingDiff.TestPurge`.
+- Storage: change `SettingChange`'s `DEFAULTGLOBAL` to one not in `short-names.tsv` → `test-storage.sh`.
 
 ## Auto Run Result
 
 Status: ready-for-dev
 Blocking condition: none
 
-Planned as one story (no split). Halted after planning, as the dispatch asked. Before any implement spawn, the Planner must rule on veto items V1-V6 (Design Notes › Veto and security items) and on the proposed public texts.
+Re-planned (cycle_iteration 2) for the Planner's rulings of 2026-11-12, and halted after planning, as the dispatch asked. V1-V6 are all ruled. Task 0 still runs first in implement and HALTs `intent gap` if the counter does not behave as the spine draft says.
