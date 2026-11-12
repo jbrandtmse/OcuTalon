@@ -2167,6 +2167,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: same 8 findings on the spine at HEAD and after 9.1's Tables-line edit; they are prose format examples ({time}, {day}, {what happened}, {reason}, {entry}, {finding}, {n}), not template tokens
 - 2026-10-28T15:22:57Z status=by-design owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=harvest note=known baseline (Epic 9 start: lint=baseline 8 low placeholder, no AD findings; line 923's HostData row, U-120); the gate for a spine write is no new finding and no ad_id/ad_fields finding
+- 2026-11-12T22:55:31Z occurrence=36-1-record-the-setting-history-of-each-watched-production by=harvest note=same_placeholder_findings(10_low_on_baseline_9ca1d94a;none_added_by_36.1;no_ad_id/ad_fields)
 
 ### DW-352: 9.1's task 11 memlog entry (AD-33: OcuTalon.Eval.Data.CaseResult is Lane A's) was not appended: the spine's .memlog.md is gitignored and exists only in the main checkout
 - source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
