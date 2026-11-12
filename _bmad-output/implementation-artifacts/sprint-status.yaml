@@ -67,8 +67,7 @@ development_status:
   0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil: 
     ready-for-dev
   0-31-dw-1123-the-memory-documents-remember-eval-accepts-document: done
-  0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and: 
-    ready-for-dev
+  0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and: in-progress
   epic-0-retrospective: optional
 
   epic-1: done
