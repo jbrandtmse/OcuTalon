@@ -67,7 +67,7 @@ Method TestARefusedMessageGivesOneWebCard()
 	If deliveries.Count() = 1 {
 		Set delivery = deliveries.GetAt(1)
 		Do $$$AssertEquals(delivery.Channel_"|"_delivery.Kind_"|"_delivery.FallbackReason, "web|allowance|", "on the web chat, of kind allowance, with no fallback reason")
-		Set form = ##class(OcuTalon.Test.Core.Observe).TimeReads(delivery.Text, "You've used this session's "_limit_" messages for the hour. You can send more ", " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", expected)
+		Set form = ##class(OcuTalon.Test.Core.Observe).TimeReads(delivery.Text, "You've used this session's "_limit_" messages for the hour. You can send more ", " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself", expected)
 		Do $$$AssertTrue(form '= "", "with the catalog's text, the retryAt in instance time with ET (the clock alone on the day it falls on, with the day on another), and the install link: "_delivery.Text)
 	}
 	Set cards = ##class(OcuTalon.Data.Ownership).RecentNotices(session, 10)
@@ -109,7 +109,7 @@ Method TestARefusalOnAnotherDayNamesTheDay()
 	Do $$$AssertEquals(deliveries.Count(), 1, "one Delivery row is recorded")
 	If deliveries.Count() = 1 {
 		Set text = deliveries.GetAt(1).Text
-		Set form = ##class(OcuTalon.Test.Core.Observe).TimeReads(text, "You've used this session's "_limit_" messages for the hour. You can send more ", " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", expected)
+		Set form = ##class(OcuTalon.Test.Core.Observe).TimeReads(text, "You've used this session's "_limit_" messages for the hour. You can send more ", " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself", expected)
 		Do $$$AssertEquals(form, "otherday", "the card names the day: "_text)
 	}
 }
@@ -130,7 +130,7 @@ Method TestTheDailyCapMessageReachesTheWebChatOnce()
 	If deliveries.Count() = 1 {
 		Set delivery = deliveries.GetAt(1)
 		Do $$$AssertEquals(delivery.Channel_"|"_delivery.Kind_"|"_delivery.FallbackReason, "web|allowance|", "on the web chat, of kind allowance, with no fallback reason")
-		Set form = ##class(OcuTalon.Test.Core.Observe).TimeReads(delivery.Text, "The online demo has used today's model allowance. Decisions use fixed rules until ", " ET. You can install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", ##class(OcuTalon.Bridge.Time).DayEndUtc(day), 0)
+		Set form = ##class(OcuTalon.Test.Core.Observe).TimeReads(delivery.Text, "The online demo has used today's model allowance. Decisions use fixed rules until ", " ET. You can install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself", ##class(OcuTalon.Bridge.Time).DayEndUtc(day), 0)
 		Do $$$AssertTrue(form '= "", "with the catalog's text, the end of the day in instance time with ET (the clock alone on its own day, with the day on another), and the install link: "_delivery.Text)
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "the chat's cards hold the one daily-cap card")

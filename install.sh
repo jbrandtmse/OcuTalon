@@ -370,7 +370,7 @@ else
   if ! docker compose up -d </dev/null; then
     die "Docker Compose could not start OcuTalon." \
       "The messages above say why. To read the container's log, run:  docker compose logs iris" \
-      "The Troubleshooting section of README.md lists the usual causes and fixes." \
+      "The Troubleshooting section of GUIDE.md lists the usual causes and fixes." \
       "Nothing was removed."
   fi
 
@@ -386,14 +386,14 @@ else
       '' | exited | dead)
         die "OcuTalon stopped before it was ready after $(fmt_time "$elapsed") (container state: ${state:-no container})." \
           "To read what happened, run:  docker compose logs iris" \
-          "The Troubleshooting section of README.md lists the usual causes and fixes." \
+          "The Troubleshooting section of GUIDE.md lists the usual causes and fixes." \
           "Nothing was removed: this script never removes a container, an image or a volume."
         ;;
     esac
     if [ "$elapsed" -ge "$max_wait" ]; then
       die "OcuTalon was not ready after $(fmt_time "$elapsed"), the longest this script waits." \
         "To read what is happening, run:  docker compose logs iris" \
-        "The Troubleshooting section of README.md lists the usual causes and fixes." \
+        "The Troubleshooting section of GUIDE.md lists the usual causes and fixes." \
         "Nothing was removed. The container (state: $state${health:+, health check: $health}) may still become ready later."
     fi
     if [ -n "$health" ]; then

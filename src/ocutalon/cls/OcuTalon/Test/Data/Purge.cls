@@ -8,7 +8,7 @@ Include %cspBuild
 ///     with one now for both purges, a turn and a delivery at exactly the cutoff stay and those one second before go, and every kept turn's decisions
 ///     exist after the bridge's purge;
 ///   - TestSessionKeptWhileActiveOrCurrent (matrix 4 to 6): a session with a Turn, Delivery or Decision at or after the cutoff, or current through a
-///     live CSP session, a pairing, an open approval, a watch, a pending reminder, a memory or a document, is kept; one with only an expired store entry, a finished approval
+///     live CSP session, a pairing, an open approval, a watch, a pending reminder, a webhook (Story 35.3), a memory or a document, is kept; one with only an expired store entry, a finished approval
 ///     or a reminder that is not pending is purged; a young session is kept, whatever its rows;
 ///   - TestSessionRowsGoWithIt (matrix 23, DW-581): the GuideState, SimMessage, BreakFeedRun and finished Reminder rows and the conversation link of a
 ///     purged session go with it and the bridge's purge of the same run finds its AI session unlinked; the same rows of a kept session stay, and a
@@ -152,6 +152,8 @@ Method TestSessionKeptWhileActiveOrCurrent()
 	Do ..Track($ClassMethod(fixture, "Approval", keep("an executing approval"), "", "executing"))
 	Set keep("a watch") = ..Session(91)
 	Do ..Track($ClassMethod(fixture, "Check", keep("a watch")))
+	Set keep("a webhook") = ..Session(91)
+	Do ..Track($ClassMethod(fixture, "Webhook", keep("a webhook"), "zz purge webhook "_$Random(1000000)))
 	Set keep("a pending reminder") = ..Session(91)
 	Do ..Track($ClassMethod(fixture, "Reminder", keep("a pending reminder"), "2030-01-01T10:00:00Z", "pending"))
 	Set keep("a memory") = ..Session(91)

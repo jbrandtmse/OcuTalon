@@ -4,75 +4,69 @@
 
 ## Goal
 
-Epic 0 is the walking skeleton. One image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start. It provides a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so the build lanes can work in parallel. Stories 0.1 to 0.24 are done. Epic 0 is re-opened again (lane B, after Story 0.24) for Story 0.25, a CI-tooling fix for DW-1099, which came back after 0.24. Story 0.24 added a guard in `docker/tests/lib-live.sh`: every guarded stack start waits up to 20 s for its web port, then retries once on the bind error. On ocutalon-ci-8 the guard still failed: it waited, retried once after 5 s and printed "FAIL web port: 127.0.0.1:52818 could not be bound after one retry". The likely cause, not proven, is that the previous unit's IRIS stack on the same runner was still shutting down, and a graceful IRIS shutdown can take well over the guard's 25 s or so. The goal is that the guard waits out a stack that is still shutting down, and that no unit's teardown can still be running when the next unit starts.
+A judge or developer builds one image, runs `docker compose up`, gets OcuTalon in its own OCUTALON namespace and signs in to its page; both build lanes get every cross-lane contract, every release-1 production item as a stub, and CI with the model mock, so they can work in parallel. Epic 0 has since been re-opened (SC-5) for small cross-cutting fixes that only it may make: start-up robustness, the root Dockerfile, CI group balance and port collisions, and the judges' README. The current re-open stories (0.26 to 0.30) make the README lead with the full video and the incident path, add a measured comparison of the agent against the fixed rules, and cut the README to about 2,000 words by moving install, feature and admin material word for word into a new GUIDE.md.
 
 ## Stories
 
-- Story 0.1: The image builds and starts OcuTalon in its own namespace (done)
-- Story 0.2: The package installs and upgrades itself at every start (done)
-- Story 0.3: Sign in to an empty OcuTalon page (done)
-- Story 0.4: The cross-lane message and data contracts (done)
-- Story 0.5: Live events and the REST skeleton (done)
-- Story 0.6: Every release-1 production item runs as a stub, beside the Orders production (done)
-- Story 0.7: CI runs on hosted runners and the IRIS runner, with the model mock (done)
-- Story 0.8: The demo-path test signs in and loads the page (done)
-- Story 0.9: The message catalog and its one renderer (done)
-- Story 0.10: The Orders demo production runs in OCUORDERS (done)
-- Story 0.11: The CI model mock answers every scenario the stories need (done)
-- Story 0.12: Epic 0 burn-down (done)
-- Story 0.13: A start retries the CPF merge when IRIS cannot quiesce (done)
-- Story 0.14: A start that recovers through the merge retry passes the live checks and the upgrade harness (done)
-- Story 0.15: The Dockerfile sits at the repository root (done)
-- Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction (done)
-- Story 0.17: The README's evaluation table shows release 1.0.4's numbers (done)
-- Story 0.18: The README shows judges where to look (done)
-- Story 0.19: The README names the contest (done)
-- Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget (done)
-- Story 0.21: The README opens with a centred header: logo, tagline and badges (done)
-- Story 0.22: The More to try panel shows its items under three group headings (done)
-- Story 0.23: The README header's logo and LICENSE badge link use absolute GitHub URLs (done)
-- Story 0.24: A test stack's web port can never collide with a port that is still being released (done)
-- Story 0.25: The web-port guard waits long enough for a stack that is still shutting down (backlog)
+- Story 0.1: The image builds and starts OcuTalon in its own namespace
+- Story 0.2: The package installs and upgrades itself at every start
+- Story 0.3: Sign in to an empty OcuTalon page
+- Story 0.4: The cross-lane message and data contracts
+- Story 0.5: Live events and the REST skeleton
+- Story 0.6: Every release-1 production item runs as a stub, beside the Orders production
+- Story 0.7: CI runs on hosted runners and the IRIS runner, with the model mock
+- Story 0.8: The demo-path test signs in and loads the page
+- Story 0.9: The message catalog and its one renderer
+- Story 0.10: The Orders demo production runs in OCUORDERS
+- Story 0.11: The CI model mock answers every scenario the stories need
+- Story 0.12: Epic 0 burn-down
+- Story 0.13: A start retries the CPF merge when IRIS cannot quiesce
+- Story 0.14: A start that recovers through the merge retry passes the live checks and the upgrade harness
+- Story 0.15: The Dockerfile sits at the repository root
+- Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction
+- Story 0.17: The README's evaluation table shows release 1.0.4's numbers
+- Story 0.18: The README shows judges where to look
+- Story 0.19: The README names the contest
+- Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget
+- Story 0.21: The README opens with a centred header: logo, tagline and badges
+- Story 0.22: The More to try panel shows its items under three group headings
+- Story 0.23: The README header's logo and LICENSE badge link use absolute GitHub URLs
+- Story 0.24: A test stack's web port can never collide with a port that is still being released
+- Story 0.25: The web-port guard waits long enough for a stack that is still shutting down
+- Story 0.26: The README leads with the full video and the incident path
+- Story 0.27: The measuring tools for the agent-versus-fixed-rules comparison (rules-only mode, held-out set, report)
+- Story 0.28: DW-1171: the Contest checklist gets a Video row; the For judges Usability row links the incident path and the full video
+- Story 0.29: The README's comparison of the agent and the fixed rules, filled from the committed rules-only report
+- Story 0.30: A shorter README for judges, with install, feature and admin material moved word for word to GUIDE.md
 
 ## Requirements & Constraints
 
-**The guard's new bounds (0.25).** This applies to every guarded start: `dc up`, `dc start` and `dc restart` with a web port, through `live_port_guard` and `live_port_wait_free`.
-- When the port is in use, wait up to 90 s for it to be free, polling every 3 s. Linux uses `ss -tan (every state but TIME-WAIT)`; 0.24's macOS equivalent stays for local runs.
-- When the start fails with exactly the bind error ("address already in use" or "failed programming external connectivity"), retry it up to twice, waiting again before each retry. After the second retry fails, print the same loud `FAIL web port: ...` line and return the failure.
-- Any other failure returns at once, with no retry.
-- Every guarded start that had to wait prints exactly one line, `waited N s for port P`, where N is the seconds waited and P is the port. The next ledger entry uses it to measure the wait.
-
-**Teardown is waited for.** Check every live script's teardown path: a foreground `dc down`, a background one, or one run from a trap. A unit's teardown must run in the foreground and finish before the next unit can start. A teardown that ran in the background or was not waited for must now be waited for, with a foreground `dc down` or a wait on its PID.
-
-**Out of scope.** No change to `ci/iris.sh`, the workflows or the release harnesses. Story 0.24's ephemeral-port option (publish `127.0.0.1::52773` and read the port back) stays out of scope. No test-logic change.
-
-**Invariants kept from 0.24.**
-- `OCUTALON_TEST_WEB_PORT` keeps working as an explicit override. The lanes' dev slots 52801 to 52804 and the lanes' throwaways depend on it.
-- The web port stays bound to 127.0.0.1 only.
-- The forbidden ports stay refused.
-
-**Tests.**
-- `docker/tests/test-lib-live.sh` runs with a stubbed docker and a fast clock or stubbed sleep, and passes with `docker/tests/test-boundaries.sh`.
-- Its rows pin the 90 s bound, the 3 s poll, the two retries followed by the loud FAIL, the `waited N s for port P` line, and no retry on any other error.
-- No existing row is deleted or weakened beyond what the new bounds replace.
-
-**Done means:**
-- On a lane-B throwaway, a port held for about 40 s by a listener is waited out: the start succeeds and logs the wait.
-- A port held for more than 90 s gets two retries, then the loud FAIL.
-- DW-1099 is resolved by this story again. DW-1100 (the FAIL line does not name what holds the port) and DW-1101 (step 5 of the install-script test is pinned only by a grep) keep their reopen condition: a CI log that shows "FAIL web port:".
-- Every workflow is green on the story's head.
+- **Install and start.** One image recipe; durable `%SYS` and databases on a named volume; a CPF merge at every start creates namespaces, databases and mappings before anything compiles; the after-start script always exits 0, logs the failing step, and writes the ready marker only on success. Upgrades happen in place with data unchanged. A merge is retried only on ERROR #453, a bounded number of times (`STEP merge RETRY <n> after #453`, then `STEP merge OK`).
+- **Judges' install stays clean.** No mock in the judges' compose file; no `docker push` or registry sign-in; the AI Hub image never enters a cache or artifact; no tracked local path or key-like string; runners never hold a model key (agent-side numbers come only from the Contest Planner's release-candidate run).
+- **CI budget.** Every IRIS group finishes well under 35 minutes; no new job or group unless packing cannot fit. Test pins move with their text, never get deleted or weakened. Every story ends with every workflow green.
+- **Test stacks.** Web ports bind to 127.0.0.1; `OCUTALON_TEST_WEB_PORT` stays an explicit override; the port guard waits up to 90 s, then prints `FAIL web port: …`.
+- **Public text is ruled.** README, GUIDE, EXPERIENCE and any user-visible string go to the Contest Planner as PUBLIC TEXT at the spec gate, and nothing of them is committed before the ruling; ruled text is committed verbatim, never reworded to satisfy a check. `.github/workflows/*` and `release/**` hunks are RELEASE TOOL items for the Planner before merge. The README claims only what ships, keeps every number's source, stays plain English (no class names or error codes outside developer sections), credits BMAD and Claude Code, and keeps the OpenClaw not-affiliated note. Link hosts stay within `test-readme.sh`'s allow-list.
+- **0.26 (order and video).** Near the top: the full video (https://youtu.be/HIyCG5E6-JQ, "One incident, approved from a phone, traced", 3:04), its MP4 on the v1.0.6 release asset, the 35-second teaser as secondary link, the video in the link bar. Order: the checkable incident path, then "What's interesting", then "New since 1.0.0" grouped interop first, personas, reminders and the digest last. No feature removed, no claim added.
+- **0.27 (measuring tools; lane B, worktree `epic-0b`).** A rules-only evaluation mode scores every case with the product's no-model fallback (no model, no key), in CI in the existing evaluation group with most headroom. A held-out set of about 12 cases, expected answers committed in 6af31dab (never rebased or amended), structure checked by `docker/tests/test-eval-set.sh`. `eval/compare.mjs` sets agent and rules-only results side by side per case and in total, including unsafe outcomes; the rules-only report it reads is committed under `eval/results/`.
+- **0.28 (DW-1171).** Contest checklist: a ruled `Video` row right after "Online demo" (full video, MP4 `https://github.com/jbrandtmse/OcuTalon/releases/download/v1.0.6/ocutalon-1.0.6.mp4`, teaser `https://youtu.be/wycbyfnXFMU`). The For judges Usability row's first sentence becomes the ruled sentence linking `#one-incident-end-to-end` and the full video and naming the More to try count ("fifteen", "sixteen" once Story 35.3 is in), pinned against the catalog. The anchor and link-200 check is a networked script run from `release/checklist.sh`, not in per-push `CHECK_SCRIPTS`.
+- **0.29 (comparison, variant R on feature).** A new H3 at the end of "Measured": ruled paragraph (main and held-out sets apart, held-out commit linked), ruled headers, seven ruled rows (including "Items that needed you now but weren't told now", counted over all cases, which `compare.mjs` reports), ruled sentence under the table; "What changes without the agent?" becomes the ruled pointer. Every fixed-rules cell comes from the committed rules-only report, and a README test checks the column equals it. "never used for tuning" and "measured at release 1.0.8" never reach main (variant F is the Planner's release fork's).
+- **0.30 (shorter README).** README.md keeps: header, tagline, badges, lead paragraph, video lines, first screenshot; "Try it in two minutes" (link bar, demo paragraph, 4 numbered steps whose "(...)" links now point into GUIDE.md); "For judges: where to look"; "One incident, end to end"; "What's interesting" with the Visual Trace screenshot; "Measured" (with 0.29's comparison once landed); "Contest checklist"; "Credits and licences". "New since 1.0.0" keeps its heading with a pointer of at most 2 sentences; the only other new prose is a closing "More" paragraph of at most 4 lines linking GUIDE.md's main sections. `wc -w README.md` about 2,000, at most 2,300 (it was 6,373). GUIDE.md, titled `# OcuTalon guide: install, features and administration`, holds byte for byte except links: the "New since 1.0.0" body; What you can use it for; How you talk to it; What OcuTalon does; Install it yourself (all subsections); Set a model key; Sign in; Telegram; Stop, start and update; Troubleshooting; For admins and developers (Repository layout, Tests and CI). README links into GUIDE.md are absolute `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#<anchor>`; relative links inside GUIDE.md are fine; every anchor in both files resolves and the link check covers GUIDE.md. `test-readme.sh` pins follow their text to its new file, add the word cap, find GUIDE.md and a README link to it, and keep every registry-driven count (sixteen and fifteen, the 0.28 rows). Release-tool and repository-layout checks accept GUIDE.md at the root. No app code, demo guide or catalog text changes.
 
 ## Technical Decisions
 
-- **Throwaway stacks.** Destructive and CI tests run only in throwaway compose projects (`docker compose -p <name>` with the CI override), never on a developer instance. Every live script and release harness starts its stack through `dc` in `lib-live.sh`, so the guard is the one place the fix goes. `ci/iris.sh` runs the IRIS units on the runner and on a developer machine.
-- **CI hosts.** ci-b holds runners 3 to 8, ci-c runners 9 to 14, and ci-d runners 15 to 20. Each runner has its own fixed web port (52810 + n or 52819 - n), so the previous unit on the same runner is the likely holder.
-- **Gates.** CI log message text is internal, so there is no PUBLIC TEXT gate. A hunk in `.github/workflows/*.yml` or `release/**` would be a RELEASE TOOL item for the Contest Planner, but this story makes none.
-- **Never weaken checks.** Never delete or weaken a rule or self-test. Shell test scripts stay ASCII-only and run on bash 3.2 with BSD or GNU tools; for example, BSD `head -n 0` fails, so use `awk`.
-- **Lane ownership.** Epic 0 may edit files from any lane in one story. Never write a local absolute path into a tracked file.
+- **Evaluation set.** Cases live under `eval/<case>/` (`case.json` with `name`, `kind`, `heldOut`, `description`, `snapshot`, `expectation`, `recordedBy`; recorded reader snapshots). Runs go through the product path via `EvalIn` (enabled only by `OCUTALON_EVAL=1`) with fresh `ItemId`s and the recorded id as `SourceItemId`; owner `eval` writes no notification, delivery or live event. The release-candidate run (`eval/run.sh --release-candidate`, Claude Haiku 5.5) writes `eval/release-candidate.json` (`ocutalon.evalResult/1`) and `.md`.
+- **Fixed-rules fallback.** Without a usable model reply, an item becomes `tellnow` flagged fallback; an incident is grouped by fixed rules (production item plus error pattern), with no cause claimed, no fix proposed, nothing acted on. The rules-only mode scores exactly this.
+- **CI.** `ci/iris.sh` runs IRIS units in throwaway compose projects; `ci/units.sh` defines groups; `IRIS_GROUPS`, the `ci.yml` matrix and `ci/iris.sh groups` must agree. The CI mock picks scenarios by marker, guide prompt, then `MOCKKEY`, never by wording.
+- **Ownership.** The README, `docker/` and the rest of `ci/` are Lane B's files; `eval/`, `OcuTalon.Eval` and `release/` are Lane A's; Epic 0's re-open stories cross both by ruling. Root layout: `src/`, `web/`, `eval/`, `docker/`, `ci/`, `docs/`, `release/`, `install.sh`, `Dockerfile`, `docker-compose.yml`, `.env.example`; GUIDE.md joins the root in 0.30. Section links use `https://github.com/jbrandtmse/OcuTalon#<anchor>` (`README_URL` in `web/src/app/links.ts`); the rail links the README's `#telegram` section.
+
+## UX & Interaction Patterns
+
+- The README is a judge's first stop: "Try it in two minutes" at the top with the online demo link, centred header (logo by absolute raw URL, badges), link bar, "For judges: where to look", Contest checklist naming the contest. Video and Visual Trace links open in a new tab.
+- The More to try panel's item count (fifteen, sixteen after Story 35.3) is stated in the README's Usability row and must match the registry.
 
 ## Cross-Story Dependencies
 
-- **Builds on** Story 0.24 (the guard: `live_port_guard`, `live_port_wait_free`, `live_bind_error`, and its hermetic rows in `test-lib-live.sh`), Story 0.14 (`lib-live.sh` checks for the live tests and the upgrade harness) and Story 0.7 (CI on the IRIS runner).
-- **Sequenced after 0.24.** 0.25 runs on lane B.
-- **The failure that reopened DW-1099:** run 42943118887, job 130269395421, iris (shards) `live:online-allowance` on ocutalon-ci-8. dockerd on ci-b logged the bind error at 02:21:35 and again at 02:21:44, and nothing held 52818 when it was checked at 02:45Z.
-- **Known flakes.** Other inherited CI flakes (for example DW-973, DW-774, DW-689 and DW-1026) can turn a run red without a cause in this story. Classify them; do not change the story to work around them.
+- Order on lane A: 0.26 → 0.28 → 0.29 (after 0.27 merges, since it reads 0.27's committed rules-only report); 0.30 after 0.28, its plan may start at once, its implement waits for the Planner's PUBLIC TEXT ruling. 0.27 runs on lane B in `.worktrees/epic-0b` (branch `OCT-epic0b`).
+- 0.30 moves text that 0.26, 0.28 and 0.29 placed: "Measured" (with 0.29's H3) and the Contest checklist stay in README.md; if 0.29 lands after 0.30, its H3 still goes in the README's "Measured".
+- The More to try count in 0.28 and 0.30 depends on Story 35.3; whichever merges second sets it.
+- The agent half of the comparison waits for the 1.0.8 release-candidate evaluation (the Planner's release fork); 0.26 and 0.28 had to make the 1.0.8 cut.

@@ -9,8 +9,14 @@ Include Ensemble
 ///      call with FAILED, and Check logs one redacted warning that names the tool and its source. Nothing leaves %CanExecute.
 ///   2. The classification by (source, name) (ClassificationOf), which only the exact values safe and risky give, with the flags READONLY and
 ///      TRUSTEDOUTPUT that steps 4 and 5 read:
-///        - a toolref that starts mcp: is an MCP call. Its source is the toolref, and only the ClassificationClass extension classifies it:
-///          no class parameter and no ToolClassification entry is read for it, so an MCP tool never takes a built-in's classification;
+///        - a toolref that starts mcp: is an MCP call, and so is a toolref that is the JSON configuration of an MCP tool (a JSON object whose type starts
+///          mcp:; AI Hub hands the configuration text as the toolref of such a tool, measured in Story 22.8). Its source is the toolref, and only the
+///          ClassificationClass extension classifies it, by one question, ClassifyMcp(source, name, fingerprint), where the fingerprint is the one that the
+///          turn's MCP map holds for the tool (Context.McpFingerprint; the runner builds the map before Chat from the tool manager that serves the request).
+///          No class parameter and no ToolClassification entry is read for it, so an MCP tool never takes a built-in's classification. The answer is the
+///          classification, a readOnly flag and whether the tool's server is registered. A tool with no fingerprint in the map, no classification, an
+///          unclassified one, a classification given for another fingerprint or a malformed answer is unclassified. safe with readOnly 1 is read-only, and
+///          risky is risky. An MCP classification is never trusted output, so an allowed MCP call taints the turn. Annotations such as readOnlyHint are never read;
 ///        - any other call has the source metadata.origin_class. The code of that class decides first: its [ Internal ] class method
 ///          Classify<NAME>(arguments), else Classify(arguments), else its parameter CLASSIFICATION<NAME>, else CLASSIFICATION, where NAME is
 ///          the tool's name in upper case with _ and - removed (StepBuffer.ToolParameter). What code declares is final, so a setting or an
@@ -21,12 +27,16 @@ Include Ensemble
 ///          origin_class or with an mcp: toolref is not a RagCall;
 ///        - anything else is unclassified, which counts as risky.
 ///      Nothing in the call, its metadata, its arguments (except as the input of a code Classify method) or the context classifies it.
+///      A toolref whose server the extension does not register (registered 0) is denied at once with UNREGISTERED, right after the classification and before
+///      the permissions, the provenance and taint rule, the hold and the replay step: no approval request, no turn.step and no taint, and the replay of an
+///      approved call to a server that was removed is denied alike.
 ///   3. The permissions: for each resource:permission pair of the tool's RESOURCES parameter (Resources, the one bridge parser), one
 ///      $SYSTEM.Security.CheckUserPermission call per permission letter for the ServiceUser setting of Decide. The first missing pair denies
 ///      the call with NOPRIVILEGE. A tool that declares no resources needs no check.
 ///   4. Provenance and taint: the turn is untrusted when the Provenance of the context is not exactly user, and tainted when its Tainted is not
 ///      0. In an untrusted or tainted turn a call runs only when its classification is safe and its readOnly is 1: every other call (a safe
-///      tool that is not read-only, a risky tool even if it is read-only, an unclassified tool and an MCP tool) is denied with UNTRUSTED, fires
+///      tool that is not read-only, a risky tool even if it is read-only and an unclassified tool; an MCP tool runs only when the extension says
+///      safe and readOnly 1) is denied with UNTRUSTED, fires
 ///      no turn.step and never reaches step 5, so no approval request can come from it. This holds for every request kind.
 ///   5. The result of a replay context (the Kind of the context is tool: Replay.Run, the approved call of an approval request, StartExecution done):
 ///      the call runs only when it matches the grant that the replay built from the executing row (Context.TakeGrant: the name, the hash of the
@@ -56,7 +66,7 @@ Include Ensemble
 ///      trustedOutput of the classification is 1, because the tool's result reaches the model. So the next call, even in the same model
 ///      response, sees the taint. A denied call never taints, and an error status from Put denies the call with FAILED.
 /// Trusted output is output that code builds from OcuTalon's own records and that holds no text from outside a user's untainted turn. The
-/// gate reads no flag from MCP: FromExtension keeps readOnly and trustedOutput at 0.
+/// gate reads trustedOutput from no MCP answer (it is 0), and readOnly only from the extension's answer for a tool that is safe (FromMcp).
 /// An allowed call fires turn.step through Decide.FireEvent to the HostSinkClass setting of Decide, owned by the session of the context, with
 /// the payload HostSink.TurnStepPayload(DecisionRef, label) and the tool's step label. A denied call fires nothing. A sink that fails is logged
 /// and never changes the decision. The gate never modifies the call, except for the top_k of the knowledge-base call (RagCall). It takes no lock itself: only Raise's lock on the new request's Ref, for a
@@ -78,6 +88,9 @@ Parameter HELD = "held for your approval; nothing was run.";
 Parameter NOPRIVILEGE = "the service user lacks the privilege {privilege} that this tool needs, so nothing was run.";
 
 Parameter FAILED = "the check of this tool call failed, so nothing was run.";
+
+/// The sentence for an MCP call whose server the extension does not register (removed, or never registered). Nothing was run.
+Parameter UNREGISTERED = "this tool's MCP server is not registered, so nothing was run.";
 
 /// The sentence for a call that is not both safe and read-only in a turn that holds content that did not come from the user (untrusted or tainted). The
 /// model describes the action to the user as an offer, which never becomes an approval request by itself.
@@ -163,6 +176,7 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 	Set replay = (context.Kind = ..#REPLAYKIND)
 	If replay && (source = "") Set source = ##class(OcuTalon.Bridge.Context).GrantSource()
 	Set classification = ..ClassificationOf(source, name, ..ArgumentsOf(call))
+	If classification.%Get("unregistered") = 1 Quit ..Denial(..#UNREGISTERED)
 	Set missing = ..MissingPrivilege(source, name)
 	If missing '= "" Quit ..Denial($Replace(..#NOPRIVILEGE, "{privilege}", missing))
 	Set tainted = $Select(replay: 0, 1: context.Tainted)
@@ -305,13 +319,14 @@ ClassMethod ClampIn(arguments As %DynamicObject) As %Boolean [ Private ]
 }
 
 /// The classification of the tool name of the source: {"classification","readOnly","trustedOutput","by"}, where classification is safe, risky or
-/// "" (unclassified), the flags are 1 or 0, and by is code, setting, extension or "". arguments is the call's arguments, an object or a JSON
+/// "" (unclassified), the flags are 1 or 0, and by is code, setting, extension or "". An MCP source whose server the extension does not register
+/// also has "unregistered": 1 (Decision denies it). arguments is the call's arguments, an object or a JSON
 /// string, and is read only as the input of a code Classify method; "" means none. It throws for a malformed ToolClassification setting, a
-/// ClassificationClass that is not usable, arguments that are not JSON and an exception of a code Classify method.
+/// ClassificationClass that is not usable, arguments that are not JSON, an exception of a code Classify method and an exception of ClassifyMcp.
 ClassMethod ClassificationOf(source As %String, name As %String, arguments As %RegisteredObject = "") As %DynamicObject
 {
 	If (source = "") || (name = "") Quit ..Unclassified()
-	If ..IsMcp(source) Quit ..FromExtension(source, name)
+	If ..IsMcp(source) Quit ..FromMcp(source, name)
 
 	Set hook = ..HookFor(source, name)
 	If hook '= "" {
@@ -401,8 +416,8 @@ ClassMethod ReportStep(context As OcuTalon.Bridge.Context, source As %String, na
 	Do ##class(OcuTalon.Bridge.Process.Decide).FireEvent(sinkClass, context.OwnerRef, context.DecisionRef, ##class(OcuTalon.Bridge.Ext.HostSink).#TURNSTEP, ##class(OcuTalon.Bridge.Ext.HostSink).TurnStepPayload(context.DecisionRef, label))
 }
 
-/// The classification that the ClassificationClass extension gives for the source and name (the gate gives it no arguments), or the
-/// unclassified result. It throws when the setting names a class that is not usable.
+/// The classification that the ClassificationClass extension gives for the class source and name (the gate gives it no arguments), or the
+/// unclassified result. An MCP source is asked through FromMcp. It throws when the setting names a class that is not usable.
 ClassMethod FromExtension(source As %String, name As %String) As %DynamicObject [ Private ]
 {
 	Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("ClassificationClass", , , .sc)
@@ -410,6 +425,33 @@ ClassMethod FromExtension(source As %String, name As %String) As %DynamicObject 
 	Set value = $ClassMethod(class, "Classify", source, name)
 	If '..Valid(value) Quit ..Unclassified()
 	Quit ..Classified(value, 0, 0, "extension")
+}
+
+/// The classification of an MCP tool (AD-10): ClassifyMcp of the ClassificationClass extension, asked for the source (the toolref), the name and the fingerprint
+/// that the turn's MCP map holds for the tool, "" when it holds none. An answer whose registered is exactly 0 is unregistered (the bridge's default never
+/// says 0); an answer that is not an object, the answer "" included, is unclassified. A registered or readOnly member that is neither a number nor a
+/// boolean makes the whole answer unclassified. With no fingerprint the tool is unclassified, whatever the answer says. Otherwise safe with readOnly 1 is
+/// read-only, safe with any other readOnly is safe, and risky is risky; trustedOutput is 0 and by is extension. Any other classification, and any other
+/// shape of answer, is unclassified. It throws when the setting names a class that is not usable or when ClassifyMcp
+/// throws, and Check then denies the call with FAILED.
+ClassMethod FromMcp(source As %String, name As %String) As %DynamicObject [ Private ]
+{
+	Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("ClassificationClass", , , .sc)
+	If $$$ISERR(sc) $$$ThrowStatus(sc)
+	Set fingerprint = ##class(OcuTalon.Bridge.Context).McpFingerprint(source, name)
+	Set answer = $ClassMethod(class, "ClassifyMcp", source, name, fingerprint)
+	If '..IsObject(answer) Quit ..Unclassified()
+	Set type = answer.%GetTypeOf("registered")
+	If type '= "unassigned" {
+		If (type '= "number") && (type '= "boolean") Quit ..Unclassified()
+		If answer.%Get("registered") = 0 Quit {"classification": "", "readOnly": 0, "trustedOutput": 0, "by": "", "unregistered": 1}
+	}
+	Set type = answer.%GetTypeOf("readOnly")
+	If (type '= "unassigned") && (type '= "number") && (type '= "boolean") Quit ..Unclassified()
+	If fingerprint = "" Quit ..Unclassified()
+	Set classification = answer.%Get("classification")
+	If (answer.%GetTypeOf("classification") '= "string") || '..Valid(classification) Quit ..Unclassified()
+	Quit ..Classified(classification, (classification = ..#SAFE) && (answer.%Get("readOnly") = 1), 0, "extension")
 }
 
 /// The entry of the ToolClassification setting of Decide for exactly the class and the tool, or "". It throws unless the whole setting is
@@ -522,10 +564,20 @@ ClassMethod IsObject(value As %RegisteredObject) As %Boolean [ Private ]
 	Quit $IsObject(value) && ($ClassName(value) = "%Library.DynamicObject")
 }
 
-/// 1 when the toolref or the source starts mcp: (in any case).
+/// 1 when the toolref or the source is that of an MCP tool: it starts mcp: (in any case), or it is the JSON configuration of an MCP tool, a JSON object whose
+/// type is a string that starts mcp: (Story 22.8's Task 0: AI Hub hands the configuration text as the toolref of a tool added in that form).
 ClassMethod IsMcp(toolref As %String) As %Boolean [ Private ]
 {
-	Quit $ZConvert($Extract(toolref, 1, $Length(..#MCPPREFIX)), "L") = ..#MCPPREFIX
+	If $ZConvert($Extract(toolref, 1, $Length(..#MCPPREFIX)), "L") = ..#MCPPREFIX Quit 1
+	If $Extract($ZStrip(toolref, "<W"), 1) '= "{" Quit 0
+	Set mcp = 0
+	Try {
+		Set spec = {}.%FromJSON(toolref)
+		If ..IsObject(spec) && (spec.%GetTypeOf("type") = "string") Set mcp = ($ZConvert($Extract(spec.type, 1, $Length(..#MCPPREFIX)), "L") = ..#MCPPREFIX)
+	} Catch {
+		Set mcp = 0
+	}
+	Quit mcp
 }
 
 /// 1 when the value is exactly safe or exactly risky.

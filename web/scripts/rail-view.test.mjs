@@ -17,7 +17,7 @@ const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, heartbeatReadKey
 const { countdownText, pageWhen } = await import(app('chat', 'page-time.ts'));
 const { DECISION_TEXTS, confidenceText, formatCost, outcomeOf, reasonLines } = await import(app('chat', 'decision-view.ts'));
 const { CHAT_TEXTS, NOTICE_TEXTS } = await import(app('chat', 'chat-view.ts'));
-const { README_URL } = await import(app('links.ts'));
+const { GUIDE_URL, README_URL } = await import(app('links.ts'));
 const { applyEvents, fromSnapshot } = await import(app('live', 'live-store.ts'));
 
 /** Thursday 22 October 2026, 14:13:30 UTC. */
@@ -118,6 +118,7 @@ describe('the fixed strings', () => {
         expires: 'expires {when}',
         checkTitle: '{name} production',
         checkSchedule: 'Live, plus a check every minute',
+        checkScheduleQueues: 'A check every minute',
         lastRun: 'Last run {when}',
         lastRunLate: 'Last run {when} (late)',
         titleWithCountdown: '{text}{separator}{countdown}',
@@ -138,9 +139,10 @@ describe('the fixed strings', () => {
     assert.equal(format().separator, ' \u00B7 ');
   });
 
-  it('link the README\'s Telegram section in place of #readme', () => {
+  it('link the guide\'s Telegram section, and a README section in place of #readme', () => {
     assert.equal(TELEGRAM_ANCHOR, 'telegram');
-    assert.equal(readmeSection(README_URL, TELEGRAM_ANCHOR), 'https://github.com/jbrandtmse/OcuTalon#telegram');
+    assert.equal(readmeSection(GUIDE_URL, TELEGRAM_ANCHOR), 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#telegram');
+    assert.equal(readmeSection(README_URL, 'measured'), 'https://github.com/jbrandtmse/OcuTalon#measured');
     assert.equal(readmeSection('https://example.test/r', 'x'), 'https://example.test/r#x');
   });
 });
@@ -382,6 +384,17 @@ describe('background checks', () => {
     assert.equal(rows[0].detail, 'Live, plus a check every minute');
     assert.equal(rows[1].detail, undefined);
     assert.equal(rows[0].kind, 'check');
+  });
+
+  it('names the queue-backlog check by its display name alone, with the schedule "A check every minute", its last run and result, and its trace link (Story 23.7, AC9)', () => {
+    const queue = check('q1', { kind: 'queues', namespace: '', production: '', displayName: 'Queue-backlog check', finding: '1 queue over its threshold', result: 'failed', traceUrl: '/trace/q1' });
+    assert.equal(checkTitle(queue), 'Queue-backlog check');
+    const row = section(viewOf({ checks: [queue] }), 'checks').rows[0];
+    assert.equal(row.title, 'Queue-backlog check');
+    assert.equal(row.detail, 'A check every minute');
+    assert.deepEqual(row.meta, ['Last run 14:13', '1 queue over its threshold']);
+    assert.equal(row.traceUrl, '/trace/q1');
+    assert.equal(row.kind, 'check');
   });
 
   it('shows the last run and the finding: "Last run 14:13 \u00B7 50 new failures"', () => {

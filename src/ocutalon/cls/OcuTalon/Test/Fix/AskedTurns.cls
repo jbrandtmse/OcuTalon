@@ -1,18 +1,21 @@
 /// End-to-end tests of propose_fix through the Chat agent (Story 23.2; AD-1, AD-10, AD-15, AD-16, NFR-14). THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), fresh (the
 /// production's jobs must hold the new code), with demo mode on, through Test.Watch.Case and the CI mock as the model: each test drives a real turn of the Chat agent through
-/// Decide (RunnerFixture.Run) with the REAL CommandsIn, IncidentManager and FixExecutor, for a session that has a Session row and an incident on the Orders production in
-/// OCUORDERS, and reads what the production wrote. The mock's marker scenarios are propose-fix-reroute, propose-fix-suspend, propose-fix-undo and propose-fix-injected.
+/// Decide (RunnerFixture.Run) with the REAL CommandsIn, IncidentManager and FixExecutor, for a session that has a Session row and, unless its entry
+/// says otherwise, an open incident on the Orders production in OCUORDERS, and reads what the production wrote. The mock's marker scenarios are propose-fix-reroute, propose-fix-suspend, propose-fix-undo, propose-fix-undo-closed and propose-fix-injected.
 ///   - TestRerouteTurn (AC1, AC10, AC-S2): "Reroute the failed orders to OrdersForReview." with [[mock:propose-fix-reroute]] for a session whose incident holds three real failed
 ///     orders: the one tool step is ok, one fix request of kind reroute is pending, fixed to the three orders, the incident is awaiting approval, the model's next request carries
 ///     ok, outcome raised, the kind, the item and the request's Ref, WebChatOut records the session's approval Delivery for it, and a second session has none and no request;
 ///   - TestSuspendTurn (AC1): a suspend of OrdersToWarehouse raises one suspend_item request with the item's id as its target, and the item is as it was;
-///   - TestUndoTurn (AC6): with OrdersToWarehouse disabled, two turns that ask to resume it raise exactly one resume_item request: the model reads raised, then no_incident (the incident waits for approval, and IncidentManager's own already_asked is Test.Fix.Asked's);
+///   - TestUndoTurn (AC6): with OrdersToWarehouse disabled, two turns that ask to resume it raise exactly one resume_item request: the model reads raised, then no_incident with others listing the incident as awaiting_approval (IncidentManager's own already_asked is Test.Fix.Asked's);
 ///   - TestInjectedTurn (AC9): in an untrusted turn (propose-fix-injected) the propose_fix step is denied with UNTRUSTED, no command reaches CommandsIn or IncidentManager and no
 ///     request is raised;
 ///   - TestOtherSessionsIncident (AC-S2): a second session that has no incident of its own asks to reroute while the first session's noticed incident holds real failed orders: the answer is
 ///     nothing, no request exists for the first session's incident, no FixRun and no copy, and the originals are unchanged;
 ///   - TestOtherSessionsIncidentOnlineDemo (AC-S2, QA): the same with the public flag onlineDemo on (the demo and a local install are both named by the AC);
-///   - TestNoIncident (AC-S4): a session with no incident of its own is told there is nothing to reroute, and nothing is raised.
+///   - TestNoIncident (AC-S4): a session with no incident of its own is told there is nothing to reroute, and nothing is raised;
+///   - TestUndoClosedTurn (Story 23.9, DW-1186): a session whose only incident is closed asks to resume an item (propose-fix-undo-closed): the model reads no_incident with
+///     others empty, the scripted reply (AssertTurn) is the one that names the Management Portal, the instruction behind it is Test.Agent.Instructions:TestChat's, and
+///     nothing is raised.
 Class OcuTalon.Test.Fix.AskedTurns Extends OcuTalon.Test.Watch.Case
 {
 
@@ -94,6 +97,10 @@ Method TestUndoTurn()
 			Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 			Set seen = {}.%FromJSON($List(results, $ListLength(results)))
 			Do $$$AssertEquals(seen.outcome, $Select(turn = 1: "raised", 1: "no_incident"), "turn "_turn_": the model reads "_$Select(turn = 1: "raised", 1: "no_incident: the incident waits for approval")_": "_seen.%ToJSON())
+			If turn = 2 {
+				Set others = $Select($IsObject(seen.others): seen.others, 1: []), busy = others.%Get(0)
+				Do $$$AssertEquals(others.%Size()_"|"_$Select($IsObject(busy): busy.state, 1: ""), "1|awaiting_approval", "and others lists the incident that waits for approval")
+			}
 		} Else {
 			Do $$$AssertEquals(requests.%Size(), 2, "turn "_turn_": the mock logged two requests")
 		}
@@ -198,6 +205,29 @@ Method TestNoIncident()
 		Do $$$AssertEquals(seen.ok_"|"_seen.outcome_"|"_seen.message, "0|nothing|None of the incident's failed messages can be rerouted now, so no request was raised.", "the model reads that there is nothing to reroute, plainly")
 	}
 	Do $$$AssertEquals(..Approvals(a), 0, "and nothing is raised")
+}
+
+/// Story 23.9 (DW-1186): a resume ask from a session whose only incident is closed is answered no_incident with others empty, which is the case where the instructions have the model name the Management Portal.
+Method TestUndoClosedTurn()
+{
+	If '..Ready() Quit
+	If '..PointKeys() Quit
+	If '..UseReal() Quit
+	Set a = ..Session("closed")
+	// the session's only incident is closed, as a dismiss leaves it, and propose_fix names only open and resolved incidents
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ..Fixture(a, "1", ..#ORDERS, ..#ORDERSPRODUCTION, "h", {"State": "closed", "OpenVariant": "rejected", "NoticedAt": (now), "ClosedAt": (now)})
+	Set before = ..ItemStates()
+	Set sc = ..Turn("user", "Undo the suspend. [[mock:propose-fix-undo-closed]]", a, .request, .answer, .turnSession, .requests)
+	If '..AssertTurn(sc, answer, request, "That incident is closed. You can enable the item again on the production's configuration page in the Management Portal.", 1) Quit
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
+	If requests.%Size() = 2 {
+		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
+		Set seen = {}.%FromJSON($List(results, $ListLength(results)))
+		Do $$$AssertEquals(seen.ok_"|"_seen.outcome_"|"_$Select($IsObject(seen.others): seen.others.%Size(), 1: "none"), "0|no_incident|0", "the model reads no_incident with others empty: "_seen.%ToJSON())
+	}
+	Do $$$AssertEquals(..Approvals(a), 0, "and nothing is raised")
+	Do $$$AssertEquals(..ItemStates(), before, "and no item changed")
 }
 
 /// --- helpers ---

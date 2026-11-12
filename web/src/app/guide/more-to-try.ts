@@ -79,6 +79,8 @@ let panels = 0;
               <p class="look-for">{{ item.lookFor }}</p>
               @if (item.action === 'documents' && !sampleFirst()) {
                 <a class="button button-secondary" routerLink="/documents" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
+              } @else if (item.action === 'webhooks') {
+                <a class="button button-secondary" routerLink="/settings/channels" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
               } @else if (item.action === 'usage' || item.action === 'history') {
                 <a class="button button-secondary" [routerLink]="'/' + item.action" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
               } @else {
@@ -86,8 +88,8 @@ let panels = 0;
                   type="button"
                   class="button button-secondary"
                   data-guide-focus="moreItem"
-                  [attr.aria-disabled]="(item.action === 'memory' || item.action === 'reroute' || item.action === 'partnerWarning') && blocked() ? 'true' : null"
-                  [attr.aria-describedby]="item.action === 'memory' || item.action === 'reroute' || item.action === 'partnerWarning' ? describedBy() : null"
+                  [attr.aria-disabled]="(item.action === 'memory' || item.action === 'reroute' || item.action === 'partnerWarning' || item.action === 'queueWatch') && blocked() ? 'true' : null"
+                  [attr.aria-describedby]="item.action === 'memory' || item.action === 'reroute' || item.action === 'partnerWarning' || item.action === 'queueWatch' ? describedBy() : null"
                   (click)="press(item)"
                 >{{ sampleFirst() && item.action === 'documents' ? documentsTexts.sample : item.button }}</button>
               }
@@ -259,6 +261,11 @@ export class MoreToTry {
       case 'partnerWarning':
         if (!this.blocked()) {
           this.outbox.send(MORE_TO_TRY_TEXTS.partnerPrompt);
+        }
+        break;
+      case 'queueWatch':
+        if (!this.blocked()) {
+          this.outbox.send(MORE_TO_TRY_TEXTS.queuePrompt);
         }
         break;
       case 'demoView':

@@ -32,6 +32,31 @@ ClassMethod Post(input As %RegisteredObject, Output output As %String) As %Statu
 }
 
 /// The roles of the signed-in user: the test's, when it set them.
+/// The submit of SaveChannels: an error status, as a production that does not take the command, when ^OcuTalonTest("ApiProbe", "submit") is "fail";
+/// otherwise the real one.
+ClassMethod SubmitChannels(command As OcuTalon.Msg.Command.SaveSettings, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	If $Get(^OcuTalonTest("ApiProbe", "submit")) = "fail" Quit $SYSTEM.Status.Error(5001, "zz the production is not running")
+	Quit ##super(command, .result)
+}
+
+/// The submit of SignInMail (Story 21.3): it records the command's Action, PageOrigin and ActingUser under ^OcuTalonTest("ApiProbe", "signin") and answers from
+/// ^OcuTalonTest("ApiProbe", "signinResult"): "fail" is an error status, "none" answers no result, and otherwise a CommandResult whose Ok, Outcome and Data are the
+/// pieces of the text "<ok>|<outcome>|<data>" (the default is 1|started|{"url":"https://zz.example/start"}).
+ClassMethod SubmitSignIn(command As OcuTalon.Msg.Command.MailSignIn, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Set result = ""
+	Set ^OcuTalonTest("ApiProbe", "signin") = command.Action_"|"_command.PageOrigin_"|"_command.ActingUser_"|"_command.SessionRef
+	Set answer = $Get(^OcuTalonTest("ApiProbe", "signinResult"), "1|started|{""url"":""https://zz.example/start""}")
+	If answer = "fail" Quit $SYSTEM.Status.Error(5001, "zz the production is not running")
+	If answer = "none" Quit $SYSTEM.Status.OK()
+	Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+	Set result.Ok = $Piece(answer, "|", 1)
+	Set result.Outcome = $Piece(answer, "|", 2)
+	Set result.Data = $Piece(answer, "|", 3, *)
+	Quit $SYSTEM.Status.OK()
+}
+
 ClassMethod Roles() As %String [ Private ]
 {
 	If $Data(^OcuTalonTest("ApiProbe", "roles")) Quit ^OcuTalonTest("ApiProbe", "roles")

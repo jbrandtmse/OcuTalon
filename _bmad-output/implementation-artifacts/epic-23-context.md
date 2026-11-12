@@ -4,47 +4,63 @@
 
 ## Goal
 
-Make an incident more useful after its first fix: close it with a written, code-built summary the user can read and share; let OcuTalon contain or route around a failure (suspend, resume, reroute), each behind a dry run and one approval and undoable the same way; and let it draft a delay notice to affected partners, sent only after the exact text and recipients are approved. For the voting-week re-plan (2026-11-09) only three stories are in scope, in this order: 23.6, 23.2, 23.5. None of them depends on Epic 36, and 23.5 no longer waits on Epics 21 and 22.
+Incidents get more governed fixes: suspend, resume and reroute, plus setting rollback later. Failures are linked to recent setting changes. The on-call person is paged, with escalation to a backup. Partner delay notices are drafted and sent only after approval. Every incident closes with a summary written by code. Queue backlog and saved SQL query watches report between digests (Could). Lane A owns the epic. It ships in the first daily release after it merges. The next story is 23.9, which makes sure an item OcuTalon suspended is never left disabled without a governed way back. It is in 1.0.8 if it is green on the feature branch by the cut, otherwise 1.0.9.
 
 ## Stories
 
-- Story 23.6: Write an incident summary when an incident closes (in scope, first)
-- Story 23.2: Suspend, resume and reroute with a dry run (in scope, second)
-- Story 23.5: Draft partner delay notices that are sent only after approval (in scope, third; amended to send through SimMailbox)
-- Story 23.3: Setting-change cause and rollback (out of scope: waits on Story 36.1)
-- Story 23.4: Paging and escalation (out of scope: waits on Story 36.2)
-- Story 23.7: Queue-backlog watch (out of scope, Could)
-- Story 23.8: Saved SQL query watch (out of scope, Could; waits on Story 36.2)
+- Story 23.2: Suspend, resume and reroute with a dry run (done)
+- Story 23.3: Name the setting change behind an incident and offer its rollback (waits on Story 36.1)
+- Story 23.4: Decide when to page the on-call person and when to escalate to the backup (waits on Story 36.2)
+- Story 23.5: Draft partner delay notices that are sent only after approval (done)
+- Story 23.6: Write an incident summary when an incident closes (done)
+- Story 23.7: Watch queue backlogs between digests (done)
+- Story 23.8: Watch a saved SQL query as a read-only SQL user (waits on Story 36.2)
+- Story 23.9: Resume a suspended item after its incident closes (next; option (b), ruled 2026-11-12)
+- Story 23.10: Partner notice and summary polish from the 1.0.7 demo pass (done)
+- Story 23.11: Say in a partner notice only how the incident ended (done)
 
 ## Requirements & Constraints
 
-- **Summary (23.6).** Written when an incident closes (Dismiss, replay, or 15 quiet minutes) and stored with the incident. It covers the timeline (first failure, notice, each request raised and answered, each fix started and finished, closing), cause and element at fault, evidence line and sample error, fix and result, each approval's answer (who, which channel, when), messages affected (failed, resent, completed, failed again, skipped) and model cost. Code builds it from the incident's rows and recorded diagnosis, with no new model request. Its cost must equal the sum of the usage rows of the incident's decisions. Fallback and no-fix incidents say that no cause was claimed or no fix ran, and list the failure groups. Closing sends one notification carrying the summary to the session's channels. A read-only chat tool returns it. Its evidence and sample error are untrusted, so the tool is not trusted output. Only the owning sessions can see it, and it is purged with its incident. Owner weighting: the summary must appear at the end of the online demo guide's incident.
-- **Suspend, resume, reroute (23.2).** The kind validates the model's parameters: the item exists in the watched production; a reroute target is a different, enabled item; the messages come from the failure group within the request's scope. The dry run changes nothing. For suspend and resume it records the item and its state before and after; for reroute, the count, current and new target, and one example. After approval each target is re-checked, and any that changed is skipped and reported. Reroute resends copies, leaves the originals unchanged, waits for each copy, and never retries a copy that fails again. Suspends and copies OcuTalon made are attributed to their fix, never reported as new failures or state changes. Undoing a suspend raises exactly one resume request with its own dry run. A rejection or expiry changes nothing and returns the incident to open.
-- **Partner notice (23.5, as amended).** The model drafts it through `Decide` from the count, times, affected flow and plain cause only, never a message body or setting value. It is raised as one extra request holding the exact text and exact recipients, which the dry run shows. Recipients must be admin-configured contacts for that production, checked when the request is raised and again before sending; a recipient removed in between is skipped and reported. Delivery goes through `Channel/SimMailbox/Out`, never `EmailOut`. Public text must never say or imply that a real email was sent; it says the notice went to the Simulated mailbox. With demo mode off (no SimMailbox), an approved notice is kept as an approved draft with a plain line saying email delivery isn't set up yet; a test pins this. The story's "no warning on the online demo" Given is superseded on the demo. Tests: with no approved row nothing is sent; an injected email asking to add an address uses no unconfigured address; the sent text matches the approved row byte for byte.
-- **Ledger items routed here.** DW-877 (under 23.6): `Watch.Msg.Failure` is a serial object without `%XML.Adaptor`, so a FailureBatch with failures cannot export as XML (ERROR #6249); add it (one line, no storage change). DW-823 (under 23.2): the good-message refusal (`RepairResend` GOODCHANGED) reuses `incident.noFix`, which reads loosely; give it its own precise catalog line (Planner wording of 2026-11-06).
-- Non-negotiables that apply: risky actions always wait for approval; no false all-clear; text claims only what happened (a result never claims a change that did not happen); cost is per decision or per incident, never per step.
+- **Incident hold for a suspend (ruled 2026-11-12, option (b)):**
+  - An incident that holds an active suspend is not closed by the 15-quiet-minutes close or by the replay close.
+  - It closes only by Dismiss, or by the quiet close once a resume has ended the hold.
+  - Dismiss always closes it.
+  - After a held incident is dismissed, `Checks` reports the still-disabled item once, at the suspend's time.
+  - Accepted limit: if the item is enabled by hand in the Management Portal, the incident stays held until Dismiss.
+- **Break the feed (demo mode):** it normally closes a resolved Orders incident first. It does not close one that still holds a suspend; it shows its hint instead.
+- **Resuming after close:** exactly one approval request with its own dry run is raised. The item is re-checked before the resume runs. A second session, or a user outside the incident's ownership scope, cannot resume it.
+- Every fix has a dry run that changes nothing, and it runs only after approval. Each undo (resume after a suspend, restoring a rolled-back value) is one approved action.
+- A copy or a suspend that OcuTalon made is attributed to its fix. It is never reported as a new failure or a new state change.
+- Partner notices go only to configured contacts, using the exact approved text. On the demo they go to the Simulated mailbox, and no text may imply that a real email was sent. A notice states only the outcome that OcuTalon's own records support.
+- Summaries are composed by code with no model request. The summary's cost is the sum of the incident's usage rows. Summaries are purged with their incidents.
+- The online demo is unchanged: suspend and resume stay refused there, and only reroute is offered.
 
 ## Technical Decisions
 
-- **One writer per table (AD-15, AD-33).** `IncidentManager` alone writes Incident and FailureGroup rows and publishes `incident` events. It should also be the writer of the summary, composed in its close path (`Command` and `Apply` through `Watch/Transitions.cls`). `IncidentManager.Purge`/`PurgeOne` already delete an incident's groups and FixRun rows in one transaction; the summary must be added there.
-- **Fix kinds (AD-16).** A kind is a class under `OcuTalon.Fix.Kind` with `NAME`, `PARAMETERS`, `RESOURCES` and `NOTALLOWED`, and it implements `DryRun`, `Recheck` and `Execute`. A kind exists only when it is listed in `Fix.Kind`'s `KINDS`. The executor loads kind, targets and change from the approved row only, checks `RESOURCES`, and switches namespace in exactly one method. Today that method is `Executor.Resend`, which is resend-shaped, so suspend and resume need it generalised, not a second `New $NAMESPACE`. The Kind contract says targets are header ids; item targets (23.2) and recipient targets (23.5) need that contract widened. The dry run is JSON in `ApprovalRequest.DryRun`, and each kind adds its own keys. FixResult fields are fixed (Total, Resent, Completed, FailedAgain, Skipped, Interrupted, Unreached, Reason); suspend and resume must map onto them honestly.
-- **Approvals (AD-11).** Raise with `Approval.Raise`, kind `fix`, through `ApprovalStartIn`. The row already records the answering action, channel, user and time (`AnsweredAction/Channel/By/At`), which is the summary's approval source. The incident's requests are in `Incident.RequestRefs`, its runs in `Data/FixRun.cls`.
-- **Cost (AD-20).** Use sums of `OcuTalon.Bridge.Data.Usage` rows by DecisionRef (the incident's diagnosis is `Incident.DecisionRef`; later diagnoses add more). Never estimate.
-- **Notifications (AD-32).** Producers never render. Every text is a catalog key in `Msg/Catalog/Watch.cls`, rendered by `*Out` through `Catalog.Render`. No summary, suspend, resume, reroute or partner key exists yet. Story 36.1 was to propose step 5 wording and is parked, so each story adds its own keys. AD-32's Kind list has no summary kind (gap below).
-- **Tools (AD-10, AD-22).** The summary tool's name goes into `Tools/Names.cls` and the CI mock scripts (`ci/mock/scenarios/A/`). The tool is read-only and not `TrustedOutput`. Chat-side asks (undo a suspend, ask for a partner warning) must reach `IncidentManager` as commands, following the `Tools/CommandCall.cls` pattern, so that the request is raised by its owner, never by the gate's `tool_call` replay.
-- **Security overview (AD-24, Epic 14).** `Install/SecurityOverview.cls` already lists every class from `Fix.Kind.Classes()` with its resources (`docs/security-overview.md`), and `Install/Step/Fix.cls` turns `RESOURCES` into the service role's grants. A new kind appears in both automatically. The resource that `Ens.Director.EnableConfigItem` needs is unmeasured (inference: `%Ens_ProductionConfig`), so it gets a Task 0 measurement.
-- **SimMailbox (AD-14).** `Channel/SimMailbox/Out.cls` accepts `OcuTalon.Msg.Outbound` only, and only for a session owner. It stores a `SimMessage` (Kind mailbox, Sender "OcuTalon") plus a `Delivery` row and publishes one mailbox event. The partner notice therefore lands in the approving session's Simulated mailbox. `SimMailbox/In.cls` and `Mail.cls` are the inbound side, and the injected-email test can use them.
+- **Incident ownership:** `IncidentManager` is the only writer of `Incident` and `FailureGroup` and the only publisher of `incident` events. Other parts ask it through `IncidentCommand` (`dismiss`, `closeQuiet`, `closeForReplay`), `ApprovalOutcome` or `FixResult`. Its unit test covers every transition-table row and every refused move.
+- **Transition table (2026-11-12 change):**
+  - `resolved` → `closed` on `dismiss`, or on `closeQuiet` / `closeForReplay` only while the incident holds no suspend.
+  - `open` (noticed) → `closed` on `dismiss`, or on `closeQuiet` only with demo mode off and no suspend held.
+- **Holds a suspend:** true while an item's newest item-kind run that changed it, in that production, is a `suspend_item` run of one of this incident's requests (`Fix.Run`).
+- **On every move into `closed`:** `Watch.Summary` composes the summary, it is stored in the same save, and the `summary` notification is sent.
+- **Fix kinds:**
+  - Kinds live under `OcuTalon.Fix.Kind` and implement `DryRun`, `Recheck` and `Execute`, each with a parameter schema.
+  - `Execute` carries only the `ApprovalRef`. `FixExecutor` trusts only the approved row: approved, not expired, not already executing (set atomically), and the service user holds the kind's `RESOURCES`.
+  - `suspend_item`, `resume_item` and `reroute` are chat-asked only (not `DIAGNOSED`), via `ProposeFix` → synchronous dry run → `Approval.Raise`.
+  - Their dry-run keys are `item`, `from`, `to` and `example`. Item kinds report one result per item.
+  - Suspend and resume run `Ens.Director.EnableConfigItem` from `FixExecutor`'s single namespace-switching method.
+- **Privileges:** a local install's service user holds `%Ens_ConfigItemRun:U`; the online-demo install does not. Rollback (Story 23.3) will declare `%Ens_ProductionConfig` WRITE.
+- **`partner_warning` kind:** has `MOVES` 0, so it never changes incident state. It is drafted through a self-sent `Watch.Msg.Draft` and a `Decide` turn, and has a `Ready` hook (with no delivery set up, the notice is kept as an approved draft).
+- Audit goes only through `OcuTalon.Bridge.Audit`. Text goes through `OcuTalon.Msg.Catalog` keys (AD-32). Tests go in `OcuTalon.Test.Fix`, `.Watch` and `.Checks`, with CI mock scenarios under `ci/mock/scenarios/A/`. New tool names are added to `OcuTalon.Tools.Names`.
 
 ## UX & Interaction Patterns
 
-- Each new fix uses the existing approval request card with its own dry run. A partner warning's card shows the exact text and every recipient. The incident card already shows a per-request result band and a Dismiss button for resolved or open incidents (`web/src/app/incidents/`).
-- **The demo guide** (`web/src/app/guide/`, server-derived by `Demo/Guide.cls`) has five steps (Watch, Reminder, Break the feed, Approve, Open the trace) and a "More to try" panel (`more-to-try*.ts`). The guide's incident ends `resolved`. With demo mode on, only Dismiss, Run again (`closeForReplay` from `Demo/BreakFeedIn.cls`) or 15 quiet minutes close it. So 23.6 must decide how the summary appears at the guide's end. The simplest consistent option is that the resolved card's Dismiss, or the finish state's prompt, closes the incident and shows the summary. Keep the demo-path e2e green.
+- Each fix uses the approval request card with its own dry run and result band. The `incident` payload's `Requests` carries `FixKind`, `Item` and `Count`.
+- A closed incident card is compacted to its headline and each request's result. While a suspended item is still suspended, it closes only by Dismiss (or after a resume).
+- The demo guide describes suspend and resume only as working "on your own install".
 
 ## Cross-Story Dependencies
 
-- **Already delivered on this branch.** Incidents and their transitions, notice and purge (Epics 5 and 30); the repair-and-resend fix path, `Fix/Executor.cls`, `Fix/Kind*.cls`, `Fix/Run.cls` and the FixRun rows (Epics 7 and 30); the security overview (Epic 14); SimMailbox (`Channel/SimMailbox/*`); tool names (`Tools/Names.cls`); and the demo guide with More to try (Epics 16, 31 and 39). Epics 5, 7, 14, 16, 30, 31 and 39 are done; Epics 21, 22 and 36 are in backlog.
-- 23.2's story wait on Epic 14 is met.
-- Story 23.4 (pages and acknowledgements) is out of scope. The summary's timeline should leave room for page lines but never fabricate them.
-- **Partner-contact source for 23.5 is still pending a ruling.** The partner-contact table belongs to Stories 36.2 and 24.2, both parked, and none exists on the branch. A test fixture is allowed. For the demo, a code-fixed contact for the Orders production in demo mode would be the simplest option (inference, needs the ruling).
-- **Reroute on the demo.** The Orders demo production has three items (`PartnerOrdersIn`, `OrdersFromPartner`, `OrdersToWarehouse`), so a valid reroute target there is narrow. A suspend on the shared demo instance could affect other visitors (inference), so keep UJ-1's demo incident on repair-and-resend.
-- Epic 28 (post-contest) depends on 23.6's summary.
+- Story 23.9 builds on 23.2's suspend and resume kinds and its `result.itemSuspended` text, which today limits the undo to an open incident. It also builds on 23.6's closing summary and on the heartbeat/`Checks` `closeQuiet` path.
+- Story 23.3 waits on Story 36.1 (setting history and spine names). Stories 23.4 and 23.8 wait on Story 36.2 (on-call keys, the acknowledgement verb, the save-SQL-query-watch verb). Stories 23.4 and 23.6 use the Watch area's `Purge(daysToKeep)` (Story 30.2).
+- Real email for partner notices through `EmailOut` is parked as a 23.5 follow-up under Epic 21.

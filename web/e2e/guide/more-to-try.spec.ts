@@ -16,6 +16,7 @@ import { blockLiveSocket } from '../support/socket';
  * because their downstream flows are pinned by the demo-path specs. K5 uses the real Persona card, and collapses it again.
  *   - K2 (matrix 1): the routed finish: the panel is open after the links and before Try it yourself, items 1 to 4 in order;
  *   - K28 (Story 25.2): the link of the history item opens the History page;
+ *   - K30 (Story 35.3): the link of the webhooks item opens Settings, Channels;
  *   - K3 (matrix 3, 10): every id of the registry: its items in order with their look-for lines, links to the Documents page for the documents and sources items, the link to the Usage page for the usage item, the Memory heading focused by the Memory card item and the Heartbeat checklist heading by the heartbeat item;
  *   - K4 (matrix 2): step 1: no panel, the link in the Tab order, Enter opens and Space closes it, focus stays on the link;
  *   - K5 (matrix 5): item 1 opens the Persona card's Change and focuses it, also in the drawer band, where the drawer opens first;
@@ -116,6 +117,12 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
       'This asks OcuTalon in the chat to warn the partner about an incident\'s delay, so it needs an incident that isn\'t closed: if you closed the guide\'s incident, do "Reject a fix" first. OcuTalon drafts a short notice from the incident\'s counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox.',
     button: 'Ask for a partner warning',
   },
+  queueWatch: {
+    label: 'Watch queue backlogs',
+    lookFor:
+      'This asks OcuTalon in the chat to watch the queue backlogs. Look for the Queue-backlog check under Background checks, with its schedule, last run and result. Every minute it reads the Orders production\'s queues, and when one holds more than 100 messages, or its oldest message has waited over 10 minutes, OcuTalon decides once whether to tell you. On a quiet demo it reads Passed. To stop, ask "Stop watching the queue backlogs."',
+    button: 'Ask to watch queues',
+  },
   demoView: {
     label: 'See the page as on your own install',
     lookFor: 'The demo guide, Break the feed and the Simulated devices are hidden, as on your own install. Turn Demo view back on in the top bar to return.',
@@ -156,6 +163,12 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
       'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
     button: 'Open the Usage page',
   },
+  webhooks: {
+    label: 'Send an event through a webhook',
+    lookFor:
+      'In Settings, Channels, create a webhook with a name and a secret of at least 16 characters. Then send it any JSON with POST to the address it shows, with the secret in the X-OcuTalon-Webhook-Secret header. On the History page, filter by the channel Webhook to read OcuTalon\'s decision on the event, with a link to its trace.',
+    button: 'Open Channels settings',
+  },
   // mutation: the registry's history look-for drops its last sentence ("If it reads "No decisions yet.", run the guide first.") -> K3 (the history item's look-for text) red.
   history: {
     label: 'Look back at past decisions',
@@ -172,7 +185,7 @@ const guideRegion = (page: Page): Locator => page.getByRole('region', { name: 'D
 const linkOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'More to try', exact: true });
 const panelOf = (page: Page): Locator => guideRegion(page).getByRole('group', { name: 'Other things to try', exact: true });
 const itemOf = (page: Page, id: string): Locator => panelOf(page).getByRole('listitem').filter({ has: page.getByText(ITEMS[id]!.label, { exact: true }) });
-const controlOf = (page: Page, id: string): Locator => itemOf(page, id).getByRole(id === 'documents' || id === 'sources' || id === 'usage' || id === 'history' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
+const controlOf = (page: Page, id: string): Locator => itemOf(page, id).getByRole(id === 'documents' || id === 'sources' || id === 'usage' || id === 'history' || id === 'webhooks' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
 const switchOf = (page: Page): Locator => page.getByRole('switch', { name: 'Demo view', exact: true });
 const breakButton = (page: Page): Locator => page.locator('app-break-feed-box app-server-button button');
 const hideOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'Hide guide', exact: true });
@@ -348,6 +361,7 @@ test('K3: every id shows its item in order, the documents and sources items are 
   await expect(controlOf(page, 'sources'), 'the sources item is a link to the same page').toHaveAttribute('href', /#\/documents$/);
   await expect(controlOf(page, 'usage'), 'the usage item is a link to the Usage page').toHaveAttribute('href', /#\/usage$/);
   await expect(controlOf(page, 'history'), 'the history item is a link to the History page').toHaveAttribute('href', /#\/history$/);
+  await expect(controlOf(page, 'webhooks'), 'the webhooks item is a link to Settings, Channels').toHaveAttribute('href', /#\/settings\/channels$/);
   await expect(controlOf(page, 'memoryCard')).toHaveAttribute('type', 'button');
   await controlOf(page, 'memoryCard').click();
   await expect(page.locator('#rail-heading-memory'), 'the Memory card item puts focus on the Memory heading').toBeFocused();
@@ -375,6 +389,17 @@ test('K28: the link of the history item opens the History page', async ({ page }
   await expect(page, 'at the address #/history').toHaveURL(/#\/history$/);
   await expect(page.getByRole('heading', { level: 1, name: 'History', exact: true }), 'the History page').toBeVisible();
   await expect(page, 'titled History').toHaveTitle('History \u00B7 OcuTalon');
+});
+
+/** K30 (Story 35.3; routed finish, every id): the webhooks item is in "Safety and settings" right after the heartbeat item, and its link opens Settings > Channels. */
+test('K30: the link of the webhooks item opens Settings, Channels', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openWith(page, finished(ALL));
+  const safety = ALL.filter((id) => MORE_TO_TRY_ITEMS.find((item) => item.id === id)!.group === 'Safety and settings');
+  expect(safety.indexOf('webhooks'), 'it follows the heartbeat item in its group').toBe(safety.indexOf('heartbeat') + 1);
+  await expect(controlOf(page, 'webhooks'), 'its control is named by its visible text').toHaveText('Open Channels settings');
+  await controlOf(page, 'webhooks').click();
+  await expect(page, 'at the address #/settings/channels').toHaveURL(/#\/settings\/channels$/);
 });
 
 /**

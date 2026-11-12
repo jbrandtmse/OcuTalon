@@ -45,7 +45,7 @@ const ONE_UPDATE_MS = 1000;
 /** How long a case waits for a card or a banner that a reloaded snapshot brings. */
 const LOADED_MS = 10_000;
 
-const TELEGRAM_README = 'https://github.com/jbrandtmse/OcuTalon#telegram';
+const TELEGRAM_GUIDE = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#telegram';
 
 /** The time of a snapshot's pause: 12:00 UTC, which the page shows as 17:30. */
 const SNAPSHOT_TIME = '2026-10-23T12:00:00Z';
@@ -65,7 +65,7 @@ function kolkata(iso: string): string {
 const bannerText = (time: string): string =>
   `Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at ${time}. Each OcuTalon needs its own bot.`;
 
-/** Asserts the paused banner: its text, and its one link to the README's Telegram section in a new tab. */
+/** Asserts the paused banner: its text, and its one link to the guide's Telegram section in a new tab. */
 async function expectBanner(page: Page, time: string, bound: number): Promise<void> {
   const one = bannerOf(page);
   await expect(one, 'the paused banner shows').toHaveCount(1, { timeout: bound });
@@ -73,7 +73,7 @@ async function expectBanner(page: Page, time: string, bound: number): Promise<vo
   const link = one.getByRole('link');
   await expect(link, 'with one link').toHaveCount(1);
   await expect(link, 'named Set up a bot, with the new-tab words').toHaveAccessibleName('Set up a bot (opens in a new tab)');
-  await expect(link, 'to the README\'s Telegram section').toHaveAttribute('href', TELEGRAM_README);
+  await expect(link, 'to the guide\'s Telegram section').toHaveAttribute('href', TELEGRAM_GUIDE);
   await expect(link).toHaveAttribute('target', '_blank');
 }
 
@@ -228,7 +228,7 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
         await expect.poll(async () => plain(await cardOf(page).innerText()), { message: `${one.label}: the card says so` }).toMatch(/^Telegram not set up How to set it up/);
         const link = railOf(page).getByRole('link', { name: 'How to set it up (opens in a new tab)', exact: true });
         await expect(link, `${one.label}: with its link`).toHaveCount(1);
-        await expect(link).toHaveAttribute('href', TELEGRAM_README);
+        await expect(link).toHaveAttribute('href', TELEGRAM_GUIDE);
         await expectNotPausedCard(page, ONE_UPDATE_MS);
         await expect(bannerOf(page), `${one.label}: no Telegram banner`).toHaveCount(0);
       }

@@ -1,0 +1,126 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "EVALFEED",
+    "production": "OcuTalon.Test.Eval.Feed",
+    "item": "ClaimsToBilling"
+  },
+  "failures": [
+    {
+      "headerId": 2,
+      "sessionId": 2,
+      "superSession": "EY-hTgFdX914d43TUnr2zA",
+      "timeCreated": "2026-11-12T10:49:37Z",
+      "timeProcessed": "2026-11-12T10:49:37Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToBilling",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "1",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7207: Datatype value '125,40' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.BillingClaim:Amount', with value equal to \"125,40\"",
+      "body": {
+        "ClaimId": "CL-7001",
+        "MemberId": "M-70001",
+        "ServiceDate": "2026-10-15",
+        "Amount": "125,40",
+        "PayerCode": "PAYER-A"
+      }
+    },
+    {
+      "headerId": 3,
+      "sessionId": 3,
+      "superSession": "EY-hTgFdX914d43TUnr2zA",
+      "timeCreated": "2026-11-12T10:49:37Z",
+      "timeProcessed": "2026-11-12T10:49:37Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToBilling",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "2",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7207: Datatype value '80,00' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.BillingClaim:Amount', with value equal to \"80,00\"",
+      "body": {
+        "ClaimId": "CL-7002",
+        "MemberId": "M-70002",
+        "ServiceDate": "2026-10-15",
+        "Amount": "80,00",
+        "PayerCode": "PAYER-A"
+      }
+    },
+    {
+      "headerId": 4,
+      "sessionId": 4,
+      "superSession": "EY-hTgFdX914d43TUnr2zA",
+      "timeCreated": "2026-11-12T10:49:37Z",
+      "timeProcessed": "2026-11-12T10:49:37Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToBilling",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "3",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7207: Datatype value '310,25' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.BillingClaim:Amount', with value equal to \"310,25\"",
+      "body": {
+        "ClaimId": "CL-7003",
+        "MemberId": "M-70003",
+        "ServiceDate": "2026-10-16",
+        "Amount": "310,25",
+        "PayerCode": "PAYER-B"
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "20",
+      "timeLogged": "2026-11-12T10:49:37Z",
+      "type": "Error",
+      "configName": "ClaimsToBilling",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 2,
+      "text": "ERROR #7207: Datatype value '125,40' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.BillingClaim:Amount', with value equal to \"125,40\""
+    },
+    {
+      "id": "23",
+      "timeLogged": "2026-11-12T10:49:37Z",
+      "type": "Error",
+      "configName": "ClaimsToBilling",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 3,
+      "text": "ERROR #7207: Datatype value '80,00' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.BillingClaim:Amount', with value equal to \"80,00\""
+    },
+    {
+      "id": "27",
+      "timeLogged": "2026-11-12T10:49:37Z",
+      "type": "Error",
+      "configName": "ClaimsToBilling",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 4,
+      "text": "ERROR #7207: Datatype value '310,25' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.BillingClaim:Amount', with value equal to \"310,25\""
+    }
+  ],
+  "items": [
+    {
+      "name": "ClaimsToBilling",
+      "className": "OcuTalon.Test.Eval.Feed.Intake",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {}
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "2",
+      "type": "Request",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToBilling",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "status": "Error",
+      "timeCreated": "2026-11-12T10:49:37Z",
+      "isError": false
+    }
+  ]
+}

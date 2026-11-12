@@ -16,6 +16,8 @@ import type {
   DocumentsList,
   EventsResponse,
   GuideMarker,
+  MailSignInChecked,
+  MailSignInStarted,
   MailboxAccepted,
   MailboxEmail,
   MessageAccepted,
@@ -27,6 +29,9 @@ import type {
   SettingsSaved,
   StateSnapshot,
   UnpairDone,
+  WebhookCreated,
+  WebhookSecretSaved,
+  WebhooksList,
 } from './api-types';
 import type { HistoryDecisionsResponse, HistoryFilters, HistoryIncidentsResponse } from './history-types';
 import type { HeartbeatPut, HeartbeatSaved, HeartbeatState } from './heartbeat-types';
@@ -62,11 +67,42 @@ export class ApiClient {
   }
 
   /**
+   * The signed-in admin's webhooks (Story 35.3): a GET that answers 200 `{webhooks: [{ref, name, path, createdAt}]}`. A 403 (not an admin) and a 409
+   * `not_available` (the online demo) fail as an HttpErrorResponse whose `error` is the body.
+   */
+  webhooks(): Observable<WebhooksList> {
+    return this.http.get<WebhooksList>(`${BASE}/settings/channels/webhooks`);
+  }
+
+  /**
+   * Creates a webhook: a POST of `{name, secret}` that answers 200 with the new webhook. The secret is sent once and never comes back. A 400 `bad_webhook`
+   * (with `fields`), a 403, a 409 and a 500 fail as an HttpErrorResponse.
+   */
+  createWebhook(name: string, secret: string): Observable<WebhookCreated> {
+    return this.http.post<WebhookCreated>(`${BASE}/settings/channels/webhooks`, { name, secret });
+  }
+
+  /** Replaces a webhook's secret: a POST of `{secret}` that answers 200 `{result, message}`. A 404 for a webhook that is not the admin's fails as an HttpErrorResponse, as the others do. */
+  setWebhookSecret(ref: string, secret: string): Observable<WebhookSecretSaved> {
+    return this.http.post<WebhookSecretSaved>(`${BASE}/settings/channels/webhooks/${encodeURIComponent(ref)}/secret`, { secret });
+  }
+
+  /**
    * Tests the saved first model of one agent: a POST of `{agent}` that answers 200 `{answered, seconds, reason}` (Story 18.3). The call can take most of
    * 45 seconds. A 400 `bad_settings` (an agent the server refuses), a 403 and a 500 fail as an HttpErrorResponse.
    */
   testModel(agent: string): Observable<ModelTestAnswer> {
     return this.http.post<ModelTestAnswer>(`${BASE}/settings/models/test`, { agent });
+  }
+
+  /**
+   * Starts or checks the mailbox's OAuth2 sign-in (Story 21.3): a POST of `{action}` that answers 200 `{result: 'started', url}` for `start` and
+   * `{result: 'checked', signedIn}` for `check`. A 400 `bad_settings` (nothing registered), a 403, a 409 and a 500 fail as an HttpErrorResponse.
+   */
+  signInMail(action: 'start'): Observable<MailSignInStarted>;
+  signInMail(action: 'check'): Observable<MailSignInChecked>;
+  signInMail(action: 'start' | 'check'): Observable<MailSignInStarted | MailSignInChecked> {
+    return this.http.post<MailSignInStarted | MailSignInChecked>(`${BASE}/settings/channels/sign-in`, { action });
   }
 
   /**

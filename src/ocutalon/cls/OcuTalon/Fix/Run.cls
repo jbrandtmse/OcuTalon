@@ -30,6 +30,10 @@ Include Ensemble
 /// item ends the suspension; a run that changed nothing neither starts nor ends one. Checks does not raise a disabled-item finding for such an item while it stays disabled from the suspend (Checks.Process Findings, which keeps the names it has sighted in Reported "ours"), and a disable by anyone else
 /// after the item was enabled by anyone else is reported. Given since (the time of the previous check), fresh lists the items whose suspending run ended at or after it, so that a
 /// second suspend by OcuTalon of an item that someone else enabled in between is not taken for a disable by anyone else. It reads the rows by SQL and writes nothing.
+/// The hold and released (Story 23.9; AD-15). An item's current suspension is its newest changing item-kind run when that is a suspend_item. holders is a %DynamicObject from each item that is
+/// suspended now to the IncidentRef of the run that suspended it, and Holds answers whether an incident is the holder of any item of its namespace and production: the incident is then held,
+/// and the transition table does not close it on its own (Watch.Transitions holds). released is a %DynamicObject from each item whose current suspension is a run of a closed incident to that
+/// run's EndedAt; such an item is not in names or fresh, so that Checks reports it as disabled once, at that time (Checks.Process Findings), when it was in the previous check's "ours".
 /// The seams Unended (the runs with no EndedAt), Started (the start of the production), Statuses (the read of the copies, Executor.Read), Close (FinishExecution) and WriteAudit (the audit write)
 /// are class methods that a test subclass overrides (Test.Fix.RunProbe). Fix.Run switches no namespace (AD-3): the only read of the production is Watch.Reader, through Executor.Read.
 Class OcuTalon.Fix.Run Extends %RegisteredObject
@@ -58,9 +62,11 @@ Parameter LOGSWEPT = "Fix.Run ended the run of request ";
 
 /// The items that OcuTalon suspended in the production (see the class description), as a list of names in the order they were suspended; fresh holds those of them whose
 /// suspending run ended at or after since, to the second (none when since is empty).
-ClassMethod Suspended(namespace As %String, production As %String, since As %String = "", Output fresh As %List) As %List
+ClassMethod Suspended(namespace As %String, production As %String, since As %String = "", Output fresh As %List, Output holders As %DynamicObject, Output released As %DynamicObject) As %List
 {
 	Set fresh = ""
+	Set holders = {}
+	Set released = {}
 	Set kinds = ""
 	Set classes = ##class(OcuTalon.Fix.Kind).Classes()
 	Set position = 0
@@ -71,7 +77,7 @@ ClassMethod Suspended(namespace As %String, production As %String, since As %Str
 	Set marks = ""
 	For i = 1:1:$ListLength(kinds) Set marks = marks _ $Select(marks = "": "", 1: ",") _ "?"
 	Set suspend = $Parameter("OcuTalon.Fix.Kind.SuspendItem", "NAME")
-	Set statement = "SELECT a.FixKind, a.FixParameters, r.EndedAt FROM OcuTalon_Data.FixRun r JOIN OcuTalon_Bridge_Data.ApprovalRequest a ON a.Ref = r.ApprovalRef JOIN OcuTalon_Data.Incident i ON i.Ref = r.IncidentRef WHERE i.Namespace = ? AND i.Production = ? AND a.State = 'done' AND r.Completed > 0 AND a.FixKind IN ("_marks_") ORDER BY r.ID"
+	Set statement = "SELECT a.FixKind, a.FixParameters, r.EndedAt, r.IncidentRef, i.State FROM OcuTalon_Data.FixRun r JOIN OcuTalon_Bridge_Data.ApprovalRequest a ON a.Ref = r.ApprovalRef JOIN OcuTalon_Data.Incident i ON i.Ref = r.IncidentRef WHERE i.Namespace = ? AND i.Production = ? AND a.State = 'done' AND r.Completed > 0 AND a.FixKind IN ("_marks_") ORDER BY r.ID"
 	Set args = 2 + $ListLength(kinds)
 	Set args(1) = namespace
 	Set args(2) = production
@@ -79,6 +85,7 @@ ClassMethod Suspended(namespace As %String, production As %String, since As %Str
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, statement, args...)
 	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, rs.%Message))
 	Set names = ""
+	Set closed = ##class(OcuTalon.Watch.Transitions).#CLOSED
 	While rs.%Next() {
 		Set item = ""
 		Try {
@@ -91,13 +98,39 @@ ClassMethod Suspended(namespace As %String, production As %String, since As %Str
 		Set inFresh = $ListFind(fresh, item)
 		If rs.%GetData(1) = suspend {
 			If 'at Set names = names _ $ListBuild(item)
+			Set holder(item) = $ListBuild(rs.%GetData(4), rs.%GetData(5), rs.%GetData(3))
 			If (since '= "") && (rs.%GetData(3) '= "") && '(since ] rs.%GetData(3)) && 'inFresh Set fresh = fresh _ $ListBuild(item)
 		} Else {
+			Kill holder(item)
 			If at Set names = $List(names, 1, at - 1) _ $List(names, at + 1, *)
 			If inFresh Set fresh = $List(fresh, 1, inFresh - 1) _ $List(fresh, inFresh + 1, *)
 		}
 	}
+	Set item = ""
+	For {
+		Set item = $Order(holder(item))
+		If item = "" Quit
+		Do holders.%Set(item, $List(holder(item), 1))
+		If $List(holder(item), 2) '= closed Continue
+		Do released.%Set(item, $List(holder(item), 3))
+		Set at = $ListFind(names, item)
+		If at Set names = $List(names, 1, at - 1) _ $List(names, at + 1, *)
+		Set inFresh = $ListFind(fresh, item)
+		If inFresh Set fresh = $List(fresh, 1, inFresh - 1) _ $List(fresh, inFresh + 1, *)
+	}
 	Quit names
+}
+
+/// 1 when the incident holds a suspend: it is the holder (see the class description) of an item of its namespace and production. Reads through Suspended and writes nothing.
+ClassMethod Holds(incident As OcuTalon.Data.Incident) As %Boolean
+{
+	Do ..Suspended(incident.Namespace, incident.Production, "", , .holders)
+	Set held = 0
+	Set iterator = holders.%GetIterator()
+	While iterator.%GetNext(.key, .ref) {
+		If ref = incident.Ref Set held = 1
+	}
+	Quit held
 }
 
 /// Marks each run that the restart cut short and closes its request (see the class description). problems is a dynamic array of one text for each problem, each naming the request.

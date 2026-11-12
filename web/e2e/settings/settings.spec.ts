@@ -682,15 +682,20 @@ test('S11: Send my digest now is busy, then shows the confirmation, and a failed
   }
 });
 
-/** S12: the Channels section shows the Telegram state that /v1/state holds and nothing to edit: no Save button, no field, no token. */
+/** S12: the Channels section shows the Telegram state that /v1/state holds and nothing to edit in it: no button, no field, no token (the Email group below it has its own form, Story 21.2). */
 test('S12: the Channels section shows the state of Telegram, read only', async ({ page }) => {
   await openSection(page, 'Channels');
   const state = (await (await page.request.get('/ocutalon/api/v1/state')).json()) as { telegram: { included: boolean; state: string }; status: { condition?: string; active?: boolean }[] };
   const telegram = state.telegram;
   const pausedNow = state.status.some((one) => one.condition === 'telegramPaused' && one.active === true);
   await expect(page.getByText("This part of OcuTalon isn't built yet."), 'the section is built').toHaveCount(0);
-  await expect(saveButton(page), 'it has no Save button').toHaveCount(0);
-  await expect(page.getByRole('textbox'), 'and no field, so no token can be entered').toHaveCount(0);
+  const telegramBlock = page.locator('.telegram');
+  await expect(telegramBlock.getByRole('textbox'), 'the Telegram block has no field, so no token can be entered').toHaveCount(0);
+  await expect(telegramBlock.getByRole('button'), 'and no button').toHaveCount(0);
+  await expect(page.locator('app-email-section').getByRole('textbox'), 'the Email group\'s fields are its address, two servers, user name and password (Stories 21.2 and 21.6)').toHaveCount(5);
+  const hookFields = await page.locator('app-webhooks-section').getByRole('textbox').count();
+  expect(hookFields, 'the Webhooks group has at least its Name and Secret fields (Story 35.3)').toBeGreaterThanOrEqual(2);
+  await expect(page.getByRole('textbox'), 'and the section has no other field').toHaveCount(5 + hookFields);
   const notSetUp = page.getByText('Telegram not set up', { exact: true });
   const paused = page.getByText('Telegram paused', { exact: true });
   const on = page.getByText('Telegram on', { exact: true });
@@ -702,7 +707,7 @@ test('S12: the Channels section shows the state of Telegram, read only', async (
   } else if (telegram.state === 'off' || telegram.state === 'rejected') {
     await expect(notSetUp, 'a bot that is not set up shows that').toBeVisible();
     const link = page.getByRole('link', { name: 'How to set it up' });
-    await expect(link, 'with the README link').toHaveAttribute('href', /#telegram$/);
+    await expect(link, 'with the guide link').toHaveAttribute('href', /\/GUIDE\.md#telegram$/);
     await expect(link, 'that opens in a new tab').toHaveAttribute('target', '_blank');
   } else {
     await expect(on, 'a bot that is on shows that').toBeVisible();
