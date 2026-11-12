@@ -2,7 +2,7 @@
 title: 'Story 0.30: A shorter README for judges, with the install, feature and admin material moved word for word to GUIDE.md'
 type: 'feature'
 created: '2026-11-12'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -31,16 +31,19 @@ deferred: []
   - `## More`;
   - "Contest checklist";
   - "Credits and licences", with the not-affiliated note.
-- The 0.28 Usability and Video rows stay as ruled. "sixteen ... fifteen" stays as it is, `(#new-since-100)` included: README keeps that heading.
+- The 0.28 Usability and Video rows stay as ruled. "sixteen ... fifteen" stays as it is, except one link target (Planner Edit 1, 2026-11-12 ~13:00Z): the Usability row's "[New since 1.0.0](#new-since-100)" points at `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#new-since-100`, visible text unchanged. README still keeps its `### New since 1.0.0` heading (with the pointer).
+- [AMENDED 2026-11-12, Contest Planner rulings Q1-Q3 (owner's delegation, ~13:00Z): condition 5 of the brief is amended only as far as these go] Q1: `web/src/.../links.ts` gets `GUIDE_URL = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md'`; the banner-stack install and set-a-key links, the Telegram card link and the settings channels-section link point at `GUIDE_URL#install-it-yourself`, `#set-a-model-key` and `#telegram`; no visible text changes; EXPERIENCE.md's "(README)" becomes "(GUIDE.md)" on those rows only. Q2: the three install.sh lines read exactly "The Troubleshooting section of GUIDE.md lists the usual causes and fixes." Q3 (RELEASE TOOL, approved): in `release/notes.sh:79` and `release/checklist.sh:474`, "the README's two commands" becomes "the guide's two commands", nothing else.
+- GUIDE.md is in every scan README.md is in (Planner condition 1): test-boundaries' must-scan list and test-readme's link, anchor and ALLOWED_HOSTS checks, each proven by one mutation on GUIDE.md.
 - Moved text is byte-identical to the pre-story README except for link targets (the method is in Design Notes). Kept text changes only in link targets.
 - Every README link to a moved heading is an absolute URL, `https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#<anchor>`. A GUIDE link to a kept README heading is the relative `README.md#<anchor>`.
-- `wc -w README.md` is at most 2,300 (about 1,855 now, about 2,105 with 0.29's H3).
-- The README and GUIDE text is exactly the text the Planner rules at the PUBLIC TEXT gate. The draft is the plan's scratch drafts: `README.new.md`, `GUIDE.new.md` and `report.txt`.
+- `wc -w README.md` is at most 2,300 (about 1,855 now, about 2,105 with 0.29's H3); the cap counts 0.29's H3 when it lands, and if 0.29 lands first its H3 sits under "## Measured" before "## More" (Planner conditions 2 and 4).
+- The README and GUIDE text is exactly the text the Planner ruled at the PUBLIC TEXT gate (APPROVED 2026-11-12 ~13:00Z): the plan's scratch drafts `README.new.md` and `GUIDE.new.md` with exactly two ruled edits, Edit 1 above and Edit 2 (GUIDE, "Tests and CI": "among them the check of this README" becomes "among them the check of the README", a ruled hand edit the byte-identity check allows on that one line). "With a model, and without one" stays out of README.
 - Shell stays ASCII, bash 3.2 and BSD/GNU safe, and hermetic.
 
 **Never:**
-- Commit any part of README.md or GUIDE.md before the Planner's ruling.
-- Change app code (`web/src/**`, `src/**`), the demo guide or catalog text, `install.sh`, `release/**`, `.github/**`, `ci/**`, `_bmad/**` or `eval/**`, unless the Clarification Needed rulings say otherwise.
+- Change any README or GUIDE text beyond the ruled drafts and the two ruled edits.
+- Change app code (`web/src/**`, `src/**`), the demo guide or catalog text, `install.sh`, `release/**`, `.github/**`, `ci/**`, `_bmad/**` or `eval/**`, beyond exactly the Q1-Q3 lines ruled above (the link targets and `GUIDE_URL` in Q1's four web files, Q2's three install.sh lines, Q3's two release lines).
+- Weaken any pin, or add README anchors (Q1 option B) or land the app links at the README top (option C).
 - Retype moved text.
 - Keep the byte-identity check as a permanent rule. It pins a one-time move, so a later ruled edit of GUIDE text (Story 0.29's pointer) would fail it.
 - Delete, skip or weaken any existing pin.
@@ -84,6 +87,11 @@ deferred: []
   - Q1: `web/src/app/banners/banner-stack.ts:21-31`, `rail/rail-view.ts:68,177`, `rail/telegram-card/telegram-card.ts:197` and `settings/channels-section.ts:96`; the e2e specs `banners.spec.ts:42-44`, `rail.spec.ts:118,489`, `settings.spec.ts:710` and `telegram-page.spec.ts:48`; EXPERIENCE.md L937-943 ("(README)").
   - Q2: `install.sh:373,389,396` and `docker/tests/test-install-script.sh:255`.
   - Q3: `release/notes.sh:79`, `release/checklist.sh:474`, `docker/tests/test-release-notes.sh:330` and `test-release-checklist.sh:816`.
+- Ruled changes (Q1-Q3, lead-verified at 53edce70):
+  - Q1: `web/src/app/links.ts` (add `GUIDE_URL` beside `README_URL`, L5); `web/src/app/banners/banner-stack.ts:29-31` (`installUrl`, `setKeyUrl` and `telegramUrl`: all three anchors move, so all three use `GUIDE_URL`); `web/src/app/rail/telegram-card/telegram-card.ts:197`; `web/src/app/settings/channels-section.ts:96`. `readmeSection(url, anchor)` lives at `web/src/app/rail/rail-view.ts:177`: make sure it yields `GUIDE_URL + '#' + anchor` for a URL without a hash (extend it, or add a sibling, Rule 2; record which). Untouched: `about/about-dialog.ts:108` and `guide/demo-guide.ts:634` link the README top (`README_URL`), which stays. EXPERIENCE.md L937-943: "(README)" becomes "(GUIDE.md)" on those rows only. Pins that follow: `product-links` in test-readme.sh (it must now prove GUIDE.md has `install-it-yourself`, `set-a-model-key` and `telegram` as heading slugs, so a renamed GUIDE heading goes red), `web/scripts/allowance-sources.test.mjs:52`, and the e2e specs `banners.spec.ts:42-44`, `rail.spec.ts:118,489`, `settings.spec.ts:710`, `telegram-page.spec.ts:48`.
+  - Q2: `install.sh:373,389,396`; pins `docker/tests/test-install-script.sh:255` and test-readme's `install-pointer`.
+  - Q3 (RELEASE TOOL, approved): `release/notes.sh:79`, `release/checklist.sh:474`; pins `docker/tests/test-release-notes.sh:330`, `test-release-checklist.sh:816`.
+- Extra AC (Planner, Q3): notes and checklist rows that extract moved text. Lead sweep at 53edce70 (`git grep` over `release/`, `ci/`, `install.sh`, `docker/*.sh`, `.github/`): NO row of `release/notes.sh` or `release/checklist.sh` extracts text from README.md that moves. `NOTES_DEV_HEADING='## For admins and developers'` (notes.sh:77, used at L419 and L684) is the heading of the release-notes draft itself (`names_outside_section` scans the draft, not the README). The README readers are `note-readme` (checklist.sh:159, the not-affiliated note, stays in README) and `product-name` (checklist.sh:199-202, README line 1, stays). The IPM commands' registry run is a manual RC step (text only, Q3). So: no row is re-pointed at GUIDE.md; the implement stage re-runs this sweep, and if it finds a row that does extract moved text, that row reads GUIDE.md with one test proving it finds its text after the move. In either case, add one test each for `note-readme` and `product-name` run on the post-move tree (they still find their text in README.md, and fail if it is moved to GUIDE.md), so the move is proven harmless to them. Note for the Planner, not changed (beyond the approved hunk): the manual `public-links` row text (checklist.sh:104) says "the README's clone command", which moves to GUIDE.md; the Planner opens every GUIDE link at the RC.
 - No change needed:
   - `release/checklist.sh` rows: `note-readme` (the note stays in README), `product-name` (README line 1), `readme` (it runs test-readme.sh) and `name-only-in-note` (GUIDE.md never names the inspiration).
   - `docker/tests/check-readme-video.sh`: it reads only the README's Video row, which stays.
@@ -112,7 +120,12 @@ deferred: []
   - The "New since 1.0.0" readers read GUIDE.md's `## New since 1.0.0`.
   - The README count sentence stays on README.md.
   - more-to-try's "Incident summaries" assertion reads GUIDE.md.
-- Q1/Q2/Q3 files: only per the ruling (see Clarification Needed).
+- [Planner] Apply Edit 1 (README Usability row: `(#new-since-100)` → `(https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#new-since-100)`, visible text unchanged) and Edit 2 (GUIDE "Tests and CI": "among them the check of this README" → "among them the check of the README") after the extraction. Allow exactly Edit 2's line in the byte-identity check (Edit 1 is a link target, which the check already normalises). Update `judges-usability`'s `USE_TAIL` (test-readme.sh L247) to the new link target.
+- [Q1] `links.ts` `GUIDE_URL`; the four links in banner-stack.ts (3), telegram-card.ts and channels-section.ts use it (Code Map); EXPERIENCE.md's "(README)" → "(GUIDE.md)" on those rows only; `product-links`, `allowance-sources.test.mjs` and the e2e pins follow, and `product-links` proves the three anchors are GUIDE.md heading slugs (mutation: rename GUIDE's `## Telegram` → `product-links` red).
+- [Q2] The three install.sh lines read exactly "The Troubleshooting section of GUIDE.md lists the usual causes and fixes."; `test-install-script.sh:255` and `install-pointer` follow.
+- [Q3, RELEASE TOOL approved] "the README's two commands" → "the guide's two commands" in `release/notes.sh:79` and `release/checklist.sh:474`, nothing else; `test-release-notes.sh:330` and `test-release-checklist.sh:816` follow. Extra AC: re-run the Code Map's sweep for notes/checklist rows that extract moved text; re-point any you find at GUIDE.md with one test each; add the `note-readme` and `product-name` post-move tests (Code Map). List the rows in the spec's Verification.
+- [Condition 1] GUIDE.md in every scan README.md is in: `test-boundaries.sh` must-scan list (L131) and test-readme's link (`readme-links`), anchor and `ALLOWED_HOSTS` checks; one mutation each on GUIDE.md proving it is scanned (a home-folder path in GUIDE → test-boundaries red; a broken `#x` in GUIDE → `readme-links` red; a link to a host outside `ALLOWED_HOSTS` in GUIDE → red). Do not edit the `ALLOWED_HOSTS=` line itself (release/checklist.sh's no-outward allowance pins it whole); scanning GUIDE.md with it needs no edit to that line.
+- [Conditions 2, 4] `word-cap` counts README.md whole (0.29's H3 included when it lands); if 0.29 has landed first, its H3 stays under "## Measured", before "## More".
 
 **Acceptance Criteria:**
 - Given README.md after the story, when `bash docker/tests/test-readme.sh` runs, then `top`, `word-cap` and `guide` pass:
@@ -129,6 +142,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-12 ~13:10Z (lead, after the Contest Planner's rulings, prompts/story-030-rulings.md): the plan HALTed `blocked` on intent gap Q1-Q3 (Q1: the page's README links to #install-it-yourself, #set-a-model-key and #telegram land on moved sections while condition 5 forbade app changes; Q2: install.sh names "The Troubleshooting section of README.md"; Q3: release/notes.sh:79 and release/checklist.sh:474 say "the README's two commands"). Ruled A, A, A; condition 5 amended only that far (Boundaries, [AMENDED 2026-11-12]). PUBLIC TEXT approved with Edit 1 (Usability row link target to GUIDE.md#new-since-100) and Edit 2 (GUIDE "of this README" -> "of the README"). Added: Q1-Q3 files to the Code Map (banner-stack's telegramUrl included: its #telegram anchor also moves), the extra-AC sweep (no notes/checklist row extracts moved text; note-readme and product-name get post-move tests), conditions 1-4, and the matching Verification commands and mutations. Status reset blocked -> ready-for-dev by the lead's spec gate.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -137,8 +152,26 @@ deferred: []
 - AD-22: the checks stay hermetic. CI path classes: GUIDE.md is a declared non-input, so it runs no IRIS group.
 - AD-29: Epic 0 may edit any lane's files.
 - AD-23: the one image recipe; GUIDE.md is not in the build context.
-- AD-13 governs the page's README links, which is relevant only if Q1 is ruled A.
+- AD-13: Q1 is ruled A. The lead checked the spine: no AD's Rule governs the page's outbound documentation links, and Q1 changes link targets only, with no new route, privilege, script or visible text.
 - No AD is contradicted and none is amended.
+
+**Planner rulings (2026-11-12 ~13:00Z, Contest Planner under the owner's delegation; prompts/story-030-rulings.md, binding).**
+- Q1 A: `GUIDE_URL = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md'` in links.ts. The app links to `#install-it-yourself`, `#set-a-model-key` and `#telegram` go to GUIDE.md. No visible text changes. EXPERIENCE.md "(README)" becomes "(GUIDE.md)" on those rows only. The pins follow and prove GUIDE.md has the three anchors. Not B (no README anchors), not C (nothing weakened). The full web CI run is accepted.
+  - Lead note: `banner-stack.ts`'s `telegramUrl` (L31) uses the same moved `#telegram` anchor, so it goes to GUIDE.md too. It is the same ruled change, not a new one.
+- Q2 A: install.sh's three lines read exactly "The Troubleshooting section of GUIDE.md lists the usual causes and fixes."
+- Q3 A, RELEASE TOOL hunk approved: "the guide's two commands" in notes.sh:79 and checklist.sh:474, nothing else.
+  - Extra AC: rows that extract moved text read it from GUIDE.md, with one test each, named in the plan. The lead's sweep found none (Code Map). note-readme and product-name get post-move tests.
+- PUBLIC TEXT APPROVED with two edits:
+  - Edit 1: the Usability row's New since link goes to `…/GUIDE.md#new-since-100`.
+  - Edit 2: GUIDE "Tests and CI" reads "of the README".
+  - Approved verbatim: the GUIDE title, the 27-word pointer, `## More` and its paragraph, the README heading order and every link rewrite in report.txt.
+  - "With a model, and without one" stays out of README. "the README account" stays as written (it is the account's name).
+- Conditions:
+  1. GUIDE.md is in every README scan, with one mutation each.
+  2. The cap is 2,300 by `wc -w` and includes 0.29's H3.
+  3. Q1-Q3 as ruled.
+  4. If 0.29 lands first, its H3 goes under Measured, before More.
+- At the RC the Planner opens every GUIDE link. 0.30 enters 1.0.8 only if it is green by the cut.
 
 **Integration ACs (Rule 1/2):** this is a docs and tests story; it introduces no service, module or shared component.
 - Consumes: Story 0.28's ruled rows and the More to try registry count.
@@ -208,22 +241,9 @@ Other checks:
 - On the drafts: `byte_identity=pass`, 443 lines, 10 of which differ in link targets only.
 - Falsified: "fifty" changed to "50" in README fails (old line 13), and "2.24" changed to "2.25" in GUIDE fails (old line 168). A changed link target still passes, by design: link targets are `readme-links`' job.
 
-## Clarification Needed
+## Clarification Needed (resolved)
 
-Intent gap: the brief moves sections that the product itself links to, while condition 5 forbids app-code changes. No ruling-free option keeps every existing pin. The Planner rules on each question below, together with the PUBLIC TEXT gate.
-
-- **Q1: the page's README links.** `banner-stack.ts` (install and set-a-key), `telegram-card.ts` and `channels-section.ts` link `https://github.com/jbrandtmse/OcuTalon#install-it-yourself`, `#set-a-model-key` and `#telegram`. After the move, those headings are in GUIDE.md. `product-links`, `allowance-sources.test.mjs` and the e2e banner, rail and settings specs pin that README has those headings.
-  - (A) Recommended: a link-target-only app change. `links.ts` gets `GUIDE_URL = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md'`, and the three links use it, with no visible text changed. EXPERIENCE.md's "(README)" notes on those rows read "(GUIDE.md)", and the tests and e2e pins follow. This amends condition 5, and a web change runs every CI group but `production`.
-  - (B) No app change, with three empty `<a id=…></a>` anchors in README above `## More`, so the links land one click from the section. This adds markup to README. That GitHub honours such ids is inference, unmeasured.
-  - (C) Let the links land at the README top. Not recommended: it needs `product-links` weakened.
-- **Q2: install.sh's failure help.** "The Troubleshooting section of README.md lists the usual causes and fixes." appears at L373, L389 and L396, and `test-install-script.sh:255` and `install-pointer` pin it.
-  - (A) Recommended: the three lines read "The Troubleshooting section of GUIDE.md lists the usual causes and fixes." This is product code and public text, and both pins follow.
-  - (B) Leave it, and the install script names a section the README no longer has.
-- **Q3: release text.** `release/notes.sh:79` and `release/checklist.sh:474` say "the README's two commands", meaning the IPM commands, which move to GUIDE.md.
-  - (A) Recommended: "the guide's two commands" (RELEASE TOOL items), with `test-release-notes.sh:330` and `test-release-checklist.sh:816` following.
-  - (B) Leave it.
-
-The scratch drafts apply none of these options.
+Resolved 2026-11-12 ~13:00Z by the Contest Planner (owner's delegation), cited as prompts/story-030-rulings.md (binding): Q1 A, Q2 A, Q3 A (RELEASE TOOL hunk approved), plus the extra AC for notes/checklist rows that extract moved text; PUBLIC TEXT APPROVED with Edit 1 and Edit 2; conditions 1-4. The rulings are written into Boundaries & Constraints (intent amendment of condition 5, marked [AMENDED 2026-11-12]), the Code Map, Tasks & Acceptance and Design Notes ("Planner rulings"). The question text that was here is kept in the Spec Change Log.
 
 ## Verification
 
@@ -243,10 +263,12 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - The byte-identity check on `git show <story_base>:README.md`, README.md and GUIDE.md (once): `byte_identity=pass`.
 - `(cd web && node --test scripts/sources-docs.test.mjs scripts/more-to-try-view.test.mjs scripts/usage-docs.test.mjs scripts/history-docs.test.mjs scripts/allowance-sources.test.mjs scripts/sample-runbook-view.test.mjs)` (loop): 0 failed.
 - `bash docker/tests/test-boundaries.sh` (loop, about 11 s), `bash docker/tests/test-release-sequence.sh static` (loop) and `bash docker/tests/test-ci-changes.sh` (once, about 17 s): all pass.
-- `bash docker/tests/check-readme-video.sh` (once, online), `bash docker/tests/test-release-notes.sh` (once) and `bash docker/tests/test-release-checklist.sh` (once): pass unchanged.
+- `bash docker/tests/check-readme-video.sh` (once, online): passes unchanged.
 - `bash ci/checks.sh` (once). If it would not finish in about 8 minutes, run its scripts one per call.
 - `for f in docker/tests/test-readme.sh docker/tests/test-boundaries.sh docker/tests/test-ci-changes.sh docker/tests/test-release-sequence.sh; do LC_ALL=C tr -d '\011\012\040-\176' < "$f" | wc -c; done` (once): all 0.
-- `git diff --name-only <story_base> -- web/src src install.sh release .github ci _bmad eval` (once): empty, unless the rulings permit.
+- `git diff --name-only <story_base> -- web/src src install.sh release .github ci _bmad eval` (once): exactly `web/src/app/links.ts`, `web/src/app/banners/banner-stack.ts`, `web/src/app/rail/telegram-card/telegram-card.ts`, `web/src/app/settings/channels-section.ts` (plus `web/src/app/rail/rail-view.ts` only if `readmeSection` is extended), `install.sh`, `release/notes.sh`, `release/checklist.sh`; and `git diff -U0 <story_base> -- install.sh release` shows only the Q2/Q3 lines.
+- `(cd web && npm run lint)` and `(cd web && npm run build)` (once, the Q1 change compiles); `(cd web && npm test)` (once, all web/scripts tests). The e2e pins (banners, rail, settings, telegram-page) run in CI (the Planner accepted the full web CI run); the lead's smoke opens the built page's three links and checks their targets.
+- `bash docker/tests/test-install-script.sh` (loop), `bash docker/tests/test-release-notes.sh` (loop) and `bash docker/tests/test-release-checklist.sh` (loop): pass with the Q2/Q3 pins and the extra-AC tests.
 - Lead (once): CI on the head is green on every workflow.
 
 Mutations (one per AC; for each, record `mutation: <change> -> <test that went red>`, then revert and check that `git status --short` and `git diff --stat` are unchanged):
@@ -254,8 +276,15 @@ Mutations (one per AC; for each, record `mutation: <change> -> <test that went r
 - AC links: a GUIDE anchor in README misspelt -> `readme-links`; `README.md#measured` renamed -> `readme-links`.
 - AC byte identity: one moved word changed -> the check fails.
 - AC pins: a Telegram step removed from GUIDE -> `telegram-section`; a "New since 1.0.0" bullet removed from GUIDE -> `new-since` and `sources-docs`.
+- AC Q1: GUIDE's `## Telegram` renamed -> `product-links` (and `allowance-sources` for `## Set a model key`).
+- AC Q2: one install.sh line back to "README.md" -> `install-pointer` / `test-install-script.sh`.
+- AC Q3: notes.sh:79 back to "the README's" -> `test-release-notes.sh`; checklist.sh:474 likewise -> `test-release-checklist.sh`.
+- AC condition 1: a home-folder path added to GUIDE -> `test-boundaries.sh`; a broken `#x` in GUIDE -> `readme-links`; a link to a host outside `ALLOWED_HOSTS` in GUIDE -> its rule.
+- AC extra (Q3): the not-affiliated note moved from README to GUIDE -> `note-readme` test red; README line 1 moved -> `product-name` test red.
+- AC Edits: the Usability row's target back to `#new-since-100` -> `judges-usability`; GUIDE's "of the README" back to "of this README" -> the pin that holds the ruled GUIDE line (add one in `guide` if none does).
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: Q1 (the page's README links to #install-it-yourself, #set-a-model-key and #telegram land on moved sections; condition 5 forbids the app change), Q2 (install.sh names "The Troubleshooting section of README.md") and Q3 (release/notes.sh and release/checklist.sh say "the README's two commands"). Recommended: A, A, A (see Clarification Needed). Everything else in this plan, and the plan's scratch drafts, is ready for the PUBLIC TEXT gate.
+Status: ready-for-dev
+Blocking condition: none
+Note: the plan HALTed blocked (intent gap Q1-Q3, see Spec Change Log); the Contest Planner ruled; the lead applied the rulings and passed the spec gate.
