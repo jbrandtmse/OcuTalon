@@ -907,3 +907,4 @@
 2026-11-12T05:12:58Z	Story 0.28	ledger_adjudicated	owned=1(DW-1178) resolved=1 reowned=0 terminal=0
 2026-11-12T05:12:58Z	Story 0.28	smoke_complete	method=cli result=pass iterations=2 defects_caught=0 evidence=check-readme-video_online_pass;test-release-checklist_16_rules;test-readme_pass;row_outward_hits_empty_on_tree(review) model=claude-opus-5-5
 2026-11-12T05:12:58Z	Story 0.28	fresh_check	env=clean-checkout(local_clone_of_HEAD+working-tree_patch) tests=2(test-readme,test-release-checklist) result=pass order=forward,reverse
+2026-11-12T05:13:13Z	Story 0.28	committed	sha=eb366184 submodules= ci=pending runs=pending amendments=none code_commits=59be546e,3df63d75,eb366184 release_tool_hunk=release/checklist.sh(readme-video_row+no-outward_allowances:OEMBED_line(approved),test-readme.sh_ALLOWED_HOSTS_line(DW-1178,ruled)) feature_at_push=b5057e5a(f4fe3473_pending,not_integrated) note=supersedes_faa67c27;pushed_head_is_this_bookkeeping_commit
