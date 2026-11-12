@@ -306,3 +306,11 @@
 2026-11-12T12:10:02Z	Story 23.9	ci_red_classified	run=43201190985 workflow=.github/workflows/ci.yml class=flake test=live:install-upgrade_row6_200s(DW-1082),test-production_row21_WatchOps(DW-306) head=3b197218 attempt=1 rerun=failed_jobs_once_by_orchestrator
 2026-11-12T12:10:02Z	Story 23.9	ci_resolved	story=23.9 sha=3b197218 runs=43201190985(attempt2),43201190573 result=success failed=none via=none resolved_at=part_ready first_ci=flake verified_by=runner(CI_status)
 2026-11-12T12:10:02Z	Story 23.9	part_ready	head=records_above_3b197218(local;orchestrator_merges_and_carries) code_head=3b197218 feature=eb289caf(74ee76dc+35.3;no_overlap) amendments=AD-15,prd_FR-16_FR-24,EXPERIENCE_698_1210,epics_23.9(U-321) footprint_extensions=Agent/Chat.cls,Test/Agent/Instructions.cls new_units=none ci_groups=unchanged resolved=DW-1068,DW-1186
+2026-11-12T12:21:52Z	Story 23.9	part_merge	merged_by=orchestrator feature=85e20e86 epic_head=e353d142 feature_ci=pending(43217029752,43217029669)
+2026-11-12T12:21:52Z	Epic 23	integrated	onto=85e20e86(23.9_merge) head=85e20e86 mode=fast-forward conflicts_resolved=none
+2026-11-12T12:22:49Z	Epic 23	story_chartered	story=23.12 key=23-12-take-a-rejected-request-off-the-status-rail-at-once source=DW-1159(Planner_ruling_2026-11-11T20:09:53Z;orchestrator_continue) reowned=DW-1159(burndown->23-12)
+2026-11-12T12:22:49Z	Epic 23	amendment	file=_bmad-output/planning-artifacts/epics.md story=23.12 what=Story_23.12_block_inserted(DW-1159_follow-up_per_ruling) tier=1 by=runner
+2026-11-12T12:22:49Z	Epic 23	ledger_routed_planned	story=23-12-take-a-rejected-request-off-the-status-rail-at-once entries=1 excess=0 by=burndown
+2026-11-12T12:22:49Z	Epic 23	deps_hash_note	reason=burndown_inserted(story_inside_epic;no_boundary_or_dependency_change) by=runner(orchestrator_re-records)
+2026-11-12T12:26:28Z	Epic 23	epic_context_compiled	spawn_at=2026-11-12T12:22:49Z reason=x0_inserted(Story_23.12_chartered) model=opus effort=high words=1293 gaps=phone_view_meaning,Answer_reply_5s_wait,reply_payload_may_update_store?,Approve_not_named
+2026-11-12T12:26:28Z	Story 23.12	stage_spawned	stage=plan spawn_at=2026-11-12T12:26:28Z model=opus effort=high agent_name=23-12-rail-after-reject-plan-1 cycle_iteration=1
