@@ -7325,3 +7325,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: medium | fix-risk: high | footprint: in-story
 - evidence: docker/tests/test-eval-set.sh check_rules_flow: awk line-order pins only; rcf_rules runs the --rules-only forms, never the push run; lane-a evaluation job is the runtime proof
 - 2026-11-12T13:46:59Z status=by-design owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=spec Verification: Integration and CI ACs are proven by the lead's CI evidence (lane A evaluation job log and summary); a stubbed push run would emulate set, mock-wrong, demo gate and attempt runs
+
+### DW-1220: An approved native MCP call replayed by Replay.Run is not rewritten into call_mcp_tool, so it runs through AI Hub's client with no deadline, cut, call-time fingerprint check or audit entry
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+- evidence: Gate.Decision reroutes only outside a replay; Test.Bridge.Gate TestMcpRewriteAndItsMark pins the non-rewrite; spec Never list assigns the MCP replay to 22.4
+- 2026-11-12T20:12:17Z status=routed owner=22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=harvest note=22.4 replays through the proxy (S15)
+
+### DW-1221: Mcp.Client has no total deadline per request: Timeout applies per read, so a server that trickles bytes can hold a runner job past CALLSECONDS
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Mcp/Client.cls
+- evidence: Exchange sets OpenTimeout/Timeout only; same property as 22.9 Probe; AD-21 accepts the residual for this release
+- 2026-11-12T20:12:17Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=harvest note=measure a 1-byte/s trickle; bound in 22.10's bounded client
+
+### DW-1222: Gate rewrite mark ^||OcuTalonBP.McpRewrite is a single slot; two native MCP calls whose first passes interleave would mis-handle the second pass (unverified)
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+- evidence: ExecuteTool runs first pass, tool, second pass sequentially in one process; Task 0 measured one call only
+- 2026-11-12T20:12:17Z status=open owner=22-3-call-mcp-tools-only-through-the-governed-proxy by=harvest note=QA: shadow-runner test with two native MCP calls in one turn
+
+### DW-1223: The proxy's wallet read at call time was measured in a session with the runner job's roles, not inside a runner job (condition (e) rests on an inference)
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Mcp/Proxy.cls
+- evidence: evidence 22-3-task0-proxy.md section 2 labels the in-job result (inference)
+- 2026-11-12T20:12:17Z status=open owner=22-3-call-mcp-tools-only-through-the-governed-proxy by=harvest note=lead smoke: real chat turn through a runner job against the mock with a wallet-backed entry
