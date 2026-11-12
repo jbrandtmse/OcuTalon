@@ -2077,6 +2077,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T20:15:23Z occurrence=feature-1d75fbf1 by=orchestrator note=run 42874524463 job 130034187062 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; merge of 0.22 (web/guide) + v1.0.6 bump; rerun of failed jobs
 - 2026-11-10T22:52:54Z occurrence=23-2 by=orchestrator note=run 42897677403 job 130115016835 iris(production) row 21 got ''; OCT-epic23 f73a09d5 (23.2 integrated onto 56c61cea); rerun of failed jobs
 - 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870677_iris(production)_live:production_on_ocutalon-ci-15:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
+- 2026-11-12T10:06:56Z occurrence=0-28 by=runner note=run_43159935962_attempt_1_job_130988445819_iris(production)_live:production_on_ocutalon-ci-10:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_eff03a14(README+release_checks_only);one_rerun_of_failed_jobs(attempt_2,started_by_orchestrator_10:02Z)
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
