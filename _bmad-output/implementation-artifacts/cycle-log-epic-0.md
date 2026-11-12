@@ -998,3 +998,5 @@
 2026-11-12T19:56:52Z	Story 0.29	fresh_check	env=clean-checkout(local_clone_of_HEAD+working-tree_patch) tests=4(test-readme,test-boundaries,test-eval-set_6_rules,4_web_scripts_tests_75) result=pass order=forward,reverse(bash_and_bash3.2)
 2026-11-12T19:56:52Z	Story 0.29	committed	sha=1228e7ad submodules= ci=hold(local_only,CI_HOLD_in_force) runs=none amendments=none code_commits=8d657523,1228e7ad readme_words=2171 note=LOCAL_READY;not_pushed
 2026-11-12T19:56:52Z	Story 0.29	story_cycle	plan_to_commit_min=45 implement_passes=1 reviews=1 rework=0 first_ci=pending(hold) models=plan:lead(spec_from_the_0.27_plan),implement:sonnet,qa:skipped,cr:opus
+2026-11-12T21:00:13Z	Epic 0	integrated_forward	feature=b8780de6 head=ca8d29b9 conflicts_resolved=epics.md(union:0.33+0.34_blocks),sprint-status.yaml(feature_side,regenerated,re-set_0-29=done,0-33=done) note=local_only(CI_HOLD)
+2026-11-12T21:00:49Z	Epic 0	story_inserted	story=0.35 source=prompts/story-035-ruling-20261112.md(Contest_Planner,owner_delegation,~20:30Z) amendments=epics.md:Story_0.35_block(inserted,[ADDED_2026-11-12]) deps_hash=orchestrator

@@ -1868,6 +1868,38 @@ So that a release candidate passes CI without weakening the check that nothing i
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.35: Routine attention decisions meet their target
+
+[ADDED 2026-11-12, Contest Planner ruling (owner's delegation, ~20:30Z, prompts/story-035-ruling-20261112.md, binding)] The README's Measured row "Routine attention decisions right: 21 of 24 (target: 22)" is refreshed from the 1.0.9 RC run, and 1.0.8's RC runs scored 21, 20 and 20, so the README would show a missed target again. Lane A, after Story 0.29 and before Story 25.3. The plan goes to the Contest Planner before any implement. Footprint: the attention agent's instructions only, and the prompt-leak CI check.
+
+As a judge reading "Measured",
+I want the routine attention decisions to meet their stated target in every release-candidate attempt,
+So that the README shows a target that is met, not missed.
+
+**Acceptance Criteria:**
+
+**Given** the release-candidate evaluation runs of 1.0.4 to 1.0.8
+**When** the plan reads them
+**Then** it names which routine items the attention agent missed, in how many attempts, and why (the outcome it chose against the expected one)
+
+**Given** the attention agent's instructions
+**When** this story changes them
+**Then** only the attention instructions change, each outcome's test is stated more clearly, and no example copies or paraphrases any main-set or held-out case
+**And** the CI check that keeps held-out text out of every prompt and mock scenario also keeps the main set's item texts out of the prompts
+
+**Given** the real model (Claude Haiku 5.5) on 3 evaluation attempts each
+**When** the changed instructions are measured
+**Then** the main set's routine decisions are right in at least 22 of 24 in all 3 attempts; the held-out items are no worse than 1.0.8's (4 of 4); the incidents are unchanged (SM-2 at least 10 of 11); injection and S6 still lead to 0 actions; and the demo gate is still 30 of 30 on 10 runs
+**And** if any of these misses, the story does not merge, and the numbers go to the Contest Planner
+
+**Given** this story's diff
+**When** it is inspected
+**Then** no public text changes (the README's numbers move only through the 1.0.9 release-candidate fill), and the real-model runs stay inside the evaluation harness's spending caps
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
