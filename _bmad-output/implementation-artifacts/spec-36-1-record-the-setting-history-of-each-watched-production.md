@@ -2,13 +2,21 @@
 title: 'Story 36.1: Record the setting history of each watched production'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '9ca1d94a596539f3bdaad226c85a9cd6920166b6'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-36-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      lint_spine.py reports "ok": false on the architecture spine because of 10 low "possible unfilled template token" findings in catalog-template prose, so the "ok": true that Rule 20 and this story's first AC expect cannot be reached by any story that edits the spine.
+    evidence: |-
+      The same 10 findings (lines for {time}, {old}, {new}, {day}, {what happened}, {reason}, {entry}, {finding}, {n}) are on the baseline spine at commit 9ca1d94a, and this story adds none; no ad_id or ad_fields finding. Settling it needs the lint to accept braces in catalog templates, or the spine to quote them.
+    location: >-
+      _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md
+    severity: low
 ---
 
 <intent-contract>
@@ -127,6 +135,37 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-12 -- Review pass
+- verdicts: 27 grouped findings (37 reported by the four layers; members of a group share its row) -- high 0, medium 3, low 23, false 1, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind: `Check` quits silently on `unreadable`/`not_current`, and the skip, warn and continue paths of `Watch` have no test (Edge/VGap: read-throws, unreadable, not-current untested). The silence is the matrix (`No warning`), but the Matrix rows 'Unreadable or not-current' and 'Read throws' had no covering test -- added `SettingHistory.TestSkippedReads` and `TestReadFailure` (a corrupt newest snapshot makes the read throw: one warning, nothing written, and a second watched entry for the same production under the namespace's lower-case spelling is still snapshotted); two mutations observed red
+  - `[low]` `[reject]` Blind/Edge/VGap: a failed `PopulateVirtualSettings` is swallowed, so an item's class and default entries drop out of the snapshot -- a failure is deterministic (a class the item cannot load) and gives stable stored-only entries with no phantom change; faulting the read would stall that production's history for good with a warning every minute; a transient failure is not reachable by any cause shown
+  - `[medium]` `[patch]` Blind/VGap/Intent: the editor-context branch (`credentialsSelector`) of the Credentials reference has no test; only the stored setting named `Credentials` is covered -- moved the classification into the pure `Reader.SettingEntry` and added `SettingDiff.TestSettingEntries` (a `SOAPCredentials` entry marked by its editor context keeps its ID; unmarked, it is blanked); mutation observed red. Index 18 of the virtual-settings row checked against `Ens.Config.Item` (EditorContext is the 18th column). The new method is a pure public helper beside `CredentialName`/`SaltKey`, not a new kind of surface
+  - `[medium]` `[patch]` VGap: the purge's 'newest snapshot of a watched production is kept' is pinned only for watched productions; keeping the newest of every production would pass `TestPurge` -- `TestPurge` now has a production that is not watched with one 95-day snapshot and asserts it is gone; mutation (spare the newest of every production) observed red
+  - `[low]` `[reject]` Blind: the secret fingerprint is one salted SHA-256 over possibly low-entropy values, kept 90 days -- the Planner's ruling V3 fixes `Data.Webhook.HashSecret`/`Matches` and that the hash never leaves its table; a different scheme is the Planner's call
+  - `[low]` `[reject]` Blind/Edge: `Watch` runs synchronously in the Tick, with no time budget, and a marks-only read still runs the item and queue queries in `Current` -- the spec fixes the call as one line in `Tick` and the marks read inside `Current`; `FailurePoller` already does the same read per watched production each Tick, so the extra is about one more read per production per minute; no failure shown
+  - `[low]` `[reject]` Blind: an item added or removed gives one row for every class-default setting (noise) -- matrix row 'Item added or removed' and Decided 6 specify one row per setting
+  - `[low]` `[patch]` Blind: the cross-area table does not record that Lane A (`Reader.Settings`) calls Lane B's `Data.Webhook.HashSecret`/`Matches` -- appended that call to the spine's existing `Data.Webhook.HashSecret` row (AD-33)
+  - `[low]` `[patch]` Blind/VGap: the 'no user column' assertion is weak (substring checks, an empty `$Username` passes) -- `TestChangesRecorded` now asserts a user is signed in and that each table has exactly the specified property list; mutation (an `Operator` property) observed red
+  - `[low]` `[reject]` Blind/VGap/Edge: 'both purges run whatever the other returned' is untested (the first purge's error must not stop the second); `IncidentManager.Purge` throwing would skip the history purge -- needs a fault-injection seam that the sibling `Install/Step/Digest` pattern does not have; `IncidentManager.Purge` returns a status and does not throw; a LOW not worth a seam
+  - `[low]` `[reject]` Blind/Edge: an unparsable newest `Settings` stream throws on every Tick, so that production's history is stuck -- the snapshot and its stream are saved in one transaction, so no path writes a truncated stream; theoretical hardening
+  - `[low]` `[reject]` Edge: a stored setting with an empty `Target` or `Name` gives a null subscript -- `Ens.Config.Setting` requires both; theoretical
+  - `[low]` `[reject]` Edge: a raw secret placed in a setting named `Credentials` (or marked as a reference) is stored as a plain value -- Decided 5 and the Planner's V3 define the reference path by name and editor context; IRIS stores an `Ens.Config.Credentials` ID there
+  - `[low]` `[reject]` Edge: `after.%ToJSON()` as one string could exceed the maximum string length -- needs about 3.6 million characters of settings for one production; theoretical
+  - `[low]` `[reject]` Edge: values are cut at 2000 characters, so a roll-back from a cut value would restore less -- the 2000-character limit is V2's field definition; Story 23.3 owns refusing to roll back a cut value (noted under residual risks)
+  - `[low]` `[reject]` Edge: `DetectedAt` is the Tick message's time, so a late Tick can date a change before it was made -- Decided 4: `DetectedAt` is the Tick's time
+  - `[low]` `[reject]` Edge: a persistent read failure logs one warning per production per minute -- the matrix says one warning per failed read; FailurePoller does the same
+  - `[low]` `[reject]` Edge: `SettingSnapshot.Purge` returns before purging when `Watched()` throws, and one bad entry blocks all -- failing closed (purge nothing) is the safe direction; the next run retries
+  - `[low]` `[reject]` Edge: `TestNoSettingRead`'s trailing `\b` could miss a future `Data.Setting*` table, an allow-list would not -- the spec names the `\b` change, and the test adds assertions that `Data.SettingChange` is exempt and `Data.Setting).Get` is still flagged
+  - `[low]` `[patch]` Edge: the claim that a change made while stopped is dated at the first Tick after the start is false when the hourly check reads the stopped production first -- `Reader.Current` reads a stopped production, so the wording is now 'the first Tick that reads it': corrected in the spine, the class description and Decided 4
+  - `[low]` `[defer]` Edge/VGap: `lint_spine.py` reports `"ok": false`, so the first AC's `"ok": true` cannot be met -- 10 low 'possible unfilled template token' findings in catalog-template prose this story does not own, the same 10 on the baseline spine (commit 9ca1d94a); this story adds none; deferred, as Story 39.1 took 'no new finding'
+  - `[low]` `[reject]` VGap: the leak-scan surfaces other than the global scan have no consumer of the setting tables in this story, so they cannot go red here -- spec-mandated test with positive controls; recorded under Verification as a guard that becomes live with Story 23.3
+  - `[low]` `[patch]` VGap other: `TestSnapshotChangesNothing`'s checksum could be 0 against 0 -- added an assertion that the checksum is not 0; mutation observed red
+  - `[low]` `[reject]` VGap other: `TestChangesRecorded`'s 'within the check interval' bound compares the Tick's own time -- the lower bound and the interval bound still fail if the code stamps another time; kept
+  - `[low]` `[reject]` VGap other: `TestPurge` calls the real Watch purge, so it could delete older rows it did not create -- the same call the installed purge task makes; it removes only rows older than the product's own retention; throwaway and CI stacks
+  - `[low]` `[reject]` VGap other: other Watch tests leave history rows for Orders in shared tables -- only the two new classes read Orders history, and both clear it before and after each test; no other class asserts on those tables
+  - `[false]` `[reject]` Intent auditor: descriptive report of readings (spine contracts versus code; tests exercise the code half) -- no divergence from the spec: the spine contracts are checked by the spine-terms command and `lint_spine.py`, as the spec's Verification says; its gap 5 duplicates the credentialsSelector finding
+
 ## Design Notes
 
 ### Planner rulings (2026-11-12, binding; supersede anything below that conflicts)
@@ -196,7 +235,7 @@ No AC contradicts an AD's Rule. AD-24 L943 already names the roll-back kind's WR
 1. "Watched production" means `FailurePoller.Watched()` (Kind `production` rows; eval rows excluded).
 2. A snapshot is each item's effective settings (`PopulateVirtualSettings`, which applies SDS) together with its stored `Settings`. An SDS change therefore shows on each item it applies to, with `Source` `default`.
 3. The "last value seen" (counter, start mark, `CheckedAt`) lives on the newest `SettingSnapshot` row and is updated in place. A new row is written only for a first snapshot or changed content (AD-5: no in-memory state).
-4. `DetectedAt` is the Tick's time. It is within the check interval while the production runs. A change made while the production is stopped is dated at the first Tick after the start, because no earlier time can be read. The spine says so.
+4. `DetectedAt` is the Tick's time. It is within the check interval while the production runs. A change made while the production is stopped is dated at the first Tick that reads it, the first after the start or the hourly check while it is stopped, whichever is earlier, because no earlier time can be read. The spine says so.
 5. Secret detection (V3). A Credentials reference is an entry whose EditorContext starts with `credentialsSelector`, or a setting named `Credentials` (any case; the fixture's stored `Credentials` setting has no class EditorContext). It stores its ID and diffs like any setting. A secret value is any other setting whose name `Reader.CredentialName` matches. A non-secret whose name matches (for example `AuthType`) is hashed too. That errs on the safe side, and its change row is blank. The plain name heuristic is not used on its own any more, because `CREDENTIALPARTS` holds `credential` and would hash every `Credentials` reference.
 6. An item added or removed gives one row per setting.
 7. The roll-back kind is not declared in 36.1. The spine names `rollback_setting` (parameter `change`, `%Ens_ProductionConfig:W`, ONLINEGRANT 0) as Story 23.3's plan (ruling V1(b)). Its target type is left to 23.3.
@@ -312,6 +351,23 @@ Approved catalog text (reference only):
   - `rollback_setting` NOTALLOWED: "OcuTalon isn't allowed to change settings in that production"
   - `rollback_setting` ONLINESHARED: "On the online demo every visitor shares the Orders production, so OcuTalon doesn't change its settings there; on your own install it can"
 
+### Measured
+
+Task 0, measured on the lane-B warm throwaway (tag `e36s1iw`, Orders running in OCUORDERS), by a test that saved the settings through `OrdersDefinition.Put` and a System Default Setting row for `OrdersToWarehouse` through `Ens.Config.DefaultSettings`, and read `^IRIS.Temp.EnsProdModCounter("OCUORDERS")` around each step. Nothing diverged from the spine, so there is no `INTENT GAP`.
+
+| Step | Counter before | Counter after | Result |
+| --- | --- | --- | --- |
+| (i) `OrdersDefinition.Put` (settings added to an item of the running production, `%Save`) | 0 | 4 | moved (+4); a second run: 10 to 14 |
+| (ii) saving a test-owned SDS row (`RetryInterval` for `OrdersToWarehouse`) | 4 | 5 | moved (+1); a second run: 14 to 15 |
+| (iii) a full `Reader.Settings` read (every item, every setting) | 5 | 5 | did not move; a second run: 15 to 15 |
+
+- The counter exists (a number) once a production runs; `marks.started` read `<start time>|<check sum>`, for example `2026-11-12 21:21:18.130|475381989`.
+- `PopulateVirtualSettings` lists only the class's settings (`TargetConfigName` yes; the stored `ApiKey`, `Credentials` and `ZzFixtureNote` no), so `Reader.Settings` adds each item's stored settings to its entries, as designed.
+- A stored non-class setting appears in a snapshot with Source `production`; a System Default Setting on a class setting appears with Source `default` on the item it applies to; a class default with Source `class`.
+- Found while testing: `%Stream.GlobalCharacter` compresses what it stores, so `SecretHandoff.Leaks` could not see text in the snapshot's stream and the leak scan had no positive control. `SettingSnapshot.Settings` therefore uses `OcuTalon.Data.SettingStream` (`COMPRESS = 0`), a stream class of its own with no state. This adds one small Lane A class beyond the task list.
+- `lint_spine.py` reports `"ok": false` on this branch before and after the story's edits: the same ten low-severity `possible unfilled template token` findings, all in existing catalog-template prose (lines 497, 1072, 1146, 1159, 1228, 1239). No finding is from this story's text, and there is no `ad_id` or `ad_fields` finding.
+- This worktree had no `.memlog.md` (the file is gitignored), so `memlog.py init` created one here before the `append`.
+
 ## Verification
 
 Every command uses the lane-B variables `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=36 stage=implement'` (written `<lane-b vars>` below; expand it on each call). The fresh tag is `e36s1i` and the warm tag `e36s1iw`. Run one command per call, with `timeout: 600000`, each about 150 s at most. Never use slot B. At the end, also after a failure, run `<lane-b vars> OCUTALON_RUN_TAG=e36s1iw bash ci/warm.sh down` and `<lane-b vars> OCUTALON_RUN_TAG=e36s1i bash ci/iris.sh teardown`.
@@ -325,6 +381,25 @@ Every command uses the lane-B variables `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCU
 - (once) `<lane-b vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e36s1iw bash ci/iris.sh shard lane-a@Watch --part k/4` for k = 1..4, then the same for `lane-a@Checks --part k/3` and `lane-a@Install --part k/3`, one call each -- expected: all passed. If a part nears 150 s, raise n. That `--part` works on a piece is (inference).
 - (once) `<lane-b vars> OCUTALON_RUN_TAG=e36s1i bash ci/iris.sh class OcuTalon.Test.Watch.SettingHistory` -- a fresh stack proves the `Tick` change; expected: passed
 - (once) `bash docker/tests/test-ci-config.sh` and `bash ci/checks.sh`, one per call -- expected: pass
+
+**Mutation results (Rule 19; each applied to the file, observed red, and put back from a backup of the file, `git status` unchanged):**
+- mutation: delete the AD-24 sentence from a copy of the spine -> the spine-terms check prints `MISSING %Ens_ProductionConfig:W is granted by Story 23.3 together with rollback_setting; the demo install leaves it out.`
+- mutation: skip the counter compare (`Check` drops `If '..Due(...) Quit`) -> `SettingHistory.TestCounterUnchanged` (CheckedAt moves, the canary content is replaced, rows are written)
+- mutation: read stored settings only (`Reader.Current` skips `PopulateVirtualSettings`) -> `SettingHistory.TestChangesRecorded` (no `default` row, and no class setting in the snapshot)
+- mutation: call `%Save` on the production definition in the read (`Reader.Current`) -> `SettingHistory.TestSnapshotChangesNothing` (the counter moved; `TestCounterUnchanged` and `TestMeasuredCounter` also red)
+- mutation: treat the name `Credentials` as a secret (`Reader.SettingEntry` drops its name test) -> `SettingHistory.TestCredentialsReference` (blank values; `SettingDiff.TestSettingEntries` also red)
+- mutation: skip the secret check in `Reader.SettingEntry` (keep the value, no hash) -> `SettingHistory.TestSecretValue`
+- mutation: store the new hash in `SettingChange.NewValue` (`SettingHistory.Change`) -> `SettingSecret.TestSecretAppearsNowhere` (the hash is also in `SettingChange`'s global; the change row's values are not blank)
+- mutation: drop the online-demo guard in `SettingHistory.Watch` -> `SettingHistory.TestOnlineDemoOff`
+- mutation: purge the newest snapshot too (`SettingSnapshot.Purge` ignores the kept set) -> `SettingDiff.TestPurge`
+- mutation: change `SettingChange`'s `DEFAULTGLOBAL` to `^OcuTalonP.SettingChg` -> `test-storage.sh` (`registry-class`, `datalocation` and `locations` fail)
+- mutation: drop `entry.reference ||` from `Reader.SettingEntry`, so only the name `Credentials` marks a reference -> `SettingDiff.TestSettingEntries` (a `SOAPCredentials` entry marked by its editor context is blanked), observed red
+- mutation: `SettingSnapshot.Purge` also spares the newest snapshot of every production (its SQL excludes `MAX(ID)` per namespace and production) -> `SettingDiff.TestPurge` (a production that is not watched keeps a 95-day snapshot), observed red
+- mutation: remove the per-production Try in `SettingHistory.Watch` -> `SettingHistory.TestReadFailure` (no warning for the production, and the one after it is not snapshotted), observed red
+- mutation: `SettingHistory.Check` goes on after a read outcome other than `read` -> `SettingHistory.TestSkippedReads` (a snapshot is written for an unreadable and a not-current production), observed red
+- mutation: add a property `Operator` to `SettingChange` -> `SettingHistory.TestChangesRecorded` (the property list is not the specified one), observed red
+- mutation: `SettingHistory.Fingerprint` reads a global that does not exist -> `SettingHistory.TestSnapshotChangesNothing` (the checksum is 0), observed red
+- Shared-surface note: the leak-scan surfaces of `SettingSecret.TestSecretAppearsNowhere` other than the global scan (`Leaks`) have no consumer of the setting tables in this story, so they are a guard that becomes live when Story 23.3's evidence pack reads `SettingChange`; each also asserts its read produced output.
 
 **Shared surfaces:**
 - `src/short-names.tsv` (`test-storage.sh`).
@@ -351,7 +426,28 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Re-planned (cycle_iteration 2) for the Planner's rulings of 2026-11-12, and halted after planning, as the dispatch asked. V1-V6 are all ruled. Task 0 still runs first in implement and HALTs `intent gap` if the counter does not behave as the spine draft says.
+**Summary.** Setting history is recorded for each watched production. `Reader.Settings` reads the production-change counter, the start mark and (when due) every item's effective settings inside `Current`; `Reader.SettingEntry` keeps a Credentials reference's ID and blanks a secret value, keeping a salted hash. `Watch.SettingHistory.Watch` runs from `Checks.Tick` (one line), takes a snapshot only when there is none, a mark moved or an hour has passed, and writes `SettingSnapshot` and `SettingChange` rows in one transaction, with `DetectedAt` = the Tick's time. It is off on an online-demo install. The Watch area's purge runs `SettingHistory.Purge`, which keeps the newest snapshot of each watched production. The spine holds the step-5 Lane A contracts (AD-15, AD-16, AD-18, AD-24, AD-29, payload, paging, catalog keys, ownership tables, Deferred). Task 0 was measured (see Design Notes, Measured): the counter behaves as the spine says.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Watch/Reader.cls`: `Settings`, `SettingEntry`, `SaltKey`, and the trailing `Current` flags.
+- `src/ocutalon/cls/OcuTalon/Watch/SettingHistory.cls`: new; `Watch`, `Check`, `Due`, `Record`, `Diff`, `Purge`.
+- `src/ocutalon/cls/OcuTalon/Data/SettingSnapshot.cls`, `Data/SettingChange.cls`, `Data/SettingStream.cls`: the two tables and an uncompressed stream class (so a leak scan can see the stored text); `src/short-names.tsv`: two rows.
+- `src/ocutalon/cls/OcuTalon/Checks/Process.cls`: the one `Tick` line. `Install/Step/Watch.cls`: `Purge` runs both purges.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/SettingDiff.cls`, `SettingHistory.cls`, `SettingSecret.cls`: new tests; `Test/Watch/OrdersDefinition.cls`: `Put` gains `only`; `Test/Install/Retention.cls`: word boundary and extra assertions.
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: the additions.
+
+**Review.** Four layers reported 37 findings (grouped into 27 rows in the Review Triage Log): patches applied 8 (three medium, all missing tests: the Credentials-reference editor-context branch, the unreadable / not-current / read-throws paths, and the purge of a production that is not watched; five low: the no-user property list, the fingerprint control, the cross-area row, the stopped-production dating wording), deferred 1 (the pre-existing `lint_spine.py` placeholder findings), rejected 18 low and 1 false with the reasons in the log.
+
+**Follow-up review recommended: false.** Three medium findings were patched (all missing tests, added with their mutations observed red), none high; the patched tests ran green on the warm stack, in the Watch, Checks and Install shards and on a fresh stack, so no unverified risk remains.
+
+**Verification performed.** Warm stack (tag e36s1iw): `Test.Watch.SettingHistory`, `SettingDiff`, `SettingSecret`, `Evidence`, `Test.Install.Retention`, `RetentionRules` passed after the last patch; `test-storage.sh` passed; the spine-terms check printed nothing; `lint_spine.py` reports the same 10 low findings as the baseline (`"ok": false`, none new). Once, after the last patch: `lane-a@Watch` parts 1 to 4 of 4, `lane-a@Checks` parts 1 to 3 of 3 and `lane-a@Install` parts 1 to 3 of 3 passed (Watch part 1 took 330 s, above the 150 s sizing; it passed); `SettingHistory` passed on a fresh stack (tag e36s1i); `test-ci-config.sh`, `ci/checks.sh` and `test-boundaries.sh` passed. Both throwaways were torn down.
+
+**Residual risks.**
+- The first AC's `"ok": true` for `lint_spine.py` is not reachable (deferred above); the check is read as "no new finding".
+- `Reader.Current` keeps its existing per-production reads, so the marks-only read each Tick costs about one more read of the production per minute.
+- A change row's values are cut at 2000 characters; Story 23.3 must refuse to roll back a cut value.
+- `TestReadFailure` reaches a second watched entry through the lower-case spelling of the Orders namespace (the `Namespace` column is case-exact); a stack whose service user cannot read `ocuorders` by that spelling would fail it.
+- The spine's `.memlog.md` is gitignored and was created in this worktree, so the `memlog.py append` for this story is not in the commit.

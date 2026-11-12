@@ -36,3 +36,5 @@ Precedent	^OcuTalonP.Precedent	OcuTalon.Data.Precedent	B
 Webhook	^OcuTalonP.Webhook	OcuTalon.Data.Webhook	B
 MailSeen	^OcuTalonP.MailSeen	OcuTalon.Data.MailSeen	B
 McpTool	^OcuTalonP.McpTool	OcuTalon.Mcp.ToolClassification	A
+SettingSnap	^OcuTalonP.SettingSnap	OcuTalon.Data.SettingSnapshot	A
+SettingChange	^OcuTalonP.SettingChange	OcuTalon.Data.SettingChange	A
