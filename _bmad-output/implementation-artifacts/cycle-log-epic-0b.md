@@ -19,3 +19,4 @@
 2026-11-12T11:07:33Z	Story 0.27	stage_spawned	stage=implement spawn_at=2026-11-12T11:07:33Z model=sonnet agent_name=0-27-implement-2 cycle_iteration=2 note=redispatch_after_ruling_R1_pass1_tree_kept
 2026-11-12T12:47:40Z	Story 0.27	dev_complete	spawn_at=2026-11-12T11:07:33Z model=sonnet build_sha=d31a0ec8 baseline_revision=cfc961fc story_base=1e61e953 review_loop_iteration=0 followup_review_recommended=false deferred=1 loc_added=2605 loc_removed=233 files=15 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=2 harvested=DW-1192 rules_only_main=items_6/24,incidents_0/11 held_out=2/12 mock_model_requests=0
 2026-11-12T12:47:40Z	Story 0.27	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5 note=AD-22_verified_by_eval_throwaways_and_CI_not_agent_tooling
+2026-11-12T12:48:07Z	Story 0.27	stage_spawned	stage=qa spawn_at=2026-11-12T12:48:07Z model=sonnet agent_name=0-27-qa-1 cycle_iteration=1
