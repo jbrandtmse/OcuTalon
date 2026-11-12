@@ -2,9 +2,9 @@
 title: 'Story 23.9: Resume a suspended item after its incident closes'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
-baseline_revision: 'c7427fa4f23d60edc729a10b338e84acd8ae400d'
-baseline_commit: 'c7427fa4f23d60edc729a10b338e84acd8ae400d'
+status: 'done'
+baseline_revision: 'd28accd01e60e8c35f8d43f7548c814561fc2b40'
+baseline_commit: 'd28accd01e60e8c35f8d43f7548c814561fc2b40'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -110,7 +110,7 @@ deferred: []
 - [ ] [Ruling U-321, P3] `src/ocutalon/cls/OcuTalon/Agent/Chat.cls:65` -- replace the second sentence ("To undo a suspend while its incident is open, call it with resume_item and the same item.") with, verbatim: "To undo a suspend while its incident is open, call it with resume_item and the same item; if the answer is no_incident, say that the incident is closed and that the item can be enabled again on the production's configuration page in the Management Portal." Update its instruction pins in `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls` (find them by the line's text; add a pin for the new clause if none covers it). A footprint extension (uncontended).
 - [ ] [Ruling U-321, conditions] `Test.Watch.Transitions` covers every split AD-15 row (`resolved` and `open`, noticed: `dismiss`; `closeQuiet` and `closeForReplay` with and without a held suspend) and each refused move (`closeQuiet` / `closeForReplay` while held). One test or an existing pin proves the online demo unchanged (suspend and resume refused there, so no incident holds a suspend). `dismiss` always closes, held or not (a pin).
 
-- [ ] [Review] DW-1186 (Contest Planner ruling, owner's delegation, 2026-11-12 ~06:55Z, `.coordination/prompts/epic-23-rulings-239.md` last section; rework iteration 1) -- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls:65` -- replace P3's sentence, verbatim, with: "To undo a suspend while its incident is open, call it with resume_item and the same item; if the answer is no_incident and others lists an incident, say that the item can't be resumed while that incident's fix waits for approval (awaiting_approval) or is running (fixing); if others is empty, say that the incident is closed and that the item can be enabled again on the production's configuration page in the Management Portal." -- the fix must: (1) pin the exact line in `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls`; (2) keep `Test.Fix.AskedTurns:TestUndoTurn`'s second resume ask (others non-empty) as the busy-case evidence; (3) if no test drives the empty-others `no_incident` through a chat turn, add a CI mock-scenario check that the reply names the Management Portal (append-only, in an existing class or a new `ci/mock/scenarios/A/` file); (4) model-facing text only: no catalog, README or web change. Update the `mutation:` lines for the touched pins.
+- [x] [Review] DW-1186 (Contest Planner ruling, owner's delegation, 2026-11-12 ~06:55Z, `.coordination/prompts/epic-23-rulings-239.md` last section; rework iteration 1) -- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls:65` -- replace P3's sentence, verbatim, with: "To undo a suspend while its incident is open, call it with resume_item and the same item; if the answer is no_incident and others lists an incident, say that the item can't be resumed while that incident's fix waits for approval (awaiting_approval) or is running (fixing); if others is empty, say that the incident is closed and that the item can be enabled again on the production's configuration page in the Management Portal." -- the fix must: (1) pin the exact line in `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls`; (2) keep `Test.Fix.AskedTurns:TestUndoTurn`'s second resume ask (others non-empty) as the busy-case evidence; (3) if no test drives the empty-others `no_incident` through a chat turn, add a CI mock-scenario check that the reply names the Management Portal (append-only, in an existing class or a new `ci/mock/scenarios/A/` file); (4) model-facing text only: no catalog, README or web change. Update the `mutation:` lines for the touched pins.
 
 **Acceptance Criteria:**
 - AC1: Given a resolved incident whose executed suspend still holds an item, when Checks' quiet sweep sends closeQuiet after 15 quiet minutes or Break the feed sends closeForReplay, then IncidentManager answers `not_allowed`, and the incident stays `resolved` with no ClosedAt, no summary and nothing sent (`Test.Watch.Lifecycle:TestHeldBySuspend`; `Test.Watch.Transitions`).
@@ -183,6 +183,20 @@ Rejected:
   - `[low]` `reject` Intent 6: the new chat sentence - it is P3, ruled verbatim in U-321.
   - `[low]` `reject` Intent 7: see Blind 2.
   - `[low]` `reject` Intent 8: see Blind 3.
+
+### 2026-11-12 - Review pass (rework 1, DW-1186)
+- verdicts: 15 rows from four layers - high 0, medium 6, low 9, false 0, maybe-false 0
+- findings:
+  - `[medium]` `patch` Blind 1, Edge 2, Verification-gap 1: `TestUndoTurn`'s second ask asserted only the outcome, so nothing pinned that `others` lists the waiting incident (the busy half of the new sentence) -- added the `others` size and state assertion to turn 2; mutation: `ResolveIncident` drops the busy incidents -> red.
+  - `[low]` `reject` Blind 2: the no_incident sentence covers only the undo case -- it is the Planner's verbatim sentence (DW-1186); a wider text is a new ruling.
+  - `[low]` `reject` Blind 3: the pin repeats the whole sentence -- the item says to pin the exact line.
+  - `[low]` `patch` Blind 4: the `AskedTurns` header lists the mock scenarios without `propose-fix-undo-closed` -- added.
+  - `[medium]` `patch` Blind 5, Edge 1, Verification-gap 2, Intent: `answer.Text [ "Management Portal"` in `TestUndoClosedTurn` could not fail, since the mock scripts the reply and `AssertTurn` had already compared it -- removed; the header says the scripted reply names the Portal and `Test.Agent.Instructions:TestChat` pins the instruction.
+  - `[low]` `reject` Edge 3: `others` lists busy incidents of other productions too -- the sentence is ruled verbatim and `others` is the existing tool contract.
+  - `[low]` `reject` Edge 4: the session has no incident row at all -- a closed row not listed in `others` is pinned by `Test.Watch.Tools:TestDismissNone`.
+  - `[low]` `reject` Edge 5, Verification-gap other 1: `ItemStates` is unchanged when nothing is disabled -- same pattern as `TestSuspendTurn`; `Approvals(a) = 0` is the assertion that catches a raised resume.
+  - `[low]` `reject` Verification-gap other 2: session name "closed" with no closed incident -- see Edge 4.
+  - `[low]` `reject` Intent (side note): the pin message cites DW-1186 instead of P3 -- the pin message is accurate.
 
 ## Design Notes
 
@@ -406,7 +420,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: AC6 (a suspend run that changed nothing holds nothing), the `r.Completed > 0` condition removed from `Fix.Run.Suspended` -> red: `Lifecycle:TestHeldBySuspend` ("a suspend run that changed nothing holds nothing").
 - mutation: AC8 / ruling condition (online demo unchanged), the resolved branch requires demo mode 0 for closeQuiet and closeForReplay -> red: `Test.Watch.Transitions:TestRefusedMoves` (resolved + closeForReplay and closeQuiet at demoMode 1, holds 0, "is a row but was refused").
 - mutation: Facts reads holds for every event (`closing` set to 1) -> red: `Lifecycle:TestHeldBySuspend` ("and the dismiss logged no further holds warning").
-- mutation: P3, `Chat.cls` loses the no_incident clause -> red: `Test.Agent.Instructions:TestChat` (the new pin).
+- mutation: P3 / DW-1186, `Chat.cls` loses the "if others is empty ..." clause -> red: `Test.Agent.Instructions:TestChat` (the pin of the exact DW-1186 sentence).
 - AC8 / online demo: no mutation; `Test.Fix.ItemKinds` (`ONLINESHARED`, passed), `Test.Demo.BreakFeedIn`, `Lifecycle:TestCloseQuiet` and `TestCloseForReplay` (passed) are the evidence, and `Test.Watch.Transitions:TestRefusedMoves` pins that a resolved incident with `holds` 0 still closes by closeQuiet with demo mode on.
 
 **Mutations re-run (QA, warm tag e23s9qw; each applied, observed red, reverted from a backup with `cmp` and `git status --short` showing the tree as before):**
@@ -417,11 +431,16 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation (QA): AC5, `Checks.Process.Findings` ignores `released` -> red: `Test.Checks.Runs:TestDismissedSuspendIsReportedOnce`; and `Run` passes the run time instead of `one.at` -> red: the same method ("with the end of the suspend as the time").
 - mutation (QA): AC6, `Suspended` keeps the first suspend's incident as the holder -> red: `Lifecycle:TestHeldBySuspend` (the moved hold).
 - mutation (QA): AC7, the catch in `IncidentManager.Holds` counts as not held -> red: `Lifecycle:TestHeldBySuspend` (`FailHolds`).
-- mutation (QA): P3, `Agent.Chat` loses the no_incident clause -> red: `Test.Agent.Instructions:TestChat`.
+- mutation (QA): P3 / DW-1186, `Agent.Chat` loses the "if others is empty ..." clause -> red: `Test.Agent.Instructions:TestChat`.
 - QA judgement: every AC and matrix row has a pin and no assertion was found that cannot fail; the replay refusal's other end (BreakFeedIn answering incident_in_progress) is the existing `Test.Demo.BreakFeedIn:TestCloseRefused`. No test file was created or changed by QA (files created: none). After the reverts the warm stack ran `Test.Watch.Transitions`, `Test.Watch.Lifecycle`, `Test.Checks.Runs`, `Test.Fix.Asked` and `Test.Agent.Instructions` green.
 
 **Mutations run (code review, warm tag e23s9cw; applied, observed red, reverted from a backup with `cmp`, `git status --short` and `git diff --stat` unchanged):**
 - mutation: AC5 (an item that a resume enabled sends none), `Fix.Run.Suspended` never ends a holder on a resume (the `Kill holder(item)` removed) -> red: `Test.Checks.Runs:TestDismissedSuspendIsReportedOnce` ("only A is released: B, which a resume enabled, is not"). After the revert `Test.Checks.Runs`, `Test.Watch.Transitions` and `Lifecycle:TestHeldBySuspend` passed on the same stack.
+
+**Mutations run (rework 1, DW-1186, warm tag e23s9rw; each applied, observed red, reverted from a backup with `cmp` and `git diff --stat` unchanged):**
+- mutation: DW-1186, `Tools/WatchAnswers.ResolveIncident` answers `unknown_incident` instead of `no_incident` -> red: `Test.Fix.AskedTurns:TestUndoClosedTurn` (the model reads no_incident with others empty).
+- mutation: DW-1186, `Tools/WatchAnswers.ResolveIncident` drops the busy incidents from `others` (`"others": []`) -> red: `Test.Fix.AskedTurns:TestUndoTurn` ("and others lists the incident that waits for approval"), the busy-case evidence.
+- DW-1186 scope note: `TestUndoClosedTurn`'s reply is scripted by the mock (`propose-fix-undo-closed`), so the instruction wording itself is pinned only by `Test.Agent.Instructions:TestChat`; the mock test pins the tool result the model reads.
 
 ## Auto Run Result
 
@@ -440,3 +459,10 @@ Blocking condition: none
 - Follow-up review recommended: false (one medium patched, no high).
 - Verification: on the warm stack `Test.Watch.Transitions`, `Test.Watch.Lifecycle` (whole), `Test.Checks.Runs` (whole), `Test.Fix.Asked`, `Test.Agent.Instructions`, `Test.Demo.BreakFeedIn`, `Test.Watch.Summary`, `Test.Fix.ItemKinds`, `Test.Fix.AskedTurns`, `Test.Core.CommandsRouting` and `Test.Fix.Runs` passed; `Lifecycle:TestHeldBySuspend` passed on a fresh stack after the last patch; the 33 check scripts passed after the implementation pass, and `class-rules`, `boundaries` and `storage` were run again after the last patch. Every AC has a demonstrated mutation (see `## Verification`).
 - Residual risks: the production's jobs were not exercised against the new code in a warm re-up (CI's live runs cover it); the shards, `live:demo-path` and the lead's fresh-environment check, forward and reverse, are left to CI.
+
+### Rework 1 (DW-1186)
+
+- Replaced P3's sentence in `Agent/Chat.cls:65` with the Planner's DW-1186 sentence, verbatim; `Test/Agent/Instructions.cls` pins the exact sentence. Added `TestUndoClosedTurn` (`Test/Fix/AskedTurns.cls`) and the mock scenario `ci/mock/scenarios/A/propose-fix-undo-closed.json` for the empty-others `no_incident`; `TestUndoTurn` keeps its second ask as the busy case and now asserts `others`.
+- Review: 15 rows, no high; patches applied: 3 (the `others` assertion, the removed tautology, the header); deferred: 0; rejected: 9 with reasons in the Review Triage Log.
+- Follow-up review recommended: false (no high patched).
+- Verification: warm stack `Test.Agent.Instructions`, `Test.Fix.AskedTurns` (whole) passed; `node --test ci/mock/test/scenarios.test.mjs` and `docker/tests/test-class-rules.sh` passed (implementer).
