@@ -181,3 +181,5 @@
 2026-11-12T21:56:58Z	Story 21.8	fresh_check	env=recipe(fresh_warm_stack_e21s8fw,lane_C) tests=6(EmailToken,EmailOAuthPrivileges,EmailOut,EmailIn,SettingsEmail,EmailLive)+browser_13/15_fresh+mock_node+readme,compose-file,class-rules,boundaries result=pass order=forward,reverse(EmailLive_once) teardown=clean model=claude-opus-5-5
 2026-11-12T21:57:15Z	Story 21.8	local_commit	sha=c3448279 pushed=no reason=CI_HOLD(Planner) note=local_ready;mock_node_1/182_flake(DW-1206)_green_on_rerun;release_tool=release/checklist.sh_one-line_ALLOWED_HOSTS_exemption(mail.google.com)_to_the_Planner
 2026-11-12T21:57:24Z	Epic 21	stage_spawned	stage=epic_context spawn_at=2026-11-12T21:57:24Z model=opus effort=high agent_name=epic-21-context-prewarm-6 reason=planning_artifact_newer(21.9,21.10_splits)
+2026-11-12T22:00:50Z	Epic 21	epic_context_compiled	spawn_at=2026-11-12T22:00:50Z reason=planning_artifact_newer(21.9,21.10) model=opus effort=high header_ok=true
+2026-11-12T22:00:50Z	Story 21.10	stage_spawned	stage=plan spawn_at=2026-11-12T22:00:50Z model=opus effort=high agent_name=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c-plan-1 cycle_iteration=1
