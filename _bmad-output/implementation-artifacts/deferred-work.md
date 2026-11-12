@@ -7005,3 +7005,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic21 8fc11a6e ci run 43114341467 iris (image) (Story 21.2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 21.2's EmailInPop3 passed smoke and fresh check locally and failed live:storage-roundtrip in CI; the Planner asked for a cheap pre-CI check
 - 2026-11-12T00:03:53Z status=routed owner=burndown by=orchestrator note=Contest Planner 2026-11-12: if cheap, run the storage-roundtrip (or its committed-vs-compiled Storage comparison) in the lead's smoke for stories that add a class with a storage definition
+
+### DW-1173: security: the diagnosis payload's itemNoun (model text from partner-shapeable failure data) is checked only for 128 characters per form, any characters; it reaches the Failures line and other noun uses
+- source: IncidentManager.cls:802 (Story 23.11 review, DW-1172) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Contest Planner ruling 2026-11-12: each form letters, spaces and hyphens only, at most 40 characters, else drop it and keep the code noun; a test with a hostile noun
+- 2026-11-12T03:39:15Z status=routed owner=burndown by=orchestrator note=not part of 23.11, not a 1.0.8 blocker; 23.11's SystemNote is constant text (DW-1172 ruling)
