@@ -75,6 +75,25 @@ deferred: []
 - Given the web README tests, when they run, then they pass with the ruled order.
 - Given CI on this story's head, when it finishes, then every workflow is green.
 
+### Review Findings
+
+Code review 2026-11-12 (four layers, full-opus tier; worktree `.worktrees/epic-0`, HEAD 068ece62). 0 decision-needed, 1 patch, 1 defer, 10 rejected. README.md untouched (ruled text).
+
+- [x] [Review][Patch] `interesting`'s facts check read the whole section, so "Visual Trace" and "dry run" were satisfied by the image's alt text and the "New since 1.0.0" bullets and the section's own paragraph could drop either unflagged (low; the alt-text hole predates the story, the moved block widened it) [docker/tests/test-readme.sh:579] — fixed: `chk_facts` now reads the section's own text (before its first H3, image lines excluded); two self-tests strip each fact from that text only; header comment updated.
+- [x] [Review][Defer] The Contest checklist has no Video row and the For judges Usability row links neither the full video nor "One incident, end to end" [README.md:409] — deferred: pre-existing, and any README text beyond the ruled diff needs a Contest Planner ruling; DW-1171 `decision-pending` owner 0-27 (fold into 0.27's README ruling).
+
+Rejected:
+- `low` Edge: a second "### New since 1.0.0" block under another H2 (e.g. Measured) is not flagged -- unlikely (README text is ruled and pinned), and the fix adds a guard; wontfix-theoretical, real if a merge leaves a duplicate block.
+- `low` Edge+Blind: an unbolded bullet or a prose line inside the New since groups is not flagged -- the rule pins bullets by bold name, as the spec asks; unlikely, fix adds a guard.
+- `low` Edge: a copy of the link bar elsewhere passes `video` (text, not position, compared) -- unlikely, negligible harm (the copy still has the full video before the teaser).
+- `by-design` Blind: the incident is narrated in five places -- ruled text and structure.
+- `by-design` Blind: "you approve in the web chat" next to step 5's chat/phone/Telegram, and the video's two names -- ruled text.
+- `by-design` Blind: "Your integrations" grouping and order differ from the epics AC's "watching" first -- the Planner's ruled order supersedes (spec `## Ruled README change`).
+- `by-design` Blind: the full-video line is pinned by `top`, `teaser` and `video` -- each pin is a spec Task; the over-long header line is cosmetic.
+- `false` Blind: the usage-docs header comment is stale -- it describes that node test, which still does not pin the last position.
+- `wontfix-theoretical` Blind: the MP4 asset and the YouTube video are not checked to exist -- hermetic by design; real if the v1.0.6 release asset is deleted or re-tagged.
+- `false` VGap: AC 4 (CI green) has no pinning test -- a CI-state criterion, judged on the pushed head.
+
 ## Ruled README change
 
 The Contest Planner's ruled text (prompts/story-026-rulings.md part (a), 2026-11-12 ~00:55Z: the video lines replaced with the Planner's exact two lines, the link bar as drafted, step 1's *Break the feed* in italics, step 3's ruled wording, steps 2 and 4 to 7 verbatim, "New since 1.0.0" with the H3, three H4s and every bullet verbatim and the Planner's order under "Your integrations", "Two things to look at in the demo" removed). Apply it verbatim:
@@ -246,6 +265,14 @@ Mutations (one per AC; record `mutation: <change> -> <test that went red>` here,
 - AC web tests: (covered by the order assertions' own red on the old order).
   mutation: moved the History bullet after the Usage bullet -> "comes after the History bullet" red in `usage-docs.test.mjs` (1 failed of 18 in the two files).
   mutation: swapped the Queue backlogs and History bullets -> "comes after the Queue backlogs bullet" red in `history-docs.test.mjs`.
+- QA additions (QA), 4 mutations demonstrated on scratch copies of `test-readme.sh` (the README and the tree were not touched):
+  mutation: (QA) removed the new count of teaser lines from `chk_top` -> `top` red ("the teaser line twice: not flagged").
+  mutation: (QA) removed the `chk_block path` call from `chk_path` -> `path` red (the per-step "word added", "without its italics", "renumbered" and "swapped" self-tests, and the existing reworded ones).
+  mutation: (QA) removed the order message from `chk_new_since` -> `new-since` red (the last-two, first-and-last, bullet-pair and Memory/Where-an-answer swap self-tests, and the existing ones).
+  mutation: (QA) made `chk_video` ignore a teaser address outside the teaser line and the link bar -> `video` red (the teaser address in the full-video line and in the incident section, and the existing one).
+- Code review (CR), the `interesting` facts check moved to the section's own text:
+  mutation: (CR) `chk_facts` reading the whole section again (the code before the patch) -> `interesting` red ("Visual Trace only in the image and below the H3" and "dry run only in the image and below the H3" not flagged); with the patch, all rules pass under bash and /bin/bash 3.2.
+- Files changed by QA (QA): `docker/tests/test-readme.sh` (strengthened `chk_top` to require exactly one teaser line before the first H2; 27 more self-tests in `top`, `video`, `path` and `new-since`). No other file; `README.md` untouched.
 
 ## Auto Run Result
 

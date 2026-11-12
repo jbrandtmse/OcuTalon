@@ -12,9 +12,9 @@
 #                  beside it, the splash screen and its read-only Visual Trace account; the local path is four numbered steps;
 #                  steps 1 and 2 are pinned word for word (U-241 item 1, Story 11.23), and the section never links #start-it-with-build-109
 #   interesting    "What's interesting" has at most 120 words in its own text, the lines before its first H3 (its image lines are not
-#                  counted), and names Interoperability, Visual Trace, AI Hub, a dry run and the audit log; it shows at least one image
-#                  line, every image line in it is the decision trace, docs/images/vt-decision.png (the owner's decision of 2026-11-05,
-#                  reversing U-242 Q2's layout), and its only H3 is "New since 1.0.0"
+#                  counted), and that text names Interoperability, Visual Trace, AI Hub, a dry run and the audit log; it shows at
+#                  least one image line, every image line in it is the decision trace, docs/images/vt-decision.png (the owner's
+#                  decision of 2026-11-05, reversing U-242 Q2's layout), and its only H3 is "New since 1.0.0"
 #   measured       "Measured" has a table row for each of its eight row labels, each label word for word as the row's first cell
 #                  (Story 11.25); its numbers and other wording are not pinned
 #   use-cases      "What you can use it for" holds exactly the three items, word for word (the third links docs/bridge-guide.md)
@@ -486,7 +486,7 @@ chk_top() {
     state == 1 && /^## / { state = 2 }
     state == 1 && $0 ~ /[^ \t]/ {
       if ($0 == fullvideo) { fv++; seenv = 1 }
-      else if ($0 == teaser) { seen = 1; if (!seenv) print FILENAME ":" FNR ": the teaser line is above the full-video line" }
+      else if ($0 == teaser) { seen = 1; tn++; if (!seenv) print FILENAME ":" FNR ": the teaser line is above the full-video line" }
       else if (index($0, "![") == 1 && (k = index($0, "](")) > 0 && index(substr($0, k + 2), ")") == length($0) - k - 1) {
         imgs++
         if (!seen) print FILENAME ":" FNR ": the image line is above the teaser"
@@ -495,6 +495,7 @@ chk_top() {
     /^#+ Contest task/ || index($0, "| Contest task or criterion") == 1 { print FILENAME ":" FNR ": the Contest task section is back" }
     END {
       if (fv != 1) print FILENAME ": " fv + 0 " full-video lines between the header block and the first H2 section, not exactly one"
+      if (tn != 1) print FILENAME ": " tn + 0 " teaser lines between the header block and the first H2 section, not exactly one"
       if (imgs != 1) print FILENAME ": " imgs + 0 " image lines between the header block and the first H2 section, not exactly one"
     }
   ' "$f"
@@ -574,7 +575,8 @@ chk_interesting() {
   if [ "$n" -gt 120 ]; then echo "interesting: $n words before its first H3, at most 120"; fi
   h3s=$(awk '/^```/ { fence = !fence; next } !fence && /^### / { print substr($0, 5) }' "$sec")
   if [ "$h3s" != 'New since 1.0.0' ]; then echo "interesting: the H3 headings of '$H_INT' are not exactly 'New since 1.0.0'"; fi
-  chk_facts interesting "$sec" "$INT_FACTS"
+  int_own "$1" | grep -v '^!\[' > "$tmp/sec.int.own"
+  chk_facts interesting "$tmp/sec.int.own" "$INT_FACTS"
   # At least one image line, and each is the decision trace (owner's decision 2026-11-05: the hero is not shown again here).
   if [ "$(grep -c '^!\[' "$sec")" -lt 1 ]; then echo "interesting: '$H_INT' has no image line"; fi
   image_links "$sec" | cut -f3 | while IFS= read -r target; do
@@ -1512,6 +1514,11 @@ rule_top() {
   st 'the incident section heading removed' 1 "$README" '!/^## One incident, end to end$/' chk_top
   st 'the incident section renamed' 1 "$README" '/^## One incident, end to end$/ { print "## One incident"; next } { print }' chk_top
   st 'the incident section below What'"'"'s interesting' 1 "$README" '/^## One incident, end to end$/ { print "## What'"'"'s interesting"; next } /^## What.s interesting$/ { print "## One incident, end to end"; next } { print }' chk_top
+  st 'the teaser line removed' 1 "$README" '!/^Or watch the 35-second teaser: /' chk_top
+  st 'the teaser line twice' 1 "$README" '{ print } /^Or watch the 35-second teaser: / { print ""; print $0 }' chk_top
+  st 'the hero above the full-video line' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { next } /^Watch the full video / { print "![Hero.](docs/images/page-incident.png)"; print "" } { print }' chk_top
+  st 'the Try it section removed' 1 "$README" '!/^## Try it in two minutes$/' chk_top
+  st 'the Try it section and the incident section swapped' 1 "$README" '/^## Try it in two minutes$/ { print "## One incident, end to end"; next } /^## One incident, end to end$/ { print "## Try it in two minutes"; next } { print }' chk_top
   finish top 'the header block, the opening paragraph, the full-video line, the teaser and the hero image, then the six top sections in order, and the other sections are there' chk_top
 }
 
@@ -1536,6 +1543,9 @@ rule_interesting() {
   local n other
   rule_begin interesting "$README" || return
   st_facts chk_interesting "$INT_FACTS"
+  # The image's alt text and the bullets below the H3 also hold these two facts; the section's own text must hold them itself.
+  st 'Visual Trace only in the image and below the H3' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } /^### / { s = 0 } s && index($0, "![") != 1 { gsub(/Visual Trace/, "ZZ") } { print }' chk_interesting
+  st 'dry run only in the image and below the H3' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } /^### / { s = 0 } s && index($0, "![") != 1 { gsub(/dry run/, "ZZ") } { print }' chk_interesting
   n=$(int_own "$README" | grep -v '^!\[' | wc -w)
   n=$((n + 0))
   other=$(image_links "$README" | cut -f3 | grep -vxF -- "$INT_IMAGE" | head -n 1)
@@ -1688,6 +1698,8 @@ rule_video() {
   st 'the full-video entry reworded' 1 "$README" '/^\[Online demo\]/ { sub(/one incident, traced/, "the incident") } { print }' chk_video
   st 'the full-video entry pointing at the teaser' 1 "$README" '/^\[Online demo\]/ { sub(/\(3:04\)\]\(https:\/\/youtu\.be\/HIyCG5E6-JQ\)/, "(3:04)](https://youtu.be/wycbyfnXFMU)") } { print }' chk_video
   st 'another entry between the two video entries' 1 "$README" '/^\[Online demo\]/ { sub(/\[Video: the 35-second teaser\]/, "[Releases](LICENSE) | [Video: the 35-second teaser]") } { print }' chk_video
+  st 'the teaser address in the full-video line' 1 "$README" '/^Watch the full video / { $0 = $0 " and " "'"$TEASER_URL"'" } { print }' chk_video
+  st 'the teaser address in the incident section' 1 "$README" '{ print } /^## One incident, end to end$/ { print ""; print "See '"$TEASER_URL"'." }' chk_video
   st_append 'the teaser address a third time' "See $TEASER_URL" chk_video
   finish video 'the full-video line holds the YouTube and MP4 links, the link bar holds the full video directly before the teaser, and the teaser address is only in those two places' chk_video
 }
@@ -1705,8 +1717,16 @@ rule_path() {
   st 'the intro line removed' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^The demo guide walks/ { next } { print }' chk_path
   st 'an eighth step' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } { print } s && /^7\. / { print "8. **More.** One more."}' chk_path
   st 'a line added after the intro line' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } { print } s && /^The demo guide walks/ { print ""; print "A stray line." }' chk_path
+  for n in 1 2 3 4 5 6 7; do
+    st "step $n with a word added" 1 "$README" "/^## / { s = (\$0 == \"## $H_INC\") } s && /^$n\\. / { \$0 = \$0 \" Extra.\" } { print }" chk_path
+  done
+  st 'step 1 without its italics' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^1\. / { sub(/\*Break the feed\*/, "Break the feed") } { print }' chk_path
+  st 'step 3 renumbered 4' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^3\. / { sub(/^3\./, "4.") } { print }' chk_path
+  st 'steps 6 and 7 swapped' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^6\. / { held = $0; next } { print } s && /^7\. / { print held }' chk_path
+  st 'steps 2 and 3 swapped' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^2\. / { held = $0; next } { print } s && /^3\. / { print held }' chk_path
   st_move 'step 3 moved out of the section' "$H_INC" '3. ' chk_path
   st 'the section renamed' 1 "$README" '/^## One incident, end to end$/ { print "## One incident"; next } { print }' chk_path
+  st 'Two things to look at in the demo back under Measured' 1 "$README" '{ print } /^## Measured$/ { print ""; print "Two things to look at in the demo:"; print ""; print "- It works from real failures." }' chk_path
   st_append 'Two things to look at in the demo back' 'Two things to look at in the demo:' chk_path
   finish path 'One incident, end to end holds its ruled intro line and seven steps, word for word, and Two things to look at in the demo is gone' chk_path
 }
@@ -1739,6 +1759,14 @@ rule_new_since() {
   done
   st 'the first two group headings swapped' 1 "$README" '/^#### Your integrations$/ { print "#### Your documents and memory"; next } /^#### Your documents and memory$/ { print "#### Your integrations"; next } { print }' chk_new_since
   st 'a group heading as an H3' 1 "$README" '/^#### Your integrations$/ { print "### Your integrations"; next } { print }' chk_new_since
+  st 'the last two group headings swapped' 1 "$README" '/^#### Your documents and memory$/ { print "#### Personas, the heartbeat checklist and the digest"; next } /^#### Personas, the heartbeat checklist and the digest$/ { print "#### Your documents and memory"; next } { print }' chk_new_since
+  st 'the first and last group headings swapped' 1 "$README" '/^#### Your integrations$/ { print "#### Personas, the heartbeat checklist and the digest"; next } /^#### Personas, the heartbeat checklist and the digest$/ { print "#### Your integrations"; next } { print }' chk_new_since
+  st 'a fourth group heading' 1 "$README" '{ print } index($0, "- **A Usage page.**") == 1 { print ""; print "#### Another group"; print "" }' chk_new_since
+  st 'the first two bullets of the first group swapped' 1 "$README" 'index($0, "- **A dry run that checks good messages.**") == 1 { held = $0; next } { print } index($0, "- **Incident summaries.**") == 1 { print held }' chk_new_since
+  st 'Memory before Where an answer came from' 1 "$README" 'index($0, "- **Where an answer came from.**") == 1 { held = $0; next } { print } index($0, "- **Memory.**") == 1 { print held }' chk_new_since
+  st 'the Personas and heartbeat bullets swapped' 1 "$README" 'index($0, "- **Personas.**") == 1 { held = $0; next } { print } index($0, "- **A heartbeat checklist.**") == 1 { print held }' chk_new_since
+  st 'a bullet renamed' 1 "$README" 'index($0, "- **Memory.**") == 1 { sub(/Memory\./, "Remembering.") } { print }' chk_new_since
+  st 'the image line removed from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 { next } { print }' chk_new_since
   printf '%s\n' "$NS_WANT" | while IFS= read -r line; do
     case $line in B\ *) echo "${line#B }" ;; esac
   done > "$tmp/ns.names"
