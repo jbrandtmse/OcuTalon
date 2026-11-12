@@ -982,3 +982,5 @@
 2026-11-12T19:07:54Z	Story 0.31	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0
 2026-11-12T19:07:54Z	Story 0.31	smoke_complete	method=other(IRIS_test_class_on_lane-A_warm_throwaway_e0s31cw) result=pass iterations=1 defects_caught=0 evidence=class_green;AC1_mutation_red_on_xHash_pass;reverted_identical;green;torn_down model=claude-opus-5-5
 2026-11-12T19:07:54Z	Story 0.31	fresh_check	env=recipe(fresh_lane-A_throwaway_built_by_ci/warm.sh_up_from_the_tree) tests=1(OcuTalon.Test.Data.Webhook) result=pass order=forward,reverse(one_class:run_twice_around_the_mutation) note=test-boundaries_pass;ASCII_only
+2026-11-12T19:07:54Z	Story 0.31	committed	sha=9ce80b67 submodules= ci=hold(local_only,CI_HOLD_in_force) runs=none amendments=epics.md:Story_0.31_block(inserted) code_commits=12351bfc,9ce80b67 note=LOCAL_READY;not_pushed
+2026-11-12T19:07:54Z	Story 0.31	story_cycle	plan_to_commit_min=25 implement_passes=1 reviews=1 rework=0 first_ci=pending(hold) models=plan:lead,implement:sonnet,qa:skipped,cr:opus
