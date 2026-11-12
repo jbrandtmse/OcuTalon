@@ -1,0 +1,126 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "EVALFEED",
+    "production": "OcuTalon.Test.Eval.Feed",
+    "item": "ShipmentsToLedger"
+  },
+  "failures": [
+    {
+      "headerId": 11,
+      "sessionId": 11,
+      "superSession": "jjS2j92sd7bLS0-5F3hEMQ",
+      "timeCreated": "2026-11-12T10:56:43Z",
+      "timeProcessed": "2026-11-12T10:56:43Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ShipmentsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "10",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7204: Datatype value '-3.0' less than MINVAL allowed of 0\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"-3.0\"",
+      "body": {
+        "ShipmentId": "SH-9101",
+        "OrderNumber": "ON-9101",
+        "ShippedAt": "2026-10-16 09:30:00",
+        "Weight": "-3.0",
+        "Carrier": "CARRIER-A"
+      }
+    },
+    {
+      "headerId": 12,
+      "sessionId": 12,
+      "superSession": "jjS2j92sd7bLS0-5F3hEMQ",
+      "timeCreated": "2026-11-12T10:56:43Z",
+      "timeProcessed": "2026-11-12T10:56:43Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ShipmentsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "11",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7204: Datatype value '-1.5' less than MINVAL allowed of 0\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"-1.5\"",
+      "body": {
+        "ShipmentId": "SH-9102",
+        "OrderNumber": "ON-9102",
+        "ShippedAt": "2026-10-16 09:45:00",
+        "Weight": "-1.5",
+        "Carrier": "CARRIER-A"
+      }
+    },
+    {
+      "headerId": 13,
+      "sessionId": 13,
+      "superSession": "jjS2j92sd7bLS0-5F3hEMQ",
+      "timeCreated": "2026-11-12T10:56:43Z",
+      "timeProcessed": "2026-11-12T10:56:43Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ShipmentsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "12",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7204: Datatype value '-0.5' less than MINVAL allowed of 0\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"-0.5\"",
+      "body": {
+        "ShipmentId": "SH-9103",
+        "OrderNumber": "ON-9103",
+        "ShippedAt": "2026-10-17 10:00:00",
+        "Weight": "-0.5",
+        "Carrier": "CARRIER-B"
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "28",
+      "timeLogged": "2026-11-12T10:56:43Z",
+      "type": "Error",
+      "configName": "ShipmentsToLedger",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 11,
+      "text": "ERROR #7204: Datatype value '-3.0' less than MINVAL allowed of 0\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"-3.0\""
+    },
+    {
+      "id": "29",
+      "timeLogged": "2026-11-12T10:56:43Z",
+      "type": "Error",
+      "configName": "ShipmentsToLedger",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 12,
+      "text": "ERROR #7204: Datatype value '-1.5' less than MINVAL allowed of 0\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"-1.5\""
+    },
+    {
+      "id": "30",
+      "timeLogged": "2026-11-12T10:56:43Z",
+      "type": "Error",
+      "configName": "ShipmentsToLedger",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 13,
+      "text": "ERROR #7204: Datatype value '-0.5' less than MINVAL allowed of 0\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"-0.5\""
+    }
+  ],
+  "items": [
+    {
+      "name": "ShipmentsToLedger",
+      "className": "OcuTalon.Test.Eval.Feed.Intake",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {}
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "11",
+      "type": "Request",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ShipmentsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "status": "Error",
+      "timeCreated": "2026-11-12T10:56:43Z",
+      "isError": false
+    }
+  ]
+}

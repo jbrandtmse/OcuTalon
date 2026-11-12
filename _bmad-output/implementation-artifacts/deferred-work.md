@@ -7312,3 +7312,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-7-send-the-daily-digest-by-email.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Out.cls SendDigestLocked: DigestEmailSent -> Transmit -> Delivery.Record(...key); TestDigestNoDoubleSend covers a resend after a recorded success; Digest hands a digest to Notify once, nothing re-handles it
 - 2026-11-12T17:02:25Z status=wontfix-theoretical owner=21-7-send-the-daily-digest-by-email by=cr note=real if a digest Notification is ever handled twice by EmailOut (an Ens resend or redelivery after a job crash); then claim-first
+### DW-1195: flake/infra: live:sign-in chromium suite hit its 757 s suite timeout under host load (256 passed, 0 failed, 24 did not run)
+- source: ci 43227065531 feature 150b49c5 iris (shards-10) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Timed out waiting 757s for the test suite to run; 24 did not run; no test failed
+- 2026-11-12T14:15:46Z status=routed owner=burndown by=orchestrator note=one rerun per occurrence; if recurrent, size the shard's suite budget or split the shard
+
+### DW-1192: Held-out incident snapshots are never compared with a fresh recording in CI; HeldOutCases errorHas markers are read nowhere
+- source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Test.Eval.Record (TestCommittedIsCurrent, TestFeedCasesRecorded) covers the default Cases set and top-level eval/ incidents only; a stale held-out snapshot would pass CI (agent measurement quality, not safety)
+- 2026-11-12T12:47:26Z status=open owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=harvest note=implement pass 2 deferred; extend Test.Eval.Record to the HeldOutCases set (Rule 2)
+- 2026-11-12T13:46:16Z status=resolved-by:0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=OcuTalon.Test.Eval.Record extended (Rule 2): OnBeforeAllTests also sends Feed.Fixture HeldOutCases and re-induces each held-out incident; new TestHeldOutCommittedIsCurrent asserts the eval/held-out incident set equals HeldOutCases, every errorHas marker on this run's and the committed snapshot, and the committed held-out pack equals the live pack apart from VOLATILE. Passed on a lane-B warm stack; mutations (snapshot ShipmentId edited; errorHas #7204->#7299) went red and were reverted.
+
+### DW-1193: record-eval.sh held-out mode repeats the feed mode's session call and copy-out loop instead of sharing one helper
+- source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: docker/tests/record-eval.sh: the held-out block (session_value Record call, name loop, copy_out) mirrors the feed block; the file already repeats this shape per mode (no-evidence)
+- 2026-11-12T13:46:16Z status=wontfix-accepted owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=reopen_if=a further record-eval.sh mode copies the session-call and copy-out block again, or the feed and held-out blocks diverge in a fix applied to only one of them
+
+### DW-1194: The push run's comparison output (COMPARISON line, step-summary table, committed-results check) is pinned locally only by source-text order checks; the stub never runs the push run
+- source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: medium | fix-risk: high | footprint: in-story
+- evidence: docker/tests/test-eval-set.sh check_rules_flow: awk line-order pins only; rcf_rules runs the --rules-only forms, never the push run; lane-a evaluation job is the runtime proof
+- 2026-11-12T13:46:59Z status=by-design owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=spec Verification: Integration and CI ACs are proven by the lead's CI evidence (lane A evaluation job log and summary); a stubbed push run would emulate set, mock-wrong, demo gate and attempt runs
