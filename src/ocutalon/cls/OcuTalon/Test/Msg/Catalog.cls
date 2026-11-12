@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 140 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 143 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 20 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -78,7 +78,8 @@ Method TestEntries()
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
 	// Story 41.15 (Contest Planner ruling 2026-11-10): memory.learnedSaved adds one key to Story 23.2's 138 here; with Story 23.5's press.approvedPartner (plain union at the integrate-forward), 140 in all.
-	Do $$$AssertEquals(keys.core.%Size(), 140, "the expected Core list has 140 keys")
+	// Story 35.3 (Contest Planner ruling 2026-11-11, PUBLIC TEXT T1-T3): settings.webhooksOffOnDemo, webhookBadName and webhookBadSecret take the Core count to 143.
+	Do $$$AssertEquals(keys.core.%Size(), 143, "the expected Core list has 143 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
@@ -86,7 +87,7 @@ Method TestEntries()
 	// Story 23.5 (Contest Planner ruling 2026-11-09): the 11 keys of the partner delay notice (incident.partnerRequest; result.partnerSent, partnerSentSome, partnerNotSent, partnerKept, partnerNotDrafted; summary.requestedPartner, partnerSent, partnerKept, partnerNotSent; partner.subject) take the Watch count to 116, and press.approvedPartner takes the Core count to 139 (140 with Story 41.15's memory.learnedSaved).
 	// Story 23.7 (Contest Planner Public Text ruling 2026-11-11): the key watch.queueBacklog takes the Watch count to 117.
 	Do $$$AssertEquals(keys.watch.%Size(), 117, "the expected Watch list has 117 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 140 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 143 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 117 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -125,7 +126,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 220 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 223 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system,heartbeat", "five Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -793,6 +794,29 @@ Method TestGroupsCannotInject()
 	Do $$$AssertEquals($Length(text, $Char(10)), 7, "the notice has exactly the lines of its template and groups")
 }
 
+/// Story 23.10: the summary's Fix and Evidence lines end in exactly one full stop, on every channel, and a value that ends in "?", "!" or U+2026 keeps its mark with no full stop after it.
+Method TestSummaryFixFullStop()
+{
+	For channel = "web", "phone", "telegram" {
+		For line = $ListBuild("summary.fix", "fix", "Fix: ", "Resend the 50 orders after you approve"), $ListBuild("summary.evidence", "evidence", "Evidence: ", "OrderDate 16/10/2026 in the sample") {
+			Set key = $List(line, 1), slot = $List(line, 2), label = $List(line, 3), value = $List(line, 4)
+			Set slots = {}
+			Do slots.%Set(slot, value)
+			Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots, channel, ..#NOW, 1, .sc)
+			Do $$$AssertStatusOK(sc, key_" renders on "_channel)
+			Do $$$AssertEquals(text, label_value_".", key_" on "_channel_": a value with no stop gets one")
+			Do slots.%Set(slot, value_".")
+			Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots, channel, ..#NOW, 1, .sc)
+			Do $$$AssertEquals(text, label_value_".", key_" on "_channel_": a value that ends in a full stop still ends in exactly one")
+			For mark = "?", "!", $Char(8230) {
+				Do slots.%Set(slot, value_mark)
+				Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots, channel, ..#NOW, 1, .sc)
+				Do $$$AssertEquals(text, label_value_mark, key_" on "_channel_": a value that ends in character "_$ZHex($Ascii(mark))_" keeps it and gets no full stop")
+			}
+		}
+	}
+}
+
 /// Asserts the text of a message with a time in the instance zone: slots {"time": utc} of answered.expired.
 Method AssertExpired(utc As %String, flag As %Boolean, expected As %String, label As %String, now As %String = "") [ Private ]
 {
@@ -1129,6 +1153,9 @@ XData Keys [ MimeType = application/json ]
   "settings.webhookCreate",
   "settings.webhookAddress",
   "settings.webhookNameTaken",
+  "settings.webhooksOffOnDemo",
+  "settings.webhookBadName",
+  "settings.webhookBadSecret",
   "settings.secretSet",
   "settings.secretNotSet",
   "settings.refusedExpansion",
@@ -1654,9 +1681,9 @@ XData Fixtures [ MimeType = application/json ]
  "summary.cause": {"slots": {"cause": "The partner changed the date format."}, "text": "Cause: The partner changed the date format."},
  "summary.element": {"slots": {"element": "OrderDate"}, "text": "Where it failed: OrderDate."},
  "summary.noCause": {"slots": {"fallbackReason": "timeout"}, "text": "No cause was found: the model didn't answer within the time allowed."},
- "summary.evidence": {"slots": {"evidence": "OrderDate 16/10/2026 in the sample"}, "text": "Evidence: OrderDate 16/10/2026 in the sample"},
+ "summary.evidence": {"slots": {"evidence": "OrderDate 16/10/2026 in the sample"}, "text": "Evidence: OrderDate 16/10/2026 in the sample."},
  "summary.sampleError": {"slots": {"error": "Field OrderDate was not a date."}, "text": "Sample error: Field OrderDate was not a date."},
- "summary.fix": {"slots": {"fix": "repair the date and resend the orders"}, "text": "Fix: repair the date and resend the orders"},
+ "summary.fix": {"slots": {"fix": "repair the date and resend the orders"}, "text": "Fix: repair the date and resend the orders."},
  "summary.noFixRan": {"slots": {}, "text": "No fix ran, so nothing was changed."},
  "summary.groups": {"slots": {"groups": [{"itemName": "OrdersFromPartner", "count": 50, "errorSummary": "The order date was not in the expected format", "firstAt": "2026-10-16T18:12:00Z"}]}, "text": "Failure groups:\nOrdersFromPartner: 50, 'The order date was not in the expected format', first at 14:12 ET"},
  "summary.messages": {"slots": {"failed": 50, "resent": 48, "completed": 48, "failedAgain": 2, "skipped": 0}, "text": "Messages: 50 failed, 48 resent, 48 completed, 2 failed again, 0 skipped."},
@@ -1712,6 +1739,9 @@ XData Fixtures [ MimeType = application/json ]
  "settings.webhookCreate": {"slots": {}, "text": "Create webhook"},
  "settings.webhookAddress": {"slots": {"address": "https://example.com/ocutalon/hook/zzref"}, "text": "Send events with POST to https://example.com/ocutalon/hook/zzref."},
  "settings.webhookNameTaken": {"slots": {"name": "Billing"}, "text": "A webhook called 'Billing' already exists. Nothing was changed."},
+ "settings.webhooksOffOnDemo": {"slots": {}, "text": "Webhooks are off on the online demo, so it has no public webhook address. They work on your own install."},
+ "settings.webhookBadName": {"slots": {}, "text": "Enter a name of 1 to 64 characters. Nothing was changed."},
+ "settings.webhookBadSecret": {"slots": {}, "text": "Use a secret of 16 to 256 characters: letters, digits and punctuation, with no spaces. Nothing was changed."},
  "settings.secretSet": {"slots": {}, "text": "Saved, and never shown again. Type a new value to replace it."},
  "settings.secretNotSet": {"slots": {}, "text": "Not set."},
  "settings.refusedExpansion": {"slots": {"marker": "@{"}, "text": "This can't contain @{, which IRIS would read as a reference to a setting. Nothing was changed."},

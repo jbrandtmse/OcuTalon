@@ -1229,7 +1229,7 @@ Method Drafting(draft As OcuTalon.Watch.Msg.Draft) As %Status [ Private ]
 
 /// The request for the draft (AD-6, AD-30), the shape of Digest's summary request: a turn of provenance untrusted and a fresh session, so that the gate lets it act on nothing, whose input is
 /// the carrier item that holds the kind's Facts (code-built: no message body, sample error, setting value or evidence), with a new ItemId, the asking session as owner and the
-/// kind's SYSTEMNOTE.
+/// kind's SYSTEMNOTE (its SystemNote(incident), when the kind has that method).
 Method DraftRequest(incident As OcuTalon.Data.Incident, sessionRef As %String, class As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
 {
 	Set carrier = ##class(OcuTalon.Msg.Item).%New()
@@ -1248,7 +1248,7 @@ Method DraftRequest(incident As OcuTalon.Data.Incident, sessionRef As %String, c
 	Set request.Channel = ..#DRAFTCHANNEL
 	Set request.TraceRef = ..%SuperSession
 	Set request.ThreadSessionId = ..%SessionId
-	Set request.SystemNote = $Parameter(class, "SYSTEMNOTE")
+	Set request.SystemNote = $Select(##class(%Dictionary.CompiledMethod).%ExistsId(class_"||SystemNote"): $ClassMethod(class, "SystemNote", incident), 1: $Parameter(class, "SYSTEMNOTE"))
 	Quit request
 }
 

@@ -9,6 +9,7 @@
 ///   - memoryCard (Story 41.13): the same condition as memory, listed right after it;
 ///   - documents: the documents operation is compiled and is not a stub; the Documents page does not count;
 ///   - heartbeat: the class of the Run now command is compiled (Epic 39);
+///   - webhooks (Story 35.3): the webhook dispatch class is compiled and the online-demo flag is not set, because the online demo has no webhook address;
 ///   - sources: when memory or documents is listed, because a cited answer or a From memory chip needs one of them.
 ///   - usage: always, because the Usage page ships in the same package as this class;
 ///   - history (Story 25.2): always, last, because the History page ships in the same package as this class.
@@ -27,6 +28,9 @@ Parameter DOCUMENTS = "OcuTalon.Docs.Ops";
 /// The class whose presence means the heartbeat feature.
 Parameter HEARTBEAT = "OcuTalon.Msg.Command.RunHeartbeat";
 
+/// The class whose presence means the webhooks feature, off the online demo.
+Parameter WEBHOOKS = "OcuTalon.Web.Hook";
+
 /// The ids of the features this instance has: Ids of the instance's probes.
 ClassMethod Present() As %List
 {
@@ -35,10 +39,11 @@ ClassMethod Present() As %List
 	Set has.memory = ..Built(..#MEMORY)
 	Set has.documents = ..Built(..#DOCUMENTS)
 	Set has.heartbeat = ..Compiled(..#HEARTBEAT)
+	Set has.webhooks = ..Compiled(..#WEBHOOKS) && (##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1)
 	Quit ..Ids(has)
 }
 
-/// The pure mapping from probe flags to the list of ids. has is an object with the flags persona, memory, documents and heartbeat; a flag
+/// The pure mapping from probe flags to the list of ids. has is an object with the flags persona, memory, documents, heartbeat and webhooks; a flag
 /// that is absent or false leaves its id out.
 ClassMethod Ids(has As %DynamicObject) As %List
 {
@@ -49,6 +54,7 @@ ClassMethod Ids(has As %DynamicObject) As %List
 	If has.%Get("memory") Set ids = ids _ $ListBuild("memoryCard")
 	If has.%Get("documents") Set ids = ids _ $ListBuild("documents")
 	If has.%Get("heartbeat") Set ids = ids _ $ListBuild("heartbeat")
+	If has.%Get("webhooks") Set ids = ids _ $ListBuild("webhooks")
 	If has.%Get("memory") || has.%Get("documents") Set ids = ids _ $ListBuild("sources")
 	Set ids = ids _ $ListBuild("usage", "history")
 	Quit ids

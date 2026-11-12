@@ -27,6 +27,9 @@ import type {
   SettingsSaved,
   StateSnapshot,
   UnpairDone,
+  WebhookCreated,
+  WebhookSecretSaved,
+  WebhooksList,
 } from './api-types';
 import type { HistoryDecisionsResponse, HistoryFilters, HistoryIncidentsResponse } from './history-types';
 import type { HeartbeatPut, HeartbeatSaved, HeartbeatState } from './heartbeat-types';
@@ -59,6 +62,27 @@ export class ApiClient {
    */
   saveSettings(section: string, values: object): Observable<SettingsSaved> {
     return this.http.post<SettingsSaved>(`${BASE}/settings/${encodeURIComponent(section)}`, values);
+  }
+
+  /**
+   * The signed-in admin's webhooks (Story 35.3): a GET that answers 200 `{webhooks: [{ref, name, path, createdAt}]}`. A 403 (not an admin) and a 409
+   * `not_available` (the online demo) fail as an HttpErrorResponse whose `error` is the body.
+   */
+  webhooks(): Observable<WebhooksList> {
+    return this.http.get<WebhooksList>(`${BASE}/settings/channels/webhooks`);
+  }
+
+  /**
+   * Creates a webhook: a POST of `{name, secret}` that answers 200 with the new webhook. The secret is sent once and never comes back. A 400 `bad_webhook`
+   * (with `fields`), a 403, a 409 and a 500 fail as an HttpErrorResponse.
+   */
+  createWebhook(name: string, secret: string): Observable<WebhookCreated> {
+    return this.http.post<WebhookCreated>(`${BASE}/settings/channels/webhooks`, { name, secret });
+  }
+
+  /** Replaces a webhook's secret: a POST of `{secret}` that answers 200 `{result, message}`. A 404 for a webhook that is not the admin's fails as an HttpErrorResponse, as the others do. */
+  setWebhookSecret(ref: string, secret: string): Observable<WebhookSecretSaved> {
+    return this.http.post<WebhookSecretSaved>(`${BASE}/settings/channels/webhooks/${encodeURIComponent(ref)}/secret`, { secret });
   }
 
   /**
