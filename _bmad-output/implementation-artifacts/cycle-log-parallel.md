@@ -3717,3 +3717,14 @@
 2026-11-12T12:32:37Z	Epic 0	ci_green_verified	head=2a6cfc67 runs=43202138313,43202138310 result=success
 2026-11-12T12:32:37Z	Epic 0	merge_enqueued	part=0.28 head=42b613eb
 2026-11-12T12:33:04Z	Epic 0	epic_merged_to_feature	part=0.28 feature_sha=3caf52ab merge_sha=3caf52ab code=2a6cfc67+23.9 verified_on_origin=yes
+2026-11-12T12:43:28Z	Run	owner_decision	via=contest_planner what=ci_and_0.30 ruling="85e20e86 runs cancelled by the Planner (3caf52ab contains it); if 3caf52ab red on 23.9/0.28 code (not a classified flake) rerun 85e20e86 runs to attribute; eb289caf = known-green fallback; DW-1191 test-only (TestMatches salt x), burndown, red on that single assertion = classified flake at RC; 0.30 in 1.0.8 only if green before the cut, else 1.0.9"
+2026-11-12T12:43:28Z	Run	ci_cancelled	head=85e20e86 runs=43217029752,43217029669 by=contest_planner reason=superseded_by_3caf52ab
+2026-11-12T13:05:40Z	Epic 0	runner_reported	PUBLIC_TEXT story=0.30 head=c205aec9 spec=blocked(Q1-Q3)
+2026-11-12T13:05:40Z	Epic 0	owner_decision	via=contest_planner what=0.30_Q1-Q3_and_public_text ruling="Q1 A (GUIDE_URL in links.ts), Q2 A (install.sh GUIDE.md line), Q3 A (RELEASE TOOL notes.sh:79 checklist.sh:474 approved + extract-moved-text AC); PUBLIC TEXT approved with 2 edits; conditions 1-4" file=prompts/story-030-rulings.md
+2026-11-12T13:15:25Z	Run	owner_decision	via=contest_planner what=standing_no_idle_lanes+lane_C_21.7+DW-1082_budget file=prompts/standing-rulings-20261112.md
+2026-11-12T13:15:25Z	Epic 21	ci_green_verified	head=368c7a09 runs=43206845957(att2),43206845590 result=success flake=DW-1191
+2026-11-12T13:15:50Z	Run	orchestrator_error	fault=orchestrator what=SendMessage_to_live_runner_mid_stage(epic-runner-0b) consequence=harness_moved_1_running_tool_call_to_background(not_stopped) correction=message_live_runners_only_at_turn_end;runner_0b_told_by_message_to_wait_for_its_stage(rule_18) note=likely_source_of_async_stage_reports
+2026-11-12T13:24:17Z	Run	ci_red_classified	sha=3caf52ab run=43218921197 job=iris(install-upgrade)row6 class=flake(DW-1082) action=rerun_failed_once(attempt2)
+2026-11-12T13:24:17Z	Epic 21	runner_reported	PART_READY part=21.3 head=cb13fddc code_head=368c7a09 ci=success runs=43206845957(att2),43206845590
+2026-11-12T13:24:17Z	Epic 21	amendments_verified	amendments=2 extensions=4 ok=true note=AD-3_S1-S6(U-320,markers),epics_21.3_split+21.8 overlap_with_feature_since_base=none
+2026-11-12T13:24:17Z	Epic 21	merge_enqueued	part=21.3 head=cb13fddc
