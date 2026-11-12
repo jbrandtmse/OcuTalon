@@ -12,3 +12,5 @@
 2026-11-12T10:34:11Z	Epic 0	retro_review_skipped	reason=skipped(policy)_recorded_in_cycle-log-epic-0
 2026-11-12T10:36:59Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer model=claude-opus-5-5 spawn_at=2026-11-12T10:35:00Z lines=83 note=harness_ran_agent_call_async_despite_run_in_background_false;waited_in_bounded_foreground_polls
 2026-11-12T10:36:59Z	Story 0.27	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-22,AD-8,AD-28,AD-19,AD-30,AD-29 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false public_text=none release_tool=none edits=lane_b_variables,ci_ac_readme_video_conditional,ascii_list,ci_diff_expected_empty model=claude-opus-5-5
+2026-11-12T10:37:34Z	Story 0.27	lead_revert	sha=1e61e953 reverts=600d0d8d held_out_diff_vs_6af31dab=empty sha256_pins=12/12_match
+2026-11-12T10:37:34Z	Story 0.27	stage_spawned	stage=implement spawn_at=2026-11-12T10:37:34Z model=sonnet agent_name=0-27-implement-1 cycle_iteration=1 story_base=1e61e953
