@@ -3670,3 +3670,4 @@
 2026-11-12T07:08:54Z	Run	ci_cancelled_record_only	head=0a73299f runs=43173052041,43173052133 reason=records_only_over_74ee76dc(green_by_identity_once_74ee76dc_resolves)
 2026-11-12T07:09:05Z	Run	inbox_hold_item	id=U-322
 2026-11-12T07:38:45Z	Epic 0	ci_red_classified	sha=eff03a14 run=43159935962 job=iris(production) test=live:production_row21_WatchOps class=flake(DW-306) action=rerun_DEFERRED_to_resume(HOLD) lane-a=success
+2026-11-12T07:43:28Z	Run	ci_observed	feature=74ee76dc run=43160772937 attempt=1 completed failed=iris(shards-4)DW-1158,iris(browser)DW-1187 others=success lane-a=success rerun=DEFERRED_to_resume(HOLD)
