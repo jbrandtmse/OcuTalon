@@ -7332,3 +7332,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: medium | fix-risk: high | footprint: in-story
 - evidence: docker/tests/test-eval-set.sh check_rules_flow: awk line-order pins only; rcf_rules runs the --rules-only forms, never the push run; lane-a evaluation job is the runtime proof
 - 2026-11-12T13:46:59Z status=by-design owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=spec Verification: Integration and CI ACs are proven by the lead's CI evidence (lane A evaluation job log and summary); a stubbed push run would emulate set, mock-wrong, demo gate and attempt runs
+
+### DW-1226: A real provider may answer a rejected XOAUTH2 token with a continuation challenge (POP3 '+ <base64 JSON>', SMTP '334 <json>') instead of the -ERR/535 the CI mock sends, so the poll reason could read 'couldn't reach' instead of the sign-in sentence
+- source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Adapter.ConnectReason gives REASONREFUSED/REASONSIGNIN only for ': -ERR'; stubs use -ERR; real Gmail/M365 reply after a rejected token not measured (inference)
+- 2026-11-12T20:33:04Z status=decision-pending owner=burndown by=harvest note=human=one sign-in with a real Gmail or Microsoft 365 test mailbox and a revoked grant (owner's own install), or the providers' protocol docs; fix is a small ConnectReason branch if the challenge form is confirmed
