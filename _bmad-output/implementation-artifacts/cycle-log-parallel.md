@@ -3710,3 +3710,9 @@
 2026-11-12T12:19:48Z	Epic 23	merge_enqueued	part=23.9 head=e353d142
 2026-11-12T12:20:35Z	Run	spine_reconciled	ads_merged=0 lint=baseline(10_low_placeholder) part=23.9 dup_ids=none
 2026-11-12T12:20:53Z	Epic 23	epic_merged_to_feature	part=23.9 feature_sha=85e20e86 merge_sha=85e20e86 code=3b197218+35.3 verified_on_origin=yes
+2026-11-12T12:22:12Z	Epic 21	ci_observed	sha=368c7a09 run=43206845957 job=iris(image) unit=shard:lane-b@Contract,Core,Data,Live test=OcuTalon.Test.Data.Webhook:TestMatches("xrvjRiPqHbxlagA8SDES is not a stored value of the secret") note=35.3_test_green_on_eb289caf;red_on_21.3_integrated_head action=resume_runner_C_classify
+2026-11-12T12:32:28Z	Epic 21	runner_reported	CI_WAIT story=21.3 head=368c7a09 red=Test.Data.Webhook:TestMatches class=flake(DW-1191,random_salt_1in64,35.3_test) rerun=43206845957_attempt2 local=fcbff4bd
+2026-11-12T12:32:37Z	Epic 0	runner_reported	PART_READY part=0.28 head=42b613eb code_head=2a6cfc67 ci=success runs=43202138313(att2),43202138310(att2)
+2026-11-12T12:32:37Z	Epic 0	amendments_verified	amendments=0 extensions=6 ok=true release_tool=release/checklist.sh(approved_by_Planner) overlap_with_feature_since_base=none
+2026-11-12T12:32:37Z	Epic 0	ci_green_verified	head=2a6cfc67 runs=43202138313,43202138310 result=success
+2026-11-12T12:32:37Z	Epic 0	merge_enqueued	part=0.28 head=42b613eb
