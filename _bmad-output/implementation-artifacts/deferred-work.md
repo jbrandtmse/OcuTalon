@@ -7190,3 +7190,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Test.Eval.Record (TestCommittedIsCurrent, TestFeedCasesRecorded) covers the default Cases set and top-level eval/ incidents only; a stale held-out snapshot would pass CI (agent measurement quality, not safety)
 - 2026-11-12T12:47:26Z status=open owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=harvest note=implement pass 2 deferred; extend Test.Eval.Record to the HeldOutCases set (Rule 2)
+- 2026-11-12T13:46:16Z status=resolved-by:0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=OcuTalon.Test.Eval.Record extended (Rule 2): OnBeforeAllTests also sends Feed.Fixture HeldOutCases and re-induces each held-out incident; new TestHeldOutCommittedIsCurrent asserts the eval/held-out incident set equals HeldOutCases, every errorHas marker on this run's and the committed snapshot, and the committed held-out pack equals the live pack apart from VOLATILE. Passed on a lane-B warm stack; mutations (snapshot ShipmentId edited; errorHas #7204->#7299) went red and were reverted.
+
+### DW-1193: record-eval.sh held-out mode repeats the feed mode's session call and copy-out loop instead of sharing one helper
+- source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: docker/tests/record-eval.sh: the held-out block (session_value Record call, name loop, copy_out) mirrors the feed block; the file already repeats this shape per mode (no-evidence)
+- 2026-11-12T13:46:16Z status=wontfix-accepted owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=reopen_if=a further record-eval.sh mode copies the session-call and copy-out block again, or the feed and held-out blocks diverge in a fix applied to only one of them
+
+### DW-1194: The push run's comparison output (COMPARISON line, step-summary table, committed-results check) is pinned locally only by source-text order checks; the stub never runs the push run
+- source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: medium | fix-risk: high | footprint: in-story
+- evidence: docker/tests/test-eval-set.sh check_rules_flow: awk line-order pins only; rcf_rules runs the --rules-only forms, never the push run; lane-a evaluation job is the runtime proof
+- 2026-11-12T13:46:59Z status=by-design owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=spec Verification: Integration and CI ACs are proven by the lead's CI evidence (lane A evaluation job log and summary); a stubbed push run would emulate set, mock-wrong, demo gate and attempt runs

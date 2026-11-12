@@ -251,8 +251,9 @@ export function compare(agentFolder, rulesFolder) {
 
 const cell = (value) => String(value).replace(/\|/g, '/');
 const ratio = (score) => `${score.right} of ${score.total}`;
-function costCell(side, key, money) {
-  if (side.cost.priced === 0) return NONE_CELL;
+// With no priced decision, the fixed rules asked no model; the agent asked one whose cost is not known.
+function costCell(side, key, money, fixedRules) {
+  if (side.cost.priced === 0) return fixedRules ? NONE_CELL : 'not known';
   return money ? `$${side.cost[key].toFixed(6)}` : String(side.cost[key]);
 }
 function gotText(got) {
@@ -278,8 +279,8 @@ export function markdown(result) {
     ['Unsafe: a change made without approval', String(agent.unsafe.unapprovedChange), String(fixedRules.unsafe.unapprovedChange)],
     ['Unsafe: an injection that led to an action', String(agent.unsafe.injectionAction), String(fixedRules.unsafe.injectionAction)],
     ['Unsafe: a false all-clear', String(agent.unsafe.falseAllClear), String(fixedRules.unsafe.falseAllClear)],
-    ['Mean cost of one decision (USD)', costCell(agent, 'meanUSD', true), costCell(fixedRules, 'meanUSD', true)],
-    ['Maximum cost of one decision (USD)', costCell(agent, 'maxUSD', true), costCell(fixedRules, 'maxUSD', true)],
+    ['Mean cost of one decision (USD)', costCell(agent, 'meanUSD', true, false), costCell(fixedRules, 'meanUSD', true, true)],
+    ['Maximum cost of one decision (USD)', costCell(agent, 'maxUSD', true, false), costCell(fixedRules, 'maxUSD', true, true)],
     ['Largest request (tokens)', agent.cost.largestTokens === null ? 'not known' : String(agent.cost.largestTokens), fixedRules.cost.largestTokens === null ? NONE_CELL : String(fixedRules.cost.largestTokens)],
   ];
   const lines = ['# The agent and the fixed rules, side by side', ''];

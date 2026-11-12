@@ -26,7 +26,8 @@
 # The held-out mode sends the inputs of the held-out incidents (Fixture XData HeldOutCases: the same feed, no expectation) and has the fixture record
 # each one; only snapshot.json of each is copied out (through jq, checked as the feed mode's files are) into eval/held-out/<name>/, beside the case.json
 # that the set already holds. It dies before it starts anything when a named incident has no eval/held-out/<name>/case.json or that file is not an
-# incident, and after the recording when any case.json below eval/held-out/ differs from what it was before (a checksum of each, before and after);
+# incident, and after the recording, before any snapshot is written, when any case.json below eval/held-out/ differs from what it was before (a
+# checksum of each, before and after);
 # it never writes or edits a case.json. It prints "record-eval: <n> held-out snapshots written". A name that is not lower-case kebab, or a third
 # argument, exits 2 before anything starts.
 # Every mode exits 0 only when its files were written, and 1 when it refuses or fails.
@@ -182,10 +183,10 @@ if [ "$mode" = heldout ]; then
   wanted=0
   for name in $held_incidents; do wanted=$((wanted + 1)); done
   if [ "$count" -ne "$wanted" ]; then die "the feed recorded $count of the $wanted held-out incidents"; fi
+  if [ "$(held_sums)" != "$held_before" ]; then die "a case.json below eval/held-out/ changed"; fi
   for name in $(printf '%s' "$names" | tr ',' ' '); do
     cp "$tmp/held-out/$name/snapshot.json" "$repo/eval/held-out/$name/snapshot.json" || die "eval/held-out/$name/snapshot.json could not be written"
   done
-  if [ "$(held_sums)" != "$held_before" ]; then die "a case.json below eval/held-out/ changed"; fi
   echo "record-eval: $count held-out snapshots written"
   exit 0
 fi

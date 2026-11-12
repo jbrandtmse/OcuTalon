@@ -34,10 +34,10 @@
 # The rules-only run (--rules-only [main|held-out], Story 0.27; AD-22, AD-8, AD-19). It measures the product's own fallback, the one it uses when it
 # has no model key, through the real evaluation path (EvalIn, Intake, Decide and EvalSink): the stack of the push run starts with ANTHROPIC_API_KEY
 # unset, RunnerFixture.ReadyReason() must be empty, RestoreKeys puts every runner and retry runner back on the key placeholder (PointKeys is never called),
-# and Keys.Status must be 0 for each of them or the run fails before it sends any case. The mock's request count is read before the first run and after
+# each of them must record its key state again (WaitRecords), and Keys.Status must be 0 for each of them or the run fails before it sends any case. The mock's request count is read before the first run and after
 # the last. Then OcuTalon.Eval.Report.Run (rulesOnly 1: a no_key fallback is the fixed rules' answer) runs over the main set (eval/, saved as
 # rules-only.json and rules-only.md) and/or the held-out set (eval/held-out/, saved as rules-only-held-out.json and .md); "main" or "held-out" runs
-# one of them (each fits one call of about 150 s), no argument runs both. The checks print one PASS or FAIL line each, named rules-only or
+# one of them (each about 2 to 3 minutes on a developer machine, most of it the stack's start), no argument runs both. The checks print one PASS or FAIL line each, named rules-only or
 # rules-only-held-out: the run started, it has no problem (every model-backed case is a no_key fallback), no run acted, no eval watch row was left, the
 # report was saved; and, over the runs, "the mock received <n> request(s)" (0 passes). REPORT <folder> and "eval/run: all checks passed" close the run.
 # Exit 0, 1 a failed check (a runner has a key, a model answered, the mock was reached), 2 a refused argument.
@@ -652,8 +652,9 @@ stack_ready "evaluation" "$begun"
 
 # --- the fixed rules alone (Story 0.27) ---
 
-# rules_only_keys <ready 0|1>: RestoreKeys over the runners and the retry runners (the placeholder of the Provider step, no key), then a check that
-# Keys.Status is 0 for each of them. With ready 1 RunnerFixture.ReadyReason() must be empty first (the standalone run starts the stack; the push run
+# rules_only_keys <ready 0|1>: RestoreKeys over the runners and the retry runners (the placeholder of the Provider step, no key), a wait until each of
+# them has recorded its key state again in a job that runs (RunnerFixture.WaitRecords: a restarted runner's job is alive a moment before its OnInit
+# records the state, so a read before that sees the record of the job before the restart), then a check that Keys.Status is 0 for each of them. With ready 1 RunnerFixture.ReadyReason() must be empty first (the standalone run starts the stack; the push run
 # has checked it already). Prints a FAIL line and returns 1 when the keys cannot be restored or any runner has a key; nothing has been sent then.
 rules_only_keys() {
   local ready=$1 begun=$SECONDS lines=
@@ -663,6 +664,7 @@ rules_only_keys() {
     "$lines" \
     'Set all=##class(OcuTalon.Test.Agent.RunnerFixture).#RUNNERS_","_##class(OcuTalon.Test.Agent.RunnerFixture).#RETRYRUNNERS' \
     'Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(all) Write !,"CHK|restored|",$SYSTEM.Status.IsOK(sc) Write:$SYSTEM.Status.IsError(sc) !,"CHK|why|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  ")' \
+    'Write !,"CHK|records|",##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords(all)' \
     'Set st="" For i=1:1:$Length(all,",") { Set st=st_$Select(i>1:",",1:"")_##class(OcuTalon.Bridge.Keys).Status($Piece(all,",",i)) } Write !,"CHK|status|",st' \
     'Halt' | iris_script OCUTALON > "$tmp/rules-keys.chk"
   if [ ! -s "$tmp/rules-keys.chk" ]; then
@@ -675,6 +677,10 @@ rules_only_keys() {
   fi
   if [ "$(chk_value rules-keys restored)" != 1 ]; then
     fail "rules-only: the runners' keys could not be restored: $(chk_value rules-keys why)"
+    return 1
+  fi
+  if [ "$(chk_value rules-keys records)" != 1 ]; then
+    fail "rules-only: a runner or retry runner did not record its key state after the restart; no case is sent"
     return 1
   fi
   case $(chk_value rules-keys status) in
@@ -1274,7 +1280,7 @@ if [ -s "$report_dir/rules-only.json" ] && [ -s "$report_dir/rules-only-held-out
     echo "$comparison"
     pass "comparison: the agent and the fixed rules are set side by side"
     if [ -s "$report_dir/comparison.md" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-      { cat "$report_dir/comparison.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
+      { echo "On this push run the agent's side is the CI mock's scripted answers, not a model."; echo; cat "$report_dir/comparison.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
     fi
   else
     echo "$comparison"
@@ -1282,6 +1288,20 @@ if [ -s "$report_dir/rules-only.json" ] && [ -s "$report_dir/rules-only-held-out
   fi
 else
   fail "comparison: a report it reads is missing (set, held-out, rules-only or rules-only-held-out)"
+fi
+# The committed rules-only run (eval/results/, the figures of the README's fixed-rules column) is compared with this run's fixed-rules column,
+# apart from the date. A difference is reported as a NOTE, never a failure: a case another story adds changes the column, and the release
+# fork re-runs the fixed rules and re-commits eval/results/ when the cases changed.
+if [ -s "$report_dir/rules-only.json" ] && [ -s "$report_dir/rules-only-held-out.json" ]; then
+  fresh_column=$(node "$root/eval/compare.mjs" --column "$report_dir" 2>&1) || fresh_column=
+  committed_column=$(node "$root/eval/compare.mjs" --column "$root/eval/results" 2>&1) || committed_column=
+  fresh_column=$(printf '%s\n' "$fresh_column" | grep -v '^date|')
+  committed_column=$(printf '%s\n' "$committed_column" | grep -v '^date|')
+  if [ -n "$fresh_column" ] && [ "$fresh_column" = "$committed_column" ]; then
+    pass "comparison: the committed eval/results/ gives the fixed rules' column of this run"
+  else
+    echo "NOTE comparison: the committed eval/results/ is not this run's fixed rules' column; the release fork re-runs bash eval/run.sh --rules-only and commits its rules-only.json and rules-only-held-out.json"
+  fi
 fi
 
 # --- the reports ---

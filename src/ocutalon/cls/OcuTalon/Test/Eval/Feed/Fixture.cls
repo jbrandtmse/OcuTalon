@@ -388,6 +388,7 @@ ClassMethod Start(Output refs As %DynamicObject, set As %String = "Cases", only 
 		$$$ThrowOnError(##class(Ens.Director).CreateBusinessService(source, .service))
 		Set iterator = definitions.%GetIterator()
 		While iterator.%GetNext(, .definition) {
+			If (only '= "") && (definition.name '= only) Continue
 			Set batch = ##class(OcuTalon.Test.Eval.Feed.Batch).%New()
 			Set batch.Target = definition.item
 			Set batch.TraceRef = refs.%Get(definition.name)

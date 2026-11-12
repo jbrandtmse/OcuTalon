@@ -163,6 +163,43 @@ deferred:
 - Integration (Rule 1): Given the consumer, CI's lane-A `evaluation` job, when its `bash eval/run.sh` push run has written `set.json`, `held-out.json` and the rules-only reports, then `eval/compare.mjs` reads them, and the effect is observable in the job's log (the rules-only PASS lines, `COMPARISON <file>`, `eval/run: all checks passed`) and in its step summary as the comparison table; no workflow file changed.
 - Given CI on the story's head, when it finishes, then every workflow is green (the hosted `checks` job includes `readme-video` only once Story 0.28 is on the head; this story adds no check script).
 
+### Review Findings
+
+(Code review, 2026-11-12, lane B. Four layers (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor), 39 rows, grouped into 16 entries: high 0, medium 3, low 13. Every patch applied; dispositions per Rule 15.)
+
+- [x] [Review][Patch] (MED, DW-1192, fix-risk low) The held-out snapshots were never compared with a fresh recording and the HeldOutCases errorHas markers were read nowhere [src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls] -- Test.Eval.Record extended (Rule 2): OnBeforeAllTests sends and re-induces the held-out incidents; new TestHeldOutCommittedIsCurrent checks the set, every errorHas marker (this run and committed) and the committed pack against the live pack apart from VOLATILE. DW-1192 resolved.
+- [x] [Review][Patch] (MED, fix-risk med) Nothing checked that the committed eval/results/ is still the fixed rules' answer, so the README's fixed-rules column could go stale after a scoring change [eval/run.sh, push run after the comparison] -- the push run compares `node eval/compare.mjs --column` of its own rules-only reports with eval/results/ (date line excluded) and fails on a difference; pinned by rules-flow (bad-push-no-results-check).
+- [x] [Review][Patch] (LOW, fix-risk low) rules_only_keys read Keys.Status right after RestoreKeys restarted the runners, before each restarted job had recorded its key state (the RC and key-path checks already wait) [eval/run.sh rules_only_keys; RunnerFixture.WaitRecords] -- WaitRecords takes a runner list (default RUNNERS, every caller unchanged) and the rules-only session waits for all six records first; a fail-closed `records` check; stub and bad-records-ignored variant. Measured on a warm stack: after PointKeys then RestoreKeys the statuses read 000000 with no wait and the wait took 0.003 s (no stale read seen; kept for parity with the sibling checks).
+- [x] [Review][Patch] (LOW, fix-risk low) record-eval.sh held-out copied the snapshots into the checkout before the case.json checksum check, so a refused run left snapshots behind [docker/tests/record-eval.sh] -- the checksum check runs before any write; `record-held-out` now asserts no snapshot on that refusal.
+- [x] [Review][Patch] (LOW, fix-risk low) The bad-writes-before-checks variant could only fail on its own planted folder [docker/tests/test-eval-set.sh record-held-out] -- new variant bad-writes-before-checksum (snapshots written before the check); the old variant is kept.
+- [x] [Review][Patch] (LOW, fix-risk low) The record-held-out stand-in made a mktemp folder per run outside the rule's folder and never removed it [docker/tests/test-eval-set.sh check_record_held_out] -- the stand-in's temp folders are made inside the rule's own folder.
+- [x] [Review][Patch] (LOW, fix-risk low) Feed.Fixture Start with `only` still sent every batch of the set (the committed held-out snapshots show sessions 2-13 in each one-incident recording) [src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls Start] -- the send loop skips the other cases too. No pinning test (the named path runs only in record-eval.sh's throwaway); the snapshot packs hold no session id, so the committed snapshots stay current.
+- [x] [Review][Patch] (LOW, fix-risk low) test-eval-personas.sh never checked the bare `--rules-only` form for a key left in the container tool's environment [docker/tests/test-eval-personas.sh:73] -- `${args%%[ :]*}`.
+- [x] [Review][Patch] (LOW, fix-risk low) comparison.md said "none: no model request" for an agent whose decisions were all unpriced [eval/compare.mjs costCell] -- the agent side says "not known"; compare rule block and bad-agent-cost-none variant.
+- [x] [Review][Patch] (LOW, fix-risk low) The eval/run.sh header said each rules-only set fits a call of about 150 s (ruling R1 measured 2-3 min) [eval/run.sh:40] -- corrected.
+- [x] [Review][Patch] (LOW, fix-risk low) On the push run the comparison's agent column is the CI mock, and the step summary did not say so [eval/run.sh comparison step] -- one line before the table in the step summary.
+- [x] [Review][Patch] (LOW, Rule 19) AC held-out and AC compare pinning tests had no `mutation:` line (held-out-names, held-out, the eval/results/ exemption of cases, compare's fallback and needed-you-now rows) -- mutations applied, observed red, reverted; lines under `## Verification`, `### Code review record`.
+- [x] [Review][Defer] (LOW, Rule 2) record-eval.sh's held-out mode repeats the feed mode's session-call and copy-out block [docker/tests/record-eval.sh] -- wontfix-accepted, DW-1193 (reopen_if a further mode copies the block again, or a fix lands in only one of them).
+- [x] [Review][Defer] (MED) The push run's comparison output is pinned locally only by source-text order checks; the stub never runs the push run [docker/tests/test-eval-set.sh check_rules_flow] -- by-design, DW-1194: the spec's Verification gives the Integration and CI ACs to the lead's CI evidence (lane A `evaluation` job).
+- [x] [Review][Defer] (LOW) The per-case table leaves expected and got empty for injection, command, documents and user-turn cases [eval/compare.mjs caseSide/caseExpected] -- by-design: Boundaries limit outputs to case names, outcomes, categories, elements, counts and costs (AD-19); those kinds' expected strings carry reply wording.
+- [x] [Review][Defer] (LOW) held-out-names matches whole names, subjects and item texts, not sentences [docker/tests/test-eval-set.sh] -- by-design: the spec names exactly those three; sentence matching hit shared sign-offs of the main set.
+
+Rejected:
+- false: the "(8 items, 4 incidents)" label is unchecked (B) -- the held-out set is frozen: `held-out` pins 8 items and 4 incidents and `held-out-frozen` the bytes.
+- false: mock_requests reads 0 when the request log is absent (B) -- the mock creates the log at its first request, so an absent log is the "no request yet" state; Report.Problems independently fails a model answer.
+- false: --column does not refuse unpriced or modelAnswered rules-only reports (E) -- a rules-only run with either fails its Problems check, and `cases` pins the committed reports' modelAnswered and unpriced empty.
+- false: a precedent case's no_key fallback is credited in rules-only (E) -- the spec counts a no_key row as decided for items, and precedent cases are items; the precedents score is not in the comparison.
+- false: a well-formed unknown held-out name exits 1, not 2 (A) -- an unknown name is the matrix's "missing case.json" row (exit 1, before anything starts).
+- low: a held-out copy-out failure in the release-candidate run raises `fails` (B, E, A) -- only on a failed `docker exec cat` right after the same session saved the file; a fix adds branches to the pinned RC flow.
+- low: rules-only and held-out Markdown are not printed or added to the summary (B) -- not asked by the spec; the comparison table is.
+- low: the release-candidate held-out run reads no problems/actions/leftwatches (B) -- outside the verdict by the spec; the held-out set has no injection or command case.
+- low: a duplicate name in the session's answer would satisfy the count check (E) -- the names come from one pass over an XData with unique names.
+- low: dateOf accepts month 00 or 13 (E) -- builtAt is written by Report.Build from the clock.
+- low: mksamples reads compare.mjs and record-eval.sh at load time (VG) -- a missing file makes sample generation fail loudly, which is a red run.
+- low: TestRulesOnlyTurnKinds' catalogKey assertion would hold with the member missing (VG) -- the method's flag-dependent assertions make it falsifiable (its Complete mutation went red).
+- low: "another reason" is folded into TestRulesOnlyModelAnswered (A) -- covered, with its mutation recorded; the "six tests" count is spec text.
+- (not a finding) the Integration and CI ACs need CI (A) -- the lead's gate.
+
 ## Ruled README change
 
 (Moved to Story 0.28 (A1, A2) and Story 0.29 (C1, C2). This story changes no README line.)
@@ -355,6 +392,32 @@ Mutations (each reverted from a backup in the stage scratch folder; `git status 
 - mutation: AC compare, `eval/compare.mjs` false-all-clear branch disabled (`if (false && ...)`) -> `compare` red (the false-all-clear and unsafe-total rows).
 - mutation: Integration AC, the `node "$root/eval/compare.mjs" ...` call of the push run replaced by an `echo` -> `rules-flow` red (the maker of its bad samples no longer finds the pinned text; a text edit of the flow moves a pin).
 - CI AC: lead (CI evidence).
+
+### Code review record
+
+(Code review, 2026-11-12, lane B; tags e0bs27cw (warm) and e0bs27crh (fresh), both torn down. Each mutation was applied from a backup in the stage's scratch folder, the rule run, the file restored; `git status --short` and `git diff --stat` identical before and after each time.)
+
+Tests added or changed: `OcuTalon.Test.Eval.Record` TestHeldOutCommittedIsCurrent (with OnBeforeAllTests sending the held-out inputs); `test-eval-set.sh` rules `record-held-out` (no snapshot on a changed case.json; variant bad-writes-before-checksum; temp folders inside the rule's folder), `compare` (agent with no priced decision; variant bad-agent-cost-none), `rules-flow` (stub records line, `norecords` refusal, variant bad-records-ignored; push-run pin of the committed-results check, variant bad-push-no-results-check); `test-eval-personas.sh` (the bare `--rules-only` form's key check).
+
+Runs: `EVAL_SET_ONLY='cases held-out held-out-frozen held-out-names compare record-held-out record-guard rules-flow run-guard rc-guard rc-stack'` (about 75 s, also under `/bin/bash`), `EVAL_SET_EXCEPT` of that list plus `rc-flow` (about 44 s) and `rc-flow` alone (about 146 s): all passed. `test-eval-personas.sh` passed. Warm: `OcuTalon.Test.Eval.Record` passed (51 s, and 62 s after the mutations), `OcuTalon.Test.Eval.FeedGrant` passed. Fresh: `bash eval/run.sh --rules-only held-out` (5 min 28 s with other lanes running, under ruling R1's cap): all checks passed, 0 model requests, the same scores and per-case results as `eval/results/rules-only-held-out.json`.
+
+Mutations:
+- mutation: AC held-out, the source namespace of `eval/held-out/shipments-negative-weight/snapshot.json` changed -> `held-out` red.
+- mutation: AC held-out, a held-out case's subject line written into a new file `ci/mock/zz-cr-mutation.txt` -> `held-out-names` red.
+- mutation: AC held-out, an extra file `eval/results/zz-extra.json` -> `cases` red.
+- mutation: AC held-out (DW-1192), the first failure's ShipmentId in the committed `shipments-negative-weight/snapshot.json` changed -> `Test.Eval.Record:TestHeldOutCommittedIsCurrent` red ("differs at .sample.body.ShipmentId"); its errorHas marker `#7204` changed to `#7299` in HeldOutCases -> the same method red for this run and the committed snapshot.
+- mutation: AC compare, `caseSide` takes an agent fallback as right -> `compare` red ("an agent fallback is not shown as a fallback that is not right").
+- mutation: AC compare, `sideTotals` drops both reports' tellNowMissed -> `compare` red (the needed-you-now row).
+- mutation: AC compare, the agent's mean-cost cell called as the fixed rules' -> `compare` red (the agent with no priced decision).
+- mutation: AC rules-only, the `WaitRecords(all)` line removed from `rules_only_keys` -> `rules-flow` red; `eval/run.sh` restores the caller's key for the bare `--rules-only` form only -> `test-eval-personas.sh` `forms` red (green with the old `${args%% *}` check).
+- mutation: AC rules-only, `record-eval.sh` held-out checks the case.json sums after writing the snapshots -> `record-held-out` red.
+- mutation: Integration AC, the push run's committed-results `fail` turned into an `echo` -> `rules-flow` red (a source-text pin: the push run's logic was run by hand against copies of eval/results/, PASS on equal cells and FAIL on one changed score).
+
+### Lead ruling R2 (2026-11-12 ~13:55Z, after code review; unattended `decide`)
+- Question: code review added a push-run check that FAILS when the committed `eval/results/` differs from the push run's fixed-rules column (its MED "nothing checks the committed report is current").
+- Choice: keep the check, but report a difference as a `NOTE comparison: ...` line, never a failure (`eval/run.sh`; the `rules-flow` pin in `test-eval-set.sh` follows it). `EVAL_SET_ONLY='rules-flow'` passes.
+- Rejected: a failing check. It contradicts this spec's "Decided in-stage" note ("No CI drift check between a fresh rules-only run and `eval/results/`. A case added by another epic would turn unrelated pushes red."), and the Contest Planner's ruling (2026-11-12 ~02:05Z, item 5: "the RC fork re-runs fixed rules only if the cases changed; then it re-commits eval/results/"). A failing check would also chain into Story 0.29's README column test, so another lane's new eval case would force a README (PUBLIC TEXT) change.
+- The reviewer's MED is closed `by-design` by this ruling: the drift is visible in the evaluation job's log, and the release fork regenerates the report.
 
 ## Auto Run Result
 

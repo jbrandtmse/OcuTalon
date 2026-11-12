@@ -70,7 +70,7 @@ check_forms() {
       echo "eval/run.sh: '${args%:*}' (key $key) does not go on to the container tool (exit $rc)"
     elif grep -qF -- "$fake" "$tmp/out.log" "$calls" || grep -rqF --exclude=out.log -- "$fake" "$tmp/run"; then
       echo "eval/run.sh: the key appears in the output, in a call or in a file of '${args%:*}'"
-    elif { [ "${args%:*}" = --personas ] || [ "${args%% *}" = --rules-only ]; } && [ -s "$tmp/stub.env" ]; then
+    elif { [ "${args%:*}" = --personas ] || [ "${args%%[ :]*}" = --rules-only ]; } && [ -s "$tmp/stub.env" ]; then
       echo "eval/run.sh: '${args%:*}' (key $key) leaves the key in the environment of the container tool"
     fi
   done
