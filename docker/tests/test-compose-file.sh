@@ -629,19 +629,44 @@ oauth_mock_only_in_ci() {
 
 # Story 21.3 (U-320 conditions 2 and 7): nothing that installs or starts the product touches IRIS's OAuth2 objects or the web application /csp/sys/oauth2. The web
 # application is enabled only by Channel.Email.OAuth during an admin's register or sign-in action (the class test TestOnlyOneCallerOfTheClass pins the classes), so no
-# Dockerfile, compose file, install script, package manifest, CPF merge, start or health script, preload, web-application folder or Python source names it, on the
-# online demo or anywhere else. The list comes from git, so a file added later is covered.
-oauth_app_untouched_by_install_paths() {
-  local f n=0
+# Dockerfile, compose file, install script, package manifest, CPF merge, start or health script, preload or Python source names it, on the online demo or anywhere
+# else. The list comes from git, so a file added later is covered. The built web bundle under src/ocutalon/csp/ is not scanned (Story 0.34): the release cut
+# commits it, and its JavaScript shows the admin the redirect path to register with the provider, which a browser bundle cannot act on.
+# oauth_install_paths_clean <repository> <floor> passes when no listed file of that repository names them and at least <floor> files were scanned.
+oauth_install_paths_clean() {
+  local dir=$1 floor=$2 f n=0
   while IFS= read -r f; do
-    [ -f "$f" ] || continue
+    [ -f "$dir/$f" ] || continue
     n=$((n + 1))
-    if grep -qiE 'csp/sys/oauth2|OAuth2\.(Client|ServerDefinition|AccessToken)' "$f"; then
+    if grep -qiE 'csp/sys/oauth2|OAuth2\.(Client|ServerDefinition|AccessToken)' "$dir/$f"; then
       echo "names IRIS's OAuth2 objects or /csp/sys/oauth2: $f"
       return 1
     fi
-  done < <(git ls-files -- Dockerfile 'docker-compose*.yml' install.sh module.xml .env.example 'docker/*' 'release/*' 'src/cpf/*' 'src/module.xml' 'src/preload/*' 'preload/*' 'src/ocutalon/csp/*' 'src/ocutalon/python/*' '.github/*' ci/compose.ci.yml 'ci/*.sh' | grep -v '^docker/tests/')
-  [ "$n" -ge 40 ]
+  done < <(git -C "$dir" ls-files -- Dockerfile 'docker-compose*.yml' install.sh module.xml .env.example 'docker/*' 'release/*' 'src/cpf/*' 'src/module.xml' 'src/preload/*' 'preload/*' 'src/ocutalon/python/*' '.github/*' ci/compose.ci.yml 'ci/*.sh' | grep -v '^docker/tests/')
+  [ "$n" -ge "$floor" ]
+}
+oauth_app_untouched_by_install_paths() { oauth_install_paths_clean . 40; }
+
+# Story 0.34: the same scan on a throwaway repository that holds a clean Dockerfile, with the redirect path the web bundle shows appended to <file>. Prints the
+# scan's output and returns its status (0 clean, 1 named); a fixture that cannot be built returns 2.
+oauth_scan_fixture() { # oauth_scan_fixture <file>
+  local w rc
+  w=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-oauth-scan.XXXXXX") || return 2
+  if ! { git -C "$w" init -q && mkdir -p "$w/$(dirname "$1")" && printf 'FROM scratch\n' > "$w/Dockerfile" &&
+    printf 'const REDIRECT_PATH = "%s";\n' '/csp/sys/oauth2/OAuth2.Response.cls' >> "$w/$1" && git -C "$w" add -A; }; then
+    rm -rf "$w"
+    return 2
+  fi
+  oauth_install_paths_clean "$w" 1
+  rc=$?
+  rm -rf "$w"
+  return "$rc"
+}
+oauth_scan_fixture_names() { # passes when the scan fails on <file> and names exactly that file
+  local out rc
+  out=$(oauth_scan_fixture "$1")
+  rc=$?
+  [ "$rc" -eq 1 ] && [ "$out" = "names IRIS's OAuth2 objects or /csp/sys/oauth2: $1" ]
 }
 
 # Only ci/compose.ci.yml sets the Bot API base and gives a bot token a value (Story 10.3): the file must exist, must not name the base and
@@ -655,6 +680,9 @@ check "ci: the iris service sets OCUTALON_TEST_PLAIN_SMTP to \"1\", once, and no
 check "ci: the iris service sets OCUTALON_TEST_OAUTH_MOCK to \"1\", once, and no other line names it" ci_sets_oauth_mock_for_iris
 check "ci: no compose file or Dockerfile outside ci/compose.ci.yml names OCUTALON_TEST_OAUTH_MOCK" oauth_mock_only_in_ci
 check "install: no Dockerfile, compose file, script, manifest, CPF merge or preload names /csp/sys/oauth2 or IRIS's OAuth2 objects (the web application is enabled only by an admin's sign-in action)" oauth_app_untouched_by_install_paths
+check "install: the OAuth2 scan skips the built web bundle: the redirect path in src/ocutalon/csp/x.js passes (a throwaway repository)" oauth_scan_fixture src/ocutalon/csp/x.js
+check "install: the OAuth2 scan still fails the redirect path in a Dockerfile, and names it (a throwaway repository)" oauth_scan_fixture_names Dockerfile
+check "install: the OAuth2 scan still fails the redirect path in docker/merge.cpf, and names it (a throwaway repository)" oauth_scan_fixture_names docker/merge.cpf
 check "ci: the iris service sets OCUTALON_TELEGRAM_API_BASE to the mock, once, and no other line names it" ci_sets_telegram_base_for_iris
 check "ci: the iris service sets TELEGRAM_BOT_TOKEN to the dummy, once, and no other line names it" ci_sets_telegram_token_for_iris
 check "ci: the dummy bot token matches no key pattern" ci_dummy_token_is_no_key

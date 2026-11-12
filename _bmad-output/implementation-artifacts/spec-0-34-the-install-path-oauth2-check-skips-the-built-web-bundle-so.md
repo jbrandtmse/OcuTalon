@@ -2,7 +2,9 @@
 title: 'Story 0.34: The install-path OAuth2 check skips the built web bundle, so a release candidate passes it'
 type: 'bugfix'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '916fcfbf056848b4d4f0d44d0b9d0ea1f372ac63'
+baseline_commit: '916fcfbf056848b4d4f0d44d0b9d0ea1f372ac63'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -42,11 +44,11 @@ deferred: []
 
 ## Tasks & Acceptance
 
-- [ ] Split the scan into `oauth_install_paths_clean <repo dir> <floor>`, which runs `git -C <repo dir> ls-files` over the same path list without `'src/ocutalon/csp/*'`, keeps the `docker/tests/` exclusion, the regex and the hit message; `oauth_app_untouched_by_install_paths` calls it with `.` and 40. Update the comment: the bundle is not scanned, and why.
-- [ ] Add a fixture helper that builds a throwaway git repository (`mktemp -d`, `git init -q`, a clean `Dockerfile`, the redirect path appended to the named file, `git add -A`), runs `oauth_install_paths_clean <repo> 1`, removes the repository and returns the scan's result (a setup failure returns non-zero distinct from a pass).
-- [ ] Add three `check` rows: (a) `src/ocutalon/csp/x.js` passes; (b1) `Dockerfile` fails with the hit message naming `Dockerfile`; (b2) `docker/merge.cpf` fails with the hit message naming `docker/merge.cpf`.
-- [ ] Demonstrate the mutations (Rule 19) and record them under `## Verification`.
-- [ ] Simulate the RC: run the patched test file on a scratch clone at e7b1ccf4 (the rc1 head, bundle committed); the row passes there.
+- [x] Split the scan into `oauth_install_paths_clean <repo dir> <floor>`, which runs `git -C <repo dir> ls-files` over the same path list without `'src/ocutalon/csp/*'`, keeps the `docker/tests/` exclusion, the regex and the hit message; `oauth_app_untouched_by_install_paths` calls it with `.` and 40. Update the comment: the bundle is not scanned, and why.
+- [x] Add a fixture helper that builds a throwaway git repository (`mktemp -d`, `git init -q`, a clean `Dockerfile`, the redirect path appended to the named file, `git add -A`), runs `oauth_install_paths_clean <repo> 1`, removes the repository and returns the scan's result (a setup failure returns non-zero distinct from a pass).
+- [x] Add three `check` rows: (a) `src/ocutalon/csp/x.js` passes; (b1) `Dockerfile` fails with the hit message naming `Dockerfile`; (b2) `docker/merge.cpf` fails with the hit message naming `docker/merge.cpf`.
+- [x] Demonstrate the mutations (Rule 19) and record them under `## Verification`.
+- [x] Simulate the RC: run the patched test file on a scratch clone at e7b1ccf4 (the rc1 head, bundle committed); the row passes there.
 
 ## Design Notes
 
@@ -71,7 +73,21 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - `bash ci/checks.sh` (once): every script passes.
 - The RC simulation on a scratch clone at e7b1ccf4 (once): the U-320 row PASSes with the patched test file.
 
+**Mutations (Rule 19; each applied to `docker/tests/test-compose-file.sh`, run, observed red, reverted; `cmp` against the saved copy byte-identical, `git diff --stat` unchanged):**
+- mutation: re-add `'src/ocutalon/csp/*'` to the scan's pathspec (undo the exclusion) → pin (a) "the OAuth2 scan skips the built web bundle ... src/ocutalon/csp/x.js passes" FAIL.
+- mutation: drop `'docker/*'` from the pathspec → pin (b2) "... docker/merge.cpf, and names it" FAIL.
+- mutation: drop `Dockerfile` from the pathspec → pin (b1) "... in a Dockerfile, and names it" FAIL (and pin (a), whose floor of 1 the clean Dockerfile meets, FAIL).
+- mutation: raise the real scan's floor from 40 to 100 → the U-320 row FAIL (the floor is live; 58 files are scanned on the feature branch).
+
+### Implement-stage results (2026-11-12, lead handoff edit)
+
+- `bash docker/tests/test-compose-file.sh`: `test-compose-file: all checks passed`, 132 PASS (129 before + 3 new); no `ocutalon-oauth-scan.*` directory left in `$TMPDIR`.
+- `bash ci/checks.sh`: `checks: all scripts passed` (32 scripts, 22.7 min; compose-file 3 s).
+- RC simulation: scratch clone (`git clone --shared`) checked out at e7b1ccf4 (19 tracked files under `src/ocutalon/csp/`, `main-P7PESGFU.js` holds the redirect path). The rc1 test file as shipped: `FAIL install: no Dockerfile ... OAuth2 objects`, `1 check(s) failed` (reproduces job 131432798383). With this story's test file: the row PASSes, the three pins PASS, `all checks passed`.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: `oauth_app_untouched_by_install_paths` now calls `oauth_install_paths_clean . 40`, which scans the same git-tracked install paths minus `src/ocutalon/csp/*` (the built bundle the release cut commits). Three fixture pins run the same scan on a throwaway repository: the redirect path in `src/ocutalon/csp/x.js` passes; in a `Dockerfile` or `docker/merge.cpf` it fails and is named. Files changed: `docker/tests/test-compose-file.sh` only (plus bookkeeping).
