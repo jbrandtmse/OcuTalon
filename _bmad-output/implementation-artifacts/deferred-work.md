@@ -7239,3 +7239,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature 74ee76dc, ci run 43160772937 job iris (browser) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the failure is in sign-in/helpers.ts:61 submitSignIn, not the approval path; all 18 runners busy with the backlog; 74ee76dc's new code (21.2/21.6/23.11) doesn't touch sign-in
 - 2026-11-12T06:52:37Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun; a second red on the same head is real
+
+### DW-1191: flake (test defect, random): Test.Data.Webhook TestMatches 'x...' is not a stored value of the secret: the malformed-salt variant "x"_$Extract(salt, 2, *) equals the real hash whenever the random salt already starts with x (about 1 run in 64), so Matches rightly answers 1
+- source: CI run 43206845957 (OCT-epic21 368c7a09) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 131144052048 iris (image) shard:lane-b@Contract,Core,Data,Live: printed stored value 'xrvjRiPqHbxlagA8SDES' starts with x; salt = base64url(GenCryptRand(16)); the 21.3 merge changes no line of Data/Webhook, Test/Data/Webhook, SecretHandoff or Data/Setting vs green eb289caf (git diff empty); 6 local passes on lane-C warm e21s3cw
+- 2026-11-12T12:25:40Z status=routed owner=burndown by=ci note=fix (Epic 35's test, one line): pick the replacement first character as lastChanged does, e.g. $Select($Extract(salt) = "x": "y", 1: "x"); one rerun meanwhile
