@@ -7363,3 +7363,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: docker/tests/test-readme.sh st(): every self-test in the script has this shape; a harness-wide change
 - 2026-11-12T19:37:14Z status=wontfix-accepted owner=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil by=harvest note=reopen_if=a_review_finds_a_self-test_that_passes_on_the_wrong_clause_and_masks_a_real_regression
+### DW-1225: AC moved from 36.1 (Planner V1(b)): 23.3 declares Fix.Kind.RollbackSetting with RESOURCES, grants %Ens_ProductionConfig:W to OcuTalonServiceRole (demo install leaves it out), adds exactly one forbidden-list test exception, the ONLINESTATEMENT change and the overview sentence, and ships incident.settingChangeCause; result.settingRestored keeps its undo sentence only if 23.3 builds and tests the undo path
+- source: Contest Planner 36.1 spec gate ruling 2026-11-12, prompts/story-361-rulings-20261112.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 36.1 option (b): no unused write grant ships
+- 2026-11-12T20:22:09Z status=routed owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=orchestrator note=approved AC move into 23.3 (unplanned); bullet added to 23.3's epics.md block post-merge by the orchestrator
+### DW-1224: U-320's install-path OAuth2 scan pins only Dockerfile and docker/* and the regex's csp/sys/oauth2 alternative; dropping another pathspec entry (e.g. ci/*.sh, .github/*) or the OAuth2.(Client|ServerDefinition|AccessToken) alternative passes every row
+- source: spec-0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: docker/tests/test-compose-file.sh oauth_install_paths_clean: 58 files scanned, floor 40 catches only release/* (25); fixtures plant only /csp/sys/oauth2/OAuth2.Response.cls; gap predates 0.34 (Story 21.3)
+- 2026-11-12T20:19:09Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=pins beyond the ruled (a),(b1),(b2) exceed the 1.0.8 ruling; reopen_if=a diff edits the pathspec or regex line of oauth_install_paths_clean
+- 2026-11-12T20:19:32Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=reopen_if=a diff edits oauth_install_paths_clean's pathspec or regex line; more pins exceed the 1.0.8 ruling
