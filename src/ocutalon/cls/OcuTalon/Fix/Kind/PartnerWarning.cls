@@ -5,7 +5,7 @@
 ///   - The targets are the ids of the production's partner contacts (TARGETTYPE contact), in ascending order; Fix.PartnerContacts holds them, demo mode only. The parameter
 ///     text is the notice, one line of at most NOTICEMAX characters (Normalise leaves it as it is), and to is the comma-separated addresses of the recipients, exactly the
 ///     production's contacts' in id order.
-///   - Facts is the code-built input of the draft: the partner names, the production, the failed items, the count with its item noun, the first and last failure and the stored
+///   - Facts is the code-built input of the draft: the partner names, the production, the incident's state (underscores read as spaces), the failed items, the count with its item noun, the first and last failure and the stored
 ///     plain cause. It holds no message body, sample error, setting value or evidence.
 ///   - DryRun refuses a production with no contact (NOCONTACTS) and a to that is not the contacts' addresses; its answer is {"notice", "recipients": [{"name", "address"}],
 ///     "simulated": 1}. Ready is 0 with NOTSETUP when demo mode is off, so that an approved notice is kept as a draft and says so.
@@ -35,7 +35,7 @@ Parameter MOVES = 0;
 Parameter NOTICEMAX = 1000;
 
 /// The instruction that the draft's turn is given (agent text, never shown to a user).
-Parameter SYSTEMNOTE = "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed.";
+Parameter SYSTEMNOTE = "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed. If the incident is resolved, say that the affected orders went through after the fix, and don't say that work is still going on or that updates will follow.";
 
 Parameter NOTSETUP = "email delivery isn't set up yet";
 
@@ -53,7 +53,7 @@ Parameter NOSTART = "OcuTalon couldn't deliver the delay notice";
 /// The reason of a run that failed before anything was sent (the executor's NOREAD for this kind): the same words as NOSTART.
 Parameter NOREAD = "OcuTalon couldn't deliver the delay notice";
 
-/// The input of the draft, built from the incident's rows and the fixture only (see the class description): one line each for the partner, the production, the failed items,
+/// The input of the draft, built from the incident's rows and the fixture only (see the class description): one line each for the partner, the production, the incident's state, the failed items,
 /// the failures, the first and the last failure and, when the incident has one, the cause.
 ClassMethod Facts(incident As OcuTalon.Data.Incident) As %String
 {
@@ -67,6 +67,7 @@ ClassMethod Facts(incident As OcuTalon.Data.Incident) As %String
 	}
 	Set text = "Partner: "_##class(OcuTalon.Fix.PartnerContacts).Names(##class(OcuTalon.Fix.PartnerContacts).For(incident.Production))
 	Set text = text_$Char(10)_"Production: "_..ProductionName(incident)_" ("_incident.Production_")"
+	Set text = text_$Char(10)_"Incident state: "_$Translate(incident.State, "_", " ")
 	Set text = text_$Char(10)_"Failed item: "_items
 	Set text = text_$Char(10)_"Failures: "_+incident.Count_" "_$Select(+incident.Count = 1: noun.one, 1: noun.other)
 	Set text = text_$Char(10)_"First failure: "_##class(OcuTalon.Tools.CommandCall).TimeLabel(incident.FirstAt, online)

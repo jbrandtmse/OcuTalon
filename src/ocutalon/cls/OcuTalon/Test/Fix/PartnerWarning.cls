@@ -2,9 +2,9 @@ Include Ensemble
 
 /// Tests of the fix kind partner_warning and of FixExecutor's contact branch (Story 23.5; AD-14, AD-16, AD-32). They need no production, so they run warm: the kind's methods over
 /// fixture incidents, and a shadow instance of Test.Fix.ExecutorProbe whose SendNotice hands each notice to a shadow instance of SimMailboxOut, so that the mail is really saved. Demo mode is
-/// switched on for each test (the contacts are demo-only) and put back after it. The fixture partner is Results Partner IT <it@results-partner.example>.
+/// switched on for each test (the contacts are demo-only) and put back after it. The fixture partner is Orders Partner IT <it@orders-partner.example>.
 ///   - TestContract (AC1): the kind's parameters (a drafted kind whose requests never move the incident, contact targets, no resources, never named by the diagnosis, asked for in the chat);
-///   - TestFacts (AC1): Facts is exactly the code-built input: the partner, the production, the failed item, the count with its noun, the first and last failure and the cause, and nothing
+///   - TestFacts (AC1): Facts is exactly the code-built input: the partner, the production, the incident's state, the failed item, the count with its noun, the first and last failure and the cause, and nothing
 ///     of the incident's sample error, evidence or fix summary;
 ///   - TestParametersAndDryRun (AC3): CheckParameters and DryRun refuse a text with a line break, a control character or more than 1000 characters, an address that is not one, and a to that
 ///     is not exactly the contacts' addresses; the dry run holds the notice, the recipients and simulated 1, and the targets are the contact ids;
@@ -33,7 +33,7 @@ Parameter PROBE = "OcuTalon.Test.Fix.ExecutorProbe";
 
 Parameter PRODUCTION = "OcuTalon.Demo.Orders.Production";
 
-Parameter ADDRESS = "it@results-partner.example";
+Parameter ADDRESS = "it@orders-partner.example";
 
 Parameter NOUN = "{""one"":""order"",""other"":""orders""}";
 
@@ -97,7 +97,7 @@ Method TestContract()
 	Do $$$AssertEquals($Parameter(kind, "RECHECK"), "{name} is no longer a partner contact of {production}", "the re-check reason")
 	Do $$$AssertEquals($Parameter(kind, "NOSTART"), "OcuTalon couldn't deliver the delay notice", "NOSTART")
 	Do $$$AssertEquals($Parameter(kind, "NOREAD"), $Parameter(kind, "NOSTART"), "and NOREAD, the reason of a run that failed before anything was sent, has the same words")
-	Do $$$AssertEquals($Parameter(kind, "SYSTEMNOTE"), "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed.", "the draft instruction")
+	Do $$$AssertEquals($Parameter(kind, "SYSTEMNOTE"), "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed. If the incident is resolved, say that the affected orders went through after the fix, and don't say that work is still going on or that updates will follow.", "the draft instruction")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Fix.Kind).Check("partner_warning", {"text": "A notice.", "to": (..#ADDRESS)}, []), "the diagnosis's check refuses it")
 	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).DiagnosedNames(), $ListBuild("repair_resend"), "and names only repair_resend")
 	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS"), "affected,resend,leftOut,field,before,after,itemNoun,item,from,to,example,notice,recipients,simulated", "the stored dry run has the keys notice, recipients and simulated")
@@ -109,12 +109,17 @@ Method TestFacts()
 	Set incident = ..Incident(owner, {"Count": 50, "ItemNoun": (..#NOUN), "FirstAt": "2026-11-08T14:12:00Z", "LastAt": "2026-11-08T14:15:00Z", "Cause": "The partner changed the date format of its orders.", "SampleError": "ERROR secret-sample-text for order PO-0001", "FixSummary": "secret-fix-summary", "Element": "secret-element"})
 	Set first = ##class(OcuTalon.Tools.CommandCall).TimeLabel("2026-11-08T14:12:00Z", 0)
 	Set last = ##class(OcuTalon.Tools.CommandCall).TimeLabel("2026-11-08T14:15:00Z", 0)
-	Set expected = "Partner: Results Partner IT"_$Char(10)_"Production: "_..#PRODUCTION_" ("_..#PRODUCTION_")"_$Char(10)_"Failed item: OrdersFromPartner"_$Char(10)_"Failures: 50 orders"_$Char(10)_"First failure: "_first_$Char(10)_"Last failure: "_last_$Char(10)_"Cause: The partner changed the date format of its orders."
+	Set expected = "Partner: Orders Partner IT"_$Char(10)_"Production: "_..#PRODUCTION_" ("_..#PRODUCTION_")"_$Char(10)_"Incident state: open"_$Char(10)_"Failed item: OrdersFromPartner"_$Char(10)_"Failures: 50 orders"_$Char(10)_"First failure: "_first_$Char(10)_"Last failure: "_last_$Char(10)_"Cause: The partner changed the date format of its orders."
 	Set facts = $ClassMethod(..#KIND, "Facts", ##class(OcuTalon.Data.Incident).RefIndexOpen(incident))
 	Do $$$AssertEquals(facts, expected, "Facts is exactly the code-built lines")
 	Do $$$AssertTrue(first '= "" && (last '= ""), "and the times read")
 	For secret = "secret-sample-text", "PO-0001", "secret-fix-summary", "secret-element" {
 		Do $$$AssertTrue($Find(facts, secret) = 0, "Facts holds no "_secret)
+	}
+	For state = "resolved", "awaiting_approval", "fixing" {
+		Set stated = ..Incident(owner, {"State": (state), "Count": 2, "ItemNoun": (..#NOUN)})
+		Set text = $ClassMethod(..#KIND, "Facts", ##class(OcuTalon.Data.Incident).RefIndexOpen(stated))
+		Do $$$AssertTrue($Find(text, $Char(10)_"Incident state: "_$Translate(state, "_", " ")_$Char(10)_"Failed item: ") > 0, "a "_state_" incident's Facts holds its state line after the Production line, underscores as spaces")
 	}
 	Set one = ..Incident(owner, {"Count": 1, "ItemNoun": (..#NOUN), "Cause": ""})
 	Set text = $ClassMethod(..#KIND, "Facts", ##class(OcuTalon.Data.Incident).RefIndexOpen(one))
@@ -133,7 +138,7 @@ Method TestParametersAndDryRun()
 	Do $$$AssertStatusOK($ClassMethod(..#KIND, "CheckParameters", ok, []), "a one-line text and an address pass")
 	Do $$$AssertStatusOK($ClassMethod(..#KIND, "DryRun", incident, ok, .targets, .dry), "the dry run passes")
 	Do $$$AssertEquals(targets, "1", "its targets are the contact ids")
-	Do $$$AssertEquals(dry.%ToJSON(), {"notice": "Orders from your feed failed for three minutes.", "recipients": [{"name": "Results Partner IT", "address": (..#ADDRESS)}], "simulated": 1}.%ToJSON(), "and it holds the notice, every recipient and simulated 1")
+	Do $$$AssertEquals(dry.%ToJSON(), {"notice": "Orders from your feed failed for three minutes.", "recipients": [{"name": "Orders Partner IT", "address": (..#ADDRESS)}], "simulated": 1}.%ToJSON(), "and it holds the notice, every recipient and simulated 1")
 	Do $$$AssertEquals(dry.%GetTypeOf("simulated"), "number", "simulated is a number")
 	For case = 1:1:9 {
 		Set parameters = {"text": "A notice.", "to": (..#ADDRESS)}
@@ -166,7 +171,7 @@ Method TestNoContacts()
 	Set owner = ..Owner("none")
 	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(..Incident(owner))
 	Set params = {"text": "A notice.", "to": (..#ADDRESS)}
-	Do $$$AssertEquals(##class(OcuTalon.Fix.PartnerContacts).For(..#PRODUCTION).%ToJSON(), "[{""id"":1,""name"":""Results Partner IT"",""address"":""it@results-partner.example""}]", "with demo mode on the production has its one contact")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.PartnerContacts).For(..#PRODUCTION).%ToJSON(), "[{""id"":1,""name"":""Orders Partner IT"",""address"":""it@orders-partner.example""}]", "with demo mode on the production has its one contact")
 	Do $$$AssertEquals(##class(OcuTalon.Fix.PartnerContacts).For("Zz.Other.Production").%Size(), 0, "another production has none")
 	Do $$$AssertEquals($ClassMethod(..#KIND, "Ready", incident, .why)_"|"_why, "1|", "the kind is ready while demo mode is on")
 	Set other = ##class(OcuTalon.Data.Incident).RefIndexOpen(..Incident(owner, {"Production": "Zz.Other.Production"}))
@@ -195,9 +200,11 @@ Method TestRecheck()
 	Set text = "A notice."
 	Do $$$AssertStatusOK($ClassMethod(..#KIND, "Recheck", incident, {"text": (text), "to": (..#ADDRESS)}, "1", .passed, .skipped), "the re-check is made")
 	Do $$$AssertEquals(passed_"|"_skipped.%Size(), "1|0", "contact 1 with its address passes")
-	Set gone = "Results Partner IT is no longer a partner contact of "_..#PRODUCTION
+	Set gone = "Orders Partner IT is no longer a partner contact of "_..#PRODUCTION
 	Do $ClassMethod(..#KIND, "Recheck", incident, {"text": (text), "to": "other@results-partner.example"}, "1", .passed, .skipped)
 	Do $$$AssertEquals(passed_"|"_skipped.%ToJSON(), "|[{""id"":1,""reason"":"""_gone_"""}]", "an address that differs from the one at its position is skipped and reported")
+	Do $ClassMethod(..#KIND, "Recheck", incident, {"text": (text), "to": "it@results-partner.example"}, "1", .passed, .skipped)
+	Do $$$AssertEquals(passed_"|"_skipped.%ToJSON(), "|[{""id"":1,""reason"":"""_gone_"""}]", "a request raised before the contact was renamed (to the retired address) is skipped with the same reason and nothing is sent")
 	Do $ClassMethod(..#KIND, "Recheck", incident, {"text": (text), "to": (..#ADDRESS_",b@results-partner.example")}, "1,2", .passed, .skipped)
 	Do $$$AssertEquals(passed_"|"_skipped.%ToJSON(), "1|[{""id"":2,""reason"":""OcuTalon couldn't deliver the delay notice""}]", "an id that is no contact is skipped with NOSTART (no name is known for it), and the contact that passes still passes")
 	Do $ClassMethod(..#KIND, "Recheck", incident, {"text": (text), "to": (..#ADDRESS)}, "1,2", .passed, .skipped)
@@ -207,7 +214,7 @@ Method TestRecheck()
 	// Execute: the deliveries of the passing targets, and nothing sent
 	Set before = ..MailRows()
 	Do $$$AssertStatusOK($ClassMethod(..#KIND, "Execute", incident, {"text": (text), "to": (..#ADDRESS)}, "1", .result), "Execute is made")
-	Do $$$AssertEquals(result.%ToJSON(), "{""deliveries"":[{""id"":1,""name"":""Results Partner IT"",""address"":"""_..#ADDRESS_"""}],""skipped"":[]}", "it gives the deliveries")
+	Do $$$AssertEquals(result.%ToJSON(), "{""deliveries"":[{""id"":1,""name"":""Orders Partner IT"",""address"":"""_..#ADDRESS_"""}],""skipped"":[]}", "it gives the deliveries")
 	Do $$$AssertEquals(..MailRows(), before, "and sends nothing itself")
 	Do $ClassMethod(..#KIND, "Execute", incident, {"text": (text), "to": "other@results-partner.example"}, "1", .result)
 	Do $$$AssertEquals(result.deliveries.%Size()_"|"_result.skipped.%Size(), "0|1", "an address that differs gives no delivery")
@@ -233,7 +240,7 @@ Method TestApprovedNoticeIsSentByteForByte()
 		Set one = mail.%Get(0)
 		Do $$$AssertTrue(one.text = notice, "its Text equals the row's text byte for byte")
 		Do $$$AssertEquals(one.kind_"|"_one.direction_"|"_one.sender_"|"_one.approvalRef_"|"_one.itemId, "mailbox|out|OcuTalon|"_ref_"|", "it is sent mail of OcuTalon that carries the request's Ref")
-		Do $$$AssertEquals(one.subject, "Simulated delay notice to Results Partner IT <"_..#ADDRESS_">", "with the subject of partner.subject")
+		Do $$$AssertEquals(one.subject, "Simulated delay notice to Orders Partner IT <"_..#ADDRESS_">", "with the subject of partner.subject")
 	}
 	Do $$$AssertEquals(..Mail(other).%Size(), 0, "a second session has no mail")
 	Do $$$AssertEquals(host.Notices.%Size(), 1, "one notice was sent to SimMailboxOut")
@@ -322,7 +329,7 @@ Method TestTamperedRowSendsNothing()
 	Do $$$AssertStatusOK(..Send(host, ref), "an Execute for a row whose to names an unconfigured address is handled")
 	Do $$$AssertEquals(..Mail(owner).%Size()_"|"_$Select($IsObject(host.Notices): host.Notices.%Size(), 1: 0), "0|0", "nothing is sent, so the address is never used")
 	Set last = host.Results.%Get(host.Results.%Size() - 1)
-	Do $$$AssertEquals(last.total_"|"_last.completed_"|"_last.skipped_"|"_last.reason, "1|0|1|Results Partner IT is no longer a partner contact of "_..#PRODUCTION, "the contact is skipped and reported")
+	Do $$$AssertEquals(last.total_"|"_last.completed_"|"_last.skipped_"|"_last.reason, "1|0|1|Orders Partner IT is no longer a partner contact of "_..#PRODUCTION, "the contact is skipped and reported")
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).ResultKey("done", ..ResultOf(last), "partner_warning"), "result.partnerNotSent", "which reads result.partnerNotSent")
 	Set unknown = ..Request(owner, incident, "approved", "A notice.", {"FixTargets": "7"})
 	Do $$$AssertStatusOK(..Send(host, unknown), "a row whose target is no contact is handled")
@@ -469,7 +476,7 @@ Method Request(owner As %String, incident As %String, state As %String, notice A
 {
 	Set all = {"FixKind": "partner_warning", "FixTargets": "1", "ResultTarget": "IncidentManager", "AnsweredChannel": "web", "AnsweredAt": "2030-01-01T10:00:00Z"}
 	Do all.%Set("FixParameters", {"text": (notice), "to": (..#ADDRESS)}.%ToJSON())
-	Do all.%Set("DryRun", {"notice": (notice), "recipients": [{"name": "Results Partner IT", "address": (..#ADDRESS)}], "simulated": 1}.%ToJSON())
+	Do all.%Set("DryRun", {"notice": (notice), "recipients": [{"name": "Orders Partner IT", "address": (..#ADDRESS)}], "simulated": 1}.%ToJSON())
 	If $IsObject(fields) {
 		Set iterator = fields.%GetIterator()
 		While iterator.%GetNext(.name, .value) {

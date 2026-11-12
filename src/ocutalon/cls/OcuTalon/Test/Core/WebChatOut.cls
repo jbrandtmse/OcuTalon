@@ -677,7 +677,7 @@ Method TestSummaryCard()
 	Set ..Refs = ..Refs_","_incident
 	Set expected = "Incident summary: 50 orders failed in Orders."
 		_$Char(10)_"Cause: The partner sent <b>x</b> and *y* in the date."
-		_$Char(10)_"Evidence: OrderDate was <i>16/10/2026</i> and _z_"
+		_$Char(10)_"Evidence: OrderDate was <i>16/10/2026</i> and _z_."
 		_$Char(10)_"Sample error: Field <script>alert(1)</script> was not a date."
 		_$Char(10)_"Messages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped."
 	Set notification = ..Notification(session, "summary", "summary.title", {})
