@@ -68,3 +68,5 @@
 2026-11-12T00:49:48Z	Story 21.6	story_cycle	plan_to_commit_min=256 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-12T00:49:48Z	Epic 21	applied	U-319 at=2026-11-12T00:03:35Z#979 result=fix-forward_c84a991c,storage-roundtrip_green_locally,21.6_all_gates,pushed_once_ff(7c6dec3c)
 2026-11-12T00:50:50Z	Epic 21	stage_spawned	stage=epic_context spawn_at=2026-11-12T00:50:50Z model=opus effort=high agent_name=epic-21-context-prewarm-3 reason=planning_artifact_newer(DW-1139,DW-1167_bullets,spine_21.6)
+2026-11-12T00:52:29Z	Epic 21	epic_context_compiled	spawn_at=2026-11-12T00:50:50Z reason=planning_artifact_newer model=opus effort=high words=1420 gaps=21.3_%SYS_switch_class_unnamed(AD-3),21.3_README_unruled,DW-1164_seeded_only,22.8_not_on_branch
+2026-11-12T00:52:29Z	Story 21.3	stage_spawned	stage=plan spawn_at=2026-11-12T00:52:29Z model=opus effort=high agent_name=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2-plan-1 cycle_iteration=1
