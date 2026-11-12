@@ -319,6 +319,7 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// A settings verb whose origins include web_user or tool is refused with the plain not-allowed text, not the admin-only one.
 /// Step 4 (Story 35.2, AD-1, AD-21): the MCP verbs go to McpOps from web_admin only, and SendEmail to EmailOut from tool (own address only,
 /// Carry) and system. SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.
+/// MailSignIn (Story 21.3, AD-1) starts or checks the mailbox's OAuth2 sign-in and goes to SettingsOps from web_admin only: neither the model nor any tool can send it.
 XData Routes [ MimeType = application/json ]
 {
 [
@@ -337,6 +338,7 @@ XData Routes [ MimeType = application/json ]
  {"verb": "SendDigest", "owner": "Digest", "origins": "tool,web_admin"},
  {"verb": "SaveSettings", "owner": "SettingsOps", "origins": "web_admin,system"},
  {"verb": "TestModel", "owner": "SettingsOps", "origins": "web_admin"},
+ {"verb": "MailSignIn", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "GotIt", "owner": "SessionOps", "origins": "web_user,web_admin,telegram"},
  {"verb": "SaveMemory", "owner": "MemoryOps", "origins": "tool"},
  {"verb": "ForgetMemory", "owner": "MemoryOps", "origins": "tool,web_user"},

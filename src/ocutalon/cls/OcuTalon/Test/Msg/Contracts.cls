@@ -541,6 +541,17 @@ XData Contracts [ MimeType = application/json ]
    "Agent": "%String(MAXLEN=32)"
   }
  },
+ "OcuTalon.Msg.Command.MailSignIn": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Action": "%String(MAXLEN=16)",
+   "PageOrigin": "%String(MAXLEN=300)",
+   "ActingUser": "%String(MAXLEN=160)"
+  }
+ },
  "OcuTalon.Msg.CommandResult": {
   "super": "Ens.Response",
   "props": {

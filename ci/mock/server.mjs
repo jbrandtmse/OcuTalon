@@ -7,6 +7,7 @@
 //                cannot be taken is no start failure: the stub is then absent and the line {"event":"smtp-unavailable"} says so
 //   --log-dir    the folder of requests.jsonl; absent means stdout only. A folder that cannot be written is a start failure
 //   --scenarios  default: the scenarios/ folder beside this file
+// /_mock/oauth/ on --port is the fake OAuth2 authorization server (oauth.mjs): its authorize and token endpoints and its control routes.
 // It prints {"event":"listening","port":<p>,"scenarios":<n>} on stdout when it serves, then one JSON line per request.
 // A scenario file that breaks the format, an unreadable log folder or a bad argument stops the start: the problems go to
 // stderr, one per line, and the exit status is 1.
@@ -19,6 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createMail } from './mail.mjs';
 import { createMock, LOG_FILE } from './mock.mjs';
+import { createOAuth } from './oauth.mjs';
 import { loadScenarios } from './scenarios.mjs';
 import { createSmtp } from './smtp.mjs';
 
@@ -74,6 +76,7 @@ if (opts.logDir !== null) {
 const mock = createMock({ scenarios, logDir: opts.logDir, out: process.stdout });
 const mail = createMail();
 const smtp = createSmtp();
+const oauth = createOAuth();
 const server = http.createServer((req, res) => {
   const url = req.url || '/';
   if (url.startsWith('/_mock/mail/')) {
@@ -86,6 +89,12 @@ const server = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => smtp.handleControl(req, res, url.split('?')[0], Buffer.concat(chunks).toString('utf8')));
+    return;
+  }
+  if (url.startsWith('/_mock/oauth/')) {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => oauth.handle(req, res, url.split('?')[0], Buffer.concat(chunks).toString('utf8')));
     return;
   }
   mock.handle(req, res);

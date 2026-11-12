@@ -167,6 +167,7 @@ Storage:
 - All data stays in OcuTalon's own IRIS databases: code, data (messages and Interoperability state), private, and a small public database (the sign-in page, the public status and the public settings only). Audit entries go to the instance's own audit log.
 - Private records go to the private database through global mappings: conversations, sessions, decisions, incidents and AI sessions. A start check fails if one would land elsewhere.
 - On an IPM install, OCUTALON also maps IPM's repository definitions (the globals `^IPM.Repo.Definition*`) from the namespace where the first install command ran, as they are, so the two namespaces share one list of repositories; uninstalling OcuTalon removes only that mapping.
+- On an install where an admin signs a mailbox in with Google or Microsoft 365, IRIS's OAuth2 redirection endpoint `/csp/sys/oauth2` is turned on for as long as that sign-in is configured, and turned off again when it is removed, unless another OAuth2 client still needs it. The client secret is kept only in IRIS's OAuth2 client, and the tokens only in IRIS's OAuth2 token store. None of this runs on the online demo.
 
 Data leaves the instance only:
 

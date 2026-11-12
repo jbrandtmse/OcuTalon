@@ -1,5 +1,5 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, input, output, signal } from '@angular/core';
-import { type Observable, tap } from 'rxjs';
+import { map, type Observable, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
 import type { EmailValues, SettingsSaved } from '../api/api-types';
@@ -7,7 +7,25 @@ import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
 import { ServerButton } from '../shared/server-button';
-import { EMAIL_FIELDS, EMAIL_TEXTS, type EmailField, emailBody, emailTextsOf, type EmailTexts, fieldErrorText, isEmailDirty } from './email-view';
+import {
+  EMAIL_FIELDS,
+  EMAIL_TEXTS,
+  type EmailField,
+  emailBody,
+  emailTextsOf,
+  type EmailTexts,
+  fieldErrorText,
+  isEmailDirty,
+  landedFromSignIn,
+  redirectAddress,
+  redirectHelpText,
+  SIGN_IN_METHODS,
+  type SignIn,
+  signInButtonText,
+  signInReady,
+  stateText,
+  withoutLanding,
+} from './email-view';
 import { refusalOf } from './refusal';
 import { firstInError, SETTINGS_TEXTS } from './settings-view';
 
@@ -15,11 +33,14 @@ import { firstInError, SETTINGS_TEXTS } from './settings-view';
 const FORM_ERROR_ID = 'email-error';
 
 /**
- * The Email group of Settings > Channels (Stories 21.2 and 21.6; FR-21, FR-22): the address, the incoming POP3 server and the outgoing SMTP server (each host, or
- * host:port; an empty outgoing server means none), the user name and the
- * write-only password of the admin's mailbox, and **Save changes**. The values come from the page's GET /v1/settings (`sections.channels`, passed in); the
- * password is never in them, so its field is empty, and a line under it says whether one is stored ("Saved, and never shown again. Type a new value to
- * replace it." or "Not set."). The group is absent while the snapshot says that this is the online demo, and when the server sends no channels values.
+ * The Email group of Settings > Channels (Stories 21.2, 21.6 and 21.3; FR-21, FR-22): the address, the incoming POP3 server and the outgoing SMTP server (each host, or
+ * host:port; an empty outgoing server means none), the user name, the sign-in method (Password, Google or Microsoft 365) and **Save changes**. With Password the
+ * form has the write-only password of the admin's mailbox; with a provider it has the Client ID, the write-only Client secret, the redirect address to
+ * register at the provider (the page's origin and IRIS's redirection endpoint), the state line and the button "Sign in with {provider}", which is
+ * enabled only when the saved method is the chosen one and the form is clean. A press opens IRIS's authorization address in a new tab; the consent
+ * returns that tab to Settings > Channels with `signin=1`, where the group asks the server to check once and shows and announces the state. The values come
+ * from the page's GET /v1/settings (`sections.channels`, passed in); a password and a client secret are never in them, so their fields are empty, and a line
+ * under each says whether one is stored ("Saved, and never shown again. Type a new value to replace it." or "Not set."). The group is absent while the snapshot says that this is the online demo, and when the server sends no channels values.
  *   - A press posts the typed values to POST /v1/settings/channels through the busy pattern (ServerButton); the password is in the body only when one was
  *     typed. The server judges every value:
  *   - 200: the group shows "Saved. Applies within a minute. Recorded in the audit log." and the announcer reads it once; the saved values are the form's
@@ -94,6 +115,23 @@ const FORM_ERROR_ID = 'email-error';
           }
         </div>
         <div class="field">
+          <span class="label" id="email-method-label">{{ t.signInMethod }}</span>
+          <div class="radios" role="radiogroup" aria-labelledby="email-method-label">
+            @for (method of methods; track method.value) {
+              <label class="radio">
+                <input
+                  type="radio"
+                  name="email-method"
+                  [value]="method.value"
+                  [checked]="texts().signIn === method.value"
+                  (change)="chose(method.value)"
+                />
+                {{ method.label }}
+              </label>
+            }
+          </div>
+        </div>
+        <div class="field">
           <label for="email-user">{{ t.user }}</label>
           <input
             id="email-user"
@@ -110,24 +148,74 @@ const FORM_ERROR_ID = 'email-error';
             <p class="field-error" id="email-user-error"><app-icon name="circle-alert" [size]="16" />{{ errorOf('user') }}</p>
           }
         </div>
-        <div class="field">
-          <label for="email-password">{{ t.password }}</label>
-          <input
-            id="email-password"
-            type="password"
-            autocomplete="new-password"
-            class="input"
-            [class.invalid]="errors().password"
-            [attr.aria-invalid]="errors().password ? 'true' : null"
-            [attr.aria-describedby]="errors().password ? 'email-password-status email-password-error' : 'email-password-status'"
-            [value]="texts().password"
-            (input)="typed('password', value($event))"
-          />
-          <p class="help" id="email-password-status">{{ passwordSet() ? t.secretSet : t.secretNotSet }}</p>
-          @if (errors().password) {
-            <p class="field-error" id="email-password-error"><app-icon name="circle-alert" [size]="16" />{{ errorOf('password') }}</p>
+        @if (texts().signIn === 'password') {
+          <div class="field">
+            <label for="email-password">{{ t.password }}</label>
+            <input
+              id="email-password"
+              type="password"
+              autocomplete="new-password"
+              class="input"
+              [class.invalid]="errors().password"
+              [attr.aria-invalid]="errors().password ? 'true' : null"
+              [attr.aria-describedby]="errors().password ? 'email-password-status email-password-error' : 'email-password-status'"
+              [value]="texts().password"
+              (input)="typed('password', value($event))"
+            />
+            <p class="help" id="email-password-status">{{ passwordSet() ? t.secretSet : t.secretNotSet }}</p>
+            @if (errors().password) {
+              <p class="field-error" id="email-password-error"><app-icon name="circle-alert" [size]="16" />{{ errorOf('password') }}</p>
+            }
+          </div>
+        } @else {
+          <div class="field">
+            <label for="email-clientId">{{ t.clientId }}</label>
+            <input
+              id="email-clientId"
+              type="text"
+              autocomplete="off"
+              class="input"
+              [class.invalid]="errors().clientId"
+              [attr.aria-invalid]="errors().clientId ? 'true' : null"
+              [attr.aria-describedby]="errors().clientId ? 'email-clientId-error' : null"
+              [value]="texts().clientId"
+              (input)="typed('clientId', value($event))"
+            />
+            @if (errors().clientId) {
+              <p class="field-error" id="email-clientId-error"><app-icon name="circle-alert" [size]="16" />{{ errorOf('clientId') }}</p>
+            }
+          </div>
+          <div class="field">
+            <label for="email-clientSecret">{{ t.clientSecret }}</label>
+            <input
+              id="email-clientSecret"
+              type="password"
+              autocomplete="new-password"
+              class="input"
+              [class.invalid]="errors().clientSecret"
+              [attr.aria-invalid]="errors().clientSecret ? 'true' : null"
+              [attr.aria-describedby]="errors().clientSecret ? 'email-clientSecret-status email-clientSecret-error' : 'email-clientSecret-status'"
+              [value]="texts().clientSecret"
+              (input)="typed('clientSecret', value($event))"
+            />
+            <p class="help" id="email-clientSecret-status">{{ clientSecretSet() ? t.secretSet : t.secretNotSet }}</p>
+            @if (errors().clientSecret) {
+              <p class="field-error" id="email-clientSecret-error"><app-icon name="circle-alert" [size]="16" />{{ errorOf('clientSecret') }}</p>
+            }
+          </div>
+          <div class="field">
+            <span class="label" id="email-redirect-label">{{ t.redirect }}</span>
+            <code class="redirect" id="email-redirect" aria-labelledby="email-redirect-label">{{ redirect }}</code>
+            <p class="help" id="email-redirect-help">{{ redirectHelp() }}</p>
+          </div>
+          <p class="help" id="email-signin-state" data-testid="email-signin-state">{{ state() }}</p>
+          <div class="actions">
+            <app-server-button variant="secondary" [action]="startSignIn" [inactive]="!ready()" [describedBy]="['email-signin-state']">{{ signInText() }}</app-server-button>
+          </div>
+          @if (signInFailed()) {
+            <p class="field-error" id="email-signin-error"><app-icon name="circle-alert" [size]="16" />{{ failed }}</p>
           }
-        </div>
+        }
         <div class="actions">
           <app-server-button variant="primary" [action]="save" [describedBy]="described()">{{ saveLabel }}</app-server-button>
         </div>
@@ -200,6 +288,24 @@ const FORM_ERROR_ID = 'email-error';
       margin: 0;
       color: var(--ink);
     }
+    .label {
+      font-weight: 600;
+    }
+    .radios {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+    .radio {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: var(--space-target-min);
+    }
+    .redirect {
+      overflow-wrap: anywhere;
+      font-family: var(--font-mono);
+    }
   `,
 })
 export class EmailSection {
@@ -227,10 +333,24 @@ export class EmailSection {
   /** The texts that the server holds: the form is dirty when it differs from them. */
   private readonly baseline = signal<EmailTexts>(this.texts());
   protected readonly passwordSet = signal(false);
+  /** Whether IRIS holds a client for the saved provider (its secret is never sent to the page). */
+  protected readonly clientSecretSet = signal(false);
+  /** Whether the last check found the mailbox signed in. */
+  protected readonly signedIn = signal(false);
+  protected readonly signInFailed = signal(false);
+  protected readonly methods = SIGN_IN_METHODS;
+  /** The address to register at the provider: this page's origin and IRIS's redirection endpoint. */
+  protected readonly redirect = redirectAddress(globalThis.location.origin);
   protected readonly errors = signal<Partial<Record<EmailField, boolean>>>({});
   protected readonly formError = signal(false);
   protected readonly done = signal(false);
   protected readonly described = computed<readonly string[]>(() => (this.formError() ? [FORM_ERROR_ID] : []));
+
+  protected readonly ready = computed(() => signInReady(this.texts(), this.baseline(), this.clientSecretSet()));
+  protected readonly redirectHelp = computed(() => redirectHelpText(this.texts().signIn));
+  protected readonly signInText = computed(() => signInButtonText(this.texts().signIn));
+  /** The state line: signed in only when the saved method is the chosen one and the last check found tokens. */
+  protected readonly state = computed(() => stateText(this.texts().signIn, this.signedIn() && this.texts().signIn === this.baseline().signIn));
 
   /** The group shows on a local install, once the server's values have come. */
   protected readonly visible = computed(() => this.live.snapshot()?.onlineDemo === false && this.values() !== undefined);
@@ -245,6 +365,11 @@ export class EmailSection {
         this.texts.set(texts);
         this.baseline.set(texts);
         this.passwordSet.set(values.passwordSet);
+        this.clientSecretSet.set(values.clientSecretSet);
+        this.signedIn.set(values.signedIn);
+        if (values.signIn !== 'password' && landedFromSignIn(globalThis.location.hash)) {
+          this.checkLanding();
+        }
       }
     });
     let last = false;
@@ -266,6 +391,15 @@ export class EmailSection {
     return fieldErrorText(this.texts(), name, this.failed);
   }
 
+  /** Choosing a sign-in method clears the errors and the saved text. */
+  protected chose(method: SignIn): void {
+    this.texts.update((one) => ({ ...one, signIn: method }));
+    this.errors.set({});
+    this.formError.set(false);
+    this.signInFailed.set(false);
+    this.done.set(false);
+  }
+
   /** Typing clears the field's error and the saved text. */
   protected typed(name: EmailField, text: string): void {
     this.texts.update((one) => ({ ...one, [name]: text }));
@@ -279,6 +413,7 @@ export class EmailSection {
   /** Save changes: posts the typed values; the answer decides what the group shows. */
   protected readonly save = (): Observable<unknown> => {
     this.formError.set(false);
+    this.signInFailed.set(false);
     this.done.set(false);
     this.errors.set({});
     const sent = this.texts();
@@ -290,15 +425,44 @@ export class EmailSection {
     );
   };
 
+  /** Sign in with {provider}: asks the server for IRIS's authorization address and opens it in a new tab, within the press's activation. */
+  protected readonly startSignIn = (): Observable<unknown> => {
+    this.signInFailed.set(false);
+    return this.api.signInMail('start').pipe(
+      map((answer) => {
+        globalThis.open(answer.url, '_blank', 'noopener,noreferrer');
+        return answer;
+      }),
+      tap({ error: () => this.signInFailed.set(true) }),
+    );
+  };
+
+  /** The tab that the consent returned here: one check, whose answer is the state line (announced); the `signin=1` of the address is then dropped. */
+  private checkLanding(): void {
+    globalThis.history.replaceState(globalThis.history.state, '', withoutLanding(globalThis.location.hash) || '#');
+    this.api.signInMail('check').subscribe({
+      next: (answer) => {
+        this.signedIn.set(answer.signedIn);
+        this.announcer.announce(stateText(this.baseline().signIn, answer.signedIn));
+      },
+      error: () => {
+        this.signInFailed.set(true);
+        this.announcer.announce(SETTINGS_TEXTS.failed);
+      },
+    });
+  }
+
   private succeeded(sent: EmailTexts, answer: SettingsSaved): void {
     const stored = answer.sections.channels;
-    const texts = stored === undefined ? { ...sent, password: '' } : emailTextsOf(stored);
-    const edited = EMAIL_FIELDS.some((name) => this.texts()[name] !== sent[name]);
+    const texts = stored === undefined ? { ...sent, password: '', clientSecret: '' } : emailTextsOf(stored);
+    const edited = EMAIL_FIELDS.some((name) => this.texts()[name] !== sent[name]) || this.texts().signIn !== sent.signIn;
     this.baseline.set(texts);
     if (!edited) {
       this.texts.set(texts);
     }
     this.passwordSet.set(stored?.passwordSet ?? (this.passwordSet() || sent.password !== ''));
+    this.clientSecretSet.set(stored?.clientSecretSet ?? false);
+    this.signedIn.set(stored?.signedIn ?? false);
     if (stored !== undefined) {
       this.saved.emit(stored);
     }
