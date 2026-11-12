@@ -88,3 +88,10 @@
 2026-11-11T23:59:42Z	Epic 22	integrated_forward	feature=cf6fcb39 head=e09846cf conflicts_resolved=none note=22.8_merged+23.7(c33e0916)
 2026-11-12T14:28:45Z	Epic 22	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=resume_after_switch_20261112 lane=D slot=ocutalon-slot-d port=52804 model=claude-opus-5-5
 2026-11-12T14:28:45Z	Epic 22	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-12T14:33:00Z	Epic 22	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-12T14:33:00Z	Epic 22	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-12T14:33:00Z	Story 22.8	ci_resolved	story=integration sha=3fc3e909 runs=43123995758,43123995447 result=cancelled failed=none via=none resolved_at=resume note=ci_cancelled_records-only(code_identical_to_feature_cf6fcb39;green_by_identity)
+2026-11-12T14:33:00Z	Epic 22	integrated_forward	feature=3caf52ab head=7bb9b158 conflicts_resolved=none note=150b49c5(21.3)_ci_queued;integrate_again_before_first_push;code_identical_to_3caf52ab(diff=cycle-log,epic-22-context.md_only)
+2026-11-12T14:33:00Z	Epic 22	epic_context_compiled	reason=planning_artifact_newer(epics.md,spine,prd,EXPERIENCE.md_from_feature) model=opus words=2206 note=harness_backgrounded_the_compile_call_despite_run_in_background_false;waited_for_its_completion_before_any_dependent_action
+2026-11-12T14:33:00Z	Epic 22	slot_loaded	server=ocutalon-slot-d(container_bdfa97b7bda0) bridge=62 ocutalon=954 compile=clean classes=1017(disk_1016;none_older_than_the_load) head=7bb9b158 production=untouched
+2026-11-12T14:33:00Z	Epic 22	ruling	question=push_bookkeeping-only_integration_head_now? choice=no;push_once_with_22.9_code_after_integrating_150b49c5_when_green rejected=push_now(extra_CI_run_on_a_head_code-identical_to_green_3caf52ab;queue_full) why=standing_no-idle-lane+CI_capacity;Rule23_gate_met_by_identity category=decide policy=5086036
