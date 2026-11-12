@@ -350,6 +350,12 @@ Each applied to the tree, observed red, reverted; `git status --short` and `git 
 
 AC 7 is CI's own result on the head (the lead, after CI HOLD OFF).
 
+### QA record (2026-11-12, recorded by the lead from the QA stage's return)
+- (QA) `docker/tests/test-ci-config.sh`, rule `budgets`: the three install-upgrade `MEASURED row 6/7` lines must sit straight after `wait_rc=$?` and before the status test (unconditional: pass or fail); and the evidence file's "Changed budgets" table must match the code (five floors, `LIVE_FIRST_START_WAIT`, install-upgrade rows 6/7/7-good-image and install-start rows 3/4), a missing file or a non-unique row failing.
+- mutation: row 6 MEASURED echo moved into the failing branch -> `test-ci-config.sh` budgets red ("not the unconditional line between wait_rc=$? and the status test").
+- mutation: evidence table row 9 edited 330 -> 360 -> budgets red ("row 7 next good image is '360', the code's die says '330'").
+- mutation: evidence table row 5 edited 1500 -> 1560 -> budgets red ("live:sign-in-3 deadline is '1560', ci/units.sh has '1500'").
+
 ## Auto Run Result
 
 Status: done

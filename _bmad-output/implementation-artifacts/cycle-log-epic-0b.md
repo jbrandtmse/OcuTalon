@@ -67,3 +67,5 @@
 2026-11-12T17:27:39Z	Story 0.32	dev_complete	spawn_at=2026-11-12T16:15:14Z model=sonnet build_sha=fbe3deb0 baseline_revision=4f8505cc story_base=4f8505cc review_loop_iteration=0 followup_review_recommended=false deferred=6 harvested=DW-1212,DW-1213,DW-1214,DW-1161(occurrence),DW-1215,DW-1216 loc_added=669 loc_removed=76 files=30 budgets_raised=11 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1
 2026-11-12T17:27:39Z	Story 0.32	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5 note=AD-23_720s_first-start_bound_respected(510s)
 2026-11-12T17:27:39Z	Story 0.32	stage_spawned	stage=qa spawn_at=2026-11-12T17:27:39Z model=sonnet agent_name=0-32-qa-1 cycle_iteration=1
+2026-11-12T17:38:07Z	Story 0.32	qa_complete	spawn_at=2026-11-12T17:27:39Z model=sonnet tests=docker/tests/test-ci-config.sh(budgets:+2_checks) tests_added=1 mutations_demonstrated=3 first_run_failures=0 clarifications=0 closing_sections_present=true
+2026-11-12T17:38:07Z	Story 0.32	stage_spawned	stage=code-review spawn_at=2026-11-12T17:38:07Z model=opus agent_name=0-32-code-review-1 cycle_iteration=1
