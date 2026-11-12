@@ -1,0 +1,14 @@
+# Cycle log: Epic 0, lane C (Story 0.34, 1.0.8 release-blocker hotfix lever; OCT-epic0c)
+
+2026-11-12T19:45:10Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=epic0c_hotfix_lever_story_0.34 lane=C ruling=contest_planner_1.0.8_hotfix_~20:00Z ci_hold_exempt=own_push_only
+2026-11-12T19:45:10Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-12T19:45:10Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-12T19:45:10Z	Epic 0	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-11-12T19:45:10Z	Epic 0	epic_branch_checked_out	repos=. head=36092ff1 branch=OCT-epic0c from=feature_36092ff1 note=not_yet_pushed
+2026-11-12T19:45:10Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-12T19:45:10Z	Epic 0	ledger_load	total=1196 open=0 routed=144 escalated=2 decision_pending=5 terminal=1045 owner_unknown=0 reowned_none=0 slice_0_34=empty
+2026-11-12T19:45:10Z	Epic 0	sprint_planning_skipped	reason=epic_start_recorded_by_lane_a story_inserted=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so generate=ok new_entries=1 dropped_orphans=0
+2026-11-12T19:45:10Z	Epic 0	retro_review_skipped	reason=skipped(policy)_recorded_in_cycle-log-epic-0
+2026-11-12T19:45:10Z	Story 0.34	story_created	path=_bmad-output/implementation-artifacts/spec-0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so.md build_status=ready-for-dev author=lead_from_planner_ruling plan_spawn=skipped(ruling:optional,precedent_0.33) model=claude-opus-5-5
+2026-11-12T19:45:54Z	Story 0.34	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-19 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false model=claude-opus-5-5
+2026-11-12T19:45:54Z	Story 0.34	stage_spawned	stage=implement spawn_at=2026-11-12T19:45:54Z model=claude-opus-5-5 agent_name=lead-handoff-edit cycle_iteration=1 story_base=36092ff1 mode=lead_handoff_edit_plus_self_review(ruling_step2)
