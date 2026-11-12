@@ -3667,3 +3667,5 @@
 2026-11-12T07:00:43Z	Run	hold_wip_pushed	by=orchestrator OCT-epic35=c6c099df(35.3_merged_onto_74ee76dc) OCT-epic21=ad2255ac(21.3_code_+bookkeeping) method=explicit_refspec_ff
 2026-11-12T07:08:17Z	Epic 23	runner_ended	agent=afc4a2f06e7d322df reason=hold head=109d59c8(pushed) story=23.9_rework1_DW-1186_built(e76fbea3)_re-review_pending
 2026-11-12T07:08:17Z	Run	hold_complete	shas=feature:74ee76dc,OCT-epic0:eff03a14,OCT-epic35:c6c099df,OCT-epic21:ad2255ac,OCT-epic23:109d59c8,OCT-epic22:3fc3e909 all_on_origin=yes worktrees=clean unpushed=none locks=none throwaways=none hold_patches=none lock=kept(no_run-end)
+2026-11-12T07:08:54Z	Run	ci_cancelled_record_only	head=0a73299f runs=43173052041,43173052133 reason=records_only_over_74ee76dc(green_by_identity_once_74ee76dc_resolves)
+2026-11-12T07:09:05Z	Run	inbox_hold_item	id=U-322
