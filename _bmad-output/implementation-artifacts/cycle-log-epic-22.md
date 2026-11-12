@@ -86,3 +86,5 @@
 2026-11-11T23:59:28Z	Story 22.8	ci_resolved	story=22.8 sha=7e01fbc7 runs=43113562220,43113562177 result=success failed=none via=none resolved_at=next_plan note=ci_red_once_on_DW-549_flake(resume.spec_R1),green_on_rerun(orchestrator;occurrence_added);merged_to_feature_cf6fcb39_by_orchestrator
 2026-11-11T23:59:28Z	Epic 22	hold_at_noted	at=2026-11-12T07:00Z source=orchestrator(owner_plan_via_Contest_Planner)
 2026-11-11T23:59:42Z	Epic 22	integrated_forward	feature=cf6fcb39 head=e09846cf conflicts_resolved=none note=22.8_merged+23.7(c33e0916)
+2026-11-12T14:28:45Z	Epic 22	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=resume_after_switch_20261112 lane=D slot=ocutalon-slot-d port=52804 model=claude-opus-5-5
+2026-11-12T14:28:45Z	Epic 22	lead_model_gate	model=claude-opus-5-5 action=proceed
