@@ -72,3 +72,7 @@
 2026-11-11T10:42:42Z	Epic 25	part_merge	story=25.2 head=4af29b25 feature=5ed39411(51a53f69+25.2) ci=success(42995845667_attempt_2,42995845639) merged_by=orchestrator more_to_try=fourteen epic_25=in-progress parked=25.3,25.4,25.5(scope_closed_by_owner) burndown_gate=not_run
 2026-11-11T10:42:42Z	Epic 25	epic_runner_complete	stories_completed=1(25.2) part_merge=25.2 epic_open=true
 2026-11-12T22:25:15Z	Epic 25	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_253_20261112 lane=A slot=ocutalon-slot-a port=52801 lock=lane-a ci_hold=on model=claude-opus-5-5
+2026-11-12T22:26:13Z	Epic 25	integrated_forward	feature=b8780de6 head=5d705134 conflicts_resolved=none pushed=no(ci_hold) boundaries=pass
+2026-11-12T22:26:13Z	Epic 25	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final highest=AD-33
+2026-11-12T22:26:13Z	Epic 25	ledger_load	total=1198 open=0 routed=145 escalated=2 decision_pending=5 terminal=1046 owner_unknown=0 burndown=127 reowned_none=0 owned_epic25=0
+2026-11-12T22:27:00Z	Epic 25	sprint_planning_complete	gate=CONCERNS model=claude-opus-5-5 in_sync=true findings=demo_ac_vs_planner_demo_off,new_file_table_and_route_not_in_spine,read_results_unmerged(fixtures) veto=U-325
