@@ -2076,6 +2076,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T07:17:50Z occurrence=feature-1490ab58 by=orchestrator note=run 42767577852 job 129667573672 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; parents 87c0223e and f59cab73 passed production; rerun of failed jobs 2026-11-10T07:17:50Z
 - 2026-11-10T20:15:23Z occurrence=feature-1d75fbf1 by=orchestrator note=run 42874524463 job 130034187062 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; merge of 0.22 (web/guide) + v1.0.6 bump; rerun of failed jobs
 - 2026-11-10T22:52:54Z occurrence=23-2 by=orchestrator note=run 42897677403 job 130115016835 iris(production) row 21 got ''; OCT-epic23 f73a09d5 (23.2 integrated onto 56c61cea); rerun of failed jobs
+- 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870677_iris(production)_live:production_on_ocutalon-ci-15:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6408,6 +6409,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T17:51:03Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=burndown note=Epic_35_part_merge_burn-down_overflow:Test.Mcp.Attach_(Lane_A)_is_extended_by_22.2's_McpOps_work;make_TestShadow's_bare-manager_AddTool_wait_for_the_mock_or_retry_once_under_load;a_red_on_a_quiet_host_makes_it_real
 - 2026-11-10T17:14:25Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run note=e6eb901d_shards-2_TestAttach_mock_tools_not_attached;passed_3x_locally(warm2,fresh1);files_reached_unchanged_since_b99d6529
 - 2026-11-10T17:23:09Z occurrence=release-1.0.6-PR10 by=orchestrator note=reported by the Contest Planner: PR #10 ci run 42847029797 iris (shards-2) shard:lane-a@rest OcuTalon.Test.Mcp.Attach TestRequestServerDown 'on a manager of its own that lists the server's tools: 0'; green on one rerun; v1.0.6 released 17:17:56Z
+- 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870575_iris(shards-2)_shard:lane-a@rest_on_ocutalon-ci-17:OcuTalon.Test.Mcp.Attach_TestTurnManager_'and_lists_the_agent's_tools,_the_fixture_tools_and_both_tools_of_the_mock'_got_zz_steps_*/zz_turn_*_fixture_tools;OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
 - 2026-11-11T13:53:14Z status=resolved-by:22-2-classify-mcp-tools-by-server-and-name by=adjudication note=Task_0_mock_backlog_5(Mock.BACKLOG,keep-alive_-1),Loopback_green;Test.Mcp.Attach_passed_warm_and_cr;a_red_on_a_quiet_host_reopens
 
 ### DW-1041: AD-1 lets REST code write only the Session row, counters, pairing hashes and UI markers, but the step 4 contract has the MCP settings routes call SettingsOps.SaveMcpEntry/RemoveMcpEntry in the REST process to write the wallet secret and Config Store entry (ruling Q4), with no AD-1 exception recorded
@@ -6741,6 +6743,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z note=see also DW-1095 (possible shared cause: before/after session-row comparisons)
 - 2026-11-11T06:26:54Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page note=OCT-epic25 284e8904 ci run 42966931010 iris (shards-6) lane-b@rest TestOnlyTheMarkerChanges/TestRunAgain; classified flake by the orchestrator; no rework
 - 2026-11-11T06:26:39Z occurrence=25-2 by=orchestrator note=run 42966931010 job 130346188889 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges + TestRunAgain (ci-12); OCT-epic25 284e8904
+- 2026-11-12T02:02:40Z occurrence=21-6 note=OCT-epic21 7c6dec3c run 43130059980 shards-6 TestOnlyTheMarkerChanges (run_again); GuideApi not in the 21.x diff; one rerun
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6881,6 +6884,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic25 f21137d1 (Story 25.2), lane-a run 42981966175 job 130394214504 on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 07:52:08Z: the first-run-in-USER checks passed; the second run in OCUTALON took 126 s and failed at Initialize with the CPF merge error; 25.2 changes no install, Install or IPM file
 - 2026-11-11T08:31:54Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence): an IRIS CPF merge ((-100)) failed during the IPM install; one rerun per occurrence; real if it recurs on an install-touching head
+- 2026-11-12T02:06:01Z occurrence=0-26 note=OCT-epic0 540dfce5 lane-a run 43134792086 ipm-install: Shell() in USER Initialize FAILURE, CPF merge zf(-100) exited 7; 0.26 changes README/tests only; one rerun
 ### DW-1120: UsagePage announces its failed read and never withdraws it, so a stale error can be spoken after a successful Retry
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: usage-page.ts:474 announces USAGE_TEXTS.error on every failure through the shared Announcer; nothing withdraws it on the next answer. Same root as 25.2's H12 CI red, fixed for History only by Announcer.retract (25.2 rework 2).
@@ -7022,6 +7026,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Mcp/Ops.cls MessageMap maps only the three verbs; CommandsIn.IsStub maps only code 5003 to not_built; spec Design Notes 17 records it
 - 2026-11-11T13:50:48Z status=by-design owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=spec Design Notes 17 states it; no UI sends them before 22.5, which adds the handlers
 
+### DW-1159: After Reject, the status rail's Approval requests keeps listing the rejected request until the async approval live event reaches the page (web and phone view)
+- source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: rail lists pendingApprovals(store) (web/src/app/rail/rail-view.ts:340); store approvals change only via approval events (live/live-store.ts:188-189); the press reply updates only the card's AnswerPress.local (approvals/answer-press.ts replied); event published async by Core.BridgeSink.Approved, read by the next poll (live-state.ts:19 POLL_DELAY_MS 1000)
+- 2026-11-11T20:10:49Z status=routed owner=burndown by=owner note=Contest Planner ruling 2026-11-11T20:09:53Z (owner delegation; reverses orchestrator veto U-318): judge-visible (Reject a fix is a featured More to try step). Follow-up story in approvals/phone/rail, dispatched by the orchestrator AFTER 21.2 merges, on any free lane, after 0.26 and DW-1123. Acceptance: a browser test presses Reject and the request is gone from the rail within 5 s, on the web and on the phone view. Ships in 1.0.8 only if merged before the cut, else 1.0.9. Not a 23.10 rework.
 ### DW-1157: flake: lane-a@rest Test.Checks.BeatOutcomes TestAct 'the person's row is made' failed with ERROR #5808 Key not unique OcuTalon.Data.HeartbeatBeat:SessionRefIndex (a leftover beat row for the test session)
 - source: OCT-epic23 96bc4b28 (Story 23.7 CI rework), ci run 43037078949 job 130578626759 on ocutalon-ci-20 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the same 23.7 code (Checks/Process.cls Tick) passed shards-2 on f78e6236 (run 43026811791); f78e6236..96bc4b28 changes only web tests and K29
@@ -7042,6 +7050,17 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: K29 answers the POST itself under sign-in-3; test-mock.sh passes with the file present
 - 2026-11-11T14:03:12Z status=wontfix-accepted owner=23-7-watch-queue-backlogs-between-digests by=harvest note=reopen_if=a mock-scenario consumer check flags it or a CI-mock browser unit gains a guide case (then K29 moves there and uses it)
 
+### DW-1171: README Contest checklist has no Video row, and the For judges Usability row links neither the full video nor 'One incident, end to end'
+- source: spec-0-26-the-readme-leads-with-the-full-video-and-the-incident-path-a.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: README.md Contest checklist (Online demo, Articles rows; no Video row) and the For judges Usability row ('The demo guide walks one incident in about two minutes', no link) predate 0.26; the ruled 0.26 diff did not extend them, and unruled README text is outside 0.26's scope
+- 2026-11-12T01:23:55Z status=decision-pending owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=human=Contest Planner ruling on a Video row and a judges-table link; fold into 0.27's README ruling
+- 2026-11-12T01:33:46Z status=routed owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=owner note=Contest_Planner_ruling_2026-11-12_01:55Z(owner_delegation):fold_into_0.27_as_its_first_README_edit;wording_in_prompts/story-026-rulings.md_item_2
+- 2026-11-12T01:52:13Z status=routed owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=orchestrator note=split(Part_A_of_0.27_moved_whole_to_0.28_for_the_1.0.8_cut)
+### DW-1165: The ruled resolved-incident sentence has the partner notice say the affected orders went through, but Facts carry only the state, so a resolved incident whose fix left messages failed again or skipped, or that a suspend or reroute resolved, gets the same claim
+- source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Watch/Transitions resolves on fixing + finished whatever the run's counts (failedAgain, skipped); PartnerWarning.Facts adds only 'Incident state: resolved', and SYSTEMNOTE's ruled sentence tells the model to say the orders went through
+- 2026-11-11T23:51:45Z status=decision-pending owner=burndown by=cr note=product call: give Facts the fix outcome and make the sentence conditional (ruled text); user approves exact text; RC-eval item
+- 2026-11-12T00:11:20Z status=routed owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=owner note=Contest_Planner_ruling_2026-11-12_00:20Z_(owner_delegation;prompts/epic-23-story-2311-ruling.md):_Outcome_fact_built_by_code_+_instruction_sentence_replaced_verbatim
 ### DW-1160: flake candidate (host load): live:install-start row 3 'the dev start did not end ready within 200 s' in CI iris (install-fresh) on feature c33e0916 under the post-outage backlog
 - source: feature c33e0916, ci run 43099749161 job iris (install-fresh) on ocutalon-ci-12 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: no test assertion failed; live:online-demo-path in the same job passed; same start-not-ready family as DW-612 (row 2) and DW-1082 (install-upgrade row 7); all 18 runners busy with the outage backlog
@@ -7063,3 +7082,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Contest Planner ruling 2(a) (22.8 AC 1) is implemented in Context.ToolFingerprint(server, name, description, parameters); the spine's S1-S7 updates for 22.8 did not restate rule 1 or S3, so 22.3/22.4 builders reading the spine would hash the old form
 - 2026-11-11T22:18:46Z status=routed owner=burndown by=cr note=lead: Rule 20 spine write (AD-10 rule 1, AD-21 S3) recording ruling 2(a); no code change
 - 2026-11-11T22:20:57Z status=resolved-by:22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=adjudication note=spine_AD-10_rule1_and_AD-21_S3_now_state_SHA-256_hex_over_server_id,name,description,schema(Rule20_record_of_Planner_ruling_2(a));lint_unchanged
+
+### DW-1166: tooling: the local smoke/fresh check doesn't run live:storage-roundtrip, so a new class that compiles with a storage definition (e.g. a test class extending %Net.POP3) without a committed Storage block is caught only by CI's image group
+- source: OCT-epic21 8fc11a6e ci run 43114341467 iris (image) (Story 21.2) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 21.2's EmailInPop3 passed smoke and fresh check locally and failed live:storage-roundtrip in CI; the Planner asked for a cheap pre-CI check
+- 2026-11-12T00:03:53Z status=routed owner=burndown by=orchestrator note=Contest Planner 2026-11-12: if cheap, run the storage-roundtrip (or its committed-vs-compiled Storage comparison) in the lead's smoke for stories that add a class with a storage definition

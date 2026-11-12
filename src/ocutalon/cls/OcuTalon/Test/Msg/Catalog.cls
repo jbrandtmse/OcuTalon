@@ -794,6 +794,29 @@ Method TestGroupsCannotInject()
 	Do $$$AssertEquals($Length(text, $Char(10)), 7, "the notice has exactly the lines of its template and groups")
 }
 
+/// Story 23.10: the summary's Fix and Evidence lines end in exactly one full stop, on every channel, and a value that ends in "?", "!" or U+2026 keeps its mark with no full stop after it.
+Method TestSummaryFixFullStop()
+{
+	For channel = "web", "phone", "telegram" {
+		For line = $ListBuild("summary.fix", "fix", "Fix: ", "Resend the 50 orders after you approve"), $ListBuild("summary.evidence", "evidence", "Evidence: ", "OrderDate 16/10/2026 in the sample") {
+			Set key = $List(line, 1), slot = $List(line, 2), label = $List(line, 3), value = $List(line, 4)
+			Set slots = {}
+			Do slots.%Set(slot, value)
+			Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots, channel, ..#NOW, 1, .sc)
+			Do $$$AssertStatusOK(sc, key_" renders on "_channel)
+			Do $$$AssertEquals(text, label_value_".", key_" on "_channel_": a value with no stop gets one")
+			Do slots.%Set(slot, value_".")
+			Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots, channel, ..#NOW, 1, .sc)
+			Do $$$AssertEquals(text, label_value_".", key_" on "_channel_": a value that ends in a full stop still ends in exactly one")
+			For mark = "?", "!", $Char(8230) {
+				Do slots.%Set(slot, value_mark)
+				Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots, channel, ..#NOW, 1, .sc)
+				Do $$$AssertEquals(text, label_value_mark, key_" on "_channel_": a value that ends in character "_$ZHex($Ascii(mark))_" keeps it and gets no full stop")
+			}
+		}
+	}
+}
+
 /// Asserts the text of a message with a time in the instance zone: slots {"time": utc} of answered.expired.
 Method AssertExpired(utc As %String, flag As %Boolean, expected As %String, label As %String, now As %String = "") [ Private ]
 {
@@ -1658,9 +1681,9 @@ XData Fixtures [ MimeType = application/json ]
  "summary.cause": {"slots": {"cause": "The partner changed the date format."}, "text": "Cause: The partner changed the date format."},
  "summary.element": {"slots": {"element": "OrderDate"}, "text": "Where it failed: OrderDate."},
  "summary.noCause": {"slots": {"fallbackReason": "timeout"}, "text": "No cause was found: the model didn't answer within the time allowed."},
- "summary.evidence": {"slots": {"evidence": "OrderDate 16/10/2026 in the sample"}, "text": "Evidence: OrderDate 16/10/2026 in the sample"},
+ "summary.evidence": {"slots": {"evidence": "OrderDate 16/10/2026 in the sample"}, "text": "Evidence: OrderDate 16/10/2026 in the sample."},
  "summary.sampleError": {"slots": {"error": "Field OrderDate was not a date."}, "text": "Sample error: Field OrderDate was not a date."},
- "summary.fix": {"slots": {"fix": "repair the date and resend the orders"}, "text": "Fix: repair the date and resend the orders"},
+ "summary.fix": {"slots": {"fix": "repair the date and resend the orders"}, "text": "Fix: repair the date and resend the orders."},
  "summary.noFixRan": {"slots": {}, "text": "No fix ran, so nothing was changed."},
  "summary.groups": {"slots": {"groups": [{"itemName": "OrdersFromPartner", "count": 50, "errorSummary": "The order date was not in the expected format", "firstAt": "2026-10-16T18:12:00Z"}]}, "text": "Failure groups:\nOrdersFromPartner: 50, 'The order date was not in the expected format', first at 14:12 ET"},
  "summary.messages": {"slots": {"failed": 50, "resent": 48, "completed": 48, "failedAgain": 2, "skipped": 0}, "text": "Messages: 50 failed, 48 resent, 48 completed, 2 failed again, 0 skipped."},
