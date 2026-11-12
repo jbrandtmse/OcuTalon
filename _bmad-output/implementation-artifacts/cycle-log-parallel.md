@@ -3691,3 +3691,5 @@
 2026-11-12T10:29:21Z	Epic 35	ci_green_verified	runs=43172109907,43172110020 head=c6c099df result=success
 2026-11-12T10:29:21Z	Epic 35	merge_enqueued	part=35.3 head=90cec339
 2026-11-12T10:29:47Z	Run	spine_reconciled	ads_merged=0 lint=baseline(10_low_placeholder) part=35.3
+2026-11-12T10:30:19Z	Epic 35	epic_merged_to_feature	part=35.3 feature_sha=eb289caf merge_sha=eb289caf code=c6c099df verified_on_origin=yes ci=43200877872,43200877871(pending;green_by_identity_with_c6c099df)
+2026-11-12T10:30:19Z	Epic 0	runner_reported	PART_READY part=0.28 head=eff03a14 local=e874df35 ci=success runs=43159935962(att2),43159935971 action=resume_integrate_forward(README_usability_row_overlaps_35.3)
