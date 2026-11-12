@@ -6680,6 +6680,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_install-upgrade_row6_upgrade_not_ready_200s;rerun_failed_jobs_green(attempt2)
 - 2026-11-12T10:09:42Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662764_iris(install-upgrade)_live:install-upgrade_row_6_'the_upgrade_did_not_end_ready_within_200_s'_on_OCT-epic21_ad2255ac(first_start_took_6_min:host_load;21.3_changes_no_install_or_startup_path);judged_again_on_the_integrated_head
 - 2026-11-12T15:47:10Z status=routed owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=lane_order note=Contest Planner standing burndown ruling 2026-11-12 (CI time-budget audit); inserted Story 0.32 with a DW-1082 acceptance bullet
+- 2026-11-12T18:09:13Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=adjudication note=fbe3deb0+review: install-upgrade row 6 ready budget 300 s with the ruled 'MEASURED row 6: the upgrade took N s to ready' line printed pass or fail (row 7 waits 300/330 s with MEASURED lines); still fails at the budget; install-upgrade unit deadline floor 1440 s; pinned by test-ci-config.sh budgets; CI proof on the next push (CI HOLD)
 
 ### DW-1083: flake candidate: live:reminder-restart 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then the first start did not end ready within 400 s
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7156,6 +7157,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749161 attempt 2)
 - 2026-11-12T10:33:23Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_e7c97dda_run_43170639261_install-fresh_live:install-start_row3_dev_start_not_ready_200s;superseded_head
 - 2026-11-12T16:31:16Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_job_131294447085_iris(install-fresh)_live:install-start_row_4_'the_restart_did_not_end_ready_within_200_s'(AFTER-START_ready_logged_just_before);one_rerun_of_failed_jobs_when_the_run_completes;Story_0.32_audits_this_wait
+- 2026-11-12T18:09:13Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_attempt2_install-fresh_job_131344108157_live:install-start_row_3_dev_start_200s;Story_0.32_raises_row_3_to_300s_and_row_4_to_270s
 
 ### DW-1161: CI headroom: lane-a ipm-install takes 28-30 min against its 35-min job timeout; under host load it times out (cancelled at 35m0s) with no test failed
 - source: feature c33e0916, lane-a run 43099749306 job ipm-install on ocutalon-ci-10 | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7301,6 +7303,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T14:15:46Z status=routed owner=burndown by=orchestrator note=one rerun per occurrence; if recurrent, size the shard's suite budget or split the shard
 - 2026-11-12T15:47:10Z status=routed owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=lane_order note=Contest Planner standing burndown ruling 2026-11-12 (CI time-budget audit); inserted Story 0.32 with a DW-1195 acceptance bullet
 - 2026-11-12T17:27:03Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_attempt1_iris(shards-10)_live:sign-in_suite_timeout_777s(264_passed,0_failed,16_did_not_run);rerun_failed_jobs
+- 2026-11-12T18:09:13Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=adjudication note=fbe3deb0+review: 'MEASURED live:<unit> suite N s' and suite-budget lines in test-sign-in.sh; deadline floors sign-in 1560 s, sign-in-2 and sign-in-3 1500 s give browser-suite budgets 1132-1178 s (>= 950 s and >= 1.4x medians over 27 runs); finite; pinned by test-ci-config.sh budgets; CI proof on the next push (CI HOLD)
+- 2026-11-12T18:09:13Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_attempt2_shards-10_job_131344110360_live:sign-in_suite_775s(259_passed,0_failed,21_not_run);fixed_forward_by_0.32
 
 ### DW-1192: Held-out incident snapshots are never compared with a fresh recording in CI; HeldOutCases errorHas markers are read nowhere
 - source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: med | fix-risk: low | footprint: in-story
@@ -7337,16 +7341,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: 0.32 Task 0: ten newest green jobs, 2400 s / median: shards-10 1.33, shards-5 1.34, shards-11 1.35, shards 1.36, production 1.39, shards-2 1.39; largest job 1.17
 - 2026-11-12T17:27:25Z status=escalated owner=burndown by=harvest note=for the Planner: a job cap is a RELEASE TOOL hunk; rebalancing is a Story 0.20 kind of change
+- 2026-11-12T18:06:01Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs, no-op jobs out): shards-10 1.29, shards/11 1.35, shards-6 1.37, production/shards-2 1.39
 
 ### DW-1213: CI checks job timeout (20 min) is 1.25x its green median (962 s; largest 1015 s)
 - source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: 0.32 Task 0: ten newest green ci checks jobs
 - 2026-11-12T17:27:25Z status=escalated owner=burndown by=harvest note=for the Planner: workflow timeout-minutes is a RELEASE TOOL hunk
+- 2026-11-12T18:06:13Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs incl. red/cancelled): checks median 950 s, 1.26; largest 1015 s, 1.18
 
 ### DW-1214: CI iris job timeout (40 min) is 1.33-1.66x the group medians; it is the last bound of a hang
 - source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: 0.32 Task 0; see the group entry
 - 2026-11-12T17:27:26Z status=escalated owner=burndown by=harvest note=for the Planner: RELEASE TOOL hunk; 0.32's Never list forbids raising the 40-minute cap
+- 2026-11-12T18:06:13Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs, no-op jobs out): iris job cap 1.29-1.70x the group job medians; 1.17x the largest
 
 ### DW-1215: Playwright's 45 s per-test timeout is 1.27x the slowest online-allowance test and 1.38x online-demo's (medians of each run's slowest test)
 - source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: low | fix-risk: med | footprint: out-of-footprint

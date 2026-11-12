@@ -44,8 +44,9 @@
 # The project is unique and receives no keys. It publishes its web port only on 127.0.0.1, on the first free port of
 # 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in, chat, panel, decision, notice, rail, thread, links and banners users
 # get random passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
-# Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, counted from the moment the throwaway lock is held: 540 s by default,
-# 1200 s in CI, raised to the unit's floor in ci/units.sh, unit_live_deadline), so even a failing run ends within it; the browser run's
+# Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, counted from the moment the throwaway lock is held: 540 s by default
+# when the script runs on its own, 1200 s in CI; through ci/iris.sh live, CI's 1200 s or an unset value is raised to the unit's floor in
+# ci/units.sh, unit_live_deadline), so even a failing run ends within it; the browser run's
 # global timeout is what is left of it minus 20 s. Before the browser run the unit prints "MEASURED live:<unit> suite budget <s> s" and
 # after it, whatever the outcome, "MEASURED live:<unit> suite <s> s" (wall-clock seconds), so that the next audit reads both.
 # Prints one PASS or FAIL line per check, and after the browser run one "SPEC <file> <n> tests <s>s" line per spec file that ran (the

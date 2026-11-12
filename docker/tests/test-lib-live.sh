@@ -176,7 +176,11 @@ measured_check() {
     fail "$label"
   fi
 }
+# The block sets every state its rows read: the start time, the health, the run's deadline and a Telegram the waits leave alone.
+container_started "2026-10-18T10:00:00.123456789Z"
 set_health healthy
+deadline=$((SECONDS + 100))
+LIVE_TELEGRAM=started
 write_log 2026-10-18T10:00:07Z yes
 wait_started_log 60 > "$tmp/m.out" 2> "$tmp/m.err"; m_rc=$?; m_line=$LINENO
 measured_check "measured: a met wait_started_log prints one MEASURED line on stderr and nothing on stdout" 0 60 "$m_line" "$tmp/m.out" "$tmp/m.err" "$m_rc"
@@ -194,7 +198,9 @@ container_started "2026-10-18T10:00:00.123456789Z"
 write_log 2026-10-18T10:00:07Z yes
 m_captured=$(wait_started_log 60 2> /dev/null)
 if [ -z "$m_captured" ]; then pass "measured: a caller that captures stdout with \$(...) gets nothing from the wait"; else fail "measured: stdout of the wait was '$m_captured'"; fi
-if [ "$LIVE_FIRST_START_WAIT" = 510 ] && [ "$LIVE_FIRST_START_WAIT" -lt 720 ]; then pass "measured: LIVE_FIRST_START_WAIT defaults to 510 s, under AD-23's 720 s"; else fail "measured: LIVE_FIRST_START_WAIT is '$LIVE_FIRST_START_WAIT'"; fi
+m_default=$(env -u LIVE_FIRST_START_WAIT bash -c '. "$1"; echo "$LIVE_FIRST_START_WAIT"' _ "$root/docker/tests/lib-live.sh")
+if [ "$m_default" = 510 ]; then pass "measured: with the knob unset LIVE_FIRST_START_WAIT is 510 s"; else fail "measured: with the knob unset LIVE_FIRST_START_WAIT is '$m_default'"; fi
+if [ "$m_default" -gt 0 ] 2> /dev/null && [ "$m_default" -lt 720 ]; then pass "measured: the default first-start wait is under AD-23's 720 s"; else fail "measured: the default first-start wait '$m_default' is not under 720 s"; fi
 
 # --- live_park_telegram and its place in wait_started_ready (Story 12.9) ---
 

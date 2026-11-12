@@ -16,8 +16,8 @@
 # The upgrade images are built from a copy of the build context in a temporary directory, through an override
 # that names it, so the working tree is never changed. The project is unique, publishes no host port and
 # receives no keys. An EXIT trap removes the project with its volume and images. Every wait ends by an overall
-# deadline, so even a failing run ends: 540 s when OCUTALON_LIVE_DEADLINE is unset, 1200 s in CI, raised to the unit's floor in
-# ci/units.sh (unit_live_deadline). Rows 6 and 7 print how long each of their three waits took (MEASURED), pass or fail.
+# deadline, so even a failing run ends: 540 s when OCUTALON_LIVE_DEADLINE is unset and the script runs on its own, 1200 s in CI;
+# through ci/iris.sh live (CI's 1200 s or unset) the unit's floor in ci/units.sh (unit_live_deadline) raises it. Rows 6 and 7 print how long each of their three waits took (MEASURED), pass or fail.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose and the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u

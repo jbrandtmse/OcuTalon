@@ -226,6 +226,47 @@ Every changed budget prints a `MEASURED` line, so the next audit is exact.
 - Given the story's diff, when `bash docker/tests/test-ci-config.sh` runs (its unit and group pins unchanged), then it passes, and no test, unit, group or job is added, removed, renamed, moved, skipped or shortened. Every budget is finite: the floors are at most 2,340 s and every wait is a literal or a lib default.
 - Given CI on this story's head (pushed after CI HOLD OFF), when it finishes, then every workflow is green. The job logs show the AC 1, AC 2 and AC 4 MEASURED lines and the AC 3 DEADLINE lines.
 
+### Review Findings
+
+Code review 2026-11-12 (full mode, baseline 4f8505cc, QA's uncommitted test-ci-config.sh change included; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all on the session model). 34 raw findings; 0 decision-needed, 12 patch entries (all applied), 0 defer, 13 rejected. Rule 3: exempt (CI tooling, no user-facing surface). Rule 6: no AD mismatch.
+
+**Supersedes the figures above:** the live:sign-in floor is **1560** (not 1500). The evidence file's U, S and R tables, method, changed-budgets table and report-only job and group rows are re-measured over 27 `ci` push runs (red and cancelled runs included, as Task 0's Green rule and Decided in-stage 8 require). Every other code value is unchanged.
+
+- [x] [Review][Patch] [med] The green sample left out green jobs of red and cancelled runs in the window (5 failed, 5 cancelled; for example `UNIT live:sign-in passed 1195s` in 43172863798), so live:sign-in's median was 1033.5 s instead of 1079.5 s and its 1500 s floor sat at 1.39 [ci/units.sh:213, evidence file Method and tables] -- re-fetched read-only, re-parsed with the implement stage's own scripts; sign-in's floor is 1560 (1.45; suite budget 1178 s, at least max(950, 966)); sign-in-2 1.43, sign-in-3 1.47, install-start 1.46; first start 510 s still holds (largest median 348 s, live:sign-in); the install waits keep their values (acceptance-auditor)
+- [x] [Review][Patch] [med] The report-only job medians counted run 43200877872, whose iris jobs ran no group (11-18 s `success`), so shards-2's job median (1732 s) sat below its own unit seconds (1747 s) and shards-6 showed 1.41 instead of 1.37 [evidence file, group and workflow tables] -- each group row now uses the 10 newest runs with a `GROUP passed` line for both columns; DW-1212, DW-1213 and DW-1214 got a `by=cr` trailer with the corrected figures (blind-hunter)
+- [x] [Review][Patch] [med] The install-upgrade pins did not tie `wait_rc=$?` to its wait nor `wait_began=$SECONDS` to its row, so a line between the wait and its status left the die dead with the pins green [docker/tests/test-ci-config.sh budgets loop] -- the loop now checks the wait literal at MEASURED-2 and `wait_began=$SECONDS` at MEASURED-3 for all three rows (verification-gap)
+- [x] [Review][Patch] [med] The sign-in status pin accepted the npm line at either of the two lines before `e2e_status=$?`, so an interposed line could turn a red suite into a pass [docker/tests/test-ci-config.sh] -- the npm line must be the line straight before (verification-gap)
+- [x] [Review][Patch] [med] test-lib-live's default row read the runtime value (red whenever the knob was set in the caller's environment) and its `-lt 720` conjunct could not fail once `= 510` held [docker/tests/test-lib-live.sh] -- the default is read with the knob unset (`env -u`, the LIVE_PORT_WAIT row's pattern), and the AD-23 bound is its own row (blind-hunter+verification-gap)
+- [x] [Review][Patch] [low] The measured rows relied on the previous section's start stamp, the file-level LIVE_TELEGRAM and the global deadline [docker/tests/test-lib-live.sh] -- the block sets all four itself (verification-gap)
+- [x] [Review][Patch] [low] The AC 5 check read only the changed-budgets table, not the U and R tables' new column [docker/tests/test-ci-config.sh] -- it now also checks the five U rows, the count of floor rows, every first-start row and the five raised R rows against the code (verification-gap)
+- [x] [Review][Patch] [low] `unit_live_deadline`'s comment claimed the floors keep a run under the iris job's 40 minutes; the bound is per unit [ci/units.sh:204-209] (blind-hunter+edge-case-hunter)
+- [x] [Review][Patch] [low] lib-live's comment said every live script that starts a stack uses `LIVE_FIRST_START_WAIT`; record-eval, the release harness and demo-path do not [docker/tests/lib-live.sh:208-212] (blind-hunter)
+- [x] [Review][Patch] [low] The headers of test-install-start, test-install-upgrade and test-sign-in said 540 s when the deadline is unset, which holds only for a direct run; through `ci/iris.sh live` the floor applies (edge-case-hunter+acceptance-auditor+blind-hunter)
+- [x] [Review][Patch] [low] Evidence prose: margins were computed from unrounded medians without saying so, 25 first-start rows stood for 23 scripts unexplained, and the summary sentence "every other budget has at least 1.4 (the lowest ... 1.39 and 1.38)" contradicted itself [evidence file] (blind-hunter+edge-case-hunter+acceptance-auditor)
+- [x] [Review][Patch] [low] Rule 19: no recorded mutation for AC 2's B bound or AC 4's "naming the calling line" -- closed by the mutations below; AC 2's B bound is the exact floor pin (the recorded "sign-in floors set to 1200" mutation)
+
+Mutations (review; each applied, observed red, reverted; `git status --short` and `git diff` checksums identical afterwards):
+- mutation: `echo` inserted between row 6's `wait_started_ready 300` and `wait_rc=$?` -> test-ci-config budgets red ("does not follow wait_began=$SECONDS, wait_started_ready 300 and wait_rc=$? line by line").
+- mutation: row 7's `wait_began=$SECONDS` deleted -> budgets red (the same message for row 7's failing step).
+- mutation: `echo` inserted between the sign-in npm run and `e2e_status=$?` -> budgets red ("e2e_status=$? is not the line straight after the npm run").
+- mutation: the evidence U table's live:sign-in new value 1560 -> 1500 (summary table unchanged) -> budgets red ("evidence U table: live:sign-in is '1500', ci/units.sh has '1560'").
+- mutation: `${BASH_LINENO[$((i - 1))]}` -> `${BASH_LINENO[$i]}` in `wait_started_log` -> test-lib-live red (the five measured rows); in the same run, with `LIVE_FIRST_START_WAIT=600` in the environment, both default rows stayed green (hermetic).
+
+Rejected:
+- `low` Blind: the floor raises an unset local deadline (a local hang runs about 25 minutes) -- by-design, Decided in-stage 3 (local `ci/iris.sh live` runs get the floors); a green local sign-in run already takes about 17 minutes.
+- `low` Blind: the 540 default lives in both cmd_live and lib-live -- wontfix-theoretical; real only if lib-live's default rose above 1440 s.
+- `low` Blind: the `MEASURED wait` line of `wait_started_ready` covers only the log part and does not say whether the run's deadline ended it -- documented in both headers; the spec puts the line on `wait_started_log`, and rows 6 and 7 time the whole call.
+- `low` Blind: the AC 5 pin makes test-ci-config read the dated evidence file -- by-design: it is QA's standing check of AC 5's equality, and removing it deletes a test.
+- `low` Edge/acceptance: a given deadline with leading zeros, beyond int64, padded or signed -- wontfix-theoretical; CI sets the bare `"1200"` (pinned) and the release 1980; real if a caller passes such a value.
+- `low` Edge: a non-numeric `LIVE_FIRST_START_WAIT` -- theoretical, as for its sibling `LIVE_PORT_WAIT`.
+- `low` Edge: record-eval.sh keeps a literal 400 -- by-design, not a CI unit (Code Map).
+- `low` Edge: the release harness keeps literal 400 s waits -- by-design, `release/**` is on the Never list.
+- `false` Edge: a 510 s budget can pass AD-23's 720 s in wall-clock time -- the 720 s WARN is demo-path's FIRST-START report (`live_first_start 900`, unchanged); the budget is in poll seconds and AD-23 sets no bound on this wait.
+- `low` Edge: the commit message says every budget gets a 40% margin while row 6 is 1.37 -- by-design, ruled (DW-1082) and recorded in the evidence and `deferred:`.
+- `low` Verification-gap: no mutation for AC 3 "through `group`" -- `cmd_group` runs each unit as a new `bash ci/iris.sh live`, the same `cmd_live` the tk_live rows drive.
+- `low` Verification-gap: AC 5's "every budget of the inventory has a row" and AC 6's "nothing removed" have no automated pin -- by-design, one-off checks of the record and of the diff (both held at this review: 29 U rows equal the groups' live units; no test, unit, group or job removed).
+- `low` Acceptance: QA's test-ci-config.sh change is uncommitted -- not a defect; the lead commits it with this review's patches.
+
 ## Spec Change Log
 
 ## Review Triage Log

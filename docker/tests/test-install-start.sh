@@ -40,8 +40,9 @@
 #     OCUORDERS, and switched on again recreates it. The last restart has demo mode off and the foreign production defined and
 #     stopped: it ends ready, with the WARN line, the note, OCUORDERS and the definition kept, and OcuTalon's access gone.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its
-# volume and images. Every wait ends by an overall deadline, so even a failing run ends: 540 s when OCUTALON_LIVE_DEADLINE is unset,
-# 1200 s in CI, raised to the unit's floor in ci/units.sh (unit_live_deadline).
+# volume and images. Every wait ends by an overall deadline, so even a failing run ends: 540 s when OCUTALON_LIVE_DEADLINE is unset
+# and the script runs on its own, 1200 s in CI; through ci/iris.sh live (CI's 1200 s or unset) the unit's floor in ci/units.sh
+# (unit_live_deadline) raises it.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose and the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u

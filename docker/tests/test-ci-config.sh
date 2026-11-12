@@ -75,7 +75,8 @@
 #     floor and prints one DEADLINE line when it raised the deadline, and leaves a higher given deadline and any unlisted unit alone; the
 #     first-start wait is LIVE_FIRST_START_WAIT (default 510 s) in every live script, whose die names it; the three waits of
 #     live:install-upgrade and the two audited waits of live:install-start have their budgets, and the MEASURED lines of the upgrade's
-#     waits come before their dies; test-sign-in.sh prints the suite budget before the browser run and the suite seconds right after it;
+#     waits come before their dies and are unconditional (printed on a pass too); test-sign-in.sh prints the suite budget before the
+#     browser run and the suite seconds right after it; the evidence table's new-value column equals the code's values;
 #   - lane-a: lane-a.yml exists and has the job standalone-bridge; both .yml and .yaml files are workflow files;
 #   - checks.sh, class verdict, shard order, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh
 #     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
@@ -2274,8 +2275,8 @@ tk_fail=""
 budget_floors=$(budget_floor_report)
 budget_seen=$(printf '%s\n' "$budget_floors" | sed -n 's/^SEEN//p' | tr ' ' '\n' | sed '/^$/d' | LC_ALL=C sort | tr '\n' ' ')
 case "$budget_seen" in
-  "install-start=1440 install-upgrade=1440 sign-in-2=1500 sign-in-3=1500 sign-in=1500 ") ;;
-  *) tk_bad "the floors are '$budget_seen', wanted install-start=1440 install-upgrade=1440 sign-in-2=1500 sign-in-3=1500 sign-in=1500 (each a live unit of a group)" ;;
+  "install-start=1440 install-upgrade=1440 sign-in-2=1500 sign-in-3=1500 sign-in=1560 ") ;;
+  *) tk_bad "the floors are '$budget_seen', wanted install-start=1440 install-upgrade=1440 sign-in-2=1500 sign-in-3=1500 sign-in=1560 (each a live unit of a group)" ;;
 esac
 printf '%s\n' "$budget_floors" | grep -q '^BAD' && tk_bad "unit_live_deadline: $(printf '%s\n' "$budget_floors" | grep '^BAD' | head -n 3 | tr '\n' ';')"
 
@@ -2315,6 +2316,16 @@ budget_seq "$budget_up" 'wait_started_log 300' 'echo "MEASURED row 7: the start 
 budget_seq "$budget_up" 'wait_started_ready 330' 'echo "MEASURED row 7: the next good image took $((SECONDS - wait_began)) s to ready"' 'die "row 7 the next good image did not end ready within 330 s"' \
   || tk_bad "$budget_up: row 7's next good image is not wait_started_ready 330, then its MEASURED line, then its die"
 [ "$(grep -c 'wait_started_\(ready\|log\) [0-9]' "$budget_up")" -eq 3 ] || tk_bad "$budget_up: not three literal waits"
+# "Pass or fail" (AC 1): each MEASURED line is unconditional, straight after the wait's status and straight before the status test, so
+# a line moved into the failing branch (still before the die) is caught here; the status is the wait's own (wait_rc=$? straight after
+# the wait) and the seconds count from this row's start time (wait_began=$SECONDS straight before the wait).
+for budget_m in 'echo "MEASURED row 6: the upgrade took|wait_started_ready 300' 'echo "MEASURED row 7: the start with a failing step took|wait_started_log 300' 'echo "MEASURED row 7: the next good image took|wait_started_ready 330'; do
+  budget_ml=$(budget_pos "$budget_up" "${budget_m%%|*}") || budget_ml=0
+  { [ "$budget_ml" -gt 3 ] && [ "$(sed -n "$((budget_ml - 1))p" "$budget_up")" = 'wait_rc=$?' ] && [ "$(sed -n "$((budget_ml + 1))p" "$budget_up")" = 'if [ "$wait_rc" -ne 0 ]; then' ]; } \
+    || tk_bad "$budget_up: '${budget_m%%|*}' is not the unconditional line between wait_rc=\$? and the status test"
+  { [ "$budget_ml" -gt 3 ] && [ "$(sed -n "$((budget_ml - 2))p" "$budget_up")" = "${budget_m#*|}" ] && [ "$(sed -n "$((budget_ml - 3))p" "$budget_up")" = 'wait_began=$SECONDS' ]; } \
+    || tk_bad "$budget_up: '${budget_m%%|*}' does not follow wait_began=\$SECONDS, ${budget_m#*|} and wait_rc=\$? line by line"
+done
 
 # DW-1195: the sign-in suite prints its budget before the npm run and its seconds right after e2e_status=$?, whatever the outcome.
 budget_si=docker/tests/test-sign-in.sh
@@ -2325,7 +2336,7 @@ budget_s=$(budget_pos "$budget_si" 'e2e_status=$?') || budget_s=0
   || tk_bad "$budget_si: the suite budget line is missing, or does not come right before the browser run's start time and command"
 [ "$budget_s" -gt "$budget_n" ] && [ "$(sed -n "$((budget_s + 1))p" "$budget_si")" = 'echo "MEASURED live:$suite_unit suite $((SECONDS - suite_began)) s"' ] \
   || tk_bad "$budget_si: the suite result line is not the unconditional line after e2e_status=\$?"
-[ "$(sed -n "$((budget_s - 2)),$((budget_s))p" "$budget_si" | grep -c 'npm --prefix web run')" -eq 1 ] || tk_bad "$budget_si: e2e_status=\$? does not follow the npm run"
+[ "$budget_s" -gt 1 ] && sed -n "$((budget_s - 1))p" "$budget_si" | grep -q 'npm --prefix web run' || tk_bad "$budget_si: e2e_status=\$? is not the line straight after the npm run"
 [ "$(grep -c '^suite_unit=\${unit_name#test-}$' "$budget_si")" -eq 1 ] || tk_bad "$budget_si: suite_unit is not the unit name without test-"
 
 # The other audited waits of live:install-start.
@@ -2335,12 +2346,68 @@ budget_pos "$budget_is" 'die "row 3 the dev start did not end ready within 300 s
 budget_pos "$budget_is" 'die "row 4 the restart did not end ready within 270 s"' > /dev/null && [ "$(grep -B2 'row 4 the restart did not end ready within 270 s' "$budget_is" | grep -c 'wait_started_ready 270; then')" -eq 1 ] \
   || tk_bad "$budget_is: row 4's restart wait is not 270 s with its die"
 
+# AC 5: the committed audit table's new-value column equals the code (the floors, the first-start default and the five wait literals).
+budget_ev=_bmad-output/implementation-artifacts/evidence/0-32-task0-ci-time-budgets.md
+# budget_new <row label>: the "after" cell of the one row of the evidence's changed-budgets table whose budget cell is the label.
+budget_new() {
+  awk -F'|' -v want="$1" '{ k = $3; gsub(/^ +| +$/, "", k); if (k == want) { v = $5; gsub(/^ +| +$/, "", v); print v; n++ } } END { exit (n == 1 ? 0 : 1) }' "$budget_ev"
+}
+# budget_code_die <file> <die text before the number>: the number in the one die that names the wait's budget.
+budget_code_die() { grep -F -e "$2" "$1" | sed -n 's/.*within \([0-9][0-9]*\) s".*/\1/p'; }
+if [ ! -f "$budget_ev" ]; then
+  tk_bad "the evidence file $budget_ev is missing"
+else
+  for budget_fl in install-start install-upgrade sign-in sign-in-2 sign-in-3; do
+    budget_want=$(budget_new "live:$budget_fl deadline") || budget_want="(no single row)"
+    budget_have=$(. "$root/ci/units.sh"; unit_live_deadline "$budget_fl")
+    [ "$budget_want" = "$budget_have" ] || tk_bad "evidence table: live:$budget_fl deadline is '$budget_want', ci/units.sh has '$budget_have'"
+  done
+  budget_want=$(budget_new 'first start, 23 scripts (`LIVE_FIRST_START_WAIT`)') || budget_want="(no single row)"
+  budget_have=$(sed -n 's/^LIVE_FIRST_START_WAIT=\${LIVE_FIRST_START_WAIT:-\([0-9][0-9]*\)}$/\1/p' docker/tests/lib-live.sh)
+  [ "$budget_want" = "$budget_have" ] || tk_bad "evidence table: the first start is '$budget_want', lib-live.sh has '$budget_have'"
+  for budget_row in \
+    "test-install-upgrade.sh row 6|$budget_up|row 6 the upgrade did not end ready" \
+    "test-install-upgrade.sh row 7 failing step|$budget_up|row 7 the start with a failing step did not end" \
+    "test-install-upgrade.sh row 7 next good image|$budget_up|row 7 the next good image did not end ready" \
+    "test-install-start.sh row 3|$budget_is|row 3 the dev start did not end ready" \
+    "test-install-start.sh row 4 restart|$budget_is|row 4 the restart did not end ready"; do
+    budget_want=$(budget_new "${budget_row%%|*}") || budget_want="(no single row)"
+    budget_rest=${budget_row#*|}
+    budget_have=$(budget_code_die "${budget_rest%%|*}" "${budget_rest#*|}")
+    [ "$budget_want" = "$budget_have" ] || tk_bad "evidence table: ${budget_row%%|*} is '$budget_want', the code's die says '$budget_have'"
+  done
+  # The inventory tables (U and R) carry the same values in their "new" column (the eighth cell).
+  budget_inv() {
+    awk -F'|' -v want="$1" '{ k = $2; gsub(/^ +| +$/, "", k); if (k == want) { v = $9; gsub(/^ +| +$/, "", v); print v; n++ } } END { exit (n == 1 ? 0 : 1) }' "$budget_ev"
+  }
+  for budget_fl in install-start install-upgrade sign-in sign-in-2 sign-in-3; do
+    budget_want=$(budget_inv "live:$budget_fl") || budget_want="(no single row)"
+    budget_have=$(. "$root/ci/units.sh"; unit_live_deadline "$budget_fl")
+    [ "$budget_want" = "$budget_have" ] || tk_bad "evidence U table: live:$budget_fl is '$budget_want', ci/units.sh has '$budget_have'"
+  done
+  [ "$(grep -c '| floor in `unit_live_deadline` |' "$budget_ev")" -eq 5 ] || tk_bad "evidence U table: not five rows with a floor"
+  budget_have=$(sed -n 's/^LIVE_FIRST_START_WAIT=\${LIVE_FIRST_START_WAIT:-\([0-9][0-9]*\)}$/\1/p' docker/tests/lib-live.sh)
+  budget_fs=$(awk -F'|' '$2 ~ /^ first start in / { v = $9; gsub(/^ +| +$/, "", v); print v }' "$budget_ev" | sort -u | tr '\n' ' ')
+  [ "$budget_fs" = "$budget_have " ] || tk_bad "evidence R table: the first-start rows' new values are '$budget_fs', lib-live.sh has '$budget_have'"
+  for budget_row in \
+    "test-install-upgrade.sh:170 row 6|$budget_up|row 6 the upgrade did not end ready" \
+    "test-install-upgrade.sh:205 row 7 failing step (log)|$budget_up|row 7 the start with a failing step did not end" \
+    "test-install-upgrade.sh:256 row 7 next good image|$budget_up|row 7 the next good image did not end ready" \
+    "test-install-start.sh:295 row 3|$budget_is|row 3 the dev start did not end ready" \
+    "test-install-start.sh:665 row 4 restart|$budget_is|row 4 the restart did not end ready"; do
+    budget_want=$(budget_inv "${budget_row%%|*}") || budget_want="(no single row)"
+    budget_rest=${budget_row#*|}
+    budget_have=$(budget_code_die "${budget_rest%%|*}" "${budget_rest#*|}")
+    [ "$budget_want" = "$budget_have" ] || tk_bad "evidence R table: ${budget_row%%|*} is '$budget_want', the code's die says '$budget_have'"
+  done
+fi
+
 # The floor in cmd_live, through the real cmd_live and the real unit_live_deadline over a fake checkout whose unit script records the
 # deadline it sees (the rows that the consumer reads the producer's value).
 budget_rec='printf "%s\n" "${OCUTALON_LIVE_DEADLINE-unset}" > "$FAKE_RECORD.deadline"'
 tk_live floor-1200 TK_UNIT=sign-in OCUTALON_LIVE_DEADLINE=1200 TK_UNIT_EXTRA="$budget_rec"
-[ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1500 ] || tk_bad "floor over 1200: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1500"
-printf '%s\n' "$tk_out" | grep -qx 'DEADLINE live:sign-in 1500 s' || tk_bad "floor over 1200: no 'DEADLINE live:sign-in 1500 s' line"
+[ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1560 ] || tk_bad "floor over 1200: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1560"
+printf '%s\n' "$tk_out" | grep -qx 'DEADLINE live:sign-in 1560 s' || tk_bad "floor over 1200: no 'DEADLINE live:sign-in 1560 s' line"
 tk_live floor-unset TK_UNIT=install-upgrade TK_UNIT_EXTRA="$budget_rec"
 [ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1440 ] || tk_bad "floor, deadline unset: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1440"
 printf '%s\n' "$tk_out" | grep -qx 'DEADLINE live:install-upgrade 1440 s' || tk_bad "floor, deadline unset: no 'DEADLINE live:install-upgrade 1440 s' line"
@@ -2351,8 +2418,8 @@ tk_live floor-equal TK_UNIT=sign-in-3 OCUTALON_LIVE_DEADLINE=1500 TK_UNIT_EXTRA=
 [ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1500 ] || tk_bad "floor equal to the given deadline: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1500"
 printf '%s\n' "$tk_out" | grep -q '^DEADLINE' && tk_bad "floor equal to the given deadline: a DEADLINE line was printed"
 tk_live floor-nonnumeric TK_UNIT=sign-in OCUTALON_LIVE_DEADLINE=abc TK_UNIT_EXTRA="$budget_rec"
-[ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1500 ] || tk_bad "floor over a non-numeric deadline: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1500"
-printf '%s\n' "$tk_out" | grep -qx 'DEADLINE live:sign-in 1500 s' || tk_bad "floor over a non-numeric deadline: no 'DEADLINE live:sign-in 1500 s' line"
+[ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1560 ] || tk_bad "floor over a non-numeric deadline: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1560"
+printf '%s\n' "$tk_out" | grep -qx 'DEADLINE live:sign-in 1560 s' || tk_bad "floor over a non-numeric deadline: no 'DEADLINE live:sign-in 1560 s' line"
 tk_live floor-none TK_UNIT=floor OCUTALON_LIVE_DEADLINE=1200 TK_UNIT_EXTRA="$budget_rec"
 [ "$(cat "$tk_dir/record.deadline" 2>/dev/null)" = 1200 ] || tk_bad "a unit with no floor: the unit saw '$(cat "$tk_dir/record.deadline" 2>/dev/null)', wanted 1200"
 printf '%s\n' "$tk_out" | grep -q '^DEADLINE' && tk_bad "a unit with no floor: a DEADLINE line was printed"
@@ -2364,7 +2431,7 @@ printf '%s\n' "$live_body" | grep -q 'unit_live_deadline "\$name"' || tk_bad "cm
 printf '%s\n' "$live_body" | grep -q 'OCUTALON_E2E_OUTPUT="test-results/\$name" bash "docker/tests/test-\$name.sh" "\$@"' || tk_bad "cmd_live's run line changed"
 
 if [ -z "$tk_fail" ]; then
-  echo "PASS budgets (Story 0.32): unit_live_deadline holds exactly the five floors (${budget_seen% }), each a live unit of a group in (1200, 2340], cmd_live raises a lower or unset deadline to the floor with one DEADLINE line and keeps a higher one and any unlisted unit, the $budget_first first-start waits use LIVE_FIRST_START_WAIT (510 s) with dies that name it, and the audited waits of live:install-start and live:install-upgrade, with the MEASURED lines before the dies, and the sign-in suite's two MEASURED lines are in place"
+  echo "PASS budgets (Story 0.32): unit_live_deadline holds exactly the five floors (${budget_seen% }), each a live unit of a group in (1200, 2340], cmd_live raises a lower or unset deadline to the floor with one DEADLINE line and keeps a higher one and any unlisted unit, the $budget_first first-start waits use LIVE_FIRST_START_WAIT (510 s) with dies that name it, and the audited waits of live:install-start and live:install-upgrade, with the MEASURED lines before the dies, and the sign-in suite's two MEASURED lines are in place, and the evidence table's new-value column equals the code"
 else
   echo "FAIL budgets (Story 0.32):$tk_fail"
   fails=$((fails + 1))

@@ -205,8 +205,8 @@ LIVE_FORBIDDEN_PORTS="52773 1979 52779 8089 1990 1991 52790 52791 8090 8091"
 
 # The knobs of the port wait and of the retries in live_port_guard, in seconds.
 LIVE_PORT_WAIT=${LIVE_PORT_WAIT:-90}
-# The one budget, in poll seconds, of the first start's wait (wait_started_ready "$LIVE_FIRST_START_WAIT" in every live script that
-# starts a stack). It is 1.4 times the largest per-unit median of the audit in
+# The one budget, in poll seconds, of the first start's wait (wait_started_ready "$LIVE_FIRST_START_WAIT" in the 23 CI live unit
+# scripts that wait for a first start; test-demo-path.sh's live_first_start keeps its own). It is 1.4 times the largest per-unit median of the audit in
 # _bmad-output/implementation-artifacts/evidence/0-32-task0-ci-time-budgets.md, rounded up to 30 s, and stays under the 720 s of
 # AD-23's first-start WARN.
 LIVE_FIRST_START_WAIT=${LIVE_FIRST_START_WAIT:-510}
