@@ -2,7 +2,7 @@
 title: 'Story 21.8: Read and send mail with the OAuth2 sign-in'
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'acb7c2e1a9bb3d9ad9c8e3f1aa91f6c91cab1d38'
 baseline_commit: 'acb7c2e1a9bb3d9ad9c8e3f1aa91f6c91cab1d38'
 review_loop_iteration: 0
@@ -98,6 +98,9 @@ deferred:
 - Given the online demo, when a save, a poll or a send would run, then no OAuth2 row is written, `Token.OnGetAccessToken` refuses with no IRIS call, and `/csp/sys/oauth2` stays disabled (21.3's tests stay green).
 - Given the finished diff, when its paths and classes are listed, then no Lane A path, no Never-list item, no new switching method, no new caller of `Channel.Email.OAuth`, and no grant, role or resource on any OcuTalon role appears; password-mode tests of 21.2, 21.6 and 21.7 still pass unchanged.
 
+- [ ] [Review] DW-1230 (Planner ruling E, security, before any push): in OAuth2 mode `EmailIn` sends the bearer token only over TLS (POP3S, or STLS if the adapter supports it). Plain POP3 is allowed only with `OCUTALON_TEST_OAUTH_MOCK=1` and host `mock`, exactly as `Sender.PlainAllowed` does for SMTP. Otherwise the poll refuses before any token is fetched or sent and records a plain reason (reuse an existing accepted reason if one fits; new wording is a Clarification for the Planner). -- `src/ocutalon/cls/OcuTalon/Channel/Email/Adapter.cls` (and the handler/Token path if the token fetch happens earlier) -- tests pin (a) a blank `SSLConfig` row and (b) `SSLCheckServerIdentity` 0 in OAuth2 mode are refused with no token sent and nothing reaching the stub, and (c) the mock exception (switch on + host `mock`) still polls; one `mutation:` line each.
+- [ ] [Review] RELEASE TOOL pin (Planner ruling E, approved): the one-line exemption in `release/checklist.sh` `outward_hits()` (`mail.google.com` in the exact-match exemption for `docker/tests/test-readme.sh`'s `ALLOWED_HOSTS` line) stays exactly that line and nothing else; add a test pin that fails if the exemption is missing (outward check red on the README line) or widened (any other host or a non-exact match) -- in the existing release-checklist test script if one exists on this branch, else in `docker/tests/test-readme.sh` -- with its `mutation:` line.
+
 ### Review Findings
 
 Code review 2026-11-12 (`bmad-code-review`, full mode, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; tier full-opus). 0 decision-needed, 12 patch (all applied), 2 defer (ledgered), 21 rejected or closed at emission. No HIGH.
@@ -142,6 +145,8 @@ Rejected / closed at emission:
 - (false) review's own check: `%Net.POP3.ConnectPort` keeps the XOAUTH2 line in a public variable — measured `ProcedureBlock` 1 on the throwaway, so it is private.
 
 ## Spec Change Log
+
+- 2026-11-12 (lead, rework iteration 1, trigger review-ruling): Planner ruling E (`prompts/gate-rulings-20261112-1810.md` E): DW-1230 fixed in this story before the push; the approved RELEASE TOOL line gets a test pin. DW-1226 stays decision-pending for the owner (post-contest).
 
 - 2026-11-12 (lead, spec gate): Planner rulings A applied (V1-V8 approved; T1-T3 verbatim; T4 with the three added sentences; GUIDE.md placement; no least-privilege claim).
 

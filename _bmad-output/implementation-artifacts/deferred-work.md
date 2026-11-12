@@ -7341,8 +7341,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Adapter.ConnectReason gives REASONREFUSED/REASONSIGNIN only for ': -ERR'; stubs use -ERR; real Gmail/M365 reply after a rejected token not measured (inference)
 - 2026-11-12T20:33:04Z status=decision-pending owner=burndown by=harvest note=human=one sign-in with a real Gmail or Microsoft 365 test mailbox and a revoked grant (owner's own install), or the providers' protocol docs; fix is a small ConnectReason branch if the challenge form is confirmed
 - 2026-11-12T21:41:46Z occurrence=21-8-read-and-send-mail-with-the-oauth2-sign-in
+- 2026-11-12T22:25:58Z by=merge_gate note=Planner_ruling_E:post-contest,_the_owner%27s_optional_check_with_a_test_mailbox;stays_decision-pending_for_the_owner
 
 ### DW-1230: In OAuth2 mode EmailIn sends the XOAUTH2 bearer token over whatever POP3 transport the item's settings give: a blank SSLConfig row (plain POP3) or SSLCheckServerIdentity 0 is honoured with no test-only switch, unlike Sender's PlainAllowed
 - source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: Adapter.Poll passes the token to ConnectPort whatever SSLConfig holds; InboundAdapter.OnInit sets TLS only for a non-empty SSLConfig and copies SSLCheckServerIdentity; EmailLive and E6 reach the plain stub by blanking the row; the product never writes it (admin edit only)
 - 2026-11-12T21:41:47Z status=escalated owner=burndown by=cr note=security posture (veto window): rec gate the token on SSLConfig OcuTalonClient(*) + identity check, plain only with OCUTALON_TEST_OAUTH_MOCK=1 and host mock
+- 2026-11-12T22:25:58Z status=open owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=merge_gate note=Planner_ruling_E(security):fix_in_21.8_before_the_push:bearer_token_only_over_TLS;plain_POP3_only_with_OCUTALON_TEST_OAUTH_MOCK=1_and_host_mock;otherwise_refuse_with_no_token_and_a_plain_reason;tests_pin_refusal_and_mock_exception
