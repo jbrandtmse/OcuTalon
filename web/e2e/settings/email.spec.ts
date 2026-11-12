@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import { expect, test, type Locator, type Page } from '../support/fixtures';
 
-import { envelope, signInOverHttp } from '../sign-in/helpers';
+import { README_ACCOUNT, envelope, signInOverHttp } from '../sign-in/helpers';
 import { signInReadmeLoaded } from '../support/floor';
 import { chk, fixtureUser, irisScript } from '../support/iris';
 
@@ -29,7 +29,8 @@ import { chk, fixtureUser, irisScript } from '../support/iris';
  *   - E7 (Story 21.7): the daily digest by email. With the mailbox saved and no outgoing server, Settings > Daily digest shows no Email box; once the outgoing
  *     server (the CI mock's SMTP stub) is saved the box shows, checking it and saving stores the channels with `email` last, "Send my digest now" delivers exactly
  *     one mail to the stub (read through EmailLive.SmtpState, as the browser reaches IRIS only), and the LIVE fixture user's POST of channels with `email` is 403 and
- *     changes nothing. The channels are put back and the mailbox removed afterwards.
+ *     changes nothing; a call with no session is 401, the admin's POST of a list with a name of no channel (or a repeated or mis-cased one) is 400 bad_settings naming
+ *     channels and changes nothing, and a second admin session reads the stored channels. The channels are put back and the mailbox removed afterwards.
  */
 const SETTINGS = '/ocutalon/api/v1/settings';
 const CHANNELS = `${SETTINGS}/channels`;
@@ -478,6 +479,33 @@ test('E7: the Email digest box shows once outgoing is saved, stores email, and S
       await api.dispose();
     }
     expect((await digestValues(page)).channels.split(','), 'the refused call changed nothing').toEqual(saved);
+
+    // QA (21.7), the real-HTTP route rule: no session is 401, the admin's own list with a name of no channel is 400 with the field named, and a second admin session sees
+    // the one stored value (the channels are the instance's, not a session's). Each leaves the stored channels as they were.
+    const anonymous = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    try {
+      const unsigned = await anonymous.post(`${SETTINGS}/daily-digest`, { headers: envelope(), data: { time: before.time, channels: 'web,email' } });
+      expect(unsigned.status(), 'POST /v1/settings/daily-digest with email and no session is 401').toBe(401);
+    } finally {
+      await anonymous.dispose();
+    }
+    for (const channels of ['web,sms,email', 'email,email', 'Email']) {
+      const bad = await page.request.post(`${SETTINGS}/daily-digest`, { headers: envelope(), data: { time: before.time, channels } });
+      expect(bad.status(), `the admin's POST of channels '${channels}' is 400`).toBe(400);
+      const body = (await bad.json()) as { error: { code: string }; fields: string[] };
+      expect([body.error.code, body.fields], `'${channels}': bad_settings naming channels`).toEqual(['bad_settings', ['channels']]);
+      expect((await digestValues(page)).channels.split(','), `'${channels}' changed nothing`).toEqual(saved);
+    }
+    const second = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    try {
+      await signInOverHttp(second, README_ACCOUNT.user, README_ACCOUNT.password);
+      const seen = await second.get(SETTINGS);
+      expect(seen.status(), 'GET /v1/settings as a second admin session').toBe(200);
+      const stored = ((await seen.json()) as { sections: { 'daily-digest': { channels: string } } }).sections['daily-digest'].channels;
+      expect(stored.split(','), 'the second session reads the channels the first stored, email last').toEqual(saved);
+    } finally {
+      await second.dispose();
+    }
   } finally {
     const put = await page.request.post(`${SETTINGS}/daily-digest`, { headers: envelope(), data: before });
     expect(put.status(), 'the digest channels are put back').toBe(200);

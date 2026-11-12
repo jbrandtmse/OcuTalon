@@ -34,12 +34,15 @@ Include Ensemble
 ///   - TestDigestNotSent: a session that is not email.owner, an empty one, no owner, no address, an address that is none, the online demo, and every other kind
 ///     of Notification send nothing and record nothing, the other kinds with one warning;
 ///   - TestDigestRenderAndCaps: a piece that does not render, Slots that are no JSON and a text over the limit send nothing and record nothing, with one warning;
+///   - TestDigestAddressGuard (QA, ruling b): an email.address that is more than one plain address (a second line, a Bcc header, a second recipient, a display name,
+///     a control character, an over-long address) sends nothing, records nothing and logs nothing; the control sends to the plain address alone;
+///   - TestDigestTextIsClean (QA, ruling b, V6): a summary with line breaks, a lone dot line, SMTP commands and control characters reaches the mail as one clean line;
 ///   - TestDigestFailures: an unreachable, refusing, rejecting or throwing server is one try, no Delivery row, one warning with the class only, and no words of
 ///     the server; the operation answers OK;
 ///   - TestDigestNoDoubleSend (ruling f): the same Notification again sends nothing, also after a restart of the operation, and another digest is sent;
-///   - TestDigestDailyCap (ruling V1): the 11th digest to the mailbox in one UTC day is refused, logged without contents and not sent; the rows of an earlier
-///     day, of another owner and of other kinds do not count;
-///   - TestDigestLock: while another process holds the lock of the digest emails nothing is sent;
+///   - TestDigestDailyCap (ruling V1): the 11th digest to the mailbox in one UTC day is refused, logged without contents and not sent; the digest emails of
+///     another owner session of the mailbox count, the rows of an earlier day and of other kinds do not; the count is taken against the rows already there;
+///   - TestDigestLock: while another process holds the lock of the mailbox's digest emails nothing is sent;
 ///   - TestDigestNoPersonalDataInTheLog: after digests and failures the log holds no address, subject, text, key or server words;
 ///   - TestSenderInit, TestSenderTransport, TestSenderTlsSettings, TestSenderNoConnection, TestClassify (ruling c, Sender): OnInit forces the identity check on and ContinueAfterBadSend off
 ///     whatever the settings say; the transport is plain only with the switch on and the host mock, TLS only for OcuTalonClient and OcuTalonClient*, and
@@ -124,7 +127,7 @@ Method TestRefOnEveryPath()
 /// The Id of the newest Delivery row of kind digest.
 ClassMethod DigestRowId() As %String [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND Kind = 'digest' ORDER BY ID DESC")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND Kind = 'digest' AND OwnerRef LIKE 'zzemailout%' ORDER BY ID DESC")
 	Do result.%Next()
 	Quit result.%GetData(1)
 }
@@ -156,7 +159,7 @@ Method Notify(kind As %String, sessionRef As %String, slots As %String, decision
 ClassMethod LogTexts(start As %Integer) As %List [ Private ]
 {
 	Set texts = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Text [ 'EmailOut' ORDER BY ID", start)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Text %STARTSWITH 'EmailOut ' ORDER BY ID", start)
 	While result.%Next() {
 		Set texts = texts_$ListBuild(result.%GetData(1))
 	}
@@ -291,6 +294,64 @@ Method TestDigestRenderAndCaps()
 	}
 }
 
+/// Ruling b (header injection) on the digest path (QA): the recipient is the product key email.address and nothing else, so a value of that key that is
+/// more than one plain address (a second line, a Bcc header, a second recipient, a display name, a control character, an over-long address) sends nothing,
+/// records nothing and logs nothing; the control case shows the same Notification going out with a plain address.
+Method TestDigestAddressGuard()
+{
+	Do ..Mailbox()
+	Set slots = ..DigestSlots(70)
+	Set before = ..LastLog()
+	Set cr = $Char(13), lf = $Char(10)
+	Set cases = $ListBuild(
+		$ListBuild("a Bcc header after CR LF", ..#ADDRESS_cr_lf_"Bcc: zzevil@example.com"),
+		$ListBuild("a Bcc header after LF", ..#ADDRESS_lf_"Bcc: zzevil@example.com"),
+		$ListBuild("a Bcc header after CR", ..#ADDRESS_cr_"Bcc: zzevil@example.com"),
+		$ListBuild("a trailing line feed", ..#ADDRESS_lf),
+		$ListBuild("a second recipient after a comma", ..#ADDRESS_",zzevil@example.com"),
+		$ListBuild("a second recipient after a semicolon", ..#ADDRESS_";zzevil@example.com"),
+		$ListBuild("a second recipient after a space", ..#ADDRESS_" zzevil@example.com"),
+		$ListBuild("a display name and angle brackets", "Zz Name <"_..#ADDRESS_">"),
+		$ListBuild("a null character", ..#ADDRESS_$Char(0)),
+		$ListBuild("a bell character", "zz"_$Char(7)_"emailout@example.com"),
+		$ListBuild("a local part over 64 characters", $Translate($Justify("", 65), " ", "a")_"@example.com"),
+		$ListBuild("an address over 254 characters", "zz@"_$Translate($Justify("", 250), " ", "a")_".com"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Do ##class(OcuTalon.Data.Setting).Set("email.address", $List(case, 2))
+		Do ..Notify("digest", ..#OWNER, slots)
+		Do $$$AssertEquals(..Delivered()_"|"_..Deliveries(..#OWNER), "0|0", $List(case, 1)_": nothing is sent or recorded")
+	}
+	Do $$$AssertEquals($ListLength(..LogTexts(before)), 0, "and none of it is logged")
+	Do ##class(OcuTalon.Data.Setting).Set("email.address", ..#ADDRESS)
+	Do ..Notify("digest", ..#OWNER, slots)
+	Set sent = $Get(^||OcuTalonEmailOutProbe("sent", 1))
+	Do $$$AssertEquals(..Delivered()_"|"_$List(sent, 1)_"|"_$List(sent, 2)_"|"_$List(sent, 8), "1|"_..#ADDRESS_"|"_..#ADDRESS_"|0", "control: the same Notification with a plain address goes to it alone, with no Cc or Bcc")
+}
+
+/// Ruling b on the digest path (QA): the digest text is model-written (V6), and a summary that holds line breaks, a line with a single dot, SMTP commands,
+/// control and bidirectional characters reaches the mail as one clean line of its own: no CR, no control character but the line feeds between the pieces,
+/// no line that is a dot, and the commands as plain words on the summary's line.
+Method TestDigestTextIsClean()
+{
+	Do ..Mailbox()
+	Set cr = $Char(13), lf = $Char(10)
+	Set summary = "one"_cr_lf_"."_cr_lf_"QUIT"_lf_".."_cr_"RCPT TO:<zzevil@example.com>"_$Char(7, 0, 27)_$Char(8238)_"end"
+	Set slots = {"parts": [{"key": "digest.greetingMorning", "slots": {}}, {"key": "digest.saved", "slots": {"count": 1, "summary": (summary)}}], "lines": [], "rows": []}.%ToJSON()
+	Do ..Notify("digest", ..#OWNER, slots)
+	Do $$$AssertEquals(..Delivered(), 1, "the digest is sent")
+	Set text = $List(^||OcuTalonEmailOutProbe("sent", 1), 4)
+	Do $$$AssertEquals($Length(text, lf), 2, "the two pieces are two lines")
+	Do $$$AssertEquals($Translate(text, cr), text, "no carriage return")
+	Do $$$AssertEquals($ZStrip(text, "*C"), $Translate(text, lf), "and no control character but the line feed")
+	Do $$$AssertTrue(text '[ $Char(8238), "and no bidirectional control")
+	For i = 1:1:$Length(text, lf) {
+		Do $$$AssertTrue($Extract($Piece(text, lf, i), 1) '= ".", "line "_i_" does not begin with a dot")
+	}
+	Do $$$AssertTrue($Piece(text, lf, 2) [ "one . QUIT .. RCPT TO:<zzevil@example.com>end", "the summary is one line with its words in order: "_$Piece(text, lf, 2))
+	Do $$$AssertEquals($List(^||OcuTalonEmailOutProbe("sent", 1), 2), ..#ADDRESS, "and an address inside it is no recipient")
+}
+
 /// An unreachable, refusing, rejecting or throwing server.
 Method TestDigestFailures()
 {
@@ -343,20 +404,31 @@ Method TestDigestDailyCap()
 	Do ..SeedDigestRow(..#OWNER, "digest", "2020-01-01T23:59:59Z")
 	Do ..SeedDigestRow(..#OTHER, "digest", ##class(OcuTalon.Data.Time).NowUtc())
 	Do ..SeedDigestRow(..#OWNER, "tellnow", ##class(OcuTalon.Data.Time).NowUtc())
+	Set room = 10 - ..DigestEmailsToday()
+	Do $$$AssertTrue((room > 0) && (room < 10), "today's digest emails of the mailbox, the other owner's included, leave room for "_room)
 	Set before = ..LastLog()
-	For n = 1:1:11 {
+	For n = 1:1:(room + 1) {
 		Do ..Notify("digest", ..#OWNER, ..DigestSlots(30 + n))
 	}
-	Do $$$AssertEquals(..Delivered(), 10, "the 11th digest of the day is not sent: 10 mails")
-	Do $$$AssertEquals(..DigestRows(..#OWNER), 11, "10 rows of today and the earlier day's row")
+	Do $$$AssertEquals(..Delivered(), room, "the digest after the 10th of the mailbox's day is not sent, the other owner's counting: "_room_" mails")
+	Do $$$AssertEquals(..DigestRows(..#OWNER), room + 1, "the rows of today and the earlier day's row")
 	Set texts = ..LogTexts(before)
-	Do $$$AssertEquals($ListLength(texts), 11, "10 info lines and one warning")
-	Do $$$AssertEquals($List(texts, 11), "EmailOut refused a digest email: the limit of 10 digest emails a day was reached, so it sent nothing", "the refusal is logged, with no contents")
+	Do $$$AssertEquals($ListLength(texts), room + 1, "one info line a mail and one warning")
+	Do $$$AssertEquals($List(texts, room + 1), "EmailOut refused a digest email: the limit of 10 digest emails a day was reached, so it sent nothing", "the refusal is logged, with no contents")
 	Do ..Notify("digest", ..#OWNER, ..DigestSlots(50))
-	Do $$$AssertEquals(..Delivered(), 10, "and a later one on the same day is refused too")
+	Do $$$AssertEquals(..Delivered(), room, "and a later one on the same day is refused too")
 	Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.Delivery SET RecordedAt = '2020-01-02T00:00:00Z' WHERE OwnerRef = ? AND Channel = 'email' AND Kind = 'digest' AND RecordedAt > '2021'", ..#OWNER)
 	Do ..Notify("digest", ..#OWNER, ..DigestSlots(51))
-	Do $$$AssertEquals(..Delivered(), 11, "once the rows are of an earlier day the digest is sent again")
+	Do $$$AssertEquals(..Delivered(), room + 1, "once the rows are of an earlier day the digest is sent again")
+}
+
+/// The digest emails of today (UTC) of every owner, read here by SQL and not through the product's count.
+ClassMethod DigestEmailsToday() As %Integer [ Private ]
+{
+	Set today = $Extract(##class(OcuTalon.Data.Time).NowUtc(), 1, 10)_"T00:00:00Z"
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND Kind = 'digest' AND RecordedAt >= ?", today)
+	Do result.%Next()
+	Quit +result.%GetData(1)
 }
 
 /// A Delivery row of channel email for the owner, kind and time.
@@ -374,12 +446,12 @@ ClassMethod DigestRows(owner As %String) As %Integer [ Private ]
 	Quit +result.%GetData(1)
 }
 
-/// While another process holds the lock of the owner's digest emails nothing is sent.
+/// While another process holds the lock of the mailbox's digest emails nothing is sent.
 Method TestDigestLock()
 {
 	Do ..Mailbox()
 	Kill ^OcuTalonTest("EmailOutLock")
-	Job ##class(OcuTalon.Test.Channel.EmailOut).HoldDigestLock(..#OWNER)
+	Job ##class(OcuTalon.Test.Channel.EmailOut).HoldDigestLock()
 	Set held = ..WaitFlag("held")
 	Try {
 		Do $$$AssertTrue(held, "the other process holds the lock")
@@ -400,16 +472,16 @@ Method TestDigestLock()
 }
 
 /// Holds the lock of the owner's digest emails until released (a job of TestDigestLock).
-ClassMethod HoldDigestLock(owner As %String)
+ClassMethod HoldDigestLock()
 {
-	Lock +^OcuTalon.EmailOut.Digest(owner):5
+	Lock +^OcuTalon.EmailOut.Digest:5
 	If '$Test Quit
 	Set ^OcuTalonTest("EmailOutLock", "held") = 1
 	Set deadline = $ZHorolog + 60
 	While ('$Data(^OcuTalonTest("EmailOutLock", "release"))) && ($ZHorolog < deadline) {
 		Hang 0.1
 	}
-	Lock -^OcuTalon.EmailOut.Digest(owner)
+	Lock -^OcuTalon.EmailOut.Digest
 	Set ^OcuTalonTest("EmailOutLock", "done") = 1
 }
 
@@ -430,6 +502,7 @@ Method TestDigestNoPersonalDataInTheLog()
 		Do ..Notify("digest", ..#OWNER, {"parts": [{"key": "digest.saved", "slots": {"count": 1, "summary": (summary_answer)}}], "lines": []}.%ToJSON())
 	}
 	Kill ^||OcuTalonEmailOutProbe("answer")
+	Do $$$AssertEquals(..Delivered(), 5, "the digest and the four failures each reached the send")
 	For word = address, summary, "Your OcuTalon digest", key, ref, "SERVER-WORDS", "zzrejected@example.com", "zzthrown@example.com", $Piece(address, "@", 1) {
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", word), 0, "no Ens.Util.Log row holds '"_word_"'")
 	}

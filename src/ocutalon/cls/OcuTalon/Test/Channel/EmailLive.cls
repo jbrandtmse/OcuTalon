@@ -57,8 +57,11 @@
 ///     nothing and reaches its own web chat;
 ///   - TestNotifyRoutesDigestToEmailOut: with EmailOut running, Notify's rule adds EmailOut to a digest exactly when digest.channels names email, the session is the
 ///     mailbox owner, email.address is an address and it is not the online demo, and not while EmailOut has no job;
+///   - TestDigestNeverDowngradesToPlain (QA, ruling c on the digest path): EmailOut's digest email goes through the real Sender; with the switch off no SSLConfig value
+///     puts an SMTP command beyond the greeting on the stub, and no mail, no Delivery row results; with the switch on and the host mock it sends and records;
 ///   - TestOwnMailPolledBackMakesNoItem (DW-1167, ruling V4): an email that EmailOut sent to the mailbox and that the POP3 stub serves with its X-OcuTalon-Ref
-///     header makes no Item and is recorded seen, once; an email with an unknown Ref, one with the Ref but another sender and a second use of the Ref are Items.
+///     header makes no Item and is recorded seen, once; an email with an unknown Ref, one with the Ref of a sent mail but another sender (which takes no use of
+///     that Ref) and a second use of the Ref are Items.
 /// Story 21.3 adds the OAuth2 sign-in against the mock's fake authorization server (host mock, control on 8080 under /_mock/oauth/) and IRIS's real %SYS OAuth2 objects on
 /// the throwaway. The job reads the CI-only variable OCUTALON_TEST_OAUTH_MOCK, which makes the registered endpoints the mock's plain HTTP ones (and logs a warning);
 /// every case asserts that the registered token endpoint starts with http://mock:8080/_mock/oauth/ before it signs in. The consent is driven without a browser by
@@ -1169,6 +1172,64 @@ Method TestNotifyRoutesDigestToEmailOut()
 	Do ..Disconnect()
 }
 
+/// A Notification of kind digest of the session, whose Slots differ with n (so that each is another digest), handled by the probe's OnNotification.
+Method NotifyDigest(probe As OcuTalon.Test.Channel.EmailOutProbe, session As %String, n As %Integer) [ Private ]
+{
+	Set notification = ##class(OcuTalon.Msg.Notification).%New()
+	Set notification.SessionRef = session
+	Set notification.Kind = "digest"
+	Set notification.CatalogKey = "digest.cost"
+	Set notification.DecisionRef = "ZzLiveDigest"_n
+	Set notification.Slots = {"parts": [{"key": "digest.greetingMorning", "slots": {}}, {"key": "digest.cost", "slots": {"cost": (n / 100)}}], "lines": [], "rows": []}.%ToJSON()
+	Do $$$AssertStatusOK(probe.OnNotification(notification, .response), "the digest "_n_" is handled with an OK status")
+}
+
+/// Ruling c on the digest path (QA, V1): EmailOut's digest email reaches the wire only through the real Sender, so with the switch off no SSLConfig value (TLS,
+/// STARTTLS, empty or foreign) puts a plain SMTP session on the stub: no AUTH, MAIL, RCPT or DATA, no mail, no Delivery row and no second try; the control, with
+/// the switch on and the host mock, sends the one mail with its header; a host other than mock with an empty SSLConfig connects to nothing.
+Method TestDigestNeverDowngradesToPlain()
+{
+	If '..Guard() Quit
+	Try {
+		Do $$$AssertEquals(..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT).Ok, 1, "the mailbox and the SMTP server are connected by the owner session")
+		Do ..MockServer()
+		Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Channel.EmailOutProbe", .sc)
+		Do $$$AssertStatusOK(sc, "EmailOut is made with the real sender behind its Deliver")
+		Set ^||OcuTalonEmailOutSender("switch") = 0
+		Set n = 0
+		For ssl = "OcuTalonClient", "OcuTalonClient*", "", "SomethingElse" {
+			Set n = n + 1
+			Set ^||OcuTalonEmailOutProbe("sender") = $ListBuild(..#STUBHOST, ..#SMTPPORT, ..#CREDENTIAL, ssl)
+			Do ..SmtpControl("reset", {})
+			Do ..NotifyDigest(probe, ..Owner, n)
+			Set state = ..SmtpState()
+			Set verbs = ""
+			Set iterator = state.commands.%GetIterator()
+			While iterator.%GetNext(.verb) {
+				Set verbs = verbs_$ListBuild(verb)
+			}
+			Do $$$AssertEquals(state.messages.%Size()_"|"_state.logins, "0|0", "SSLConfig '"_ssl_"' with the switch off: no mail and no login at the stub")
+			Do $$$AssertTrue('$ListFind(verbs, "AUTH") && '$ListFind(verbs, "MAIL") && '$ListFind(verbs, "RCPT") && '$ListFind(verbs, "DATA"), "SSLConfig '"_ssl_"': no AUTH, MAIL, RCPT or DATA reached the stub ("_$ListToString(verbs)_")")
+			If (ssl = "") || (ssl = "SomethingElse") Do $$$AssertEquals(state.connections, 0, "SSLConfig '"_ssl_"': not even a connection")
+			Do $$$AssertEquals(..DigestRows(..Owner, "email"), 0, "SSLConfig '"_ssl_"': no Delivery row, so nothing is left to send again")
+		}
+		Set ^||OcuTalonEmailOutSender("switch") = 1
+		Set ^||OcuTalonEmailOutProbe("sender") = $ListBuild("smtp.example.com", ..#SMTPPORT, ..#CREDENTIAL, "")
+		Do ..SmtpControl("reset", {})
+		Do ..NotifyDigest(probe, ..Owner, 5)
+		Do $$$AssertEquals(..SmtpState().connections_"|"_..DigestRows(..Owner, "email"), "0|0", "with the switch on and a host that is not mock, an empty SSLConfig connects to nothing and records nothing")
+		Set ^||OcuTalonEmailOutProbe("sender") = $ListBuild(..#STUBHOST, ..#SMTPPORT, ..#CREDENTIAL, "OcuTalonClient*")
+		Do ..NotifyDigest(probe, ..Owner, 6)
+		Set mails = ..Mails()
+		Do $$$AssertEquals(mails.%Size()_"|"_..DigestRows(..Owner, "email"), "1|1", "control: with the switch on and the host mock the digest goes to the stub and is recorded")
+		If mails.%Size() = 1 Do $$$AssertEquals(mails.%Get(0).xOcutalonRef, ..DigestRef(..Owner), "with the header X-OcuTalon-Ref of its Delivery row")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Kill ^||OcuTalonEmailOutSender, ^||OcuTalonEmailOutProbe
+	Do ..Disconnect()
+}
+
 /// DW-1167, ruling V4: the digest that EmailOut sent to the mailbox comes back through the POP3 stub and makes no Item.
 Method TestOwnMailPolledBackMakesNoItem()
 {
@@ -1186,13 +1247,19 @@ Method TestOwnMailPolledBackMakesNoItem()
 		Set ref = $Select(mails.%Size() = 1: mails.%Get(0).xOcutalonRef, 1: "")
 		Set row = ##class(OcuTalon.Data.Delivery).%OpenId(..DeliveryId())
 		Do $$$AssertEquals(ref, row.ChannelMessageId, "with the header X-OcuTalon-Ref of its Delivery row")
+		Set sent = ..ToolSend(..Owner, "zzlive@example.com", "zz sent again by EmailOut", "zz text")
+		Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome, "1|sent", "and a second mail, whose Ref only the other sender's email carries")
+		Set mails = ..WaitMails(2)
+		Set ref2 = $Select(mails.%Size() = 2: mails.%Get(1).xOcutalonRef, 1: "")
+		Set row2 = ##class(OcuTalon.Data.Delivery).%OpenId(..DeliveryIdOf(ref2))
+		Do $$$AssertTrue($IsObject(row2) && (ref2 '= ref), "the second mail has a Delivery row of its own Ref")
 		Do $$$AssertTrue(..Poll(), "the first poll of the mailbox is made")
 		Do $$$AssertEquals(..WaitMark(1).ok, 1, "and is ok")
 		Set decisions = ..Decisions()
 		Set forged = ##class(OcuTalon.Bridge.Ids).NewRef()
 		Set own = {"uidl": "own1", "from": "zzlive@example.com", "subject": "zz sent by EmailOut", "text": "zz text", "headers": {"X-OcuTalon-Ref": (ref)}}
 		Set unknown = {"uidl": "unk1", "from": "zzlive@example.com", "subject": "zz forged ref", "text": "zz text", "headers": {"X-OcuTalon-Ref": (forged)}}
-		Set stranger = {"uidl": "str1", "from": "Dana <dana@example.com>", "subject": "zz other sender", "text": "zz text", "headers": {"X-OcuTalon-Ref": (ref)}}
+		Set stranger = {"uidl": "str1", "from": "Dana <dana@example.com>", "subject": "zz other sender", "text": "zz text", "headers": {"X-OcuTalon-Ref": (ref2)}}
 		Do ..AddMail([(own), (unknown), (stranger)])
 		Do $$$AssertTrue(..Poll(), "a poll after three emails with a Ref")
 		Do $$$AssertEquals(..WaitDecisions(decisions + 2), decisions + 2, "two Items follow, the forged Ref's and the other sender's")
@@ -1202,6 +1269,10 @@ Method TestOwnMailPolledBackMakesNoItem()
 		Do $$$AssertEquals(..Seen("Baseline = 0 AND Uidl IN ('unk1', 'str1')"), 2, "like the other two")
 		Do $$$AssertStatusOK(row.%Reload(), "the Delivery row is read again")
 		Do $$$AssertTrue(row.EchoedAt '= "", "the Ref's one use is taken")
+		If $IsObject(row2) {
+			Do $$$AssertStatusOK(row2.%Reload(), "the second Delivery row is read again")
+			Do $$$AssertEquals(row2.EchoedAt, "", "the other sender's email took no use of the sent Ref it carries")
+		}
 		Do ..AddMail([{"uidl": "own2", "from": "zzlive@example.com", "subject": "zz second use", "text": "zz text", "headers": {"X-OcuTalon-Ref": (ref)}}])
 		Do $$$AssertTrue(..Poll(), "a poll after a second email with the same Ref")
 		Do $$$AssertEquals(..WaitDecisions(decisions + 3), decisions + 3, "it is an Item: a Ref is used once")
@@ -1224,6 +1295,14 @@ ClassMethod JobIds(item As %String) As %String [ Private ]
 }
 
 /// The id of the first Delivery row of channel email of the owner.
+/// The id of the owner's Delivery row of channel email whose ChannelMessageId is ref; "" when there is none.
+Method DeliveryIdOf(ref As %String) As %String [ Private ]
+{
+	If ref = "" Quit ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND OwnerRef = ? AND ChannelMessageId = ?", ..Owner, ref)
+	Quit $Select(result.%Next(): result.%GetData(1), 1: "")
+}
+
 Method DeliveryId() As %String [ Private ]
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND OwnerRef = ? ORDER BY ID", ..Owner)

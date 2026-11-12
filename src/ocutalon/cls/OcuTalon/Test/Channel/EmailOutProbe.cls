@@ -21,6 +21,15 @@ Method Deliver(message As %Net.MailMessage) As %Status [ Private ]
 	Do message.TextData.Rewind()
 	Set text = message.TextData.Read(1000000)
 	Set ^||OcuTalonEmailOutProbe("sent", n) = $ListBuild(message.From, to, message.Subject, text, message.Charset, message.IsMultiPart, message.Parts.Count(), message.Cc.Count() + message.Bcc.Count(), message.Headers.GetAt("X-OcuTalon-Ref"))
+	// QA (21.7): when a live test names a real sender in ^||OcuTalonEmailOutProbe("sender") = $ListBuild(host, port, credentials, SSLConfig), the message goes
+	// through the real Channel.Email.Sender (the test subclass EmailOutSender, whose switch the test sets), so that the digest path is shown to reach the wire
+	// only the way every path does.
+	If $Data(^||OcuTalonEmailOutProbe("sender"), sender) {
+		Set adapter = ##class(OcuTalon.Test.Channel.EmailOutSender).%New()
+		Set adapter.SMTPServer = $List(sender, 1), adapter.SMTPPort = $List(sender, 2), adapter.Credentials = $List(sender, 3), adapter.SSLConfig = $List(sender, 4)
+		Do adapter.OnInit()
+		Quit adapter.SendMail(message)
+	}
 	Set answer = $Get(^||OcuTalonEmailOutProbe("answer"))
 	If answer = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "SERVER-WORDS zzthrown@example.com"))
 	If answer = "unreachable" Quit $$$ERROR($$$SMTPOpen)

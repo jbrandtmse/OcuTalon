@@ -68,8 +68,8 @@ ClassMethod DigestNamed(channel As %String) As %Boolean
 }
 
 /// 1 when a digest of the session goes by email (Story 21.7): not the online demo, digest.channels names email, the session is the mailbox owner
-/// (the product key email.owner), email.address is an address and EmailOut has an alive job. The keys are read from their rows, never the cache. Any
-/// error gives 0. The recipient is not decided here: EmailOut works it out itself from email.address.
+/// (the product key email.owner), email.address is an address and EmailOut has an alive job. email.owner and email.address are read from their rows, never
+/// the cache; digest.channels and onlineDemo through Data.Setting.Get, as the other functions of Notify read them. Any error gives 0. The recipient is not decided here: EmailOut works it out itself from email.address.
 ClassMethod DigestEmail(sessionRef As %String) As %Boolean
 {
 	Try {

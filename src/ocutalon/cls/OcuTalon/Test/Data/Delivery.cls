@@ -146,6 +146,7 @@ Method TestEmailRefs()
 	Set other = ..Session("emailrefsother")
 	Set tag = ..Number
 	Set sent = "ZzSent"_tag, tool = "ZzTool"_tag, pending = "ZzPending"_tag, failed = "ZzFailed"_tag, web = "ZzWeb"_tag
+	Set digestsBefore = ##class(OcuTalon.Data.Delivery).DigestEmailsSince("2000-01-01T00:00:00Z")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "email", sent, "", "digest", "", "ZzDec"_tag, , , , , "ZzKey"_tag), "a sent digest row")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "email", tool, ""), "a sent tool row")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "email", pending, "ZzAp1"_tag, , , , , "pending"), "a pending claim")
@@ -168,9 +169,10 @@ Method TestEmailRefs()
 		If rs.%Get("EchoedAt") '= "" Set marked = marked_$ListBuild(rs.%Get("ChannelMessageId"))
 	}
 	Do $$$AssertEquals($ListToString(marked), sent, "only the taken row is marked")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).DigestEmailsSince(session, "2000-01-01T00:00:00Z"), 1, "one digest email since 2000: the web row and the tool row are not")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).DigestEmailsSince(session, "2999-01-01T00:00:00Z"), 0, "none since 2999")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).DigestEmailsSince(other, "2000-01-01T00:00:00Z"), 0, "none for another owner")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).DigestEmailsSince("2000-01-01T00:00:00Z") - digestsBefore, 1, "one more digest email since 2000: the web row, the tool row and the claims are not")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(other, "email", "ZzOther"_tag, "", "digest", "", "ZzDec2"_tag, , , , , "ZzKey2"_tag), "a sent digest row of another owner")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).DigestEmailsSince("2000-01-01T00:00:00Z") - digestsBefore, 2, "the digest emails of another owner of the mailbox count as well")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).DigestEmailsSince("2999-01-01T00:00:00Z"), 0, "none since 2999")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).DigestEmailSent(session, "ZzKey"_tag)_##class(OcuTalon.Data.Delivery).DigestEmailSent(other, "ZzKey"_tag)_##class(OcuTalon.Data.Delivery).DigestEmailSent(session, "ZzKey"_tag_"x")_##class(OcuTalon.Data.Delivery).DigestEmailSent(session, ""), "1000", "the digest is sent for its owner and its key only")
 }
 

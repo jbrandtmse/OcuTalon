@@ -4889,6 +4889,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T10:51:48Z status=routed owner=burndown by=adjudication note=Notify_half_resolved_by_18.2(a4770526:Core/Rule/Notify_digest_branch+Functions.DigestNamed;Test.Core.Routing_TestNotifyDigestTargets,SettingsRunTime);residual_Lane_A:remove_Digest.Process.Own,SendDigest_direct_sends,ROUTEREASON,Test.Digest.Compose_NotifyChannels/TestOwnMatchesNotify_and_route_Resent_through_Notify;for_a_Lane_A_story
 - 2026-11-09T00:38:50Z by=burndown note=Epic_18_burn-down:Lane_A_residual(U-177),no_Lane_B_story_can_close_it;kept_owner=burndown_for_the_orchestrator's_routing_to_a_Lane_A_story(no_next-epic_Lane_A_key_in_this_branch's_tracker)
 - 2026-11-12T01:29:02Z status=routed owner=21-7-send-the-daily-digest-by-email by=orchestrator note=O1 ruling (prompts/epic-21-rulings-217-o1.md, 2026-11-12, one-time AD-33 Lane A exception): 21.7 makes Digest.Process.Deliver hand every composed digest to Notify, Notify alone routes kind digest by digest.channels, and deletes Digest.Process.Own, the SendDigest direct sends and ROUTEREASON with the Lane A tests that pin them
+- 2026-11-12T17:07:28Z status=resolved-by:21-7-send-the-daily-digest-by-email by=adjudication note=6c277ab0:Digest.Process.Deliver_hands_every_digest_to_Notify;Own_and_the_direct_sends_deleted;Notify_alone_routes_kind_digest_by_digest.channels;pinned_by_Test.Digest.Compose(*DigestUnchanged,route_tests,mutation_red)+Test.Core.Routing
 ### DW-748: Story 11.22's docs read stale beside 34.2's BodyBounds: Test.Web.BodyLimit says Test.Web.ApiProbe has no declaration (it now inherits Web.Api's POST /v1/documents entry), POSTROUTES is called every POST route but omits /v1/documents, and Web.BodyLimit's header example names /v1/documents at 14680064 bytes (the real bound is 13,985,112)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 11.22's assertions still hold (POSTROUTES omits /v1/documents; the declared-bound case uses /v1/messages); only the comments mislead; the files are Story 11.22's and outside 34.2's lane (34.2 re-review, Blind and Acceptance Auditor)
@@ -7097,6 +7098,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Out.cls Send sets no header OcuTalon could recognise; Channel/Email/In.cls has no sender or header filter; the To of a tool send is the polled mailbox
 - 2026-11-12T00:31:01Z status=routed owner=21-7-send-the-daily-digest-by-email by=cr note=21.7 sends the daily digest to that mailbox; mark EmailOut's mail and have EmailIn skip it, or rule it harmless
+- 2026-11-12T17:07:28Z status=resolved-by:21-7-send-the-daily-digest-by-email by=adjudication note=6c277ab0+review:EmailIn_skips_only_when_Ref_names_a_sent_email_Delivery_row,From_is_email.address,first_use(EchoedAt,V4/V8);traced_with_the_Ref_only;pinned_by_EmailIn/EmailLive_TestOwnMailPolledBackMakesNoItem(mutations_red)
 
 ### DW-1168: A send to a server slow at every command can outlast CommandsIn's 120 s wait: the caller gets failed while EmailOut still finishes the send
 - source: spec-21-6-send-email-over-smtp.md | severity: low | fix-risk: med | footprint: in-story
@@ -7293,3 +7295,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-7-send-the-daily-digest-by-email.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Digest/Data/Sent.cls:5,53-58 describe a resend no code performs after O1; Lane A file outside O1's permission
 - 2026-11-12T15:53:27Z status=wontfix-accepted owner=21-7-send-the-daily-digest-by-email by=harvest note=reopen_if=a Lane A story edits Digest/Data/Sent.cls (fix the three comments then) or the columns are reused
+- 2026-11-12T17:02:25Z occurrence=21-7-send-the-daily-digest-by-email
+
+### DW-1206: flake (local host): ci/mock/test/*.test.mjs stubs listen on a wildcard address with an OS-picked port but the tests connect to 127.0.0.1:<port>, so on a developer machine with other loopback listeners a request can reach a foreign server (e.g. smtp.test.mjs 'refuse closes with no greeting ... DATA 554', a hang in oauth.test.mjs)
+- source: spec-21-7-send-the-daily-digest-by-email.md (QA) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 21.7 QA 2026-11-12: baseline 90ab0f80 4/240 and this tree 3/160 smtp.test.mjs runs red under load; foreign bodies '<!doctype', 'not found', 'WebSockets'; serial 1/60; CI containers not expected to share a loopback (inference)
+- 2026-11-12T16:32:46Z status=routed owner=burndown by=ci note=fix: ci/mock/server.mjs --host 127.0.0.1 for the stubs, or a spawn helper that checks the control route answers with the mock's own JSON
+
+### DW-1208: The spine's record of Story 21.7's O1 is incomplete: AD-33 lists no exception for 21.7's Lane A edit (Digest/Process.cls and Test/Digest/{Compose,Due,ProcessProbe,Thresholds}.cls), the AD-14 'As built in Story 18.2' bullet still says Digest narrows and sends directly until DW-820 with no superseded marker, and no contract row names Lane A Digest.Process.Reachable calling Lane B Functions.DigestChannels
+- source: spec-21-7-send-the-daily-digest-by-email.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-33 Rule bullets (17.10, 41.14 only, ~:1174-1175); AD-14 :499 vs :501; Process.cls Reachable -> Functions.DigestChannels (diff 4897-4903); spine is lead-written (Rule 20)
+- 2026-11-12T17:02:25Z status=routed owner=burndown by=cr note=lead: add an AD-33 bullet for the 21.7 O1 exception, mark the 18.2 bullet superseded, add the DigestChannels contract; memlog+lint
+- 2026-11-12T17:07:28Z status=resolved-by:21-7-send-the-daily-digest-by-email by=adjudication note=lead_wrote_the_spine:AD-33_21.7_exception_bullet,AD-14_18.2_bullet_marked_SUPERSEDED,contract_row_Functions.DigestChannels_read_by_Lane_A_Digest.Process.Reachable;lint_10_low_baseline
+
+### DW-1209: EmailOut's digest path records its Delivery row (DigestKey) after the send, not claim-first as 21.6 (f) does for system sends, so a digest Notification handled again after a crash or a failed Record between Transmit and Record would be emailed twice
+- source: spec-21-7-send-the-daily-digest-by-email.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Out.cls SendDigestLocked: DigestEmailSent -> Transmit -> Delivery.Record(...key); TestDigestNoDoubleSend covers a resend after a recorded success; Digest hands a digest to Notify once, nothing re-handles it
+- 2026-11-12T17:02:25Z status=wontfix-theoretical owner=21-7-send-the-daily-digest-by-email by=cr note=real if a digest Notification is ever handled twice by EmailOut (an Ens resend or redelivery after a job crash); then claim-first

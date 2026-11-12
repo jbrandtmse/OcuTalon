@@ -27,7 +27,7 @@
 ///     another test cannot narrow the channels) and put back after it. TestRouteOwn: with no value saved, or one that names every available channel, the
 ///     digest goes to Notify alone, its Sent row lists every available channel and misses none, Digest writes no routing row, and a later tick sends
 ///     nothing more; TestRouteSubset: a saved subset (email included) still goes to Notify alone, and the Sent row lists the channels of the subset that are
-///     available, in the order of Notify's rule; TestRouteNoneReachable: a saved value that names no available channel sends nothing, ends the Compose with an
+///     available on the probe (OwnChannels stands in for Functions.DigestChannels, so the product's email term and its order are Test.Channel.EmailLive's); TestRouteNoneReachable: a saved value that names no available channel sends nothing, ends the Compose with an
 ///     error status holding the fixed diagnostic, writes no Sent row and makes no model request, also when the value changes while the summary is awaited;
 ///     TestRouteForeign: a channel that is not available, an unknown name and the name of an item add no destination;
 ///     TestProductChannels: the product's own reading of the channels (web, phone with demo mode, telegram when paired);
@@ -38,7 +38,7 @@
 ///     TelegramOut renders with) is the literal text written out here;
 ///   - TestChannelsMatchNotify: the channels that Digest records equal the channels that Notify's rule for a digest reaches, evaluated on the router for demo
 ///     mode on and off, Telegram included or not, a session paired or not and several values of digest.channels, and demo mode and the Telegram setting are put
-///     back; TestNotifyFailure: a send to Notify that fails or throws ends the Compose with an error status, writes no Sent row, and a later tick sends nothing
+///     back (EmailOut has no job on this stack, so email is on neither side here; Test.Channel.EmailLive pins the email half); TestNotifyFailure: a send to Notify that fails or throws ends the Compose with an error status, writes no Sent row, and a later tick sends nothing
 ///     for it (the delivery of each channel is recorded by its own item).
 Class OcuTalon.Test.Digest.Compose Extends OcuTalon.Test.Bridge.ZoneCase
 {

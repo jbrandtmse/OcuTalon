@@ -407,7 +407,7 @@ Method TestFunctions()
 	Do ..PutChannels("Web, EMAIL")
 	Do $$$AssertEquals($ClassMethod(functions, "DigestNamed", "email")_$ClassMethod(functions, "DigestNamed", " Email ")_$ClassMethod(functions, "DigestNamed", "phone"), "110", "DigestNamed: 'Web, EMAIL' names email, trimmed and lowercased, and not phone")
 	Do ..PutChannels("", 0)
-	Do $$$AssertEquals($ClassMethod(functions, "DigestEmail", "")_$ClassMethod(functions, "DigestEmail", session)_$ClassMethod(functions, "DigestEmail", "instance"), "000", "DigestEmail: an empty Ref, a session with no mailbox and the owner instance are 0")
+	Do $$$AssertEquals($ClassMethod(functions, "DigestEmail", "")_$ClassMethod(functions, "DigestEmail", session)_$ClassMethod(functions, "DigestEmail", "instance"), "000", "DigestEmail: an empty Ref, a session that does not own the mailbox and the owner instance are 0 (EmailOut has no job on this stack either; the half with a job is Test.Channel.EmailLive's)")
 	Do $$$AssertEquals($ListToString($ClassMethod(functions, "DigestChannels", session)), "web", "DigestChannels: web alone for a session with demo mode off and no pairing, with no value saved")
 	For name = "IsSession", "DemoOn", "TelegramOn", "TelegramPaired", "DigestNamed", "DigestEmail", "DigestChannels" {
 		Kill class

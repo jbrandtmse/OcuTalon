@@ -32,8 +32,9 @@
 ///   - the online demo, a Kind other than digest (one warning), no address, or a session that does not own the mailbox: nothing is sent;
 ///   - the subject is the catalog text of email.digestSubject and the text is OcuTalon.Channel.DigestText.Text(Slots, "email"), both rendered here
 ///     (AD-32); a piece that does not render, or a subject or text beyond the limits of Check, sends nothing (one warning);
-///   - under a lock on the owner, a digest with the same key (DigestKeyOf: session, decision, key, slots and the UTC day) that has its Data.Delivery row
-///     is not sent again, and at most MAXDIGESTS digests go to the mailbox in one UTC day: the next one is refused and one warning is logged, with no contents;
+///   - under the one lock of the mailbox's digest emails, a digest with the same key (DigestKeyOf: session, decision, key, slots and the UTC day) that has
+///     its Data.Delivery row is not sent again, and at most MAXDIGESTS digests go to the mailbox in one UTC day, whichever session owned it when each went
+///     (the instance has one mailbox): the next one is refused and one warning is logged, with no contents; a count that cannot be read refuses as well;
 ///   - the message is sent once through Deliver, and success records a Data.Delivery row (owner the session, channel email, Kind digest, the Ref of the
 ///     header as the message id, the digest's DecisionRef and DigestKey; no text, no address). A failed send records nothing and is not tried again.
 /// The operation logs counts and outcomes only: never an address, a subject, a text, the server's words or a credential.
@@ -60,7 +61,7 @@ Parameter ADDRESSKEY = "email.address";
 
 Parameter OWNERKEY = "email.owner";
 
-/// The most digests that go to the mailbox in one UTC day.
+/// The most digests that go to the mailbox in one UTC day, whichever session owns it.
 Parameter MAXDIGESTS = 10;
 
 /// The catalog key of the subject of a digest email, and the channel of the catalog texts of a digest email.
@@ -244,7 +245,7 @@ Method SendDigest(request As OcuTalon.Msg.Notification) [ Private ]
 		Quit
 	}
 	Set key = ..DigestKeyOf(request)
-	Lock +^OcuTalon.EmailOut.Digest(owner):..#CLAIMWAIT
+	Lock +^OcuTalon.EmailOut.Digest:..#CLAIMWAIT
 	If '$Test {
 		$$$LOGWARNING("EmailOut could not take the lock of the digest emails, so it sent nothing")
 		Quit
@@ -254,16 +255,21 @@ Method SendDigest(request As OcuTalon.Msg.Notification) [ Private ]
 	} Catch exception {
 		$$$LOGERROR("EmailOut failed: "_exception.Name)
 	}
-	Lock -^OcuTalon.EmailOut.Digest(owner)
+	Lock -^OcuTalon.EmailOut.Digest
 }
 
-/// The send of a digest under the lock of its owner: the digest sends once, at most MAXDIGESTS go in one UTC day, and the Delivery row follows the send.
+/// The send of a digest under the lock of the mailbox's digest emails: the digest sends once, at most MAXDIGESTS go to the mailbox in one UTC day, and the
+/// Delivery row follows the send.
 Method SendDigestLocked(request As OcuTalon.Msg.Notification, from As %String, owner As %String, subject As %String, text As %String, key As %String) [ Private ]
 {
 	If ##class(OcuTalon.Data.Delivery).DigestEmailSent(owner, key) Quit
 	Set today = $Extract(##class(OcuTalon.Data.Time).NowUtc(), 1, 10)_"T00:00:00Z"
-	Set sent = ##class(OcuTalon.Data.Delivery).DigestEmailsSince(owner, today)
-	If (sent < 0) || (sent '< ..#MAXDIGESTS) {
+	Set sent = ##class(OcuTalon.Data.Delivery).DigestEmailsSince(today)
+	If sent < 0 {
+		$$$LOGWARNING("EmailOut could not count the digest emails of the day, so it sent nothing")
+		Quit
+	}
+	If sent '< ..#MAXDIGESTS {
 		$$$LOGWARNING("EmailOut refused a digest email: the limit of "_..#MAXDIGESTS_" digest emails a day was reached, so it sent nothing")
 		Quit
 	}

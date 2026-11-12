@@ -3,7 +3,8 @@
 /// (Kind, the rendered Text, DecisionRef, DueAt and FallbackReason), so that a reload shows the card as it was sent (DW-62).
 /// A web digest card's row also keeps the card's check rows (CheckRows, JSON), so that a reload shows them (Story 18.4); a row written before
 /// CheckRows existed reads it as empty and draws the card without the rows.
-/// A row is read only through Ownership (RecentNotices for the chat, DeliveryFor for an edit in place).
+/// A row is read only through Ownership (RecentNotices for the chat, DeliveryFor for an edit in place), except the rows of channel email, which EmailOut and
+/// EmailIn read through the methods SentByEmail, TakeEcho, DigestEmailsSince and DigestEmailSent below.
 /// A row of channel email is EmailOut's: its ChannelMessageId is the random Ref that the email carries in its X-OcuTalon-Ref header, so that EmailIn
 /// can tell the mail that comes back to the polled mailbox from other mail (SentByEmail, TakeEcho). A digest's row (Kind digest) also keeps DigestKey,
 /// which makes one digest go by email once; it keeps no text and no address.
@@ -131,11 +132,12 @@ ClassMethod TakeEcho(ref As %String) As %Boolean
 	Quit taken
 }
 
-/// How many digests went by email to the owner's mailbox since the UTC instant (the rows of channel email, Kind digest, owner ownerRef). Read through
-/// the OwnerRef and Channel index. -1 when the count cannot be read.
-ClassMethod DigestEmailsSince(ownerRef As %String, sinceUtc As %String) As %Integer
+/// How many digests went by email to the mailbox since the UTC instant: the rows of channel email and Kind digest of every owner, as the instance has one
+/// mailbox (email.address) and its owner session can change. Read by SQL with no index on Kind, so the cost grows with the table. -1 when the count cannot
+/// be read.
+ClassMethod DigestEmailsSince(sinceUtc As %String) As %Integer
 {
-	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = ? AND Kind = ? AND RecordedAt >= ?", ownerRef, "email", "digest", sinceUtc)
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE Channel = ? AND Kind = ? AND RecordedAt >= ?", "email", "digest", sinceUtc)
 	If rows.%SQLCODE < 0 || 'rows.%Next() Quit -1
 	Quit +rows.%GetData(1)
 }
