@@ -76,3 +76,5 @@
 2026-11-12T18:16:20Z	Story 0.32	fresh_check	env=clean-tree(hermetic_rule_scripts_build_their_own_temp_trees) tests=test-ci-config.sh,test-lib-live.sh(/bin/bash),test-boundaries.sh result=pass order=forward note=rule_scripts_have_no_reverse_mode;live_audit_on_a_fresh_throwaway_covers_lib-live
 2026-11-12T18:16:20Z	Story 0.32	committed	sha=cd812e73 submodules= ci=none_yet runs=none pushed=no reason=CI_HOLD_from_18:15Z amendments=epics.md:Story_0.32_inserted
 2026-11-12T18:16:20Z	Story 0.32	story_cycle	plan_to_commit_min=150 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-12T18:34:58Z	Story 0.32	rework_opened	cycle_iteration=2 iteration=1 trigger=planner_approved_scope(release_tool_hunks) items=DW-1212,DW-1213,DW-1214,comments_and_pins scope_baseline=4ba22348 by=orchestrator_continue_20261112_1830Z followup=DW-1217_filed
+2026-11-12T18:34:58Z	Story 0.32	stage_spawned	stage=implement spawn_at=2026-11-12T18:34:58Z model=sonnet agent_name=0-32-implement-2 cycle_iteration=2

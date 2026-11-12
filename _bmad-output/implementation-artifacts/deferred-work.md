@@ -7364,3 +7364,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: 0.32 Task 0; DW-1082 rules exactly 300 s
 - 2026-11-12T17:27:26Z status=by-design owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=harvest note=Planner ruling DW-1082 fixes 300 s; the next audit reads the MEASURED row 6 lines
+
+### DW-1217: CI hosts: measure peak memory per job type (6 IRIS stacks per 15 GB host swap at peak) and propose 5 runners per host or per-stack memory limits to the Planner as a server change
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Planner data 2026-11-12 ~18:10Z: ci-b 0 load failures today, ci-c install-fresh 3 of 10 and install-upgrade 1 of 3, ci-d install-fresh 1 of 1, install-upgrade 3 of 5, shards-10 3 of 4; ci-b/ci-d 8 vCPU, 15 GB RAM, ~610 MB swap in use, load 7-8 (small samples)
+- 2026-11-12T18:34:21Z status=routed owner=burndown by=orchestrator note=audit family follow-up to Story 0.32 (orchestrator 2026-11-12 continue); a measurement plus a PROPOSAL only: any runner-count or memory-limit change is a server change for the Planner, never applied by a runner

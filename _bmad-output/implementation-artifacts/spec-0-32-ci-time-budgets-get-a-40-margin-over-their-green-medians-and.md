@@ -2,7 +2,7 @@
 title: 'Story 0.32: CI time budgets get a 40% margin over their green medians, and the two load timeouts get MEASURED lines (DW-1082, DW-1195)'
 type: 'chore'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '4f8505ccdc1d63d1f2f5d083f0e4e6d2bcb44045'
 baseline_commit: '4f8505ccdc1d63d1f2f5d083f0e4e6d2bcb44045'
 review_loop_iteration: 0
@@ -82,7 +82,7 @@ Every changed budget prints a `MEASURED` line, so the next audit is exact.
 - CI HOLD (Planner, from 18:15Z): the story may be built and committed locally. Its push waits for "CI HOLD OFF", which the lead handles.
 
 **Never:**
-- Never edit `.github/workflows/*.yml` (a job timeout change is a RELEASE TOOL hunk for the Planner) or `release/**`.
+- Never edit `.github/workflows/*.yml` (a job timeout change is a RELEASE TOOL hunk for the Planner) or `release/**`. [AMENDED 2026-11-12 ~18:30Z, Contest Planner approval (owner's delegation) relayed by the orchestrator: exactly four `timeout-minutes` values may change, and nothing else in any workflow: ci.yml `iris` 40 -> 50, ci.yml `checks` 20 -> 25, lane-a.yml `ipm-install` and `ipm-install-p` 35 -> 45 (DW-1212, DW-1213, DW-1214).]
 - Never rename, add or remove a CI job, iris group or unit. Never move a unit between groups.
 - Never raise `timeout-minutes`, REL-4's 35 minutes or CI's `OCUTALON_LIVE_DEADLINE: "1200"`.
 - Never edit `_bmad/`, `irislib/` or `irissys/`.
@@ -217,6 +217,12 @@ Every changed budget prints a `MEASURED` line, so the next audit is exact.
   Extend `tk_live` with rows for floor-over-1200, floor-under-given (stays) and no-floor (unchanged). The fake unit records `OCUTALON_LIVE_DEADLINE` through `TK_UNIT_EXTRA`. The `DEADLINE` line appears only when the floor applies.
 - `docker/tests/test-lib-live.sh` -- add rows: a met wait and a timed-out wait (the existing rejects at `wait_started_log 1`) each print exactly one `MEASURED wait test-lib-live.sh:<line> <s> s of <max> s` on stderr, through `wait_started_ready` too, and nothing extra on stdout.
 
+*Rework iteration 1 (Planner-approved RELEASE TOOL hunks, 2026-11-12 ~18:30Z; work ONLY these items):*
+- [ ] [Planner] DW-1212: `.github/workflows/ci.yml` job `iris` `timeout-minutes: 40` -> `50` (a hang backstop; no group rebalancing until after Sunday). Pin the value in the test that already pins the workflows (`docker/tests/test-ci-config.sh` or `docker/tests/test-ci-changes.sh`, wherever workflow facts are pinned), with a mutation.
+- [ ] [Planner] DW-1213: `.github/workflows/ci.yml` job `checks` `timeout-minutes: 20` -> `25`. Pin and mutation as above.
+- [ ] [Planner] DW-1214: `.github/workflows/lane-a.yml` jobs `ipm-install` and `ipm-install-p` `timeout-minutes: 35` -> `45` as a hang backstop, with REL-4's 35 minutes kept as the TARGET: each of the two jobs prints `MEASURED <job> N s` (its own wall time so far, measured from a timestamp the job's existing scripts take at their start) and, when N is over 2100 s (35 minutes), flags `over REL-4` in the run summary (`$GITHUB_STEP_SUMMARY`) and the log. Both lines come from the scripts the jobs already run (no new workflow step, key or line other than the two `timeout-minutes` values). Pin the values and the MEASURED / over REL-4 behaviour (a hermetic test with a stub clock or a fixed start time), with mutations.
+- [ ] [Planner] Update every comment, doc line and existing pin in the repository that states the old values (for example a "40-minute job cap is never raised" note in `ci/units.sh` or a test), so nothing claims 40/20/35 any more; REL-4's 35-minute TARGET wording stays where it is a target. Update the evidence file's report-only rows for DW-1212/1213/1214 to "changed (Planner-approved)".
+
 **Acceptance Criteria:**
 - Given `ci/iris.sh live install-upgrade`, when row 6's upgrade start is waited for, then the log shows `MEASURED row 6: the upgrade took N s to ready` whether it passes or fails, the budget is 300 s, and a start not ready within it fails row 6 (DW-1082). Row 7's two waits behave the same way with their own lines and audited budgets (at least 300 s).
 - Given `ci/iris.sh live sign-in`, `sign-in-2` or `sign-in-3`, when the browser run ends, then the log shows `MEASURED live:<unit> suite budget B s` and `MEASURED live:<unit> suite N s`. At the audit's median setup, B is at least max(950, 1.4 x the suite median) (DW-1195).
@@ -268,6 +274,8 @@ Rejected:
 - `low` Acceptance: QA's test-ci-config.sh change is uncommitted -- not a defect; the lead commits it with this review's patches.
 
 ## Spec Change Log
+
+- 2026-11-12 ~18:30Z, lane-B runner: rework iteration 1 opened for the Contest Planner's approval of the RELEASE TOOL hunks DW-1212 (iris 40 -> 50 min), DW-1213 (checks 20 -> 25 min) and DW-1214 (ipm-install and ipm-install-p 35 -> 45 min, REL-4's 35 min kept as the target with MEASURED and over-REL-4 lines); the Boundaries line on workflows is amended for exactly those four values. Follow-up DW-1217 (CI host memory, a proposal for the Planner) filed, routed burndown.
 
 ## Review Triage Log
 
