@@ -2,7 +2,7 @@
 title: "Story 0.28: DW-1171 follow-up: the README's Contest checklist gets a Video row, and the For judges Usability row links the incident path and the full video"
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '793840c5af3873540913aceac72b1086083d0b7e'
 baseline_commit: '793840c5af3873540913aceac72b1086083d0b7e'
 review_loop_iteration: 0
@@ -87,6 +87,8 @@ deferred:
 - `docker/tests/check-readme-video.sh` -- new (DW-1171): the network check of the matrix's three "Video row links" rows. It takes an optional README path (default `README.md`), reads the `| Video |` row of the Contest checklist (a missing row fails), and checks every http(s) address in it, plus each YouTube id's oEmbed. Self-tests on copies: an unknown video id (oEmbed 404) and a missing MP4 name (404), each flagged; the row removed, flagged with no request. Header: what it pins, that it needs the network, and its retry and cap. bash 3.2, ASCII, curl only.
 - `release/checklist.sh` -- add the automated row `readme-video` that runs `docker/tests/check-readme-video.sh` (one `row_readme_video() { row_script readme-video docker/tests/check-readme-video.sh; }` line, its PASS detail line, its header line and its place in the row list, following `readme`). Update whatever test pins the checklist's rows. This is a RELEASE TOOL hunk the Contest Planner ruled in (02:05Z item 4); the lead reports it.
 
+- [ ] [Review] DW-1178 (Contest Planner ruling on 0.28, ~05:00Z, option (a), folded in before merge) -- `release/checklist.sh` `outward_hits`/`row_no_outward` and `docker/tests/test-readme.sh` -- allow exactly one more line in the `no-outward` row: `docker/tests/test-readme.sh`'s current `ALLOWED_HOSTS='...'` line, as it is now, with the same full-line match as the OEMBED allowance (any other path form or any change fails closed); add the same three cases to `test-release-checklist.sh` `outward-rows` (that line in that file passes; the same line in another file fails; a changed line fails); add a comment line directly above `ALLOWED_HOSTS` in `test-readme.sh` saying any edit to that line must update the no-outward allowance in `release/checklist.sh` in the same commit; keep the checklist header true. Every other `no-outward` hit still fails.
+
 **Acceptance Criteria:**
 - Given the README (DW-1171), when the Contest checklist and the "For judges" table are read, then the ruled Video row sits right after "Online demo" and the Usability row opens with the two ruled sentences, the rest unchanged; `test-readme.sh` passes `checklist-video`, `judges-usability`, `video` and `readme-links`, and fails on each bad copy.
 - Given the More to try registry, when the web tests run, then the README's count word in "Its More to try panel has ... more things to try" equals the registry's item count (fifteen now; sixteen once Story 35.3's item is in), and a README saying another number fails.
@@ -137,6 +139,8 @@ Verbatim text (the Contest Planner's DW-1171 ruling, 2026-11-12 ~01:55Z).
 ```
 
 ## Spec Change Log
+
+- 2026-11-12 ~04:45Z, lead: rework iteration 1 (trigger fix_pack-style; Contest Planner ruling on 0.28 (2), option (a)): DW-1178 folded in as ONE bounded item under Tasks & Acceptance; nothing else is in scope.
 
 - 2026-11-12 ~02:10Z, lead: Contest Planner 02:05Z item 4: the network check stays OUT of `CHECK_SCRIPTS` (not per push) and runs from one row of the release candidate checklist (`release/checklist.sh`); renamed `docker/tests/check-readme-video.sh` so the `units` rule (every `test-*.sh` in exactly one CI list) is untouched (lead decision).
 
