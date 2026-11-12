@@ -29,6 +29,8 @@
 ///     still renders on every channel;
 ///   - TestPlaceholderText (AC14, QA): a cause, evidence and sample error that look like catalog placeholders ({production}, {count}) render as they are, once, on every channel;
 ///   - TestPeriodElement: an element that is only a period leaves its line out, so that the stored summary still renders on every channel;
+///   - TestPeriodFixAndEvidence (Story 23.10): a fix summary that is only a period leaves its line out, and an evidence line that is only a period gives way to
+///     the next line, so that the stored summary still renders on every channel now that both lines end with their own full stop;
 ///   - TestGroupsAtClose (AC3): the groups line lists every group with its count at the close, a group that formed after the notice (no NoticeCount) included;
 ///   - TestProductionName: the title names the demo production by its display name (Orders), and a production that is not listed by its class name;
 ///   - TestText: the stored summary is read back through Watch.Summary.Text, and an incident without one gives an error status.
@@ -606,6 +608,33 @@ Method TestPeriodElement()
 	Do $$$AssertEquals(..Command(host, "dismiss", dotted, owner).Ok, 1, "an incident whose element ends with a period is dismissed")
 	Do $$$AssertTrue(##class(OcuTalon.Watch.Summary).Text(dotted, "web", .sc) [ "Where it failed: Order.Date.", "and an element with more than a period keeps its line")
 	Do $$$AssertStatusOK(sc, "which renders")
+}
+
+Method TestPeriodFixAndEvidence()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("periodfix")
+	Do ..Resolved(owner, .incident, , .decision)
+	Set payload = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(decision)
+	Set payload.Payload = {"evidence": [(" ."_$Char(8203)), "OrderDate in the sample"]}.%ToJSON()
+	$$$ThrowOnError(payload.%Save())
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.FixSummary = " ."_$Char(8203)
+	$$$ThrowOnError(row.%Save())
+	Do $$$AssertEquals(..Command(host, "dismiss", incident, owner).Ok, 1, "the incident is dismissed")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set keys = ..Keys(row)
+	Do $$$AssertTrue((keys [ "summary.cause") && (keys [ "summary.evidence"), "the summary is stored with its cause and evidence lines")
+	Do $$$AssertTrue(keys [ ",summary.fixEnded,", "the fix run keeps its lines")
+	Do $$$AssertNotTrue((","_keys_",") [ ",summary.fix,", "and the fix summary that is only a period has no line")
+	Do $$$AssertEquals(..Slots(row, "summary.evidence").evidence, "OrderDate in the sample", "and the evidence is the first line that is more than a period")
+	For render = "web", "phone", "telegram" {
+		Set text = ##class(OcuTalon.Watch.Summary).Text(incident, render, .sc)
+		Do $$$AssertStatusOK(sc, render_": the summary still renders")
+		Do $$$AssertTrue(text [ ($Char(10)_"Evidence: OrderDate in the sample."_$Char(10)), render_": with the evidence line and its full stop")
+		Do $$$AssertNotTrue(text [ "Fix:", render_": and no fix line")
+	}
 }
 
 Method TestGroupsAtClose()

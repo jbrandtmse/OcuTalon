@@ -132,6 +132,30 @@ deferred: []
 - AC5 (the ruled mock case): Given a resolved incident whose draft the CI mock answers with `partner-notice-resolved`, when the request is raised, then the notice shown for approval contains neither "looking into" nor "will share updates", and the request is pending to contact 1. (`PartnerTurns:TestResolvedDraftSaysTheOrdersWentThrough`.)
 - AC6: Given a closed incident with a fix summary and evidence, when its summary renders on any channel, then the lines read "Fix: <fix>." and "Evidence: <evidence>." with exactly one final full stop each, and a value that ends in "?", "!" or "…" keeps its mark with no "." added. (`Test.Msg.Catalog:TestSummaryFixFullStop` and the Fixture; `Test.Watch.Summary`.)
 
+### Review Findings
+
+Code review (epic-cycle code-review stage, 2026-11-11; full mode, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 23 raw findings, 3 entries after triage, 17 rejected).
+
+- [x] [Review][Patch] (med, fix-risk low, in-story) A fix summary or a first evidence line that is only a period (after whitespace and invisible characters) made the stored summary unrenderable on every channel: with the new "Fix: {fix}." and "Evidence: {evidence}." texts the catalog drops the value's period before the text's and then refuses the empty slot (ERROR #5001 "the slot 'evidence' is empty", observed). It is 23.6's period-element defect (its `Shown(element) '= "."` guard) brought to the two lines 23.10 gave a full stop. `Build` now leaves out a fix line that is only a period, and `Evidence` takes the first evidence line that is more than a period; `TestPeriodFixAndEvidence` pins both. [src/ocutalon/cls/OcuTalon/Watch/Summary.cls:101,274]
+- [x] [Review][Patch] (low, fix-risk low, in-story) The changed Evidence-line pins in `Test.Core.WebChatOut`, `Test.Channel.TelegramOut` and `Test.Demo.SimPhoneOut` had not been run in any stage: run on a lane-D warm stack, all three passed. The Playwright pin `web/e2e/chat/notice.spec.ts` N20 stays with CI, which gates the merge. [src/ocutalon/cls/OcuTalon/Test/Core/WebChatOut.cls:680]
+- [x] [Review][Defer] (med, fix-risk med, in-story) The ruled resolved-incident sentence tells the model to say the affected orders went through, but Facts carry only the state, and `Watch.Transitions` resolves on "fixing + finished" whatever the run's failed-again or skipped counts (a suspend or reroute also resolves). A partial fix therefore drafts the same success claim. [src/ocutalon/cls/OcuTalon/Fix/Kind/PartnerWarning.cls:38] — deferred: DW-1165 `decision-pending owner=burndown` (a product call on ruled text: give Facts the fix outcome and make the sentence conditional). The user still approves the exact text, and it sits with the Planner's RC-eval item.
+
+Rejected:
+- blind: the new test has no positive "went through" check / the banned list is narrower than the instruction (2) — the reply is canned CI text. Routing is already falsified by the default reply's "looking into", and the real wording is the RC-eval item (Decided in-stage 4).
+- blind: task boxes are unticked — the fix would edit the spec under review, and it is build-auto bookkeeping.
+- blind: the RECHECK line for a retired-address request says "Orders Partner IT is no longer a partner contact" — by-design: it is the matrix row "Old pending notice" verbatim.
+- blind: the `approval-view.ts:124` doc comment still names Results Partner IT — by-design: the Code Map lists it as a stand-in to leave, and the Never list forbids web source changes.
+- blind: the diff carries `unattended-inbox-snapshot.md` / `epics.md` hunks — false: they came in with the feature merge-forward, not the story's code.
+- edge: the state changes between the draft and the approval — low. The approver sees and approves the exact text, and a guard would add a state check and re-draft path (complexity).
+- edge: a value ending ".)" renders ".)." — low, a model-written edge. Fixing it changes the shared `SlotText` rule (complexity).
+- verification-gap: no `mutation:` line for the AC1 `PartnerDraft`/`PartnerTurns`, AC4 `PartnerDraft` and AC6 own-stop pins (3) — false: Rule 19 asks for one demonstrated mutation per AC, and AC1, AC4 and AC6 each have one recorded.
+- verification-gap: "will share updates" only fails if the fixture is edited — already triaged as a deliberate limit; noted.
+- verification-gap / QA note: `PartnerTurns`' "and the whole instruction" compares with the Parameter — judged not a defect. It can fail: a SystemNote dropped or truncated on its way to the model's logged request makes it red. The wording is pinned by the verbatim literal on the next line and by `TestContract`, so AC4's pin stands.
+- acceptance: AC3's "exactly one line" is checked by substring for three states — false: `Facts` builds the line without branching on the state, and the `open` case is an exact match of every line, which would show a duplicate.
+- acceptance: AC3's "no evidence" clause has no seeded pin — low and pre-existing (23.5). `Facts` reads only Incident fields and has no path to the decision payload. reopen_if: `Fix.Kind.PartnerWarning.Facts` opens a Decision.
+- acceptance: the "Old pending notice" row does not assert that nothing is sent — false in effect: the skip-then-send-nothing path for a recipient that does not match the fixture is pinned by `TestTamperedRowSendsNothing`, and the retired address takes the same `Recheck` path.
+- acceptance: `TestSummaryFixFullStop` calls `RenderAt`, not `Render` — false: AD-32 names `RenderAt` as the test form of the same renderer.
+
 ## Spec Change Log
 
 - 2026-11-11 (plan): Story inserted on 2026-11-11 from the Contest Planner's 1.0.7 demo-pass ruling (`.coordination/prompts/epic-23-story-2310-ruling.md`, ~14:30Z, under the owner's delegation). It runs after 23.7 and before 23.9 on lane D. Item 4 is planned as a ledger entry (frontmatter `deferred`), because its cause is not a one-line refresh.
@@ -291,6 +315,7 @@ Every test added or changed passes on a fresh environment, in either order.
 - (QA) mutation: `summary.fix` and `summary.evidence` text without the full stop -> `Test.Msg.Catalog` red (`TestSummaryFixFullStop`, `TestEveryKeyOnEveryChannel`, `TestLocalInstallEveryKey`) and `Test.Watch.Summary:TestFixedDismissed` red for AC6.
 - (QA) mutation: `SimMailbox.In` `PARTNERFROM` set to the Orders contact -> `Test.Demo.SimMailboxIn:TestSamples` red for AC2.
 - Each mutation was reverted and `git status --short` was empty afterwards; `Test.Fix.PartnerTurns` passed on a fresh stack on the clean tree.
+- (CR) mutation: drop the period guards in `Watch.Summary` (`Build`'s `Shown(fix) '= "."` and `Evidence`'s `Shown(line) '= "."`) -> `Test.Watch.Summary:TestPeriodFixAndEvidence` red (a fix line kept, the evidence slot ".", and ERROR #5001 "the slot 'evidence' is empty" on web, phone and Telegram). Reverted, and `git diff --stat` was byte-identical; the class passed again. On the same lane-D warm stack, `Test.Core.WebChatOut`, `Test.Channel.TelegramOut` and `Test.Demo.SimPhoneOut` passed.
 
 **Found at implement:** three Test classes outside the Code Map render the `summary.evidence` key (not self-contained, contrary to the expectation under Tasks), so their Evidence line gains its full stop: `Test/Core/WebChatOut.cls`, `Test/Channel/TelegramOut.cls`, `Test/Demo/SimPhoneOut.cls`. `web/e2e/chat/notice.spec.ts` N20 (line ~720) also renders it and pins 'Evidence: OrderDate was <i>16/10/2026</i>' with `toEqual`; it is a Playwright spec (a test file, no web source), updated by the lead in this pass to 'Evidence: OrderDate was <i>16/10/2026</i>.' as Tasks step 4 directs when a pin renders the key.
 
