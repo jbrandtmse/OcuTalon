@@ -3,6 +3,8 @@
 #   bash docker/tests/record-eval.sh        records eval/orders-date-format/snapshot.json (Story 0.10)
 #   bash docker/tests/record-eval.sh feed   records the nine incidents of the test feed (Story 9.9), eval/<name>/case.json and snapshot.json
 #   bash docker/tests/record-eval.sh no-evidence   records eval/orders-date-no-evidence/case.json and snapshot.json (Story 39.6, DW-653)
+#   bash docker/tests/record-eval.sh held-out [<name>]   records eval/held-out/<name>/snapshot.json for each of the four held-out incidents, or for
+#                                                        the one named (Story 0.27)
 # Any other argument exits 2 before anything starts. Each mode starts one throwaway project of its own (docker/tests/lib-live.sh, the
 # throwaway and CI overrides, no key and no host port), waits for a ready start, and ends with an EXIT trap that removes the project
 # with its volume and images.
@@ -21,6 +23,12 @@
 # OcuTalon.Eval.Record as the case orders-date-no-evidence (a data-format change at OrderDate with no fix, Story 7.7) and release the hold and
 # remove the batch. Its two files are copied out with jq and checked as the feed mode's are (JSON, not empty, ASCII, no home folder); then
 # eval/orders-date-no-evidence/ is written and "record-eval: eval/orders-date-no-evidence written" is printed.
+# The held-out mode sends the inputs of the held-out incidents (Fixture XData HeldOutCases: the same feed, no expectation) and has the fixture record
+# each one; only snapshot.json of each is copied out (through jq, checked as the feed mode's files are) into eval/held-out/<name>/, beside the case.json
+# that the set already holds. It dies before it starts anything when a named incident has no eval/held-out/<name>/case.json or that file is not an
+# incident, and after the recording when any case.json below eval/held-out/ differs from what it was before (a checksum of each, before and after);
+# it never writes or edits a case.json. It prints "record-eval: <n> held-out snapshots written". A name that is not lower-case kebab, or a third
+# argument, exits 2 before anything starts.
 # Every mode exits 0 only when its files were written, and 1 when it refuses or fails.
 # Test.Eval.Record re-induces every committed incident, the Orders demo's and the feed's, on every CI run and compares the evidence pack of
 # each committed snapshot with a fresh recording's. Rerun this script (the mode of the incident) whenever TestSnapshotIsReadableAndCurrent (the
@@ -30,12 +38,21 @@
 set -u
 
 mode=demo
+heldname=
 if [ "$#" -eq 1 ] && [ "$1" = feed ]; then
   mode=feed
 elif [ "$#" -eq 1 ] && [ "$1" = no-evidence ]; then
   mode=noevidence
+elif [ "$#" -ge 1 ] && [ "$#" -le 2 ] && [ "$1" = held-out ]; then
+  mode=heldout
+  if [ "$#" -eq 2 ]; then
+    heldname=$2
+    case $heldname in
+      '' | *[!abcdefghijklmnopqrstuvwxyz0123456789-]* | -* | *-) echo "usage: record-eval.sh held-out [<name>]: the name is lower-case kebab" >&2; exit 2 ;;
+    esac
+  fi
 elif [ "$#" -gt 0 ]; then
-  echo "usage: record-eval.sh [feed|no-evidence]" >&2
+  echo "usage: record-eval.sh [feed|no-evidence|held-out [<name>]]" >&2
   exit 2
 fi
 
@@ -54,9 +71,36 @@ copy_out() {
 if ! command -v jq >/dev/null 2>&1; then die "jq is not installed"; fi
 if [ "$mode" = demo ] && [ ! -f "$repo/eval/orders-date-format/case.json" ]; then die "eval/orders-date-format/case.json does not exist"; fi
 
+# held_sums: one checksum line for each eval/held-out/*/case.json (path and cksum), in path order.
+held_sums() {
+  for f in "$repo"/eval/held-out/*/case.json; do
+    [ -f "$f" ] && cksum < "$f" | sed "s|\$| ${f#$repo/}|"
+  done
+}
+if [ "$mode" = heldout ]; then
+  held_names=$heldname
+  if [ -z "$held_names" ]; then
+    for f in "$repo"/eval/held-out/*/case.json; do
+      [ -f "$f" ] || continue
+      d=${f%/case.json}
+      held_names="$held_names ${d##*/}"
+    done
+  fi
+  held_incidents=
+  for name in $held_names; do
+    f="$repo/eval/held-out/$name/case.json"
+    if [ ! -f "$f" ]; then die "eval/held-out/$name/case.json does not exist"; fi
+    if [ "$(jq -r '.kind' "$f" 2>/dev/null)" = incident ]; then held_incidents="$held_incidents $name"; fi
+  done
+  if [ -z "$heldname" ] && [ -z "$held_incidents" ]; then die "eval/held-out/ holds no incident"; fi
+  if [ -n "$heldname" ] && [ -z "$held_incidents" ]; then die "eval/held-out/$heldname is not an incident"; fi
+  held_before=$(held_sums)
+fi
+
 case $mode in
   feed) live_start r99f ;;
   noevidence) live_start r39e ;;
+  heldout) live_start r27h ;;
   *) live_start r10e ;;
 esac
 
@@ -105,6 +149,44 @@ if [ "$mode" = feed ]; then
     cp "$tmp/feed/$name/case.json" "$tmp/feed/$name/snapshot.json" "eval/$name/" || die "eval/$name could not be written"
   done
   echo "record-eval: $count feed cases written"
+  exit 0
+fi
+
+if [ "$mode" = heldout ]; then
+  # The first CHK line keeps iris_script from running the recording a second time when the session prints a result late.
+  result=$(printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    "Set sc=##class(OcuTalon.Test.Eval.Feed.Fixture).Record(\"/tmp/zz-eval-held-out/\",.names,\"HeldOutCases\",\"$heldname\")" \
+    'Write !,"CHK|record|",$Select($SYSTEM.Status.IsOK(sc):"ok "_names,1:$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  "))' \
+    'Halt' | session_value OCUTALON record)
+  case $result in
+    "ok "*) names=${result#ok } ;;
+    *) die "the recording failed: ${result:-no answer from the session}" ;;
+  esac
+  mkdir -p "$tmp/held-out"
+  count=0
+  for name in $(printf '%s' "$names" | tr ',' ' '); do
+    case $name in
+      '' | *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) die "the feed recorded a case with the name '$name'" ;;
+    esac
+    case " $held_incidents " in
+      *" $name "*) ;;
+      *) die "the feed recorded the case $name, which is not a held-out incident to record" ;;
+    esac
+    mkdir -p "$tmp/held-out/$name"
+    copy_out "/tmp/zz-eval-held-out/$name/snapshot.json" "$tmp/held-out/$name/snapshot.json" "$name/snapshot.json"
+    count=$((count + 1))
+  done
+  if [ "$count" -eq 0 ]; then die "the feed recorded no held-out case"; fi
+  if [ -n "$heldname" ] && [ "$count" -ne 1 ]; then die "the feed recorded $count cases, not the one named"; fi
+  wanted=0
+  for name in $held_incidents; do wanted=$((wanted + 1)); done
+  if [ "$count" -ne "$wanted" ]; then die "the feed recorded $count of the $wanted held-out incidents"; fi
+  for name in $(printf '%s' "$names" | tr ',' ' '); do
+    cp "$tmp/held-out/$name/snapshot.json" "$repo/eval/held-out/$name/snapshot.json" || die "eval/held-out/$name/snapshot.json could not be written"
+  done
+  if [ "$(held_sums)" != "$held_before" ]; then die "a case.json below eval/held-out/ changed"; fi
+  echo "record-eval: $count held-out snapshots written"
   exit 0
 fi
 

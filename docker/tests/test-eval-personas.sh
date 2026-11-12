@@ -3,15 +3,18 @@
 # ci/units.sh), starts nothing, and needs bash and python3. eval/run.sh runs with a stub in place of the container tool that records its calls and fails, in a
 # folder of its own, so a form that the script accepts goes on to the preflight, calls the stub and ends with exit 1, and a form that it refuses ends
 # with exit 2 before any call. The key is a value that is not a key; it must never appear in a call, in the output or in a file.
-#   forms      --personas (with a key in the caller's environment and without one) and --release-candidate --personas (with a key) go on to the tool;
+#   forms      --personas (with a key in the caller's environment and without one), --release-candidate --personas (with a key) and (Story 0.27)
+#              --rules-only, --rules-only main and --rules-only held-out (with a key in the caller's environment and without one: the key is dropped) go on to the tool;
 #   key        --release-candidate --personas with the key unset or empty exits 2 and names ANTHROPIC_API_KEY, and calls nothing;
 #   refused    --personas extra, --on-mock --personas, --personas --release-candidate and --release-candidate --on-mock --personas exit 2 with a
-#              usage line and no call;
+#              usage line and no call, and so do --rules-only --personas, --rules-only --release-candidate, --rules-only other, --personas --rules-only,
+#              --release-candidate --rules-only and --rules-only main held-out;
 #   print      the sweep block prints personas.md only after it has checked the file for key-like text and for the key's value (key_like and
 #              key_value_hits), as the release candidate's result is;
 #   cases      the files of eval/persona-cases/ hold no [[mock: marker and are printable ASCII (the other rules of a case are test-eval-set's).
 # Each rule first runs on copy trees of the real script with one edit each (a form accepted that must be refused, the key kept for --personas, the key
-# check dropped for --release-candidate --personas, the key printed, a call before the guard, personas.md printed unchecked), which it must flag; only then
+# check dropped for --release-candidate --personas, the key printed, a call before the guard, personas.md printed unchecked; for --rules-only: the form missing,
+# any word accepted after it, --personas accepted after it, the key kept), which it must flag; only then
 # does it read the real tree.
 set -u
 
@@ -59,7 +62,7 @@ check_forms() {
     echo "eval/run.sh: the script is missing"
     return 0
   fi
-  for args in '--personas:unset' '--personas:fake' '--release-candidate --personas:fake'; do
+  for args in '--personas:unset' '--personas:fake' '--release-candidate --personas:fake' '--rules-only:unset' '--rules-only:fake' '--rules-only main:fake' '--rules-only held-out:unset' '--rules-only held-out:fake'; do
     key=${args##*:}
     # shellcheck disable=SC2086
     rc=$(run_form "$tree" "$key" ${args%:*})
@@ -67,8 +70,8 @@ check_forms() {
       echo "eval/run.sh: '${args%:*}' (key $key) does not go on to the container tool (exit $rc)"
     elif grep -qF -- "$fake" "$tmp/out.log" "$calls" || grep -rqF --exclude=out.log -- "$fake" "$tmp/run"; then
       echo "eval/run.sh: the key appears in the output, in a call or in a file of '${args%:*}'"
-    elif [ "${args%:*}" = --personas ] && [ -s "$tmp/stub.env" ]; then
-      echo "eval/run.sh: '--personas' (key $key) leaves the key in the environment of the container tool"
+    elif { [ "${args%:*}" = --personas ] || [ "${args%% *}" = --rules-only ]; } && [ -s "$tmp/stub.env" ]; then
+      echo "eval/run.sh: '${args%:*}' (key $key) leaves the key in the environment of the container tool"
     fi
   done
   for key in unset empty; do
@@ -81,7 +84,8 @@ check_forms() {
       echo "eval/run.sh: the refusal of --release-candidate --personas with the key $key does not name ANTHROPIC_API_KEY"
     fi
   done
-  for args in '--personas extra' '--on-mock --personas' '--personas --release-candidate' '--release-candidate --on-mock --personas'; do
+  for args in '--personas extra' '--on-mock --personas' '--personas --release-candidate' '--release-candidate --on-mock --personas' \
+    '--rules-only --personas' '--rules-only --release-candidate' '--rules-only other' '--personas --rules-only' '--release-candidate --rules-only' '--rules-only main held-out'; do
     # shellcheck disable=SC2086
     rc=$(run_form "$tree" fake $args)
     if [ "$rc" -ne 2 ]; then
@@ -136,13 +140,17 @@ flagged accepts-extra "s.replace('[ \$# -eq 1 ] && [ \"\$1\" = --personas ]', '[
 flagged accepts-on-mock "s.replace('[ \"\$1\" = --release-candidate ] && [ \"\$2\" = --personas ]', '[ \"\$2\" = --personas ]')"
 flagged key-kept "s.replace('if [ \"\$keypath\" -eq 0 ] && {', 'if [ \"\$keypath\" -eq 0 ] && [ \"\$personas\" -eq 0 ] && {')"
 flagged key-not-needed "s.replace('if [ \"\$mode\" = rc ] && { [ \"\$onmock\" -eq 0 ] || [ \"\$keypath\" -eq 1 ]; } && [ -z', 'if [ \"\$mode\" = rc ] && [ \"\$personas\" -eq 0 ] && { [ \"\$onmock\" -eq 0 ] || [ \"\$keypath\" -eq 1 ]; } && [ -z')"
+flagged rules-only-missing "s.replace('elif [ \$# -eq 1 ] && [ \"\$1\" = --rules-only ]; then\n  mode=rulesonly\n', '')"
+flagged rules-only-accepts-other "s.replace('{ [ \"\$2\" = main ] || [ \"\$2\" = held-out ]; }', 'true')"
+flagged rules-only-accepts-personas "s.replace('[ \"\$2\" = main ] || [ \"\$2\" = held-out ]', '[ \"\$2\" = main ] || [ \"\$2\" = held-out ] || [ \"\$2\" = --personas ]')"
+flagged rules-only-key-kept "s.replace('if [ \"\$keypath\" -eq 0 ] && {', 'if [ \"\$keypath\" -eq 0 ] && [ \"\$mode\" != rulesonly ] && {')"
 flagged prints-key "s.replace('. \"\$root/docker/tests/lib-keys.sh\"\n', '. \"\$root/docker/tests/lib-keys.sh\"\necho \"key \${ANTHROPIC_API_KEY:-}\"\n', 1)"
 flagged calls-before-guard "s.replace('set -u\n\nroot=', 'set -u\n$tool version > /dev/null 2>&1\n\nroot=', 1)"
 flagged prints-unchecked "s.replace('      if [ -n \"\$(key_like \"\$report_dir/\$name.md\")\" ]; then', '      if false; then', 1)"
 
 found=$(check_forms "$root")
 if [ -z "$found" ]; then
-  pass "forms: eval/run.sh goes on with --personas and --release-candidate --personas, refuses the other forms and a missing key, never shows the key, and checks personas.md before it prints it"
+  pass "forms: eval/run.sh goes on with --personas, --release-candidate --personas and --rules-only (alone, main or held-out), refuses the other forms and a missing key, never shows the key or leaves it in the environment of the container tool, and checks personas.md before it prints it"
 else
   fail "forms: $found"
 fi

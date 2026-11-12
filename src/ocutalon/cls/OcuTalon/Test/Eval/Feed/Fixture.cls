@@ -23,6 +23,10 @@ Include (Ensemble, %sySecurity)
 ///     them, one batch for each, with a reference of its own as the SuperSession of the batch's messages. Keys waits for a case's failures and gives
 ///     their reader keys. Record is the driver's entry: install, send, capture every case with Eval.Record into a folder, check that Build gives the
 ///     capture's own pack from each written file, and always remove the feed.
+///   - HeldOutCases (XData) holds the inputs of the four incidents of the held-out set (eval/held-out/, Story 0.27): the same fields as Cases except the
+///     expectation, the held-out flag and the description, which the committed case.json files of that set hold. Definitions, Names, Definition, Keys,
+///     Start and Record take the name of the set ("Cases", the default, or "HeldOutCases"), so every caller of the first nine is unchanged. Record of the
+///     held-out set writes snapshot.json into each case's folder and nothing else; it never writes a case.json.
 ///   - The code that runs in %SYS or NAMESPACE calls no OcuTalon class outside the feed.
 Class OcuTalon.Test.Eval.Feed.Fixture
 {
@@ -190,17 +194,70 @@ XData Cases [ MimeType = application/json ]
 ]
 }
 
-/// The cases as a dynamic array, in the order of the XData (by name).
-ClassMethod Definitions() As %DynamicArray
+/// The inputs of the four incidents of the held-out set, in name order: the item the failures are at, the class and the three messages sent to it, and
+/// the markers (errorHas) that every recorded error must hold. The expectation of each lives in eval/held-out/<name>/case.json, not here.
+XData HeldOutCases [ MimeType = application/json ]
 {
-	Quit ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId($ClassName()_"||Cases").Data)
+[
+  {
+    "name": "billing-amount-decimal-comma",
+    "item": "ClaimsToBilling",
+    "messageClass": "OcuTalon.Test.Eval.Feed.Claim",
+    "messages": [
+      {"ClaimId": "CL-7001", "MemberId": "M-70001", "ServiceDate": "2026-10-15", "Amount": "125,40", "PayerCode": "PAYER-A"},
+      {"ClaimId": "CL-7002", "MemberId": "M-70002", "ServiceDate": "2026-10-15", "Amount": "80,00", "PayerCode": "PAYER-A"},
+      {"ClaimId": "CL-7003", "MemberId": "M-70003", "ServiceDate": "2026-10-16", "Amount": "310,25", "PayerCode": "PAYER-B"}
+    ],
+    "errorHas": ["#7207", "Amount"]
+  },
+  {
+    "name": "returns-weight-decimal-comma",
+    "item": "ReturnsToLedger",
+    "messageClass": "OcuTalon.Test.Eval.Feed.Shipment",
+    "messages": [
+      {"ShipmentId": "SH-8001", "OrderNumber": "ON-8001", "ShippedAt": "2026-10-16 09:30:00", "Weight": "2,5", "Carrier": "CARRIER-A"},
+      {"ShipmentId": "SH-8002", "OrderNumber": "ON-8002", "ShippedAt": "2026-10-16 09:45:00", "Weight": "1,0", "Carrier": "CARRIER-A"},
+      {"ShipmentId": "SH-8003", "OrderNumber": "ON-8003", "ShippedAt": "2026-10-16 10:00:00", "Weight": "0,5", "Carrier": "CARRIER-B"}
+    ],
+    "errorHas": ["#7207", "Weight"]
+  },
+  {
+    "name": "shipments-day-first-date",
+    "item": "ShipmentsToLedger",
+    "messageClass": "OcuTalon.Test.Eval.Feed.Shipment",
+    "messages": [
+      {"ShipmentId": "SH-9001", "OrderNumber": "ON-9001", "ShippedAt": "16/10/2026 09:30:00", "Weight": "12.5", "Carrier": "CARRIER-A"},
+      {"ShipmentId": "SH-9002", "OrderNumber": "ON-9002", "ShippedAt": "16/10/2026 09:45:00", "Weight": "8.0", "Carrier": "CARRIER-A"},
+      {"ShipmentId": "SH-9003", "OrderNumber": "ON-9003", "ShippedAt": "17/10/2026 10:00:00", "Weight": "20.5", "Carrier": "CARRIER-B"}
+    ],
+    "errorHas": ["#7208", "ShippedAt"]
+  },
+  {
+    "name": "shipments-negative-weight",
+    "item": "ShipmentsToLedger",
+    "messageClass": "OcuTalon.Test.Eval.Feed.Shipment",
+    "messages": [
+      {"ShipmentId": "SH-9101", "OrderNumber": "ON-9101", "ShippedAt": "2026-10-16 09:30:00", "Weight": "-3.0", "Carrier": "CARRIER-A"},
+      {"ShipmentId": "SH-9102", "OrderNumber": "ON-9102", "ShippedAt": "2026-10-16 09:45:00", "Weight": "-1.5", "Carrier": "CARRIER-A"},
+      {"ShipmentId": "SH-9103", "OrderNumber": "ON-9103", "ShippedAt": "2026-10-17 10:00:00", "Weight": "-0.5", "Carrier": "CARRIER-B"}
+    ],
+    "errorHas": ["#7204", "Weight"]
+  }
+]
 }
 
-/// The names of the cases, comma-separated, in name order.
-ClassMethod Names() As %String
+/// The cases of a set as a dynamic array, in the order of the XData (by name). The set is the name of an XData of this class: "Cases" (the nine cases
+/// of the evaluation set) or "HeldOutCases" (the inputs of the held-out incidents).
+ClassMethod Definitions(set As %String = "Cases") As %DynamicArray
+{
+	Quit ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId($ClassName()_"||"_set).Data)
+}
+
+/// The names of the cases of the set, comma-separated, in name order.
+ClassMethod Names(set As %String = "Cases") As %String
 {
 	Kill sorted
-	Set iterator = ..Definitions().%GetIterator()
+	Set iterator = ..Definitions(set).%GetIterator()
 	While iterator.%GetNext(, .definition) {
 		Set sorted(definition.name) = ""
 	}
@@ -213,11 +270,11 @@ ClassMethod Names() As %String
 	Quit names
 }
 
-/// The definition of the case, or "" when no case has the name.
-ClassMethod Definition(name As %String) As %DynamicObject
+/// The definition of the case in the set, or "" when no case has the name.
+ClassMethod Definition(name As %String, set As %String = "Cases") As %DynamicObject
 {
 	Set found = ""
-	Set iterator = ..Definitions().%GetIterator()
+	Set iterator = ..Definitions(set).%GetIterator()
 	While iterator.%GetNext(, .definition) {
 		If definition.name = name {
 			Set found = definition
@@ -312,15 +369,16 @@ ClassMethod Running() As %Boolean
 	Quit ''##class(Ens.Director).IsProductionRunning(.name) && (name = production)
 }
 
-/// Sends the messages of every case, one batch to FeedIn for each, and gives in refs, by the name of each case, the reference that is the SuperSession
-/// of the case's messages. The feed must run. The batches are sent and the failures happen in the item's own jobs.
-ClassMethod Start(Output refs As %DynamicObject) As %Status
+/// Sends the messages of every case of the set (only the case named in only, when it is not ""), one batch to FeedIn for each, and gives in refs, by the
+/// name of each case, the reference that is the SuperSession of the case's messages. The feed must run. The batches are sent and the failures happen in the item's own jobs.
+ClassMethod Start(Output refs As %DynamicObject, set As %String = "Cases", only As %String = "") As %Status
 {
 	Set refs = {}
 	Set ns = ..#NAMESPACE, source = ..#SOURCEITEM
-	Set definitions = ..Definitions()
+	Set definitions = ..Definitions(set)
 	Set iterator = definitions.%GetIterator()
 	While iterator.%GetNext(, .definition) {
+		If (only '= "") && (definition.name '= only) Continue
 		Do refs.%Set(definition.name, ##class(OcuTalon.Bridge.Ids).NewRef())
 	}
 	Set sc = $$$OK
@@ -350,10 +408,10 @@ ClassMethod Start(Output refs As %DynamicObject) As %Status
 /// Waits up to WAITSECONDS for the case's failures: as many headers of the reference in the status Error at the case's item as the case has messages.
 /// Gives where and which they are: the namespace, production and item they are at and the keys of their failed headers (h<id>, ascending), as
 /// Eval.Record.Capture takes them. Short of the count, the status is an error that names the count seen.
-ClassMethod Keys(name As %String, ref As %String, Output namespace As %String, Output production As %String, Output item As %String, Output keys As %String) As %Status
+ClassMethod Keys(name As %String, ref As %String, Output namespace As %String, Output production As %String, Output item As %String, Output keys As %String, set As %String = "Cases") As %Status
 {
 	Set keys = ""
-	Set definition = ..Definition(name)
+	Set definition = ..Definition(name, set)
 	If '$IsObject(definition) Quit $$$ERROR($$$GeneralError, "The test feed has no case "_name)
 	Set namespace = ..#NAMESPACE, production = ..#PRODUCTION, item = definition.item
 	Set wanted = definition.messages.%Size()
@@ -378,21 +436,32 @@ ClassMethod Keys(name As %String, ref As %String, Output namespace As %String, O
 /// captures it with Eval.Record into the folder (<folder>/<name>/case.json and snapshot.json), and checks that EvidencePack.Build gives, from the
 /// snapshot just written, exactly the pack that Capture returned. names holds the names of the cases that were recorded, comma-separated. The feed is
 /// always removed; the status is the first failure, with the removal's status appended. The folder is emptied once Install has not refused.
-ClassMethod Record(folder As %String, Output names As %String) As %Status
+/// With the set "HeldOutCases" (docker/tests/record-eval.sh held-out) the cases have no expectation here, so Capture gets a placeholder case and the
+/// case.json it writes is deleted at once: only <folder>/<name>/snapshot.json remains. Only the named cases are sent and recorded when only is not "".
+ClassMethod Record(folder As %String, Output names As %String, set As %String = "Cases", only As %String = "") As %Status
 {
 	Set names = ""
 	Set sc = $$$OK
 	Try {
 		$$$ThrowOnError(..Install())
 		Do ##class(%File).RemoveDirectoryTree(folder)
-		$$$ThrowOnError(..Start(.refs))
-		Set iterator = ..Definitions().%GetIterator()
+		If (only '= "") && '$IsObject(..Definition(only, set)) $$$ThrowStatus($$$ERROR($$$GeneralError, "The test feed has no case "_only_" in "_set))
+		$$$ThrowOnError(..Start(.refs, set, only))
+		Set iterator = ..Definitions(set).%GetIterator()
 		While iterator.%GetNext(, .definition) {
-			$$$ThrowOnError(..Keys(definition.name, refs.%Get(definition.name), .namespace, .production, .item, .keys))
-			Set case = {"name": (definition.name), "description": (definition.description), "expectation": (definition.expectation)}
-			Do case.%Set("heldOut", +definition.heldOut, "boolean")
+			If (only '= "") && (definition.name '= only) Continue
+			$$$ThrowOnError(..Keys(definition.name, refs.%Get(definition.name), .namespace, .production, .item, .keys, set))
+			If set = "Cases" {
+				Set case = {"name": (definition.name), "description": (definition.description), "expectation": (definition.expectation)}
+				Do case.%Set("heldOut", +definition.heldOut, "boolean")
+			} Else {
+				#; The inputs of a set without expectations: Capture needs a valid case, and the case.json it writes is deleted below.
+				Set case = {"name": (definition.name), "description": "placeholder", "expectation": {"causeCategory": "unknown", "elementAtFault": "placeholder", "fixKind": ""}}
+			}
 			$$$ThrowOnError(##class(OcuTalon.Eval.Record).Capture(case, namespace, production, item, keys, folder, .pack))
-			Set file = ##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#SNAPSHOTFILE, ##class(%File).SubDirectoryName(folder, definition.name))
+			Set directory = ##class(%File).SubDirectoryName(folder, definition.name)
+			If set '= "Cases" Do ##class(%File).Delete(##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#CASEFILE, directory))
+			Set file = ##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#SNAPSHOTFILE, directory)
 			$$$ThrowOnError(##class(OcuTalon.Watch.EvidencePack).Load(file, .snapshot))
 			$$$ThrowOnError(##class(OcuTalon.Watch.EvidencePack).Build(snapshot, .replay))
 			If replay.%ToJSON() '= pack.%ToJSON() $$$ThrowStatus($$$ERROR($$$GeneralError, "The pack that Build gives the written snapshot of "_definition.name_" is not the pack that Capture returned"))
