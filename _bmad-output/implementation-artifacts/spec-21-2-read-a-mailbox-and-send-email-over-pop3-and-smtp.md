@@ -133,6 +133,8 @@ deferred:
 - Given the finished diff, when its paths are listed, then no Lane A path or Never-list item appears, and each contended-file touch is the one Design Notes names.
 
 
+- [ ] [CI] iris (image) live:storage-roundtrip: `OcuTalon.Test.Channel.EmailInPop3` (extends `%Net.POP3`, which inherits `%Net.FetchMailProtocol`'s serial `Storage Default`) compiles with a storage definition but its file has no Storage block (EMPTY) -- ci run 43114341467 on 8fc11a6e (= 2242c77d code) -- add the Storage block exported from the compiled class to that file only (ruling U-319, fix-forward on top of the 21.6 stack; CI rework 1 of 3)
+
 ### Review Findings
 
 Code review (bmad-code-review, 2026-11-11; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 36 rows, 17 entries after grouping; each with severity, fix-risk, footprint, disposition per Rule 15).
@@ -167,6 +169,8 @@ Rejected:
 - TIMEOUT bounds a read, not a poll -- DW-1142 (already ledgered, this story).
 
 ## Spec Change Log
+
+- 2026-11-12 (lead, CI red on 8fc11a6e): re-opened for the record with one `[CI]` item (storage-roundtrip, `EmailInPop3` has no committed Storage block); fixed forward per Contest Planner ruling U-319 (answer_ref 2026-11-12T00:03:35Z#979) by a lead commit that touches only that test file, verified by `live storage-roundtrip` on the stacked head and reviewed inside Story 21.6's code review (the commit sits in its diff range).
 
 - 2026-11-11 (lead, spec gate, before implement): Planner and orchestrator rulings applied (Design Notes, "Spec gate rulings"): shared `SecretHandoff` interface (Put/Take) and the V1 fallback; 50 emails per poll; budget, request-size, silent-baseline and injection ACs and tasks; V5 grant measurement (Task 0 f); V7 restated; P3 sentence added.
 
