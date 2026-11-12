@@ -498,6 +498,7 @@ services:
       OCUTALON_EVAL: ${OCUTALON_EVAL:-0}
       OCUTALON_MODEL_BASE_URL: http://mock:8080/v1/
       OCUTALON_MOCK_KEY_HEADER: "1"
+      OCUTALON_TEST_PLAIN_SMTP: "1"
       OCUTALON_TELEGRAM_API_BASE: http://mock:8080
       TELEGRAM_BOT_TOKEN: ocutalon-ci-dummy-bot-token
     volumes:
@@ -570,6 +571,13 @@ ci_sets_mock_key_header_for_iris() {
     && [ "$(ci_block iris | grep -cx '      OCUTALON_MOCK_KEY_HEADER: "1"')" -eq 1 ]
 }
 
+# The CI-only plain-SMTP switch of Story 21.6 (ruling c): the iris block sets OCUTALON_TEST_PLAIN_SMTP to "1", once, and nothing else in
+# the file mentions it.
+ci_sets_plain_smtp_for_iris() {
+  [ "$(code "$ci" | grep -c 'OCUTALON_TEST_PLAIN_SMTP')" -eq 1 ] \
+    && [ "$(ci_block iris | grep -cx '      OCUTALON_TEST_PLAIN_SMTP: "1"')" -eq 1 ]
+}
+
 # The Bot API wiring of Story 10.3: the iris block sets OCUTALON_TELEGRAM_API_BASE to the mock, once, and TELEGRAM_BOT_TOKEN to the dummy,
 # once, and no other line of the file names either variable.
 ci_sets_telegram_base_for_iris() {
@@ -593,6 +601,9 @@ ci_dummy_token_is_no_key() {
 # or that a developer starts without the CI override carries the mock-key header (the online demo never does).
 mock_key_header_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_MOCK_KEY_HEADER' "$1"; }
 
+# Only ci/compose.ci.yml sets the plain-SMTP switch (Story 21.6): no surface that ships or that a developer starts without the CI override names it.
+plain_smtp_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_TEST_PLAIN_SMTP' "$1"; }
+
 # Only ci/compose.ci.yml sets the Bot API base and gives a bot token a value (Story 10.3): the file must exist, must not name the base and
 # must not hold the dummy token. A judge's file may still name TELEGRAM_BOT_TOKEN, as an empty key to fill in (.env.example) or as a
 # variable to read.
@@ -600,12 +611,14 @@ telegram_wiring_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_TELEGRAM_API_BASE'
 
 check "ci: the file is exactly the mock's wiring (project name, iris variables and log volume, mock service, log volume)" ci_file_is_exact
 check "ci: the iris service sets OCUTALON_MOCK_KEY_HEADER to \"1\", once, and no other line names it" ci_sets_mock_key_header_for_iris
+check "ci: the iris service sets OCUTALON_TEST_PLAIN_SMTP to \"1\", once, and no other line names it" ci_sets_plain_smtp_for_iris
 check "ci: the iris service sets OCUTALON_TELEGRAM_API_BASE to the mock, once, and no other line names it" ci_sets_telegram_base_for_iris
 check "ci: the iris service sets TELEGRAM_BOT_TOKEN to the dummy, once, and no other line names it" ci_sets_telegram_token_for_iris
 check "ci: the dummy bot token matches no key pattern" ci_dummy_token_is_no_key
 for f in "$compose" "$dev" "$dockerfile" .env.example docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos \
   docker/tests/compose.throwaway.yml docker/tests/lib-live.sh; do
   check "judges: $f does not name OCUTALON_MOCK_KEY_HEADER (only ci/compose.ci.yml sets it)" mock_key_header_absent "$f"
+  check "judges: $f does not name OCUTALON_TEST_PLAIN_SMTP (only ci/compose.ci.yml sets it)" plain_smtp_absent "$f"
   check "judges: $f names neither OCUTALON_TELEGRAM_API_BASE nor the dummy bot token (only ci/compose.ci.yml sets them)" telegram_wiring_absent "$f"
 done
 check "ci: top-level name ocutalon-ci" has_line "$ci" '^name:[[:space:]]*ocutalon-ci[[:space:]]*$'

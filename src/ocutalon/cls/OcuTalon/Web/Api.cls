@@ -37,11 +37,17 @@
 ///     The settings routes (Story 33.2; AD-13, AD-19) are for OcuTalonAdmin only, and the check is the whole name of the role in $Roles, never %All: a
 ///     call to /v1/settings or below it from a user without the role is 403 not_admin, answered before the browser envelope, the body and the
 ///     route. GET /v1/settings answers SettingsOps.Values: {"sections", "bridge", "providers", "instanceZone", "prices"}. Each POST /v1/settings/<section>
-///     (budgets, models, daily-digest, time-zone, check-thresholds, demo-mode; channels answers 501 not_built) takes the section's fields as a JSON
+///     (budgets, models, daily-digest, time-zone, check-thresholds, demo-mode, channels) takes the section's fields as a JSON
 ///     object of field to value, submits one SaveSettings command (a SetDemoMode for demo-mode) with origin web_admin, the IRIS user of the call and
 ///     the CSP session's Ref (AD-4), and answers: Ok 200 {"result":"done","sections"}; a refused value, a missing or unknown field or a body that is not an object 400
 ///     bad_settings with "fields", the names of the refused fields; not_built 501; step_failed (the demo step failed after the value was written)
 ///     409 demo_step_failed; not_audited, failed and any other outcome or status 500 server_error.
+///     POST /v1/settings/channels (Story 21.2; AD-1, AD-19) connects the POP3 mailbox: SaveChannels takes {address, incoming, user, password} (the password may
+///     be absent or empty to keep the stored one). With the online demo on it answers 409 not_available (MESSAGENOTAVAILABLE) before it reads the body. A
+///     password of more than 256 characters is 400 bad_settings with fields ["password"] and is not offered; any other non-empty password string is
+///     offered to SecretHandoff (in memory; the REST process stores nothing) and only the reference secret://handoff/<name> goes in the SaveSettings
+///     command's body, so the password is in no command, message or log. After the submit returns, whatever it answered, an untaken secret is discarded.
+///     The answers are those of Answer, with not_available 409.
 ///     POST /v1/settings/models takes {"agents", "prices"} (SettingsOps' models section); POST /v1/settings/models/test takes exactly {"agent": string} and submits one
 ///     TestModel (origin web_admin): Ok 200 {"answered", "seconds", "reason"}; a bad body or an agent that is refused 400 bad_settings with fields ["agent"]; any
 ///     other outcome or status 500 server_error.
@@ -174,6 +180,12 @@ Parameter MESSAGENOTADMIN = "Only OcuTalon admins can open settings.";
 /// The message of the 400 bad_settings of a save.
 Parameter MESSAGEBADSETTINGS = "Couldn't save. Nothing was changed.";
 
+/// The 409 message of an email save on the online demo (Public text P2).
+Parameter MESSAGENOTAVAILABLE = "Email can't be connected on the online demo. Nothing was changed.";
+
+/// The most characters of a mailbox password that the route offers.
+Parameter PASSWORDMAX = 256;
+
 /// The message of the 409 demo_step_failed of a demo mode save; {v} is on or off.
 Parameter MESSAGEDEMOSTEPFAILED = "Demo mode is set to {v}, but the switch didn't finish. OcuTalon tries again at its next start.";
 
@@ -258,7 +270,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/settings/models" Method="POST" Call="SaveModels"/>
 <Route Url="/v1/settings/models/test" Method="POST" Call="TestModel"/>
 <Route Url="/v1/settings/budgets" Method="POST" Call="SaveBudgets"/>
-<Route Url="/v1/settings/channels" Method="POST" Call="NotBuilt"/>
+<Route Url="/v1/settings/channels" Method="POST" Call="SaveChannels"/>
 <Route Url="/v1/settings/daily-digest" Method="POST" Call="SaveDailyDigest"/>
 <Route Url="/v1/settings/daily-digest/send" Method="POST" Call="SendDigest"/>
 <Route Url="/v1/settings/time-zone" Method="POST" Call="SaveTimeZone"/>
@@ -893,6 +905,54 @@ ClassMethod SaveCheckThresholds() As %Status
 	Quit ..SaveSection("check-thresholds")
 }
 
+/// POST /v1/settings/channels (Story 21.2): see the class description. On the online demo it answers 409 not_available before the body is read. The
+/// body is a JSON object, and anything else is 400 bad_settings with no field and nothing offered or submitted. A password that is present but not
+/// a JSON string, or a string of more than PASSWORDMAX characters, is 400 bad_settings with fields ["password"], nothing offered or submitted, so
+/// that no password value ever reaches the command. Any other non-empty string password
+/// is offered to SecretHandoff and replaced in the body by its reference; the SaveSettings command (slug channels, origin web_admin, the IRIS user of
+/// the call, the CSP session's Ref) carries only that reference. Whatever the submit answers, or throws, the reference is then taken with no wait and
+/// the value discarded (a Take of a reference that SettingsOps already took fails harmlessly). The answers are those of Answer.
+ClassMethod SaveChannels() As %Status
+{
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 Quit ..Fail(409, "not_available", ..#MESSAGENOTAVAILABLE)
+	If '..SettingsBody(.body) Quit ..BadSettings([])
+	Set type = body.%GetTypeOf("password")
+	Set password = $Select(type = "string": body.password, 1: "")
+	If ((type '= "string") && (type '= "unassigned")) || ($Length(password) > ..#PASSWORDMAX) {
+		Kill password
+		Quit ..BadSettings(["password"])
+	}
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) {
+		Kill password
+		Quit ..ServerError(sc)
+	}
+	Set uri = ""
+	Try {
+		If password '= "" {
+			Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(password, .uri)
+			Kill password
+			If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+			Do body.%Set("password", uri, "string")
+		}
+		Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
+		Set command.Slug = "channels"
+		Set command.Changes = body.%ToJSON()
+		Set command.ActingUser = $USERNAME
+		Set command.SessionRef = sessionRef
+		Set sc = ..SubmitChannels(command, .result)
+	} Catch exception {
+		Kill password
+		Set sc = exception.AsStatus()
+	}
+	If uri '= "" {
+		Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .discard, 0)
+		Kill discard
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Quit ..Answer(result, "")
+}
+
 /// The save of one settings section (AD-1, AD-4, AD-19): the body is a JSON object of the section's field to value, and anything else is 400
 /// bad_settings with no field and nothing submitted. The route submits one SaveSettings command (the section's slug, the body as it is, the IRIS user of
 /// the call and the CSP session's Ref) through Commands.Submit with origin web_admin, and SettingsOps decides what is acceptable. The answers are
@@ -910,6 +970,12 @@ ClassMethod SaveSection(section As %String) As %Status [ Private ]
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Quit ..Answer(result, "")
+}
+
+/// The one submit of SaveChannels: the command through Commands.Submit with origin web_admin. A test subclass overrides it.
+ClassMethod SubmitChannels(command As OcuTalon.Msg.Command.SaveSettings, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
 }
 
 /// POST /v1/settings/demo-mode: the body is {"demoMode": true or false} and nothing else; any other body is 400 bad_settings, naming demoMode
@@ -931,7 +997,7 @@ ClassMethod SaveDemoMode() As %Status
 }
 
 /// The answer to a save from the CommandResult (word is "on" or "off" for a demo mode save): Ok is 200 {"result":"done","sections"} with the
-/// sections read fresh; refused is 400 bad_settings with the refused fields (Data); not_built is 501; step_failed is 409 demo_step_failed; no result,
+/// sections read fresh; refused is 400 bad_settings with the refused fields (Data); not_built is 501; not_available is 409; step_failed is 409 demo_step_failed; no result,
 /// not_audited, failed, unknown_command and any other outcome are 500 server_error.
 ClassMethod Answer(result As OcuTalon.Msg.CommandResult, word As %String) As %Status [ Private ]
 {
@@ -956,6 +1022,7 @@ ClassMethod Answer(result As OcuTalon.Msg.CommandResult, word As %String) As %St
 		Quit ..BadSettings($Select($IsObject(fields): fields, 1: []))
 	}
 	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	If outcome = "not_available" Quit ..Fail(409, "not_available", ..#MESSAGENOTAVAILABLE)
 	If (outcome = "step_failed") && (word '= "") Quit ..Fail(409, "demo_step_failed", $Replace(..#MESSAGEDEMOSTEPFAILED, "{v}", word))
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "The settings save was answered "_outcome))
 }

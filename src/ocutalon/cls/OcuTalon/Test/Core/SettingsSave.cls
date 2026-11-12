@@ -388,13 +388,14 @@ Method TestBridgeAuditFails()
 	Do $$$AssertEquals($Get(^||OcuTalonSettingsOpsProbe("n", "set")), 2, "the second value was never set (one Set and one put-back)")
 }
 
-/// Every key that a section writes is on the allow-list, and every key on it but demo.mode is in a section.
+/// Every key that a section writes is on the allow-list, and every key on it but demo.mode is in a section (the email section writes email.address and email.owner).
 Method TestAllowList()
 {
 	Set allowed = $ListFromString($Parameter(..#PROBE, "ALLOWLIST"))
 	Set found = ""
 	Set iterator = ##class(OcuTalon.Core.SettingsOps).Sections().%GetIterator()
 	While iterator.%GetNext(, .section) {
+		If section.kind = "email" Set found = found_$ListBuild("email.address", "email.owner")
 		Set fields = section.fields.%GetIterator()
 		While fields.%GetNext(, .field) {
 			If field.%IsDefined("key") {
@@ -426,7 +427,14 @@ Method TestValues()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "daily-digest,check-thresholds,demo-mode", "the sections that hold values")
+	Do $$$AssertEquals(keys, "daily-digest,check-thresholds,demo-mode,channels", "the sections that hold values, the channels last (not on the online demo)")
+	Set channels = body.sections.channels
+	Set shape = ""
+	Set iterator = channels.%GetIterator()
+	While iterator.%GetNext(.key, , .type) {
+		Set shape = shape_$Select(shape = "": "", 1: ",")_key_":"_type
+	}
+	Do $$$AssertEquals(shape, "address:string,incoming:string,outgoing:string,user:string,passwordSet:boolean", "the channels hold the address, both servers, the user name and whether a password is set")
 	Do $$$AssertEquals(body.sections.%Get("check-thresholds").%ToJSON(), "{""diskFreePercent"":10,""journalFreePercent"":10,""licenseUsePercent"":90,""queueMessages"":100,""queueWaitMinutes"":10}", "an absent row reads as the default, as a number")
 	Do $$$AssertEquals(body.sections.%Get("daily-digest").%ToJSON(), "{""time"":""08:00"",""channels"":""web,phone,telegram""}", "the digest defaults")
 	Do $$$AssertEquals(body.sections.%Get("demo-mode").%GetTypeOf("demoMode"), "boolean", "demoMode is a boolean")

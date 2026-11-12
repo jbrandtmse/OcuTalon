@@ -3643,3 +3643,7 @@
 2026-11-12T05:14:25Z	Epic 0	runner_clarification	kind=CI_WAIT agent=a570d5453eccd91b8 story=0.28 head=eff03a14(base_b5057e5a;DW-1178_a_in) runs=43159935962,43159935971(queued) shas=verified
 2026-11-12T05:16:24Z	Epic 21	runner_clarification	kind=PART_READY agent=ac5e5ed9a5908b7a3 stories=21.2+21.6 head=0a357e9b(integrated_cf6fcb39) runs=43143022182,43143022136 applied=U-319,U-320 21.3=implemented_local(a455e515;QA_next) shas=verified
 2026-11-12T05:16:24Z	Epic 0	runner_clarification	note=see_above(0.28_eff03a14_CI_WAIT)
+2026-11-12T05:20:46Z	Epic 21	merge_gate	part=21.2+21.6 head=0a357e9b conflicts=README.md(plain_union:21.2_mailbox_bullet_under_Your_integrations_after_Queue_backlogs;test-readme.sh_new-since_pin_+1_bullet,14->15),sprint-status.yaml(regenerated) tests=test-readme_all_pass,web_docs_97/97 lint=baseline
+2026-11-12T05:20:46Z	Run	ruling	question=21.2_README_bullet_placement_after_0.26_regroup category=veto choice=Your_own_mailbox_under_Your_integrations_after_Queue_backlogs(35.3_Webhooks_lands_between_per_its_ruling) rejected=runner_integrate(21.3_unreviewed_commits_on_its_branch) policy=5086036 note=sent_to_Planner
+2026-11-12T05:20:46Z	Run	ledger_routed_planned	story=22-7 entries=1(DW-1164) excess=0 by=merge_gate
+2026-11-12T05:20:46Z	Run	deps_hash_rerecorded	reason=ledger_routed,split(21.8_inserted) hash=5da3832d

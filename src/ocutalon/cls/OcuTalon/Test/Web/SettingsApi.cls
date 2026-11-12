@@ -17,7 +17,7 @@
 ///   - TestRefusedSaves: a refused value, a field that is not the section's, "@{" and a body that is not an object answer 400 bad_settings with the
 ///     ruled text and the fields, and change nothing;
 ///   - TestBridgeRoutesAre501 (U-177 exception, Contest Planner, 2026-11-05): budgets and time-zone reach the built bridge settings and are saved, applied and put back, a
-///     value off the allow-list is 400 with nothing changed; channels are 501 (the models route is built, Story 18.3);
+///     value off the allow-list is 400 with nothing changed; an unbuilt route's call is 501 (the models route is built, Story 18.3, and the channels route, Story 21.2);
 ///   - TestModelsSaveRoute (Story 18.3): POST /v1/settings/models answers 200 done for a body equal to the current values (nothing changes), and 400 bad_settings with
 ///     the offending names for a body that is not the shape or names a model that no provider lists;
 ///   - TestModelTestRoute (Story 18.3; AC 2): an admin's POST /v1/settings/models/test for each agent answers 200 with {"answered", "seconds", "reason"} through
@@ -27,6 +27,9 @@
 ///     production records one requested Sent row (empty DueAt) for the CSP session's Ref; a second press, with a fresh key, records a second;
 ///   - TestSaveDemoModeAudited: an admin's demo mode save (the stack's own mode) answers 200 and writes one entry with the call's user, the CSP session's Ref and the channel web;
 ///   - TestDemoModeBodies: a demo mode body that is not exactly {demoMode: true or false} is 400 with nothing submitted;
+///   - TestChannelsRoute (Story 21.2): POST /v1/settings/channels on the online demo is 409 not_available with nothing offered or submitted, a password over 256
+///     characters, a password that is not a JSON string (a number, an object) and a body that is not an object are 400 with nothing offered or submitted, a value with @{ or an unknown field is 400 through the production with the offered
+///     password withdrawn, a command that the production does not take is 500 with the offered password withdrawn, and the password is in no answer, log row, ^OcuTalon* global or SaveSettings message;
 ///   - TestAnswerMapping: each outcome of a save has its status, code and text;
 ///   - TestStateHasAdmin: the snapshot's admin follows the role.
 Class OcuTalon.Test.Web.SettingsApi Extends %UnitTest.TestCase
@@ -161,6 +164,14 @@ Method TestGetShape()
 	Do $$$AssertEquals(keys, "sections,bridge,providers,instanceZone,prices", "the keys")
 	Do $$$AssertEquals(json.sections.%Get("check-thresholds").%ToJSON(), "{""diskFreePercent"":10,""journalFreePercent"":10,""licenseUsePercent"":90,""queueMessages"":100,""queueWaitMinutes"":10}", "the thresholds")
 	Do $$$AssertEquals(json.sections.%Get("daily-digest").channels, "web,phone,telegram", "the digest channels")
+	Set channels = json.sections.channels
+	Set members = ""
+	Set iterator = channels.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set members = members_$Select(members = "": "", 1: ",")_key
+	}
+	Do $$$AssertEquals(members, "address,incoming,outgoing,user,passwordSet", "the channels section holds the address, both servers, the user and passwordSet, nothing else (Story 21.6)")
+	Do $$$AssertEquals(channels.%GetTypeOf("outgoing")_"|"_channels.%GetTypeOf("passwordSet"), "string|boolean", "the outgoing server is a string and passwordSet a boolean")
 	Do $$$AssertEquals(json.sections.%Get("demo-mode").%GetTypeOf("demoMode"), "boolean", "demoMode is a boolean")
 	// U-177 exception: this Lane B test is edited by Lane A's Story 17.3 once, as ruled by the Contest Planner (2026-11-05). The providers are asserted by their built shape only.
 	Do $$$AssertEquals(json.providers.%GetTypeOf(0), "object", "the providers are built: the first row is an object")
@@ -180,8 +191,8 @@ Method TestGetShape()
 		If configured '= "" Set configuredValues = configuredValues_$ListBuild(configured)
 	}
 	Set lower = $ZConvert(body, "L")
-	For word = "secret", "apikey", "password", "token_value" {
-		Do $$$AssertTrue(lower '[ word, "the body holds no '"_word_"'")
+	For word = "secret", "apikey", """password""", "token_value" {
+		Do $$$AssertTrue(lower '[ word, "the body holds no '"_word_"' (the channels' passwordSet is a boolean, not a password)")
 	}
 	Do $$$AssertEquals(..KeyShape(body, configuredValues), "", "the body holds no value shaped like a key and no key value configured in a key variable (the names of the key variables are allowed)")
 
@@ -398,7 +409,7 @@ Method TestBridgeRoutesAre501()
 		Do $$$AssertEquals(..BridgeValues(), applied, "nothing changed after the refusals")
 		Set wanted = {"error": {"code": "not_built", "message": "This part of OcuTalon isn't built yet."}}.%ToJSON()
 		Set body = ..Call("NotBuilt", "{}", session, .response)
-		Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "channels: 501 not_built")
+		Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "an unbuilt route: 501 not_built")
 		Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": "@{env:KEY}", "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
 		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DecisionTokenBudget""]}", "a value with @{ is refused before the bridge is asked")
 	} Catch exception {
@@ -516,10 +527,108 @@ Method TestDemoModeBodies()
 	Do $$$AssertEquals($Select($IsObject(after): after.Value, 1: ""), was, "demo mode did not change")
 }
 
+/// POST /v1/settings/channels (Stories 21.2 and 21.6, with the outgoing server): on the online demo it answers 409 not_available with the accepted sentence before the body is read, and offers and
+/// submits nothing; a password over 256 characters is 400 bad_settings naming password with nothing offered; a refused body (a value with @{, an unknown
+/// field, a bad address, no object) is 400 through the production with nothing written and the offered password withdrawn; and a body that holds the
+/// password never answers it. The number of hand-off resources is the same after every call.
+Method TestChannelsRoute()
+{
+	If '..Guard() Quit
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set session = ..Session()
+	Set was = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set before = ..Handoffs()
+	Set rows = ..SaveSettingsRows()
+	Set secret = "zzchannelspw"_$Job_$Random(100000)
+	Set ok = {"address": "zzchannels@example.com", "incoming": "pop.example.com", "outgoing": "smtp.example.com", "user": "zzchannels", "password": (secret)}
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Set body = ..Call("SaveChannels", ok.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_body, "409 Conflict|{""error"":{""code"":""not_available"",""message"":""Email can't be connected on the online demo. Nothing was changed.""}}", "the online demo: 409 not_available with the accepted sentence")
+		Do $$$AssertEquals(..Handoffs()_"|"_..SaveSettingsRows(), before_"|"_rows, "nothing was offered and nothing submitted")
+		Do $$$AssertEquals(body [ secret, 0, "and the answer does not hold the password")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Set long = {"address": "zzchannels@example.com", "incoming": "pop.example.com", "user": "zzchannels", "password": ($Translate($Justify("", 257), " ", "p"))}
+		Set body = ..Call("SaveChannels", long.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""password""]}", "a password of 257 characters: 400 bad_settings naming password")
+		Do $$$AssertEquals(..Handoffs()_"|"_..SaveSettingsRows(), before_"|"_rows, "nothing was offered and nothing submitted")
+		For type = "number", "object" {
+			Set odd = {}.%FromJSON(ok.%ToJSON())
+			If type = "number" {
+				Do odd.%Set("password", 98765432123, "number")
+			} Else {
+				Do odd.%Set("password", {"p": "zzpw98765432123"})
+			}
+			Set body = ..Call("SaveChannels", odd.%ToJSON(), session, .response)
+			Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""password""]}", "a password that is a JSON "_type_": 400 bad_settings naming password")
+			Do $$$AssertEquals(..Handoffs()_"|"_..SaveSettingsRows(), before_"|"_rows, type_": nothing was offered and nothing submitted")
+			Do $$$AssertEquals(..SaveSettingsHold("98765432123"), 0, type_": no SaveSettings message holds the value")
+		}
+		Set body = ..Call("SaveChannels", "[1]", session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[]}", "a body that is not an object: 400 bad_settings, no field")
+		Do $$$AssertEquals(..Handoffs()_"|"_..SaveSettingsRows(), before_"|"_rows, "nothing was offered and nothing submitted")
+		For field = "address", "incoming", "outgoing", "user" {
+			Set bad = {}.%FromJSON(ok.%ToJSON())
+			Do bad.%Set(field, "x@{y", "string")
+			Set body = ..Call("SaveChannels", bad.%ToJSON(), session, .response)
+			Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""" _field_ """]}", "a "_field_" with @{: 400 naming it")
+			Do $$$AssertEquals(..Handoffs(), before, field_": the offered password was withdrawn")
+			Do $$$AssertEquals(body [ secret, 0, field_": the answer does not hold the password")
+		}
+		Set ^OcuTalonTest("ApiProbe", "submit") = "fail"
+		Set body = ..Call("SaveChannels", ok.%ToJSON(), session, .response)
+		Kill ^OcuTalonTest("ApiProbe", "submit")
+		Do $$$AssertEquals(response.Status, "500 Internal Server Error", "a command that the production does not take: 500 server_error")
+		Do $$$AssertEquals(..Handoffs(), before, "the offered password was withdrawn, though nothing took it")
+		Do $$$AssertEquals(body [ secret, 0, "and the answer does not hold the password")
+		Set bad = {}.%FromJSON(ok.%ToJSON())
+		Do bad.%Set("extra", 1, "number")
+		Set body = ..Call("SaveChannels", bad.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status, "400 Bad Request", "an unknown field: 400")
+		Do $$$AssertEquals(..Handoffs(), before, "the offered password was withdrawn")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", secret), 0, "no log row holds the password")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(secret), "", "no ^OcuTalon* global holds it")
+		Do $$$AssertEquals(..SaveSettingsHold(secret), 0, "and no SaveSettings message holds it")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", was)
+}
+
+/// The number of hand-off resources that exist.
+ClassMethod Handoffs() As %Integer [ Private ]
+{
+	Set count = 0
+	Set list = $SYSTEM.Event.List()
+	Set position = 0
+	While $ListNext(list, position, name) {
+		If name [ ##class(OcuTalon.Core.SecretHandoff).#RESOURCE Set count = count + 1
+	}
+	Quit count
+}
+
+/// The number of SaveSettings messages that the production has stored.
+ClassMethod SaveSettingsRows() As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Msg_Command.SaveSettings")
+	If result.%SQLCODE < 0 Quit -1
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// 1 when a stored SaveSettings message holds the text in its Changes.
+ClassMethod SaveSettingsHold(text As %String) As %Boolean [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Msg_Command.SaveSettings WHERE Changes [ ?", text)
+	If result.%SQLCODE < 0 Quit 1
+	Do result.%Next()
+	Quit (+result.%GetData(1) > 0)
+}
+
 /// Every outcome of a save has its status, code and text.
 Method TestAnswerMapping()
 {
-	Set cases = $ListBuild($ListBuild(1, "done", "", "", "200 OK", "done"), $ListBuild(1, "on", "", "on", "200 OK", "done"), $ListBuild(1, "off_kept", "", "off", "200 OK", "done"), $ListBuild(0, "refused", "{""fields"":[""a"",""b""]}", "", "400 Bad Request", "bad_settings"), $ListBuild(0, "refused", "", "", "400 Bad Request", "bad_settings"), $ListBuild(0, "not_built", "", "", "501 Not Implemented", "not_built"), $ListBuild(0, "step_failed", "", "on", "409 Conflict", "demo_step_failed"), $ListBuild(0, "step_failed", "", "", "500 Internal Server Error", "server_error"), $ListBuild(0, "not_audited", "", "on", "500 Internal Server Error", "server_error"), $ListBuild(0, "failed", "", "", "500 Internal Server Error", "server_error"), $ListBuild(0, "unknown_command", "", "", "500 Internal Server Error", "server_error"), $ListBuild(0, "zz_other", "", "", "500 Internal Server Error", "server_error"))
+	Set cases = $ListBuild($ListBuild(1, "done", "", "", "200 OK", "done"), $ListBuild(1, "on", "", "on", "200 OK", "done"), $ListBuild(1, "off_kept", "", "off", "200 OK", "done"), $ListBuild(0, "refused", "{""fields"":[""a"",""b""]}", "", "400 Bad Request", "bad_settings"), $ListBuild(0, "refused", "", "", "400 Bad Request", "bad_settings"), $ListBuild(0, "not_built", "", "", "501 Not Implemented", "not_built"), $ListBuild(0, "not_available", "", "", "409 Conflict", "not_available"), $ListBuild(0, "step_failed", "", "on", "409 Conflict", "demo_step_failed"), $ListBuild(0, "step_failed", "", "", "500 Internal Server Error", "server_error"), $ListBuild(0, "not_audited", "", "on", "500 Internal Server Error", "server_error"), $ListBuild(0, "failed", "", "", "500 Internal Server Error", "server_error"), $ListBuild(0, "unknown_command", "", "", "500 Internal Server Error", "server_error"), $ListBuild(0, "zz_other", "", "", "500 Internal Server Error", "server_error"))
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Set result = ##class(OcuTalon.Msg.CommandResult).%New()
