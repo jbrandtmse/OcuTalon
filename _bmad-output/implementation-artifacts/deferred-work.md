@@ -7217,3 +7217,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic0 2a6cfc67, ci run 43202138313 job 131127976389 iris (browser) on ocutalon-ci-14 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: rows 7-12 online-demo specs: 1 failed (R2, 2.3 s) at resume.spec.ts:143 page.goto ERR_ABORTED; spec unchanged since 83a6f3c1 (Nov 4); the head changes README.md and test-readme.sh over feature eb289caf; 18 runners busy
 - 2026-11-12T11:14:12Z status=routed owner=burndown by=runner note=flake class (first occurrence): one rerun of failed jobs; a second red on the same head is real; likely fix: gotoSettled at L143 as DW-690 did
+- 2026-11-12T12:22:47Z status=routed owner=burndown by=runner note=rerun_attempt_2_of_run_43202138313_green_on_2a6cfc67(flake_confirmed)
