@@ -173,7 +173,12 @@ deferred: []
 - Given the mock's risky `zz_delete_ticket` with no platform policy covering it, when the automated test asks for it in a user's turn (scenario `mcp-held-replay`), then it doesn't run before approval, runs once after it, and the IRIS audit log (read back with polling) holds the request's `Approval` entries (raised, approved), the `MCP` `called` entry and the replay's `Action` entry.
 - Given an online-demo install, when the suite runs, then `Test.Mcp.Ops` `TestOnlineDemo` and the built-in approval tests are green, and no MCP row can be raised, because no server can be registered.
 
+- [ ] **DW-1220** (ledger; routed by Story 22.3's harvest 2026-11-12): an approved native MCP call is replayed through `call_mcp_tool` on this story's replay path, never through AI Hub's client. A test shows the replayed call reaches the mock as `client` `iris` `tools/call` (no `tools/call` from AI Hub's client), with the call-time fingerprint check, the result cut and one `MCP` audit entry.
+- [ ] **Online-demo safety** (Contest Planner standing rule for every Epic 22 gate, 2026-11-12: MCP is fully off in demo mode, pinned by a test): with the online-demo flag on (set and restored through `OcuTalon.Data.Public.Settings`, as `Test.Mcp.Attach` `TestDemoOffersNoProxy` does) and a seeded MCP approval row, an approval does not run the call: it is refused before any outbound request (22.3's `MCPDEMO` / `Mcp.Attach.Servers()` empty on the demo), the mock gets no request, and the built-in approval path is unchanged.
+
 ## Spec Change Log
+
+- 2026-11-12 (runner, spec gate re-check before implement): added the DW-1220 task (routed by 22.3) and the Planner's online-demo safety task (MCP fully off in demo mode, pinned). 22.3 is committed locally (8352ff2a): `Mcp.Client` has `tools/list`/`tools/call`, `Mcp.Proxy`, `Tools.McpProxy`, and `Mcp.Attach.Servers()` lists no server on the demo. Contended `Mcp/Ops.cls`: the orchestrator ruled the order 22.4 -> 21.4 -> 22.5, so this story's `Unregister`/`OnRemove` edits are allowed; keep them minimal. CI HOLD: local only.
 
 - 2026-11-12 (runner, lane change): Epic 22 moved to lane D (slot `ocutalon-slot-d`, lock folder `lane-d`, port 52804) by the Contest Planner's ruling; the Verification lane variables now name lane D. Nothing else changed.
 
