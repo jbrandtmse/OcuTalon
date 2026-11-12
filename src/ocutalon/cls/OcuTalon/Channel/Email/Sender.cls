@@ -13,8 +13,8 @@ Include Ensemble
 ///   - the credential OcuTalonMail is read again (never kept from an earlier send), so that a changed password applies at the next send; with no
 ///     credential or no user name the send fails (SMTPAUTHFailed) before any connection is made;
 ///   - the message goes to %Net.SMTP once: ContinueAfterBadSend is 0 (a rejected recipient is the whole send's failure, no partial send) and a
-///     failure is never repeated. The commands' timeouts are TIMEOUT seconds (DATATIMEOUT after the message), under the 120 seconds that the command
-///     gate waits.
+///     failure is never repeated. Each command's timeout is TIMEOUT seconds (DATATIMEOUT for the end of the message), each under the 120 seconds that
+///     the command gate waits; a whole send to a server that is slow at every command can still take longer than that.
 /// SendMail answers the status of %Net.SMTP, and Classify says what a status means for the person: unreachable (the server could not be reached or
 /// used: connection, TLS, STARTTLS, a first answer that is not a greeting, a timeout), refused (the user name or password was refused or there was
 /// none), or rejected (the server answered the sender, a recipient or the message with an error).
@@ -60,10 +60,16 @@ ClassMethod Client() As %String
 	Quit ##class(OcuTalon.Install.Step.SSL).#NAME
 }
 
-/// 1 when the CI-only environment variable is 1. A test subclass overrides it to stand in for a job that does not have the variable.
+/// 1 when the CI-only environment variable is 1 (IsOn). A test subclass overrides it to stand in for a job that does not have the variable.
 ClassMethod SwitchOn() As %Boolean
 {
-	Quit ($SYSTEM.Util.GetEnviron(..#PLAINVARIABLE) = 1)
+	Quit ..IsOn($SYSTEM.Util.GetEnviron(..#PLAINVARIABLE))
+}
+
+/// 1 only when the value of the variable is exactly 1.
+ClassMethod IsOn(value As %String) As %Boolean
+{
+	Quit ($Get(value) = "1")
 }
 
 /// 1 when plain SMTP is allowed for the host: the switch is on and the host is exactly the CI stub's.

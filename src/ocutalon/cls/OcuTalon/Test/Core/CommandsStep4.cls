@@ -290,7 +290,7 @@ Method TestSendEmailNotConnected()
 	Do $$$AssertStatusOK(sc, "the real gate is made")
 	Set started = $ZHorolog
 	Set sc = service.OnProcessInput(..NewEmail("system", "zzsessA", "anyone@example.org"), .real)
-	Do $$$AssertEquals(real.Ok_"|"_real.Outcome_"|"_real.Message, "0|not_connected|"_sentence, "with no EmailOut job the real gate answers not_connected")
+	Do $$$AssertEquals($Select($IsObject($Get(real)): real.Ok_"|"_real.Outcome_"|"_real.Message, 1: "no answer"), "0|not_connected|"_sentence, "with no EmailOut job the real gate answers not_connected")
 	Do $$$AssertTrue($ZHorolog - started < 10, "at once, not after the wait of a send to a disabled item")
 	If wasRunning Do $$$AssertStatusOK(##class(Ens.Director).TempStopConfigItem(item, 0), "and EmailOut is started again")
 }

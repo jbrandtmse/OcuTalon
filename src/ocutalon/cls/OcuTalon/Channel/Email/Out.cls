@@ -14,9 +14,11 @@
 ///     of addresses) must equal the command's recipients as a set of lower-cased addresses. Any other origin, a missing row or any mismatch answers
 ///     refused, naming recipients, and sends nothing;
 ///   - a system send is claimed first (Claim): under a lock on its ApprovalRef, a Data.Delivery row of channel email with that ApprovalRef means the
-///     approval was sent already, so the answer is already_sent (Ok 1, MESSAGESENT) and nothing is sent; a row marked failed is the claim of a send that
-///     did not go through, so the answer is failed (Ok 0, MESSAGEFAILED) and nothing is sent; otherwise the claim row is written and the send follows. A
-///     failed send, or an error after the claim, keeps the claim with FallbackReason failed, so no approval is ever sent twice;
+///     approval was sent already, so the answer is already_sent (Ok 1, MESSAGESENT) and nothing is sent; a row marked failed (a send that did not go
+///     through) or still pending (a send that never finished, such as one whose job was stopped during it) answers failed (Ok 0, MESSAGEFAILED) and sends
+///     nothing; otherwise the claim row is written, with FallbackReason pending (CLAIMPENDING), and the send follows. A sent email clears the mark; a
+///     failed send, or an error after the claim, keeps the claim with FallbackReason failed, so no approval is ever sent twice and only an email that
+///     was sent ever answers already_sent;
 ///   - the message is one text/plain part in UTF-8 with no attachment, sent once through Deliver. Success records a Data.Delivery row (owner: the
 ///     command's SessionRef, or instance when it has none; channel email; a new Ref as the message id; the approval's Ref for a system send) and answers sent
 ///     (Ok 1, MESSAGESENT). A failure answers failed (Ok 0) with the message of Sender.Classify's class: MESSAGEUNREACHABLE, MESSAGEREFUSEDLOGIN or
@@ -52,8 +54,11 @@ Parameter SUBJECTMAX = 200;
 
 Parameter TEXTMAX = 100000;
 
-/// What Claimed answers for the claim row of a failed send.
+/// What Claimed answers for the claim row of a send that failed or never finished.
 Parameter CLAIMFAILED = 2;
+
+/// The FallbackReason of a claim row while its send has not finished.
+Parameter CLAIMPENDING = "pending";
 
 /// How long a system send waits for the lock of its approval, in seconds.
 Parameter CLAIMWAIT = 10;
@@ -120,7 +125,7 @@ Method Handle(request As OcuTalon.Msg.Command.SendEmail) As OcuTalon.Msg.Command
 		} ElseIf claimed {
 			Set result = ..Result(1, "already_sent", ..#MESSAGESENT)
 		} Else {
-			Set sc = ##class(OcuTalon.Data.Delivery).Record(owner, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), approval, "", "", "", "", "", .claim)
+			Set sc = ##class(OcuTalon.Data.Delivery).Record(owner, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), approval, "", "", "", "", ..#CLAIMPENDING, .claim)
 			Set result = $Select($$$ISERR(sc): ..Result(0, "failed", ..#MESSAGEFAILED), 1: ..Send(request, from, .recipients, owner, claim))
 		}
 	} Catch exception {
@@ -148,6 +153,9 @@ Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef re
 		If '$IsObject(claim) {
 			Set recorded = ##class(OcuTalon.Data.Delivery).Record(owner, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), "")
 			If $$$ISERR(recorded) $$$LOGERROR("EmailOut sent an email but could not record its delivery")
+		} Else {
+			Set claim.FallbackReason = ""
+			If $$$ISERR(claim.%Save()) $$$LOGERROR("EmailOut sent an email but could not mark its claim sent")
 		}
 		$$$LOGINFO("EmailOut sent one email to "_recipients_" recipient(s)")
 		Quit ..Result(1, "sent", ..#MESSAGESENT)
@@ -248,8 +256,8 @@ Method Authorised(request As OcuTalon.Msg.Command.SendEmail, from As %String, By
 	Quit (key = "")
 }
 
-/// What a Delivery row of channel email says about the approval: 0 when there is none, CLAIMFAILED when the row is the claim of a send that failed,
-/// and 1 for a row of an email that was sent.
+/// What a Delivery row of channel email says about the approval: 0 when there is none, CLAIMFAILED when the row is the claim of a send that failed or
+/// never finished (FallbackReason failed or CLAIMPENDING), and 1 for a row of an email that was sent.
 ClassMethod Claimed(approval As %String) As %Integer [ Private ]
 {
 	Set statement = ##class(%SQL.Statement).%New()
@@ -258,7 +266,7 @@ ClassMethod Claimed(approval As %String) As %Integer [ Private ]
 	Set rows = statement.%Execute(approval, ..#CHANNEL)
 	If rows.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(rows.%SQLCODE, rows.%Message)
 	If 'rows.%Next() Quit 0
-	Quit $Select(rows.%Get("FallbackReason") = "failed": ..#CLAIMFAILED, 1: 1)
+	Quit $Select(rows.%Get("FallbackReason") = "": 1, 1: ..#CLAIMFAILED)
 }
 
 /// A refused answer naming the fields.

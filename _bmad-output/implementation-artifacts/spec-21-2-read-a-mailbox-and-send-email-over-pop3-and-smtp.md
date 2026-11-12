@@ -133,7 +133,7 @@ deferred:
 - Given the finished diff, when its paths are listed, then no Lane A path or Never-list item appears, and each contended-file touch is the one Design Notes names.
 
 
-- [ ] [CI] iris (image) live:storage-roundtrip: `OcuTalon.Test.Channel.EmailInPop3` (extends `%Net.POP3`, which inherits `%Net.FetchMailProtocol`'s serial `Storage Default`) compiles with a storage definition but its file has no Storage block (EMPTY) -- ci run 43114341467 on 8fc11a6e (= 2242c77d code) -- add the Storage block exported from the compiled class to that file only (ruling U-319, fix-forward on top of the 21.6 stack; CI rework 1 of 3)
+- [x] [CI] iris (image) live:storage-roundtrip: `OcuTalon.Test.Channel.EmailInPop3` (extends `%Net.POP3`, which inherits `%Net.FetchMailProtocol`'s serial `Storage Default`) compiles with a storage definition but its file has no Storage block (EMPTY) -- ci run 43114341467 on 8fc11a6e (= 2242c77d code) -- add the Storage block exported from the compiled class to that file only (ruling U-319, fix-forward on top of the 21.6 stack; CI rework 1 of 3)
 
 ### Review Findings
 

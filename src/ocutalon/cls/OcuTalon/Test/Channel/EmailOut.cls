@@ -19,7 +19,10 @@ Include Ensemble
 ///     non-ASCII text; a tool send records one Delivery row of channel email with the owner and a new Ref, and no approval;
 ///   - TestFailureClasses (Q4, P1a, P1b): unreachable, refused and rejected sends answer failed with their sentences, once, with no Delivery row;
 ///   - TestNoDoubleSend (ruling f): a system send is claimed by its approval: the same approval again, after a restart of the operation, answers already_sent and
-///     delivers nothing more; after a failed send, or an error after the claim, it answers failed and delivers nothing; the claim row of a failed send says failed;
+///     delivers nothing more; the claim is written pending before the send and cleared once the email is sent; after a failed send, an error after the claim,
+///     or a claim whose send never finished, it answers failed and delivers nothing; the claim row of a failed send says failed;
+///   - TestClaimIsLocked (ruling f): while another process holds the approval's lock a system send of it answers failed, delivers nothing and writes no claim;
+///     with the lock free the same approval is sent once;
 ///   - TestUnexpectedErrorAnswersFailed: an error thrown inside the send is answered as failed, never as an error status;
 ///   - TestNoPersonalDataInTheLog: after sends and failures whose server words and addresses are known, no Ens.Util.Log row holds an address, a subject, a
 ///     text or the server's words;
@@ -67,7 +70,7 @@ Method OnAfterAllTests() As %Status
 		}
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", $Get(^OcuTalonTest("EmailOut", "online")))
-	Kill ^OcuTalonTest("EmailOut")
+	Kill ^OcuTalonTest("EmailOut"), ^OcuTalonTest("EmailOutLock")
 	Kill ^||OcuTalonEmailOutProbe, ^||OcuTalonEmailOutSender
 	Quit $$$OK
 }
@@ -128,6 +131,12 @@ Method TestBadValues()
 		Set approval = ..Approval("zzemailoutap01"_$Justify(n, 2, 0), injected)
 		Set result = ..Send("system", ..#OWNER, injected, "ok", "ok", approval)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|refused", "the system path, whose approval names the very same recipient, refuses a control character in it (case "_n_")")
+	}
+	For notAddress = "not an address", "a@b@example.com", "zzr@" {
+		Set n = n + 1
+		Set approval = ..Approval("zzemailoutap01"_$Justify(n, 2, 0), notAddress)
+		Set result = ..Send("system", ..#OWNER, notAddress, "ok", "ok", approval)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":[""recipients""]}", "the system path, whose approval names the very same recipient, refuses one that is not an address ('"_notAddress_"')")
 	}
 	Do $$$AssertEquals(..Delivered(), 0, "none of them delivered anything")
 	Set result = ..Send("tool", ..#OWNER, "bad", "", "")
@@ -293,6 +302,8 @@ Method TestNoDoubleSend()
 	Set approval = ..Approval("zzemailoutap0050", ..#ADDRESS)
 	Set first = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", approval)
 	Do $$$AssertEquals(first.Ok_"|"_first.Outcome, "1|sent", "the first send of the approval is sent")
+	Do $$$AssertEquals($Get(^||OcuTalonEmailOutProbe("claim", 1)), "pending", "its claim was written, marked pending, before the send")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(approval)).FallbackReason, "", "and the claim of the sent email is no longer marked")
 	Set again = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", approval)
 	Do $$$AssertEquals(again.Ok_"|"_again.Outcome_"|"_again.Message, "1|already_sent|The email was sent.", "the same approval again is already_sent (Q1)")
 	Do $$$AssertEquals(..Delivered(), 1, "and delivers nothing more")
@@ -322,6 +333,63 @@ Method TestNoDoubleSend()
 	Kill ^||OcuTalonEmailOutProbe("answer")
 	Set four = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", thrown)
 	Do $$$AssertEquals(four.Ok_"|"_four.Outcome, "0|failed", "the same approval again answers failed, never that the email was sent")
+	Set pending = ..Approval("zzemailoutap0053", ..#ADDRESS)
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..#OWNER, "email", "zzemailoutpending", pending, "", "", "", "", "pending"), "the claim of a send that never finished (its job stopped during the send) is made")
+	Set calls = ..Delivered()
+	Set five = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", pending)
+	Do $$$AssertEquals(five.Ok_"|"_five.Outcome_"|"_five.Message, "0|failed|"_$Parameter("OcuTalon.Core.CommandsIn", "MESSAGEFAILED"), "a claim whose send never finished answers failed, never that the email was sent")
+	Do $$$AssertEquals(..Delivered(), calls, "and nothing is delivered")
+}
+
+/// Ruling f, the lock: while another process holds the approval's lock, a system send of that approval sends nothing and claims nothing; once the lock is free
+/// the same approval is sent. The other process signals when it holds the lock, and again when it has released it.
+Method TestClaimIsLocked()
+{
+	Do ..Mailbox()
+	Set approval = ..Approval("zzemailoutlock001", ..#ADDRESS)
+	Kill ^OcuTalonTest("EmailOutLock")
+	Job ##class(OcuTalon.Test.Channel.EmailOut).HoldLock(approval)
+	Set held = ..WaitFlag("held")
+	Try {
+		Do $$$AssertTrue(held, "the other process holds the approval's lock")
+		If held {
+			Set locked = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", approval)
+			Do $$$AssertEquals(locked.Ok_"|"_locked.Outcome_"|"_locked.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEFAILED"), "a send of the approval while the lock is held answers failed")
+			Do $$$AssertEquals(..Delivered()_"|"_..Claims(approval), "0|0", "and delivers nothing and writes no claim")
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Set ^OcuTalonTest("EmailOutLock", "release") = 1
+	Do $$$AssertTrue(..WaitFlag("done"), "the other process released the lock")
+	Set sent = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", approval)
+	Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome, "1|sent", "with the lock free the same approval is sent")
+	Do $$$AssertEquals(..Delivered()_"|"_..Claims(approval), "1|1", "once, with one claim")
+	Kill ^OcuTalonTest("EmailOutLock")
+}
+
+/// The other process of TestClaimIsLocked: holds the lock of the approval until the test releases it (or 60 seconds pass).
+ClassMethod HoldLock(approval As %String)
+{
+	Lock +^OcuTalon.EmailOut.Approval(approval):5
+	If '$Test Quit
+	Set ^OcuTalonTest("EmailOutLock", "held") = 1
+	Set deadline = $ZHorolog + 60
+	While ('$Data(^OcuTalonTest("EmailOutLock", "release"))) && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Lock -^OcuTalon.EmailOut.Approval(approval)
+	Set ^OcuTalonTest("EmailOutLock", "done") = 1
+}
+
+/// 1 when the other process of TestClaimIsLocked has set the flag within 10 seconds.
+Method WaitFlag(name As %String) As %Boolean [ Private ]
+{
+	Set deadline = $ZHorolog + 10
+	While ('$Data(^OcuTalonTest("EmailOutLock", name))) && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Quit ''$Data(^OcuTalonTest("EmailOutLock", name))
 }
 
 /// An error thrown inside the send is answered as failed.
@@ -339,6 +407,9 @@ Method TestUnexpectedErrorAnswersFailed()
 Method TestNoPersonalDataInTheLog()
 {
 	Do ..Mailbox()
+	Set last = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
+	Do last.%Next()
+	Set start = +last.%GetData(1)
 	Set tag = $Translate($ZHorolog, ".", "")_$Job
 	Set address = "zzlogaddr"_tag_"@example.com"
 	Do ##class(OcuTalon.Data.Setting).Set("email.address", address)
@@ -355,7 +426,9 @@ Method TestNoPersonalDataInTheLog()
 	For word = address, subject, text, "SERVER-WORDS", "zzrejected@example.com", "zzthrown@example.com", $Piece(address, "@", 1) {
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", word), 0, "no Ens.Util.Log row holds '"_word_"'")
 	}
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", "EmailOut sent one email"), 1, "the operation does log its outcomes (so the check above can fail)")
+	Set own = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Text [ ?", start, "EmailOut sent one email")
+	Do own.%Next()
+	Do $$$AssertTrue(+own.%GetData(1) > 0, "the operation does log its outcomes in this test's own rows (so the check above can fail)")
 }
 
 /// OnInit forces the identity check on and ContinueAfterBadSend off, whatever the settings say.
@@ -402,7 +475,12 @@ Method TestSenderTransport()
 		Do $$$AssertEquals(adapter.Transport(), $List(case, 4), "switch "_$List(case, 1)_", host '"_$List(case, 2)_"', SSLConfig '"_$List(case, 3)_"': transport '"_$List(case, 4)_"'")
 	}
 	Kill ^||OcuTalonEmailOutSender
-	Do $$$AssertEquals(##class(OcuTalon.Channel.Email.Sender).SwitchOn(), +$SYSTEM.Util.GetEnviron("OCUTALON_TEST_PLAIN_SMTP") = 1, "the real switch is the environment variable OCUTALON_TEST_PLAIN_SMTP being 1")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.Email.Sender).#PLAINVARIABLE, "OCUTALON_TEST_PLAIN_SMTP", "the real switch reads the CI-only variable")
+	Set values = $ListBuild($ListBuild("", 0), $ListBuild("0", 0), $ListBuild("true", 0), $ListBuild("yes", 0), $ListBuild("10", 0), $ListBuild(" 1", 0), $ListBuild("1", 1))
+	Set position = 0
+	While $ListNext(values, position, value) {
+		Do $$$AssertEquals(##class(OcuTalon.Channel.Email.Sender).IsOn($List(value, 1)), $List(value, 2), "the variable '"_$List(value, 1)_"' turns the switch "_$Select($List(value, 2): "on", 1: "off"))
+	}
 }
 
 /// Ruling c, what reaches %Net.SMTP: for OcuTalonClient the implicit TLS configuration and no STARTTLS, for OcuTalonClient* the same configuration with

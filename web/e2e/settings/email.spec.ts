@@ -47,8 +47,8 @@ async function openChannels(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { level: 2, name: 'Channels' })).toBeVisible();
 }
 
-/** The counts that a refused call must not change: hand-off resources, stored SaveSettings messages, and whether email.address has a row. */
-async function counts(): Promise<{ handoffs: string; saves: string; keys: string }> {
+/** The counts that a refused call must not change: hand-off resources, stored SaveSettings messages, whether email.address has a row, and the settings rows of EmailOut. */
+async function counts(): Promise<{ handoffs: string; saves: string; keys: string; out: string }> {
   const lines = await irisScript(
     [
       'Set l=$SYSTEM.Event.List(),n=0,p=0 While $ListNext(l,p,x) { If x["OcuTalonHandoff" Set n=n+1 }',
@@ -56,9 +56,11 @@ async function counts(): Promise<{ handoffs: string; saves: string; keys: string
       'Write !,"CHK|handoffs|",n',
       'Write !,"CHK|saves|",r.%GetData(1)',
       'Write !,"CHK|keys|",##class(OcuTalon.Data.Setting).KeyIndexExists("email.address")',
+      'Set d=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND ItemName = ?","OcuTalon.Production","EmailOut") Do d.%Next()',
+      'Write !,"CHK|out|",d.%GetData(1)',
     ].join('\n'),
   );
-  return { handoffs: chk(lines, 'handoffs') ?? '?', saves: chk(lines, 'saves') ?? '?', keys: chk(lines, 'keys') ?? '?' };
+  return { handoffs: chk(lines, 'handoffs') ?? '?', saves: chk(lines, 'saves') ?? '?', keys: chk(lines, 'keys') ?? '?', out: chk(lines, 'out') ?? '?' };
 }
 
 /** Removes the mailbox the test connected, and what it made: the settings rows of EmailIn, the credential, the keys, the seen rows, the mark, the decisions. */
@@ -221,6 +223,37 @@ test('E4: a value holding @{ is refused with the setting-reference text, and not
     expect(channels.passwordSet, 'no password was stored').toBe(false);
     expect(channels.address, 'and no address').toBe('');
     expect(await counts(), 'nothing was left offered to the hand-off, and no key was written').toMatchObject({ handoffs: before.handoffs, keys: before.keys });
+  } finally {
+    await removeMailbox();
+  }
+});
+
+/** E5 (QA, 21.6): a refused outgoing server is named on its own field, and nothing is saved: no EmailOut row, no mailbox, nothing offered to the hand-off. */
+test('E5: a refused outgoing server shows the error on its own field, and nothing changes', async ({ page }) => {
+  const FAILED = "Couldn't save. Nothing was changed.";
+  await removeMailbox();
+  await openChannels(page);
+  try {
+    const before = await counts();
+    const group = page.locator('section[data-section="email"]');
+    await expect(group.getByRole('heading', { level: 3, name: 'Email', exact: true }), 'the Email group heading').toBeVisible();
+    const outgoing = group.getByLabel('Outgoing mail server (SMTP)', { exact: true });
+    await group.getByLabel('Your email address', { exact: true }).fill('e2e@example.com');
+    await group.getByLabel('Incoming mail server (POP3)', { exact: true }).fill('mock:1110');
+    await outgoing.fill('mock:1025:7');
+    await group.getByLabel('User name', { exact: true }).fill('e2e');
+    await group.getByLabel('Password', { exact: true }).fill(`Zz-e2e-${randomBytes(9).toString('hex')}`);
+    await group.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await expect(group.locator('#email-outgoing-error'), 'the outgoing field shows the failed-save text').toHaveText(FAILED);
+    await expect(outgoing, 'the field is marked invalid').toHaveAttribute('aria-invalid', 'true');
+    await expect(outgoing, 'and described by its error').toHaveAttribute('aria-describedby', 'email-outgoing-error');
+    await expect(group.locator('#email-address-error, #email-incoming-error, #email-user-error, #email-password-error'), 'no other field is named').toHaveCount(0);
+    await expect(group.locator('p.saved'), 'no saved text shows').toHaveCount(0);
+    const response = await page.request.get(SETTINGS);
+    const channels = (JSON.parse(await response.text()) as { sections: { channels: Channels } }).sections.channels;
+    expect(channels, 'the channels hold no mailbox, no outgoing server and no password').toEqual({ address: '', incoming: '', outgoing: '', user: '', passwordSet: false });
+    expect(await counts(), 'nothing was offered to the hand-off, no key and no EmailOut row was written').toMatchObject({ handoffs: before.handoffs, keys: before.keys, out: before.out });
+    expect(await emailOutRuns(), 'and EmailOut does not run').toBe('0');
   } finally {
     await removeMailbox();
   }

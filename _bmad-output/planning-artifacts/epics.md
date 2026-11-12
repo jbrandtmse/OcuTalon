@@ -7427,6 +7427,8 @@ Tools from an added MCP server become OcuTalon's tools under the same gate, clas
 
 **Story 22.1 moved to Story 35.1** (step 4 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 35, so that neither of step 4's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
+- DW-1167: EmailIn takes in the mail OcuTalon itself sent to its own address (a tool email, and with this story every digest) as a new untrusted item; mark EmailOut's mail and have EmailIn skip it, or rule it harmless (ledger; routed by cr 2026-11-12)
+
 ### Story 22.2: Classify MCP tools by server and name
 
 > [AMENDED 2026-11-11, Story 22.2 spec gate, runner ruling (split, unattended decide U5; product default 6): Story 22.2 is split in two. This story keeps the add, remove and classify commands, `Tools(server)`, the per-server resource, the classification rows and their fingerprints from the attach report, the changed-tool clear found at an attach, and the admin notices. Story 22.8, planned next, takes the gate half: the turn's fingerprint map and the gate's classification (the criterion "Given a turn starting"), the clause "the gate denies any call to them" of the remove criterion, the changed-tool clear for a change found during a turn, the DW-1013 attach timeout (the amendment that stood here, moved whole to Story 22.8) and DW-174. No criterion is dropped.]

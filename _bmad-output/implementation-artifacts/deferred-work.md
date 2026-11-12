@@ -6905,6 +6905,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: SaveEmail calls StartItem only when a settings row was written; UpdateIn logs one error after its last try (unverified)
 - 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=settle by a measured failed update then identical re-save
 - 2026-11-11T20:07:39Z status=routed owner=21-6-send-email-over-smtp by=adjudication note=residual: SettingsOps.SaveEmail starts the production update (StartItem) only when a settings row changed, so an identical re-save after UpdateIn failed all its tries leaves the item unapplied; Story 21.6 reuses this apply path for EmailOut's host settings ('applies them within a minute') and settles it there (start the update when the item is not running as saved, or measure the failed-update case)
+- 2026-11-12T00:32:59Z status=resolved-by:21-6-send-email-over-smtp by=adjudication note=SettingsOps runs the detached production update after every successful email save (StartItem), so an identical re-save starts an item whose earlier update never ran; pinned by Test.Core.SettingsEmail TestNothingChanged and Test.Channel.EmailLive TestResaveStartsStoppedItems (build 8567120c)
 
 ### DW-1140: EmailLive TestSpentBudgetStillDecides cannot show daily_cap on the keyless CI stack (no_key is checked first), so a Decide ignoring the cap for email Items stays green
 - source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: low | footprint: in-story
@@ -6972,3 +6973,24 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Channel/Email/Out.cls system path reads Bridge.Data.ApprovalRequest; tests seed the row; S1 spine sub-bullet records the contract
 - 2026-11-11T23:31:06Z status=routed owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=harvest note=22.7 confirms both contracts with a test through the real FixExecutor and Replay.Run
+- 2026-11-12T00:31:01Z occurrence=21-6-send-email-over-smtp by=cr note=also: Gate taints a context before a non-trustedOutput call runs, so CleanTurn refuses 22.7's safe own-address send unless TRUSTEDOUTPUT 1
+
+### DW-1167: EmailIn takes in the mail OcuTalon itself sent to the own address (a tool email, and with 21.7 every digest) as a new untrusted item: EmailOut marks nothing and EmailIn filters nothing
+- source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Out.cls Send sets no header OcuTalon could recognise; Channel/Email/In.cls has no sender or header filter; the To of a tool send is the polled mailbox
+- 2026-11-12T00:31:01Z status=routed owner=21-7-send-the-daily-digest-by-email by=cr note=21.7 sends the daily digest to that mailbox; mark EmailOut's mail and have EmailIn skip it, or rule it harmless
+
+### DW-1168: A send to a server slow at every command can outlast CommandsIn's 120 s wait: the caller gets failed while EmailOut still finishes the send
+- source: spec-21-6-send-email-over-smtp.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Sender: 20 s per command, 40 s for the end of the message, no cap on the whole send; CommandsIn TIMEOUT 120 s
+- 2026-11-12T00:31:01Z status=wontfix-accepted owner=21-6-send-email-over-smtp by=cr note=reopen_if=a trace shows an EmailOut send finishing after its CommandsIn call answered failed; doc corrected in review
+
+### DW-1169: A SendEmail queued for an EmailOut that stops before taking it (cleared server, production stopping) waits in the queue and is sent when the item next starts, after the caller was told failed
+- source: spec-21-6-send-email-over-smtp.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: CommandsIn.Send checks ItemRunning, then SendRequestSync; a disabled item keeps its queue; EmailOut does not look at a request's age
+- 2026-11-12T00:31:01Z status=wontfix-accepted owner=21-6-send-email-over-smtp by=cr note=reopen_if=an EmailOut trace shows a SendEmail handled more than 120 s after its header was created
+
+### DW-1170: A second execution of an email-fix approval after FixExecutor finished it (row done or failed) answers refused (Q2, 'a recipient, the subject or the text wasn't allowed') rather than already_sent or failed
+- source: spec-21-6-send-email-over-smtp.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Out.Handle runs Authorised (State executing) before Claimed; nothing is sent either way, as ruling f requires
+- 2026-11-12T00:31:01Z status=wontfix-accepted owner=21-6-send-email-over-smtp by=cr note=reopen_if=22.7 or a user-facing surface shows Q2 for an approval whose email was sent
