@@ -1,86 +1,102 @@
-/// The one way a secret that the REST process received reaches SettingsOps (AD-1, AD-19; the shared handoff of Stories 35.3 and 21.2). The secret travels in
-/// an IRIS event resource, which lives in shared memory only: no global, command, production message, log line, trace or audit entry holds it. Put creates a
-/// uniquely named resource and signals the secret into it; the caller puts only the returned uri in its command. Take, in the production job, reads the one
-/// message, deletes the resource and returns the secret. A second Take of the same uri, an unknown uri, a malformed uri and an expired wait all fail with the
-/// same status and no detail. Discard deletes a resource that nobody took, so the REST process calls it on every path after Put (an error included);
-/// nothing persists. No method logs or returns the secret except Take's output.
+/// SecretHandoff, the in-memory hand-off of one secret from the REST process to the operation that stores it (AD-1, AD-19): a secret the page
+/// sent (a mail password, a hook secret) never enters a command, a message, a log, a trace or a global; the command carries only a
+/// reference, secret://handoff/<name>, and the operation that carries the command out takes the secret by that reference.
+///   - Put creates a uniquely named $SYSTEM.Event resource, signals the secret into it as the one queued message, and answers the
+///     reference. The resource lives in memory only and is deleted by the Take that ends it.
+///   - Take waits at most timeoutSec seconds for the queued message, answers it in secret and always deletes the resource: a second Take
+///     of the same reference, a reference that names no resource, one that was never offered and one of any other form all fail with
+///     the same plain status, which names neither the reference nor the secret. A Take with timeoutSec 0 is the discard of the caller
+///     that offered the secret: it takes what is queued (nothing, when the operation took it) and deletes the resource.
+/// Nothing here logs, stores or echoes a secret. The class has no other public method.
 Class OcuTalon.Core.SecretHandoff
 {
 
-/// What every uri starts with, followed by the 22-character Ref that names the resource.
-Parameter SCHEME = "secret://handoff/";
+/// The start of every reference.
+Parameter PREFIX = "secret://handoff/";
 
-/// The seconds that Take waits for the message by default.
-Parameter WAITSECONDS = 5;
+/// The start of every event resource name; the reference's name follows it.
+Parameter RESOURCE = "OcuTalonHandoff";
 
-/// The status of every failure: it never says why.
-Parameter MESSAGEFAILED = "The secret could not be handed over.";
+/// The plain text of every failure: it says nothing about why.
+Parameter MESSAGEFAILED = "The secret hand-off failed.";
 
-/// Creates the resource, signals the secret into it and returns its uri (secret://handoff/<Ref>) in uri. On an error uri is "" and no resource is left.
+/// Offers the secret (a non-empty string): uri is the reference that Take needs. A secret that is empty or not a string is an error and
+/// nothing is created. The secret is not logged.
 ClassMethod Put(secret As %String, Output uri As %String) As %Status
 {
 	Set uri = ""
-	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set name = ..ResourceName(ref)
-	Set created = 0, signaled = 0
+	If ($Get(secret) = "") Quit ..Failed()
+	Set name = "", resource = ""
 	Try {
-		Set created = ''$SYSTEM.Event.Create(name)
-		If created Set signaled = ''$SYSTEM.Event.Signal(name, $Get(secret))
+		Set random = $SYSTEM.Encryption.GenCryptRand(16)
+		For i = 1:1:16 {
+			Set name = name_$Extract("0"_$ZHex($Ascii(random, i)), *-1, *)
+		}
+		Set resource = ..#RESOURCE_name
+		If '$SYSTEM.Event.Create(resource) Quit
+		If '$SYSTEM.Event.Signal(resource, secret) {
+			Do $SYSTEM.Event.Delete(resource)
+			Quit
+		}
+		Set uri = ..#PREFIX_name
 	} Catch {
-		Set signaled = 0
+		If resource '= "" Do $SYSTEM.Event.Delete(resource)
+		Set uri = ""
 	}
-	If 'signaled {
-		If created Do $SYSTEM.Event.Delete(name)
-		Quit $SYSTEM.Status.Error(5001, ..#MESSAGEFAILED)
-	}
-	Set uri = ..#SCHEME_ref
-	Quit $SYSTEM.Status.OK()
+	Quit $Select(uri = "": ..Failed(), 1: $$$OK)
 }
 
-/// Reads the one message of the uri's resource, waiting at most timeoutSec seconds, and deletes the resource whatever came back. The secret is in secret
-/// on success. Any failure leaves secret empty and gives the same error status.
-ClassMethod Take(uri As %String, Output secret As %String, timeoutSec As %Integer = {..#WAITSECONDS}) As %Status
+/// Takes the secret that uri names, waiting at most timeoutSec seconds for it, and deletes the resource whatever the outcome: a second
+/// Take of the same uri fails. A uri that is not a reference of Put, names no resource or holds no secret is an error and secret is empty.
+ClassMethod Take(uri As %String, Output secret As %String, timeoutSec As %Integer = 5) As %Status
 {
 	Set secret = ""
-	Set name = ..NameOf($Get(uri))
-	If name = "" Quit $SYSTEM.Status.Error(5001, ..#MESSAGEFAILED)
-	Set got = 0
+	Set resource = ..Resource($Get(uri))
+	If resource = "" Quit ..Failed()
+	Set found = 0
 	Try {
-		Set result = $SYSTEM.Event.WaitMsg(name, timeoutSec)
-		If $ListGet(result, 1) = 1 {
-			Set secret = $ListGet(result, 2)
-			Set got = 1
+		If $SYSTEM.Event.Defined(resource) {
+			Set message = $SYSTEM.Event.WaitMsg(resource, +$Get(timeoutSec))
+			Do $SYSTEM.Event.Delete(resource)
+			If $ListGet(message, 1) = 1 {
+				Set secret = $List(message, 2)
+				Set found = 1
+			}
 		}
 	} Catch {
-		Set got = 0
 		Set secret = ""
+		Set found = 0
 	}
-	Do $SYSTEM.Event.Delete(name)
-	If 'got Quit $SYSTEM.Status.Error(5001, ..#MESSAGEFAILED)
-	Quit $SYSTEM.Status.OK()
+	If 'found Set secret = ""
+	Quit $Select(found: $$$OK, 1: ..Failed())
 }
 
-/// Deletes the uri's resource and the message in it, if any. A malformed or unknown uri is not an error.
+/// Deletes the reference's resource and the secret queued in it, if any, without reading it: for a caller whose submit failed
+/// or threw. A reference that is malformed, unknown or already taken is not an error. It writes nothing.
 ClassMethod Discard(uri As %String) As %Status
 {
-	Set name = ..NameOf($Get(uri))
-	If name '= "" Do $SYSTEM.Event.Delete(name)
-	Quit $SYSTEM.Status.OK()
+	Set resource = ..Resource($Get(uri))
+	If resource = "" Quit $$$OK
+	Try {
+		If $SYSTEM.Event.Defined(resource) Do $SYSTEM.Event.Delete(resource)
+	} Catch {
+	}
+	Quit $$$OK
 }
 
-/// The resource name of a uri, or "" when the uri is not SCHEME followed by a 22-character Ref.
-ClassMethod NameOf(uri As %String) As %String [ Private ]
+/// The event resource of a reference, or "" when the text is not a reference of Put: the prefix and 32 upper-case hexadecimal digits.
+ClassMethod Resource(uri As %String) As %String [ Private ]
 {
-	If $Extract(uri, 1, $Length(..#SCHEME)) '= ..#SCHEME Quit ""
-	Set ref = $Extract(uri, $Length(..#SCHEME) + 1, *)
-	If ref '?22(1AN,1"-",1"_") Quit ""
-	Quit ..ResourceName(ref)
+	If $Extract(uri, 1, $Length(..#PREFIX)) '= ..#PREFIX Quit ""
+	Set name = $Extract(uri, $Length(..#PREFIX) + 1, *)
+	If '$Match(name, "^[0-9A-F]{32}$") Quit ""
+	Quit ..#RESOURCE_name
 }
 
-/// The name of the event resource for a Ref. It is a name only: no node of the global exists.
-ClassMethod ResourceName(ref As %String) As %String [ Private ]
+/// The failure status of every method.
+ClassMethod Failed() As %Status [ Private ]
 {
-	Quit $Name(^OcuTalonP.SecretHandoff(ref))
+	Quit $SYSTEM.Status.Error(5001, ..#MESSAGEFAILED)
 }
 
 }

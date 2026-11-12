@@ -1,0 +1,12 @@
+{
+  "name": "partner-notice-partial",
+  "match": {
+    "marker": "partner-notice-partial"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Orders sent from your feed failed because the date format of the orders changed. After the fix, some of the affected orders were processed and the rest were not."
+    }
+  ]
+}

@@ -7,6 +7,7 @@
 ///   - ok: a CommandResult with Ok 1, Outcome "test" and Message the target;
 ///   - stub-op: the error status of an Epic 0 operation stub (code 5003);
 ///   - stub-bp: the status of an Epic 0 process stub, <Ens>ErrBPTerminated carrying 5003;
+///   - unregistered: the dispatch error of an item that the production does not register (<Ens>ErrBusinessDispatchNameNotRegistered);
 ///   - error: another error status;
 ///   - none: OK with no response;
 ///   - wrong: OK with an Ens.StringResponse, which is not a CommandResult;
@@ -42,6 +43,7 @@ Method OnMessage(request As %Library.Persistent, Output response As %Library.Per
 	}
 	If ..AnswerMode = "stub-op" Quit $$$ERROR($$$NotImplemented)
 	If ..AnswerMode = "stub-bp" Quit $$$ERROR($$$EnsErrBPTerminated, ..SentTo, 1, $SYSTEM.Status.GetErrorText($$$ERROR($$$NotImplemented)))
+	If ..AnswerMode = "unregistered" Quit $$$ERROR($$$EnsErrBusinessDispatchNameNotRegistered, ..SentTo)
 	If ..AnswerMode = "error" Quit $SYSTEM.Status.Error(5001, "zz owner failed")
 	If ..AnswerMode = "wrong" {
 		Set response = ##class(Ens.StringResponse).%New("zz")
