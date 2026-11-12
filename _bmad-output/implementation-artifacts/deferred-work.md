@@ -7349,3 +7349,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 0.30 DW-1199 sweep, 2026-11-12 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Planner swept 05e29461: no live link to a moved README anchor; test-readme product-links covers page links; docs/*.md has no generic dead-anchor check
 - 2026-11-12T16:44:12Z status=routed owner=burndown by=orchestrator note=1.0.9; does not hold 1.0.8
+
+### DW-1224: U-320's install-path OAuth2 scan pins only Dockerfile and docker/* and the regex's csp/sys/oauth2 alternative; dropping another pathspec entry (e.g. ci/*.sh, .github/*) or the OAuth2.(Client|ServerDefinition|AccessToken) alternative passes every row
+- source: spec-0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: docker/tests/test-compose-file.sh oauth_install_paths_clean: 58 files scanned, floor 40 catches only release/* (25); fixtures plant only /csp/sys/oauth2/OAuth2.Response.cls; gap predates 0.34 (Story 21.3)
+- 2026-11-12T20:19:09Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=pins beyond the ruled (a),(b1),(b2) exceed the 1.0.8 ruling; reopen_if=a diff edits the pathspec or regex line of oauth_install_paths_clean
+- 2026-11-12T20:19:32Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=reopen_if=a diff edits oauth_install_paths_clean's pathspec or regex line; more pins exceed the 1.0.8 ruling

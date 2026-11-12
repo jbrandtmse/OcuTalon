@@ -50,6 +50,23 @@ deferred: []
 - [x] Demonstrate the mutations (Rule 19) and record them under `## Verification`.
 - [x] Simulate the RC: run the patched test file on a scratch clone at e7b1ccf4 (the rc1 head, bundle committed); the row passes there.
 
+### Review Findings
+
+Code review 2026-11-12 (first review; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full mode). 0 `decision-needed`, 4 `patch` (all applied), 1 `defer` (closed `wontfix-accepted`), 5 rejected. No HIGH; AD-19 holds (the change narrows only the test's view; the spine's Story 21.3 bullets are untouched).
+
+- [x] [Review][Patch] MED (Rule 19 hermeticity), fix-risk low (test-only, one function): the fixture's git inherited the caller's global, system and XDG settings and any exported GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE, so with an ambient ignore rule for `*.js` pin (a) stayed green with the exclusion undone (demonstrated on the pre-review file: `all checks passed`), and an exported GIT_DIR would stage the fixture into the caller's index. `oauth_scan_fixture` now runs in a subshell without those variables, with `GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 XDG_CONFIG_HOME=<inside the fixture's .git>` (the convention of test-boundaries.sh, test-release-checklist.sh), `git add -A -f`, and returns 2 unless git tracks `<file>` [docker/tests/test-compose-file.sh:651-669]
+- [x] [Review][Patch] MED (Rule 19, AC with no pin), fix-risk low: the matrix row "Fixture setup error → the pin fails (never a false pass)" had no pinning row. Added `oauth_scan_fixture_cannot_build` (no temporary folder; no file to plant the path in; each must return 2) and its check row [docker/tests/test-compose-file.sh:670-678, 700]
+- [x] [Review][Patch] LOW, fix-risk low (comment only): the header said "a browser bundle cannot act on" the redirect path and "a file added later is covered" without the bundle exception; it now says a file added later under these paths is covered and a browser bundle cannot enable that web application or create OAuth2 objects [docker/tests/test-compose-file.sh:633-635]
+- [x] [Review][Patch] LOW (Rule 19, pin with no `mutation:` line), fix-risk low (tracking only): the hit-message equality of pins (b1)/(b2) and the `docker/tests/` exclusion had no mutation line; both demonstrated and recorded under `## Verification`
+- [x] [Review][Defer] LOW, fix-risk low: the scan pins only `Dockerfile`, `docker/*` and the regex's `csp/sys/oauth2` alternative; dropping another pathspec entry or the `OAuth2.(Client|ServerDefinition|AccessToken)` alternative passes every row [docker/tests/test-compose-file.sh:646] — deferred: pre-existing since Story 21.3; more pins than the ruled (a), (b1), (b2) exceed the 1.0.8 ruling; DW-1224 `wontfix-accepted`, reopen_if a diff edits the pathspec or regex line
+
+Rejected:
+- `false`: make the bundle exclusion explicit (`':!src/ocutalon/csp/*'`) — pin (a) turns red on any pathspec that re-includes the bundle (mutation 1), and the header names the exclusion.
+- `low`: an interrupted run leaves `ocutalon-oauth-scan.*` in `$TMPDIR` — needs a trap; the file's sibling fixtures have none; a 5 s suite.
+- `low`: a tracked path with non-ASCII bytes prints C-quoted and is skipped — the scan's behaviour before this story; no such name under the install paths; the fix is a guard.
+- `low`: grep status 2 (an unreadable listed file) counts as clean — the scan's behaviour before this story; a tracked unreadable file is not met in practice; the fix is a guard.
+- `false`: the spec frontmatter `status: done` disagrees with the tracker's `review` — build-auto's machine state versus the cycle's tracker, by the workflow's design; the fix would edit the spec.
+
 ## Design Notes
 
 - Governing AD: **AD-19** (configuration and secrets have fixed homes; its Story 21.3 bullet: `/csp/sys/oauth2` is enabled only during an admin's register or sign-in action). This story narrows only the test's view to the paths that can install or start something; the AD's Rule is unchanged, and the class test `TestOnlyOneCallerOfTheClass` still pins who may enable the application.
@@ -78,6 +95,12 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: drop `'docker/*'` from the pathspec → pin (b2) "... docker/merge.cpf, and names it" FAIL.
 - mutation: drop `Dockerfile` from the pathspec → pin (b1) "... in a Dockerfile, and names it" FAIL (and pin (a), whose floor of 1 the clean Dockerfile meets, FAIL).
 - mutation: raise the real scan's floor from 40 to 100 → the U-320 row FAIL (the floor is live; 58 files are scanned on the feature branch).
+- mutation: shorten the hit message to `names: $f` → pins (b1) and (b2) FAIL (the "names it" comparison is live).
+- mutation: drop `| grep -v '^docker/tests/'` → the U-320 row FAIL (the scan would read this test file's regex).
+- mutation: the fixture's `mktemp ... || return 2` → `|| return 0` → "an OAuth2 scan fixture that cannot be built returns 2" FAIL; the setup branch's `return 2` → `return 0` → the same row FAIL.
+- mutation: re-add `'src/ocutalon/csp/*'` and run with `XDG_CONFIG_HOME` whose `git/ignore` holds `*.js` → pin (a) FAIL (the pre-review file passed every row under this environment).
+
+Code review re-demonstrated all nine lines above on the patched file (2026-11-12): each red as stated, each restored by copy and `cmp` byte-identical; `bash docker/tests/test-compose-file.sh`: `all checks passed`, 133 PASS (132 + the setup-failure row), no `ocutalon-oauth-scan.*` left in `$TMPDIR`.
 
 ### Implement-stage results (2026-11-12, lead handoff edit)
 
