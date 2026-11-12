@@ -1492,6 +1492,7 @@ chk_product_links() {
 }
 
 # readme-links (Design Notes 8 and 9)
+# Any edit to the ALLOWED_HOSTS line below must update the no-outward allowance in release/checklist.sh in the same commit.
 ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com community.intersystems.com openexchange.intersystems.com'
 URL_RE='https?://[^][:space:])>"<`]+'
 # url_allowed <url> [extra hosts]: the allow-list, plus the extra hosts (space separated) when given.

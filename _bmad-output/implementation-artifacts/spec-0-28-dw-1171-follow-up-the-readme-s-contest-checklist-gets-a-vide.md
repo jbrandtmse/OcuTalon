@@ -2,8 +2,8 @@
 title: "Story 0.28: DW-1171 follow-up: the README's Contest checklist gets a Video row, and the For judges Usability row links the incident path and the full video"
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
-baseline_revision: '793840c5af3873540913aceac72b1086083d0b7e'
+status: 'done'
+baseline_revision: 'b21decb42982ba0f14ee283afa5637c56ac8152d'
 baseline_commit: '793840c5af3873540913aceac72b1086083d0b7e'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -87,7 +87,7 @@ deferred:
 - `docker/tests/check-readme-video.sh` -- new (DW-1171): the network check of the matrix's three "Video row links" rows. It takes an optional README path (default `README.md`), reads the `| Video |` row of the Contest checklist (a missing row fails), and checks every http(s) address in it, plus each YouTube id's oEmbed. Self-tests on copies: an unknown video id (oEmbed 404) and a missing MP4 name (404), each flagged; the row removed, flagged with no request. Header: what it pins, that it needs the network, and its retry and cap. bash 3.2, ASCII, curl only.
 - `release/checklist.sh` -- add the automated row `readme-video` that runs `docker/tests/check-readme-video.sh` (one `row_readme_video() { row_script readme-video docker/tests/check-readme-video.sh; }` line, its PASS detail line, its header line and its place in the row list, following `readme`). Update whatever test pins the checklist's rows. This is a RELEASE TOOL hunk the Contest Planner ruled in (02:05Z item 4); the lead reports it.
 
-- [ ] [Review] DW-1178 (Contest Planner ruling on 0.28, ~05:00Z, option (a), folded in before merge) -- `release/checklist.sh` `outward_hits`/`row_no_outward` and `docker/tests/test-readme.sh` -- allow exactly one more line in the `no-outward` row: `docker/tests/test-readme.sh`'s current `ALLOWED_HOSTS='...'` line, as it is now, with the same full-line match as the OEMBED allowance (any other path form or any change fails closed); add the same three cases to `test-release-checklist.sh` `outward-rows` (that line in that file passes; the same line in another file fails; a changed line fails); add a comment line directly above `ALLOWED_HOSTS` in `test-readme.sh` saying any edit to that line must update the no-outward allowance in `release/checklist.sh` in the same commit; keep the checklist header true. Every other `no-outward` hit still fails.
+- [x] [Review] DW-1178 (Contest Planner ruling on 0.28, ~05:00Z, option (a), folded in before merge) -- `release/checklist.sh` `outward_hits`/`row_no_outward` and `docker/tests/test-readme.sh` -- allow exactly one more line in the `no-outward` row: `docker/tests/test-readme.sh`'s current `ALLOWED_HOSTS='...'` line, as it is now, with the same full-line match as the OEMBED allowance (any other path form or any change fails closed); add the same three cases to `test-release-checklist.sh` `outward-rows` (that line in that file passes; the same line in another file fails; a changed line fails); add a comment line directly above `ALLOWED_HOSTS` in `test-readme.sh` saying any edit to that line must update the no-outward allowance in `release/checklist.sh` in the same commit; keep the checklist header true. Every other `no-outward` hit still fails.
 
 **Acceptance Criteria:**
 - Given the README (DW-1171), when the Contest checklist and the "For judges" table are read, then the ruled Video row sits right after "Online demo" and the Usability row opens with the two ruled sentences, the rest unchanged; `test-readme.sh` passes `checklist-video`, `judges-usability`, `video` and `readme-links`, and fails on each bad copy.
@@ -170,6 +170,25 @@ Verbatim text (the Contest Planner's DW-1171 ruling, 2026-11-12 ~01:55Z).
   - `[low]` `[reject]` (Intent Alignment) "never skipped" rests on the release owner running the checklist -- the checklist row is the ruled mechanism; nothing for this story to add.
   - `[no-action]` `[reject]` (Intent Alignment) the whole audit (readings R1-R5, the script name check-readme-video.sh against the ruling's test-readme-video.sh, the split of ruling item c) -- descriptive; the diff implements R1 plus the narrowed R3, as the 02:05Z ruling and the spec's Spec Change Log record.
 
+### 2026-11-12 - Review pass (rework iteration 1, DW-1178)
+- verdicts: 15 findings - high 0, medium 0, low 6, false 6, maybe-false 0, descriptive 3
+- findings:
+  - `[low]` `[reject]` (Blind) the comment line above ALLOWED_HOSTS is pinned by no test -- static documentation text; the allowance fails closed on any edit of the line, so deleting the comment loses a reminder only; a test of a comment's position adds a rule for a cosmetic loss.
+  - `[low]` `[patch]` (Blind, Edge, Verification Gap) the changed-line case pinned one change shape only; the full-line anchor (`-x`) was unpinned -- patched: a line followed by more text is planted in test-readme.sh and must be flagged; the `-x` mutation turns it red.
+  - `[low]` `[patch]` (Verification Gap) the path-form clause had no case: the line in a file named test-readme.sh in another directory -- patched: release/test-readme.sh and docker/test-readme.sh are planted and must be flagged; the loosened-prefix mutation turns both red.
+  - `[low]` `[patch]` (Edge, Verification Gap) the "holds one ALLOWED_HOSTS line" count was vacuous (an empty match counts as one line) -- patched: it counts with `grep -cx` on the real file.
+  - `[false]` `[reject]` (Blind) the spec's `git diff <baseline> -- release` expectation is stale; (Edge) the same -- the fix is an edit of this build's spec; the check belongs to the first pass's baseline.
+  - `[false]` `[reject]` (Blind) front matter does not reflect the rework (`review_loop_iteration`, `baseline_commit`) -- `review_loop_iteration` counts bad_spec loopbacks, none occurred; `baseline_commit` records the story's first baseline on purpose.
+  - `[false]` `[reject]` (Blind) the 14-host pattern is a hand copy of the line and should be built from it -- the ruling is "byte for byte": a pattern built from the file would follow any edit of the line and stop failing closed.
+  - `[false]` `[reject]` (Verification Gap, Blind) the pattern's content half has no mutation -- a dropped host turns the "allowed line passes" case red, which the recorded mutations of the file part do not need to repeat; one demonstrated mutation per AC is on record.
+  - `[false]` `[reject]` (Edge) the allowance matches any line number, so a verbatim duplicate in test-readme.sh passes -- the test now counts the line in the real file and requires exactly one.
+  - `[false]` `[reject]` (Edge) non-repo-relative paths never match the allowance -- `scan_files` lists repo-relative paths, and a mismatch fails closed, which the ruling asks for.
+  - `[no-action]` `[reject]` (Verification Gap, other) the cases read the real test-readme.sh rather than a fixture -- deliberate: it makes the live line and the allowance a checked pair at every per-push run.
+  - `[no-action]` `[reject]` (Verification Gap, other) hermeticity and falsifiability of the new cases -- confirms the layer's check, no defect.
+  - `[no-action]` `[reject]` (Intent Alignment) the whole audit (readings R1-R4; the diff implements the rework strictly) -- descriptive; no divergence.
+  - `[low]` `[reject]` (Intent Alignment) other path forms (`./docker/...`) are not pinned -- fail closed by construction (the pattern has no `./` prefix); the new directory cases cover the loosening that matters.
+  - `[low]` `[reject]` (Verification Gap) the two earlier recorded mutations only touch the file part -- covered by the two new mutation lines.
+
 ## Design Notes
 
 **Governing ADs:** none binds README text or test scripts (AD-29: Epic 0 may edit any lane's files). No AD is amended.
@@ -220,6 +239,8 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - `git diff --name-only <baseline> -- .github ci _bmad eval` (once) -- expected: empty. `git diff <baseline> -- release` (once) -- expected: only the `readme-video` row of `release/checklist.sh`.
 - Lead (once): CI on the head, every workflow green.
 
+Rework iteration 1 (DW-1178; the only open item): the allowed `ALLOWED_HOSTS='...'` line of `docker/tests/test-readme.sh` stays byte for byte as it is at the rework baseline; the comment line goes directly above it and names no public site; the new allowance in `release/checklist.sh` is a full-line match anchored to that file, like the OEMBED one; the checklist header names both allowed lines. Run (one per call, each in about 150 s): `bash docker/tests/test-release-checklist.sh`; `bash docker/tests/test-readme.sh`; `/bin/bash docker/tests/test-readme.sh`; `bash docker/tests/test-boundaries.sh`. In a scratch script under the scratchpad folder of the run (never the repository), source or replicate `outward_hits` plus the allowance filter over the `no-outward` file set (`scan_files` over `release ci eval docker` filtered to `.sh .mjs .js`, plus `install.sh` and `.github/workflows`) and record that it reports nothing on this tree. Record a `mutation:` line for the pinning test changed here (apply, red, revert, `cmp` equal, `git status --short` and `git diff --stat` unchanged).
+
 Mutations (one per AC; record `mutation: <change> -> <test that went red>` here, revert, check `git status --short` and `git diff --stat` unchanged):
 - AC DW-1171 rows: move the Video row above "Online demo" -> `checklist-video`; reword "in about two minutes" in the Usability row -> `judges-usability`.
 - AC count: change "fifteen" to "fourteen" in the Usability row -> the two web count tests.
@@ -249,10 +270,33 @@ Code review (2026-11-12), after its patches: `test-release-checklist.sh` all 16 
 - mutation: the `mktemp` failure branch removed -> `video-script` red ("no temporary folder: the FAIL line").
 - (QA) observed, not changed (the script is not a test file): `video_row` in `check-readme-video.sh` says "outside a code fence" but reads a `| Video |` row inside a fenced block of the Contest checklist section (the `!fence` test is only on the heading line). Not reachable with the ruled README (`checklist-video` pins the row right after Online demo); low.
 
+Rework iteration 1 (DW-1178), after the change: `test-release-checklist.sh` all 16 rules passed; `test-readme.sh` all rules passed (bash and /bin/bash); `test-boundaries.sh` all rules passed; ASCII 0 on the three shell files; the `ALLOWED_HOSTS` line of `test-readme.sh` is byte for byte unchanged (the diff there is the one comment line above it). A scratch script (scratchpad `e0s28rw/hits.sh`) sourced `release/checklist.sh` and ran `outward_hits` over the `no-outward` file set (107 files): no hits on this tree. Mutations (each restored from a byte copy, `cmp` equal; `git status --short` and `git diff --stat` unchanged):
+- mutation: the new allowance's file anchor widened to any file -> `outward-rows` red ("the hosts line in another file").
+- mutation: the new allowance's file name changed so it never matches -> `outward-rows` red ("the allowed ALLOWED_HOSTS line of test-readme.sh: exit", "hosts line: not listed").
+- mutation: the review patches' cases (rework iteration 1, review pass; each restored from a byte copy, `cmp` equal, `git status --short` and `git diff --stat` unchanged): `-x` dropped from the `outward_hits` filter -> `outward-rows` red ("the hosts line followed by more text, in test-readme.sh"); the allowance's directory prefix `docker/tests/` loosened to `[^:]*` -> `outward-rows` red ("the hosts line in release/test-readme.sh", "the hosts line in docker/test-readme.sh"). After the patches: `test-release-checklist.sh` all 16 rules passed; `test-readme.sh` all rules passed (bash and /bin/bash); `test-boundaries.sh` all rules passed; ASCII 0 on the three shell files; the row's `outward_hits` over its 107 files reports nothing; no diff under `.github`, `ci`, `_bmad`, `eval`.
+
 ## Auto Run Result
 
 Status: done
 Blocking condition: none
+
+Rework iteration 1 (DW-1178; this pass only): the `no-outward` row of `release/checklist.sh` now allows exactly one more line, `docker/tests/test-readme.sh`'s `ALLOWED_HOSTS='...'` line as it is, by the same full-line match as the OEMBED allowance and only in that file; the header names both allowed lines. `test-readme.sh` has one comment line directly above `ALLOWED_HOSTS` (the line itself unchanged) saying an edit of it must update the allowance in the same commit. `test-release-checklist.sh` `outward-rows` pins the line passing in `test-readme.sh`, flagged in another file or in a file of the same name elsewhere, and flagged when changed or followed by more text.
+
+Files changed (this pass):
+- `release/checklist.sh` -- the second allowance in `outward_hits`; header and comment name both lines.
+- `docker/tests/test-readme.sh` -- one comment line above `ALLOWED_HOSTS`.
+- `docker/tests/test-release-checklist.sh` -- the new `outward-rows` cases.
+
+Review: 15 findings from 4 layers. Patches applied: 3, all low (a case for text after the line and one for same-named files elsewhere, each with a demonstrated mutation; a count that could not fail). Deferred: 0. Rejected: the rest, each with its reason in the Review Triage Log. Follow-up review recommended: false (no high patched; patched counts: high 0, medium 0, low 3).
+
+Verification: `test-release-checklist.sh` all 16 rules passed; `test-readme.sh` all rules passed (bash and /bin/bash); `test-boundaries.sh` all rules passed; ASCII 0 on the three shell files; no diff under `.github`, `ci`, `_bmad`, `eval`. The row's own `outward_hits` over its file set (107 files, run from a scratch script that sources the checklist) reports nothing on this tree. Mutations are recorded in `## Verification`.
+
+Residual risks: the allowance in `release/checklist.sh` is a hand copy of the `ALLOWED_HOSTS` line; an edit of that line without the allowance fails `outward-rows` per push (the test reads the live line) and the `no-outward` row at release time, both loudly.
+
+First pass (earlier) result follows, unchanged except that its status lines are renamed.
+
+First-pass status: done
+First-pass blocking condition: none
 
 Summary: README gets the ruled Video row after "Online demo" and the ruled two opening sentences of the "For judges" Usability row (count word "fifteen", the registry's count on this tree), pinned offline by the new `test-readme.sh` rules `checklist-video` and `judges-usability` and a widened `video` rule; the two web tests pin the ruled sentence ("Its More to try panel has ...") against the registry; a new networked `check-readme-video.sh` (outside per-push CI and outside the `test-*.sh` glob) is run by the new `readme-video` row of `release/checklist.sh`.
 

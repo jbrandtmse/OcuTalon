@@ -515,6 +515,33 @@ t_outward_rows() {
   has "another line of that file" "$out" "docker/tests/check-readme-video.sh:8"
   has "the allowed line in another file" "$out" "release/m.sh:2"
   has "the allowed line changed" "$out" "release/n.sh:2"
+  # The other allowed line: test-readme.sh's ALLOWED_HOSTS= line, as it is, and only in that file. The same line in another file, or the
+  # line changed, is still flagged.
+  local hosts_line
+  hosts_line=$(grep -x "ALLOWED_HOSTS='.*'" "$root/docker/tests/test-readme.sh")
+  eq "test-readme.sh holds one ALLOWED_HOSTS line" "$(grep -cx "ALLOWED_HOSTS='.*'" "$root/docker/tests/test-readme.sh")" 1
+  newcase
+  printf '%s\n' "$hosts_line" >> "$W/docker/tests/test-readme.sh"
+  commit_all
+  std
+  eq "the allowed ALLOWED_HOSTS line of test-readme.sh: exit" "$rc" 0
+  newcase
+  printf '%s\n' "$hosts_line" >> "$W/docker/tests/test-readme.sh"
+  printf '#!/bin/sh\n%s\n' "$hosts_line" > "$W/release/o.sh"
+  printf '#!/bin/sh\n%s\n' "${hosts_line%\'} example.org'" > "$W/release/p.sh"
+  printf '%s\n' "${hosts_line%\'} example.org'" >> "$W/docker/tests/test-readme.sh"
+  printf '%s\n' "$hosts_line ; true" >> "$W/docker/tests/test-readme.sh"
+  printf '#!/bin/sh\n%s\n' "$hosts_line" > "$W/release/test-readme.sh"
+  printf '#!/bin/sh\n%s\n' "$hosts_line" > "$W/docker/test-readme.sh"
+  commit_all
+  expect_fail "the allowed hosts line elsewhere or changed" "no-outward "
+  lacks "hosts line: not listed" "$out" "docker/tests/test-readme.sh:7"
+  has "the hosts line in another file" "$out" "release/o.sh:2"
+  has "the hosts line changed, in another file" "$out" "release/p.sh:2"
+  has "the hosts line changed, in test-readme.sh" "$out" "docker/tests/test-readme.sh:8"
+  has "the hosts line followed by more text, in test-readme.sh" "$out" "docker/tests/test-readme.sh:9"
+  has "the hosts line in release/test-readme.sh" "$out" "release/test-readme.sh:2"
+  has "the hosts line in docker/test-readme.sh" "$out" "docker/test-readme.sh:2"
 }
 
 t_checkout_rows() {
