@@ -2,7 +2,8 @@
 title: 'Routine attention decisions meet their target'
 type: 'bugfix'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '30d5ea0ae3ef370786ea29f04d841a28ad0b8d17'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -81,6 +82,34 @@ deferred: []
 - 2026-11-12: planned by bmad-build-auto (plan stage). HALTed `blocked` under the ruling's honesty clause (Design Notes, "Honesty check").
 
 ## Review Triage Log
+
+### 2026-11-12 - Review pass
+- verdicts: 24 findings - high 0, medium 0, low 20, false 4, maybe-false 0
+- findings:
+  - `[false]` `[reject]` blind: the Triage text is tuned to a case and no eval re-run is in the diff - the wording is the Planner-approved text and the real-model A/B is the Planner's post-push measurement (AC ship rule); nothing for this stage to run.
+  - `[low]` `[reject]` blind: tellnow/act boundary ambiguity ("switched off or disabled", "nothing for a check to explain") - the text is the Planner-approved wording and must be applied exactly; spec-bound.
+  - `[low]` `[patch]` blind: tokens split on whitespace only, glued tokens (`A/B`) match whole - split on `/ , ; : ( )` as well; variant bad-token-joined, mutant observed red.
+  - `[low]` `[reject]` blind: `distinctive` edges (digits, plain names, underscores) - the thresholds are the ruling's; the real tree passes and 3-letter or digit-only tokens do not trigger; no everyday harm.
+  - `[low]` `[patch]` blind: an unreadable or malformed case.json silently shrinks the scan - now a violation naming the file; variant bad-unreadable-case, mutant red.
+  - `[low]` `[patch]` blind: body end at the first line that trims to `}` - now only a column-0 `}`; variant bad-brace-in-body, mutant red.
+  - `[false]` `[reject]` blind: only XData INSTRUCTIONS is scanned - the Matrix row "Item text outside a prompt passes (the rule reads only INSTRUCTIONS blocks)" states it.
+  - `[low]` `[patch]` blind: variants thinner than the feature list - added bad-sender, good-short-subject, bad-token-joined, bad-brace-in-body, bad-unreadable-case; the remaining untested corners (smart-quote folding, case-insensitive match, excluded case folders) are theoretical.
+  - `[low]` `[patch]` blind: unknown third argument runs the held-out check silently - now `unknown mode` violation; the Triage test pins only phrases (rejected, it is the spec's pin); the heartbeat paragraph claim is false, test-triage-heartbeat.sh passes.
+  - `[low]` `[patch]` edge: indented lone `}` ends the scan early - same fix and variant as the blind row on the body end.
+  - `[false]` `[reject]` edge: a wrapped XData header skips the block - the class compiler requires `{` on the next line, so a wrapped header does not compile and the Instructions tests would fail first.
+  - `[low]` `[patch]` edge: joined tokens `ZzImporter/Feed` - same fix as above; variant bad-token-joined puts the joined token on the case side.
+  - `[low]` `[reject]` edge: snake_case, all-caps and short identifiers are not distinctive - the token kinds are the ruling's (`@`, inner capital, mixed digit, dotted name).
+  - `[low]` `[patch]` edge: broken case.json drops out silently - same as above.
+  - `[low]` `[reject]` edge: other case fields (turn, snapshot, documents) are not read - the guard's units are the ruling's (subject, text, sender, precedent summaries); Design Notes "Decided in-stage".
+  - `[low]` `[patch]` edge: a mistyped mode runs the held-out check - same as the unknown-mode fix.
+  - `[low]` `[reject]` edge: case-insensitive tokens could clash with product vocabulary - no clash on the real tree and the exemption is the ruling's `OcuTalon*`; theoretical.
+  - `[low]` `[reject]` edge: accented letters split words - the cases and the prompts are ASCII; theoretical.
+  - `[low]` `[reject]` edge: common 5-word runs - the ruling's threshold; the real tree has 0 hits.
+  - `[low]` `[patch]` edge: variants miss the brace, sender, unreadable-case paths - covered by the added variants (wrapped header and mode typo have none).
+  - `[low]` `[patch]` verification-gap: sender is read but no variant pins it - added bad-sender, mutant (sender dropped) red.
+  - `[low]` `[patch]` verification-gap: the fewer-than-3-words skip is unpinned - added good-short-subject, mutant (`SUBJECTWORDS = 1`) red.
+  - `[low]` `[reject]` verification-gap: the held-out/mock-wrong/persona-cases exclusion in the case filter is redundant with the one-segment path test - harmless and states the ruling's scope.
+  - `[false]` `[reject]` intent-alignment: descriptive report (readings R1-R4; the diff implements the narrowed ruling; the model-score expectation lives at the Planner's A/B surface) - no defect claimed; the divergence on the surface is the narrowed ruling itself.
 
 ## Design Notes
 
@@ -212,12 +241,26 @@ Mutations:
 - `main-set-texts`: make the `main` mode return before it scans, so `bad-sentence-in-prompt` goes unflagged and the rule FAILs. Revert.
 - `TestTriage`: restore line 26 to its current text, so the new phrase assertion goes red. Revert.
 
+mutation: TestTriage (AC: the new act/tellnow phrases are pinned) - restored Triage.cls to HEAD's lines 26-27 and ran OcuTalon.Test.Agent.Instructions on the lane-A warm stack: red (FAIL TestTriage on both 'a change someone chose to make, not a fault' and 'a fault that is happening now'); put the new text back, class green again, Triage.cls byte-identical (cmp).
+mutation: main-set-texts (AC: a prompt holding a main-set sentence fails, naming the file) - (1) `return;` as the first statement of mainSetTexts: all six bad variants unflagged and the rule FAILs; (2) appended the first sentence of mail-partner-notice's text to the real Triage INSTRUCTIONS: `EVAL_SET_ONLY="main-set-texts held-out-names"` printed `src/ocutalon/cls/OcuTalon/Agent/Triage.cls: names a main-set item text in a prompt (main-set-texts)` and FAIL main-set-texts, never the text, held-out-names PASS; each reverted byte-identical (cmp).
+mutation: main-set-texts self-tests, one mutant each, each observed red and reverted byte-identical: no 5-word scan -> bad-five-words and bad-precedent-summary red; no subject test -> bad-subject red; no token test -> bad-token red; RUN = 4 -> good-four-words red; no OcuTalon exemption -> good-product-name red; scanning the whole file instead of the INSTRUCTIONS body -> good-outside-prompt red; any XData instead of INSTRUCTIONS only -> good-outside-prompt red. bad-sentence-in-prompt is red under the early-return mutant (it holds both a 5-word run and a token, so no single detector mutant turns it red); bad-no-cases is red under the early-return mutant. Not mutated: the "fewer than 3 words skipped" edge has no self-test among the specified ten (a SUBJECTWORDS = 1 mutant stays green).
+
+mutation: main-set-texts review-pass variants, one mutant each, each observed red and restored byte-identical (cmp): `'sender'` dropped from the read keys -> bad-sender red; the token split back to whitespace only -> bad-token-joined red; the body end back to any line that trims to `}` -> bad-brace-in-body red; the unreadable-case violation removed -> bad-unreadable-case red; `SUBJECTWORDS = 1` -> good-short-subject red. The unknown-mode violation has no variant (the rule's mode is fixed by `check_main_set_texts`).
+
 Shared surfaces: Triage's XData INSTRUCTIONS, read by Test.Agent.Instructions, TriageUserTurn, PersonaBlock, RenderMemory, test-triage-heartbeat.sh and the `{{` checks. Also the rule labels of `test-eval-set.sh` (`rule_labels`, `EVAL_SET_ONLY` and `EVAL_SET_EXCEPT`).
 
 Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 Note: the plan HALTed blocked (honesty clause); the Contest Planner ruled option (2) narrowed; the lead applied the ruling and passed the spec gate.
+
+Implemented (implement stage, local commit only, nothing pushed):
+- Summary: Triage's tellnow and act bullets (lines 26-27) carry the Planner-approved text (a disabled item is a change someone chose to make -> tell now; act names faults). `TestTriage` pins the two phrases. `check-held-out-names.mjs` has a `main` mode, wired as the `main-set-texts` rule with its self-tests.
+- Files: `src/ocutalon/cls/OcuTalon/Agent/Triage.cls` (lines 26-27), `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls` (the pin), `docker/tests/test-eval-set.sh` (the mode, `check_main_set_texts`, the rule, 15 self-test variants), this spec.
+- Review: 24 findings (low 20, false 4); 12 patched in the review pass (all low; the guard's token split, body end, unreadable case, unknown mode, and 5 added variants), 0 deferred, 12 rejected with reasons in the Review Triage Log. Follow-up review recommended: false (no high or medium patched).
+- Verification: `test-eval-set.sh` whole script all rules passed after the patches (including held-out-names and main-set-texts); `test-triage-heartbeat.sh` PASS; `test-boundaries.sh` passed; on the warm stack (tag e0s35iw, down afterwards) Instructions, TriageUserTurn, PersonaBlock and RenderMemory each passed; fresh-environment `lane-a@Agent` passed 21 of 21 classes forward and reverse (before the review-pass patches, which touch only the shell script).
+- NOT done by design: the ship-rule AC (a)-(e), the Planner's real-model A/B after the CI hold lifts, is left unchecked; this stage ran no model and held no key.
+- Residual risks: the guard is lexical (it cannot see a rule written to fit one case); the unknown-mode and wrapped-header paths have no variant.
