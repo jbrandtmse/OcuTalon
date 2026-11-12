@@ -3605,3 +3605,5 @@
 2026-11-12T03:31:07Z	Epic 0	ci_green_verified	branch=OCT-epic0 head=540dfce5 runs=43134792360,43134792086(att2;DW-1119) result=success story=0.26 base=cf6fcb39(=feature)
 2026-11-12T03:31:07Z	Epic 0	runner_resumed	agent=a570d5453eccd91b8 with=green;push_bookkeeping;PART_READY_0.26 mode=message_to_ended_runner
 2026-11-12T03:31:56Z	Epic 0	merge_enqueued	part=0.26 head=4725422f(code_540dfce5_green) by=orchestrator
+2026-11-12T03:32:09Z	Epic 0	merge_gate	part=0.26 head=4725422f conflicts=none tracker=valid lint=baseline amendments=0.26_split,0.27/0.28/0.29_inserted
+2026-11-12T03:32:09Z	Run	deps_hash_rerecorded	reason=split note=0.26->0.26/0.27/0.28/0.29 hash=1534f6e5
