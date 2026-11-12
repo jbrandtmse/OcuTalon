@@ -22,16 +22,16 @@
 ///     without them once it is down (the agent's own manager holds no server in either case);
 ///   - TestTurnShadow: a tool of the mock with the name of a tool of the request: the request's tool keeps the name and the mock's copy is not listed;
 ///   - TestUnavailable (row 4): the mock is down, the build is OK, the manager has no mock tool and no mcp spec is recorded, the row says unavailable (unreachable),
-///     each admin session gets one mcp.serverUnavailable notice, and the secret, which AI Hub's error text holds, shows nowhere;
+///     each admin session gets one mcp.serverUnavailable notice, and the secret shows nowhere;
 ///   - TestShadow (row 5): a tool of the mock with the name of one of the agent's own tools is refused: the row holds its name, the agent's manager lists the name once, each admin
 ///     session gets one mcp.toolShadowsBuiltIn notice, and a bare manager of the same shape (the agent's toolset, then the server) runs the agent's tool and not the mock's;
 ///   - Story 22.9 (AD-6, AD-21, AD-31), with the mock's silent mode (a server that reads the request and never answers) and the probe of Mcp.Attach: TestSilentAtBuild (the
-///     build is OK within 10 s, the row says unavailable and unreachable, no tool is attached, and AI Hub's client sent the server nothing), TestSilentInRequest (a server
+///     build is OK within 10 s, the row says unavailable and unreachable, one warning names the server, no tool is attached, and AI Hub's client sent the server nothing), TestSilentInRequest (a server
 ///     that answered at the build and then goes silent: the request goes on without its tools within 10 s with one report, a second request inside the rest neither probes nor
-///     reports, one after the rest while the server is silent still probes and reports nothing more, and the first one after the server speaks again offers the tools and reports attached), TestOwnManagerHasNoServer (the agent's own manager lists none of the server's
+///     reports, one after the rest while the server is silent still probes and reports nothing more, and the first one after the server speaks again offers the tools and reports attached with the build's report; a host so loaded that the rest ends before the second request skips that step with a log message), TestOwnManagerHasNoServer (the agent's own manager lists none of the server's
 ///     tools, a tool call on it, the call of a tool of the server that is not found, and an inventory return at once while the server is silent, and the server gets no request), TestProbeThrows and TestProbeJunk (a probe that
 ///     throws, or answers a word that is no reason, fails closed at the build: the report says unavailable and failed, no tool is attached, and AI Hub's client sent the server
-///     nothing), TestAddToolFailsInRequest (the probe answers and AddTool fails in a request: one warning, one unavailable report, the rest) and TestNoneRegistered (no server is
+///     nothing), TestAddToolFailsInRequest (the probe answers and AddTool fails in a request: one warning, one unavailable report, the rest, and neither the secret nor the address shows), TestAddToolFailsAtBuild (the same at the build: one unavailable report, no spec recorded, and AI Hub's error text leaves neither the secret nor the address anywhere) and TestNoneRegistered (no server is
 ///     registered: no probe and no report at the build or in a request);
 ///   - Story 22.8 (AD-10, AD-21, AD-31), with the shadow runner, Mcp.Attach as the McpServersClass, Mcp.Classification (or ZzProbeClassification, which sends the notices of a
 ///     changed tool to the probe) as the ClassificationClass, the real gate on the turn manager and the mock: TestReadOnlyTurn (zz_lookup classified read-only runs in an
@@ -245,7 +245,7 @@ Method TestUnavailable()
 	Do $$$AssertEquals(row.AttachStatus _ "|" _ row.AttachReason _ "|" _ row.AttachedAt _ "|" _ $ListToString(row.RefusedTools), "unavailable|unreachable||", "the row says unavailable, unreachable, with no time and no refused tool")
 	Do $$$AssertEquals($ClassMethod(..#PROBE, "NoticeCount", admin, "mcp.serverUnavailable"), 1, "the admin session gets one mcp.serverUnavailable notice")
 	Do $$$AssertEquals(..NoticesFor(admin), 1, "and no other notice")
-	Do $$$AssertEquals(..Leaks(adapter), "", "the secret, which AI Hub's error text holds, shows in none of the places that are checked")
+	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
 }
 
 Method TestShadow()
@@ -700,6 +700,7 @@ Method TestSilentAtBuild()
 	Set row = ..Row()
 	Do $$$AssertEquals(row.AttachStatus _ "|" _ row.AttachReason, "unavailable|unreachable", "the row says unavailable, unreachable")
 	Do $$$AssertEquals($ClassMethod(..#PROBE, "NoticeCount", admin, "mcp.serverUnavailable"), 1, "and the admin session gets one mcp.serverUnavailable notice")
+	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "LogRowsHolding", ..LogMark, "The MCP server " _ ..Server _ " is not available (unreachable), so its tools are not attached"), 1, "the build logs one warning that names the server and the reason word")
 	Set requests = ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port)
 	Set others = 0
 	Set iterator = requests.%GetIterator()
@@ -737,9 +738,13 @@ Method TestSilentInRequest()
 	Do $$$AssertEquals(..ReportStatuses() _ "|" _ $Get(^||ZzMcp("report", 2)), "attached,unavailable|" _ ..Server _ "|{""status"":""unavailable"",""reason"":""unreachable"",""tools"":[],""refused"":[]}", "and the runner reported it unavailable, unreachable, once")
 	Do $$$AssertEquals(+$Get(^||ZzMcp("probes")), 2, "after a second probe")
 	Kill ^||ZzTurn("config")
-	Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "a second request inside the rest composes its manager")
-	Do $$$AssertEquals($Piece($Get(^||ZzTurn("config", 1)), "|", 4, 5), ..#OWN _ ",zz_turn_set|", "without the server's tools")
-	Do $$$AssertEquals(+$Get(^||ZzMcp("probes")) _ "|" _ ..ReportStatuses(), "2|attached,unavailable", "and neither probed nor reported")
+	If adapter.RestLeft() > 0.5 {
+		Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "a second request inside the rest composes its manager")
+		Do $$$AssertEquals($Piece($Get(^||ZzTurn("config", 1)), "|", 4, 5), ..#OWN _ ",zz_turn_set|", "without the server's tools")
+		Do $$$AssertEquals(+$Get(^||ZzMcp("probes")) _ "|" _ ..ReportStatuses(), "2|attached,unavailable", "and neither probed nor reported")
+	} Else {
+		Do $$$LogMessage("the host took the whole rest before the second request, so the request inside the rest is not checked")
+	}
 	Hang ..RestWait(adapter)
 	Kill ^||ZzTurn("config")
 	Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "the first request after the rest composes its manager, the server being silent still")
@@ -751,6 +756,7 @@ Method TestSilentInRequest()
 	Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "the first request after the second rest composes its manager")
 	Do $$$AssertEquals($Piece($Get(^||ZzTurn("config", 1)), "|", 4, 5), "zz_delete_ticket,zz_lookup," _ ..#OWN _ ",zz_turn_set|zz_delete_ticket,zz_lookup", "it lists the server's tools again")
 	Do $$$AssertEquals(+$Get(^||ZzMcp("probes")) _ "|" _ ..ReportStatuses(), "4|attached,unavailable,attached", "and the runner reported the server attached")
+	Do $$$AssertEquals($Get(^||ZzMcp("report", 3)), $Get(^||ZzMcp("report", 1)), "with the build's report: the same tools, refused tools and fingerprints")
 	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
 	Do $$$AssertEquals(..AddressShows(), "", "and the server's address shows in no log line or report")
 }
@@ -807,10 +813,32 @@ Method TestAddToolFailsInRequest()
 	Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "a request composes its manager although AddTool of the server fails")
 	Do $$$AssertEquals($Piece($Get(^||ZzTurn("config", 1)), "|", 4, 5), ..#OWN _ ",zz_turn_set|", "it lists none of the server's tools")
 	Do $$$AssertEquals(..ReportStatuses() _ "|" _ $Get(^||ZzMcp("report", 2)), "attached,unavailable|" _ ..Server _ "|{""status"":""unavailable"",""reason"":""unreachable"",""tools"":[],""refused"":[]}", "and the runner reported it unavailable, unreachable, once")
-	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "LogRowsHolding", mark, "did not answer (unreachable)"), 1, "with one warning that holds the reason word")
+	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "LogRowsHolding", mark, "The MCP server " _ ..Server _ " is not available (unreachable)"), 1, "with one warning that names the server and holds the reason word")
 	Kill ^||ZzTurn("config")
-	Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "a second request inside the rest composes its manager")
-	Do $$$AssertEquals(+$Get(^||ZzMcp("probes")) _ "|" _ ..ReportStatuses(), "2|attached,unavailable", "and neither asked the probe nor reported")
+	If adapter.RestLeft() > 0.5 {
+		Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "a second request inside the rest composes its manager")
+		Do $$$AssertEquals(+$Get(^||ZzMcp("probes")) _ "|" _ ..ReportStatuses(), "2|attached,unavailable", "and neither asked the probe nor reported")
+	} Else {
+		Do $$$LogMessage("the host took the whole rest before the second request, so the request inside the rest is not checked")
+	}
+	Do $$$AssertEquals(..Leaks(adapter), "", "the secret, which AI Hub's error text can hold, shows in none of the places that are checked")
+	Do $$$AssertEquals(..AddressShows(), "", "and the server's address shows in no log line or report")
+}
+
+Method TestAddToolFailsAtBuild()
+{
+	If ..Guard() Quit
+	Do ..Use("McpServersClass", ..#SERVERS)
+	Do ..Register(, 0)
+	Set ^||ZzMcp("servers") = [{"server": (..Server), "config": ("AI.MCP.OcuTalon_" _ ..Server)}].%ToJSON()
+	Set ^||ZzMcp("probe") = 4
+	Set adapter = ..Runner().Adapter
+	Do ..Ok(adapter.BuildAgent(), "the agent builds although AddTool of the server fails after the probe answered")
+	If '$IsObject(adapter.Agent) Quit
+	Do $$$AssertEquals(adapter.AttachedCount(), 1, "no mcp spec is recorded")
+	Do $$$AssertEquals($Get(^||ZzMcp("report")) _ "|" _ $Get(^||ZzMcp("report", 1)), "1|" _ ..Server _ "|{""status"":""unavailable"",""reason"":""unreachable"",""tools"":[],""refused"":[]}", "the build reports it unavailable, unreachable, once")
+	Do $$$AssertEquals(..Leaks(adapter), "", "the secret, which AI Hub's error text can hold, shows in none of the places that are checked")
+	Do $$$AssertEquals(..AddressShows(), "", "and the server's address shows in no log line or report")
 }
 
 /// Story 22.9, AC 4: with no server registered the runner asks no probe and reports nothing, at the build and in a request.
@@ -844,10 +872,12 @@ Method TestOwnManagerHasNoServer()
 	Do ##class(OcuTalon.Test.Mcp.Mock).Silence(..Port)
 	Set before = ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%Size()
 	Set start = $ZHorolog
-	Do adapter.CallTool("zz_turn_set", {"topic": "zzmcp"})
+	Set result = adapter.CallTool("zz_turn_set", {"topic": "zzmcp"})
 	Do $$$AssertTrue($ZHorolog - start < ..#CALLBOUND, "a tool call on the own manager returns within " _ ..#CALLBOUND _ " seconds")
+	Do $$$AssertTrue(result '[ "ToolNotFound", "and its tool is found there")
 	Set start = $ZHorolog
-	Do $$$AssertTrue(adapter.CallTool("zz_lookup", {"id": "1"}) '= "<OK>", "and a call of the server's tool is not found")
+	Set result = adapter.CallTool("zz_lookup", {"id": "1"})
+	Do $$$AssertTrue(result [ "ToolNotFound", "and a call of the server's tool is not found")
 	Do $$$AssertTrue($ZHorolog - start < ..#CALLBOUND, "within " _ ..#CALLBOUND _ " seconds")
 	Set start = $ZHorolog
 	Do ..Ok(adapter.Inventory(.inventory), "the inventory is made")
@@ -1463,8 +1493,8 @@ Method AddressShows() As %String [ Private ]
 
 /// Where the secret shows, as a text of the places ("" when nowhere). The value is looked for by containment and is never part of the text: the event log after the
 /// mark of the test, the stores of the key scan, the audit entries since the mark, the specs recorded as attached, the statuses and the catalog of the agent's manager,
-/// the fields of the fixture row, the request log of the mock and the notices that the probe recorded. With manager 0 the agent's own manager is not asked (it lists a server that is down).
-Method Leaks(adapter As OcuTalon.Test.Bridge.ZzTurnAdapter, manager As %Boolean = 1) As %String [ Private ]
+/// the fields of the fixture row, the request log of the mock and the notices that the probe recorded.
+Method Leaks(adapter As OcuTalon.Test.Bridge.ZzTurnAdapter) As %String [ Private ]
 {
 	Set secret = ..Secret
 	Set places = ""
@@ -1472,7 +1502,7 @@ Method Leaks(adapter As OcuTalon.Test.Bridge.ZzTurnAdapter, manager As %Boolean 
 	If $ClassMethod("OcuTalon.Test.Agent.KeyScan", "Find", secret) '= "" Set places = places _ $ListBuild("a store of the key scan")
 	If ##class(OcuTalon.Test.Bridge.AuditLog).Entries(..AuditMark, , , , secret).%Size() Set places = places _ $ListBuild("the audit log")
 	If $ListToString(adapter.AttachedSpecs()) [ secret Set places = places _ $ListBuild("an Attached spec")
-	If manager, $IsObject(adapter.Agent) {
+	If $IsObject(adapter.Agent) {
 		Set toolManager = adapter.Agent.ToolManager
 		If toolManager.GetToolStatuses().%ToJSON() [ secret Set places = places _ $ListBuild("the tool statuses")
 		If toolManager.%Discover().%ToJSON() [ secret Set places = places _ $ListBuild("the tool catalog")

@@ -1,7 +1,7 @@
 /// The runner's adapter of the per-request tool tests (Story 19.5; AD-6, AD-31): it attaches the toolset OcuTalon.Test.Bridge.ZzTurnToolset in
 /// OnAfterAgentInit, through Attach, and notes in ^||ZzTurn("config", n) what each session config it composes finds: the class of the authorization and of
 /// the audit policy of the agent's tool manager, whether that manager is not the one the agent was built with (the manager of the request), and the names of
-/// the tools it discovers, then the names of those whose source is mcp. AttachedCount gives the number of specs that Attach has recorded (AttachedSpecs, the specs), and TwoConfigs composes the session config twice for one request (ComposeTwice, for an agent that is built already). MapBroken runs the map with no tool manager.
+/// the tools it discovers, then the names of those whose source is mcp. AttachedCount gives the number of specs that Attach has recorded (AttachedSpecs, the specs), RestLeft the seconds left of the longest rest of an MCP server, and TwoConfigs composes the session config twice for one request (ComposeTwice, for an agent that is built already). MapBroken runs the map with no tool manager.
 /// OpenTurn composes the session config once for a request of the kind turn of the owner and leaves the request's tools in place, with the context that the caller began
 /// (Story 22.8): CallTool then runs a tool of the request's tool manager through the gate, and CloseTurn ends the request's tools. CallTool answers <OK> for a call
 /// that ran and the text of the error status of AI Hub for a call that did not (a denial of the gate carries its sentence).
@@ -34,6 +34,19 @@ Method AttachedSpecs() As %List
 	Quit ..Attached
 }
 
+/// The seconds left of the longest rest of a recorded MCP server, 0 when none rests.
+Method RestLeft() As %Decimal
+{
+	Set left = 0
+	Set spec = ""
+	For {
+		Set spec = $Order(..McpRest(spec), 1, until)
+		If spec = "" Quit
+		If until - $ZHorolog > left Set left = until - $ZHorolog
+	}
+	Quit left
+}
+
 /// Composes the session config twice for one request of the kind turn of the owner, as a request that compacts its history does, and ends the request's
 /// tools. The status is the first error.
 Method TwoConfigs(owner As %String) As %Status
@@ -51,12 +64,6 @@ Method OpenTurn(owner As %String) As %Status
 	Set ..TurnComposed = 0
 	Set ..TurnOpen = 1
 	Quit ..SessionConfigFor(.config)
-}
-
-/// Builds the turn's MCP map and runs the turn-start check (MapMcpTools) on the manager that the agent has now, with the context that the caller began.
-Method MapOwn()
-{
-	Do ..MapMcpTools()
 }
 
 /// Builds the turn's MCP map (MapMcpTools) while the agent has no tool manager at all, so that the listing fails as a manager that cannot be listed does, and puts the

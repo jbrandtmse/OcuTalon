@@ -357,7 +357,7 @@ Method AttachOne(server As %String, config As %String, builtin As %List, reporte
 	Set spec = "mcp:remote:@{config:"_config_"}"
 	Set reason = ..Answers(server, config)
 	If reason '= "" {
-		$$$LOGWARNING("The MCP server "_$Extract(server, 1, 64)_" did not answer ("_reason_"), so its tools are not attached to the agent")
+		$$$LOGWARNING("The MCP server "_$Extract(server, 1, 64)_" is not available ("_reason_"), so its tools are not attached to the agent")
 		Set report.reason = reason
 		Quit report
 	}
@@ -680,7 +680,7 @@ Method OfferServers(manager As %AI.ToolMgr) [ Private ]
 			Set reason = "failed"
 		}
 		If reason '= "" {
-			$$$LOGWARNING("The MCP server "_$Extract(server, 1, 64)_" did not answer ("_reason_"), so its tools are not offered to this request")
+			$$$LOGWARNING("The MCP server "_$Extract(server, 1, 64)_" is not available ("_reason_"), so its tools are not offered to this request")
 			Set ..McpRest(spec) = $ZHorolog + ..#RESTSECONDS
 			If $Get(..McpReported(spec)) '= "unavailable" {
 				Set ..McpReported(spec) = "unavailable"

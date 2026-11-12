@@ -171,6 +171,42 @@ deferred:
 - Given no registered server (the demo path, the online demo), when any request runs, then no probe and no report is made: `TestBridgeAlone` and `TestFreshInstall` stay green with the mock seeing no request.
 - Given any test of this story, when its output, logs and reports are searched, then the fixture secret and the mock's URL appear in none, and the probe's request carries no credential.
 
+### Review Findings
+
+Code review 2026-11-12 (full mode; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor at the session tier; 40 rows, 15 entries after grouping, 17 rows rejected). Verdicts: high 0, medium 8, low 7.
+
+- [x] [Review][Patch] (med, fix-risk low, in-story) A status line followed by a stalled body read as unreachable (DW-1204; blind+acceptance+verification-gap) -- `Probe` now counts a response that carries a status (`StatusCode > 0`) as an answer; `TestStalledBody` expects `""` [src/ocutalon/cls/OcuTalon/Mcp/Client.cls:46]
+- [x] [Review][Patch] (med, fix-risk low, in-story) `Endpoint` refused addresses that registration accepts (`[::1]`, a query straight after the host, a fragment; blind) -- a bracketed IPv6 host, `/` before a bare query, the fragment dropped; `TestEndpoint` extended [src/ocutalon/cls/OcuTalon/Mcp/Client.cls:56]
+- [x] [Review][Patch] (med, fix-risk low, in-story) AI Hub's AddTool error text (it holds the secret and the address, measured) was no longer pinned out of logs and reports, because the probe now stops the down server before AddTool (verification-gap) -- `Leaks` and `AddressShows` in `TestAddToolFailsInRequest`, new `TestAddToolFailsAtBuild`; `TestUnavailable`'s message no longer claims AI Hub's text [src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls]
+- [x] [Review][Patch] (med, fix-risk low, in-story) The recovery report was checked for its status only, and its step had no mutation line (verification-gap) -- `TestSilentInRequest` asserts the third report equals the build's (tools, refused, fingerprints) [src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls]
+- [x] [Review][Patch] (med, fix-risk low, in-story) The build's warning (matrix 'Build, silent') was never asserted (verification-gap) -- `TestSilentAtBuild` counts one warning naming the server [src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls]
+- [x] [Review][Patch] (med, fix-risk low, in-story, Rule 19 hermeticity) The 'inside the rest' steps raced the 3 s rest on a loaded host (verification-gap) -- `ZzTurnAdapter.RestLeft`; the step runs only while more than 0.5 s of the rest is left, else a log message says it was not checked [src/ocutalon/cls/OcuTalon/Test/Bridge/ZzTurnAdapter.cls]
+- [x] [Review][Patch] (low, in-story) `TestOwnManagerHasNoServer` did not check its calls' outcomes (blind+acceptance) -- the own tool is found, the server's tool gives `ToolNotFound` [src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls]
+- [x] [Review][Patch] (low, in-story) The warnings said "did not answer" also when the probe answered and AddTool failed, or the entry was missing (blind) -- "is not available (<reason>)" [src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:360,683]
+- [x] [Review][Patch] (low, in-story) `Mock.Status` kept an earlier Location (blind+edge) -- a call without a location clears it [src/ocutalon/cls/OcuTalon/Test/Mcp/Mock.cls:114]
+- [x] [Review][Patch] (low, in-story) Dead helper `ZzTurnAdapter.MapOwn` (edge) -- removed [src/ocutalon/cls/OcuTalon/Test/Bridge/ZzTurnAdapter.cls]
+- [x] [Review][Patch] (low, in-story) `Leaks`' unused manager argument and its stale reason (edge+acceptance+verification-gap) -- removed [src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls]
+- [x] [Review][Patch] (low, in-story) An exception's text in a test message (acceptance; Always rule) -- `exception.Name` [src/ocutalon/cls/OcuTalon/Test/Mcp/Client.cls]
+- [x] [Review][Patch] (low, in-story) `TestRedirectNotFollowed` did not check its second mock's cleanup (verification-gap) -- asserted [src/ocutalon/cls/OcuTalon/Test/Mcp/Client.cls]
+- [x] [Review][Defer] (med, by-design, DW-1210) A server down or silent at the build is not recorded, so the runner job never offers it before the next build (edge) -- deferred: spec-bound (matrix row 'Build, silent'), pre-existing since 35.1 [src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:AttachOne]
+- [x] [Review][Defer] (med, by-design, DW-1211) Per-job transition reports against one shared `Mcp.Server` row (blind+edge) -- deferred: spec-bound (Always rule, Design Notes decided 5); the wrong direction is the safe one [src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:OfferServers]
+
+Rejected:
+- (spec edit) The spec's frontmatter `deferred`, Triage Log and Auto Run Result still call DW-1204 unverified (blind, acceptance x2, verification-gap): build-auto's sections; DW-1204 is resolved above and reported to the lead.
+- (false) Stale shadowing docs in `AttachServers`/`ReportOf` (blind): every composed manager adds the agent's own tools before the servers, so AI Hub shadows the server's copy there; the docs' reason holds.
+- (low) The recovery report takes `builtin` from the request's manager (blind): the Tasks line says so; it needs a server tool named like the one turn tool (`documents`).
+- (spec-bound) `ToolInventory` lists no MCP tool (blind): matrix row 'Replay or inventory'; the security statement covers built-in tools only.
+- (low) Two Servers entries with one config (edge): OcuTalon's `Servers` derives configs from unique `Mcp.Server` names; a guard for another host.
+- (low) `ReportOf` throwing after `Record` (edge): the next request's recovery report corrects it; needs a manager that just accepted AddTool and cannot list.
+- (low) `McpReported` set before `OnAttach` fails (edge): the failure is one warning; the fix adds a return path to `ReportAttach`.
+- (low) A skills agent's servers report attached (edge): Design Notes decided 6, a bridge-only case.
+- (low) System-wide `%Net.HttpRequest` defaults (proxy, username) reach the probe (edge): OcuTalon sets none; guards for a site setting.
+- (low) "2 s" understates a probe that nears each phase's limit (edge, blind): each phase's timeout ends the probe; stacking needs a server that answers every phase just under 2 s.
+- (low) `Attach` does not refuse an `mcp:` spec (acceptance): no caller passes one; a guard.
+- (low) `TestReadOnlyTurnSkills` and `TestMapFailures` rewritten (acceptance): forced by Design Notes decided 4 and 6, recorded under the implementation notes.
+- (false) Plain `http://` to any host (acceptance): `Mcp.Ops.AddressAllowed` refuses it at registration, so no entry holds one.
+- (false) AC 3 not driven through the replay (acceptance): `CallTool` runs `adapter.Agent.ToolManager.ExecuteTool`, the call `Replay.cls` L98 makes; the outcome half is patched above.
+
 ## Spec Change Log
 
 - 2026-11-12 (runner, lane change): Epic 22 moved to lane D (slot `ocutalon-slot-d`, lock folder `lane-d`, port 52804) by the Contest Planner's ruling; the Verification lane variables now name lane D. Nothing else changed.
@@ -388,6 +424,26 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: `Client.Probe` without `WriteTimeout` -> `Test.Mcp.Client:TestEndpoint` red (an https url against a mock that never completes the handshake: the probe waited until the mock closed, 18 s against a bound of 6).
 - mutation: `Client.Probe` counts only a status below 400 as an answer -> `TestStatusIsAnAnswer` red (401, 403 and 503).
 - mutation: `Client.Probe` with `Https` 0 -> `TestEndpoint` red ("an https url against a server that speaks plain HTTP is unreachable").
+
+**QA stage (Rule 19; warm stack e22s9qw, lane D; each mutation reverted byte-identical, `git status --short` unchanged):**
+- (QA) files: `src/ocutalon/cls/OcuTalon/Test/Mcp/Client.cls` (new tests `TestNoAuthorization`, `TestRedirectNotFollowed`, `TestStalledBody`, `TestStalledBodyKeepsStatus`) and `src/ocutalon/cls/OcuTalon/Test/Mcp/Mock.cls` (new modes `Stall`/`Unstall`; `Status` takes an optional Location). No new test class, so no `ci/units.sh` entry.
+- (QA) re-demonstrated, not new: the `WriteTimeout` mutation below (the https handshake bound), observed red again at the QA stage.
+- mutation: `Client.Probe` without `WriteTimeout` -> `Test.Mcp.Client:TestEndpoint` red (QA re-run: "within 6 seconds" for the https url against the plain mock and "and the probe gives up within 6 seconds, the handshake included"; 41 s against 22 s).
+- mutation: `Client.Probe` sends `Authorization: Bearer x` -> `Test.Mcp.Client:TestNoAuthorization` red ("which carries no Authorization header"). `TestAnswers` stayed green under this mutation: it watches only the custom `X-Zz-Key` header, so AC 5's "no credential" half had no pin before.
+- mutation: `Client.Probe` with `FollowRedirect` 1 -> `TestRedirectNotFollowed` red ("and the probe did not follow the redirect to the second mock"). The review log said the redirect rule had no test.
+- mutation: `McpServers.Probe` default gives `unreachable` instead of `""` -> `Test.Bridge.Ext:TestExtensionBases` red ("and probes nothing: Probe gives an empty string, which is no probe").
+- mutation: the skills branch warns on every composed request (the `SkillsWarned` guard removed) -> `Test.Mcp.Attach:TestReadOnlyTurnSkills` red ("and the build warned once").
+
+**DW-1204 settled (QA, measured on the slot and on the warm stack):** a mock that sends `HTTP/1.1 200 OK`, `Content-Type: text/event-stream` and `Content-Length: 1000` and then no body makes `%Net.HttpRequest.Post` return ERROR #5922 "Timed out waiting for response" after `Timeout`, while `request.HttpResponse` is an object with `StatusCode` 200. `Client.Probe` tests `$$$ISOK(sc) && $IsObject(HttpResponse)`, so it answers `unreachable` (2.0 s) although the server answered with a status: the gap is real and contradicts the Always rule "counts any HTTP status within the bound as an answer". A fix that tests `+request.HttpResponse.StatusCode > 0` makes the probe answer `""` (the QA mutation above) and breaks no other test of `Test.Mcp.Client`. Production code was not changed by QA. Resolved in code review: `Client.Probe` counts a response that carries a status as an answer, and `TestStalledBody` expects an empty string (mutation line below).
+
+**Code review (Rule 19; warm stack e22s9cw, lane D; each mutation reverted byte-identical, `git status --short` and `git diff --stat` unchanged):**
+- mutation: `Client.Probe` answers only when `Post` returned OK (the DW-1204 fix reverted) -> `Test.Mcp.Client:TestStalledBody` red ("and the status it sent is an answer, although its body never completed").
+- mutation: `Client.Endpoint` without the bracketed IPv6 alternative -> `TestEndpoint` red (the two `[::1]` rows).
+- mutation: `OfferServers`' recovery report disabled (`If 0`) -> `Test.Mcp.Attach:TestSilentInRequest` red ("and the runner reported the server attached", "with the build's report").
+- mutation: `OfferServers`' warning appends AI Hub's error text -> `TestAddToolFailsInRequest` red (the secret and the address show).
+- mutation: `AttachOne` logs AI Hub's error text when AddTool fails -> `TestAddToolFailsAtBuild` red (the secret and the address show).
+- mutation: `AttachOne` without its warning -> `TestSilentAtBuild` red ("the build logs one warning that names the server and the reason word").
+- Final pass after the patches: `Test.Mcp.Client`, `Test.Mcp.Attach` (125 s), `Test.Mcp.Loopback`, `Test.Bridge.Ext`, `Test.Bridge.TurnTools` and `Test.Agent.Runners` passed; `test-boundaries.sh`, `test-class-rules.sh` and `test-ci-config.sh` exit 0; `ci/warm.sh down` left no container, volume or network.
 
 **Implementation notes (runner notes):**
 - The recorded MCP spec stays in `Attached` (so `HasMcp`, `AttachedSpecs` and TestAttach's assertion are unchanged); its server and config are in the transient `McpOf(spec)`, the last report status in `McpReported(spec)` and the rest end in `McpRest(spec)`, all keyed by spec so that an empty server name cannot make a null subscript.

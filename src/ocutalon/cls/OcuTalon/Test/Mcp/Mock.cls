@@ -21,8 +21,12 @@
 ///     hold seconds (20 by default, so that a test that forgets Speak is slow and never hangs), checking every 0.1 s; then it closes the connection. Speak(port)
 ///     ends the silence. Silence is off by default, binds nothing new and is cleared by Stop and Forget. While the single job holds a silent connection, later
 ///     connections wait in the listener's queue.
-///   - Status(port, line) makes the mock on the port answer every request with the HTTP status line (for example "401 Unauthorized") and an empty body, until Stop;
-///     it is off by default.
+///   - Status(port, line, location) makes the mock on the port answer every request with the HTTP status line (for example "401 Unauthorized") and an empty body, until
+///     Stop; with a location it also sends a Location header (a redirect such as "302 Found"), and a call without one sends none. It is off by default.
+///   - Stall(port, hold) makes the mock on the port answer each request with a status line and headers (200 OK, Content-Type text/event-stream and a
+///     Content-Length that the body never reaches, as an event stream does) and then send no body, holding the connection open until Unstall, Stop or hold
+///     seconds (20 by default); then it closes the connection. Unstall(port) ends the stall. It is off by default and is cleared by Stop and Forget. The log
+///     records such a request as answered 0 (the reply never completed).
 ///   - Describe(port, text) sets the description that the mock lists for zz_lookup (its input schema stays), so that a test can change the tool between
 ///     two builds; Stop(port) clears it. Without it the description is "Looks up a ticket.".
 ///   - Shape(port, json) sets the input schema that the mock lists for zz_lookup, as JSON text (its description stays), for the same purpose; Stop(port) clears it.
@@ -106,10 +110,28 @@ ClassMethod Speak(port As %Integer)
 	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "silent")
 }
 
-/// Makes the mock on the port answer every request with the HTTP status line (for example "401 Unauthorized") and an empty body, until Stop.
-ClassMethod Status(port As %Integer, line As %String)
+/// Makes the mock on the port answer every request with the HTTP status line (for example "401 Unauthorized") and an empty body, until Stop; with a location
+/// it also sends that Location header, and without one it sends none.
+ClassMethod Status(port As %Integer, line As %String, location As %String = "")
 {
 	Set ^IRIS.Temp.OcuTalonMcpMock(port, "status") = line
+	If location = "" {
+		Kill ^IRIS.Temp.OcuTalonMcpMock(port, "location")
+	} Else {
+		Set ^IRIS.Temp.OcuTalonMcpMock(port, "location") = location
+	}
+}
+
+/// Makes the mock on the port send a status line and headers and then no body until Unstall or Stop, for hold seconds at most.
+ClassMethod Stall(port As %Integer, hold As %Integer = 20)
+{
+	Set ^IRIS.Temp.OcuTalonMcpMock(port, "stall") = hold
+}
+
+/// Ends the stall of the mock on the port: it answers in full again, and releases the connection that it holds.
+ClassMethod Unstall(port As %Integer)
+{
+	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "stall")
 }
 
 /// Removes the log of the port.
@@ -155,7 +177,7 @@ ClassMethod End(port As %Integer, job As %String) [ Private ]
 	Set ^IRIS.Temp.OcuTalonMcpMock(port, "stop") = 1
 	Set state = ..WaitFor(port, "stopped,failed", ..#STOPWAIT)
 	If (state = "") && (job '= "") && ##class(%SYS.ProcessQuery).%ExistsId(job) Do $SYSTEM.Process.Terminate(job)
-	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "job"), ^IRIS.Temp.OcuTalonMcpMock(port, "stop"), ^IRIS.Temp.OcuTalonMcpMock(port, "description"), ^IRIS.Temp.OcuTalonMcpMock(port, "schema"), ^IRIS.Temp.OcuTalonMcpMock(port, "silent"), ^IRIS.Temp.OcuTalonMcpMock(port, "status")
+	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "job"), ^IRIS.Temp.OcuTalonMcpMock(port, "stop"), ^IRIS.Temp.OcuTalonMcpMock(port, "description"), ^IRIS.Temp.OcuTalonMcpMock(port, "schema"), ^IRIS.Temp.OcuTalonMcpMock(port, "silent"), ^IRIS.Temp.OcuTalonMcpMock(port, "status"), ^IRIS.Temp.OcuTalonMcpMock(port, "location"), ^IRIS.Temp.OcuTalonMcpMock(port, "stall")
 }
 
 /// The state of the mock on the port once it is one of the states (comma-separated), or "" after the seconds.
@@ -231,7 +253,17 @@ ClassMethod Connection(socket As %IO.ServerSocket, port As %Integer, extra As %L
 	Set forced = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "status"))
 	If forced '= "" Set code = forced, reply = ""
 	Set hold = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "silent"))
-	Set ^IRIS.Temp.OcuTalonMcpMock(port, "req", $Increment(^IRIS.Temp.OcuTalonMcpMock(port, "req"))) = $ListBuild(method, tool, auth, (hold = ""), client)
+	Set stall = $Get(^IRIS.Temp.OcuTalonMcpMock(port, "stall"))
+	Set ^IRIS.Temp.OcuTalonMcpMock(port, "req", $Increment(^IRIS.Temp.OcuTalonMcpMock(port, "req"))) = $ListBuild(method, tool, auth, ((hold = "") && (stall = "")), client)
+	If (hold = "") && (stall '= "") {
+		Do socket.Write("HTTP/1.1 200 OK" _ $Char(13, 10) _ "Content-Type: text/event-stream" _ $Char(13, 10) _ "Content-Length: 1000" _ $Char(13, 10) _ "Connection: close" _ $Char(13, 10) _ $Char(13, 10))
+		Do socket.Flush()
+		Set until = $ZHorolog + stall
+		While ($ZHorolog < until) && ($Get(^IRIS.Temp.OcuTalonMcpMock(port, "stall")) '= "") && '$Get(^IRIS.Temp.OcuTalonMcpMock(port, "stop")) {
+			Hang 0.1
+		}
+		Quit
+	}
 	If hold '= "" {
 		Set until = $ZHorolog + hold
 		While ($ZHorolog < until) && ($Get(^IRIS.Temp.OcuTalonMcpMock(port, "silent")) '= "") && '$Get(^IRIS.Temp.OcuTalonMcpMock(port, "stop")) {
@@ -239,7 +271,7 @@ ClassMethod Connection(socket As %IO.ServerSocket, port As %Integer, extra As %L
 		}
 		Quit
 	}
-	Do socket.Write("HTTP/1.1 " _ code _ $Char(13, 10) _ "Content-Type: application/json" _ $Char(13, 10) _ "Content-Length: " _ $Length(reply) _ $Char(13, 10) _ "Connection: close" _ $Char(13, 10) _ $Char(13, 10) _ reply)
+	Do socket.Write("HTTP/1.1 " _ code _ $Char(13, 10) _ "Content-Type: application/json" _ $Char(13, 10) _ $Select($Get(^IRIS.Temp.OcuTalonMcpMock(port, "location")) = "": "", 1: "Location: " _ ^IRIS.Temp.OcuTalonMcpMock(port, "location") _ $Char(13, 10)) _ "Content-Length: " _ $Length(reply) _ $Char(13, 10) _ "Connection: close" _ $Char(13, 10) _ $Char(13, 10) _ reply)
 	Do socket.Flush()
 }
 
