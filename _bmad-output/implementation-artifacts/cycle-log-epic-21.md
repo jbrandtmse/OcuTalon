@@ -152,3 +152,5 @@
 2026-11-12T17:19:03Z	Story 21.7	committed	sha=9e428b94 submodules= ci=pending runs=43268103148,43268103179 amendments=ARCHITECTURE-SPINE.md(21.7_S1-S5,AD-33_exception_bullet,AD-14_18.2_SUPERSEDED,DigestChannels_contract_row),EXPERIENCE.md(E1,E2_rows) note=code_6c277ab0+1f7be133,integrated_90777cf8
 2026-11-12T17:19:03Z	Story 21.7	story_cycle	plan_to_commit_min=963 implement_passes=2 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-12T17:19:18Z	Epic 21	stage_spawned	stage=epic_context spawn_at=2026-11-12T17:19:18Z model=opus effort=high agent_name=epic-21-context-prewarm-5 reason=planning_artifact_newer(21.8_AC,feature_merges)
+2026-11-12T17:22:49Z	Epic 21	epic_context_compiled	spawn_at=2026-11-12T17:19:18Z reason=planning_artifact_newer model=opus effort=high header_ok=true
+2026-11-12T17:22:49Z	Story 21.8	stage_spawned	stage=plan spawn_at=2026-11-12T17:22:49Z model=opus effort=high agent_name=21-8-read-and-send-mail-with-the-oauth2-sign-in-plan-1 cycle_iteration=1 note=planned_in_21.7_CI_wait(standing-rulings-20261112)
