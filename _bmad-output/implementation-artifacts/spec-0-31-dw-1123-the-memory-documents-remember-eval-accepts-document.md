@@ -99,6 +99,25 @@ Each scenario uses the citation Results runbook / Clearing the queue, every save
 - Given the committed `eval/results/rules-only.json`, when it is compared with the old file after normalising the volatile fields, then the only differences are `cases[40].expected`, `turnChecks[4].keyPhrases[0]` and `turnChecks[4].missing[0]` (this case's entries), and `compare.mjs --column` gives the same lines apart from the date.
 - Given CI on this story's head, when it finishes, then every workflow is green.
 
+### Review Findings
+
+Code review 2026-11-12 (stage cr, full mode, baseline 2067f895, four layers on the session model): 12 findings: high 0, med 0, low 9, false 3. 2 patched, 1 deferred (ledgered as wontfix-accepted), 9 rejected. `rules-only.json` checked with the normalised JSON diff: exactly `r.cases.40.expected`, `r.turnChecks.4.keyPhrases.0` and `r.turnChecks.4.missing.0`, all this case's. `compare.mjs --column` unchanged (`date|November 12`).
+
+- [x] [Review][Patch] `TestShippedTaintedCase`'s doc comment claimed the whole shipped case is scored, but only its expectation is read from eval/; the turn case is the test's own (kind documents, stock turn) [src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls:2272]. Comment narrowed. The kind literal stays, because `Cases.TestMemoryCases` pins the shipped kind, turn and documents, and the scorer does not read the turn.
+- [x] [Review][Patch] Header: `TestShippedTaintedCase` sat unlabelled inside the "(Story 41.14)" bullet, and lines 52-53 ran far past the header's wrap [src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls:52]. Labelled "(Story 0.31, DW-1123)" and rewrapped; comment only. `OcuTalon.Test.Eval.Report` passed on a lane-B warm throwaway (tag e0bs31cw) after the patch, and the throwaway was torn down.
+- [x] [Review][Defer] No committed check ties `eval/results/rules-only.json`'s embedded expectations to the current `case.json` [docker/tests/test-eval-set.sh] — deferred: pre-existing and out of footprint (a new consistency rule). AC 3 rests on the spec's one-off diff. DW-1198 `wontfix-accepted`, reopen_if=a committed report's expected or keyPhrases differs from its case.json at the same commit.
+
+Rejected:
+- `low` (blind, edge) The widened first group is a weak signal, because "runbook" is also in the request and the citation. This is the Planner's binding ruling, and the spec forbids changing `description`. DW-1196 `by-design`.
+- `low` (blind, edge x2) "file" is a substring match ("profile", "filed"), and no row pins it. The spec keeps the matcher unchanged. DW-1197 `by-design`.
+- `low` (blind) Three of the four rows in `TestShippedTaintedCase` repeat `TestMemoryTurnTainted`, and `TestMemoryTurnTainted` has no file row. Tasks specify exactly these rows, and the shipped test pins file.
+- `low` (blind) `TestMemoryCases`'s doc comment and assertion message don't name the source-word group. This is pre-existing (the old "document" group wasn't named either), and Tasks say "nothing else changes" in that method.
+- `low` (blind, gap, intent) No mock or live run produces a runbook or file reply. The spec scopes the story this way, and `MemoryCases.TestTainted` is unchanged on purpose. The live check is the Planner's next release-candidate run.
+- `low` (audit) The spec cites 9a85d927 where the baseline is 2067f895. 9a85d927 is an ancestor, and nothing under `eval/` or `Test/Eval` differs between the two. Fixing it would mean editing the spec.
+- `false` (gap) AC 4 has no `mutation:` line. AC 4 is CI evidence with no pinning test, and Mutations records "AC 4: lead (CI evidence)".
+- `false` (gap) The keys and `recordedBy` clauses of AC 2 have no mutation line of their own. Rule 19 asks for one mutation per AC, and AC 2 has two.
+- `false` (audit) The spec says `done` while CI on the head is unseen. AC 4 is the lead's gate by the spec, and this stage does not change the status.
+
 ## Spec Change Log
 
 ## Review Triage Log

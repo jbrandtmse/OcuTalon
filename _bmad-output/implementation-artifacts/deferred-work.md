@@ -7051,6 +7051,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 1.0.7 RC eval, 3 real-model attempts: the model refused to save runbook text, cited 'Results runbook / Clearing the queue' and quoted it, but said 'runbook', failing only the phrase check
 - 2026-11-11T11:02:31Z status=routed owner=burndown by=owner note=ruled by the Contest Planner: widen eval/memory-documents-remember's phrase check to document|runbook|file; report-only; Epic 41's eval files; next free lane, ~30 min, after RELEASE DONE
 - 2026-11-12T14:17:29Z status=routed owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=lane_order note=orchestrator 2026-11-12: lane B's next item, inserted as Story 0.31 (DW-1123 acceptance bullet in epics.md)
+- 2026-11-12T15:05:57Z status=resolved-by:0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=adjudication note=38c3f267: eval/memory-documents-remember first keyPhrases group is [document, runbook, file]; pinned by Test.Eval.Report TestShippedTaintedCase and TestMemoryTurnTainted (runbook right, names-none wrong), Cases.TestMemoryCases; report-only unchanged; eval/results/rules-only.json re-run (3 entries of this case only)
 
 ### DW-1133: A classified MCP tool that its server stops listing loses its ToolClassification row at the next attach with no Tool audit entry and no admin notice
 - source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
@@ -7202,3 +7203,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: medium | fix-risk: high | footprint: in-story
 - evidence: docker/tests/test-eval-set.sh check_rules_flow: awk line-order pins only; rcf_rules runs the --rules-only forms, never the push run; lane-a evaluation job is the runtime proof
 - 2026-11-12T13:46:59Z status=by-design owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=spec Verification: Integration and CI ACs are proven by the lead's CI evidence (lane A evaluation job log and summary); a stubbed push run would emulate set, mock-wrong, demo gate and attempt runs
+
+### DW-1196: memory-documents-remember: the widened first key-phrase group is a weak source signal, since runbook also appears in the user's request and the cited document name
+- source: spec-0-31-dw-1123-the-memory-documents-remember-eval-accepts-document.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: case.json keyPhrases[0] = document|runbook|file; the turn text and citation both say Results runbook, so a reply that echoes its source meets the group (blind-hunter, edge-case-hunter)
+- 2026-11-12T15:03:40Z status=by-design owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=cr note=Contest Planner ruling 2026-11-11 (DW-1123) fixes the group; spec forbids changing description; report-only case
+
+### DW-1197: memory-documents-remember: file in the first key-phrase group is a lower-case substring match, so profile, filed or filename also meet it
+- source: spec-0-31-dw-1123-the-memory-documents-remember-eval-accepts-document.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Eval.Report Holds/Normalize is a plain substring test (unchanged); no test pins the substring behaviour for file (blind-hunter, edge-case-hunter)
+- 2026-11-12T15:03:40Z status=by-design owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=cr note=spec Design Notes keep the matcher unchanged and accept substring hits; report-only case, outside SM-1
+
+### DW-1198: No committed check ties eval/results/rules-only.json's embedded expectations to the current eval/<case>/case.json; a case edit without a rules-only re-run leaves stale text
+- source: spec-0-31-dw-1123-the-memory-documents-remember-eval-accepts-document.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: test-eval-set.sh committed-run checks (structure only) and compare.mjs --column (counts, date) never compare cases[].expected or turnChecks[].keyPhrases with case.json; AC 3 rests on the spec's one-off node diff (verification-gap)
+- 2026-11-12T15:03:40Z status=wontfix-accepted owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=cr note=reopen_if=a committed eval/results report is found whose expected or keyPhrases differ from its case.json at the same commit
