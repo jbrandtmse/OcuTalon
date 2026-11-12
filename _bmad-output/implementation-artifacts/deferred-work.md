@@ -7229,3 +7229,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rows 7-12 online-demo specs: 1 failed (R2, 2.3 s) at resume.spec.ts:143 page.goto ERR_ABORTED; spec unchanged since 83a6f3c1 (Nov 4); the head changes README.md and test-readme.sh over feature eb289caf; 18 runners busy
 - 2026-11-12T11:14:12Z status=routed owner=burndown by=runner note=flake class (first occurrence): one rerun of failed jobs; a second red on the same head is real; likely fix: gotoSettled at L143 as DW-690 did
 - 2026-11-12T12:22:47Z status=routed owner=burndown by=runner note=rerun_attempt_2_of_run_43202138313_green_on_2a6cfc67(flake_confirmed)
+
+### DW-1204: Mcp.Client.Probe may report a server unreachable when it sent a status line and headers and then stalled before the body ends (an event stream)
+- source: spec-22-9-bound-mcp-attach-and-listing-with-a-timeout.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Mcp/Client.cls
+- evidence: Probe answers '' only when Post returns OK with an HttpResponse; a body read timeout after headers is read as unreachable (unverified; a stall-after-headers mock mode would settle it)
+- 2026-11-12T16:21:17Z status=open owner=22-9-bound-mcp-attach-and-listing-with-a-timeout by=harvest note=in-story; fix candidate: count a response with StatusCode>0 as an answer
