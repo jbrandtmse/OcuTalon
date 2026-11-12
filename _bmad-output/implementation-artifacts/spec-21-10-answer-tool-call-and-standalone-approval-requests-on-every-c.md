@@ -194,7 +194,11 @@ deferred: []
 - Given a cancellation that was not a server removal, when it arrives, then no notice is sent and no card claims a removed server (`Test.Core.BridgeSink`).
 - Given the online demo, when the demo path runs, then nothing changes (`live demo-path`, X1-X11 unchanged).
 
+- [ ] (Planner condition V4, Telegram) Given a tool-call request whose full Telegram text would exceed 4,096 characters, when TelegramOut renders it, then the message shows the head of the request, carries NO Approve button (Reject may stay only if the renderer already offers it separately; never Approve), and ends with "The inputs are too long to show here. See them on your OcuTalon page before you approve."; the web card shows the full inputs (collapsible allowed); a test pins the over-long case on both channels (mutation: the length check removed -> red), and a request that fits keeps both buttons.
+
 ## Spec Change Log
+
+- 2026-11-12 (lead, spec gate): Planner rulings E applied (split to 21.11 approved; V2-V7 approved; the V4 Telegram 4,096-character condition added as an AC with its approved line; T1, T2, toolCall.requestOnServer verbatim).
 
 ## Review Triage Log
 
@@ -308,6 +312,8 @@ It never touches R1's result branch or `KEYCHANGED`. Because 21.10 implements af
 - **S1, AD-31:** "(step 4's email fix, Story 22.7; this part built in Story 21.5)" becomes "...built in Story 21.11, split from Story 21.10". If the split is declined, it becomes "Story 21.10".
 - **S2, AD-31, after the tool-call notice sentence:** "On `approval.cancelled` of a replayable MCP `tool_call` whose server has no `Mcp.Server` row, it sends kind `answered`, `answered.canceled` {time, server}, and the approval event carries `server` and `cancelledAt`. Any other cancellation sends nothing [ADDED, Story 21.10]".
 - **S3, AD-32 renderer:** "slot type `inputs`: an array of {name, value}, one line `{name}: {value}` each, `{}` for none [ADDED, Story 21.10]".
+
+**Planner rulings at the spec gate (Contest Planner, owner's delegation, 2026-11-12 ~23:00Z, `prompts/gate-rulings-20261112-1810.md` E / 21.10; binding):** the split into new 21.11 (after 22.7) APPROVED (written into `epics.md`); V2, V3, V5, V6, V7 APPROVED. V4 (no 200-character cut; secrets masked by `Bridge.Redact`) APPROVED WITH A CONDITION for Telegram: if the full request does not fit in one Telegram message (4,096 characters), the Telegram card shows the head, gets NO Approve button, and says: "The inputs are too long to show here. See them on your OcuTalon page before you approve." The web card shows everything (collapsible is fine). Test the over-long case. PUBLIC TEXT: T1, T2 and `toolCall.requestOnServer` approved verbatim, plus that Telegram line. Order: implements after 22.4 merges (integrate forward first).
 
 ## Veto items
 
