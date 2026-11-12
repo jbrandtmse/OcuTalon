@@ -3691,3 +3691,58 @@
 2026-11-12T10:29:21Z	Epic 35	ci_green_verified	runs=43172109907,43172110020 head=c6c099df result=success
 2026-11-12T10:29:21Z	Epic 35	merge_enqueued	part=35.3 head=90cec339
 2026-11-12T10:29:47Z	Run	spine_reconciled	ads_merged=0 lint=baseline(10_low_placeholder) part=35.3
+2026-11-12T10:30:19Z	Epic 35	epic_merged_to_feature	part=35.3 feature_sha=eb289caf merge_sha=eb289caf code=c6c099df verified_on_origin=yes ci=43200877872,43200877871(pending;green_by_identity_with_c6c099df)
+2026-11-12T10:30:19Z	Epic 0	runner_reported	PART_READY part=0.28 head=eff03a14 local=e874df35 ci=success runs=43159935962(att2),43159935971 action=resume_integrate_forward(README_usability_row_overlaps_35.3)
+2026-11-12T10:31:50Z	Epic 35	runner_complete	part_merge=35.3 head=be516980 unpushed=none ci_code_head=c6c099df(success) records_runs=43201066996,43201067039(pending)
+2026-11-12T10:31:50Z	Epic 0	runner_dispatched	model=opus runner=epic-runner-0b lane=B slot=ocutalon-slot-b story=0.27_PartB prompt=prompts/redispatch-epic-0b-20261112.md worktree=.worktrees/epic-0b base=a9a3cb4a(local_only) bootstrap_check=ok
+2026-11-12T10:41:24Z	Epic 23	runner_reported	CI_WAIT story=23.9 head=3b197218 runs=43201190985(ci,queued),43201190573(lane-a) local_records=6812e541,62fdeb68 rereview=no_high_med DW-1186=resolved-by:23-9
+2026-11-12T10:41:24Z	Epic 23	protocol_violation	stage=code-review depth=2 agent=23-9-code-review-2 violation=Agent_call_ran_async_despite_run_in_background_false consequence=none(HEAD_unchanged,no_layer_edits) detected_by=runner outcome=runner_waited_bounded_polls_until_return
+2026-11-12T10:41:45Z	Epic 35	ci_cancelled_record_only	head=be516980 runs=43201066996,43201067039 reason=records_only_on_merged_epic(code=c6c099df_green)
+2026-11-12T10:41:45Z	Epic 21	ci_cancelled_void	head=2242c77d runs=43096469722,43096469670 reason=void_zombie_runs(DW-1163)_queued_since_2026-11-11T20:30Z
+2026-11-12T10:41:59Z	Epic 21	ci_cancel_failed	head=2242c77d runs=43096469722,43096469670 reason=GitHub_reports_completed/not-queued_(zombie_DW-1163)_no_runner_consumed correction_of=ci_cancelled_void
+2026-11-12T11:01:52Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=eb289caf runs=43200877872,43200877871 result=success note=newest_fully_green_feature_head(74ee76dc+35.3)
+2026-11-12T11:21:16Z	Epic 21	runner_reported	CI_WAIT story=21.3 head=368c7a09 runs=43206845957(ci),43206845590(lane-a) local_records=850eecde integrated_onto=eb289caf merge=6e2cebc5 ci_rework=1(DW-1185_audit_index_lag) new_ledger=DW-1188,DW-1189
+2026-11-12T11:21:16Z	Epic 21	protocol_violation	stage=all depth=2 agent=epic-runner-21_stages violation=Agent_calls_ran_async_despite_run_in_background_false consequence=none(runner_waited_bounded_polls,no_tree_writes) detected_by=runner outcome=harness_behaviour_second_lane(see_Epic_23)
+2026-11-12T11:33:18Z	Epic 23	ci_red_classified	sha=3b197218 run=43201190985 jobs=iris(install-upgrade)row6,iris(production)row21 class=flake(DW-1082,DW-306) action=rerun_failed_once(attempt2) lane-a=success
+2026-11-12T12:09:35Z	Epic 23	ci_green_verified	head=3b197218 runs=43201190985(attempt2),43201190573 result=success flakes=DW-1082(row6),DW-306(row21)
+2026-11-12T12:19:48Z	Epic 23	runner_reported	PART_READY part=23.9 head=e353d142 code_head=3b197218 ci=success runs=43201190985,43201190573
+2026-11-12T12:19:48Z	Epic 23	amendments_verified	amendments=4 extensions=2 ok=true note=AD-15_ADDED_marker(U-321),prd_FR-16/FR-24,EXPERIENCE,epics_23.9(U-321_owner_ruled_via_Planner) overlap_with_feature_since_base=none
+2026-11-12T12:19:48Z	Epic 23	merge_enqueued	part=23.9 head=e353d142
+2026-11-12T12:20:35Z	Run	spine_reconciled	ads_merged=0 lint=baseline(10_low_placeholder) part=23.9 dup_ids=none
+2026-11-12T12:20:53Z	Epic 23	epic_merged_to_feature	part=23.9 feature_sha=85e20e86 merge_sha=85e20e86 code=3b197218+35.3 verified_on_origin=yes
+2026-11-12T12:22:12Z	Epic 21	ci_observed	sha=368c7a09 run=43206845957 job=iris(image) unit=shard:lane-b@Contract,Core,Data,Live test=OcuTalon.Test.Data.Webhook:TestMatches("xrvjRiPqHbxlagA8SDES is not a stored value of the secret") note=35.3_test_green_on_eb289caf;red_on_21.3_integrated_head action=resume_runner_C_classify
+2026-11-12T12:32:28Z	Epic 21	runner_reported	CI_WAIT story=21.3 head=368c7a09 red=Test.Data.Webhook:TestMatches class=flake(DW-1191,random_salt_1in64,35.3_test) rerun=43206845957_attempt2 local=fcbff4bd
+2026-11-12T12:32:37Z	Epic 0	runner_reported	PART_READY part=0.28 head=42b613eb code_head=2a6cfc67 ci=success runs=43202138313(att2),43202138310(att2)
+2026-11-12T12:32:37Z	Epic 0	amendments_verified	amendments=0 extensions=6 ok=true release_tool=release/checklist.sh(approved_by_Planner) overlap_with_feature_since_base=none
+2026-11-12T12:32:37Z	Epic 0	ci_green_verified	head=2a6cfc67 runs=43202138313,43202138310 result=success
+2026-11-12T12:32:37Z	Epic 0	merge_enqueued	part=0.28 head=42b613eb
+2026-11-12T12:33:04Z	Epic 0	epic_merged_to_feature	part=0.28 feature_sha=3caf52ab merge_sha=3caf52ab code=2a6cfc67+23.9 verified_on_origin=yes
+2026-11-12T12:43:28Z	Run	owner_decision	via=contest_planner what=ci_and_0.30 ruling="85e20e86 runs cancelled by the Planner (3caf52ab contains it); if 3caf52ab red on 23.9/0.28 code (not a classified flake) rerun 85e20e86 runs to attribute; eb289caf = known-green fallback; DW-1191 test-only (TestMatches salt x), burndown, red on that single assertion = classified flake at RC; 0.30 in 1.0.8 only if green before the cut, else 1.0.9"
+2026-11-12T12:43:28Z	Run	ci_cancelled	head=85e20e86 runs=43217029752,43217029669 by=contest_planner reason=superseded_by_3caf52ab
+2026-11-12T13:05:40Z	Epic 0	runner_reported	PUBLIC_TEXT story=0.30 head=c205aec9 spec=blocked(Q1-Q3)
+2026-11-12T13:05:40Z	Epic 0	owner_decision	via=contest_planner what=0.30_Q1-Q3_and_public_text ruling="Q1 A (GUIDE_URL in links.ts), Q2 A (install.sh GUIDE.md line), Q3 A (RELEASE TOOL notes.sh:79 checklist.sh:474 approved + extract-moved-text AC); PUBLIC TEXT approved with 2 edits; conditions 1-4" file=prompts/story-030-rulings.md
+2026-11-12T13:15:25Z	Run	owner_decision	via=contest_planner what=standing_no_idle_lanes+lane_C_21.7+DW-1082_budget file=prompts/standing-rulings-20261112.md
+2026-11-12T13:15:25Z	Epic 21	ci_green_verified	head=368c7a09 runs=43206845957(att2),43206845590 result=success flake=DW-1191
+2026-11-12T13:15:50Z	Run	orchestrator_error	fault=orchestrator what=SendMessage_to_live_runner_mid_stage(epic-runner-0b) consequence=harness_moved_1_running_tool_call_to_background(not_stopped) correction=message_live_runners_only_at_turn_end;runner_0b_told_by_message_to_wait_for_its_stage(rule_18) note=likely_source_of_async_stage_reports
+2026-11-12T13:24:17Z	Run	ci_red_classified	sha=3caf52ab run=43218921197 job=iris(install-upgrade)row6 class=flake(DW-1082) action=rerun_failed_once(attempt2)
+2026-11-12T13:24:17Z	Epic 21	runner_reported	PART_READY part=21.3 head=cb13fddc code_head=368c7a09 ci=success runs=43206845957(att2),43206845590
+2026-11-12T13:24:17Z	Epic 21	amendments_verified	amendments=2 extensions=4 ok=true note=AD-3_S1-S6(U-320,markers),epics_21.3_split+21.8 overlap_with_feature_since_base=none
+2026-11-12T13:24:17Z	Epic 21	merge_enqueued	part=21.3 head=cb13fddc
+2026-11-12T13:24:51Z	Epic 21	epic_merged_to_feature	part=21.3 feature_sha=150b49c5 merge_sha=150b49c5 code=368c7a09+23.9+0.28 verified_on_origin=yes
+2026-11-12T13:53:20Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=3caf52ab runs=43218921197(att2),43218922253 result=success flake=DW-1082 note=newest_fully_green_feature_head(eb289caf+23.9+0.28)
+2026-11-12T14:16:13Z	Run	ci_red_classified	sha=150b49c5 run=43227065531 job=iris(shards-10) unit=live:sign-in class=infra/flake(DW-1195 new: chromium suite 757s timeout, 0 failed, 24 not run) action=rerun_failed_once lane-a=success
+2026-11-12T14:16:13Z	Epic 0	runner_reported	CI_WAIT story=0.27 head=0f86f096 local=f0f853d1 runs=43234781487(ci),43234781475(lane-a) action=resumed_with_DW-1123(next_lane_B_item,standing_rule) merge_target=f0f853d1
+2026-11-12T14:26:38Z	Run	owner_decision	via=contest_planner what=DW-1195_budget+CI_budget_audit_story(burndown,after_DW-1191,DW-1082) file=prompts/standing-rulings-20261112.md
+2026-11-12T14:26:38Z	Epic 23	runner_reported	CI_WAIT story=23.12(DW-1159) head=4444bda0 local=f2267364 runs=43235350028,43235350476 lane_D_free=yes
+2026-11-12T14:27:19Z	Epic 22	runner_dispatched	model=opus runner=epic-runner-22 lane=D slot=ocutalon-slot-d prompt=prompts/redispatch-epic-22-20261112.md base=3fc3e909 reason=Planner_ruling_lane_D_after_DW-1159
+2026-11-12T14:36:00Z	Epic 22	owner_decision	via=contest_planner what=epic22_demo_safety ruling="MCP off in demo mode (attach,listing,proxy,polls) pinned by a test; MCP More-to-try hidden on demo; MCP README/guide text as PUBLIC TEXT" file=prompts/standing-rulings-20261112.md relay=at_runner_turn_end
+2026-11-12T14:47:10Z	Epic 0	ci_red_classified	sha=0f86f096 run=43234781487 job=iris(install-fresh)row3 test="dev start did not end ready within 200 s" class=flake(DW-1082_family,host_load) action=rerun_failed_once(attempt2) story=0.27
+2026-11-12T14:55:30Z	Epic 21	ruling	question=21.7_V8_stored_data(Delivery.DigestKey,EchoedAt_nullable) choice=keep rejected=DecisionRef+global why=minimal_append-only_storage_growth,pinned category=veto reversal=fix_story_before_release inbox=U-323 policy=5086036
+2026-11-12T14:55:30Z	Epic 21	ruling	question=21.7_V9_lost_digest_retry(O1_removes_direct_resends) choice=keep(known_limit_of_O1) rejected=Digest_hands_missed_slice_to_Notify why=O1_ruled_scope;per-channel_items_record_delivery category=veto reversal=fix_story inbox=U-324 policy=5086036
+2026-11-12T14:55:30Z	Epic 0	owner_decision	via=contest_planner what=1.0.8_waits_for_0.30 ruling="owner: we would really want to wait for the README; release tonight if late; 0.30 first in every queue (merge, integrate, reruns, rework)"
+2026-11-12T15:04:11Z	Epic 21	owner_decision	via=contest_planner what=U-323,U-324_confirmed_keep condition="no README/guide/app text says the digest is retried or re-sent; known limit in spec only" file=prompts/epic-21-rulings-217-v8v9.md relay=at_runner_turn_end note=inbox_items_stay_open_until_answered_via_script
+2026-11-12T15:13:10Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=150b49c5 runs=43227065531(att2),43227065502 result=success flake=DW-1195 note=newest_fully_green_feature_head(3caf52ab+21.3)
+2026-11-12T15:27:26Z	Epic 0	ruling	question=0.30_DW-1199_Allowance.INSTALLLINK_still_points_at_README#install-it-yourself choice=YES_extend_Q1_to_this_one_link_target(GUIDE.md#install-it-yourself)+pins rejected=route_DW-1199_later why=same_ruled_change_(link_target_only,no_text/route/privilege);avoids_dead_README_anchor_on_online_demo_allowance_card;correctness_over_~1h category=decide policy=5086036 note=Planner_may_reverse_before_rework_completes
+2026-11-12T15:27:54Z	Epic 0	ci_green_verified	head=0f86f096 runs=43234781487(att2),43234781475 result=success story=0.27
+2026-11-12T15:27:54Z	Epic 0	amendments_verified	amendments=0 extensions=13(eval,Eval/*.cls,Test/Eval/*,Test/Agent/RunnerFixture.cls,docker/tests/*eval*) ok=true held_out_sha=6af31dab overlap_with_feature_since_base=none
+2026-11-12T15:27:54Z	Epic 0	merge_enqueued	part=0.27 head=f0f853d1 code_head=0f86f096 contract=runner_CI_WAIT_report(fields_given) note=merged_by_orchestrator_before_runner_PART_READY_to_free_queue_for_0.30

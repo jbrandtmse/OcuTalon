@@ -13,6 +13,9 @@
 ///     awaiting approval or fixing; not_quiet within 15 minutes, with no change; the item's own reading of the setting demo.mode (the probe's override off) gives
 ///     the same two answers. The probe's time is fixed (QuietNowIs, QUIETNOW in 2030) and the incidents' LastAt is 16 and 14 minutes before it; one resolved
 ///     incident 14 minutes before the clock's now, with the time not fixed, is not_quiet, which shows that the item reads the clock when nothing is fixed;
+///   - TestHeldBySuspend (Story 23.9; AC1-3, AC6, AC7): over real FixRun and ApprovalRequest rows, closeQuiet (resolved, and open noticed with demo mode off) and closeForReplay of an incident that holds a
+///     suspend are not_allowed with nothing changed, stored or sent; a done resume that changed the item ends the hold and closeQuiet then closes it with the suspend and resume lines in its summary; dismiss
+///     closes a held incident; a run that changed nothing holds nothing; another incident's later suspend, or a resume through another incident, moves the hold; a holds read that throws is held, with one warning;
 ///   - TestApprovalOutcomes: approved starts the fix (fixing, one Execute for the request in the incident's trace session, the probe's own session kept);
 ///     rejected and expired reopen the incident with that variant when nothing else is pending, and keep it awaiting approval while another request is pending
 ///     or approved with its outcome on its way; while fixing an outcome changes nothing but the event. Since Story 7.2 an accepted rejected or expired outcome
@@ -278,6 +281,122 @@ Method TestCloseQuiet()
 	Set unnoticed = ..Incident(a, "open", {"LastAt": (long)}, 0)
 	Set result = ..Command(host, "closeQuiet", unnoticed, "")
 	Do $$$AssertEquals(..Said(result), "0|not_allowed|", "an unnoticed open incident is not_allowed")
+}
+
+/// Story 23.9 (AC1, AC2, AC3, AC6, AC7; Integration, over real FixRun and ApprovalRequest rows, no HoldsIs): an incident whose done suspend_item run changed an item that is still suspended is held. closeQuiet
+/// (resolved, and open and noticed with demo mode off) and closeForReplay answer not_allowed and change, store and send nothing; a done resume_item run that changed the item ends the hold, and closeQuiet then closes the
+/// incident, with a summary that lists the suspend and the resume; dismiss closes a held incident; a run that changed nothing holds nothing; a later suspend of the item by another incident, and a resume through another
+/// incident, move the hold; a holds read that throws counts as held, with one LOGHOLDS warning.
+Method TestHeldBySuspend()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("held")
+	Set host.QuietNowIs = ..#QUIETNOW
+	Set host.DemoModeIs = 0
+	Set long = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#QUIETNOW, -960)
+	// AC1: a resolved, quiet incident that holds a suspend is not closed by closeQuiet or closeForReplay
+	Set resolved = ..Incident(a, "resolved", {"LastAt": (long)}, 1, "Zz.HeldResolved"_..Number)
+	Do ..Suspension(a, resolved, "suspend_item", "X")
+	Set before = ..Snapshot(resolved)
+	Set sent = ..SentCount(host)
+	Set events = ..Count(a)
+	Set result = ..Command(host, "closeQuiet", resolved, "")
+	Do $$$AssertEquals(..Said(result)_"|"_..Data(result), "0|not_allowed||resolved|", "closeQuiet of a quiet resolved incident that holds a suspend is not_allowed")
+	Do $$$AssertEquals(result.Message, $Parameter(..#PROBE, "MESSAGENOTALLOWED"), "with the existing message")
+	Set result = ..Command(host, "closeForReplay", resolved, "")
+	Do $$$AssertEquals(..Said(result)_"|"_..Data(result), "0|not_allowed||resolved|", "so is closeForReplay")
+	Do $$$AssertEquals(..Snapshot(resolved), before, "the incident stays resolved with no ClosedAt: nothing changes")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(resolved).Summary, "", "no summary is stored")
+	Do $$$AssertEquals(..SentCount(host)_"|"_..Count(a), sent_"|"_events, "and nothing is sent or published")
+	// AC2: an open, noticed incident that holds a suspend, with demo mode off
+	Set open = ..Incident(a, "open", {"LastAt": (long), "OpenVariant": "rejected"}, 1, "Zz.HeldOpen"_..Number)
+	Do ..Suspension(a, open, "suspend_item", "X")
+	Set before = ..Snapshot(open)
+	Set result = ..Command(host, "closeQuiet", open, "")
+	Do $$$AssertEquals(..Said(result)_"|"_..Data(result), "0|not_allowed||open|rejected", "closeQuiet of a quiet open incident that holds a suspend is not_allowed, with demo mode off")
+	Do $$$AssertEquals(..Snapshot(open), before, "and nothing changes")
+	// AC3: a done resume that changed the item ends the hold, and closeQuiet then closes the incident
+	Do ..Suspension(a, resolved, "resume_item", "X")
+	Set result = ..Command(host, "closeQuiet", resolved, "")
+	Do $$$AssertEquals(..Said(result)_"|"_..Data(result), "1|closed|"_resolved_"|closed|", "after the resume the quiet close closes the incident")
+	Set summary = ##class(OcuTalon.Data.Incident).RefIndexOpen(resolved).Summary
+	For key = "summary.requestedSuspend", "summary.itemSuspended", "summary.requestedResume", "summary.itemResumed", "summary.closedQuiet" {
+		Do $$$AssertTrue(summary [ key, "the summary lists "_key)
+	}
+	// dismiss closes a held incident, open or resolved
+	Set dismissed = ..Incident(a, "resolved", {"LastAt": (long)}, 1, "Zz.HeldDismiss"_..Number)
+	Do ..Suspension(a, dismissed, "suspend_item", "X")
+	Set result = ..Command(host, "dismiss", dismissed, a)
+	Do $$$AssertEquals(..Said(result)_"|"_..Data(result), "1|closed|"_dismissed_"|closed|", "dismiss closes a resolved incident that holds a suspend")
+	Set summary = ##class(OcuTalon.Data.Incident).RefIndexOpen(dismissed).Summary
+	Do $$$AssertTrue((summary [ "summary.itemSuspended") && (summary [ "summary.closedDismiss"), "and its summary has the suspend line and the dismiss closing")
+	Set result = ..Command(host, "dismiss", open, a)
+	Do $$$AssertEquals(..Said(result)_"|"_..Data(result), "1|closed|"_open_"|closed|", "and an open, noticed one")
+	// a run that changed nothing holds nothing
+	Set nothing = ..Incident(a, "resolved", {"LastAt": (long)}, 1, "Zz.HeldNothing"_..Number)
+	Do ..Suspension(a, nothing, "suspend_item", "X", 0)
+	Set result = ..Command(host, "closeQuiet", nothing, "")
+	Do $$$AssertEquals(..Said(result), "1|closed|"_nothing, "a suspend run that changed nothing holds nothing: closeQuiet closes")
+	// AC6: a later suspend of the item by another incident moves the hold
+	Set production = "Zz.HeldMoved"_..Number
+	Set firstOne = ..Incident(a, "resolved", {"LastAt": (long)}, 1, production)
+	Set secondOne = ..Incident(a, "resolved", {"LastAt": (long)}, 1, production)
+	Do ..Suspension(a, firstOne, "suspend_item", "X")
+	Do ..Suspension(a, secondOne, "suspend_item", "X")
+	Set before = ..Snapshot(secondOne)
+	Set result = ..Command(host, "closeQuiet", secondOne, "")
+	Do $$$AssertEquals(..Said(result), "0|not_allowed|", "the incident that suspended X last holds it")
+	Do $$$AssertEquals(..Snapshot(secondOne), before, "and stays as it was")
+	Set result = ..Command(host, "closeQuiet", firstOne, "")
+	Do $$$AssertEquals(..Said(result), "1|closed|"_firstOne, "the first one holds nothing any more: closeQuiet closes it")
+	// a resume through another incident releases the hold
+	Set production = "Zz.HeldResumedElsewhere"_..Number
+	Set suspender = ..Incident(a, "resolved", {"LastAt": (long)}, 1, production)
+	Set resumer = ..Incident(a, "resolved", {"LastAt": (long)}, 1, production)
+	Do ..Suspension(a, suspender, "suspend_item", "X")
+	Do ..Suspension(a, resumer, "resume_item", "X")
+	Set result = ..Command(host, "closeQuiet", suspender, "")
+	Do $$$AssertEquals(..Said(result), "1|closed|"_suspender, "an item resumed through another incident is not held by the incident that suspended it")
+	// AC7: a holds read that throws counts as held, with one warning
+	Set unreadable = ..Incident(a, "resolved", {"LastAt": (long)}, 1, "Zz.HeldUnreadable"_..Number)
+	Set before = ..Snapshot(unreadable)
+	Set host.FailHolds = 1
+	Set result = ..Command(host, "closeQuiet", unreadable, "")
+	Set host.FailHolds = 0
+	Do $$$AssertEquals(..Said(result)_"|"_..Data(result), "0|not_allowed||resolved|", "a holds read that throws is treated as held: not_allowed")
+	Do $$$AssertEquals(..Snapshot(unreadable), before, "and the incident is kept")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "Holds", $Parameter(..#PROBE, "LOGHOLDS")_unreadable), 1, "with one warning that names the incident")
+	// dismiss and the other events read no holds
+	Set host.FailHolds = 1
+	Set result = ..Command(host, "dismiss", unreadable, a)
+	Set host.FailHolds = 0
+	Do $$$AssertEquals(..Said(result), "1|closed|"_unreadable, "dismiss reads no holds, so it closes the incident even when they are unreadable")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "Holds", $Parameter(..#PROBE, "LOGHOLDS")_unreadable), 1, "and the dismiss logged no further holds warning")
+	// the probe's fixed answer decides when it is set
+	Set fixed = ..Incident(a, "resolved", {"LastAt": (long)}, 1, "Zz.HeldFixed"_..Number)
+	Set host.HoldsIs = 1
+	Set result = ..Command(host, "closeQuiet", fixed, "")
+	Do $$$AssertEquals(..Said(result), "0|not_allowed|", "HoldsIs 1 holds the incident")
+	Set host.HoldsIs = 0
+	Set result = ..Command(host, "closeQuiet", fixed, "")
+	Do $$$AssertEquals(..Said(result), "1|closed|"_fixed, "HoldsIs 0 does not")
+}
+
+/// A done request of the kind for the item of the incident, with a done run (Completed 1 when it changed the item, else 0), appended to the incident's RequestRefs (which the summary reads).
+Method Suspension(owner As %String, incident As %String, kind As %String, item As %String, completed As %Integer = 1)
+{
+	Set request = ..Request(owner, incident, "done", {"FixKind": (kind), "FixParameters": ({"item": (item)}.%ToJSON()), "FixTargets": "1"})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, {"Total": 1, "Completed": (completed), "Skipped": (1 - completed)})
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.RequestRefs = row.RequestRefs_$Select(row.RequestRefs = "": "", 1: ",")_request
+	$$$ThrowOnError(row.%Save())
+}
+
+/// The number of Notifications that the probe recorded.
+ClassMethod SentCount(host As OcuTalon.Test.Watch.IncidentProbe) As %Integer
+{
+	Quit $Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0)
 }
 
 Method TestApprovalOutcomes()
@@ -1630,6 +1749,7 @@ Method RemoveLogs()
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Execute", $Parameter(..#PROBE, "LOGEXECUTE"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "CheckNow", $Parameter(..#PROBE, "LOGCHECKNOW"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Command", $Parameter(..#PROBE, "LOGMOVE"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Holds", $Parameter(..#PROBE, "LOGHOLDS"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "ResultNotice", $Parameter(..#PROBE, "LOGRESULT"))
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGREFUSED"))
 }

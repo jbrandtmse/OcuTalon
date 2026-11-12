@@ -16,6 +16,8 @@ import type {
   DocumentsList,
   EventsResponse,
   GuideMarker,
+  MailSignInChecked,
+  MailSignInStarted,
   MailboxAccepted,
   MailboxEmail,
   MessageAccepted,
@@ -91,6 +93,16 @@ export class ApiClient {
    */
   testModel(agent: string): Observable<ModelTestAnswer> {
     return this.http.post<ModelTestAnswer>(`${BASE}/settings/models/test`, { agent });
+  }
+
+  /**
+   * Starts or checks the mailbox's OAuth2 sign-in (Story 21.3): a POST of `{action}` that answers 200 `{result: 'started', url}` for `start` and
+   * `{result: 'checked', signedIn}` for `check`. A 400 `bad_settings` (nothing registered), a 403, a 409 and a 500 fail as an HttpErrorResponse.
+   */
+  signInMail(action: 'start'): Observable<MailSignInStarted>;
+  signInMail(action: 'check'): Observable<MailSignInChecked>;
+  signInMail(action: 'start' | 'check'): Observable<MailSignInStarted | MailSignInChecked> {
+    return this.http.post<MailSignInStarted | MailSignInChecked>(`${BASE}/settings/channels/sign-in`, { action });
   }
 
   /**

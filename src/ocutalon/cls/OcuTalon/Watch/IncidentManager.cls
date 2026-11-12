@@ -79,7 +79,9 @@
 ///     a Type 3 warning is logged) or Ok 1 with the outcome closed;
 ///     an answer that found the incident for its caller carries the state and open variant as stored as Data (a failed save too, read again from the row; a failed
 ///     read of the recipients has no caller to tell, like a dismiss from a session that is not a recipient). closeForReplay and closeQuiet check no session: only
-///     product code sends them.
+///     product code sends them. An incident holds a suspend (Story 23.9; Fix.Run Holds) while, for an item of its production, the newest item-kind run that changed it is a suspend_item run of one of its requests: the table then
+///     refuses closeQuiet and closeForReplay (not_allowed) and a dismiss still closes it. Facts reads that only for those two verbs (Holds, over the seam ReadHolds); a read that
+///     fails counts as held, with one Type 3 warning (LOGHOLDS).
 ///   - Later requests (Story 7.6; AD-15, AD-16): every dry-run ask first records its window on each failure group (AskedFrom := AskedTo, AskedTo := the last
 ///     key of Seen; Ask saves the marks in one transaction and only then sends), and FixExecutor's dry run reads that window only (FailureGroup.AskedKeys), so a
 ///     failure is in one request only. A fresh failure that joins a group that has an AskedTo, while the incident is not open-and-noticed, is a later failure:
@@ -224,6 +226,8 @@ Parameter SUMMARYKIND = "summary";
 Parameter KEYSUMMARY = "summary.title";
 
 Parameter LOGSUMMARY = "IncidentManager could not build the summary of incident ";
+
+Parameter LOGHOLDS = "IncidentManager could not read the suspends of incident ";
 
 /// How long a fix the user asked for in the chat waits for its dry run, in seconds (Asked).
 Parameter ASKSECONDS = 30;
@@ -1475,10 +1479,10 @@ Method Closing(incident As OcuTalon.Data.Incident, event As %String, notificatio
 	Quit ..Notification(incident, ..#SUMMARYKIND, ..#KEYSUMMARY, {})
 }
 
-/// The facts that the table needs, read from the incident's rows (AD-11) as {pending, waiting, demoMode}. The incident's requests are the entries of RequestRefs
+/// The facts that the table needs, read from the incident's rows (AD-11) as {pending, waiting, demoMode, holds}. The incident's requests are the entries of RequestRefs
 /// whose ApprovalRequest row exists and names the incident; the event's own request (own) is not counted. pending: another request is pending, or is approved
 /// while the incident is awaiting_approval (its outcome is still on its way). waiting: while the incident is fixing, another request is approved; earliest is
-/// the first of them in RequestRefs order. demoMode is read only for a closeQuiet. A request whose kind never moves the incident (MOVES 0, a partner notice) is not counted.
+/// the first of them in RequestRefs order. demoMode is read only for a closeQuiet, and holds (the incident holds a suspend, Holds) only for a closeQuiet or a closeForReplay. A request whose kind never moves the incident (MOVES 0, a partner notice) is not counted.
 Method Facts(incident As OcuTalon.Data.Incident, event As %String, own As %String, Output earliest As %String) As %DynamicObject [ Private ]
 {
 	Set earliest = ""
@@ -1497,7 +1501,8 @@ Method Facts(incident As OcuTalon.Data.Incident, event As %String, own As %Strin
 			If earliest = "" Set earliest = ref
 		}
 	}
-	Quit {"pending": (pending), "waiting": (waiting), "demoMode": ($Select(event = ##class(OcuTalon.Watch.Transitions).#CLOSEQUIET: ..DemoMode(), 1: 0))}
+	Set closing = (event = ##class(OcuTalon.Watch.Transitions).#CLOSEQUIET) || (event = ##class(OcuTalon.Watch.Transitions).#CLOSEFORREPLAY)
+	Quit {"pending": (pending), "waiting": (waiting), "demoMode": ($Select(event = ##class(OcuTalon.Watch.Transitions).#CLOSEQUIET: ..DemoMode(), 1: 0)), "holds": ($Select(closing: ..Holds(incident), 1: 0))}
 }
 
 /// 1 when the request is one of the incident's: its Ref is an entry of the incident's RequestRefs and its row exists and names the incident. row is the row.
@@ -1513,6 +1518,25 @@ Method Owns(incident As OcuTalon.Data.Incident, ref As %String, Output row As Oc
 Method DemoMode() As %Boolean [ Private ]
 {
 	Quit (##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Install.Step.Demo).#MODEKEY) = "1")
+}
+
+/// 1 when the incident holds a suspend (Fix.Run Holds, through ReadHolds). A read that throws counts as held, the safe side, with one Type 3 warning (LOGHOLDS).
+Method Holds(incident As OcuTalon.Data.Incident) As %Boolean [ Private ]
+{
+	Set held = 1
+	Try {
+		Set held = ''..ReadHolds(incident)
+	} Catch exception {
+		Set held = 1
+		$$$LOGWARNING(..#LOGHOLDS_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	Quit held
+}
+
+/// The rows' answer for Holds (a seam for the tests).
+Method ReadHolds(incident As OcuTalon.Data.Incident) As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Fix.Run).Holds(incident)
 }
 
 /// Sends FixExecutor the order to carry out the request's fix (an Execute with only the Ref), asynchronously, with no answer wanted, in the incident's trace

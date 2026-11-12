@@ -2077,6 +2077,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T20:15:23Z occurrence=feature-1d75fbf1 by=orchestrator note=run 42874524463 job 130034187062 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; merge of 0.22 (web/guide) + v1.0.6 bump; rerun of failed jobs
 - 2026-11-10T22:52:54Z occurrence=23-2 by=orchestrator note=run 42897677403 job 130115016835 iris(production) row 21 got ''; OCT-epic23 f73a09d5 (23.2 integrated onto 56c61cea); rerun of failed jobs
 - 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870677_iris(production)_live:production_on_ocutalon-ci-15:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
+- 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_production_row21_WatchOps;rerun_failed_jobs_green(attempt2)
+- 2026-11-12T10:06:56Z occurrence=0-28 by=runner note=run_43159935962_attempt_1_job_130988445819_iris(production)_live:production_on_ocutalon-ci-10:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_eff03a14(README+release_checks_only);one_rerun_of_failed_jobs(attempt_2,started_by_orchestrator_10:02Z)
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6611,6 +6613,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T06:27:51Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=merge_gate note=Planner_ruling_2026-11-10_option_a(resume_after_close_scoped;no_state_move;second-session_proof);rework_iteration_1
 - 2026-11-10T07:55:00Z status=routed owner=23-9-resume-a-suspended-item-after-its-incident-closes by=merge_gate note=Planner_re-ruling_2026-11-10_~07:20Z:(c)_text_limit_in_23.2;resume_after_close_parked_as_Story_23.9(after_voting;(a)_or_(b),Planner_leans_(b))
 - 2026-11-10T08:23:02Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run
+- 2026-11-12T06:41:07Z status=resolved-by:23-9-resume-a-suspended-item-after-its-incident-closes by=adjudication note=option_(b)_per_U-321:held_incident_refuses_closeQuiet/closeForReplay_(Watch/Transitions,IncidentManager.Holds,Fix.Run.Suspended;bf7ba73b),Dismiss_always_closes,Checks_reports_the_still-disabled_item_once_after_a_held_dismiss_(Checks/Process);pinned_by_Transitions:TestRefusedMoves,Lifecycle:TestHeldBySuspend,Checks.Runs:TestDismissedSuspendIsReportedOnce,Fix.Asked:TestHeldIncidentResumeIsTheSessions(mutations_red);residual_text_case=DW-1186(Planner)
 
 ### DW-1069: AD-33 exception list of Story 23.2 does not name four Lane B paths the story edits under other rulings: README.md, docker/tests/lib-live.sh, web/e2e/support/iris.ts, Test/Core/CommandsRouting.cls
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6673,12 +6676,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340066; rows before passed; readiness timeout under a full queue (DW-686/DW-999 family)
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:install-upgrade_row7;one_rerun_with_the_next_push
+- 2026-11-12T10:33:24Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_109d59c8_run_43172863798_install-upgrade_row7_start_with_failing_step_not_ended_200s;superseded_head
+- 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_install-upgrade_row6_upgrade_not_ready_200s;rerun_failed_jobs_green(attempt2)
+- 2026-11-12T10:09:42Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662764_iris(install-upgrade)_live:install-upgrade_row_6_'the_upgrade_did_not_end_ready_within_200_s'_on_OCT-epic21_ad2255ac(first_start_took_6_min:host_load;21.3_changes_no_install_or_startup_path);judged_again_on_the_integrated_head
 
 ### DW-1083: flake candidate: live:reminder-restart 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then the first start did not end ready within 400 s
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340184 shards-10; first-start timeout is DW-999's; the park step is a new signature; the 23.2 rework checks it for a story cause
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:reminder-restart_telegram_park;one_rerun_with_the_next_push
 - 2026-11-11T00:03:57Z occurrence=feature-9f7db82c by=orchestrator note=run 42924654980 job 130207908005 iris(shards) on ocutalon-ci-15, unit live:online-allowance: 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then 'the first start did not end ready within 400 s'; same signature as the reminder-restart one, now in another unit; rerun of failed jobs
+- 2026-11-12T11:23:19Z occurrence=0-28 by=runner note=run_43202138313_job_131127976608_iris(shards-9)_on_ocutalon-ci-5_unit_shard:lane-a@Bridge_stack_start:'Telegram_park:_TelegramOut_still_has_an_Ens.Job_entry_(Alive,dequeuing)_32_s_after_it_was_disabled';OCT-epic0_2a6cfc67(README+test-readme_over_feature_eb289caf);one_rerun_of_failed_jobs
 ### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
@@ -7134,6 +7141,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T01:23:55Z status=decision-pending owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=human=Contest Planner ruling on a Video row and a judges-table link; fold into 0.27's README ruling
 - 2026-11-12T01:33:46Z status=routed owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=owner note=Contest_Planner_ruling_2026-11-12_01:55Z(owner_delegation):fold_into_0.27_as_its_first_README_edit;wording_in_prompts/story-026-rulings.md_item_2
 - 2026-11-12T01:52:13Z status=routed owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=orchestrator note=split(Part_A_of_0.27_moved_whole_to_0.28_for_the_1.0.8_cut)
+- 2026-11-12T04:29:34Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=ruled_Video_row+Usability_sentences(README),checklist-video+judges-usability(test-readme.sh),web_count_tests,check-readme-video.sh+release/checklist.sh_readme-video_row
 ### DW-1165: The ruled resolved-incident sentence has the partner notice say the affected orders went through, but Facts carry only the state, so a resolved incident whose fix left messages failed again or skipped, or that a suspend or reroute resolved, gets the same claim
 - source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Watch/Transitions resolves on fixing + finished whatever the run's counts (failedAgain, skipped); PartnerWarning.Facts adds only 'Incident state: resolved', and SYSTEMNOTE's ruled sentence tells the model to say the orders went through
@@ -7145,12 +7153,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: no test assertion failed; live:online-demo-path in the same job passed; same start-not-ready family as DW-612 (row 2) and DW-1082 (install-upgrade row 7); all 18 runners busy with the outage backlog
 - 2026-11-11T21:32:07Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun of the failed job when the run completes
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749161 attempt 2)
+- 2026-11-12T10:33:23Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_e7c97dda_run_43170639261_install-fresh_live:install-start_row3_dev_start_not_ready_200s;superseded_head
 
 ### DW-1161: CI headroom: lane-a ipm-install takes 28-30 min against its 35-min job timeout; under host load it times out (cancelled at 35m0s) with no test failed
 - source: feature c33e0916, lane-a run 43099749306 job ipm-install on ocutalon-ci-10 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: durations: 14:31-15:00 (29.5m), 20:07-20:35 (28m), 14:02-14:32 (30m); 21:03-21:38 timed out during the post-outage backlog
 - 2026-11-11T21:39:35Z status=routed owner=burndown by=orchestrator note=infra (host load): one rerun per occurrence; a recurrence on a clean queue means the group needs a split (standing CI rule), never a longer timeout
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749306 attempt 2)
+- 2026-11-12T11:30:04Z occurrence=0-28 by=runner note=lane-a_run_43202138310_job_131127975712_ipm-install_on_ocutalon-ci-19_all_steps_success_then_cancelled_at_35m0s(10:52:33-11:27:33Z);host_load;OCT-epic0_2a6cfc67;rerun_failed_jobs_11:30Z
 
 ### DW-1163: CI ops: GitHub Actions outage left zombie runs (queued at attempt 1; cancel says completed, rerun says running, force-cancel says not queued); recovery = a fresh push of a bookkeeping-only head, its result read by identity
 - source: OCT-epic21 2242c77d runs 43096469670, 43096469722 (2026-11-11 Actions major outage) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7162,6 +7172,59 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T22:18:46Z status=routed owner=burndown by=cr note=lead: Rule 20 spine write (AD-10 rule 1, AD-21 S3) recording ruling 2(a); no code change
 - 2026-11-11T22:20:57Z status=resolved-by:22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=adjudication note=spine_AD-10_rule1_and_AD-21_S3_now_state_SHA-256_hex_over_server_id,name,description,schema(Rule20_record_of_Planner_ruling_2(a));lint_unchanged
 
+### DW-1179: A provider-mode mailbox keeps EmailIn and EmailOut on the stored credential, which then has no password, so EmailIn's poll fails with the refused-login sentence until the adapters get their OAuth2 settings
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: SaveEmail writes OcuTalonMail with an empty password in provider mode; adapters have no OAuth2 rows, handler or XOAUTH2 yet
+- 2026-11-12T05:15:24Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8's token use makes the poll and the send work in provider mode
+- 2026-11-12T06:03:18Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2
+
+### DW-1180: The privileges that registering the mail OAuth2 client needs are measured only for the throwaway's production user (_Ensemble with %All)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Channel/Email/OAuth.cls Sys ran under _Ensemble (%All on the throwaway); OAuth2.Client/ServerDefinition need %Admin_OAuth2_Client:USE and Security.Applications access on a narrower user (unverified)
+- 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=measure or state the least set, or accept _Ensemble as the documented production user
+- 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=privileges are a veto item; rec: name _Ensemble the measured user, measure AD-24 roles in 21.8 live run
+- 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=orchestrator note=Contest Planner ruling (prompts/epic-21-rulings-213.md, last section): accepted with conditions; 21.3's spec names _Ensemble as the measured production user, which held %All on the throwaway (the run proves the path, not least privilege); Story 21.8's live run lists each privilege that registration needs with a refused-without-it check (AC added to 21.8's block); no public text may claim least privilege
+
+### DW-1181: A SaveEmail that fails after IRIS's OAuth2 client was replaced, changed or removed puts OcuTalon's own stores back but cannot restore the client, its secret or its tokens
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: PutBackEmail restores keys, credential and rows; only a client first registered from Password is removed again
+- 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=hold the old client until the save completes, or accept with a probe
+- 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=fix-risk high (old secret unrecoverable once replaced); rec: wontfix-accepted reopen_if=a failed provider save in CI/smoke
+- 2026-11-12T06:23:54Z status=wontfix-accepted by=orchestrator note=Contest Planner ruling (prompts/epic-21-rulings-213.md, last section): the state lie is fixed in 21.3 (SettingsOps.ForgetClient: after a failed save that already replaced, changed or removed IRIS's client of the old provider, the old provider's client ID is removed, audited, and its mark says not signed in; pinned by Test.Core.SettingsEmail TestFailedReplaceShowsNotRegistered, mutation observed); the IRIS client itself is still not restored; reopen_if=a failed provider save in CI or a smoke leaves Settings showing a provider registered or signed in, or a Register/Remove that IRIS refuses part-way leaves a changed client behind
+
+### DW-1182: The tab where the admin pressed Sign in keeps its state line at Not signed in yet until reloaded; only the landing tab checks
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: email-section.ts: only the signin=1 landing tab posts check; the original tab has no re-check on focus or visibility; spec is silent on it
+- 2026-11-12T06:03:19Z status=wontfix-accepted owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=reopen_if=a smoke or user report confuses the stale original tab with a failed sign-in
+
+### DW-1183: OAuth.SwitchOn with the CI variable unset is never run; TestSwitchOnReadsTheVariable pins its source text only
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: every CI IRIS process has OCUTALON_TEST_OAUTH_MOCK=1 and other tests use the probe's SwitchOn; changing the process env risks other tests
+- 2026-11-12T06:03:19Z status=wontfix-accepted owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=reopen_if=SwitchOn's body changes or the text pin is edited
+
+### DW-1184: The install-path scans for /csp/sys/oauth2 read method code and listed files only; a class Parameter naming the path would pass both
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestOnlyOneCallerOfTheClass reads method code; test-compose-file.sh oauth_app_untouched_by_install_paths lists no src/ocutalon/cls path
+- 2026-11-12T06:03:19Z status=wontfix-theoretical owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=real if an Install step gains a Parameter or XData naming /csp/sys/oauth2
+
+### DW-1185: flake: Test.Channel.EmailLive TestOAuthSaveSignInAndRemove's check for IRIS's own masked-secret audit entry of the OAuth2 client failed once on a warm stack after passing twice (the entry appears late)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: lane-C warm e21s3xw 2026-11-12 ~06:22Z: FAIL 'IRIS's own audit entry of the client shows its secret masked'; passed on e21s3fw forward and reverse; implement saw one earlier and added a 5 s wait
+- 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8 extends EmailLive's OAuth cases: wait on the entry by its own id or poll longer; one rerun + occurrence= meanwhile
+- 2026-11-12T10:09:41Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662676_iris(production)_shard:lane-a@Channel_on_OCT-epic21_ad2255ac:FAIL_'IRIS's_own_audit_entry_of_the_client_shows_its_secret_masked'(second_occurrence:local_warm_06:22Z+CI)
+- 2026-11-12T10:09:42Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=ci note=21.3's_own_new_test_red_in_CI_on_its_own_head:class=story([CI]_rework_in_21.3,lane_prompt);fix_the_SysAuditMasks_wait(scope_to_this_test's_mark,poll_longer_or_by_entry_id);21.8's_bullet_then_reads_resolved
+- 2026-11-12T10:55:53Z status=resolved-by:21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=adjudication note=rework_1_commit_4f309fcb+re-review_patches:SysAuditMasks_reads_this_test's_own_entry_by_UTCTimeStamp_from_its_mark_via_AuditLog.Wait(30_s),ClientId_and_ClientSecret_mask_lines_pinned;3_mutations_red_on_final_code(e21s3i3w,e21s3c2w);CI_on_the_integrated_head_confirms
+
+### DW-1188: flake candidate: lane-b@rest Test.Schedule.Reminders TestFiresOnEveryChannel ('the session has one web card', 'one phone message', 'one notification event is published', 'and one phone event') red once in CI shards-6
+- source: CI run 43172123661 (OCT-epic21 ad2255ac) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 131027662801 iris (shards-6) shard:lane-b@rest 2026-11-12T08:01Z: 4 asserts red, 1 of 51 classes; Story 21.3 changes no Schedule, Reminder, Notify or channel-out class; first sighting
+- 2026-11-12T10:09:42Z status=routed owner=burndown by=ci note=flake rule: one rerun; judged again on the integrated 21.3 head's CI
+
+### DW-1189: docker/tests/test-audit.sh and test-demo-switch.sh count %SYS.Audit rows with WHERE Event = ..., which goes through the Event index that %SYS.Audit.UpdateIndices refreshes about once a minute, so a fresh entry can be invisible for up to ~60 s (flake risk)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md (rework 1) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: measured on lane-C warm e21s3i2w 2026-11-12: a UTCTimeStamp read saw the OAuth2 creation entry 0.4 s after the save, WHERE Event = 'OAuth2' first saw it 34 s later; the same pattern sits in the two scripts
+- 2026-11-12T10:41:28Z status=routed owner=burndown by=harvest note=fix: read rows from a time mark (UTCTimeStamp) and compare Event in code, as EmailLive.SysAuditMasks now does; owner docker/tests (Epic 15 area)
+- 2026-11-12T10:53:25Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=cr:real_exposure_test-demo-switch.sh:248_unwaited_audit0;EventSource/EventType_lag_too;release/standalone-bridge.sh:910,927
 ### DW-1172: The incident's plural item noun, supplied by the model in the diagnosis payload, now enters the trusted SystemNote of the partner-notice draft (Story 23.11 noun ruling)
 - source: spec-23-11-say-in-a-partner-notice-only-how-the-incident-ended.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Watch.Notice.Noun checks only that both forms are non-empty; IncidentManager stores diagnosis.itemNoun as given; PartnerWarning.SystemNote substitutes noun.other into the code-written instruction (AD-10/AD-14 trust boundary)
@@ -7178,6 +7241,29 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 21.2's EmailInPop3 passed smoke and fresh check locally and failed live:storage-roundtrip in CI; the Planner asked for a cheap pre-CI check
 - 2026-11-12T00:03:53Z status=routed owner=burndown by=orchestrator note=Contest Planner 2026-11-12: if cheap, run the storage-roundtrip (or its committed-vs-compiled Storage comparison) in the lead's smoke for stories that add a class with a storage definition
 
+### DW-1175: No per-push test runs check-readme-video.sh's own logic (retry, cap, status handling); its self-tests run only online and the release checklist's test stubs it
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: a stub-curl test needs a new test-*.sh in a ci/units.sh list, outside 0.28's boundary; a regression shows as a loud FAIL on the readme-video release row
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=the_readme-video_release_row_fails_for_a_script_bug_rather_than_a_dead_link
+- 2026-11-12T04:29:35Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=QA_video-script_rule(test-release-checklist.sh)_runs_the_real_script_offline_with_a_fake_curl:retry,cap,status_handling
+
+### DW-1176: ci/units.sh NOT_IRIS_INPUT_PATTERN omits docker/tests/check-readme-video.sh, so a later edit of that script runs every CI group
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/units.sh:251 lists record-eval.sh and test-*.sh only; one alternative fixes it; cost is extra CI minutes on later edits of the script only
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=a_push_that_edits_only_check-readme-video.sh_runs_every_IRIS_group
+
+### DW-1177: Nothing per push checks that docker/tests/check-readme-video.sh exists, is executable and parses (test-release-checklist.sh stubs it)
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: a deleted or non-executable script fails the readme-video row at release time (row_script reports it), not per push
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=the_readme-video_release_row_reports_a_missing_or_non-executable_script
+- 2026-11-12T04:29:35Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=video-script_rule_checks_the_real_script_exists,is_executable,parses,ASCII
+
+### DW-1178: release/checklist.sh's no-outward row fails on the tree: docker/tests/test-readme.sh's ALLOWED_HOSTS line names community.intersystems.com and openexchange.intersystems.com
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: the row's own outward_hits over its file set lists docker/tests/test-readme.sh:1495 on c38ebea6 (line 1422 at 793840c5); the line came in with 6118b053 (Story 0.18, 2026-11-08), so every RC run since then fails no-outward; it is the only hit once 0.28's review lands; fixing it needs a ruled form (an allowed line in release/checklist.sh, as for check-readme-video.sh's OEMBED= line, or another)
+- 2026-11-12T04:27:54Z status=escalated owner=burndown by=cr note=1.0.8 RC release-checklist issue for the Planner; pre-existing (Story 0.18); fix is a RELEASE TOOL hunk
+- 2026-11-12T04:41:16Z status=routed owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=owner note=Contest_Planner_ruling_on_0.28(~05:00Z,owner_delegation)_option_(a)_folded_into_0.28_before_merge;release_records_1.0.1-1.0.6_show_Release_sequence_stopped_after_notes:no_gate_has_run,so_no-outward_has_not_run_since_1.0.0_rc4;nothing_shipped_through_a_failing_row;the_Planner_runs_release/checklist.sh_in_full_at_the_1.0.8_RC
+- 2026-11-12T05:09:28Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=eb366184:no-outward_allows_test-readme.sh_ALLOWED_HOSTS_line_exactly(full-line,that_file_only)+3_cases_in_outward-rows+comment_above_ALLOWED_HOSTS;row_outward_hits_empty_on_tree;1.0.1-1.0.6_records:stopped_after_notes,no-outward_not_run_since_1.0.0_rc4
 ### DW-1173: security: the diagnosis payload's itemNoun (model text from partner-shapeable failure data) is checked only for 128 characters per form, any characters; it reaches the Failures line and other noun uses
 - source: IncidentManager.cls:802 (Story 23.11 review, DW-1172) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Contest Planner ruling 2026-11-12: each form letters, spaces and hyphens only, at most 40 characters, else drop it and keep the code noun; a test with a hostile noun
@@ -7187,6 +7273,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature 74ee76dc, ci run 43160772937 job iris (browser) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the failure is in sign-in/helpers.ts:61 submitSignIn, not the approval path; all 18 runners busy with the backlog; 74ee76dc's new code (21.2/21.6/23.11) doesn't touch sign-in
 - 2026-11-12T06:52:37Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun; a second red on the same head is real
+### DW-1186: Agent/Chat.cls:65 P3 tells the model to say the incident is closed on every no_incident, but resume_item also gets no_incident while the session's incident is awaiting_approval or fixing (others lists it)
+- source: spec-23-9-resume-a-suspended-item-after-its-incident-closes.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: WatchAnswers.ResolveIncident:131 returns no_incident with others=[busy]; Test.Fix.AskedTurns:TestUndoTurn's second resume ask reads exactly that; the dismiss bullet branches on others, P3 does not
+- 2026-11-12T06:39:32Z status=decision-pending owner=burndown by=cr note=Planner text call on ruled P3 (U-321): e.g. 'if the answer is no_incident and others is empty'; ruled text unchanged
+- 2026-11-12T06:50:09Z status=routed owner=23-9-resume-a-suspended-item-after-its-incident-closes by=owner note=Contest_Planner_ruling_06:55Z(owner_delegation;prompts/epic-23-rulings-239.md):_fix_in_23.9_with_the_Planner's_sentence;rework_iteration_1
+- 2026-11-12T10:21:56Z status=resolved-by:23-9-resume-a-suspended-item-after-its-incident-closes by=adjudication note=e76fbea3:Agent/Chat.cls:65_Planner_sentence_verbatim;Test.Agent.Instructions_exact-line_pin(mutation_while->whilst_red);TestUndoTurn_others=awaiting_approval(busy);TestUndoClosedTurn+propose-fix-undo-closed.json(empty_others;AssertTurn_reply_names_Management_Portal;closed-incident_fixture_by_re-review)
+
+### DW-1190: flake: live:online-demo web/e2e-online/resume.spec.ts:104 R2 page.goto('http://elsewhere.test/') net::ERR_ABORTED on a context.route-fulfilled page (raw page.goto, not gotoSettled; DW-690 family)
+- source: OCT-epic0 2a6cfc67, ci run 43202138313 job 131127976389 iris (browser) on ocutalon-ci-14 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rows 7-12 online-demo specs: 1 failed (R2, 2.3 s) at resume.spec.ts:143 page.goto ERR_ABORTED; spec unchanged since 83a6f3c1 (Nov 4); the head changes README.md and test-readme.sh over feature eb289caf; 18 runners busy
+- 2026-11-12T11:14:12Z status=routed owner=burndown by=runner note=flake class (first occurrence): one rerun of failed jobs; a second red on the same head is real; likely fix: gotoSettled at L143 as DW-690 did
+- 2026-11-12T12:22:47Z status=routed owner=burndown by=runner note=rerun_attempt_2_of_run_43202138313_green_on_2a6cfc67(flake_confirmed)
+
+### DW-1191: flake (test defect, random): Test.Data.Webhook TestMatches 'x...' is not a stored value of the secret: the malformed-salt variant "x"_$Extract(salt, 2, *) equals the real hash whenever the random salt already starts with x (about 1 run in 64), so Matches rightly answers 1
+- source: CI run 43206845957 (OCT-epic21 368c7a09) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 131144052048 iris (image) shard:lane-b@Contract,Core,Data,Live: printed stored value 'xrvjRiPqHbxlagA8SDES' starts with x; salt = base64url(GenCryptRand(16)); the 21.3 merge changes no line of Data/Webhook, Test/Data/Webhook, SecretHandoff or Data/Setting vs green eb289caf (git diff empty); 6 local passes on lane-C warm e21s3cw
+- 2026-11-12T12:25:40Z status=routed owner=burndown by=ci note=fix (Epic 35's test, one line): pick the replacement first character as lastChanged does, e.g. $Select($Extract(salt) = "x": "y", 1: "x"); one rerun meanwhile
+
+### DW-1195: flake/infra: live:sign-in chromium suite hit its 757 s suite timeout under host load (256 passed, 0 failed, 24 did not run)
+- source: ci 43227065531 feature 150b49c5 iris (shards-10) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Timed out waiting 757s for the test suite to run; 24 did not run; no test failed
+- 2026-11-12T14:15:46Z status=routed owner=burndown by=orchestrator note=one rerun per occurrence; if recurrent, size the shard's suite budget or split the shard
 
 ### DW-1192: Held-out incident snapshots are never compared with a fresh recording in CI; HeldOutCases errorHas markers are read nowhere
 - source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: med | fix-risk: low | footprint: in-story

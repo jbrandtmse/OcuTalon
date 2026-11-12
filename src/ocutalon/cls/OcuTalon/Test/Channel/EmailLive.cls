@@ -48,6 +48,21 @@
 ///     restarted) shows at the stub's next login;
 ///   - TestPasswordNotOnTheSendPath (ruling d, AC 3): after a save and a send no SendEmail message, log row, audit entry, Delivery row, stub state or ^OcuTalon* global
 ///     holds the dummy password, and no log row holds the address or the subject.
+/// Story 21.3 adds the OAuth2 sign-in against the mock's fake authorization server (host mock, control on 8080 under /_mock/oauth/) and IRIS's real %SYS OAuth2 objects on
+/// the throwaway. The job reads the CI-only variable OCUTALON_TEST_OAUTH_MOCK, which makes the registered endpoints the mock's plain HTTP ones (and logs a warning);
+/// every case asserts that the registered token endpoint starts with http://mock:8080/_mock/oauth/ before it signs in. The consent is driven without a browser by
+/// %Net.HttpRequest against IRIS's own web server inside the stack: the start address, the mock's authorize step, then IRIS's OAuth2.Response with the code. Each case puts
+/// back the OAuth2 objects, the web application's flag, the keys email.signIn, email.clientId and email.oauthOwned, the mark emailSignIn and the mock.
+///   - TestOAuthSaveSignInAndRemove (AC 1 to 4, the leak AC): a real save with Google registers the client OcuTalonMail in %SYS (confidential, OcuTalonClient, the mock's
+///     endpoints, the dummy pair), enables the web application, keeps no password and writes its audit entries; the full code flow ends on Settings > Channels with
+///     signin=1, the token row holds the mock's tokens and a check says signed in; the dummy secret is only in OAuth2.Client and the mock's tokens only in OAuth2.AccessToken
+///     (no message, log row, audit entry, global, answer, mock state or %SYS audit entry holds them; IRIS's audit entry masks the secret); saving Password removes the client,
+///     its server definition and its tokens and puts the web application back;
+///   - TestOAuthRefusedConsent: access_denied leaves no tokens and a check says not signed in; a token endpoint that errors leaves none either;
+///   - TestOAuthForeignClientIsLeftAlone: a client OcuTalonMail that is not OcuTalon's makes the save failed and stays as it was;
+///   - TestOAuthAdminDisabledAppStaysDisabled (U-320 2): an admin who disables the web application sees it stay disabled through a re-save, and the next sign-in start
+///     enables it and audits that;
+///   - TestOAuthOnlineDemo (U-320 7): the online demo refuses the save, the start and the check, and the web application stays disabled.
 Class OcuTalon.Test.Channel.EmailLive Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -67,6 +82,13 @@ Parameter SMTPPORT = 1025;
 Parameter SENDITEM = "EmailOut";
 
 Parameter CONTROLPORT = 8080;
+
+/// Story 21.3: the dummy client ID of the fake provider, IRIS's own web server inside the stack, and the page origin that the client is registered for.
+Parameter OAUTHCLIENT = "zz-live-client.example";
+
+Parameter IRISWEB = "127.0.0.1";
+
+Parameter IRISPORT = 52773;
 
 /// The sentences of a failed poll (Public text P1a to P1c).
 Parameter UNREACHABLE = "OcuTalon couldn't reach the mail server.";
@@ -92,6 +114,11 @@ Property Found As %List [ Private ];
 
 /// The public setting onlineDemo as found, and the Refs of the approval requests that a test made.
 Property Online As %String [ Private ];
+
+/// Story 21.3: the web application /csp/sys/oauth2 as the test found it ("" until a test looked), and the keys and mark that an OAuth2 test puts back.
+Property AppWas As %String [ Private ];
+
+Property OAuthFound As %List [ Private ];
 
 Method OnBeforeAllTests() As %Status
 {
@@ -429,6 +456,7 @@ Method ModelCalls() As %Integer [ Private ]
 /// Puts everything back: the item stopped and its rows, the credential, the keys, the seen rows, the mark, the stub, the owner's decisions.
 Method Disconnect() [ Private ]
 {
+	Do ..DisconnectOAuth()
 	For item = ..#ITEM, ..#SENDITEM {
 		For name = "POP3Server", "POP3Port", "SMTPServer", "SMTPPort", "Credentials", "SSLConfig", "SSLCheckServerIdentity", "Enabled" {
 			Set id = "OcuTalon.Production||"_item_"||*||"_name
@@ -1139,6 +1167,422 @@ Method TestPasswordNotOnTheSendPath()
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
+	Do ..Disconnect()
+}
+
+/// --- Story 21.3: OAuth2 ---
+
+/// The mock's fake authorization server: a control call, the route and the JSON body; 1 when it answered 200.
+ClassMethod OAuthControl(route As %String, body As %DynamicObject) As %Boolean
+{
+	Set request = ..Request()
+	Set request.ContentType = "application/json"
+	Do request.EntityBody.Write($ZConvert(body.%ToJSON(), "O", "UTF8"))
+	Set sc = request.Post("/_mock/oauth/"_route)
+	Quit $$$ISOK(sc) && (request.HttpResponse.StatusCode = 200)
+}
+
+/// The fake authorization server's state, or "" when it does not answer.
+ClassMethod OAuthMock() As %DynamicObject
+{
+	Set request = ..Request()
+	Set sc = request.Get("/_mock/oauth/state")
+	If $$$ISERR(sc) || (request.HttpResponse.StatusCode '= 200) Quit ""
+	Quit {}.%FromJSON(request.HttpResponse.Data)
+}
+
+/// Remembers what the OAuth2 tests put back: the web application's flag, the keys, and the mark emailSignIn; puts the fake server in its start state with the dummy client.
+Method OAuthBegin() [ Private ]
+{
+	If ..AppWas = "" Set ..AppWas = ##class(OcuTalon.Test.Channel.EmailOAuth).AppEnabled()
+	Set found = ""
+	For key = "email.signIn", "email.clientId", "email.oauthOwned" {
+		Set found = found_$ListBuild($ListBuild(key, ##class(OcuTalon.Data.Setting).KeyIndexExists(key), ##class(OcuTalon.Data.Setting).Get(key)))
+	}
+	Set ..OAuthFound = $ListBuild(found, ##class(OcuTalon.Data.StatusMark).Get("emailSignIn"))
+	Set ..Found = $ListBuild(##class(OcuTalon.Data.StatusMark).Get("emailPoll"), ##class(OcuTalon.Data.Setting).KeyIndexExists("email.address"), ##class(OcuTalon.Data.Setting).Get("email.address"), ##class(OcuTalon.Data.Setting).KeyIndexExists("email.owner"), ##class(OcuTalon.Data.Setting).Get("email.owner"))
+	Do $$$AssertTrue(..OAuthControl("reset", {}), "the fake authorization server is reset")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).Snapshot(), ..OAuthSnapshotWas(), "this stack has the OAuth2 objects it started with")
+}
+
+/// The Snapshot of an untouched throwaway: no client, no server definition, no token, no client OcuTalonMail, the web application disabled.
+ClassMethod OAuthSnapshotWas() As %String [ Private ]
+{
+	Quit "0|0|0|0|1|"
+}
+
+/// Puts the OAuth2 objects, the web application's flag, the three keys and the mark back, and resets the fake server.
+Method DisconnectOAuth() [ Private ]
+{
+	If '$ListLength(..OAuthFound) Quit
+	Do ##class(OcuTalon.Test.Channel.EmailOAuth).Wipe()
+	If ..AppWas '= "" Do ##class(OcuTalon.Test.Channel.EmailOAuth).SetApp(+..AppWas)
+	Set found = $List(..OAuthFound, 1), position = 0
+	While $ListNext(found, position, one) {
+		If $List(one, 2) {
+			Do ##class(OcuTalon.Data.Setting).Set($List(one, 1), $List(one, 3))
+		} Else {
+			Do ##class(OcuTalon.Data.Setting).KeyIndexDelete($List(one, 1))
+		}
+	}
+	Do ##class(OcuTalon.Data.StatusMark).Record("emailSignIn", $List(..OAuthFound, 2))
+	Do ..OAuthControl("reset", {})
+	Set ..OAuthFound = "", ..AppWas = ""
+}
+
+/// The body of a save of the fixture mailbox with a provider, the client ID and the page origin; the client secret member is the reference, or left out when "".
+ClassMethod ProviderBody(provider As %String, uri As %String) As %DynamicObject [ Private ]
+{
+	Set body = {"address": "zzlive@example.com", "incoming": (..#STUBHOST_":"_..#POP3PORT), "user": "zzlive", "signIn": (provider), "clientId": (..#OAUTHCLIENT), "origin": ("http://"_..#IRISWEB_":"_..#IRISPORT)}
+	If uri '= "" Do body.%Set("clientSecret", uri, "string")
+	Quit body
+}
+
+/// Registers the mailbox with a provider through a real save as the fixture session's admin: the dummy client pair is told to the fake server, the dummy secret is offered
+/// to the hand-off, and the SaveSettings is submitted with origin web_admin. Answers the CommandResult.
+Method ConnectOAuth(provider As %String = "google") As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set ..Owner = ..Session("owner")
+	Set ..Dummy = "Zz-live-secret-"_..Number_"-"_$Random(1000000)
+	Do $$$AssertTrue(..OAuthControl("client", {"clientId": (..#OAUTHCLIENT), "clientSecret": (..Dummy)}), "the fake server knows the dummy client")
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(..Dummy, .uri)
+	Do $$$AssertStatusOK(sc, "the client secret is offered to the hand-off")
+	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
+	Set command.Slug = "channels"
+	Set command.Changes = ..ProviderBody(provider, uri).%ToJSON()
+	Set command.ActingUser = "zzlivecycle"
+	Set command.SessionRef = ..Owner
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0)
+	Kill left
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_$IsObject($Get(result)), "1|1", "the save is submitted and answered")
+	Quit $Get(result)
+}
+
+/// A MailSignIn of the fixture admin through Commands.Submit (origin web_admin); answers the CommandResult.
+Method SignIn(action As %String) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.MailSignIn).%New()
+	Set command.Action = action
+	Set command.PageOrigin = "http://"_..#IRISWEB_":"_..#IRISPORT
+	Set command.ActingUser = "zzlivecycle"
+	Set command.SessionRef = ..Owner
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_$IsObject($Get(result)), "1|1", "the "_action_" is submitted and answered")
+	Quit $Get(result)
+}
+
+/// One request without redirects to an address (http only): answers the status and the body's start; location and cookies are the Location header and, by name, the
+/// cookies kept for the next hop.
+Method Hop(url As %String, ByRef cookies As %String, Output location As %String, Output body As %String) As %Integer [ Private ]
+{
+	Do ##class(%Net.URLParser).Decompose(url, .parts)
+	Set request = ##class(%Net.HttpRequest).%New()
+	Set request.Server = parts("host"), request.Port = $Get(parts("port"), 80), request.FollowRedirect = 0, request.Timeout = 15
+	Set header = "", name = ""
+	For {
+		Set name = $Order(cookies(name), 1, value)
+		Quit:name=""
+		Set header = header_$Select(header = "": "", 1: "; ")_name_"="_value
+	}
+	If header '= "" Do request.SetHeader("Cookie", header)
+	Set sc = request.Get(parts("path")_$Select($Get(parts("query")) '= "": "?"_parts("query"), 1: ""))
+	Do $$$AssertStatusOK(sc, "the request to "_parts("host")_" is made")
+	Set location = request.HttpResponse.GetHeader("LOCATION")
+	Set setCookie = request.HttpResponse.GetHeader("SET-COOKIE")
+	If setCookie '= "" Set cookies($Piece($Piece(setCookie, ";", 1), "=", 1)) = $Piece($Piece(setCookie, ";", 1), "=", 2, *)
+	Set body = request.HttpResponse.Data.Read(400)
+	Quit request.HttpResponse.StatusCode
+}
+
+/// The consent without a browser: the start address (IRIS's response page with auth=1), the fake server's authorize step, and IRIS's response page with the code.
+/// Answers the status of the last hop; end is the address the last hop redirected to, and page the start of its body.
+Method Consent(url As %String, Output end As %String, Output page As %String) As %Integer [ Private ]
+{
+	Kill cookies
+	Set end = "", page = ""
+	Do $$$AssertTrue($Extract(url, 1, 7) = "http://", "the start address is plain HTTP inside the stack")
+	Set first = ..Hop(url, .cookies, .toProvider)
+	Do $$$AssertEquals(first, 302, "IRIS's start page redirects to the provider")
+	Do $$$AssertEquals($Extract(toProvider, 1, 29), "http://mock:8080/_mock/oauth/", "the provider is the fake server")
+	If $Extract(toProvider, 1, 29) '= "http://mock:8080/_mock/oauth/" Quit first
+	Set second = ..Hop(toProvider, .cookies, .back)
+	Do $$$AssertEquals(second, 302, "the fake server redirects back")
+	Quit ..Hop(back, .cookies, .end, .page)
+}
+
+/// The value of a product key from its row, never from the per-process cache (the production's job wrote it).
+ClassMethod Key(key As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+	Quit $Select($IsObject(row): row.Value, 1: "")
+}
+
+/// The mailbox's token row as "has an access token|has a refresh token|error|access token|refresh token", read in %SYS; the values are the test's own (dummy) and are only
+/// compared, never printed.
+ClassMethod TokenRow() As %String
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	Set token = ##class(OAuth2.AccessToken).OpenForSession("OcuTalonMail", "OcuTalonMail")
+	If '$IsObject(token) Quit ""
+	Quit (token.AccessToken '= "")_"|"_(token.RefreshToken '= "")_"|"_token.Error.Error_"|"_token.AccessToken_"|"_token.RefreshToken
+}
+
+/// The number of %SYS audit entries whose data holds the text, and the number of those for the client OcuTalonMail that hold the mask.
+ClassMethod SysAuditHolds(text As %String) As %Integer [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM %SYS.Audit WHERE EventData [ ?", text)
+	If result.%SQLCODE < 0 Quit -1
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// 1 when IRIS's audit entry of the creation of this test's client, written at or after since (a mark of AuditLog.Now), shows the secret masked: an OAuth2 entry
+/// for the client OcuTalonMail whose ClientId line holds OAUTHCLIENT and whose ClientSecret line holds the mask. IRIS writes the entry in the saving call;
+/// AuditLog reads the rows by their time stamp (the Event index lags about a minute) and the entry is looked for for up to 30 seconds. The mask is IRIS's own
+/// fixed text; that the secret is in no audit entry is SysAuditHolds' check.
+ClassMethod SysAuditMasks(since As %String) As %Boolean [ Private ]
+{
+	Set lines = "(?s).*\r\nClientId: +"_$Replace(..#OAUTHCLIENT, ".", "\.")_"\r\n.*\r\nClientSecret: +\*{5}\r\n.*"
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(since, "", "", "OAuth2", "Create OAuth2 Client: OcuTalonMail", "", 1, 30)
+	For i = 0:1:entries.%Size() - 1 {
+		If $Match(entries.%Get(i).data, lines) Return 1
+	}
+	Quit 0
+}
+
+/// 1 when ^ISCLOG, IRIS's system log at the default level, holds the text (or is not at the default level).
+ClassMethod IsclogHolds(text As %String) As %Boolean [ Private ]
+{
+	If +$Get(^%ISCLOG) >= 3 Quit 1
+	If '$Data(^ISCLOG) Quit 0
+	Set node = "^ISCLOG", hit = 0
+	For {
+		Set node = $Query(@node, 1, data)
+		Quit:node=""
+		If (data [ text) || (node [ text) Set hit = 1
+		Quit:hit
+	}
+	Quit hit
+}
+
+/// Asserts that the client registered in %SYS is the mock-endpoint one for the provider (each OAuth2 case asserts this before it signs in).
+Method AssertMockEndpoints(provider As %String) [ Private ]
+{
+	Set endpoints = ##class(OcuTalon.Test.Channel.EmailOAuth).ServerEndpoints("http://mock:8080/_mock/oauth/"_provider)
+	Do $$$AssertEquals($Extract($Piece(endpoints, "|", 2), 1, 29), "http://mock:8080/_mock/oauth/", "the registered token endpoint starts with http://mock:8080/_mock/oauth/")
+	Do $$$AssertEquals(endpoints, "http://mock:8080/_mock/oauth/"_provider_"/authorize|http://mock:8080/_mock/oauth/"_provider_"/token|", "and the server definition holds the mock's endpoints and no revocation endpoint")
+}
+
+/// AC 1 to 4 and the leak AC: a real save registers the client; the consent flow gives the mock's tokens; nothing outside IRIS's OAuth2 objects holds the secret or a
+/// token; saving Password removes it all.
+Method TestOAuthSaveSignInAndRemove()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..OAuthBegin()
+		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set warned = ##class(OcuTalon.Test.Channel.EmailOAuth).WarningCount()
+		Set result = ..ConnectOAuth("google")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the real save with Google is done")
+		Do $$$AssertEquals(..Key("email.signIn")_"|"_..Key("email.clientId"), "google|"_..#OAUTHCLIENT, "the keys hold the method and the client ID")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).Norm(..Key("email.oauthOwned")), "app,client,server", "and what OcuTalon made: the client, its server definition and the web application's enabling")
+		Do $$$AssertEquals(##class(Ens.Config.Credentials).GetValue(..#CREDENTIAL, "Username")_"|"_(##class(Ens.Config.Credentials).GetValue(..#CREDENTIAL, "Password") = ""), "zzlive|1", "the credential holds the user name and no password")
+		Do ..AssertMockEndpoints("google")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).ClientFields(), "confidential|OcuTalonClient|http://"_..#IRISWEB_":"_..#IRISPORT_"|client_secret_post|https://mail.google.com/|"_..#OAUTHCLIENT_"|1|http://mock:8080/_mock/oauth/google", "the client: confidential, OcuTalonClient, the page's origin, client_secret_post, Google's scope, the dummy ID")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).SecretMatches(..Dummy), 1, "the client holds the dummy secret")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).AppEnabled(), 1, "the web application /csp/sys/oauth2 is enabled")
+		Do $$$AssertTrue(##class(OcuTalon.Test.Channel.EmailOAuth).WarningCount() > warned, "the job logged the warning that the mock's endpoints are in use")
+		Set mark = {}.%FromJSON(##class(OcuTalon.Data.StatusMark).Get("emailSignIn"))
+		Do $$$AssertEquals(mark.provider_"|"_mark.signedIn, "google|0", "the mark says google, not signed in")
+		Set check = ..SignIn("check")
+		Do $$$AssertEquals(check.Outcome_"|"_check.Data, "checked|{""signedIn"":false}", "before the consent a check says not signed in")
+		Set start = ..SignIn("start")
+		Do $$$AssertEquals(start.Outcome, "started", "the start is started")
+		Set url = {}.%FromJSON(start.Data).url
+		Do $$$AssertTrue($Match(url, "^http://"_..#IRISWEB_":"_..#IRISPORT_"/csp/sys/oauth2/OAuth2\.Response\.cls\?auth=1&state=[A-Za-z0-9_-]+$"), "the address is IRIS's response page on the page's origin")
+		Set status = ..Consent(url, .end, .page)
+		Do $$$AssertEquals(status_"|"_end, "302|http://"_..#IRISWEB_":"_..#IRISPORT_"/ocutalon/#/settings/channels?signin=1", "IRIS exchanges the code and sends the browser to Settings > Channels with signin=1")
+		Set check = ..SignIn("check")
+		Do $$$AssertEquals(check.Outcome_"|"_check.Data, "checked|{""signedIn"":true}", "a check now says signed in")
+		Set mark = {}.%FromJSON(##class(OcuTalon.Data.StatusMark).Get("emailSignIn"))
+		Do $$$AssertEquals(mark.provider_"|"_mark.signedIn, "google|1", "and the mark follows")
+		Set values = ##class(OcuTalon.Core.SettingsOps).Values().sections.channels
+		Do $$$AssertEquals(values.signIn_"|"_values.clientId_"|"_values.clientSecretSet_"|"_values.signedIn_"|"_values.passwordSet, "google|"_..#OAUTHCLIENT_"|1|1|0", "the page's values show the method, the client, signed in and no password")
+		Set row = ..TokenRow()
+		Set access = $Piece(row, "|", 4), refresh = $Piece(row, "|", 5)
+		Do $$$AssertEquals($Piece(row, "|", 1, 3), "1|1|", "IRIS's token row holds an access token and a refresh token and no error")
+		Do $$$AssertTrue($Extract(access, 1, 8) = "mock-at-", "the tokens are the fake server's")
+		Set mock = ..OAuthMock()
+		Do $$$AssertEquals(mock.authorize.%Size()_"|"_mock.authorize.%Get(0).scope_"|"_mock.authorize.%Get(0).responseType_"|"_mock.authorize.%Get(0).hasState_"|"_mock.authorize.%Get(0).clientId, "1|https://mail.google.com/|code|1|"_..#OAUTHCLIENT, "the consent step got the dummy client, Google's scope, the code response type and a state")
+		Do $$$AssertEquals(mock.authorize.%Get(0).pkce, 1, "IRIS's OAuth2 client sent a PKCE challenge")
+		Do $$$AssertEquals(mock.authorize.%Get(0).extra.%ToJSON(), "{""access_type"":""offline"",""prompt"":""consent""}", "and Google's offline-access parameters")
+		Do $$$AssertEquals(mock.token.%Size()_"|"_mock.token.%Get(0).grantType_"|"_mock.token.%Get(0).secretMatched_"|"_mock.token.%Get(0).codeOk, "1|authorization_code|1|1", "the token step got the dummy client secret and a good code")
+		// the leak scan: the secret only in OAuth2.Client, the tokens only in OAuth2.AccessToken
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings")
+		For what = $ListBuild("the client secret", ..Dummy), $ListBuild("the access token", access), $ListBuild("the refresh token", refresh) {
+			Set text = $List(what, 2), label = $List(what, 1)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.SaveSettings", "Changes", text)_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.MailSignIn", "PageOrigin", text)_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Msg_Command.MailSignIn", "Action", text), "000", "no SaveSettings or MailSignIn message holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", text), 0, "no Ens.Util.Log row holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens.MessageHeader", "Description", text), 0, "no message header holds "_label)
+			Do $$$AssertEquals(entries.%ToJSON() [ text, 0, "no Settings audit entry holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(text), "", "no ^OcuTalon* global holds "_label)
+			Do $$$AssertEquals(..IsclogHolds(text), 0, "^ISCLOG holds nothing of "_label)
+			Do $$$AssertEquals(..SysAuditHolds(text), 0, "no IRIS audit entry holds "_label)
+			Do $$$AssertEquals(mock.%ToJSON() [ text, 0, "the fake server's state holds no "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Core.SettingsOps).Values().%ToJSON() [ text, 0, "the page's values hold no "_label)
+			Do $$$AssertEquals(result.Message_result.Data_start.Message_start.Data_check.Message_check.Data [ text, 0, "no answer holds "_label)
+		}
+		Do $$$AssertEquals(..SysAuditMasks(since), 1, "IRIS's own audit entry of the client shows its secret masked")
+		Set forms = ""
+		For i = 0:1:entries.%Size() - 1 {
+			Set forms = forms_$Select(forms = "": "", 1: ";")_entries.%Get(i).data.setting
+		}
+		Do $$$AssertTrue(forms [ "email.signIn", "the save wrote an email.signIn audit entry")
+		Do $$$AssertTrue((forms [ "email.clientId") && (forms [ "email.clientSecret") && (forms [ "email.oauthApp") && (forms [ "email.oauthOwned"), "and the entries for the client ID, the client secret, the web application and the owned list")
+		// the removal
+		Set secret2 = "Zz-live-pw-"_..Number_"-"_$Random(1000000)
+		Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(secret2, .uri)
+		Set body = {"address": "zzlive@example.com", "incoming": (..#STUBHOST_":"_..#POP3PORT), "user": "zzlive", "signIn": "password", "password": (uri)}
+		Set removed = ..Resave(body)
+		Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0)
+		Kill left
+		Do $$$AssertEquals(removed.Ok_"|"_removed.Outcome, "1|done", "Password saved over Google is done")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).Snapshot(), ..OAuthSnapshotWas(), "the client, its server definition and its tokens are gone, and the web application is disabled again")
+		Do $$$AssertEquals(..Key("email.signIn")_"|"_..Key("email.clientId")_"|"_..Key("email.oauthOwned"), "||", "the keys are cleared")
+		Do $$$AssertTrue(##class(Ens.Config.Credentials).GetValue(..#CREDENTIAL, "Password") = secret2, "the credential holds the typed password")
+		Set mark = {}.%FromJSON(##class(OcuTalon.Data.StatusMark).Get("emailSignIn"))
+		Do $$$AssertEquals(mark.provider_"|"_mark.signedIn, "password|0", "the mark says not signed in")
+		Set audited = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings").%ToJSON()
+		Do $$$AssertEquals(audited [ secret2, 0, "no audit entry holds the typed password")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// access_denied and a failing token endpoint leave no tokens.
+Method TestOAuthRefusedConsent()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..OAuthBegin()
+		Set result = ..ConnectOAuth("microsoft")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the real save with Microsoft 365 is done")
+		Do ..AssertMockEndpoints("microsoft")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).ClientFields(), "confidential|OcuTalonClient|http://"_..#IRISWEB_":"_..#IRISPORT_"|client_secret_post|https://outlook.office.com/POP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access|"_..#OAUTHCLIENT_"|1|http://mock:8080/_mock/oauth/microsoft", "the client holds Microsoft 365's minimum scopes")
+		Do $$$AssertTrue(..OAuthControl("mode", {"consent": "deny"}), "the fake server will refuse the consent")
+		Set start = ..SignIn("start")
+		Set status = ..Consent({}.%FromJSON(start.Data).url, .end, .page)
+		Do $$$AssertEquals(status, 200, "IRIS shows its own error page for access_denied")
+		Do $$$AssertTrue(page [ "error", "which says that an error occurred")
+		Set row = ..TokenRow()
+		Do $$$AssertEquals($Piece(row, "|", 1)_"|"_$Piece(row, "|", 3), "0|access_denied", "the token row holds no access token and the error")
+		Set check = ..SignIn("check")
+		Do $$$AssertEquals(check.Data, "{""signedIn"":false}", "a check says not signed in")
+		Do $$$AssertTrue(..OAuthControl("mode", {"consent": "allow", "token": "error"}), "the fake server will allow the consent and fail the token request")
+		Set start = ..SignIn("start")
+		Set status = ..Consent({}.%FromJSON(start.Data).url, .end, .page)
+		Set row = ..TokenRow()
+		Do $$$AssertEquals($Piece(row, "|", 1), 0, "a failing token endpoint leaves no access token")
+		Set check = ..SignIn("check")
+		Do $$$AssertEquals(check.Data, "{""signedIn"":false}", "and a check says not signed in")
+		Do $$$AssertEquals(..OAuthMock().issued, 0, "the fake server issued no token")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// Matrix "Foreign IRIS objects": a client OcuTalonMail that OcuTalon did not create makes the save failed, stays as it was, and the keys are put back.
+Method TestOAuthForeignClientIsLeftAlone()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..OAuthBegin()
+		Do ##class(OcuTalon.Data.Setting).Set("email.address", "zzearlier@example.com")
+		Do ##class(OcuTalon.Test.Channel.EmailOAuth).MakeServer("http://mock:8080/_mock/oauth/google", "http://mock:8080/_mock/oauth/google/authorize", "http://mock:8080/_mock/oauth/google/token", "")
+		Do ##class(OcuTalon.Test.Channel.EmailOAuth).MakeClient("OcuTalonMail", "http://mock:8080/_mock/oauth/google", "zz-foreign-id")
+		Set before = ##class(OcuTalon.Test.Channel.EmailOAuth).Snapshot()
+		Set result = ..ConnectOAuth("google")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "the save over a foreign client is failed")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).Snapshot(), before, "nothing changed in IRIS")
+		Do $$$AssertEquals($Piece(##class(OcuTalon.Test.Channel.EmailOAuth).ClientFields(), "|", 6), "zz-foreign-id", "the foreign client is as it was")
+		Do $$$AssertEquals(..Key("email.signIn")_"|"_..Key("email.clientId")_"|"_..Key("email.oauthOwned"), "||", "the keys are put back")
+		Do $$$AssertEquals(..Key("email.address")_"|"_..Key("email.owner"), "zzearlier@example.com|"_$List(..Found, 5), "the address key holds the earlier address and the owner key the value it was found with")
+		Do $$$AssertEquals(##class(Ens.Config.Credentials).%ExistsId(..#CREDENTIAL), 0, "and no credential was left")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// U-320 2: an admin who disables the web application sees it stay disabled through a re-save; the next sign-in start enables it and audits that.
+Method TestOAuthAdminDisabledAppStaysDisabled()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..OAuthBegin()
+		Set result = ..ConnectOAuth("google")
+		Do $$$AssertEquals(result.Outcome, "done", "the save registers the client")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).AppEnabled(), 1, "and enables the web application")
+		Do ##class(OcuTalon.Test.Channel.EmailOAuth).SetApp(0)
+		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set again = ..Resave({"address": "zzlive@example.com", "incoming": (..#STUBHOST_":"_..#POP3PORT), "user": "zzlive2", "signIn": "google", "clientId": ("zz-live-client-2.example"), "origin": ("http://"_..#IRISWEB_":"_..#IRISPORT)})
+		Do $$$AssertEquals(again.Outcome, "done", "a re-save with another client ID and no secret is done")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).AppEnabled(), 0, "the web application stays disabled")
+		Set check = ..SignIn("check")
+		Do $$$AssertEquals(check.Outcome, "checked", "a check is answered")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).AppEnabled(), 0, "and does not enable it")
+		Set start = ..SignIn("start")
+		Do $$$AssertEquals(start.Outcome, "started", "the next sign-in start is started")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).AppEnabled(), 1, "and enables the web application")
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(since, "OcuTalon", "Settings", "", "zzlivecycle", "", 3, 20)
+		Set forms = ""
+		For i = 0:1:entries.%Size() - 1 {
+			Set forms = forms_$Select(forms = "": "", 1: ";")_entries.%Get(i).data.setting
+		}
+		Do $$$AssertTrue(forms [ "email.oauthApp", "the enabling is audited")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
+/// U-320 7: the online demo refuses the save, the start and the check, and the web application stays disabled.
+Method TestOAuthOnlineDemo()
+{
+	If '..Guard() Quit
+	Try {
+		Do ..OAuthBegin()
+		Set ..Owner = ..Session("owner")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Set before = ##class(OcuTalon.Test.Channel.EmailOAuth).Snapshot()
+		Set sc = ##class(OcuTalon.Core.SecretHandoff).Put("zz-demo-secret", .uri)
+		Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
+		Set command.Slug = "channels"
+		Set command.Changes = ..ProviderBody("google", uri).%ToJSON()
+		Set command.ActingUser = "zzlivecycle"
+		Set command.SessionRef = ..Owner
+		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+		Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0)
+		Kill left
+		Do $$$AssertEquals(result.Outcome, "not_available", "the save with a provider is not available")
+		Set start = ..SignIn("start")
+		Do $$$AssertEquals(start.Outcome, "not_available", "the start is not available")
+		Set check = ..SignIn("check")
+		Do $$$AssertEquals(check.Outcome, "not_available", "the check is not available")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).Snapshot(), before, "nothing changed in IRIS")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailOAuth).AppEnabled(), 0, "the web application /csp/sys/oauth2 is still disabled")
+		Do $$$AssertEquals(##class(OcuTalon.Core.SettingsOps).Values().sections.%IsDefined("channels"), 0, "and the page's values have no channels")
+		Do $$$AssertEquals(..Key("email.signIn")_"|"_..Key("email.clientId"), "|", "no key was written")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..Online)
 	Do ..Disconnect()
 }
 
