@@ -6680,6 +6680,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340184 shards-10; first-start timeout is DW-999's; the park step is a new signature; the 23.2 rework checks it for a story cause
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:reminder-restart_telegram_park;one_rerun_with_the_next_push
 - 2026-11-11T00:03:57Z occurrence=feature-9f7db82c by=orchestrator note=run 42924654980 job 130207908005 iris(shards) on ocutalon-ci-15, unit live:online-allowance: 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then 'the first start did not end ready within 400 s'; same signature as the reminder-restart one, now in another unit; rerun of failed jobs
+- 2026-11-12T11:23:19Z occurrence=0-28 by=runner note=run_43202138313_job_131127976608_iris(shards-9)_on_ocutalon-ci-5_unit_shard:lane-a@Bridge_stack_start:'Telegram_park:_TelegramOut_still_has_an_Ens.Job_entry_(Alive,dequeuing)_32_s_after_it_was_disabled';OCT-epic0_2a6cfc67(README+test-readme_over_feature_eb289caf);one_rerun_of_failed_jobs
 ### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
@@ -7151,6 +7152,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: durations: 14:31-15:00 (29.5m), 20:07-20:35 (28m), 14:02-14:32 (30m); 21:03-21:38 timed out during the post-outage backlog
 - 2026-11-11T21:39:35Z status=routed owner=burndown by=orchestrator note=infra (host load): one rerun per occurrence; a recurrence on a clean queue means the group needs a split (standing CI rule), never a longer timeout
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749306 attempt 2)
+- 2026-11-12T11:30:04Z occurrence=0-28 by=runner note=lane-a_run_43202138310_job_131127975712_ipm-install_on_ocutalon-ci-19_all_steps_success_then_cancelled_at_35m0s(10:52:33-11:27:33Z);host_load;OCT-epic0_2a6cfc67;rerun_failed_jobs_11:30Z
 
 ### DW-1163: CI ops: GitHub Actions outage left zombie runs (queued at attempt 1; cancel says completed, rerun says running, force-cancel says not queued); recovery = a fresh push of a bookkeeping-only head, its result read by identity
 - source: OCT-epic21 2242c77d runs 43096469670, 43096469722 (2026-11-11 Actions major outage) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7210,3 +7212,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature 74ee76dc, ci run 43160772937 job iris (browser) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the failure is in sign-in/helpers.ts:61 submitSignIn, not the approval path; all 18 runners busy with the backlog; 74ee76dc's new code (21.2/21.6/23.11) doesn't touch sign-in
 - 2026-11-12T06:52:37Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun; a second red on the same head is real
+
+### DW-1190: flake: live:online-demo web/e2e-online/resume.spec.ts:104 R2 page.goto('http://elsewhere.test/') net::ERR_ABORTED on a context.route-fulfilled page (raw page.goto, not gotoSettled; DW-690 family)
+- source: OCT-epic0 2a6cfc67, ci run 43202138313 job 131127976389 iris (browser) on ocutalon-ci-14 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rows 7-12 online-demo specs: 1 failed (R2, 2.3 s) at resume.spec.ts:143 page.goto ERR_ABORTED; spec unchanged since 83a6f3c1 (Nov 4); the head changes README.md and test-readme.sh over feature eb289caf; 18 runners busy
+- 2026-11-12T11:14:12Z status=routed owner=burndown by=runner note=flake class (first occurrence): one rerun of failed jobs; a second red on the same head is real; likely fix: gotoSettled at L143 as DW-690 did
