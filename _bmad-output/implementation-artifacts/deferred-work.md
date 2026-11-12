@@ -7126,6 +7126,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: timing assert on the poll interval under CI load; 23.7 changes no live/poll code
 - 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); one rerun per occurrence; rerun deferred until RESUME (HOLD)
 - 2026-11-12T06:52:37Z occurrence=feature note=74ee76dc ci 43160772937 shards-4 live:sign-in-2 L1 poll gap 2076 ms vs 2000; one rerun
+- 2026-11-12T16:31:02Z occurrence=23-12 note=4444bda0_rerun_attempt2_L1_gap_2088ms
 ### DW-1143: K29 under sign-in-3 (no model, no CI mock) seeds the queue row instead of running press->turn->start_watch->row end to end
 - source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story(web/e2e/guide/more-to-try-queues.spec.ts)
 - evidence: sign-in-3 has no CI mock; K29 pins press->one prompt (mutation red); Test.Watch.Turns:TestQueuesThroughTheAgent pins prompt->start_watch(kind queues)->row->check event; rail-view.test.mjs and K29 pin the row render
@@ -7338,3 +7339,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: medium | fix-risk: high | footprint: in-story
 - evidence: docker/tests/test-eval-set.sh check_rules_flow: awk line-order pins only; rcf_rules runs the --rules-only forms, never the push run; lane-a evaluation job is the runtime proof
 - 2026-11-12T13:46:59Z status=by-design owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=spec Verification: Integration and CI ACs are proven by the lead's CI evidence (lane A evaluation job log and summary); a stubbed push run would emulate set, mock-wrong, demo gate and attempt runs
+
+### DW-1205: flake candidate: shard:lane-a@Fix Test.Fix TestFailedAgainIsNotRetried red once ('it holds 3/3/0/3/0: the copies failed again'), passed on rerun
+- source: ci 43235350028 OCT-epic23 4444bda0 iris (shards-11) attempt 1 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: logic assertion (not a timeout) under a saturated CI host ~15:00Z; passed on attempt 2; 23.12 changes web live-store only
+- 2026-11-12T16:31:02Z status=routed owner=burndown by=orchestrator note=Planner rule: a logic red is not a load flake by default; investigate ordering/state the copies counter depends on; a second red on any head = real
+
+### DW-1207: test: one check that fails when any file outside README.md (docs/*.md included) links a README anchor README.md doesn't have
+- source: Contest Planner 0.30 DW-1199 sweep, 2026-11-12 | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Planner swept 05e29461: no live link to a moved README anchor; test-readme product-links covers page links; docs/*.md has no generic dead-anchor check
+- 2026-11-12T16:44:12Z status=routed owner=burndown by=orchestrator note=1.0.9; does not hold 1.0.8
