@@ -5,6 +5,10 @@ Include Ensemble
 /// responsibility"); this poll keeps what it has seen, reads only new mail, logs counts only and never deletes. Its settings are the
 /// parent's: POP3Server, POP3Port, Credentials (the Interoperability credential OcuTalonMail), SSLConfig (OcuTalonClient, or
 /// OcuTalonClient* for STARTTLS on port 110) and the OAuth2 settings that Story 21.8 uses; the product offers no plain connection.
+/// In OAuth2 mode the access token goes only over TLS (Transport): SSLConfig is OcuTalonClient (POP3S) or OcuTalonClient* (STLS), surrounding blanks ignored, and
+/// SSLCheckServerIdentity is 1, or else the connection is plain, which is allowed only by the rule of Sender.PlainFor (the CI-only switch is on AND the
+/// server host is exactly mock, the CI stub). Any other state refuses the poll before the handler is asked for a token, with REASONUNREACHABLE, so no token is
+/// fetched and nothing reaches the server. Password mode is unchanged.
 /// DeleteMessage is forced to 0 at OnInit, whatever the setting says; a poll deletes an email from the server only when the property is 1. Each poll, in order:
 ///   - reads the credential again (a changed password applies at the next poll); with OAuth2ApplicationName set (a Google or Microsoft 365 sign-in) it
 ///     asks the handler OAuth2CallBackHandler (Channel.Email.Token) for the access token, which IRIS renews when it has expired, and logs in with
@@ -116,6 +120,10 @@ Method Poll(Output reason As %String, Output handed As %Integer, Output baseline
 	}
 	Set token = "", oauth = (..OAuth2ApplicationName '= "")
 	If oauth {
+		If ..Transport() = "" {
+			Set reason = ..#REASONUNREACHABLE
+			Quit 0
+		}
 		Set sc = ..AccessToken(.token)
 		If $$$ISERR(sc) || (token = "") {
 			Set reason = ..#REASONSIGNIN
@@ -185,6 +193,24 @@ Method Poll(Output reason As %String, Output handed As %Integer, Output baseline
 		Quit 0
 	}
 	Quit 1
+}
+
+/// 1 when the CI-only switch of the plain exception is on (Sender.SwitchOn). A test subclass overrides it to stand in for a job that does not have the variable.
+ClassMethod SwitchOn() As %Boolean
+{
+	Quit ##class(OcuTalon.Channel.Email.Sender).SwitchOn()
+}
+
+/// How a poll in OAuth2 mode connects, so that the bearer token never goes over a plain or unchecked connection: "plain" only by the rule of Sender.PlainFor,
+/// "tls" when SSLConfig (surrounding blanks ignored) is OcuTalonClient or OcuTalonClient* and SSLCheckServerIdentity is 1, and "" for everything else (a blank or foreign SSLConfig, the
+/// server's name not checked). A poll with no transport fetches no token.
+Method Transport() As %String
+{
+	If ##class(OcuTalon.Channel.Email.Sender).PlainFor(..POP3Server, ..SwitchOn()) Quit "plain"
+	Set config = $ZStrip(..SSLConfig, "<>WC")
+	Set client = ##class(OcuTalon.Channel.Email.Sender).Client()
+	If ((config = client) || (config = (client_"*"))) && ..SSLCheckServerIdentity Quit "tls"
+	Quit ""
 }
 
 /// The access token for one login, from the handler named by OAuth2CallBackHandler; an exception counts as the handler's error status. The token goes

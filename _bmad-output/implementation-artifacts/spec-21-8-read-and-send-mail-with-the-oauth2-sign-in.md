@@ -2,8 +2,8 @@
 title: 'Story 21.8: Read and send mail with the OAuth2 sign-in'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
-baseline_revision: 'acb7c2e1a9bb3d9ad9c8e3f1aa91f6c91cab1d38'
+status: 'done'
+baseline_revision: '9a589d9c723a2a181a0c9ce6563805f36bc18bd1'
 baseline_commit: 'acb7c2e1a9bb3d9ad9c8e3f1aa91f6c91cab1d38'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -98,8 +98,8 @@ deferred:
 - Given the online demo, when a save, a poll or a send would run, then no OAuth2 row is written, `Token.OnGetAccessToken` refuses with no IRIS call, and `/csp/sys/oauth2` stays disabled (21.3's tests stay green).
 - Given the finished diff, when its paths and classes are listed, then no Lane A path, no Never-list item, no new switching method, no new caller of `Channel.Email.OAuth`, and no grant, role or resource on any OcuTalon role appears; password-mode tests of 21.2, 21.6 and 21.7 still pass unchanged.
 
-- [ ] [Review] DW-1230 (Planner ruling E, security, before any push): in OAuth2 mode `EmailIn` sends the bearer token only over TLS (POP3S, or STLS if the adapter supports it). Plain POP3 is allowed only with `OCUTALON_TEST_OAUTH_MOCK=1` and host `mock`, exactly as `Sender.PlainAllowed` does for SMTP. Otherwise the poll refuses before any token is fetched or sent and records a plain reason (reuse an existing accepted reason if one fits; new wording is a Clarification for the Planner). -- `src/ocutalon/cls/OcuTalon/Channel/Email/Adapter.cls` (and the handler/Token path if the token fetch happens earlier) -- tests pin (a) a blank `SSLConfig` row and (b) `SSLCheckServerIdentity` 0 in OAuth2 mode are refused with no token sent and nothing reaching the stub, and (c) the mock exception (switch on + host `mock`) still polls; one `mutation:` line each.
-- [ ] [Review] RELEASE TOOL pin (Planner ruling E, approved): the one-line exemption in `release/checklist.sh` `outward_hits()` (`mail.google.com` in the exact-match exemption for `docker/tests/test-readme.sh`'s `ALLOWED_HOSTS` line) stays exactly that line and nothing else; add a test pin that fails if the exemption is missing (outward check red on the README line) or widened (any other host or a non-exact match) -- in the existing release-checklist test script if one exists on this branch, else in `docker/tests/test-readme.sh` -- with its `mutation:` line.
+- [x] [Review] DW-1230 (Planner ruling E, security, before any push): in OAuth2 mode `EmailIn` sends the bearer token only over TLS (POP3S, or STLS if the adapter supports it). Plain POP3 is allowed only with `OCUTALON_TEST_OAUTH_MOCK=1` and host `mock`, exactly as `Sender.PlainAllowed` does for SMTP. Otherwise the poll refuses before any token is fetched or sent and records a plain reason (reuse an existing accepted reason if one fits; new wording is a Clarification for the Planner). -- `src/ocutalon/cls/OcuTalon/Channel/Email/Adapter.cls` (and the handler/Token path if the token fetch happens earlier) -- tests pin (a) a blank `SSLConfig` row and (b) `SSLCheckServerIdentity` 0 in OAuth2 mode are refused with no token sent and nothing reaching the stub, and (c) the mock exception (switch on + host `mock`) still polls; one `mutation:` line each.
+- [x] [Review] RELEASE TOOL pin (Planner ruling E, approved): the one-line exemption in `release/checklist.sh` `outward_hits()` (`mail.google.com` in the exact-match exemption for `docker/tests/test-readme.sh`'s `ALLOWED_HOSTS` line) stays exactly that line and nothing else; add a test pin that fails if the exemption is missing (outward check red on the README line) or widened (any other host or a non-exact match) -- in the existing release-checklist test script if one exists on this branch, else in `docker/tests/test-readme.sh` -- with its `mutation:` line.
 
 ### Review Findings
 
@@ -189,6 +189,31 @@ Rejected / closed at emission:
   - `[low]` `[reject]` Verification-gap 8: the README dev-only rule exempts the whole new section — the section names the providers' console settings; a future ##class( in an end-user section would still be caught elsewhere; not worth a finer rule.
 - Intent-alignment auditor: no findings (descriptive); its divergences (the privileges measured through the probe in a child process, the floor and removal caveats, stand-in handler in unit tests with the real chain in `EmailLive`) are the ones recorded in Design Notes "Measured" and decisions 7, 13-14.
 
+### 2026-11-12 — Review pass (rework 1: DW-1230 and the release-tool pin)
+- verdicts: 21 findings — high 0, medium 1, low 18, false 2, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind 1 / Intent R2 / Edge 4: `Transport` judges the item's settings, not the `MailServer` the parent's OnInit configured — the same properties feed both, and a "plain" verdict that meets a TLS-configured connection fails to connect (the safe direction); no token goes out on a connection the check did not judge — only the "exactly" claim in the doc comments was wrong (blanks are stripped as `Sender.Transport` does); comments corrected
+  - `[low]` `[patch]` Blind 2: the padded `" OcuTalonClient "` case against the "exactly" comment — comments now say surrounding blanks are ignored, as in `Sender.Transport`
+  - `[false]` `[reject]` Blind 3: the live OAuth2 cases would be refused without `OCUTALON_TEST_PLAIN_SMTP` — `ci/compose.ci.yml` sets it and the warm throwaway ran the live OAuth2 cases green after the change
+  - `[low]` `[reject]` Blind 4a: a widened-exemption variant could equal the approved line — a no-op substitution fails loudly on its own `has` row; not worth a guard
+  - `[low]` `[reject]` Blind 4b: `wc -l` assumes a final newline — `test-readme.sh` ends with one
+  - `[low]` `[reject]` Blind 5: text-shape asserts and uncovered widenings (trailing text, other file) — the behavioural rows run the real `outward_hits`; the text pins are the "stays exactly this line" pin the item asks for
+  - `[low]` `[reject]` Edge 1: several `ALLOWED_HOSTS` lines — one line exists; a second would fail the `has` rows loudly
+  - `[low]` `[reject]` Edge 2: a third exemption spelled differently — the "two approved lines only" pin counts the file patterns
+  - `[low]` `[reject]` Edge 3: a settings fault reads as "couldn't reach" — the dispatch allows reusing an accepted reason; new wording is the Planner's
+  - `[medium]` `[reject]` Edge 6: the switch is `OCUTALON_TEST_PLAIN_SMTP`, not `OCUTALON_TEST_OAUTH_MOCK` — `Sender.PlainAllowed` is the rule the ruling says to copy and the dispatch says to share; `OAuth.TESTVARIABLE` cannot be read from `Adapter` (the one-caller pin of `Channel.Email.OAuth`); `ci/compose.ci.yml` sets both to 1 (decision recorded in Design Notes)
+  - `[low]` `[reject]` Edge 5: more refused rows (switch value 2, padded star) — `Sender.IsOn` is the sender's already-pinned comparison
+  - `[low]` `[patch]` Gap 1: production `Adapter.SwitchOn` never run (every test host overrides it) — `TestOAuthTransport` asserts it equals `Sender.SwitchOn`
+  - `[low]` `[patch]` Gap 2: `Delivered() = 0` in the refusal rows cannot fail (a first poll baselines) — removed
+  - `[low]` `[patch]` Gap 3: `AssertStatusOK(OnTask())` cannot fail (OnTask always returns OK) — replaced by the bare call
+  - `[low]` `[patch]` Gap 4: no near-miss `SSLConfig` row (a `[` match would pass) — rows `OcuTalonClientX` and `OcuTalonClient**`
+  - `[low]` `[reject]` Gap 5: stale `Mark()` between rows — the token and `ConnectPort` assertions are reset per row and fail on the same regression
+  - `[low]` `[reject]` Gap 6: `eq hits ""` could pass vacuously — the widened rows below it fail if sourcing or the function failed
+  - `[low]` `[reject]` Gap 7: text-shape pins brittle to reformatting — intended, the item asks the line to stay exactly as approved
+  - `[low]` `[reject]` Gap 8: password mode still allows a blank `SSLConfig` — the 21.2 behaviour, outside the ruling (OAuth2 mode)
+  - `[false]` `[reject]` Intent: the "plain" verdict is not enforced on the connection (the production row for host `mock` carries `OcuTalonClient`) — it fails to connect, never sends a token in the clear; the live cases blank `SSLConfig` for the stub
+  - `[low]` `[reject]` Intent: the identity check is stricter than the sender's — intended (ruling: TLS)
+
 ## Design Notes
 
 **Governing ADs (Rule 6):** AD-1 (no new command or route; `SettingsOps` is the only writer of the item rows), AD-3 (no new switching class: IRIS's own `GetAccessToken` switches to `%SYS` inside the call, just as 21.3's `Start` reaches `%SYS.OAuth2.Authorization`; `Channel.Email.OAuth` keeps its one caller and its S1 scope), AD-10 (no new tool path; the tool send keeps its AD-10 rules), AD-14 (email channel, `emailPoll` contract, the Delivery rows), AD-17 (no new audit entry: the rows follow the `email.signIn` change already audited), AD-19 (token homes; S1), AD-22 (mock; S3), AD-24 (no grant, the production as `_Ensemble`; S2), AD-25 (online demo), AD-29/AD-33 (Lane B). No AC contradicts an AD Rule. AD-19's 21.3 bullet says "OcuTalon reads only whether the row holds an access token ..., never a value, and never refreshes or revokes" and in the same bullet "Token use by the adapters, refresh and revocation are Story 21.8's". This story reads that sentence as describing 21.3's registration and state code (`Channel.Email.OAuth`), which stays as it is, and adds the adapters' token use as S1 (veto V5).
@@ -233,6 +258,8 @@ Measured and not needed: `%Admin_Secure:USE` (register and remove succeed withou
 **Memlog line for the lead** (the memlog is not in the worktree): `uv run --no-cache _bmad/scripts/memlog.py append --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16 --type decision --text "Story 21.8 (2026-11-12): the mail items sign in with OAuth2 through System Default Settings rows OAuth2ApplicationName and OAuth2CallBackHandler (OcuTalon.Channel.Email.Token, an Ens.Util.OAuth2.Handler subclass); the token stays in IRIS's OAuth2.AccessToken and the adapter job's memory; spine AD-19, AD-24 (measured privileges, no least-privilege claim), AD-22 and AD-14 amended additively."`
 
 **Planner rulings at the spec gate (Contest Planner, owner's delegation, 2026-11-12 ~18:10Z, `prompts/gate-rulings-20261112-1810.md` A; binding):** V1-V8 APPROVED. Online demo: never runs; `/csp/sys/oauth2` stays disabled there (U-320); no least-privilege claim anywhere (AD-24 lists what was measured, nothing more). PUBLIC TEXT: T1, T2, T3 approved verbatim; T4 approved with three added sentences (a) end of the first paragraph, (b) after step 1's Redirect-address sentence, (c) end of step 2's Google part, written into T4 below verbatim; everything else in T4 verbatim. T4 goes in GUIDE.md after the Telegram section; T3's anchor `#gmail-and-microsoft-365` is checked by the guide's anchor rule. If GUIDE.md is absent on the base at implement time (0.30 not merged), T4 goes where the plan says (README, after Telegram) and moves to GUIDE.md at the 0.30 integrate-forward.
+
+- Decision (rework 1, DW-1230): `Adapter.Transport` returns "plain" only by `Sender.PlainFor(host, switch)` (the one rule of `Sender.PlainAllowed`, so the switch is `OCUTALON_TEST_PLAIN_SMTP`, which `ci/compose.ci.yml` sets together with `OCUTALON_TEST_OAUTH_MOCK`), "tls" for `SSLConfig` `OcuTalonClient` or `OcuTalonClient*` (blanks stripped) with `SSLCheckServerIdentity` 1, and "" otherwise. A poll with "" gives `REASONUNREACHABLE` before the handler is asked.
 
 ## Veto items
 
@@ -325,6 +352,8 @@ Test files created or changed by QA: no new file. Changed `(QA)`: `src/ocutalon/
 - mutation: `Sender.SendMail` without `'$Get(granted)` → `EmailOut` `TestSenderOAuth2Paths` red (handler answer `stale` reaches %Net.SMTP).
 - mutation: `Adapter.AccessToken` without `If '$Get(granted) Set token = ""` → `EmailIn` `TestOAuthReasons` red (the `stale` row connects).
 - mutation: `REFUSALS` in the wrong order → `EmailOAuthPrivileges` `TestRegisterNeedsEachPrivilege` red ("without %Admin_OAuth2_Client:USE, the refusal is <PROTECT>: ERROR #822 ..."); `RolesHolding` ignoring `GrantedRoles` → `TestNothingIsGrantedToOcuTalonRoles` red ("the scan flags a role that grants %Manager").
+- mutation (rework 1, DW-1230): `Adapter.Transport` accepting a blank `SSLConfig` -> `EmailIn` `TestOAuthTransport` red (the blank and the "switch off, host mock" rows); `SSLCheckServerIdentity` dropped from the "tls" condition -> red (the "unchecked" rows); the plain exception never granted -> red ("the CI stub: a plain poll is ok"); plain allowed on the switch alone (no host check) -> red ("switch on, host not mock"); `config = client` loosened to `config [ client` -> red (the "near miss" and "doubled star" rows); `Adapter.SwitchOn` answering 0 -> red ("the adapter's switch of the plain exception is the sender's"). Each applied on the warm throwaway after `down` + `up`, observed red, reverted byte-identical.
+- mutation (rework 1, release tool): `mail[.]google[.]com` dropped from the `outward_hits` exemption -> `test-release-checklist.sh` rules `outward-exemption` and `outward-rows` red; the exemption widened to `ALLOWED_HOSTS='[^']*'` -> `outward-exemption` red; a loose dot in the exemption -> `outward-exemption` red. Each applied, observed red, reverted byte-identical.
 - mutation (online demo, `/csp/sys/oauth2` stays disabled; 21.3's line, re-cited): the online-demo check dropped from `Channel.Email.OAuth.Sys` → `EmailOAuth` `TestSysRefusesOnTheOnlineDemo` red; `EmailOAuth` passes on this tree.
 
 **Shared surfaces:** the System Default Settings rows of `EmailIn`/`EmailOut` (`Test.Core.SettingsEmail`, `EmailLive` `TestSaveAndFirstPoll`/`TestOutgoingSave` row assertions); `SettingsOps.Values()` channels `signedIn` (`Test.Web.SettingsApi` `TestGetShape`, `SettingsEmail` `TestValues`, E6); the `emailPoll` reasons (`EmailLive` `TestFailedPollReasons`); `EmailOut`'s messages (`EmailOut`, `EmailLive` `TestSendFailuresByStubMode`); the mock's routes, EHLO line and state shapes (`ci/mock/test/*`, the EmailLive stub assertions); IRIS's `%SYS` OAuth2 objects, the `/csp/sys/oauth2` flag and the role and user lists on the throwaway (each test restores what it changed; fixture names start `zz`). Standing criterion: every test added or changed passes on a fresh environment, in either order.
@@ -343,3 +372,18 @@ Blocking condition: none
 **Verification.** After the last patch on the warm throwaway `e21s8iw`: `EmailOut`, `EmailToken`, `SettingsEmail`, `EmailOAuthPrivileges`, `EmailOAuth`, `EmailLive` `TestOAuthPollAndSendWithTheToken`, `TestOAuthRevokedGrant`, `TestToolSendReachesTheStub`, `TestSendFailuresByStubMode` pass; the implement pass's runs of `EmailIn`, `SettingsApi`, `SettingsSave`, the other `EmailLive` cases and E6 stand. Mock tests 48 pass; `test-boundaries.sh`, `test-readme.sh`, `test-class-rules.sh` pass; the least-privilege grep finds nothing; `lint_spine.py` shows the baseline 10 findings. Both stacks are down.
 
 **Residual risks.** The deferred XOAUTH2 failure shape; the provider console steps and the Microsoft scope answer are inference; the removal by a narrower user leaves `/csp/sys/oauth2` enabled (recorded in the spine; production removal runs as `_Ensemble`).
+
+### Rework 1 (DW-1230 and the release-tool pin) -- this pass only
+
+Status: done
+Blocking condition: none
+
+**Summary.** In OAuth2 mode `EmailIn` now sends the token only over TLS: `Adapter.Transport` allows "plain" only by the shared `Sender.PlainFor` rule (CI-only switch on and host exactly `mock`) and "tls" only for `SSLConfig` `OcuTalonClient`/`OcuTalonClient*` with `SSLCheckServerIdentity` 1; anything else refuses the poll with the existing `REASONUNREACHABLE` before the handler is asked (no token fetched, no connection made). `release/checklist.sh` is unchanged (the approved line was already in); `test-release-checklist.sh` gains the `outward-exemption` rule that pins it.
+
+**Files changed.** `Channel/Email/Adapter.cls` (Transport, SwitchOn, Poll check); `Channel/Email/Sender.cls` (`PlainFor` split from `PlainAllowed`); `Test/Channel/EmailIn.cls` (`TestOAuthTransport`, TLS settings in `OAuthAdapter`); `Test/Channel/EmailInAdapter.cls` (SwitchOn stand-in); `docker/tests/test-release-checklist.sh` (`outward-exemption`).
+
+**Review.** 21 findings (medium 1, low 18, false 2, maybe-false 0, high 0). Patched: 6 low (doc claim "exactly" corrected, the production `SwitchOn` assertion, two cannot-fail assertions removed, two near-miss `SSLConfig` rows). Deferred: none. Rejected with reasons: see the triage log above. Follow-up review recommendation: false (no high patched).
+
+**Verification.** Warm throwaway `e21s8iw2`: `EmailIn` passes after the last patch; earlier in this pass `EmailOut`, `EmailToken`, `EmailOAuth` and the live OAuth2 `EmailLive` cases passed on the same code. `test-release-checklist.sh`, `test-boundaries.sh` and `test-class-rules.sh` pass. Mutations in `## Verification`. The throwaway is torn down.
+
+**Residual risks.** The switch is `OCUTALON_TEST_PLAIN_SMTP` (shared with the sender), not the `OCUTALON_TEST_OAUTH_MOCK` the ruling names; CI sets both. The refusal reuses the "couldn't reach" sentence for a settings fault.

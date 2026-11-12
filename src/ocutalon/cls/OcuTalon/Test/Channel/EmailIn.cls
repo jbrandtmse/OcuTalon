@@ -16,6 +16,9 @@
 ///   - TestOAuthReasons (Story 21.8, DW-1179, T1): in OAuth2 mode a handler that answers an error, one that is not authorized, one that gives no token, one that
 ///     says not authorized but leaves a token, and one that throws all give the sign-in sentence with no connection made, and so does a login the server refuses; an unreachable server keeps its sentence; in password
 ///     mode a refused login keeps the refused sentence and the handler is never asked;
+///   - TestOAuthTransport (DW-1230): in OAuth2 mode the token is fetched and sent only over TLS: a blank SSLConfig, a foreign one, and SSLCheckServerIdentity 0 are each
+///     refused with the "couldn't reach" sentence before the handler is asked, so no token is fetched and no connection is made; implicit TLS and STARTTLS (OcuTalonClient,
+///     OcuTalonClient*) poll; the plain exception needs the CI-only switch AND the host mock, and then polls with a blank SSLConfig; password mode is unchanged;
 ///   - TestGoneMail: a UIDL that is no longer listed has its row deleted after a successful poll, and so has every row of another mailbox;
 ///   - TestDeleteIsNeverHonoured: the DeleteMessage setting is forced to 0, whatever it was, and no poll deletes;
 ///   - TestNoRepeatAfterFailure: an email whose hand-off failed is not recorded seen and goes on at the next poll;
@@ -346,6 +349,57 @@ Method TestOAuthReasons()
 	Do $$$AssertEquals(+$Get(^||OcuTalonEmailInHandler("calls")) _ "|" _ $Get(^||OcuTalonEmailInPop3("token")), "0|", "and the handler is never asked, and no token goes to the connection")
 }
 
+/// DW-1230: the token goes only over TLS; the plain exception is the CI stub's (the switch on AND the host mock).
+Method TestOAuthTransport()
+{
+	// (a) a blank SSLConfig, a foreign one and (b) the server's name not checked are refused before any token is fetched
+	Set cases = $ListBuild("blank||1|pop.example.com", "foreign|SomeOtherConfig|1|pop.example.com", "near miss|OcuTalonClientX|1|pop.example.com", "doubled star|OcuTalonClient**|1|pop.example.com", "unchecked|OcuTalonClient|0|pop.example.com", "unchecked star|OcuTalonClient*|0|pop.example.com", "switch on, host not mock||1|pop.example.com", "switch off, host mock||1|mock")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Kill ^||OcuTalonEmailInPop3, ^||OcuTalonEmailInAdapter, ^||OcuTalonEmailInHandler
+		Set label = $Piece(case, "|", 1)
+		Set adapter = ..OAuthAdapter("transport")
+		Set adapter.SSLConfig = $Piece(case, "|", 2), adapter.SSLCheckServerIdentity = $Piece(case, "|", 3), adapter.POP3Server = $Piece(case, "|", 4)
+		Set ^||OcuTalonEmailInAdapter("plain") = ($Piece(case, "|", 1) '[ "switch off")
+		Do ..Mail("u1")
+		Do adapter.OnTask()
+		Set mark = ..Mark()
+		Do $$$AssertEquals(mark.ok_"|"_mark.reason, "0|"_..#UNREACHABLE, label_": ok 0 and the sentence of a connection that was not made")
+		Do $$$AssertEquals(+$Get(^||OcuTalonEmailInHandler("calls")), 0, label_": the handler is never asked, so no token is fetched")
+		Do $$$AssertEquals(..Count("ConnectPort") _ "|" _ $Get(^||OcuTalonEmailInPop3("token")), "0|", label_": no connection is made and no token is sent")
+	}
+	// the job's own switch is the sender's: the adapter answers what Sender.SwitchOn answers
+	Do $$$AssertEquals(##class(OcuTalon.Channel.Email.Adapter).SwitchOn(), ##class(OcuTalon.Channel.Email.Sender).SwitchOn(), "the adapter's switch of the plain exception is the sender's")
+	// TLS polls: implicit TLS and STARTTLS, the name checked
+	For config = "OcuTalonClient", "OcuTalonClient*", " OcuTalonClient " {
+		Kill ^||OcuTalonEmailInPop3, ^||OcuTalonEmailInAdapter, ^||OcuTalonEmailInHandler
+		Set adapter = ..OAuthAdapter("transporttls")
+		Set adapter.SSLConfig = config
+		Do ..Mail("u1")
+		Do adapter.OnTask()
+		Do $$$AssertEquals(..Mark().ok, 1, config_": a poll over TLS is ok")
+		Do $$$AssertEquals($Get(^||OcuTalonEmailInPop3("token")), "zz-token-1", config_": and sends the token")
+	}
+	// (c) the CI stub: the switch on AND the host mock, with a blank SSLConfig
+	Kill ^||OcuTalonEmailInPop3, ^||OcuTalonEmailInAdapter, ^||OcuTalonEmailInHandler
+	Set adapter = ..OAuthAdapter("transportmock")
+	Set adapter.POP3Server = "mock", adapter.SSLConfig = "", adapter.SSLCheckServerIdentity = 0
+	Set ^||OcuTalonEmailInAdapter("plain") = 1
+	Set mailbox = ##class(OcuTalon.Data.MailSeen).IdentityOf("mock", 995, ^||OcuTalonEmailInAdapter("user"))
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.MailSeen WHERE Mailbox = ?", mailbox)
+	Set ..Mailboxes = ..Mailboxes_","_mailbox
+	Do ..Mail("u1")
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Mark().ok, 1, "the CI stub: a plain poll is ok")
+	Do $$$AssertEquals($Get(^||OcuTalonEmailInPop3("token")), "zz-token-1", "and it logs in with the token")
+	// password mode keeps its plain connection: the transport rule is OAuth2 mode's
+	Kill ^||OcuTalonEmailInPop3, ^||OcuTalonEmailInAdapter, ^||OcuTalonEmailInHandler
+	Set plain = ..Adapter("transportpassword")
+	Do ..Mail("p1")
+	Do plain.OnTask()
+	Do $$$AssertEquals(..Mark().ok, 1, "password mode: a poll with a blank SSLConfig is ok as before")
+}
+
 /// An email whose hand-off failed is not recorded seen and goes on at the next poll; the ones handed on before it stay seen.
 Method TestNoRepeatAfterFailure()
 {
@@ -661,13 +715,14 @@ Method Adapter(tag As %String, first As %Boolean = 1, deleteSetting As %Boolean 
 	Quit adapter
 }
 
-/// An adapter that signs in with OAuth2: the application OcuTalonMail, the session OcuTalonMail and the handler stand-in.
+/// An adapter that signs in with OAuth2: the application OcuTalonMail, the session OcuTalonMail and the handler stand-in, over implicit TLS with the server's name checked.
 Method OAuthAdapter(tag As %String) As OcuTalon.Test.Channel.EmailInAdapter [ Private ]
 {
 	Set adapter = ..Adapter(tag)
 	Set adapter.OAuth2ApplicationName = "OcuTalonMail"
 	Set adapter.OAuth2SessionId = "OcuTalonMail"
 	Set adapter.OAuth2CallBackHandler = ..#HANDLER
+	Set adapter.SSLConfig = "OcuTalonClient", adapter.SSLCheckServerIdentity = 1
 	Quit adapter
 }
 

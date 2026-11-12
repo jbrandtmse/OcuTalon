@@ -3,7 +3,8 @@
 /// records each email it is given under ^||OcuTalonEmailInAdapter("delivered", n) = $ListBuild(uidl, sender, subject, text) and its SentRef under ^||OcuTalonEmailInAdapter("delivered", n, "ref") and answers an error status when
 /// ^||OcuTalonEmailInAdapter("fail") is 1, or at its nth call since ^||OcuTalonEmailInAdapter("calls") was set to 0 when ^||OcuTalonEmailInAdapter("failAt") is n. Like
 /// Ens.BusinessService.ProcessInput, a hand-off clears the business host's %WaitForNextCallInterval when the adapter has a host. StopAsked answers 1 once
-/// ^||OcuTalonEmailInAdapter("stopAfter") emails have been handed on. The product never refers to it.
+/// ^||OcuTalonEmailInAdapter("stopAfter") emails have been handed on. SwitchOn stands in for the CI-only environment variable of the job: it answers 1 when
+/// ^||OcuTalonEmailInAdapter("plain") is 1. The product never refers to it.
 Class OcuTalon.Test.Channel.EmailInAdapter Extends OcuTalon.Channel.Email.Adapter
 {
 
@@ -12,6 +13,11 @@ Method OnInit() As %Status
 	Set sc = ##super()
 	Set ..MailServer = ##class(OcuTalon.Test.Channel.EmailInPop3).%New()
 	Quit sc
+}
+
+ClassMethod SwitchOn() As %Boolean
+{
+	Quit ($Get(^||OcuTalonEmailInAdapter("plain")) = 1)
 }
 
 Method CredentialsSet(pInVal As %String) As %Status

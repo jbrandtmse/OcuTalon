@@ -78,7 +78,14 @@ ClassMethod IsOn(value As %String) As %Boolean
 /// 1 when plain SMTP is allowed for the host: the switch is on and the host is exactly the CI stub's.
 ClassMethod PlainAllowed(host As %String) As %Boolean
 {
-	Quit ..SwitchOn() && ($Get(host) = ..#PLAINHOST)
+	Quit ..PlainFor($Get(host), ..SwitchOn())
+}
+
+/// The rule of PlainAllowed for a given state of the switch: plain is allowed only when the switch is on and the host is exactly the CI stub's. EmailIn's adapter
+/// (Channel.Email.Adapter) applies the same rule to its POP3 connection in OAuth2 mode, so there is one rule for the plain exception.
+ClassMethod PlainFor(host As %String, switchOn As %Boolean) As %Boolean
+{
+	Quit $Get(switchOn) && ($Get(host) = ..#PLAINHOST)
 }
 
 /// How this send connects: "plain", "tls" or "" (see the class description).
