@@ -7616,6 +7616,23 @@ So that I approve only what I understand.
 **Then** it carries "Why:" and its dry run with the exact text and every recipient (FR-8, FR-44, UX-DR75)
 **And** because it has no incident, its `approval`, `answered` and `result` notifications come from `OcuTalon.Core.BridgeSink` through `NoticesIn`, as a tool call's do, and this story builds that (`IncidentManager` sends them only for an incident's fix requests), so the phone and Telegram get the buttons and in-place edits (FR-8, AD-31, AD-32)
 
+### Story 21.12: A check fails on a link to a README anchor that README.md does not have
+
+> [ADDED 2026-11-12, inserted by the Epic 21 runner under the Contest Planner's ruling E ("take DW-1207 as burndown" in Lane C's idle time); test-only, no product change]
+
+As the maintainer,
+I want one check that fails when any file outside README.md links a README anchor that README.md does not have,
+So that moving or renaming a README section can never leave a dead link behind.
+
+**Acceptance Criteria:**
+
+**Given** any tracked Markdown file other than README.md (GUIDE.md and docs/*.md included) that links `README.md#<anchor>` (relative or by the repository URL)
+**When** the check runs in CI
+**Then** it fails, naming the file, line and anchor, for every anchor that is not a heading anchor of README.md as GitHub renders it, and passes when every such link resolves
+**And** the check proves it can fail: a planted dead link is flagged and a live one is not (DW-1207)
+
+- DW-1207: test: one check that fails when any file outside README.md (docs/*.md included) links a README anchor README.md doesn't have (ledger; routed by orchestrator 2026-11-12)
+
 ### Story 21.6: Send email over SMTP
 
 > [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.2 and before 21.3, which reuses `EmailIn` and `EmailOut`.

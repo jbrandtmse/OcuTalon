@@ -7394,6 +7394,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 0.30 DW-1199 sweep, 2026-11-12 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Planner swept 05e29461: no live link to a moved README anchor; test-readme product-links covers page links; docs/*.md has no generic dead-anchor check
 - 2026-11-12T16:44:12Z status=routed owner=burndown by=orchestrator note=1.0.9; does not hold 1.0.8
+- 2026-11-12T23:42:58Z status=routed owner=21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do by=burndown note=Planner_ruling_E:Lane_C_takes_DW-1207_as_burndown;Story_21.12_inserted(test-only)
 
 ### DW-1225: AC moved from 36.1 (Planner V1(b)): 23.3 declares Fix.Kind.RollbackSetting with RESOURCES, grants %Ens_ProductionConfig:W to OcuTalonServiceRole (demo install leaves it out), adds exactly one forbidden-list test exception, the ONLINESTATEMENT change and the overview sentence, and ships incident.settingChangeCause; result.settingRestored keeps its undo sentence only if 23.3 builds and tests the undo path
 - source: Contest Planner 36.1 spec gate ruling 2026-11-12, prompts/story-361-rulings-20261112.md | severity: med | fix-risk: low | footprint: in-epic
