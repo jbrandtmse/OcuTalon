@@ -9811,7 +9811,7 @@ So that incidents page the right people on a channel that can reach them.
 **Then** the spine is updated in the same change with Lane B's step-5 additions: the settings sections for on-call, partner contacts and SQL query watches and their routes; the on-call setting keys in `OcuTalon.Data.Setting`; a partner-contact table owned by Lane B and written only by `SettingsOps`; the page notification and its route in `OcuTalon.Core.Rule.Notify`; an escalation kind on `Reminder`, whose `ReminderTimer` waiter sends the escalation message to the paging owner; the `approval` payload's fields for the new kinds' dry runs; the command verbs to acknowledge a page and to save a SQL query watch, and a `handled` notification and a `Delivery` lookup by the page's `Ref`, so every copy of an acknowledged page updates (Telegram's through Story 23.4) (FR-28, AD-5, AD-12, AD-29, AD-33)
 **And** the step-5 additions that Lane A's Story 36.1 (was 23.1) asks for in `OcuTalon.Msg` and `OcuTalon.Data` are appended by Lane B as their owner, and Lane A's stories never edit them (AD-29, AD-33)
 **And** the section names and texts the UX doesn't give (the on-call, partner-contact and SQL query watch sections and their field errors) are proposed to the author as additions to `EXPERIENCE.md` › Later Steps › Step 5 and the Message Catalog, every other text is the step-2 settings text, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR141)
-**And** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
+[AMENDED 2026-11-12, Story 36.2 split, unattended ruling (doctrine U5, split 1 of 6): the criterion "with Epic 22 merged, this story adds the README link to Lane A's worked Jira example ..." moved verbatim to Story 36.3, because it alone waits on Epic 22 (Story 22.6's worked example); the epic's promise is unchanged]
 
 **Given** an admin opens the on-call section
 **When** they choose the on-call person and the backup
@@ -9833,6 +9833,21 @@ So that incidents page the right people on a channel that can reach them.
 **Given** automated tests in `OcuTalon.Test.Core` and a Playwright spec under `web/e2e/`
 **When** an admin saves, corrects and saves the section again
 **Then** the stored values, the audit entries and the page's states match, and the section works by keyboard with every control labelled (NFR-25, UX-DR125, UX-DR130)
+
+
+### Story 36.3: Link the worked Jira example from the admin docs
+
+[AMENDED 2026-11-12, split from Story 36.2, unattended ruling (doctrine U5, split 1 of 6): Story 36.2's README criterion moved here verbatim, because it alone waits on Epic 22 (Story 22.6 supplies the worked example under `docs/`), so the rest of 36.2 is not held behind it; Lane B's files, as 36.2]
+
+As an admin,
+I want the admin docs to link the worked Jira example and say which MCP tools must be classified risky,
+So that I classify a tool that runs operating-system commands or arbitrary code as risky.
+
+**Acceptance Criteria:**
+
+**Given** Epic 22 merged
+**When** this story runs
+**Then** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
 
 
 ## Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)
