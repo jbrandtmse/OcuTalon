@@ -13,7 +13,7 @@ Class OcuTalon.Fix.PartnerContacts [ Abstract ]
 XData Contacts [ MimeType = application/json ]
 {
 [
- {"id": 1, "production": "OcuTalon.Demo.Orders.Production", "name": "Results Partner IT", "address": "it@results-partner.example"}
+ {"id": 1, "production": "OcuTalon.Demo.Orders.Production", "name": "Orders Partner IT", "address": "it@orders-partner.example"}
 ]
 }
 

@@ -38,7 +38,8 @@ XData Items [ MimeType = application/json ]
  {"lane": "B", "name": "ReminderTimer", "class": "OcuTalon.Schedule.ReminderTimer", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "B", "name": "BreakFeedIn", "class": "OcuTalon.Demo.BreakFeedIn", "pool": 0, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "B", "name": "PartnerTrigger", "class": "OcuTalon.Demo.PartnerTrigger", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
- {"lane": "B", "name": "PrecedentOps", "class": "OcuTalon.Core.PrecedentOps", "pool": 1, "enabled": 1, "stub": 0, "settings": []}
+ {"lane": "B", "name": "PrecedentOps", "class": "OcuTalon.Core.PrecedentOps", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
+ {"lane": "B", "name": "WebhookIn", "class": "OcuTalon.Channel.Webhook.In", "pool": 0, "enabled": 1, "stub": 0, "settings": []}
 ]
 }
 

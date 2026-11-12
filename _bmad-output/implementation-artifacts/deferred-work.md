@@ -2076,6 +2076,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T07:17:50Z occurrence=feature-1490ab58 by=orchestrator note=run 42767577852 job 129667573672 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; parents 87c0223e and f59cab73 passed production; rerun of failed jobs 2026-11-10T07:17:50Z
 - 2026-11-10T20:15:23Z occurrence=feature-1d75fbf1 by=orchestrator note=run 42874524463 job 130034187062 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; merge of 0.22 (web/guide) + v1.0.6 bump; rerun of failed jobs
 - 2026-11-10T22:52:54Z occurrence=23-2 by=orchestrator note=run 42897677403 job 130115016835 iris(production) row 21 got ''; OCT-epic23 f73a09d5 (23.2 integrated onto 56c61cea); rerun of failed jobs
+- 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870677_iris(production)_live:production_on_ocutalon-ci-15:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2936,6 +2937,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T05:58:07Z occurrence=23-5 by=orchestrator note=run 42963531773 job 130335378855 iris(shards) live:online-allowance D1 S1 daily-cap banner not found (ci-10); OCT-epic23 52db267d
 - 2026-11-11T05:58:31Z occurrence=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva note=CI run 42963531773 (52db267d) iris (shards) live:online-allowance D1 S1 the daily cap banner shows (ci-10); classified FLAKE by the orchestrator
 - 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625133 iris(shards) live:online-allowance D1 daily-cap banner (ci-13); OCT-epic25 4af29b25; rerun of failed jobs
+- 2026-11-12T06:04:38Z occurrence=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=ci run 43156101436 iris(shards) live:online-allowance D1 S1 banner on c27ff301; head superseded by the next integrate-forward, so not rerun
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -5843,6 +5845,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Bridge Decision has no Channel; only Usage rows (model calls) carry one; 41.3 veto U-310
 - 2026-11-08T10:38:56Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: a Lane A bridge story appends Decision.Channel (AD-5); DailyNote then prefers it (one line); inbox U-310
 - 2026-11-09T08:06:55Z status=routed owner=burndown by=merge_gate note=decision_sheet_Epic_41_part1(Planner_agreed):a_Lane_A_bridge_story_appends_Decision.Channel_set_from_the_request
+- 2026-11-11T14:12:18Z occurrence=35-3-send-events-to-ocutalon-through-a-webhook note=cr: the History channel filter 'Webhook', which More to try item 12 (T5) and the README line point to, shows nothing for a webhook decision on an install with no model key (fallback, no usage row; spec Measured (g)); Web.History DecisionChannel reads usage rows only
 
 ### DW-961: The sessionStart context is unobserved past Conversation.Request: ConversationStartProbe records it before ##super, so Request -> Intake.RequestFor -> Agent.Input.Render forwarding can drop it with every 41.3 test green
 - source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: med | fix-risk: low | footprint: in-epic
@@ -6408,6 +6411,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T17:51:03Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=burndown note=Epic_35_part_merge_burn-down_overflow:Test.Mcp.Attach_(Lane_A)_is_extended_by_22.2's_McpOps_work;make_TestShadow's_bare-manager_AddTool_wait_for_the_mock_or_retry_once_under_load;a_red_on_a_quiet_host_makes_it_real
 - 2026-11-10T17:14:25Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run note=e6eb901d_shards-2_TestAttach_mock_tools_not_attached;passed_3x_locally(warm2,fresh1);files_reached_unchanged_since_b99d6529
 - 2026-11-10T17:23:09Z occurrence=release-1.0.6-PR10 by=orchestrator note=reported by the Contest Planner: PR #10 ci run 42847029797 iris (shards-2) shard:lane-a@rest OcuTalon.Test.Mcp.Attach TestRequestServerDown 'on a manager of its own that lists the server's tools: 0'; green on one rerun; v1.0.6 released 17:17:56Z
+- 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870575_iris(shards-2)_shard:lane-a@rest_on_ocutalon-ci-17:OcuTalon.Test.Mcp.Attach_TestTurnManager_'and_lists_the_agent's_tools,_the_fixture_tools_and_both_tools_of_the_mock'_got_zz_steps_*/zz_turn_*_fixture_tools;OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
 - 2026-11-11T13:53:14Z status=resolved-by:22-2-classify-mcp-tools-by-server-and-name by=adjudication note=Task_0_mock_backlog_5(Mock.BACKLOG,keep-alive_-1),Loopback_green;Test.Mcp.Attach_passed_warm_and_cr;a_red_on_a_quiet_host_reopens
 
 ### DW-1041: AD-1 lets REST code write only the Session row, counters, pairing hashes and UI markers, but the step 4 contract has the MCP settings routes call SettingsOps.SaveMcpEntry/RemoveMcpEntry in the REST process to write the wallet secret and Config Store entry (ruling Q4), with no AD-1 exception recorded
@@ -6744,6 +6748,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z note=see also DW-1095 (possible shared cause: before/after session-row comparisons)
 - 2026-11-11T06:26:54Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page note=OCT-epic25 284e8904 ci run 42966931010 iris (shards-6) lane-b@rest TestOnlyTheMarkerChanges/TestRunAgain; classified flake by the orchestrator; no rework
 - 2026-11-11T06:26:39Z occurrence=25-2 by=orchestrator note=run 42966931010 job 130346188889 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges + TestRunAgain (ci-12); OCT-epic25 284e8904
+- 2026-11-12T02:02:40Z occurrence=21-6 note=OCT-epic21 7c6dec3c run 43130059980 shards-6 TestOnlyTheMarkerChanges (run_again); GuideApi not in the 21.x diff; one rerun
 - 2026-11-12T02:34:04Z occurrence=21-6-send-email-over-smtp
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
@@ -6885,6 +6890,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic25 f21137d1 (Story 25.2), lane-a run 42981966175 job 130394214504 on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 07:52:08Z: the first-run-in-USER checks passed; the second run in OCUTALON took 126 s and failed at Initialize with the CPF merge error; 25.2 changes no install, Install or IPM file
 - 2026-11-11T08:31:54Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence): an IRIS CPF merge ((-100)) failed during the IPM install; one rerun per occurrence; real if it recurs on an install-touching head
+- 2026-11-12T02:06:01Z occurrence=0-26 note=OCT-epic0 540dfce5 lane-a run 43134792086 ipm-install: Shell() in USER Initialize FAILURE, CPF merge zf(-100) exited 7; 0.26 changes README/tests only; one rerun
 ### DW-1120: UsagePage announces its failed read and never withdraws it, so a stale error can be spoken after a successful Retry
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: usage-page.ts:474 announces USAGE_TEXTS.error on every failure through the shared Announcer; nothing withdraws it on the next answer. Same root as 25.2's H12 CI red, fixed for History only by Announcer.retract (25.2 rework 2).
@@ -6900,6 +6906,87 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: The page shows nothing new for a second failure; the press waits only for the route fulfil. Observed in order in the no-retract mutation run (H15 red, 2 announcements), not guaranteed.
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=give H15 an observed precondition (a page-side marker of the refused read) and a mutation line
 
+### DW-1127: 35.3: rotation's Settings audit entry shows [redacted] for from/to where C3 said empty strings
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Bridge.Audit.Record redacts sensitive settings (webhook.<Ref>.secret); neither secret nor hash is recorded
+- 2026-11-11T13:32:00Z status=by-design owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=existing Redact convention; C3 wording superseded
+
+### DW-1128: 35.3: W8 asserts measured answers for dot-segment paths (web server normalizes to /ocutalon/api -> 401 signed_out; encoded slash -> stock 404) where ruling R6(b) says all 404
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: high | footprint: out-of-footprint
+- evidence: measured on e35s3iw; nothing reaches the hook, nothing 2xx; the web server resolves dot segments before choosing an application
+- 2026-11-11T13:32:00Z status=decision-pending owner=burndown by=harvest note=planner: confirm the measured answers satisfy R6(b)
+- 2026-11-11T20:07:22Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=owner note=ruled by the Contest Planner (owner delegation) 2026-11-11: R6(b) reading accepted; W8 conditions (i)-(iii); rides code review 2
+- 2026-11-11T21:05:08Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=adjudication note=W8 (web/e2e/api/webhooks.spec.ts) pins the ruled conditions: (i) ^OcuTalonP.WebhookC and WebhookIn messages unchanged across every traversal request; (ii) 401 body equals the signed_out envelope exactly; (iii) traversal with the valid hook secret still 401; each with a mutation line (Verification, code review 2), red seen and reverted; green live sign-in part 4/22 28/28 on fresh lane-B throwaway e35s3c2
+
+### DW-1129: 35.3: failed webhook-list load shows the create form and an empty list
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: webhooks-section.ts stateOf returns ready for errors other than 403/409; a load-failure text is not accepted
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA/CR: reuse an existing accepted load-failure text if one exists, else wontfix with probe
+- 2026-11-11T14:12:19Z note=cr decision: reusing the accepted LOAD_FAILED text with Retry (live-state.ts:30, as settings-page.ts:111-113 does for the Settings load) in webhooks-section.ts stateOf is a correct, honest reuse; patch with an e2e pin is a rework item of this story (story back to in-progress)
+- 2026-11-11T15:04:01Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=adjudication note=rework1_dfa9a7d0:webhooks-section.ts_LOAD_FAILED+Retry;e2e_WS4
+
+### DW-1130: 35.3: Install.Step.Web.Run's removal of a stale /ocutalon/hook on the online demo is not pinned from Run
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestRemoveHook calls RemoveHook directly
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA: pin through Run with the flag set
+- 2026-11-11T14:12:19Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=cr note=QA pin confirmed: test-online-demo.sh row 11 'Install.Step.Web.Run deletes a stale /ocutalon/hook application on the online demo' (live online-demo red under the RemoveHook-skip mutation, green before); cr fixed its cleanup line to run RemoveHook in OCUTALON
+
+### DW-1131: 35.3: a local install switched to the online demo keeps a stale OcuTalonWebhook role
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Roles step (Lane A) never deletes roles; role holds only the three DB grants; no user holds it; demo installs are fresh
+- 2026-11-11T13:32:00Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=reopen_if=an existing local install is ever converted to an online demo in place
+- 2026-11-11T14:12:19Z occurrence=35-3-send-events-to-ocutalon-through-a-webhook note=cr (edge-case layer): Install.Step.Web.Run deletes a stale /ocutalon/hook but nothing deletes an existing OcuTalonWebhook role on a converted install; same root cause, reopen_if unchanged
+
+### DW-1132: 35.3: the hook's 503 with the real Hand (production not running) is not exercised at a live surface
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Test.Web.Hook drives 503 via HookProbe only
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA: exercise the real 503 or close with probe
+- 2026-11-11T14:12:19Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=cr note=QA pin confirmed: Test.Web.HookProductionStopped TestProductionStopped runs the real Web.Hook.Hand (HookProbe mode real) with the production stopped; red under the ignore-failed-hand-over mutation, green on warm throwaway e35s3qw
+
+### DW-1145: 35.3: SettingsOps.SetWebhookSecret writes its audit entry before the save and writes no undoing entry when the save fails (CreateWebhook does)
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Core/SettingsOps.cls SetWebhookSecret: WriteAudit then row.%Save; on error only LOGERROR + failed
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=real only if a %Save of an existing row that changes only SecretHash fails (disk, lock or journal error); the rotation entry reads [redacted] both ways, so an undo entry would carry nothing new
+
+### DW-1146: 35.3: Data.Webhook.Reject drops a rejection uncounted when the slot lock is not granted within 2 s
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Data/Webhook.cls Reject: Lock +@lockName:2, If '$Test Quit 0
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=real only if one slot's lock is held 2 s, i.e. a flood of thousands of rejections a second on one Ref; the 401 is still answered
+
+### DW-1147: 35.3: a SecretHandoff event resource outlives a REST process killed between Put and Discard
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Core/SecretHandoff.cls: Discard runs on every path of Web.HookSettings, but not if the process is killed in between
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=real only if a CSP process is killed in the milliseconds between Put and the command's submit; the resource is in shared memory only and goes at restart
+
+### DW-1148: 35.3: Web.Hook timing differs between a malformed Ref (no index read), an unknown Ref and a known Ref
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Web/Hook.cls Authenticated: IsRef check before the index probe; class doc says the same time
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=a Ref is an address, not a secret (it is shown in Settings and sent in the URL); real only if Ref existence were ever treated as secret
+
+### DW-1149: 35.3: SecurityOverview labels an application 'none (unauthenticated)' only when AutheEnabled is exactly 64
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Install/SecurityOverview.cls: $Select(AutheEnabled=64: none, ...)
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=Definitions fixes every OcuTalon application at 32 or 64; real only if an application is given a combined bitmask such as 96
+
+### DW-1150: 35.3: lib-live check_security now requires /ocutalon/hook and OcuTalonWebhook, and test-install-upgrade.sh (row 15 after the upgrade) calls it, but no upgrade run was made in this story
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: docker/tests/lib-live.sh check_security; test-install-upgrade.sh not in the spec's Verification runs
+- 2026-11-11T14:12:40Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=reopen_if=the live install-upgrade unit fails on a hook or OcuTalonWebhook row in CI
+
+### DW-1151: 35.3: channels-section.ts (contended with Epic 21) also got two class-doc line edits beside the allowed import, imports name and template element
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: web/src/app/settings/channels-section.ts doc: 'Its Telegram part has no form...' and 'The Webhooks group (Story 35.3) follows it'
+- 2026-11-11T14:12:40Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=reopen_if=the integrate of OCT-epic21 conflicts in channels-section.ts's class doc
+
+### DW-1152: 35.3: the More to try webhook item shows to a local non-admin user (OcuTalonUser only), whose Settings open says 'Only OcuTalon admins can open settings.'
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Demo/Features.cls Present: webhooks when Web.Hook compiled and not online demo, no admin check; every webhook route is admin-only
+- 2026-11-11T14:12:40Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=reopen_if=a non-admin local account is part of a demo path or the guide hides other admin-only items by role
+
+### DW-1153: 35.3: the webhook_rejected audit entry counts 401, 413, 400 and 429 together and does not say why
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Data/Webhook.cls RecordRejection: counts.rejected only
+- 2026-11-11T14:12:40Z status=by-design owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=B3 (AD-17 amendment, Story 35.2) defines one capped entry per slot with counts.rejected; a per-reason count needs an AD amendment
 ### DW-1138: EmailIn: a permanently unreadable or undeliverable email at the head of the new mail stops every poll at that email, so later mail never reaches Intake
 - source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Channel/Email/Adapter.cls Poll quits on the first Read/Deliver failure and records nothing for it
@@ -6990,6 +7077,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Mcp/Ops.cls MessageMap maps only the three verbs; CommandsIn.IsStub maps only code 5003 to not_built; spec Design Notes 17 records it
 - 2026-11-11T13:50:48Z status=by-design owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=spec Design Notes 17 states it; no UI sends them before 22.5, which adds the handlers
 
+### DW-1159: After Reject, the status rail's Approval requests keeps listing the rejected request until the async approval live event reaches the page (web and phone view)
+- source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: rail lists pendingApprovals(store) (web/src/app/rail/rail-view.ts:340); store approvals change only via approval events (live/live-store.ts:188-189); the press reply updates only the card's AnswerPress.local (approvals/answer-press.ts replied); event published async by Core.BridgeSink.Approved, read by the next poll (live-state.ts:19 POLL_DELAY_MS 1000)
+- 2026-11-11T20:10:49Z status=routed owner=burndown by=owner note=Contest Planner ruling 2026-11-11T20:09:53Z (owner delegation; reverses orchestrator veto U-318): judge-visible (Reject a fix is a featured More to try step). Follow-up story in approvals/phone/rail, dispatched by the orchestrator AFTER 21.2 merges, on any free lane, after 0.26 and DW-1123. Acceptance: a browser test presses Reject and the request is gone from the rail within 5 s, on the web and on the phone view. Ships in 1.0.8 only if merged before the cut, else 1.0.9. Not a 23.10 rework.
 ### DW-1164: EmailOut's system path (Story 21.6) needs Story 22.7 to fill SendEmail.ApprovalRef, the approval row's FixKind 'email' and FixParameters.recipients, and to replay with a context of Kind tool and provenance user; only seeded rows test it today
 - source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Channel/Email/Out.cls system path reads Bridge.Data.ApprovalRequest; tests seed the row; S1 spine sub-bullet records the contract
@@ -7025,6 +7116,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic23 96bc4b28, ci run 43037078949 job 130578626990 on ocutalon-ci-16 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: timing assert on the poll interval under CI load; 23.7 changes no live/poll code
 - 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); one rerun per occurrence; rerun deferred until RESUME (HOLD)
+- 2026-11-12T06:52:37Z occurrence=feature note=74ee76dc ci 43160772937 shards-4 live:sign-in-2 L1 poll gap 2076 ms vs 2000; one rerun
 ### DW-1143: K29 under sign-in-3 (no model, no CI mock) seeds the queue row instead of running press->turn->start_watch->row end to end
 - source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story(web/e2e/guide/more-to-try-queues.spec.ts)
 - evidence: sign-in-3 has no CI mock; K29 pins press->one prompt (mutation red); Test.Watch.Turns:TestQueuesThroughTheAgent pins prompt->start_watch(kind queues)->row->check event; rail-view.test.mjs and K29 pin the row render
@@ -7035,6 +7127,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: K29 answers the POST itself under sign-in-3; test-mock.sh passes with the file present
 - 2026-11-11T14:03:12Z status=wontfix-accepted owner=23-7-watch-queue-backlogs-between-digests by=harvest note=reopen_if=a mock-scenario consumer check flags it or a CI-mock browser unit gains a guide case (then K29 moves there and uses it)
 
+### DW-1171: README Contest checklist has no Video row, and the For judges Usability row links neither the full video nor 'One incident, end to end'
+- source: spec-0-26-the-readme-leads-with-the-full-video-and-the-incident-path-a.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: README.md Contest checklist (Online demo, Articles rows; no Video row) and the For judges Usability row ('The demo guide walks one incident in about two minutes', no link) predate 0.26; the ruled 0.26 diff did not extend them, and unruled README text is outside 0.26's scope
+- 2026-11-12T01:23:55Z status=decision-pending owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=human=Contest Planner ruling on a Video row and a judges-table link; fold into 0.27's README ruling
+- 2026-11-12T01:33:46Z status=routed owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=owner note=Contest_Planner_ruling_2026-11-12_01:55Z(owner_delegation):fold_into_0.27_as_its_first_README_edit;wording_in_prompts/story-026-rulings.md_item_2
+- 2026-11-12T01:52:13Z status=routed owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=orchestrator note=split(Part_A_of_0.27_moved_whole_to_0.28_for_the_1.0.8_cut)
+### DW-1165: The ruled resolved-incident sentence has the partner notice say the affected orders went through, but Facts carry only the state, so a resolved incident whose fix left messages failed again or skipped, or that a suspend or reroute resolved, gets the same claim
+- source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Watch/Transitions resolves on fixing + finished whatever the run's counts (failedAgain, skipped); PartnerWarning.Facts adds only 'Incident state: resolved', and SYSTEMNOTE's ruled sentence tells the model to say the orders went through
+- 2026-11-11T23:51:45Z status=decision-pending owner=burndown by=cr note=product call: give Facts the fix outcome and make the sentence conditional (ruled text); user approves exact text; RC-eval item
+- 2026-11-12T00:11:20Z status=routed owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=owner note=Contest_Planner_ruling_2026-11-12_00:20Z_(owner_delegation;prompts/epic-23-story-2311-ruling.md):_Outcome_fact_built_by_code_+_instruction_sentence_replaced_verbatim
+- 2026-11-12T04:03:07Z status=resolved-by:23-11-say-in-a-partner-notice-only-how-the-incident-ended by=adjudication note=PartnerWarning.Outcome_builds_the_ruled_line_from_records(71b98a7a);facts_carry_it_after_Incident_state;sentence_replaced;pinned_by_TestOutcome{FullFix,PartialFix,Reroute,Suspend},TestNoOutcome,TestNoOutcomeGuards,PartnerTurns_4_draft_cases(mutations_red)
 ### DW-1160: flake candidate (host load): live:install-start row 3 'the dev start did not end ready within 200 s' in CI iris (install-fresh) on feature c33e0916 under the post-outage backlog
 - source: feature c33e0916, ci run 43099749161 job iris (install-fresh) on ocutalon-ci-12 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: no test assertion failed; live:online-demo-path in the same job passed; same start-not-ready family as DW-612 (row 2) and DW-1082 (install-upgrade row 7); all 18 runners busy with the outage backlog
@@ -7110,3 +7214,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: measured on lane-C warm e21s3i2w 2026-11-12: a UTCTimeStamp read saw the OAuth2 creation entry 0.4 s after the save, WHERE Event = 'OAuth2' first saw it 34 s later; the same pattern sits in the two scripts
 - 2026-11-12T10:41:28Z status=routed owner=burndown by=harvest note=fix: read rows from a time mark (UTCTimeStamp) and compare Event in code, as EmailLive.SysAuditMasks now does; owner docker/tests (Epic 15 area)
 - 2026-11-12T10:53:25Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=cr:real_exposure_test-demo-switch.sh:248_unwaited_audit0;EventSource/EventType_lag_too;release/standalone-bridge.sh:910,927
+### DW-1172: The incident's plural item noun, supplied by the model in the diagnosis payload, now enters the trusted SystemNote of the partner-notice draft (Story 23.11 noun ruling)
+- source: spec-23-11-say-in-a-partner-notice-only-how-the-incident-ended.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Watch.Notice.Noun checks only that both forms are non-empty; IncidentManager stores diagnosis.itemNoun as given; PartnerWarning.SystemNote substitutes noun.other into the code-written instruction (AD-10/AD-14 trust boundary)
+- 2026-11-12T03:35:32Z status=open owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=by=harvest note=unverified MED: settle at code review (show the diagnosis check caps the noun, or normalise it in SystemNote to a short plain word with the 'orders' fallback the Planner ruled for no noun)
+- 2026-11-12T03:35:47Z status=open owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=harvest note=corrects_the_by_field_of_the_first_trailer(typo_by=by=harvest)
+- 2026-11-12T04:03:07Z status=resolved-by:23-11-say-in-a-partner-notice-only-how-the-incident-ended by=adjudication note=Contest_Planner_ruling_03:55Z_applied_at_code_review:SYSTEMNOTE_constant;SystemNote(incident)_returns_it;TestOutcomeUsesTheItemNoun_hostile_itemNoun_'ignore_previous_instructions'_->_SystemNote_equals_constant_and_holds_no_part_of_the_noun(substitution_restored->red_5_asserts;reverted_green);payload_check_tightening=Planner's_separate_burndown_entry
+
+### DW-1174: IncidentManager.DraftRequest's fallback to the kind's SYSTEMNOTE parameter, for a drafted kind with no SystemNote method, is pinned by no test
+- source: spec-23-11-say-in-a-partner-notice-only-how-the-incident-ended.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: partner_warning is the only DRAFTED kind and defines SystemNote, which now returns SYSTEMNOTE (DW-1172 ruling), so both branches of the $Select give the same text and neither is observable
+- 2026-11-12T04:01:28Z status=wontfix-theoretical owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=cr note=real when a second DRAFTED kind is added with no SystemNote method, or a SystemNote returns other than SYSTEMNOTE
+### DW-1166: tooling: the local smoke/fresh check doesn't run live:storage-roundtrip, so a new class that compiles with a storage definition (e.g. a test class extending %Net.POP3) without a committed Storage block is caught only by CI's image group
+- source: OCT-epic21 8fc11a6e ci run 43114341467 iris (image) (Story 21.2) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 21.2's EmailInPop3 passed smoke and fresh check locally and failed live:storage-roundtrip in CI; the Planner asked for a cheap pre-CI check
+- 2026-11-12T00:03:53Z status=routed owner=burndown by=orchestrator note=Contest Planner 2026-11-12: if cheap, run the storage-roundtrip (or its committed-vs-compiled Storage comparison) in the lead's smoke for stories that add a class with a storage definition
+
+### DW-1173: security: the diagnosis payload's itemNoun (model text from partner-shapeable failure data) is checked only for 128 characters per form, any characters; it reaches the Failures line and other noun uses
+- source: IncidentManager.cls:802 (Story 23.11 review, DW-1172) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Contest Planner ruling 2026-11-12: each form letters, spaces and hyphens only, at most 40 characters, else drop it and keep the code noun; a test with a hostile noun
+- 2026-11-12T03:39:15Z status=routed owner=burndown by=orchestrator note=not part of 23.11, not a 1.0.8 blocker; 23.11's SystemNote is constant text (DW-1172 ruling)
+
+### DW-1187: flake candidate (host load): live:demo-path telegram-approval.spec.ts T8 failed in sign-in: page.waitForResponse for the sign-in POST timed out at 60 s (SLOW loadedAfter the sign-in 60 s), before any approval step
+- source: feature 74ee76dc, ci run 43160772937 job iris (browser) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the failure is in sign-in/helpers.ts:61 submitSignIn, not the approval path; all 18 runners busy with the backlog; 74ee76dc's new code (21.2/21.6/23.11) doesn't touch sign-in
+- 2026-11-12T06:52:37Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun; a second red on the same head is real

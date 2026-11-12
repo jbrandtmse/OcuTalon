@@ -717,7 +717,7 @@ test('N20: an incident summary shows as a card that keeps its line breaks and sh
   const expected = [
     'Incident summary: 3 orders failed in Orders.',
     `Cause: ${marker} sent <b>x</b> and *y* in the date.`,
-    'Evidence: OrderDate was <i>16/10/2026</i>',
+    'Evidence: OrderDate was <i>16/10/2026</i>.',
     'No fix ran, so nothing was changed.',
     'Messages: 3 failed, 0 resent, 0 completed, 0 failed again, 0 skipped.',
   ];

@@ -1,5 +1,5 @@
 // Tests that the written texts of Story 25.2 follow the More to try registry (src/app/guide/more-to-try-view.ts) and the code: the README's History bullet in
-// "New since 1.0.0" (the Planner-ruled text, word for word, once, after the Usage bullet), EXPERIENCE.md's history item line (label, look-for and control as the
+// "New since 1.0.0" (the Planner-ruled text, word for word, once, after the Queue backlogs bullet), EXPERIENCE.md's history item line (label, look-for and control as the
 // registry has them, the marker, right after the usage item under the "Usage and history" heading) and its sentence that the item's control is a link to the History
 // page, and the three rows of the architecture spine (AD-33: the ownership API, the header entry and page, the REST surface), the REST row naming exactly the routes
 // that OcuTalon.Web.History's URL map serves. The counts follow the registry and are pinned by sources-docs.test.mjs; usage-docs.test.mjs pins the Usage item.
@@ -49,10 +49,10 @@ describe('README, the History bullet of "New since 1.0.0"', () => {
     assert.equal(bullets.filter((line) => line === BULLET).length, 1);
   });
 
-  it('comes after the Usage bullet', () => {
-    const usage = bullets.findIndex((line) => line.startsWith('- **A Usage page.**'));
-    assert.ok(usage >= 0, 'the Usage bullet is there');
-    assert.ok(bullets.indexOf(BULLET) > usage, 'the History bullet is after it');
+  it('comes after the Queue backlogs bullet', () => {
+    const backlogs = bullets.findIndex((line) => line.startsWith('- **Queue backlogs between digests.**'));
+    assert.ok(backlogs >= 0, 'the Queue backlogs bullet is there');
+    assert.ok(bullets.indexOf(BULLET) > backlogs, 'the History bullet is after it');
   });
 
   it('names the item it points to as the registry does, and claims no more than the page does', () => {

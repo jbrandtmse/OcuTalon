@@ -33,5 +33,6 @@ Document	^OcuTalonP.Document	OcuTalon.Data.Document	A
 Upload	^OcuTalonP.Upload	OcuTalon.Data.Upload	B
 McpServer	^OcuTalonP.McpServer	OcuTalon.Mcp.Server	A
 Precedent	^OcuTalonP.Precedent	OcuTalon.Data.Precedent	B
+Webhook	^OcuTalonP.Webhook	OcuTalon.Data.Webhook	B
 MailSeen	^OcuTalonP.MailSeen	OcuTalon.Data.MailSeen	B
 McpTool	^OcuTalonP.McpTool	OcuTalon.Mcp.ToolClassification	A
