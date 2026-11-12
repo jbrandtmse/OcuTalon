@@ -34,3 +34,5 @@
 2026-11-12T14:17:29Z	Epic 0	ruling	question=inserted_story_number choice=0.31 rejected=0.30 why=0.30_already_assigned_by_orchestrator_to_lane_A_shorter_README(prompts/story-030-shorter-readme.md;_lane_A_resume_prompt)_so_0.30_would_collide category=decide policy=5086036
 2026-11-12T14:17:29Z	Story 0.31	ledger_routed_planned	story=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document entries=1 excess=0 by=lane_order
 2026-11-12T14:17:29Z	Epic 0	deps_hash_note	reason=gap_fill note=story_inserted_inside_epic_0_no_boundary_or_dependency_change(orchestrator_rerecords)
+2026-11-12T14:19:40Z	Epic 0	epic_context_compiled	reason=story_inserted model=claude-opus-5-5 lines=73
+2026-11-12T14:19:40Z	Story 0.31	stage_spawned	stage=plan spawn_at=2026-11-12T14:19:40Z model=opus agent_name=0-31-plan-1 cycle_iteration=1
