@@ -24,19 +24,19 @@ deferred: []
 
 **Always:**
 - Use the ruled strings exactly (Contest Planner ruling 2a/2b, Design Notes):
-  - "Outcome: all {N} affected orders went through after the fix."
-  - "Outcome: {A} of the {N} affected orders went through after the fix, and {R} did not."
-  - "Outcome: the {N} affected orders were resent by another route."
-  - "Outcome: the affected flow was paused, and the {N} affected orders haven't gone through yet."
-  - The instruction sentence (replacing 23.10's sentence at the end of `SYSTEMNOTE`, after one space): "If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the orders went through."
+  - "Outcome: all {N} affected {noun} went through after the fix."
+  - "Outcome: {A} of the {N} affected {noun} went through after the fix, and {R} did not."
+  - "Outcome: the {N} affected {noun} were resent by another route."
+  - "Outcome: the affected flow was paused, and the {N} affected {noun} haven't gone through yet."
+  - The instruction sentence (replacing 23.10's sentence at the end of `SYSTEMNOTE`, after one space): "If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the {noun} went through."
 - The Outcome line is built only from rows: `Incident` (State, Count, RequestRefs), `ApprovalRequest` (FixKind, FixParameters, IncidentRef), `FixRun` (EndedAt, Total, Resent, Completed, FailedAgain, Skipped, Interrupted), `FailureGroup.ItemName` and the kind classes' parameters. The mapping is the one under Design Notes, "The Outcome mapping".
 - The Outcome line names no item, route target, production or partner, and holds no setting value, message content, reason text or evidence. Only numbers vary.
 - Model-facing changes go on the Planner's RC-eval checklist (Design Notes). CI proves only what the code sends to the model.
 
 **Never:**
-- Do not remove or change the existing "Failed item:" Facts line (the question for the Planner, Design Notes, Q1), the other Facts lines or their order.
+- Do not remove or change the existing "Failed item:" Facts line (Q1: the Contest Planner ruled KEEP), the other Facts lines or their order.
 - Do not let the model compute or choose the Outcome. No new model call, sampling parameter, model or token change.
-- No change to the incident's state, the transition table, `Fix.Executor*`, `Fix.Run`, `Watch.Summary`, `IncidentManager`, any catalog key or text, README, EXPERIENCE, web source, route, setting, table, grant, dependency or live-event type. No edit to `Msg/Catalog/Watch.cls` or `Test/Msg/Catalog.cls`.
+- No change to the incident's state, the transition table, `Fix.Executor*`, `Fix.Run`, `Watch.Summary`, `IncidentManager` (except the one `DraftRequest` SystemNote line the noun ruling adds, Design Notes), any catalog key or text, README, EXPERIENCE, web source, route, setting, table, grant, dependency or live-event type. No edit to `Msg/Catalog/Watch.cls` or `Test/Msg/Catalog.cls`.
 - No edit under `irislib/`, `irissys/`, `docs/**` or the spine.
 
 ## I/O & Edge-Case Matrix
@@ -147,10 +147,10 @@ All rows: incident State `resolved`, Count 50, one failure group at `OrdersFromP
   - header bullets for the changed and new tests.
 
 **Acceptance Criteria:**
-- AC1: Given a resolved incident whose one fix run resent and completed every one of its Count messages (none failed again or skipped), when its partner notice is drafted, then the facts carry "Outcome: all {N} affected orders went through after the fix." with N = Count, right after the state line. (`Test.Fix.PartnerWarning:TestOutcomeFullFix`)
-- AC2: Given a resolved incident whose one fix run resent messages but completed fewer than Count, when the notice is drafted, then the facts carry "Outcome: {A} of the {N} affected orders went through after the fix, and {R} did not." with A = Completed, N = Count and R = N - A, including A = 0. (`TestOutcomePartialFix`)
-- AC3: Given a resolved incident whose one run is a reroute that resent all Count messages, when the notice is drafted, then the facts carry "Outcome: the {N} affected orders were resent by another route.", with no item or target name. (`TestOutcomeReroute`; `PartnerDraft:TestDraftRequestCarriesOutcome` at the consumer)
-- AC4: Given a resolved incident whose one run suspended one of the incident's failed items, when the notice is drafted, then the facts carry "Outcome: the affected flow was paused, and the {N} affected orders haven't gone through yet." (`TestOutcomeSuspend`)
+- AC1: Given a resolved incident whose one fix run resent and completed every one of its Count messages (none failed again or skipped), when its partner notice is drafted, then the facts carry "Outcome: all {N} affected {noun} went through after the fix." with N = Count, right after the state line. (`Test.Fix.PartnerWarning:TestOutcomeFullFix`)
+- AC2: Given a resolved incident whose one fix run resent messages but completed fewer than Count, when the notice is drafted, then the facts carry "Outcome: {A} of the {N} affected {noun} went through after the fix, and {R} did not." with A = Completed, N = Count and R = N - A, including A = 0. (`TestOutcomePartialFix`)
+- AC3: Given a resolved incident whose one run is a reroute that resent all Count messages, when the notice is drafted, then the facts carry "Outcome: the {N} affected {noun} were resent by another route.", with no item or target name. (`TestOutcomeReroute`; `PartnerDraft:TestDraftRequestCarriesOutcome` at the consumer)
+- AC4: Given a resolved incident whose one run suspended one of the incident's failed items, when the notice is drafted, then the facts carry "Outcome: the affected flow was paused, and the {N} affected {noun} haven't gone through yet." (`TestOutcomeSuspend`)
 - AC5: Given any other ending (no fix, resume, interrupted, couldn't start, nothing resent, several runs, a suspend of another item or one that changed nothing, a reroute that did not resend all) or unknown counts (Count 0, no EndedAt, counts above Count), or an incident that is not resolved, when the notice is drafted, then the facts carry no Outcome line. (`TestNoOutcome`)
 - AC6: Given any draft, when the instruction is sent to the model, then `SYSTEMNOTE` ends with the 2b sentence verbatim and no longer holds 23.10's. The Outcome line carries no item, route target, production or partner name, setting value or message content. The existing "Failed item" line is unchanged, pending Q1. (The SYSTEMNOTE pin; the name assertions in AC3 and AC4 tests)
 - AC7 (the ruled mock cases): Given the CI mock and a resolved incident with each of the four endings, when the user asks to warn the partner, then the draft request that the model receives holds that ending's exact Outcome line and the 2b sentence, and the notice raised for approval:
@@ -161,6 +161,8 @@ All rows: incident State `resolved`, Count 50, one failure group at `OrdersFromP
 - DW-1165: closed by AC1-AC7. Facts now carry the ending, and the sentence no longer claims that the orders went through.
 
 ## Spec Change Log
+
+- 2026-11-12 (lead, after the spec gate): the orchestrator's and the Contest Planner's rulings recorded under Design Notes; the Outcome lines and the 2b sentence take the existing facts' noun (`{noun}`), so `PartnerWarning.SystemNote(incident)` and a one-line `IncidentManager.DraftRequest` extension are added to the plan; Q1 keeps "Failed item".
 
 - 2026-11-12 (plan): Story inserted 2026-11-12 from the Contest Planner's ruling on DW-1165 (~00:20Z, owner's delegation). Lane D, after 23.10 and before 23.9.
 
@@ -216,6 +218,19 @@ All rows: incident State `resolved`, Count 50, one failure group at `OrdersFromP
 - **Observation 1.** The ruled lines say "orders" for every production. A local install's incident with another item noun (its Failures line says, for example, "messages") still gets "orders" in the Outcome. The ruled 2b sentence also says "the orders", and 23.10's review accepted "orders" as ruled. Kept verbatim. If the Planner wants it, the noun could be the incident's item noun (`Watch.Notice.Noun`), which reads "orders" on the demo.
 - **Observation 2.** N = 1 reads "all 1 affected orders went through" and "the 1 affected orders haven't gone through yet". Kept verbatim: the line is model-facing input, which the model paraphrases.
 - **Observation 3.** README:56 lists what the notice is drafted from (count, times, affected flow, cause). With this story, a resolved incident's notice also uses how it ended. No README edit, because that is public text not ruled here; a possible addition is ", and, once it is resolved, how it ended".
+
+**Rulings after the spec gate (binding; `.coordination/prompts/epic-23-story-2311-ruling.md`):**
+- Orchestrator (~00:35Z): the contended hunks listed under Design Notes are approved as plain unions; re-check each branch (bash, split list) before implement.
+- Contest Planner (~00:40Z, owner's delegation), spec accepted:
+  - **Q1: KEEP "Failed item: <names>"** (23.5's approved affected flow; the existing rule was misstated). Ruling 2c binds only the new Outcome line: no item, target, production or partner names in it.
+  - **(1) Noun:** use the noun the existing notice facts already use, in the Outcome lines AND in the 2b sentence ("...don't say whether the {noun} went through."). Pre-approved. The existing facts do carry one: `Watch.Notice.Noun(incident)`, which the Failures line uses (`noun.other`). So every ruled Outcome line reads "affected {noun}" with `{noun}` = `Noun(incident).other` (plural always, per (2)), and the sentence's last words read "whether the {noun} went through." On the demo the noun is "orders", so the demo wording and its pins stay exactly as planned. (No low DW: the facts carry a noun.)
+  - **(2) N=1 accepted as is** (plural noun). **(3) No README edit in 23.11.** RC-eval swap accepted.
+- What the noun ruling changes in the plan (the lead's amendment, 2026-11-12):
+  - `SYSTEMNOTE` holds the 2b sentence with a literal `{noun}` token in place of "orders". Add `ClassMethod SystemNote(incident As OcuTalon.Data.Incident) As %String` to `Fix/Kind/PartnerWarning.cls`: `SYSTEMNOTE` with `{noun}` replaced by `Watch.Notice.Noun(incident).other`.
+  - `Watch/IncidentManager.cls` `DraftRequest` (~1251, not contended) sets `request.SystemNote` from the kind's `SystemNote(incident)` when the kind class defines that method, else from `SYSTEMNOTE` as today (extend, don't copy; other kinds unchanged).
+  - `Outcome` builds its lines with the same noun.
+  - The B mock prompt `partner-notice-draft` must still be a prefix of the rendered SystemNote (it ends before the 2b sentence; check it).
+  - Tests: the SYSTEMNOTE pin compares the Parameter text with the token; add one unit test with an incident whose `Noun` is not "orders" (e.g. a dry run or stored itemNoun of "messages") showing both an Outcome line and `SystemNote(incident)` use it, and that `SystemNote` for the demo incident ends "...whether the orders went through."; `PartnerDraft:TestDraftRequestCarriesOutcome` also asserts the request's SystemNote is the rendered one (no literal `{noun}`).
 
 **For the Planner's RC-eval checklist (ruling 2f, model-facing; it replaces 23.10's item):**
 1. **Full fix.** On the RC, run the guide incident, approve the repair (all 50 orders go through), then ask "Warn the partner about the delay.". The drafted notice says all 50 affected orders went through after the fix. It addresses Orders Partner IT, and it has no "looking into", no "will share updates" and no other words saying work is still going on.
