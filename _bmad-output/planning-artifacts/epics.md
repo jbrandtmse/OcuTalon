@@ -1719,12 +1719,15 @@ As a judge reading the README,
 I want a comparison with fixed rules that was measured rather than worked out,
 So that I can trust what the agent adds.
 
+[AMENDED 2026-11-12, orchestrator ruling (split, U5 decide; the Contest Planner pre-authorized it): Part A, DW-1171, moved whole to Story 0.28 so it makes the 1.0.8 cut.] [AMENDED 2026-11-12 ~02:05Z, Contest Planner ruling (owner's delegation) + orchestrator: three-way split; this story is Part B only, the measuring tools (the rules-only mode, the 4 held-out snapshots, `eval/compare.mjs`, the eval-set rules, the CI step, the committed `eval/results/` report), run on lane B in a second Epic 0 worktree (`.worktrees/epic-0b`, branch `OCT-epic0b`, its own cycle log `cycle-log-epic-0b.md`); Part C, the README comparison, moved whole to Story 0.29, which waits on this story's merge.]
+
 **Acceptance Criteria:**
 
 **Given** the existing evaluation cases under `eval/`
 **When** the evaluation runs in a new rules-only mode
 **Then** it scores every case with OcuTalon's fixed rules only (the fallback the product uses without a model), with no model and no key, so it runs in the lane and in CI
 **And** it runs in CI in the existing evaluation group with the most headroom (no new job or group)
+**And** the rules-only report that `eval/compare.mjs` reads is committed under `eval/results/` (Story 0.29's README column is filled from it)
 
 **Given** a new held-out set of about 12 new incidents and routine items under `eval/`
 **When** it is added
@@ -1734,13 +1737,41 @@ So that I can trust what the agent adds.
 **Given** agent results and rules-only results for the same cases
 **When** the report script runs
 **Then** it sets them side by side, per case and in total, including unsafe outcomes
-**And** the README's "without the agent" table shows measured numbers with the date, the model and the set size, whatever they are; until the agent half runs at the 1.0.8 release-candidate evaluation, it carries placeholders (or the rules-only half only), per the Contest Planner's ruling
 
-**Given** the README (DW-1171, ruled by the Contest Planner 2026-11-12 ~01:55Z, owner's delegation; this story's FIRST README edit; wording verbatim from prompts/story-026-rulings.md item 2) [AMENDED 2026-11-12, Contest Planner ruling on DW-1171]
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+### Story 0.28: DW-1171 follow-up: the README's Contest checklist gets a Video row, and the For judges Usability row links the incident path and the full video
+
+[ADDED 2026-11-12, split from Story 0.27 by orchestrator ruling (U5 decide; the Contest Planner pre-authorized the split for the 1.0.8 cut)] Part A of Story 0.27's plan: the Contest Planner's DW-1171 ruling (2026-11-12 ~01:55Z, owner's delegation, prompts/story-026-rulings.md item 2), wording verbatim. Runs after Story 0.26 merges and before Story 0.27. Footprint: `README.md`, `docker/tests/test-readme.sh`, a new networked check script under `docker/tests/` (NOT in per-push CI: [AMENDED 2026-11-12 ~02:05Z, Contest Planner ruling: left out of `CHECK_SCRIPTS`, run instead by one line in the release candidate checks, `release/checklist.sh`]), and the two web count tests (`web/scripts/sources-docs.test.mjs`, `web/scripts/more-to-try-view.test.mjs`). No `.github/workflows` hunk.
+
+As a judge reading the README,
+I want the Contest checklist and the "For judges" table to point at the full video and the incident path,
+So that I find them from wherever I start.
+
+**Acceptance Criteria:**
+
+**Given** the README (DW-1171, ruled by the Contest Planner 2026-11-12 ~01:55Z, owner's delegation; wording verbatim from prompts/story-026-rulings.md item 2)
 **When** it is read
 **Then** the Contest checklist has a new row right after "Online demo": `| Video | [One incident, approved from a phone, traced](https://youtu.be/HIyCG5E6-JQ) (3:04, also as an [MP4 file](https://github.com/jbrandtmse/OcuTalon/releases/download/v1.0.6/ocutalon-1.0.6.mp4)), and the [35-second teaser](https://youtu.be/wycbyfnXFMU). |`
 **And** the "For judges" Usability row's first sentence becomes "The demo guide walks [one incident, end to end](#one-incident-end-to-end) in about two minutes, and [the full video](https://youtu.be/HIyCG5E6-JQ) shows it in 3:04. Its More to try panel has fifteen more things to try ([New since 1.0.0](#new-since-100))." with the rest of the row unchanged; the count ("fifteen", or "sixteen" once Story 35.3 is in) matches the More to try panel, whichever of 35.3 and this story merges second sets it, and a README test pins it against the catalog
 **And** a README test checks that the anchor `#one-incident-end-to-end` resolves to a heading and that the Video row's links return 200
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green (the network check runs at the release candidate's checklist, not per push)
+- DW-1171: README Contest checklist has no Video row, and the For judges Usability row links neither the full video nor the incident path (ledger; routed by owner 2026-11-12; re-owned to 0.28 by the orchestrator, split)
+
+### Story 0.29: The README's comparison of the agent and the fixed rules, filled from the committed rules-only report
+
+[ADDED 2026-11-12 ~02:05Z, split from Story 0.27 by the Contest Planner's ruling (owner's delegation) and the orchestrator: Part C, the README comparison; lane A, after Story 0.28 and after Story 0.27 merges (it needs 0.27's committed rules-only report)] The ruling binds word for word (prompts/story-026-rulings.md, parts (b) and (c), the ~01:55Z and ~02:05Z sections): variant R on feature; the R paragraph as ruled, ending "..., and a CI check keeps their names and text out of every prompt and mock scenario." (option (c), 02:05Z); the ruled column headers and seven rows; the ruled sentence under the table; the "What changes without the agent?" pointer. "never used for tuning" and "measured at release 1.0.8" never reach main (the latter is variant R's agent-column text on feature only; the Planner's release-candidate fork writes variant F).
+
+As a judge reading the README,
+I want the comparison of the agent and the fixed rules to show measured numbers with their source,
+So that I can trust what the agent adds.
+
+**Acceptance Criteria:**
 
 **Given** the README's comparison (variant R)
 **When** it is read
@@ -1752,7 +1783,6 @@ So that I can trust what the agent adds.
 **Given** CI on this story's head
 **When** it finishes
 **Then** every workflow is green
-- DW-1171: README Contest checklist has no Video row, and the For judges Usability row links neither the full video nor the incident path (ledger; routed by owner 2026-11-12)
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 

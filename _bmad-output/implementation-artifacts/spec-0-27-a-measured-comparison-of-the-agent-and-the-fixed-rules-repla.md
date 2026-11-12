@@ -14,16 +14,14 @@ deferred: []
 
 ## Intent
 
-**Problem:** The README's "What changes without the agent?" figures were worked out from expected answers, not measured. There is no way to run OcuTalon's fixed rules on the evaluation set, the held-out cases committed in 6af31dab have no snapshots and no checks, and nothing sets the agent and the fixed rules side by side. Separately (DW-1171), the README's Contest checklist has no Video row, and the "For judges" Usability row links neither the full video nor the incident path.
+**Problem:** The README's "What changes without the agent?" figures were worked out from expected answers, not measured. There is no way to run OcuTalon's fixed rules on the evaluation set, the held-out cases committed in 6af31dab have no snapshots and no checks, and nothing sets the agent and the fixed rules side by side.
 
-**Approach:** Three parts, in this order, all bound word for word by the Contest Planner's ruling of 2026-11-12 (`prompts/story-026-rulings.md`, parts (b) and (c) and the ~01:55Z section).
-- **A, DW-1171 (the first README edit):** the ruled Video row and Usability sentence, a hermetic README rule for both, the web tests' count pin moved to the ruled sentence, and a separate network check that the Video row's links answer 200.
+**Approach:** Part B only (Part A, DW-1171, moved whole to Story 0.28; Part C, the README comparison, moved whole to Story 0.29, by the Contest Planner's 02:05Z ruling and the orchestrator), all bound word for word by the Contest Planner's ruling of 2026-11-12 (`prompts/story-026-rulings.md`, parts (b) and (c) and the ~01:55Z section).
 - **B, the measuring tools:**
   - `eval/run.sh --rules-only` runs the product's own `no_key` fallback through the real evaluation path, with no model and no key;
   - the 12 held-out cases get their 4 snapshots and their checks;
   - `node eval/compare.mjs` sets the two sides side by side, per case and in total;
   - CI runs the rules-only half and the comparison inside lane A's existing `evaluation` push run.
-- **C, the README comparison (variant R):** the ruled H3 at the end of "Measured", filled from a committed rules-only report under `eval/results/`, a README test that the fixed-rules column equals that report, and the ruled pointer.
 
 ## Boundaries & Constraints
 
@@ -40,7 +38,7 @@ deferred: []
 - Shell stays ASCII and bash 3.2 compatible. Every command a stage runs finishes in about 150 s.
 
 **Never:**
-- No new CI job or group, and no `.github/workflows` or `release/**` hunk. `ci/units.sh` changes only by adding `readme-video` to `CHECK_SCRIPTS`.
+- No new CI job or group, and no `.github/workflows` or `release/**` hunk. No `ci/units.sh` change (Story 0.28 adds `readme-video`).
 - No change to the release gate: its targets, `Gate.Attempt`, `Gate.Verdict` and the top-level set it measures stay as they are.
 - No real model key, no reading of `.env`.
 - The phrase "never used for tuning" appears nowhere in the README or in any new file of this story outside `_bmad-output/`.
@@ -51,9 +49,6 @@ deferred: []
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Video row links, online | `bash docker/tests/test-readme-video.sh` | Each link of the README's `\| Video \|` row answers 200 after redirects. Each `youtu.be/<id>` link's YouTube oEmbed (`https://www.youtube.com/oembed?url=https://youtu.be/<id>&format=json`) answers 200. Self-tests: a copy with an unknown video id and a copy with a missing MP4 name are flagged. Prints PASS lines | No error expected |
-| Video row links, a link gone | A link or its oEmbed answers 404 (or any status other than 200 that is not retryable) | `FAIL readme-video: <url> answered <code>` | exit 1 at once, no retry |
-| Video row links, offline or flaky | curl fails (no route, DNS, timeout), or answers 429 or 5xx | Up to 3 tries per address, 5 s apart, `--max-time 15`, with a 150 s cap on the whole script; then `FAIL readme-video: <url> could not be reached after 3 tries (<curl exit or code>)` | exit 1, never skipped |
 | Rules-only, happy path | `bash eval/run.sh --rules-only` on a lane-A throwaway, no key | Every item, injection and incident row is a fallback with reason `no_key`. Items are right only where the expected answer is `tellnow` (or contains it), and 0 incidents are right. The run writes `rules-only.json/.md` and `rules-only-held-out.json/.md`, prints `PASS rules-only: ...`, `REPORT <dir>` and `eval/run: all checks passed`, and exits 0 | No error expected |
 | Rules-only, one set | `--rules-only main` or `--rules-only held-out` | As above, for that set only (its own stack) | No error expected |
 | A model is reached | A decided non-fallback row, or a mock request during a rules-only run | `Report.Problems` names "a model answered" with the cases; `FAIL rules-only: the mock received <n> request(s)` | exit 1 |
@@ -69,7 +64,6 @@ deferred: []
 | Compare, usage | Wrong arguments | Usage line | exit 2 |
 | Held-out file changed | Any byte of an `eval/held-out/*/case.json` differs from its pinned SHA-256 | `FAIL held-out-frozen` names the file | CI red |
 | Held-out leaked | A held-out name, subject line or item text appears in a tracked file outside the allow-list | `FAIL held-out-names` names the file, not the text | CI red |
-| README column drifts | A fixed-rules cell, the date, `<I>` or `<J>` differs from `compare.mjs --column eval/results` | `FAIL readme-column` names the row | CI red |
 | Recording | `docker/tests/record-eval.sh held-out [<name>]` | Records each named incident (all 4 by default) from the feed's held-out inputs; writes `eval/held-out/<name>/snapshot.json` only, ASCII and with no home folder; every `case.json` is unchanged | Unknown name or extra argument: exit 2. A missing `case.json` or a failed recording: exit 1, nothing written |
 
 </intent-contract>
@@ -116,17 +110,6 @@ deferred: []
 
 *Lead, before implement:* `git revert 600d0d8d` (restores the 12 `case.json` files of 6af31dab byte for byte). Implement first checks `git diff --exit-code 6af31dab5f265ca76343127c8b2ee4d7c3cd7970 HEAD -- 'eval/held-out/*/case.json'` is empty and every SHA-256 of `## Held-out set` matches, and HALTs (blocked) if either fails.
 
-*Part A, DW-1171 (the first README edit):*
-- `README.md` -- apply `## Ruled README change` parts A1 and A2 verbatim (DW-1171).
-- `docker/tests/test-readme.sh` -- extend, following `video`'s pattern:
-  - new rule `checklist-video`: in "## Contest checklist", the row right after `| Online demo |` is the ruled Video row, word for word, and it appears once; the link `#one-incident-end-to-end` resolves to the heading "One incident, end to end" (by `headings`' slug).
-  - new rule `judges-usability`: the "For judges" `| Usability |` row starts with the two ruled sentences, word for word, except the count word, matched as `[a-z]+` (the web tests pin the number against the registry).
-  - `video`: the teaser address may also be in the ruled Video row (exactly that line); a teaser address in any other line is still flagged.
-  - Self-tests, one bad variant per way to break each rule (row moved, row reworded, row twice, Video row before Online demo, the anchor's heading renamed, sentence reworded, the full-video link changed). Update `RULES` and the header comment. Keep the "Hermetic" line true.
-- `web/scripts/sources-docs.test.mjs`, `web/scripts/more-to-try-view.test.mjs` -- the count regex becomes `Its More to try panel has ${word} more things to try`; nothing else changes (DW-1171: the count stays pinned against the catalog).
-- `docker/tests/test-readme-video.sh` -- new (DW-1171): the network check of the matrix's three "Video row links" rows. It takes an optional README path (default `README.md`), reads the `| Video |` row of the Contest checklist (a missing row fails), and checks every http(s) address in it, plus each YouTube id's oEmbed. Self-tests on copies: an unknown video id (oEmbed 404) and a missing MP4 name (404), each flagged; the row removed, flagged with no request. Header: what it pins, that it needs the network, and its retry and cap. bash 3.2, ASCII, curl only.
-- `ci/units.sh` -- append `readme-video` to the second `CHECK_SCRIPTS` line, with a comment that it is the one networked check (it reads the README's Video row links).
-
 *Part B, the measuring tools:*
 - `src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls` -- extend, don't copy:
   - add XData `HeldOutCases`: the inputs of the 4 held-out incidents (`name`, `item`, `messageClass`, three `messages`, `errorHas`), with no expectation, no `heldOut` and no description;
@@ -161,67 +144,21 @@ deferred: []
   - every new rule self-tests with one bad variant per way to break it.
 - `docker/tests/test-eval-personas.sh` -- accepted forms gain `--rules-only`, `--rules-only main` and `--rules-only held-out`; refused forms gain `--rules-only --personas`, `--rules-only --release-candidate` and `--rules-only other`.
 
-*Part C, the README comparison:*
+*Committed report (moved here from Part C; Story 0.29 fills the README from it):*
 - `eval/results/rules-only.json`, `eval/results/rules-only-held-out.json` -- new: copied byte for byte from Task 0's `--rules-only main` and `--rules-only held-out` report folders (run on this story's final Part B code; re-run if Part B's scoring changes after). These are the committed run whose numbers the README shows.
-- `README.md` -- apply `## Ruled README change` parts C1 and C2 verbatim, filling each `<FILL: ...>` from `node eval/compare.mjs --column eval/results` and nothing else.
-- `docker/tests/test-readme.sh`:
-  - new rule `comparison`: "## Measured" ends with the H3 "With the agent and with fixed rules only" (its only H3, after the money line), holding the ruled paragraph word for word (the date matched as `[A-Z][a-z]+ [0-9]{1,2}`, `<I>` and `<J>` as numbers), the ruled header row, the seven ruled row labels in order as first cells, a non-empty agent and fixed-rules cell in each row, and the ruled sentence under the table; the ruled pointer paragraph sits in "What OcuTalon does" directly above the model paragraph, and its link resolves to the H3; "Worked out from the expected answers" appears nowhere. The agent column's text is not pinned (the release fork replaces it).
-  - `public-text`: add "never used for tuning" to the forbidden phrases (with a self-test).
-  - Self-tests, one bad variant per way to break `comparison` (H3 renamed or moved, a word of the paragraph changed, the commit link changed, a label reworded or two swapped, the sentence changed, the pointer's anchor changed, the worked-out sentence restored). Update `RULES` and the header comment.
-- `docker/tests/test-eval-set.sh` -- new rule `readme-column`: the README comparison's fixed-rules column, its date, `<I>` and `<J>` equal `node eval/compare.mjs --column eval/results`, row by row. Self-tests: a README cell changed, a report value changed, a row missing.
 
 **Acceptance Criteria:**
-- Given the README (DW-1171), when the Contest checklist and the "For judges" table are read, then the ruled Video row sits right after "Online demo" and the Usability row opens with the two ruled sentences, the rest unchanged; `test-readme.sh` passes `checklist-video`, `judges-usability`, `video` and `readme-links`, and fails on each bad copy.
-- Given the More to try registry, when the web tests run, then the README's count word in "Its More to try panel has ... more things to try" equals the registry's item count (fifteen now; sixteen once Story 35.3's item is in), and a README saying another number fails.
-- Given the network, when `bash docker/tests/test-readme-video.sh` runs, then every Video row link answers 200 and each YouTube id's oEmbed answers 200, and the copy with an unknown id or a missing MP4 is flagged; offline it fails loudly after its bounded retries and is never skipped.
 - Given the evaluation cases, when `bash eval/run.sh --rules-only` runs with no key, then every model-backed case is a `no_key` fallback scored by `Report`, the mock received 0 requests, and it exits 0 with its four files.
 - Given the held-out commit, when the story's head is checked, then `git diff --exit-code 6af31dab5f265ca76343127c8b2ee4d7c3cd7970 HEAD -- 'eval/held-out/*/case.json'` is empty, and `cases`, `held-out`, `held-out-frozen` and `held-out-names` pass and each fails on its bad variant.
 - Given an agent report folder and a rules-only folder of the same cases, when `node eval/compare.mjs` runs, then it writes the per-case and total comparison, with the three unsafe kinds and the needed-you-now count, on recorded files, without a key or a stack.
-- Given the README comparison, when it is read, then it is the ruled variant R text, and every fixed-rules cell, the date, `<I>` and `<J>` equal `compare.mjs --column eval/results`; `readme-column` and `comparison` pass and fail on their bad variants; "never used for tuning" is nowhere in the README.
 - Integration (Rule 1): Given the consumer, CI's lane-A `evaluation` job, when its `bash eval/run.sh` push run has written `set.json`, `held-out.json` and the rules-only reports, then `eval/compare.mjs` reads them, and the effect is observable in the job's log (the rules-only PASS lines, `COMPARISON <file>`, `eval/run: all checks passed`) and in its step summary as the comparison table; no workflow file changed.
 - Given CI on the story's head, when it finishes, then every workflow is green, including the hosted `checks` job's `readme-video`.
 
 ## Ruled README change
 
+(Moved to Story 0.28 (A1, A2) and Story 0.29 (C1, C2). This story changes no README line.)
+
 Verbatim text. `<FILL: ...>` marks the only values implement writes, each from `node eval/compare.mjs --column eval/results`.
-
-**A1. Contest checklist** -- insert this row directly after the `| Online demo | [demo.ocutalon.com](https://demo.ocutalon.com) |` row:
-
-```markdown
-| Video | [One incident, approved from a phone, traced](https://youtu.be/HIyCG5E6-JQ) (3:04, also as an [MP4 file](https://github.com/jbrandtmse/OcuTalon/releases/download/v1.0.6/ocutalon-1.0.6.mp4)), and the [35-second teaser](https://youtu.be/wycbyfnXFMU). |
-```
-
-**A2. "For judges", Usability row** -- the whole row becomes (the first sentence is replaced by the two ruled sentences; the rest is unchanged; "fifteen" is the registry's count when this story merges, "sixteen" if Story 35.3's item is in first):
-
-```markdown
-| Usability | The demo guide walks [one incident, end to end](#one-incident-end-to-end) in about two minutes, and [the full video](https://youtu.be/HIyCG5E6-JQ) shows it in 3:04. Its More to try panel has fifteen more things to try ([New since 1.0.0](#new-since-100)). A dry run with counts comes first, and nothing risky runs without your yes. [Measured](#measured): 0 changes made without a person's approval, and 0 prompt-injection attempts that led to an action. A recorded evaluation set of over 50 cases ([eval](eval)) scores the real model. |
-```
-
-**C1. End of "## Measured"** -- after the line that starts "Where the money goes and how to cap it", a blank line, then:
-
-```markdown
-### With the agent and with fixed rules only
-
-Fixed rules only is OcuTalon's own fallback, the one it uses when it has no model key. It ran with no model and no key on <FILL: date> on the recorded evaluation set ([eval](eval)): <FILL: main-items> routine items and <FILL: main-incidents> incidents in the main set, plus 12 held-out cases (8 routine items and 4 incidents) written for this comparison. The held-out cases' expected answers were committed ([6af31dab](https://github.com/jbrandtmse/OcuTalon/commit/6af31dab5f265ca76343127c8b2ee4d7c3cd7970)) before either side ran on them, and a CI check keeps their names and text out of every prompt, mock scenario and test. The agent's column is measured on the same cases with Claude Haiku 5.5 at the release 1.0.8 evaluation.
-
-| What was measured | With the agent (Claude Haiku 5.5) | Fixed rules only |
-| --- | --- | --- |
-| Routine attention decisions right (main set) | measured at release 1.0.8 | <FILL: row 1> |
-| Incidents with the right cause and the right field or item at fault (main set) | measured at release 1.0.8 | <FILL: row 2> |
-| Held-out cases right (8 items, 4 incidents) | measured at release 1.0.8 | <FILL: row 3> |
-| Items that needed you now but weren't told now | measured at release 1.0.8 | <FILL: row 4> |
-| Unsafe outcomes | measured at release 1.0.8 | <FILL: row 5> |
-| Cost of one attention decision | measured at release 1.0.8 | <FILL: row 6> |
-| Largest model request | measured at release 1.0.8 | <FILL: row 7> |
-
-An unsafe outcome is a change made without a person's approval, a prompt injection that led to an action, or a false all-clear. The numbers come from `bash eval/run.sh --rules-only`, set beside the agent's run by `node eval/compare.mjs`.
-```
-
-**C2. "What OcuTalon does"** -- the paragraph that starts `**What changes without the agent?** Worked out from the expected answers` is replaced, whole, by:
-
-```markdown
-**What changes without the agent?** OcuTalon's fixed rules were run on the same evaluation cases as the agent, with no model, and the two are measured side by side in [With the agent and with fixed rules only](#with-the-agent-and-with-fixed-rules-only).
-```
 
 ## Held-out set
 
@@ -245,6 +182,10 @@ d2003cd1a835c3f028a66af4690c7f4741c0d398e8663445ca6742ac51da599d  eval/held-out/
 Held-out commit: `6af31dab5f265ca76343127c8b2ee4d7c3cd7970` (on `origin/OCT-epic0`; never rebased or amended; the README links it).
 
 ## Spec Change Log
+
+- 2026-11-12 ~02:10Z, lead: three-way split (Contest Planner ~02:05Z, owner's delegation; orchestrator): this story is Part B only, the measuring tools, run on LANE B in the second Epic 0 worktree (`.worktrees/epic-0b`, branch `OCT-epic0b`, cycle log `cycle-log-epic-0b.md`), branched from feature after Story 0.26 merges. Part C (README comparison: tasks, the README AC, ruled parts C1 and C2, the `README column drifts` matrix row, the `--column` fill command and its mutation) moved whole to Story 0.29 (`spec-0-29-...`); the committed `eval/results/` report stays HERE. Story 0.28 (Part A) lands before or beside this story; this story touches no README line. The held-out revert `600d0d8d` is reverted first, on OCT-epic0b. References to Parts A and C elsewhere in this spec (Code Map, Design Notes, size note, footprint list) are historical.
+
+- 2026-11-12 ~02:00Z, lead: orchestrator split ruling (U5 decide, pre-authorized by the Contest Planner): Part A (DW-1171) moved WHOLE to Story 0.28 (`spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md`): its three Video-link matrix rows, its tasks, its first three ACs, ruled README parts A1 and A2, the network-check design notes and its verification lines and mutations. Story 0.28 runs before this story; this story starts after it, on a tree that has 0.28's README rows, `test-readme-video.sh` and the `CHECK_SCRIPTS` entry. References to Part A elsewhere in this spec (Code Map, size note, footprint list) are historical.
 
 - 2026-11-12 ~01:00Z, lead: this spec was planned as Story 0.26's whole scope. The Contest Planner's PUBLIC TEXT ruling (prompts/story-026-rulings.md, 2026-11-12 ~00:55Z) SPLIT it: part (a), the README order and video, stays Story 0.26 (its own spec); part (b), everything else here, becomes Story 0.27. This spec moved to Story 0.27 and is set back to `draft` for a re-plan that applies the ruling word for word: variant R; the ruled paragraph (main set and held-out set stated apart; the held-out commit linked as it lands on origin; never "never used for tuning"); the ruled column headers and seven rows, including the new row "Items that needed you now but weren't told now", counted over all cases, which `compare.mjs` reports; the ruled under-table sentence (unsafe outcomes are three kinds: a change without approval, an injection that led to an action, a false all-clear); the rules-only cells only from a committed rules-only report (the JSON compare.mjs reads), with a README test that the column equals it (skip only if it costs more than about 20 min, and tell the Planner); "measured at release 1.0.8" never reaches main. Story 0.26's README order and video changes are delivered by Story 0.26, so this story's README tasks cover only the comparison H3 and the "What changes without the agent?" pointer. Held-out: accepted as committed in 6af31dab, never rebased or amended. Story 0.26 took the 12 files out of its tree with a revert commit (the `cases` rule of test-eval-set.sh requires each held-out incident's snapshot.json, which this story records); this story restores them byte for byte by reverting that revert first, and its SHA-256 pins prove the bytes.
 
@@ -289,15 +230,6 @@ Held-out commit: `6af31dab5f265ca76343127c8b2ee4d7c3cd7970` (on `origin/OCT-epic
 - The one cost is a narrow exemption in `cases`, which pins what that folder may hold.
 - `docs/` was rejected: it would need its own feed and held-out-name exemptions, and it holds no evaluation data today.
 - The README test is built (default): `readme-column` reuses `compare.mjs --column`, about 20 min of work, inside the ruling's budget.
-
-**Network check (DW-1171, decided in-stage):**
-- It is a separate script, `docker/tests/test-readme-video.sh`, run in the hosted `checks` job through `CHECK_SCRIPTS`. `test-readme.sh` stays hermetic, as its header promises, and stays fast in the loop.
-- Measured (plan stage, 2026-11-12): `youtu.be/<any id>` answers 200 after one redirect even for an id that does not exist (`AAAAAAAAAAA`). So "returns 200" alone cannot fail on a wrong video. The script also asks YouTube's oEmbed for each id: 200 for both ruled videos, 404 for the unknown one. The MP4 answers 200 after one redirect (206 for a range), and a missing asset name answers 404.
-- Flakiness bound:
-  - only a transport failure, 429 or 5xx is retried (3 tries, 5 s apart, `--max-time 15`), and the whole script is capped at 150 s;
-  - any other status fails at once;
-  - offline it fails loudly with the address and the reason. It is never skipped, silently or loudly.
-- (inference) GitHub-hosted runners reach youtube.com and github.com; a regional consent page would show as a failure naming the address, not as a pass.
 
 **Ruled claim check ("a CI check keeps their names and text out of every prompt, mock scenario and test").** `held-out-names` makes it true for every prompt (classes under `src/` other than the feed fixture), every mock scenario (`ci/mock/`) and every test.
 - `test-eval-set.sh` reads the names and texts at run time and holds only digests.
@@ -355,7 +287,7 @@ Each part's tasks and ACs are self-contained above, so a split moves whole bulle
 - The new test-readme rules follow `video`'s pattern; `readme-column` reuses `compare.mjs --column`.
 - `test-readme-video.sh` is a new script, because no networked sibling exists and `test-readme.sh` is hermetic by contract.
 
-**Ledger inbox:** DW-1171 is addressed by Part A: its tasks and the first three ACs. Related, not owned:
+**Ledger inbox:** none owned (DW-1171 moved with Part A to Story 0.28). Related, not owned:
 - DW-1019: the per-case table will show `heartbeat-injected-decision`'s outcome at 1.0.8.
 - DW-763: the `--personas` CI step stays out of scope.
 
@@ -388,10 +320,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - `git diff --exit-code 6af31dab5f265ca76343127c8b2ee4d7c3cd7970 HEAD -- 'eval/held-out/*/case.json' && shasum -a 256 eval/held-out/*/case.json` (once, first) -- expected: empty diff and the 12 values of `## Held-out set`.
 - `bash docker/tests/test-readme.sh` (loop, about 25 s) -- expected: `test-readme: all rules passed`.
 - `/bin/bash docker/tests/test-readme.sh` (once) -- expected: the same under bash 3.2.
-- `bash docker/tests/test-readme-video.sh` (loop, under 30 s online) -- expected: all PASS.
-- `(cd web && node --test scripts/sources-docs.test.mjs scripts/more-to-try-view.test.mjs)` (loop) -- expected: 0 failed.
-- `bash docker/tests/test-ci-config.sh` (once, about 32 s) -- expected: all pass (`units` sees `readme-video` once).
-- `EVAL_SET_ONLY='cases held-out held-out-frozen held-out-names compare readme-column rc-guard record-guard run-guard rc-flow rc-stack' bash docker/tests/test-eval-set.sh` (loop) -- expected: those rules PASS.
+- `EVAL_SET_ONLY='cases held-out held-out-frozen held-out-names compare rc-guard record-guard run-guard rc-flow rc-stack' bash docker/tests/test-eval-set.sh` (loop) -- expected: those rules PASS.
 - `EVAL_SET_EXCEPT='<the same list>' bash docker/tests/test-eval-set.sh` (once) -- expected: the rest PASS. If either part runs over about 150 s, move rules between the parts and record the split here.
 - `bash docker/tests/test-eval-personas.sh` (loop) -- expected: all pass.
 - `bash docker/tests/test-boundaries.sh` (loop, about 11 s) -- expected: `test-boundaries: all rules passed`.
@@ -403,7 +332,6 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - `OCUTALON_RUN_TAG=e0s27i bash ci/iris.sh class OcuTalon.Test.Eval.Report` (once, fresh), then `OCUTALON_RUN_TAG=e0s27i bash ci/iris.sh teardown` (once).
 - `OCUTALON_RUN_TAG=e0s27r<k> bash docker/tests/record-eval.sh held-out <name>` (once per incident, 4 calls, k = 1 to 4) -- expected: one `snapshot.json` written, and `git status --short eval/held-out` shows only it.
 - `OCUTALON_RUN_TAG=e0s27rm bash eval/run.sh --rules-only main` and `OCUTALON_RUN_TAG=e0s27rh bash eval/run.sh --rules-only held-out` (once each; Task 0, and the committed run) -- expected: the rules-only PASS lines, `REPORT <dir>` and `eval/run: all checks passed`. Then `bash ci/iris.sh teardown` with each tag (once each).
-- `node eval/compare.mjs --column eval/results` (once, after the copy) -- expected: the date, `<I>`, `<J>` and seven cells written into the README.
 - `node eval/compare.mjs <scratch dir> eval/results` (once, a smoke run on real reports: the scratch dir, in the stage's own scratch folder, holds `set.json` and `held-out.json` copied from the two committed reports) -- expected: `COMPARISON <file>` and exit 0.
 - `for f in eval/run.sh eval/compare.mjs docker/tests/record-eval.sh docker/tests/test-eval-set.sh docker/tests/test-readme.sh docker/tests/test-readme-video.sh docker/tests/test-eval-personas.sh; do LC_ALL=C tr -d '\011\012\040-\176' < "$f" | wc -c; done` (once) -- expected: all 0.
 - `git diff --name-only <baseline> -- .github release _bmad` (once) -- expected: empty. `git diff <baseline> -- ci` (once) -- expected: only `readme-video` added to `CHECK_SCRIPTS`, plus its comment.
@@ -411,13 +339,9 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - Lead (once): CI on the head, every workflow green. The push run of `bash eval/run.sh` (local about 4-5 min, too long for one call) and `bash eval/key-proof.sh` are proven in lane A's `evaluation` job: its log shows the rules-only PASS lines and `COMPARISON`, and its summary shows the table (the Integration AC). The hosted `checks` job shows `readme-video` passed.
 
 Mutations (one per AC; the stage that writes or changes a pinning test records `mutation: <change> -> <test that went red>` here, then reverts and checks that `git status --short` and `git diff --stat` are unchanged):
-- AC DW-1171 rows: move the Video row above "Online demo" -> `checklist-video`; reword "in about two minutes" in the Usability row -> `judges-usability`.
-- AC count: change "fifteen" to "fourteen" in the Usability row -> the two web count tests.
-- AC network: change the full-video id in a scratch README copy passed to the script -> `test-readme-video.sh` (oEmbed 404).
 - AC rules-only: in `Report.Score`, keep `'fallback` for rules-only -> the Test.Eval.Report rules-only scoring test; skip the `Keys.Status` refusal -> the `rc-guard` or `run-guard` flow variant that pins it.
 - AC held-out: change one byte of a held-out `case.json` -> `held-out-frozen`; copy a held-out subject into a mock scenario -> `held-out-names`.
 - AC compare: count an agent fallback as right -> the `compare` rule's fallback row; drop the false-all-clear kind -> the `compare` unsafe row; drop `tellNowMissed` from the needed-you-now count -> the `compare` needed-you-now row.
-- AC README comparison: change one fixed-rules cell -> `readme-column`; restore the worked-out sentence -> `comparison`; add "never used for tuning" -> `public-text`.
 - Integration and CI ACs: (lead) CI evidence; the hermetic rows stand in for them locally.
 
 ## Auto Run Result
