@@ -9,8 +9,10 @@
 /// The context of a replay (kind tool, Replay.Run) also holds the grant of the approved call (Grant): one entry of the same global that the gate
 /// consumes at the first call that matches it (TakeGrant). The grant is not a field: Current and Put never expose or set it, and Begin and End kill it.
 /// The context of a request that composes tools (AD-6, AD-10, AD-21) also holds the turn's MCP map: for each MCP tool that the serving tool manager lists,
-/// the fingerprint of its server, name, description and input schema (SetMcpTools), which the gate reads for a call (McpFingerprint). Like the grant, the map is
-/// not a field, and Begin and End kill it. A tool that is not in the map has no fingerprint.
+/// the fingerprint of its server, name, description and input schema (SetMcpTools), which the gate reads for a call (McpFingerprint). SetMcpTools also keeps, from the
+/// (server, toolref) pairs of the servers that the adapter recorded, the name that the host gives each server and its toolref (McpToolref, McpServerOf), so that the gate
+/// can classify a call of the governed proxy, which names a server and a tool, as it classifies the native call of the same tool, and can name the server in the proxy
+/// call that replaces a native one (Story 22.3). Like the grant, the map is not a field, and Begin and End kill it. A tool that is not in the map has no fingerprint.
 Class OcuTalon.Bridge.Context Extends %RegisteredObject
 {
 
@@ -123,6 +125,12 @@ Parameter GRANT = "grant";
 /// The node of the turn's MCP map, in the same process-private global as the context and outside FIELDS.
 Parameter MCP = "mcp";
 
+/// The node of the host's names for the servers of the turn's MCP map (server name to toolref), outside FIELDS.
+Parameter MCPSERVERS = "mcpservers";
+
+/// The node of the native MCP calls that the gate rewrote into calls of the proxy, in the order of the rewrites, for each tool name (outside FIELDS): the host's name for the server.
+Parameter REROUTED = "rerouted";
+
 /// The prefix of the tool_ref of an MCP tool (any letter case).
 Parameter MCPPREFIX = "mcp:";
 
@@ -132,12 +140,24 @@ Parameter MCPKEYMAX = 400;
 /// Replaces the turn's MCP map with the tools of the catalog (the %Discover() list of the tool manager that serves the request): for each entry whose tool_ref
 /// starts mcp:, the fingerprint (ToolFingerprint) of the tool_ref as the server, the name, the description and the parameters. An entry that has no name, whose
 /// tool_ref or name is too long to key (each over MCPKEYMAX, or both together over the length of a global reference), or whose parameters are text that is not
-/// JSON gets no fingerprint. An error when there is no context (the old map, if any, is then not touched) or the catalog is not an array; it never throws.
-ClassMethod SetMcpTools(catalog As %DynamicArray) As %Status
+/// JSON gets no fingerprint. servers is empty, or a dynamic object from the host's name of each server to its toolref (the spec that the adapter attached), which
+/// McpToolref and McpServerOf read; a member that is not a toolref that starts mcp: is left out. An error when there is no context (the old map, if any, is then not
+/// touched) or the catalog is not an array; it never throws.
+ClassMethod SetMcpTools(catalog As %DynamicArray, servers As %DynamicObject = "") As %Status
 {
 	If '..Active() Quit $SYSTEM.Status.Error(5001, "There is no context to put the MCP tools into")
 	If '$IsObject(catalog) || 'catalog.%IsA("%Library.DynamicArray") Quit $SYSTEM.Status.Error(5001, "The MCP catalog is not an array")
-	Kill ^||OcuTalonBP.Context(..#MCP)
+	Kill ^||OcuTalonBP.Context(..#MCP), ^||OcuTalonBP.Context(..#MCPSERVERS)
+	If $IsObject(servers) && servers.%IsA("%Library.DynamicObject") {
+		Set named = servers.%GetIterator()
+		While named.%GetNext(.host, .toolref, .type) {
+			If (type '= "string") || '..IsMcpRef(toolref) || (host = "") || ($Length(host) > ..#MCPKEYMAX) || ($Length(toolref) > ..#MCPKEYMAX) Continue
+			Try {
+				Set ^||OcuTalonBP.Context(..#MCPSERVERS, host) = toolref
+			} Catch {
+			}
+		}
+	}
 	Set iterator = catalog.%GetIterator()
 	While iterator.%GetNext(, .tool) {
 		If '$IsObject(tool) || (tool.%GetTypeOf("tool_ref") '= "string") || (tool.%GetTypeOf("name") '= "string") Continue
@@ -170,6 +190,67 @@ ClassMethod McpFingerprint(server As %String, name As %String) As %String
 		Set fingerprint = ""
 	}
 	Quit fingerprint
+}
+
+/// The toolref that the turn's map holds for the server of the host's name, or "" when it holds none (a server that the adapter did not record, no map, no context). It
+/// never throws.
+ClassMethod McpToolref(server As %String) As %String
+{
+	If '..Active() || (server = "") || ($Length(server) > ..#MCPKEYMAX) Quit ""
+	Set toolref = ""
+	Try {
+		Set toolref = $Get(^||OcuTalonBP.Context(..#MCPSERVERS, server))
+	} Catch {
+		Set toolref = ""
+	}
+	Quit toolref
+}
+
+/// Notes that the gate rewrote a native call of the tool of the name, on the server of the host's name, into a call of the proxy. AI Hub hands the step audit policy the call
+/// as the model made it (the tool's name and arguments) with the metadata of the proxy tool that ran, so the step record finds the server of such a call here (ReroutedServer),
+/// in the order of the rewrites. It does nothing for a name or server that is empty or too long, and when there is no context; it never throws.
+ClassMethod NoteRerouted(name As %String, server As %String)
+{
+	If '..Active() || (name = "") || (server = "") || ($Length(name) > ..#MCPKEYMAX) || ($Length(server) > ..#MCPKEYMAX) Quit
+	Try {
+		Set count = $Increment(^||OcuTalonBP.Context(..#REROUTED, name))
+		Set ^||OcuTalonBP.Context(..#REROUTED, name, count) = server
+	} Catch {
+	}
+}
+
+/// The host's name for the server of the nth call of the tool of the name that the gate rewrote into a call of the proxy (NoteRerouted), or "" when there is none. It never throws.
+ClassMethod ReroutedServer(name As %String, n As %Integer) As %String
+{
+	If '..Active() || (name = "") || ($Length(name) > ..#MCPKEYMAX) || (n < 1) Quit ""
+	Set server = ""
+	Try {
+		Set server = $Get(^||OcuTalonBP.Context(..#REROUTED, name, n))
+	} Catch {
+		Set server = ""
+	}
+	Quit server
+}
+
+/// The host's name for the server whose toolref the turn's map holds, or "" when it holds none. It never throws.
+ClassMethod McpServerOf(toolref As %String) As %String
+{
+	If '..Active() || (toolref = "") Quit ""
+	Set found = ""
+	Try {
+		Set host = ""
+		For {
+			Set host = $Order(^||OcuTalonBP.Context(..#MCPSERVERS, host), 1, value)
+			Quit:host=""
+			If value = toolref {
+				Set found = host
+				Quit
+			}
+		}
+	} Catch {
+		Set found = ""
+	}
+	Quit found
 }
 
 /// 1 when the tool_ref starts mcp: (in any letter case).

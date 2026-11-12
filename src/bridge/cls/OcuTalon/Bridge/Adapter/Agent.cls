@@ -45,6 +45,11 @@ Include Ensemble
 /// unavailable once (the build's report, or a later one for a server that was attached). The first request after the rest that finds the server again reports it
 /// attached, with the build's report builder. A server that stops answering after its probe passed, within the same request, still holds the job until it closes the
 /// connection (accepted for this release, AD-21).
+/// The governed proxy (Story 22.3; AD-10, AD-21, AD-31): right after the first MCP server was added to a request's manager, the adapter registers the host's proxy toolset
+/// on it (the McpServersClass ProxyToolSet, OfferProxy), so that a request that offers no MCP tool offers no proxy, and no agent has it in its own tools. The gate then
+/// runs every allowed native MCP call through the proxy and not AI Hub's client. A proxy toolset that cannot be registered is one warning, and the request goes on with a
+/// manager composed again that holds no MCP server (ComposeManager), because a manager cannot give a tool up. The map of the request also names each recorded server
+/// (Context SetMcpTools), so that the gate can name the server in a proxy call and classify a direct call of the proxy as the native call of the same tool.
 /// The skipped request (AD-6, AD-8, AD-20): a request of kind decide, diagnose or turn whose DecisionRef already has a Decision row (Concluded) is
 /// skipped, whatever its provenance and whether it is a first attempt, a rate-limit re-send or a second-model retry. Decide records that row when it
 /// concludes, and its timer starts when it sends, so a request taken once the row exists (it waited in the runner's queue past its timer, or its retry
@@ -582,7 +587,14 @@ Method MapMcpTools() [ Private ]
 		$$$LOGWARNING("The tools of the MCP servers could not be listed for this request, so every MCP tool counts as unclassified in it")
 		Return
 	}
-	Set sc = ##class(OcuTalon.Bridge.Context).SetMcpTools(catalog)
+	Set servers = {}
+	Set position = 0
+	While $ListNext(..Attached, position, spec) {
+		If $Extract(spec, 1, 4) '= "mcp:" Continue
+		Set host = $ListGet($Get(..McpOf(spec)), 1)
+		If host '= "" Do servers.%Set(host, spec, "string")
+	}
+	Set sc = ##class(OcuTalon.Bridge.Context).SetMcpTools(catalog, servers)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING("The MCP map of this request could not be kept, so every MCP tool counts as unclassified in it: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 		Return
@@ -624,6 +636,28 @@ Method BuildTurnManager() As %Status [ Private ]
 		If count = 0 Quit $$$OK
 		Quit $$$ERROR($$$GeneralError, "The agent "_$ClassName(..Agent)_" declares skills, so a request cannot take tools of its own from "_class_": a skill keeps its tools on the agent's tool manager")
 	}
+	Set sc = ..ComposeManager(tools, count, mcp, .manager, .proxied)
+	If $$$ISERR(sc) Quit sc
+	If mcp && 'proxied {
+		Set sc = ..ComposeManager(tools, count, 0, .manager, .proxied)
+		If $$$ISERR(sc) Quit sc
+	}
+	Set sc = ..Govern(manager)
+	If $$$ISERR(sc) Quit sc
+	Set ..OwnTools = ..Agent.ToolManager
+	Set ..TurnManager = manager
+	Set ..TurnToolList = $Select(count: tools, 1: "")
+	Set ..Agent.ToolManager = manager
+	Quit $$$OK
+}
+
+/// A new tool manager with the tools of the request: the agent's toolsets, the tools attached when the agent was built (not the MCP servers), the tools of the class
+/// and, when offer is 1, the MCP servers that answer (OfferServers). proxied is 0 when offer is 1 and a server was added but the host's proxy toolset could not be
+/// registered on the manager (OfferServers), which BuildTurnManager answers with a manager that offers no MCP server; otherwise 1.
+Method ComposeManager(tools As %ListOfObjects = "", count As %Integer, offer As %Boolean, Output manager As %AI.ToolMgr, Output proxied As %Boolean) As %Status [ Private ]
+{
+	Set proxied = 1
+	Set sc = $$$OK
 	Set manager = ##class(%AI.ToolMgr).%New()
 	Set toolsets = ..Agent.ToolSets
 	If toolsets = "" Set toolsets = $Parameter(..Agent, "TOOLSETS")
@@ -646,23 +680,22 @@ Method BuildTurnManager() As %Status [ Private ]
 		If $$$ISERR(sc) Quit
 	}
 	If $$$ISERR(sc) Quit sc
-	If mcp Do ..OfferServers(manager)
-	Set sc = ..Govern(manager)
-	If $$$ISERR(sc) Quit sc
-	Set ..OwnTools = ..Agent.ToolManager
-	Set ..TurnManager = manager
-	Set ..TurnToolList = $Select(count: tools, 1: "")
-	Set ..Agent.ToolManager = manager
+	If offer Set proxied = ..OfferServers(manager)
 	Quit $$$OK
 }
 
 /// Adds the recorded MCP servers to the manager of the request, in the order they were recorded (Story 22.9). A server that is resting is skipped. For the others the
 /// McpServersClass Probe is asked (Answers) and then AddTool; a server that fails either is left off with one warning that holds its name and the reason word (never the
 /// url or AI Hub's text), rests for RESTSECONDS, and is reported unavailable unless this job's last report for it already says so. A server that is offered again and
-/// whose last report here said unavailable is reported attached (ReportOf). It never throws and never fails the request.
-Method OfferServers(manager As %AI.ToolMgr) [ Private ]
+/// whose last report here said unavailable is reported attached (ReportOf). Right after the first server was added to the manager, the host's governed proxy toolset (the
+/// McpServersClass ProxyToolSet, Story 22.3; none for the bridge alone) is registered on it, once, so that the manager offers the proxy only when it holds a server.
+/// It gives 0 when that registration fails (one warning that holds a reason word and no AI Hub text), which BuildTurnManager answers with a manager that holds no MCP
+/// server, because the manager cannot give a tool up; otherwise 1. It never throws and never fails the request.
+Method OfferServers(manager As %AI.ToolMgr) As %Boolean [ Private ]
 {
 	Set builtin = ..ToolNames(manager)
+	Set proxied = 1
+	Set added = 0
 	Set position = 0
 	While $ListNext(..Attached, position, spec) {
 		If $Extract(spec, 1, 4) '= "mcp:" Continue
@@ -688,12 +721,40 @@ Method OfferServers(manager As %AI.ToolMgr) [ Private ]
 			}
 			Continue
 		}
+		Set added = added + 1
+		If added = 1 {
+			Set proxied = ..OfferProxy(manager)
+			If 'proxied Quit
+		}
 		If $Get(..McpReported(spec)) = "unavailable" {
 			Set report = ..ReportOf(manager, spec, builtin)
 			Set ..McpReported(spec) = report.status
 			Do ..ReportAttach(..McpClass, server, report)
 		}
 	}
+	Quit proxied
+}
+
+/// Registers the host's governed proxy toolset (McpServersClass ProxyToolSet) on the manager of a request that holds an MCP server. 1 when it is registered and when the
+/// host has none (the bridge alone); 0 when the host's class cannot be asked or the toolset cannot be registered. A failure is one warning that holds the class name and no
+/// AI Hub text.
+Method OfferProxy(manager As %AI.ToolMgr) As %Boolean [ Private ]
+{
+	Set ok = 1
+	Try {
+		Set proxy = $ClassMethod(..McpClass, "ProxyToolSet")
+		If proxy '= "" {
+			Set sc = manager.RegisterToolSet(proxy)
+			If $$$ISERR(sc) {
+				Set ok = 0
+				$$$LOGWARNING("The proxy toolset "_$Extract(proxy, 1, 128)_" of the MCP servers could not be registered on the tools of this request")
+			}
+		}
+	} Catch {
+		Set ok = 0
+		$$$LOGWARNING("The MCP servers class could not name its proxy toolset, so the tools of its MCP servers are not offered to this request")
+	}
+	Quit ok
 }
 
 /// Ends the tools of the request on every path: puts the agent's own tool manager back, lets go of the manager of the request and of its tools, and

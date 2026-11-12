@@ -9,12 +9,17 @@ Include Ensemble
 ///      call with FAILED, and Check logs one redacted warning that names the tool and its source. Nothing leaves %CanExecute.
 ///   2. The classification by (source, name) (ClassificationOf), which only the exact values safe and risky give, with the flags READONLY and
 ///      TRUSTEDOUTPUT that steps 4 and 5 read:
+///        - the governed proxy call_mcp_tool (MCPPROXY, Story 22.3), when its source is not an MCP toolref, names the server and the tool in its arguments (server, tool,
+///          arguments) and is classified exactly as the native call of that tool: by ClassifyMcp for the toolref that the turn's map holds for that server
+///          (Context.McpToolref) and the fingerprint it holds for the tool (McpFingerprint). A server that the map does not hold is asked as the empty toolref, which a host
+///          that registers servers answers as unregistered and the bridge alone as unclassified; a missing server or tool is unclassified. No class parameter and no
+///          ToolClassification entry is read for it, so the proxy's static parameters, which only the documents of the tool show, never classify a call;
 ///        - a toolref that starts mcp: is an MCP call, and so is a toolref that is the JSON configuration of an MCP tool (a JSON object whose type starts
 ///          mcp:; AI Hub hands the configuration text as the toolref of such a tool, measured in Story 22.8). Its source is the toolref, and only the
 ///          ClassificationClass extension classifies it, by one question, ClassifyMcp(source, name, fingerprint), where the fingerprint is the one that the
 ///          turn's MCP map holds for the tool (Context.McpFingerprint; the runner builds the map before Chat from the tool manager that serves the request).
 ///          No class parameter and no ToolClassification entry is read for it, so an MCP tool never takes a built-in's classification. The answer is the
-///          classification, a readOnly flag and whether the tool's server is registered. A tool with no fingerprint in the map, no classification, an
+///          classification, a readOnly flag, whether the tool's server is registered and, optionally, the IRIS resource of the server. A tool with no fingerprint in the map, no classification, an
 ///          unclassified one, a classification given for another fingerprint or a malformed answer is unclassified. safe with readOnly 1 is read-only, and
 ///          risky is risky. An MCP classification is never trusted output, so an allowed MCP call taints the turn. Annotations such as readOnlyHint are never read;
 ///        - any other call has the source metadata.origin_class. The code of that class decides first: its [ Internal ] class method
@@ -32,7 +37,8 @@ Include Ensemble
 ///      approved call to a server that was removed is denied alike.
 ///   3. The permissions: for each resource:permission pair of the tool's RESOURCES parameter (Resources, the one bridge parser), one
 ///      $SYSTEM.Security.CheckUserPermission call per permission letter for the ServiceUser setting of Decide. The first missing pair denies
-///      the call with NOPRIVILEGE. A tool that declares no resources needs no check.
+///      the call with NOPRIVILEGE. A tool that declares no resources needs no check. An MCP call and a call of the proxy check the Use permission (MCPPERMISSION) on the
+///      resource that the extension's answer names, whatever the call's classification (Story 22.3); an answer with no resource, as the bridge alone gives, is not checked.
 ///   4. Provenance and taint: the turn is untrusted when the Provenance of the context is not exactly user, and tainted when its Tainted is not
 ///      0. In an untrusted or tainted turn a call runs only when its classification is safe and its readOnly is 1: every other call (a safe
 ///      tool that is not read-only, a risky tool even if it is read-only and an unclassified tool; an MCP tool runs only when the extension says
@@ -61,7 +67,14 @@ Include Ensemble
 ///      logs its one warning with Raise's error, and no row, hold or event is left.
 ///      A RagCall that passed the checks above is denied with NOROOM when the results of the step so far (Context.ToolResultChars) leave less than
 ///      RAGRESULTMAX characters of the step's STEPTOKENS tokens (NFR-3), and otherwise its top_k is rewritten (ClampTopK: above MAXTOPK it becomes MAXTOPK;
-///      below 1 or not a number it is removed) before the step is reported. This is the gate's only rewrite of a call.
+///      below 1 or not a number it is removed) before the step is reported. This is the first of the gate's two rewrites of a call.
+///      The second (Story 22.3; AD-10, AD-21): an allowed native MCP call is run through the governed proxy in its place. After the step is reported, when the host offers
+///      a proxy (McpServersClass ProxyToolSet) and the call is not part of a replay, the gate sets the call's name to MCPPROXY and its arguments to {"server": the host's
+///      name for the server (Context.McpServerOf), "tool": the call's name, "arguments": a copy of the call's arguments}; AI Hub (measured in Story 22.3's Task 0) then
+///      runs the proxy and not its own client's tools/call, and runs this policy a second time on the changed call, which is the proxy call itself. The gate marks the rewrite
+///      (^||OcuTalonBP.McpRewrite: the item, the call's id and the hash of the new arguments), so that this second run reports no second step and does not count the
+///      taint that the first run set against the call; it consumes the mark. With no proxy in the host, as in the bridge alone, nothing is rewritten and the call runs as before.
+///      A native MCP call whose server the map cannot name is denied with FAILED, never run.
 ///      Right before it allows a call, after turn.step is reported, the gate sets the Tainted of the context to 1 (Context.Put) unless the
 ///      trustedOutput of the classification is 1, because the tool's result reaches the model. So the next call, even in the same model
 ///      response, sees the taint. A denied call never taints, and an error status from Put denies the call with FAILED.
@@ -109,6 +122,18 @@ Parameter RISKY = "risky";
 
 /// The prefix of the toolref of an MCP call.
 Parameter MCPPREFIX = "mcp:";
+
+/// The name of the governed proxy tool (Story 22.3, AD-21): OcuTalon.Tools.Names CALLMCPTOOL, which the bridge cannot name, so a test pins them equal.
+Parameter MCPPROXY = "call_mcp_tool";
+
+/// The permission on the resource of an MCP server that a call of one of its tools needs.
+Parameter MCPPERMISSION = "U";
+
+/// The step label of an MCP call (model-facing text for the user, AD-9; Story 22.3): {tool} and {server} are plain text, each cut to LABELSLOTMAX characters.
+Parameter MCPLABEL = "Running {tool} on {server}";
+
+/// The most characters of the tool's name or the server's name in MCPLABEL; a longer name keeps its first LABELSLOTMAX - 1 characters and ends in the ellipsis, U+2026.
+Parameter LABELSLOTMAX = 64;
 
 /// The longest name, source or error text in a warning, in characters.
 Parameter MAXWARNING = 300;
@@ -177,30 +202,37 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 	If replay && (source = "") Set source = ##class(OcuTalon.Bridge.Context).GrantSource()
 	Set classification = ..ClassificationOf(source, name, ..ArgumentsOf(call))
 	If classification.%Get("unregistered") = 1 Quit ..Denial(..#UNREGISTERED)
-	Set missing = ..MissingPrivilege(source, name)
+	Set missing = ..MissingPrivilege(source, name, classification)
 	If missing '= "" Quit ..Denial($Replace(..#NOPRIVILEGE, "{privilege}", missing))
-	Set tainted = $Select(replay: 0, 1: context.Tainted)
+	Set proxy = ..IsProxyCall(source, name)
+	Set marked = proxy && ..McpRewrittenBefore(context, call)
+	Set tainted = $Select(replay || marked: 0, 1: context.Tainted)
 	If ((context.Provenance '= ..#USERPROVENANCE) || (tainted '= 0)) && '((classification.classification = ..#SAFE) && (classification.readOnly = 1)) Quit ..Denial(..#UNTRUSTED)
 	If replay {
 		If '##class(OcuTalon.Bridge.Context).TakeGrant(name, ..ArgumentsOf(call), source) Quit ..Denial(..#FAILED)
 	} ElseIf classification.classification '= ..#SAFE {
 		Quit ..Hold(context, name, source, call, sinkClass)
 	}
+	Set reroute = ""
 	If rag {
 		If (+context.ToolResultChars + ..#RAGRESULTMAX) > (..#STEPTOKENS * ##class(OcuTalon.Bridge.Adapter.StepBuffer).#CHARSPERTOKEN) Quit ..Denial(..#NOROOM)
 		If ..RewrittenBefore(context, call) {
 			Kill ^||OcuTalonBP.RagRewrite
 		} Else {
 			If ..ClampTopK(call) Set ^||OcuTalonBP.RagRewrite = context.ItemId_"|"_..ArgumentsText(call)
-			Do ..ReportStep(context, source, name, sinkClass)
+			Do ..ReportStep(context, source, name, sinkClass, call)
 		}
+	} ElseIf marked {
+		Kill ^||OcuTalonBP.McpRewrite
 	} Else {
-		Do ..ReportStep(context, source, name, sinkClass)
+		If ..IsMcp(source) && 'replay Set reroute = ..ProxyArguments(source, name, call)
+		Do ..ReportStep(context, source, name, sinkClass, call)
 	}
 	If classification.trustedOutput '= 1 {
 		Set sc = ##class(OcuTalon.Bridge.Context).Put("Tainted", 1)
 		If $$$ISERR(sc) $$$ThrowStatus(sc)
 	}
+	If $IsObject(reroute) Do ..Reroute(context, call, reroute)
 	Quit $$$OK
 }
 
@@ -288,9 +320,61 @@ ClassMethod RewrittenBefore(context As OcuTalon.Bridge.Context, call As %Dynamic
 	Quit $Get(^||OcuTalonBP.RagRewrite) = (context.ItemId_"|"_..ArgumentsText(call))
 }
 
+/// 1 when the call is a call of the governed proxy: the name is MCPPROXY and the source is not an MCP toolref (a tool of an MCP server of that name is the server's, and
+/// AI Hub shadows it with the proxy).
+ClassMethod IsProxyCall(source As %String, name As %String) As %Boolean [ Private ]
+{
+	Quit (name = ..#MCPPROXY) && '..IsMcp(source)
+}
+
+/// The arguments of the proxy call that replaces the allowed native MCP call (see the class comment, the second rewrite): {"server", "tool", "arguments"}, or "" when the
+/// host offers no proxy (the McpServersClass setting names no ProxyToolSet), in which case the call runs as it is. It throws when the host offers a proxy and the turn's map
+/// cannot name the call's server, or the call's arguments are not an object or JSON text of an object, so that Check denies the call with FAILED before it is reported.
+ClassMethod ProxyArguments(source As %String, name As %String, call As %DynamicObject) As %RegisteredObject [ Private ]
+{
+	Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("McpServersClass", , , .sc)
+	If $$$ISERR(sc) $$$ThrowStatus(sc)
+	If $ClassMethod(class, "ProxyToolSet") = "" Quit ""
+	Set server = ##class(OcuTalon.Bridge.Context).McpServerOf(source)
+	If server = "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The turn's MCP map names no server for the toolref of the call"))
+	Quit {"server": (server), "tool": (name), "arguments": (..ArgumentsObject(..ArgumentsOf(call)))}
+}
+
+/// Rewrites the call into the call of the proxy with the arguments, and marks the rewrite, so that the second run of this policy on the changed call (AI Hub runs it
+/// again, Story 22.3's Task 0) does not report the step again (McpRewrittenBefore).
+ClassMethod Reroute(context As OcuTalon.Bridge.Context, call As %DynamicObject, proxyArguments As %DynamicObject) [ Private ]
+{
+	Do ##class(OcuTalon.Bridge.Context).NoteRerouted(call.%Get("name"), proxyArguments.server)
+	Do call.%Set("name", ..#MCPPROXY)
+	Do call.%Set("arguments", proxyArguments)
+	Set ^||OcuTalonBP.McpRewrite = ..McpMark(context, call)
+}
+
+/// 1 when this call is the second run of the policy on a call that the gate rewrote into the proxy call just before in this process: the item, the id of the call and the
+/// hash of the arguments are those the rewrite left (the hash is of the canonical form, because AI Hub hands the changed arguments back with their keys in another order).
+ClassMethod McpRewrittenBefore(context As OcuTalon.Bridge.Context, call As %DynamicObject) As %Boolean [ Private ]
+{
+	Set mark = $Get(^||OcuTalonBP.McpRewrite)
+	If mark = "" Quit 0
+	Quit mark = ..McpMark(context, call)
+}
+
+/// The mark of a rewritten call: "" when the call's id or arguments cannot be read.
+ClassMethod McpMark(context As OcuTalon.Bridge.Context, call As %DynamicObject) As %String [ Private ]
+{
+	Set mark = ""
+	Try {
+		Set mark = context.ItemId_"|"_call.%Get("id")_"|"_##class(OcuTalon.Bridge.Context).ArgumentsHash(..ArgumentsOf(call))
+	} Catch {
+		Set mark = ""
+	}
+	Quit mark
+}
+
 /// The call's arguments as text: the JSON of an object, the text of a JSON text, else "".
 ClassMethod ArgumentsText(call As %DynamicObject) As %String [ Private ]
 {
+	If '..IsObject(call) Quit ""
 	Set type = call.%GetTypeOf("arguments")
 	If type = "object" Quit call.arguments.%ToJSON()
 	If type = "string" Quit call.arguments
@@ -320,13 +404,15 @@ ClassMethod ClampIn(arguments As %DynamicObject) As %Boolean [ Private ]
 
 /// The classification of the tool name of the source: {"classification","readOnly","trustedOutput","by"}, where classification is safe, risky or
 /// "" (unclassified), the flags are 1 or 0, and by is code, setting, extension or "". An MCP source whose server the extension does not register
-/// also has "unregistered": 1 (Decision denies it). arguments is the call's arguments, an object or a JSON
-/// string, and is read only as the input of a code Classify method; "" means none. It throws for a malformed ToolClassification setting, a
+/// also has "unregistered": 1 (Decision denies it), and the extension's answer for an MCP call may add "resource" (the IRIS resource of the server, which MissingPrivilege
+/// checks). arguments is the call's arguments, an object or a JSON
+/// string, and is read only as the input of a code Classify method, and as the server and the tool of a call of the governed proxy (FromProxy); "" means none. It throws for a malformed ToolClassification setting, a
 /// ClassificationClass that is not usable, arguments that are not JSON, an exception of a code Classify method and an exception of ClassifyMcp.
 ClassMethod ClassificationOf(source As %String, name As %String, arguments As %RegisteredObject = "") As %DynamicObject
 {
 	If (source = "") || (name = "") Quit ..Unclassified()
 	If ..IsMcp(source) Quit ..FromMcp(source, name)
+	If ..IsProxyCall(source, name) Quit ..FromProxy(arguments)
 
 	Set hook = ..HookFor(source, name)
 	If hook '= "" {
@@ -373,10 +459,13 @@ ClassMethod Denial(sentence As %String) As %Status
 	Quit $SYSTEM.Status.Error(..#DENIEDCODE, sentence)
 }
 
-/// The first resource:letter pair of the tool's RESOURCES that the ServiceUser setting of Decide does not hold, one permission letter per
-/// CheckUserPermission call, or "" when it holds them all or the tool declares none. An MCP source declares none here.
-ClassMethod MissingPrivilege(source As %String, name As %String) As %String [ Private ]
+/// The first resource:letter pair that the ServiceUser setting of Decide does not hold, one permission letter per CheckUserPermission call, or "" when it holds them
+/// all. The pairs are the Use permission (MCPPERMISSION) on the resource that the classification names, when it names one (an MCP call and a call of the proxy: the
+/// extension's answer, Story 22.3), whatever else it says; else, for an MCP source, none; else the tool's RESOURCES.
+ClassMethod MissingPrivilege(source As %String, name As %String, classification As %DynamicObject = "") As %String [ Private ]
 {
+	Set resource = $Select(..IsObject(classification) && (classification.%GetTypeOf("resource") = "string"): classification.%Get("resource"), 1: "")
+	If resource '= "" Quit ..MissingOf(resource_":"_..#MCPPERMISSION, source_" "_name)
 	If ..IsMcp(source) Quit ""
 	Quit ..MissingOf(##class(OcuTalon.Bridge.Adapter.StepBuffer).ToolParameter(source, name, "RESOURCES"), source_" "_name)
 }
@@ -405,10 +494,11 @@ ClassMethod MissingOf(value As %String, where As %String) As %String
 }
 
 /// Reports turn.step for an allowed call to the sink, owned by the session of the context. The sink class is the argument, or the
-/// HostSinkClass setting of Decide. A sink that fails is logged by FireEvent and changes nothing.
-ClassMethod ReportStep(context As OcuTalon.Bridge.Context, source As %String, name As %String, sinkClass As %String) [ Private ]
+/// HostSinkClass setting of Decide. A sink that fails is logged by FireEvent and changes nothing. The label is the step label of the call (StepBuffer.LabelFor, which
+/// reads the server and the tool of an MCP call or a proxy call from the call, never its inputs).
+ClassMethod ReportStep(context As OcuTalon.Bridge.Context, source As %String, name As %String, sinkClass As %String, call As %DynamicObject = "") [ Private ]
 {
-	Set label = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Part(##class(OcuTalon.Bridge.Adapter.StepBuffer).LabelFor(source, name), ##class(OcuTalon.Bridge.Adapter.StepBuffer).#MAXLABEL)
+	Set label = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Part(##class(OcuTalon.Bridge.Adapter.StepBuffer).LabelFor(source, name, ..ArgumentsText(call)), ##class(OcuTalon.Bridge.Adapter.StepBuffer).#MAXLABEL)
 	If sinkClass = "" {
 		Set sinkClass = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("HostSinkClass", , , .sc)
 		If $$$ISERR(sc) $$$ThrowStatus(sc)
@@ -448,10 +538,37 @@ ClassMethod FromMcp(source As %String, name As %String) As %DynamicObject [ Priv
 	}
 	Set type = answer.%GetTypeOf("readOnly")
 	If (type '= "unassigned") && (type '= "number") && (type '= "boolean") Quit ..Unclassified()
-	If fingerprint = "" Quit ..Unclassified()
+	Set resource = $Select(answer.%GetTypeOf("resource") = "string": answer.%Get("resource"), 1: "")
+	If fingerprint = "" Quit ..WithResource(..Unclassified(), resource)
 	Set classification = answer.%Get("classification")
-	If (answer.%GetTypeOf("classification") '= "string") || '..Valid(classification) Quit ..Unclassified()
-	Quit ..Classified(classification, (classification = ..#SAFE) && (answer.%Get("readOnly") = 1), 0, "extension")
+	If (answer.%GetTypeOf("classification") '= "string") || '..Valid(classification) Quit ..WithResource(..Unclassified(), resource)
+	Quit ..WithResource(..Classified(classification, (classification = ..#SAFE) && (answer.%Get("readOnly") = 1), 0, "extension"), resource)
+}
+
+/// The classification of a call of the governed proxy (Story 22.3; see the class comment): the server and the tool that the arguments name (a JSON object or a JSON text;
+/// anything else, a missing member and a member that is not text are unclassified) are classified as the native call of that tool is, by FromMcp for the toolref that
+/// the turn's map holds for the server ("" when it holds none) and the tool. It throws as FromMcp does.
+ClassMethod FromProxy(arguments As %RegisteredObject) As %DynamicObject [ Private ]
+{
+	Set server = ""
+	Set tool = ""
+	Try {
+		Set object = ..ArgumentsObject(arguments)
+		If object.%GetTypeOf("server") = "string" Set server = object.server
+		If object.%GetTypeOf("tool") = "string" Set tool = object.tool
+	} Catch {
+		Set server = ""
+		Set tool = ""
+	}
+	If (server = "") || (tool = "") Quit ..Unclassified()
+	Quit ..FromMcp(##class(OcuTalon.Bridge.Context).McpToolref(server), tool)
+}
+
+/// The classification with the resource of the extension's answer added when there is one.
+ClassMethod WithResource(classification As %DynamicObject, resource As %String) As %DynamicObject [ Private ]
+{
+	If resource '= "" Do classification.%Set("resource", resource, "string")
+	Quit classification
 }
 
 /// The entry of the ToolClassification setting of Decide for exactly the class and the tool, or "". It throws unless the whole setting is

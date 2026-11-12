@@ -9,6 +9,7 @@ No built-in tool runs operating-system commands, arbitrary ObjectScript or Pytho
 
 | Tool | Source class | Toolset | Agents | Step label | Classification | Read-only | Trusted output | Resources |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `call_mcp_tool` | `OcuTalon.Tools.McpCall` | `OcuTalon.Tools.McpProxy` | none | Running an MCP tool | per call: the admin's classification of the server's tool at its current fingerprint; unclassified counts as risky | no | no | none |
 | `cancel_reminder` | `OcuTalon.Tools.ReminderTools` | `OcuTalon.Tools.Reminders` | `OcuTalon.Agent.Chat` | Cancelling a reminder | safe | no | yes | none |
 | `check_status` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Reading the check results | safe | yes | yes | none |
 | `dismiss_incident` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Dismissing an incident | safe | no | yes | none |

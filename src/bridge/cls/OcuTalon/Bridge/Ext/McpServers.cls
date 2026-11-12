@@ -19,6 +19,11 @@
 ///     a server that failed the probe (RESTSECONDS of the adapter) before it asks again.
 ///   - ToolsReadOnly says whether every tool of a server that a runner can call is classified read-only, so that Decide may retry a timed-out request whose
 ///     agent has such servers (AD-8). The default says no.
+///   - ProxyToolSet names the class of the governed proxy tool, the one tool through which a call reaches an MCP server (Story 22.3; AD-10, AD-21): an AI Hub toolset
+///     that holds the tool call_mcp_tool (the bridge's constant Policy.Gate MCPPROXY) with the arguments server, tool and arguments. The runner registers it on the tool
+///     manager of a request, once, after the first MCP server was added to that manager, so a request that offers no MCP tool offers no proxy; it is in no agent's own
+///     tools. The gate then runs every allowed native MCP call through it (it rewrites the call), and classifies a direct call of it exactly as the native call of the same
+///     server and tool. The default is "", which is no proxy: the bridge alone, which names no server, rewrites nothing. A host that lists servers overrides it.
 ///   - A failed or unavailable server never fails the build, and neither does an error from OnAttach: the runner logs it and goes on with the next server.
 Class OcuTalon.Bridge.Ext.McpServers
 {
@@ -44,6 +49,12 @@ ClassMethod Probe(server As %String, config As %String) As %String
 ClassMethod OnAttach(server As %String, report As %DynamicObject) As %Status
 {
 	Quit $$$OK
+}
+
+/// The class of the host's governed proxy toolset (see the class description), or "" for none. Gives "" by default.
+ClassMethod ProxyToolSet() As %String
+{
+	Quit ""
 }
 
 /// 1 only when every tool of the server that a runner can call is classified read-only, so that an attempt in which one ran, and whose outcome is unknown

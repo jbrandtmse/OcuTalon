@@ -98,7 +98,7 @@ ClassMethod Estimates() As %List
 /// when there is no buffer. Call it after Chat, outside every callback.
 ///   - A model step: kind model, label "Model request <n>", summary "About <t> tokens sent (an estimate). Reply: <c> characters of
 ///     text, <k> tool calls.", where k counts the tool steps that follow it before the next model step, status ok.
-///   - A tool step: kind tool, the label of its class (LabelFor), summary "<name>. Inputs: <arguments>. Result: <result>." (or "Error:
+///   - A tool step: kind tool, the label of its class (LabelFor), summary "<name>. Inputs: <arguments>. Result: <result>." (the inputs of a call of the governed proxy are its server and tool alone, InputsOf; or "Error:
 ///     <detail>." or "Denied: <detail>."), then "About <t> tokens added to the next request (an estimate)."; estimatedTokens is the
 ///     arguments and the result or detail in tokens.
 ClassMethod Records() As %DynamicArray
@@ -127,13 +127,47 @@ ClassMethod Records() As %DynamicArray
 			Set status = $List(step, 8)
 			Set detail = ..Part($List(step, 9), ..#MAXRESULT)
 			Set outcome = $Select(status = "error": "Error: " _ detail, status = "denied": "Denied: " _ detail, 1: "Result: " _ ..Part($List(step, 7), ..#MAXRESULT))
-			Set label = ..Part(..LabelFor($List(step, 5), name), ..#MAXLABEL)
-			Set summary = ..Cut(..Part(name, ..#MAXNAME) _ ". Inputs: " _ ..Part($List(step, 6), ..#MAXINPUTS) _ ". " _ outcome _ ". About " _ tokens _ " tokens added to the next request (an estimate).", ..#MAXSUMMARY)
+			Set server = ..ReroutedServerOf($List(step, 5), name, .used)
+			Set label = ..Part(..LabelFor($List(step, 5), name, $List(step, 6), server), ..#MAXLABEL)
+			Set summary = ..Cut(..Part(name, ..#MAXNAME) _ ". Inputs: " _ ..Part(..InputsOf($List(step, 5), name, $List(step, 6), server), ..#MAXINPUTS) _ ". " _ outcome _ ". About " _ tokens _ " tokens added to the next request (an estimate).", ..#MAXSUMMARY)
 			Set kind = "tool"
 		}
 		Do records.%Push({"kind": (kind), "label": (label), "summary": (summary), "durationMs": (duration), "status": (status), "estimatedTokens": (tokens)})
 	}
 	Quit records
+}
+
+/// The inputs of a tool step as the record shows them: the arguments as they are, except for an MCP call and a call of the governed proxy (Story 22.3), whose arguments hold the
+/// inputs of an MCP tool, which a step record never shows (the Contest Planner's condition (d) and the AC on step records): only its server and its tool, as JSON text. For a call
+/// of the proxy they are the server and the tool of its arguments (a JSON object with both, else ""); for an MCP call (the toolClass is its toolref, or rerouted names its server)
+/// they are the call's name and the host's name for the server when there is one.
+ClassMethod InputsOf(toolClass As %String, name As %String, arguments As %String, rerouted As %String = "") As %String [ Private ]
+{
+	If (rerouted '= "") || ($ZConvert($Extract(toolClass, 1, 4), "L") = "mcp:") {
+		Set server = $Select(rerouted '= "": rerouted, 1: ##class(OcuTalon.Bridge.Context).McpServerOf(toolClass))
+		Quit $Select(server '= "": {"server": (server), "tool": (name)}.%ToJSON(), 1: {"tool": (name)}.%ToJSON())
+	}
+	If name '= $Parameter("OcuTalon.Bridge.Policy.Gate", "MCPPROXY") Quit arguments
+	Set inputs = ""
+	Try {
+		Set object = {}.%FromJSON(arguments)
+		If $IsObject(object) && (object.%GetTypeOf("server") = "string") && (object.%GetTypeOf("tool") = "string") Set inputs = {"server": (object.server), "tool": (object.tool)}.%ToJSON()
+	} Catch {
+		Set inputs = ""
+	}
+	Quit inputs
+}
+
+/// The host's name for the server of the step of a native MCP call that the gate rewrote into a call of the proxy (Context NoteRerouted), or "" for any other step. AI Hub hands the
+/// step audit policy the call as the model made it, with the tool's own name and arguments and the metadata of the proxy tool that ran (so the class is not an MCP toolref), and the
+/// gate noted the rewrites in order: the nth step of a tool name in the records takes the nth note of that name (used counts the notes taken so far, by name). A step of the proxy's
+/// own name, of an MCP toolref and of a tool with no class never takes one.
+ClassMethod ReroutedServerOf(toolClass As %String, name As %String, ByRef used As %Integer) As %String [ Private ]
+{
+	If (toolClass = "") || ($ZConvert($Extract(toolClass, 1, 4), "L") = "mcp:") || (name = $Parameter("OcuTalon.Bridge.Policy.Gate", "MCPPROXY")) Quit ""
+	Set server = ##class(OcuTalon.Bridge.Context).ReroutedServer(name, $Get(used(name)) + 1)
+	If server '= "" Set used(name) = $Get(used(name)) + 1
+	Quit server
 }
 
 /// Empties the buffer. Does nothing when there is none.
@@ -148,15 +182,67 @@ ClassMethod Tokens(chars As %Integer) As %Integer
 	Quit (+chars + ..#CHARSPERTOKEN - 1) \ ..#CHARSPERTOKEN
 }
 
-/// The readable label of a tool (AD-9; Consistency Conventions: Agent step labels): the class parameter STEPLABEL<NAME> of its class,
+/// The readable label of a tool (AD-9; Consistency Conventions: Agent step labels): for an MCP call and for a call of the governed proxy whose server and tool the
+/// turn's MCP map holds (McpLabel, Story 22.3), "Running {tool} on {server}" (Policy.Gate MCPLABEL); else the class parameter STEPLABEL<NAME> of its class,
 /// where NAME is the tool's name in upper case with _ and - removed, when it is not empty; else the parameter STEPLABEL; else
 /// GENERICLABEL. A class that cannot be read gives GENERICLABEL. It never holds an argument or model text, because it comes from a class
-/// parameter only.
-ClassMethod LabelFor(toolClass As %String, name As %String) As %String
+/// parameter only, except for the two names of an MCP call, which come from outside and are plain text cut to Policy.Gate LABELSLOTMAX characters. arguments is the call's
+/// arguments as JSON text, read only for the proxy's server and tool, and "" for a caller that has none. rerouted is the host's name for the server of a native MCP call that the gate
+/// rewrote into a call of the proxy, whose step the audit policy records under the tool's own name (ReroutedServerOf), and "" for any other call.
+ClassMethod LabelFor(toolClass As %String, name As %String, arguments As %String = "", rerouted As %String = "") As %String
 {
+	Set mcp = ..McpLabel(toolClass, name, arguments, rerouted)
+	If mcp '= "" Quit mcp
 	Set label = ..ToolParameter(toolClass, name, "STEPLABEL")
 	If label = "" Set label = ..ToolParameter(toolClass, "", "STEPLABEL")
 	Quit $Select(label '= "": label, 1: ..#GENERICLABEL)
+}
+
+/// The label of an MCP call or of a call of the governed proxy, or "" for any other call, and for a proxy call whose server is not a name of at most 40 letters, digits
+/// and underscores or whose tool the turn's MCP map does not hold. The tool of an MCP call is the call's name and its server is the name that the map holds for the
+/// toolref (Context.McpServerOf): a toolref that the map does not name has no MCP label. Each of the two names is plain text: its control characters are spaces and
+/// a name over Policy.Gate LABELSLOTMAX characters keeps its first LABELSLOTMAX - 1 characters and ends in the ellipsis (U+2026).
+ClassMethod McpLabel(toolClass As %String, name As %String, arguments As %String = "", rerouted As %String = "") As %String [ Private ]
+{
+	Set gate = "OcuTalon.Bridge.Policy.Gate"
+	Set server = ""
+	Set tool = ""
+	If rerouted '= "" {
+		Set server = rerouted
+		Set tool = name
+	} ElseIf $ZConvert($Extract(toolClass, 1, 4), "L") = "mcp:" {
+		Set server = ##class(OcuTalon.Bridge.Context).McpServerOf(toolClass)
+		Set tool = name
+	} ElseIf name = $Parameter(gate, "MCPPROXY") {
+		Try {
+			Set object = {}.%FromJSON(arguments)
+			If $IsObject(object) && (object.%GetTypeOf("server") = "string") && (object.%GetTypeOf("tool") = "string") {
+				Set server = object.server
+				Set tool = object.tool
+			}
+		} Catch {
+			Set server = ""
+		}
+		If '$Match(server, "^[A-Za-z0-9_]{1,40}$") || (##class(OcuTalon.Bridge.Context).McpFingerprint(##class(OcuTalon.Bridge.Context).McpToolref(server), tool) = "") Quit ""
+	}
+	If (server = "") || (tool = "") Quit ""
+	Set text = $Replace($Replace($Parameter(gate, "MCPLABEL"), "{tool}", $Char(1)), "{server}", $Char(2))
+	Quit $Replace($Replace(text, $Char(1), ..Slot(tool)), $Char(2), ..Slot(server))
+}
+
+/// A name as one slot of an MCP label: control characters as spaces, and a name over Policy.Gate LABELSLOTMAX characters cut to the first LABELSLOTMAX - 1 and the
+/// ellipsis (U+2026).
+ClassMethod Slot(text As %String) As %String [ Private ]
+{
+	Set controls = ""
+	For code = 0:1:31 {
+		Set controls = controls _ $Char(code)
+	}
+	Set controls = controls _ $Char(127, 133, 8232, 8233)
+	Set text = $Translate(text, controls, $Justify("", $Length(controls)))
+	Set max = $Parameter("OcuTalon.Bridge.Policy.Gate", "LABELSLOTMAX")
+	If $Length(text) > max Quit $Extract(text, 1, max - 1) _ $Char(8230)
+	Quit text
 }
 
 /// The value of a tool's class parameter by the one naming rule of the tool parameters (Consistency Conventions: Agent step labels, Tool

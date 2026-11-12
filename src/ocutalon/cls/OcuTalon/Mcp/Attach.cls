@@ -8,6 +8,8 @@
 ///   - Probe: the entry's url, read through OcuTalon.Bridge.ConfigStore Details (which resolves no placeholder and no secret), goes to OcuTalon.Mcp.Client
 ///     Probe, an unauthenticated initialize with a 2 second limit. A server whose entry or url is missing counts as failed. Nothing else is read or written, and
 ///     no url, secret or error text is returned: the answer is "" or a code word.
+///   - ProxyToolSet: OcuTalon.Tools.McpProxy, the toolset of the governed proxy call_mcp_tool (Story 22.3), which the runner registers on the tool manager of a request that holds
+///     an MCP server; "" on the online demo, where no MCP server runs and the proxy is never offered.
 ///   - ToolsReadOnly: 1 only when the row's last attach was attached and every tool row of the server that is not in the row's RefusedTools (a refused tool never
 ///     runs) is classified read-only; an attached server with no such row counts as 1. A server whose last attach was unavailable or never happened, a server with no
 ///     row, an empty name and any error count as 0. It reads and writes nothing else (DW-724).
@@ -48,6 +50,11 @@ ClassMethod Probe(server As %String, config As %String) As %String
 ClassMethod OnAttach(server As %String, report As %DynamicObject) As %Status
 {
 	Quit ##class(OcuTalon.Mcp.Ops).RecordAttach(server, report)
+}
+
+ClassMethod ProxyToolSet() As %String
+{
+	Quit $Select(##class(OcuTalon.Mcp.Proxy).OnlineDemo(): "", 1: "OcuTalon.Tools.McpProxy")
 }
 
 ClassMethod ToolsReadOnly(server As %String) As %Boolean

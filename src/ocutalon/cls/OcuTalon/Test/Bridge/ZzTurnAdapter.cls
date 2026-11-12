@@ -4,7 +4,7 @@
 /// the tools it discovers, then the names of those whose source is mcp. AttachedCount gives the number of specs that Attach has recorded (AttachedSpecs, the specs), RestLeft the seconds left of the longest rest of an MCP server, and TwoConfigs composes the session config twice for one request (ComposeTwice, for an agent that is built already). MapBroken runs the map with no tool manager.
 /// OpenTurn composes the session config once for a request of the kind turn of the owner and leaves the request's tools in place, with the context that the caller began
 /// (Story 22.8): CallTool then runs a tool of the request's tool manager through the gate, and CloseTurn ends the request's tools. CallTool answers <OK> for a call
-/// that ran and the text of the error status of AI Hub for a call that did not (a denial of the gate carries its sentence).
+/// that ran and the text of the error status of AI Hub for a call that did not (a denial of the gate carries its sentence); CallValue answers the result that the model would read.
 /// While the node ^OcuTalonTest("TurnTools", "fail") is 1, SessionConfigFor fails after the adapter's composition has run, so that the request ends in an error
 /// with the request's manager assigned. RESTSECONDS is 3 (the adapter's is 60), so that a test can act inside the rest of a server that failed in a request and then
 /// wait it out (Story 22.9). Nothing else differs from the adapter.
@@ -84,6 +84,19 @@ Method CallTool(name As %String, arguments As %DynamicObject = {{}}) As %String
 		Return "<OK>"
 	} Catch exception {
 		Return $SYSTEM.Status.GetErrorText(##class(%AI.System).HandleError(exception, 1))
+	}
+}
+
+/// Runs the tool of the request's tool manager with the arguments and answers what the model would read as its result: the text of the value, or its JSON when it is an object
+/// (Story 22.3), and "<ERROR> " and the text of the error when the call did not run.
+Method CallValue(name As %String, arguments As %DynamicObject = {{}}) As %String
+{
+	Try {
+		Set result = ..Agent.ToolManager.ExecuteTool(name, arguments)
+		Set value = result.%Get("value")
+		Return $Select($IsObject(value): value.%ToJSON(), 1: value)
+	} Catch exception {
+		Return "<ERROR> " _ $SYSTEM.Status.GetErrorText(##class(%AI.System).HandleError(exception, 1))
 	}
 }
 
