@@ -3638,3 +3638,8 @@
 2026-11-12T05:05:16Z	Run	inbox_resolved	id=U-321 by=orchestrator applied_by=runner_D
 2026-11-12T05:05:16Z	Epic 23	ci_green_verified	branch=OCT-epic23 head=2e2f224f runs=43153698989,43153698998 story=23.11
 2026-11-12T05:05:27Z	Epic 23	merge_gate	part=23.11 head=2e2f224f conflicts=none tracker=valid lint=baseline
+2026-11-12T05:05:29Z	Epic 23	epic_merged_to_feature	part=23.11 feature_sha=f4fe3473 merge_sha=f4fe3473 code=2e2f224f verified_on_origin=yes
+2026-11-12T05:05:36Z	Epic 23	runner_resumed	agent=afc4a2f06e7d322df with=23.11_merged_f4fe3473;go_23.9 mode=message_to_ended_runner
+2026-11-12T05:14:25Z	Epic 0	runner_clarification	kind=CI_WAIT agent=a570d5453eccd91b8 story=0.28 head=eff03a14(base_b5057e5a;DW-1178_a_in) runs=43159935962,43159935971(queued) shas=verified
+2026-11-12T05:16:24Z	Epic 21	runner_clarification	kind=PART_READY agent=ac5e5ed9a5908b7a3 stories=21.2+21.6 head=0a357e9b(integrated_cf6fcb39) runs=43143022182,43143022136 applied=U-319,U-320 21.3=implemented_local(a455e515;QA_next) shas=verified
+2026-11-12T05:16:24Z	Epic 0	runner_clarification	note=see_above(0.28_eff03a14_CI_WAIT)
