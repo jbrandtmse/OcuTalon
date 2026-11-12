@@ -266,3 +266,4 @@
 2026-11-12T04:45:15Z	Epic 23	spine_updated	ad=AD-15(two_close_rows_split+bullet_An_incident_that_holds_a_suspend) reason=owner_decision(U-321_Contest_Planner) by=runner story=23-9 marker=ADDED_2026-11-12_Story_23.9_U-321 re-architecture=U7_approved_by_planner lint=unchanged(10_low_pre-existing) memlog=absent(no_.memlog.md_in_this_spine;precedent)
 2026-11-12T04:45:15Z	Epic 23	amendment	files=prd.md(FR-24_x3,FR-16),EXPERIENCE.md(698,1210) story=23.9 tier=ask-first_approved(U-321) marker=AMENDED_2026-11-12_Story_23.9_U-321
 2026-11-12T04:45:15Z	Story 23.9	ruling	question=DW-1068_option choice=(b)_held_open rejected=(a)(~6h,web,ruled_text_changes) category=owner_delegate by=contest_planner inbox=U-321 applied_text=P3_yes;P1_no;P2_no policy=5086036
+2026-11-12T04:46:54Z	Epic 23	amendment	file=_bmad-output/planning-artifacts/epics.md story=23.9 what=U-321_option_(b)_recorded_under_the_AC tier=1 by=runner

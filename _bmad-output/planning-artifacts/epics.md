@@ -7980,6 +7980,7 @@ So that a suspended item is never left disabled without a governed way back.
 **When** the user asks OcuTalon to resume the item
 **Then** the spec chooses between (a) a resume raised on the closed incident, which never moves its state, and (b) an incident with an active suspend stays open until a resume or Dismiss (the Planner leans to (b)); either way exactly one approval request with its own dry run is raised, the item is re-checked before running, and a second session or a user outside the incident's ownership scope cannot resume it (FR-26, AD-15, AD-16)
 - DW-1068: After a suspend's incident closes the user cannot ask to resume the item (ledger; routed by merge_gate 2026-11-10)
+[AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation: option (b) chosen. An incident that holds an active suspend is not closed by the 15-quiet-minutes close or the replay close; it closes only on Dismiss, or by the quiet close once a resume has ended the hold; Dismiss always closes; after a held incident is dismissed, Checks reports the still-disabled item once. AD-15, PRD FR-16/FR-24 and EXPERIENCE.md amended to match. Known limit accepted: an enable by hand in the Management Portal keeps the incident held until Dismiss. The online demo is unchanged (suspend and resume stay refused there). 1.0.8 only if green on feature by the cut, else 1.0.9.]
 
 ### Story 23.10: Partner notice and summary polish from the 1.0.7 demo pass
 
