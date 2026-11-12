@@ -105,7 +105,7 @@ describe('the order of the entries', () => {
   });
 
   it('leaves out a notification of the incident kinds: the incident card is their web form', () => {
-    const chat = [notice('K1', { kind: 'incident' }), notice('K2', { kind: 'approval' }), notice('K3', { kind: 'answered' }), notice('K4', { kind: 'result' })];
+    const chat = [notice('K1', { kind: 'incident' }), notice('K2', { kind: 'approval' }), notice('K3', { kind: 'answered' }), notice('', { kind: 'result' })];
     assert.deepEqual(chatView(chat, [], NO_RUNNING, NOW), []);
   });
 
@@ -117,7 +117,14 @@ describe('the order of the entries', () => {
     assert.deepEqual(views.map((view) => [view.entry, view.kind, view.approvalRef, view.strip]), [['notice', 'approval', 'A1', false], ['notice', 'result', 'A1', false]]);
     assert.equal(views[0].text, 'Run zz_send on ops-mcp\nInputs: {}');
     assert.equal(noticeOf(notice('K3', { kind: 'approval', approvalRef: '' })), undefined);
-    assert.equal(noticeOf(notice('K4', { kind: 'result' })), undefined);
+    assert.equal(noticeOf(notice('', { kind: 'result' })), undefined, 'a result with neither an approvalRef nor a card ref is the incident card\'s');
+  });
+
+  it('shows the notice that a delay notice could not be drafted (a result with a card ref and no approvalRef) as a notice card (Story 23.5)', () => {
+    const text = "I couldn't draft the delay notice just now, so nothing was raised or sent. You can ask me again.";
+    const views = chatView([notice('K5', { kind: 'result', text })], [], NO_RUNNING, NOW);
+    assert.deepEqual(keys(views), ['notification:K5']);
+    assert.deepEqual(views.map((view) => [view.entry, view.kind, view.approvalRef, view.strip, view.text]), [['notice', 'result', undefined, false, text]]);
   });
 
   it('puts a card between the turns around it, as the server held it, and the page\'s own messages after them', () => {
@@ -404,8 +411,9 @@ describe('the notice cards', () => {
     assert.equal(view(allowance('Z')).kind, 'allowance');
     assert.equal(view(digest('D')).kind, 'digest');
     for (const kind of ['incident', 'approval', 'answered', 'result', 'fallback', 'pairing', 'status', '', undefined]) {
-      assert.deepEqual(chatView([notice('X', { kind })], [], NO_RUNNING, NOW), [], `a ${kind} notification`);
-      assert.equal(noticeOf(notice('X', { kind })), undefined, `noticeOf: a ${kind} notification`);
+      const ref = kind === 'result' ? '' : 'X';
+      assert.deepEqual(chatView([notice(ref, { kind })], [], NO_RUNNING, NOW), [], `a ${kind} notification`);
+      assert.equal(noticeOf(notice(ref, { kind })), undefined, `noticeOf: a ${kind} notification`);
     }
     assert.equal(noticeOf(turn('T')), undefined, 'a turn is no notice');
     assert.equal(noticeOf(incident('I')), undefined, 'an incident is no notice');

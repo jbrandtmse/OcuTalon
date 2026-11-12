@@ -209,6 +209,24 @@ describe('the texts', () => {
     assert.doesNotMatch(template, /Nothing changes unless you approve|Now:|Proposed:/, 'the template types none of the lines\' words');
   });
 
+  it('prints a partner delay notice\'s lines (Story 23.5) by interpolation, in the dry run\'s place, with the Simulated label beside the To line, and types none of their words', () => {
+    const order = ['view().action', 'partner.to', 'partner.notice', 'partner.note'];
+    let last = -1;
+    for (const name of order) {
+      const at = template.indexOf(`{{ ${name} }}`);
+      assert.ok(at > last, `{{ ${name} }} is printed, below the one before`);
+      last = at;
+    }
+    assert.match(template, /@if \(view\(\)\.partner; as partner\) \{/);
+    assert.match(template, /@if \(partner\.simulated\) \{\s*<app-simulated-label \/>/, 'the label stands beside the To line, while the payload says simulated');
+    assert.ok(template.indexOf('{{ partner.note }}') < template.indexOf('{{ texts.dryRun }}'), 'before the dry run block');
+    assert.doesNotMatch(template, /Nothing is sent unless you approve|To:|Simulated mailbox/, 'the template types none of the lines\' words');
+    const card = file(files, 'approval-request-card.ts');
+    assert.match(card.code, /import \{ SimulatedLabel \} from '\.\.\/devices\/simulated-label';/);
+    assert.match(card.code, /imports: \[[^\]]*SimulatedLabel[^\]]*\]/);
+    assert.match(literal(card, 'styles'), /\.partner-notice \{\s*white-space: pre-line;/, 'the notice keeps its line breaks');
+  });
+
   it('binds no markup: not as innerHTML, outerHTML, a bypass or a sanitizer', () => {
     for (const one of files) assert.doesNotMatch(one.code, /innerhtml|outerhtml|bypassSecurity|DomSanitizer/i, one.name);
   });

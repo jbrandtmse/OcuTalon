@@ -371,6 +371,29 @@ Method TestFailedRun()
 	Do $$$AssertEquals(lines.%Get(6).key, "digest.notCheckedError", "on the error line")
 }
 
+/// A queue-backlog row (Story 23.7; AC8) is an entry of its own, named by its display name: its row and line come from its CheckRun history alone, with no live read, and a
+/// not_checked run is never shown as passed.
+Method TestQueueRow()
+{
+	Do $ClassMethod(..#PROBE, "Reset")
+	Set session = ..Session()
+	Set ref = ..Watch(session, "", "Queue-backlog check", {"Kind": "queues", "Namespace": ""})
+	Do ..Every(ref, session, "2030-06-01T11:50:30Z", 9, 60)
+	Do ..Run(ref, session, "2030-06-01T11:59:30Z", "failed", "", "1 queue over its threshold")
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Get(5).result_"|"_rows.%Get(5).finding_"|"_rows.%Get(5).entry_"|"_rows.%Get(5).checkedAt, "failed|1 queue over its threshold|Queue-backlog check|2030-06-01T11:59:30Z", "a failed queue run: failed, with its finding, the entry Queue-backlog check and its time")
+	Do $$$AssertEquals(lines.%Get(5).key_"|"_lines.%Get(5).slots.entry_"|"_lines.%Get(5).slots.finding, "digest.failed|Queue-backlog check|1 queue over its threshold", "on a digest.failed line")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "Calls").%Size(), 0, "no live read was made for it")
+	Set other = ..Session()
+	Set unread = ..Watch(other, "", "Queue-backlog check", {"Kind": "queues", "Namespace": ""})
+	Do ..Every(unread, other, "2030-06-01T11:50:30Z", 9, 60)
+	Do ..Run(unread, other, "2030-06-01T11:59:30Z", "not_checked", "error", "Couldn't be read")
+	Do ..Built(other, .rows, .lines)
+	Do $$$AssertEquals(rows.%Get(5).result_"|"_rows.%Get(5).finding_"|"_rows.%Get(5).entry, "not_checked|Couldn't be read|Queue-backlog check", "a not_checked queue run is not_checked, never passed")
+	Do $$$AssertEquals(lines.%Get(5).key, "digest.notCheckedError", "on the error line")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "Calls").%Size(), 0, "and no live read was made for it either")
+}
+
 /// The live read of a production watch, whose history stands on its latest run.
 Method TestLiveRead()
 {

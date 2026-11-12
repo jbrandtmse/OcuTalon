@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page, type Response } from '../support
 
 import { signIn } from '../sign-in/helpers';
 import { loadedAfter } from '../support/floor';
+import { NAV_LINKS_USER } from '../support/header-nav';
 import { fixtureUser } from '../support/iris';
 import { sessionRefOfUser } from '../support/memory';
 import { announcements, recordAnnouncements } from '../support/page';
@@ -191,10 +192,10 @@ async function expectGrouping(page: Page, name: string, expected: Expected[]): P
   ).toBeCloseTo(TOTAL_COST, 9);
 }
 
-/** U1: the header link, the address, the title, the current mark, the h1, and no History item. */
+/** U1: the header link, the address, the title, the current mark, the h1, and no History link inside the page itself (the header holds one). */
 test('U1: a user who is not an admin opens Usage from the header navigation', async ({ page }) => {
   await loadedAfter(page, () => signIn(page, live().user, live().password));
-  await expect(nav(page).getByRole('link'), 'the header navigation holds Chat, Documents and Usage, and no Settings or History').toHaveText(['Chat', 'Documents', 'Usage']);
+  await expect(nav(page).getByRole('link'), 'the header navigation holds the links of a user who is not an admin, and no Settings').toHaveText(NAV_LINKS_USER);
   await usageLink(page).click();
   expect(new URL(page.url()).hash, 'at the address #/usage').toBe('#/usage');
   await expect(page, 'titled Usage \u00B7 OcuTalon').toHaveTitle(TITLE);
@@ -205,7 +206,8 @@ test('U1: a user who is not an admin opens Usage from the header navigation', as
   await expect(page.getByRole('group', { name: 'Group by', exact: true }), 'the Group by control').toBeVisible();
   await expect(page.getByRole('heading', { level: 2 }), 'the two regions').toHaveText(['Tokens and cost', 'Largest request per day']);
   await expect(page.locator('svg.chart'), 'the chart').toHaveCount(1);
-  await expect(page.getByRole('link', { name: /history/i }), 'no History item').toHaveCount(0);
+  await expect(page.locator('main.usage'), 'the page the link check is scoped to').toHaveCount(1);
+  await expect(page.locator('main.usage').getByRole('link', { name: /history/i }), 'no History link inside the page').toHaveCount(0);
 });
 
 /** U2: for each grouping, the table equals the fixture sums, the totals add up, and the chart agrees with the table. */
@@ -336,11 +338,12 @@ test('U8: below 1024px the regions stack, and the page does not scroll sideways 
   expect(await sideways(), 'no sideways scroll at 1000px').toEqual([true, true, true]);
 
   await page.setViewportSize({ width: 305, height: 700 });
-  await expect(nav(page).getByRole('link'), 'at 305px the header navigation still holds every link').toHaveText(['Chat', 'Documents', 'Usage']);
+  await expect(nav(page).getByRole('link'), 'at 305px the header navigation still holds every link').toHaveText(NAV_LINKS_USER);
   for (const link of await nav(page).getByRole('link').all()) {
     await expect(link, 'each link is shown at 305px').toBeVisible();
     const box = (await link.boundingBox())!;
     expect(box.x >= 0 && box.x + box.width <= 305.5, `${await link.textContent()} is inside the 305px window`).toBe(true);
+    expect(box.y >= 0 && box.y + box.height <= 700.5, `${await link.textContent()} is inside the window's height`).toBe(true);
   }
 
   await page.setViewportSize({ width: 1280, height: 720 });

@@ -718,7 +718,8 @@ function properties(values: Record<string, string | undefined>): Record<string, 
  * empty example unless given). null gives a request with no dry run.
  */
 export interface SeedDryRun {
-  affected: number;
+  /** The number of messages: a partner delay notice's dry run (Story 23.5) has none, and holds the notice and its recipients instead. */
+  affected?: number;
   itemNoun?: { one: string; other: string };
   resend?: number;
   field?: string;
@@ -728,6 +729,10 @@ export interface SeedDryRun {
   from?: string;
   to?: string;
   example?: string;
+  /** A partner delay notice's dry run (Story 23.5): the exact text, each recipient as a name and an address, and simulated. */
+  notice?: string;
+  recipients?: ReadonlyArray<{ name: string; address: string }>;
+  simulated?: boolean;
 }
 
 /**
@@ -739,7 +744,7 @@ export interface ApprovalFields {
   /** The request's Ref (a new one unless given): a case that names the Ref in its incident's RequestRefs gives it before the request exists. */
   ref?: string;
   kind?: string;
-  /** The request's FixKind (repair_resend, suspend_item, resume_item or reroute). */
+  /** The request's FixKind (repair_resend, suspend_item, resume_item, reroute or partner_warning). */
   fixKind?: string;
   state?: string;
   incidentRef?: string;
@@ -769,7 +774,9 @@ export async function seedApproval(user: string, fields: ApprovalFields = {}, ow
       ? undefined
       : fields.dryRun === null
         ? ''
-        : JSON.stringify({
+        : fields.dryRun.notice !== undefined
+          ? JSON.stringify({ notice: fields.dryRun.notice, recipients: fields.dryRun.recipients ?? [], simulated: fields.dryRun.simulated ? 1 : 0 })
+          : JSON.stringify({
             affected: fields.dryRun.affected,
             resend: fields.dryRun.resend ?? fields.dryRun.affected,
             leftOut: 0,
@@ -1027,10 +1034,15 @@ export interface IncidentFields {
   requestRefs?: string;
   /** The incident's stored summary (Story 23.6): the JSON {"parts": [{"key", "slots"}], "lines": []} that Watch.Summary builds; none by default. */
   summary?: string;
+  /** When the incident was closed (UTC), the failure count, the first failure's time and the item noun (Story 25.2's History rows); the fixture's defaults when left out. */
+  closedAt?: string;
+  count?: number;
+  firstAt?: string;
+  itemNoun?: { one: string; other: string };
 }
 
 /**
- * Writes an incident through Test.Data.Fixture.Incident. The owner is 'instance', the user whose own session owns it, or `{sessionRef}`,
+ * Writes an incident through Test.Data.Fixture.Incident. The owner is 'instance' or 'eval', the user whose own session owns it, or `{sessionRef}`,
  * the fixture session with this Ref (seedOtherSession), as seedApproval's ApprovalOwner is. Returns its Ref; cleanFixtureRows removes it.
  */
 export async function seedIncident(owner: string | { sessionRef: string }, fields: IncidentFields = {}): Promise<string> {
@@ -1040,13 +1052,17 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
     OpenVariant: fields.openVariant,
     RequestRefs: fields.requestRefs,
     Summary: fields.summary,
+    ClosedAt: fields.closedAt,
+    Count: fields.count === undefined ? undefined : numeric(fields.count, 'count'),
+    FirstAt: fields.firstAt,
+    ItemNoun: fields.itemNoun === undefined ? undefined : JSON.stringify(fields.itemNoun),
   });
   const lines = await irisScript(
     [
       ...(typeof owner === 'object'
         ? [`Set o=${quoted(owner.sessionRef)}`]
-        : owner === 'instance'
-          ? ['Set o="instance"']
+        : owner === 'instance' || owner === 'eval'
+          ? [`Set o=${quoted(owner)}`]
           : [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(owner)},.sc)`, 'Set o=s.Ref']),
       `Set r=##class(OcuTalon.Test.Data.Fixture).Incident(o,${fields.noticedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.noticedAt)},${quoted(fields.namespace ?? 'ZZNS')},${quoted(fields.production ?? 'Zz.Production')},${fieldsObject(row)})`,
       'Write !,"CHK|incident|",r',

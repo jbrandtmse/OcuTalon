@@ -8,7 +8,7 @@ Property Ref As %String(%JSONFIELDNAME = "ref", MAXLEN = 22);
 /// One of Msg.Enum APPROVALSTATE.
 Property State As %String(%JSONFIELDNAME = "state", MAXLEN = 32);
 
-/// The name of the request's fix kind (Fix.Kind NAME), such as repair_resend, suspend_item, resume_item or reroute (Story 23.2).
+/// The name of the request's fix kind (Fix.Kind NAME), such as repair_resend, suspend_item, resume_item, reroute (Story 23.2) or partner_warning (Story 23.5).
 Property FixKind As %String(%JSONFIELDNAME = "fixKind", MAXLEN = 64);
 
 /// The item a suspend or resume changes, and the item a reroute sends the messages to (the request's parameters); empty for any other kind.

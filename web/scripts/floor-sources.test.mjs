@@ -104,6 +104,7 @@ describe('keys: only Enter and Escape, and the arrows of the device tabs and the
     'app/chat/composer.ts': 'Enter sends and Shift+Enter adds a line; the IME guard (keyCode 229) keeps a composition open',
     'app/chat/decision-strip.ts': 'Escape collapses the details when focus is inside the strip',
     'app/devices/device-panel.ts': 'ArrowLeft and ArrowRight move between the two device tabs, as the ARIA tabs pattern asks (EXPERIENCE L296)',
+    'app/history/history-page.ts': 'ArrowLeft and ArrowRight move between the History page\'s two tabs, Decisions and Incidents, as the ARIA tabs pattern asks (UX-DR130)',
     'app/main-page/main-page.ts': 'Escape closes the status drawer when focus is inside the rail, after any layer inside it that used the Escape',
     'app/rail/decision-row.ts': 'Escape collapses the row when focus is inside it',
     'app/rail/memory-card/memory-card.ts': 'ArrowLeft and ArrowRight move between the Memory card\'s four tabs, as the ARIA tabs pattern asks (EXPERIENCE L321)',
@@ -144,7 +145,7 @@ describe('keys: only Enter and Escape, and the arrows of the device tabs and the
       for (const match of one.code.matchAll(KEY_CODE)) codes.add(match[1]);
     }
     assert.deepEqual([...literals].sort(), ['ArrowLeft', 'ArrowRight', 'Enter', 'Escape']);
-    assert.deepEqual(filesWith(/\.key\s*[!=]==?\s*['"`]Arrow/), ['app/devices/device-panel.ts', 'app/rail/memory-card/memory-card.ts']);
+    assert.deepEqual(filesWith(/\.key\s*[!=]==?\s*['"`]Arrow/), ['app/devices/device-panel.ts', 'app/history/history-page.ts', 'app/rail/memory-card/memory-card.ts']);
     assert.deepEqual([...codes], ['229']);
     assert.deepEqual(filesWith(new RegExp(KEY_CODE.source)), ['app/chat/composer.ts']);
     assert.deepEqual(filesWith(KEY_LOOKUP), [], 'no key is looked up in a table, a list or a switch');
@@ -155,7 +156,7 @@ describe('keys: only Enter and Escape, and the arrows of the device tabs and the
     for (const one of files) {
       for (const match of one.code.matchAll(KEY_BINDING)) bindings.push(`${one.name} ${match[1]} ${match[2] ?? ''}`.trim());
     }
-    assert.deepEqual(bindings.sort(), ['app/chat/composer.ts down', 'app/chat/decision-strip.ts down escape', 'app/devices/device-panel.ts down', 'app/main-page/main-page.ts down escape', 'app/rail/decision-row.ts down escape', 'app/rail/heartbeat-card/heartbeat-card.ts down escape', 'app/rail/memory-card/memory-card.ts down', 'app/rail/persona-card/persona-card.ts down escape']);
+    assert.deepEqual(bindings.sort(), ['app/chat/composer.ts down', 'app/chat/decision-strip.ts down escape', 'app/devices/device-panel.ts down', 'app/history/history-page.ts down', 'app/main-page/main-page.ts down escape', 'app/rail/decision-row.ts down escape', 'app/rail/heartbeat-card/heartbeat-card.ts down escape', 'app/rail/memory-card/memory-card.ts down', 'app/rail/persona-card/persona-card.ts down escape']);
   });
 
   it('has no keyup or keypress handler and no accesskey', () => {
@@ -301,7 +302,7 @@ describe('scrollers keep the gutter', () => {
         if (!/scroll-padding\s*:\s*var\(--space-scroll-gutter\)/.test(rule.body)) unpadded.push(one.name);
       }
     }
-    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/answer-sources.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/devices/device-panel.ts', 'app/documents/documents-page.ts', 'app/guide/more-to-try.ts', 'app/main-page/main-page.ts', 'app/phone/simulated-phone.ts', 'app/settings/settings-page.ts', 'app/usage/usage-page.ts']);
+    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/answer-sources.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/devices/device-panel.ts', 'app/documents/documents-page.ts', 'app/guide/more-to-try.ts', 'app/history/history-page.ts', 'app/main-page/main-page.ts', 'app/phone/simulated-phone.ts', 'app/settings/settings-page.ts', 'app/usage/usage-page.ts']);
     assert.deepEqual(unpadded.sort(), Object.keys(NO_GUTTER));
     for (const [name, why] of Object.entries(NO_GUTTER)) assert.ok(why.length > 20, `${name} says why`);
   });
@@ -373,6 +374,7 @@ describe('the banned patterns (UX-DR129)', () => {
       sample: '<div role="tablist">',
       allowed: {
         'app/devices/device-panel.ts': 'ARIA tabs of the simulated device panel; content never switches them (EXPERIENCE L296)',
+        'app/history/history-page.ts': 'ARIA tabs of the History page (Story 25.2, UX-DR130): Decisions and Incidents; content never switches them, only a press or an arrow key does',
         'app/rail/memory-card/memory-card.ts': 'ARIA tabs of the Memory card (Story 41.6, EXPERIENCE 1050): Notes, Your answers, Pinned and All memories; content never switches them',
       },
     },

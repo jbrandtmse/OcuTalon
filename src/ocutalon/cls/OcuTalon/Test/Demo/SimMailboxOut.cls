@@ -10,6 +10,10 @@
 ///   - TestRenderError: a text that cannot be rendered is an error with no row and no event;
 ///   - TestSaveFailureKeepsNothing: a Delivery row that cannot be saved leaves no message and no event;
 ///   - TestPublishFailure: an event that cannot be published is logged and both rows stay;
+///   - TestPartnerNotice (Story 23.5; AC4, AC11): a Fix.Msg.PartnerNotice becomes one SimMessage (Kind mailbox, direction out, Sender OcuTalon, the subject that Render makes of its catalog key and slots, the
+///     notice's Text as it is, braces and angle brackets included, and the request's ApprovalRef, also on its Delivery row) and one mailbox event for that session only; an owner that is not a session
+///     is an error with no row and no event, and so is a subject that cannot be rendered;
+///   - TestMessageMap (Story 23.5): the message map takes OcuTalon.Msg.Outbound and OcuTalon.Fix.Msg.PartnerNotice, each by its own method, and no other class;
 ///   - TestThroughProduction: in the running production an Outbound sent to SimMailboxOut gives the row within 5 seconds, a
 ///     completed request with body class OcuTalon.Msg.Outbound, and no body property that names the simulation.
 /// The run's number is n from ^OcuTalonTest("SimMailboxOut","n") (never reset).
@@ -77,6 +81,52 @@ Method TestSent()
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentMail(other, 10).Count()_"|"_##class(OcuTalon.Test.Core.Observe).Events(other, "mailbox").%Size(), "0|0", "another session has no mail and no event")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentPhone(session, 10).Count(), 0, "and the phone has no message")
+}
+
+/// A PartnerNotice is saved byte for byte with a rendered subject and the request's Ref, and published to its session only.
+Method TestPartnerNotice()
+{
+	Set session = ..Session("notice")
+	Set other = ..Session("noticeother")
+	Set text = "Orders {from} <your feed> failed & we said ""soon"" 100% of the time."_$Char(10)_"Second line, {recipient}."
+	Set notice = ..PartnerNotice(session, text)
+	Do $$$AssertStatusOK(..Out().OnPartnerNotice(notice, .response), "the notice is delivered")
+	Do $$$AssertEquals($IsObject($Get(response)), 0, "with no response")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentMail(session, 10, .sc)
+	Do $$$AssertEquals(rows.Count(), 1, "the session has one mailbox row")
+	If rows.Count() '= 1 Quit
+	Set row = rows.GetAt(1)
+	Do $$$AssertEquals(row.SessionRef_"|"_row.Kind_"|"_row.Direction_"|"_row.Sender_"|"_row.ApprovalRef_"|"_row.ItemId, session_"|mailbox|out|OcuTalon|"_notice.ApprovalRef_"|", "its session, kind, direction, sender and the request's Ref")
+	Do $$$AssertTrue(row.Text = text, "its Text is the notice byte for byte: it is not rendered as a template")
+	Do $$$AssertEquals(row.Subject, "Simulated delay notice to Results Partner IT <it@results-partner.example>", "its subject is the catalog's, with the recipient")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 1, "one Delivery row")
+	If deliveries.Count() = 1 Do $$$AssertEquals(deliveries.GetAt(1).Channel_"|"_deliveries.GetAt(1).ChannelMessageId_"|"_deliveries.GetAt(1).ApprovalRef_"|"_deliveries.GetAt(1).Text, "mailbox|"_row.Ref_"|"_notice.ApprovalRef_"|", "carrying the same ApprovalRef and no text")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "mailbox")
+	Do $$$AssertEquals(events.%Size(), 1, "one mailbox event is published")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.ref_"|"_events.%Get(0).payload.direction_"|"_events.%Get(0).payload.subject, row.Ref_"|out|"_row.Subject, "of the saved mail")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentMail(other, 10).Count()_"|"_##class(OcuTalon.Test.Core.Observe).Events(other, "mailbox").%Size(), "0|0", "another session has no mail and no event")
+	// an owner that is not a session
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set stranger = ..PartnerNotice("ZzNotASession0000000001", text)
+	Do $$$AssertStatusNotOK(..Out().OnPartnerNotice(stranger, .response), "a notice for an owner that is not a session is an error, so that FixExecutor does not count it as sent")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentMail("ZzNotASession0000000001", 10).Count(), 0, "and nothing is recorded")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'IsSession'", mark)
+	// a subject that cannot be rendered
+	Set broken = ..PartnerNotice(session, text)
+	Set broken.CatalogKey = "partner.noSuchKey"
+	Do $$$AssertStatusNotOK(..Out().OnPartnerNotice(broken, .response), "a subject that cannot be rendered is an error")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentMail(session, 10).Count(), 1, "with no second row")
+}
+
+/// The message map holds the two classes, each with its own method.
+Method TestMessageMap()
+{
+	Set xdata = ##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Channel.SimMailbox.Out||MessageMap")
+	Set text = xdata.Data.Read(32000)
+	Do $$$AssertEquals($Length(text, "<MapItem ") - 1, 2, "the message map has two items")
+	Do $$$AssertTrue($Match(text, "(?s).*MessageType=""OcuTalon\.Msg\.Outbound"">\s*<Method>OnOutbound</Method>.*"), "an Outbound goes to OnOutbound")
+	Do $$$AssertTrue($Match(text, "(?s).*MessageType=""OcuTalon\.Fix\.Msg\.PartnerNotice"">\s*<Method>OnPartnerNotice</Method>.*"), "a PartnerNotice goes to OnPartnerNotice")
 }
 
 /// A CatalogKey is rendered for the mailbox channel; the Text is ignored then.
@@ -218,6 +268,19 @@ Method Out() As OcuTalon.Channel.SimMailbox.Out [ Private ]
 	Set out = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Channel.SimMailbox.Out", .sc)
 	Do $$$AssertStatusOK(sc, "a shadow instance of the operation is made")
 	Quit out
+}
+
+/// A PartnerNotice for the owner with the text, the subject partner.subject for Results Partner IT and an ApprovalRef.
+Method PartnerNotice(owner As %String, text As %String) As OcuTalon.Fix.Msg.PartnerNotice [ Private ]
+{
+	Set notice = ##class(OcuTalon.Fix.Msg.PartnerNotice).%New()
+	Set notice.SessionRef = owner
+	Set notice.ApprovalRef = "ZzApprovalRef"_..Number
+	Set notice.IncidentRef = "ZzIncidentRef"_..Number
+	Set notice.CatalogKey = "partner.subject"
+	Set notice.Slots = {"recipient": "Results Partner IT <it@results-partner.example>"}.%ToJSON()
+	Set notice.Text = text
+	Quit notice
 }
 
 /// An Outbound for the owner with the text.

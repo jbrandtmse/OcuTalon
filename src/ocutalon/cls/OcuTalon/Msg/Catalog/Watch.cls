@@ -955,6 +955,92 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09"
  },
+ "incident.partnerRequest": {
+  "text": "I drafted a delay notice about this incident for {recipients}. Approve sending it?\n\nDry run: the notice below would go to the Simulated mailbox, not to a real inbox. The recipients are simulated partner contacts.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I drafted a delay notice about this incident for {recipients}.\n\nDry run: the notice below would go to the Simulated mailbox, not to a real inbox. The recipients are simulated partner contacts.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "recipients": "text",
+   "notice": "text"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.partnerSent": {
+  "text": "The delay notice went to the Simulated mailbox for all {count} partner contacts. No real email was sent.",
+  "slots": {
+   "count": "count"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09",
+  "one": {
+   "slot": "count",
+   "text": "The delay notice went to the Simulated mailbox for the partner contact. No real email was sent."
+  }
+ },
+ "result.partnerSentSome": {
+  "text": "The delay notice went to the Simulated mailbox for {completed} of {total} partner contacts. Not sent to the rest: {reason}. No real email was sent.",
+  "slots": {
+   "completed": "count",
+   "total": "count",
+   "reason": "sentence"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.partnerNotSent": {
+  "text": "The delay notice was not sent: {reason}. It needs a new approval.",
+  "slots": {
+   "reason": "sentence"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.partnerKept": {
+  "text": "The delay notice is approved and kept as a draft: email delivery isn't set up yet, so nothing was sent.",
+  "slots": {},
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "result.partnerNotDrafted": {
+  "text": "I couldn't draft the delay notice just now, so nothing was raised or sent. You can ask me again.",
+  "slots": {},
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.requestedPartner": {
+  "text": "{time}: OcuTalon asked for approval to send a delay notice to {count} partner contacts.",
+  "slots": {
+   "time": "time",
+   "count": "count"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09",
+  "one": {
+   "slot": "count",
+   "text": "{time}: OcuTalon asked for approval to send a delay notice to the partner contact."
+  }
+ },
+ "summary.partnerSent": {
+  "text": "{time}: the delay notice went to the Simulated mailbox.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.partnerKept": {
+  "text": "{time}: the delay notice was approved and kept as a draft.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.partnerNotSent": {
+  "text": "{time}: the delay notice was not sent.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "partner.subject": {
+  "text": "Simulated delay notice to {recipient}",
+  "slots": {
+   "recipient": "text"
+  },
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
  "mcp.serverUnavailable": {
   "text": "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools.",
   "slots": {
@@ -996,6 +1082,21 @@ XData Entries [ MimeType = application/json ]
    "time": "time"
   },
   "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Source stopped"
+ },
+ "watch.queueBacklog": {
+  "text": "The {itemName} queue in the {production} production had {count} messages waiting at {time}, the oldest since {oldestAt}.\nWhy now: you asked me to watch queue backlogs.",
+  "slots": {
+   "itemName": "text",
+   "production": "text",
+   "count": "count",
+   "time": "time",
+   "oldestAt": "time"
+  },
+  "source": "Story 23.7 (Queue-backlog check); text: Contest Planner Public Text ruling, 2026-11-11",
+  "one": {
+   "slot": "count",
+   "text": "The {itemName} queue in the {production} production had 1 message waiting at {time}, since {oldestAt}.\nWhy now: you asked me to watch queue backlogs."
+  }
  }
 }
 }

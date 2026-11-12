@@ -818,6 +818,11 @@ XData Entries [ MimeType = application/json ]
    "to": "text"
   },
   "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
+ },
+ "press.approvedPartner": {
+  "text": "Approved. Sending the delay notice to the Simulated mailbox.",
+  "slots": {},
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
  }
 }
 }

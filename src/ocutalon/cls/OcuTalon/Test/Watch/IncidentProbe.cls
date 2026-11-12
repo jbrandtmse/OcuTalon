@@ -12,6 +12,10 @@
 /// FailDryRun is set; RaiseRequest records each row in Raised as {kind, incidentRef, ownerRef, resultTarget, traceRef, dryRun, fixKind, fixParameters, fixTargets,
 /// sessionId, superSession} and answers OK with RaiseRef (a fixed fixture Ref unless a test sets one), or an error when FailRaise is set; CancelRequest records
 /// the Ref in Cancelled and answers OK, or an error when FailCancel is set. Dried(ref, ask, result) is OnResponse and Undried(ref, error) is OnError with the dryrun key, as the framework calls them when FixExecutor answers.
+/// Since Story 23.5 StartDraft records each draft that a ProposeFix started in Drafts, as {incidentRef, sessionRef, fixKind, sessionId}, and answers OK, or an error when
+/// FailStartDraft is set; SendDraft records the request to Decide in DraftRequests, as {kind, provenance, sessionMode, ownerRef, itemId, input, systemNote, channel}, and answers OK, or an error
+/// when FailSendDraft is set; Drafting(draft) and Drafted(draft, answer, error) are the handlers of the Draft request and of Decide's answer, which are private in the product (the probe
+/// calls them as BeginDraft and EndDraft).
 /// Since Story 7.6 SendDryRun also records the completion key it was given, the transaction level and the stored marks of the incident's groups at the moment of
 /// the send ({..., key, level, marks}), and the later waiter's seams are overridden for the same reason: Start (a waiter's Settle
 /// request) records {ref, sessionId} in Started and answers OK, or an error when FailStart is set; LaterAlarm records the seconds in Alarms. Wake(ref) is OnResponse with
@@ -90,6 +94,66 @@ Method Move(incident As OcuTalon.Data.Incident, to As %String, variant As %Strin
 		Quit $SYSTEM.Status.Error(5001, "The save of "_incident.Ref_" is refused")
 	}
 	Quit ##super(incident, to, variant, notification)
+}
+
+/// The drafts that StartDraft recorded (Story 23.5), in order, each {incidentRef, sessionRef, fixKind, sessionId}.
+Property Drafts As %DynamicArray [ Transient ];
+
+/// 1 to make StartDraft answer an error.
+Property FailStartDraft As %Boolean [ InitialExpression = 0, Transient ];
+
+/// The requests to Decide that SendDraft recorded (Story 23.5), in order, each {kind, provenance, sessionMode, ownerRef, itemId, input, systemNote, channel}.
+Property DraftRequests As %DynamicArray [ Transient ];
+
+/// 1 to make SendDraft answer an error.
+Property FailSendDraft As %Boolean [ InitialExpression = 0, Transient ];
+
+/// Records the draft instead of sending it to this item, with the session that it would go in.
+Method StartDraft(incident As OcuTalon.Data.Incident, sessionRef As %String, kind As %String) As %Status [ Private ]
+{
+	If '$IsObject(..Drafts) Set ..Drafts = []
+	Do ..Drafts.%Push({"incidentRef": (incident.Ref), "sessionRef": (sessionRef), "fixKind": (kind), "sessionId": (incident.TraceHeaderId)})
+	If ..FailStartDraft Quit $SYSTEM.Status.Error(5001, "The draft of "_incident.Ref_" is refused")
+	Quit $$$OK
+}
+
+/// Records the request to Decide instead of sending it.
+Method SendDraft(request As OcuTalon.Bridge.Msg.Request) As %Status [ Private ]
+{
+	If '$IsObject(..DraftRequests) Set ..DraftRequests = []
+	Do ..DraftRequests.%Push({"kind": (request.Kind), "provenance": (request.Provenance), "sessionMode": (request.SessionMode), "ownerRef": (request.OwnerRef), "itemId": (request.ItemId), "input": (request.Input), "systemNote": (request.SystemNote), "channel": (request.Channel)})
+	If ..FailSendDraft Quit $SYSTEM.Status.Error(5001, "The draft request is refused")
+	Quit $$$OK
+}
+
+/// The facts that the table needs for the incident and the event (Facts), as {pending, waiting, demoMode}.
+Method FactsNow(incident As OcuTalon.Data.Incident, event As %String, own As %String = "") As %DynamicObject
+{
+	Quit ..Facts(incident, event, own, .earliest)
+}
+
+/// The handler of a Draft request, as the framework calls it.
+Method BeginDraft(draft As OcuTalon.Watch.Msg.Draft) As %Status
+{
+	Quit ..Drafting(draft)
+}
+
+/// The completion handler of a Draft request's answer from Decide under the key (the draft's own by default), as the framework calls it: OnResponse.
+Method DraftAnswered(draft As OcuTalon.Watch.Msg.Draft, answer As %Library.Persistent, key As %String = {..#DRAFTKEY}) As %Status
+{
+	Quit ..OnResponse(draft, , "", answer, key)
+}
+
+/// The completion handler of a Draft request's error from Decide under the key (the draft's own by default), as the framework calls it: OnError.
+Method DraftRefused(draft As OcuTalon.Watch.Msg.Draft, error As %Status, key As %String = {..#DRAFTKEY}) As %Status
+{
+	Quit ..OnError(draft, , "", error, key)
+}
+
+/// The handler of Decide's answer to the draft request (or of its error), as the framework calls it.
+Method EndDraft(draft As OcuTalon.Watch.Msg.Draft, answer As %Library.Persistent, error As %Status = {$$$OK}) As %Status
+{
+	Quit ..Drafted(draft, answer, error)
 }
 
 /// Records the order instead of sending it, with the session that the order would go in.

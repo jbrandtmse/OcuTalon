@@ -1,11 +1,11 @@
 /**
  * The demo guide's "Other things to try" panel (Story 4.11; EXPERIENCE: Demo guide and controls): its fixed strings, the registry of
- * its twelve items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
+ * its fifteen items and the filter that picks the items this instance has. A framework-free module: it imports nothing, so Node runs it
  * as it is and the strings test reads it.
  *
  * The catalog is the server's (AD-12): `guide.features` is the list of feature ids that Demo.Features.Present gives, in the guide's
  * payload. The page decides nothing about which epics are merged.
- * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompts that the memory item, the reroute item and the incident summary item (when there is no resolved incident to close) send.
+ * - MORE_TO_TRY_TEXTS is the link on the guide's first row, the panel's label and the prompts that the memory item, the reroute item, the partner warning item, the queue watch item and the incident summary item (when there is no resolved incident to close) send.
  * - MORE_TO_TRY_ITEMS is the registry: one entry for each feature id, in the order the panel shows them. `action` names the hand-off
  *   that the button makes (more-to-try.ts): each one uses a control that the page already has.
  * - itemsFor(features) is the registry entries whose id the list holds, in registry order. An id the registry does not know is
@@ -26,6 +26,8 @@ export const MORE_TO_TRY_TEXTS = {
   rememberPrompt: "Remember that the Results partner's contact is Lee.",
   summaryPrompt: 'Show me the incident summary',
   reroutePrompt: 'Reroute the failed orders to OrdersForReview.',
+  partnerPrompt: 'Warn the partner about the delay.',
+  queuePrompt: 'Watch the queue backlogs.',
   items: {
     incidentSummary: {
       label: 'Read the incident summary',
@@ -56,6 +58,18 @@ export const MORE_TO_TRY_TEXTS = {
       lookFor:
         'First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way.',
       button: 'Ask to reroute',
+    },
+    partnerWarning: {
+      label: 'Warn the partner',
+      lookFor:
+        'This asks OcuTalon in the chat to warn the partner about an incident\'s delay, so it needs an incident that isn\'t closed: if you closed the guide\'s incident, do "Reject a fix" first. OcuTalon drafts a short notice from the incident\'s counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox.',
+      button: 'Ask for a partner warning',
+    },
+    queueWatch: {
+      label: 'Watch queue backlogs',
+      lookFor:
+        'This asks OcuTalon in the chat to watch the queue backlogs. Look for the Queue-backlog check under Background checks, with its schedule, last run and result. Every minute it reads the Orders production\'s queues, and when one holds more than 100 messages, or its oldest message has waited over 10 minutes, OcuTalon decides once whether to tell you. On a quiet demo it reads Passed. To stop, ask "Stop watching the queue backlogs."',
+      button: 'Ask to watch queues',
     },
     demoView: {
       label: 'See the page as on your own install',
@@ -99,6 +113,12 @@ export const MORE_TO_TRY_TEXTS = {
         'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
       button: 'Open the Usage page',
     },
+    history: {
+      label: 'Look back at past decisions',
+      lookFor:
+        'On the History page, filter the Decisions tab by outcome, channel, date or fallback, and open a decision to read its reasons, with a link to its trace. The Incidents tab lists your incidents with their state and, once an incident has closed, its summary. If it reads "No decisions yet.", run the guide first.',
+      button: 'Open the History page',
+    },
   },
 } as const;
 
@@ -114,7 +134,7 @@ export const RESOLVED_CHIP = '.chip-resolved';
 export const DISMISS_BUTTON = 'app-incident-dismiss button';
 
 /** The hand-off that an item's control makes. */
-export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat' | 'usage';
+export type MoreToTryAction = 'incidentSummary' | 'persona' | 'suspiciousEmail' | 'rejectFix' | 'reroute' | 'partnerWarning' | 'queueWatch' | 'demoView' | 'memory' | 'memoryCard' | 'documents' | 'heartbeat' | 'usage' | 'history';
 
 /**
  * One item of the panel: the feature id the server lists, the label, the line saying what to look for, the control's text and its hand-off,
@@ -137,6 +157,8 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'suspiciousEmail', ...MORE_TO_TRY_TEXTS.items.suspiciousEmail, action: 'suspiciousEmail', group: 'Safety and settings' },
   { id: 'rejectFix', ...MORE_TO_TRY_TEXTS.items.rejectFix, action: 'rejectFix', group: 'Incidents and fixes' },
   { id: 'reroute', ...MORE_TO_TRY_TEXTS.items.reroute, action: 'reroute', group: 'Incidents and fixes' },
+  { id: 'partnerWarning', ...MORE_TO_TRY_TEXTS.items.partnerWarning, action: 'partnerWarning', group: 'Incidents and fixes' },
+  { id: 'queueWatch', ...MORE_TO_TRY_TEXTS.items.queueWatch, action: 'queueWatch', group: 'Incidents and fixes' },
   { id: 'demoView', ...MORE_TO_TRY_TEXTS.items.demoView, action: 'demoView', group: 'Safety and settings' },
   { id: 'memory', ...MORE_TO_TRY_TEXTS.items.memory, action: 'memory', group: 'Memory and documents' },
   { id: 'memoryCard', ...MORE_TO_TRY_TEXTS.items.memoryCard, action: 'memoryCard', group: 'Memory and documents' },
@@ -144,6 +166,7 @@ export const MORE_TO_TRY_ITEMS: readonly MoreToTryItem[] = [
   { id: 'heartbeat', ...MORE_TO_TRY_TEXTS.items.heartbeat, action: 'heartbeat', group: 'Safety and settings' },
   { id: 'sources', ...MORE_TO_TRY_TEXTS.items.sources, action: 'documents', group: 'Memory and documents' },
   { id: 'usage', ...MORE_TO_TRY_TEXTS.items.usage, action: 'usage', group: 'Usage and history' },
+  { id: 'history', ...MORE_TO_TRY_TEXTS.items.history, action: 'history', group: 'Usage and history' },
 ];
 
 /** The registry entries whose id the server's list holds, in registry order. Unknown ids are ignored, and no list gives none. */

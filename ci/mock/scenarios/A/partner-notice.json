@@ -1,0 +1,12 @@
+{
+  "name": "partner-notice",
+  "match": {
+    "marker": "partner-notice"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Orders sent from your feed have been failing, and the first and last failures are shown in the facts. The cause appears to be a change in the date format of the orders. We are looking into it and will keep you informed."
+    }
+  ]
+}

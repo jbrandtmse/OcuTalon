@@ -1,0 +1,23 @@
+{
+  "name": "queue-watch-ask",
+  "match": {
+    "prompt": "Watch the queue backlogs.",
+    "mockkey": "chat"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "start_watch",
+        "input": {
+          "name": "queue backlogs",
+          "kind": "queues"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "OcuTalon now checks the queues every minute and looks at any queue that backs up past its threshold."
+    }
+  ]
+}

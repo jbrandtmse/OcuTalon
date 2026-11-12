@@ -488,7 +488,7 @@ Method TestIsolationEveryRowKind()
 	Do ..ReadAll(b, .seenB, rb("decision"), rb("deliveryapproval"), rb("itemid"), rb("decisionitem"))
 	Do ..ReadAll(b, .crossB, ra("decision"), ra("deliveryapproval"), ra("itemid"), ra("decisionitem"))
 	Do ..ReadAll(a, .crossA, rb("decision"), rb("deliveryapproval"), rb("itemid"), rb("decisionitem"))
-	Set kinds = $ListBuild($ListBuild("turns", "turns"), $ListBuild("turnqueue", "queued"), $ListBuild("lastreplied", "replied"), $ListBuild("turnbyclient", "queued"), $ListBuild("turnofitem", "turn"), $ListBuild("reminders", "reminder"), $ListBuild("checks", "check"), $ListBuild("decisions", "decision"), $ListBuild("incidents", "incident"), $ListBuild("approvals", "approval"), $ListBuild("pairing", "pairing"), $ListBuild("recentturns", "recentturns"), $ListBuild("recentincidents", "incident"), $ListBuild("decision", "decision"), $ListBuild("turnusage", "decision"), $ListBuild("runusage", "decision"), $ListBuild("rundecisions", "decision"), $ListBuild("recentnotices", "notice"), $ListBuild("recentphone", "phone"), $ListBuild("recentmail", "mail"), $ListBuild("decisionofitem", "decision"), $ListBuild("delivery", "notice"))
+	Set kinds = $ListBuild($ListBuild("turns", "turns"), $ListBuild("turnqueue", "queued"), $ListBuild("lastreplied", "replied"), $ListBuild("turnbyclient", "queued"), $ListBuild("turnofitem", "turn"), $ListBuild("reminders", "reminder"), $ListBuild("checks", "check"), $ListBuild("decisions", "decision"), $ListBuild("incidents", "incident"), $ListBuild("approvals", "approval"), $ListBuild("pairing", "pairing"), $ListBuild("recentturns", "recentturns"), $ListBuild("recentincidents", "incident"), $ListBuild("historydecisions", "decision"), $ListBuild("historyincidents", "incident"), $ListBuild("decision", "decision"), $ListBuild("turnusage", "decision"), $ListBuild("runusage", "decision"), $ListBuild("rundecisions", "decision"), $ListBuild("recentnotices", "notice"), $ListBuild("recentphone", "phone"), $ListBuild("recentmail", "mail"), $ListBuild("decisionofitem", "decision"), $ListBuild("delivery", "notice"))
 	Set position = 0
 	While $ListNext(kinds, position, pair) {
 		Set read = $List(pair, 1), kind = $List(pair, 2)
@@ -497,6 +497,7 @@ Method TestIsolationEveryRowKind()
 		Do $$$AssertTrue(seenB(read) '[ ra(kind), "B's "_read_" holds none of A's")
 		Do $$$AssertTrue(seenA(read) '[ rb(kind), "A's "_read_" holds none of B's")
 	}
+	Do $$$AssertEquals(seenA("historydecisiontotal")_"|"_seenB("historydecisiontotal")_"|"_seenA("historyincidenttotal")_"|"_seenB("historyincidenttotal"), "1|1|1|1", "each session's history counts hold its own one decision and one incident")
 	Do $$$AssertEquals(seenA("runusage")_"|"_seenA("rundecisions"), ra("decision")_"|"_ra("decision"), "A's usage and decisions since a time are its own, with one usage row and one decision")
 	For read = "decision", "turnusage" {
 		Do $$$AssertEquals(crossB(read), "", "B reads nothing of A's decision through "_read)
@@ -1277,6 +1278,18 @@ Method ReadAll(sessionRef As %String, Output seen, decisionRef As %String = "", 
 	Set rows = ##class(OcuTalon.Data.Ownership).Decisions(sessionRef, 20, .sc)
 	Do $$$AssertStatusOK(sc, "Decisions reads")
 	Set seen("decisions") = ..Refs(rows)
+	Set rows = ##class(OcuTalon.Data.Ownership).HistoryDecisions(sessionRef, , , , , 1, .pages, .sc)
+	Do $$$AssertStatusOK(sc, "HistoryDecisions reads")
+	Set seen("historydecisions") = ..Refs(rows)
+	Set rows = $ClassMethod("OcuTalon.Test.Data.OwnershipProbe", "Call", "historyDecisionTotal", sessionRef, .sc, "", "", "", "", "", "", "", "", "", "")
+	Do $$$AssertStatusOK(sc, "the history decision count reads")
+	Set seen("historydecisiontotal") = rows.GetAt(1).total
+	Set rows = ##class(OcuTalon.Data.Ownership).HistoryIncidents(sessionRef, 1, .pages, .sc)
+	Do $$$AssertStatusOK(sc, "HistoryIncidents reads")
+	Set seen("historyincidents") = ..Refs(rows)
+	Set rows = $ClassMethod("OcuTalon.Test.Data.OwnershipProbe", "Call", "historyIncidentTotal", sessionRef, .sc, 1)
+	Do $$$AssertStatusOK(sc, "the history incident count reads")
+	Set seen("historyincidenttotal") = rows.GetAt(1).total
 	Set rows = ##class(OcuTalon.Data.Ownership).RecentTurns(sessionRef, 100, .sc)
 	Do $$$AssertStatusOK(sc, "RecentTurns reads")
 	Set seen("recentturns") = ..Refs(rows)

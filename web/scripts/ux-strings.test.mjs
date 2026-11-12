@@ -71,6 +71,7 @@ const IMPORTED = [
   ['chat/noise-view.ts', ['NOISE_TEXTS']],
   ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS', 'ANSWER_WORDS']],
   ['usage/usage-view.ts', ['USAGE_TEXTS']],
+  ['history/history-view.ts', ['HISTORY_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -174,6 +175,15 @@ for (const [name, text] of [...imported, ...fromSource, ...fromTemplates]) {
  */
 const SOURCES = {
   ux: [
+    'History',
+    'Decisions',
+    'Incidents',
+    'Outcome',
+    'Date',
+    'No decisions match these filters.',
+    'Look back at past decisions',
+    'On the History page, filter the Decisions tab by outcome, channel, date or fallback, and open a decision to read its reasons, with a link to its trace. The Incidents tab lists your incidents with their state and, once an incident has closed, its summary. If it reads "No decisions yet.", run the guide first.',
+    'Open the History page',
     'Usage',
     'See tokens and cost',
     'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
@@ -459,6 +469,13 @@ const SOURCES = {
     'First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way.',
     'Ask to reroute',
     'Reroute the failed orders to OrdersForReview.',
+    'Warn the partner',
+    'This asks OcuTalon in the chat to warn the partner about an incident\'s delay, so it needs an incident that isn\'t closed: if you closed the guide\'s incident, do "Reject a fix" first. OcuTalon drafts a short notice from the incident\'s counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox.',
+    'Ask for a partner warning',
+    'Warn the partner about the delay.',
+    'Watch queue backlogs',
+    'This asks OcuTalon in the chat to watch the queue backlogs. Look for the Queue-backlog check under Background checks, with its schedule, last run and result. Every minute it reads the Orders production\'s queues, and when one holds more than 100 messages, or its oldest message has waited over 10 minutes, OcuTalon decides once whether to tell you. On a quiet demo it reads Passed. To stop, ask "Stop watching the queue backlogs."',
+    'Ask to watch queues',
     'See the page as on your own install',
     'The demo guide, Break the feed and the Simulated devices are hidden, as on your own install. Turn Demo view back on in the top bar to return.',
     'Show the page without the demo',
@@ -662,9 +679,29 @@ const SOURCES = {
     ],
     'Story 34.2: Add and remove documents on a Documents page (the page title "Documents \u00b7 OcuTalon")': ['Documents \u00b7 OcuTalon'],
     'Story 37.2: See tokens and cost over time on the Usage page (the page title "Usage \u00b7 OcuTalon", epics.md)': ['Usage \u00b7 OcuTalon'],
+    'Story 25.2: Filter past decisions and incidents on the History page (AC 1, UX-DR22: the page title "History \u00b7 OcuTalon")': ['History \u00b7 OcuTalon'],
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 25.2 rulings at the spec gate 2026-11-10 (the Contest Planner under the owner\'s delegation, spec gate of Story 25.2, relayed by the orchestrator: PUBLIC TEXT approved as proposed: the Any outcome and Any channel options, the three Fallback options, Clear filters, the Noticed and Closed times, the two no-summary lines, the pager texts and the names of the two pagers, the empty line of no incidents, and the error line; the tab names, the Outcome and Date labels, the two empty lines of decisions and the More to try item sit under ux, because EXPERIENCE.md holds them)': [
+      'Any outcome',
+      'Any channel',
+      'All decisions',
+      'Fallback only',
+      'Without fallback',
+      'Clear filters',
+      'Noticed {time}',
+      'Closed {time}',
+      'No summary yet. OcuTalon writes one when the incident closes.',
+      'No summary was written for this incident.',
+      'Previous page',
+      'Next page',
+      'Page {page} of {pages}',
+      'Decision pages',
+      'Incident pages',
+      'No incidents yet.',
+      "Couldn't load your history.",
+    ],
     'Story 37.2 rulings at the spec gate 2026-11-10 (the Contest Planner under the owner\'s delegation, prompts/epic-37-rulings-372.md: the Usage page\'s Range and Group by labels, the range options, the Day grouping, the Tokens and cost, Largest request per day and Largest request (estimated) headings, the largest-request cell, the error line, the agent name Chat summaries, the channel names Web chat and Slack, and the includes estimates marker; the More to try item\'s label, look-for and control sit under ux, because EXPERIENCE.md holds them)': [
       'Range',
       'Last 7 days',
@@ -696,6 +733,15 @@ const SOURCES = {
       '{count} copies to {to}; the originals stay unchanged.',
       '1 copy to {to}; the original stays unchanged.',
       'Only an approver for fixes can answer this request.',
+    ],
+    'Story 23.5 ruling (the Contest Planner under the owner\'s delegation, 2026-11-09, relayed by the orchestrator: Public Text, Web (Lane B): the title of the partner delay notice request, its To line and note, and its result bands; each names the Simulated mailbox or the draft, and none says that an email was sent)': [
+      'Send a delay notice',
+      'To: {recipients}',
+      'Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox.',
+      'Sent to the Simulated mailbox.',
+      'Sent to the Simulated mailbox for {completed} of {total} contacts.',
+      "Approved and kept as a draft: email delivery isn't set up yet.",
+      'Not sent: {reason}.',
     ],
     'Story 18.4 ruling planner-2026-11-08-18.4 (the Contest Planner under the owner\'s delegation, 2026-11-08, relayed by the orchestrator: the digest card\'s disclosure "What I checked ({n})", the line "Marked as handled at {time}", which the catalog gives (the Got it button is the UX\'s and sits under ux); "Saved for the daily digest" is the UX\'s and sits under ux)': [
       'What I checked ({n})',
@@ -809,6 +855,10 @@ const SOURCES = {
     ],
     'Story 30.5 ruling U-182 (AD-16 as amended: the text of result.stoppedPartway, a resend that stops at the first copy that errs; the page renders the catalog\'s text)': [
       "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+    ],
+    'Story 23.7 ruling (Contest Planner, Public Text 2026-11-11, the queue-backlog check: the rail\'s schedule line of its row and the prompt that the More to try item sends; the item\'s label, look-for and control sit under ux, because EXPERIENCE.md holds them)': [
+      'A check every minute',
+      'Watch the queue backlogs.',
     ],
     'Story 23.2 ruling (Contest Planner, Public Text 2026-11-09, texts of the result.item* and result.rerouted catalog keys, result.itemSuspended as re-ruled on 2026-11-10 for DW-1068; its DW-1067 ruling of 2026-11-10 has the request card show them in its result band, rendered from the catalog)': [
       "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal.",

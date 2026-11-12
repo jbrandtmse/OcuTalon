@@ -1,8 +1,8 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 139 keys of OcuTalon.Msg.Catalog.Core and the 105 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 140 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
-///   - OneForms: for each of the 17 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
+///   - OneForms: for each of the 20 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
 ///   - Reasons: the plain-words text of each of the 12 Msg.Enum FALLBACKREASON values;
 ///   - Fixtures: for every key, its slots (the UJ-1 values) and the exact text it renders on the message channels, and its
@@ -77,15 +77,17 @@ Method TestEntries()
 	Set keys = ..Read("Keys")
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
-	// Story 41.15 (Contest Planner ruling 2026-11-10): memory.learnedSaved adds one key to Story 23.2's 138 here, 139 in all.
-	Do $$$AssertEquals(keys.core.%Size(), 139, "the expected Core list has 139 keys")
+	// Story 41.15 (Contest Planner ruling 2026-11-10): memory.learnedSaved adds one key to Story 23.2's 138 here; with Story 23.5's press.approvedPartner (plain union at the integrate-forward), 140 in all.
+	Do $$$AssertEquals(keys.core.%Size(), 140, "the expected Core list has 140 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
 	// Story 23.6 (Contest Planner ruling 2026-11-09, AD-33 exception): the 26 summary.* keys, with Epic 35's mcp.* keys (plain union at the integrate-forward), take the count to 90 here.
-	Do $$$AssertEquals(keys.watch.%Size(), 105, "the expected Watch list has 105 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 139 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 105 keys")
+	// Story 23.5 (Contest Planner ruling 2026-11-09): the 11 keys of the partner delay notice (incident.partnerRequest; result.partnerSent, partnerSentSome, partnerNotSent, partnerKept, partnerNotDrafted; summary.requestedPartner, partnerSent, partnerKept, partnerNotSent; partner.subject) take the Watch count to 116, and press.approvedPartner takes the Core count to 139 (140 with Story 41.15's memory.learnedSaved).
+	// Story 23.7 (Contest Planner Public Text ruling 2026-11-11): the key watch.queueBacklog takes the Watch count to 117.
+	Do $$$AssertEquals(keys.watch.%Size(), 117, "the expected Watch list has 117 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 140 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 117 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -123,7 +125,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 207 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 220 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system,heartbeat", "five Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -472,11 +474,12 @@ Method TestWebWording()
 			If 'entry.%IsDefined("web") Continue
 			Set inCatalog(key) = ""
 			If key [ "incident." {
-				Do $$$AssertEquals($Length(entry.text, " Approve?"), 2, key_" asks to approve once")
-				Do $$$AssertEquals(entry.web, $Replace(entry.text, " Approve?", ""), key_" web wording is the text without ' Approve?'")
+				Set ask = $Select(key = "incident.partnerRequest": " Approve sending it?", 1: " Approve?")
+				Do $$$AssertEquals($Length(entry.text, ask), 2, key_" asks to approve once")
+				Do $$$AssertEquals(entry.web, $Replace(entry.text, ask, ""), key_" web wording is the text without '"_ask_"'")
 				If entry.%IsDefined("one") {
-					Do $$$AssertEquals($Length(entry.one.text, " Approve?"), 2, key_" one form asks to approve once")
-					Do $$$AssertEquals(entry.one.web, $Replace(entry.one.text, " Approve?", ""), key_" one form web wording is its text without ' Approve?'")
+					Do $$$AssertEquals($Length(entry.one.text, ask), 2, key_" one form asks to approve once")
+					Do $$$AssertEquals(entry.one.web, $Replace(entry.one.text, ask, ""), key_" one form web wording is its text without '"_ask_"'")
 				}
 			} Else {
 				Do $$$AssertEquals($Extract(entry.text, $Length(entry.text)), ".", key_" ends its message text with a period")
@@ -488,9 +491,35 @@ Method TestWebWording()
 	While iterator.%GetNext(.key, .fixture) {
 		If fixture.%IsDefined("web") Set inFixtures(key) = ""
 	}
-	Set wanted = "answered.approved,answered.approvedBy,incident.laterRequest,incident.laterRequestChecked,incident.laterRequestEitherWay,incident.laterRequestEitherWayChecked,incident.rerouteRequest,incident.resumeRequest,incident.suspendRequest,incident.withFix,incident.withFixChecked,incident.withFixEitherWay,incident.withFixEitherWayChecked"
-	Do $$$AssertEquals(..Names(.inCatalog), wanted, "exactly thirteen catalog entries have a web wording")
-	Do $$$AssertEquals(..Names(.inFixtures), wanted, "exactly thirteen fixtures have a web text")
+	Set wanted = "answered.approved,answered.approvedBy,incident.laterRequest,incident.laterRequestChecked,incident.laterRequestEitherWay,incident.laterRequestEitherWayChecked,incident.partnerRequest,incident.rerouteRequest,incident.resumeRequest,incident.suspendRequest,incident.withFix,incident.withFixChecked,incident.withFixEitherWay,incident.withFixEitherWayChecked"
+	Do $$$AssertEquals(..Names(.inCatalog), wanted, "exactly fourteen catalog entries have a web wording")
+	Do $$$AssertEquals(..Names(.inFixtures), wanted, "exactly fourteen fixtures have a web text")
+}
+
+/// AC16 (Story 23.5): none of the partner delay notice's texts says or implies that a real email was sent. Each result that says the notice went somewhere names the Simulated mailbox or the
+/// draft, and the only sentence that holds "email was sent" is the one that denies it ("No real email was sent.").
+Method TestPartnerTextsNameTheSimulatedMailbox()
+{
+	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
+	Set keys = "incident.partnerRequest,result.partnerSent,result.partnerSentSome,result.partnerNotSent,result.partnerKept,result.partnerNotDrafted,summary.requestedPartner,summary.partnerSent,summary.partnerKept,summary.partnerNotSent,partner.subject"
+	For i = 1:1:$Length(keys, ",") {
+		Set key = $Piece(keys, ",", i)
+		Set entry = watch.%Get(key)
+		Do $$$AssertTrue($IsObject(entry), key_" is in the catalog")
+		If '$IsObject(entry) Continue
+		Set all = entry.text_" "_entry.%Get("web")_" "_$Select(entry.%IsDefined("one"): entry.one.text_" "_entry.one.%Get("web"), 1: "")
+		Set rest = $Replace(all, "No real email was sent.", "")
+		For phrase = "email was sent", "emailed", "by email", "sent an email", "email has been sent", "email delivery is on" {
+			Do $$$AssertEquals($Find($ZConvert(rest, "L"), phrase), 0, key_" holds no '"_phrase_"' outside the sentence that denies it")
+		}
+	}
+	For key = "result.partnerSent", "result.partnerSentSome", "summary.partnerSent", "partner.subject", "incident.partnerRequest" {
+		Do $$$AssertTrue(watch.%Get(key).text [ "Simulated", key_" names the Simulated mailbox")
+	}
+	Do $$$AssertTrue(watch.%Get("result.partnerKept").text [ "kept as a draft", "result.partnerKept says that the notice is kept as a draft")
+	Do $$$AssertTrue(watch.%Get("summary.partnerKept").text [ "kept as a draft", "and so does summary.partnerKept")
+	Do $$$AssertTrue(watch.%Get("result.partnerSent").text [ "No real email was sent.", "a sent result says that no real email was sent")
+	Do $$$AssertTrue(watch.%Get("result.partnerSentSome").text [ "No real email was sent.", "so does a partly sent one")
 }
 
 /// The characters of the texts: ASCII apart from U+2026 in banner.reconnecting and U+00B7 in signIn.title, which are the UX's
@@ -570,7 +599,7 @@ Method TestCountOfOneForms()
 		}
 	}
 	Do $$$AssertEquals(..Names(.carriers), ..SortedKeys(forms), "exactly the entries of the OneForms block carry a one form")
-	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 17, "17 entries carry a one form")
+	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 20, "20 entries carry a one form")
 	Set iterator = forms.%GetIterator()
 	While iterator.%GetNext(.key, .form) {
 		For channel = "phone", "mailbox", "telegram", "web" {
@@ -988,6 +1017,7 @@ XData Keys [ MimeType = application/json ]
   "press.approvedSuspend",
   "press.approvedResume",
   "press.approvedReroute",
+  "press.approvedPartner",
   "answered.approved",
   "answered.approvedBy",
   "answered.rejected",
@@ -1213,11 +1243,23 @@ XData Keys [ MimeType = application/json ]
   "summary.itemSuspended",
   "summary.itemResumed",
   "summary.itemNotChanged",
+  "incident.partnerRequest",
+  "result.partnerSent",
+  "result.partnerSentSome",
+  "result.partnerNotSent",
+  "result.partnerKept",
+  "result.partnerNotDrafted",
+  "summary.requestedPartner",
+  "summary.partnerSent",
+  "summary.partnerKept",
+  "summary.partnerNotSent",
+  "partner.subject",
   "mcp.serverUnavailable",
   "mcp.toolShadowsBuiltIn",
   "mcp.toolChanged",
   "mcp.replayToolChanged",
-  "mcp.sourceStopped"
+  "mcp.sourceStopped",
+  "watch.queueBacklog"
  ]
 }
 }
@@ -1228,7 +1270,7 @@ XData Gaps [ MimeType = application/json ]
 []
 }
 
-/// The 9 entries with a count-of-one form. slot is the form's count slot, slots are the entry's slots with that slot at 1, text
+/// The entries with a count-of-one form. slot is the form's count slot, slots are the entry's slots with that slot at 1, text
 /// is the exact text on the message channels and web the page wording where it differs, plural is the fragment that the
 /// entry's own text keeps for any other count ({n} stands for the slot's value) and singular a fragment of the form's text that the
 /// entry's own text never holds.
@@ -1314,6 +1356,20 @@ XData OneForms [ MimeType = application/json ]
   "plural": "All {n} orders were rerouted to OrdersForReview and completed there. The originals stay unchanged.",
   "singular": "The order was rerouted to OrdersForReview and completed there. The original stays unchanged."
  },
+ "result.partnerSent": {
+  "slot": "count",
+  "slots": {"count": 1},
+  "text": "The delay notice went to the Simulated mailbox for the partner contact. No real email was sent.",
+  "plural": "for all {n} partner contacts",
+  "singular": "for the partner contact"
+ },
+ "summary.requestedPartner": {
+  "slot": "count",
+  "slots": {"time": "2026-10-16T18:12:00Z", "count": 1},
+  "text": "14:12 ET: OcuTalon asked for approval to send a delay notice to the partner contact.",
+  "plural": "to {n} partner contacts",
+  "singular": "to the partner contact"
+ },
  "result.allThrough": {
   "slot": "count",
   "slots": {"count": 1, "itemNoun": {"one": "order", "other": "orders"}},
@@ -1362,6 +1418,13 @@ XData OneForms [ MimeType = application/json ]
   "text": "The resend stopped when OcuTalon restarted: 49 of 50 orders went through. The other one needs a new approval.",
   "plural": "The other {n} need a new approval.",
   "singular": "The other one needs a new approval."
+ },
+ "watch.queueBacklog": {
+  "slot": "count",
+  "slots": {"itemName": "QueueSink", "production": "Orders", "count": 1, "time": "2026-10-16T18:12:00Z", "oldestAt": "2026-10-16T18:02:00Z"},
+  "text": "The QueueSink queue in the Orders production had 1 message waiting at 14:12 ET, since 14:02 ET.\nWhy now: you asked me to watch queue backlogs.",
+  "plural": "{n} messages waiting",
+  "singular": "1 message waiting"
  }
 }
 }
@@ -1420,6 +1483,7 @@ XData Fixtures [ MimeType = application/json ]
  "press.approvedSuspend": {"slots": {"item": "OrdersToWarehouse"}, "text": "Approved. Suspending OrdersToWarehouse."},
  "press.approvedResume": {"slots": {"item": "OrdersToWarehouse"}, "text": "Approved. Resuming OrdersToWarehouse."},
  "press.approvedReroute": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "to": "OrdersForReview"}, "text": "Approved. Rerouting 50 orders to OrdersForReview."},
+ "press.approvedPartner": {"slots": {}, "text": "Approved. Sending the delay notice to the Simulated mailbox."},
  "answered.approved": {"slots": {"channel": "telegram", "time": "2026-10-16T18:15:00Z"}, "text": "Approved from Telegram at 14:15 ET.", "web": "Approved from Telegram at 14:15 ET"},
  "answered.approvedBy": {"slots": {"user": "sam", "channel": "web", "time": "2026-10-16T18:15:00Z"}, "text": "Approved by sam from the web chat at 14:15 ET.", "web": "Approved by sam from the web chat at 14:15 ET"},
  "answered.rejected": {"slots": {"channel": "phone", "time": "2026-10-16T18:15:00Z"}, "text": "Rejected from the simulated phone at 14:15 ET. Nothing was changed."},
@@ -1613,11 +1677,23 @@ XData Fixtures [ MimeType = application/json ]
  "summary.itemSuspended": {"slots": {"time": "2026-10-16T18:12:00Z", "item": "OrdersToWarehouse"}, "text": "14:12 ET: OrdersToWarehouse was suspended."},
  "summary.itemResumed": {"slots": {"time": "2026-10-16T18:12:00Z", "item": "OrdersToWarehouse"}, "text": "14:12 ET: OrdersToWarehouse was resumed."},
  "summary.itemNotChanged": {"slots": {"time": "2026-10-16T18:12:00Z", "item": "OrdersToWarehouse"}, "text": "14:12 ET: OrdersToWarehouse was not changed."},
+ "incident.partnerRequest": {"slots": {"recipients": "Results Partner IT <it@results-partner.example>", "notice": "Orders from your feed failed between 14:12 and 14:15. We are looking into it."}, "text": "I drafted a delay notice about this incident for Results Partner IT <it@results-partner.example>. Approve sending it?\n\nDry run: the notice below would go to the Simulated mailbox, not to a real inbox. The recipients are simulated partner contacts.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.", "web": "I drafted a delay notice about this incident for Results Partner IT <it@results-partner.example>.\n\nDry run: the notice below would go to the Simulated mailbox, not to a real inbox. The recipients are simulated partner contacts.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page."},
+ "result.partnerSent": {"slots": {"count": 3}, "text": "The delay notice went to the Simulated mailbox for all 3 partner contacts. No real email was sent."},
+ "result.partnerSentSome": {"slots": {"completed": 2, "total": 3, "reason": "Partner contact 3 is no longer a partner contact of Orders"}, "text": "The delay notice went to the Simulated mailbox for 2 of 3 partner contacts. Not sent to the rest: Partner contact 3 is no longer a partner contact of Orders. No real email was sent."},
+ "result.partnerNotSent": {"slots": {"reason": "OcuTalon couldn't deliver the delay notice"}, "text": "The delay notice was not sent: OcuTalon couldn't deliver the delay notice. It needs a new approval."},
+ "result.partnerKept": {"slots": {}, "text": "The delay notice is approved and kept as a draft: email delivery isn't set up yet, so nothing was sent."},
+ "result.partnerNotDrafted": {"slots": {}, "text": "I couldn't draft the delay notice just now, so nothing was raised or sent. You can ask me again."},
+ "summary.requestedPartner": {"slots": {"time": "2026-10-16T18:12:00Z", "count": 3}, "text": "14:12 ET: OcuTalon asked for approval to send a delay notice to 3 partner contacts."},
+ "summary.partnerSent": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: the delay notice went to the Simulated mailbox."},
+ "summary.partnerKept": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: the delay notice was approved and kept as a draft."},
+ "summary.partnerNotSent": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: the delay notice was not sent."},
+ "partner.subject": {"slots": {"recipient": "Results Partner IT <it@results-partner.example>"}, "text": "Simulated delay notice to Results Partner IT <it@results-partner.example>"},
  "mcp.serverUnavailable": {"slots": {"server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "I couldn't connect to the MCP server Tickets at 14:15 ET, so I can't use its tools."},
  "mcp.toolShadowsBuiltIn": {"slots": {"server": "Tickets", "tool": "lookup"}, "text": "The MCP server Tickets offers a tool called 'lookup', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed."},
  "mcp.toolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval."},
  "mcp.replayToolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed."},
  "mcp.sourceStopped": {"slots": {"source": "Open tickets", "tool": "lookup", "server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "The source Open tickets stopped polling at 14:15 ET, because its tool lookup on Tickets is no longer Read-only. Your digest lists it as not checked."},
+ "watch.queueBacklog": {"slots": {"itemName": "QueueSink", "production": "Orders", "count": 105, "time": "2026-10-16T18:12:00Z", "oldestAt": "2026-10-16T18:02:00Z"}, "text": "The QueueSink queue in the Orders production had 105 messages waiting at 14:12 ET, the oldest since 14:02 ET.\nWhy now: you asked me to watch queue backlogs."},
  "settings.emailHeading": {"slots": {}, "text": "Email"},
  "settings.emailHelp": {"slots": {}, "text": "Connect your mailbox. OcuTalon decides on each email that arrives after you connect it, and leaves your mail on the server."},
  "settings.emailAddress": {"slots": {}, "text": "Your email address"},

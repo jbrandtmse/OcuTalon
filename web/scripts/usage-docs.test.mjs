@@ -62,10 +62,10 @@ describe('EXPERIENCE.md, the More to try usage item', () => {
   const number = Number((line ?? '').match(/^    - Item (\d+)\./)?.[1] ?? NaN);
   const numbers = lines.map((one) => one.match(/^    - Item (\d+)\. /)?.[1]).filter(Boolean).map(Number);
 
-  it('is the usage item, the registry\'s last entry and the last numbered item: label, look-for and control', () => {
+  it('is the usage item, the registry\'s entry before the history item and the numbered item before it: label, look-for and control', () => {
     assert.ok(line, 'EXPERIENCE.md has a numbered entry with the usage label');
-    assert.equal(MORE_TO_TRY_ITEMS.at(-1)?.id, 'usage', 'the registry\'s last entry is the usage item');
-    assert.equal(number, Math.max(...numbers), 'the usage item is the last numbered item');
+    assert.equal(MORE_TO_TRY_ITEMS.at(-2)?.id, 'usage', 'the registry\'s next to last entry is the usage item (Story 25.2 appends the history item)');
+    assert.equal(number, Math.max(...numbers) - 1, 'the usage item is the numbered item before the last');
     assert.ok(line.includes(`Label "${usage.label}". Look for: "${usage.lookFor}"`), 'its label and look-for');
     assert.ok(line.includes(`Control: "${usage.button}".`), 'its control');
   });

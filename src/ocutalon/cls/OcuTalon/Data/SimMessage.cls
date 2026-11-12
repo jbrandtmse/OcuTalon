@@ -1,6 +1,6 @@
 /// A message on the simulated phone or mailbox (AD-14). Lane B. A phone message (Kind phone) is recorded by SimPhoneOut with the
 /// text as the device shows it; the mailbox's rows (Kind mailbox) carry the email's Sender and Subject. An incoming email (by
-/// SimMailboxIn) carries an ItemId; sent mail (by SimMailboxOut) has none. A phone message of kind incident or approval carries
+/// SimMailboxIn) carries an ItemId; sent mail (by SimMailboxOut) has none; the sent mail of an approved delay notice (Story 23.5) carries the ApprovalRef of its request. A phone message of kind incident or approval carries
 /// the ApprovalRef of the request it asks for, and the Answer line that replaced its Approve and Reject once the request was
 /// answered. A phone message of kind tellnow carries the DecisionRef of its notice, and the Answer line that replaced its Got it once the notice
 /// was marked handled (Story 18.4). A row written before Sender, Subject, ApprovalRef, Answer and DecisionRef existed reads them as empty.
@@ -37,7 +37,7 @@ Property Sender As %String(MAXLEN = 1000);
 /// The email's subject; empty for a phone row.
 Property Subject As %String(MAXLEN = 1000);
 
-/// The approval request that a phone message asks for; empty for any other message.
+/// The approval request that a phone message asks for, or that a sent delay notice of the mailbox carries (Story 23.5); empty for any other message.
 Property ApprovalRef As %String(MAXLEN = 22);
 
 /// The answered line, in message form, that replaced the phone message's Approve and Reject; empty while it has them.

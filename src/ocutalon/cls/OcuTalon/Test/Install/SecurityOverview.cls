@@ -248,7 +248,7 @@ Method TestToolResourcesCell()
 }
 
 /// The fix kinds are every non-abstract class of the package OcuTalon.Fix.Kind, each row has the kind's NAME and RESOURCES, and the table shows
-/// repair_resend with %Ens_MessageResend:U.
+/// repair_resend with %Ens_MessageResend:U and partner_warning (Story 23.5) as risky with no resources ("none").
 Method TestFixKindRows()
 {
 	Set sc = $$GetAllDerivedClasses^%occLibrary("OcuTalon.Fix.Kind", .derived)
@@ -283,7 +283,7 @@ Method TestFixKindRows()
 	While iterator.%GetNext(, .row) {
 		Do $$$AssertEquals(row.classification, "risky", row.class_": every fix kind is risky")
 	}
-	Set expectedRows = $ListBuild("| `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | risky | `%Ens_MessageResend:U` |", "| `OcuTalon.Fix.Kind.Reroute` | `reroute` | risky | `%Ens_MessageResend:U` |", "| `OcuTalon.Fix.Kind.ResumeItem` | `resume_item` | risky | `%Ens_ConfigItemRun:U` |", "| `OcuTalon.Fix.Kind.SuspendItem` | `suspend_item` | risky | `%Ens_ConfigItemRun:U` |")
+	Set expectedRows = $ListBuild("| `OcuTalon.Fix.Kind.PartnerWarning` | `partner_warning` | risky | none |", "| `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | risky | `%Ens_MessageResend:U` |", "| `OcuTalon.Fix.Kind.Reroute` | `reroute` | risky | `%Ens_MessageResend:U` |", "| `OcuTalon.Fix.Kind.ResumeItem` | `resume_item` | risky | `%Ens_ConfigItemRun:U` |", "| `OcuTalon.Fix.Kind.SuspendItem` | `suspend_item` | risky | `%Ens_ConfigItemRun:U` |")
 	Set position = 0
 	While $ListNext(expectedRows, position, expectedRow) {
 		Do $$$AssertTrue(..HasLine(sections("fix-kinds"), expectedRow), "the table holds "_expectedRow)

@@ -49,10 +49,13 @@ const cardTemplate = literal(card, 'template');
 const cardStyles = literal(card, 'styles');
 const panelTemplate = literal(panel, 'template');
 const panelStyles = literal(panel, 'styles');
+const chip = file('incident-state-chip.ts');
+const chipTemplate = literal(chip, 'template');
+const chipStyles = literal(chip, 'styles');
 
 describe('the scan', () => {
   it('reads the two components and the view model', () => {
-    assert.deepEqual(files.map((one) => one.name).sort(), ['dismissals.ts', 'evidence-panel.ts', 'incident-card.ts', 'incident-dismiss.ts', 'incident-view.ts']);
+    assert.deepEqual(files.map((one) => one.name).sort(), ['dismissals.ts', 'evidence-panel.ts', 'incident-card.ts', 'incident-dismiss.ts', 'incident-state-chip.ts', 'incident-view.ts']);
   });
 });
 
@@ -109,7 +112,7 @@ describe('the texts', () => {
     const order = ['stateText', 'view().time', 'view().headline', 'view().more', 'view().causeSentence', 'view().evidenceLine', 'view().fixSentence', 'view().notice', 'texts.failures', 'line', 'view().fixingLine'];
     let last = -1;
     for (const name of order) {
-      const at = cardTemplate.indexOf(`{{ ${name} }}`);
+      const at = cardTemplate.indexOf(name === 'stateText' ? '[text]="stateText"' : `{{ ${name} }}`);
       assert.ok(at > last, `{{ ${name} }} is printed, below the one before`);
       last = at;
     }
@@ -156,12 +159,14 @@ describe('the styles', () => {
       chips.add(incidentView({ ref: 'X', state }, { decisions: [], nowMs: 0, messageTime: () => '', topTime: () => '', itemTime: () => '', result: () => undefined, reasonText: () => '' }).chip);
     }
     assert.deepEqual([...chips].sort(), ['awaiting-approval', 'closed', 'fixing', 'open', 'resolved']);
-    assert.match(cardTemplate, /\[class\]="'chip chip-' \+ view\(\)\.chip"/);
-    for (const chip of chips) {
-      const declarations = rule(cardStyles, `.chip-${chip}`);
-      assert.ok(declarations, `.chip-${chip} has a rule`);
-      assert.ok(declarations.includes(`background: var(--incident-state-${chip}-background);`), `.chip-${chip} reads its own background`);
-      assert.ok(declarations.includes(`color: var(--incident-state-${chip}-foreground);`), `.chip-${chip} reads its own foreground`);
+    assert.match(cardTemplate, /<app-incident-state-chip \[chip\]="view\(\)\.chip" \[text\]="stateText" \/>/, 'the card draws the shared chip');
+    assert.match(chipTemplate, /\[class\]="'chip chip-' \+ chip\(\)"/);
+    assert.equal(rule(cardStyles, '.chip'), undefined, 'the card keeps no chip rule of its own');
+    for (const name of chips) {
+      const declarations = rule(chipStyles, `.chip-${name}`);
+      assert.ok(declarations, `.chip-${name} has a rule`);
+      assert.ok(declarations.includes(`background: var(--incident-state-${name}-background);`), `.chip-${name} reads its own background`);
+      assert.ok(declarations.includes(`color: var(--incident-state-${name}-foreground);`), `.chip-${name} reads its own foreground`);
     }
   });
 

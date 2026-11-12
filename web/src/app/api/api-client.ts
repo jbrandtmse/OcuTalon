@@ -28,6 +28,7 @@ import type {
   StateSnapshot,
   UnpairDone,
 } from './api-types';
+import type { HistoryDecisionsResponse, HistoryFilters, HistoryIncidentsResponse } from './history-types';
 import type { HeartbeatPut, HeartbeatSaved, HeartbeatState } from './heartbeat-types';
 import type { PersonaPut, PersonaSaved, PersonaState } from './persona-types';
 
@@ -178,6 +179,27 @@ export class ApiClient {
   /** The session's own usage over the last 1, 7 or 30 local days, summed into buckets (Story 37.2): the Usage page's read. */
   usage(days: import('./usage-types').UsageDays): Observable<import('./usage-types').UsageResponse> {
     return this.http.get<import('./usage-types').UsageResponse>(`${BASE}/usage`, { params: { days } });
+  }
+
+  /**
+   * One page of the session's own past decisions (Story 25.2): the Decisions tab's read. Only the filters that are set are sent. A page past the
+   * last is 200 with an empty list; a 404 for a value the route does not take and a 500 fail as an HttpErrorResponse.
+   */
+  historyDecisions(filters: HistoryFilters & { page: number }): Observable<HistoryDecisionsResponse> {
+    const params: Record<string, string> = {};
+    for (const key of ['outcome', 'channel', 'day', 'fallback'] as const) {
+      const value = filters[key];
+      if (value !== undefined && value !== '') {
+        params[key] = value;
+      }
+    }
+    params['page'] = String(filters.page);
+    return this.http.get<HistoryDecisionsResponse>(`${BASE}/history/decisions`, { params });
+  }
+
+  /** One page of the incidents the session sees (Story 25.2): the Incidents tab's read. */
+  historyIncidents(page: number): Observable<HistoryIncidentsResponse> {
+    return this.http.get<HistoryIncidentsResponse>(`${BASE}/history/incidents`, { params: { page: String(page) } });
   }
 
   /**

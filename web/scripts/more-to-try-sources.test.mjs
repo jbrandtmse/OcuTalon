@@ -34,13 +34,13 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.doesNotMatch(code, /postMailboxSample|postBreakFeed|\bDemoView\b|\.set\(false\)|\.set\(true\)/);
   });
 
-  it('moves focus in one place, and sends only the three prompts through the outbox, with the text alone', () => {
+  it('moves focus in one place, and sends only the five prompts through the outbox, with the text alone', () => {
     assert.equal(count(code, /\.focus\(/g), 1);
     const sends = [...code.matchAll(/\boutbox\.send\(([^)]*)\)/g)];
     assert.deepEqual(
       sends.map((one) => one[1].trim()),
-      ['MORE_TO_TRY_TEXTS.reroutePrompt', 'MORE_TO_TRY_TEXTS.rememberPrompt', 'MORE_TO_TRY_TEXTS.summaryPrompt'],
-      'the reroute item and the memory item send their own, the incident summary item falls back to its prompt',
+      ['MORE_TO_TRY_TEXTS.reroutePrompt', 'MORE_TO_TRY_TEXTS.partnerPrompt', 'MORE_TO_TRY_TEXTS.queuePrompt', 'MORE_TO_TRY_TEXTS.rememberPrompt', 'MORE_TO_TRY_TEXTS.summaryPrompt'],
+      'the reroute item, the partner warning item, the queue watch item and the memory item send their own, the incident summary item falls back to its prompt',
     );
     assert.doesNotMatch(code, /fromGuide/);
   });
@@ -57,9 +57,10 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     const buttons = count(code, /<button\b/g);
     assert.equal(buttons, 1, 'one button in the template');
     assert.equal(count(code, /<button\s[^>]*type="button"/g), buttons);
-    assert.equal(count(code, /<a\b/g), 2, 'and two links, to the Documents page and to the Usage page');
+    assert.equal(count(code, /<a\b/g), 2, 'and two links: to the Documents page, and one for the Usage and the History pages');
     assert.match(code, /<a [^>]*routerLink="\/documents"/);
-    assert.match(code, /<a [^>]*routerLink="\/usage"/);
+    assert.match(code, /@else if \(item\.action === 'usage' \|\| item\.action === 'history'\) \{\s*<a [^>]*\[routerLink\]="'\/' \+ item\.action"/);
+    assert.match(code, /case 'usage':\s*void this\.router\.navigate\(\['\/usage'\]\);\s*break;\s*case 'history':\s*void this\.router\.navigate\(\['\/history'\]\);\s*break;/);
     assert.equal(count(code, /\(click\)=/g), 3, 'each control has a click and nothing else acts');
     assert.equal(count(code, /\(click\)="press\(item\)"/g), 1, 'the one button presses');
     assert.doesNotMatch(code, /\bconstructor\s*\(|ngOnInit|ngAfterViewInit|\beffect\(/, 'nothing runs at creation');

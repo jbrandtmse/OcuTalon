@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page, type Response } from '../support
 
 import { README_ACCOUNT, signInReadme, watchViolations } from '../sign-in/helpers';
 import { signInReadmeLoaded } from '../support/floor';
+import { NAV_LINKS_ADMIN } from '../support/header-nav';
 import { changeSnapshot } from '../support/api';
 
 /**
@@ -31,10 +32,11 @@ const accountButton = (page: Page): Locator => page.getByRole('button', { name: 
 const traceButton = (page: Page): Locator => page.getByRole('button', { name: 'Visual Trace', exact: true });
 /** The header's Demo view switch (Story 4.9). */
 const demoViewSwitch = (page: Page): Locator => page.getByRole('switch', { name: 'Demo view', exact: true });
-/** The header navigation's links for an admin (Stories 33.2, 34.2 and 37.2): Chat, Settings, Documents and Usage. */
+/** The header navigation's links for an admin (Stories 33.2, 34.2, 25.2 and 37.2): Chat, Settings, Documents, History and Usage. */
 const navChat = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'Chat', exact: true });
 const navSettings = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'Settings', exact: true });
 const navDocuments = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'Documents', exact: true });
+const navHistory = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'History', exact: true });
 const navUsage = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'Usage', exact: true });
 
 /** The heading that the About dialog names itself with, for a snapshot's version. */
@@ -181,7 +183,9 @@ test('F3: the header', async ({ page }) => {
   await page.keyboard.press('Tab');
   await expect(navDocuments(page), 'and the Documents link, which every signed-in user sees').toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(navUsage(page), 'and the Usage link, after Documents, which every signed-in user sees').toBeFocused();
+  await expect(navHistory(page), 'and the History link, after Documents, which every signed-in user sees').toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(navUsage(page), 'and the Usage link, after History, which every signed-in user sees').toBeFocused();
   await page.keyboard.press('Tab');
   await expect(traceButton(page), 'then to the Visual Trace button').toBeFocused();
   await page.keyboard.press('Tab');
@@ -189,16 +193,16 @@ test('F3: the header', async ({ page }) => {
 });
 
 /**
- * F3 at 1024px (Story 37.2): the narrowest window of the drawer band, as the README admin in demo mode (the widest header: the badge, the Demo view switch and
- * four navigation links, Chat, Settings, Documents and Usage). The header stays on one line: every item sits inside the header's box, no item is below another, in
+ * F3 at 1024px (Stories 37.2 and 25.2): the narrowest window of the drawer band, as the README admin in demo mode (the widest header: the badge, the Demo view switch and
+ * five navigation links, Chat, Settings, Documents, History and Usage). The header stays on one line: every item sits inside the header's box, no item is below another, in
  * the order of F3, the account button ends inside the window, and the page does not scroll sideways. No link is hidden.
  */
-test('F3: at 1024px the header holds the four navigation links on one line', async ({ page }) => {
+test('F3: at 1024px the header holds the five navigation links on one line', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const nav = page.getByRole('navigation', { name: 'Pages', exact: true });
-  await expect(nav.getByRole('link'), 'the four links are all there').toHaveText(['Chat', 'Settings', 'Documents', 'Usage']);
+  await expect(nav.getByRole('link'), 'the five links are all there').toHaveText(NAV_LINKS_ADMIN);
   await expect(page.locator('app-header .context-badge')).toHaveText('Demo mode');
 
   const header = (await page.locator('app-header header').boundingBox())!;
@@ -210,13 +214,14 @@ test('F3: at 1024px the header holds the four navigation links on one line', asy
     chat: (await navChat(page).boundingBox())!,
     settings: (await navSettings(page).boundingBox())!,
     documents: (await navDocuments(page).boundingBox())!,
+    history: (await navHistory(page).boundingBox())!,
     usage: (await navUsage(page).boundingBox())!,
     status: (await page.getByRole('button', { name: /^Status/ }).boundingBox())!,
     trace: (await traceButton(page).boundingBox())!,
     theme: (await themeButton(page).boundingBox())!,
     account: (await accountButton(page).boundingBox())!,
   };
-  const order = ['mark', 'wordmark', 'badge', 'demoView', 'chat', 'settings', 'documents', 'usage', 'status', 'trace', 'theme', 'account'] as const;
+  const order = ['mark', 'wordmark', 'badge', 'demoView', 'chat', 'settings', 'documents', 'history', 'usage', 'status', 'trace', 'theme', 'account'] as const;
   for (let i = 1; i < order.length; i += 1) {
     const before = boxes[order[i - 1]!];
     const after = boxes[order[i]!];
@@ -488,7 +493,9 @@ test('F7: ghost buttons and the focus ring', async ({ page }) => {
   await page.keyboard.press('Tab');
   await expect(navDocuments(page), 'and the Documents link follows Settings').toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(navUsage(page), 'and the Usage link follows Documents').toBeFocused();
+  await expect(navHistory(page), 'and the History link follows Documents').toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(navUsage(page), 'and the Usage link follows History').toBeFocused();
   await page.keyboard.press('Tab');
   await expect(traceButton(page)).toBeFocused();
   await expectRing(traceButton(page), 'the Visual Trace button');

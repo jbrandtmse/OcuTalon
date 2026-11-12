@@ -4,13 +4,14 @@
 /// The ids, in this order, each listed only when its condition holds:
 ///   - incidentSummary (Story 23.6): always, first, because it closes the guide's incident and shows its summary, a control of this demo shipped in the same package;
 ///   - persona: the class of the Set persona command is compiled (Epic 40);
-///   - suspiciousEmail, rejectFix, reroute (Story 23.2), demoView: always, because they are this demo's own controls, shipped in the same package as this class;
+///   - suspiciousEmail, rejectFix, reroute (Story 23.2), partnerWarning (Story 23.5), queueWatch (Story 23.7), demoView: always, because they are this demo's own controls, shipped in the same package as this class;
 ///   - memory: the memory operation is compiled and is not a stub (its STUB parameter, AD-29, is not 1);
 ///   - memoryCard (Story 41.13): the same condition as memory, listed right after it;
 ///   - documents: the documents operation is compiled and is not a stub; the Documents page does not count;
 ///   - heartbeat: the class of the Run now command is compiled (Epic 39);
 ///   - sources: when memory or documents is listed, because a cited answer or a From memory chip needs one of them.
-///   - usage: always, last, because the Usage page ships in the same package as this class.
+///   - usage: always, because the Usage page ships in the same package as this class;
+///   - history (Story 25.2): always, last, because the History page ships in the same package as this class.
 Class OcuTalon.Demo.Features Extends %RegisteredObject
 {
 
@@ -43,13 +44,13 @@ ClassMethod Ids(has As %DynamicObject) As %List
 {
 	Set ids = $ListBuild("incidentSummary")
 	If has.%Get("persona") Set ids = ids _ $ListBuild("persona")
-	Set ids = ids _ $ListBuild("suspiciousEmail", "rejectFix", "reroute", "demoView")
+	Set ids = ids _ $ListBuild("suspiciousEmail", "rejectFix", "reroute", "partnerWarning", "queueWatch", "demoView")
 	If has.%Get("memory") Set ids = ids _ $ListBuild("memory")
 	If has.%Get("memory") Set ids = ids _ $ListBuild("memoryCard")
 	If has.%Get("documents") Set ids = ids _ $ListBuild("documents")
 	If has.%Get("heartbeat") Set ids = ids _ $ListBuild("heartbeat")
 	If has.%Get("memory") || has.%Get("documents") Set ids = ids _ $ListBuild("sources")
-	Set ids = ids _ $ListBuild("usage")
+	Set ids = ids _ $ListBuild("usage", "history")
 	Quit ids
 }
 

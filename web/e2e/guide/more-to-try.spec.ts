@@ -15,6 +15,7 @@ import { blockLiveSocket } from '../support/socket';
  * features it names) and keeps it by dropping guide.state from the page's polls; the POSTs of items 2, 3 and 5 are routed and counted,
  * because their downstream flows are pinned by the demo-path specs. K5 uses the real Persona card, and collapses it again.
  *   - K2 (matrix 1): the routed finish: the panel is open after the links and before Try it yourself, items 1 to 4 in order;
+ *   - K28 (Story 25.2): the link of the history item opens the History page;
  *   - K3 (matrix 3, 10): every id of the registry: its items in order with their look-for lines, links to the Documents page for the documents and sources items, the link to the Usage page for the usage item, the Memory heading focused by the Memory card item and the Heartbeat checklist heading by the heartbeat item;
  *   - K4 (matrix 2): step 1: no panel, the link in the Tab order, Enter opens and Space closes it, focus stays on the link;
  *   - K5 (matrix 5): item 1 opens the Persona card's Change and focuses it, also in the drawer band, where the drawer opens first;
@@ -55,6 +56,7 @@ import { blockLiveSocket } from '../support/socket';
  *   - K18: a focused panel group hands focus on when the finish leaves;
  *   - K27: the panel's level-4 headings are exactly the groups that have items, in order, each followed by its own list of items, and no
  *     heading takes focus;
+ *   - K9c (Story 23.5, AC15): the partner warning item sends "Warn the partner about the delay." once as the user's own message and sends nothing while a turn is in flight;
  *   - K14 (matrix 5, error): item 1 focuses the Persona heading when the card has not loaded;
  *   - K15 (matrix 6, error): item 2 sends nothing while the email limit holds, and focuses the inactive chip;
  *   - K25 (Story 23.6, AC 10): the incident summary item at the finish presses the Dismiss of the newest resolved incident card: the card's chip says
@@ -108,6 +110,18 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
       'First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way.',
     button: 'Ask to reroute',
   },
+  partnerWarning: {
+    label: 'Warn the partner',
+    lookFor:
+      'This asks OcuTalon in the chat to warn the partner about an incident\'s delay, so it needs an incident that isn\'t closed: if you closed the guide\'s incident, do "Reject a fix" first. OcuTalon drafts a short notice from the incident\'s counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox.',
+    button: 'Ask for a partner warning',
+  },
+  queueWatch: {
+    label: 'Watch queue backlogs',
+    lookFor:
+      'This asks OcuTalon in the chat to watch the queue backlogs. Look for the Queue-backlog check under Background checks, with its schedule, last run and result. Every minute it reads the Orders production\'s queues, and when one holds more than 100 messages, or its oldest message has waited over 10 minutes, OcuTalon decides once whether to tell you. On a quiet demo it reads Passed. To stop, ask "Stop watching the queue backlogs."',
+    button: 'Ask to watch queues',
+  },
   demoView: {
     label: 'See the page as on your own install',
     lookFor: 'The demo guide, Break the feed and the Simulated devices are hidden, as on your own install. Turn Demo view back on in the top bar to return.',
@@ -148,15 +162,23 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
       'On the Usage page, choose a range and group by day, agent, channel or model. The tokens and cost come from your chat turns and from the agents\' decisions on your messages, and each day shows its largest model request against the 100,000-token limit. If it reads "No model use in this period.", chat or run the guide first.',
     button: 'Open the Usage page',
   },
+  // mutation: the registry's history look-for drops its last sentence ("If it reads "No decisions yet.", run the guide first.") -> K3 (the history item's look-for text) red.
+  history: {
+    label: 'Look back at past decisions',
+    lookFor:
+      'On the History page, filter the Decisions tab by outcome, channel, date or fallback, and open a decision to read its reasons, with a link to its trace. The Incidents tab lists your incidents with their state and, once an incident has closed, its summary. If it reads "No decisions yet.", run the guide first.',
+    button: 'Open the History page',
+  },
 };
 const REMEMBER = "Remember that the Results partner's contact is Lee.";
 const REROUTE = 'Reroute the failed orders to OrdersForReview.';
+const PARTNER = 'Warn the partner about the delay.';
 
 const guideRegion = (page: Page): Locator => page.getByRole('region', { name: 'Demo guide' });
 const linkOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'More to try', exact: true });
 const panelOf = (page: Page): Locator => guideRegion(page).getByRole('group', { name: 'Other things to try', exact: true });
 const itemOf = (page: Page, id: string): Locator => panelOf(page).getByRole('listitem').filter({ has: page.getByText(ITEMS[id]!.label, { exact: true }) });
-const controlOf = (page: Page, id: string): Locator => itemOf(page, id).getByRole(id === 'documents' || id === 'sources' || id === 'usage' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
+const controlOf = (page: Page, id: string): Locator => itemOf(page, id).getByRole(id === 'documents' || id === 'sources' || id === 'usage' || id === 'history' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
 const switchOf = (page: Page): Locator => page.getByRole('switch', { name: 'Demo view', exact: true });
 const breakButton = (page: Page): Locator => page.locator('app-break-feed-box app-server-button button');
 const hideOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'Hide guide', exact: true });
@@ -331,6 +353,7 @@ test('K3: every id shows its item in order, the documents and sources items are 
   await expect(documents, 'the documents item is a link').toHaveAttribute('href', /#\/documents$/);
   await expect(controlOf(page, 'sources'), 'the sources item is a link to the same page').toHaveAttribute('href', /#\/documents$/);
   await expect(controlOf(page, 'usage'), 'the usage item is a link to the Usage page').toHaveAttribute('href', /#\/usage$/);
+  await expect(controlOf(page, 'history'), 'the history item is a link to the History page').toHaveAttribute('href', /#\/history$/);
   await expect(controlOf(page, 'memoryCard')).toHaveAttribute('type', 'button');
   await controlOf(page, 'memoryCard').click();
   await expect(page.locator('#rail-heading-memory'), 'the Memory card item puts focus on the Memory heading').toBeFocused();
@@ -346,6 +369,18 @@ test('K3b: the link of the usage item opens the Usage page', async ({ page }) =>
   await controlOf(page, 'usage').click();
   await expect(page, 'at the address #/usage').toHaveURL(/#\/usage$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Usage', exact: true }), 'the Usage page').toBeVisible();
+});
+
+/** K28 (routed finish, every id): pressing the history item's link opens the History page by navigation, "Open the History page", and the page is titled and headed History. */
+test('K28: the link of the history item opens the History page', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.route('**/ocutalon/api/v1/history/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ page: 1, pages: 1, decisions: [] }) }));
+  await openWith(page, finished(ALL));
+  await expect(controlOf(page, 'history'), 'its control is named by its visible text').toHaveText('Open the History page');
+  await controlOf(page, 'history').click();
+  await expect(page, 'at the address #/history').toHaveURL(/#\/history$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'History', exact: true }), 'the History page').toBeVisible();
+  await expect(page, 'titled History').toHaveTitle('History \u00B7 OcuTalon');
 });
 
 /**
@@ -593,6 +628,28 @@ test('K9b: the reroute item sends its prompt once as the user\'s own message, an
   await control.click();
   await expect.poll(() => bodies.length, { message: 'the prompt was posted' }).toBe(1);
   expect(bodies[0]!.text).toBe(REROUTE);
+  expect(bodies[0]!.fromGuide, 'as the user\'s own message').toBe(false);
+  await expect(control, 'while its turn is in flight the control is aria-disabled').toHaveAttribute('aria-disabled', 'true');
+  await control.click({ force: true });
+  await page.waitForTimeout(500);
+  expect(bodies, 'and a second press sends nothing').toHaveLength(1);
+});
+
+/** K9c (Story 23.5, AC15): the partner warning item sends its prompt once as the user's own message, and sends nothing while a turn is in flight. */
+test('K9c: the partner warning item sends its prompt once as the user\'s own message, and sends nothing while its turn is in flight', async ({ page }) => {
+  const bodies: Array<{ clientId: string; text: string; fromGuide: boolean }> = [];
+  await page.route(`**${MESSAGES}`, async (route: Route) => {
+    const body = route.request().postDataJSON() as { clientId: string; text: string; fromGuide: boolean };
+    bodies.push(body);
+    await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ clientId: body.clientId }) });
+  });
+  await openWith(page, finished(['rejectFix', 'reroute', 'partnerWarning']));
+  await expect(panelOf(page).locator('.item-label'), 'the partner warning item follows the reroute item').toHaveText([ITEMS['rejectFix']!.label, ITEMS['reroute']!.label, ITEMS['partnerWarning']!.label]);
+  await expect(itemOf(page, 'partnerWarning').locator('.look-for')).toHaveText(ITEMS['partnerWarning']!.lookFor);
+  const control = controlOf(page, 'partnerWarning');
+  await control.click();
+  await expect.poll(() => bodies.length, { message: 'the prompt was posted' }).toBe(1);
+  expect(bodies[0]!.text).toBe(PARTNER);
   expect(bodies[0]!.fromGuide, 'as the user\'s own message').toBe(false);
   await expect(control, 'while its turn is in flight the control is aria-disabled').toHaveAttribute('aria-disabled', 'true');
   await control.click({ force: true });
@@ -1615,6 +1672,8 @@ test('K27: the panel shows its items under the ruled group headings, each follow
   const expected = RULED_HEADINGS.map((group): [string, string[]] => [group, ALL.filter((id) => groupOf(id) === group)]).filter(([, ids]) => ids.length > 0);
   expect(MORE_TO_TRY_GROUPS, 'the page\'s constant is the ruled order').toEqual(RULED_HEADINGS);
   expect(groupOf('usage'), 'the usage item is in the fourth group').toBe(RULED_HEADINGS[3]);
+  expect(groupOf('history'), 'the history item is in the fourth group too, after usage').toBe(RULED_HEADINGS[3]);
+  expect(ALL.slice(-2), 'usage then history are the last two items').toEqual(['usage', 'history']);
 
   const headings = panel.getByRole('heading', { level: 4 });
   await expect(headings, 'the groups that have items, in order').toHaveText(expected.map(([group]) => group));
@@ -1628,5 +1687,6 @@ test('K27: the panel shows its items under the ruled group headings, each follow
     await expect(heading.locator('xpath=following-sibling::ul[1]').locator('.item-label'), `${group}: its labels, in registry order`).toHaveText(ids.map((id) => ITEMS[id]!.label));
   }
   await expect(headings.last().locator('xpath=following-sibling::ul[1]'), 'the fourth heading holds the usage item').toContainText(ITEMS['usage']!.label);
+  await expect(headings.last().locator('xpath=following-sibling::ul[1]').locator('.item-label'), 'then the history item').toHaveText([ITEMS['usage']!.label, ITEMS['history']!.label]);
   await expect(panel.locator('.item-label'), 'every item once').toHaveCount(ALL.length);
 });

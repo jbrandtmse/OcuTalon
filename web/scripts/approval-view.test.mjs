@@ -5,6 +5,7 @@
 // requests of an incident in the order raised; Story 6.4: resultView, every row of the Result mapping (the first matching row wins) with
 // the catalog's texts, the count-of-one forms, the tones and icons, the audit line, and undefined with no result. The view reads the catalog's page texts (msg/catalog.ts), the rail's title of a
 // request and the page's time formats through its context, so these tests pass the real ones.
+// Story 23.5: a partner delay notice's title, its To line, notice and note, and its four result bands.
 // Story 7.8: the dry run's either-way row, as the notice's line (many and one form, day first, the slots, the places it is absent, answered).
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -176,6 +177,75 @@ describe('the result band of a fix the user asked for in the chat (Story 23.2, D
   it('keeps the bands of a reroute that failed again or skipped some', () => {
     const view = resultView({ ref: 'A', state: 'done', fixKind: 'reroute', item: 'OrdersForReview', result: { total: 50, resent: 50, completed: 48, failedAgain: 2, skipped: 0, interrupted: 0, reason: 'x' } }, noun, render);
     assert.equal(view.key, 'result.failedAgain');
+  });
+});
+
+describe('a partner delay notice (Story 23.5)', () => {
+  const NOTICE = 'Orders from the partner failed between 14:12 and 14:13.\nWe are working on it.';
+  const warning = (over = {}) =>
+    pending({
+      fixKind: 'partner_warning',
+      dryRun: { notice: NOTICE, recipients: ['Results Partner IT <it@results-partner.example>'], simulated: true },
+      ...over,
+    });
+  const render = renderPageText;
+  const result = (over = {}) => ({ total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, unreached: 0, reason: '', ...over });
+
+  it('is titled "Send a delay notice", with the buttons named by it', () => {
+    const view = approvalView(warning(), ctx());
+    assert.equal(view.action, 'Send a delay notice.');
+    assert.equal(view.approveName, 'Approve: send a delay notice');
+    assert.equal(view.rejectName, 'Reject: send a delay notice');
+  });
+
+  it('shows the recipients, the exact notice and, while pending, the note, with no dry run block and no fixed-targets line', () => {
+    const view = approvalView(warning(), ctx());
+    assert.equal(view.dryRun, undefined);
+    assert.equal(view.fixedTargets, '');
+    assert.deepEqual(view.partner, {
+      to: 'To: Results Partner IT <it@results-partner.example>',
+      notice: NOTICE,
+      simulated: true,
+      note: 'Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox.',
+    });
+    assert.equal(approvalView(warning({ state: 'approved' }), ctx()).partner.note, '', 'an answered request keeps the record without the note');
+    assert.equal(approvalView(warning(), ctx()).setting, undefined);
+  });
+
+  it('lists every recipient, and leaves out the Simulated label when the payload does not say simulated', () => {
+    const two = warning({ dryRun: { notice: 'A.', recipients: ['A <a@x.example>', 'B <b@x.example>'], simulated: false } });
+    assert.equal(approvalView(two, ctx()).partner.to, 'To: A <a@x.example>, B <b@x.example>');
+    assert.equal(approvalView(two, ctx()).partner.simulated, false);
+    assert.equal(approvalView(warning({ dryRun: {} }), ctx()).partner, undefined, 'a dry run with neither notice nor recipient has no block');
+  });
+
+  it('gives the other kinds no partner block', () => {
+    assert.equal(approvalView(pending(), ctx()).partner, undefined);
+  });
+
+  it('reads the result bands of the request, each naming the Simulated mailbox or the draft', () => {
+    const request = (fields) => ({ ref: 'A', state: 'done', fixKind: 'partner_warning', ...fields });
+    const sent = resultView(request({ result: result() }), undefined, render);
+    assert.deepEqual({ key: sent.key, text: sent.text, tone: sent.tone, icon: sent.icon }, { key: 'result.partnerSent', text: 'Sent to the Simulated mailbox.', tone: 'success', icon: 'circle-check' });
+    assert.equal(sent.audit, 'Recorded in the IRIS audit log.');
+    const some = resultView(request({ result: result({ total: 3, completed: 2, skipped: 1, reason: 'Contact 3 is no longer a partner contact of Orders.' }) }), undefined, render);
+    assert.deepEqual({ key: some.key, text: some.text, tone: some.tone }, { key: 'result.partnerSentSome', text: 'Sent to the Simulated mailbox for 2 of 3 contacts.', tone: 'partial' });
+    const kept = resultView(request({ state: 'failed', result: result({ completed: 0, reason: "email delivery isn't set up yet" }) }), undefined, render);
+    assert.deepEqual({ key: kept.key, text: kept.text, tone: kept.tone }, { key: 'result.partnerKept', text: "Approved and kept as a draft: email delivery isn't set up yet.", tone: 'partial' });
+    const not = resultView(request({ result: result({ completed: 0, skipped: 1, reason: 'Results Partner IT is no longer a partner contact of Orders.' }) }), undefined, render);
+    assert.deepEqual({ key: not.key, text: not.text }, { key: 'result.partnerNotSent', text: 'Not sent: Results Partner IT is no longer a partner contact of Orders.' });
+    assert.equal(resultView(request({ state: 'executing', result: result() }), undefined, render), undefined, 'a run still going has no band');
+    assert.equal(resultView(request({ result: result({ completed: 0 }) }), undefined, render), undefined, 'a result with no reason to give claims nothing');
+  });
+
+  it('never says or implies that a real email was sent', () => {
+    for (const key of ['partnerNote', 'partnerSent', 'partnerSentSome', 'partnerKept', 'partnerNotSent']) {
+      assert.doesNotMatch(APPROVAL_TEXTS[key], /\bemailed\b|\bby email\b|email was sent/i, key);
+    }
+    for (const key of ['partnerSent', 'partnerSentSome']) {
+      assert.match(APPROVAL_TEXTS[key], /Simulated mailbox/, key);
+    }
+    assert.match(APPROVAL_TEXTS.partnerKept, /kept as a draft/);
   });
 });
 
@@ -663,6 +733,12 @@ describe('the texts', () => {
       settingNow: 'Now: {old}',
       settingProposed: 'Proposed: {new}',
       settingNote: 'Nothing changes unless you approve.',
+      partnerTo: 'To: {recipients}',
+      partnerNote: 'Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox.',
+      partnerSent: 'Sent to the Simulated mailbox.',
+      partnerSentSome: 'Sent to the Simulated mailbox for {completed} of {total} contacts.',
+      partnerKept: "Approved and kept as a draft: email delivery isn't set up yet.",
+      partnerNotSent: 'Not sent: {reason}.',
       expires: 'Expires {when}',
       notApprover: 'Only an approver for resends can answer this request.',
       notApproverFix: 'Only an approver for fixes can answer this request.',

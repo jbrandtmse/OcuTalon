@@ -18,7 +18,7 @@ const README = readFileSync(join(root, 'README.md'), 'utf8');
 const EXPERIENCE = readFileSync(join(root, '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
 const REGISTRY = readFileSync(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts'), 'utf8');
 
-const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen'];
 const count = WORDS[MORE_TO_TRY_ITEMS.length];
 
 /** The Planner-ruled README bullet (Story 20.2, public text 14), word for word. */
@@ -98,11 +98,11 @@ describe('EXPERIENCE.md, More to try', () => {
   // The panel's order: the sets of groupsOf, flattened. EXPERIENCE.md numbers its entries in this order.
   const SETS = groupsOf(MORE_TO_TRY_ITEMS);
   const PANEL = SETS.flatMap((set) => set.items);
-  // EXPERIENCE.md numbers its `Item n` entries 1, 2, ... in the panel's order; an unnumbered entry (`First item`) takes no number and
-  // leaves the numbers of the others as they are.
+  // EXPERIENCE.md numbers its `Item n` entries 1, 2, ... in the panel's order; an unnumbered entry (`First item`, or `After Item n`, which
+  // sits right after the `Item n` entry it names) takes no number and leaves the numbers of the others as they are.
   const NUMBERED = PANEL.filter((item) => EXPERIENCE.split('\n').some((one) => one.startsWith('    - Item ') && one.includes(`Label "${item.label}".`)));
   const numberOf = (id) => NUMBERED.findIndex((one) => one.id === id) + 1;
-  const ENTRY_LINE = /^    - (Item \d+|First item)\b/;
+  const ENTRY_LINE = /^    - (Item \d+|First item|After Item \d+)\b/;
   const HEADING_LINE = /^    - Heading "([^"]*)"\./;
   const labelOf = (text) => /Label "([^"]*)"\./.exec(text)?.[1];
 
@@ -111,6 +111,10 @@ describe('EXPERIENCE.md, More to try', () => {
     assert.deepEqual(lines.map(labelOf), PANEL.map((item) => item.label), 'the entries are the panel\'s items, in its order');
     NUMBERED.forEach((item, at) => {
       assert.ok(line(at + 1).includes(`Label "${item.label}".`), `Item ${at + 1} is the registry's ${item.id} entry`);
+    });
+    lines.forEach((one, at) => {
+      const after = /^    - After Item (\d+)\b/.exec(one);
+      if (after) assert.ok(lines[at - 1]?.startsWith(`    - Item ${after[1]}. `), `"After Item ${after[1]}" comes right after Item ${after[1]}`);
     });
   });
 

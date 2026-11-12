@@ -6,7 +6,7 @@ import { cleanFixtureRows, fixtureUser, seedDecision, seedIncident, seedTurns, s
 import { countFocusins, fromBottom, plain, scrollListTo, tokenColor } from '../support/page';
 
 /**
- * Story 2.7, the notice cards (N1 to N19; N16 is Story 17.10's digest card, completed by Story 18.4, which adds N17 to N19: Got it and the phone's digest; N11, the simulated phone's half of N10, is Story 4.5's), in a real browser against a real stack. Every case signs in as the notice fixture user
+ * Story 2.7, the notice cards (N1 to N21; N16 is Story 17.10's digest card, completed by Story 18.4, which adds N17 to N19: Got it and the phone's digest; N11, the simulated phone's half of N10, is Story 4.5's), in a real browser against a real stack. Every case signs in as the notice fixture user
  * that test-sign-in.sh created (OCUTALON_NOTICE_USER) and sends items, item decisions and notifications to its own session through
  * the real production (SimMailboxIn and NoticesIn hosts, OutcomeRouter, Notify, WebChatOut), so that nothing here publishes on the
  * README session or the instance stream (api.spec pins their counts) or touches another spec's chat. Each case asserts only on the
@@ -742,4 +742,29 @@ test('N20: an incident summary shows as a card that keeps its line breaks and sh
   } finally {
     await cleanFixtureRows([incident]);
   }
+});
+
+/**
+ * N21 (Story 23.5, AC-NOTDRAFTED-WEB; QA): the notice that a delay notice could not be drafted (result.partnerNotDrafted: kind result, no approvalRef) through Notify, WebChatOut and the
+ * live store is a notice card of the chat: the ruled text as one piece, the info icon, no heading, no button, and it is still there after a reload. A fix's result has no card of its
+ * own in the chat (its incident card draws it), so this is the one result that has no approvalRef and still shows.
+ */
+test('N21: a delay notice that could not be drafted shows as a notice card, also after a reload', async ({ page }) => {
+  const { user } = fixtureUser('NOTICE');
+  await open(page);
+  const text = "I couldn't draft the delay notice just now, so nothing was raised or sent. You can ask me again.";
+  const card = page.locator('app-chat-panel app-notice-card').filter({ hasText: text });
+  const before = await card.count();
+  await sendNotification(user, { kind: 'result', catalogKey: 'result.partnerNotDrafted', slots: {} });
+  const assertCard = async (when: string): Promise<void> => {
+    await expect(card, `${when}: the card`).toHaveCount(before + 1, { timeout: CARD_MS });
+    const last = card.last();
+    await expect(last.locator('.text'), `${when}: the ruled text`).toHaveText(text);
+    await expect(last.locator('.notice > app-icon'), `${when}: in the info ink`).toHaveCSS('color', await tokenColor(page, '--info-ink'));
+    await expect(last.locator('h1, h2, h3, h4, h5, h6, [role="heading"], .title, .why, .caption, app-decision-strip'), `${when}: no heading, Why now line, caption or strip`).toHaveCount(0);
+    await expect(last.getByRole('button'), `${when}: no button`).toHaveCount(0);
+  };
+  await assertCard('arrived');
+  await loadedAfter(page, () => page.reload());
+  await assertCard('after a reload');
 });
