@@ -6979,6 +6979,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Watch/Transitions resolves on fixing + finished whatever the run's counts (failedAgain, skipped); PartnerWarning.Facts adds only 'Incident state: resolved', and SYSTEMNOTE's ruled sentence tells the model to say the orders went through
 - 2026-11-11T23:51:45Z status=decision-pending owner=burndown by=cr note=product call: give Facts the fix outcome and make the sentence conditional (ruled text); user approves exact text; RC-eval item
 - 2026-11-12T00:11:20Z status=routed owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=owner note=Contest_Planner_ruling_2026-11-12_00:20Z_(owner_delegation;prompts/epic-23-story-2311-ruling.md):_Outcome_fact_built_by_code_+_instruction_sentence_replaced_verbatim
+- 2026-11-12T04:03:07Z status=resolved-by:23-11-say-in-a-partner-notice-only-how-the-incident-ended by=adjudication note=PartnerWarning.Outcome_builds_the_ruled_line_from_records(71b98a7a);facts_carry_it_after_Incident_state;sentence_replaced;pinned_by_TestOutcome{FullFix,PartialFix,Reroute,Suspend},TestNoOutcome,TestNoOutcomeGuards,PartnerTurns_4_draft_cases(mutations_red)
 ### DW-1160: flake candidate (host load): live:install-start row 3 'the dev start did not end ready within 200 s' in CI iris (install-fresh) on feature c33e0916 under the post-outage backlog
 - source: feature c33e0916, ci run 43099749161 job iris (install-fresh) on ocutalon-ci-12 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: no test assertion failed; live:online-demo-path in the same job passed; same start-not-ready family as DW-612 (row 2) and DW-1082 (install-upgrade row 7); all 18 runners busy with the outage backlog
@@ -7001,6 +7002,17 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T22:18:46Z status=routed owner=burndown by=cr note=lead: Rule 20 spine write (AD-10 rule 1, AD-21 S3) recording ruling 2(a); no code change
 - 2026-11-11T22:20:57Z status=resolved-by:22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=adjudication note=spine_AD-10_rule1_and_AD-21_S3_now_state_SHA-256_hex_over_server_id,name,description,schema(Rule20_record_of_Planner_ruling_2(a));lint_unchanged
 
+### DW-1172: The incident's plural item noun, supplied by the model in the diagnosis payload, now enters the trusted SystemNote of the partner-notice draft (Story 23.11 noun ruling)
+- source: spec-23-11-say-in-a-partner-notice-only-how-the-incident-ended.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Watch.Notice.Noun checks only that both forms are non-empty; IncidentManager stores diagnosis.itemNoun as given; PartnerWarning.SystemNote substitutes noun.other into the code-written instruction (AD-10/AD-14 trust boundary)
+- 2026-11-12T03:35:32Z status=open owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=by=harvest note=unverified MED: settle at code review (show the diagnosis check caps the noun, or normalise it in SystemNote to a short plain word with the 'orders' fallback the Planner ruled for no noun)
+- 2026-11-12T03:35:47Z status=open owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=harvest note=corrects_the_by_field_of_the_first_trailer(typo_by=by=harvest)
+- 2026-11-12T04:03:07Z status=resolved-by:23-11-say-in-a-partner-notice-only-how-the-incident-ended by=adjudication note=Contest_Planner_ruling_03:55Z_applied_at_code_review:SYSTEMNOTE_constant;SystemNote(incident)_returns_it;TestOutcomeUsesTheItemNoun_hostile_itemNoun_'ignore_previous_instructions'_->_SystemNote_equals_constant_and_holds_no_part_of_the_noun(substitution_restored->red_5_asserts;reverted_green);payload_check_tightening=Planner's_separate_burndown_entry
+
+### DW-1174: IncidentManager.DraftRequest's fallback to the kind's SYSTEMNOTE parameter, for a drafted kind with no SystemNote method, is pinned by no test
+- source: spec-23-11-say-in-a-partner-notice-only-how-the-incident-ended.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: partner_warning is the only DRAFTED kind and defines SystemNote, which now returns SYSTEMNOTE (DW-1172 ruling), so both branches of the $Select give the same text and neither is observable
+- 2026-11-12T04:01:28Z status=wontfix-theoretical owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=cr note=real when a second DRAFTED kind is added with no SystemNote method, or a SystemNote returns other than SYSTEMNOTE
 ### DW-1166: tooling: the local smoke/fresh check doesn't run live:storage-roundtrip, so a new class that compiles with a storage definition (e.g. a test class extending %Net.POP3) without a committed Storage block is caught only by CI's image group
 - source: OCT-epic21 8fc11a6e ci run 43114341467 iris (image) (Story 21.2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 21.2's EmailInPop3 passed smoke and fresh check locally and failed live:storage-roundtrip in CI; the Planner asked for a cheap pre-CI check

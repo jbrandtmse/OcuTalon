@@ -3637,3 +3637,4 @@
 2026-11-12T05:05:16Z	Epic 23	runner_clarification	kind=PART_READY agent=afc4a2f06e7d322df story=23.11 head=2e2f224f runs=43153698989,43153698998 applied=U-321 local=82f580b9 shas=verified
 2026-11-12T05:05:16Z	Run	inbox_resolved	id=U-321 by=orchestrator applied_by=runner_D
 2026-11-12T05:05:16Z	Epic 23	ci_green_verified	branch=OCT-epic23 head=2e2f224f runs=43153698989,43153698998 story=23.11
+2026-11-12T05:05:27Z	Epic 23	merge_gate	part=23.11 head=2e2f224f conflicts=none tracker=valid lint=baseline
