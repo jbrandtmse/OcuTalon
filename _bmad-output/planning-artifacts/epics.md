@@ -1681,6 +1681,49 @@ So that no CI job fails with "FAIL web port" while an earlier unit's stack is on
 - DW-1100: the port guard's loud failure does not name what holds the port (ledger; routed by load 2026-11-11)
 - DW-1101: test-install-script-live.sh step 5's use of live_port_guard is pinned hermetically only by a grep of the script's text (ledger; routed by load 2026-11-11)
 
+### Story 0.26: The README leads with the full video and the incident path, and a measured comparison replaces the worked-out one
+
+[ADDED 2026-11-11, Contest Planner ruling, owner-approved] SC-5 re-open of Epic 0 (lane A), after Story 0.25. A cross-cutting README and evaluation-tooling story, as Stories 0.19 to 0.25; the scope below is the Contest Planner's (2026-11-11 ~14:45Z, owner-approved), and it must merge before the 1.0.8 cut. Footprint: `README.md`, `EXPERIENCE.md` only if a line moves, `eval/**` (the new held-out set and the rules-only mode), `eval/run.sh` or the report script, `docker/tests/test-readme.sh` and `docker/tests/test-eval-set.sh`. Any `.github/workflows` hunk goes to the Contest Planner (RELEASE TOOL) before it merges. Runners never hold a model key: the agent half of the comparison runs at the 1.0.8 release-candidate evaluation, by the Contest Planner's release fork.
+
+As a judge reading the README,
+I want to see the full video and the incident path first, and a comparison with fixed rules that was measured rather than worked out,
+So that I can check the interoperability story quickly and trust what the agent adds.
+
+**Acceptance Criteria:**
+
+**Given** the README
+**When** it is read from the top
+**Then** near the top it links the full narrated video (https://youtu.be/HIyCG5E6-JQ, "One incident, approved from a phone, traced", 3:04) and its no-sign-in MP4 on the v1.0.6 GitHub release asset; the 35-second teaser becomes the secondary link; and the video is in the link bar
+**And** `docker/tests/test-readme.sh` pins both video links, the teaser as the secondary link and the link-bar entry
+
+**Given** the README
+**When** it is read from the top
+**Then** it leads with the incident path a judge can check: failures, then one incident, diagnosis, dry run, approval (web, phone or Telegram), fix, and Visual Trace with tokens and cost; then "What's interesting"; then the "New since 1.0.0" list, moved below that and grouped interop first (watching, suspend/resume/reroute, partner notice, history, usage, documents, memory), with personas, reminders and the digest last, in one short group
+**And** no feature is removed and no claim is added, every number keeps its source, and `docker/tests/test-readme.sh` pins the new order (its existing rules keep passing, none deleted or weakened)
+
+**Given** the existing evaluation cases under `eval/`
+**When** the evaluation runs in a new rules-only mode
+**Then** it scores every case with OcuTalon's fixed rules only (the fallback the product uses without a model), with no model and no key, so it runs in the lane and in CI
+**And** it runs in CI in the existing evaluation group with the most headroom (no new job or group)
+
+**Given** a new held-out set of about 12 new incidents and routine items under `eval/`
+**When** it is added
+**Then** its expected answers are committed in their own commit before any agent run, and the set is never used for tuning; that commit's sha is recorded in the spec
+**And** `docker/tests/test-eval-set.sh` checks the held-out set's structure as it checks the existing cases
+
+**Given** agent results and rules-only results for the same cases
+**When** the report script runs
+**Then** it sets them side by side, per case and in total, including unsafe outcomes
+**And** the README's "without the agent" table shows measured numbers with the date, the model and the set size, whatever they are; until the agent half runs at the 1.0.8 release-candidate evaluation, it carries placeholders (or the rules-only half only), per the Contest Planner's ruling
+
+**Given** the README diff, the comparison table's wording and the held-out case list
+**When** the story reaches its spec gate
+**Then** they go to the Contest Planner as PUBLIC TEXT before implement, with placeholders for the measured numbers, and nothing of them is committed before the ruling
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
