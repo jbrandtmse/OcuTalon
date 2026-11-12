@@ -2,12 +2,27 @@
 title: "Story 0.29: The README's comparison of the agent and the fixed rules, filled from the committed rules-only report"
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '65a75b5c22d515e22c01e69c9de447c69d5c5fb8'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: []
-deferred: []
+deferred:
+  - summary: >-
+      Nothing in the test suite fails while the agent column still reads "measured at release 1.0.9" (the placeholder), so it could reach main.
+    evidence: |-
+      The spec fixes the agent column's text as unpinned (the release fork replaces it) and the Planner's ruling says the placeholder never reaches main; the fork's RC checklist is to grep for it. Not located in this tree by the verification-gap layer; settle by confirming the RC checklist step.
+    location: >-
+      README.md (agent column of "With the agent and with fixed rules only")
+    severity: medium (unverified)
+  - summary: >-
+      test-readme.sh's st() self-test harness accepts any flag from a checker, so a mutation that trips two clauses of chk_comparison does not pin each clause alone.
+    evidence: |-
+      st() passes whenever the checker prints anything; this is the shape of every st in the script, so the fix is a harness-wide change outside this story.
+    location: >-
+      docker/tests/test-readme.sh:st
+    severity: low
 ---
 
 <intent-contract>
@@ -95,7 +110,36 @@ An unsafe outcome is a change made without a person's approval, a prompt injecti
 
 - 2026-11-12 ~02:10Z, lead: split out of the original Story 0.27 plan (Part C) by the Contest Planner's 02:05Z ruling and the orchestrator; bullets moved whole; the R paragraph's last clause changed to the ruled option (c). Needs no new plan; re-check the Code Map's anchors on the tree after 0.27 merges.
 
+- 2026-11-12, implement: no existing test-readme.sh or test-eval-set.sh rule pinned the old shape of "Measured" or GUIDE's old paragraph (`measured` pins only the eight row labels, which the new table's different labels do not touch), so no expectation was changed; the new rules are `comparison` (test-readme.sh) and `readme-column` (test-eval-set.sh).
+
 ## Review Triage Log
+
+### 2026-11-12 - Review pass
+- verdicts: 23 findings - high 0, medium 0, low 19, false 0, maybe-false 4
+- findings:
+  - `[low]` `[reject]` Blind: agent column is a placeholder in a judge-facing README - the placeholder and past-tense wording are the Planner's ruled text for feature (Design Notes); the RC fork replaces it before main; the fix would edit ruled text.
+  - `[maybe-false]` `[defer]` Blind: no gate forces the placeholders to be replaced - deferred (medium, unverified); the RC fork's checklist is to grep for it; settle by confirming that step.
+  - `[low]` `[reject]` Blind: two evaluation releases on one page / only the routine row cross-checked - ruling 3 of the Planner fixes the one-number check to the routine row and has the fork refresh the main table; fix would add rules the ruling did not ask for.
+  - `[low]` `[reject]` Blind: held-out counts hardcoded, not checked against the report - the `held-out` and `held-out-frozen` rules pin the cases and the `2 of 12` total is checked by readme-column; unlikely to be met.
+  - `[low]` `[reject]` Blind: date read from one report - the main and held-out runs are one rules-only run set; fix adds branches for an unreached case.
+  - `[low]` `[reject]` Blind: no false-alarm row - the table rows are ruled text, applied verbatim.
+  - `[false]` `[reject]` Blind: commit link may not resolve - `git cat-file -t 6af31dab...` is a commit and `origin/OCT-epic0` contains it.
+  - `[low]` `[reject]` Blind: spec bookkeeping (Auto Run Result status, git grep caveat) - finalized at this step; the fix is to edit the spec's own text, which triage rejects; the caveat is already logged in Verification.
+  - `[low]` `[reject]` Edge: agent routine cell not in `<n> of <m>` form skips the check - agent column text is deliberately not pinned (spec); extra guard is unneeded complexity.
+  - `[low]` `[reject]` Edge: main routine row reworded gives a vague message - a filled cell would then be flagged, not passed; fail-closed.
+  - `[low]` `[reject]` Edge: incident/held-out agent cells not cross-checked - same as the ruling-3 row above.
+  - `[false]` `[reject]` Edge: extra README rows pass readme-column - `comparison` pins exactly the seven ruled labels in order, so extra rows fail there.
+  - `[low]` `[reject]` Edge: held-out split not compared with the report - same as the held-out row above.
+  - `[low]` `[reject]` Edge: spawnSync has no timeout - compare.mjs reads a small committed folder; unlikely.
+  - `[low]` `[reject]` Edge: CRLF README - fails closed; the repo's README is LF.
+  - `[low]` `[reject]` Edge: date pattern accepts "Foo 99" - the pattern is the spec's ruled one; readme-column checks the real date.
+  - `[low]` `[reject]` Edge: GUIDE pointer drops the agent figures - ruled C2 text, verbatim.
+  - `[maybe-false]` `[defer]` Edge: placeholder could ship on main - same root cause as the deferred placeholder-gate item.
+  - `[low]` `[reject]` Edge: spec grep command now lists test-readme.sh - the phrase must exist in the rule that forbids it; already recorded in Verification.
+  - `[low]` `[defer]` VG: st() accepts any flag, multi-clause mutations do not pin one clause - script-wide harness shape; deferred.
+  - `[low]` `[reject]` VG: one-number check dormant on the real tree - only live once the fork fills the cell; pinned by two self-tests and a mutation line; no bad outcome now.
+  - `[maybe-false]` `[defer]` VG: nothing pins the placeholder gone before main - same root cause as the deferred placeholder-gate item.
+  - `[low]` `[reject]` Intent audit: agent column is a placeholder (reading R1 vs R2/R3) - descriptive; the ruled intent is R1; same as the first row.
 
 ## Design Notes
 
@@ -130,9 +174,29 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 Mutations (one per AC; record `mutation: <change> -> <test that went red>` here, revert, check `git status --short` and `git diff --stat` unchanged):
 - AC README comparison: change one fixed-rules cell -> `readme-column`; restore the worked-out sentence -> `comparison`; add "never used for tuning" -> `public-text`.
 
+mutation: README.md fixed-rules cell "6 of 24" changed to "7 of 24" -> `readme-column` (test-eval-set.sh: row "Routine attention decisions right (main set)": the fixed-rules cell is "7 of 24", compare.mjs --column gives "6 of 24")
+mutation: the worked-out sentence ("Worked out from the expected answers of the recorded evaluation set.") appended to README.md -> `comparison` (test-readme.sh: the worked-out sentence is back)
+mutation: "These cases were never used for tuning." appended to README.md -> `public-text` (test-readme.sh)
+mutation: chk_comparison's one-number check weakened (the agent routine cell compared with itself) -> `comparison` self-test "a filled agent routine cell that differs from the main table: not flagged" (FAIL comparison: a broken copy was not flagged)
+mutation: check-readme-column.mjs's date check disabled -> `readme-column` samples bad-date and bad-date-report (the rule does not flag the sample)
+Each mutation was reverted; `git diff` of the tree was byte-identical to the state before it. The one-liner `git grep -n -i 'never used for tuning' -- . ':!_bmad-output'` now also lists docker/tests/test-readme.sh, which must hold the phrase (the forbidden-phrase pattern, its self-test and the header comment); README.md and GUIDE.md hold none.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Split out of the original Story 0.27 plan by the lead on the Contest Planner's 02:05Z ruling; implement after Story 0.27 merges.
+Summary: README.md gains the ruled C1 comparison H3 ("With the agent and with fixed rules only") at the end of "## Measured", its fixed-rules column filled from `node eval/compare.mjs --column eval/results` (November 12; 24; 11; 6 of 24, 0 of 11, 2 of 12, 0, 0, none, none); GUIDE.md's "What changes without the agent?" paragraph is replaced by the ruled C2 pointer. New rules `comparison` (test-readme.sh) and `readme-column` (test-eval-set.sh), with self-tests; "never used for tuning" added to `public-text`.
+
+Files changed:
+- README.md -- C1 block (2,171 words).
+- GUIDE.md -- C2 paragraph.
+- docker/tests/test-readme.sh -- rule `comparison`, `public-text` phrase, RULES and header.
+- docker/tests/test-eval-set.sh -- rule `readme-column` with self-tests.
+- this spec -- mutation lines, change log, triage log.
+
+Review: 23 findings; 0 patches applied; 4 deferred (two root causes, see frontmatter); 19 rejected with reasons in the Review Triage Log. Follow-up review recommended: false.
+
+Verification: `bash docker/tests/test-readme.sh` and `/bin/bash` (bash 3.2) all rules passed; `EVAL_SET_ONLY='readme-column cases'` passed; `bash docker/tests/test-boundaries.sh` passed; `git grep -i 'never used for tuning'` lists only docker/tests/test-readme.sh (the rule itself); five mutations demonstrated red and reverted.
+
+Residual risks: the agent column reads "measured at release 1.0.9" until the Planner's release-candidate fork fills it (variant F); the paragraph pins "release 1.0.9" word for word.

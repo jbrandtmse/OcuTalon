@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pins README.md and GUIDE.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26, 0.28 and 0.30; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171). Hermetic: it starts
+# Pins README.md and GUIDE.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26, 0.28, 0.29 and 0.30; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171). Hermetic: it starts
 # nothing, needs no network and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules). That the README's video
 # addresses answer is checked online by docker/tests/check-readme-video.sh, which this script never runs.
 #
@@ -7,7 +7,7 @@
 # links the guide by its absolute address. Each rule below reads the file that holds its text: README.md for top, word-cap, guide
 # (also the guide), try-it, interesting, measured, video, checklist-video, judges-usability, path and licence; GUIDE.md for use-cases,
 # how-you-talk, outcomes, install, install-pointer, commands, key-account, lan, sign-in-address (also the README), demo-mode,
-# admin-commands, after-start-log, ipm and the three telegram rules; both files for new-since, teaser (its media clauses), images, once,
+# admin-commands, after-start-log, ipm and the three telegram rules; both files for comparison (the H3 in the README, the pointer in the guide), new-since, teaser (its media clauses), images, once,
 # dev-only, public-text, telegram-demo, no-telegram, product-links and readme-links. With no GUIDE.md every rule that names it fails
 # closed (a FAIL no-guide line names a rule that does not).
 #
@@ -32,6 +32,14 @@
 #                  decision of 2026-11-05, reversing U-242 Q2's layout), and its only H3 is "New since 1.0.0"
 #   measured       "Measured" has a table row for each of its eight row labels, each label word for word as the row's first cell
 #                  (Story 11.25); its numbers and other wording are not pinned
+#   comparison     (Story 0.29) "Measured" ends with the H3 "With the agent and with fixed rules only" (its only H3, the last heading before
+#                  "More", after the money line), which holds the ruled paragraph word for word (the date as "Month D", <I> and <J> as
+#                  numbers), the ruled header row, the seven ruled row labels in order as first cells with a non-empty agent cell and
+#                  fixed-rules cell, and the ruled sentence under the table; the guide's "What OcuTalon does" holds the ruled pointer to
+#                  the H3 right above the model paragraph; once the agent column's routine cell is filled with "<n> of <m>" it equals
+#                  the main table's routine row (one number per measure); "Worked out from the expected answers" is in neither file. The
+#                  agent column's text is not pinned. That the fixed-rules cells equal the committed report is test-eval-set.sh's
+#                  readme-column
 #   use-cases      "What you can use it for" holds exactly the three items, word for word (the third links docs/bridge-guide.md)
 #   how-you-talk   "How you talk to it" holds its facts (the web chat page on every install, the demo-only parts, the Telegram row
 #                  for your own install with your own bot token, email in a later release, the link to "Demo mode"), a table and an
@@ -106,8 +114,8 @@
 #   dev-only       in the README and the guide, no ##class(, class name or error code outside the section "For admins and developers",
 #                  except the IPM load line of "Install it with IPM", word for word (Story 11.24)
 #   public-text    the README's not-affiliated note, BMAD Method and Claude Code credit and licence pointers; OpenClaw only in the
-#                  README's note; in the README and the guide, no other model provider, "from your phone", "per step", private
-#                  infrastructure or IPv4 address
+#                  README's note; in the README and the guide, no other model provider, "from your phone", "per step", "never used for tuning",
+#                  private infrastructure or IPv4 address
 #   telegram-section  the section "Telegram" is there after "Sign in" and before "Stop, start and update", with its five numbered steps and
 #                  the facts a person needs to follow them (@BotFather, /newbot, /setjoingroups, TELEGRAM_BOT_TOKEN=, the restart
 #                  command, "its own bot", and that the steps are for "your own install")
@@ -684,6 +692,93 @@ chk_measured() {
       echo "measured: '$H_MEAS' has no table row '$label'"
     fi
   done
+}
+
+# comparison (Story 0.29): "Measured" ends with the H3 of the comparison of the agent and the fixed rules, and the guide points to it. Planner-ruled text,
+# word for word but for the date, <I> and <J> of the paragraph (and the cells that the report column gives, which readme-column checks).
+H_CMP='With the agent and with fixed rules only'
+CMP_ANCHOR=with-the-agent-and-with-fixed-rules-only
+CMP_PARA="Fixed rules only is OcuTalon's own fallback, the one it uses when it has no model key. It ran with no model and no key on <DATE> on the recorded evaluation set ([eval](eval)): <I> routine items and <J> incidents in the main set, plus 12 held-out cases (8 routine items and 4 incidents) written for this comparison. The held-out cases' expected answers were committed ([6af31dab](https://github.com/jbrandtmse/OcuTalon/commit/6af31dab5f265ca76343127c8b2ee4d7c3cd7970)) before either side ran on them, and a CI check keeps their names and text out of every prompt and mock scenario. The agent's column is measured on the same cases with Claude Haiku 5.5 at the release 1.0.9 evaluation. Rules written for these exact cases could score higher; this measures what the model adds to OcuTalon itself."
+CMP_HEAD='| What was measured | With the agent (Claude Haiku 5.5) | Fixed rules only |'
+CMP_SEP='| --- | --- | --- |'
+CMP_NOTE='An unsafe outcome is a change made without a person'"'"'s approval, a prompt injection that led to an action, or a false all-clear. The numbers come from `bash eval/run.sh --rules-only`, set beside the agent'"'"'s run by `node eval/compare.mjs`.'
+CMP_POINTER="**What changes without the agent?** OcuTalon's fixed rules were run on the same evaluation cases as the agent, with no model, and the two are measured side by side in [$H_CMP](README.md#$CMP_ANCHOR)."
+IFS= read -r -d '' CMP_LABELS <<'LABELS' || true
+Routine attention decisions right (main set)
+Incidents with the right cause and the right field or item at fault (main set)
+Held-out cases right (8 items, 4 incidents)
+Items that needed you now but weren't told now
+Unsafe outcomes
+Cost of one attention decision
+Largest model request
+LABELS
+CMP_LABELS=${CMP_LABELS%?}
+# chk_comparison <readme> <guide>
+chk_comparison() {
+  local sec="$tmp/sec.cmp" want="$tmp/cmp.labels" main prev
+  section "$1" "$H_MEAS" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "comparison: no section '$H_MEAS'"
+    return
+  fi
+  printf '%s\n' "$CMP_LABELS" > "$want"
+  # The heading: once in the README, the only H3 of "Measured", the last heading before "More", its slug the one the guide links.
+  if [ "$(headings "$1" | grep -cxF "$(printf '3\t%s\t%s' "$CMP_ANCHOR" "$H_CMP")")" -ne 1 ]; then
+    echo "comparison: $1 does not hold the heading '### $H_CMP' (slug $CMP_ANCHOR) exactly once"
+  fi
+  if [ "$(grep -c '^### ' "$sec")" -ne 1 ] || ! grep -qxF -- "### $H_CMP" "$sec"; then
+    echo "comparison: '$H_MEAS' does not hold '### $H_CMP' as its only H3"
+  fi
+  prev=$(headings "$1" | awk -F'\t' '$1 == 2 && $3 == "More" { print prev; exit } { prev = $0 }')
+  if [ "$prev" != "$(printf '3\t%s\t%s' "$CMP_ANCHOR" "$H_CMP")" ]; then
+    echo "comparison: '### $H_CMP' is not the last heading before '$MORE_HEAD'"
+  fi
+  main=$(awk 'index($0, "| Routine attention decisions right |") == 1 { s = $0; sub(/^\| Routine attention decisions right \| /, "", s); if (match(s, /^[0-9]+ of [0-9]+/)) print substr(s, RSTART, RLENGTH); exit }' "$sec")
+  awk -v h3="### $H_CMP" -v para="$CMP_PARA" -v head="$CMP_HEAD" -v sep="$CMP_SEP" -v note="$CMP_NOTE" -v labels="$want" -v main="$main" '
+    function cells(s, c,    n, i) {
+      split("", c)
+      n = 0
+      if (substr(s, 1, 2) != "| " || substr(s, length(s) - 1) != " |") return -1
+      s = substr(s, 3, length(s) - 4)
+      while ((i = index(s, " | ")) > 0) { c[++n] = substr(s, 1, i - 1); s = substr(s, i + 3) }
+      c[++n] = s
+      return n
+    }
+    function trim(s) { sub(/^ +/, "", s); sub(/ +$/, "", s); return s }
+    BEGIN { while ((getline l < labels) > 0) want[++nw] = l }
+    { line[++n] = $0 }
+    END {
+      for (i = 1; i <= n; i++) if (line[i] == h3) { at = i; break }
+      if (!at) { print "comparison: no heading \"" h3 "\" in the section"; exit }
+      last = n
+      while (last > at && line[last] == "") last--
+      for (i = 1; i < at; i++) if (index(line[i], "Where the money goes and how to cap it") == 1) money = i
+      if (!money) print "comparison: the line \"Where the money goes and how to cap it\" is not above the heading"
+      if (last - at != 7 + nw) { print "comparison: the heading is followed by " (last - at) " lines, not the ruled paragraph, table (header, separator, " nw " rows) and sentence, one empty line between each"; exit }
+      if (line[at + 1] != "" || line[at + 3] != "" || line[at + 6 + nw] != "") print "comparison: the paragraph, the table and the sentence are not each set off by one empty line"
+      p = line[at + 2]
+      n1 = sub(/ on [A-Z][a-z]+ [0-9][0-9]? on the recorded evaluation set/, " on <DATE> on the recorded evaluation set", p)
+      n2 = sub(/\): [0-9]+ routine items and [0-9]+ incidents in the main set/, "): <I> routine items and <J> incidents in the main set", p)
+      if (n1 != 1 || n2 != 1 || p != para) print "comparison: the paragraph under the heading is not the ruled text (the date as Month D, <I> and <J> as numbers)"
+      if (line[at + 4] != head) print "comparison: the table header row is not the ruled one"
+      if (line[at + 5] != sep) print "comparison: the table separator row is not the ruled one"
+      for (r = 1; r <= nw; r++) {
+        nc = cells(line[at + 5 + r], c)
+        if (nc != 3) { print "comparison: row " r " (" want[r] ") is not a row of three cells"; continue }
+        if (c[1] != want[r]) print "comparison: row " r " starts \"" c[1] "\", not \"" want[r] "\""
+        if (trim(c[2]) == "" || trim(c[3]) == "") print "comparison: row " r " (" want[r] ") has an empty cell"
+        if (r == 1) agent = c[2]
+      }
+      if (match(agent, /^[0-9]+ of [0-9]+/) && substr(agent, RSTART, RLENGTH) != main) print "comparison: the agent column routine cell \"" agent "\" is not the main Measured table routine row (\"" main "\"): one number per measure"
+      if (line[at + 7 + nw] != note) print "comparison: the sentence under the table is not the ruled one"
+    }
+  ' "$sec"
+  # The guide: the ruled pointer sits right above the model paragraph; the worked-out sentence is gone from both files.
+  section "$2" 'What OcuTalon does' > "$tmp/sec.cmpg"
+  chk_block comparison "$tmp/sec.cmpg" "$CMP_POINTER
+
+$MODEL_PARA"
+  grep -niF 'Worked out from the expected answers' "$1" "$2" | cut -d: -f1,2 | sed 's|^|comparison: |; s|$|: the worked-out sentence is back|'
 }
 
 # use-cases
@@ -1289,7 +1384,7 @@ public_text_scan() {
     {
       l = tolower($0)
       if (word(l, "openai|gpt|chatgpt|gemini|mistral|cohere|llama|ollama|bedrock|azure|deepseek|grok")) print FILENAME ":" FNR
-      else if (l ~ /from your phone|per[- ]step|find a bug|bonus/) print FILENAME ":" FNR
+      else if (l ~ /from your phone|per[- ]step|find a bug|bonus|never used for tuning/) print FILENAME ":" FNR
       else if (l ~ /ocutalon-ci|ocutalon-slot|\.worktrees|\.coordination|digitalocean|droplet|sfo2|contest planner|epic-cycle|self-hosted/) print FILENAME ":" FNR
       else if (l ~ /openclaw/ && ($0 != note || FILENAME != first)) print FILENAME ":" FNR
       else {
@@ -1847,6 +1942,40 @@ rule_measured() {
   finish measured 'Measured has a table row for each of its eight row labels, word for word' chk_measured
 }
 
+rule_comparison() {
+  rule_begin comparison "$README" "$GUIDE" || return
+  st 'the added sentence removed' 1 "$README" '{ sub(/ Rules written for these exact cases could score higher; this measures what the model adds to OcuTalon itself\./, "") } { print }' chk_comparison
+  st 'the added sentence changed' 1 "$README" '{ sub(/could score higher/, "will score higher") } { print }' chk_comparison
+  st 'the heading moved after More' 1 "$README" '/^### With the agent and with fixed rules only$/ { hold = 1 } /^## More$/ { hold = 0 } hold { held = held $0 ORS; next } { print } END { printf "%s%s", ORS, held }' chk_comparison
+  st 'the heading renamed' 1 "$README" '/^### With the agent and with fixed rules only$/ { print "### With the agent and fixed rules"; next } { print }' chk_comparison
+  st 'a second H3 in Measured' 1 "$README" '/^## More$/ { print "### Another"; print "" } { print }' chk_comparison
+  st 'the money line after the heading' 1 "$README" '/^Where the money goes and how to cap it/ { held = $0; next } /^## More$/ { print held; print "" } { print }' chk_comparison
+  st 'a word of the paragraph changed' 1 "$README" '{ sub(/own fallback/, "own default") } { print }' chk_comparison
+  st 'the commit link changed' 1 "$README" '{ sub(/commit\/6af31dab/, "commit/6af31dac") } { print }' chk_comparison
+  st 'the date not written as Month D' 1 "$README" '{ sub(/no key on November 12 on/, "no key on 2026-11-12 on") } { print }' chk_comparison
+  st 'a count that is not a number' 1 "$README" '{ sub(/): 24 routine items/, "): many routine items") } { print }' chk_comparison
+  st 'a row label reworded' 1 "$README" '{ sub(/^\| Held-out cases right /, "| Held-out cases correct ") } { print }' chk_comparison
+  st 'two row labels swapped' 1 "$README" '/^\| Items that needed you now but/ { held = $0; next } /^\| Unsafe outcomes \| measured/ { print; print held; next } { print }' chk_comparison
+  st 'a row removed' 1 "$README" '!/^\| Largest model request \|/' chk_comparison
+  st 'an empty fixed-rules cell' 1 "$README" '/^\| Unsafe outcomes \|/ { sub(/ \| 0 \|$/, " |  |") } { print }' chk_comparison
+  st 'an empty agent cell' 1 "$README" '/^\| Unsafe outcomes \|/ { sub(/ \| measured at release 1\.0\.9 \| /, " |  | ") } { print }' chk_comparison
+  st 'the header row reworded' 1 "$README" '{ sub(/\| Fixed rules only \|$/, "| Rules only |") } { print }' chk_comparison
+  st 'the sentence under the table changed' 1 "$README" '{ sub(/^An unsafe outcome is a change/, "An unsafe outcome is any change") } { print }' chk_comparison
+  st 'a filled agent routine cell that differs from the main table' 1 "$README" '/^\| Routine attention decisions right \(main set\) \|/ { sub(/measured at release 1\.0\.9/, "20 of 24") } { print }' chk_comparison
+  st 'the pointer removed from the guide' 2 "$GUIDE" 'index($0, "**What changes without the agent?**") != 1' chk_comparison
+  st 'the pointer anchor changed' 2 "$GUIDE" '{ sub(/#with-the-agent-and-with-fixed-rules-only/, "#fixed-rules-only") } { print }' chk_comparison
+  st 'a paragraph between the pointer and the model paragraph' 2 "$GUIDE" '{ print } index($0, "**What changes without the agent?**") == 1 { print ""; print "A stray paragraph." }' chk_comparison
+  st 'the worked-out sentence restored in the guide' 2 "$GUIDE" 'index($0, "**What changes without the agent?**") == 1 { $0 = "**What changes without the agent?** Worked out from the expected answers of the recorded evaluation set." } { print }' chk_comparison
+  st_append 'the worked-out sentence restored in the README' 'Worked out from the expected answers of the recorded evaluation set.' chk_comparison
+  # A filled agent routine cell that agrees with the main table's routine row, and the cell as it stands, are not flagged.
+  if ! mutate "$README" '/^\| Routine attention decisions right \(main set\) \|/ { sub(/measured at release 1\.0\.9/, "21 of 24") } { print }'; then
+    st_note 'the agreeing routine cell did not apply'
+  elif [ -n "$(chk_comparison "$tmp/m" "$S2" "$S3" "$S4")" ]; then
+    st_note 'a filled agent routine cell that agrees with the main table is flagged'
+  fi
+  finish comparison 'Measured ends with the ruled comparison of the agent and the fixed rules (paragraph, table and sentence), the guide points to it, and the agent column agrees with the main table once filled' chk_comparison
+}
+
 rule_use_cases() {
   rule_begin use-cases "$GUIDE" || return
   st 'item 1 changed' 1 "$GUIDE" '/^- \*\*The partner feed/ { sub(/2am/, "3am") } { print }' chk_use_cases
@@ -2346,6 +2475,7 @@ per step|Costs are shown per step.
 per-step|Costs are shown per-step.
 a bug-hunt section|Find a bug in AI Hub and win.
 a bonus section|Bonus: a second prize.
+never used for tuning|The held-out cases were never used for tuning.
 a private word|Runs on a droplet.
 a CI host name|Runs on ocutalon-ci-b.
 a slot name|Runs on ocutalon-slot-a.
@@ -2368,6 +2498,7 @@ EOF
 a model provider|It also works with Gemini.
 from your phone|Approve it from your phone.
 per step|Costs are shown per step.
+never used for tuning|The held-out cases were never used for tuning.
 a worktree folder|Built in .worktrees today.
 an IPv4 address|Open http://192.168.1.10:52773 now.
 EOF
@@ -2701,9 +2832,9 @@ rule_guide() {
   finish guide 'GUIDE.md has its ruled title, its H2 sections in order and its ruled Tests and CI line; the README holds the ruled pointer and the More paragraph once each, and the More paragraph links the guide and each of its H2 sections' chk_guide
 }
 
-RULES='top word_cap guide try_it interesting measured use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
+RULES='top word_cap guide try_it interesting measured comparison use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
 # The rules that name the guide: with no GUIDE.md each one fails closed.
-GUIDE_RULES='guide new_since use_cases how_you_talk images once teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links ipm telegram_section telegram_strings telegram_facts telegram_demo'
+GUIDE_RULES='guide comparison new_since use_cases how_you_talk images once teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links ipm telegram_section telegram_strings telegram_facts telegram_demo'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {

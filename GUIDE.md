@@ -74,7 +74,7 @@ Each decision shows its reasons, its confidence and its cost.
 - **Watching a production.** Ask in plain words, for example "Watch the Orders production and only tell me if something needs me." To stop, say "Stop watching Orders."
 - **Reminders.** Ask in plain words, for example "Remind me in 1 minute to stretch." A reminder arrives on time, survives a restart, and can be listed and cancelled in the chat.
 
-**What changes without the agent?** Worked out from the expected answers of the recorded evaluation set ([eval](eval)), not from a run: fixed rules decide Tell now for every item, which is the expected answer for only 6 of the 24 routine items, and they give none of the 11 incidents a cause or a fix. With Claude Haiku 5.5, release 1.0.4's evaluation got 21 of 24 and 11 of 11 right ([Measured](README.md#measured)).
+**What changes without the agent?** OcuTalon's fixed rules were run on the same evaluation cases as the agent, with no model, and the two are measured side by side in [With the agent and with fixed rules only](README.md#with-the-agent-and-with-fixed-rules-only).
 
 **With a model, and without one.** OcuTalon uses Claude Haiku 5.5 by default. With no model key, or when the model can't give a usable answer, it falls back to fixed rules and says so on the page and in Visual Trace.
 
