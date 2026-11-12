@@ -121,6 +121,31 @@ deferred: []
 - DW-1068: After a suspend's incident closes, the user can't ask to resume the item, while `result.itemSuspended` says to, and Checks never reports the item as disabled. Covered as follows: the quiet and replay closes no longer end a held incident (AC1, AC2); the resume stays askable until the user's own Dismiss (AC3); the band's ruled text stays true; and Checks reports the item after that Dismiss (AC5).
 - AC8: Given the online demo, when its suites run, then nothing changes: suspend and resume are refused (`Test.Fix.ItemKinds` `ONLINESHARED`), and Break the feed and the quiet close pass their existing tests (`Test.Demo.BreakFeedIn`, `TestCloseQuiet`, `TestCloseForReplay`).
 
+### Review Findings
+
+Code review 2026-11-12 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full-opus). 22 raw rows, 5 entries after grouping (high 0, med 2, low 3), 15 rows rejected. Checked against U-321 and the amended AD-15: the two split rows, the hold bullet, Dismiss always closing, P3 verbatim and P1/P2 absent all match; no AD mismatch.
+
+- [x] [Review][Decision] P3 says "the incident is closed" for every `no_incident`, but `resume_item` also gets `no_incident` while the session's incident is `awaiting_approval` or `fixing` — `Tools/WatchAnswers.cls:131` answers `no_incident` with the busy incident in `others` (the second resume ask of `Test.Fix.AskedTurns:TestUndoTurn`), so the model would tell the user a waiting incident is closed and send them to the Portal. The sentence is ruled verbatim (U-321), so the reviewer may not change it: med, fix-risk low, in-story (P3 footprint extension), `decision-pending` owner=burndown as DW-1186 for a Planner text call (e.g. "if the answer is no_incident and others is empty, ..."). [src/ocutalon/cls/OcuTalon/Agent/Chat.cls:65]
+- [x] [Review][Patch] AC5's "an item that a resume enabled sends none" could not fail in `TestDismissedSuspendIsReportedOnce` (B is never in the stub's disabled list, so `Findings` never looks at it). Added an assertion that `Suspended`'s `released` is exactly `{"A": ended}` after the dismissal, and dropped the count label's B claim; mutation recorded in `## Verification`. med, fix-risk low, in-story. [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls:682]
+- [x] [Review][Patch] The class descriptions of `Watch.Transitions` and `Watch.IncidentManager` defined the hold as "an item that one of its requests suspended is still suspended", looser than AD-15 and `Fix.Run` (the newest item-kind run that changed the item is a `suspend_item` of the incident; a later suspend by another incident moves it). Reworded to the AD-15 definition. low, fix-risk low. [src/ocutalon/cls/OcuTalon/Watch/Transitions.cls:5; src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:82]
+- [x] [Review][Patch] The pin "closeForReplay of an open incident is refused whether it holds a suspend or not" passed only `holds` 0. Relabelled, and added the `holds` 1 pin. low, fix-risk low. [src/ocutalon/cls/OcuTalon/Test/Watch/Transitions.cls:91]
+- [x] [Review][Patch] "Holds ... 0 for an incident of another production" used an incident with no runs, which is 0 whatever the production filter does (the filter is pinned by `TestSuspendedByOcuTalonIsNotReported`'s "nothing for another production" on the shared SELECT). Relabelled to what it checks. low, fix-risk low. [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls:613]
+
+Rejected:
+- `low` Blind 2 + Edge 1: a held item enabled by hand, disabled again (reported then at the run time) and then dismissed is reported a second time at the older suspend time - needs known limit 4's manual enable plus a manual re-disable before the Dismiss; the fix needs new per-item state in Reported.
+- `low` Blind 3: the planned mutation list (AC1/AC2 test names, "AC8: none") disagrees with the run list - the recorded `mutation:` lines are accurate; the fix edits the spec's plan text.
+- `false` Blind 5c + Auditor 5: the last `TestRefusedMoves` pin cites the online demo with `demoMode` 1 - it pins that demo mode with no hold still closes, which is the online demo's case; the ruling's condition rests on `Test.Fix.ItemKinds` `ONLINESHARED`.
+- `low` Blind 6 + Auditor 3: AC5's test closes the incident by saving `State` instead of a real `dismiss` - the spec's task says "the incident closed"; `Suspended` reads only the stored state, and dismiss to closed is pinned by `TestHeldBySuspend`; a driver needs a second host fixture.
+- `low` Blind 7: the Review Triage Log double-counts Intent 7/8 and has "Gap 3a" alone - bookkeeping of the implement pass; the fix edits the spec.
+- `low` Edge 2: a released item whose suspend run has no EndedAt is never reported - already rejected (Blind 4 of the implement review): a done run with Completed above 0 has EndedAt.
+- `low` Edge 3: a retention purge of a closed incident's newer run lets an older run decide the holder again - it needs a purge that removes a newer run of an item while an older run of it survives, and the item still disabled; the fix needs a tombstone.
+- `low` Edge 5: a suspend and Dismiss inside one check interval are reported at the run time, not the suspend's - the spec's rule ("in the previous ours"); it is still reported once.
+- `low` Edge 6: a failing holds read warns on every quiet sweep - spec-bound (matrix row "Hold unreadable", Decided in-stage 2).
+- `low` Gap (hermeticity): `Zz.Holders`/`Zz.Dismissed` are fixed names with exact-JSON assertions - each test creates and cleans its own rows (`Fixture.Clean`), as the class's other tests do; only a killed earlier run on a reused stack would leave rows.
+- `low` Auditor 1: AD-15's bullet names only `closeQuiet` after a resume, while its table also lets `closeForReplay` close once nothing is held - the code follows the table; the wording is the spine's (lead, Rule 20).
+- `false` Auditor 2: `Holds` matches `FixRun.IncidentRef`, not the incident's `RequestRefs` - a FixRun is written with its own request's incident, so the two cannot differ.
+- `low` Auditor 4: the "Replay close held" row is not driven through BreakFeedIn - already rejected (Intent 1); BreakFeedIn is unchanged and `TestCloseRefused` pins its refusal path.
+
 ## Spec Change Log
 
 - 2026-11-12 (lead, U-321 at=2026-11-12T04:43:08Z#985): Contest Planner ruled option (b) under the owner's delegation. Written verbatim under Design Notes. Applied: AD-15 (two split close rows + the bullet "An incident that holds a suspend") in the spine; PRD FR-24 (three bullets) and FR-16 (Break the feed); EXPERIENCE.md:698 and :1210, each with `[AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation]`. P1 and P2 declined; P3 added as a task; the conditions added as a task; known limit 4 accepted.
@@ -379,6 +404,20 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: Facts reads holds for every event (`closing` set to 1) -> red: `Lifecycle:TestHeldBySuspend` ("and the dismiss logged no further holds warning").
 - mutation: P3, `Chat.cls` loses the no_incident clause -> red: `Test.Agent.Instructions:TestChat` (the new pin).
 - AC8 / online demo: no mutation; `Test.Fix.ItemKinds` (`ONLINESHARED`, passed), `Test.Demo.BreakFeedIn`, `Lifecycle:TestCloseQuiet` and `TestCloseForReplay` (passed) are the evidence, and `Test.Watch.Transitions:TestRefusedMoves` pins that a resolved incident with `holds` 0 still closes by closeQuiet with demo mode on.
+
+**Mutations re-run (QA, warm tag e23s9qw; each applied, observed red, reverted from a backup with `cmp` and `git status --short` showing the tree as before):**
+- mutation (QA): AC1, the resolved branch of `Transitions` closes on closeQuiet and closeForReplay whatever `holds` is -> red: `Test.Watch.Transitions:TestRefusedMoves` and `Test.Watch.Lifecycle:TestHeldBySuspend`.
+- mutation (QA): AC2, the open-noticed closeQuiet ignores `holds` -> red: `Test.Watch.Transitions:TestRefusedMoves` (`d0 h1`) and `Lifecycle:TestHeldBySuspend`.
+- mutation (QA): AC3, `Fix.Run.Suspended` never ends a holder on a resume -> red: `Lifecycle:TestHeldBySuspend` (no close after the resume, no summary lines).
+- mutation (QA): AC4, `IncidentManager.Asked` skips the recipients check -> red: `Test.Fix.Asked:TestHeldIncidentResumeIsTheSessions`.
+- mutation (QA): AC5, `Checks.Process.Findings` ignores `released` -> red: `Test.Checks.Runs:TestDismissedSuspendIsReportedOnce`; and `Run` passes the run time instead of `one.at` -> red: the same method ("with the end of the suspend as the time").
+- mutation (QA): AC6, `Suspended` keeps the first suspend's incident as the holder -> red: `Lifecycle:TestHeldBySuspend` (the moved hold).
+- mutation (QA): AC7, the catch in `IncidentManager.Holds` counts as not held -> red: `Lifecycle:TestHeldBySuspend` (`FailHolds`).
+- mutation (QA): P3, `Agent.Chat` loses the no_incident clause -> red: `Test.Agent.Instructions:TestChat`.
+- QA judgement: every AC and matrix row has a pin and no assertion was found that cannot fail; the replay refusal's other end (BreakFeedIn answering incident_in_progress) is the existing `Test.Demo.BreakFeedIn:TestCloseRefused`. No test file was created or changed by QA (files created: none). After the reverts the warm stack ran `Test.Watch.Transitions`, `Test.Watch.Lifecycle`, `Test.Checks.Runs`, `Test.Fix.Asked` and `Test.Agent.Instructions` green.
+
+**Mutations run (code review, warm tag e23s9cw; applied, observed red, reverted from a backup with `cmp`, `git status --short` and `git diff --stat` unchanged):**
+- mutation: AC5 (an item that a resume enabled sends none), `Fix.Run.Suspended` never ends a holder on a resume (the `Kill holder(item)` removed) -> red: `Test.Checks.Runs:TestDismissedSuspendIsReportedOnce` ("only A is released: B, which a resume enabled, is not"). After the revert `Test.Checks.Runs`, `Test.Watch.Transitions` and `Lifecycle:TestHeldBySuspend` passed on the same stack.
 
 ## Auto Run Result
 

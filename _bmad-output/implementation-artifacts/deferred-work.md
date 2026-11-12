@@ -6606,6 +6606,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T06:27:51Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=merge_gate note=Planner_ruling_2026-11-10_option_a(resume_after_close_scoped;no_state_move;second-session_proof);rework_iteration_1
 - 2026-11-10T07:55:00Z status=routed owner=23-9-resume-a-suspended-item-after-its-incident-closes by=merge_gate note=Planner_re-ruling_2026-11-10_~07:20Z:(c)_text_limit_in_23.2;resume_after_close_parked_as_Story_23.9(after_voting;(a)_or_(b),Planner_leans_(b))
 - 2026-11-10T08:23:02Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run
+- 2026-11-12T06:41:07Z status=resolved-by:23-9-resume-a-suspended-item-after-its-incident-closes by=adjudication note=option_(b)_per_U-321:held_incident_refuses_closeQuiet/closeForReplay_(Watch/Transitions,IncidentManager.Holds,Fix.Run.Suspended;bf7ba73b),Dismiss_always_closes,Checks_reports_the_still-disabled_item_once_after_a_held_dismiss_(Checks/Process);pinned_by_Transitions:TestRefusedMoves,Lifecycle:TestHeldBySuspend,Checks.Runs:TestDismissedSuspendIsReportedOnce,Fix.Asked:TestHeldIncidentResumeIsTheSessions(mutations_red);residual_text_case=DW-1186(Planner)
 
 ### DW-1069: AD-33 exception list of Story 23.2 does not name four Lane B paths the story edits under other rulings: README.md, docker/tests/lib-live.sh, web/e2e/support/iris.ts, Test/Core/CommandsRouting.cls
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7022,3 +7023,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: IncidentManager.cls:802 (Story 23.11 review, DW-1172) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Contest Planner ruling 2026-11-12: each form letters, spaces and hyphens only, at most 40 characters, else drop it and keep the code noun; a test with a hostile noun
 - 2026-11-12T03:39:15Z status=routed owner=burndown by=orchestrator note=not part of 23.11, not a 1.0.8 blocker; 23.11's SystemNote is constant text (DW-1172 ruling)
+
+### DW-1186: Agent/Chat.cls:65 P3 tells the model to say the incident is closed on every no_incident, but resume_item also gets no_incident while the session's incident is awaiting_approval or fixing (others lists it)
+- source: spec-23-9-resume-a-suspended-item-after-its-incident-closes.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: WatchAnswers.ResolveIncident:131 returns no_incident with others=[busy]; Test.Fix.AskedTurns:TestUndoTurn's second resume ask reads exactly that; the dismiss bullet branches on others, P3 does not
+- 2026-11-12T06:39:32Z status=decision-pending owner=burndown by=cr note=Planner text call on ruled P3 (U-321): e.g. 'if the answer is no_incident and others is empty'; ruled text unchanged

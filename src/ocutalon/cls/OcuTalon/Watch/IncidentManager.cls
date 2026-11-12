@@ -79,7 +79,7 @@
 ///     a Type 3 warning is logged) or Ok 1 with the outcome closed;
 ///     an answer that found the incident for its caller carries the state and open variant as stored as Data (a failed save too, read again from the row; a failed
 ///     read of the recipients has no caller to tell, like a dismiss from a session that is not a recipient). closeForReplay and closeQuiet check no session: only
-///     product code sends them. An incident holds a suspend (Story 23.9; Fix.Run Holds) while an item that one of its requests suspended is still suspended: the table then
+///     product code sends them. An incident holds a suspend (Story 23.9; Fix.Run Holds) while, for an item of its production, the newest item-kind run that changed it is a suspend_item run of one of its requests: the table then
 ///     refuses closeQuiet and closeForReplay (not_allowed) and a dismiss still closes it. Facts reads that only for those two verbs (Holds, over the seam ReadHolds); a read that
 ///     fails counts as held, with one Type 3 warning (LOGHOLDS).
 ///   - Later requests (Story 7.6; AD-15, AD-16): every dry-run ask first records its window on each failure group (AskedFrom := AskedTo, AskedTo := the last

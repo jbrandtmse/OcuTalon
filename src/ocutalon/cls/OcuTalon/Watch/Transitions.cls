@@ -2,8 +2,8 @@
 /// a move does. Next gives 1 for an accepted move and 0 for a refused one, and the target state, the open variant and which request gets an Execute.
 ///
 /// Next(state, noticed, event, facts, .to, .variant, .execute): state is "" before the incident exists; noticed matters only for open; facts is a dynamic
-/// object with the members variant (a notice's open variant), pending, waiting, demoMode and holds (1 or 0; a member that is absent is 0). holds is 1 while an item
-/// that OcuTalon suspended for the incident is still suspended (Fix.Run Holds; Story 23.9). execute is OWN (the event's own request), EARLIEST (the earliest waiting request) or "".
+/// object with the members variant (a notice's open variant), pending, waiting, demoMode and holds (1 or 0; a member that is absent is 0). holds is 1 while, for an item
+/// of the incident's production, the newest item-kind run that changed it is a suspend_item run of the incident (Fix.Run Holds; Story 23.9). execute is OWN (the event's own request), EARLIEST (the earliest waiting request) or "".
 ///
 /// The rows (every other pair of state and event is refused, and so is every event on a closed incident):
 ///   - (none) + first -> open, no variant;
