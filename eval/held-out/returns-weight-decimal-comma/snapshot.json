@@ -1,0 +1,126 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "EVALFEED",
+    "production": "OcuTalon.Test.Eval.Feed",
+    "item": "ReturnsToLedger"
+  },
+  "failures": [
+    {
+      "headerId": 5,
+      "sessionId": 5,
+      "superSession": "ZbuZGbSq1YK6Z2kiFhCbRg",
+      "timeCreated": "2026-11-12T10:51:56Z",
+      "timeProcessed": "2026-11-12T10:51:56Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ReturnsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "4",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7207: Datatype value '2,5' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"2,5\"",
+      "body": {
+        "ShipmentId": "SH-8001",
+        "OrderNumber": "ON-8001",
+        "ShippedAt": "2026-10-16 09:30:00",
+        "Weight": "2,5",
+        "Carrier": "CARRIER-A"
+      }
+    },
+    {
+      "headerId": 6,
+      "sessionId": 6,
+      "superSession": "ZbuZGbSq1YK6Z2kiFhCbRg",
+      "timeCreated": "2026-11-12T10:51:56Z",
+      "timeProcessed": "2026-11-12T10:51:56Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ReturnsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "5",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7207: Datatype value '1,0' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"1,0\"",
+      "body": {
+        "ShipmentId": "SH-8002",
+        "OrderNumber": "ON-8002",
+        "ShippedAt": "2026-10-16 09:45:00",
+        "Weight": "1,0",
+        "Carrier": "CARRIER-A"
+      }
+    },
+    {
+      "headerId": 7,
+      "sessionId": 7,
+      "superSession": "ZbuZGbSq1YK6Z2kiFhCbRg",
+      "timeCreated": "2026-11-12T10:51:56Z",
+      "timeProcessed": "2026-11-12T10:51:56Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ReturnsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "6",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7207: Datatype value '0,5' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"0,5\"",
+      "body": {
+        "ShipmentId": "SH-8003",
+        "OrderNumber": "ON-8003",
+        "ShippedAt": "2026-10-16 10:00:00",
+        "Weight": "0,5",
+        "Carrier": "CARRIER-B"
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "21",
+      "timeLogged": "2026-11-12T10:51:56Z",
+      "type": "Error",
+      "configName": "ReturnsToLedger",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 5,
+      "text": "ERROR #7207: Datatype value '2,5' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"2,5\""
+    },
+    {
+      "id": "24",
+      "timeLogged": "2026-11-12T10:51:56Z",
+      "type": "Error",
+      "configName": "ReturnsToLedger",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 6,
+      "text": "ERROR #7207: Datatype value '1,0' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"1,0\""
+    },
+    {
+      "id": "27",
+      "timeLogged": "2026-11-12T10:51:56Z",
+      "type": "Error",
+      "configName": "ReturnsToLedger",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 7,
+      "text": "ERROR #7207: Datatype value '0,5' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:Weight', with value equal to \"0,5\""
+    }
+  ],
+  "items": [
+    {
+      "name": "ReturnsToLedger",
+      "className": "OcuTalon.Test.Eval.Feed.Intake",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {}
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "5",
+      "type": "Request",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ReturnsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "status": "Error",
+      "timeCreated": "2026-11-12T10:51:56Z",
+      "isError": false
+    }
+  ]
+}

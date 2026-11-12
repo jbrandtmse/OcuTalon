@@ -1,6 +1,6 @@
-/// Tests of the email section of SaveSettings in OcuTalon.Core.SettingsOps (Stories 21.2 and 21.6; AD-1, AD-17, AD-19), driven through a shadow instance of
-/// OcuTalon.Test.Core.SettingsEmailProbe: the credential, the settings rows of EmailIn and EmailOut and the production update are stand-ins, the audit write is a
-/// recording seam, and the hand-off is the real OcuTalon.Core.SecretHandoff. Safe on a slot: the product keys email.address and email.owner and the public
+/// Tests of the email section of SaveSettings and of MailSignIn in OcuTalon.Core.SettingsOps (Stories 21.2, 21.6 and 21.3; AD-1, AD-17, AD-19), driven through a shadow instance of
+/// OcuTalon.Test.Core.SettingsEmailProbe: the credential, the settings rows of EmailIn and EmailOut, the production update, IRIS's OAuth2 client and the sign-in mark are
+/// stand-ins, the audit write is a recording seam, and the hand-off is the real OcuTalon.Core.SecretHandoff. Safe on a slot: the product keys of KEYS and the public
 /// setting onlineDemo are saved before the tests and put back after them, and every reference a test offers is discarded. Every text is written out here.
 ///   - TestFirstSave (matrix row 1): a valid first save answers done; the credential holds the user and the password, the keys hold the address and the
 ///     saving session, the rows hold server, port, credential name, SSLConfig OcuTalonClient and Enabled 1, EmailIn is updated once, and the five audit
@@ -22,8 +22,13 @@
 ///     and the email.outgoing audit entry in the form host or host:port off 587;
 ///   - TestAllOrNothing: a failed audit write at each position or a failed key write changes nothing; a failed credential write, a failed settings row
 ///     write and a failed update put back the keys (with an audit entry of each), the credential and the rows, also over an earlier mailbox;
-///   - TestValues: the page's channels hold address, incoming, outgoing, user and passwordSet, never the password;
-///   - TestNoSecretAnywhere: after a save the password is in no audit entry, no ^OcuTalon* global and no Ens.Util.Log row.
+///   - TestValues: the page's channels hold address, incoming, outgoing, user, passwordSet, signIn, clientId, clientSecretSet and signedIn, never a secret;
+///   - TestNoSecretAnywhere: after a save the password is in no audit entry, no ^OcuTalon* global and no Ens.Util.Log row;
+///   - Story 21.3: TestProviderFirstSave (row 1: keys, credential without a password, the register call, the audits, the mark), TestProviderClearsPassword (an earlier
+///     password is removed and audited), TestProviderResave (row 2: the secret omitted keeps the client, the client ID changes), TestProviderNeedsSecret (row 2: no client yet,
+///     or another provider, is refused naming clientSecret), TestProviderChange (row 3), TestRemove (row 4: Password saved removes the client and clears the keys),
+///     TestRefusedProviderValues (row 5), TestForeignObjects (row 6: a refused register is failed and everything is put back), TestOAuthAudits (email.oauthApp and email.oauthOwned),
+///     TestSignInStart, TestSignInCheck and TestSignInRefused (the MailSignIn handler), TestProviderOnlineDemo, TestNoClientSecretAnywhere.
 Class OcuTalon.Test.Core.SettingsEmail Extends %UnitTest.TestCase
 {
 
@@ -43,6 +48,14 @@ Parameter HOST = "pop.example.com";
 
 Parameter SMTPHOST = "smtp.example.com";
 
+/// A dummy client ID of the tests, and the origin of the page that saves.
+Parameter CLIENTID = "zz-client-1.example";
+
+Parameter ORIGIN = "http://127.0.0.1:52773";
+
+/// The product keys that the tests save before and put back after.
+Parameter KEYS = "email.address,email.owner,email.signIn,email.clientId,email.oauthOwned";
+
 /// The sentence of the online demo's refusal (Public text P2).
 Parameter UNAVAILABLE = "Email can't be connected on the online demo. Nothing was changed.";
 
@@ -52,7 +65,8 @@ Property Uris As %List [ Private ];
 Method OnBeforeAllTests() As %Status
 {
 	Kill ^OcuTalonTest("SettingsEmail")
-	For key = "email.address", "email.owner" {
+	For i = 1:1:$Length(..#KEYS, ",") {
+		Set key = $Piece(..#KEYS, ",", i)
 		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
 		If $IsObject(row) Set ^OcuTalonTest("SettingsEmail", "saved", key) = $ListBuild(row.Value, row.UpdatedAt)
 	}
@@ -69,7 +83,8 @@ Method OnBeforeOneTest() As %Status
 Method OnAfterAllTests() As %Status
 {
 	Do ..Reset()
-	For key = "email.address", "email.owner" {
+	For i = 1:1:$Length(..#KEYS, ",") {
+		Set key = $Piece(..#KEYS, ",", i)
 		If $Data(^OcuTalonTest("SettingsEmail", "saved", key), saved) {
 			Set row = ##class(OcuTalon.Data.Setting).%New()
 			Set row.Key = key, row.Value = $List(saved, 1), row.UpdatedAt = $List(saved, 2)
@@ -425,20 +440,20 @@ Method TestAllOrNothing()
 			Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a failed "_$Piece(stage, "|", 1)_" (earlier mailbox "_earlier_") is failed")
 			Kill ^OcuTalonTest("SettingsEmailProbe", "answer")
 			Do $$$AssertEquals(..State(), was, "a failed "_$Piece(stage, "|", 1)_" (earlier mailbox "_earlier_"): keys, credential and rows are as they were")
-			Do $$$AssertEquals(..Audits().%Size() > 5, 1, "a failed "_$Piece(stage, "|", 1)_": the keys put back are audited too")
+			Do $$$AssertTrue(..Forms() [ ("email.address|"_$Select(earlier: "changed|set", 1: "set|")), "a failed "_$Piece(stage, "|", 1)_" (earlier mailbox "_earlier_"): the address put back is audited too")
 		}
 	}
 }
 
-/// The page's channels: address, incoming, user and passwordSet, never the password.
+/// The page's channels: the mailbox, the sign-in method and its state, never a password or a client secret.
 Method TestValues()
 {
 	Set before = ..Values().sections.channels
-	Do $$$AssertEquals(before.%ToJSON(), "{""address"":"""",""incoming"":"""",""outgoing"":"""",""user"":"""",""passwordSet"":false}", "before a save the channels are empty")
+	Do $$$AssertEquals(before.%ToJSON(), "{""address"":"""",""incoming"":"""",""outgoing"":"""",""user"":"""",""passwordSet"":false,""signIn"":""password"",""clientId"":"""",""clientSecretSet"":false,""signedIn"":false}", "before a save the channels are empty")
 	Set secret = ..Secret("values")
 	Do ..Save(..Body(..#ADDRESS, ..#HOST_":1995", ..#USER, ..Offer(secret), ..#SMTPHOST_":465"))
 	Set values = ..Values()
-	Do $$$AssertEquals(values.sections.channels.%ToJSON(), "{""address"":"""_..#ADDRESS_""",""incoming"":""pop.example.com:1995"",""outgoing"":""smtp.example.com:465"",""user"":"""_..#USER_""",""passwordSet"":true}", "after a save they show the saved values and that a password is set")
+	Do $$$AssertEquals(values.sections.channels.%ToJSON(), "{""address"":"""_..#ADDRESS_""",""incoming"":""pop.example.com:1995"",""outgoing"":""smtp.example.com:465"",""user"":"""_..#USER_""",""passwordSet"":true,""signIn"":""password"",""clientId"":"""",""clientSecretSet"":false,""signedIn"":false}", "after a save they show the saved values and that a password is set")
 	Do $$$AssertEquals(values.%ToJSON() [ secret, 0, "and never the password")
 	Do ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ""))
 	Do $$$AssertEquals(..Values().sections.channels.incoming_"|"_..Values().sections.channels.outgoing, ..#HOST_"|", "a server on the default port is shown without it, and a cleared outgoing server is empty")
@@ -458,6 +473,456 @@ Method TestNoSecretAnywhere()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(secret), "", "no ^OcuTalon* global holds it")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", secret), 0, "no Ens.Util.Log row holds it")
 	Do $$$AssertEquals(result.Message_result.Data [ secret, 0, "and the answer does not")
+}
+
+/// Story 21.3, matrix row 1: the first save with a provider writes the keys, the credential with the user name and no password, registers the client with the
+/// secret through the seam, audits each change without a secret, and records the mark with signedIn 0.
+Method TestProviderFirstSave()
+{
+	Set secret = ..Secret("client")
+	Set result = ..Save(..ProviderBody("google", ..Offer(secret)))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a first save with a provider is done")
+	Do $$$AssertEquals(..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned"), "google|"_..#CLIENTID_"|client,server,app", "the keys hold the method, the client ID and what OcuTalon created")
+	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("cred"), $ListBuild(..#USER, ""), "the credential holds the user name and no password")
+	Do $$$AssertEquals(..Count("oauthRegister"), 1, "the client is registered once")
+	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("calls", ..CallAt("oauthRegister")), "oauthRegister|google|"_..#CLIENTID_"|"_..#ORIGIN_"||secret", "with the provider, the client ID, the page's origin, nothing owned yet and a secret")
+	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("oauthSecret"), secret, "the seam received the client secret")
+	Do $$$AssertEquals(..Count("start"), 1, "the production is updated once")
+	Do $$$AssertEquals($Get(^||OcuTalonSettingsEmailProbe("mark")), $ListBuild("google", 0), "the mark says google, not signed in")
+	Do $$$AssertEquals(..Forms(), "email.address||set;email.owner||"_..#REF_";email.incoming||pop.example.com;email.user||set;email.signIn|password|google;email.clientId||set;email.clientSecret||set;email.oauthApp|disabled|enabled;email.oauthOwned||client,server,app", "one audit entry per change, with no secret")
+	Do $$$AssertEquals(..AuditText() [ secret, 0, "no audit entry holds the client secret")
+	Do $$$AssertEquals(..AuditText() [ ..#CLIENTID, 0, "or the client ID")
+	Set values = ..Values().sections.channels
+	Do $$$AssertEquals(values.signIn_"|"_values.clientId_"|"_values.clientSecretSet_"|"_values.passwordSet_"|"_values.signedIn, "google|"_..#CLIENTID_"|1|0|0", "the page shows the method, the client ID, a registered client and no password")
+}
+
+/// Story 21.3: a provider keeps no mail password: an earlier password is removed and audited, whatever the typed fields.
+Method TestProviderClearsPassword()
+{
+	Do ..SeedEarlier()
+	Set result = ..Save(..ProviderBody("microsoft", ..Offer(..Secret("clears")), , "zzearlier@example.com"))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a save with a provider over a password mailbox is done")
+	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("cred"), $ListBuild(..#USER, ""), "the stored password is gone and the user name is kept")
+	Do $$$AssertEquals(..Forms() [ ";email.credential|set|removed;", 1, "the removal of the password is audited")
+	Do $$$AssertEquals(..Count("oauthRegister")_"|"_..Count("oauthRemove"), "1|0", "the client is registered, not removed")
+	Set result = ..Save(..ProviderBody("microsoft", "", , , {"password": "zz-typed-password"}))
+	Do $$$AssertEquals(result.Outcome_"|"_result.Data, "refused|{""fields"":[""password""]}", "a password member with a provider is refused naming password")
+}
+
+/// Story 21.3, matrix row 2: a re-save with the secret omitted keeps the registered client; a changed client ID is audited as changed; an unchanged re-save audits nothing.
+Method TestProviderResave()
+{
+	Do ..SeedProvider("google", "client,server,app")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "changed") = 0
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = ""
+	Set result = ..Save(..ProviderBody("google", ""))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "an identical re-save with the secret omitted is done")
+	Do $$$AssertEquals(..Audits().%Size(), 0, "and audits nothing")
+	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("calls", ..CallAt("oauthRegister")), "oauthRegister|google|"_..#CLIENTID_"|"_..#ORIGIN_"|client,server,app|kept", "the client is asked to keep its secret")
+	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("oauthSecret"), "", "no secret reaches it")
+	Do $$$AssertEquals($Get(^||OcuTalonSettingsEmailProbe("mark")), $ListBuild("google", 1), "an unchanged client keeps the mark's signed-in state")
+	Do ..Clear()
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "changed") = 1
+	Set result = ..Save(..ProviderBody("google", "", "zz-client-2.example"))
+	Do $$$AssertEquals(result.Outcome, "done", "a changed client ID with the secret omitted is done")
+	Do $$$AssertEquals(..Forms(), "email.clientId|set|changed", "audited as changed, and nothing else")
+	Do $$$AssertEquals(..Row("email.clientId"), "zz-client-2.example", "the key follows")
+	Do $$$AssertEquals($Get(^||OcuTalonSettingsEmailProbe("mark")), $ListBuild("google", 0), "a changed client resets the mark to not signed in")
+}
+
+/// Story 21.3, matrix row 2: with no client yet, or another provider, a missing secret is refused naming clientSecret and nothing is written or called.
+Method TestProviderNeedsSecret()
+{
+	Do ..SeedEarlier()
+	Set result = ..Save(..ProviderBody("google", ""))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":[""clientSecret""]}", "no client yet: refused naming clientSecret")
+	Do ..AssertUntouched("no client yet")
+	Do ..Reset()
+	Do ..SeedProvider("google", "client,server,app")
+	Do ..Clear()
+	Set result = ..Save(..ProviderBody("microsoft", ""))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":[""clientSecret""]}", "another provider: refused naming clientSecret")
+	Do $$$AssertEquals(..Audits().%Size()_"|"_..Count("oauthRegister")_"|"_..Row("email.signIn"), "0|0|google", "and nothing is audited, called or changed")
+}
+
+/// Story 21.3, matrix row 3: another provider with a secret registers the new client over the old one (the seam is given what OcuTalon owns) and audits the change.
+Method TestProviderChange()
+{
+	Do ..SeedProvider("google", "client,server,app")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = ""
+	Set result = ..Save(..ProviderBody("microsoft", ..Offer(..Secret("other")), "zz-client-ms.example"))
+	Do $$$AssertEquals(result.Outcome, "done", "the provider change is done")
+	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("calls", ..CallAt("oauthRegister")), "oauthRegister|microsoft|zz-client-ms.example|"_..#ORIGIN_"|client,server,app|secret", "the new client is registered over what OcuTalon owns")
+	Do $$$AssertEquals(..Forms(), "email.signIn|google|microsoft;email.clientId|set|changed;email.clientSecret||set", "audited as google to microsoft, a changed client ID and a secret set")
+	Do $$$AssertEquals(..Row("email.signIn")_"|"_$Get(^||OcuTalonSettingsEmailProbe("mark")), "microsoft|"_$ListBuild("microsoft", 0), "the key and the mark follow, not signed in")
+}
+
+/// Story 21.3, matrix row 4: saving Password over a provider removes the client, clears the keys, audits provider to password, and needs a typed password.
+Method TestRemove()
+{
+	Do ..SeedProvider("google", "client,server,app")
+	Set secret = ..Secret("back")
+	Set result = ..Save(..PasswordBody(..Offer(secret)))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "Password saved over a provider is done")
+	Do $$$AssertEquals(..Count("oauthRemove")_"|"_^||OcuTalonSettingsEmailProbe("calls", ..CallAt("oauthRemove")), "1|oauthRemove|client,server,app", "the client is removed, with what OcuTalon owns")
+	Do $$$AssertEquals(..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned"), "||", "the three keys are cleared")
+	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("cred"), $ListBuild(..#USER, secret), "the credential holds the typed password")
+	Do $$$AssertEquals(..Forms(), "email.signIn|google|password;email.clientId|set|removed;email.clientSecret|set|removed;email.credential||set;email.oauthApp|enabled|disabled;email.oauthOwned|client,server,app|", "audited without any secret")
+	Do $$$AssertEquals($Get(^||OcuTalonSettingsEmailProbe("mark")), $ListBuild("password", 0), "the mark says not signed in")
+	Do ..Reset()
+	Do ..SeedProvider("google", "client,server,app")
+	Set result = ..Save(..PasswordBody(""))
+	Do $$$AssertEquals(result.Outcome_"|"_result.Data, "refused|{""fields"":[""password""]}", "with no stored password and none typed it is refused naming password")
+	Do $$$AssertEquals(..Count("oauthRemove")_"|"_..Row("email.signIn"), "0|google", "and nothing is removed")
+}
+
+/// Story 21.3, matrix row 5: every refused kind of provider value is named; nothing is written, called or audited.
+Method TestRefusedProviderValues()
+{
+	Set tooLong = $Translate($Justify("", 257), " ", "c")
+	Set cases = $ListBuild(
+		$ListBuild("an unknown method", "signIn", """yahoo""", "signIn"),
+		$ListBuild("a method as a number", "signIn", "5", "signIn"),
+		$ListBuild("an empty client ID", "clientId", """""", "clientId"),
+		$ListBuild("a missing client ID", "clientId", "<missing>", "clientId"),
+		$ListBuild("a client ID over 256 characters", "clientId", """"_tooLong_"""", "clientId"),
+		$ListBuild("a client ID with a space", "clientId", """zz client.example""", "clientId"),
+		$ListBuild("a client ID with a leading space", "clientId", """ zz-client.example""", "clientId"),
+		$ListBuild("a client ID with @{", "clientId", """zz@{client""", "clientId"),
+		$ListBuild("a client ID with a line feed", "clientId", """zz\nclient""", "clientId"),
+		$ListBuild("a client ID as a number", "clientId", "5", "clientId"),
+		$ListBuild("a missing origin", "origin", "<missing>", "origin"),
+		$ListBuild("an origin that is not an origin", "origin", """ftp://example.com""", "origin"),
+		$ListBuild("an origin with a path", "origin", """http://example.com/x""", "origin"),
+		$ListBuild("a client secret that is not a reference", "clientSecret", """plain text""", "clientSecret"),
+		$ListBuild("a client secret as a number", "clientSecret", "7", "clientSecret"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Do ..Reset()
+		Do ..SeedEarlier()
+		Set body = ..ProviderBody("google", ..Offer(..Secret("refused")))
+		Do ..Put(body, $List(case, 2), $List(case, 3))
+		Set result = ..SaveText(body.%ToJSON())
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":["""_$List(case, 4)_"""]}", $List(case, 1)_" is refused, naming "_$List(case, 4))
+		Do ..AssertUntouched($List(case, 1))
+	}
+	Set secrets = $ListBuild("with a carriage return|zz"_$Char(13)_"pw", "with a tab|zz"_$Char(9)_"pw", "over 256 characters|"_$Translate($Justify("", 257), " ", "p"), "with @{|zz@{pw")
+	Set position = 0
+	While $ListNext(secrets, position, case) {
+		Do ..Reset()
+		Do ..SeedEarlier()
+		Set result = ..Save(..ProviderBody("google", ..Offer($Piece(case, "|", 2, *))))
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":[""clientSecret""]}", "a client secret "_$Piece(case, "|", 1)_" is refused, naming clientSecret")
+		Do ..AssertUntouched("a client secret "_$Piece(case, "|", 1))
+	}
+	Do ..Reset()
+	Do ..SeedEarlier()
+	Set result = ..Save(..PasswordBody(..Offer(..Secret("mixed")), , {"clientId": (..#CLIENTID), "clientSecret": "secret://handoff/00000000000000000000000000000000"}))
+	Do $$$AssertEquals(result.Data, "{""fields"":[""clientId"",""clientSecret""]}", "a client ID and a client secret with the Password method are refused")
+	Do ..AssertUntouched("a client ID with the Password method")
+	Do ..Reset()
+	Do ..SeedEarlier()
+	Set result = ..Save({"address": "bad", "incoming": (..#HOST), "user": (..#USER), "signIn": "google", "clientId": "a b", "origin": "x", "password": "secret://handoff/00000000000000000000000000000000"})
+	Do $$$AssertEquals(result.Data, "{""fields"":[""address"",""clientId"",""origin"",""password"",""clientSecret""]}", "every refused field is named")
+}
+
+/// Story 21.3, matrix row 6: a register that IRIS's objects refuse is failed; the keys, the credential and the rows are put back and the put-back is audited; a client first
+/// registered by this save is removed again.
+Method TestForeignObjects()
+{
+	For earlier = 0, 1 {
+		Do ..Reset()
+		If earlier Do ..SeedEarlier()
+		Set ^OcuTalonTest("SettingsEmailProbe", "answer", "register") = "error"
+		Set was = ..State()_"|"_..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned")
+		Set result = ..Save(..ProviderBody("google", ..Offer(..Secret("foreign"))))
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a register that is refused is failed (earlier mailbox "_earlier_")")
+		Kill ^OcuTalonTest("SettingsEmailProbe", "answer")
+		Do $$$AssertEquals(..State()_"|"_..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned"), was, "the keys, the credential and the rows are as they were (earlier mailbox "_earlier_")")
+		Do $$$AssertTrue(..Forms() [ ("email.address|"_$Select(earlier: "changed|set", 1: "set|")), "the address put back is audited too (earlier mailbox "_earlier_")")
+		Do $$$AssertTrue(..Forms() [ "email.signIn|google|password", "and so is the sign-in method put back (earlier mailbox "_earlier_")")
+		Do $$$AssertEquals(..Count("oauthRemove"), 0, "nothing was registered, so nothing is removed again (earlier mailbox "_earlier_")")
+	}
+	Do ..Reset()
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+	Set result = ..Save(..ProviderBody("google", ..Offer(..Secret("later"))))
+	Do $$$AssertEquals(result.Outcome, "failed", "a failed update after the register is failed")
+	Do $$$AssertEquals(..Count("oauthRegister")_"|"_..Count("oauthRemove")_"|"_..Row("email.signIn")_"|"_..Row("email.oauthOwned"), "1|1||", "the client that this save registered is removed again and the keys are put back")
+	Do $$$AssertTrue(..Forms() [ "email.oauthApp|enabled|disabled", "and the web application it disabled again is audited")
+	Do ..Reset()
+	Do ..SeedProvider("google", "client,server,app")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "remove") = "error"
+	Set result = ..Save(..PasswordBody(..Offer(..Secret("stay"))))
+	Do $$$AssertEquals(result.Outcome, "failed", "a removal that IRIS refuses is failed")
+	Do $$$AssertEquals(..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned"), "google|"_..#CLIENTID_"|client,server,app", "and the keys are as they were")
+	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("cred"), $ListBuild(..#USER, ""), "and the credential keeps no password")
+}
+
+/// Story 21.3 (DW-1181, Contest Planner ruling): a save that fails after it replaced or removed IRIS's client of the old provider is failed, and Settings
+/// then shows the old provider neither registered nor signed in (no client ID, clientSecretSet and signedIn false), audited; a failed save whose register
+/// changed nothing keeps the old provider as it was.
+Method TestFailedReplaceShowsNotRegistered()
+{
+	Do ..SeedProvider("google", "client,server,app")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = ""
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+	Set result = ..Save(..ProviderBody("microsoft", ..Offer(..Secret("replaced")), "zz-client-ms.example"))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a provider change whose update fails after the register is failed")
+	Set values = ..Values().sections.channels
+	Do $$$AssertEquals(values.signIn_"|"_values.clientId_"|"_values.clientSecretSet_"|"_values.signedIn, "google||0|0", "Settings shows the old provider, not registered and not signed in")
+	Do $$$AssertTrue(..Forms() [ "email.clientId|set|removed", "the removed client ID is audited")
+	Do ..Reset()
+	Do ..SeedProvider("google", "client,server,app")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+	Set result = ..Save(..PasswordBody(..Offer(..Secret("removed"))))
+	Do $$$AssertEquals(result.Outcome, "failed", "a removal whose update fails is failed")
+	Set values = ..Values().sections.channels
+	Do $$$AssertEquals(values.signIn_"|"_values.clientSecretSet_"|"_values.signedIn, "google|0|0", "and the removed client is not shown as registered or signed in")
+	Do ..Reset()
+	Do ..SeedProvider("google", "client,server,app")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "changed") = 0
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = ""
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+	Set result = ..Save(..ProviderBody("google", ""))
+	Do $$$AssertEquals(result.Outcome, "failed", "a re-save whose register changed nothing and whose update fails is failed")
+	Set values = ..Values().sections.channels
+	Do $$$AssertEquals(values.signIn_"|"_values.clientId_"|"_values.clientSecretSet_"|"_values.signedIn, "google|"_..#CLIENTID_"|1|1", "and the untouched client stays registered and signed in")
+}
+
+/// Story 21.3 (U-320 2): the audit of an enabled or disabled web application, and of the list of what OcuTalon owns, follows the register, the removal and the start.
+Method TestOAuthAudits()
+{
+	Do ..Save(..ProviderBody("google", ..Offer(..Secret("audits"))))
+	Do $$$AssertEquals(..Forms() [ ";email.oauthApp|disabled|enabled;email.oauthOwned||client,server,app", 1, "a first register that enables the web application audits both")
+	Do ..Clear()
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = ""
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "changed") = 0
+	Do ..Save(..ProviderBody("google", ""))
+	Do $$$AssertEquals(..Audits().%Size(), 0, "a register that changes nothing audits nothing")
+	Do ..Clear()
+	Kill ^OcuTalonTest("SettingsEmailProbe", "answer")
+	Do ..Save(..PasswordBody(..Offer(..Secret("gone"))))
+	Do $$$AssertEquals(..Forms() [ ";email.oauthApp|enabled|disabled;email.oauthOwned|client,server,app|", 1, "a removal that disables the web application audits both")
+	Do ..Reset()
+	Do ..SeedProvider("google", "client,server")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = ""
+	Do ..Save(..PasswordBody(..Offer(..Secret("kept"))))
+	Do $$$AssertEquals(..Forms() [ "email.oauthApp", 0, "a removal that leaves the web application alone does not audit it")
+}
+
+/// Story 21.3: start answers the address, enables the web application only when the seam says so (audited), and check records the mark.
+Method TestSignInStart()
+{
+	Do ..SeedProvider("google", "client,server")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "owned") = "client,server,app"
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = "enabled"
+	Set result = ..SignIn("start")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|started", "start is started")
+	Do $$$AssertEquals(result.Data, "{""url"":"""_..#ORIGIN_"/csp/sys/oauth2/OAuth2.Response.cls?auth=1&state=zzstate""}", "with the address that IRIS gave")
+	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("calls", ..CallAt("oauthStart")), "oauthStart|google|"_..#ORIGIN_"|client,server", "the provider, the origin and what OcuTalon owns went to the seam")
+	Do $$$AssertEquals(..Forms(), "email.oauthApp|disabled|enabled;email.oauthOwned|client,server|client,server,app", "the enabled web application and the owned list are audited")
+	Do $$$AssertEquals(..Row("email.oauthOwned"), "client,server,app", "and the list is kept")
+	Do ..Clear()
+	Kill ^OcuTalonTest("SettingsEmailProbe", "answer")
+	Set result = ..SignIn("start")
+	Do $$$AssertEquals(result.Outcome_"|"_..Audits().%Size(), "started|0", "a start that changes nothing in IRIS audits nothing")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+	Set result = ..SignIn("start")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a start that IRIS refuses is failed")
+	Do $$$AssertEquals(result.Data [ "url", 0, "and answers no address")
+}
+
+/// Story 21.3 (c2, review): a start that IRIS refuses after it enabled the web application is failed, and the enable is still audited and kept in the owned list.
+Method TestSignInStartFailsAfterEnable()
+{
+	Do ..SeedProvider("google", "client,server")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "owned") = "client,server,app"
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = "enabled"
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+	Set result = ..SignIn("start")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a start that IRIS refuses after the enable is failed")
+	Do $$$AssertEquals(..Forms(), "email.oauthApp|disabled|enabled;email.oauthOwned|client,server|client,server,app", "and the enable is audited")
+	Do $$$AssertEquals(..Row("email.oauthOwned"), "client,server,app", "and kept in the owned list, so a removal disables it")
+}
+
+/// Story 21.3 (c2): a start whose enable of the web application cannot be audited is failed and answers no address; the owned list still names the enable.
+Method TestSignInStartUnaudited()
+{
+	Do ..SeedProvider("google", "client,server")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "owned") = "client,server,app"
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "app") = "enabled"
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "auditAt") = 1
+	Set result = ..SignIn("start")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a start whose enable cannot be audited is failed")
+	Do $$$AssertEquals(result.Data [ "url", 0, "and answers no address")
+	Do $$$AssertEquals(..Row("email.oauthOwned"), "client,server,app", "and the owned list still names the enable, so a removal disables it")
+}
+
+/// Story 21.3: check asks the seam, records the mark for the saved provider and answers signedIn as a boolean.
+Method TestSignInCheck()
+{
+	Do ..SeedProvider("microsoft", "client,server,app")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "signedIn") = 1
+	Set result = ..SignIn("check")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "1|checked|{""signedIn"":true}", "a check with tokens held answers signedIn true")
+	Do $$$AssertEquals($Get(^||OcuTalonSettingsEmailProbe("mark")), $ListBuild("microsoft", 1), "and records the mark")
+	Do $$$AssertEquals(..Values().sections.channels.signedIn, 1, "the page's values show it")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "signedIn") = 0
+	Set result = ..SignIn("check")
+	Do $$$AssertEquals(result.Data, "{""signedIn"":false}", "a check with no tokens answers signedIn false")
+	Do $$$AssertEquals(..Values().sections.channels.signedIn, 0, "and the page's values follow")
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "state") = "error"
+	Set result = ..SignIn("check")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a check that IRIS fails is failed")
+	Do $$$AssertEquals(..Audits().%Size(), 0, "a check audits nothing")
+}
+
+/// Story 21.3: the handler refuses a mailbox without a provider and bad actions or origins before it calls anything.
+Method TestSignInRefused()
+{
+	Set result = ..SignIn("start")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":[""signIn""]}", "no provider saved: refused naming signIn")
+	Do ..SeedProvider("google", "client,server,app")
+	Set result = ..SignIn("revoke")
+	Do $$$AssertEquals(result.Outcome_"|"_result.Data, "refused|{""fields"":[""action""]}", "an unknown action is refused naming action")
+	Set result = ..SignIn("start", "javascript:alert(1)")
+	Do $$$AssertEquals(result.Outcome_"|"_result.Data, "refused|{""fields"":[""origin""]}", "an origin that is not an http or https origin is refused naming origin")
+	Do $$$AssertEquals(..Count("oauthStart")_"|"_..Count("oauthState"), "0|0", "nothing was called")
+	Do ##class(OcuTalon.Data.Setting).Set("email.clientId", "")
+	Set result = ..SignIn("check")
+	Do $$$AssertEquals(result.Outcome, "refused", "a provider with no client ID is not registered")
+}
+
+/// Story 21.3, matrix row 5 (online demo): the save and the sign-in are not available, take nothing and call nothing.
+Method TestProviderOnlineDemo()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set secret = ..Secret("demoprovider")
+	Set uri = ..Offer(secret)
+	Set result = ..Save(..ProviderBody("google", uri))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|not_available|"_..#UNAVAILABLE, "the save with a provider is not available")
+	Set result = ..SignIn("start")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|not_available|"_..#UNAVAILABLE, "the sign-in start is not available")
+	Set result = ..SignIn("check")
+	Do $$$AssertEquals(result.Outcome, "not_available", "so is the check")
+	Do $$$AssertEquals(..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned")_"|"_$Get(^||OcuTalonSettingsEmailProbe("calls"), 0), "|||0", "nothing is written or called")
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_(left = secret), "1|1", "the hand-off was not touched")
+	Kill left
+}
+
+/// Story 21.3: after a provider save and a sign-in the client secret is in no audit entry, no ^OcuTalon* global, no Ens.Util.Log row and no answer.
+Method TestNoClientSecretAnywhere()
+{
+	Set secret = ..Secret("nowhereclient")
+	Set uri = ..Offer(secret)
+	Do $$$AssertEquals(uri [ secret, 0, "the reference does not hold the client secret")
+	Set result = ..Save(..ProviderBody("google", uri))
+	Do $$$AssertEquals(result.Outcome, "done", "the save is done")
+	Set start = ..SignIn("start")
+	Set check = ..SignIn("check")
+	Do $$$AssertEquals(..AuditText() [ secret, 0, "no audit entry holds the client secret")
+	Do $$$AssertEquals(..Callz() [ secret, 0, "no recorded call holds it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(secret), "", "no ^OcuTalon* global holds it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", secret), 0, "no Ens.Util.Log row holds it")
+	Do $$$AssertEquals(result.Message_result.Data_start.Message_start.Data_check.Message_check.Data [ secret, 0, "and no answer does")
+	Do $$$AssertEquals(..Values().%ToJSON() [ secret, 0, "nor the page's values")
+}
+
+/// A MailSignIn command from web_admin for zzadmin, sent to the probe.
+Method SignIn(action As %String, origin As %String = {..#ORIGIN}) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.MailSignIn).%New()
+	Set command.Action = action
+	Set command.PageOrigin = origin
+	Set command.ActingUser = "zzadmin"
+	Set command.SessionRef = ..#REF
+	Set command.Origin = "web_admin"
+	Set probe = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+	Do $$$AssertStatusOK(sc, "the probe is made")
+	Set sc = probe.OnMessage(command, .result)
+	Do $$$AssertStatusOK(sc, "the status is OK")
+	Quit result
+}
+
+/// The body of a valid save with a provider: the mailbox, the method, the client ID and the origin; the client secret member is the reference, or left out when it is "".
+/// extra members are added.
+ClassMethod ProviderBody(signIn As %String, uri As %String, clientId As %String = {..#CLIENTID}, address As %String = {..#ADDRESS}, extra As %DynamicObject = "") As %DynamicObject [ Private ]
+{
+	Set body = {"address": (address), "incoming": (..#HOST), "user": (..#USER), "signIn": (signIn), "clientId": (clientId), "origin": (..#ORIGIN)}
+	If uri '= "" Do body.%Set("clientSecret", uri, "string")
+	If $IsObject(extra) {
+		Set iterator = extra.%GetIterator()
+		While iterator.%GetNext(.name, .value) {
+			Do body.%Set(name, value, "string")
+		}
+	}
+	Quit body
+}
+
+/// The body of a save with the Password method: the mailbox and signIn password; the password member is the reference, or left out when it is "".
+ClassMethod PasswordBody(uri As %String, address As %String = {..#ADDRESS}, extra As %DynamicObject = "") As %DynamicObject [ Private ]
+{
+	Set body = {"address": (address), "incoming": (..#HOST), "user": (..#USER), "signIn": "password"}
+	If uri '= "" Do body.%Set("password", uri, "string")
+	If $IsObject(extra) {
+		Set iterator = extra.%GetIterator()
+		While iterator.%GetNext(.name, .value) {
+			Do body.%Set(name, value, "string")
+		}
+	}
+	Quit body
+}
+
+/// A registered mailbox as an earlier save with the provider left it: the keys, the credential with the user name and no password, the rows, and a mark that says signed in.
+Method SeedProvider(signIn As %String, owned As %String) [ Private ]
+{
+	Do ##class(OcuTalon.Data.Setting).Set("email.address", ..#ADDRESS)
+	Do ##class(OcuTalon.Data.Setting).Set("email.owner", ..#REF)
+	Do ##class(OcuTalon.Data.Setting).Set("email.signIn", signIn)
+	Do ##class(OcuTalon.Data.Setting).Set("email.clientId", ..#CLIENTID)
+	Do ##class(OcuTalon.Data.Setting).Set("email.oauthOwned", owned)
+	Do $ClassMethod(..#PROBE, "Seed", ..#USER, "", ..#HOST, 995)
+	Set ^||OcuTalonSettingsEmailProbe("sds", "EmailIn", "Credentials") = "OcuTalonMail"
+	Set ^||OcuTalonSettingsEmailProbe("sds", "EmailIn", "SSLConfig") = "OcuTalonClient"
+	Set ^||OcuTalonSettingsEmailProbe("mark") = $ListBuild(signIn, 1)
+}
+
+/// The position of the first recorded call whose text starts with the word.
+ClassMethod CallAt(word As %String) As %Integer [ Private ]
+{
+	Set n = ""
+	For {
+		Set n = $Order(^||OcuTalonSettingsEmailProbe("calls", n), 1, text)
+		Quit:n=""
+		If $Piece(text, "|", 1) = word Quit
+	}
+	Quit n
+}
+
+/// The audit entries as "setting|from|to;..." in order.
+ClassMethod Forms() As %String [ Private ]
+{
+	Set audits = ..Audits()
+	Set forms = ""
+	For i = 0:1:audits.%Size() - 1 {
+		Set one = audits.%Get(i)
+		Set forms = forms_$Select(forms = "": "", 1: ";")_one.setting_"|"_one.from_"|"_one.to
+	}
+	Quit forms
+}
+
+/// All the calls that the probe recorded, as one text.
+ClassMethod Callz() As %String [ Private ]
+{
+	Set out = ""
+	Set n = ""
+	For {
+		Set n = $Order(^||OcuTalonSettingsEmailProbe("calls", n), 1, text)
+		Quit:n=""
+		Set out = out_text_$Char(10)
+	}
+	Quit out
 }
 
 /// --- helpers ---
@@ -626,7 +1091,8 @@ Method Reset() [ Private ]
 	Kill ^OcuTalonTest("SettingsEmailProbe")
 	Kill ^||OcuTalonSettingsEmailProbe
 	Kill ^||OcuTalonSettingsOpsProbe
-	For key = "email.address", "email.owner" {
+	For i = 1:1:$Length(..#KEYS, ",") {
+		Set key = $Piece(..#KEYS, ",", i)
 		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
 		If $IsObject(row) Do ##class(OcuTalon.Data.Setting).%DeleteId(row.%Id())
 		Kill ^||OcuTalon.Setting(key)

@@ -985,6 +985,12 @@ Banners stack in this table's order.
 | Sign in with a provider (`settings.emailSignIn`, Settings > Channels, OAuth2 button; the provider is Google or Microsoft 365) | "Sign in with {provider}" |
 | Client ID label (`settings.emailClientId`, Settings > Channels, field label) | "Client ID" |
 | Client secret label (`settings.emailClientSecret`, Settings > Channels, write-only field label) | "Client secret" |
+| Sign-in method label (N1, Story 21.3, ruled U-320, Settings > Channels, radiogroup label) | "Sign-in method" |
+| Sign-in method options (N2, Story 21.3, ruled U-320, Settings > Channels, radiogroup options; the provider name is the `{provider}` of `settings.emailSignIn`) | "Password", "Google", "Microsoft 365" |
+| Redirect address label (N3, Story 21.3, ruled U-320, Settings > Channels, label of the address to register) | "Redirect address" |
+| Redirect address help (N3, Story 21.3, ruled U-320, Settings > Channels, help under the address) | "Add this address to your OAuth2 client at {provider} as an authorized redirect URI." |
+| Signed-in state (N4, Story 21.3, ruled U-320, Settings > Channels, state line when tokens are held) | "Signed in with {provider}." |
+| Not-signed-in state (N4, Story 21.3, ruled U-320, Settings > Channels, state line before sign-in) | "Not signed in yet. Save, then sign in with {provider}." |
 | Webhooks heading (`settings.webhooksHeading`, Settings > Channels, group heading) | "Webhooks" |
 | Webhooks help (`settings.webhooksHelp`, Settings > Channels, webhooks help) | "Other systems can send OcuTalon any JSON event. Each webhook has its own secret, which the sender puts in the X-OcuTalon-Webhook-Secret header." |
 | Webhook name label (`settings.webhookName`, Settings > Channels, field label) | "Name" |
