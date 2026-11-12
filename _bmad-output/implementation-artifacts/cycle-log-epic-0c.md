@@ -20,3 +20,5 @@
 2026-11-12T20:23:59Z	Story 0.34	ledger_adjudicated	owned=1 resolved=0 reowned=0 terminal=1 entries=DW-1224(wontfix-accepted_by_cr) slice_after=empty model=claude-opus-5-5
 2026-11-12T20:23:59Z	Story 0.34	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=rc_sim_scratch_clone_e7b1ccf4(19_csp_files,main-P7PESGFU.js_has_path):shipped_test_FAIL_U-320_row,reviewed_test_all_checks_passed;lead_M1_recheck_red_reverted_identical model=claude-opus-5-5
 2026-11-12T20:23:59Z	Story 0.34	fresh_check	env=clean-checkout(git_clone_--shared_at_6ab163f1+story_diff) tests=test-compose-file.sh(5_OAuth2_rows) result=pass order=forward,reverse tmp_leftovers=0
+2026-11-12T20:25:16Z	Story 0.34	committed	sha=1327fa1b code_sha=6bb2b957+1327fa1b submodules= ci=pending runs=43300084082,43300084119 amendments=none pushed=first_push_creates_origin/OCT-epic0c missing=none
+2026-11-12T20:25:16Z	Story 0.34	story_cycle	plan_to_commit_min=46 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:lead(opus,spec_from_ruling),implement:lead(opus,handoff_edit),qa:skipped(ruling),cr:opus
