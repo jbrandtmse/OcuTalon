@@ -7288,3 +7288,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 43206845957 (OCT-epic21 368c7a09) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 131144052048 iris (image) shard:lane-b@Contract,Core,Data,Live: printed stored value 'xrvjRiPqHbxlagA8SDES' starts with x; salt = base64url(GenCryptRand(16)); the 21.3 merge changes no line of Data/Webhook, Test/Data/Webhook, SecretHandoff or Data/Setting vs green eb289caf (git diff empty); 6 local passes on lane-C warm e21s3cw
 - 2026-11-12T12:25:40Z status=routed owner=burndown by=ci note=fix (Epic 35's test, one line): pick the replacement first character as lastChanged does, e.g. $Select($Extract(salt) = "x": "y", 1: "x"); one rerun meanwhile
+
+### DW-1195: flake/infra: live:sign-in chromium suite hit its 757 s suite timeout under host load (256 passed, 0 failed, 24 did not run)
+- source: ci 43227065531 feature 150b49c5 iris (shards-10) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Timed out waiting 757s for the test suite to run; 24 did not run; no test failed
+- 2026-11-12T14:15:46Z status=routed owner=burndown by=orchestrator note=one rerun per occurrence; if recurrent, size the shard's suite budget or split the shard
