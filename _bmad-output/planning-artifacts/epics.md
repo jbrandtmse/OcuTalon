@@ -7292,6 +7292,8 @@ So that each new email gets an attention decision and OcuTalon can email me.
 
 ### Story 21.3: Sign in to Gmail and Microsoft 365 with OAuth2
 
+> [AMENDED 2026-11-12, Story 21.3 spec gate, split ruled by the Epic 21 runner (unattended, decide: doctrine U5, split into siblings planned next in Epic 21)] This story now delivers registering the mail OAuth2 client and signing in: criterion 1 whole, criterion 2's consent half ("the provider's consent page opens in a new tab, and after consent IRIS's OAuth2 client holds the tokens"), and criterion 4. Criterion 2's token-use half ("which `EmailIn` and `EmailOut` use through the adapters' OAuth2 settings for POP3 and SMTP"), criterion 3 and criterion 5 (README) moved verbatim to Story 21.8, which runs right after this story. The criteria below stand as the epic's whole promise.
+
 As an admin,
 I want to connect a Gmail or Microsoft 365 mailbox by signing in with OAuth2,
 So that OcuTalon reads and sends mail without storing my mail password.
@@ -7313,6 +7315,28 @@ So that OcuTalon reads and sends mail without storing my mail password.
 **Given** an OAuth2 mailbox is connected or removed
 **When** the change is saved
 **Then** it is audited, with no client secret or token in the entry (FR-9, NFR-11)
+
+**Given** the README
+**When** this story merges
+**Then** it explains creating the OAuth2 client with Google and with Microsoft, the redirect address to register with each, and connecting the mailbox in Settings (FR-44, FR-58)
+
+### Story 21.8: Read and send mail with the OAuth2 sign-in
+
+> [AMENDED 2026-11-12, split from Story 21.3 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.3 (criterion 2 for its token-use half, criteria 3 and 5); runs right after 21.3, which registers the client and signs in.
+
+As an admin,
+I want OcuTalon to read and send my Gmail or Microsoft 365 mail with the OAuth2 sign-in,
+So that it works without storing my mail password.
+
+**Acceptance Criteria:**
+
+**Given** the client is registered
+**When** the admin starts the sign-in
+**Then** the provider's consent page opens in a new tab, and after consent IRIS's OAuth2 client holds the tokens, which `EmailIn` and `EmailOut` use through the adapters' OAuth2 settings for POP3 and SMTP (FR-44, AD-19)
+
+**Given** an access token expires
+**When** the next poll or send runs
+**Then** the adapter gets a fresh token from the OAuth2 client without the admin's help; if the grant was revoked, the poll fails with a plain reason and the mailbox counts as not checked (FR-44, FR-36)
 
 **Given** the README
 **When** this story merges
