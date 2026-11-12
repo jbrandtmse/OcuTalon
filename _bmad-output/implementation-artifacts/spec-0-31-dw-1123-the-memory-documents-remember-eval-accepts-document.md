@@ -2,7 +2,8 @@
 title: 'Story 0.31: DW-1123: the memory-documents-remember eval accepts document, runbook or file'
 type: 'chore'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2067f895247b07e0dc2e983953c784596c7b3e72'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -101,6 +102,24 @@ Each scenario uses the citation Results runbook / Clearing the queue, every save
 
 ## Review Triage Log
 
+### 2026-11-12 - Review pass
+- verdicts: 14 findings - high 0, medium 0, low 10, false 4, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: the widened first group is a weak signal ("runbook" is in the user's own request) and the case description does not say so - the widening is the Planner's binding ruling and the spec forbids changing `description`; no everyday harm on a report-only case.
+  - `[low]` `[reject]` Blind: "file" matches as a substring ("profile", "files") and no test pins it - the spec's Design Notes decide this (matcher unchanged, report-only); pinning the matcher's substring rule belongs to the matcher's own tests.
+  - `[false]` `[reject]` Blind: `TestShippedTaintedCase` does not check report-only status - membership in `MEMORYTURNCASES` and `memoryTurns` is by case name and is pinned by `TestMemoryTurnTainted` and `TestMemoryLinesReportOnly`, which score the same name with an expectation the new test proves equal to the shipped file.
+  - `[low]` `[reject]` Blind: three hand-synced copies of the expectation, and the header splice under the 41.14 label - the copies are the spec's design (each pin is separate and the new test proves equality); the header wording is cosmetic.
+  - `[false]` `[reject]` Blind: `rules-only.json` is not in the reviewed diff - it is a generated report, copied byte for byte from the fresh run and checked with the spec's three-path diff command (exactly `cases.40.expected`, `turnChecks.4.keyPhrases.0`, `turnChecks.4.missing.0`).
+  - `[low]` `[reject]` Edge: substring match lets "profile" or "documentation" score the group - same as the second finding above (matcher unchanged by spec).
+  - `[low]` `[reject]` Edge: no row for a substring-only hit - same as the second finding above.
+  - `[low]` `[reject]` Edge: a malformed or empty shipped case would throw instead of failing an assertion - the sibling `TestShippedChipCasesScoreTheHostReasons` has the same exposure; a throw still fails the test, and a guard would add branches for a case no one reaches.
+  - `[false]` `[reject]` Edge: no row proves the second group is still required - `TestMemoryTurnTainted` has "Here is what the document says." scored 0 ("no why phrase") on `TaintedExpectation()`, and `TestShippedTaintedCase` asserts that expectation equals the shipped file.
+  - `[low]` `[reject]` Edge: group one is almost always met because "Results runbook" appears in the request - same as the first finding above.
+  - `[low]` `[reject]` Gap: no committed test pins `rules-only.json`'s embedded key phrases to `case.json` - the score and structure do not depend on them, the spec verifies the file once with a diff command, and a new check is more than a direct correction (Story 0.29 reads only the column).
+  - `[false]` `[reject]` Gap: the spec's mutations are not literal `mutation:` lines - the `Mutations.` list in `## Verification` holds one entry per AC with its expected red test, and each was run (red, then restored byte-identical).
+  - `[low]` `[reject]` Gap: the substring rule for "file" is not pinned - same as the second finding above.
+  - `[low]` `[reject]` Intent: the tests score hand-written replies and the mock end-to-end tests still reply "documents" - the spec scopes the story to the case data, its pins and the report, and leaves `MemoryCases.TestTainted` unchanged on purpose; the live Haiku run is the Planner's next release-candidate run.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -175,7 +194,19 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned (plan stage, 2026-11-12, lane B, HEAD 9a85d92726dc8bd4839bc62abb87ab3b28dc6a1b); halted after planning as directed. owned_ledger=DW-1123 addressed=1 declined=0. The committed eval/results/rules-only.json carries this case's keyPhrases (turnChecks[4].keyPhrases/missing) and expected text (cases[40].expected), so the rules-only main run is re-run and the file re-committed; its score does not move (no_key fallback, empty reply, right false either way).
+Summary: `eval/memory-documents-remember` now accepts "document", "runbook" or "file" in the first key-phrase group (DW-1123, the Planner's ruling of 2026-11-11). The case stays report-only. The old pins moved to the ruled shape, a new test scores the shipped case, and the fixed-rules report was re-run and re-committed.
+
+Files changed:
+- `eval/memory-documents-remember/case.json`: first `keyPhrases` group widened; nothing else.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls`: `TestMemoryCases` literal takes the widened group.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls`: `TaintedExpectation()` widened; the "runbook" row of `TestMemoryTurnTainted` now asserts 1 and a names-none row asserts 0; new `TestShippedTaintedCase`; header updated.
+- `eval/results/rules-only.json`: copied byte for byte from a fresh `--rules-only main` run.
+
+Review: 14 findings, patches applied 0, deferred 0, rejected 14 (10 low, 4 false; reasons in the Review Triage Log). followup_review_recommended: false (patched counts: high 0, medium 0).
+
+Verification performed (lane B, tags e0bs31*): `test-eval-set.sh` cases and set PASS (run twice); `OcuTalon.Test.Eval.Report` and `OcuTalon.Test.Eval.Cases` passed on a warm throwaway, again after the mutations; `--rules-only main` passed with EXIT=0; the normalised report diff prints exactly `r.cases.40.expected`, `r.turnChecks.4.keyPhrases.0`, `r.turnChecks.4.missing.0`; `compare.mjs --column eval/results` unchanged (`date|November 12`); `rules-only-held-out.json` unchanged; non-ASCII byte count 0 for the three edited sources; changed paths are the four of Tasks plus this spec. Mutations: AC1 (`["document"]` and group dropped) red in `TestShippedTaintedCase`, `["document"]` red in `TestMemoryCases`; AC2 red in `TestMemoryCases`; AC3 fourth path printed; each reverted byte-identical. AC4 is the lead's CI evidence. `column_date=November 12->November 12` (unchanged). Throwaways torn down.
+
+Residual risks: "file" is a substring match, so "profile" also scores (spec decision, report-only). `Test.Eval.MemoryCases` is not run locally; CI's shard runs it. CI on the head is not yet seen.
