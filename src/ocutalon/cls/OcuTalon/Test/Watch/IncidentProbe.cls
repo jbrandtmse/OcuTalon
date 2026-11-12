@@ -5,7 +5,7 @@
 /// cannot SendRequestAsync (its primary request header is not there), so the override records each Notification in Sent, as a dynamic object of the
 /// fields the tests check, and answers OK, or an error for a SessionRef that FailFor names. It overrides SendExecute for the same reason (Story 5.5): it records each
 /// order in Executed, as {approvalRef, sessionId} (the session that the order would go in), and answers OK, or an error when FailExecute is set, and DemoMode, so that a test sets the
-/// mode without writing the setting: it gives DemoModeIs when that is set (0 or 1), else the product's own reading; QuietNow gives QuietNowIs when that is set, else the clock, so that a test fixes the time that closeQuiet's quiet check reads. Move sets the state on the object and gives an error when FailMove is set (QA). The handlers of Story 5.5 are reached through
+/// mode without writing the setting (ReadHolds is the same seam for the holds of a suspend, Story 23.9: HoldsIs fixes it, FailHolds makes it throw): it gives DemoModeIs when that is set (0 or 1), else the product's own reading; QuietNow gives QuietNowIs when that is set, else the clock, so that a test fixes the time that closeQuiet's quiet check reads. Move sets the state on the object and gives an error when FailMove is set (QA). The handlers of Story 5.5 are reached through
 /// OnRequest, as the framework calls them. Since Story 5.15 it overrides SendCheckNow the same way: it records each CheckNow in CheckNows, as {namespace, production, ownerRef, incidentRef, sessionId}
 /// (the session that the request would go in), and answers OK, or an error when FailCheckNow is set. Since Story 7.2 it also overrides the three seams of the with-fix notice, for the same reason (a shadow instance cannot
 /// SendRequestAsync, and Raise would really run): SendDryRun records each ask in DryRuns as {incidentRef, fixKind, parameters} and answers OK, or an error when
@@ -47,6 +47,12 @@ Property FailCheckNow As %Boolean [ InitialExpression = 0, Transient ];
 
 /// 0 or 1 to fix the demo mode that DemoMode gives; empty for the product's own reading.
 Property DemoModeIs As %String [ Transient ];
+
+/// 0 or 1 to fix the answer that ReadHolds gives (the incident holds a suspend); empty for the product's own reading (Fix.Run Holds).
+Property HoldsIs As %String [ Transient ];
+
+/// 1 to make ReadHolds throw, so that the product's catch in Holds runs.
+Property FailHolds As %Boolean [ InitialExpression = 0, Transient ];
 
 /// A UTC stamp to fix the time that QuietNow gives; empty for the clock's now.
 Property QuietNowIs As %String [ Transient ];
@@ -257,6 +263,14 @@ Method DemoMode() As %Boolean [ Private ]
 {
 	If ..DemoModeIs '= "" Quit ''..DemoModeIs
 	Quit ##super()
+}
+
+/// Throws when FailHolds is set; else the fixed answer when HoldsIs is set; else the product's own reading.
+Method ReadHolds(incident As OcuTalon.Data.Incident) As %Boolean [ Private ]
+{
+	If ..FailHolds $$$ThrowStatus($SYSTEM.Status.Error(5001, "The suspends are not readable"))
+	If ..HoldsIs '= "" Quit ''..HoldsIs
+	Quit ##super(incident)
 }
 
 /// The fixed time when QuietNowIs is set.

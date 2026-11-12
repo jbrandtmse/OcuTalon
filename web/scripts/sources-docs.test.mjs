@@ -42,7 +42,7 @@ describe('the registry names a count the documents can say', () => {
 
 describe('every written count follows the registry', () => {
   it('README says how many more things to try there are', () => {
-    assert.match(README, new RegExp(`its More to try panel has ${count} more things to try`));
+    assert.match(README, new RegExp(`Its More to try panel has ${count} more things to try`));
   });
 
   it('EXPERIENCE.md says how many items there are', () => {

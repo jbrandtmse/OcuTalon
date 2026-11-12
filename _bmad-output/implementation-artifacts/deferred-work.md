@@ -2076,6 +2076,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T07:17:50Z occurrence=feature-1490ab58 by=orchestrator note=run 42767577852 job 129667573672 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; parents 87c0223e and f59cab73 passed production; rerun of failed jobs 2026-11-10T07:17:50Z
 - 2026-11-10T20:15:23Z occurrence=feature-1d75fbf1 by=orchestrator note=run 42874524463 job 130034187062 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got ''; merge of 0.22 (web/guide) + v1.0.6 bump; rerun of failed jobs
 - 2026-11-10T22:52:54Z occurrence=23-2 by=orchestrator note=run 42897677403 job 130115016835 iris(production) row 21 got ''; OCT-epic23 f73a09d5 (23.2 integrated onto 56c61cea); rerun of failed jobs
+- 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870677_iris(production)_live:production_on_ocutalon-ci-15:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
+- 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_production_row21_WatchOps;rerun_failed_jobs_green(attempt2)
+- 2026-11-12T10:06:56Z occurrence=0-28 by=runner note=run_43159935962_attempt_1_job_130988445819_iris(production)_live:production_on_ocutalon-ci-10:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_eff03a14(README+release_checks_only);one_rerun_of_failed_jobs(attempt_2,started_by_orchestrator_10:02Z)
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2936,6 +2939,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T05:58:07Z occurrence=23-5 by=orchestrator note=run 42963531773 job 130335378855 iris(shards) live:online-allowance D1 S1 daily-cap banner not found (ci-10); OCT-epic23 52db267d
 - 2026-11-11T05:58:31Z occurrence=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva note=CI run 42963531773 (52db267d) iris (shards) live:online-allowance D1 S1 the daily cap banner shows (ci-10); classified FLAKE by the orchestrator
 - 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625133 iris(shards) live:online-allowance D1 daily-cap banner (ci-13); OCT-epic25 4af29b25; rerun of failed jobs
+- 2026-11-12T06:04:38Z occurrence=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=ci run 43156101436 iris(shards) live:online-allowance D1 S1 banner on c27ff301; head superseded by the next integrate-forward, so not rerun
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -4884,6 +4888,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T20:22:27Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
 - 2026-11-08T10:51:48Z status=routed owner=burndown by=adjudication note=Notify_half_resolved_by_18.2(a4770526:Core/Rule/Notify_digest_branch+Functions.DigestNamed;Test.Core.Routing_TestNotifyDigestTargets,SettingsRunTime);residual_Lane_A:remove_Digest.Process.Own,SendDigest_direct_sends,ROUTEREASON,Test.Digest.Compose_NotifyChannels/TestOwnMatchesNotify_and_route_Resent_through_Notify;for_a_Lane_A_story
 - 2026-11-09T00:38:50Z by=burndown note=Epic_18_burn-down:Lane_A_residual(U-177),no_Lane_B_story_can_close_it;kept_owner=burndown_for_the_orchestrator's_routing_to_a_Lane_A_story(no_next-epic_Lane_A_key_in_this_branch's_tracker)
+- 2026-11-12T01:29:02Z status=routed owner=21-7-send-the-daily-digest-by-email by=orchestrator note=O1 ruling (prompts/epic-21-rulings-217-o1.md, 2026-11-12, one-time AD-33 Lane A exception): 21.7 makes Digest.Process.Deliver hand every composed digest to Notify, Notify alone routes kind digest by digest.channels, and deletes Digest.Process.Own, the SendDigest direct sends and ROUTEREASON with the Lane A tests that pin them
 ### DW-748: Story 11.22's docs read stale beside 34.2's BodyBounds: Test.Web.BodyLimit says Test.Web.ApiProbe has no declaration (it now inherits Web.Api's POST /v1/documents entry), POSTROUTES is called every POST route but omits /v1/documents, and Web.BodyLimit's header example names /v1/documents at 14680064 bytes (the real bound is 13,985,112)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 11.22's assertions still hold (POSTROUTES omits /v1/documents; the declared-bound case uses /v1/messages); only the comments mislead; the files are Story 11.22's and outside 34.2's lane (34.2 re-review, Blind and Acceptance Auditor)
@@ -5842,6 +5847,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Bridge Decision has no Channel; only Usage rows (model calls) carry one; 41.3 veto U-310
 - 2026-11-08T10:38:56Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: a Lane A bridge story appends Decision.Channel (AD-5); DailyNote then prefers it (one line); inbox U-310
 - 2026-11-09T08:06:55Z status=routed owner=burndown by=merge_gate note=decision_sheet_Epic_41_part1(Planner_agreed):a_Lane_A_bridge_story_appends_Decision.Channel_set_from_the_request
+- 2026-11-11T14:12:18Z occurrence=35-3-send-events-to-ocutalon-through-a-webhook note=cr: the History channel filter 'Webhook', which More to try item 12 (T5) and the README line point to, shows nothing for a webhook decision on an install with no model key (fallback, no usage row; spec Measured (g)); Web.History DecisionChannel reads usage rows only
 
 ### DW-961: The sessionStart context is unobserved past Conversation.Request: ConversationStartProbe records it before ##super, so Request -> Intake.RequestFor -> Agent.Input.Render forwarding can drop it with every 41.3 test green
 - source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: med | fix-risk: low | footprint: in-epic
@@ -6407,6 +6413,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T17:51:03Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=burndown note=Epic_35_part_merge_burn-down_overflow:Test.Mcp.Attach_(Lane_A)_is_extended_by_22.2's_McpOps_work;make_TestShadow's_bare-manager_AddTool_wait_for_the_mock_or_retry_once_under_load;a_red_on_a_quiet_host_makes_it_real
 - 2026-11-10T17:14:25Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run note=e6eb901d_shards-2_TestAttach_mock_tools_not_attached;passed_3x_locally(warm2,fresh1);files_reached_unchanged_since_b99d6529
 - 2026-11-10T17:23:09Z occurrence=release-1.0.6-PR10 by=orchestrator note=reported by the Contest Planner: PR #10 ci run 42847029797 iris (shards-2) shard:lane-a@rest OcuTalon.Test.Mcp.Attach TestRequestServerDown 'on a manager of its own that lists the server's tools: 0'; green on one rerun; v1.0.6 released 17:17:56Z
+- 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870575_iris(shards-2)_shard:lane-a@rest_on_ocutalon-ci-17:OcuTalon.Test.Mcp.Attach_TestTurnManager_'and_lists_the_agent's_tools,_the_fixture_tools_and_both_tools_of_the_mock'_got_zz_steps_*/zz_turn_*_fixture_tools;OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
 - 2026-11-11T13:53:14Z status=resolved-by:22-2-classify-mcp-tools-by-server-and-name by=adjudication note=Task_0_mock_backlog_5(Mock.BACKLOG,keep-alive_-1),Loopback_green;Test.Mcp.Attach_passed_warm_and_cr;a_red_on_a_quiet_host_reopens
 
 ### DW-1041: AD-1 lets REST code write only the Session row, counters, pairing hashes and UI markers, but the step 4 contract has the MCP settings routes call SettingsOps.SaveMcpEntry/RemoveMcpEntry in the REST process to write the wallet secret and Config Store entry (ruling Q4), with no AD-1 exception recorded
@@ -6419,6 +6426,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Core/CommandsIn.cls OwnAddressOnly: two Data.Setting.Get calls, each cached per process with its own timestamp (Data/Setting.cls Get)
 - 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=Story 21.2 lets an install reconnect the mailbox to a different session, or a test shows a tool email reaching another session's address
+- 2026-11-11T11:19:27Z status=routed owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=spec_gate note=reopen_if_met:21.2_moves_the_mailbox_to_the_last_saving_admin;spec_task_CommandsIn.OwnAddressOnly_reads_both_keys_uncached
+- 2026-11-11T20:07:39Z status=resolved-by:21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=adjudication note=CommandsIn.OwnAddressOnly reads email.owner and email.address through Data.Setting.Fresh (uncached row reads), build 4357809f; pinned by Test.Data.Setting TestFreshIgnoresTheCache and Test.Core.CommandsStep4 TestSendEmailAfterSave
 
 ### DW-1043: RestartRunners passes Bridge.Timeouts.Restart's error status through untested: matrix row 9's error cell (an item that does not restart) has no test
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
@@ -6604,6 +6613,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T06:27:51Z status=open owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=merge_gate note=Planner_ruling_2026-11-10_option_a(resume_after_close_scoped;no_state_move;second-session_proof);rework_iteration_1
 - 2026-11-10T07:55:00Z status=routed owner=23-9-resume-a-suspended-item-after-its-incident-closes by=merge_gate note=Planner_re-ruling_2026-11-10_~07:20Z:(c)_text_limit_in_23.2;resume_after_close_parked_as_Story_23.9(after_voting;(a)_or_(b),Planner_leans_(b))
 - 2026-11-10T08:23:02Z occurrence=23-2-suspend-resume-and-reroute-with-a-dry-run
+- 2026-11-12T06:41:07Z status=resolved-by:23-9-resume-a-suspended-item-after-its-incident-closes by=adjudication note=option_(b)_per_U-321:held_incident_refuses_closeQuiet/closeForReplay_(Watch/Transitions,IncidentManager.Holds,Fix.Run.Suspended;bf7ba73b),Dismiss_always_closes,Checks_reports_the_still-disabled_item_once_after_a_held_dismiss_(Checks/Process);pinned_by_Transitions:TestRefusedMoves,Lifecycle:TestHeldBySuspend,Checks.Runs:TestDismissedSuspendIsReportedOnce,Fix.Asked:TestHeldIncidentResumeIsTheSessions(mutations_red);residual_text_case=DW-1186(Planner)
 
 ### DW-1069: AD-33 exception list of Story 23.2 does not name four Lane B paths the story edits under other rulings: README.md, docker/tests/lib-live.sh, web/e2e/support/iris.ts, Test/Core/CommandsRouting.cls
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6666,12 +6676,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340066; rows before passed; readiness timeout under a full queue (DW-686/DW-999 family)
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:install-upgrade_row7;one_rerun_with_the_next_push
+- 2026-11-12T10:33:24Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_109d59c8_run_43172863798_install-upgrade_row7_start_with_failing_step_not_ended_200s;superseded_head
+- 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_install-upgrade_row6_upgrade_not_ready_200s;rerun_failed_jobs_green(attempt2)
 
 ### DW-1083: flake candidate: live:reminder-restart 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then the first start did not end ready within 400 s
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340184 shards-10; first-start timeout is DW-999's; the park step is a new signature; the 23.2 rework checks it for a story cause
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:reminder-restart_telegram_park;one_rerun_with_the_next_push
 - 2026-11-11T00:03:57Z occurrence=feature-9f7db82c by=orchestrator note=run 42924654980 job 130207908005 iris(shards) on ocutalon-ci-15, unit live:online-allowance: 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then 'the first start did not end ready within 400 s'; same signature as the reminder-restart one, now in another unit; rerun of failed jobs
+- 2026-11-12T11:23:19Z occurrence=0-28 by=runner note=run_43202138313_job_131127976608_iris(shards-9)_on_ocutalon-ci-5_unit_shard:lane-a@Bridge_stack_start:'Telegram_park:_TelegramOut_still_has_an_Ens.Job_entry_(Alive,dequeuing)_32_s_after_it_was_disabled';OCT-epic0_2a6cfc67(README+test-readme_over_feature_eb289caf);one_rerun_of_failed_jobs
 ### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
@@ -6740,6 +6753,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z note=see also DW-1095 (possible shared cause: before/after session-row comparisons)
 - 2026-11-11T06:26:54Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page note=OCT-epic25 284e8904 ci run 42966931010 iris (shards-6) lane-b@rest TestOnlyTheMarkerChanges/TestRunAgain; classified flake by the orchestrator; no rework
 - 2026-11-11T06:26:39Z occurrence=25-2 by=orchestrator note=run 42966931010 job 130346188889 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges + TestRunAgain (ci-12); OCT-epic25 284e8904
+- 2026-11-12T02:02:40Z occurrence=21-6 note=OCT-epic21 7c6dec3c run 43130059980 shards-6 TestOnlyTheMarkerChanges (run_again); GuideApi not in the 21.x diff; one rerun
+- 2026-11-12T02:34:04Z occurrence=21-6-send-email-over-smtp
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6880,6 +6895,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic25 f21137d1 (Story 25.2), lane-a run 42981966175 job 130394214504 on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 07:52:08Z: the first-run-in-USER checks passed; the second run in OCUTALON took 126 s and failed at Initialize with the CPF merge error; 25.2 changes no install, Install or IPM file
 - 2026-11-11T08:31:54Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence): an IRIS CPF merge ((-100)) failed during the IPM install; one rerun per occurrence; real if it recurs on an install-touching head
+- 2026-11-12T02:06:01Z occurrence=0-26 note=OCT-epic0 540dfce5 lane-a run 43134792086 ipm-install: Shell() in USER Initialize FAILURE, CPF merge zf(-100) exited 7; 0.26 changes README/tests only; one rerun
 ### DW-1120: UsagePage announces its failed read and never withdraws it, so a stale error can be spoken after a successful Retry
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: usage-page.ts:474 announces USAGE_TEXTS.error on every failure through the shared Announcer; nothing withdraws it on the next answer. Same root as 25.2's H12 CI red, fixed for History only by Announcer.retract (25.2 rework 2).
@@ -6895,6 +6911,132 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: The page shows nothing new for a second failure; the press waits only for the route fulfil. Observed in order in the no-retract mutation run (H15 red, 2 announcements), not guaranteed.
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=give H15 an observed precondition (a page-side marker of the refused read) and a mutation line
 
+### DW-1127: 35.3: rotation's Settings audit entry shows [redacted] for from/to where C3 said empty strings
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Bridge.Audit.Record redacts sensitive settings (webhook.<Ref>.secret); neither secret nor hash is recorded
+- 2026-11-11T13:32:00Z status=by-design owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=existing Redact convention; C3 wording superseded
+
+### DW-1128: 35.3: W8 asserts measured answers for dot-segment paths (web server normalizes to /ocutalon/api -> 401 signed_out; encoded slash -> stock 404) where ruling R6(b) says all 404
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: high | footprint: out-of-footprint
+- evidence: measured on e35s3iw; nothing reaches the hook, nothing 2xx; the web server resolves dot segments before choosing an application
+- 2026-11-11T13:32:00Z status=decision-pending owner=burndown by=harvest note=planner: confirm the measured answers satisfy R6(b)
+- 2026-11-11T20:07:22Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=owner note=ruled by the Contest Planner (owner delegation) 2026-11-11: R6(b) reading accepted; W8 conditions (i)-(iii); rides code review 2
+- 2026-11-11T21:05:08Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=adjudication note=W8 (web/e2e/api/webhooks.spec.ts) pins the ruled conditions: (i) ^OcuTalonP.WebhookC and WebhookIn messages unchanged across every traversal request; (ii) 401 body equals the signed_out envelope exactly; (iii) traversal with the valid hook secret still 401; each with a mutation line (Verification, code review 2), red seen and reverted; green live sign-in part 4/22 28/28 on fresh lane-B throwaway e35s3c2
+
+### DW-1129: 35.3: failed webhook-list load shows the create form and an empty list
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: webhooks-section.ts stateOf returns ready for errors other than 403/409; a load-failure text is not accepted
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA/CR: reuse an existing accepted load-failure text if one exists, else wontfix with probe
+- 2026-11-11T14:12:19Z note=cr decision: reusing the accepted LOAD_FAILED text with Retry (live-state.ts:30, as settings-page.ts:111-113 does for the Settings load) in webhooks-section.ts stateOf is a correct, honest reuse; patch with an e2e pin is a rework item of this story (story back to in-progress)
+- 2026-11-11T15:04:01Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=adjudication note=rework1_dfa9a7d0:webhooks-section.ts_LOAD_FAILED+Retry;e2e_WS4
+
+### DW-1130: 35.3: Install.Step.Web.Run's removal of a stale /ocutalon/hook on the online demo is not pinned from Run
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestRemoveHook calls RemoveHook directly
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA: pin through Run with the flag set
+- 2026-11-11T14:12:19Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=cr note=QA pin confirmed: test-online-demo.sh row 11 'Install.Step.Web.Run deletes a stale /ocutalon/hook application on the online demo' (live online-demo red under the RemoveHook-skip mutation, green before); cr fixed its cleanup line to run RemoveHook in OCUTALON
+
+### DW-1131: 35.3: a local install switched to the online demo keeps a stale OcuTalonWebhook role
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Roles step (Lane A) never deletes roles; role holds only the three DB grants; no user holds it; demo installs are fresh
+- 2026-11-11T13:32:00Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=reopen_if=an existing local install is ever converted to an online demo in place
+- 2026-11-11T14:12:19Z occurrence=35-3-send-events-to-ocutalon-through-a-webhook note=cr (edge-case layer): Install.Step.Web.Run deletes a stale /ocutalon/hook but nothing deletes an existing OcuTalonWebhook role on a converted install; same root cause, reopen_if unchanged
+
+### DW-1132: 35.3: the hook's 503 with the real Hand (production not running) is not exercised at a live surface
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Test.Web.Hook drives 503 via HookProbe only
+- 2026-11-11T13:32:00Z status=open owner=35-3-send-events-to-ocutalon-through-a-webhook by=harvest note=QA: exercise the real 503 or close with probe
+- 2026-11-11T14:12:19Z status=resolved-by:35-3-send-events-to-ocutalon-through-a-webhook by=cr note=QA pin confirmed: Test.Web.HookProductionStopped TestProductionStopped runs the real Web.Hook.Hand (HookProbe mode real) with the production stopped; red under the ignore-failed-hand-over mutation, green on warm throwaway e35s3qw
+
+### DW-1145: 35.3: SettingsOps.SetWebhookSecret writes its audit entry before the save and writes no undoing entry when the save fails (CreateWebhook does)
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Core/SettingsOps.cls SetWebhookSecret: WriteAudit then row.%Save; on error only LOGERROR + failed
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=real only if a %Save of an existing row that changes only SecretHash fails (disk, lock or journal error); the rotation entry reads [redacted] both ways, so an undo entry would carry nothing new
+
+### DW-1146: 35.3: Data.Webhook.Reject drops a rejection uncounted when the slot lock is not granted within 2 s
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Data/Webhook.cls Reject: Lock +@lockName:2, If '$Test Quit 0
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=real only if one slot's lock is held 2 s, i.e. a flood of thousands of rejections a second on one Ref; the 401 is still answered
+
+### DW-1147: 35.3: a SecretHandoff event resource outlives a REST process killed between Put and Discard
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Core/SecretHandoff.cls: Discard runs on every path of Web.HookSettings, but not if the process is killed in between
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=real only if a CSP process is killed in the milliseconds between Put and the command's submit; the resource is in shared memory only and goes at restart
+
+### DW-1148: 35.3: Web.Hook timing differs between a malformed Ref (no index read), an unknown Ref and a known Ref
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Web/Hook.cls Authenticated: IsRef check before the index probe; class doc says the same time
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=a Ref is an address, not a secret (it is shown in Settings and sent in the URL); real only if Ref existence were ever treated as secret
+
+### DW-1149: 35.3: SecurityOverview labels an application 'none (unauthenticated)' only when AutheEnabled is exactly 64
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Install/SecurityOverview.cls: $Select(AutheEnabled=64: none, ...)
+- 2026-11-11T14:12:31Z status=wontfix-theoretical owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=Definitions fixes every OcuTalon application at 32 or 64; real only if an application is given a combined bitmask such as 96
+
+### DW-1150: 35.3: lib-live check_security now requires /ocutalon/hook and OcuTalonWebhook, and test-install-upgrade.sh (row 15 after the upgrade) calls it, but no upgrade run was made in this story
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: docker/tests/lib-live.sh check_security; test-install-upgrade.sh not in the spec's Verification runs
+- 2026-11-11T14:12:40Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=reopen_if=the live install-upgrade unit fails on a hook or OcuTalonWebhook row in CI
+
+### DW-1151: 35.3: channels-section.ts (contended with Epic 21) also got two class-doc line edits beside the allowed import, imports name and template element
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: web/src/app/settings/channels-section.ts doc: 'Its Telegram part has no form...' and 'The Webhooks group (Story 35.3) follows it'
+- 2026-11-11T14:12:40Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=reopen_if=the integrate of OCT-epic21 conflicts in channels-section.ts's class doc
+
+### DW-1152: 35.3: the More to try webhook item shows to a local non-admin user (OcuTalonUser only), whose Settings open says 'Only OcuTalon admins can open settings.'
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Demo/Features.cls Present: webhooks when Web.Hook compiled and not online demo, no admin check; every webhook route is admin-only
+- 2026-11-11T14:12:40Z status=wontfix-accepted owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=reopen_if=a non-admin local account is part of a demo path or the guide hides other admin-only items by role
+
+### DW-1153: 35.3: the webhook_rejected audit entry counts 401, 413, 400 and 429 together and does not say why
+- source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-footprint
+- evidence: Data/Webhook.cls RecordRejection: counts.rejected only
+- 2026-11-11T14:12:40Z status=by-design owner=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=B3 (AD-17 amendment, Story 35.2) defines one capped entry per slot with counts.rejected; a per-reason count needs an AD amendment
+### DW-1138: EmailIn: a permanently unreadable or undeliverable email at the head of the new mail stops every poll at that email, so later mail never reaches Intake
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Channel/Email/Adapter.cls Poll quits on the first Read/Deliver failure and records nothing for it
+- 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=choose skip-after-N or quarantine-with-reason; never drop mail silently
+- 2026-11-11T20:07:39Z status=resolved-by:21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=adjudication note=Channel/Email/Adapter.cls Read: after READTRIES (3) failed polls the email is read as headers only (matrix row 11), so nothing is dropped and later mail is not held up; pinned by Test.Channel.EmailIn TestUnreadableEmailIsReadAsHeaders (review patch, commit 334f4477)
+
+### DW-1139: SettingsOps.SaveEmail: an identical re-save after the detached production update failed all its tries does not start EmailIn again, though the page said it applies within a minute
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: SaveEmail calls StartItem only when a settings row was written; UpdateIn logs one error after its last try (unverified)
+- 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=settle by a measured failed update then identical re-save
+- 2026-11-11T20:07:39Z status=routed owner=21-6-send-email-over-smtp by=adjudication note=residual: SettingsOps.SaveEmail starts the production update (StartItem) only when a settings row changed, so an identical re-save after UpdateIn failed all its tries leaves the item unapplied; Story 21.6 reuses this apply path for EmailOut's host settings ('applies them within a minute') and settles it there (start the update when the item is not running as saved, or measure the failed-update case)
+- 2026-11-12T00:32:59Z status=resolved-by:21-6-send-email-over-smtp by=adjudication note=SettingsOps runs the detached production update after every successful email save (StartItem), so an identical re-save starts an item whose earlier update never ran; pinned by Test.Core.SettingsEmail TestNothingChanged and Test.Channel.EmailLive TestResaveStartsStoppedItems (build 8567120c)
+
+### DW-1140: EmailLive TestSpentBudgetStillDecides cannot show daily_cap on the keyless CI stack (no_key is checked first), so a Decide ignoring the cap for email Items stays green
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Test/Channel/EmailLive.cls accepts no_key or daily_cap and counts model calls (always 0 without a key)
+- 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=pin at Precheck level or on a stack with the CI mock key
+- 2026-11-11T20:07:40Z status=resolved-by:21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=adjudication note=Test.Channel.EmailLive TestSpentBudgetStillDecides now uses a key fixture, so the email's decision must be the daily_cap fallback with no model call; QA added TestCappedDayGivesDailyCapForAnEmailItem (commit 334f4477)
+
+### DW-1141: Email form refusal, dirty and hidden states have no executed component or browser test; only view functions and the saved path E2 run
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/src/app/settings/email-section.ts; email-view.test.mjs pure functions only
+- 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=two-way door: one e2e case typing @{ and checking the field error
+- 2026-11-11T20:07:40Z status=wontfix-accepted by=adjudication note=refusal state covered by QA's web/e2e/settings/email.spec.ts E4 (typing @{ shows the ruled field error, nothing saved or offered); dirty state is the pure isEmailDirty, unit-tested in email-view.test.mjs, and the hidden state (online demo) is the 409/absent-group path the per-story smoke checks; reopen_if=a settings e2e or a user report shows the Email section's Save enabled with no change, or the section shown on an online-demo install
+
+### DW-1142: EmailIn: a POP3 server that stalls mid-list may hold a poll past the 8 s read timeout (per read, not per poll)
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: %Net.POP3 GetMessageUIDArray loops until the lone dot; not measured (unverified)
+- 2026-11-11T14:02:27Z status=open owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=harvest note=settle with the stub answering UIDL partly then going silent
+- 2026-11-11T20:07:40Z status=wontfix-accepted by=adjudication note=the per-read TIMEOUT (8 s) ends a silent server's poll and the review's StopAsked patch ends a poll between emails; only a server that trickles one line inside every 8 s during UIDL or RETR can hold a poll, which needs a broken or hostile mail server the admin chose; reopen_if=an EmailIn poll in the Ens event log runs longer than 60 s, or the POP3 stub configured to trickle UIDL lines every 5 s holds a poll past 30 s
+
+### DW-1154: EmailIn: Data.Purge can delete the email.owner session of a quiet mailbox; then EmailIn refuses every email (no owner session) and every poll fails with P1c until an admin saves the mailbox again
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Purge.Keeps counts a session current by sign-in, pairing, requests, watches and reminders, not email.owner; In.OnProcessInput then answers ERROROWNER for every email (Channel/Email/In.cls:38). Mail stays on the server and is read after the next save.
+- 2026-11-11T14:53:35Z status=routed owner=burndown by=cr note=fix: Data/Purge.cls Keeps treats the email.owner session as current (Lane B, outside Epic 21 footprint)
+
+### DW-1155: SecretHandoff: an offered secret whose caller dies between Put and its discard Take stays in the event resource until IRIS restarts; nothing expires it
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Take deletes the resource; the route always discards with Take(uri,.d,0); only a killed CSP process between Put and that Take leaves it (shared memory, never a global or disk).
+- 2026-11-11T14:53:35Z status=wontfix-theoretical owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=cr note=real if a web process is killed mid-save; a TTL sweep (35.3 Discard at integrate-forward) would close it
+
+### DW-1156: EmailIn: a UIDL over 70 characters cannot be recorded in Data.MailSeen, so that email is delivered again at every poll (or the baseline never completes)
+- source: spec-21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: MailSeen.Uidl MAXLEN 70; Adapter records after Deliver, so a failed Record repeats the email. RFC 1939 caps a UIDL at 70 printable characters.
+- 2026-11-11T14:53:35Z status=wontfix-theoretical owner=21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp by=cr note=real only for a POP3 server that breaks RFC 1939's 70-character UIDL limit
 ### DW-1124: Ending a session does not stop its queue-backlog row: Core/SessionOps.EndWatches skips non-production kinds, so the check keeps running for the ended session and Data.Purge.Keeps keeps the session
 - source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-epic(Core/SessionOps.cls,not_contended)
 - evidence: SessionOps.cls:332-345 EndWatches skips Kind<>production and builds StopWatch without Kind; WatchOps.OnStop handles Kind queues
@@ -6940,6 +7082,35 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Mcp/Ops.cls MessageMap maps only the three verbs; CommandsIn.IsStub maps only code 5003 to not_built; spec Design Notes 17 records it
 - 2026-11-11T13:50:48Z status=by-design owner=22-2-classify-mcp-tools-by-server-and-name by=cr note=spec Design Notes 17 states it; no UI sends them before 22.5, which adds the handlers
 
+### DW-1159: After Reject, the status rail's Approval requests keeps listing the rejected request until the async approval live event reaches the page (web and phone view)
+- source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: rail lists pendingApprovals(store) (web/src/app/rail/rail-view.ts:340); store approvals change only via approval events (live/live-store.ts:188-189); the press reply updates only the card's AnswerPress.local (approvals/answer-press.ts replied); event published async by Core.BridgeSink.Approved, read by the next poll (live-state.ts:19 POLL_DELAY_MS 1000)
+- 2026-11-11T20:10:49Z status=routed owner=burndown by=owner note=Contest Planner ruling 2026-11-11T20:09:53Z (owner delegation; reverses orchestrator veto U-318): judge-visible (Reject a fix is a featured More to try step). Follow-up story in approvals/phone/rail, dispatched by the orchestrator AFTER 21.2 merges, on any free lane, after 0.26 and DW-1123. Acceptance: a browser test presses Reject and the request is gone from the rail within 5 s, on the web and on the phone view. Ships in 1.0.8 only if merged before the cut, else 1.0.9. Not a 23.10 rework.
+### DW-1164: EmailOut's system path (Story 21.6) needs Story 22.7 to fill SendEmail.ApprovalRef, the approval row's FixKind 'email' and FixParameters.recipients, and to replay with a context of Kind tool and provenance user; only seeded rows test it today
+- source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Channel/Email/Out.cls system path reads Bridge.Data.ApprovalRequest; tests seed the row; S1 spine sub-bullet records the contract
+- 2026-11-11T23:31:06Z status=routed owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=harvest note=22.7 confirms both contracts with a test through the real FixExecutor and Replay.Run
+- 2026-11-12T00:31:01Z occurrence=21-6-send-email-over-smtp by=cr note=also: Gate taints a context before a non-trustedOutput call runs, so CleanTurn refuses 22.7's safe own-address send unless TRUSTEDOUTPUT 1
+
+### DW-1167: EmailIn takes in the mail OcuTalon itself sent to the own address (a tool email, and with 21.7 every digest) as a new untrusted item: EmailOut marks nothing and EmailIn filters nothing
+- source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Out.cls Send sets no header OcuTalon could recognise; Channel/Email/In.cls has no sender or header filter; the To of a tool send is the polled mailbox
+- 2026-11-12T00:31:01Z status=routed owner=21-7-send-the-daily-digest-by-email by=cr note=21.7 sends the daily digest to that mailbox; mark EmailOut's mail and have EmailIn skip it, or rule it harmless
+
+### DW-1168: A send to a server slow at every command can outlast CommandsIn's 120 s wait: the caller gets failed while EmailOut still finishes the send
+- source: spec-21-6-send-email-over-smtp.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Sender: 20 s per command, 40 s for the end of the message, no cap on the whole send; CommandsIn TIMEOUT 120 s
+- 2026-11-12T00:31:01Z status=wontfix-accepted owner=21-6-send-email-over-smtp by=cr note=reopen_if=a trace shows an EmailOut send finishing after its CommandsIn call answered failed; doc corrected in review
+
+### DW-1169: A SendEmail queued for an EmailOut that stops before taking it (cleared server, production stopping) waits in the queue and is sent when the item next starts, after the caller was told failed
+- source: spec-21-6-send-email-over-smtp.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: CommandsIn.Send checks ItemRunning, then SendRequestSync; a disabled item keeps its queue; EmailOut does not look at a request's age
+- 2026-11-12T00:31:01Z status=wontfix-accepted owner=21-6-send-email-over-smtp by=cr note=reopen_if=an EmailOut trace shows a SendEmail handled more than 120 s after its header was created
+
+### DW-1170: A second execution of an email-fix approval after FixExecutor finished it (row done or failed) answers refused (Q2, 'a recipient, the subject or the text wasn't allowed') rather than already_sent or failed
+- source: spec-21-6-send-email-over-smtp.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Out.Handle runs Authorised (State executing) before Claimed; nothing is sent either way, as ruling f requires
+- 2026-11-12T00:31:01Z status=wontfix-accepted owner=21-6-send-email-over-smtp by=cr note=reopen_if=22.7 or a user-facing surface shows Q2 for an approval whose email was sent
 ### DW-1157: flake: lane-a@rest Test.Checks.BeatOutcomes TestAct 'the person's row is made' failed with ERROR #5808 Key not unique OcuTalon.Data.HeartbeatBeat:SessionRefIndex (a leftover beat row for the test session)
 - source: OCT-epic23 96bc4b28 (Story 23.7 CI rework), ci run 43037078949 job 130578626759 on ocutalon-ci-20 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the same 23.7 code (Checks/Process.cls Tick) passed shards-2 on f78e6236 (run 43026811791); f78e6236..96bc4b28 changes only web tests and K29
@@ -6950,6 +7121,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic23 96bc4b28, ci run 43037078949 job 130578626990 on ocutalon-ci-16 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: timing assert on the poll interval under CI load; 23.7 changes no live/poll code
 - 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); one rerun per occurrence; rerun deferred until RESUME (HOLD)
+- 2026-11-12T06:52:37Z occurrence=feature note=74ee76dc ci 43160772937 shards-4 live:sign-in-2 L1 poll gap 2076 ms vs 2000; one rerun
 ### DW-1143: K29 under sign-in-3 (no model, no CI mock) seeds the queue row instead of running press->turn->start_watch->row end to end
 - source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story(web/e2e/guide/more-to-try-queues.spec.ts)
 - evidence: sign-in-3 has no CI mock; K29 pins press->one prompt (mutation red); Test.Watch.Turns:TestQueuesThroughTheAgent pins prompt->start_watch(kind queues)->row->check event; rail-view.test.mjs and K29 pin the row render
@@ -6960,17 +7132,32 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: K29 answers the POST itself under sign-in-3; test-mock.sh passes with the file present
 - 2026-11-11T14:03:12Z status=wontfix-accepted owner=23-7-watch-queue-backlogs-between-digests by=harvest note=reopen_if=a mock-scenario consumer check flags it or a CI-mock browser unit gains a guide case (then K29 moves there and uses it)
 
+### DW-1171: README Contest checklist has no Video row, and the For judges Usability row links neither the full video nor 'One incident, end to end'
+- source: spec-0-26-the-readme-leads-with-the-full-video-and-the-incident-path-a.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: README.md Contest checklist (Online demo, Articles rows; no Video row) and the For judges Usability row ('The demo guide walks one incident in about two minutes', no link) predate 0.26; the ruled 0.26 diff did not extend them, and unruled README text is outside 0.26's scope
+- 2026-11-12T01:23:55Z status=decision-pending owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=human=Contest Planner ruling on a Video row and a judges-table link; fold into 0.27's README ruling
+- 2026-11-12T01:33:46Z status=routed owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=owner note=Contest_Planner_ruling_2026-11-12_01:55Z(owner_delegation):fold_into_0.27_as_its_first_README_edit;wording_in_prompts/story-026-rulings.md_item_2
+- 2026-11-12T01:52:13Z status=routed owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=orchestrator note=split(Part_A_of_0.27_moved_whole_to_0.28_for_the_1.0.8_cut)
+- 2026-11-12T04:29:34Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=ruled_Video_row+Usability_sentences(README),checklist-video+judges-usability(test-readme.sh),web_count_tests,check-readme-video.sh+release/checklist.sh_readme-video_row
+### DW-1165: The ruled resolved-incident sentence has the partner notice say the affected orders went through, but Facts carry only the state, so a resolved incident whose fix left messages failed again or skipped, or that a suspend or reroute resolved, gets the same claim
+- source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Watch/Transitions resolves on fixing + finished whatever the run's counts (failedAgain, skipped); PartnerWarning.Facts adds only 'Incident state: resolved', and SYSTEMNOTE's ruled sentence tells the model to say the orders went through
+- 2026-11-11T23:51:45Z status=decision-pending owner=burndown by=cr note=product call: give Facts the fix outcome and make the sentence conditional (ruled text); user approves exact text; RC-eval item
+- 2026-11-12T00:11:20Z status=routed owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=owner note=Contest_Planner_ruling_2026-11-12_00:20Z_(owner_delegation;prompts/epic-23-story-2311-ruling.md):_Outcome_fact_built_by_code_+_instruction_sentence_replaced_verbatim
+- 2026-11-12T04:03:07Z status=resolved-by:23-11-say-in-a-partner-notice-only-how-the-incident-ended by=adjudication note=PartnerWarning.Outcome_builds_the_ruled_line_from_records(71b98a7a);facts_carry_it_after_Incident_state;sentence_replaced;pinned_by_TestOutcome{FullFix,PartialFix,Reroute,Suspend},TestNoOutcome,TestNoOutcomeGuards,PartnerTurns_4_draft_cases(mutations_red)
 ### DW-1160: flake candidate (host load): live:install-start row 3 'the dev start did not end ready within 200 s' in CI iris (install-fresh) on feature c33e0916 under the post-outage backlog
 - source: feature c33e0916, ci run 43099749161 job iris (install-fresh) on ocutalon-ci-12 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: no test assertion failed; live:online-demo-path in the same job passed; same start-not-ready family as DW-612 (row 2) and DW-1082 (install-upgrade row 7); all 18 runners busy with the outage backlog
 - 2026-11-11T21:32:07Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun of the failed job when the run completes
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749161 attempt 2)
+- 2026-11-12T10:33:23Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_e7c97dda_run_43170639261_install-fresh_live:install-start_row3_dev_start_not_ready_200s;superseded_head
 
 ### DW-1161: CI headroom: lane-a ipm-install takes 28-30 min against its 35-min job timeout; under host load it times out (cancelled at 35m0s) with no test failed
 - source: feature c33e0916, lane-a run 43099749306 job ipm-install on ocutalon-ci-10 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: durations: 14:31-15:00 (29.5m), 20:07-20:35 (28m), 14:02-14:32 (30m); 21:03-21:38 timed out during the post-outage backlog
 - 2026-11-11T21:39:35Z status=routed owner=burndown by=orchestrator note=infra (host load): one rerun per occurrence; a recurrence on a clean queue means the group needs a split (standing CI rule), never a longer timeout
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749306 attempt 2)
+- 2026-11-12T11:30:04Z occurrence=0-28 by=runner note=lane-a_run_43202138310_job_131127975712_ipm-install_on_ocutalon-ci-19_all_steps_success_then_cancelled_at_35m0s(10:52:33-11:27:33Z);host_load;OCT-epic0_2a6cfc67;rerun_failed_jobs_11:30Z
 
 ### DW-1163: CI ops: GitHub Actions outage left zombie runs (queued at attempt 1; cancel says completed, rerun says running, force-cancel says not queued); recovery = a fresh push of a bookkeeping-only head, its result read by identity
 - source: OCT-epic21 2242c77d runs 43096469670, 43096469722 (2026-11-11 Actions major outage) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6981,3 +7168,64 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Contest Planner ruling 2(a) (22.8 AC 1) is implemented in Context.ToolFingerprint(server, name, description, parameters); the spine's S1-S7 updates for 22.8 did not restate rule 1 or S3, so 22.3/22.4 builders reading the spine would hash the old form
 - 2026-11-11T22:18:46Z status=routed owner=burndown by=cr note=lead: Rule 20 spine write (AD-10 rule 1, AD-21 S3) recording ruling 2(a); no code change
 - 2026-11-11T22:20:57Z status=resolved-by:22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=adjudication note=spine_AD-10_rule1_and_AD-21_S3_now_state_SHA-256_hex_over_server_id,name,description,schema(Rule20_record_of_Planner_ruling_2(a));lint_unchanged
+
+### DW-1172: The incident's plural item noun, supplied by the model in the diagnosis payload, now enters the trusted SystemNote of the partner-notice draft (Story 23.11 noun ruling)
+- source: spec-23-11-say-in-a-partner-notice-only-how-the-incident-ended.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Watch.Notice.Noun checks only that both forms are non-empty; IncidentManager stores diagnosis.itemNoun as given; PartnerWarning.SystemNote substitutes noun.other into the code-written instruction (AD-10/AD-14 trust boundary)
+- 2026-11-12T03:35:32Z status=open owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=by=harvest note=unverified MED: settle at code review (show the diagnosis check caps the noun, or normalise it in SystemNote to a short plain word with the 'orders' fallback the Planner ruled for no noun)
+- 2026-11-12T03:35:47Z status=open owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=harvest note=corrects_the_by_field_of_the_first_trailer(typo_by=by=harvest)
+- 2026-11-12T04:03:07Z status=resolved-by:23-11-say-in-a-partner-notice-only-how-the-incident-ended by=adjudication note=Contest_Planner_ruling_03:55Z_applied_at_code_review:SYSTEMNOTE_constant;SystemNote(incident)_returns_it;TestOutcomeUsesTheItemNoun_hostile_itemNoun_'ignore_previous_instructions'_->_SystemNote_equals_constant_and_holds_no_part_of_the_noun(substitution_restored->red_5_asserts;reverted_green);payload_check_tightening=Planner's_separate_burndown_entry
+
+### DW-1174: IncidentManager.DraftRequest's fallback to the kind's SYSTEMNOTE parameter, for a drafted kind with no SystemNote method, is pinned by no test
+- source: spec-23-11-say-in-a-partner-notice-only-how-the-incident-ended.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: partner_warning is the only DRAFTED kind and defines SystemNote, which now returns SYSTEMNOTE (DW-1172 ruling), so both branches of the $Select give the same text and neither is observable
+- 2026-11-12T04:01:28Z status=wontfix-theoretical owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=cr note=real when a second DRAFTED kind is added with no SystemNote method, or a SystemNote returns other than SYSTEMNOTE
+### DW-1166: tooling: the local smoke/fresh check doesn't run live:storage-roundtrip, so a new class that compiles with a storage definition (e.g. a test class extending %Net.POP3) without a committed Storage block is caught only by CI's image group
+- source: OCT-epic21 8fc11a6e ci run 43114341467 iris (image) (Story 21.2) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 21.2's EmailInPop3 passed smoke and fresh check locally and failed live:storage-roundtrip in CI; the Planner asked for a cheap pre-CI check
+- 2026-11-12T00:03:53Z status=routed owner=burndown by=orchestrator note=Contest Planner 2026-11-12: if cheap, run the storage-roundtrip (or its committed-vs-compiled Storage comparison) in the lead's smoke for stories that add a class with a storage definition
+
+### DW-1175: No per-push test runs check-readme-video.sh's own logic (retry, cap, status handling); its self-tests run only online and the release checklist's test stubs it
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: a stub-curl test needs a new test-*.sh in a ci/units.sh list, outside 0.28's boundary; a regression shows as a loud FAIL on the readme-video release row
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=the_readme-video_release_row_fails_for_a_script_bug_rather_than_a_dead_link
+- 2026-11-12T04:29:35Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=QA_video-script_rule(test-release-checklist.sh)_runs_the_real_script_offline_with_a_fake_curl:retry,cap,status_handling
+
+### DW-1176: ci/units.sh NOT_IRIS_INPUT_PATTERN omits docker/tests/check-readme-video.sh, so a later edit of that script runs every CI group
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/units.sh:251 lists record-eval.sh and test-*.sh only; one alternative fixes it; cost is extra CI minutes on later edits of the script only
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=a_push_that_edits_only_check-readme-video.sh_runs_every_IRIS_group
+
+### DW-1177: Nothing per push checks that docker/tests/check-readme-video.sh exists, is executable and parses (test-release-checklist.sh stubs it)
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: a deleted or non-executable script fails the readme-video row at release time (row_script reports it), not per push
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=the_readme-video_release_row_reports_a_missing_or_non-executable_script
+- 2026-11-12T04:29:35Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=video-script_rule_checks_the_real_script_exists,is_executable,parses,ASCII
+
+### DW-1178: release/checklist.sh's no-outward row fails on the tree: docker/tests/test-readme.sh's ALLOWED_HOSTS line names community.intersystems.com and openexchange.intersystems.com
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: the row's own outward_hits over its file set lists docker/tests/test-readme.sh:1495 on c38ebea6 (line 1422 at 793840c5); the line came in with 6118b053 (Story 0.18, 2026-11-08), so every RC run since then fails no-outward; it is the only hit once 0.28's review lands; fixing it needs a ruled form (an allowed line in release/checklist.sh, as for check-readme-video.sh's OEMBED= line, or another)
+- 2026-11-12T04:27:54Z status=escalated owner=burndown by=cr note=1.0.8 RC release-checklist issue for the Planner; pre-existing (Story 0.18); fix is a RELEASE TOOL hunk
+- 2026-11-12T04:41:16Z status=routed owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=owner note=Contest_Planner_ruling_on_0.28(~05:00Z,owner_delegation)_option_(a)_folded_into_0.28_before_merge;release_records_1.0.1-1.0.6_show_Release_sequence_stopped_after_notes:no_gate_has_run,so_no-outward_has_not_run_since_1.0.0_rc4;nothing_shipped_through_a_failing_row;the_Planner_runs_release/checklist.sh_in_full_at_the_1.0.8_RC
+- 2026-11-12T05:09:28Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=eb366184:no-outward_allows_test-readme.sh_ALLOWED_HOSTS_line_exactly(full-line,that_file_only)+3_cases_in_outward-rows+comment_above_ALLOWED_HOSTS;row_outward_hits_empty_on_tree;1.0.1-1.0.6_records:stopped_after_notes,no-outward_not_run_since_1.0.0_rc4
+### DW-1173: security: the diagnosis payload's itemNoun (model text from partner-shapeable failure data) is checked only for 128 characters per form, any characters; it reaches the Failures line and other noun uses
+- source: IncidentManager.cls:802 (Story 23.11 review, DW-1172) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Contest Planner ruling 2026-11-12: each form letters, spaces and hyphens only, at most 40 characters, else drop it and keep the code noun; a test with a hostile noun
+- 2026-11-12T03:39:15Z status=routed owner=burndown by=orchestrator note=not part of 23.11, not a 1.0.8 blocker; 23.11's SystemNote is constant text (DW-1172 ruling)
+
+### DW-1187: flake candidate (host load): live:demo-path telegram-approval.spec.ts T8 failed in sign-in: page.waitForResponse for the sign-in POST timed out at 60 s (SLOW loadedAfter the sign-in 60 s), before any approval step
+- source: feature 74ee76dc, ci run 43160772937 job iris (browser) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the failure is in sign-in/helpers.ts:61 submitSignIn, not the approval path; all 18 runners busy with the backlog; 74ee76dc's new code (21.2/21.6/23.11) doesn't touch sign-in
+- 2026-11-12T06:52:37Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun; a second red on the same head is real
+### DW-1186: Agent/Chat.cls:65 P3 tells the model to say the incident is closed on every no_incident, but resume_item also gets no_incident while the session's incident is awaiting_approval or fixing (others lists it)
+- source: spec-23-9-resume-a-suspended-item-after-its-incident-closes.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: WatchAnswers.ResolveIncident:131 returns no_incident with others=[busy]; Test.Fix.AskedTurns:TestUndoTurn's second resume ask reads exactly that; the dismiss bullet branches on others, P3 does not
+- 2026-11-12T06:39:32Z status=decision-pending owner=burndown by=cr note=Planner text call on ruled P3 (U-321): e.g. 'if the answer is no_incident and others is empty'; ruled text unchanged
+- 2026-11-12T06:50:09Z status=routed owner=23-9-resume-a-suspended-item-after-its-incident-closes by=owner note=Contest_Planner_ruling_06:55Z(owner_delegation;prompts/epic-23-rulings-239.md):_fix_in_23.9_with_the_Planner's_sentence;rework_iteration_1
+- 2026-11-12T10:21:56Z status=resolved-by:23-9-resume-a-suspended-item-after-its-incident-closes by=adjudication note=e76fbea3:Agent/Chat.cls:65_Planner_sentence_verbatim;Test.Agent.Instructions_exact-line_pin(mutation_while->whilst_red);TestUndoTurn_others=awaiting_approval(busy);TestUndoClosedTurn+propose-fix-undo-closed.json(empty_others;AssertTurn_reply_names_Management_Portal;closed-incident_fixture_by_re-review)
+
+### DW-1190: flake: live:online-demo web/e2e-online/resume.spec.ts:104 R2 page.goto('http://elsewhere.test/') net::ERR_ABORTED on a context.route-fulfilled page (raw page.goto, not gotoSettled; DW-690 family)
+- source: OCT-epic0 2a6cfc67, ci run 43202138313 job 131127976389 iris (browser) on ocutalon-ci-14 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rows 7-12 online-demo specs: 1 failed (R2, 2.3 s) at resume.spec.ts:143 page.goto ERR_ABORTED; spec unchanged since 83a6f3c1 (Nov 4); the head changes README.md and test-readme.sh over feature eb289caf; 18 runners busy
+- 2026-11-12T11:14:12Z status=routed owner=burndown by=runner note=flake class (first occurrence): one rerun of failed jobs; a second red on the same head is real; likely fix: gotoSettled at L143 as DW-690 did
+- 2026-11-12T12:22:47Z status=routed owner=burndown by=runner note=rerun_attempt_2_of_run_43202138313_green_on_2a6cfc67(flake_confirmed)

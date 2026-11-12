@@ -676,7 +676,7 @@ Method TestSummary()
 		Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(session, , , , {"State": "closed", "ClosedAt": (##class(OcuTalon.Data.Time).NowUtc()), "Summary": ({"parts": (parts), "lines": []}.%ToJSON())})
 		Set expected = "Incident summary: 50 orders failed in Orders."
 			_$Char(10)_"Cause: The partner sent <b>x</b> and *y* in the date."
-			_$Char(10)_"Evidence: OrderDate was <i>16/10/2026</i> and _z_ [a](b)"
+			_$Char(10)_"Evidence: OrderDate was <i>16/10/2026</i> and _z_ [a](b)."
 			_$Char(10)_"Sample error: Field `OrderDate` was not a date."
 			_$Char(10)_"Messages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped."
 		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")

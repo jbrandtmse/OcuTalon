@@ -62,6 +62,26 @@ Method TestSeededValueAndCache()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "default"), "second", "the new value is read once the entry is 61 seconds old")
 }
 
+/// Fresh (Story 21.2) reads the row at once, whatever the per-process cache holds; an absent key and an empty value give the default, and a public key is
+/// read as Get reads it.
+Method TestFreshIgnoresTheCache()
+{
+	Set key = ..Key_".fresh"
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Seed(key, "first"), "the key is seeded")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "default"), "first", "Get reads it and caches it")
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+	Set row.Value = "second"
+	Do $$$AssertStatusOK(row.%Save(), "the row is changed")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "default"), "first", "Get still reads the old value from the cache")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Fresh(key, "default"), "second", "Fresh reads the new value from the row")
+	Set row.Value = ""
+	Do $$$AssertStatusOK(row.%Save(), "the value is emptied")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Fresh(key, "default"), "default", "an empty value gives the default")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Fresh(..Key_".missing", "default")_"|"_##class(OcuTalon.Data.Setting).Fresh("", "default"), "default|default", "so do an absent key and an empty key")
+	Do $ClassMethod(..#PUBLIC, "Set", ..#PUBLICKEY, 1)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Fresh(..#PUBLICKEY, "default"), ##class(OcuTalon.Data.Setting).Get(..#PUBLICKEY, "default"), "a public key is read as Get reads it")
+}
+
 /// A second Seed changes nothing and drops the cache entry; an absent key and an empty value give the default.
 Method TestSeedOnlyWritesAnAbsentKey()
 {
@@ -256,7 +276,7 @@ Method TestSet()
 /// Removes the fixture's rows and cache entries.
 Method Clean() [ Private ]
 {
-	For suffix = ".cache", ".seed", ".empty", ".missing", ".set" {
+	For suffix = ".cache", ".seed", ".empty", ".missing", ".set", ".fresh" {
 		Do ..RemoveRow(..Key_suffix)
 	}
 }

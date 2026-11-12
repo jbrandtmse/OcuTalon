@@ -23,7 +23,7 @@
 ///   - TestOtherCommand: a command other than SetDemoMode answers unknown_command and writes nothing;
 ///   - TestStepThrows: an error thrown by the step is the step's error status and answers step_failed;
 ///   - TestThrown: an error thrown elsewhere inside answers failed and is logged once as an error;
-///   - TestAllowList: the allow-list is demo.mode, the two digest keys and the five threshold keys, and the guarded write refuses any other key;
+///   - TestAllowList: the allow-list is demo.mode, the two digest keys, the five threshold keys and the two email keys (Story 21.2), and the guarded write refuses any other key;
 ///   - TestOnlyRunTimeWriter: no compiled OcuTalon class outside the tests and Data.Setting writes the Setting rows except
 ///     SettingsOps, and only the Install classes seed them.
 /// The demo.mode row is saved before the tests and put back after them (Test.Demo.Step), and so are the demoKept mark and the
@@ -321,7 +321,7 @@ Method TestThrown()
 /// The allow-list is exactly demo.mode; the guarded write refuses another key with an error status and writes no row.
 Method TestAllowList()
 {
-	Do $$$AssertEquals($Parameter(..#PROBE, "ALLOWLIST"), "demo.mode,digest.time,digest.channels,checks.thresholds.diskFreePercent,checks.thresholds.journalFreePercent,checks.thresholds.licenseUsePercent,checks.thresholds.queueMessages,checks.thresholds.queueWaitMinutes", "the allow-list is demo.mode, the two digest keys and the five threshold keys")
+	Do $$$AssertEquals($Parameter(..#PROBE, "ALLOWLIST"), "demo.mode,digest.time,digest.channels,checks.thresholds.diskFreePercent,checks.thresholds.journalFreePercent,checks.thresholds.licenseUsePercent,checks.thresholds.queueMessages,checks.thresholds.queueWaitMinutes,email.address,email.owner", "the allow-list is demo.mode, the two digest keys, the five threshold keys and the two email keys")
 	Set had = ##class(OcuTalon.Data.Setting).KeyIndexExists("zz.notlisted")
 	Set sc = $ClassMethod(..#PROBE, "Guarded", "zz.notlisted", "x")
 	Do $$$AssertStatusNotOK(sc, "a key that is not listed is refused")

@@ -474,7 +474,7 @@ An install can include the Orders production and a control that breaks its feed 
 - **Break the feed:**
   - It is active only while the session watches the Orders production and has no Orders incident that is open, awaiting approval or fixing. Otherwise it shows a hint saying what to do first.
   - Clicked, it has the simulated partner send the session's batch of 50 orders in a changed date format. They fail in the Orders production as real errors. No other session's orders and no shared partner state are affected.
-  - If the session's Orders incident is resolved when it is clicked, it first closes that incident, so each run opens a new incident with its own approval request (FR-24).
+  - If the session's Orders incident is resolved when it is clicked, it first closes that incident, so each run opens a new incident with its own approval request (FR-24). A resolved incident that still holds an item OcuTalon suspended is not closed; Break the feed then shows its hint. [AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation]
 - **Nothing on the demo path is canned.** The incident text is generated live from the real failures. Mock services exist only in CI's own configuration (CON-3).
 
 #### FR-17: Settings page [Step 2]
@@ -610,9 +610,9 @@ Failures that share a cause become one incident whose cause is explained in plai
   - an incident is open until a fix is proposed, then awaiting approval, then fixing;
   - if its approval request is rejected or expires, it returns to open (unless another of its requests is still pending or a fix is still running), and in demo mode it keeps Break the feed inactive until the user dismisses it;
   - it is resolved when the fix completes;
-  - a resolved incident is closed when no new failure with the same cause has arrived for 15 minutes, or when the user dismisses it, from the incident's card on the page or in the chat `[ASSUMPTION: 15 minutes]`;
-  - an open incident (no fix proposed, or its request rejected or expired) is closed when the user dismisses it, and outside demo mode also after the same 15 quiet minutes; an incident awaiting approval or fixing never closes on its own (P26);
-  - in demo mode, Break the feed also closes a resolved Orders incident before sending a new batch (FR-16);
+  - a resolved incident is closed when no new failure with the same cause has arrived for 15 minutes, or when the user dismisses it, from the incident's card on the page or in the chat `[ASSUMPTION: 15 minutes]`; while an item that OcuTalon suspended for it is still suspended, it closes only when the user dismisses it, or after the same 15 quiet minutes once the item is resumed [AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation];
+  - an open incident (no fix proposed, or its request rejected or expired) is closed when the user dismisses it, and outside demo mode also after the same 15 quiet minutes, unless an item that OcuTalon suspended for it is still suspended [AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation]; an incident awaiting approval or fixing never closes on its own (P26);
+  - in demo mode, Break the feed also closes a resolved Orders incident before sending a new batch (FR-16), unless an item that OcuTalon suspended for it is still suspended [AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation];
   - a failure with the same cause after closing opens a new incident.
 - On the evaluation set, the cause is right for at least 80% of recorded incidents (SM-2).
 

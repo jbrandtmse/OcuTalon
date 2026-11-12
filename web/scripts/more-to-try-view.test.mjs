@@ -110,6 +110,12 @@ const RULED = {
       lookFor: 'In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in\'s outcome and its cost in the card.',
       button: 'Go to the Heartbeat checklist card',
     },
+    webhooks: {
+      label: 'Send an event through a webhook',
+      lookFor:
+        'In Settings, Channels, create a webhook with a name and a secret of at least 16 characters. Then send it any JSON with POST to the address it shows, with the secret in the X-OcuTalon-Webhook-Secret header. On the History page, filter by the channel Webhook to read OcuTalon\'s decision on the event, with a link to its trace.',
+      button: 'Open Channels settings',
+    },
     sources: {
       label: 'See where an answer came from',
       lookFor:
@@ -155,6 +161,7 @@ const GROUP_OF = {
   sources: 'Memory and documents',
   suspiciousEmail: 'Safety and settings',
   heartbeat: 'Safety and settings',
+  webhooks: 'Safety and settings',
   persona: 'Safety and settings',
   demoView: 'Safety and settings',
   usage: 'Usage and history',
@@ -171,6 +178,7 @@ describe('(a) the fixed strings', () => {
     assert.deepEqual([...IDS].sort(), Object.keys(RULED.items).sort(), 'each registry entry has its ruled text, and each ruled text its entry');
     assert.equal(new Set(IDS).size, IDS.length, 'the ids are unique');
     assert.ok(IDS.indexOf('heartbeat') < IDS.indexOf('sources'), 'See where an answer came from comes after the heartbeat item');
+    assert.equal(IDS.indexOf('webhooks'), IDS.indexOf('heartbeat') + 1, 'Send an event through a webhook comes right after the heartbeat item (Story 35.3)');
     assert.deepEqual(
       MORE_TO_TRY_ITEMS.map(({ id, label, lookFor, button }) => ({ id, label, lookFor, button })),
       IDS.map((id) => ({ id, ...RULED.items[id] })),
@@ -359,6 +367,9 @@ describe('(c) every quoted on-screen name equals its source', () => {
     has(items.heartbeat.lookFor, `press ${HEARTBEAT_TEXTS.run}.`);
     assert.equal(HEARTBEAT_TEXTS.run, 'Run the heartbeat now');
     has(items.heartbeat.button, `the ${RAIL_TEXTS.heartbeat} card`);
+    has(items.webhooks.lookFor, 'X-OcuTalon-Webhook-Secret header');
+    has(items.webhooks.lookFor, 'filter by the channel Webhook');
+    assert.equal(items.webhooks.button, 'Open Channels settings');
     assert.equal(HEARTBEAT_HEADING_ID, 'rail-heading-heartbeat', 'the heading that the heartbeat item hands focus to');
   });
 
@@ -398,7 +409,7 @@ describe('(c) every quoted on-screen name equals its source', () => {
     const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen'];
     const word = words[MORE_TO_TRY_ITEMS.length];
     const readme = readFileSync(join(here, '..', '..', 'README.md'), 'utf8');
-    assert.match(readme, new RegExp(`its More to try panel has ${word} more things to try`), `the README says ${word} more things to try`);
+    assert.match(readme, new RegExp(`Its More to try panel has ${word} more things to try`), `the README says ${word} more things to try`);
     assert.match(readme, /Incident summaries\.\*\* When an incident closes/, 'and holds the incident summary bullet');
     const ux = readFileSync(join(here, '..', '..', '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
     assert.match(ux, new RegExp(`There are ${word} items, in this order`), `EXPERIENCE.md says ${word} items`);

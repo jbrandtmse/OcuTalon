@@ -26,7 +26,11 @@
 ///     SettingsOps. SendEmail goes to EmailOut from system (FixExecutor's approved email fix) and from tool; from tool it is accepted
 ///     only for the session user's own mailbox: inside a bridge context its SessionRef must be the context's OwnerRef, the product key
 ///     email.owner must be the SessionRef, and the product key email.address must be set and equal, ignoring case and surrounding
-///     spaces, every comma-separated recipient (an empty list is refused). Otherwise the refusal is not_allowed and nothing is sent;
+///     spaces, every comma-separated recipient (an empty list is refused). Inside a bridge context a tool's SendEmail also needs a clean turn (AD-10): the
+///     context's Provenance must be user (the replay of an approved call sets it) and its Tainted flag 0 (a replay context needs only the provenance), so a turn that read untrusted content
+///     cannot send without the approval path (Story 21.6). Otherwise the refusal is not_allowed and nothing is sent;
+///   - step 4 webhooks (Story 35.3, AD-1, AD-19): CreateWebhook and SetWebhookSecret go to SettingsOps from web_admin only; neither is a tool verb, and the
+///     secret is never in the command, only the uri of its SecretHandoff;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
 ///     not_found or unknown_command) and a plain-English Message;
 ///   - an accepted command is sent synchronously to its owner in the right trace session (AD-26): inside a turn the session
@@ -38,6 +42,9 @@
 ///   - the owner's CommandResult is the answer, as it is. An owner that is still a stub (code 5003, or a process stub's
 ///     <Ens>ErrBPTerminated that carries it) gives Outcome not_built; any other error, a timeout, no answer or an answer that
 ///     is not a CommandResult gives Outcome failed. Both have Ok 0.
+///     A SendEmail gives Outcome not_connected (Ok 0) with MESSAGENOTCONNECTED, the sentence that EmailOut itself answers when it has no address (Story 21.6),
+///     when EmailOut has no alive job (the item is disabled until an outgoing server is saved, and a message sent to a disabled item that the production
+///     defines waits for the whole TIMEOUT and ends with no answer), and when the send fails because EmailOut is not registered in the running production.
 ///     A SearchMemory that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) instead, which the web layer answers with its own busy text.
 ///     A ListPinnedMemories that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) the same way (Story 41.13).
 /// OnProcessInput never answers an error status and never throws: an error thrown inside it is logged once and answers failed.
@@ -78,6 +85,9 @@ Parameter MESSAGENOTBUILT = "This part of OcuTalon isn't built yet. Nothing was 
 
 Parameter MESSAGEFAILED = "Something went wrong inside OcuTalon, so the command may not have finished.";
 
+/// The Message of a SendEmail that finds no EmailOut running (Public text Q3 of Story 21.6, the same sentence as EmailOut's).
+Parameter MESSAGENOTCONNECTED = "No outgoing mail server is connected, so the email wasn't sent.";
+
 /// Receives a command and answers its CommandResult in pOutput; the status is always OK.
 Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %RegisteredObject) As %Status
 {
@@ -112,7 +122,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 		If '$IsObject(incident) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 	}
 	If (origin = "tool") && ((verb = "SendDigest") || (verb = "SaveMemory") || (verb = "ForgetMemory")) && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
-	If (origin = "tool") && (verb = "SendEmail") && '..OwnAddressOnly(command) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
+	If (origin = "tool") && (verb = "SendEmail") && ('..OwnAddressOnly(command) || '..CleanTurn()) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	If verb = "SearchMemory" {
 		Set refusal = ..SearchAllowance(command)
 		If $IsObject(refusal) Quit refusal
@@ -122,6 +132,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	Set sc = ..Send(owner, request, .response)
 	If $$$ISERR(sc) {
 		If ..IsStub(sc) Quit ..Result("not_built", ..#MESSAGENOTBUILT)
+		If (verb = "SendEmail") && ..IsNotRegistered(sc) Quit ..Result("not_connected", ..#MESSAGENOTCONNECTED)
 		Quit ..Result("failed", ..#MESSAGEFAILED)
 	}
 	If '$IsObject($Get(response)) || 'response.%IsA("OcuTalon.Msg.CommandResult") Quit ..Result("failed", ..#MESSAGEFAILED)
@@ -130,12 +141,14 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 
 /// 1 when a SendEmail from a tool is for the session user's own mailbox: inside a bridge context the command's SessionRef is the
 /// context's OwnerRef, the product key email.owner is the SessionRef, email.address is set, and every comma-separated recipient,
-/// trimmed and lower-cased, equals it lower-cased. An empty list, an empty recipient or no mailbox gives 0.
+/// trimmed and lower-cased, equals it lower-cased. An empty list, an empty recipient or no mailbox gives 0. Both keys are read from their
+/// rows and never from the per-process cache, because the mailbox moves to the admin who saved last (SettingsOps.SaveEmail) and a cached
+/// pair could name the old owner with the new address.
 ClassMethod OwnAddressOnly(command As OcuTalon.Msg.Command.SendEmail) As %Boolean [ Private ]
 {
 	If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit 0
-	Set address = $ZConvert($ZStrip(##class(OcuTalon.Data.Setting).Get("email.address"), "<>W"), "L")
-	If (address = "") || (command.SessionRef = "") || (##class(OcuTalon.Data.Setting).Get("email.owner") '= command.SessionRef) Quit 0
+	Set address = $ZConvert($ZStrip(..Stored("email.address"), "<>W"), "L")
+	If (address = "") || (command.SessionRef = "") || (..Stored("email.owner") '= command.SessionRef) Quit 0
 	Set recipients = command.Recipients
 	If $ZStrip(recipients, "<>W") = "" Quit 0
 	Set own = 1
@@ -145,10 +158,33 @@ ClassMethod OwnAddressOnly(command As OcuTalon.Msg.Command.SendEmail) As %Boolea
 	Quit own
 }
 
+/// The Kind of the context of a replay of an approved call (Msg.Enum REQUESTKIND tool, Bridge.Policy.Gate REPLAYKIND).
+Parameter REPLAYKIND = "tool";
+
+/// 1 when the command is not sent from inside a bridge context, or the context's turn is clean: its Provenance is user (the replay of an approved call
+/// sets it, AD-10) and no result that is not trusted output has reached it (Tainted 0). A replay context is clean whatever its taint says: the gate
+/// reads no taint in a replay (the grant of the approved call is single use) and taints the context when it allows the call, before the tool runs.
+ClassMethod CleanTurn() As %Boolean [ Private ]
+{
+	If '##class(OcuTalon.Bridge.Context).Active() Quit 1
+	Set context = ##class(OcuTalon.Bridge.Context).Current()
+	Quit (context.Provenance = "user") && ((context.Kind = ..#REPLAYKIND) || 'context.Tainted)
+}
+
+/// The value of the product key right now, read from its row and never from the per-process cache; "" when the row is absent.
+ClassMethod Stored(key As %String) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Setting).Fresh(key)
+}
+
 /// The one send of the class: the command to the owner item, synchronously. Private, so that only Carry sends through it,
 /// after the checks; a test subclass overrides it to stand in for the owner.
 Method Send(target As %String, request As Ens.Request, Output response As %Library.Persistent) As %Status [ Private ]
 {
+	If request.%IsA("OcuTalon.Msg.Command.SendEmail") && '..ItemRunning(target) {
+		Set response = ..Result("not_connected", ..#MESSAGENOTCONNECTED)
+		Quit $$$OK
+	}
 	If request.%IsA("OcuTalon.Msg.Command.ListPinnedMemories") Quit ..SendSearch(target, request, .response)
 	If request.%IsA("OcuTalon.Msg.Command.SearchMemory") Quit ..SendSearch(target, request, .response)
 	Quit ..SendRequestSync(target, request, .response, ..#TIMEOUT)
@@ -242,6 +278,27 @@ ClassMethod IsStub(sc As %Status) As %Boolean [ Private ]
 	Quit ''($ListFind($ListFromString($SYSTEM.Status.GetErrorCodes(sc)), 5003) || ($SYSTEM.Status.GetErrorText(sc) [ "#5003"))
 }
 
+/// 1 when the status is the dispatch error of an item that the production does not register (Ens.Host.SendRequestSync).
+ClassMethod IsNotRegistered(sc As %Status) As %Boolean [ Private ]
+{
+	Quit ''($SYSTEM.Status.GetErrorCodes(sc) [ "ErrBusinessDispatchNameNotRegistered")
+}
+
+/// 1 when the production item has an alive job that is not in error.
+ClassMethod ItemRunning(item As %String) As %Boolean [ Private ]
+{
+	Set result = ##class(%ResultSet).%New("Ens.Job:Enumerate")
+	If $$$ISERR(result.Execute()) Quit 0
+	Set found = 0
+	While result.Next() {
+		If (result.Get("ConfigName") '= item) || (result.Get("State") '= "Alive") Continue
+		If $ListFind($ListBuild("error", "halted", "terminated"), result.Get("Status")) Continue
+		Set found = 1
+		Quit
+	}
+	Quit found
+}
+
 /// A CommandResult that carries out nothing: Ok 0, the outcome code and the plain-English message.
 ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.CommandResult [ Private ]
 {
@@ -300,6 +357,8 @@ XData Routes [ MimeType = application/json ]
  {"verb": "SetSourcePoll", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "RemoveSourcePoll", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "SendEmail", "owner": "EmailOut", "origins": "tool,system"},
+ {"verb": "CreateWebhook", "owner": "SettingsOps", "origins": "web_admin"},
+ {"verb": "SetWebhookSecret", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "ProposeFix", "owner": "IncidentManager", "origins": "tool"},
  {"verb": "ListPinnedMemories", "owner": "MemoryOps", "origins": "web_user"}
 ]

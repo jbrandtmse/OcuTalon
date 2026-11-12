@@ -1,27 +1,43 @@
 #!/usr/bin/env bash
-# Pins README.md (Stories 10.2, 10.4, 10.5 and 0.21; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134). Hermetic: it starts nothing, needs no network
-# and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules).
+# Pins README.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26 and 0.28; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171). Hermetic: it starts
+# nothing, needs no network and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules). That the README's video
+# addresses answer is checked online by docker/tests/check-readme-video.sh, which this script never runs.
 #
 # What it pins, one rule each:
 #   top            the README opens with the approved header block (Story 0.21: the centred logo and title, the tagline and the badge
-#                  row, lines 1 to 11, word for word), a blank line and the owner's opening paragraph, then the teaser line and,
-#                  after it, exactly one image line (the hero), then the H2 sections "Try it in two minutes", "What's interesting",
-#                  "Measured" (Story 11.25), "What you can use it for" and "How you talk to it" in this order; the other H2 sections
-#                  are there; no "Contest task" heading and no header row of its table
+#                  row, lines 1 to 11, word for word), a blank line and the owner's opening paragraph, then the full-video line, the
+#                  teaser line and, after them, exactly one image line (the hero), then the H2 sections "Try it in two minutes",
+#                  "One incident, end to end", "What's interesting", "Measured" (Story 11.25), "What you can use it for" and "How you
+#                  talk to it" in this order; the other H2 sections are there; no "Contest task" heading and no header row of its table
 #   try-it         the online demo link comes before ./install.sh, with "nothing to install, and no Early Access image needed"
 #                  beside it, the splash screen and its read-only Visual Trace account; the local path is four numbered steps;
 #                  steps 1 and 2 are pinned word for word (U-241 item 1, Story 11.23), and the section never links #start-it-with-build-109
-#   interesting    "What's interesting" has at most 120 words (its image lines are not counted) and names Interoperability, Visual
-#                  Trace, AI Hub, a dry run and the audit log; it shows at least one image line, and every image line in it is the
-#                  decision trace, docs/images/vt-decision.png (the owner's decision of 2026-11-05, reversing U-242 Q2's layout)
+#   interesting    "What's interesting" has at most 120 words in its own text, the lines before its first H3 (its image lines are not
+#                  counted), and that text names Interoperability, Visual Trace, AI Hub, a dry run and the audit log; it shows at
+#                  least one image line, every image line in it is the decision trace, docs/images/vt-decision.png (the owner's
+#                  decision of 2026-11-05, reversing U-242 Q2's layout), and its only H3 is "New since 1.0.0"
 #   measured       "Measured" has a table row for each of its eight row labels, each label word for word as the row's first cell
 #                  (Story 11.25); its numbers and other wording are not pinned
 #   use-cases      "What you can use it for" holds exactly the three items, word for word (the third links docs/bridge-guide.md)
 #   how-you-talk   "How you talk to it" holds its facts (the web chat page on every install, the demo-only parts, the Telegram row
 #                  for your own install with your own bot token, email in a later release, the link to "Demo mode"), a table and an
 #                  image line, and never the word Slack
-#   teaser         the teaser line is there once, word for word, two lines below the opening paragraph with an empty line between
-#                  them and above the first H2 section; no HTML media tag, no image inside a link, and no image that is not an
+#   video          the full-video line holds the YouTube link and the MP4 link of the v1.0.6 release, and the link bar (the first line of
+#                  "Try it in two minutes" that starts with [Online demo]) holds the full-video entry directly before the teaser entry;
+#                  the teaser address is in the teaser line, the link bar and the ruled Video row of "Contest checklist" (exactly that
+#                  line) only
+#   checklist-video  in "Contest checklist", the row right after the "| Online demo |" row is the ruled Video row (DW-1171), word for
+#                  word, and that row is in the README once; the link #one-incident-end-to-end reaches the heading "One incident, end to
+#                  end" (by its slug)
+#   judges-usability  "For judges: where to look" has one "| Usability |" row, and it opens with the two ruled sentences (DW-1171, in
+#                  the combined form ruled with Story 35.3: "..., fifteen of them on the online demo"), word for word but for the count
+#                  word, which may be any lower-case word (the web tests pin it against the More to try registry)
+#   path           "One incident, end to end" holds its intro line and its seven numbered steps, word for word, in order and nothing
+#                  else; "Two things to look at in the demo" is nowhere in the README
+#   new-since      "### New since 1.0.0" sits under "What's interesting", after its image line, with its intro line, then the three
+#                  #### headings in order and, under them, the 16 bullets by bold name, each once, in the ruled order
+#   teaser         the full-video line is there once, word for word, two lines below the opening paragraph and the teaser line once,
+#                  word for word, two lines below it, each with an empty line between and above the first H2 section; no HTML media tag, no image inside a link, and no image that is not an
 #                  inline docs/images/<name>.png image; the one exception is the <img> tags of the header block (the logo's src is
 #                  an absolute raw.githubusercontent.com address), which count only while the first lines are exactly the approved
 #                  header, an empty line and the opening paragraph
@@ -185,6 +201,7 @@ printf '%s\n' "$listing" | product_files > "$tmp/product.list"
 
 ARROW=$(printf '\342\206\222')
 H_TRY='Try it in two minutes'
+H_INC='One incident, end to end'
 H_INT="What's interesting"
 INT_IMAGE=docs/images/vt-decision.png
 H_MEAS='Measured'
@@ -211,7 +228,23 @@ $T_ROW2
 $T_ROW3"
 # The sentence of "Set a model key" that stays as it is.
 FIXED_SENTENCE='Without a key, OcuTalon still starts. Every decision uses fixed rules, and the page shows a notice that says so.'
-TEASER='Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU'
+# The Planner-ruled lines under the opening paragraph (Story 0.26), word for word: the full video (YouTube and the v1.0.6 MP4) and the teaser.
+YT_FULL=https://youtu.be/HIyCG5E6-JQ
+MP4_FULL=https://github.com/jbrandtmse/OcuTalon/releases/download/v1.0.6/ocutalon-1.0.6.mp4
+TEASER_URL=https://youtu.be/wycbyfnXFMU
+FULLVIDEO='Watch the full video (3:04), "One incident, approved from a phone, traced": '"$YT_FULL"', or download it as an MP4 file: '"$MP4_FULL"
+TEASER='Or watch the 35-second teaser: '"$TEASER_URL"
+MIDDOT=$(printf '\302\267')
+LINK_FULL="[Video: one incident, traced (3:04)]($YT_FULL)"
+LINK_TEASER="[Video: the 35-second teaser]($TEASER_URL)"
+# The Planner-ruled DW-1171 lines (Story 0.28), word for word: the Video row of "Contest checklist", and the two opening sentences of
+# the "For judges" Usability row, split at the count word.
+H_CONTEST='Contest checklist'
+H_JUDGES='### For judges: where to look'
+ONLINE_ROW='| Online demo |'
+VIDEO_ROW='| Video | [One incident, approved from a phone, traced]('"$YT_FULL"') (3:04, also as an [MP4 file]('"$MP4_FULL"')), and the [35-second teaser]('"$TEASER_URL"'). |'
+USE_HEAD='| Usability | The demo guide walks [one incident, end to end](#one-incident-end-to-end) in about two minutes, and [the full video]('"$YT_FULL"') shows it in 3:04. Its More to try panel has '
+USE_TAIL=' more things to try, fifteen of them on the online demo ([New since 1.0.0](#new-since-100)).'
 # The approved header block (Story 0.21): README.md lines 1 to HEADER_LINES, word for word, as a quoted heredoc, because the lines
 # hold quotes, with its trailing newline stripped. HEADER_IMAGE_HOSTS are the image hosts and paths that only those lines may use;
 # one of its entries, HEADER_RAW_DIR, is the path of this repository's images on its main branch (the logo's address).
@@ -463,19 +496,24 @@ finish() {
 # top
 chk_top() {
   local f=$1 h2s t n
-  awk -v opening="$OPENING" -v teaser="$TEASER" -v hf="$tmp/header.want" -v hn="$HEADER_LINES" '
+  awk -v opening="$OPENING" -v fullvideo="$FULLVIDEO" -v teaser="$TEASER" -v hf="$tmp/header.want" -v hn="$HEADER_LINES" '
     BEGIN { while ((getline l < hf) > 0) want[++k] = l; state = 1 }
     FNR <= hn { if ($0 != want[FNR] && !bad) { print FILENAME ":" FNR ": the line is not line " FNR " of the approved header block"; bad = 1 } next }
     state == 1 && /^## / { state = 2 }
     state == 1 && $0 ~ /[^ \t]/ {
-      if ($0 == teaser) seen = 1
+      if ($0 == fullvideo) { fv++; seenv = 1 }
+      else if ($0 == teaser) { seen = 1; tn++; if (!seenv) print FILENAME ":" FNR ": the teaser line is above the full-video line" }
       else if (index($0, "![") == 1 && (k = index($0, "](")) > 0 && index(substr($0, k + 2), ")") == length($0) - k - 1) {
         imgs++
         if (!seen) print FILENAME ":" FNR ": the image line is above the teaser"
-      } else if ($0 != opening) print FILENAME ":" FNR ": a line between the header block and the first H2 section that is neither the opening paragraph, the teaser nor the image line"
+      } else if ($0 != opening) print FILENAME ":" FNR ": a line between the header block and the first H2 section that is neither the opening paragraph, the full-video line, the teaser nor the image line"
     }
     /^#+ Contest task/ || index($0, "| Contest task or criterion") == 1 { print FILENAME ":" FNR ": the Contest task section is back" }
-    END { if (imgs != 1) print FILENAME ": " imgs + 0 " image lines between the header block and the first H2 section, not exactly one" }
+    END {
+      if (fv != 1) print FILENAME ": " fv + 0 " full-video lines between the header block and the first H2 section, not exactly one"
+      if (tn != 1) print FILENAME ": " tn + 0 " teaser lines between the header block and the first H2 section, not exactly one"
+      if (imgs != 1) print FILENAME ": " imgs + 0 " image lines between the header block and the first H2 section, not exactly one"
+    }
   ' "$f"
   chk_block top "$f" "$HEADER
 
@@ -483,8 +521,8 @@ $OPENING"
   n=$(grep -cxF -- "$OPENING" "$f")
   if [ "$n" -gt 1 ]; then echo "$f: the opening paragraph is there $n times, not once"; fi
   h2s=$(headings "$f" | awk -F'\t' '$1 == 2 { print $3 }')
-  if [ "$(printf '%s\n' "$h2s" | head -n 5)" != "$(printf '%s\n%s\n%s\n%s\n%s' "$H_TRY" "$H_INT" "$H_MEAS" "$H_USE" "$H_TALK")" ]; then
-    echo "$f: the first five H2 sections are not, in this order: $H_TRY, $H_INT, $H_MEAS, $H_USE, $H_TALK"
+  if [ "$(printf '%s\n' "$h2s" | head -n 6)" != "$(printf '%s\n%s\n%s\n%s\n%s\n%s' "$H_TRY" "$H_INC" "$H_INT" "$H_MEAS" "$H_USE" "$H_TALK")" ]; then
+    echo "$f: the first six H2 sections are not, in this order: $H_TRY, $H_INC, $H_INT, $H_MEAS, $H_USE, $H_TALK"
   fi
   printf '%s\n' "$OTHER_H2" | while IFS= read -r t; do
     if ! printf '%s\n' "$h2s" | grep -qxF -- "$t"; then echo "$f: no H2 section '$t'"; fi
@@ -539,17 +577,22 @@ Visual Trace
 AI Hub
 dry run
 audit log'
+# int_own <file>: the section's own text, the lines before its first H3.
+int_own() { section "$1" "$H_INT" | awk '/^```/ { fence = !fence } !fence && /^### / { exit } { print }'; }
 chk_interesting() {
-  local sec="$tmp/sec.int" n
+  local sec="$tmp/sec.int" n h3s
   section "$1" "$H_INT" > "$sec"
   if [ ! -s "$sec" ]; then
     echo "$1: no section '$H_INT'"
     return
   fi
-  n=$(grep -v '^!\[' "$sec" | wc -w)
+  n=$(int_own "$1" | grep -v '^!\[' | wc -w)
   n=$((n + 0))
-  if [ "$n" -gt 120 ]; then echo "interesting: $n words, at most 120"; fi
-  chk_facts interesting "$sec" "$INT_FACTS"
+  if [ "$n" -gt 120 ]; then echo "interesting: $n words before its first H3, at most 120"; fi
+  h3s=$(awk '/^```/ { fence = !fence; next } !fence && /^### / { print substr($0, 5) }' "$sec")
+  if [ "$h3s" != 'New since 1.0.0' ]; then echo "interesting: the H3 headings of '$H_INT' are not exactly 'New since 1.0.0'"; fi
+  int_own "$1" | grep -v '^!\[' > "$tmp/sec.int.own"
+  chk_facts interesting "$tmp/sec.int.own" "$INT_FACTS"
   # At least one image line, and each is the decision trace (owner's decision 2026-11-05: the hero is not shown again here).
   if [ "$(grep -c '^!\[' "$sec")" -lt 1 ]; then echo "interesting: '$H_INT' has no image line"; fi
   image_links "$sec" | cut -f3 | while IFS= read -r target; do
@@ -667,22 +710,37 @@ chk_once() {
 
 # teaser
 chk_teaser() {
-  local f=$1 n op at h2 he
+  local f=$1 n op fv at h2 he
   he=$(header_end "$f")
+  n=$(grep -cxF -- "$FULLVIDEO" "$f")
+  if [ "$n" -ne 1 ]; then echo "teaser: the full-video line is there $n times, not once"; fi
   n=$(grep -cxF -- "$TEASER" "$f")
   if [ "$n" -ne 1 ]; then echo "teaser: the line '$TEASER' is there $n times, not once"; fi
   op=$(grep -nxF -- "$OPENING" "$f" | head -n 1 | cut -d: -f1)
+  fv=$(grep -nxF -- "$FULLVIDEO" "$f" | head -n 1 | cut -d: -f1)
   at=$(grep -nxF -- "$TEASER" "$f" | head -n 1 | cut -d: -f1)
   h2=$(grep -n -m 1 '^## ' "$f" | cut -d: -f1)
   if [ -z "$op" ]; then
-    echo "teaser: the opening paragraph is not there, so the teaser has no place under it"
-  elif [ -n "$at" ]; then
-    if [ "$at" -ne $((op + 2)) ]; then
-      echo "teaser: $f:$at: it is not the second line below the opening paragraph (line $op)"
-    elif [ -n "$(sed -n "$((op + 1))p" "$f" | tr -d ' \t')" ]; then
-      echo "teaser: $f:$((op + 1)): there is no empty line between the opening paragraph and the teaser"
+    echo "teaser: the opening paragraph is not there, so the full-video line and the teaser have no place under it"
+  else
+    if [ -n "$fv" ]; then
+      if [ "$fv" -ne $((op + 2)) ]; then
+        echo "teaser: $f:$fv: the full-video line is not the second line below the opening paragraph (line $op)"
+      elif [ -n "$(sed -n "$((op + 1))p" "$f" | tr -d ' \t')" ]; then
+        echo "teaser: $f:$((op + 1)): there is no empty line between the opening paragraph and the full-video line"
+      fi
+      if [ -n "$h2" ] && [ "$fv" -gt "$h2" ]; then echo "teaser: $f:$fv: the full-video line is below the first H2 section"; fi
     fi
-    if [ -n "$h2" ] && [ "$at" -gt "$h2" ]; then echo "teaser: $f:$at: it is below the first H2 section"; fi
+    if [ -n "$at" ]; then
+      if [ -z "$fv" ]; then
+        echo "teaser: $f:$at: the teaser has no full-video line above it"
+      elif [ "$at" -ne $((fv + 2)) ]; then
+        echo "teaser: $f:$at: it is not the second line below the full-video line (line $fv)"
+      elif [ -n "$(sed -n "$((fv + 1))p" "$f" | tr -d ' \t')" ]; then
+        echo "teaser: $f:$((fv + 1)): there is no empty line between the full-video line and the teaser"
+      fi
+      if [ -n "$h2" ] && [ "$at" -gt "$h2" ]; then echo "teaser: $f:$at: it is below the first H2 section"; fi
+    fi
   fi
   # An <img> tag is exempt on the header lines only; every other media tag is checked on every line.
   { grep -niE '<(iframe|video|embed|object|picture)' "$f"; grep -niE '<img' "$f" | awk -F: -v he="$he" '$1 > he'; } | cut -d: -f1 | sort -un | sed "s|^|$f:|; s|\$|: an HTML media tag (the teaser is a plain link)|"
@@ -694,6 +752,166 @@ chk_teaser() {
     { n = 0; s = $0; while ((i = index(s, "![")) > 0) { n++; s = substr(s, i + 2) } }
     n > good[FNR] + 0 { print f ":" FNR ": an image that is not an inline docs/images/<name>.png image" }
   ' "$f"
+}
+
+# video
+chk_video() {
+  local f=$1 line bar n hit
+  n=$(awk 'index($0, "Watch the full video") == 1' "$f" | wc -l | tr -d ' ')
+  line=$(awk 'index($0, "Watch the full video") == 1 { print; exit }' "$f")
+  if [ "$n" -ne 1 ]; then echo "video: $n full-video lines, not exactly one"; fi
+  if ! printf '%s\n' "$line" | grep -qF -e "$YT_FULL"; then echo "video: the full-video line has no link $YT_FULL"; fi
+  if ! printf '%s\n' "$line" | grep -qF -e "$MP4_FULL"; then echo "video: the full-video line has no link $MP4_FULL"; fi
+  bar=$(section "$f" "$H_TRY" | awk 'index($0, "[Online demo]") == 1 { print; exit }')
+  if [ -z "$bar" ]; then
+    echo "video: '$H_TRY' has no link bar (a line that starts with [Online demo])"
+  elif ! printf '%s\n' "$bar" | grep -qF -e "$LINK_FULL $MIDDOT $LINK_TEASER"; then
+    echo "video: the link bar does not hold $LINK_FULL directly before $LINK_TEASER"
+  fi
+  grep -nF -e "$TEASER_URL" "$f" | while IFS= read -r hit; do
+    if [ "${hit#*:}" != "$TEASER" ] && [ "${hit#*:}" != "$bar" ] && [ "${hit#*:}" != "$VIDEO_ROW" ]; then
+      echo "video: $f:${hit%%:*}: the teaser address is neither in the teaser line, the link bar nor the ruled Video row"
+    fi
+  done
+}
+
+# checklist-video (DW-1171)
+chk_checklist_video() {
+  local f=$1 sec="$tmp/sec.cv" n at after
+  n=$(grep -cxF -e "$VIDEO_ROW" "$f")
+  if [ "$n" -ne 1 ]; then echo "checklist-video: the ruled Video row is in the README $n times, not once"; fi
+  if ! headings "$f" | awk -F '\t' -v t="$H_INC" '$2 == "one-incident-end-to-end" && $3 == t { ok = 1 } END { exit !ok }'; then
+    echo "checklist-video: the link #one-incident-end-to-end reaches no heading '$H_INC'"
+  fi
+  section "$f" "$H_CONTEST" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "checklist-video: no section '$H_CONTEST'"
+    return
+  fi
+  n=$(awk -v p="$ONLINE_ROW" 'index($0, p) == 1' "$sec" | wc -l | tr -d ' ')
+  if [ "$n" -ne 1 ]; then
+    echo "checklist-video: '$H_CONTEST' has $n '$ONLINE_ROW' rows, not exactly one"
+    return
+  fi
+  at=$(awk -v p="$ONLINE_ROW" 'index($0, p) == 1 { print NR; exit }' "$sec")
+  after=$(sed -n "$((at + 1))p" "$sec")
+  if [ "$after" != "$VIDEO_ROW" ]; then echo "checklist-video: the row right after '$ONLINE_ROW' in '$H_CONTEST' is not the ruled Video row"; fi
+}
+
+# judges-usability (DW-1171): the count word is any lower-case word here; the web tests pin it against the More to try registry.
+chk_judges_usability() {
+  local f=$1 rows n rest word
+  rows=$(awk -v h="$H_JUDGES" '
+    /^```/ { fence = !fence }
+    !fence && /^#+ / { on = ($0 == h); next }
+    on && index($0, "| Usability |") == 1
+  ' "$f")
+  n=$(printf '%s' "$rows" | grep -c '^')
+  if [ "$n" -ne 1 ]; then
+    echo "judges-usability: 'For judges: where to look' has $n Usability rows, not exactly one"
+    return
+  fi
+  case $rows in
+    "$USE_HEAD"*) ;;
+    *)
+      echo "judges-usability: the Usability row does not open with the ruled first sentence and 'Its More to try panel has'"
+      return
+      ;;
+  esac
+  rest=${rows#"$USE_HEAD"}
+  word=$(printf '%s\n' "$rest" | sed -n 's/^\([a-z][a-z]*\).*$/\1/p')
+  if [ -z "$word" ]; then
+    echo "judges-usability: the Usability row has no count word (a lower-case word) after 'Its More to try panel has'"
+    return
+  fi
+  case ${rest#"$word"} in
+    "$USE_TAIL"*) ;;
+    *) echo "judges-usability: the count word '$word' is not followed by the ruled rest of the second sentence" ;;
+  esac
+}
+
+# path: the ruled intro line and seven steps of "One incident, end to end"; a heredoc, because the lines hold quotes.
+IFS= read -r -d '' INC_BLOCK <<'INC' || true
+The demo guide walks one incident in about two minutes, and you can check each step yourself on the online demo:
+
+1. **Failures.** *Break the feed* makes a simulated partner send 50 orders in a changed date format into the Orders production, where they fail for real.
+2. **One incident.** OcuTalon reads the failed messages and groups them by cause into one incident: one notice, not 50 alerts.
+3. **Diagnosis.** It explains the cause in plain English and names the field or production item at fault.
+4. **Dry run.** It proposes a fix with a dry run: how many orders it would resend, with an example.
+5. **Approval.** Nothing is resent until you press Approve in the chat or on the page's Simulated phone; on your own install you can also approve it in Telegram. Every answer lands in the IRIS audit log.
+6. **Fix.** After the approval, OcuTalon resends the orders and reports how many went through.
+7. **Visual Trace.** Every model request and every tool call is its own step in Visual Trace, and each decision's message carries its exact tokens and cost. The trace links on the page open it.
+INC
+INC_BLOCK=${INC_BLOCK%?}
+chk_path() {
+  local f=$1 sec="$tmp/sec.inc" n
+  section "$f" "$H_INC" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "path: no section '$H_INC'"
+    return
+  fi
+  chk_block path "$sec" "$INC_BLOCK"
+  n=$(grep -c '[^[:space:]]' "$sec")
+  if [ "$n" -ne 8 ]; then echo "path: '$H_INC' has $n lines, not exactly the intro line and the seven steps"; fi
+  if grep -qF -e 'Two things to look at in the demo' "$f"; then echo "path: 'Two things to look at in the demo' is back"; fi
+}
+
+# new-since: the H3, its intro line, the three H4 groups and the 16 bullets (by bold name) of "New since 1.0.0", in the ruled order.
+NS_INTRO='Each item says where to try it. Visual Trace on the online demo is shared, so save and add nothing personal.'
+NS_G1='Your integrations'
+NS_G2='Your documents and memory'
+NS_G3='Personas, the heartbeat checklist and the digest'
+NS_WANT="H $NS_G1
+B A dry run that checks good messages
+B Incident summaries
+B Suspend, resume and reroute
+B Partner delay notices
+B Queue backlogs between digests
+B Webhooks
+B Your own mailbox
+B A History page
+B A Usage page
+H $NS_G2
+B Answers from your own documents
+B Where an answer came from
+B Memory
+B The Memory card
+H $NS_G3
+B Personas
+B A heartbeat checklist
+B A daily digest"
+chk_new_since() {
+  local f=$1 sec="$tmp/sec.ns" h3 img got line c
+  section "$f" "$H_INT" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "new-since: no section '$H_INT'"
+    return
+  fi
+  h3=$(grep -nxF -- '### New since 1.0.0' "$sec" | head -n 1 | cut -d: -f1)
+  if [ -z "$h3" ]; then
+    echo "new-since: '### New since 1.0.0' is not under '$H_INT'"
+    return
+  fi
+  img=$(grep -n -m 1 '^!\[' "$sec" | cut -d: -f1)
+  if [ -z "$img" ] || [ "$img" -ge "$h3" ]; then echo "new-since: '### New since 1.0.0' is not below the image line of '$H_INT'"; fi
+  if [ -n "$(sed -n "$((h3 + 1))p" "$sec" | tr -d ' \t')" ] || [ "$(sed -n "$((h3 + 2))p" "$sec")" != "$NS_INTRO" ]; then
+    echo "new-since: the heading is not followed by an empty line and the ruled intro line"
+  fi
+  got=$(awk -v h="$h3" '
+    NR > h && /^#### / { print "H " substr($0, 6); next }
+    NR > h && index($0, "- **") == 1 { i = index($0, ".**"); print "B " (i > 0 ? substr($0, 5, i - 5) : "?") }
+  ' "$sec")
+  printf '%s\n' "$NS_WANT" | while IFS= read -r line; do
+    c=$(printf '%s\n' "$got" | grep -cxF -- "$line")
+    if [ "$c" -eq 0 ]; then echo "new-since: missing '$line'"; fi
+    if [ "$c" -gt 1 ]; then echo "new-since: '$line' is there $c times"; fi
+  done
+  printf '%s\n' "$got" | while IFS= read -r line; do
+    if ! printf '%s\n' "$NS_WANT" | grep -qxF -- "$line"; then echo "new-since: unexpected '$line'"; fi
+  done
+  if [ "$got" != "$NS_WANT" ] && [ "$(printf '%s\n' "$got" | sort)" = "$(printf '%s\n' "$NS_WANT" | sort)" ]; then
+    echo "new-since: the group headings and bullets are not in the ruled order"
+  fi
 }
 
 # outcomes: chk_outcomes <readme> <chat-view.ts>
@@ -1276,6 +1494,7 @@ chk_product_links() {
 }
 
 # readme-links (Design Notes 8 and 9)
+# Any edit to the ALLOWED_HOSTS line below must update the no-outward allowance in release/checklist.sh in the same commit.
 ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com community.intersystems.com openexchange.intersystems.com'
 URL_RE='https?://[^][:space:])>"<`]+'
 # url_allowed <url> [extra hosts]: the allow-list, plus the extra hosts (space separated) when given.
@@ -1341,16 +1560,16 @@ rule_top() {
   st 'the first two sections swapped' 1 "$README" '/^## What.s interesting$/ { print "## Try it in two minutes"; next } /^## Try it in two minutes$/ { print "## What'"'"'s interesting"; next } { print }' chk_top
   st 'the opening paragraph changed' 1 "$README" '/^Your integrations already/ { sub(/fifty/, "fifteen") } { print }' chk_top
   st 'the opening paragraph removed' 1 "$README" '!/^Your integrations already/' chk_top
-  st 'the opening paragraph twice' 1 "$README" '{ print } /^Watch the 35-second teaser: / { print ""; print o } /^Your integrations already/ { o = $0 }' chk_top
-  st 'the opening and the teaser swapped' 1 "$README" '/^Your integrations already/ { o = $0; next } /^Watch the 35-second teaser: / { print; print ""; print o; next } { print }' chk_top
+  st 'the opening paragraph twice' 1 "$README" '{ print } /^Or watch the 35-second teaser: / { print ""; print o } /^Your integrations already/ { o = $0 }' chk_top
+  st 'the opening and the teaser swapped' 1 "$README" '/^Your integrations already/ { o = $0; next } /^Or watch the 35-second teaser: / { print; print ""; print o; next } { print }' chk_top
   st 'the use cases section moved down' 1 "$README" '/^## What you can use it for$/ { print "## What OcuTalon does"; next } /^## What OcuTalon does$/ { print "## What you can use it for"; next } { print }' chk_top
   st 'the use cases section renamed' 1 "$README" '/^## What you can use it for$/ { print "## What you can do with it"; next } { print }' chk_top
-  st 'a line between the teaser and the first H2 section' 1 "$README" '{ print } /^Watch the 35-second teaser: / { print ""; print "A stray line." }' chk_top
+  st 'a line between the teaser and the first H2 section' 1 "$README" '{ print } /^Or watch the 35-second teaser: / { print ""; print "A stray line." }' chk_top
   st 'the hero image line removed' 1 "$README" '!/^!\[The OcuTalon page on the online demo/' chk_top
   st 'a second image line' 1 "$README" '{ print } /^!\[The OcuTalon page on the online demo/ { print ""; print "![Second.](docs/images/page-incident.png)" }' chk_top
   st 'a second image on the hero line' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { $0 = $0 " ![Second.](docs/images/page-incident.png)" } { print }' chk_top
   st 'text after the hero image' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { $0 = $0 " on the demo (live)" } { print }' chk_top
-  st 'the hero above the teaser' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { next } /^Watch the 35-second teaser: / { print "![Hero.](docs/images/page-incident.png)"; print "" } { print }' chk_top
+  st 'the hero above the teaser' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { next } /^Or watch the 35-second teaser: / { print "![Hero.](docs/images/page-incident.png)"; print "" } { print }' chk_top
   st 'the hero moved under the first H2 section' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { hero = $0; next } { print } /^## Try it in two minutes$/ { print ""; print hero }' chk_top
   st 'the How you talk to it section removed' 1 "$README" '!/^## How you talk to it$/' chk_top
   st 'the How you talk to it section renamed' 1 "$README" '/^## How you talk to it$/ { print "## How to talk to it"; next } { print }' chk_top
@@ -1363,7 +1582,20 @@ rule_top() {
   st 'the Measured section above What'"'"'s interesting' 1 "$README" '/^## Measured$/ { print "## What'"'"'s interesting"; next } /^## What.s interesting$/ { print "## Measured"; next } { print }' chk_top
   st 'the Measured section below What you can use it for' 1 "$README" '/^## Measured$/ { print "## What you can use it for"; next } /^## What you can use it for$/ { print "## Measured"; next } { print }' chk_top
   st 'the Measured heading one level down' 1 "$README" '/^## Measured$/ { print "### Measured"; next } { print }' chk_top
-  finish top 'the header block, the opening paragraph, the teaser and the hero image, then the five top sections in order, and the other sections are there' chk_top
+  st 'the full-video line removed' 1 "$README" '!/^Watch the full video /' chk_top
+  st 'the full-video line below the teaser' 1 "$README" '/^Watch the full video / { fv = $0; next } { print } /^Or watch the 35-second teaser: / { print ""; print fv }' chk_top
+  st 'the full-video line reworded' 1 "$README" '/^Watch the full video / { sub(/full video/, "long video") } { print }' chk_top
+  st 'a stray line between the full-video line and the teaser' 1 "$README" '{ print } /^Watch the full video / { print ""; print "A stray line." }' chk_top
+  st 'the full-video line twice' 1 "$README" '{ print } /^Watch the full video / { print ""; print $0 }' chk_top
+  st 'the incident section heading removed' 1 "$README" '!/^## One incident, end to end$/' chk_top
+  st 'the incident section renamed' 1 "$README" '/^## One incident, end to end$/ { print "## One incident"; next } { print }' chk_top
+  st 'the incident section below What'"'"'s interesting' 1 "$README" '/^## One incident, end to end$/ { print "## What'"'"'s interesting"; next } /^## What.s interesting$/ { print "## One incident, end to end"; next } { print }' chk_top
+  st 'the teaser line removed' 1 "$README" '!/^Or watch the 35-second teaser: /' chk_top
+  st 'the teaser line twice' 1 "$README" '{ print } /^Or watch the 35-second teaser: / { print ""; print $0 }' chk_top
+  st 'the hero above the full-video line' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { next } /^Watch the full video / { print "![Hero.](docs/images/page-incident.png)"; print "" } { print }' chk_top
+  st 'the Try it section removed' 1 "$README" '!/^## Try it in two minutes$/' chk_top
+  st 'the Try it section and the incident section swapped' 1 "$README" '/^## Try it in two minutes$/ { print "## One incident, end to end"; next } /^## One incident, end to end$/ { print "## Try it in two minutes"; next } { print }' chk_top
+  finish top 'the header block, the opening paragraph, the full-video line, the teaser and the hero image, then the six top sections in order, and the other sections are there' chk_top
 }
 
 rule_try_it() {
@@ -1387,7 +1619,10 @@ rule_interesting() {
   local n other
   rule_begin interesting "$README" || return
   st_facts chk_interesting "$INT_FACTS"
-  n=$(section "$README" "$H_INT" | grep -v '^!\[' | wc -w)
+  # The image's alt text and the bullets below the H3 also hold these two facts; the section's own text must hold them itself.
+  st 'Visual Trace only in the image and below the H3' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } /^### / { s = 0 } s && index($0, "![") != 1 { gsub(/Visual Trace/, "ZZ") } { print }' chk_interesting
+  st 'dry run only in the image and below the H3' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } /^### / { s = 0 } s && index($0, "![") != 1 { gsub(/dry run/, "ZZ") } { print }' chk_interesting
+  n=$(int_own "$README" | grep -v '^!\[' | wc -w)
   n=$((n + 0))
   other=$(image_links "$README" | cut -f3 | grep -vxF -- "$INT_IMAGE" | head -n 1)
   st 'the image line dropped from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 { next } { print }' chk_interesting
@@ -1402,7 +1637,16 @@ rule_interesting() {
       st_note 'exactly 120 words is flagged'
     fi
   fi
-  finish interesting 'at most 120 words, and it names the workflow, Visual Trace, the AI Hub agent, the dry run and the audit log' chk_interesting
+  st 'a second H3 in the section' 1 "$README" '{ print } /^### New since 1.0.0$/ { print ""; print "### Another" }' chk_interesting
+  st 'the H3 renamed' 1 "$README" '/^### New since 1.0.0$/ { print "### Since 1.0.0"; next } { print }' chk_interesting
+  st 'the H3 removed' 1 "$README" '!/^### New since 1.0.0$/' chk_interesting
+  # Words after the first H3 are not the section's own text: 200 more there are not flagged.
+  if ! mutate "$README" '{ print } /^### New since 1.0.0$/ { print ""; for (i = 0; i < 200; i++) printf "w "; print "" }'; then
+    st_note 'words after the H3: the edit changed nothing'
+  elif [ -n "$(chk_interesting "$tmp/m")" ]; then
+    st_note 'words after the first H3 are flagged'
+  fi
+  finish interesting 'at most 120 words before its first H3, and it names the workflow, Visual Trace, the AI Hub agent, the dry run and the audit log' chk_interesting
 }
 
 rule_measured() {
@@ -1477,7 +1721,7 @@ rule_images() {
   st 'the images of What OcuTalon does removed' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } s && /^  !\[/ { next } { print }' chk_images
   st 'the images of What OcuTalon does made reference-style' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } s && /^  !\[/ { sub(/\]\(/, "][") } { print }' chk_images
   st 'the last Break the feed image moved under the Chat bullet (one left under Break the feed)' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } /^- \*\*/ { b = (index($0, "- **Break the feed.**") == 1) } s && b && /^  !\[/ { last = $0 } { line[NR] = $0 } END { for (i = 1; i <= NR; i++) { if (line[i] == last) continue; print line[i]; if (index(line[i], "- **Chat on a live page.**") == 1) { print ""; print last } } }' chk_images
-  st 'no empty line between the text and an image line' 1 "$README" 'held { held = 0; if ($0 == "") next } { print } /^Watch the 35-second teaser: / { held = 1 }' chk_images
+  st 'no empty line between the text and an image line' 1 "$README" '{ L[NR] = $0 } END { for (i = 1; i <= NR; i++) { if (L[i] == "" && index(L[i + 1], "![The OcuTalon page on the online demo") == 1) continue; print L[i] } }' chk_images
   st 'the images under the Break the feed bullet removed' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } /^- \*\*/ { b = (index($0, "- **Break the feed.**") == 1) } s && b && /^  !\[/ { next } { print }' chk_images
   st 'the first image file dropped from the list' 2 "$tmp/files.list" '$0 != "'"$first"'"' chk_images
   # A linked file of exactly 300,000 bytes is flagged, and one byte less is not: the sizes are read from a root of the rule's own.
@@ -1516,17 +1760,169 @@ rule_once() {
   finish once 'each docs/images/ file is named at most once' chk_once
 }
 
+rule_video() {
+  rule_begin video "$README" || return
+  st 'the full-video line without the YouTube link' 1 "$README" '/^Watch the full video / { sub(/https:\/\/youtu\.be\/HIyCG5E6-JQ/, "https://example.org/v") } { print }' chk_video
+  st 'the full-video line without the MP4 link' 1 "$README" '/^Watch the full video / { sub(/https:\/\/github\.com\/[^ ]*\.mp4/, "https://example.org/v.mp4") } { print }' chk_video
+  st 'the MP4 of another release' 1 "$README" '/^Watch the full video / { sub(/download\/v1\.0\.6\//, "download/v1.0.5/") } { print }' chk_video
+  st 'the full-video line removed' 1 "$README" '!/^Watch the full video /' chk_video
+  st 'the full-video line twice' 1 "$README" '/^Watch the full video / { fv = $0 } { print } END { print ""; print fv }' chk_video
+  st 'the link bar removed' 1 "$README" '!/^\[Online demo\]/' chk_video
+  st 'the full-video entry removed from the link bar' 1 "$README" '/^\[Online demo\]/ { sub(/\[Video: one incident, traced \(3:04\)\]\([^)]*\) [^ ]+ /, "") } { print }' chk_video
+  st 'the teaser entry removed from the link bar' 1 "$README" '/^\[Online demo\]/ { sub(/ [^ ]+ \[Video: the 35-second teaser\]\([^)]*\)/, "") } { print }' chk_video
+  st 'the full-video entry after the teaser entry' 1 "$README" '/^\[Online demo\]/ { a = "[Video: one incident, traced (3:04)](https://youtu.be/HIyCG5E6-JQ)"; b = "[Video: the 35-second teaser](https://youtu.be/wycbyfnXFMU)"; i = index($0, a); j = index($0, b); if (i && j) $0 = substr($0, 1, i - 1) b substr($0, i + length(a), j - i - length(a)) a substr($0, j + length(b)) } { print }' chk_video
+  st 'the full-video entry reworded' 1 "$README" '/^\[Online demo\]/ { sub(/one incident, traced/, "the incident") } { print }' chk_video
+  st 'the full-video entry pointing at the teaser' 1 "$README" '/^\[Online demo\]/ { sub(/\(3:04\)\]\(https:\/\/youtu\.be\/HIyCG5E6-JQ\)/, "(3:04)](https://youtu.be/wycbyfnXFMU)") } { print }' chk_video
+  st 'another entry between the two video entries' 1 "$README" '/^\[Online demo\]/ { sub(/\[Video: the 35-second teaser\]/, "[Releases](LICENSE) | [Video: the 35-second teaser]") } { print }' chk_video
+  st 'the teaser address in the full-video line' 1 "$README" '/^Watch the full video / { $0 = $0 " and " "'"$TEASER_URL"'" } { print }' chk_video
+  st 'the teaser address in the incident section' 1 "$README" '{ print } /^## One incident, end to end$/ { print ""; print "See '"$TEASER_URL"'." }' chk_video
+  st_append 'the teaser address a third time' "See $TEASER_URL" chk_video
+  st 'the teaser address in a reworded Video row' 1 "$README" 'index($0, "| Video |") == 1 { sub(/35-second teaser/, "short teaser") } { print }' chk_video
+  st 'the teaser address in another checklist row' 1 "$README" '{ print } index($0, "| Online demo |") == 1 { print "| Teaser | '"$TEASER_URL"' |" }' chk_video
+  finish video 'the full-video line holds the YouTube and MP4 links, the link bar holds the full video directly before the teaser, and the teaser address is only in those two places and the ruled Video row' chk_video
+}
+
+rule_checklist_video() {
+  rule_begin checklist-video "$README" || return
+  st 'the Video row removed' 1 "$README" 'index($0, "| Video |") != 1' chk_checklist_video
+  st_move 'the Video row moved out of the section' "$H_CONTEST" '| Video |' chk_checklist_video
+  st 'the Video row moved below Community idea' 1 "$README" 'index($0, "| Video |") == 1 { held = $0; next } { print } index($0, "| Community idea |") == 1 { print held }' chk_checklist_video
+  st 'the Video row above Online demo' 1 "$README" 'index($0, "| Online demo |") == 1 { held = $0; next } { print } index($0, "| Video |") == 1 { print held }' chk_checklist_video
+  st 'the Video row twice' 1 "$README" '{ print } index($0, "| Video |") == 1 { print }' chk_checklist_video
+  st 'the Video row again in another section' 1 "$README" '{ print } index($0, "| Video |") == 1 { held = $0 } END { print ""; print held }' chk_checklist_video
+  st 'the Video row reworded' 1 "$README" 'index($0, "| Video |") == 1 { sub(/approved from a phone/, "approved by phone") } { print }' chk_checklist_video
+  st 'the Video row with a word added' 1 "$README" 'index($0, "| Video |") == 1 { sub(/ \|$/, " Watch it. |") } { print }' chk_checklist_video
+  st 'the Video row with the MP4 of another release' 1 "$README" 'index($0, "| Video |") == 1 { sub(/download\/v1\.0\.6\//, "download/v1.0.5/") } { print }' chk_checklist_video
+  st 'the Video row with the full video pointing at the teaser' 1 "$README" 'index($0, "| Video |") == 1 { sub(/traced\]\(https:\/\/youtu\.be\/HIyCG5E6-JQ\)/, "traced](https://youtu.be/wycbyfnXFMU)") } { print }' chk_checklist_video
+  st 'the Online demo row removed' 1 "$README" 'index($0, "| Online demo |") != 1' chk_checklist_video
+  st 'the section renamed' 1 "$README" '$0 == "## Contest checklist" { print "## Checklist"; next } { print }' chk_checklist_video
+  st "the anchor's heading renamed" 1 "$README" '$0 == "## One incident, end to end" { print "## One incident"; next } { print }' chk_checklist_video
+  st "the anchor's heading reworded with the same slug" 1 "$README" '$0 == "## One incident, end to end" { print "## One incident: end to end"; next } { print }' chk_checklist_video
+  finish checklist-video 'the ruled Video row is right after Online demo in Contest checklist, once, and #one-incident-end-to-end reaches its heading' chk_checklist_video
+}
+
+rule_judges_usability() {
+  rule_begin judges-usability "$README" || return
+  st 'the first sentence reworded' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/in about two minutes/, "in about five minutes") } { print }' chk_judges_usability
+  st 'the incident link removed' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/\[one incident, end to end\]\(#one-incident-end-to-end\)/, "one incident") } { print }' chk_judges_usability
+  st 'the incident link to another heading' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/\(#one-incident-end-to-end\)/, "(#measured)") } { print }' chk_judges_usability
+  st 'the full-video link changed' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/\[the full video\]\(https:\/\/youtu\.be\/HIyCG5E6-JQ\)/, "[the full video](https://youtu.be/wycbyfnXFMU)") } { print }' chk_judges_usability
+  st 'the full-video length changed' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/shows it in 3:04\./, "shows it in 3 minutes.") } { print }' chk_judges_usability
+  st 'the second sentence reworded' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/ Its More to try panel has /, " Its panel has ") } { print }' chk_judges_usability
+  st 'the two sentences folded back into one' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/, and \[the full video\]\(https:\/\/youtu\.be\/HIyCG5E6-JQ\) shows it in 3:04\. Its More/, ", and its More") } { print }' chk_judges_usability
+  st 'the count as a number' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/ has [a-z]+ more things/, " has 15 more things") } { print }' chk_judges_usability
+  st 'the second sentence cut after the count word' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/ more things to try, fifteen of them on the online demo \(\[New since 1\.0\.0\]\(#new-since-100\)\)\./, " more things.") } { print }' chk_judges_usability
+  st 'the online-demo count changed' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/, fifteen of them on the online demo/, ", fourteen of them on the online demo") } { print }' chk_judges_usability
+  st 'the online-demo clause removed' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/, fifteen of them on the online demo/, "") } { print }' chk_judges_usability
+  st 'the row removed' 1 "$README" 'index($0, "| Usability |") != 1' chk_judges_usability
+  st 'the row twice' 1 "$README" '{ print } index($0, "| Usability |") == 1 { print }' chk_judges_usability
+  st 'the row moved out of the For judges table' 1 "$README" 'index($0, "| Usability |") == 1 { held = $0; next } { print } END { print ""; print held }' chk_judges_usability
+  st 'the For judges heading renamed' 1 "$README" '$0 == "### For judges: where to look" { print "### For judges"; next } { print }' chk_judges_usability
+  # Another count word is not this rule's matter: the web tests pin the number against the More to try registry.
+  mkdir -p "$tmp/ju"
+  awk 'index($0, "| Usability |") == 1 { sub(/ has [a-z]+ more things/, " has seventeen more things") } { print }' "$README" > "$tmp/ju/other.md"
+  if [ -n "$(chk_judges_usability "$tmp/ju/other.md")" ]; then st_note 'another count word is flagged'; fi
+  finish judges-usability 'the For judges Usability row opens with the two ruled sentences, word for word but for the count word' chk_judges_usability
+}
+
+rule_path() {
+  local n
+  rule_begin path "$README" || return
+  for n in 1 2 3 4 5 6 7; do
+    st "step $n removed" 1 "$README" "/^## / { s = (\$0 == \"## $H_INC\") } s && /^$n\\. / { next } { print }" chk_path
+  done
+  st 'step 1 after step 2' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^1\. / { held = $0; next } { print } s && /^2\. / { print held }' chk_path
+  st 'step 3 reworded' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^3\. / { sub(/plain English/, "plain words") } { print }' chk_path
+  st 'step 5 reworded' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^5\. / { sub(/press Approve/, "press Reject") } { print }' chk_path
+  st 'the intro line reworded' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^The demo guide walks/ { sub(/about two minutes/, "about five minutes") } { print }' chk_path
+  st 'the intro line removed' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^The demo guide walks/ { next } { print }' chk_path
+  st 'an eighth step' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } { print } s && /^7\. / { print "8. **More.** One more."}' chk_path
+  st 'a line added after the intro line' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } { print } s && /^The demo guide walks/ { print ""; print "A stray line." }' chk_path
+  for n in 1 2 3 4 5 6 7; do
+    st "step $n with a word added" 1 "$README" "/^## / { s = (\$0 == \"## $H_INC\") } s && /^$n\\. / { \$0 = \$0 \" Extra.\" } { print }" chk_path
+  done
+  st 'step 1 without its italics' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^1\. / { sub(/\*Break the feed\*/, "Break the feed") } { print }' chk_path
+  st 'step 3 renumbered 4' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^3\. / { sub(/^3\./, "4.") } { print }' chk_path
+  st 'steps 6 and 7 swapped' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^6\. / { held = $0; next } { print } s && /^7\. / { print held }' chk_path
+  st 'steps 2 and 3 swapped' 1 "$README" '/^## / { s = ($0 == "## One incident, end to end") } s && /^2\. / { held = $0; next } { print } s && /^3\. / { print held }' chk_path
+  st_move 'step 3 moved out of the section' "$H_INC" '3. ' chk_path
+  st 'the section renamed' 1 "$README" '/^## One incident, end to end$/ { print "## One incident"; next } { print }' chk_path
+  st 'Two things to look at in the demo back under Measured' 1 "$README" '{ print } /^## Measured$/ { print ""; print "Two things to look at in the demo:"; print ""; print "- It works from real failures." }' chk_path
+  st_append 'Two things to look at in the demo back' 'Two things to look at in the demo:' chk_path
+  finish path 'One incident, end to end holds its ruled intro line and seven steps, word for word, and Two things to look at in the demo is gone' chk_path
+}
+
+# ns_move <H2 heading line>: an awk program that moves the "New since 1.0.0" block (its H3 to the line before the next H2) to just before that H2 heading.
+ns_move() {
+  printf '%s' '{ L[NR] = $0 } END {
+    for (i = 1; i <= NR; i++) if (L[i] == "### New since 1.0.0") { a = i; break }
+    for (i = a + 1; i <= NR; i++) if (L[i] ~ /^## /) { b = i - 1; break }
+    for (i = 1; i <= NR; i++) if (L[i] == "'"$1"'") { c = i; break }
+    if (!a || !b || !c) exit 1
+    if (c < a) { for (i = 1; i < c; i++) print L[i]; for (i = a; i <= b; i++) print L[i]; for (i = c; i < a; i++) print L[i]; for (i = b + 1; i <= NR; i++) print L[i] }
+    else { for (i = 1; i < a; i++) print L[i]; for (i = b + 1; i < c; i++) print L[i]; for (i = a; i <= b; i++) print L[i]; for (i = c; i <= NR; i++) print L[i] }
+  }'
+}
+
+rule_new_since() {
+  local line name g
+  rule_begin new-since "$README" || return
+  st 'the block moved back under Try it' 1 "$README" "$(ns_move '## One incident, end to end')" chk_new_since
+  st 'the block moved below Measured' 1 "$README" "$(ns_move '## What you can use it for')" chk_new_since
+  st 'the heading removed' 1 "$README" '!/^### New since 1.0.0$/' chk_new_since
+  st 'the heading renamed' 1 "$README" '/^### New since 1.0.0$/ { print "### Since 1.0.0"; next } { print }' chk_new_since
+  st 'the heading above the image line' 1 "$README" '/^!\[Visual Trace of one whole decision/ { held = $0; next } { print } /^Each item says where/ { print ""; print held }' chk_new_since
+  st 'the intro line reworded' 1 "$README" '/^Each item says where/ { sub(/Visual Trace on the online demo/, "Visual Trace here") } { print }' chk_new_since
+  st 'the intro line removed' 1 "$README" '/^Each item says where/ { getline; next } { print }' chk_new_since
+  for g in "$NS_G1" "$NS_G2" "$NS_G3"; do
+    st "the group heading $g removed" 1 "$README" "\$0 != \"#### $g\"" chk_new_since
+    st "the group heading $g renamed" 1 "$README" "\$0 == \"#### $g\" { print \"#### $g too\"; next } { print }" chk_new_since
+  done
+  st 'the first two group headings swapped' 1 "$README" '/^#### Your integrations$/ { print "#### Your documents and memory"; next } /^#### Your documents and memory$/ { print "#### Your integrations"; next } { print }' chk_new_since
+  st 'a group heading as an H3' 1 "$README" '/^#### Your integrations$/ { print "### Your integrations"; next } { print }' chk_new_since
+  st 'the last two group headings swapped' 1 "$README" '/^#### Your documents and memory$/ { print "#### Personas, the heartbeat checklist and the digest"; next } /^#### Personas, the heartbeat checklist and the digest$/ { print "#### Your documents and memory"; next } { print }' chk_new_since
+  st 'the first and last group headings swapped' 1 "$README" '/^#### Your integrations$/ { print "#### Personas, the heartbeat checklist and the digest"; next } /^#### Personas, the heartbeat checklist and the digest$/ { print "#### Your integrations"; next } { print }' chk_new_since
+  st 'a fourth group heading' 1 "$README" '{ print } index($0, "- **A Usage page.**") == 1 { print ""; print "#### Another group"; print "" }' chk_new_since
+  st 'the first two bullets of the first group swapped' 1 "$README" 'index($0, "- **A dry run that checks good messages.**") == 1 { held = $0; next } { print } index($0, "- **Incident summaries.**") == 1 { print held }' chk_new_since
+  st 'Memory before Where an answer came from' 1 "$README" 'index($0, "- **Where an answer came from.**") == 1 { held = $0; next } { print } index($0, "- **Memory.**") == 1 { print held }' chk_new_since
+  st 'the Personas and heartbeat bullets swapped' 1 "$README" 'index($0, "- **Personas.**") == 1 { held = $0; next } { print } index($0, "- **A heartbeat checklist.**") == 1 { print held }' chk_new_since
+  st 'a bullet renamed' 1 "$README" 'index($0, "- **Memory.**") == 1 { sub(/Memory\./, "Remembering.") } { print }' chk_new_since
+  st 'the image line removed from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 { next } { print }' chk_new_since
+  printf '%s\n' "$NS_WANT" | while IFS= read -r line; do
+    case $line in B\ *) echo "${line#B }" ;; esac
+  done > "$tmp/ns.names"
+  while IFS= read -r name; do
+    st "the bullet $name missing" 1 "$README" "index(\$0, \"- **$name.**\") != 1" chk_new_since
+  done < "$tmp/ns.names"
+  st 'the first bullet twice' 1 "$README" '{ print } index($0, "- **A dry run that checks good messages.**") == 1 { print }' chk_new_since
+  st 'a middle bullet twice' 1 "$README" '{ print } index($0, "- **Memory.**") == 1 { print }' chk_new_since
+  st 'the last bullet twice' 1 "$README" '{ print } index($0, "- **A daily digest.**") == 1 { print }' chk_new_since
+  st 'the History and Usage bullets swapped' 1 "$README" 'index($0, "- **A History page.**") == 1 { held = $0; next } { print } index($0, "- **A Usage page.**") == 1 { print held }' chk_new_since
+  st 'the Usage bullet moved to the next group' 1 "$README" 'index($0, "- **A Usage page.**") == 1 { held = $0; next } { print } /^#### Your documents and memory$/ { print held }' chk_new_since
+  st 'a bullet that is not in the list' 1 "$README" '{ print } index($0, "- **A Usage page.**") == 1 { print "- **A new thing.** Text." }' chk_new_since
+  st 'a bullet above the first group heading' 1 "$README" '/^Each item says where/ { print; print ""; print "- **A new thing.** Text."; next } { print }' chk_new_since
+  finish new-since 'New since 1.0.0 sits under What'"'"'s interesting with its intro line, the three group headings in order and the 16 bullets, each once, in the ruled order' chk_new_since
+}
+
 rule_teaser() {
   local first
   rule_begin teaser "$README" || return
   first=$(image_links "$README" | head -n 1 | cut -f3)
-  st 'the teaser line removed' 1 "$README" '!/^Watch the 35-second teaser: /' chk_teaser
+  st 'the full-video line removed' 1 "$README" '!/^Watch the full video /' chk_teaser
+  st 'the full-video line changed' 1 "$README" '/^Watch the full video / { sub(/full video/, "long video") } { print }' chk_teaser
+  st 'the full-video line moved to the end of the README' 1 "$README" '/^Watch the full video / { fv = $0; next } { print } END { print ""; print fv }' chk_teaser
+  st 'the full-video line twice' 1 "$README" '/^Watch the full video / { fv = $0 } { print } END { print ""; print fv }' chk_teaser
+  st 'the full-video line under the first H2 section' 1 "$README" '/^Watch the full video / { fv = $0; next } { print } /^## Try it in two minutes$/ { print ""; print fv }' chk_teaser
+  st 'the teaser above the full-video line' 1 "$README" '/^Watch the full video / { fv = $0; next } { print } /^Or watch the 35-second teaser: / { print ""; print fv }' chk_teaser
+  st 'no empty line between the full-video line and the teaser' 1 "$README" 'held { held = 0; if ($0 == "") next } { print } /^Watch the full video / { held = 1 }' chk_teaser
+  st 'a stray line where the empty line below the full-video line is' 1 "$README" 'held { held = 0; if ($0 == "") { print "x"; next } } { print } /^Watch the full video / { held = 1 }' chk_teaser
+  st 'the teaser line removed' 1 "$README" '!/^Or watch the 35-second teaser: /' chk_teaser
   st 'the teaser line changed' 1 "$README" '{ sub(/35-second/, "36-second"); print }' chk_teaser
-  st 'the teaser moved to the end of the README' 1 "$README" '/^Watch the 35-second teaser: / { next } { print } END { print ""; print "Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU" }' chk_teaser
-  st 'the teaser above the opening paragraph' 1 "$README" '/^Watch the 35-second teaser: / { next } /^Your integrations already/ { print "Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU"; print "" } { print }' chk_teaser
-  st 'the teaser under the first H2 section' 1 "$README" '/^Watch the 35-second teaser: / { next } { print } /^## Try it in two minutes$/ { print ""; print "Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU" }' chk_teaser
-  st 'no empty line between the opening paragraph and the teaser' 1 "$README" 'held { held = 0; if ($0 == "") next } { print } /^Your integrations already/ { held = 1 }' chk_teaser
-  st 'a stray line where the empty line is' 1 "$README" 'held { held = 0; if ($0 == "") { print "x"; next } } { print } /^Your integrations already/ { held = 1 }' chk_teaser
+  st 'the teaser moved to the end of the README' 1 "$README" '/^Or watch the 35-second teaser: / { next } { print } END { print ""; print "Or watch the 35-second teaser: https://youtu.be/wycbyfnXFMU" }' chk_teaser
+  st 'the teaser above the opening paragraph' 1 "$README" '/^Or watch the 35-second teaser: / { next } /^Your integrations already/ { print "Or watch the 35-second teaser: https://youtu.be/wycbyfnXFMU"; print "" } { print }' chk_teaser
+  st 'the teaser under the first H2 section' 1 "$README" '/^Or watch the 35-second teaser: / { next } { print } /^## Try it in two minutes$/ { print ""; print "Or watch the 35-second teaser: https://youtu.be/wycbyfnXFMU" }' chk_teaser
+  st 'no empty line between the opening paragraph and the full-video line' 1 "$README" 'held { held = 0; if ($0 == "") next } { print } /^Your integrations already/ { held = 1 }' chk_teaser
+  st 'a stray line where the empty line below the opening paragraph is' 1 "$README" 'held { held = 0; if ($0 == "") { print "x"; next } } { print } /^Your integrations already/ { held = 1 }' chk_teaser
   st_append 'an embedded image' '![teaser](teaser.png)' chk_teaser
   st_append 'a linked image' '[![Teaser](docs/images/page-incident.png)](https://youtu.be/wycbyfnXFMU)' chk_teaser
   st_append 'a remote image' '![teaser](https://youtu.be/wycbyfnXFMU)' chk_teaser
@@ -1542,7 +1938,7 @@ rule_teaser() {
   # linked image right after the hero image.
   st 'a header badge line below the header' 1 "$README" 'NR <= '"$HEADER_LINES"' && b == "" && /<img/ && /<a href=/ { b = $0 } { print } END { print ""; print b }' chk_teaser
   st 'an image inside a link right after the hero image' 1 "$README" '{ print } index($0, "]('"$first"')") > 0 && !done { print ""; print "[![x]('"$first"')](LICENSE)"; done = 1 }' chk_teaser
-  finish teaser 'the teaser is a plain link, word for word, two lines below the opening paragraph, with no media tag and only inline docs/images PNG images below the header block' chk_teaser
+  finish teaser 'the full-video line and the teaser are word for word, two lines below the opening paragraph and the full-video line, with no media tag and only inline docs/images PNG images below the header block' chk_teaser
 }
 
 rule_outcomes() {
@@ -2005,7 +2401,7 @@ rule_docs() {
   finish docs 'the build 109 sentences of the bridge guide and the IPM page and the two ruled lines of the security overview are there, word for word' chk_docs
 }
 
-RULES='top try_it interesting measured use_cases how_you_talk teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
+RULES='top try_it interesting measured use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {
