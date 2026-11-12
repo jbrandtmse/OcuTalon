@@ -1,8 +1,11 @@
-/// Tests of how CommandsIn routes the three verbs of Story 33.2 (SendDigest, SaveSettings and GotIt; AD-1, AD-14, AD-19) and Story 18.3's TestModel. Safe on a slot: no
+/// Tests of how CommandsIn routes the three verbs of Story 33.2 (SendDigest, SaveSettings and GotIt; AD-1, AD-14, AD-19), Story 18.3's TestModel and Story 21.3's
+/// MailSignIn (AD-10; U-320 condition 3). Safe on a slot: no
 /// production runs, so the tests call OnProcessInput on a shadow instance of OcuTalon.Test.Core.CommandsInProbe, which sends to
 /// OcuTalon.Test.Core.CommandsOwner and records each call. The origin rules and every text are written out here, never read from CommandsIn.
-///   - TestRoutesAndOrigins: each of the four verbs by every origin, "zz" and "" included, reaches its owner (Digest, SettingsOps, SessionOps) or
-///     is refused with its text, and a refusal sends nothing (TestModel is carried out for web_admin only);
+///   - TestRoutesAndOrigins: each of the five verbs by every origin, "zz" and "" included, reaches its owner (Digest, SettingsOps, SessionOps) or
+///     is refused with its text, and a refusal sends nothing (TestModel and MailSignIn are carried out for web_admin only);
+///   - TestMailSignInNeverFromAnAgentTurn (AD-10): inside a bridge context of any provenance, tainted or not, of any kind, a MailSignIn of any origin (tool included) is
+///     refused with nothing sent; outside a context only web_admin reaches SettingsOps, with the command unchanged;
 ///   - TestModelRefusedFromToolAndUser: a TestModel from a tool, from web_user and from the system sends nothing, with the texts of the refusals, also inside a bridge
 ///     context while the command says web_admin;
 ///   - TestSaveSettingsFromToolRefused: a SaveSettings from a tool, also inside a bridge context while the command says web_admin, sends nothing;
@@ -37,7 +40,7 @@ Method OnAfterAllTests() As %Status
 /// Each verb by every origin against the oracle: routed to the owner, or refused with its text and nothing sent.
 Method TestRoutesAndOrigins()
 {
-	Set verbs = $ListBuild("SendDigest", "SaveSettings", "GotIt", "TestModel")
+	Set verbs = $ListBuild("SendDigest", "SaveSettings", "GotIt", "TestModel", "MailSignIn")
 	Set origins = $ListBuild("web_user", "web_admin", "telegram", "tool", "timer", "system", "zz", "")
 	Set tried = 0
 	For v = 1:1:$ListLength(verbs) {
@@ -62,7 +65,48 @@ Method TestRoutesAndOrigins()
 			}
 		}
 	}
-	Do $$$AssertEquals(tried, 32, "all 32 pairs were tried")
+	Do $$$AssertEquals(tried, 40, "all 40 pairs were tried")
+}
+
+/// AD-10 (U-320 3): a MailSignIn never comes from a tainted or agent turn. In a bridge context of any provenance and kind, tainted or not, the command is refused for
+/// every origin and nothing reaches SettingsOps; with no context only web_admin is routed.
+Method TestMailSignInNeverFromAnAgentTurn()
+{
+	Set probe = ..NewProbe()
+	Set provenances = $ListBuild("user", "untrusted", "", "other")
+	Set origins = $ListBuild("tool", "web_admin", "web_user", "system", "telegram", "timer")
+	Set tried = 0
+	For p = 1:1:$ListLength(provenances) {
+		For tainted = 0, 1 {
+			For kind = "", "tool" {
+				Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+				Set request.OwnerRef = "zzsessA"
+				Set request.Provenance = $List(provenances, p)
+				If kind '= "" Set request.Kind = kind
+				Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, "zzss"_..Run), "a context begins")
+				If tainted Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Put("Tainted", 1), "and is tainted")
+				Try {
+					For o = 1:1:$ListLength(origins) {
+						Set command = ..NewCommand("MailSignIn", $List(origins, o), "zzsessA")
+						Set command.Action = "start"
+						Set tried = tried + 1
+						Do probe.OnProcessInput(command, .output)
+						Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", "MailSignIn from '"_$List(origins, o)_"' in a context of provenance '"_$List(provenances, p)_"', tainted "_tainted_", kind '"_kind_"' is refused")
+					}
+				} Catch exception {
+					Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
+				}
+				Do ##class(OcuTalon.Bridge.Context).End()
+			}
+		}
+	}
+	Do $$$AssertEquals(tried, 96, "all 96 combinations were tried")
+	Do $$$AssertEquals(..Calls(), 0, "nothing reached SettingsOps")
+	Set command = ..NewCommand("MailSignIn", "web_admin", "zzsessA")
+	Set command.Action = "check"
+	Do probe.OnProcessInput(command, .output)
+	Do $$$AssertEquals(..Calls(), 1, "with no context a web_admin MailSignIn is sent once")
+	Do $$$AssertEquals(..Call(1, "target")_"|"_..Call(1, "origin")_"|"_..Call(1, "class"), "SettingsOps|web_admin|OcuTalon.Msg.Command.MailSignIn", "to SettingsOps, as its own class")
 }
 
 /// SaveSettings from a tool sends nothing, also inside a bridge context while the command says web_admin.
@@ -249,7 +293,7 @@ Method Call(n As %Integer, field As %String) As %String [ Private ]
 /// The owner item of the verb, as this test's oracle has it.
 ClassMethod OwnerOf(verb As %String) As %String [ Private ]
 {
-	Quit $Case(verb, "SendDigest": "Digest", "SaveSettings": "SettingsOps", "TestModel": "SettingsOps", : "SessionOps")
+	Quit $Case(verb, "SendDigest": "Digest", "SaveSettings": "SettingsOps", "TestModel": "SettingsOps", "MailSignIn": "SettingsOps", : "SessionOps")
 }
 
 /// The oracle of the origin rules: "" when the verb from the origin is routed, otherwise the text of its refusal.
@@ -258,7 +302,7 @@ ClassMethod Expected(verb As %String, origin As %String) As %String [ Private ]
 	If (origin = "tool") && (verb '= "SendDigest") Quit "That can't be done from the chat. Nothing was changed."
 	If verb = "SendDigest" Quit $Select($ListFind($ListBuild("tool", "web_admin"), origin): "", 1: "OcuTalon can't take that command from here. Nothing was changed.")
 	If verb = "SaveSettings" Quit $Select($ListFind($ListBuild("web_admin", "system"), origin): "", 1: "Only an OcuTalon admin can change settings. Nothing was changed.")
-	If verb = "TestModel" Quit $Select(origin = "web_admin": "", 1: "Only an OcuTalon admin can change settings. Nothing was changed.")
+	If (verb = "TestModel") || (verb = "MailSignIn") Quit $Select(origin = "web_admin": "", 1: "Only an OcuTalon admin can change settings. Nothing was changed.")
 	Quit $Select($ListFind($ListBuild("web_user", "web_admin", "telegram"), origin): "", 1: "OcuTalon can't take that command from here. Nothing was changed.")
 }
 

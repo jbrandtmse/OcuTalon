@@ -6678,6 +6678,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:install-upgrade_row7;one_rerun_with_the_next_push
 - 2026-11-12T10:33:24Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_109d59c8_run_43172863798_install-upgrade_row7_start_with_failing_step_not_ended_200s;superseded_head
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_install-upgrade_row6_upgrade_not_ready_200s;rerun_failed_jobs_green(attempt2)
+- 2026-11-12T10:09:42Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662764_iris(install-upgrade)_live:install-upgrade_row_6_'the_upgrade_did_not_end_ready_within_200_s'_on_OCT-epic21_ad2255ac(first_start_took_6_min:host_load;21.3_changes_no_install_or_startup_path);judged_again_on_the_integrated_head
 
 ### DW-1083: flake candidate: live:reminder-restart 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then the first start did not end ready within 400 s
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7169,6 +7170,59 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T22:18:46Z status=routed owner=burndown by=cr note=lead: Rule 20 spine write (AD-10 rule 1, AD-21 S3) recording ruling 2(a); no code change
 - 2026-11-11T22:20:57Z status=resolved-by:22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=adjudication note=spine_AD-10_rule1_and_AD-21_S3_now_state_SHA-256_hex_over_server_id,name,description,schema(Rule20_record_of_Planner_ruling_2(a));lint_unchanged
 
+### DW-1179: A provider-mode mailbox keeps EmailIn and EmailOut on the stored credential, which then has no password, so EmailIn's poll fails with the refused-login sentence until the adapters get their OAuth2 settings
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: SaveEmail writes OcuTalonMail with an empty password in provider mode; adapters have no OAuth2 rows, handler or XOAUTH2 yet
+- 2026-11-12T05:15:24Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8's token use makes the poll and the send work in provider mode
+- 2026-11-12T06:03:18Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2
+
+### DW-1180: The privileges that registering the mail OAuth2 client needs are measured only for the throwaway's production user (_Ensemble with %All)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Channel/Email/OAuth.cls Sys ran under _Ensemble (%All on the throwaway); OAuth2.Client/ServerDefinition need %Admin_OAuth2_Client:USE and Security.Applications access on a narrower user (unverified)
+- 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=measure or state the least set, or accept _Ensemble as the documented production user
+- 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=privileges are a veto item; rec: name _Ensemble the measured user, measure AD-24 roles in 21.8 live run
+- 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=orchestrator note=Contest Planner ruling (prompts/epic-21-rulings-213.md, last section): accepted with conditions; 21.3's spec names _Ensemble as the measured production user, which held %All on the throwaway (the run proves the path, not least privilege); Story 21.8's live run lists each privilege that registration needs with a refused-without-it check (AC added to 21.8's block); no public text may claim least privilege
+
+### DW-1181: A SaveEmail that fails after IRIS's OAuth2 client was replaced, changed or removed puts OcuTalon's own stores back but cannot restore the client, its secret or its tokens
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: PutBackEmail restores keys, credential and rows; only a client first registered from Password is removed again
+- 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=hold the old client until the save completes, or accept with a probe
+- 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=fix-risk high (old secret unrecoverable once replaced); rec: wontfix-accepted reopen_if=a failed provider save in CI/smoke
+- 2026-11-12T06:23:54Z status=wontfix-accepted by=orchestrator note=Contest Planner ruling (prompts/epic-21-rulings-213.md, last section): the state lie is fixed in 21.3 (SettingsOps.ForgetClient: after a failed save that already replaced, changed or removed IRIS's client of the old provider, the old provider's client ID is removed, audited, and its mark says not signed in; pinned by Test.Core.SettingsEmail TestFailedReplaceShowsNotRegistered, mutation observed); the IRIS client itself is still not restored; reopen_if=a failed provider save in CI or a smoke leaves Settings showing a provider registered or signed in, or a Register/Remove that IRIS refuses part-way leaves a changed client behind
+
+### DW-1182: The tab where the admin pressed Sign in keeps its state line at Not signed in yet until reloaded; only the landing tab checks
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: email-section.ts: only the signin=1 landing tab posts check; the original tab has no re-check on focus or visibility; spec is silent on it
+- 2026-11-12T06:03:19Z status=wontfix-accepted owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=reopen_if=a smoke or user report confuses the stale original tab with a failed sign-in
+
+### DW-1183: OAuth.SwitchOn with the CI variable unset is never run; TestSwitchOnReadsTheVariable pins its source text only
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: every CI IRIS process has OCUTALON_TEST_OAUTH_MOCK=1 and other tests use the probe's SwitchOn; changing the process env risks other tests
+- 2026-11-12T06:03:19Z status=wontfix-accepted owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=reopen_if=SwitchOn's body changes or the text pin is edited
+
+### DW-1184: The install-path scans for /csp/sys/oauth2 read method code and listed files only; a class Parameter naming the path would pass both
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestOnlyOneCallerOfTheClass reads method code; test-compose-file.sh oauth_app_untouched_by_install_paths lists no src/ocutalon/cls path
+- 2026-11-12T06:03:19Z status=wontfix-theoretical owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=real if an Install step gains a Parameter or XData naming /csp/sys/oauth2
+
+### DW-1185: flake: Test.Channel.EmailLive TestOAuthSaveSignInAndRemove's check for IRIS's own masked-secret audit entry of the OAuth2 client failed once on a warm stack after passing twice (the entry appears late)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: lane-C warm e21s3xw 2026-11-12 ~06:22Z: FAIL 'IRIS's own audit entry of the client shows its secret masked'; passed on e21s3fw forward and reverse; implement saw one earlier and added a 5 s wait
+- 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8 extends EmailLive's OAuth cases: wait on the entry by its own id or poll longer; one rerun + occurrence= meanwhile
+- 2026-11-12T10:09:41Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662676_iris(production)_shard:lane-a@Channel_on_OCT-epic21_ad2255ac:FAIL_'IRIS's_own_audit_entry_of_the_client_shows_its_secret_masked'(second_occurrence:local_warm_06:22Z+CI)
+- 2026-11-12T10:09:42Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=ci note=21.3's_own_new_test_red_in_CI_on_its_own_head:class=story([CI]_rework_in_21.3,lane_prompt);fix_the_SysAuditMasks_wait(scope_to_this_test's_mark,poll_longer_or_by_entry_id);21.8's_bullet_then_reads_resolved
+- 2026-11-12T10:55:53Z status=resolved-by:21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=adjudication note=rework_1_commit_4f309fcb+re-review_patches:SysAuditMasks_reads_this_test's_own_entry_by_UTCTimeStamp_from_its_mark_via_AuditLog.Wait(30_s),ClientId_and_ClientSecret_mask_lines_pinned;3_mutations_red_on_final_code(e21s3i3w,e21s3c2w);CI_on_the_integrated_head_confirms
+
+### DW-1188: flake candidate: lane-b@rest Test.Schedule.Reminders TestFiresOnEveryChannel ('the session has one web card', 'one phone message', 'one notification event is published', 'and one phone event') red once in CI shards-6
+- source: CI run 43172123661 (OCT-epic21 ad2255ac) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 131027662801 iris (shards-6) shard:lane-b@rest 2026-11-12T08:01Z: 4 asserts red, 1 of 51 classes; Story 21.3 changes no Schedule, Reminder, Notify or channel-out class; first sighting
+- 2026-11-12T10:09:42Z status=routed owner=burndown by=ci note=flake rule: one rerun; judged again on the integrated 21.3 head's CI
+
+### DW-1189: docker/tests/test-audit.sh and test-demo-switch.sh count %SYS.Audit rows with WHERE Event = ..., which goes through the Event index that %SYS.Audit.UpdateIndices refreshes about once a minute, so a fresh entry can be invisible for up to ~60 s (flake risk)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md (rework 1) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: measured on lane-C warm e21s3i2w 2026-11-12: a UTCTimeStamp read saw the OAuth2 creation entry 0.4 s after the save, WHERE Event = 'OAuth2' first saw it 34 s later; the same pattern sits in the two scripts
+- 2026-11-12T10:41:28Z status=routed owner=burndown by=harvest note=fix: read rows from a time mark (UTCTimeStamp) and compare Event in code, as EmailLive.SysAuditMasks now does; owner docker/tests (Epic 15 area)
+- 2026-11-12T10:53:25Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=cr:real_exposure_test-demo-switch.sh:248_unwaited_audit0;EventSource/EventType_lag_too;release/standalone-bridge.sh:910,927
 ### DW-1172: The incident's plural item noun, supplied by the model in the diagnosis payload, now enters the trusted SystemNote of the partner-notice draft (Story 23.11 noun ruling)
 - source: spec-23-11-say-in-a-partner-notice-only-how-the-incident-ended.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Watch.Notice.Noun checks only that both forms are non-empty; IncidentManager stores diagnosis.itemNoun as given; PartnerWarning.SystemNote substitutes noun.other into the code-written instruction (AD-10/AD-14 trust boundary)
@@ -7229,3 +7283,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rows 7-12 online-demo specs: 1 failed (R2, 2.3 s) at resume.spec.ts:143 page.goto ERR_ABORTED; spec unchanged since 83a6f3c1 (Nov 4); the head changes README.md and test-readme.sh over feature eb289caf; 18 runners busy
 - 2026-11-12T11:14:12Z status=routed owner=burndown by=runner note=flake class (first occurrence): one rerun of failed jobs; a second red on the same head is real; likely fix: gotoSettled at L143 as DW-690 did
 - 2026-11-12T12:22:47Z status=routed owner=burndown by=runner note=rerun_attempt_2_of_run_43202138313_green_on_2a6cfc67(flake_confirmed)
+
+### DW-1191: flake (test defect, random): Test.Data.Webhook TestMatches 'x...' is not a stored value of the secret: the malformed-salt variant "x"_$Extract(salt, 2, *) equals the real hash whenever the random salt already starts with x (about 1 run in 64), so Matches rightly answers 1
+- source: CI run 43206845957 (OCT-epic21 368c7a09) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 131144052048 iris (image) shard:lane-b@Contract,Core,Data,Live: printed stored value 'xrvjRiPqHbxlagA8SDES' starts with x; salt = base64url(GenCryptRand(16)); the 21.3 merge changes no line of Data/Webhook, Test/Data/Webhook, SecretHandoff or Data/Setting vs green eb289caf (git diff empty); 6 local passes on lane-C warm e21s3cw
+- 2026-11-12T12:25:40Z status=routed owner=burndown by=ci note=fix (Epic 35's test, one line): pick the replacement first character as lastChanged does, e.g. $Select($Extract(salt) = "x": "y", 1: "x"); one rerun meanwhile
