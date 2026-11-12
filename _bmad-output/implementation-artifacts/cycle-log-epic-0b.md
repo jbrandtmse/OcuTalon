@@ -78,3 +78,5 @@
 2026-11-12T18:16:20Z	Story 0.32	story_cycle	plan_to_commit_min=150 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-12T18:34:58Z	Story 0.32	rework_opened	cycle_iteration=2 iteration=1 trigger=planner_approved_scope(release_tool_hunks) items=DW-1212,DW-1213,DW-1214,comments_and_pins scope_baseline=4ba22348 by=orchestrator_continue_20261112_1830Z followup=DW-1217_filed
 2026-11-12T18:34:58Z	Story 0.32	stage_spawned	stage=implement spawn_at=2026-11-12T18:34:58Z model=sonnet agent_name=0-32-implement-2 cycle_iteration=2
+2026-11-12T19:19:03Z	Story 0.32	dev_complete	spawn_at=2026-11-12T18:34:58Z model=sonnet build_sha=b24d2c64 baseline_revision=b161e20e review_loop_iteration=0 followup_review_recommended=false deferred=0 cycle_iteration=2 workflow_hunks=ci.yml(checks_20->25,iris_40->50),lane-a.yml(ipm-install,ipm-install-p_35->45)
+2026-11-12T19:19:03Z	Story 0.32	stage_spawned	stage=code-review spawn_at=2026-11-12T19:19:03Z model=opus agent_name=0-32-code-review-2 cycle_iteration=2 scope=rework_b161e20e..HEAD
