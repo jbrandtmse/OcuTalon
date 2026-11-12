@@ -2,7 +2,8 @@
 title: 'Story 23.12: Take a rejected request off the status rail at once'
 type: 'bugfix'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '3a05e44f2f8f605b231851e168391e3a82956050'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -158,6 +159,38 @@ Tests:
 
 ## Review Triage Log
 
+### 2026-11-12 — Review pass
+- verdicts: 28 findings — high 0, medium 2, low 19, false 7, maybe-false 0
+- findings:
+  - `[low]` `[patch]` blind: PA2/PA3 header comment says only the reply can remove the row, but their polls run — the comment overclaimed (edge-case hunter's last two items and verification-gap's PA2/PA3 note are the same claim) — comment reworded: the socket is closed, the polls run, RA1/RA2 pin the reply alone.
+  - `[false]` `[reject]` blind: PA3 depends on a phone message that may not exist — PA3 ran green on a fresh stack (row gone 85-99 ms after the press), so the persona flow does put the message on the phone.
+  - `[false]` `[reject]` blind: the 5 s bounds disagree across specs — by design (ruling G1): fixture rows reply after about 5 s, so RA1/RA2 count from the reply; PA2/PA3 count from the press on a real hold.
+  - `[medium]` `[patch]` blind and verification-gap: `applyAnswer` has no executed check for the stopped/no-store/unchanged-store guards (matrix "Page stopped") — added a source pin in approval-sources.test.mjs, the repo's style for LiveState (no test host runs it); mutation removing `this.stopped` observed red.
+  - `[low]` `[reject]` blind: "no payload changes nothing" only documented — the `if (approval !== undefined)` pin exists and RA1 covers the 500 end to end; a runtime test of AnswerPress needs an Angular host the repo does not have for it.
+  - `[low]` `[patch]` blind: late/expired replies not covered through the store, docs narrower than code — the withAnswer unit test now also covers `executing` and `expired` replies.
+  - `[low]` `[reject]` blind: no e2e for Approve — decided in Design Notes 4 (same line, unit-covered, X2 stays as regression); adding a case is more than a direct correction.
+  - `[false]` `[reject]` blind: wholesale replace may lose fields — the reply is the same FromRow view plus TraceLink that the events carry (spec Design Notes 2); no field the event view has is missing.
+  - `[low]` `[reject]` blind: shared e2e helper footprint/noticeSlots placement — the spec orders the move; cosmetic.
+  - `[low]` `[reject]` blind: holdMatching double release, waiting list not cleared — unchanged behaviour of the extracted holdState body; release is idempotent (the `released` flag).
+  - `[low]` `[reject]` blind: fixed waits of 1.5 s — negative assertions need a dwell time; the spec names the 1.5 s.
+  - `[false]` `[reject]` blind: heading string forms differ between rail-view.test and the spec — accessible name vs visible text, both exist in the rail today (rail.spec.ts uses the same name).
+  - `[low]` `[reject]` edge: a poll or snapshot in flight at the press brings R1 back as pending — the accepted edge of Design Notes 6 (self-corrects at the next poll; wontfix-theoretical).
+  - `[low]` `[reject]` edge: an older pending event steps the request back — events arrive in Seq order and the cursor does not move at the reply, so an older event is not delivered again; same accepted edge.
+  - `[false]` `[reject]` edge: `answered` throws before `notify` — `applyAnswer` and `withAnswer` do not throw, and the host passes a one-line arrow.
+  - `[low]` `[reject]` edge: host destroyed before the reply drops the reply — the same limit as `local` before this story; the poll still brings the answer.
+  - `[low]` `[reject]` edge: `seqOf` reads a missing attribute as 0 — the attribute is always rendered on the loaded page (sibling specs rely on it); the loaded check precedes it.
+  - `[low]` `[reject]` edge: held poll may flag Reconnecting during the reply — Design Notes 8 (hold of 5 to 8 s is under the 10 s threshold); no assertion reads it; RA1/RA2 passed.
+  - `[false]` `[reject]` edge: PA3 does not call `noticeOnPhone` — the persona flow already sent the notice, so PA3 waits for the existing message (`phoneShows`); decided in implement (Design Notes 9).
+  - `[low]` `[reject]` edge: PA3 gives a generic timeout instead of an intent-gap halt — PA3 passed, so the intent gap did not arise.
+  - `[medium]` `[patch]` verification-gap: the "no reappearance" live-store test passed with a no-op `withAnswer`, and AC 4 had no mutation line — the test now asserts the reply's view and the unmoved cursors before the event; mutation line added; no-op mutation observed red in three tests.
+  - `[low]` `[reject]` verification-gap: PA2/PA3 stay green with only `answered` removed — recorded in the mutation lines (they need the slower poll) and in Design Notes 3; RA1/RA2 guard the fix; the mutation lines already say so.
+  - `[low]` `[reject]` verification-gap: host wiring pinned by source text only — the repo's style for Angular-bound hosts, and RA1/RA2 cover the behaviour in a browser.
+  - `[low]` `[reject]` verification-gap: RA1's `readApproval` pending check is true without the fix — it pins "the server was not called", and the notice plus the still-listed row carry the failure case.
+  - `[low]` `[reject]` verification-gap: a reply with no `ref` is untested — nothing observable depends on it.
+  - `[false]` `[reject]` intent-alignment (descriptive): readings R1-R5 — the diff implements R1 with the simulated phone as the phone view (Design Notes 1); the header Status count reads the same `pendingApprovals` as the rail, which the rail-view test pins.
+  - `[low]` `[reject]` intent-alignment: PA2/PA3 do not hold polls and do not assert the Status count — covered above; RA1/RA2 hold the polls.
+  - `[low]` `[reject]` intent-alignment: Approve and the live socket path are not exercised in a browser — Design Notes 4 and 8; a local WebSocket push makes `withAnswer` a no-op by design.
+
 ## Design Notes
 
 **Root cause.** The rail, its count and the Status count read `pendingApprovals(store)`. Only an `approval` event changes a request in the store. The event is committed before the reply leaves the server (`Approval.Answer`: `Fire` before `Quit`), but the page reads it only on its next poll (`POLL_DELAY_MS` 1000 after the previous answer, plus the round trip). So the request outlives the reply by up to about 1 to 2 s. That is the "briefly" in the 1.0.7 pass. No Task 0 was needed: the code shows it.
@@ -179,6 +212,7 @@ Tests:
 6. **Accepted edge (not guarded).** If a skipped Seq or an epoch change makes the page reload `/state` in the instant around a press, and the server computed that snapshot before the answer committed, the snapshot can bring `pending` back until the next poll (at most one update). It corrects itself, because that poll carries the answered event. This is the `wontfix-theoretical` class.
 7. **Home of the browser test.** `rail/` in the `sign-in-2` unit (`live:sign-in-2`, CI group `shards-4`), not `answers/`. The answers unit (about 335 s locally, Story 11.9) has no `--part`, so it can't run inside the 150 s foreground cap. `sign-in-2` takes `--part k/n`. `answers.spec.ts` X2 and X9 stay as regression checks.
 8. **Holding polls.** A route that holds `/events?` requests until release (`holdPolls`, the generalised `holdState`). Expected hold: about 5 to 8 s, under the 10 s Reconnecting threshold. A slower host may show Reconnecting during the hold, which no assertion reads.
+9. **Decided in implement.** `rail-answer.spec.ts` and PA2/PA3 close the live socket (`blockLiveSocket`, `withProposal(..., pollsOnly)`) so the polls are the only live path, as on the online demo; on a local stack the WebSocket pushes the event with the reply and the pinning tests could not fail. `withAnswer` also returns the store for a reply with no `ref` (`ApprovalPayload.ref` is optional). PA3 reads the request Ref from the rail row's `data-row-key`, waits for the existing phone message with a new `phoneShows` helper in `support/approvals.ts` (which `noticeOnPhone` also uses), and asserts the card status as `/^Rejected from the simulated phone at \S+/`.
 
 **Lead spec-gate rulings (2026-11-12, runner D, policy 5086036):**
 - G1 (decide): the Contest Planner's acceptance for DW-1159 reads "a browser test presses Reject and the request is gone from the rail within 5 s, on the web and on the phone view". RA1/RA2 pin the fix from the reply with the polls held (fixture rows reply after about 5 s, so "from the press" cannot discriminate there); PA2 (web) and the added PA3 (simulated phone) assert the Planner's bound from the press on a real request. Together they meet the acceptance literally on both channels.
@@ -251,18 +285,34 @@ Every test added or changed passes on a fresh environment, in either order.
 - Left to CI: `ci/checks.sh`, the whole `live:sign-in-2` (shards-4), `live:sign-in` (shards-10), and `live:answers` (shards-7). The last one runs X2, X4, X8 and X9, the card-announcement regressions that this change times differently: the store now moves at a phone press's reply. The lead's fresh-environment check runs forward and `--reverse`.
 
 **Mutations (Rule 19), one per AC, recorded as `mutation: <change> -> <test red>`:**
-- Web at the reply: the card passes `answered: () => undefined` → RA1 red (R1 still listed with the polls held).
-- Phone at the reply: the phone host passes `answered: () => undefined` → RA2 red.
-- Failed press: `press()` calls `this.options.answered({ ref, state: 'rejected' })` before the call → RA1's failure step red (R1 gone after the 500).
-- The unanswered request stays: `withAnswer` also drops every other pending request → RA1/RA2 R2 assertion red, and the live-store "the other pending request is kept" test red.
-- No step back or reappearance: `withAnswer` without the `pending` guard → the live-store "an executing request keeps its view" test red.
-- Other session / unknown Ref: `withAnswer` adds a Ref the store doesn't hold → the live-store "a Ref the store doesn't hold" test red.
-- Real request within 5 s of the press: the card's `answered` removed AND `POLL_DELAY_MS` set to 8000 → PA2 red. This is the smallest change that breaks the bound on a real request: without the fix, the poll alone still meets 5 s.
-- Real request on the phone within 5 s of the press: the phone host's `answered` removed AND `POLL_DELAY_MS` set to 8000 → PA3 red.
+- mutation: web at the reply, the card passes `answered: () => undefined` (and the phone host the same, in one run) -> RA1 red at "R1 leaves the rail within 2 s of the reply" (R1 still listed with the polls held); applied, observed red, reverted.
+- mutation: phone at the reply, the phone host passes `answered: () => undefined` (same run as the web one) -> RA2 red at the same assertion; applied, observed red, reverted.
+- mutation: failed press, `press()` calls `this.options.answered({ ref, state: 'rejected' })` before the call -> RA1 red in its failure step (the 500 stand-in's notice does not show, because the card already shows the rejected view; RA2 stays green); applied, observed red, reverted.
+- mutation: the unanswered request stays, `withAnswer` also drops every other pending request -> RA1 and RA2 red at "R2 stays listed", and the live-store "keeps the other pending request" test and the rail-view "keeps the other" test red; applied, observed red, reverted.
+- mutation: no step back or reappearance, `withAnswer` without the `pending` guard -> the live-store "an executing request keeps its view" test red; applied, observed red, reverted.
+- mutation: other session / unknown Ref, `withAnswer` also accepts a Ref the store does not hold -> the live-store "a Ref the store does not hold" test red; applied, observed red, reverted.
+- mutation: real request within 5 s of the press, the card's `answered` removed AND `POLL_DELAY_MS` set to 8000 (PA2 and PA3 close the live socket with `blockLiveSocket`, so that a pushed event cannot remove the row; without it the mutation stayed green at about 100 ms, because the local stack pushes the event over the WebSocket) -> PA2 red at "the rail row is gone within 5 s of the press" (Expected 0, Received 1); applied, observed red, reverted.
+- mutation: real request on the phone within 5 s of the press, the phone host's `answered` removed AND `POLL_DELAY_MS` set to 8000 (same run as the web one, same socket closure) -> PA3 red at the same assertion; applied, observed red, reverted. Unmutated, PA2 and PA3 pass with the row gone about 100 ms after the press.
+- mutation: later approval event (AC 4, matrix "Later approval event"), `withAnswer` returns the store it was given -> the live-store "is followed by the request's own event" test red (it asserts the reply's view before any event), and the "replaces a pending request" test and the rail-view test red; applied, observed red, reverted.
+- mutation: page stopped / no store (matrix "Page stopped"), `applyAnswer` without the `this.stopped` test -> the approval-sources "takes the reply into the live store only while the page runs" pin red; applied, observed red, reverted. (LiveState has no executing test host in `web/scripts`; the pin is the repo's style for it.)
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). The root cause comes from the code: the rail reads only the live store, and the press reply skipped it. The fix is that the reply's payload enters the store while the request is still pending, through one `AnswerPress` option and two hosts, which covers Approve too. The pinning browser tests hold the polls: `rail/rail-answer.spec.ts` (sign-in-2, shards-4). PA2 asserts 5 s from the press on a real request. No public text, no route change, footprint `web/**` only. Rule 20 candidate (AD-12 bullet) for the lead under Design Notes.
+Summary: a press reply's request view now enters the live store at once, so a rejected (or approved) request leaves the status rail, its heading count and the Status count at the reply, with no poll. `withAnswer` (live-store.ts) replaces a request only while the store holds it as `pending` and moves no cursor; `LiveState.applyAnswer` applies it; `AnswerPress` hands every payload-carrying reply to a new required `answered` option; the chat card and the simulated phone pass it to `LiveState`. No public text, no server or route change.
+
+Files changed (all under `web/**`):
+- `web/src/app/live/live-store.ts`, `live-state.ts`: `withAnswer`, `applyAnswer`.
+- `web/src/app/approvals/answer-press.ts`, `approval-request-card.ts`, `web/src/app/phone/phone-request.ts`: the `answered` option and the two hosts.
+- `web/scripts/live-store.test.mjs`, `rail-view.test.mjs`, `approval-sources.test.mjs`, `phone-request-sources.test.mjs`: store, rail and source pins.
+- `web/e2e/support/api.ts` (`holdPolls`, shared `holdMatching`), `support/approvals.ts` (moved helpers, `phoneShows`), `answers/answers.spec.ts` (imports only).
+- `web/e2e/rail/rail-answer.spec.ts` (new): RA1 and RA2, with the polls held and the live socket closed.
+- `web/e2e/persona-approval.spec.ts`: PA2 5 s bound and the new PA3 on the simulated phone (live socket closed).
+
+Review: 4 layers, 28 rows in the Review Triage Log. Patches applied: 2 medium (the `applyAnswer` guard pin; the live-store "no reappearance" test strengthened with its mutation line), 2 low (PA2/PA3 comment; `executing` and `expired` replies in the unit test). Deferred: none. Rejected: the rest, each with its reason in the log. Follow-up review recommended: false.
+
+Verification: `node --test` of the four unit files passes (loop); `npm --prefix web run lint` exits 0; `npm --prefix web test` passes, 1934 tests (once); `ci/iris.sh live sign-in-2 --part 8/12` (handoff run): RA1 and RA2 pass, reply 5.1-5.2 s after the press, row gone 8-9 ms after the reply; `ci/iris.sh live sign-in --part 17/24` (persona-approval.spec.ts): PA1-PA3 pass, row gone 85-105 ms after the press. Mutations observed red and reverted (tree byte-identical to the backups): see `## Verification`, including the compound PA2/PA3 mutation that needed the live socket closed to go red. Lane-D throwaway `e23s12i` torn down. Left to CI and the lead: `live:answers` (X2, X4, X8, X9), the whole `live:sign-in-2` and `live:sign-in`, `ci/checks.sh`.
+
+Residual risks: PA2/PA3 count from the press on a real request and run their polls, so only RA1/RA2 pin that the reply alone removes the row; a snapshot or poll taken before the answer committed can bring the row back for one poll (Design Notes 6); Rule 20 candidate (AD-12 bullet) stays a design note (ruling G2).

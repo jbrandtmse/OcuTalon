@@ -7,7 +7,8 @@ import type { EventsResponse, StateSnapshot } from '../api/api-types';
 import { Announcer } from '../shared/announcer';
 import { BUSY_STATUS, ContactWatch, pollDelay, type ContactState } from './contact-watch';
 import { LiveSocket } from './live-socket';
-import { applyEvents, fromSnapshot, type LiveStore } from './live-store';
+import { applyEvents, fromSnapshot, withAnswer, type LiveStore } from './live-store';
+import type { ApprovalPayload } from './payloads';
 
 /** How the snapshot's load went. */
 export type SnapshotStatus = 'loading' | 'loaded' | 'failed';
@@ -45,6 +46,9 @@ export const LOAD_FAILED = "Couldn't load your session.";
  * this browser: the page never applies a poll or a snapshot of an epoch other than its first snapshot's, applies none of that
  * answer's events and does not reload. It stops, and `epochChanged` turns true, which the session gate answers by leaving the page
  * (this service does not know the gate). A local install's page reloads the snapshot instead, as before.
+ *
+ * applyAnswer(approval) takes in the reply of an answer press (Story 23.12) by withAnswer: the answered request leaves the
+ * pending lists at the reply, with no cursor moved, and its own `approval` event replaces it by Ref when the poll brings it.
  *
  * `contact` is the page's contact with OcuTalon (Story 2.11), counted by a ContactWatch from the last answer of the live
  * path, which in release 1 is the polling: `ok`, then `reconnecting` after 10 s with no answer and `unreachable` after 30 s.
@@ -155,6 +159,18 @@ export class LiveState {
     }
     if (result.store !== current) {
       this.store.set(result.store);
+    }
+  }
+
+  /** Takes in the reply of an answer press; it changes nothing when stopped, with no store yet, or when withAnswer keeps the store. */
+  applyAnswer(approval: ApprovalPayload): void {
+    const current = this.store();
+    if (this.stopped || !current) {
+      return;
+    }
+    const next = withAnswer(current, approval);
+    if (next !== current) {
+      this.store.set(next);
     }
   }
 

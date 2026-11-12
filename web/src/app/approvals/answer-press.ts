@@ -15,6 +15,8 @@ export interface AnswerPressOptions {
   answer: (ref: string, action: 'approve' | 'reject', channel: AnswerChannel) => Observable<HttpResponse<AnswerBody>>;
   /** The channel the press answers from: 'web' for the chat's request card, 'phone' for the simulated phone's message. */
   channel: AnswerChannel;
+  /** Gets the request as a done, late or expired reply shows it, for the page's live store. */
+  answered: (approval: ApprovalPayload) => void;
   /** The context the late press's text is read with (the card's page times, or the phone's message times). */
   context: () => ApprovalContext;
   /** The page's one announcer, for the notices. */
@@ -32,7 +34,8 @@ export interface AnswerPressOptions {
  *   a later answer still shows and clears it.
  * - A press sends {action, channel} for the given request (the server takes the session from the CSP session).
  * - The reply is read by answerOutcomeOf. A done, late or expired reply carries the request's payload, which becomes `local`: the
- *   view the host shows while the store's own payload is still pending. The notice of a reply is `notice` (a late press reads
+ *   view the host shows while the store's own payload is still pending. The same payload goes to the host's `answered` at once, for
+ *   the page's live store. A reply with no payload changes nothing there. The notice of a reply is `notice` (a late press reads
  *   latePressText, a missing request the "no longer available" text, a refusal or a failure the reply's own message, no connection
  *   the busy notice), and each notice is announced once. A new press clears it.
  */
@@ -89,6 +92,7 @@ export class AnswerPress {
     const approval = 'approval' in outcome ? outcome.approval : undefined;
     if (approval !== undefined) {
       this.local.set(approval);
+      this.options.answered(approval);
     }
     this.notify(this.noticeOf(outcome, approval));
   }

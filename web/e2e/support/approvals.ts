@@ -1,13 +1,16 @@
-import type { Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
-import { applied, HEADER } from './floor';
-import { publishIncident, seedApproval, sinkEvent } from './iris';
+import { phoneMessage } from './devices';
+import { applied, CARD_MS, HEADER } from './floor';
+import { publishIncident, seedApproval, sendNotification, sinkEvent } from './iris';
 
 /**
  * What the answers unit's specs (e2e/answers/, Stories 6.3 and 6.4) share to raise an incident and its approval
  * request on fixtures: the incident as IncidentManager publishes
  * it (an `incident` event), and a pending request whose `approval` event reaches the page through BridgeSink. incidentOf and raise are
- * the shared home of the two for those specs (cards/approval-card.spec.ts keeps its own copies). A request of the payload is `{ref, state?, result?}`: pending with
+ * the shared home of the two for those specs (cards/approval-card.spec.ts keeps its own copies). noticeSlots and noticeOnPhone put
+ * the incident notice of a request on the simulated phone, and phoneOf and messageOf find the phone and a message of it; the
+ * answers specs and the rail's answer spec (rail/rail-answer.spec.ts) share them. A request of the payload is `{ref, state?, result?}`: pending with
  * no result unless given, so that a case can publish the same incident again with a request answered, executing or finished (Story 6.4).
  */
 
@@ -78,4 +81,49 @@ export async function raise(page: Page, user: string, rows: string[], incident: 
   if (publish) await applied(page, await publishIncident(user, incidentOf(incident, requests.map((one) => ({ ref: one })))));
   await applied(page, await sinkEvent(user, 'approval.raised', { ref: request }));
   return request;
+}
+
+/** The simulated phone, and the message of a Ref on it. */
+export const phoneOf = (page: Page): Locator => page.locator('app-simulated-phone');
+export const messageOf = (page: Page, ref: string): Locator => phoneOf(page).locator(`.notification[data-key="${ref}"]`);
+
+/** The slots of an incident.withFix / incident.laterRequest notice for the fixture request: 50 orders since two minutes ago. */
+export function noticeSlots(since: string): Record<string, unknown> {
+  return {
+    count: 50,
+    itemNoun: { one: 'order', other: 'orders' },
+    time: since,
+    cause: 'Data format change',
+    fixSummary: 'repair the order date and resend 50 orders',
+    field: 'OrderDate',
+    before: '10/16/2026',
+    after: '2026-10-16',
+    resendCount: 50,
+  };
+}
+
+/**
+ * Sends the incident notice of a request through Notify, as IncidentManager will (kind incident, or approval for a later request),
+ * and returns the phone message that asks for it once the page shows it (phoneShows). `since` is the time the notice names.
+ */
+export async function noticeOnPhone(page: Page, user: string, request: string, incident: string, since: string, kind: 'incident' | 'approval' = 'incident'): Promise<{ ref: string; message: Locator }> {
+  await sendNotification(user, {
+    kind,
+    catalogKey: kind === 'incident' ? 'incident.withFix' : 'incident.laterRequest',
+    slots: noticeSlots(since),
+    approvalRef: request,
+    incidentRef: incident,
+  });
+  return phoneShows(page, user, request);
+}
+
+/** Waits until the phone message that asks for the request exists and the simulated phone shows it; returns its Ref and locator. */
+export async function phoneShows(page: Page, user: string, request: string): Promise<{ ref: string; message: Locator }> {
+  let ref = '';
+  await expect
+    .poll(async () => (ref = (await phoneMessage(user, request))?.ref ?? ''), { message: 'the phone message of the request exists', timeout: CARD_MS })
+    .not.toBe('');
+  const message = messageOf(page, ref);
+  await expect(message, 'and the phone shows it').toHaveCount(1, { timeout: CARD_MS });
+  return { ref, message };
 }
