@@ -2,7 +2,7 @@
 title: 'Story 36.1: Record the setting history of each watched production'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -15,26 +15,26 @@ deferred: []
 
 ## Intent
 
-**Problem:** Step 5's Lane A contracts are only partly in the spine, and nothing records how a watched production's settings change, so Story 23.3 cannot name "the setting change behind an incident" or offer its rollback, and Lane B's Story 36.2 has no fixed names to build against. The roll-back kind's `%Ens_ProductionConfig` WRITE grant is still forbidden by the installer.
+**Problem:** Step 5's Lane A contracts are only partly in the spine, and nothing records how a watched production's settings change, so Story 23.3 cannot name "the setting change behind an incident" or offer its rollback, and Lane B's Story 36.2 has no fixed names to build against.
 
-**Approach:** Write the missing step-5 Lane A contracts into the spine (fix-kind schemas and resources, paging owner/table/escalation message, SQL-query check and its read-only user, catalog keys, `incident` payload fields, the paging channels and how each acknowledges, and the Lane B list Story 36.2 fixes). Build `OcuTalon.Watch.SettingHistory` with two new Lane A tables, driven from the heartbeat `Tick` by Interoperability's per-namespace production-change counter. Ship a declare-only roll-back kind so the installer grants `%Ens_ProductionConfig:W` to the service role as the one allowed exception, shown in the security overview.
+**Approach:** Write the missing step-5 Lane A contracts into the spine (the delivered fix kinds' parameter schemas and resources, the roll-back kind named as Story 23.3's, paging owner/table/escalation message, SQL-query check and its read-only user, catalog keys, `incident` payload fields, the paging channels and how each acknowledges, and the Lane B list Story 36.2 fixes). Build `OcuTalon.Watch.SettingHistory` with two new Lane A tables, driven from the heartbeat `Tick` by Interoperability's per-namespace production-change counter. The roll-back kind, its `%Ens_ProductionConfig:W` grant, the forbidden-list exception and every security-overview change belong to Story 23.3, the first story that offers a rollback (Planner ruling V1(b), 2026-11-12; DW-1225).
 
 ## Boundaries & Constraints
 
 **Always:**
 - Judge each AC against the delivered code; record what is already met (Design Notes) and build only the missing parts.
 - Only `OcuTalon.Watch.Reader` enters the watched namespace (AD-3); `Current` stays its one namespace-switching method, and it calls no OcuTalon class while inside.
-- A credential-type value is dropped inside the Reader before anything leaves it: it reaches no row, stream, log, message or trace. Only a salted hash (Webhook's scheme) is kept, solely to detect a change.
+- Credentials (Planner ruling V3, 2026-11-12): a setting that holds a reference to an `Ens.Config.Credentials` entry stores only that reference's ID (a name, not a secret). Only a setting whose VALUE is itself a secret is dropped inside the Reader before anything leaves it; for it a salted hash (`Data.Webhook.HashSecret`/`Matches`) is kept, solely to detect a change, and the hash never leaves its table: no GET, `/v1/state`, trace, log, digest, notice or eval output carries it (one leak-scan test pins this). A change row for such a setting keeps both values blank.
 - Taking a snapshot only reads: no `%Save`, no `UpdateProduction`, no write to `Ens.Config.*`. The production-change counter does not move because of a snapshot.
 - No row, column or log line names who made a change.
 - Lane A files only (AD-29, AD-33). Contended files get only the edits listed under Design Notes › Contended overlaps.
 - Every destructive or cross-namespace test runs on a lane-B throwaway (`ci/iris.sh` / `ci/warm.sh`), never on slot B.
-- Ship only public texts the runner reports as accepted (Design Notes › Proposed public text). If a text is not accepted, leave that part out and report it. Never invent wording.
+- Ship no public text and no GUIDE.md line (Planner ruling, 2026-11-12): the `page.*`, roll-back and `RollbackSetting` strings ship with the stories that first show them (36.2, 23.3). EXPERIENCE.md and `Msg.Catalog.Watch` get no new user-facing string from this story.
 
 **Never:**
 - Edit the Lane B contracts: the page notification and its `Notify` route, the escalation kind on `Reminder`, the AckPage and SaveSqlWatch verbs, the on-call keys, the partner-contact table, `OcuTalon.Msg.*`, `OcuTalon.Data.Public.*`. 36.1 only names them in the spine.
-- Give the roll-back kind any behaviour. It is never offered (`DIAGNOSED` 0, `ASKED` 0), it is never ready, and its dry run refuses. Story 23.3 builds it.
-- Grant `%Ens_ProductionConfig` on an online-demo install. Take setting snapshots on an online-demo install.
+- Declare `OcuTalon.Fix.Kind.RollbackSetting`, add any `RESOURCES` entry, grant `%Ens_ProductionConfig` to any role, add a forbidden-privilege test exception, or change the security overview (its generated lists, `ONLINESTATEMENT` or any sentence) (Planner ruling V1(b): all Story 23.3's).
+- Take setting snapshots on an online-demo install.
 - Read the IRIS audit log. Add an `/api/v1` route, a UI, a README or GUIDE change, a `ci/units.sh`, `.github/workflows` or `release/**` change.
 - Edit `Data/BackgroundCheck.cls`, `Checks/Coverage.cls`, `Core/SettingsOps.cls` or `Mcp/Ops.cls`.
 
@@ -48,13 +48,14 @@ deferred: []
 | System Default Setting change | SDS row that applies to an item is saved | One row on that item and target, `Source` `default` | none |
 | Restart | `^Ens.Runtime` StartTime/CheckSum pair differs, or the counter is gone | Snapshot and diff on that Tick | none |
 | Hourly safety net | Counter unchanged, `CheckedAt` 60+ min old | Snapshot and diff; unchanged content only refreshes the marks | none |
-| Credential setting changes | Credential-typed or credential-named setting gets a new value | Change row with `OldValue` = `NewValue` = "" and `Credential` 1; the value appears nowhere | none |
+| Credentials reference changes | A setting holding an `Ens.Config.Credentials` ID (e.g. an adapter's `Credentials`) gets another ID | Change row with the old and new IDs (names, not secrets) | none |
+| Secret value changes | A setting whose value is itself a secret gets a new value | Change row with `OldValue` = `NewValue` = "" and `Credential` 1; the value appears nowhere; the hash stays in `SettingSnapshot` only | none |
+| Hash leak scan | After a secret-value change: GET routes, `/v1/state`, trace, log, digest, notice and eval output | Neither the secret nor its hash appears in any of them | none |
 | Item added or removed | Item appears or disappears | One row per setting of that item (blank new or old value) | none |
 | Online-demo install | `onlineDemo` 1 | Tick takes no snapshot and writes no row | none |
 | Unreadable or not-current production | Reader outcome `unreadable` / `not_current` | Nothing written; marks kept | No warning (same as FailurePoller) |
 | Read throws | Reader error | That production is skipped this Tick; other productions continue | One `$$$LOGWARNING` via `Bridge.Redact`, with no setting value |
 | Purge | Rows older than `daysToKeep` (90) | Old `SettingChange` and old snapshots deleted; the newest snapshot of each still-watched production is kept | First error is returned after every table has been tried |
-| Roll-back invoked | Any request for `rollback_setting` | Refused with the kind's plain reason; nothing runs | Error status, `NOTSETUP` |
 
 </intent-contract>
 
@@ -130,9 +131,21 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-12, Contest Planner rulings on V1-V6 (binding; `.coordination/prompts/story-361-rulings-20261112.md`), applied by the runner inside the intent contract and Design Notes; status reset to `draft` to re-plan only what V1(b) removes: V1 option (b): no `RollbackSetting`, no RESOURCES entry, no `%Ens_ProductionConfig:W`, no forbidden-list exception, no overview or ONLINESTATEMENT change (moved to Story 23.3 as an AC, ledgered DW-1225 routed to 23-3). V2 tables approved. V3 approved with conditions (Credentials reference stores its ID; only a secret value is hashed; the hash never leaves its table; one leak-scan test; change row values blank). V4 demo off, pinned: approved. V5 spine approved, with AD-24 adjusted to "%Ens_ProductionConfig:W is granted by Story 23.3 together with rollback_setting; the demo install leaves it out."; AD-18's sql_query mechanism stays (inference). Task 0 approved (HALT if the counter misbehaves). Public text: 36.1 ships none and no GUIDE line; the proposed strings are approved catalog text for 36.2/23.3 (NOTSETUP dropped).
+
 ## Review Triage Log
 
 ## Design Notes
+
+### Planner rulings (2026-11-12, binding; supersede anything below that conflicts)
+- **V1 = option (b).** 36.1 does NOT declare `Fix.Kind.RollbackSetting`, adds no `RESOURCES` entry, gives no `%Ens_ProductionConfig:W` to OcuTalonServiceRole, adds no forbidden-list test exception (`Roles.cls`, `Test/Install/Registry.cls`, `Test/Web/Install.cls` unchanged), and makes no security-overview change (no `ONLINESTATEMENT` change, no "declared so that ..." sentence, no `docs/security-overview.md` edit). All of it is Story 23.3's (approved AC move; DW-1225 routed to 23-3). Own installs keep their current privileges. The spine's AD-16 per-kind schema list names `rollback_setting` only as Story 23.3's.
+- **V2 approved:** `SettingSnapshot`, `SettingChange` as drafted (no user column, 90-day purge, newest snapshot per watched production always kept).
+- **V3 approved with conditions:** a setting that holds a reference to an `Ens.Config.Credentials` entry stores only its ID (a name, not a secret) and is diffed like any setting; only a setting whose VALUE is itself a secret gets the salted hash (`Data.Webhook.HashSecret`/`Matches`), only for change detection; the hash never leaves its table: no GET, `/v1/state`, trace, log, digest, notice or eval output carries it, pinned by ONE leak-scan test; a change row for such a setting keeps both values blank.
+- **V4 approved:** setting history OFF on an online-demo install, pinned by a test.
+- **V5 approved as drafted,** with AD-24 worded: "%Ens_ProductionConfig:W is granted by Story 23.3 together with rollback_setting; the demo install leaves it out." AD-18's `sql_query` mechanism stays marked (inference) until 23.8 measures it. `IncidentManager`, `Data.Page`, `Msg.Escalation` (36.2) and the paging-ack rules (Got it on the web or the paired Telegram chat; an email page has none; a reply never counts): approved.
+- **Task 0 approved:** measure `^IRIS.Temp.EnsProdModCounter` on a lane-B throwaway first; HALT (`intent gap`) if it does not behave as the spine draft says.
+- **Public text:** 36.1 ships NO public text and NO GUIDE.md line. The proposed `page.*`, roll-back, `incident.settingChangeCause`, NOTALLOWED and ONLINESHARED strings are approved catalog text for the stories that first show them (36.2, 23.3); NOTSETUP is dropped. The spine's catalog-key list may NAME those keys as step-5 contracts (owner stories 36.2 / 23.3), but 36.1 adds no string to `Msg.Catalog.Watch` or EXPERIENCE.md.
+- **Contended order:** 36.1 goes first on `Checks/Process.cls` `Tick`; Epic 22's 22.5/22.11 integrate forward after it. All local until CI HOLD OFF.
 
 **Ledger inbox (Rule 17):** none owned by this story key.
 
