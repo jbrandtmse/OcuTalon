@@ -3614,3 +3614,27 @@
 2026-11-12T03:36:41Z	Epic 23	merge_enqueued	part=23.10 head=0ee635dc
 2026-11-12T03:36:56Z	Epic 23	merge_gate	part=23.10 head=0ee635dc conflicts=sprint-status.yaml(ours+regenerate+set_23-10=done,23-11=ready-for-dev;valid) lint=baseline
 2026-11-12T03:36:56Z	Run	deps_hash_rerecorded	reason=fix_forward note=23.11_inserted(DW-1165_follow-up) hash=1c94579a
+2026-11-12T03:36:58Z	Epic 23	epic_merged_to_feature	part=23.10 feature_sha=b5057e5a merge_sha=b5057e5a code=0ee635dc verified_on_origin=yes
+2026-11-12T03:37:07Z	Epic 23	runner_resumed	agent=afc4a2f06e7d322df with=23.10_merged_b5057e5a;continue_23.11_from_QA mode=message_to_ended_runner
+2026-11-12T03:39:15Z	Run	ci_cancel	runs=43148860821,43148860825(feature_a9a3cb4a) reason=Planner:superseded_by_b5057e5a;runners_busy cf6fcb39=green_fallback
+2026-11-12T03:39:15Z	Run	owner_decision	id=DW-1172 via=contest_planner by=owner(delegation) answer=SystemNote_constant(no_substitution;2b_sentence_with_affected_items);Outcome_keeps_noun;tests_updated;new_DW_itemNoun_payload_check=DW-1173 ref=prompts/epic-23-story-2311-ruling.md
+2026-11-12T03:53:25Z	Epic 35	runner_clarification	kind=PART_READY agent=aa1afdacf64c5bb19 story=35.3 head=81270bec(integrated_cf6fcb39)+8e1f7864 runs=43134436418(att2;infra_docker_snapshot),43134436415 feature_moved=b5057e5a(README_conflict) shas=verified
+2026-11-12T03:53:25Z	Run	ruling	question=35.3_README_placement_after_0.26_regroup category=veto choice=Webhooks_bullet_under_Your_integrations_after_Queue_backlogs;count_sixteen(fifteen_on_demo) rejected=new_group policy=5086036 note=sent_to_Planner
+2026-11-12T03:53:25Z	Epic 35	runner_resumed	agent=aa1afdacf64c5bb19 with=integrate_b5057e5a+README_placement mode=message_to_ended_runner
+2026-11-12T03:54:06Z	Run	owner_decision	id=35.3-README-placement via=contest_planner by=owner(delegation) answer=placement_accepted;count_sentence_one_parenthetical(combined_row_with_0.28;second_merger_carries_it);New_since_intro_line_changed ref=prompts/story-026-rulings.md,epic-35-rulings-353.md
+2026-11-12T04:19:17Z	Run	owner_decision	id=story-0.30 via=contest_planner by=owner(approved) answer=new_Story_0.30_shorter_README(GUIDE.md)_lane_A_after_0.29;planning_may_start_at_resume;1.0.9_if_not_green_by_cut ref=prompts/story-030-shorter-readme.md
+2026-11-12T04:19:37Z	Epic 23	runner_clarification	kind=CI_WAIT agent=afc4a2f06e7d322df story=23.11 head=2e2f224f(integrated_b5057e5a) runs=43153698989,43153698998(queued) DW-1165,DW-1172=resolved-by_23-11 cr=done(HIGH=ruled_patch_applied) shas=verified
+2026-11-12T04:19:37Z	Epic 23	runner_resumed	agent=afc4a2f06e7d322df with=plan_23.9_while_CI mode=message_to_ended_runner
+2026-11-12T04:20:11Z	Run	owner_decision	id=0.30-plan via=contest_planner by=owner(delegation) answer=accepted:no_parallel_planner;lane_A_plans_0.30_in_first_gap_after_resume;order_A=0.28,0.29,0.30;B=35.3,0.27B,DW-1123,36.1_chain,DW-1159(after_21.2),25.3
+2026-11-12T04:36:54Z	Run	ci_green_verified	branch=feature head=b5057e5a runs=43149397990,43149397921 result=success note=22.8+23.7+0.26+23.10;1.0.8_base_candidate
+2026-11-12T04:39:42Z	Epic 0	runner_clarification	kind=CI_WAIT+RELEASE_TOOL agent=a570d5453eccd91b8 story=0.28 head=faa67c27(integrated_b5057e5a) runs=43156190518,43156190571(queued) release_tool=release/checklist.sh(readme-video_row;no-outward_one-line_allowance_OEMBED) decisions_for_user=DW-1178(no-outward_fails_baseline:test-readme.sh_ALLOWED_HOSTS_since_0.18) shas=verified
+2026-11-12T04:40:50Z	Run	owner_decision	id=0.28-release-tool+DW-1178 via=contest_planner by=owner(delegation) answer=release_tool_hunk_approved;DW-1178_option_a_folded_into_0.28(ALLOWED_HOSTS_one-line_allowance+3_tests+comment) ref=prompts/story-026-rulings.md
+2026-11-12T04:41:00Z	Epic 0	runner_resumed	agent=a570d5453eccd91b8 with=0.28_rulings:add_DW-1178_option_a_then_re-push mode=message_to_ended_runner
+2026-11-12T04:42:24Z	Epic 23	runner_clarification	kind=PLANNER_REPORT+CI_WAIT agent=afc4a2f06e7d322df story=23.9(planned;gate_needs_ruling) local=b47ad5b0 ci_wait=2e2f224f(23.11;in_progress) shas=verified
+2026-11-12T04:42:24Z	Epic 23	unattended_stop	unit=Story_23.9 reason=AD-15_amendment_re-architecture(U7)+FR-24/FR-16/UX_ask-first inbox=U-321 recommendation=b
+2026-11-12T04:43:19Z	Run	owner_decision	id=U-321 at=2026-11-12T04:43:08Z#985 via=inbox by=Contest_Planner answer=b(AD-15_split_approved;FR-24,FR-16,EXPERIENCE:698,:1210_verbatim;P3_yes,P1/P2_no;conditions_AC1-AC5,Transitions_rows,demo_unchanged,Dismiss_closes;after_23.11) ref=prompts/epic-23-rulings-239.md
+2026-11-12T04:43:19Z	Epic 23	unattended_stop_lifted	unit=Story_23.9 via=U-321
+2026-11-12T05:05:16Z	Epic 23	runner_clarification	kind=PART_READY agent=afc4a2f06e7d322df story=23.11 head=2e2f224f runs=43153698989,43153698998 applied=U-321 local=82f580b9 shas=verified
+2026-11-12T05:05:16Z	Run	inbox_resolved	id=U-321 by=orchestrator applied_by=runner_D
+2026-11-12T05:05:16Z	Epic 23	ci_green_verified	branch=OCT-epic23 head=2e2f224f runs=43153698989,43153698998 story=23.11
+2026-11-12T05:05:27Z	Epic 23	merge_gate	part=23.11 head=2e2f224f conflicts=none tracker=valid lint=baseline
