@@ -22,3 +22,4 @@
 2026-11-12T20:23:59Z	Story 0.34	fresh_check	env=clean-checkout(git_clone_--shared_at_6ab163f1+story_diff) tests=test-compose-file.sh(5_OAuth2_rows) result=pass order=forward,reverse tmp_leftovers=0
 2026-11-12T20:25:16Z	Story 0.34	committed	sha=1327fa1b code_sha=6bb2b957+1327fa1b submodules= ci=pending runs=43300084082,43300084119 amendments=none pushed=first_push_creates_origin/OCT-epic0c missing=none
 2026-11-12T20:25:16Z	Story 0.34	story_cycle	plan_to_commit_min=46 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:lead(opus,spec_from_ruling),implement:lead(opus,handoff_edit),qa:skipped(ruling),cr:opus
+2026-11-12T20:57:18Z	Story 0.34	ci_resolved	story=0.34 sha=1327fa1b runs=43300084082,43300084119 result=success failed=none via=none resolved_at=part_ready reruns=0 checks_job=success
