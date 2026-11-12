@@ -2,12 +2,34 @@
 title: "Story 0.28: DW-1171 follow-up: the README's Contest checklist gets a Video row, and the For judges Usability row links the incident path and the full video"
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '793840c5af3873540913aceac72b1086083d0b7e'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: []
-deferred: []
+deferred:
+  - summary: >-
+      No per-push test runs check-readme-video.sh's own logic (retry, cap, 206 handling, status handling, both youtu.be addresses): the release checklist's test stubs the script, and the script's self-tests run only online.
+    evidence: |-
+      A stub-curl test would be a new test-*.sh, which needs an entry in a ci/units.sh list; this story's boundaries rule out a ci/ hunk and a new CI group. A regression shows at the next release candidate run, as a loud FAIL on the readme-video row.
+    location: >-
+      docker/tests/check-readme-video.sh
+    severity: low
+  - summary: >-
+      ci/units.sh NOT_IRIS_INPUT_PATTERN lists docker/tests/record-eval.sh and docker/tests/test-*.sh but not docker/tests/check-readme-video.sh, so a later edit of that script makes ci/changes.sh run every CI group.
+    evidence: |-
+      The script reads no IRIS input; the fix is one alternative in the pattern (ci/units.sh:251), a ci/ hunk this story may not carry. Cost is extra CI minutes on later edits of the script only; this story's own push runs every group once.
+    location: >-
+      ci/units.sh:251
+    severity: low
+  - summary: >-
+      Nothing per push checks that the real docker/tests/check-readme-video.sh exists, is executable and parses (test-release-checklist.sh uses a stub at the same path).
+    evidence: |-
+      A deleted or non-executable script fails the readme-video row at release time (row_script reports the failure), not per push. Closing it needs a rule in a per-push test.
+    location: >-
+      release/checklist.sh:312
+    severity: low
 ---
 
 <intent-contract>
@@ -95,6 +117,28 @@ Verbatim text (the Contest Planner's DW-1171 ruling, 2026-11-12 ~01:55Z).
 
 ## Review Triage Log
 
+### 2026-11-12 - Review pass
+- verdicts: 18 rows (the layers' findings, with the Intent Alignment audit as one row) - high 0, medium 0, low 9, false 5, maybe-false 3, descriptive 1
+- findings:
+  - `[low]` `[defer]` (Blind, Verification Gap) no offline test of check-readme-video.sh's retry/cap/206/status logic, and the in-script self-tests swap only the first youtu.be id (a dead teaser id is tested by the main pass only) -- deferred: a stub-curl test needs a new test-*.sh in a ci/units.sh list, which the boundaries rule out.
+  - `[low]` `[reject]` (Blind, Edge, Verification Gap) self-tests share the global 150 s cap, so a slow main pass can turn a self-test into "not flagged" -- the cap on the whole script is the ruled bound; the failure is loud and rare (the measured run takes about 5 s); a per-phase clock would break the ruled cap.
+  - `[low]` `[patch]` (Blind) a failed mktemp exits with no FAIL line -- fixed: it prints "FAIL readme-video: no temporary folder" and exits 1 (checked with an unusable TMPDIR).
+  - `[maybe-false]` `[reject]` (Blind) a video with embedding disabled would answer 401 or 403 at its oEmbed and be flagged -- both ruled videos answer 200 (measured); a status other than 200 failing at once is the ruled behaviour; an unreachable case would be low.
+  - `[low]` `[defer]` (Blind, Verification Gap) no per-push static check of the real script (existence, mode, bash -n) -- deferred; a release-time loud failure, closing it needs a per-push rule.
+  - `[false]` `[reject]` (Edge) other YouTube URL forms (youtube.com/watch, http) skip the oEmbed check -- checklist-video pins the Video row word for word, so only the ruled youtu.be form can be in it.
+  - `[maybe-false]` `[reject]` (Edge) a server that ignores the range request would answer the whole MP4 and hit the 15 s limit -- measured: the MP4 answers 206 to a range; the hypothetical server change would be loud, low.
+  - `[low]` `[patch]` (Edge) the --max-time value can be 0 if SECONDS reaches CAP between the cap test and the computation -- fixed: the value is at least 1.
+  - `[maybe-false]` `[reject]` (Edge, Verification Gap) the unknown-id self-test expects the oEmbed address to be the flagged one; if youtu.be/<unknown> itself stopped answering 200 it would report "not flagged" -- relies on the measured quirk the script exists for; a false FAIL is loud, low.
+  - `[low]` `[reject]` (Edge) a second, reworded "| Video |" row elsewhere is not flagged by checklist-video -- the ruled row directly after Online demo is pinned exactly and the network script reads the first row; a stale extra row is cosmetic; the guard adds branches for a case nobody meets.
+  - `[low]` `[defer]` (Edge) NOT_IRIS_INPUT_PATTERN in ci/units.sh does not list the new script -- deferred: a ci/ hunk this story may not carry.
+  - `[false]` `[reject]` (Edge) hyphenated or numeric count words misread by judges-usability -- the registry is capped at sixteen and the web tests pin the word; no hyphenated word can occur.
+  - `[false]` `[reject]` (Edge) a transient 4xx (403, 404) from GitHub is not retried -- the spec says only a transport failure, 429 or 5xx is retried and any other status fails at once.
+  - `[false]` `[reject]` (Verification Gap, other) the rest of the Usability row is not pinned word for word -- the rule pins the ruled start; the rest was unpinned before this story and the spec's "rest unchanged" is checked by the diff (the README hunk replaces one sentence).
+  - `[false]` `[reject]` (Verification Gap, other) no assertion that cannot fail was found -- confirms the layer's check, no defect.
+  - `[low]` `[reject]` (Intent Alignment) the anchors are checked with the script's own slug function, not GitHub's renderer -- how every other README rule works; unchanged approach.
+  - `[low]` `[reject]` (Intent Alignment) "never skipped" rests on the release owner running the checklist -- the checklist row is the ruled mechanism; nothing for this story to add.
+  - `[no-action]` `[reject]` (Intent Alignment) the whole audit (readings R1-R5, the script name check-readme-video.sh against the ruling's test-readme-video.sh, the split of ruling item c) -- descriptive; the diff implements R1 plus the narrowed R3, as the 02:05Z ruling and the spec's Spec Change Log record.
+
 ## Design Notes
 
 **Governing ADs:** none binds README text or test scripts (AD-29: Epic 0 may edit any lane's files). No AD is amended.
@@ -107,6 +151,14 @@ Verbatim text (the Contest Planner's DW-1171 ruling, 2026-11-12 ~01:55Z).
   - any other status fails at once;
   - offline it fails loudly with the address and the reason. It is never skipped, silently or loudly.
 - (inference) GitHub-hosted runners reach youtube.com and github.com; a regional consent page would show as a failure naming the address, not as a pass.
+
+**Implement stage (2026-11-12):**
+- Count word: "fifteen". `MORE_TO_TRY_ITEMS` in `web/src/app/guide/more-to-try-view.ts` holds 15 items on this tree (Story 35.3's item is not in).
+- `check-readme-video.sh` fetches each README address with a one-byte range (`-r 0-0`), so the MP4 is not downloaded whole on every run; 206, the answer to that range, counts as the 200 of the matrix (the plan stage measured 206 for a range). The oEmbed is fetched without a range and must answer 200. The first failing address ends the run (matrix: "exit 1 at once"). The self-tests run after the README passes, and each must be flagged by the swapped address answering a status (a transport failure does not count as flagged).
+- The oEmbed host is written in two parts in `check-readme-video.sh` (`OEMBED_SITE=www.youtube`, then `.com`): `release/checklist.sh`'s `no-outward` row flags any `docker/**.sh` line naming the video site whole. The script only reads (GET). Lead to confirm, or rule another form.
+- (observed) `no-outward` already flags `docker/tests/test-readme.sh` at the baseline (its `ALLOWED_HOSTS` line names community.intersystems.com and openexchange.intersystems.com); this story leaves that line as it is.
+- `release/checklist.sh`: besides the row function, its PASS detail, header line and place in the row list, the header sentence "The script makes no network call." now says the readme-video row's script does. Its test (`docker/tests/test-release-checklist.sh`) stubs `check-readme-video.sh` like the other script rows, and pins 20 PASS lines, the readme-video failure row, and its tmpfail line (4 rows and 7 author rows).
+- (observed) A YouTube id with an invalid last character (e.g. `HIyCG5E6-JZ`) gets oEmbed 400, not 404; the script flags it the same way.
 
 **Ledger inbox:** DW-1171 is addressed by this story's tasks and its first three ACs.
 
@@ -142,9 +194,32 @@ Mutations (one per AC; record `mutation: <change> -> <test that went red>` here,
 - AC count: change "fifteen" to "fourteen" in the Usability row -> the two web count tests.
 - AC network: change the full-video id in a scratch README copy passed to the script -> `check-readme-video.sh` (oEmbed 404).
 
+Recorded (implement stage, 2026-11-12; each reverted, the README or script restored from a byte copy, `cmp` equal, `git status --short` and `git diff --stat` unchanged):
+- mutation: Video row moved above "| Online demo |" -> `checklist-video` red ("the row right after '| Online demo |' ... is not the ruled Video row"); all other rules green.
+- mutation: "in about two minutes" -> "in about three minutes" in the Usability row -> `judges-usability` red; all other rules green.
+- mutation: "fifteen" -> "fourteen" in the Usability row -> the two web count tests red (`sources-docs.test.mjs` "README says how many more things to try there are", `more-to-try-view.test.mjs` "counts the items by the registry in the README"); `judges-usability` stays green (the count word is the web tests' matter).
+- mutation: "35-second teaser" -> "short teaser" in the Video row -> `video` red (the teaser address outside its three places) and `checklist-video` red.
+- mutation: full-video id `HIyCG5E6-JQ` -> `HIyCG5E6-JA` in a scratch README copy passed to the script -> `check-readme-video.sh` exit 1, "FAIL readme-video: <oEmbed of youtu.be/HIyCG5E6-JA> answered 404" (the tree untouched).
+- mutation: the `row_readme_video` line dropped from `checklist_main`'s row list -> `test-release-checklist.sh` red: `base` (19 PASS lines, wanted 20) and `script-rows` (the readme-video failure not reported).
+- offline (transport failure simulated with a proxy on a closed local port) -> `check-readme-video.sh` exit 1 after 3 tries 5 s apart: "could not be reached after 3 tries (curl exit 7)", about 10 s.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Split out of Story 0.27's plan by the lead on the orchestrator's ruling; implement after Story 0.26 merges.
+Summary: README gets the ruled Video row after "Online demo" and the ruled two opening sentences of the "For judges" Usability row (count word "fifteen", the registry's count on this tree), pinned offline by the new `test-readme.sh` rules `checklist-video` and `judges-usability` and a widened `video` rule; the two web tests pin the ruled sentence ("Its More to try panel has ...") against the registry; a new networked `check-readme-video.sh` (outside per-push CI and outside the `test-*.sh` glob) is run by the new `readme-video` row of `release/checklist.sh`.
+
+Files changed:
+- `README.md` -- the Video row and the Usability row's two ruled sentences, verbatim.
+- `docker/tests/test-readme.sh` -- rules `checklist-video`, `judges-usability`, widened `video`, their self-tests, `RULES` and header.
+- `docker/tests/check-readme-video.sh` -- new; online check of the Video row's addresses and each YouTube id's oEmbed, 3 tries 5 s apart, 150 s cap, self-tests.
+- `release/checklist.sh` -- the `readme-video` row (function, PASS text, header lines, row list); one header sentence about network calls reworded to stay true.
+- `docker/tests/test-release-checklist.sh` -- stub, PASS count 19 to 20, a failure case, tmpfail rows 10 to 11.
+- `web/scripts/sources-docs.test.mjs`, `web/scripts/more-to-try-view.test.mjs` -- count regex starts "Its".
+
+Review: 18 triage rows from 4 layers. Patches applied: 2 (mktemp failure prints a FAIL line; `--max-time` at least 1). Deferred: 3 (all low; see frontmatter `deferred:`). Rejected with reasons: see the Review Triage Log. Follow-up review recommended: false (no high, no medium patched).
+
+Verification (after the last patch): `test-readme.sh` all rules passed (bash and /bin/bash); `check-readme-video.sh` all checks passed online (also under /bin/bash); the two web test files 57 pass, 0 fail; `test-ci-config.sh` all rules passed; `test-release-checklist.sh` all rules passed; `test-boundaries.sh` all rules passed; ASCII check 0 on all four shell files; no diff under `.github`, `ci`, `_bmad`, `eval`; `release/` diff is `release/checklist.sh` only. Mutations are recorded in `## Verification`.
+
+Residual risks: (1) the oEmbed host is written in two parts in `check-readme-video.sh` because the `no-outward` row of `release/checklist.sh` flags any `docker/**.sh` line naming that site whole; the script only GETs from it. (2) `test-readme.sh`'s existing `ALLOWED_HOSTS` line names `community.intersystems.com` and `openexchange.intersystems.com`, so the `no-outward` row already flags it at the baseline, independent of this story. (3) The readme-video row needs the network at release time. (4) CI on the head is the lead's step.

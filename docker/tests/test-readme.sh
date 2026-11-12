@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Pins README.md (Stories 10.2, 10.4, 10.5, 0.21 and 0.26; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134). Hermetic: it starts nothing, needs no network
-# and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules).
+# Pins README.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26 and 0.28; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171). Hermetic: it starts
+# nothing, needs no network and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules). That the README's video
+# addresses answer is checked online by docker/tests/check-readme-video.sh, which this script never runs.
 #
 # What it pins, one rule each:
 #   top            the README opens with the approved header block (Story 0.21: the centred logo and title, the tagline and the badge
@@ -23,7 +24,14 @@
 #                  image line, and never the word Slack
 #   video          the full-video line holds the YouTube link and the MP4 link of the v1.0.6 release, and the link bar (the first line of
 #                  "Try it in two minutes" that starts with [Online demo]) holds the full-video entry directly before the teaser entry;
-#                  the teaser address is in the teaser line and the link bar only
+#                  the teaser address is in the teaser line, the link bar and the ruled Video row of "Contest checklist" (exactly that
+#                  line) only
+#   checklist-video  in "Contest checklist", the row right after the "| Online demo |" row is the ruled Video row (DW-1171), word for
+#                  word, and that row is in the README once; the link #one-incident-end-to-end reaches the heading "One incident, end to
+#                  end" (by its slug)
+#   judges-usability  "For judges: where to look" has one "| Usability |" row, and it opens with the two ruled sentences (DW-1171), word
+#                  for word but for the count word, which may be any lower-case word (the web tests pin it against the More to try
+#                  registry)
 #   path           "One incident, end to end" holds its intro line and its seven numbered steps, word for word, in order and nothing
 #                  else; "Two things to look at in the demo" is nowhere in the README
 #   new-since      "### New since 1.0.0" sits under "What's interesting", after its image line, with its intro line, then the three
@@ -229,6 +237,14 @@ TEASER='Or watch the 35-second teaser: '"$TEASER_URL"
 MIDDOT=$(printf '\302\267')
 LINK_FULL="[Video: one incident, traced (3:04)]($YT_FULL)"
 LINK_TEASER="[Video: the 35-second teaser]($TEASER_URL)"
+# The Planner-ruled DW-1171 lines (Story 0.28), word for word: the Video row of "Contest checklist", and the two opening sentences of
+# the "For judges" Usability row, split at the count word.
+H_CONTEST='Contest checklist'
+H_JUDGES='### For judges: where to look'
+ONLINE_ROW='| Online demo |'
+VIDEO_ROW='| Video | [One incident, approved from a phone, traced]('"$YT_FULL"') (3:04, also as an [MP4 file]('"$MP4_FULL"')), and the [35-second teaser]('"$TEASER_URL"'). |'
+USE_HEAD='| Usability | The demo guide walks [one incident, end to end](#one-incident-end-to-end) in about two minutes, and [the full video]('"$YT_FULL"') shows it in 3:04. Its More to try panel has '
+USE_TAIL=' more things to try ([New since 1.0.0](#new-since-100)).'
 # The approved header block (Story 0.21): README.md lines 1 to HEADER_LINES, word for word, as a quoted heredoc, because the lines
 # hold quotes, with its trailing newline stripped. HEADER_IMAGE_HOSTS are the image hosts and paths that only those lines may use;
 # one of its entries, HEADER_RAW_DIR, is the path of this repository's images on its main branch (the logo's address).
@@ -753,8 +769,65 @@ chk_video() {
     echo "video: the link bar does not hold $LINK_FULL directly before $LINK_TEASER"
   fi
   grep -nF -e "$TEASER_URL" "$f" | while IFS= read -r hit; do
-    if [ "${hit#*:}" != "$TEASER" ] && [ "${hit#*:}" != "$bar" ]; then echo "video: $f:${hit%%:*}: the teaser address is neither in the teaser line nor in the link bar"; fi
+    if [ "${hit#*:}" != "$TEASER" ] && [ "${hit#*:}" != "$bar" ] && [ "${hit#*:}" != "$VIDEO_ROW" ]; then
+      echo "video: $f:${hit%%:*}: the teaser address is neither in the teaser line, the link bar nor the ruled Video row"
+    fi
   done
+}
+
+# checklist-video (DW-1171)
+chk_checklist_video() {
+  local f=$1 sec="$tmp/sec.cv" n at after
+  n=$(grep -cxF -e "$VIDEO_ROW" "$f")
+  if [ "$n" -ne 1 ]; then echo "checklist-video: the ruled Video row is in the README $n times, not once"; fi
+  if ! headings "$f" | awk -F '\t' -v t="$H_INC" '$2 == "one-incident-end-to-end" && $3 == t { ok = 1 } END { exit !ok }'; then
+    echo "checklist-video: the link #one-incident-end-to-end reaches no heading '$H_INC'"
+  fi
+  section "$f" "$H_CONTEST" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "checklist-video: no section '$H_CONTEST'"
+    return
+  fi
+  n=$(awk -v p="$ONLINE_ROW" 'index($0, p) == 1' "$sec" | wc -l | tr -d ' ')
+  if [ "$n" -ne 1 ]; then
+    echo "checklist-video: '$H_CONTEST' has $n '$ONLINE_ROW' rows, not exactly one"
+    return
+  fi
+  at=$(awk -v p="$ONLINE_ROW" 'index($0, p) == 1 { print NR; exit }' "$sec")
+  after=$(sed -n "$((at + 1))p" "$sec")
+  if [ "$after" != "$VIDEO_ROW" ]; then echo "checklist-video: the row right after '$ONLINE_ROW' in '$H_CONTEST' is not the ruled Video row"; fi
+}
+
+# judges-usability (DW-1171): the count word is any lower-case word here; the web tests pin it against the More to try registry.
+chk_judges_usability() {
+  local f=$1 rows n rest word
+  rows=$(awk -v h="$H_JUDGES" '
+    /^```/ { fence = !fence }
+    !fence && /^#+ / { on = ($0 == h); next }
+    on && index($0, "| Usability |") == 1
+  ' "$f")
+  n=$(printf '%s' "$rows" | grep -c '^')
+  if [ "$n" -ne 1 ]; then
+    echo "judges-usability: 'For judges: where to look' has $n Usability rows, not exactly one"
+    return
+  fi
+  case $rows in
+    "$USE_HEAD"*) ;;
+    *)
+      echo "judges-usability: the Usability row does not open with the ruled first sentence and 'Its More to try panel has'"
+      return
+      ;;
+  esac
+  rest=${rows#"$USE_HEAD"}
+  word=$(printf '%s\n' "$rest" | sed -n 's/^\([a-z][a-z]*\).*$/\1/p')
+  if [ -z "$word" ]; then
+    echo "judges-usability: the Usability row has no count word (a lower-case word) after 'Its More to try panel has'"
+    return
+  fi
+  case ${rest#"$word"} in
+    "$USE_TAIL"*) ;;
+    *) echo "judges-usability: the count word '$word' is not followed by the ruled rest of the second sentence" ;;
+  esac
 }
 
 # path: the ruled intro line and seven steps of "One incident, end to end"; a heredoc, because the lines hold quotes.
@@ -1701,7 +1774,50 @@ rule_video() {
   st 'the teaser address in the full-video line' 1 "$README" '/^Watch the full video / { $0 = $0 " and " "'"$TEASER_URL"'" } { print }' chk_video
   st 'the teaser address in the incident section' 1 "$README" '{ print } /^## One incident, end to end$/ { print ""; print "See '"$TEASER_URL"'." }' chk_video
   st_append 'the teaser address a third time' "See $TEASER_URL" chk_video
-  finish video 'the full-video line holds the YouTube and MP4 links, the link bar holds the full video directly before the teaser, and the teaser address is only in those two places' chk_video
+  st 'the teaser address in a reworded Video row' 1 "$README" 'index($0, "| Video |") == 1 { sub(/35-second teaser/, "short teaser") } { print }' chk_video
+  st 'the teaser address in another checklist row' 1 "$README" '{ print } index($0, "| Online demo |") == 1 { print "| Teaser | '"$TEASER_URL"' |" }' chk_video
+  finish video 'the full-video line holds the YouTube and MP4 links, the link bar holds the full video directly before the teaser, and the teaser address is only in those two places and the ruled Video row' chk_video
+}
+
+rule_checklist_video() {
+  rule_begin checklist-video "$README" || return
+  st 'the Video row removed' 1 "$README" 'index($0, "| Video |") != 1' chk_checklist_video
+  st_move 'the Video row moved out of the section' "$H_CONTEST" '| Video |' chk_checklist_video
+  st 'the Video row moved below Community idea' 1 "$README" 'index($0, "| Video |") == 1 { held = $0; next } { print } index($0, "| Community idea |") == 1 { print held }' chk_checklist_video
+  st 'the Video row above Online demo' 1 "$README" 'index($0, "| Online demo |") == 1 { held = $0; next } { print } index($0, "| Video |") == 1 { print held }' chk_checklist_video
+  st 'the Video row twice' 1 "$README" '{ print } index($0, "| Video |") == 1 { print }' chk_checklist_video
+  st 'the Video row again in another section' 1 "$README" '{ print } index($0, "| Video |") == 1 { held = $0 } END { print ""; print held }' chk_checklist_video
+  st 'the Video row reworded' 1 "$README" 'index($0, "| Video |") == 1 { sub(/approved from a phone/, "approved by phone") } { print }' chk_checklist_video
+  st 'the Video row with a word added' 1 "$README" 'index($0, "| Video |") == 1 { sub(/ \|$/, " Watch it. |") } { print }' chk_checklist_video
+  st 'the Video row with the MP4 of another release' 1 "$README" 'index($0, "| Video |") == 1 { sub(/download\/v1\.0\.6\//, "download/v1.0.5/") } { print }' chk_checklist_video
+  st 'the Video row with the full video pointing at the teaser' 1 "$README" 'index($0, "| Video |") == 1 { sub(/traced\]\(https:\/\/youtu\.be\/HIyCG5E6-JQ\)/, "traced](https://youtu.be/wycbyfnXFMU)") } { print }' chk_checklist_video
+  st 'the Online demo row removed' 1 "$README" 'index($0, "| Online demo |") != 1' chk_checklist_video
+  st 'the section renamed' 1 "$README" '$0 == "## Contest checklist" { print "## Checklist"; next } { print }' chk_checklist_video
+  st "the anchor's heading renamed" 1 "$README" '$0 == "## One incident, end to end" { print "## One incident"; next } { print }' chk_checklist_video
+  st "the anchor's heading reworded with the same slug" 1 "$README" '$0 == "## One incident, end to end" { print "## One incident: end to end"; next } { print }' chk_checklist_video
+  finish checklist-video 'the ruled Video row is right after Online demo in Contest checklist, once, and #one-incident-end-to-end reaches its heading' chk_checklist_video
+}
+
+rule_judges_usability() {
+  rule_begin judges-usability "$README" || return
+  st 'the first sentence reworded' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/in about two minutes/, "in about five minutes") } { print }' chk_judges_usability
+  st 'the incident link removed' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/\[one incident, end to end\]\(#one-incident-end-to-end\)/, "one incident") } { print }' chk_judges_usability
+  st 'the incident link to another heading' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/\(#one-incident-end-to-end\)/, "(#measured)") } { print }' chk_judges_usability
+  st 'the full-video link changed' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/\[the full video\]\(https:\/\/youtu\.be\/HIyCG5E6-JQ\)/, "[the full video](https://youtu.be/wycbyfnXFMU)") } { print }' chk_judges_usability
+  st 'the full-video length changed' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/shows it in 3:04\./, "shows it in 3 minutes.") } { print }' chk_judges_usability
+  st 'the second sentence reworded' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/ Its More to try panel has /, " Its panel has ") } { print }' chk_judges_usability
+  st 'the two sentences folded back into one' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/, and \[the full video\]\(https:\/\/youtu\.be\/HIyCG5E6-JQ\) shows it in 3:04\. Its More/, ", and its More") } { print }' chk_judges_usability
+  st 'the count as a number' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/ has [a-z]+ more things/, " has 15 more things") } { print }' chk_judges_usability
+  st 'the second sentence cut after the count word' 1 "$README" 'index($0, "| Usability |") == 1 { sub(/ more things to try \(\[New since 1\.0\.0\]\(#new-since-100\)\)\./, " more things.") } { print }' chk_judges_usability
+  st 'the row removed' 1 "$README" 'index($0, "| Usability |") != 1' chk_judges_usability
+  st 'the row twice' 1 "$README" '{ print } index($0, "| Usability |") == 1 { print }' chk_judges_usability
+  st 'the row moved out of the For judges table' 1 "$README" 'index($0, "| Usability |") == 1 { held = $0; next } { print } END { print ""; print held }' chk_judges_usability
+  st 'the For judges heading renamed' 1 "$README" '$0 == "### For judges: where to look" { print "### For judges"; next } { print }' chk_judges_usability
+  # Another count word is not this rule's matter: the web tests pin the number against the More to try registry.
+  mkdir -p "$tmp/ju"
+  awk 'index($0, "| Usability |") == 1 { sub(/ has [a-z]+ more things/, " has seventeen more things") } { print }' "$README" > "$tmp/ju/other.md"
+  if [ -n "$(chk_judges_usability "$tmp/ju/other.md")" ]; then st_note 'another count word is flagged'; fi
+  finish judges-usability 'the For judges Usability row opens with the two ruled sentences, word for word but for the count word' chk_judges_usability
 }
 
 rule_path() {
@@ -2280,7 +2396,7 @@ rule_docs() {
   finish docs 'the build 109 sentences of the bridge guide and the IPM page and the two ruled lines of the security overview are there, word for word' chk_docs
 }
 
-RULES='top try_it interesting measured use_cases how_you_talk video path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
+RULES='top try_it interesting measured use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {
