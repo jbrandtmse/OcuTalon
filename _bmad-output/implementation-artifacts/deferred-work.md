@@ -6965,3 +6965,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Watch/Transitions resolves on fixing + finished whatever the run's counts (failedAgain, skipped); PartnerWarning.Facts adds only 'Incident state: resolved', and SYSTEMNOTE's ruled sentence tells the model to say the orders went through
 - 2026-11-11T23:51:45Z status=decision-pending owner=burndown by=cr note=product call: give Facts the fix outcome and make the sentence conditional (ruled text); user approves exact text; RC-eval item
+- 2026-11-12T00:11:20Z status=routed owner=23-11-say-in-a-partner-notice-only-how-the-incident-ended by=owner note=Contest_Planner_ruling_2026-11-12_00:20Z_(owner_delegation;prompts/epic-23-story-2311-ruling.md):_Outcome_fact_built_by_code_+_instruction_sentence_replaced_verbatim

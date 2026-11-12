@@ -7904,6 +7904,50 @@ So that what OcuTalon drafts and shows is accurate.
 **When** the status rail's Approval requests refresh
 **Then** the rejected request leaves the rail at once if the cause is a one-line refresh; otherwise the gap is filed in the ledger with its cause (LOW, FR-8)
 
+### Story 23.11: Say in a partner notice only how the incident ended
+
+[ADDED 2026-11-12, DW-1165, Contest Planner ruling] Follow-up to Story 23.10 (ledger DW-1165; ruling text: the orchestrator's `prompts/epic-23-story-2311-ruling.md`, ~00:20Z, under the owner's delegation). A partner notice must never claim more than OcuTalon knows. Lane D, after Story 23.10 and before Story 23.9.
+
+As a production developer warning a partner about a delay,
+I want the drafted notice to say how the incident actually ended, from OcuTalon's own records,
+So that a notice never tells the partner the orders went through when some did not, or when the flow was paused or rerouted.
+
+**Acceptance Criteria:**
+
+**Given** a resolved incident whose fix resent every affected message, none failed again or skipped
+**When** its partner notice is drafted
+**Then** the draft's facts carry, built by OcuTalon's code from the incident's records, "Outcome: all {N} affected orders went through after the fix." (FR-29, AD-16)
+
+**Given** a resolved incident whose fix left some messages failed again or skipped
+**When** its partner notice is drafted
+**Then** the facts carry "Outcome: {A} of the {N} affected orders went through after the fix, and {R} did not."
+
+**Given** an incident ended by a reroute
+**When** its partner notice is drafted
+**Then** the facts carry "Outcome: the {N} affected orders were resent by another route."
+
+**Given** an incident ended by a suspend
+**When** its partner notice is drafted
+**Then** the facts carry "Outcome: the affected flow was paused, and the {N} affected orders haven't gone through yet."
+
+**Given** any other ending, or counts that are unknown
+**When** the partner notice is drafted
+**Then** the facts carry no Outcome line
+
+**Given** any partner notice draft
+**When** the draft instruction is sent to the model
+**Then** Story 23.10's resolved-incident sentence is replaced, verbatim, by "If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the orders went through."; and the facts still carry no item or target names, setting values or message contents (AD-16, Story 23.5)
+
+**Given** the CI mock
+**When** each outcome's draft is answered
+**Then** there is one mock case per outcome, "went through" appears only in the all-through case, and none contains "looking into" or "will share updates"; each outcome builder has a unit test, including zero counts and a resolved incident with no fix
+
+**Given** the incident's records cannot support a line exactly as written
+**When** the spec is gated
+**Then** the wording may be adjusted to fit, and the changed wording goes to the Contest Planner as public text before commit
+
+- DW-1165: The ruled resolved-incident sentence has the partner notice say the affected orders went through, but Facts carry only the state, so a resolved incident whose fix left messages failed again or skipped, or that a suspend or reroute resolved, gets the same claim (ledger; routed by owner 2026-11-12)
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.
