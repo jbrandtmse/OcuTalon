@@ -193,6 +193,13 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - AC 3: hand-change one other case's entry in the copied `rules-only.json` (in scratch). Expected: the diff prints a fourth path.
 - AC 4: lead (CI evidence).
 
+**QA audit (2026-11-12).** No test file was added or changed: every AC already has a pinning test (AC 1 `Report.TestShippedTaintedCase` and `TestMemoryTurnTainted`; AC 2 `Cases.TestMemoryCases`, which pins the expectation literal, the field list and `MEMORYTURNCASES`, plus `Report.TestMemoryLinesReportOnly`; AC 3 the spec's diff command; AC 4 the lead's CI). Mutations run on a lane-B warm throwaway (tag e0bs31qw), each reverted, tree clean after each:
+- mutation: case.json first keyPhrases group back to ["document"] -> Report.TestShippedTaintedCase (expectation, runbook and file rows) and Cases.TestMemoryCases (AC 1)
+- mutation: case.json first keyPhrases group dropped -> Report.TestShippedTaintedCase (expectation and names-none rows) (AC 1)
+- mutation: case.json "save": "denied" -> "none" -> Cases.TestMemoryCases and Report.TestShippedTaintedCase (AC 2)
+- mutation: Report.MEMORYTURNCASES without memory-documents-remember -> Cases.TestMemoryCases (memory-turn names), Report.TestMemoryLinesReportOnly, Report.TestMemoryTurnTainted (AC 2, report-only membership)
+- mutation: one other case's `expected` hand-changed in a scratch copy of rules-only.json -> the AC 3 diff command prints a fourth path, r.cases.0.expected (AC 3; the committed file prints exactly the three paths)
+
 ## Auto Run Result
 
 Status: done
