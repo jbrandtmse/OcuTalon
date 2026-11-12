@@ -141,4 +141,9 @@ ClassMethod Remove(uidl As %String)
 	}
 }
 
+Storage Default
+{
+<Type>%Storage.Serial</Type>
+}
+
 }
