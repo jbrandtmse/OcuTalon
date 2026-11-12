@@ -74,3 +74,5 @@
 2026-11-12T18:09:13Z	Story 0.32	ledger_adjudicated	owned=2 resolved=2 reowned=0 terminal=0 entries=DW-1082,DW-1195 model=claude-opus-5-5
 2026-11-12T18:16:20Z	Story 0.32	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=ci/iris.sh_live_audit_lane-B_fresh_throwaway_EXIT=0_printed_MEASURED_wait_test-audit.sh:51_93_s_of_510_s;test-ci-config_budgets_PASS(floors_1440/1440/1560/1500/1500) model=claude-opus-5-5
 2026-11-12T18:16:20Z	Story 0.32	fresh_check	env=clean-tree(hermetic_rule_scripts_build_their_own_temp_trees) tests=test-ci-config.sh,test-lib-live.sh(/bin/bash),test-boundaries.sh result=pass order=forward note=rule_scripts_have_no_reverse_mode;live_audit_on_a_fresh_throwaway_covers_lib-live
+2026-11-12T18:16:20Z	Story 0.32	committed	sha=cd812e73 submodules= ci=none_yet runs=none pushed=no reason=CI_HOLD_from_18:15Z amendments=epics.md:Story_0.32_inserted
+2026-11-12T18:16:20Z	Story 0.32	story_cycle	plan_to_commit_min=150 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
