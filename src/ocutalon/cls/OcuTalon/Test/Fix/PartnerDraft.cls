@@ -21,7 +21,7 @@
 ///   - TestStateNeverMoves (AC5, AC9): the approved, rejected, expired and result events of a partner request, on a resolved and on an open (rejected) incident, tell the session and leave the state and the open variant
 ///     as they were; approved sends the Execute at once, the others none; on a closed incident (the incident stays closed, nothing is carried out) an approved request is told as result.partnerNotSent with the kind's NOSTART as the reason, a final result (not sent, or sent) is told as it came, and a progress result, a rejection and an expiry are refused; and such a request is left out of the table's facts, while a repair request still counts;
 ///   - TestNoticeKeys (AC2): Notice.AskedKey and AskedSlots for the kind, and the result notice's slots;
-///   - TestDraftRequestCarriesOutcome (AC3, AC6, Story 23.11): the request to Decide for a resolved incident with a reroute run holds the Outcome line of Count messages and no target name, with the rendered instruction (no {noun} token); one with no run holds no Outcome line.
+///   - TestDraftRequestCarriesOutcome (AC3, AC6, Story 23.11): the request to Decide for a resolved incident with a reroute run holds the Outcome line of Count messages and no target name, with the instruction SYSTEMNOTE, a constant; one with no run holds no Outcome line.
 Class OcuTalon.Test.Fix.PartnerDraft Extends %UnitTest.TestCase
 {
 
@@ -130,7 +130,7 @@ Method TestDraftRequest()
 	Set request = host.DraftRequests.%Get(0)
 	Do $$$AssertEquals(request.kind_"|"_request.provenance_"|"_request.sessionMode_"|"_request.ownerRef_"|"_request.channel, "turn|untrusted|fresh|"_owner_"|system", "it is a turn, untrusted, fresh, owned by the asking session")
 	Do $$$AssertEquals($Length(request.itemId), 22, "with a new ItemId")
-	Do $$$AssertEquals(request.systemNote, ##class(OcuTalon.Fix.Kind.PartnerWarning).SystemNote(##class(OcuTalon.Data.Incident).RefIndexOpen(incident)), "and the kind's instruction for the incident's noun")
+	Do $$$AssertEquals(request.systemNote, $Parameter("OcuTalon.Fix.Kind.PartnerWarning", "SYSTEMNOTE"), "and the kind's instruction")
 	Set carrier = ##class(OcuTalon.Msg.Item).%New()
 	Set carrier.Channel = "system"
 	Set carrier.Provenance = "untrusted"
@@ -504,7 +504,7 @@ Method TestNoticeKeys()
 	Do $$$AssertStatusNotOK(sc, "and one with no recipient gives none")
 }
 
-/// Story 23.11 (AC3, AC6): the draft's request holds the Outcome line that the records give, and the instruction with the noun filled in.
+/// Story 23.11 (AC3, AC6): the draft's request holds the Outcome line that the records give, and the constant instruction SYSTEMNOTE.
 Method TestDraftRequestCarriesOutcome()
 {
 	Set host = ..Host()
@@ -523,9 +523,8 @@ Method TestDraftRequestCarriesOutcome()
 	Set sent = host.DraftRequests.%Get(0)
 	Do $$$AssertTrue($Find(sent.input, "Outcome: the 3 affected orders were resent by another route.") > 0, "its input holds the Outcome line of the incident's Count")
 	Do $$$AssertEquals($Find(sent.input, "OrdersForReview"), 0, "and no target name")
-	Do $$$AssertEquals(sent.systemNote, ##class(OcuTalon.Fix.Kind.PartnerWarning).SystemNote(row), "its instruction is the rendered one")
-	Do $$$AssertEquals($Find(sent.systemNote, "{noun}"), 0, "with no {noun} token left")
-	Do $$$AssertTrue($Find(sent.systemNote, "If there is no Outcome fact, don't say whether the orders went through.") > 0, "and the noun in the ruled sentence")
+	Do $$$AssertEquals(sent.systemNote, $Parameter("OcuTalon.Fix.Kind.PartnerWarning", "SYSTEMNOTE"), "its instruction is the constant SYSTEMNOTE")
+	Do $$$AssertTrue($Find(sent.systemNote, "If there is no Outcome fact, don't say whether the affected items went through.") > 0, "with the ruled sentence")
 	Set bare = ..Incident(owner, "resolved")
 	Do $$$AssertStatusOK(host.BeginDraft(..Draft(bare, owner)), "a draft for a resolved incident with no run is handled")
 	Do $$$AssertEquals(..Count(host.DraftRequests), 2, "and sends its request")

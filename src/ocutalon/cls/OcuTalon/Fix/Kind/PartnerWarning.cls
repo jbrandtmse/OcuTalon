@@ -34,8 +34,8 @@ Parameter MOVES = 0;
 /// The most characters of the notice.
 Parameter NOTICEMAX = 1000;
 
-/// The instruction that the draft's turn is given (agent text, never shown to a user). {noun} stands for the incident's item noun in its plural; SystemNote fills it in.
-Parameter SYSTEMNOTE = "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed. If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the {noun} went through.";
+/// The instruction that the draft's turn is given (agent text, never shown to a user). It is constant: no incident data enters it.
+Parameter SYSTEMNOTE = "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed. If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the affected items went through.";
 
 Parameter NOTSETUP = "email delivery isn't set up yet";
 
@@ -79,10 +79,10 @@ ClassMethod Facts(incident As OcuTalon.Data.Incident) As %String
 	Quit text
 }
 
-/// The instruction of the draft's turn for the incident: SYSTEMNOTE with {noun} replaced by the plural of the incident's item noun (Watch.Notice.Noun), the noun that Facts uses for the failures.
+/// The instruction of the draft's turn for the incident: SYSTEMNOTE, the same for every incident. No incident data, the item noun included, enters it.
 ClassMethod SystemNote(incident As OcuTalon.Data.Incident) As %String
 {
-	Quit $Replace(..#SYSTEMNOTE, "{noun}", ##class(OcuTalon.Watch.Notice).Noun(incident).other)
+	Quit ..#SYSTEMNOTE
 }
 
 /// How the incident ended, as one ruled line for Facts, or "" when its records do not map exactly onto one (the model never computes it). Only a resolved incident has one, and only

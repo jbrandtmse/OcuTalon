@@ -249,6 +249,7 @@ Method Asked(name As %String, Output a As %String, Output b As %String, Output i
 	}
 	Set raisedAt = $ZHorolog
 	Do $$$AssertEquals(mine.%Size(), 1, "one partner_warning request names the incident")
+	Do $$$AssertEquals(..Requests(incident).%Size(), 1 + $IsObject(ending), "and no request of another kind but the ending's names it")
 	If mine.%Size() '= 1 Quit 0
 	Set one = mine.%Get(0)
 	Set raised = raisedAt
@@ -289,8 +290,8 @@ ClassMethod Warnings(incident As %String) As %DynamicArray [ Private ]
 }
 
 /// The asserts of a draft for a resolved incident that the mock answered under the marker (the log since mark): the one pending request is to contact 1 for Orders Partner IT, its notice (and the dry run's) says neither "looking into"
-/// nor "will share updates" and has "went through" exactly when wentThrough, and exactly one logged draft request (its messages hold "Write a short delay notice") holds the incident's state, the Outcome line, the instruction as rendered
-/// for the incident, the ruled sentence for an ending, and no word of absent (a name that the line must not carry; "" for none).
+/// nor "will share updates" and has "went through" exactly when wentThrough, and exactly one logged draft request (its messages hold "Write a short delay notice") holds the incident's state, the Outcome line, the whole instruction
+/// (SYSTEMNOTE), the ruled sentence for an ending, and no word of absent (a name that the line must not carry; "" for none).
 Method AssertEnding(marker As %String, mark As %String, incident As %String, one As %DynamicObject, line As %String, wentThrough As %Boolean, absent As %String = "") [ Private ]
 {
 	Do $$$AssertEquals(one.kind_"|"_one.state_"|"_one.fixKind_"|"_one.fixTargets, "fix|pending|partner_warning|1", "a pending partner_warning request fixed to contact 1")
@@ -305,7 +306,7 @@ Method AssertEnding(marker As %String, mark As %String, incident As %String, one
 	Do $$$AssertEquals(dry.recipients.%Get(0).name, "Orders Partner IT", "and it is addressed to Orders Partner IT")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(incident).State, "resolved", "the incident is as it was")
 	Do $$$AssertStatusOK($ClassMethod(..#MOCK, "LogSince", mark, .entries), "the mock's log is read")
-	Set instruction = ##class(OcuTalon.Fix.Kind.PartnerWarning).SystemNote(##class(OcuTalon.Data.Incident).RefIndexOpen(incident))
+	Set instruction = $Parameter("OcuTalon.Fix.Kind.PartnerWarning", "SYSTEMNOTE")
 	Set drafts = 0
 	Set found = $ClassMethod(..#FIXTURE, "FindRequests", entries, marker)
 	Set iterator = found.%GetIterator()
@@ -317,7 +318,7 @@ Method AssertEnding(marker As %String, mark As %String, incident As %String, one
 		Do $$$AssertTrue($Find(messages, line) > 0, "and the Outcome line "_line)
 		Do $$$AssertEquals(($Length(messages, "Outcome: ") - 1), 1, "and no other Outcome line")
 		Do $$$AssertTrue($Find(messages, instruction) > 0, "and the whole instruction")
-		Do $$$AssertTrue($Find(messages, "If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the orders went through.") > 0, "with the ruled sentence for an ending")
+		Do $$$AssertTrue($Find(messages, "If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the affected items went through.") > 0, "with the ruled sentence for an ending")
 		If absent '= "" Do $$$AssertEquals($Find(messages, absent), 0, "and it does not name "_absent)
 	}
 	Do $$$AssertEquals(drafts, 1, "exactly one draft request reached the model")
