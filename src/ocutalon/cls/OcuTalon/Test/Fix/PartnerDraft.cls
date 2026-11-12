@@ -28,7 +28,7 @@ Parameter PROBE = "OcuTalon.Test.Watch.IncidentProbe";
 
 Parameter PRODUCTION = "OcuTalon.Demo.Orders.Production";
 
-Parameter ADDRESS = "it@results-partner.example";
+Parameter ADDRESS = "it@orders-partner.example";
 
 Parameter NOUN = "{""one"":""order"",""other"":""orders""}";
 
@@ -139,7 +139,8 @@ Method TestDraftRequest()
 	For secret = "secret-sample-text", "secret-fix-summary", "secret-element" {
 		Do $$$AssertEquals($Find(request.input, secret), 0, "the input holds no "_secret)
 	}
-	Do $$$AssertTrue($Find(request.input, "Results Partner IT") > 0 && ($Find(request.input, "The partner changed the date format.") > 0), "but it holds the partner and the cause")
+	Do $$$AssertTrue($Find(request.input, "Orders Partner IT") > 0 && ($Find(request.input, "The partner changed the date format.") > 0), "but it holds the partner and the cause")
+	Do $$$AssertTrue($Find(request.input, "Incident state: resolved") > 0, "and the incident's state")
 	// a closed or missing incident drafts nothing
 	Set closed = ..Incident(owner, "closed")
 	Do $$$AssertStatusOK(host.BeginDraft(..Draft(closed, owner)), "a draft for a closed incident is handled")
@@ -172,21 +173,21 @@ Method TestDraftRaised()
 		Do $$$AssertEquals(row.kind_"|"_row.incidentRef_"|"_row.ownerRef_"|"_row.resultTarget_"|"_row.fixKind_"|"_row.fixTargets, "fix|"_incident_"|"_owner_"|IncidentManager|partner_warning|1", "case "_case_": a partner_warning request fixed to contact 1")
 		Do $$$AssertEquals(row.fixParameters, {"text": (expected), "to": (..#ADDRESS)}.%ToJSON(), "case "_case_": its parameters are the normalised text and the recipient")
 		Set dry = {}.%FromJSON(row.dryRun)
-		Do $$$AssertEquals(dry.notice_"|"_dry.recipients.%Size()_"|"_dry.recipients.%Get(0).name_"|"_dry.recipients.%Get(0).address_"|"_dry.simulated, expected_"|1|Results Partner IT|"_..#ADDRESS_"|1", "case "_case_": its dry run holds the exact text, every recipient and simulated 1")
+		Do $$$AssertEquals(dry.notice_"|"_dry.recipients.%Size()_"|"_dry.recipients.%Get(0).name_"|"_dry.recipients.%Get(0).address_"|"_dry.simulated, expected_"|1|Orders Partner IT|"_..#ADDRESS_"|1", "case "_case_": its dry run holds the exact text, every recipient and simulated 1")
 		Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 		Do $$$AssertEquals(stored.State_"|"_stored.OpenVariant_"|"_stored.RequestRefs, $Select(case = 1: "resolved|", 1: "open|rejected")_"|"_ref, "case "_case_": the incident keeps its state and open variant and lists the request")
 		Do $$$AssertEquals(..Count(host.Sent), sent + 1, "case "_case_": the session gets one Notification")
 		Set note = host.Sent.%Get(host.Sent.%Size() - 1)
 		Do $$$AssertEquals(note.sessionRef_"|"_note.kind_"|"_note.catalogKey_"|"_note.approvalRef_"|"_note.incidentRef, owner_"|approval|incident.partnerRequest|"_ref_"|"_incident, "case "_case_": of kind approval with the key incident.partnerRequest and the request's Ref")
 		Set slots = {}.%FromJSON(note.slots)
-		Do $$$AssertEquals(slots.recipients_"|"_slots.notice, "Results Partner IT <"_..#ADDRESS_">|"_expected, "case "_case_": its slots are the recipients and the notice")
+		Do $$$AssertEquals(slots.recipients_"|"_slots.notice, "Orders Partner IT <"_..#ADDRESS_">|"_expected, "case "_case_": its slots are the recipients and the notice")
 		Do $$$AssertEquals(slots.%Size(), 2, "case "_case_": and nothing else")
 	}
 	Set phone = ##class(OcuTalon.Msg.Catalog).Render("incident.partnerRequest", note.slots, "phone", .sc)
 	Do $$$AssertStatusOK(sc, "the notice renders for the phone")
-	Do $$$AssertEquals(phone, "I drafted a delay notice about this incident for Results Partner IT <"_..#ADDRESS_">. Approve sending it?"_$Char(10, 10)_"Dry run: the notice below would go to the Simulated mailbox, not to a real inbox. The recipients are simulated partner contacts."_$Char(10, 10)_"First line. Second line."_$Char(10, 10)_"Nothing has been sent yet."_$Char(10, 10)_"Details and trace: on your OcuTalon page.", "as ruled, with the exact text and every recipient")
+	Do $$$AssertEquals(phone, "I drafted a delay notice about this incident for Orders Partner IT <"_..#ADDRESS_">. Approve sending it?"_$Char(10, 10)_"Dry run: the notice below would go to the Simulated mailbox, not to a real inbox. The recipients are simulated partner contacts."_$Char(10, 10)_"First line. Second line."_$Char(10, 10)_"Nothing has been sent yet."_$Char(10, 10)_"Details and trace: on your OcuTalon page.", "as ruled, with the exact text and every recipient")
 	Set web = ##class(OcuTalon.Msg.Catalog).Render("incident.partnerRequest", note.slots, "web", .sc)
-	Do $$$AssertEquals($Piece(web, $Char(10), 1), "I drafted a delay notice about this incident for Results Partner IT <"_..#ADDRESS_">.", "the web form has no question")
+	Do $$$AssertEquals($Piece(web, $Char(10), 1), "I drafted a delay notice about this incident for Orders Partner IT <"_..#ADDRESS_">.", "the web form has no question")
 	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render("incident.partnerRequest", note.slots, "telegram", .sc), phone, "and Telegram reads as the phone does")
 }
 
@@ -566,7 +567,7 @@ Method Row(owner As %String, incident As %String, state As %String, text As %Str
 {
 	Set all = {"FixKind": "partner_warning", "FixTargets": "1", "ResultTarget": "IncidentManager"}
 	Do all.%Set("FixParameters", {"text": (text), "to": (..#ADDRESS)}.%ToJSON())
-	Do all.%Set("DryRun", {"notice": (text), "recipients": [{"name": "Results Partner IT", "address": (..#ADDRESS)}], "simulated": 1}.%ToJSON())
+	Do all.%Set("DryRun", {"notice": (text), "recipients": [{"name": "Orders Partner IT", "address": (..#ADDRESS)}], "simulated": 1}.%ToJSON())
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, state, , all)
 	Set ..Refs = ..Refs_","_ref
 	Quit ref

@@ -3612,3 +3612,5 @@
 2026-11-12T03:36:41Z	Epic 23	runner_clarification	kind=PART_READY agent=afc4a2f06e7d322df story=23.10 head=0ee635dc(integrated_cf6fcb39) runs=43136084417,43136084465 23.11=implemented_local(cd99e4af;QA_next;DW-1172_in-story_MED) shas=verified
 2026-11-12T03:36:41Z	Run	ruling	question=merge_23.10_onto_moved_feature_a9a3cb4a category=decide choice=orchestrator_merge(no_code_overlap_with_0.26:README/tests_only;tracker-only_conflict) rejected=another_runner_integrate(+1_CI_round) policy=5086036
 2026-11-12T03:36:41Z	Epic 23	merge_enqueued	part=23.10 head=0ee635dc
+2026-11-12T03:36:56Z	Epic 23	merge_gate	part=23.10 head=0ee635dc conflicts=sprint-status.yaml(ours+regenerate+set_23-10=done,23-11=ready-for-dev;valid) lint=baseline
+2026-11-12T03:36:56Z	Run	deps_hash_rerecorded	reason=fix_forward note=23.11_inserted(DW-1165_follow-up) hash=1c94579a

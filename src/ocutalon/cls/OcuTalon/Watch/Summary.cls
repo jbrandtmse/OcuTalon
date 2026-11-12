@@ -13,9 +13,9 @@
 ///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
 ///       summary.noCause (a fallback incident; the reason) or summary.cause and summary.element (omitted when empty; the element also when it is only a period,
 ///         which the catalog would drop before its own period and then refuse as empty)
-///       summary.evidence (the first evidence line of the diagnosis payload; omitted when there is none), summary.sampleError (the first sentence of the sample
+///       summary.evidence (the first evidence line of the diagnosis payload that is more than a period; omitted when there is none), summary.sampleError (the first sentence of the sample
 ///         error, at most the length of an incident notice's error summary; omitted when empty)
-///       summary.fix (the fix summary) when a fix of a kind the diagnosis proposes ran, summary.noFixRan when no run of any kind ran
+///       summary.fix (the fix summary; omitted when it is only a period, as the element) when a fix of a kind the diagnosis proposes ran, summary.noFixRan when no run of any kind ran
 ///       summary.groups (every failure group, with its count at the close; left out when the incident has none) for a fallback incident or an incident whose fix
 ///         did not run
 ///       summary.messages (failed = the incident's Count; resent, completed, failed again and skipped summed over the incident's FixRuns of kinds whose targets are messages)
@@ -98,7 +98,8 @@ ClassMethod Build(incident As OcuTalon.Data.Incident, event As %String, closedAt
 		Set sample = ..Clean(##class(OcuTalon.Watch.ErrorText).Summary(incident.SampleError))
 		If sample '= "" Do parts.%Push(..Part("summary.sampleError", {"error": (sample)}))
 		If diagnosed && 'incident.Fallback {
-			If ..Clean(incident.FixSummary) '= "" Do parts.%Push(..Part("summary.fix", {"fix": (..Clean(incident.FixSummary))}))
+			Set fix = ..Clean(incident.FixSummary)
+			If (fix '= "") && (..Shown(fix) '= ".") Do parts.%Push(..Part("summary.fix", {"fix": (fix)}))
 		}
 		If 'ran {
 			Do parts.%Push(..Part("summary.noFixRan", {}))
@@ -260,7 +261,8 @@ ClassMethod Cost(decisionRef As %String) As %DynamicObject [ Private ]
 	Quit ..Part("summary.cost", {"cost": (totals.costUSD)})
 }
 
-/// The first evidence line of the diagnosis payload of the decision, trimmed; "" when the decision, its payload or its evidence cannot be read.
+/// The first evidence line of the diagnosis payload of the decision that is more than a period, trimmed; "" when the decision, its payload or its evidence cannot be
+/// read or has no such line.
 ClassMethod Evidence(decisionRef As %String) As %String [ Private ]
 {
 	Set line = ""
@@ -272,7 +274,8 @@ ClassMethod Evidence(decisionRef As %String) As %String [ Private ]
 			Set iterator = lines.%GetIterator()
 			While iterator.%GetNext(, .item) {
 				Set line = ..Clean(item)
-				If line '= "" Quit
+				If (line '= "") && (..Shown(line) '= ".") Quit
+				Set line = ""
 			}
 		}
 	} Catch {

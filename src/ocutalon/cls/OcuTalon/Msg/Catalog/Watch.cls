@@ -758,11 +758,11 @@ XData Entries [ MimeType = application/json ]
   "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
  },
  "summary.evidence": {
-  "text": "Evidence: {evidence}",
+  "text": "Evidence: {evidence}.",
   "slots": {
    "evidence": "sentence"
   },
-  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09; full stop: Story 23.10, Contest Planner ruling 2026-11-11"
  },
  "summary.sampleError": {
   "text": "Sample error: {error}",
@@ -772,11 +772,11 @@ XData Entries [ MimeType = application/json ]
   "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
  },
  "summary.fix": {
-  "text": "Fix: {fix}",
+  "text": "Fix: {fix}.",
   "slots": {
    "fix": "sentence"
   },
-  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09; full stop: Story 23.10, Contest Planner ruling 2026-11-11"
  },
  "summary.noFixRan": {
   "text": "No fix ran, so nothing was changed.",
