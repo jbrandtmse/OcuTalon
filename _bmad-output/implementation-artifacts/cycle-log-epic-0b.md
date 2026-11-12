@@ -58,3 +58,5 @@
 2026-11-12T15:47:10Z	Story 0.32	ledger_routed_planned	story=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and entries=2 excess=0 by=lane_order
 2026-11-12T15:49:30Z	Epic 0	epic_context_compiled	reason=story_inserted model=claude-opus-5-5 lines=79 note=epics.md_0.32_block_committed_here_(missed_in_dfb85e9b_by_lead)
 2026-11-12T15:49:30Z	Story 0.32	stage_spawned	stage=plan spawn_at=2026-11-12T15:49:30Z model=opus agent_name=0-32-plan-1 cycle_iteration=1
+2026-11-12T16:15:12Z	Story 0.32	story_created	spawn_at=2026-11-12T15:49:30Z model=opus path=_bmad-output/implementation-artifacts/spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md build_status=ready-for-dev epic_context=reused
+2026-11-12T16:15:12Z	Story 0.32	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=none decision_dependency=none sections_created=none owned_ledger=DW-1082,DW-1195 addressed=2 declined=0 mutates_shared_runtime=false release_tool=none(no_workflow_or_release_hunk) public_text=none push_held=CI_HOLD_from_18:15Z model=claude-opus-5-5
