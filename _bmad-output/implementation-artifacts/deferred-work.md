@@ -6970,6 +6970,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T01:23:55Z status=decision-pending owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=human=Contest Planner ruling on a Video row and a judges-table link; fold into 0.27's README ruling
 - 2026-11-12T01:33:46Z status=routed owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=owner note=Contest_Planner_ruling_2026-11-12_01:55Z(owner_delegation):fold_into_0.27_as_its_first_README_edit;wording_in_prompts/story-026-rulings.md_item_2
 - 2026-11-12T01:52:13Z status=routed owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=orchestrator note=split(Part_A_of_0.27_moved_whole_to_0.28_for_the_1.0.8_cut)
+- 2026-11-12T04:29:34Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=ruled_Video_row+Usability_sentences(README),checklist-video+judges-usability(test-readme.sh),web_count_tests,check-readme-video.sh+release/checklist.sh_readme-video_row
 ### DW-1160: flake candidate (host load): live:install-start row 3 'the dev start did not end ready within 200 s' in CI iris (install-fresh) on feature c33e0916 under the post-outage backlog
 - source: feature c33e0916, ci run 43099749161 job iris (install-fresh) on ocutalon-ci-12 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: no test assertion failed; live:online-demo-path in the same job passed; same start-not-ready family as DW-612 (row 2) and DW-1082 (install-upgrade row 7); all 18 runners busy with the outage backlog
@@ -7001,6 +7002,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: a stub-curl test needs a new test-*.sh in a ci/units.sh list, outside 0.28's boundary; a regression shows as a loud FAIL on the readme-video release row
 - 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=the_readme-video_release_row_fails_for_a_script_bug_rather_than_a_dead_link
+- 2026-11-12T04:29:35Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=QA_video-script_rule(test-release-checklist.sh)_runs_the_real_script_offline_with_a_fake_curl:retry,cap,status_handling
 
 ### DW-1176: ci/units.sh NOT_IRIS_INPUT_PATTERN omits docker/tests/check-readme-video.sh, so a later edit of that script runs every CI group
 - source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7011,3 +7013,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: a deleted or non-executable script fails the readme-video row at release time (row_script reports it), not per push
 - 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=the_readme-video_release_row_reports_a_missing_or_non-executable_script
+- 2026-11-12T04:29:35Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=video-script_rule_checks_the_real_script_exists,is_executable,parses,ASCII
+
+### DW-1178: release/checklist.sh's no-outward row fails on the tree: docker/tests/test-readme.sh's ALLOWED_HOSTS line names community.intersystems.com and openexchange.intersystems.com
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: the row's own outward_hits over its file set lists docker/tests/test-readme.sh:1495 on c38ebea6 (line 1422 at 793840c5); the line came in with 6118b053 (Story 0.18, 2026-11-08), so every RC run since then fails no-outward; it is the only hit once 0.28's review lands; fixing it needs a ruled form (an allowed line in release/checklist.sh, as for check-readme-video.sh's OEMBED= line, or another)
+- 2026-11-12T04:27:54Z status=escalated owner=burndown by=cr note=1.0.8 RC release-checklist issue for the Planner; pre-existing (Story 0.18); fix is a RELEASE TOOL hunk

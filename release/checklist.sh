@@ -31,7 +31,8 @@
 #   iris-source        irislib/ and irissys/ are ignored, and no tracked path has an irislib/ or irissys/ component or a component that
 #                      starts with a percent sign
 #   no-outward         no script of release/, ci/, eval/ or docker/, install.sh or workflow publishes a release, changes the repository's
-#                      visibility or settings, or names a public site that posts are made to
+#                      visibility or settings, or names a public site that posts are made to; one line is allowed, as it is and only in
+#                      docker/tests/check-readme-video.sh: its OEMBED= line, the video site's oEmbed address, which that script reads with GET
 # The author's rows, which only the author's own line confirms. They are read from the record's "## Author confirmations" section, one
 # line each, in this form and no other (the date is a real calendar date; the text after it is optional):
 #   - <id>: confirmed <YYYY-MM-DD>[ <text>]
@@ -374,12 +375,14 @@ row_iris_source() {
   fi
 }
 
-# outward_hits <file>...: file:line of each line that publishes a release, changes the repository's settings or names a public site.
+# outward_hits <file>...: file:line of each line that publishes a release, changes the repository's settings or names a public site,
+# except the one allowed line of the no-outward row (the header says which).
 outward_hits() {
   grep -nHIE -e 'gh[ ]+release[ ]+(create|edit|upload|delete)' -e 'gh[ ]+repo[ ]+edit' -e '--visibilit[y]' -e 'action-gh-releas[e]' \
     -e 'create-releas[e]' -e '(^|[^.A-Za-z0-9-])community[.]intersystems[.]com' -e 'openexchange[.]intersystems[.]com' \
     -e 'twitter[.]com' -e '(^|[^A-Za-z0-9._-])x[.]com/' -e 'linkedin[.]com' -e 'youtube[.]com' -e 'medium[.]com' \
-    -e '(^|[^A-Za-z0-9._-])dev[.]to/' -e 'reddit[.]com' "$@" 2> /dev/null | cut -d: -f1,2
+    -e '(^|[^A-Za-z0-9._-])dev[.]to/' -e 'reddit[.]com' "$@" 2> /dev/null \
+    | grep -vx 'docker/tests/check-readme-video[.]sh:[0-9]*:OEMBED="https://www[.]youtube[.]com/oembed"' | cut -d: -f1,2
 }
 
 row_no_outward() {

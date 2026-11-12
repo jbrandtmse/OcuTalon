@@ -7,8 +7,8 @@
 #   - the "| Video |" row of the file's "## Contest checklist" section is there; a missing row fails before any request;
 #   - every http or https address in that row answers 200 after redirects (a GET of the first byte, so that a video file is not
 #     downloaded whole: 206, the answer to that range, counts as 200);
-#   - for every youtu.be/<id> address, the video site's oEmbed for it (https://www.<site>.com/oembed?url=https://youtu.be/<id>&format=json)
-#     answers 200: youtu.be answers 200 even for an id that does not exist, and the oEmbed answers 404 for it.
+#   - for every youtu.be/<id> address, the video site's oEmbed for it (OEMBED below, ?url=https://youtu.be/<id>&format=json) answers
+#     200: youtu.be answers 200 even for an id that does not exist, and the oEmbed answers 404 for it.
 # The first address that fails ends the run: FAIL readme-video: <url> answered <code>. Only a transport failure (no route, DNS, a
 # timeout), 429 or a 5xx is tried again: up to 3 tries per address, 5 s apart, each with --max-time 15, and the whole run stops at 150 s;
 # then FAIL readme-video: <url> could not be reached after 3 tries (<curl exit or code>). The check is never skipped.
@@ -32,10 +32,9 @@ PAUSE=5
 MAXTIME=15
 UNKNOWN_ID=AAAAAAAAAAA
 MISSING_MP4=ocutalon-missing-0.0.0.mp4
-# The oEmbed endpoint of the video site. Its host is written in two parts because the no-outward row of release/checklist.sh flags
-# every script that names that site whole (a site that posts are made to); this script only reads from it, with GET.
-OEMBED_SITE=www.youtube
-OEMBED="https://$OEMBED_SITE.com/oembed"
+# The oEmbed endpoint of the video site, read with GET only. The no-outward row of release/checklist.sh allows exactly this line, as it
+# is, in this file; any other line here that names the site is flagged.
+OEMBED="https://www.youtube.com/oembed"
 
 fails=0
 requests=0
@@ -61,7 +60,7 @@ video_row() {
   awk '
     /^```/ { fence = !fence }
     !fence && /^## / { on = ($0 == "## Contest checklist"); next }
-    on && index($0, "| Video |") == 1 { print; exit }
+    on && !fence && index($0, "| Video |") == 1 { print; exit }
   ' "$1"
 }
 
@@ -152,7 +151,7 @@ swap_copy() {
   awk -v o="$2" -v n="$3" '
     /^```/ { fence = !fence }
     !fence && /^## / { on = ($0 == "## Contest checklist") }
-    on && !done && index($0, "| Video |") == 1 && (i = index($0, o)) > 0 { $0 = substr($0, 1, i - 1) n substr($0, i + length(o)); done = 1 }
+    on && !done && !fence && index($0, "| Video |") == 1 && (i = index($0, o)) > 0 { $0 = substr($0, 1, i - 1) n substr($0, i + length(o)); done = 1 }
     { print }
   ' "$1" > "$tmp/copy.md"
 }

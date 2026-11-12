@@ -94,6 +94,32 @@ deferred:
 - Given the release candidate checklist, when `release/checklist.sh` runs its automated rows, then `readme-video` runs `docker/tests/check-readme-video.sh` and reports PASS or FAIL like the other script rows.
 - Given CI on this story's head, when it finishes, then every workflow is green (the network check is not run per push).
 
+### Review Findings
+
+Code review 2026-11-12 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; all four reported). 0 decision-needed, 10 patch, 1 defer, 8 rejected.
+
+- [x] [Review][Patch] (med) QA's `video-script` names the video site's host whole in two lines, so the release checklist's `no-outward` row gains two hits [docker/tests/test-release-checklist.sh:886] -- the oEmbed addresses are now built by concatenation, as the file's header prescribes for rule-breaking samples.
+- [x] [Review][Patch] (med) `check-readme-video.sh` wrote the oEmbed host in two parts only to slip past `no-outward` (a release safety check), which leaves the row's stated guarantee silently untrue [docker/tests/check-readme-video.sh:37] -- the host is named whole (`OEMBED="https://www.youtube.com/oembed"`), and `release/checklist.sh`'s `outward_hits` allows exactly that line, as it is, only in that file (header says so); `outward-rows` pins the allowed line passing, and the same line in another file, the line changed, and another line of that file naming the site all still failing. RELEASE TOOL hunk, for the lead to report.
+- [x] [Review][Patch] (med) the 150 s cap (matrix "offline or flaky"; AC network) had no per-push test: the fake sleep never moves the clock [docker/tests/check-readme-video.sh:88] -- `video-script` sets the script's clock through `SECONDS`: cap reached (no request), a pause that would pass the cap (no pause, one request), `--max-time` no longer than what is left.
+- [x] [Review][Patch] (low) the no-argument default path, which the release row uses, was never run; the "default file" case only counted README rows [docker/tests/test-release-checklist.sh:1014] -- `rv_run` places the copy at `docker/tests/` of a scratch tree; `default:<file>` runs it with no file.
+- [x] [Review][Patch] (low) the "no temporary folder" fix had no test [docker/tests/check-readme-video.sh:52] -- case with an unusable `TMPDIR`: FAIL line, no request.
+- [x] [Review][Patch] (low) the fake curl matched plan lines by substring, so a video's line also answered for its oEmbed and the retry cases did not test what their labels say [docker/tests/test-release-checklist.sh:868] -- exact match; the retry cases assert one pause and the order asked.
+- [x] [Review][Patch] (low) `video-script` ran after `no-network` and without the network stubs on its PATH [docker/tests/test-release-checklist.sh:1033] -- it runs before `no-network`, with the stubs after the plan's curl.
+- [x] [Review][Patch] (low) `video_row` and `swap_copy` read a `| Video |` line inside a code fence, against their comment [docker/tests/check-readme-video.sh:63] -- `!fence` added to both; a fenced-row-only case pins it.
+- [x] [Review][Patch] (low) the second youtu.be address's oEmbed path was not exercised offline [docker/tests/test-release-checklist.sh:891] -- the fixture row has two youtu.be addresses; the order of all five requests is pinned.
+- [x] [Review][Patch] (low) following redirects (`-L --max-redirs 10`) was not pinned offline [docker/tests/test-release-checklist.sh:910] -- both argument assertions now hold the whole command line.
+- [x] [Review][Defer] (med) `no-outward` already fails at the baseline: `docker/tests/test-readme.sh`'s `ALLOWED_HOSTS` line names community.intersystems.com and openexchange.intersystems.com [docker/tests/test-readme.sh:1495] -- deferred: pre-existing (Story 0.18, 6118b053); a RELEASE TOOL fix needing a ruled form; DW-1178 escalated owner=burndown for the 1.0.8 RC.
+
+Rejected:
+- (low) test-readme.sh `judges-usability` counts a fenced `| Usability |` line as a second row -- the failure is loud (a false FAIL, never a false pass) and nobody puts that row in a fence; a guard for an unshown case.
+- (low) an unreadable README is reported as "no Video row" -- still a loud FAIL; the fix adds a guard for a case nobody meets.
+- (by-design) the web count regex reads the whole README, not the Usability row -- the spec says the web tests change nothing but the regex; `judges-usability` pins the row's start.
+- (low, theoretical) every non-zero curl exit is retried, including certificate or redirect-loop errors -- still a loud FAIL naming the curl exit, at most 10 s later; real only if a ruled host's certificate broke.
+- (spec edit) the frontmatter `deferred:` and Auto Run Result predate QA's `video-script` -- the fix edits the spec under review; DW-1175 and DW-1177 are closed in substance by `video-script` (lead's adjudication).
+- (low) the `release/checklist.sh` hunk also rewords one header sentence beyond the row -- it keeps the header true about the row's network call; recorded in Design Notes; the lead's RELEASE TOOL report names it.
+- (note) at the cap the FAIL line says "within the 150 s cap" instead of "after 3 tries" -- loud, never skipped; consistent with the matrix's intent.
+- (note) 206 to a one-byte range counts as 200 -- documented implement-stage decision; the oEmbed must answer a true 200, pinned.
+
 ## Ruled README change
 
 Verbatim text (the Contest Planner's DW-1171 ruling, 2026-11-12 ~01:55Z).
@@ -203,6 +229,21 @@ Recorded (implement stage, 2026-11-12; each reverted, the README or script resto
 - mutation: full-video id `HIyCG5E6-JQ` -> `HIyCG5E6-JA` in a scratch README copy passed to the script -> `check-readme-video.sh` exit 1, "FAIL readme-video: <oEmbed of youtu.be/HIyCG5E6-JA> answered 404" (the tree untouched).
 - mutation: the `row_readme_video` line dropped from `checklist_main`'s row list -> `test-release-checklist.sh` red: `base` (19 PASS lines, wanted 20) and `script-rows` (the readme-video failure not reported).
 - offline (transport failure simulated with a proxy on a closed local port) -> `check-readme-video.sh` exit 1 after 3 tries 5 s apart: "could not be reached after 3 tries (curl exit 7)", about 10 s.
+
+QA stage (2026-11-12), files changed:
+- (QA) `docker/tests/test-release-checklist.sh` -- new rule `video-script` (`rv_run`, `t_video_script`): the real `docker/tests/check-readme-video.sh`, as a byte copy run with a curl and a sleep that answer from a plan (no network), is executable, parses and is ASCII (closes the deferred per-push existence check); passes when every address answers (206 to the MP4's range, the oEmbed asked without one); a 404, a 403 and a 206 without a range fail at once, with no pause and no later address asked; 503, 429 and a transport failure are tried 3 times with a 5 s pause, then fail loudly with the reason, or pass when a later try answers 200; a self-test is flagged only by a status; a missing row, a row in another section, a row with no address, a missing file and two arguments fail with no request (the last with exit 2). The header comment names the rule. Closes the matrix's "link gone" and "offline or flaky" rows per push (the deferred stub-curl gap), without a new `test-*.sh`.
+- (QA) mutation: `429` dropped from the retried statuses in `check-readme-video.sh` -> `test-release-checklist.sh` `video-script` red ("429 then 200", "429 three times").
+- (QA) mutation: `TRIES=3` -> `TRIES=2` in `check-readme-video.sh` -> `video-script` red ("502 three times", "offline").
+- (QA) mutation: 206 accepted without a range in `check-readme-video.sh` -> `video-script` red ("oEmbed 206 (no range asked) is not a 200").
+  Each reverted from a byte copy (`cmp` equal); `git status --short` and `git diff --stat` unchanged.
+Code review (2026-11-12), after its patches: `test-release-checklist.sh` all 16 rules passed (bash and /bin/bash, about 35 s); `test-readme.sh`, `test-boundaries.sh`, `test-ci-config.sh` all passed; `check-readme-video.sh` online all checks passed (about 5 s); ASCII 0 on the three shell files; no diff under `.github`, `ci`, `_bmad`, `eval`; `release/checklist.sh`'s own `outward_hits` over the `no-outward` file set lists only `docker/tests/test-readme.sh:1495` (DW-1178, pre-existing). Mutations (each restored from a byte copy, `cmp` equal):
+- mutation: the allowed-line filter dropped from `outward_hits` -> `outward-rows` red ("the allowed oEmbed line of check-readme-video.sh: exit", "allowed line: not listed").
+- mutation: the allowed line's file anchor widened to any file -> `outward-rows` red ("the allowed line in another file").
+- mutation: `CAP=150` -> `CAP=1500` in `check-readme-video.sh` -> `video-script` red ("cap reached", "cap near, 503", "cap near: the first request's --max-time").
+- mutation: `!fence` dropped from `video_row` -> `video-script` red ("a row in a code fence only").
+- mutation: the default file `$root/README.md` -> `$root/docs/README.md` -> `video-script` red ("no file given").
+- mutation: the `mktemp` failure branch removed -> `video-script` red ("no temporary folder: the FAIL line").
+- (QA) observed, not changed (the script is not a test file): `video_row` in `check-readme-video.sh` says "outside a code fence" but reads a `| Video |` row inside a fenced block of the Contest checklist section (the `!fence` test is only on the heading line). Not reachable with the ruled README (`checklist-video` pins the row right after Online demo); low.
 
 ## Auto Run Result
 
