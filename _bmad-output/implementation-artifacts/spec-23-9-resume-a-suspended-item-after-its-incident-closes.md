@@ -33,7 +33,7 @@ deferred: []
 - No new `/api/v1` route and no changed payload, table, column, catalog key, live event or message class. No web change, no grant or role change.
 - No change to `Fix.Executor`, the item kinds, `Watch.Summary`'s lines, the guide or Break the feed's code.
 - No automatic resume, and no reopening of a closed incident.
-- Nothing under `irislib/` or `irissys/`. No edit of a done story's spec. No commit before the Planner's ruling on the AD-15 table, the PRD and UX wording, and the option.
+- Nothing under `irislib/` or `irissys/`. No edit of a done story's spec. The Planner ruled option (b), the AD-15 amendment and the PRD and UX wording on 2026-11-12 (U-321, Design Notes); the lead has written them into the spine and the planning artifacts.
 
 ## I/O & Edge-Case Matrix
 
@@ -67,7 +67,7 @@ deferred: []
 
 ## Tasks & Acceptance
 
-**Gate:** implement starts only after the Planner's ruling on the option, the AD-15 amendment and the PRD and UX wording (Design Notes). The lead writes them into the spine and the planning artifacts (Rule 20) and re-runs the epic-context pre-warm.
+**Gate (met 2026-11-12, U-321):** the Planner ruled option (b), approved the AD-15 amendment and the PRD and UX wording as drafted, and P3; the lead wrote them into the spine and the planning artifacts and re-ran the pre-warm. Implement starts after Story 23.11 merges.
 
 **Execution:**
 - `src/ocutalon/cls/OcuTalon/Fix/Run.cls` -- extend `Suspended` with two outputs.
@@ -105,6 +105,9 @@ deferred: []
   - Add `Suspended` cases for `holders`/`released`.
 - `src/ocutalon/cls/OcuTalon/Test/Fix/Asked.cls` -- add `TestHeldIncidentResumeIsTheSessions`: on a resolved incident holding a suspend, the owner's resume ask is `raised` (one request with its dry run). A non-recipient session's ask is `not_found`, with nothing raised and no dry run asked.
 
+- [ ] [Ruling U-321, P3] `src/ocutalon/cls/OcuTalon/Agent/Chat.cls:65` -- replace the second sentence ("To undo a suspend while its incident is open, call it with resume_item and the same item.") with, verbatim: "To undo a suspend while its incident is open, call it with resume_item and the same item; if the answer is no_incident, say that the incident is closed and that the item can be enabled again on the production's configuration page in the Management Portal." Update its instruction pins in `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls` (find them by the line's text; add a pin for the new clause if none covers it). A footprint extension (uncontended).
+- [ ] [Ruling U-321, conditions] `Test.Watch.Transitions` covers every split AD-15 row (`resolved` and `open`, noticed: `dismiss`; `closeQuiet` and `closeForReplay` with and without a held suspend) and each refused move (`closeQuiet` / `closeForReplay` while held). One test or an existing pin proves the online demo unchanged (suspend and resume refused there, so no incident holds a suspend). `dismiss` always closes, held or not (a pin).
+
 **Acceptance Criteria:**
 - AC1: Given a resolved incident whose executed suspend still holds an item, when Checks' quiet sweep sends closeQuiet after 15 quiet minutes or Break the feed sends closeForReplay, then IncidentManager answers `not_allowed`, and the incident stays `resolved` with no ClosedAt, no summary and nothing sent (`Test.Watch.Lifecycle:TestHeldBySuspend`; `Test.Watch.Transitions`).
 - AC2: Given an open, noticed incident that holds a suspend, with demo mode off, when closeQuiet arrives, then it is refused. Dismiss still closes any held incident (`TestHeldBySuspend`, `Test.Watch.Transitions`).
@@ -118,9 +121,16 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-12 (lead, U-321 at=2026-11-12T04:43:08Z#985): Contest Planner ruled option (b) under the owner's delegation. Written verbatim under Design Notes. Applied: AD-15 (two split close rows + the bullet "An incident that holds a suspend") in the spine; PRD FR-24 (three bullets) and FR-16 (Break the feed); EXPERIENCE.md:698 and :1210, each with `[AMENDED 2026-11-12, Story 23.9, Contest Planner ruling U-321 under the owner's delegation]`. P1 and P2 declined; P3 added as a task; the conditions added as a task; known limit 4 accepted.
+
 ## Review Triage Log
 
 ## Design Notes
+
+**Contest Planner ruling U-321 (owner's delegation, 2026-11-12 ~04:43Z; binding, verbatim):**
+> # Story 23.9 ruling: inbox U-321 answer (Contest Planner, owner's delegation) — VERBATIM, binding
+> 
+> RULING U-321 (Story 23.9, DW-1068): OPTION (b). An incident that holds an active suspend is not closed by the 15-quiet-minutes close or the replay close; it closes only on Dismiss, or by the usual quiet close once a resume has ended the hold. Reasons: about 3 h, Lane A only, no web change, no changed ruled text in judging week; K1 result.itemSuspended and K2 README:70 stay true; (a) can be layered on later if wanted. AD-15 AMENDMENT APPROVED as drafted in the spec (the two split rows and the new bullet 'An incident that holds a suspend', dated 2026-11-12, Contest Planner ruling under the owner's delegation, re-architecture under U7). ASK-FIRST AMENDMENTS APPROVED verbatim as drafted: PRD FR-24 (three state bullets), FR-16 (Break the feed sentence), EXPERIENCE.md:698 and :1210. OPTIONAL TEXT: P1 NO (K1 already true; avoids Lane B catalog regen and 8 pins). P2 NO (README is being restructured by 0.30; K2 stays true). P3 YES, verbatim, as Agent/Chat.cls:65's second sentence with its instruction pins in Test/Agent/Instructions.cls; it settles K3's awaiting wording. Known limit 4 (an enable by hand in the Portal keeps the incident held until Dismiss; a resume ask gets the existing already-enabled answer) ACCEPTED. Conditions: AC1-AC5 as specced; Test.Watch.Transitions covers every split row and each refused move; the online demo stays unchanged (suspend and resume refused there), and a test or existing pin proves it; Dismiss always closes. Timing: not before 23.11 merges; it goes in 1.0.8 only if green on feature by the Thursday-afternoon PST cut, otherwise 1.0.9. These rulings don't limit dispatch.
 
 **The binding rulings (verbatim, `prompts/epic-23-rulings-232.md`).** Item 2 (2026-11-10 ~06:40Z) was option (a), with conditions (i)/(ii). The DW-1068 RE-RULING (~07:20Z) replaced it with (c) for 23.2. Its follow-up paragraph reads:
 
