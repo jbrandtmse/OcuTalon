@@ -241,7 +241,9 @@ export interface SettingsSections {
 
 /**
  * The values of the Email form: the saved address, incoming server (host, or host:port off port 995), outgoing server (host, or host:port off port 587; empty
- * for none) and user name, and whether a password is stored.
+ * for none) and user name, whether a password is stored, and the sign-in method (Story 21.3): `password`, `google` or `microsoft`. For a provider,
+ * `clientId` is the saved client ID, `clientSecretSet` says that a client is registered with IRIS (the secret itself is never sent) and `signedIn` says that
+ * the last check found tokens.
  */
 export interface EmailValues {
   address: string;
@@ -249,6 +251,22 @@ export interface EmailValues {
   outgoing: string;
   user: string;
   passwordSet: boolean;
+  signIn: 'password' | 'google' | 'microsoft';
+  clientId: string;
+  clientSecretSet: boolean;
+  signedIn: boolean;
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/channels/sign-in with `start` (Story 21.3): IRIS's authorization address, to open in a new tab. */
+export interface MailSignInStarted {
+  result: 'started';
+  url: string;
+}
+
+/** The 200 answer to the same route with `check`: whether IRIS's OAuth2 client holds the mailbox's tokens. */
+export interface MailSignInChecked {
+  result: 'checked';
+  signedIn: boolean;
 }
 
 /** The body of a Time zone save: the IANA zone name, or "" for the server's own zone. The zone is a bridge value, so the 200 answer's sections do not hold it. */

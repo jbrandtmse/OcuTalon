@@ -1,0 +1,18 @@
+{
+  "name": "mail-api-retired-next-year",
+  "kind": "item",
+  "heldOut": true,
+  "description": "A partner will retire the old version of its booking API next September, with months of notice: worth knowing, nothing is urgent, so it is kept for the digest.",
+  "expectation": {
+    "outcome": "digest"
+  },
+  "recordedBy": "written for the held-out set before any run (Story 0.26)",
+  "item": {
+    "itemId": "mail-api-retired-next-year",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Carrier Partner Support <support@carrier-partner.example>",
+    "subject": "Version 1 of the booking API retires next September",
+    "text": "Hello, version 1 of our booking API will be retired next September. Version 2 has been available since this spring, and we will send a migration guide in the coming months. Nothing changes before then. Thanks, Carrier Partner Support"
+  }
+}

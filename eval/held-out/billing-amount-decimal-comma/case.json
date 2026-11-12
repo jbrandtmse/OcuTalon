@@ -1,0 +1,13 @@
+{
+  "name": "billing-amount-decimal-comma",
+  "kind": "incident",
+  "heldOut": true,
+  "description": "Three claims from the test feed with the amount written with a decimal comma (125,40); the billing operation expects a decimal point.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "data_format_change",
+    "elementAtFault": "Amount",
+    "fixKind": "repair_resend"
+  },
+  "recordedBy": "expected answer written before the recording (Story 0.26); snapshot recorded by docker/tests/record-eval.sh held-out"
+}

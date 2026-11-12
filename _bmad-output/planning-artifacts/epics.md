@@ -7479,6 +7479,15 @@ So that it works without storing my mail password.
 **When** this story merges
 **Then** it explains creating the OAuth2 client with Google and with Microsoft, the redirect address to register with each, and connecting the mailbox in Settings (FR-44, FR-58)
 
+
+**Given** the live run of this story on a lane throwaway
+**When** the mail OAuth2 client is registered by a production user narrower than `_Ensemble`
+**Then** the story lists each privilege that registering needs (resources and roles), each with a check that registering is refused without it; no text claims least privilege (DW-1180) [AMENDED 2026-11-12, Contest Planner ruling on DW-1180 (owner delegation), recorded by the Epic 21 runner]
+
+- DW-1179: a provider-mode mailbox keeps EmailIn and EmailOut on the password-less stored credential, so the poll fails with the refused-login sentence until the adapters get their OAuth2 settings (ledger; routed by harvest 2026-11-12)
+- DW-1180: the privileges that registering the mail OAuth2 client needs were measured only for `_Ensemble` (which held %All on the throwaway); list them with refused-without-it checks (ledger; routed by orchestrator 2026-11-12)
+- DW-1185: flake: EmailLive TestOAuthSaveSignInAndRemove's IRIS masked-secret audit-entry check appears late (ledger; routed by harvest 2026-11-12)
+
 ### Story 21.4: Add, remove and classify MCP servers and tools in Settings
 
 > [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1041] The MCP settings write (IRIS Wallet secret and Config Store entry) moves into `McpOps`, an operation, never the REST process; AD-1 stays unchanged. Story 35.2 left the routes as stubs that change nothing; this story replaces them and adds the `/v1/settings/mcp` route with the standing real-HTTP route tests.
