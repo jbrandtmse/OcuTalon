@@ -3808,3 +3808,4 @@
 2026-11-12T20:57:46Z	Epic 0	amendments_verified	amendments=epics_0.34_block extensions=docker/tests/test-compose-file.sh_only(csp/_dropped_from_scan;fixture_pins) ok=true
 2026-11-12T20:57:46Z	Epic 0	merge_enqueued	part=0.34 head=0d6f4725 code_head=1327fa1b priority=1.0.8_release_blocker exempt_from_hold=yes
 2026-11-12T20:57:46Z	Epic 36	owner_decision	via=contest_planner what=36.2_gate(splits_approved;V1-V6;V3_audit_from/to_values_only_IRIS_audit+leak-scan;V7_verbatim_except_onCallOffOnDemo+sqlHelp)
+2026-11-12T20:58:18Z	Epic 0	epic_merged_to_feature	part=0.34 feature_sha=b8780de6 merge_sha=b8780de6 code=1327fa1b(test-compose-file.sh only) verified_on_origin=yes pick_shas=6bb2b957,1327fa1b
