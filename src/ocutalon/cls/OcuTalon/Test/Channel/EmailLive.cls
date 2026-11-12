@@ -1341,24 +1341,15 @@ ClassMethod SysAuditHolds(text As %String) As %Integer [ Private ]
 }
 
 /// 1 when IRIS's audit entry of the creation of this test's client, written at or after since (a mark of AuditLog.Now), shows the secret masked: an OAuth2 entry
-/// for the client OcuTalonMail with the client ID of OAUTHCLIENT whose ClientSecret line holds the mask. IRIS writes the entry in the saving call, but the Event
-/// index of %SYS.Audit is brought up to date only about once a minute, so the rows are read by their time stamp and the event is compared here. The entry is
-/// looked for for up to 30 seconds.
+/// for the client OcuTalonMail whose ClientId line holds OAUTHCLIENT and whose ClientSecret line holds the mask. IRIS writes the entry in the saving call;
+/// AuditLog reads the rows by their time stamp (the Event index lags about a minute) and the entry is looked for for up to 30 seconds. The mask is IRIS's own
+/// fixed text; that the secret is in no audit entry is SysAuditHolds' check.
 ClassMethod SysAuditMasks(since As %String) As %Boolean [ Private ]
 {
-	New $NAMESPACE
-	Set $NAMESPACE = "%SYS"
-	Set deadline = $ZHorolog + 30
-	Set maskLine = "(?s).*\r\nClientSecret: +\*{5}\r\n.*"
-	For {
-		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Event, EventData FROM %SYS.Audit WHERE UTCTimeStamp >= ? AND EventData [ 'Create OAuth2 Client: OcuTalonMail'", since)
-		If result.%SQLCODE < 0 Quit
-		While result.%Next() {
-			Set data = result.%GetData(2)
-			If (result.%GetData(1) = "OAuth2") && (data [ (" "_..#OAUTHCLIENT_$Char(13, 10))) && $Match(data, maskLine) Return 1
-		}
-		If $ZHorolog > deadline Quit
-		Hang 0.5
+	Set lines = "(?s).*\r\nClientId: +"_$Replace(..#OAUTHCLIENT, ".", "\.")_"\r\n.*\r\nClientSecret: +\*{5}\r\n.*"
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(since, "", "", "OAuth2", "Create OAuth2 Client: OcuTalonMail", "", 1, 30)
+	For i = 0:1:entries.%Size() - 1 {
+		If $Match(entries.%Get(i).data, lines) Return 1
 	}
 	Quit 0
 }

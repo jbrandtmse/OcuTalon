@@ -7098,6 +7098,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8 extends EmailLive's OAuth cases: wait on the entry by its own id or poll longer; one rerun + occurrence= meanwhile
 - 2026-11-12T10:09:41Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662676_iris(production)_shard:lane-a@Channel_on_OCT-epic21_ad2255ac:FAIL_'IRIS's_own_audit_entry_of_the_client_shows_its_secret_masked'(second_occurrence:local_warm_06:22Z+CI)
 - 2026-11-12T10:09:42Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=ci note=21.3's_own_new_test_red_in_CI_on_its_own_head:class=story([CI]_rework_in_21.3,lane_prompt);fix_the_SysAuditMasks_wait(scope_to_this_test's_mark,poll_longer_or_by_entry_id);21.8's_bullet_then_reads_resolved
+- 2026-11-12T10:55:53Z status=resolved-by:21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=adjudication note=rework_1_commit_4f309fcb+re-review_patches:SysAuditMasks_reads_this_test's_own_entry_by_UTCTimeStamp_from_its_mark_via_AuditLog.Wait(30_s),ClientId_and_ClientSecret_mask_lines_pinned;3_mutations_red_on_final_code(e21s3i3w,e21s3c2w);CI_on_the_integrated_head_confirms
 
 ### DW-1188: flake candidate: lane-b@rest Test.Schedule.Reminders TestFiresOnEveryChannel ('the session has one web card', 'one phone message', 'one notification event is published', 'and one phone event') red once in CI shards-6
 - source: CI run 43172123661 (OCT-epic21 ad2255ac) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7108,3 +7109,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md (rework 1) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: measured on lane-C warm e21s3i2w 2026-11-12: a UTCTimeStamp read saw the OAuth2 creation entry 0.4 s after the save, WHERE Event = 'OAuth2' first saw it 34 s later; the same pattern sits in the two scripts
 - 2026-11-12T10:41:28Z status=routed owner=burndown by=harvest note=fix: read rows from a time mark (UTCTimeStamp) and compare Event in code, as EmailLive.SysAuditMasks now does; owner docker/tests (Epic 15 area)
+- 2026-11-12T10:53:25Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=cr:real_exposure_test-demo-switch.sh:248_unwaited_audit0;EventSource/EventType_lag_too;release/standalone-bridge.sh:910,927
