@@ -409,7 +409,7 @@ describe('(c) every quoted on-screen name equals its source', () => {
     const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen'];
     const word = words[MORE_TO_TRY_ITEMS.length];
     const readme = readFileSync(join(here, '..', '..', 'README.md'), 'utf8');
-    assert.match(readme, new RegExp(`its More to try panel has ${word} more things to try`), `the README says ${word} more things to try`);
+    assert.match(readme, new RegExp(`Its More to try panel has ${word} more things to try`), `the README says ${word} more things to try`);
     assert.match(readme, /Incident summaries\.\*\* When an incident closes/, 'and holds the incident summary bullet');
     const ux = readFileSync(join(here, '..', '..', '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
     assert.match(ux, new RegExp(`There are ${word} items, in this order`), `EXPERIENCE.md says ${word} items`);

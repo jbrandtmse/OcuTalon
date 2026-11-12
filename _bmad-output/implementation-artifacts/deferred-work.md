@@ -2078,6 +2078,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T22:52:54Z occurrence=23-2 by=orchestrator note=run 42897677403 job 130115016835 iris(production) row 21 got ''; OCT-epic23 f73a09d5 (23.2 integrated onto 56c61cea); rerun of failed jobs
 - 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870677_iris(production)_live:production_on_ocutalon-ci-15:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_production_row21_WatchOps;rerun_failed_jobs_green(attempt2)
+- 2026-11-12T10:06:56Z occurrence=0-28 by=runner note=run_43159935962_attempt_1_job_130988445819_iris(production)_live:production_on_ocutalon-ci-10:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_eff03a14(README+release_checks_only);one_rerun_of_failed_jobs(attempt_2,started_by_orchestrator_10:02Z)
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6683,6 +6684,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: OCT-epic23 e6eb901d run 42844253322 job 129927340184 shards-10; first-start timeout is DW-999's; the park step is a new signature; the 23.2 rework checks it for a story cause
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:reminder-restart_telegram_park;one_rerun_with_the_next_push
 - 2026-11-11T00:03:57Z occurrence=feature-9f7db82c by=orchestrator note=run 42924654980 job 130207908005 iris(shards) on ocutalon-ci-15, unit live:online-allowance: 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then 'the first start did not end ready within 400 s'; same signature as the reminder-restart one, now in another unit; rerun of failed jobs
+- 2026-11-12T11:23:19Z occurrence=0-28 by=runner note=run_43202138313_job_131127976608_iris(shards-9)_on_ocutalon-ci-5_unit_shard:lane-a@Bridge_stack_start:'Telegram_park:_TelegramOut_still_has_an_Ens.Job_entry_(Alive,dequeuing)_32_s_after_it_was_disabled';OCT-epic0_2a6cfc67(README+test-readme_over_feature_eb289caf);one_rerun_of_failed_jobs
 ### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
@@ -7136,6 +7138,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T01:23:55Z status=decision-pending owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=human=Contest Planner ruling on a Video row and a judges-table link; fold into 0.27's README ruling
 - 2026-11-12T01:33:46Z status=routed owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=owner note=Contest_Planner_ruling_2026-11-12_01:55Z(owner_delegation):fold_into_0.27_as_its_first_README_edit;wording_in_prompts/story-026-rulings.md_item_2
 - 2026-11-12T01:52:13Z status=routed owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=orchestrator note=split(Part_A_of_0.27_moved_whole_to_0.28_for_the_1.0.8_cut)
+- 2026-11-12T04:29:34Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=ruled_Video_row+Usability_sentences(README),checklist-video+judges-usability(test-readme.sh),web_count_tests,check-readme-video.sh+release/checklist.sh_readme-video_row
 ### DW-1165: The ruled resolved-incident sentence has the partner notice say the affected orders went through, but Facts carry only the state, so a resolved incident whose fix left messages failed again or skipped, or that a suspend or reroute resolved, gets the same claim
 - source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Watch/Transitions resolves on fixing + finished whatever the run's counts (failedAgain, skipped); PartnerWarning.Facts adds only 'Incident state: resolved', and SYSTEMNOTE's ruled sentence tells the model to say the orders went through
@@ -7154,6 +7157,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: durations: 14:31-15:00 (29.5m), 20:07-20:35 (28m), 14:02-14:32 (30m); 21:03-21:38 timed out during the post-outage backlog
 - 2026-11-11T21:39:35Z status=routed owner=burndown by=orchestrator note=infra (host load): one rerun per occurrence; a recurrence on a clean queue means the group needs a split (standing CI rule), never a longer timeout
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749306 attempt 2)
+- 2026-11-12T11:30:04Z occurrence=0-28 by=runner note=lane-a_run_43202138310_job_131127975712_ipm-install_on_ocutalon-ci-19_all_steps_success_then_cancelled_at_35m0s(10:52:33-11:27:33Z);host_load;OCT-epic0_2a6cfc67;rerun_failed_jobs_11:30Z
 
 ### DW-1163: CI ops: GitHub Actions outage left zombie runs (queued at attempt 1; cancel says completed, rerun says running, force-cancel says not queued); recovery = a fresh push of a bookkeeping-only head, its result read by identity
 - source: OCT-epic21 2242c77d runs 43096469670, 43096469722 (2026-11-11 Actions major outage) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7181,6 +7185,29 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 21.2's EmailInPop3 passed smoke and fresh check locally and failed live:storage-roundtrip in CI; the Planner asked for a cheap pre-CI check
 - 2026-11-12T00:03:53Z status=routed owner=burndown by=orchestrator note=Contest Planner 2026-11-12: if cheap, run the storage-roundtrip (or its committed-vs-compiled Storage comparison) in the lead's smoke for stories that add a class with a storage definition
 
+### DW-1175: No per-push test runs check-readme-video.sh's own logic (retry, cap, status handling); its self-tests run only online and the release checklist's test stubs it
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: a stub-curl test needs a new test-*.sh in a ci/units.sh list, outside 0.28's boundary; a regression shows as a loud FAIL on the readme-video release row
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=the_readme-video_release_row_fails_for_a_script_bug_rather_than_a_dead_link
+- 2026-11-12T04:29:35Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=QA_video-script_rule(test-release-checklist.sh)_runs_the_real_script_offline_with_a_fake_curl:retry,cap,status_handling
+
+### DW-1176: ci/units.sh NOT_IRIS_INPUT_PATTERN omits docker/tests/check-readme-video.sh, so a later edit of that script runs every CI group
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/units.sh:251 lists record-eval.sh and test-*.sh only; one alternative fixes it; cost is extra CI minutes on later edits of the script only
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=a_push_that_edits_only_check-readme-video.sh_runs_every_IRIS_group
+
+### DW-1177: Nothing per push checks that docker/tests/check-readme-video.sh exists, is executable and parses (test-release-checklist.sh stubs it)
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: a deleted or non-executable script fails the readme-video row at release time (row_script reports it), not per push
+- 2026-11-12T04:02:21Z status=wontfix-accepted owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=harvest note=reopen_if=the_readme-video_release_row_reports_a_missing_or_non-executable_script
+- 2026-11-12T04:29:35Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=video-script_rule_checks_the_real_script_exists,is_executable,parses,ASCII
+
+### DW-1178: release/checklist.sh's no-outward row fails on the tree: docker/tests/test-readme.sh's ALLOWED_HOSTS line names community.intersystems.com and openexchange.intersystems.com
+- source: spec-0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: the row's own outward_hits over its file set lists docker/tests/test-readme.sh:1495 on c38ebea6 (line 1422 at 793840c5); the line came in with 6118b053 (Story 0.18, 2026-11-08), so every RC run since then fails no-outward; it is the only hit once 0.28's review lands; fixing it needs a ruled form (an allowed line in release/checklist.sh, as for check-readme-video.sh's OEMBED= line, or another)
+- 2026-11-12T04:27:54Z status=escalated owner=burndown by=cr note=1.0.8 RC release-checklist issue for the Planner; pre-existing (Story 0.18); fix is a RELEASE TOOL hunk
+- 2026-11-12T04:41:16Z status=routed owner=0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=owner note=Contest_Planner_ruling_on_0.28(~05:00Z,owner_delegation)_option_(a)_folded_into_0.28_before_merge;release_records_1.0.1-1.0.6_show_Release_sequence_stopped_after_notes:no_gate_has_run,so_no-outward_has_not_run_since_1.0.0_rc4;nothing_shipped_through_a_failing_row;the_Planner_runs_release/checklist.sh_in_full_at_the_1.0.8_RC
+- 2026-11-12T05:09:28Z status=resolved-by:0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide by=adjudication note=eb366184:no-outward_allows_test-readme.sh_ALLOWED_HOSTS_line_exactly(full-line,that_file_only)+3_cases_in_outward-rows+comment_above_ALLOWED_HOSTS;row_outward_hits_empty_on_tree;1.0.1-1.0.6_records:stopped_after_notes,no-outward_not_run_since_1.0.0_rc4
 ### DW-1173: security: the diagnosis payload's itemNoun (model text from partner-shapeable failure data) is checked only for 128 characters per form, any characters; it reaches the Failures line and other noun uses
 - source: IncidentManager.cls:802 (Story 23.11 review, DW-1172) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Contest Planner ruling 2026-11-12: each form letters, spaces and hyphens only, at most 40 characters, else drop it and keep the code noun; a test with a hostile noun
@@ -7196,3 +7223,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T06:39:32Z status=decision-pending owner=burndown by=cr note=Planner text call on ruled P3 (U-321): e.g. 'if the answer is no_incident and others is empty'; ruled text unchanged
 - 2026-11-12T06:50:09Z status=routed owner=23-9-resume-a-suspended-item-after-its-incident-closes by=owner note=Contest_Planner_ruling_06:55Z(owner_delegation;prompts/epic-23-rulings-239.md):_fix_in_23.9_with_the_Planner's_sentence;rework_iteration_1
 - 2026-11-12T10:21:56Z status=resolved-by:23-9-resume-a-suspended-item-after-its-incident-closes by=adjudication note=e76fbea3:Agent/Chat.cls:65_Planner_sentence_verbatim;Test.Agent.Instructions_exact-line_pin(mutation_while->whilst_red);TestUndoTurn_others=awaiting_approval(busy);TestUndoClosedTurn+propose-fix-undo-closed.json(empty_others;AssertTurn_reply_names_Management_Portal;closed-incident_fixture_by_re-review)
+
+### DW-1190: flake: live:online-demo web/e2e-online/resume.spec.ts:104 R2 page.goto('http://elsewhere.test/') net::ERR_ABORTED on a context.route-fulfilled page (raw page.goto, not gotoSettled; DW-690 family)
+- source: OCT-epic0 2a6cfc67, ci run 43202138313 job 131127976389 iris (browser) on ocutalon-ci-14 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rows 7-12 online-demo specs: 1 failed (R2, 2.3 s) at resume.spec.ts:143 page.goto ERR_ABORTED; spec unchanged since 83a6f3c1 (Nov 4); the head changes README.md and test-readme.sh over feature eb289caf; 18 runners busy
+- 2026-11-12T11:14:12Z status=routed owner=burndown by=runner note=flake class (first occurrence): one rerun of failed jobs; a second red on the same head is real; likely fix: gotoSettled at L143 as DW-690 did
+- 2026-11-12T12:22:47Z status=routed owner=burndown by=runner note=rerun_attempt_2_of_run_43202138313_green_on_2a6cfc67(flake_confirmed)
