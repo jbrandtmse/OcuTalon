@@ -34,6 +34,7 @@
 ///     send a bare preamble.
 /// An item with no core-memory block, no notes block and no precedent block renders as it would without a context. The opening lines of the context blocks
 /// (COREOPENING, NOTESOPENING, PRECEDENTSOPENING) and the quote prefix (QUOTEPREFIX) are this class's constants.
+/// ReadFile(item, .result) is the read result of a file turn (AD-21, step 6): a stub until Stories 26.2 and 26.3, which answers "not implemented" and an empty result.
 Class OcuTalon.Agent.Input
 {
 
@@ -189,6 +190,18 @@ ClassMethod Preamble(now As %String = "") As %String
 	Set date = $Piece(local, "T", 1)
 	Set weekday = $Piece(##class(OcuTalon.Data.Time).#WEEKDAYS, ",", $ZDate($ZDateH(date, 3), 10) + 1)
 	Quit "Local time: "_weekday_" "_date_" "_$Extract(local, 12, 16)_" (time zone "_##class(OcuTalon.Data.Time).Zone()_")"
+}
+
+/// The read result of the file that the item carries (AD-21, step 6; DW-1231), built by code and never from model text, and holding no file bytes and no
+/// extracted text. result is a %DynamicObject with fileRef (the SentFile Ref of item.FileRef) and kind (document or photo), read (1 or 0), and, with read
+/// 0, reason (one of Docs.Extract's codes) and text (Docs.Extract.Failure of the reason); with read 1, addable (1 for a document, 0 for a photo) and, for
+/// a document, chars (the characters of the extracted text) and cut (1 when MAXTEXT cut it). The file is opened for item.SessionRef through
+/// Core.Files.Open, and no other session's file is read.
+/// A stub until Stories 26.2 (documents) and 26.3 (photos): it answers "not implemented" (5003) and an empty result, and opens no file.
+ClassMethod ReadFile(item As OcuTalon.Msg.Item, Output result As %DynamicObject) As %Status
+{
+	Set result = {}
+	Quit $$$ERROR($$$NotImplemented)
 }
 
 /// The opening line of the core-memory block (AD-7, AD-21), in the words of EXPERIENCE.md; code writes it.

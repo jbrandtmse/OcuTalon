@@ -322,3 +322,4 @@
 2026-11-13T23:51:53Z	Story 21.4	cr_complete	scope=followup(lead_scoped) review=OpsProbe.cls_identical_to_96bbbcd8;Lane_A_test_edits=granted/spec-listed_only(Attach:TestRemovedServer+TestCommands,Ops,Classification_Clean);Attach.cls+bridge_unchanged;Unregister_drops_under_stored_name_after_CancelPending high=0 med=0 low=0 cycle_iteration=1
 2026-11-13T23:51:53Z	Story 21.4	ledger_adjudicated	owned=CR_rows_terminal(DW-1291..DW-1295) burndown=DW-1285(Planner_ruled) slice_after=empty
 2026-11-13T23:52:10Z	Story 21.4	ledger_adjudicated	owned=DW-1041 resolved=1 slice_after=empty
+2026-11-13T23:53:14Z	Epic 21	integrated	feature=848ae83c(62db09e0_21.14_merge+37.1+records) merge=local conflicts_resolved=Test/Contract/Ac.cls(union:21.4_drops_SaveMcpEntry/RemoveMcpEntry+37.1_adds_4;floor_91;doc_merged),sprint-status.yaml(feature_side_regenerated,re-set_21-4=done) spine=auto-merged_lint_10_low

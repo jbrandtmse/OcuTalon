@@ -1912,10 +1912,6 @@ So that a release candidate passes CI without weakening the check that nothing i
 **When** it finishes
 **Then** every workflow is green
 
-## Epic 1: Every item gets an attention decision you can audit and afford
-
-Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
-
 ### Story 0.35: Routine attention decisions meet their target
 
 [ADDED 2026-11-12, Contest Planner ruling (owner's delegation, ~20:30Z, prompts/story-035-ruling-20261112.md, binding)] The README's Measured row "Routine attention decisions right: 21 of 24 (target: 22)" is refreshed from the 1.0.9 RC run, and 1.0.8's RC runs scored 21, 20 and 20, so the README would show a missed target again. Lane A, after Story 0.29 and before Story 25.3. The plan goes to the Contest Planner before any implement. Footprint: the attention agent's instructions only, and the prompt-leak CI check.
@@ -1974,6 +1970,30 @@ So that I can see at a glance that it is built from the platform's own parts.
 **Given** CI on this story's head
 **When** it finishes
 **Then** every workflow is green
+
+### Story 0.37: A production that stopped is a fault to look into, not a choice to report
+
+[ADDED 2026-11-13, Contest Planner, 0.35 A/B known regression] (owner's delegation, ~14:45Z; prompts/release-035-20261113.md) Planning only in this dispatch: not implemented before 1.0.9; for Saturday's release, after 1.0.9. Story 0.35's new tell-now wording ("switched off or disabled ... a change someone chose to make") pulled two stopped-production findings, which expect `act`, to `tellnow` in 3 of 5 A/B attempts (4 misses in 10, against 0 of 18 before). It is not unsafe, because Tell now still tells the person at once. Footprint: the attention agent's instructions only (as Story 0.35), and their pins.
+
+As a person relying on OcuTalon's attention decisions,
+I want a production that stopped to be looked into at once, and a part someone disabled on purpose to be reported,
+So that a fault gets a check and a choice gets a notice.
+
+**Acceptance Criteria:**
+
+**Given** the attention agent's instructions after Story 0.35
+**When** this story changes them
+**Then** they separate the two by MEANING, never by copying or paraphrasing any main-set or held-out case: a disabled item is a choice someone made, so Tell now; a production that stopped is a fault, so Act
+**And** only the attention instructions and their pins change, and the main-set-texts, held-out-texts and held-out-names guards still pass
+
+**Given** the real model, measured by the Contest Planner's key-holder after the push
+**When** the changed instructions are compared with Story 0.35's (the A/B)
+**Then** the story merges only if the same ship rule (a)-(e) as Story 0.35 holds, and the stopped findings are right again while the disabled findings stay right
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1273: Story 0.35's known regression: the stopped findings went to tellnow in 3 of 5 NEW A/B attempts (ledger; routed by the Contest Planner 2026-11-13)
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
@@ -8651,6 +8671,7 @@ So that only the right people can approve each kind of action, and others can lo
 **Given** automated tests and a Playwright spec under `web/e2e/`, whose test setup creates `OcuTalonApprover`, the `OcuTalonApprover_<kind>` roles and `OcuTalonViewer` as fixture roles with the names Story 37.1 (was 26.1) fixes until Story 26.4's installer step creates them, so no criterion here waits on Story 26.4
 **When** an admin grants and removes each role, and a viewer tries every state-changing route
 **Then** the role changes are audited, the viewer is refused every time, and the section works by keyboard with every control labelled (FR-11, NFR-25, UX-DR130, AD-29)
+- DW-1267: 37.1's obligation for 25.4: the Roles section hands the target user name and role through SecretHandoff (Changes holds only the handoff), Holders returns through a handoff uri, a leak-scan test of the change's message bodies, and admin-only routes refused on the online demo with a test per refusal (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
 
 ### Story 25.5: Answer only with the right approver role, and say why otherwise
 
@@ -8680,6 +8701,7 @@ So that I know who has to approve it.
 **Given** automated tests in `OcuTalon.Test.Core` and the REL-2 demo-path test, whose test setup creates `OcuTalonApprover`, the `OcuTalonApprover_<kind>` roles and `OcuTalonViewer` as fixture roles with the names Story 37.1 (was 26.1) fixes until Story 26.4's installer step creates them, and answer `Approval.MayAnswer` from a test double over those roles until Story 26.4 replaces Story 37.1 (was 26.1)'s stub, so no criterion here waits on Story 26.4
 **When** each kind is answered by a user holding only another kind's role, by a holder of `OcuTalonApprover`, and by the README account after an upgrade (holding the fixture `OcuTalonApprover` until Story 26.4's upgrade grants it)
 **Then** only the right roles answer, the others are told why on the page and the phone and get `not_allowed` from `AnswersIn`'s Telegram entry, and the demo path still passes (FR-11, FR-60, REL-2, AD-29)
+- DW-1268: 37.1's obligation for 25.5: AnswersIn calls Approval.MayAnswer before Answer, the not_allowed slot carries the row's ApproverKind, and one 'Only an approver for ...' sentence per approver kind (seven; setting rows keep today's rule) comes as PUBLIC TEXT (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
 
 ### Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure
 
@@ -8703,6 +8725,7 @@ So that a read file can join my documents and a photo is remembered.
 **When** each type is sent and its reply arrives, read or failed
 **Then** the replies match, Add to documents adds the file, and across the whole flow no file content appears in a production message body (FR-54, AD-4)
 **And** the guide's "New since 1.0.0" gains its file line only with the clauses whose stories have merged ("offers to add it to your documents" with this story; "a photo's caption is saved to memory" with Story 26.3) (UX-DR147)
+- DW-1269: 37.1's obligation for 25.6: Conversation calls Agent.Input.ReadFile before a file turn's requests and ends the turn with result.text when read is 0; it renders the read result and the member caption, naming the carriers; 'no file content in a production message body' means no bytes and no image (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
 
 ## Epic 26: Approver roles and reading files (step 6)
 
@@ -8736,6 +8759,7 @@ So that I can ask about a file without adding it as a document first.
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 **Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**And** on the online demo the download goes through the outbound gateway, which must swap the dummy token on Telegram's file-download path too; the demo host's configuration, outside this repository, adds that route before this story's release reaches the online demo, and the release checklist confirms it (FR-54, AD-19, AD-25)"]
+- DW-1270: 37.1's obligation for 26.2: build Agent.Input.ReadFile for PDF and Word and set READSFILES; read the file once for ReadFile and Render in the same job, or re-read; mind Docs.Extract's up-to-45 s run in Conversation's job (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
 
 ### Story 26.3: Caption a photo and keep the caption as a memory
 
@@ -8804,6 +8828,7 @@ So that only the right people can approve each kind of change.
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 6's stories in both lanes have merged **When** step 6's release is prepared **Then** a hands-on pass with real keys exercises usage and history, sending a file and a photo from the web app and Telegram, and answering with and without the right approver role, and its findings are fixed before the release (REL-7)"]
+- DW-1271: 37.1's obligation for 26.4: Roles.Assign is admin-only with an allowlist of exactly OcuTalonApprover and OcuTalonViewer, refusing every % role, every other OcuTalon role and the installer-managed accounts, with an IRIS audit entry per assignment and removal and a test per refusal (ledger; Story 37.1 V2/V3, Contest Planner 2026-11-13)
 
 ## Epic 27: Slack (step 7, Could)
 
