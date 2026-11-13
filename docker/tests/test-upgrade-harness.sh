@@ -1083,6 +1083,115 @@ t_memory_document() {
 }
 b_memory_document() { document_found() { echo; }; memory_found() { echo 1; }; }
 
+# --- approval reject (Story 22.4, DW-1239) ---
+
+# The approval family over stubs of the stack: STUB_FP1 and STUB_FP2 are the readings of ToolFingerprint of the two requests (default "=", empty),
+# STUB_REJ_CODE and STUB_REJ_BODY the answer of the reject. The calls of api_post go to $tmp/api-calls (path and body).
+approval_stubs() {
+  wait_until() { shift; "$@"; }
+  state_get() {
+    cat > "$tmp/state.json" <<'EOS'
+{"chat": [{"type": "incident", "payload": {"ref": "I1", "state": "resolved", "requests": [{"ref": "Q1", "state": "done", "result": {"total": 50, "completed": 50, "failedAgain": 0}}]}}],
+ "rail": {"approvals": [{"ref": "Q1", "state": "pending", "expiresAt": "2026-11-02T00:00:00Z"}, {"ref": "Q2", "state": "pending", "expiresAt": "2026-11-02T00:00:00Z"}]},
+ "phone": [{"text": "$TEXT_RESULT"}]}
+EOS
+    sed -i.bak "s|\$TEXT_RESULT|$TEXT_RESULT|" "$tmp/state.json" && rm -f "$tmp/state.json.bak"
+  }
+  approval_fingerprint() {
+    case $1 in
+      Q1) echo "${STUB_FP1-=}" ;;
+      Q2) echo "${STUB_FP2-=}" ;;
+    esac
+  }
+  approval_copy() { echo "${STUB_COPY-Q2}"; }
+  approval_hold() { echo hold1; }
+  api_post() {
+    printf '%s %s\n' "$1" "$2" >> "$tmp/api-calls"
+    case $1 in
+      approvals/Q1/answer) printf '{"result":"done","approval":{"state":"approved"}}' > "$tmp/post.body"; echo 200 ;;
+      *)
+        if [ -n "${STUB_REJ_BODY-}" ]; then printf '%s' "$STUB_REJ_BODY" > "$tmp/post.body"; else printf '{"result":"done","approval":{"state":"rejected"}}' > "$tmp/post.body"; fi
+        echo "${STUB_REJ_CODE-200}"
+        ;;
+    esac
+  }
+}
+ap_lines() { grep -c "^RECORD approval $1 " "$results" 2> /dev/null; }
+ap_check() { # ap_check: a fresh state with the seed of the two requests, then check_approval_upgrade
+  pairing_fresh
+  rm -f "$tmp/api-calls"
+  req_ref=Q1 req_expires=2026-11-02T00:00:00Z rej_ref=${1-Q2} inc_ref=I1
+  env_set "$state/seed.env" ok_approval 1
+  check_approval_upgrade
+}
+
+t_approval_reject() {
+  local bad=0
+  approval_stubs
+  harness_root=$root
+  # the reject answer's reader: done with the request rejected, nothing else
+  printf '{"result":"done","approval":{"state":"rejected"}}' > "$tmp/ans"
+  status_is "an answer that is done and rejected" 0 answer_rejected "$tmp/ans"
+  printf '{"result":"done","approval":{"state":"approved"}}' > "$tmp/ans"
+  status_is "an answer that is done and approved" 1 answer_rejected "$tmp/ans"
+  printf '{"result":"already_answered","approval":{"state":"rejected"}}' > "$tmp/ans"
+  status_is "an answer that is not done" 1 answer_rejected "$tmp/ans"
+  printf '{"error":{"code":"bad_answer"}}' > "$tmp/ans"
+  status_is "the bad_answer error" 1 answer_rejected "$tmp/ans"
+  printf 'not json' > "$tmp/ans"
+  status_is "a body that is no JSON" 1 answer_rejected "$tmp/ans"
+  status_is "a body that is not there" 1 answer_rejected "$tmp/no-such-answer"
+  # the fingerprint reader: empty only
+  status_is "an empty fingerprint" 0 fingerprint_empty "="
+  status_is "a fingerprint with a value" 1 fingerprint_empty "=abc123"
+  status_is "a fingerprint with a value, absent ok" 1 fingerprint_empty "=abc123" absent-ok
+  status_is "no column is not empty after the upgrade" 1 fingerprint_empty "<nocolumn>"
+  status_is "no column is empty before it (the previous build predates the property)" 0 fingerprint_empty "<nocolumn>" absent-ok
+  status_is "no row" 1 fingerprint_empty "<norow>" absent-ok
+  status_is "a failed read" 1 fingerprint_empty "<error>" absent-ok
+  status_is "no reading" 1 fingerprint_empty "" absent-ok
+
+  # the check after the upgrade: approve Q1, reject Q2, ToolFingerprint empty before the answers and after them
+  ap_check
+  eq "all good: six pass lines and no fail" "$(ap_lines pass)$(ap_lines fail)" 60
+  eq "the approve is unchanged and the reject follows it with action and channel" "$(cat "$tmp/api-calls")" 'approvals/Q1/answer {"action":"approve","channel":"phone"}
+approvals/Q2/answer {"action":"reject","channel":"web"}'
+  STUB_FP2="=abc" ap_check
+  eq "a fingerprint that is not empty fails after the upgrade and again after the answers" "$(ap_lines fail)" 2
+  STUB_FP1="<nocolumn>" ap_check
+  eq "a missing column after the upgrade fails (twice, as above)" "$(ap_lines fail)" 2
+  STUB_REJ_CODE=409 ap_check
+  eq "a reject that answers 409 is a fail line" "$(ap_lines fail)" 1
+  STUB_REJ_BODY='{"result":"done","approval":{"state":"approved"}}' ap_check
+  eq "a reject that answers 200 but leaves the request approved is a fail line" "$(ap_lines fail)" 1
+  ap_check ""
+  eq "no second request seeded: a fail line and nothing answered" "$(ap_lines fail)|$(cat "$tmp/api-calls" 2> /dev/null | wc -l | tr -d ' ')" "1|0"
+
+  # the seed: a second pending request, then ToolFingerprint of both read empty (or no column yet) on the previous build
+  pairing_fresh
+  seeding=1 cur_row=approval
+  req_ref=Q1 rej_ref=""
+  seed_second_request > /dev/null
+  eq "the seed raises the second request and records it" "$(env_get "$state/seed.env" rej_ref)|$(ap_lines seed)|$(ap_lines fail)" "Q2|2|0"
+  pairing_fresh
+  seeding=1 cur_row=approval
+  req_ref=Q1 rej_ref=""
+  STUB_FP1="<nocolumn>" STUB_FP2="<nocolumn>" seed_second_request > /dev/null
+  eq "a previous build with no ToolFingerprint column: both read as empty" "$(ap_lines seed)|$(ap_lines fail)" "2|0"
+  pairing_fresh
+  seeding=1 cur_row=approval
+  req_ref=Q1 rej_ref=""
+  STUB_FP1="=zz" seed_second_request > /dev/null
+  eq "a non-empty fingerprint before the upgrade is a fail line" "$(ap_lines fail)" 1
+  pairing_fresh
+  seeding=1 cur_row=approval
+  req_ref=Q1 rej_ref=""
+  STUB_COPY="" seed_second_request > /dev/null
+  eq "a second request that cannot be raised is a fail line and nothing is stored" "$(ap_lines fail)|$(env_get "$state/seed.env" rej_ref)" "1|"
+  [ "$bad" -eq 0 ]
+}
+b_approval_reject() { answer_rejected() { return 0; }; fingerprint_empty() { return 0; }; }
+
 # --- run ---
 
 # The harness's run command chains its phases as processes of itself. Here harness_root points at a folder whose release/upgrade-harness.sh
@@ -1442,6 +1551,7 @@ rule storage-base t_storage_base b_storage_base
 rule record-contract t_record_contract b_record_contract
 rule pairing t_pairing b_pairing
 rule memory-document t_memory_document b_memory_document
+rule approval-reject t_approval_reject b_approval_reject
 rule run t_run b_run
 rule report t_report b_report
 rule merge-retries t_merge_retries b_merge_retries

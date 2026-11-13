@@ -43,6 +43,8 @@
 ///     owner instance, which every user shares), newest first, and Document, one by its Ref; a document the session can't see answers "".
 ///   - Upload (Story 34.3) is the session's own upload by its Ref, a Rows kind too; Data.Upload's Take and Drop read through it, and an upload of
 ///     another session answers "", exactly as for a missing one.
+///   - SentFile (Story 25.3) is the session's own sent file by its Ref, a Rows kind too; Core.Files reads through it (Open for the bytes, Describe for the rest), and a file of
+///     another session answers "", exactly as for a missing one.
 ///   - FinishedToolCalls (Story 31.2) is the session's own tool_call approval requests that finished in a window of FinishedAt, oldest
 ///     first: Conversation's code-written note to the next turn reads it (AD-30). It is a Rows kind like the others.
 ///   - Precedents and Precedent (Story 41.2) are the session's own precedents (Data.Precedent), newest answer first, and one by its Ref; Rows kinds too. A row of
@@ -451,6 +453,17 @@ ClassMethod Upload(ref As %String, sessionRef As %String, Output sc As %Status) 
 	Set sc = $SYSTEM.Status.OK()
 	If ref = "" Quit ""
 	Set rows = ..Rows("upload", sessionRef, .sc, ref)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
+/// The sent file with this Ref when it is the session's own, otherwise "": a file of another session answers like a missing one (Story 25.3). Ref and
+/// SessionRef compare exactly (EXACT collation). ref may come from a request or an Item; it is only ever a bound value. OcuTalon.Core.Files is the only caller.
+ClassMethod SentFile(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.SentFile
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ref = "" Quit ""
+	Set rows = ..Rows("sentFile", sessionRef, .sc, ref)
 	If rows.Count() = 0 Quit ""
 	Quit rows.GetAt(1)
 }
@@ -1349,6 +1362,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "upload" {
 		Set class = "OcuTalon.Data.Upload", binds = "ao"
 		Quit "SELECT u.ID FROM OcuTalon_Data.Upload u WHERE u.Ref = ? AND u.SessionRef = ?"
+	}
+	If kind = "sentFile" {
+		Set class = "OcuTalon.Data.SentFile", binds = "ao"
+		Quit "SELECT f.ID FROM OcuTalon_Data.SentFile f WHERE f.Ref = ? AND f.SessionRef = ?"
 	}
 	If kind = "precedents" {
 		Set class = "OcuTalon.Data.Precedent", binds = "ao"

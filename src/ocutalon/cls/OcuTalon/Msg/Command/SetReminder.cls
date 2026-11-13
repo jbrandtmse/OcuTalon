@@ -14,6 +14,15 @@ Property DelaySeconds As %Integer;
 /// Exactly one due form is set. A local date and time without a zone, which ReminderOps converts in the instance zone (AD-18, AD-29).
 Property LocalDueAt As %String(MAXLEN = 19);
 
+/// "" or reminder is a reminder; escalation is an escalation timer (AD-18, Story 24.3). Until Story 24.3 ReminderOps answers every value but "" and reminder, escalation included, not_built.
+Property Kind As %String(MAXLEN = 32);
+
+/// For an escalation: the incident that was paged.
+Property IncidentRef As %String(MAXLEN = 22);
+
+/// For an escalation: the Ref of the page that was sent.
+Property PageRef As %String(MAXLEN = 22);
+
 Storage Default
 {
 <Data name="SetReminderDefaultData">
@@ -29,6 +38,15 @@ Storage Default
 </Value>
 <Value name="4">
 <Value>LocalDueAt</Value>
+</Value>
+<Value name="5">
+<Value>Kind</Value>
+</Value>
+<Value name="6">
+<Value>IncidentRef</Value>
+</Value>
+<Value name="7">
+<Value>PageRef</Value>
 </Value>
 </Data>
 <DefaultData>SetReminderDefaultData</DefaultData>

@@ -10,6 +10,8 @@
 ///   - the same test, for the web chat: a row of kind approval with the same text as the phone's, a row of kind result with the web
 ///     render of toolCall.done (these two are the chat's cards, in RecentNotices), and the answered notice's row with no
 ///     ChannelMessageId, which is not a card;
+///   - TestChangedResultSendsANotice (Story 22.4, R1): a call that ends with the result changed (an approved MCP call whose tool changed) sends the owner a result notice: the web
+///     chat gets a row of kind result for the request;
 ///   - TestRejectedAndExpiredEditInPlace: a rejected call gets the render of answered.rejected and an expired one the render of
 ///     answered.expired in the request's message, and neither adds a message.
 ///   - TestHeldReasonReachesTheWebChat (DW-454): an old held call closed by Decide with the bridge's sentence reaches the web chat as
@@ -124,6 +126,25 @@ Method TestHeldRawReasonIsNeverShownInTheWebChat()
 	Do $$$AssertEquals(web.Text, ..Render("toolCall.failed", {"tool": "zz_send", "time": (finishedAt)}, "web"), "and the web render of toolCall.failed")
 	Do $$$AssertEquals($Find(web.Text, "zzraw")_"|"_$Find(web.Text, "ZzSecret")_"|"_$Find(web.Text, "UNDEFINED"), "0|0|0", "with none of the raw line")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "it is the one card of the web chat")
+}
+
+/// Story 22.4 (R1, AD-11): an approved MCP call that the proxy refused because its tool changed after the request was made ends with the result changed, and
+/// approval.result then sends a result notice to the owner, where it sent none for an unknown result before (the sink maps changed to mcp.replayToolChanged {tool,
+/// server}). The row is made executing by hand, and FinishExecution closes it as the replay does. The web chat gets the row of kind result for the request.
+Method TestChangedResultSendsANotice()
+{
+	If '..Ready() Quit
+	Set session = ..Session("changed")
+	Set ref = ..HeldCall(session)
+	If ref = "" Quit
+	Set row = ..Request(ref)
+	Set row.State = "executing"
+	Do $$$AssertStatusOK(row.%Save(), "the request is executing")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).FinishExecution(ref, "changed"), "the run ends with the result changed")
+	Set web = ..WaitWebRow(session, "result", 0)
+	Do $$$AssertTrue($IsObject(web), "the web chat gets a row of kind result")
+	If $IsObject(web) Do $$$AssertEquals(web.ApprovalRef, ref, "for the request")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ApprovalRows).Prop(ref, "State") _ "|" _ ##class(OcuTalon.Test.Bridge.ApprovalRows).Prop(ref, "Result"), "failed|changed", "the request ended failed with the result changed")
 }
 
 Method TestRejectedAndExpiredEditInPlace()

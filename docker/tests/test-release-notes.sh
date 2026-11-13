@@ -26,7 +26,8 @@
 #   - no-network: the stubs for curl, wget, gh, ssh and nc are live (a call leaves a marker), and a run leaves none;
 #   - library: release_previous_tag and names_outside_section;
 #   - static: the rules on release/notes.sh and on this file; the not-affiliated note of release/notes.sh, release/checklist.sh and
-#     README.md is one text; names_outside_section finds nothing in README.md or GUIDE.md, as test-readme.sh's dev-only rule does,
+#     README.md is one text; names_outside_section finds nothing in README.md or GUIDE.md, as test-readme.sh's dev-only rule does
+#     (outside "For admins and developers" and "Gmail and Microsoft 365"; a class name in any other section is still reported),
 #     except the line that equals the IPM_LOAD value of test-readme.sh word for word (a changed load line is still reported; no
 #     IPM_LOAD value fails);
 #   - real-tree: the real mapping parses and names real story and epic headings; a run on a fresh repository holding the real scripts,
@@ -872,6 +873,17 @@ t_library() {
   eq "names_outside_section: an error name, a dotted class name, two files" "$o" "$tmp/sec2.md:1 $tmp/sec2.md:2 $tmp/sec.md:2 $tmp/sec.md:6 "
   o=$(. "$root/docker/tests/lib-scan.sh"; names_outside_section '## Other' "$tmp/sec.md" | tr '\n' ' ')
   eq "names_outside_section: the heading is a parameter" "$o" "$tmp/sec.md:2 $tmp/sec.md:4 "
+  printf '## Third\nERROR #5002 here\n' | cat "$tmp/sec.md" - > "$tmp/sec3.md"
+  o=$(. "$root/docker/tests/lib-scan.sh"; names_outside_section "$(printf '%s\n%s' '## For admins and developers' '## Other')" "$tmp/sec3.md" | tr '\n' ' ')
+  eq "names_outside_section: several headings, one per line, are all exempt and no other" "$o" "$tmp/sec3.md:2 $tmp/sec3.md:9 "
+}
+
+# static_names <ipm load line> <file>: file:line of each line names_outside_section reports outside "For admins and developers" and
+# "Gmail and Microsoft 365" (the sections test-readme.sh's dev_names exempts), except the line that equals the IPM load line.
+static_names() {
+  local ipm_load=$1 f=$2 n
+  (. docker/tests/lib-scan.sh; names_outside_section "$(printf '%s\n%s' '## For admins and developers' '## Gmail and Microsoft 365')" "$f") |
+    while IFS=: read -r f n; do [ -n "$ipm_load" ] && [ "$(sed -n "${n}p" "$f")" = "$ipm_load" ] || printf '%s:%s\n' "$f" "$n"; done
 }
 
 static_hits() { # static_hits <file>: one line per violation
@@ -911,18 +923,27 @@ t_static() {
   eq "the note of release/notes.sh" "$(. release/notes.sh; printf '%s' "$notes_note")" "$NOTE"
   eq "the note of release/checklist.sh" "$(. release/checklist.sh; printf '%s' "$CK_NOTE")" "$NOTE"
   [ "$(grep -c -F -- "$NOTE" README.md)" -gt 0 ] || { echo "  README.md does not hold the note word for word"; bad=1; }
-  # names_outside_section is the README's own developer-section rule (dev_names of test-readme.sh): it finds nothing there either,
-  # except the line that equals IPM_LOAD of test-readme.sh word for word (read from that one line; a changed load line is reported).
+  # static_names is the README's own developer-section rule (dev_names of test-readme.sh, the same two exempt sections): it finds nothing
+  # there either, except the line that equals IPM_LOAD of test-readme.sh word for word (read from that one line; a changed load line is
+  # reported).
   local ipm_load s
   ipm_load=$(sed -n "s/^IPM_LOAD='\(.*\)'\$/\1/p" docker/tests/test-readme.sh)
   [ -n "$ipm_load" ] || { echo "  static: docker/tests/test-readme.sh holds no IPM_LOAD='...' line"; bad=1; }
   printf '%s\n%sx\nThe class %s does it.\n' "$ipm_load" "$ipm_load" "$PLANT_CLASS" > "$tmp/ipm.md"
   for s in "$tmp/ipm.md" README.md GUIDE.md; do
-    o=$(. docker/tests/lib-scan.sh; names_outside_section '## For admins and developers' "$s" |
-      while IFS=: read -r f n; do [ -n "$ipm_load" ] && [ "$(sed -n "${n}p" "$f")" = "$ipm_load" ] || printf '%s:%s\n' "$f" "$n"; done)
+    o=$(static_names "$ipm_load" "$s")
     if [ "$s" = README.md ] || [ "$s" = GUIDE.md ]; then eq "names_outside_section on $s" "$o" ""
     else eq "break: the load line changed and a class name are reported" "$(printf '%s' "$o" | tr '\n' ' ')" "$s:2 $s:3"; fi
   done
+  # The guide's "Gmail and Microsoft 365" section is exempt like "For admins and developers"; any other section is not.
+  grep -qxF '## Gmail and Microsoft 365' GUIDE.md || { echo "  static: GUIDE.md holds no Gmail and Microsoft 365 section"; bad=1; }
+  printf '\n## Elsewhere\n\nThe class %s does it.\n' "$PLANT_CLASS" | cat GUIDE.md - > "$tmp/guide-else.md"
+  o=$(static_names "$ipm_load" "$tmp/guide-else.md")
+  eq "break: a class name planted in another guide section is reported" "$o" "$tmp/guide-else.md:$(wc -l < "$tmp/guide-else.md" | tr -d ' ')"
+  awk -v c="$PLANT_CLASS" '{ print } $0 == "## Gmail and Microsoft 365" { print "\nThe class " c " does it.\n" }' GUIDE.md > "$tmp/guide-gm.md"
+  [ "$(grep -c -F -- "The class $PLANT_CLASS does it." "$tmp/guide-gm.md")" -eq 1 ] || { echo "  static: the planted line is not in the Gmail section copy"; bad=1; }
+  o=$(static_names "$ipm_load" "$tmp/guide-gm.md")
+  eq "a dotted name in the guide's Gmail and Microsoft 365 section is not reported" "$o" ""
 }
 
 areas_ok_real() { # areas_ok_real: the areas row of $out passes, or fails only for unmapped epics outside RELEASE1_EPICS

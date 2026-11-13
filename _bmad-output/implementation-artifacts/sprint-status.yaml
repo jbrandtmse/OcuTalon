@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-13-2026 03:03
+last_updated: 11-13-2026 14:40
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -322,23 +322,32 @@ development_status:
   epic-21: in-progress
   21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp: done
   21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2: done
-  21-8-read-and-send-mail-with-the-oauth2-sign-in: backlog
-  21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings: backlog
-  21-5-set-up-source-polls-and-answer-tool-call-approval-requests: backlog
+  21-8-read-and-send-mail-with-the-oauth2-sign-in: done
+  21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings: ready-for-dev
+  21-9-show-the-changed-tool-banner-in-settings: backlog
+  21-5-set-up-source-polls-and-answer-tool-call-approval-requests: ready-for-dev
+  21-10-answer-tool-call-and-standalone-approval-requests-on-every-c: 
+    ready-for-dev
+  21-11-show-standalone-fix-requests-with-their-reason-and-dry-run-o: backlog
+  21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do: done
+  21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com: done
+  21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace: ready-for-dev
   21-6-send-email-over-smtp: done
-  21-7-send-the-daily-digest-by-email: ready-for-dev
+  21-7-send-the-daily-digest-by-email: done
   epic-21-retrospective: optional
 
   epic-22: in-progress
   22-2-classify-mcp-tools-by-server-and-name: done
-  22-3-call-mcp-tools-only-through-the-governed-proxy: ready-for-dev
-  22-4-hold-risky-and-unclassified-mcp-calls-for-approval: ready-for-dev
-  22-5-poll-a-read-only-mcp-tool-as-a-source: backlog
+  22-3-call-mcp-tools-only-through-the-governed-proxy: done
+  22-4-hold-risky-and-unclassified-mcp-calls-for-approval: done
+  22-5-poll-a-read-only-mcp-tool-as-a-source: ready-for-dev
   22-6-document-a-worked-jira-example-and-mcp-governance: backlog
-  22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone: backlog
+  22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone: 
+    ready-for-dev
   22-8-classify-mcp-calls-by-fingerprint-in-the-gate: done
-  22-9-bound-mcp-attach-and-listing-with-a-timeout: ready-for-dev
-  22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie: backlog
+  22-9-bound-mcp-attach-and-listing-with-a-timeout: done
+  22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie: 
+    ready-for-dev
   epic-22-retrospective: optional
 
   epic-23: in-progress
@@ -352,6 +361,7 @@ development_status:
   23-9-resume-a-suspended-item-after-its-incident-closes: done
   23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass: done
   23-11-say-in-a-partner-notice-only-how-the-incident-ended: done
+  23-12-take-a-rejected-request-off-the-status-rail-at-once: done
   epic-23-retrospective: optional
 
   epic-24: backlog
@@ -362,9 +372,10 @@ development_status:
 
   epic-25: in-progress
   25-2-filter-past-decisions-and-incidents-on-the-history-page: done
-  25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: backlog
+  25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: done
   25-4-assign-approver-and-viewer-roles-in-settings: backlog
   25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: backlog
+  25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th: backlog
   epic-25-retrospective: optional
 
   epic-26: backlog
@@ -445,9 +456,11 @@ development_status:
   35-3-send-events-to-ocutalon-through-a-webhook: done
   epic-35-retrospective: optional
 
-  epic-36: backlog
-  36-1-record-the-setting-history-of-each-watched-production: backlog
-  36-2-set-the-on-call-person-and-backup-in-settings: backlog
+  epic-36: in-progress
+  36-1-record-the-setting-history-of-each-watched-production: done
+  36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql: done
+  36-4-set-the-on-call-person-and-backup-in-settings: ready-for-dev
+  36-3-link-the-worked-jira-example-from-the-admin-docs: backlog
   epic-36-retrospective: optional
 
   epic-37: in-progress

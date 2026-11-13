@@ -192,7 +192,8 @@ Method TestUnknownAndMissingFields()
 	Do $$$AssertEquals(..Rows()_"|"_..Audits()_"|"_$Get(^OcuTalonTest("SettingsOpsProbe", "calls")), "0|0|", "nothing was written, audited or run")
 }
 
-/// The digest's time is HH:MM, its channels a non-empty list of web, phone and telegram with no repeat, stored in the fixed order.
+/// The digest's time is HH:MM, its channels a non-empty list of web, phone, telegram and email with no repeat, stored in the fixed order web, phone,
+/// telegram, email (Story 21.7: email is accepted whether or not the page shows it).
 Method TestDigestSection()
 {
 	Do ..Reset()
@@ -201,7 +202,7 @@ Method TestDigestSection()
 		Set result = ..Save("daily-digest", {"time": (time), "channels": "web,phone,telegram"})
 		Do $$$AssertEquals(result.Outcome_"|"_result.Data, "refused|{""fields"":[""time""]}", "the time '"_time_"' is refused")
 	}
-	For channels = "", "web,web", "email", "web,", ",web", "web;phone", "WEB", "web,phone,telegram,phone" {
+	For channels = "", "web,web", "sms", "web,", ",web", "web;phone", "WEB", "web,phone,telegram,phone", "email,email", "Email", "email;web" {
 		Set result = ..Save("daily-digest", {"time": "08:00", "channels": (channels)})
 		Do $$$AssertEquals(result.Outcome_"|"_result.Data, "refused|{""fields"":[""channels""]}", "the channels '"_channels_"' are refused")
 	}
@@ -215,6 +216,15 @@ Method TestDigestSection()
 	Do ..Reset()
 	Set result = ..Save("daily-digest", {"time": "23:59", "channels": "web,telegram"})
 	Do $$$AssertEquals(..Audits(), 0, "the same values again audit nothing")
+	Do ..Reset()
+	Set result = ..Save("daily-digest", {"time": "23:59", "channels": "email,telegram,web,phone"})
+	Do $$$AssertEquals(result.Outcome, "done", "a save that names email is done")
+	Do $$$AssertEquals(..Row("digest.channels"), "web,phone,telegram,email", "and stores the channels in the fixed order, email last")
+	Set data = ..AuditData(1)
+	Do $$$AssertEquals(data.setting_"|"_data.to, "digest.channels|web,phone,telegram,email", "the audit entry holds the stored order")
+	Do ..Reset()
+	Set result = ..Save("daily-digest", {"time": "23:59", "channels": "email"})
+	Do $$$AssertEquals(result.Outcome_"|"_..Row("digest.channels"), "done|email", "email alone is a valid value")
 }
 
 /// A failed audit write at each of the five positions: not_audited, no row is left, and the audit was asked for up to that position only.

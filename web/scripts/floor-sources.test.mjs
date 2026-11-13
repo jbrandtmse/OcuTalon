@@ -363,7 +363,7 @@ describe('the banned patterns (UX-DR129)', () => {
       pattern: /draggable|cdkDrag|DragDrop|drag-drop|dataTransfer|\(drag\w*\)|\(drop\)|\bondrag\w*|\bondrop\b|addEventListener\(\s*['"](?:drag\w*|drop)['"]/,
       sample: '<li draggable="true" (dragstart)="pick()">',
       allowed: {
-        'app/documents/documents-page.ts': 'the Documents page is a drop target for files (Story 34.2): a second way beside the Add documents button, which is always there; it shows an outline only',
+        'app/shared/file-drop.ts': 'the one drop target for files (Stories 34.2 and 25.3): a second way beside the Add documents button and the chat\'s paperclip, which are always the first way; it shows an outline only, and binds no handler while it is inactive',
       },
     },
     { what: 'a progress bar or a model-progress meter', pattern: /<progress\b|progressbar|aria-valuenow/, sample: '<div role="progressbar" aria-valuenow="40">', allowed: {} },

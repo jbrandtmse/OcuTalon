@@ -17,7 +17,7 @@ import { CheckThresholdsSection } from './check-thresholds-section';
 import { DailyDigestSection } from './daily-digest-section';
 import { DemoModeSection } from './demo-mode-section';
 import { ModelsSection } from './models-section';
-import { type ModelsForm, modelsValuesOf, sectionLabel, sectionPath, sectionSlug, SETTINGS_SECTIONS, SETTINGS_TEXTS, telegramBoxShown, type ThresholdNumbers } from './settings-view';
+import { emailBoxShown, type ModelsForm, modelsValuesOf, sectionLabel, sectionPath, sectionSlug, SETTINGS_SECTIONS, SETTINGS_TEXTS, telegramBoxShown, type ThresholdNumbers } from './settings-view';
 import { TimeZoneSection } from './time-zone-section';
 
 /** The id of the load error's text, which Retry is described by. */
@@ -75,6 +75,7 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
                     [channels]="digest().channels"
                     [demoMode]="demoMode()"
                     [telegramShown]="telegramShown()"
+                    [emailShown]="emailShown()"
                     (saved)="keepDailyDigest($event)"
                     (dirtyChange)="dirty.set($event)"
                     (denied)="deny()"
@@ -246,6 +247,8 @@ export class SettingsPage {
     const bridge = this.data()?.bridge;
     return { tokens: String(bridge?.['DecisionTokenBudget'] ?? '0'), cap: String(bridge?.['DailyCostCapUSD'] ?? '0') };
   });
+  /** True while the mailbox has an address and an outgoing mail server saved: the Daily digest's Email box shows. */
+  protected readonly emailShown = computed(() => emailBoxShown(this.email()));
   /** True while the Daily digest section shows the Telegram box: Telegram is included and on, or paused. */
   protected readonly telegramShown = computed(() => telegramBoxShown(this.live.store()?.telegram, telegramPaused(this.live.store()?.status)));
 

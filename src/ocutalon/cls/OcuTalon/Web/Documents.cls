@@ -241,14 +241,16 @@ ClassMethod Submit(command As OcuTalon.Msg.Command, Output result As OcuTalon.Ms
 }
 
 /// Reads the request body from its stream, never through a string: 1 with the file's name and its decoded bytes (a binary stream) when
-/// the body is an object with a string name of 1 to 255 characters and a string content of valid base64, otherwise 0.
-ClassMethod ParseBody(content As %Stream.Object, Output name As %String, Output bytes As %Stream.Object) As %Boolean
+/// the body is an object with a string name of 1 to 255 characters and a string content of valid base64, otherwise 0. body is the parsed object
+/// when the answer is 1 (for a route that reads more keys, OcuTalon.Web.Files), else "".
+ClassMethod ParseBody(content As %Stream.Object, Output name As %String, Output bytes As %Stream.Object, Output body As %DynamicObject) As %Boolean
 {
-	Set name = "", bytes = ""
+	Set name = "", bytes = "", body = ""
 	If '$IsObject(content) Quit 0
 	Try {
-		Set body = ##class(%DynamicAbstractObject).%FromJSON(..Characters(content))
-		If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") Quit
+		Set parsed = ##class(%DynamicAbstractObject).%FromJSON(..Characters(content))
+		If '$IsObject(parsed) || 'parsed.%IsA("%Library.DynamicObject") Quit
+		Set body = parsed
 		If (body.%GetTypeOf("name") '= "string") || (body.%GetTypeOf("content") '= "string") Quit
 		Set fileName = body.name
 		If ($Length(fileName) < 1) || ($Length(fileName) > 255) Quit
@@ -261,6 +263,7 @@ ClassMethod ParseBody(content As %Stream.Object, Output name As %String, Output 
 	} Catch {
 		Set name = "", bytes = ""
 	}
+	If name = "" Set body = ""
 	Quit (name '= "")
 }
 

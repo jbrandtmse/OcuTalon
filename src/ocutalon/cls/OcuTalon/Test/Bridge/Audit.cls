@@ -17,6 +17,9 @@
 ///   - TestNewKeyShapesInNoEntry (DW-386, the integration of the redactor's new shapes): a DigitalOcean token (dop_v1_) and a PEM private key
 ///     block, each written in a data value and in the description by Write, are in neither the data nor the description of the entry read back from
 ///     the IRIS audit log; [redacted] stands in their place and the marker remains.
+///   - TestMcpCallShape (Story 22.3, AD-17; the Contest Planner's condition (d)): an MCP entry whose change is called or refused has the members of SHAPEMCPCALL (change, server,
+///     tool, outcome, then the common three) and no other, and Shape(MCP, change) says so; added and removed keep the members of SHAPEMCP. A call entry with an argument, a result,
+///     a missing tool or outcome, or an outcome that is not one lower-case word is refused naming the member and not the value, and a shape of the other kind is refused.
 Class OcuTalon.Test.Bridge.Audit Extends %UnitTest.TestCase
 {
 
@@ -59,6 +62,80 @@ Method TestEveryTypeHasOneShape()
 		Do $$$AssertEquals(entry.username, $Username, type_": the entry is written by the calling process's user")
 	}
 	Do $$$AssertEquals($ListLength(types), 6, "the six types were covered")
+}
+
+/// Story 22.3: the call shape of an MCP entry (see the class description).
+Method TestMcpCallShape()
+{
+	Set audit = "OcuTalon.Bridge.Audit"
+	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP", "called"), ","), "change,server,tool,outcome,irisUser,sessionRef,channel", "the shape of a called entry")
+	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP", "refused"), ","), "change,server,tool,outcome,irisUser,sessionRef,channel", "and of a refused one")
+	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP", "added"), ","), "change,server,irisUser,sessionRef,channel", "an added entry keeps the old shape")
+	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP"), ","), "change,server,irisUser,sessionRef,channel", "so does Shape with no change")
+	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "Tool", "called"), ","), "source,tool,classification,readOnly,irisUser,sessionRef,channel", "and the change selects a shape for the type MCP only")
+	For change = "called", "refused" {
+		For outcome = "ok", "cut", "changed", "timeout", "unreachable" {
+			Set marker = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Set data = ..ValidCall(change, outcome, marker)
+			Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+			Do $$$AssertStatusOK($ClassMethod(audit, "Record", "MCP", data), change_" "_outcome_": Record writes the entry")
+			Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", marker)
+			Do $$$AssertEquals(entries.%Size(), 1, change_" "_outcome_": one entry carries the marker")
+			If entries.%Size() '= 1 Continue
+			Set entry = entries.%Get(0)
+			Do $$$AssertEquals(entry.data.%Size(), 7, change_" "_outcome_": the data has exactly the 7 members of the call shape")
+			Do $$$AssertEquals(entry.data.change_"|"_entry.data.tool_"|"_entry.data.outcome, change_"|zz_lookup|"_outcome, change_" "_outcome_": the change, the tool and the outcome are as given")
+			Do $$$AssertEquals(entry.description, "MCP tool zz_lookup of "_marker_" "_change_": "_outcome, change_" "_outcome_": the description names the tool, the server, the change and the outcome")
+		}
+	}
+	Set cases = $ListBuild(
+		$ListBuild("tool", "remove", "", "tool"),
+		$ListBuild("outcome", "remove", "", "outcome"),
+		$ListBuild("arguments", "set", "{""id"": ""zzsecret1""}", "arguments"),
+		$ListBuild("result", "set", "zzsecret2", "result"),
+		$ListBuild("outcome", "set", "Ok", "outcome"),
+		$ListBuild("outcome", "set", "two words", "outcome"),
+		$ListBuild("outcome", "set", "zzsecret3 zzsecret4", "outcome"),
+		$ListBuild("outcome", "set", "abcdefghijklmnopqrstuvwxyzabc", "outcome"),
+		$ListBuild("outcome", "set", "", "outcome"),
+		$ListBuild("tool", "set", "", "tool"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set member = $List(case, 1)
+		Set marker = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set data = ..ValidCall("called", "ok", marker)
+		If $List(case, 2) = "remove" {
+			Do data.%Remove(member)
+		} Else {
+			Do data.%Set(member, $List(case, 3), "string")
+		}
+		Set sc = $ClassMethod(audit, "Record", "MCP", data)
+		Do $$$AssertStatusNotOK(sc, "a call entry with "_member_" ("_$List(case, 2)_") is refused")
+		Set text = $SYSTEM.Status.GetErrorText(sc)
+		Do $$$AssertTrue((text [ "MCP") && (text [ ("'"_$List(case, 4)_"'")), member_": the error names the type and the member: "_text)
+		Do $$$AssertTrue(text '[ "zzsecret", member_": and holds no value")
+	}
+	Set data = ..Valid("MCP", ##class(OcuTalon.Bridge.Ids).NewRef())
+	Do data.%Set("tool", "zz_lookup", "string")
+	Do data.%Set("outcome", "ok", "string")
+	Do $$$AssertStatusNotOK($ClassMethod(audit, "Record", "MCP", data), "an added entry with a tool and an outcome is refused: it has the old shape")
+	Set data = ..ValidCall("called", "ok", ##class(OcuTalon.Bridge.Ids).NewRef())
+	Do data.%Set("change", "updated", "string")
+	Do $$$AssertStatusNotOK($ClassMethod(audit, "Record", "MCP", data), "and a change that is neither of the two kinds is refused whatever the members")
+}
+
+/// A valid called or refused MCP entry for the outcome, the marker in the server.
+ClassMethod ValidCall(change As %String, outcome As %String, marker As %String) As %DynamicObject [ Private ]
+{
+	Set data = {}
+	Do data.%Set("change", change, "string")
+	Do data.%Set("server", marker, "string")
+	Do data.%Set("tool", "zz_lookup", "string")
+	Do data.%Set("outcome", outcome, "string")
+	Do data.%Set("irisUser", "ocutalon", "string")
+	Do data.%Set("sessionRef", marker, "string")
+	Do data.%Set("channel", "web", "string")
+	Quit data
 }
 
 /// Row 2: every other shape is refused before anything is written.

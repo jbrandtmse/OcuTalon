@@ -1175,8 +1175,110 @@ Method TestCancel()
 	Do ..AssertOneEntry(mark, ..Want(person.ref, "tool_call", "cancelled", "pending", "cancelled", "", ..Prop(person.ref, "ToolName"), person.owner, user, sessionRef, "web"), "(b) the audit entry names the three arguments")
 }
 
+/// Story 22.4 (AD-11): a tool_call request of an MCP tool (ToolSource starting mcp:) is raised with its ToolFingerprint and keeps it; the refusals of an MCP tool_call without
+/// one, and of a fingerprint on any other request, are rows of TestRefused. A built-in tool_call is raised with an empty ToolFingerprint, as before.
+Method TestRaiseMcpToolCall()
+{
+	If '..Ready() Quit
+	Set fingerprint = $Translate($Justify("", 64), " ", "a")
+	Set row = ..NewRow("tool_call")
+	Set row.ToolSource = "mcp:remote:@{config:AI.MCP.OcuTalon_zzraise}"
+	Set row.ToolFingerprint = fingerprint
+	Kill ^||ZzProbeSink
+	Set sc = ..Raise(row, .ref)
+	Do $$$AssertStatusOK(sc, "an MCP tool_call with a fingerprint is raised")
+	Set saved = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Do $$$AssertTrue($IsObject(saved), "the row exists")
+	If $IsObject(saved) Do $$$AssertEquals(saved.ToolFingerprint_"|"_saved.ToolSource, fingerprint_"|"_"mcp:remote:@{config:AI.MCP.OcuTalon_zzraise}", "it keeps the fingerprint and the toolref")
+	Set builtIn = ..NewRow("tool_call")
+	Set sc = ..Raise(builtIn, .builtInRef)
+	Do $$$AssertStatusOK(sc, "a built-in tool_call is raised")
+	Set saved = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(builtInRef)
+	If $IsObject(saved) Do $$$AssertEquals("["_saved.ToolFingerprint_"]", "[]", "its ToolFingerprint stays empty")
+}
+
+/// Story 22.4 (AD-11, I/O row "Server removed, pending"): CancelPending cancels, through Cancel, each pending tool_call whose ToolSource is exactly the source, in the name of the
+/// caller: one Approval entry naming the caller's user, session and channel and approval.cancelled for each, and a later Answer finds nothing. A request of another source, a
+/// request that is not pending (approved here), and a request that is not a tool_call are left alone; an empty source is an error and cancels nothing; a request that cannot be
+/// cancelled gives one warning that names its Ref and the others still are cancelled, and the error is returned; a second call cancels none and adds no entry.
+Method TestCancelPending()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set source = "mcp:remote:@{config:AI.MCP.OcuTalon_zzcancel" _ ..Number _ "}"
+	Set other = "mcp:remote:@{config:AI.MCP.OcuTalon_zzcancel" _ ..Number _ "x}"
+	Set fingerprint = $Translate($Justify("", 64), " ", "b")
+	Set refs = ""
+	For i = 1:1:3 {
+		Set row = ..NewRow("tool_call")
+		Set row.ToolSource = source
+		Set row.ToolFingerprint = fingerprint
+		Do $$$AssertStatusOK(..Raise(row, .ref), "pending MCP request " _ i _ " is raised")
+		Set refs = refs _ $ListBuild(ref)
+	}
+	Set row = ..NewRow("tool_call")
+	Set row.ToolSource = other
+	Set row.ToolFingerprint = fingerprint
+	Do $$$AssertStatusOK(..Raise(row, .otherRef), "a request of another source is raised")
+	Set row = ..NewRow("tool_call")
+	Set row.ToolSource = source
+	Set row.ToolFingerprint = fingerprint
+	Do $$$AssertStatusOK(..Raise(row, .approvedRef), "a request of the source that is answered is raised")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(approvedRef, "reject", "web", user, ##class(OcuTalon.Bridge.Ids).NewRef(), .winner, ..#SINK), "done", "and rejected, so it is not pending")
+	Kill ^||ZzProbeSink
+	Set sessionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set sc = ##class(OcuTalon.Bridge.Approval).CancelPending("", ..#SINK, "web", user, sessionRef, .count)
+	Do $$$AssertStatusNotOK(sc, "an empty source is an error")
+	Do $$$AssertEquals(+count, 0, "and cancels nothing")
+	Set sc = ##class(OcuTalon.Bridge.Approval).CancelPending(source, ..#SINK, "web", user, sessionRef, .count)
+	Do $$$AssertStatusOK(sc, "CancelPending is OK")
+	Do $$$AssertEquals(count, 3, "it cancelled the three pending requests of the source")
+	Set position = 0
+	While $ListNext(refs, position, ref) {
+		Do $$$AssertEquals(..Prop(ref, "State"), "cancelled", "request " _ ref _ " is cancelled")
+		Do ..AssertOneEntry(mark, ..Want(ref, "tool_call", "cancelled", "pending", "cancelled", "", ..Prop(ref, "ToolName"), ..Prop(ref, "OwnerRef"), user, sessionRef, "web"), "the entry names the caller")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "web", user, ##class(OcuTalon.Bridge.Ids).NewRef(), .winner, ..#SINK), "not_found", "a later Answer is not_found")
+	}
+	Do $$$AssertEquals(..Prop(otherRef, "State") _ "|" _ ..Prop(approvedRef, "State"), "pending|rejected", "the request of the other source and the answered one are as they were")
+	Set events = 0
+	For n = 1:1:+$Get(^||ZzProbeSink) {
+		If $List($Get(^||ZzProbeSink(n)), 1) = "approval.cancelled" Set events = events + 1
+	}
+	Do $$$AssertEquals(events, 3, "approval.cancelled fired once for each")
+	Set sc = ##class(OcuTalon.Bridge.Approval).CancelPending(source, ..#SINK, "web", user, sessionRef, .count)
+	Do $$$AssertStatusOK(sc, "a second call is OK")
+	Do $$$AssertEquals(count, 0, "and cancels none")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Approval", "Approval", $List(refs, 1)).%Size(), 1, "and adds no second entry")
+
+	// a request that cannot be cancelled (another job holds its lock): one warning that names its Ref, the other request of the source is still cancelled, and the error is returned
+	Set row = ..NewRow("tool_call")
+	Set row.ToolSource = other
+	Set row.ToolFingerprint = fingerprint
+	Do $$$AssertStatusOK(..Raise(row, .nextRef), "a second request of the other source is raised")
+	Set run = $Name(^OcuTalonTest("Approval", "job", ..Number))
+	Kill @run
+	Job ##class(OcuTalon.Test.Bridge.Approval).HoldLockInJob(..Number, 60, otherRef)
+	Do ..WaitNode($Name(@run@("locked")), 20)
+	Do $$$AssertEquals($Get(@run@("locked")), 1, "the other job holds the lock")
+	If '$Get(@run@("locked")) {
+		Set @run@("release") = 1
+		Quit
+	}
+	Set eventMark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Set sc = ##class(OcuTalon.Bridge.Approval).CancelPending(other, ..#SINK, "web", user, sessionRef, .count)
+	Set @run@("release") = 1
+	Do ..WaitNode($Name(@run@("done")), 20)
+	Do $$$AssertStatusNotOK(sc, "the first error is returned")
+	Do $$$AssertEquals(+count, 1, "and only the other request was cancelled")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(eventMark, "OcuTalon.Bridge.Approval", "CancelPending", $ListBuild(otherRef)), 1, "with one warning that names the Ref")
+	Do $$$AssertEquals(..Prop(otherRef, "State") _ "|" _ ..Prop(nextRef, "State"), "pending|cancelled", "the locked request is as it was and the other one is cancelled")
+	Kill @run
+}
+
 /// Row 10: every pair of a state and a call is refused unless AD-11's path allows it. Fixture rows in the 8 states and an approved row past its
-/// expiry meet Answer approve and reject, Expire, Cancel, StartExecution and FinishExecution (done, failed, interrupted and x), each call on its
+/// expiry meet Answer approve and reject, Expire, Cancel, StartExecution and FinishExecution (done, failed, interrupted, changed and x), each call on its
 /// own row. A refusal names the Ref and the state, and changes no column and fires no event; an allowed change sets only its fields and fires its
 /// event (none for StartExecution, which takes no sink: Decide's HostSinkClass is ProbeSink here so that an event of it would show). Answer on a pending row and Cancel on a pending row are rows 1 and 9: a fixture has no task.
 Method TestEveryOtherTransitionIsRefused()
@@ -1189,7 +1291,7 @@ Method TestEveryOtherTransitionIsRefused()
 	Set changes = 0
 	Set none = ""
 	Set keys = $ListBuild("pending", "approved", "approvedPast", "rejected", "expired", "cancelled", "executing", "done", "failed")
-	Set ops = $ListBuild("answer approve", "answer reject", "expire", "cancel", "start", "finish done", "finish failed", "finish interrupted", "finish x")
+	Set ops = $ListBuild("answer approve", "answer reject", "expire", "cancel", "start", "finish done", "finish failed", "finish interrupted", "finish changed", "finish x")
 	Set keyPosition = 0
 	While $ListNext(keys, keyPosition, key) {
 		Set state = $Select(key = "approvedPast": "approved", 1: key)
@@ -1540,20 +1642,21 @@ Method TestTimerDeliversAnUndeliveredAnswer()
 	Do $$$AssertEquals(..Prop(ref, "State"), "approved", "the row stays approved")
 }
 
-/// The job body of TestLockHeld: takes LOCK ^OcuTalon.Bridge.Approval, reports it, and keeps it until the test sets release or the seconds
-/// pass.
-ClassMethod HoldLockInJob(number As %Integer, seconds As %Integer)
+/// The job body of TestLockHeld: takes LOCK ^OcuTalon.Bridge.Approval (only the node of the Ref when ref is given), reports it, and keeps it until the test sets release
+/// or the seconds pass.
+ClassMethod HoldLockInJob(number As %Integer, seconds As %Integer, ref As %String = "")
 {
 	Set run = $Name(^OcuTalonTest("Approval", "job", number))
+	Set node = $Select(ref = "": $Name(^OcuTalon.Bridge.Approval), 1: $Name(^OcuTalon.Bridge.Approval(ref)))
 	Try {
-		Lock +^OcuTalon.Bridge.Approval:10
+		Lock +@node:10
 		If $Test {
 			Set @run@("locked") = 1
 			Set deadline = $ZHorolog + seconds
 			While '$Get(@run@("release")) && ($ZHorolog < deadline) {
 				Hang 0.05
 			}
-			Lock -^OcuTalon.Bridge.Approval
+			Lock -@node
 		} Else {
 			Set @run@("error") = "the lock was not taken"
 		}
@@ -2294,6 +2397,11 @@ ClassMethod Refusals() As %List [ Private ]
 		$ListBuild("tool_call", "FixTargets", "101", "FixTargets"),
 		$ListBuild("tool_call", "IncidentRef", "x", "IncidentRef"),
 		$ListBuild("tool_call", "TraceRef", "x", "TraceRef"),
+		$ListBuild("tool_call", "ToolSource", "mcp:zzserver", "ToolFingerprint"),
+		$ListBuild("tool_call", "ToolSource", "MCP:zzserver", "ToolFingerprint"),
+		$ListBuild("tool_call", "ToolFingerprint", "abc", "ToolFingerprint"),
+		$ListBuild("fix", "ToolFingerprint", "abc", "ToolFingerprint"),
+		$ListBuild("setting", "ToolFingerprint", "abc", "ToolFingerprint"),
 		$ListBuild("setting", "OwnerRef", "instance", "OwnerRef"),
 		$ListBuild("setting", "OwnerRef", "eval", "OwnerRef"),
 		$ListBuild("setting", "OwnerRef", "x", "OwnerRef"),
@@ -3253,6 +3361,7 @@ ClassMethod Expected(key As %String, op As %String) As %List [ Private ]
 	If (arg = "done") && (state = "executing") Quit $ListBuild("changed", "done", "approval.result")
 	If (arg = "failed") && ((state = "executing") || (state = "approved")) Quit $ListBuild("changed", "failed", "approval.result")
 	If (arg = "interrupted") && (state = "executing") Quit $ListBuild("changed", "failed", "approval.result")
+	If (arg = "changed") && (state = "executing") Quit $ListBuild("changed", "failed", "approval.result")
 	Quit $ListBuild("refused", state, "")
 }
 

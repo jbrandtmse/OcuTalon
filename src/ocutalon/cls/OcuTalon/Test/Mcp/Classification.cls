@@ -7,7 +7,7 @@
 ///     every other form (a URL, stdio, the JSON configuration, another prefix, another case, a bad name, extra text, no source) and a server that was removed answer
 ///     registered 0, with no classification;
 ///   - TestClassifications (rows "Read-only", "Risky", "Unclassified", "Not in map"): a read-only row answers {safe, readOnly 1, registered 1} for its fingerprint, a
-///     risky one {risky, 0, 1}; no row, an unclassified row and no fingerprint answer none and change nothing (a classified row with no fingerprint stays classified);
+///     risky one {risky, 0, 1}, and every answer for a registered server also holds its resource, OcuTalon_MCP_<server> (Story 22.3; a server that is not registered has none); no row, an unclassified row and no fingerprint answer none and change nothing (a classified row with no fingerprint stays classified);
 ///     the answer reads the rows and writes nothing; tool names are case-sensitive;
 ///   - TestChangedFingerprint (rows "Changed"): a classified row and a different, non-empty fingerprint answer none and clear the row through ClearChanged (the row is
 ///     unclassified with the new fingerprint, one Tool entry is audited, one notice goes to each admin session); the same call again does nothing more; an unclassified
@@ -94,9 +94,9 @@ Method TestClassifications()
 	Set before = ..ToolRows(server)
 	Hang 0.1
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
-	Set none = {"classification": "", "readOnly": 0, "registered": 1}.%ToJSON()
-	Do $$$AssertEquals($ClassMethod(class, "ClassifyMcp", source, "zz_ro", "fpro").%ToJSON(), {"classification": "safe", "readOnly": 1, "registered": 1}.%ToJSON(), "a read-only row answers safe, readOnly 1, registered 1")
-	Do $$$AssertEquals($ClassMethod(class, "ClassifyMcp", source, "zz_risky", "fprisky").%ToJSON(), {"classification": "risky", "readOnly": 0, "registered": 1}.%ToJSON(), "a risky row answers risky, readOnly 0, registered 1")
+	Set none = {"classification": "", "readOnly": 0, "registered": 1, "resource": (##class(OcuTalon.Install.Step.Mcp).ResourceOf(server))}.%ToJSON()
+	Do $$$AssertEquals($ClassMethod(class, "ClassifyMcp", source, "zz_ro", "fpro").%ToJSON(), {"classification": "safe", "readOnly": 1, "registered": 1, "resource": (##class(OcuTalon.Install.Step.Mcp).ResourceOf(server))}.%ToJSON(), "a read-only row answers safe, readOnly 1, registered 1 and the server's resource")
+	Do $$$AssertEquals($ClassMethod(class, "ClassifyMcp", source, "zz_risky", "fprisky").%ToJSON(), {"classification": "risky", "readOnly": 0, "registered": 1, "resource": (##class(OcuTalon.Install.Step.Mcp).ResourceOf(server))}.%ToJSON(), "a risky row answers risky, readOnly 0, registered 1 and the server's resource")
 	Do $$$AssertEquals($ClassMethod(class, "ClassifyMcp", source, "zz_none", "fpn").%ToJSON(), none, "an unclassified row answers none")
 	Do $$$AssertEquals($ClassMethod(class, "ClassifyMcp", source, "zz_missing", "fpx").%ToJSON(), none, "a tool with no row answers none")
 	Do $$$AssertEquals($ClassMethod(class, "ClassifyMcp", source, "zz_ro", "").%ToJSON(), none, "a read-only row with no fingerprint in the map answers none")
@@ -113,7 +113,7 @@ Method TestChangedFingerprint()
 	Set server = ..Make("c")
 	Set source = ..Source(server)
 	Set class = ..#PROBECLASS
-	Set none = {"classification": "", "readOnly": 0, "registered": 1}.%ToJSON()
+	Set none = {"classification": "", "readOnly": 0, "registered": 1, "resource": (##class(OcuTalon.Install.Step.Mcp).ResourceOf(server))}.%ToJSON()
 	Set admin = ..MakeAdmin()
 	Set ^||ZzOps("admins") = $ListBuild(admin)
 	Do ..Attach(server, "zz_ro,zz_risky,zz_none", "fp1,fp2,fp3")
@@ -155,7 +155,7 @@ Method TestChangedFingerprintReal()
 {
 	Set server = ..Make("k")
 	Set source = ..Source(server)
-	Set none = {"classification": "", "readOnly": 0, "registered": 1}.%ToJSON()
+	Set none = {"classification": "", "readOnly": 0, "registered": 1, "resource": (##class(OcuTalon.Install.Step.Mcp).ResourceOf(server))}.%ToJSON()
 	Do ..Attach(server, "zz_ro,zz_other", "fp1,fp2")
 	Do ..Classify(server, "zz_ro", "read-only")
 	Do ..Classify(server, "zz_other", "risky")

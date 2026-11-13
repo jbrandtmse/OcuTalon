@@ -2,7 +2,8 @@
 /// credential setting and a plain one on that item: Test.Watch.Evidence and Test.Eval.Record. It is a helper, not a test class: none of its methods is a test.
 ///   - Put adds the settings to the definition (on) or takes them out of it (off) and saves it. It first takes out any of them that are there, so that it can be
 ///     called twice. Each name of CREDENTIALS gets the credential value, and NOTE gets the note value. It calls only Ens classes while it is in OCUORDERS and
-///     does not update the running production.
+///     does not update the running production. With only (a comma list of names from CREDENTIALS and NOTE) it takes out, and puts back, just those: the
+///     other settings stay as they are, so that a test can give Credentials (a reference) and ApiKey (a secret) different values.
 ///   - Defined gives the names of the settings of the item in the saved definition, sorted, so that a test can compare the definition before and after.
 /// The namespace and the production are those of OcuTalon.Install.Step.Demo.
 Class OcuTalon.Test.Watch.OrdersDefinition [ DependsOn = OcuTalon.Install.Step.Demo ]
@@ -23,9 +24,9 @@ Parameter PRODUCTION = {##class(OcuTalon.Install.Step.Demo).#PRODUCTION};
 
 /// Puts the settings into (on) or takes them out of (off) the item of the saved Orders definition, and saves it. The status is an error when the
 /// definition or the item is not there.
-ClassMethod Put(on As %Boolean, credentialValue As %String = "", noteValue As %String = "") As %Status
+ClassMethod Put(on As %Boolean, credentialValue As %String = "", noteValue As %String = "", only As %String = "") As %Status
 {
-	Set names = $ListFromString(..#CREDENTIALS_","_..#NOTE)
+	Set names = $ListFromString($Select(only = "": ..#CREDENTIALS_","_..#NOTE, 1: only))
 	Set noteName = ..#NOTE, itemName = ..#ITEM, productionName = ..#PRODUCTION
 	New $NAMESPACE
 	Set $NAMESPACE = ..#NAMESPACE
