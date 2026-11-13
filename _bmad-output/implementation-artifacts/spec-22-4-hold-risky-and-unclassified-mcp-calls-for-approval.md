@@ -2,7 +2,7 @@
 title: 'Story 22.4: Hold risky and unclassified MCP calls for approval'
 type: 'feature'
 created: '2026-11-11'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '14ed75901bb62898111b03d48012cf972b7dcfe3'
 baseline_commit: '14ed75901bb62898111b03d48012cf972b7dcfe3'
 review_loop_iteration: 0
@@ -225,7 +225,11 @@ Code review 2026-11-12 (four layers, full-opus: `_bmad/custom/model-overrides.ya
 - `low` Two fail-closed layers (the gate's fingerprint throw behind `Raise`'s refusal; the proxy's demo check behind `ProxyToolSet` empty) cannot be told apart by a test: defence in depth, and the outside behaviour is pinned.
 - `low` 2(b)'s "no model turn" half has no mutation line of its own: Rule 19 asks for one demonstrated mutation per AC, and 2(b) has one.
 
+- [ ] [CI] iris (image): `OcuTalon.Test.Data.Tables` `TestContracts` fails on af886ee3 (ci run 43344958166, job iris (image), shard lane-b@Contract,Core,Data,Live): "OcuTalon.Bridge.Data.ApprovalRequest has exactly its contract: property ToolFingerprint is not in the contract" -- `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` contract block for `OcuTalon.Bridge.Data.ApprovalRequest` (around L179-206, after `"Runner": "%String(MAXLEN=128)"`) -- append exactly one entry `"ToolFingerprint": "%String(MAXLEN=64)"` (the comma on the Runner line) and change nothing else in that file: it is Lane B's and contended with Epic 21 (a one-entry append is the allowed precedent; Epic 21 edits a different block). Check whether any other contract or count in `Test.Data.Tables` (or another `Test/Data/**` contract test) also lists ApprovalRequest's properties or storage slots, and fix it the same minimal way. Verify with `ci/iris.sh class OcuTalon.Test.Data.Tables` on a lane D warm stack.
+
 ## Spec Change Log
+
+- 2026-11-13 (runner, rework iteration 1, trigger ci): re-opened for the [CI] item above (image group red on af886ee3: the Data.Tables contract lacks ToolFingerprint).
 
 - 2026-11-13 (runner, Planner ruling F(1) on DW-1240): the condition 4 AC now says an unknown toolref is DENIED (UNREGISTERED, or FAILED with no fingerprint), never held; the "HELD" wording is superseded. No code change.
 
