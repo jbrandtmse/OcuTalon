@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-11-12'
 status: 'done'
 baseline_revision: 'a1b6eebcbe0edc5db62be70a01235a49af17eb57'
+baseline_commit: 'a1b6eebcbe0edc5db62be70a01235a49af17eb57'
 planned_against: 'feature b8780de6094a8e8186718832d926e1dc721bfc68 (integrated into OCT-epic25)'
 review_loop_iteration: 0
 followup_review_recommended: true
