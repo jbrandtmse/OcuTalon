@@ -256,3 +256,6 @@
 2026-11-13T17:14:27Z	Story 22.7	stage_spawned	stage=code-review spawn_at=2026-11-13T17:14:27Z model=opus agent_name=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone-code-review-3 cycle_iteration=3 effort=high note=scoped_rework2(cf9b6d2a..HEAD)
 2026-11-13T17:21:24Z	Story 22.7	cr_complete	spawn_at=2026-11-13T17:15:00Z model=opus cycle_iteration=3 resolved=1 deferred=0 dismissed=8 high=0 med=0 low=1 rows=9 unresolved_high_med=0 final=done review_tier=full-opus scope=rework2(cf9b6d2a..HEAD)
 2026-11-13T17:21:24Z	Story 22.7	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=rework2_filed_nothing
+2026-11-13T17:30:34Z	Epic 22	integrated_forward	feature=9a946ea3 head=c88639d1 conflicts_resolved=sprint-status.yaml(bookkeeping) auto_merged=Test/Agent/Instructions.cls(union:0.35_Triage_phrases) checks=test-boundaries,test-class-rules,test-readme_rc0
+2026-11-13T17:30:34Z	Story 22.7	smoke_complete	method=other(rework2+merged_tree;lane-D_warm_e22s7f3w:Test.Fix.Email,Test.Agent.Runners) result=pass iterations=2 defects_caught=0 torn_down=e22s7f3w
+2026-11-13T17:30:34Z	Story 22.7	fresh_check	env=recipe(new_lane-D_warm_stack_e22s7f3w) tests=2(Bridge.Decide,Agent.Instructions) result=pass order=forward,reverse
