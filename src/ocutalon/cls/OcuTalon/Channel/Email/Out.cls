@@ -28,9 +28,10 @@
 ///     owner and the key, a sent row for the key answers sent (Ok 1, MESSAGESENT), as the first send did, and sends nothing; a row that is pending or
 ///     marked failed, or a lock that cannot be taken in CLAIMWAIT, answers failed (Ok 0, MESSAGEFAILED) and sends nothing; otherwise the claim is written
 ///     pending and the send follows. A sent email clears the mark. A failed send that the server did not take (one of Sender.Classify's classes) deletes
-///     the claim, so that the key can be sent again and leaves no row; a failed send that may still have reached the server (Sender.MayHaveSent: a timeout
-///     or a connection lost during DATA) and an error after the claim mark it failed, so that the key never sends twice. A tool send with no key is
-///     sent every time;
+///     the claim, so that the key can be sent again and leaves no row, and answers failed with the message of its class. A failed send that may still have
+///     reached the server (Sender.MayHaveSent: a timeout or a connection lost during DATA) marks the claim maysent (CLAIMMAYSENT) and answers failed with
+///     MESSAGEMAYHAVESENT, which does not say that the email was not sent; the same key again answers the same message and sends nothing, so that the key
+///     never sends twice. An error after the claim marks it failed. A tool send with no key is sent every time;
 ///   - the message is one text/plain part in UTF-8 with no attachment, sent once through Deliver. Success records a Data.Delivery row (owner: the
 ///     command's SessionRef, or instance when it has none; channel email; the Ref of the header as the message id; the approval's Ref for a system send) and
 ///     answers sent (Ok 1, MESSAGESENT). A failure answers failed (Ok 0) with the message of Sender.Classify's class: MESSAGEUNREACHABLE,
@@ -93,6 +94,11 @@ Parameter TEXTMAX = 100000;
 /// What Claimed answers for the claim row of a send that failed or never finished.
 Parameter CLAIMFAILED = 2;
 
+/// What Claimed answers for the claim row of a keyed tool send that may still have reached the server, and the FallbackReason that marks it.
+Parameter CLAIMMAYHAVESENT = 3;
+
+Parameter CLAIMMAYSENT = "maysent";
+
 /// The FallbackReason of a claim row while its send has not finished.
 Parameter CLAIMPENDING = "pending";
 
@@ -118,6 +124,9 @@ Parameter MESSAGESIGNIN = "The mail sign-in is no longer valid, so the email was
 Parameter MESSAGEUNAVAILABLE = "Email can't be connected on the online demo. Nothing was changed.";
 
 Parameter MESSAGEFAILED = "Something went wrong inside OcuTalon, so the command may not have finished.";
+
+/// The Message of a keyed tool send whose failure may still have reached the server (Sender.MayHaveSent), and of the same key again (Planner ruling K).
+Parameter MESSAGEMAYHAVESENT = "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again.";
 
 XData MessageMap
 {
@@ -173,6 +182,8 @@ Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, B
 		Set claimed = ..Claimed(approval, owner, key)
 		If claimed = ..#CLAIMFAILED {
 			Set result = ..Result(0, "failed", ..#MESSAGEFAILED)
+		} ElseIf claimed = ..#CLAIMMAYHAVESENT {
+			Set result = ..Result(0, "failed", ..#MESSAGEMAYHAVESENT)
 		} ElseIf claimed {
 			Set result = $Select(approval '= "": ..Result(1, "already_sent", ..#MESSAGESENT), 1: ..Result(1, "sent", ..#MESSAGESENT))
 		} Else {
@@ -194,7 +205,7 @@ Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, B
 /// Builds the message, delivers it once and answers; claim is the claim row of a claimed send, "" for an unclaimed tool send. The Ref of the header is the claim
 /// row's, or a new one that the Delivery row of a sent unclaimed tool email keeps. A failed send keeps the claim of an approval, marked failed. It deletes
 /// the claim of a keyed tool send (it has no ApprovalRef), so that the same key can be sent again, unless the email may still have reached the server
-/// (Sender.MayHaveSent); that claim is kept, marked failed.
+/// (Sender.MayHaveSent); that claim is kept, marked maysent, and the answer is MESSAGEMAYHAVESENT instead of the class's message.
 Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, claim As OcuTalon.Data.Delivery) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set ref = $Select($IsObject(claim): claim.ChannelMessageId, 1: ##class(OcuTalon.Bridge.Ids).NewRef())
@@ -213,11 +224,20 @@ Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef re
 	Set class = ##class(OcuTalon.Channel.Email.Sender).Classify(sc)
 	Set errorMessage = $Select(class = ##class(OcuTalon.Channel.Email.Sender).#REFUSED: $Select(..OAuth2Mode(): ..#MESSAGESIGNIN, 1: ..#MESSAGEREFUSEDLOGIN), class = ##class(OcuTalon.Channel.Email.Sender).#REJECTED: ..#MESSAGEREJECTED, 1: ..#MESSAGEUNREACHABLE)
 	If $IsObject(claim) {
-		If (claim.ApprovalRef = "") && '##class(OcuTalon.Channel.Email.Sender).MayHaveSent(sc) {
+		Set mark = "failed"
+		If claim.ApprovalRef = "" {
+			If ##class(OcuTalon.Channel.Email.Sender).MayHaveSent(sc) {
+				Set mark = ..#CLAIMMAYSENT
+				Set errorMessage = ..#MESSAGEMAYHAVESENT
+			} Else {
+				Set mark = ""
+			}
+		}
+		If mark = "" {
 			Set deleted = ##class(OcuTalon.Data.Delivery).%DeleteId(claim.%Id())
 			If $$$ISERR(deleted) $$$LOGERROR("EmailOut could not remove the claim of a failed send")
 		} Else {
-			Set claim.FallbackReason = "failed"
+			Set claim.FallbackReason = mark
 			Set saved = claim.%Save()
 			If $$$ISERR(saved) $$$LOGERROR("EmailOut could not mark the claim of a failed send")
 		}
@@ -433,8 +453,9 @@ Method Authorised(request As OcuTalon.Msg.Command.SendEmail, from As %String, By
 
 /// What a Delivery row of channel email says about a claim: for an approval (approval is not empty) the row with that ApprovalRef, for a keyed tool send
 /// (approval empty) the row of the owner whose DigestKey is exactly key (the column compares without regard to case, so the value read is compared
-/// again). 0 when there is none, CLAIMFAILED when the row is the claim of a send that failed or never finished (FallbackReason failed or CLAIMPENDING),
-/// and 1 for a row of an email that was sent.
+/// again). 0 when there is none, CLAIMMAYHAVESENT when the row is the claim of a keyed tool send that may still have reached the server (FallbackReason
+/// CLAIMMAYSENT), CLAIMFAILED when it is the claim of a send that failed or never finished (FallbackReason failed or CLAIMPENDING), and 1 for a row of an
+/// email that was sent.
 ClassMethod Claimed(approval As %String, owner As %String = "", key As %String = "") As %Integer [ Private ]
 {
 	Set statement = ##class(%SQL.Statement).%New()
@@ -448,7 +469,7 @@ ClassMethod Claimed(approval As %String, owner As %String = "", key As %String =
 	If rows.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(rows.%SQLCODE, rows.%Message)
 	Set found = 0
 	While 'found && rows.%Next() {
-		If (approval '= "") || (rows.%Get("DigestKey") = key) Set found = $Select(rows.%Get("FallbackReason") = "": 1, 1: ..#CLAIMFAILED)
+		If (approval '= "") || (rows.%Get("DigestKey") = key) Set found = $Select(rows.%Get("FallbackReason") = "": 1, rows.%Get("FallbackReason") = ..#CLAIMMAYSENT: ..#CLAIMMAYHAVESENT, 1: ..#CLAIMFAILED)
 	}
 	Quit found
 }

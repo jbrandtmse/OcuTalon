@@ -2,9 +2,9 @@
 title: "Story 21.13: A re-sent turn sends its email once (EmailOut honours the command's idempotency key)"
 type: 'bugfix'
 created: '2026-11-12'
-status: 'in-progress'
-baseline_revision: 'f76320db76eb675214aded797e63ca40e511a332'
-baseline_commit: 'f76320db76eb675214aded797e63ca40e511a332'
+status: 'done'
+baseline_revision: '4671201c71dbdaa6854536c8dfccddac404d0a17'
+baseline_commit: '4671201c71dbdaa6854536c8dfccddac404d0a17'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -108,7 +108,7 @@ deferred: []
 - **The system path is unchanged.** Given 21.6's approval-keyed tests, when they run unchanged, then they pass: `Test.Channel.EmailOut` `TestNoDoubleSend`, `TestClaimIsLocked`, `TestSystemApproval`, `TestMessageShape`, `TestFailureClasses` and `TestSignInMessage`, and `Test.Channel.EmailLive` `TestSystemSendIsClaimedByItsApproval`, `TestToolSendReachesTheStub` and `TestSendFailuresByStubMode`.
 - **No stored-data change.** Given the change, when `Test.Data.Tables` runs, then it passes unchanged, and `git diff` shows no `Storage`, `Property` or `Index` line changed in any class.
 
-- [ ] [Review] Planner ruling K (PUBLIC TEXT, `prompts/gate-rulings-20261112-1810.md` K): the "may have sent" case (`Sender.MayHaveSent`: an SMTP timeout, or a connection lost during DATA) must NOT say the email wasn't sent. For that case only, the answer text is exactly: "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again." A repeat with the same key gives the same sentence. Certainly-not-received failures keep their existing texts (`MESSAGEFAILED` and the 21.6 Q2-Q4 texts) and free the key. Author the sentence once as a new message parameter beside the existing ones (Rule 14: ASCII, escapes if needed), route it through the same answer path, and pin: the timeout case, the dropped-during-DATA case, a repeat of each (same sentence, nothing sent), and a certainly-not-received failure (old text, key freed, retry sent); `mutation:` lines. Add the sentence to the ux-strings/catalog registry the project keeps for public text, if `EmailOut`'s other answers are listed there.
+- [x] [Review] Planner ruling K (PUBLIC TEXT, `prompts/gate-rulings-20261112-1810.md` K): the "may have sent" case (`Sender.MayHaveSent`: an SMTP timeout, or a connection lost during DATA) must NOT say the email wasn't sent. For that case only, the answer text is exactly: "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again." A repeat with the same key gives the same sentence. Certainly-not-received failures keep their existing texts (`MESSAGEFAILED` and the 21.6 Q2-Q4 texts) and free the key. Author the sentence once as a new message parameter beside the existing ones (Rule 14: ASCII, escapes if needed), route it through the same answer path, and pin: the timeout case, the dropped-during-DATA case, a repeat of each (same sentence, nothing sent), and a certainly-not-received failure (old text, key freed, retry sent); `mutation:` lines. Add the sentence to the ux-strings/catalog registry the project keeps for public text, if `EmailOut`'s other answers are listed there. -- DONE: new `MESSAGEMAYHAVESENT` (the approved sentence, verbatim) answers a keyed tool send's may-have-sent failure and its repeat; the claim is marked `maysent` (`CLAIMMAYSENT`, `Claimed` answers `CLAIMMAYHAVESENT`); certainly-not failures keep their texts and free the key; pinned in `TestToolKeyFailureClasses` and `TestTexts`; the sentence is registered in EXPERIENCE.md's accepted-text table (no list in web/scripts holds EmailOut's answers).
 
 ### Review Findings
 
@@ -131,6 +131,8 @@ Rejected:
 Rule 3: the real-runtime pin is `EmailLive:TestReSentTurnSendsOnce` (real CommandsIn, CommandCall.Run, EmailOut job and the CI SMTP stub, with a `Restart`); it passed in the whole `EmailLive` class after the patches on a stack brought down and up.
 
 ## Spec Change Log
+
+- 2026-11-13 (implement, ruling K): outcome code kept (Ok 0, "failed") for the may-have-sent answer, now with MESSAGEMAYHAVESENT; the sentence applies to keyed tool claims only (an approval's send and an unkeyed tool send keep their class texts, AC2), and the repeat is told apart by the claim mark `maysent` in the existing `FallbackReason` column (no new column).
 
 - 2026-11-13 (lead, rework iteration 1, trigger review-ruling): Planner ruling K: the HIGH fix and U-327's narrowed wording are kept; the may-have-sent case gets its own approved sentence (the [Review] item).
 
@@ -164,6 +166,25 @@ Rule 3: the real-runtime pin is `EmailLive:TestReSentTurnSendsOnce` (real Comman
   - `[false]` `[reject]` Verification gap: self-containment -- the layer found none; no finding.
   - `[low]` `[reject]` Verification gap: the tests compute the expected `DigestKey` with the product's `ToolKeyOf` (circular) -- the hash helper is shared with the digest path, whose own test pins it; a changed hash only changes the stored value of a keyed claim, never the answer.
   - `[low]` `[reject]` Intent alignment (descriptive): the diff implements reading A (the handler) and pins B and C live; position, a real chat re-submit and the 22.7 tool are not exercised -- reading D waits for Story 22.7, and position is `CommandCall`'s (not changed here).
+
+### 2026-11-13 -- Review pass (rework 1, ruling K)
+- verdicts: 15 findings -- high 0, medium 1, low 10, false 4, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: the spec's `## Public text` still says "None new" -- the fix edits the spec; the Spec Change Log line and the `EXPERIENCE.md` row carry the new text.
+  - `[low]` `[reject]` Blind: the spec's Always bullets, matrix and residual risks describe the pre-ruling behaviour -- the fix edits the spec (oversized; the Spec Change Log records the ruling).
+  - `[false]` `[reject]` Blind: the class header still says a pending or failed claim answers `MESSAGEFAILED` -- the same bullet names the `maysent` mark and `MESSAGEMAYHAVESENT` two lines later.
+  - `[medium]` `[patch]` Blind and Verification gap: nothing pins that an approval's or an unkeyed tool send that may have reached the server keeps its class sentence and `failed` mark (AC2) -- patched: `TestNoDoubleSend` gains the timeout and dropped approvals (sentence, mark, repeat), `TestFailureClasses` gains the timeout and dropped unkeyed rows; two `mutation:` lines, both observed red and reverted byte-identical.
+  - `[low]` `[reject]` Blind and Edge: an exception after `Send` saved `maysent` would be overwritten as `failed` in the catch -- only a log macro and `Result()` run after the save; theoretical (as DW-1259).
+  - `[low]` `[reject]` Blind: the outcome stays `failed` (Ok 0) while the text says it may have gone out -- by design: the stage prompt keeps the review's outcome code, and `CommandCall`/22.7 are out of scope.
+  - `[low]` `[reject]` Edge: a failed save of the `maysent` mark leaves the claim pending, so a repeat answers `MESSAGEFAILED` -- fail-safe (nothing is sent twice); a one-row save by its own id under the lock (as DW-1260).
+  - `[low]` `[reject]` Edge: an approval's or an unkeyed send that may have gone out keeps its class sentence -- by design (AC2, the system path is unchanged; an unkeyed send is sent again, so "won't send it again" would be false); now pinned.
+  - `[low]` `[reject]` Edge: `Delivery`'s lookup by Ref skips a `maysent` row, so a reply to that mail cannot be matched -- pending and failed rows are skipped the same way; no product path matches a reply to a tool email.
+  - `[false]` `[reject]` Edge: `Claimed` could answer the keyed sentence for an approval row marked `maysent` -- nothing writes that mark on an approval's claim (pinned by the new `TestNoDoubleSend` rows).
+  - `[low]` `[reject]` Edge: the Boundaries bullet says a failed claim answers `MESSAGEFAILED` -- the fix edits the spec; the Spec Change Log records the ruling.
+  - `[low]` `[patch]` Verification gap: the header of `TestToolKeyFailureClasses` still said "marked failed" and "answers failed" -- patched to say maysent and the same sentence.
+  - `[false]` `[reject]` Verification gap: the `zzkey-class-timeout` and `zzkey-class-dropped` rows may outlive the test -- `OnBeforeOneTest` and `OnAfterAllTests` call `Reset`, which deletes the email rows of every `zzemailout*` owner.
+  - `[low]` `[reject]` Verification gap: the four ruling K mutations all target the keyed path -- covered by the new approval and unkeyed mutations above.
+  - `[low]` `[reject]` Intent alignment (descriptive): the ruling widens the contract's "no new public text" and "no failed tool send leaves a row" for the may-have-sent case -- ruled by the Contest Planner (K); `EmailOut` and `Delivery` are the only surfaces changed, the live `CommandsIn` pass-through of `Message` is unchanged.
 
 ## Design Notes
 
@@ -251,6 +272,12 @@ No catalog, route, table shape or count changes. Every test added or changed pas
 - mutation: the `If claim.ApprovalRef = ""` test of `Send` inverted (an approval's failed claim is deleted, a keyed tool claim is marked failed; AC2, the system path unchanged) -> `Test.Channel.EmailOut:TestNoDoubleSend` red (and `TestSignInMessage`, `TestToolKeySendsOnce`); reverted byte-identical, green again on the same stack
 - mutation: a `Property` line added to `Data.Delivery` (AC3, no stored-data change) -> the Verification command `git diff -U0 -- src | grep -E '^[+-]\s*(Property|Index|<Value>|<Data|Storage)'` prints it; reverted byte-identical
 - mutation: keyed tool sends skip `Authorised` (AC1's order: the repeat rule after `Check` and `Authorised`) -> `Test.Channel.EmailOut:TestToolRecipients` red (the keyed refused rows); reverted byte-identical
+- mutation (ruling K): the answer of a may-have-sent failure keeps its class's message (the `errorMessage` assignment removed) -> `Test.Channel.EmailOut:TestToolKeyFailureClasses` red (timeout and dropped first answers); reverted byte-identical
+- mutation (ruling K): the may-have-sent claim marked failed instead of maysent -> `TestToolKeyFailureClasses` red (mark and repeat rows of timeout and dropped); reverted byte-identical
+- mutation (ruling K): `Claimed` does not read the maysent mark -> `TestToolKeyFailureClasses` red (the repeat of timeout and dropped answers the old sentence); reverted byte-identical
+- mutation (ruling K): every failed keyed send gets the may-have-sent sentence -> `TestToolKeyFailureClasses` and `TestToolKeySendsOnce` red (unreachable, lost, refused, rejected keep their texts); reverted byte-identical
+- mutation (ruling K review): the may-have-sent mark and sentence also applied to an approval's claim (a `MayHaveSent` test before the `ApprovalRef = ""` branch of `Send`) -> `Test.Channel.EmailOut:TestNoDoubleSend` red (timeout and dropped approvals: class sentence, `failed` mark, repeat answer); reverted byte-identical
+- mutation (ruling K review): the may-have-sent sentence also applied to an unkeyed tool send (a `MayHaveSent` test before the claim branch of `Send`) -> `TestFailureClasses` and `TestNoDoubleSend` red (timeout and dropped rows); reverted byte-identical
 - mutation: the key lookup removed (warm stack down and up, as the production job runs the code) -> `Test.Channel.EmailLive:TestReSentTurnSendsOnce` red (the stub held more than one mail); reverted byte-identical
 
 **QA stage (gap tests, lane-C throwaways, tag e21s13qw; `(QA)` marks the files and lines this stage added):**
@@ -278,22 +305,21 @@ No catalog, route, table shape or count changes. Every test added or changed pas
 Status: done
 Blocking condition: none
 
-**Summary.** A tool send with an `IdempotencyKey` is claimed like an approval: `Handle` routes it to the new private `SendClaimed` (the approval claim block, generalised; the lock name and the lookup are its parameters). The claim row is the session's `Data.Delivery` row of channel `email` with an empty `ApprovalRef` and `ToolKeyOf`'s 22-character hash in `DigestKey`. The same key again answers `1|sent|The email was sent.` and sends nothing; a pending or failed claim and a held lock answer `failed`; a classified send failure deletes the claim so the key can be sent again. No new column, index, table, global or public text. The AD-14 `EmailOut` sentence is in the spine with the marker `[ADDED 2026-11-13, Story 21.13, DW-1244]` (lint: only the 10 baseline low `placeholder` findings).
+**Summary (rework 1, ruling K).** A keyed tool send whose failure may have reached the server (`Sender.MayHaveSent`) keeps its claim marked `maysent` and answers `0|failed|` plus the approved sentence "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again."; the same key again answers the same sentence and sends nothing. Certainly-not-received failures keep their class texts and free the key. The outcome code stays `failed` (Ok 0). The sentence is the new parameter `MESSAGEMAYHAVESENT`; `FallbackReason` gains the value `maysent` in the existing column (no new column, index or table).
 
 **Files changed.**
-- `src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls`: `SendClaimed`, `ToolKeyOf`, `HashOf` (shared with `DigestKeyOf`), `Claimed` with the owner-and-key lookup, `Send` deleting a claim with no `ApprovalRef` after a failed send, class description.
-- `src/ocutalon/cls/OcuTalon/Data/Delivery.cls`, `src/ocutalon/cls/OcuTalon/Msg/Command/SendEmail.cls`: doc comments only.
-- `src/ocutalon/cls/OcuTalon/Test/Channel/EmailOut.cls`: `TestToolKeySendsOnce`, `TestToolKeyIsLocked`, keyed refused rows in `TestToolRecipients`, a key on `TestOnlineDemo`, helpers `Hash`, `KeyRows`, `KeyRowId`, `key` arguments.
-- `src/ocutalon/cls/OcuTalon/Test/Channel/EmailLive.cls`: `ToolSend` with an optional `itemId` (through `CommandCall.Run`), `TestReSentTurnSendsOnce`.
-- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: the additive AD-14 sentence, `updated:` refreshed.
+- `src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls`: `MESSAGEMAYHAVESENT`, `CLAIMMAYHAVESENT`, `CLAIMMAYSENT`, `Send` and `Claimed`, `SendClaimed`, class description.
+- `src/ocutalon/cls/OcuTalon/Data/Delivery.cls`: doc comment only.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/EmailOut.cls`: `TestTexts`, `TestToolKeyFailureClasses`, `TestNoDoubleSend` and `TestFailureClasses` rows.
+- `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md`: one accepted-text row for the sentence, marked `[ADDED 2026-11-13, Story 21.13, Contest Planner ruling K]`. No other registry lists `EmailOut`'s answers.
 
-**Review.** 21 findings from four layers: patches applied 3 (medium 1, low 2: keyed refused and online-demo rows in `EmailOut`, the seeding status of the scoping row, the AC2 and AC3 mutation lines), items deferred 0, rejected 18 with their reasons in the Review Triage Log.
+**Review.** 15 findings from four layers: patches applied 2 (medium 1, low 1), items deferred 0, rejected 13 with their reasons in the Review Triage Log.
 
-**Follow-up review recommended:** false (one medium patched, tests only).
+**Follow-up review recommended:** false (this was a follow-up pass and it patched no high; one medium patched, tests only).
 
-**Verification.** Implement stage on lane-C throwaways: `Test.Channel.EmailOut`, the whole `Test.Channel.EmailLive`, `EmailLive:TestReSentTurnSendsOnce`, `Test.Data.Tables`, `Test.Channel.EmailIn`, `Test.Core.CommandsStep4` and `Test.Data.Delivery` passed; `EmailOut:TestToolKeySendsOnce` and `EmailLive:TestReSentTurnSendsOnce` passed on a fresh stack. After the review patches: `Test.Channel.EmailOut` passed warm (twice, once after the mutations were reverted) and on a fresh stack; `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh` passed; the Property/Index/Storage diff check printed nothing; the spine lint shows only the 10 baseline low `placeholder` findings. Matrix Test Audit: every row of the I/O matrix has a covering test that ran and passed (Repeat, After restart, Other key, No key, Failed then retried, Never finished, Error after the claim and Tool command with an ApprovalRef in `TestToolKeySendsOnce`; Lock held in `TestToolKeyIsLocked`; System path in the unchanged 21.6 tests; Online demo in `TestOnlineDemo`). All stacks torn down.
+**Verification.** Lane-C warm stack `e21s13iw2`, torn down (0 leftovers): `Test.Channel.EmailOut` passed (implement stage, and again after the review patches), `Test.Channel.EmailLive` (whole class), `Test.Data.Tables` and `Test.Data.Delivery` passed at the implement stage; `Out.cls` is unchanged since. `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh` passed; the Property/Index/Storage diff check printed nothing; no non-ASCII byte was added. Mutations of this pass are in `## Verification`.
 
 **Residual risks.**
-- A send that failed after the server had accepted the mail (a timeout after DATA, classed unreachable) deletes its claim, as the intent requires, so a re-sent turn could then send it a second time.
-- A claim left pending (job stopped during a send) or marked failed (error after the claim) answers `failed` for that key for good; nothing expires it.
-- Keyed claim rows stay with the session's other `Delivery` rows under the existing retention.
+- A `maysent` claim blocks its key for good, like any pending or failed claim (DW-1257).
+- An approval's or an unkeyed send that may have reached the server keeps its class sentence (the system path is unchanged).
+- No live test reaches the sentence: the CI stub has no timeout or drop-during-DATA mode.

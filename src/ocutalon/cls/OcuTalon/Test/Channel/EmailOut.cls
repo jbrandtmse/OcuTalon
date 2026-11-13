@@ -32,8 +32,10 @@ Include Ensemble
 ///   - TestClaimIsLocked (ruling f): while another process holds the approval's lock a system send of it answers failed, delivers nothing and writes no claim;
 ///     with the lock free the same approval is sent once;
 ///   - TestToolKeyIsLocked (Story 21.13): the same for a keyed tool send and the lock of its session and key;
-///   - TestToolKeyFailureClasses (Story 21.13, QA): a failed keyed tool send of each class (unreachable, refused, rejected) leaves no claim and the key is sent
-///     on the retry; one that may still have reached the server (a timeout, a connection lost during DATA) keeps its claim marked failed and the key is not sent again;
+///   - TestToolKeyFailureClasses (Story 21.13, QA; Planner ruling K): a failed keyed tool send of each class (unreachable, a connection lost before the greeting,
+///     refused, rejected) answers its own class's sentence, leaves no claim and the key is sent on the retry; one that may still have reached the server (a
+///     timeout, a connection lost during DATA) answers MESSAGEMAYHAVESENT, which does not say the email was not sent, keeps its claim marked maysent, and the
+///     same key again answers the same sentence and sends nothing;
 ///   - TestToolKeyClaimHoldsNothingOfTheSend (Story 21.13, QA): no column of a keyed tool send's claim row, sent or failed, holds the key, the address, the subject or
 ///     the text, and the lock of the key is released after a sent, a repeated, a failed and a thrown send;
 ///   - TestToolKeyClaimIsCaseExact (Story 21.13, QA): a row of the owner whose DigestKey differs from the key's hash only in case is not the key's claim;
@@ -537,6 +539,7 @@ Method TestTexts()
 	Do $$$AssertEquals($Parameter(class, "MESSAGEREFUSEDLOGIN"), "The mail server refused the user name or password.", "P1b")
 	Do $$$AssertEquals($Parameter(class, "MESSAGEUNAVAILABLE"), "Email can't be connected on the online demo. Nothing was changed.", "P2")
 	Do $$$AssertEquals($Parameter(class, "MESSAGESIGNIN"), "The mail sign-in is no longer valid, so the email wasn't sent. Sign in again in Settings > Channels > Email.", "T2")
+	Do $$$AssertEquals($Parameter(class, "MESSAGEMAYHAVESENT"), "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again.", "Planner ruling K")
 	Do $$$AssertEquals($Parameter("OcuTalon.Core.CommandsIn", "MESSAGENOTCONNECTED"), $Parameter(class, "MESSAGENOTCONNECTED"), "CommandsIn answers Q3 as well")
 }
 
@@ -738,7 +741,7 @@ Method TestMessageShape()
 Method TestFailureClasses()
 {
 	Do ..Mailbox()
-	Set cases = $ListBuild("unreachable|OcuTalon couldn't reach the mail server.", "refused|The mail server refused the user name or password.", "rejected|The mail server didn't accept the email, so it wasn't sent.")
+	Set cases = $ListBuild("unreachable|OcuTalon couldn't reach the mail server.", "refused|The mail server refused the user name or password.", "rejected|The mail server didn't accept the email, so it wasn't sent.", "timeout|OcuTalon couldn't reach the mail server.", "dropped|OcuTalon couldn't reach the mail server.")
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Kill ^||OcuTalonEmailOutProbe
@@ -823,6 +826,17 @@ Method TestNoDoubleSend()
 	Kill ^||OcuTalonEmailOutProbe("answer")
 	Set four = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", thrown)
 	Do $$$AssertEquals(four.Ok_"|"_four.Outcome, "0|failed", "the same approval again answers failed, never that the email was sent")
+	For answer = "timeout", "dropped" {
+		Set mayHave = ..Approval($Case(answer, "timeout": "zzemailoutap0054", : "zzemailoutap0055"), ..#ADDRESS)
+		Set ^||OcuTalonEmailOutProbe("answer") = answer
+		Set six = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", mayHave)
+		Kill ^||OcuTalonEmailOutProbe("answer")
+		Do $$$AssertEquals(six.Ok_"|"_six.Outcome_"|"_six.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEUNREACHABLE"), answer_": a system send that may have reached the server keeps its class sentence")
+		Set row = ##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(mayHave))
+		Do $$$AssertEquals(row.FallbackReason, "failed", answer_": and its claim is marked failed, not maysent")
+		Set seven = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", mayHave)
+		Do $$$AssertEquals(seven.Ok_"|"_seven.Outcome_"|"_seven.Message, "0|failed|"_$Parameter("OcuTalon.Core.CommandsIn", "MESSAGEFAILED"), answer_": the same approval again answers failed")
+	}
 	Set pending = ..Approval("zzemailoutap0053", ..#ADDRESS)
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..#OWNER, "email", "zzemailoutpending", pending, "", "", "", "", "pending"), "the claim of a send that never finished (its job stopped during the send) is made")
 	Set calls = ..Delivered()
@@ -949,18 +963,19 @@ Method TestToolKeyIsLocked()
 }
 
 /// Story 21.13 (QA), matrix "Failed, then retried": a failed keyed tool send of each class of Sender.Classify that the server did not take leaves no claim row,
-/// and the same key is sent on the retry, once. A send that may still have reached the server (a timeout, a connection lost during DATA) keeps its claim marked failed, and
-/// the same key again answers failed and sends nothing.
+/// and the same key is sent on the retry, once. A send that may still have reached the server (a timeout, a connection lost during DATA) keeps its claim marked maysent and
+/// answers MESSAGEMAYHAVESENT, and the same key again answers the same sentence and sends nothing.
 Method TestToolKeyFailureClasses()
 {
 	Do ..Mailbox()
 	For answer = "unreachable", "lost", "refused", "rejected" {
+		Set expected = $Case(answer, "refused": $Parameter(..#PROBE, "MESSAGEREFUSEDLOGIN"), "rejected": $Parameter(..#PROBE, "MESSAGEREJECTED"), : $Parameter(..#PROBE, "MESSAGEUNREACHABLE"))
 		Set key = "zzkey-class-"_answer
 		Set hash = ..Hash(key)
 		Set ^||OcuTalonEmailOutProbe("answer") = answer
 		Set calls = ..Delivered()
 		Set bad = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
-		Do $$$AssertEquals(bad.Ok_"|"_bad.Outcome, "0|failed", answer_": the send fails")
+		Do $$$AssertEquals(bad.Ok_"|"_bad.Outcome_"|"_bad.Message, "0|failed|"_expected, answer_": the send fails with the sentence of its class")
 		Do $$$AssertEquals(..Delivered()_"|"_..KeyRows(..#OWNER, hash), (calls + 1)_"|0", answer_": it was tried once and left no claim")
 		Kill ^||OcuTalonEmailOutProbe("answer")
 		Set retried = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
@@ -972,12 +987,13 @@ Method TestToolKeyFailureClasses()
 		Set ^||OcuTalonEmailOutProbe("answer") = answer
 		Set calls = ..Delivered()
 		Set bad = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
-		Do $$$AssertEquals(bad.Ok_"|"_bad.Outcome_"|"_bad.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEUNREACHABLE"), answer_": the send fails with the unreachable sentence")
+		Set maySent = $Parameter(..#PROBE, "MESSAGEMAYHAVESENT")
+		Do $$$AssertEquals(bad.Ok_"|"_bad.Outcome_"|"_bad.Message, "0|failed|"_maySent, answer_": the send fails with the may-have-gone-out sentence, not one that says it was not sent")
 		Set id = ..KeyRowId(..#OWNER, hash)
-		Do $$$AssertEquals(..KeyRows(..#OWNER, hash)_"|"_$Select(id = "": "", 1: ##class(OcuTalon.Data.Delivery).%OpenId(id).FallbackReason), "1|failed", answer_": the email may have reached the server, so its claim is kept, marked failed")
+		Do $$$AssertEquals(..KeyRows(..#OWNER, hash)_"|"_$Select(id = "": "", 1: ##class(OcuTalon.Data.Delivery).%OpenId(id).FallbackReason), "1|maysent", answer_": the email may have reached the server, so its claim is kept, marked maysent")
 		Kill ^||OcuTalonEmailOutProbe("answer")
 		Set again = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
-		Do $$$AssertEquals(again.Ok_"|"_again.Outcome_"|"_again.Message_"|"_..Delivered(), "0|failed|"_$Parameter(..#PROBE, "MESSAGEFAILED")_"|"_(calls + 1), answer_": the same key again answers failed and sends nothing (AD-1)")
+		Do $$$AssertEquals(again.Ok_"|"_again.Outcome_"|"_again.Message_"|"_..Delivered(), "0|failed|"_maySent_"|"_(calls + 1), answer_": the same key again answers the same sentence and sends nothing (AD-1)")
 	}
 }
 
