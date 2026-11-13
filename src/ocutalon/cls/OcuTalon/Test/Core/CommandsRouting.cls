@@ -8,8 +8,8 @@
 ///   - TestOriginRules: every verb by every origin, "zz" and "" included, is routed or refused as the oracle says, and a refusal
 ///     sends nothing;
 ///   - TestToolGovernanceRefused: SetDemoMode, SetPersona, Pair, Unpair, EndSession and an IncidentCommand from tool send nothing;
-///   - TestStepFiveRefusals (Story 36.2): AckPage from tool, timer and system, and SaveSqlWatch from every origin but web_admin, are
-///     not_allowed with the existing text and send nothing;
+///   - TestStepFiveRefusals (Story 36.2): AckPage from tool, timer, system, "zz" and "", and SaveSqlWatch from every origin but
+///     web_admin, "zz" and "" included, are not_allowed with the existing text and send nothing;
 ///   - TestContextMeansTool: a bridge context makes the origin tool, whatever the command says;
 ///   - TestPersonaVerbsInsideAContext: inside a context SetPersona that says web_user is refused and ProposePersona that says
 ///     web_user is routed; outside it the origin rules apply;
@@ -164,6 +164,8 @@ Method TestStepFiveRefusals()
 	Set tool = "That can't be done from the chat. Nothing was changed."
 	Set other = "OcuTalon can't take that command from here. Nothing was changed."
 	Set table = $ListBuild("AckPage|tool|" _ tool, "SaveSqlWatch|tool|" _ tool, "SaveSqlWatch|web_user|" _ other, "SaveSqlWatch|telegram|" _ other, "SaveSqlWatch|timer|" _ other, "SaveSqlWatch|system|" _ other, "AckPage|timer|" _ other, "AckPage|system|" _ other)
+	Set table = table _ $ListBuild("AckPage|zz|" _ other, "AckPage||" _ other, "SaveSqlWatch|zz|" _ other, "SaveSqlWatch||" _ other)
+	Do $$$AssertEquals($ListLength(table), 12, "all 12 refused verb and origin pairs are tried")
 	For i = 1:1:$ListLength(table) {
 		Set verb = $Piece($List(table, i), "|", 1)
 		Set origin = $Piece($List(table, i), "|", 2)

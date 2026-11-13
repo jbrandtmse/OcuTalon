@@ -14,7 +14,7 @@ Property DelaySeconds As %Integer;
 /// Exactly one due form is set. A local date and time without a zone, which ReminderOps converts in the instance zone (AD-18, AD-29).
 Property LocalDueAt As %String(MAXLEN = 19);
 
-/// "" or reminder is a reminder; escalation is an escalation timer (AD-18, Story 24.3). Until then ReminderOps answers any other value not_built.
+/// "" or reminder is a reminder; escalation is an escalation timer (AD-18, Story 24.3). Until Story 24.3 ReminderOps answers every value but "" and reminder, escalation included, not_built.
 Property Kind As %String(MAXLEN = 32);
 
 /// For an escalation: the incident that was paged.

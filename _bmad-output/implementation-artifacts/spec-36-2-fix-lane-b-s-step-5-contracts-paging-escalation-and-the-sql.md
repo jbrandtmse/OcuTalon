@@ -107,6 +107,45 @@ deferred:
 - Given `ReminderOps` (the consumer of `SetReminder.Kind`), when an escalation timer is requested before Story 24.3, then it is refused `not_built` and nothing is stored or started.
 - Given the texts in Design Notes › Proposed public text, when the runner reports the Planner's ruling, then only accepted texts reach EXPERIENCE.md, each with its key. No code ships any of them in this story.
 
+### Review Findings
+
+Code review 2026-11-12 (bmad-code-review, full mode; four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; diff `bafc8413` restricted to this story's paths). About 42 layer items were grouped into 32 entries: 14 patch, 4 defer, 14 rejected. No HIGH and no decision-needed. Rule 3: exempt (no user-facing surface, no route). Rule 6: AD-1, AD-5, AD-12/16, AD-14, AD-18, AD-19, AD-29 and AD-33 checked, with no violation found; Lane A files untouched; storage append-only (`test-storage.sh` release-diff passes against `v1.0.8` and `bafc8413`).
+
+- [x] [Review][Patch] (medium) `Test.Schedule.Reminders` and `Test.Core.CommandsRouting` had only warm evidence, and a warm stack runs the old ReminderOps job until the production restarts. Both now pass on fresh stacks (see Verification) [Test/Schedule/Reminders.cls, Test/Core/CommandsRouting.cls]
+- [x] [Review][Patch] (low) `TestStepFiveRefusals` now tries origins "zz" and "" for both verbs (12 pairs, counted), with the header updated [Test/Core/CommandsRouting.cls:161]
+- [x] [Review][Patch] (low) `TestEscalationGuardComesFirst`'s comment overclaimed: it said "every origin" (tool is not tried; system is tried only with Kind other) and "nothing is stored" (no row can exist for a missing session). It now says what the test pins, and the class header lists the test [Test/Schedule/Reminders.cls:730]
+- [x] [Review][Patch] (low) `TestEscalationGuardComesFirst` left its six commands' Ens headers and bodies behind (a missing session gets no SuperSession). `RemoveTraces` now deletes them and asserts `6|0` [Test/Schedule/Reminders.cls]
+- [x] [Review][Patch] (low) `TestEscalationNotBuilt`'s waiter rationale was wrong: StartWaiter always uses the session's TraceRef, so the waiter check counts a start from any origin. The comment is corrected [Test/Schedule/Reminders.cls:674]
+- [x] [Review][Patch] (low) `ReminderOps`' class doc said every verb checks the session first. It now names the Kind guard, and the `SetReminder.Kind` comment now says that `escalation` is refused too [Schedule/ReminderOps.cls:3, Msg/Command/SetReminder.cls:17]
+- [x] [Review][Patch] (low) The reason `AckPage` copies `GotIt` was wrong: SessionOps and CommandsIn match the exact class name, never `%IsA`. The reason is corrected in the class and the spine (Rule 2) [Msg/Command/AckPage.cls:1, spine AD-29]
+- [x] [Review][Patch] (low) Spine AD-1 said `web_user` is the demo visitor's only origin, but visitors also arrive as `tool` and `telegram`. It now says SaveSqlWatch is refused from every origin but `web_admin` [spine AD-1]
+- [x] [Review][Patch] (low) Spine AD-29's "answers an error, `CommandsIn` returns `failed`" is marked as inference from Lane A's code [spine AD-29]
+- [x] [Review][Patch] (low) The EXPERIENCE.md Step 5 line said every section answers `not_available` on the demo. It now says visitors get 403 and an admin 409 [EXPERIENCE.md Step 5]
+- [x] [Review][Patch] (low) Spine EmailOut page bullet: Role `oncall` maps to `oncall.primary.email`, Role `backup` to `oncall.backup.email` [spine AD-14]
+- [x] [Review][Patch] (low) Spine AD-32 lacked `page` among the notification kinds (precedent: Story 23.6's `summary`). One bullet added [spine AD-32]
+- [x] [Review][Patch] (low) Spine AD-33's `PartnerContact` entry now points to the V3 audit rule for partner contacts [spine AD-33 Tables]
+- [x] [Review][Patch] (low) AC 1's check could not fail for `OcuTalon.Msg.Escalation` and `rollback_setting`, which the baseline already holds. Two discriminating names were added, both absent at `bafc8413` [Verification]
+- [x] [Review][Defer] (medium) V3's "no trace" clause vs. a settings save, which is a production message whose body Visual Trace shows -- deferred: DW-1249, routed to `36-4-set-the-on-call-person-and-backup-in-settings` (24.2 has the same issue)
+- [x] [Review][Defer] (medium) An address-only on-call person can never acknowledge, so the backup is always paged, and the accepted texts don't say so -- deferred: DW-1250, routed to `36-4-set-the-on-call-person-and-backup-in-settings`
+- [x] [Review][Defer] (medium) AD-14's page route contradicts itself (web chat vs "email only"; web chat as a "chosen" channel; EmailOut has no editable copy). It is ruled V6 text, so the reading is 24.3's to fix -- deferred: DW-1251, routed to `24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on`
+- [x] [Review][Defer] (low) CommandsIn's Routes doc comment does not list the step 5 verbs. The file is contended and this story may edit only the two rows -- deferred: DW-1252 `wontfix-accepted` with `reopen_if`
+
+Rejected:
+- (low) A `SetReminder` with Kind "" but IncidentRef/PageRef set is stored as a reminder: theoretical, because the contract names Kind `escalation` and no caller exists before 23.4.
+- (low) Kind matching is case- and space-sensitive: it fails closed as `not_built`, as the matrix says.
+- (low) SaveSqlWatch refusals use the generic text, not the admin-only one: spec-bound (the matrix names `MESSAGENOTALLOWED`).
+- (low) SaveSqlWatch Query/Action/IntervalMinutes have no bounds: spec-bound (Execution fixes the types, and the owners 23.8/24.2 validate).
+- (false) An escalation row stored under SessionRef `instance` would pass the no-row check: today's `Set` stores under the command's SessionRef, and the AC 4 mutation went red on the row count.
+- (low) The Auto Run Result tallies and the stale `deferred:` list and Residual risks: fixing them edits the spec under review. The two deferred failures were fixed by `9aa5a61a` and are not re-filed.
+- (false) The AD-16 dry-run bullet goes beyond the spec's wording: it restates Already met accurately.
+- (low) The QA tests are uncommitted: by process, the lead commits.
+- (false) Escalation rows with SessionRef `instance` conflict with `no_session`: the bullet is a "from Story 24.3" contract that 24.3 builds.
+- (low) No test pins that a `page` takes the generic route: Notify is not edited, and `Test/Core/Routing.cls` is contended (Epic 21).
+- (low) AC 5 has no pinning test: spec-bound (AC 5 is the review of the EXPERIENCE.md diff).
+- (low) No mutation removes the SaveSqlWatch row: Rule 19 asks for one mutation per AC, and AC 3 has its lines; `TestRoutes` (`Calls()` = 1) covers the row.
+- (low) The "CommandsIn returns failed" claim has no test: pinning it needs the real Lane A owners (23.4, 23.8). The inference marker was added instead.
+- (low) `lint_spine.py` `"ok": false`: the same 10 pre-existing low placeholder findings (DW-351); this story and this review add none.
+
 ## Spec Change Log
 
 - 2026-11-12, Contest Planner rulings on V1-V7 (binding) applied by the runner to Design Notes and Proposed public text; no re-plan needed (the contracts' plan is unchanged; the texts are now accepted, so EXPERIENCE.md gets the Settings (step 5) block per Decided 12).
@@ -375,7 +414,7 @@ Every command uses the lane-B variables `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCU
 - (once) `<lane-b vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e36s2iw bash ci/iris.sh class <C>`, one call each for `OcuTalon.Test.Msg.Catalog`, `OcuTalon.Test.Schedule.ReminderChat`, `OcuTalon.Test.Schedule.ReminderLogic` and `OcuTalon.Test.Schedule.ReminderZone` -- expected: passed (Decided in-stage 15 names what CI alone runs).
 - (once) `<lane-b vars> OCUTALON_RUN_TAG=e36s2i bash ci/iris.sh class OcuTalon.Test.Msg.Contracts` -- a fresh stack; expected: passed
 - (once) `bash docker/tests/test-ci-config.sh` -- expected: pass (no new test class, so no `ci/units.sh` change). The whole `ci/checks.sh` runs in CI's hosted `checks` job, not as one local line.
-- (loop) AC 1's check: `S=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md; for n in oncall.primary.channels oncall.escalationMinutes settings/on-call settings/partner-contacts settings/sql-watches PartnerContact.ForProduction OcuTalon.Msg.Command.AckPage OcuTalon.Msg.Command.SaveSqlWatch OcuTalon.Msg.Escalation 'Delivery.FindByRef(pageRef' rollback_setting; do grep -qF -- "$n" "$S" || echo "MISSING $n"; done` -- expected: no output
+- (loop) AC 1's check: `S=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md; for n in oncall.primary.channels oncall.escalationMinutes settings/on-call settings/partner-contacts settings/sql-watches PartnerContact.ForProduction OcuTalon.Msg.Command.AckPage OcuTalon.Msg.Command.SaveSqlWatch OcuTalon.Msg.Escalation 'Delivery.FindByRef(pageRef' rollback_setting 'third allowed send, a page' 'dry-run fields for the step 5 kinds'; do grep -qF -- "$n" "$S" || echo "MISSING $n"; done` -- expected: no output
 
 **Shared surfaces:**
 - `Msg.Enum` NOTIFICATIONKIND (`Test/Msg/Contracts.cls:72`, `web/scripts/catalog.test.mjs`)
@@ -400,6 +439,20 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: AC 3: removed the `AckPage` Routes row → `Test.Core.CommandsRouting` `TestRoutes` failed ("AckPage is sent once"); added `web_user` to `SaveSqlWatch`'s origins → `TestStepFiveRefusals` failed ("SaveSqlWatch from web_user is not_allowed"); dropped `web_user` from `AckPage`'s origins → `TestRoutes` failed ("AckPage: the key arrives unchanged", and the other checks of that pair)
 - mutation: AC 4: removed the Kind guard in `ReminderOps.Set` → `Test.Schedule.Reminders` `TestEscalationNotBuilt` failed on all three refusals, the row count, the waiter count and the event count. A warm stack runs the old ReminderOps job until the production restarts, so the red run came on the second full class run after the edit (and the green one on the second run after the revert).
 - mutation: AC 5: no code and no test; `git diff` of EXPERIENCE.md holds only the accepted "Settings (step 5)" block and one Step 5 line
+
+**QA additions (QA stage; tests only, each mutation applied, observed red, reverted, and the tree compared identical):**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Msg/Contracts.cls` -- new `TestStepFiveMessagesKeepEveryProperty`: `Msg.Escalation`, `AckPage`, `SaveSqlWatch` and the new `SetReminder` properties survive a save and reopen. Gap: `TestContracts` checks the compiled property list only, so a transient property passed.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls` -- new `TestEscalationGuardComesFirst`: the `not_built` guard answers for a missing session and for each origin the route takes (web_user, web_admin, telegram, timer, system), with a plain-reminder control that is `refused`. Gap: `TestEscalationNotBuilt` used a real session and two origins, so moving the guard after `SessionExists` passed.
+- mutation: AC 2 (QA): marked `PageRef` of `Msg.Escalation` Transient → `Test.Msg.Contracts` `TestStepFiveMessagesKeepEveryProperty` failed ("OcuTalon.Msg.Escalation keeps PageRef")
+- mutation: AC 4 (QA): moved the Kind guard in `ReminderOps.Set` below the `SessionExists` check → `Test.Schedule.Reminders` `TestEscalationGuardComesFirst` failed for all five origins (the warm stack runs the old ReminderOps job until the production restarts, so red came after one full class run, and green after one more full class run following the revert)
+- Not a gap: dropping a property's slot from a committed Storage Default block is not visible at run time (the compiler re-adds it), so no runtime test pins it; `docker/tests/test-storage.sh` guards the blocks.
+
+**Code review record (2026-11-12; lane-B throwaways only, warm tag `e36s2cw` and fresh tag `e36s2c`, both torn down; each mutation applied, observed red, reverted, the file compared byte-identical with its backup and `git status --short` and `git diff --stat` unchanged):**
+- Warm, after the review patches: `Test.Core.CommandsRouting`, `Test.Msg.Contracts` and `Test.Schedule.Reminders` (83 s) passed.
+- Fresh stacks, after the review patches: `Test.Schedule.Reminders` passed (84 s; 210 s with the start), and `Test.Core.CommandsRouting` passed (117 s with the start).
+- mutation: AC 3 (review): added `zz` to `AckPage`'s origins → `Test.Core.CommandsRouting` `TestStepFiveRefusals` failed ("AckPage from zz is not_allowed", "says why", "sends nothing")
+- mutation: hermeticity (review, not an AC): `RemoveTraces` skipped the header delete → `TestEscalationGuardComesFirst` failed ("and the six commands' trace sessions are found and removed")
+- AC 1's check, with the two discriminating names added (both absent at `bafc8413`), printed nothing. `lint_spine.py`: `"ok": false` with the same 10 pre-existing low placeholder findings (DW-351), none from this story. `docker/tests/test-storage.sh` passed, and so did its release-diff with `OCUTALON_STORAGE_BASE=bafc8413`. `node --test web/scripts/catalog.test.mjs`: 69 passed.
 
 ## Auto Run Result
 

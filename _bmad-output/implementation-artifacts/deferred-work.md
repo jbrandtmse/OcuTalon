@@ -7397,3 +7397,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 36.2 regression run, lane-b part 6 red on warm and fresh; file untouched by 36.2; pre-existing on cf2658d8 (36.1 head)
 - 2026-11-13T02:29:01Z status=open owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=36.1 rework iteration 2 ([CI]); one-name appends to a contended list (Test/Data/Tables.cls is in Epic 21's diff)
 - 2026-11-13T03:16:58Z status=resolved-by:36-1-record-the-setting-history-of-each-watched-production by=adjudication note=9aa5a61a: Test.Data.Tables XData Registry rows for SettingChange and SettingSnapshot appended; mutations red; passed on fresh e36s1c3
+
+### DW-1249: V3 says the on-call (and partner-contact) from/to values appear in no trace, but a settings save is a production message whose body (SaveSettings Changes) Visual Trace shows
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Spine AD-19 on-call keys bullet (V3, ruled 2026-11-12) vs AD-1/AD-19 Saving a settings section: every save is one SaveSettings submitted through Commands.Submit, so the new address is stored in an Ens message body shown in Visual Trace; a leak-scan test as worded cannot pass.
+- 2026-11-13T04:03:56Z status=routed owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=36.4 plan keeps the values out of the message body (e.g. a SecretHandoff-style ref) or escalates V3's trace clause; 24.2 has the same
+
+### DW-1250: An on-call person or backup given only as an email address can never acknowledge a page, so the backup is always paged after oncall.escalationMinutes, and the accepted On call texts don't tell the admin
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 36.1 rules that email carries no acknowledgement; AckPage comes only from web_user, web_admin and telegram (CommandsIn Routes), which an address-only person has none of; settings.onCallByEmail and settings.onCallHelp say nothing about it.
+- 2026-11-13T04:03:56Z status=routed owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=36.4 plan proposes a help line for 'Someone else, by email' for acceptance, or records that this is intended
+
+### DW-1251: AD-14's page route contradicts itself: a page goes to the user's web chat, yet 'a person with no paired chat gets email only'; the web chat is called a chosen channel though oncall.*.channels offers only telegram,email; EmailOut can't update a copy to handled.marked
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Spine AD-14 'The page kind (step 5)' bullets (Story 36.2, ruled V6 text); 36.1 gives the page card a web Got it, so the likely reading is web chat always for a user plus the chosen channels, Telegram falling back to email.
+- 2026-11-13T04:03:56Z status=routed owner=24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on by=cr note=24.3 plan fixes the reading (recommended: web chat always; email-only means no Telegram copy) and amends the bullet (Rule 5/20)
+
+### DW-1252: CommandsIn's Routes doc comment lists each step's verbs but not step 5's AckPage and SaveSqlWatch
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls doc above XData Routes (:318-324) describes steps 1-4; Story 36.2 may edit only the two Routes rows in this contended file (Epic 21 edits ItemRunning). The rows and the spine carry the contract.
+- 2026-11-13T04:03:56Z status=wontfix-accepted owner=36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql by=cr note=reopen_if=a story edits the Routes doc comment of CommandsIn after Epic 21 merges, or a reader misroutes a step 5 verb

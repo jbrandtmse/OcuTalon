@@ -1,4 +1,4 @@
-/// Acknowledges one page (AD-14, AD-29; Story 36.2): owner IncidentManager (Story 23.4). It is not a tool verb, and it copies GotIt's two properties instead of extending GotIt, which SessionOps tests by class.
+/// Acknowledges one page (AD-14, AD-29; Story 36.2): owner IncidentManager (Story 23.4). It is not a tool verb, and it copies GotIt's two properties instead of extending GotIt, so that it stays a contract of its own: a subclass would pass every %IsA test for GotIt and change whenever GotIt does.
 Class OcuTalon.Msg.Command.AckPage Extends OcuTalon.Msg.Command
 {
 

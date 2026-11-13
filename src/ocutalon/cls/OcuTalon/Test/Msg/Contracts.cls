@@ -58,6 +58,47 @@ Method TestVerbsInheritTheCommonFields()
 	Do $$$AssertEquals($Parameter("OcuTalon.Msg.Command.SetReminder", "RESPONSECLASSNAME"), "OcuTalon.Msg.CommandResult", "a verb is answered with a CommandResult")
 }
 
+/// The step 5 messages keep every property through the store (Story 36.2; QA): a message is persistent and travels between items through
+/// it, so a property that is transient or not stored is lost on the way. Each of Msg.Escalation, AckPage, SaveSqlWatch and the
+/// new SetReminder properties is saved with every field set, opened again from the store, compared field by field, and deleted again, also
+/// when a check fails. (A property missing from a committed Storage Default block is not caught here, because the compiler adds the slot
+/// itself; docker/tests/test-storage.sh guards the committed blocks.)
+Method TestStepFiveMessagesKeepEveryProperty()
+{
+	Set want("OcuTalon.Msg.Escalation") = $ListBuild("IncidentRef", "zzincident", "PageRef", "zzpage")
+	Set want("OcuTalon.Msg.Command.AckPage") = $ListBuild("Origin", "web_user", "IdempotencyKey", "zzack", "SessionRef", "zzsession", "Ref", "zzpageref", "Channel", "phone")
+	Set want("OcuTalon.Msg.Command.SaveSqlWatch") = $ListBuild("Origin", "web_admin", "IdempotencyKey", "zzsql", "SessionRef", "zzsession", "Action", "remove", "CheckRef", "zzcheck", "Name", "zz watch", "Query", "SELECT 1", "IntervalMinutes", 17)
+	Set want("OcuTalon.Msg.Command.SetReminder") = $ListBuild("Kind", "escalation", "IncidentRef", "zzincident", "PageRef", "zzpage", "Text", "zz text", "DelaySeconds", 61)
+	Set class = ""
+	For {
+		Set class = $Order(want(class))
+		If class = "" Quit
+		Set id = ""
+		Try {
+			Set message = $ClassMethod(class, "%New")
+			For i = 1:2:$ListLength(want(class)) {
+				Set $Property(message, $List(want(class), i)) = $List(want(class), i + 1)
+			}
+			Set sc = message.%Save()
+			Do $$$AssertStatusOK(sc, class _ " is saved")
+			Set id = message.%Id()
+			Set message = ""
+			Set found = $ClassMethod(class, "%OpenId", id)
+			Do $$$AssertTrue($IsObject(found), class _ " is opened again from the store")
+			If $IsObject(found) {
+				For i = 1:2:$ListLength(want(class)) {
+					Set field = $List(want(class), i)
+					Do $$$AssertEquals($Property(found, field), $List(want(class), i + 1), class _ " keeps " _ field)
+				}
+			}
+		} Catch exception {
+			Do $$$AssertFailure(class _ " raised " _ exception.DisplayString())
+		}
+		Set found = ""
+		If id '= "" Do $ClassMethod(class, "%DeleteId", id)
+	}
+}
+
 /// The thirteen parameters of Msg.Enum equal the conventions row exactly, and there are no others.
 Method TestEnumerations()
 {

@@ -9876,6 +9876,9 @@ So that incidents page the right people on a channel that can reach them.
 **When** an admin saves, corrects and saves the section again
 **Then** the stored values, the audit entries and the page's states match, and the section works by keyboard with every control labelled (NFR-25, UX-DR125, UX-DR130)
 
+- DW-1249: V3 says the on-call (and partner-contact) from/to values appear in no trace, but a settings save is a production message whose body (SaveSettings Changes) Visual Trace shows; the leak-scan test cannot pass as worded until this is settled (ledger; routed by cr 2026-11-13)
+- DW-1250: an on-call person or backup given only as an email address can never acknowledge a page, so the backup is always paged after the escalation time, and the accepted On call texts don't say so (ledger; routed by cr 2026-11-13)
+
 ### Story 36.3: Link the worked Jira example from the admin docs
 
 [AMENDED 2026-11-12, split from Story 36.2, unattended ruling (doctrine U5, split 1 of 6): Story 36.2's README criterion moved here verbatim, because it alone waits on Epic 22 (Story 22.6 supplies the worked example under `docs/`), so the rest of 36.2 is not held behind it; Lane B's files, as 36.2]
