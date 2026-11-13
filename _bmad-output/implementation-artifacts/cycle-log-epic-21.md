@@ -234,3 +234,4 @@
 2026-11-13T04:04:48Z	Epic 21	pushed	head=5d5581eb ci=pending runs=43363054369,43363054440 part=21.7+21.8+21.12 note=supersedes_44908d0d(intended)
 2026-11-13T04:04:48Z	Epic 21	ruling	question=DW-1244_fix choice=new_fix_Story_21.13(Planner_H(ii)) category=decide via=orchestrator note=deps_hash(reason=fix_forward)_and_22.7_wait_are_the_orchestrator%27s;linked_entry_DW-1253
 2026-11-13T04:04:48Z	Story 21.13	ledger_routed_planned	story=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com entries=1(DW-1253) excess=0 by=orchestrator
+2026-11-13T04:04:55Z	Epic 21	stage_spawned	stage=epic_context spawn_at=2026-11-13T04:04:55Z model=opus effort=high agent_name=epic-21-context-prewarm-8 reason=planning_artifact_newer(21.13)
