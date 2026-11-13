@@ -28,8 +28,8 @@
 #   - static: the rules on release/notes.sh and on this file; the not-affiliated note of release/notes.sh, release/checklist.sh and
 #     README.md is one text; names_outside_section finds nothing in README.md or GUIDE.md, as test-readme.sh's dev-only rule does
 #     (outside "For admins and developers" and "Gmail and Microsoft 365"; a class name in any other section is still reported),
-#     except the line that equals the IPM_LOAD value of test-readme.sh word for word (a changed load line is still reported; no
-#     IPM_LOAD value fails);
+#     except the line that equals the IPM_LOAD value of test-readme.sh word for word and the line that equals its COMPLEXITY_ROW value
+#     word for word (the judges' Complexity row, Story 0.36); a changed load line or row is still reported, and no value of either fails;
 #   - real-tree: the real mapping parses and names real story and epic headings; a run on a fresh repository holding the real scripts,
 #     mapping, module.xml, tracker and epics.md of HEAD (no tag) passes stories, dev-only and public-text, and its areas row passes or
 #     fails only for epics outside release 1 (RELEASE1_EPICS); notes.sh itself still fails areas for such an epic.
@@ -878,12 +878,16 @@ t_library() {
   eq "names_outside_section: several headings, one per line, are all exempt and no other" "$o" "$tmp/sec3.md:2 $tmp/sec3.md:9 "
 }
 
-# static_names <ipm load line> <file>: file:line of each line names_outside_section reports outside "For admins and developers" and
-# "Gmail and Microsoft 365" (the sections test-readme.sh's dev_names exempts), except the line that equals the IPM load line.
+# static_names <ipm load line> <file> [<complexity row>]: file:line of each line names_outside_section reports outside "For admins and
+# developers" and "Gmail and Microsoft 365" (the sections test-readme.sh's dev_names exempts), except a line that equals the IPM load line
+# or the Complexity row (the two lines dev_names exempts word for word).
 static_names() {
-  local ipm_load=$1 f=$2 n
+  local ipm_load=$1 f=$2 complexity=${3:-} n line
   (. docker/tests/lib-scan.sh; names_outside_section "$(printf '%s\n%s' '## For admins and developers' '## Gmail and Microsoft 365')" "$f") |
-    while IFS=: read -r f n; do [ -n "$ipm_load" ] && [ "$(sed -n "${n}p" "$f")" = "$ipm_load" ] || printf '%s:%s\n' "$f" "$n"; done
+    while IFS=: read -r f n; do
+      line=$(sed -n "${n}p" "$f")
+      { [ -n "$ipm_load" ] && [ "$line" = "$ipm_load" ]; } || { [ -n "$complexity" ] && [ "$line" = "$complexity" ]; } || printf '%s:%s\n' "$f" "$n"
+    done
 }
 
 static_hits() { # static_hits <file>: one line per violation
@@ -924,25 +928,27 @@ t_static() {
   eq "the note of release/checklist.sh" "$(. release/checklist.sh; printf '%s' "$CK_NOTE")" "$NOTE"
   [ "$(grep -c -F -- "$NOTE" README.md)" -gt 0 ] || { echo "  README.md does not hold the note word for word"; bad=1; }
   # static_names is the README's own developer-section rule (dev_names of test-readme.sh, the same two exempt sections): it finds nothing
-  # there either, except the line that equals IPM_LOAD of test-readme.sh word for word (read from that one line; a changed load line is
-  # reported).
-  local ipm_load s
+  # there either, except the lines that equal IPM_LOAD and COMPLEXITY_ROW of test-readme.sh word for word (each read from its one line,
+  # the row through bash's own quoting; a changed load line or row is reported).
+  local ipm_load complexity s
   ipm_load=$(sed -n "s/^IPM_LOAD='\(.*\)'\$/\1/p" docker/tests/test-readme.sh)
   [ -n "$ipm_load" ] || { echo "  static: docker/tests/test-readme.sh holds no IPM_LOAD='...' line"; bad=1; }
-  printf '%s\n%sx\nThe class %s does it.\n' "$ipm_load" "$ipm_load" "$PLANT_CLASS" > "$tmp/ipm.md"
+  complexity=$(COMPLEXITY_ROW=; eval "$(grep '^COMPLEXITY_ROW=' docker/tests/test-readme.sh)"; printf '%s' "$COMPLEXITY_ROW")
+  [ -n "$complexity" ] || { echo "  static: docker/tests/test-readme.sh holds no COMPLEXITY_ROW='...' line"; bad=1; }
+  printf '%s\n%sx\nThe class %s does it.\n%s\n%sx\n' "$ipm_load" "$ipm_load" "$PLANT_CLASS" "$complexity" "$complexity" > "$tmp/ipm.md"
   for s in "$tmp/ipm.md" README.md GUIDE.md; do
-    o=$(static_names "$ipm_load" "$s")
+    o=$(static_names "$ipm_load" "$s" "$complexity")
     if [ "$s" = README.md ] || [ "$s" = GUIDE.md ]; then eq "names_outside_section on $s" "$o" ""
-    else eq "break: the load line changed and a class name are reported" "$(printf '%s' "$o" | tr '\n' ' ')" "$s:2 $s:3"; fi
+    else eq "break: the load line changed, a class name and the Complexity row changed are reported" "$(printf '%s' "$o" | tr '\n' ' ')" "$s:2 $s:3 $s:5"; fi
   done
   # The guide's "Gmail and Microsoft 365" section is exempt like "For admins and developers"; any other section is not.
   grep -qxF '## Gmail and Microsoft 365' GUIDE.md || { echo "  static: GUIDE.md holds no Gmail and Microsoft 365 section"; bad=1; }
   printf '\n## Elsewhere\n\nThe class %s does it.\n' "$PLANT_CLASS" | cat GUIDE.md - > "$tmp/guide-else.md"
-  o=$(static_names "$ipm_load" "$tmp/guide-else.md")
+  o=$(static_names "$ipm_load" "$tmp/guide-else.md" "$complexity")
   eq "break: a class name planted in another guide section is reported" "$o" "$tmp/guide-else.md:$(wc -l < "$tmp/guide-else.md" | tr -d ' ')"
   awk -v c="$PLANT_CLASS" '{ print } $0 == "## Gmail and Microsoft 365" { print "\nThe class " c " does it.\n" }' GUIDE.md > "$tmp/guide-gm.md"
   [ "$(grep -c -F -- "The class $PLANT_CLASS does it." "$tmp/guide-gm.md")" -eq 1 ] || { echo "  static: the planted line is not in the Gmail section copy"; bad=1; }
-  o=$(static_names "$ipm_load" "$tmp/guide-gm.md")
+  o=$(static_names "$ipm_load" "$tmp/guide-gm.md" "$complexity")
   eq "a dotted name in the guide's Gmail and Microsoft 365 section is not reported" "$o" ""
 }
 

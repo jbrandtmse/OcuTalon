@@ -3944,3 +3944,30 @@
 2026-11-13T13:18:23Z	Epic 21	merge_enqueued	part=21.7+21.8+21.12+21.13 head=9aec7dee code_head=4eb46cdd
 2026-11-13T13:19:18Z	Epic 21	epic_merged_to_feature	part=21.7+21.8+21.12+21.13 merge_sha=ce9716c6 code=4eb46cdd+22.x(no_code_conflict) verified_on_origin=yes
 2026-11-13T13:19:18Z	Epic 21	ledger_routed_planned	story=21-10 entries=2(DW-1232,DW-1266) by=merge_gate
+2026-11-13T13:19:51Z	Epic 22	runner_dispatched	model=opus runner=epic-runner-22b lane=D prompt=prompts/redispatch-epic-22-20261113.md base_local=46d7407e reason=predecessor_died_auth_error
+2026-11-13T13:22:12Z	Run	runners_resumed	C=a782ad9fd103aa691(21.14,21.4+21.10) B=aa9ed365494c41f91(36.4) A=aebff9f910ec80c8d(37.1) D=a32f5289d7494a1ef(fresh;22.7,22.6)
+2026-11-13T13:22:48Z	Run	owner_decision	via=contest_planner what=1.0.9_cut_~20:00Z;CI_HOLD_from_19:45Z;priority=7865c322,0.35_compare,21.14 file=prompts/standing-rulings-20261112.md
+2026-11-13T14:12:43Z	Epic 0	owner_decision	via=contest_planner what=Story_0.36_judges_table_platform_parts(README_only;verbatim_text;merged+green_before_19:45Z)
+2026-11-13T14:12:43Z	Epic 0	worktree_provisioned	branch=OCT-epic0d base=7865c322 method=git_worktree_add(local) purpose=0.36_doc_lever bootstrap=ok
+2026-11-13T14:12:43Z	Epic 0	runner_dispatched	model=opus runner=epic-runner-0d story=0.36 prompt=prompts/dispatch-epic-0d-036.md note=5th_runner_short_doc_lever(no_slot)
+2026-11-13T14:13:10Z	Epic 0	owner_decision	via=contest_planner what=0.36_merge_needs_checks_job+web_doc_tests_green_on_own_head(identity_only_for_untouched_IRIS_groups)
+2026-11-13T14:26:53Z	Epic 0	owner_decision	via=contest_planner what=0.36_optional_amendment(%AI.ToolSet_clause;only_if_not_pushed;relayed_pre-push_with_claim_check_on_all_3_agents)
+2026-11-13T14:37:53Z	Epic 0	runner_reported	PUBLIC_TEXT story=0.36 stopped=claim_false("the model ... Config Store";AD-7_model_is_runner_setting) proposed="each agent's provider connection and its timeouts" toolset_amendment=not_applied(Triage_no_tools;TurnTools_not_ToolSet) local=0e66493b unpushed
+2026-11-13T14:39:14Z	Story 0.36	owner_decision	via=contest_planner wording="each agent's provider connection and its timeouts" toolset_amendment=skipped ruling=prompts/story-036-ruling-20261113.md
+2026-11-13T14:40:13Z	Epic 0	owner_decision	via=contest_planner what=0.35_AB_SHIP_RULE_PASS release=held_merge->merge_for_1.0.9 conditions=integrate_forward+own_head_CI+merge_before_19:45Z;spec-0-35_AB_numbers;DW+Story_0.37(stopped_production=Act_vs_disabled_item=choice;AB_ship_rule) file=prompts/release-035-20261113.md
+2026-11-13T15:38:54Z	Epic 0	runner_reported	PART_READY story=0.36 head=81b65a6a ci=success runs=43445650699,43445650884 words=2241
+2026-11-13T15:38:54Z	Epic 0	ci_green_verified	sha=81b65a6a runs=43445650699(ci),43445650884(lane-a) checks+web=own_head
+2026-11-13T15:38:54Z	Epic 0	amendments_verified	amendments=epics_0.36_block extensions=README.md:38,docker/tests/test-readme.sh,docker/tests/test-release-notes.sh ok=true
+2026-11-13T15:38:54Z	Epic 0	merge_enqueued	part=0.36 head=81b65a6a feature=7865c322
+2026-11-13T15:39:51Z	Epic 0	epic_merged_to_feature	part=0.36 feature_sha=4aa34ca4 merge_sha=4aa34ca4 code=81b65a6a(identical_tree_outside_bookkeeping) verified_on_origin=yes
+2026-11-13T15:39:51Z	Run	ci_red_classified	head=7865c322 run=43432696788 red=shards-6(GuideApi TestOnlyTheMarkerChanges/TestRunAgain=DW-1094)+shards-4(Telegram park=DW-1083) class=ledgered_flakes evidence=same_code_green_on_81b65a6a(43445650699,43445650884)
+2026-11-13T15:39:51Z	Run	ci_green_by_identity	head=4aa34ca4 code_head=81b65a6a runs=43445650699,43445650884 cancelled=43454728174,43454728180(throughput_rule)
+2026-11-13T15:40:50Z	Epic 0	runner_complete	scope=story_0.36_on_OCT-epic0d head=6a2c0945(records) runner=a9256bee86633bf3c cancelled=43454976674,43454976655(records_only),43454867343,43454728174,43454728180
+2026-11-13T16:00:15Z	Epic 0	runner_reported	PART_READY story=0.35 head=e27e9f14 ci=success runs=43446298492,43446298472 local=d239c7f6(records_unpushed) DW=1273(owner_0-37) story_0.37=backlog epics_fix=dup_Epic1_heading_removed
+2026-11-13T16:00:15Z	Epic 0	ci_green_verified	sha=e27e9f14 runs=43446298492(ci),43446298472(lane-a) attempt=1
+2026-11-13T16:00:15Z	Epic 0	amendments_verified	amendments=spec-0-35_AB_section,epics_0.37_block+DW-1273,epics_dup_heading_fix extensions=Agent/Triage.cls,Test/Agent/Instructions.cls,docker/tests/test-eval-set.sh ok=true
+2026-11-13T16:00:15Z	Epic 0	merge_enqueued	part=0.35 head=e27e9f14 feature=910c0ace code_overlap_with_0.36=none ci=own_feature_head_run(union_of_two_green_code_heads)
+2026-11-13T16:01:04Z	Epic 0	epic_merged_to_feature	part=0.35(+0.37_opened,DW-1273) feature_sha=0d3b0c18 conflicts=epics(union_0.36+0.37),tracker(ours+set_0-35=done,0-37=backlog;valid) verified_on_origin=yes ci=own_run_required(union_of_81b65a6a+e27e9f14_code)
+2026-11-13T16:02:01Z	Epic 0	runner_complete	scope=story_0.35_on_OCT-epic0(0.37_opened_backlog) runner=ab7ca201cab027b95 local=f38bf106(2_records_commits_unpushed_by_order) origin=e27e9f14
+2026-11-13T16:16:18Z	Epic 37	runner_reported	CI_WAIT story=37.1 head=f2fc3d3a runs=43459664457(ci),43459664265(lane-a) base=0d3b0c18 DW=1267..1271(V8_routed) DW-1231=resolved local=2f48133c(records) note=ledger_union_misplaced_DW-1255_routing_under_DW-1271(re-appended)
+2026-11-13T17:05:36Z	Run	ci_green_verified	head=0d3b0c18(feature;0.35+0.36) runs=43458370984(ci),43458370349(lane-a) attempt=1 note=1.0.9_candidate

@@ -1912,10 +1912,6 @@ So that a release candidate passes CI without weakening the check that nothing i
 **When** it finishes
 **Then** every workflow is green
 
-## Epic 1: Every item gets an attention decision you can audit and afford
-
-Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
-
 ### Story 0.35: Routine attention decisions meet their target
 
 [ADDED 2026-11-12, Contest Planner ruling (owner's delegation, ~20:30Z, prompts/story-035-ruling-20261112.md, binding)] The README's Measured row "Routine attention decisions right: 21 of 24 (target: 22)" is refreshed from the 1.0.9 RC run, and 1.0.8's RC runs scored 21, 20 and 20, so the README would show a missed target again. Lane A, after Story 0.29 and before Story 25.3. The plan goes to the Contest Planner before any implement. Footprint: the attention agent's instructions only, and the prompt-leak CI check.
@@ -1947,6 +1943,57 @@ So that the README shows a target that is met, not missed.
 **Given** CI on this story's head
 **When** it finishes
 **Then** every workflow is green
+
+### Story 0.36: The judges' table names the platform parts OcuTalon is built from
+
+[ADDED 2026-11-13, Contest Planner 1.0.9 doc story, owner-approved] (owner's delegation; a one-story lever for Epic 0 on OCT-epic0d, on the lean path like 0.34; merged and green before the 19:45Z CI hold). The README's "For judges: where to look" Complexity row says what OcuTalon does but not which InterSystems platform parts it is built from. The row is replaced with the Planner's approved public text, verbatim. Footprint: README.md line 38 (the Complexity row) and the test-readme.sh pins only; no product change.
+
+As a judge scoring complexity and use of the platform,
+I want the Complexity row to name the AI Hub and Interoperability parts OcuTalon extends and uses, each with a link to the code,
+So that I can see at a glance that it is built from the platform's own parts.
+
+**Acceptance Criteria:**
+
+**Given** the README's "### For judges: where to look" table
+**When** its `| Complexity | ... |` row is read
+**Then** it is exactly the Contest Planner's approved text of 2026-11-13, word for word, and no other README line changes
+
+**Given** every claim the row makes
+**When** each is checked against the code at the merge base
+**Then** each is true (three `%AI.Agent` agents, the adapter extending `EnsLib.AI.Agent.OutboundAdapter`, the gate as an `%AI.Policy.Authorization`, Visual Trace steps from an `%AI.Policy.Audit` and an `%AI.Shell.StreamRenderer`, documents on AI Hub's RAG knowledge base over IRIS vector search, the model and its timeouts as Config Store entries, approvals as `EnsLib.Workflow` tasks, resends with `Ens.MessageHeader.ResendDuplicatedMessage`, approvals in the IRIS audit log, memory search merging vector search with a keyword index, Embedded Python computing the vectors and reading PDF and Word files, and over 40 production items)
+**And** a claim that is not true stops the story; the code is never changed to fit the text
+
+**Given** the README after the change
+**When** `bash docker/tests/test-readme.sh` runs
+**Then** it passes: the README has at most 2,300 words by `wc -w`, every link resolves, and every test pin the new row trips is updated in the same commit without changing the approved wording
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+### Story 0.37: A production that stopped is a fault to look into, not a choice to report
+
+[ADDED 2026-11-13, Contest Planner, 0.35 A/B known regression] (owner's delegation, ~14:45Z; prompts/release-035-20261113.md) Planning only in this dispatch: not implemented before 1.0.9; for Saturday's release, after 1.0.9. Story 0.35's new tell-now wording ("switched off or disabled ... a change someone chose to make") pulled two stopped-production findings, which expect `act`, to `tellnow` in 3 of 5 A/B attempts (4 misses in 10, against 0 of 18 before). It is not unsafe, because Tell now still tells the person at once. Footprint: the attention agent's instructions only (as Story 0.35), and their pins.
+
+As a person relying on OcuTalon's attention decisions,
+I want a production that stopped to be looked into at once, and a part someone disabled on purpose to be reported,
+So that a fault gets a check and a choice gets a notice.
+
+**Acceptance Criteria:**
+
+**Given** the attention agent's instructions after Story 0.35
+**When** this story changes them
+**Then** they separate the two by MEANING, never by copying or paraphrasing any main-set or held-out case: a disabled item is a choice someone made, so Tell now; a production that stopped is a fault, so Act
+**And** only the attention instructions and their pins change, and the main-set-texts, held-out-texts and held-out-names guards still pass
+
+**Given** the real model, measured by the Contest Planner's key-holder after the push
+**When** the changed instructions are compared with Story 0.35's (the A/B)
+**Then** the story merges only if the same ship rule (a)-(e) as Story 0.35 holds, and the stopped findings are right again while the disabled findings stay right
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1273: Story 0.35's known regression: the stopped findings went to tellnow in 3 of 5 NEW A/B attempts (ledger; routed by the Contest Planner 2026-11-13)
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
