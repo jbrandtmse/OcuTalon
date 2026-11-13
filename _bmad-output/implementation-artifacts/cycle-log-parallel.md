@@ -3894,3 +3894,5 @@
 2026-11-13T06:49:23Z	Epic 25	ci_green_verified	head=4832dea7 runs=43362271090,43362271172 result=success
 2026-11-13T06:49:23Z	Epic 25	amendments_verified	amendments=epics_25.3_ACs(markers)+25.6_inserted extensions=Channel/WebChat,Core/Files,Data/SentFile,Web/Files,web/shared ok=true
 2026-11-13T06:49:23Z	Epic 25	merge_enqueued	part=25.3 head=eb99dc1f
+2026-11-13T06:49:58Z	Epic 37	ledger_routed_planned	story=37-1 entries=1(DW-1231) excess=0 by=merge_gate(after_25.3_merge)
+2026-11-13T06:49:58Z	Run	deps_hash_rerecorded	reason=ledger_routed note=DW-1231_bullet_on_37.1

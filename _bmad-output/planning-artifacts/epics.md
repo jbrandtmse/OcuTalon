@@ -10042,6 +10042,7 @@ So that both lanes build step 6 against fixed names without waiting for each oth
 **Given** the spine update is merged
 **When** the package compiles
 **Then** the step 6 Lane A APIs it fixes, `Approval.MayAnswer` and the role-assignment method, exist in code as signatures with stub bodies that Lane B's Stories 25.4 and 25.5 can call until Story 26.4 builds them, as Story 33.1 (was 17.1) does for step 2 (FR-11, AD-29)
+- DW-1231: fix the read-result reply contract (the extracted-text summary ref, the Add to documents offer, the photo memory caption, the read-failure reason) that Story 25.6 consumes (ledger; routed by orchestrator veto ruling U-326 2026-11-12, Contest Planner confirmed)
 
 ### Story 37.2: See tokens and cost over time on the Usage page
 
