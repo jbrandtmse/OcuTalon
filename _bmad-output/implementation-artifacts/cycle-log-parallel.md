@@ -3927,3 +3927,4 @@
 2026-11-13T09:20:36Z	Epic 22	ci_green_verified	head=a758d17a runs=43370177969(att2),43370177998 result=success
 2026-11-13T09:20:36Z	Epic 22	merge_enqueued	part=22.9+22.3+22.4 head=a758d17a condition_J=met
 2026-11-13T09:21:49Z	Epic 22	epic_merged_to_feature	part=22.9+22.3+22.4 merge_sha=3d94a219 code=a758d17a+feature(CodeRules_union) condition_J=met(harness_recorded_in_spec-22-4)
+2026-11-13T09:22:17Z	Run	ci_cancelled	head=ea10d2d4 runs=43397985131(queued),43397984995(in_progress) reason=superseded_by_0c481884(contains_it;cancel-superseded_rule)
