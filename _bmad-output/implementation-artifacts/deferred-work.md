@@ -7472,3 +7472,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: needs a probe seam
 - 2026-11-13T07:03:52Z status=open owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=harvest note=in-story: QA adds a probe-seam test or closes with reopen_if
 - 2026-11-13T08:06:03Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=Test.Fix.Executor_TestEmailSendThatFailsInsideEndsFailedOnce,TestEmailNeverSubmittedIsNotSent,TestEmailStartFails+Test.Fix.Email_TestCommandsInGivesNoAnswerEndsFailed;mutations_red
+
+### DW-1264: flake: live:demo-switch steps 5 and 8 'the chat or the rail differs from S0' (23 of 33, 25 of 25 answers) in CI shards-3; green on one unchanged rerun
+- source: cycle-log-epic-22.md | severity: med | fix-risk: low | footprint: docker/tests/test-demo-switch.sh
+- evidence: a758d17a ci 43370177969 attempt 1 shards-3 red, attempt 2 green; the S0 hash covers /state chat+rail, so a rail item changing during the switch (inference) would explain it
+- 2026-11-13T09:04:32Z status=routed owner=burndown by=flake note=find what in /state.rail changes across the demo switch; pin or exclude it
