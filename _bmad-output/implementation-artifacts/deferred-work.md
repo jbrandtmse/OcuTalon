@@ -7770,3 +7770,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 21.4 pass 2: initial bundle 1,011,990 bytes with the MCP section (from 992,400), 998.08 kB after lazy-loading it
 - 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
 - 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
+
+### DW-1300: The installer's STALEFILES pattern (Install/Step/Web.cls) accepts only [A-Za-z0-9] in a bundle file's hash, but Angular's chunk optimizer names chunks with [A-Za-z0-9_-]; 36.5 keeps NG_BUILD_OPTIMIZE_CHUNKS=0 so names stay plain
+- source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: build with the optimizer on measured chunk-BAxI_vlj.js; live:bundle-folder would go red; pinned by lazy-routes.test.mjs while the flag stays
+- 2026-11-13T23:28:34Z status=wontfix-accepted owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=harvest note=reopen_if=a build needs the chunk optimizer on, or any built bundle file name contains _ or - (lazy-routes.test.mjs pins the flag)
