@@ -2,7 +2,9 @@
 title: "Story 0.36: The judges' table names the platform parts OcuTalon is built from"
 type: 'docs'
 created: '2026-11-13'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '3d156cad6b283c810638d2106ebbd7d9f319d96c'
+baseline_commit: '3d156cad6b283c810638d2106ebbd7d9f319d96c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -48,10 +50,10 @@ Update, in the same commit, every test pin the new row trips. If a pin would for
 
 ## Tasks & Acceptance
 
-- [ ] Replace README.md line 38 with the approved line, byte for byte.
-- [ ] `test-readme.sh`: add a `COMPLEXITY_ROW` constant holding the approved line word for word; `dev_names` skips a line equal to it (as it skips `IPM_LOAD`); the header comment of the dev-only rule names the exemption; add broken-copy rows to `rule_dev_only`: the Complexity row with one class name changed is flagged, and a class name on its own line next to it is still flagged.
-- [ ] Verify every claim in the row against the code at 7865c322 (the Planner's list under Design Notes); a false claim stops the story.
-- [ ] Demonstrate the mutations (Rule 19) and record them under `## Verification`.
+- [x] Replace README.md line 38 with the approved line, byte for byte.
+- [x] `test-readme.sh`: add a `COMPLEXITY_ROW` constant holding the approved line word for word; `dev_names` skips a line equal to it (as it skips `IPM_LOAD`); the header comment of the dev-only rule names the exemption; add broken-copy rows to `rule_dev_only`: the Complexity row with one class name changed is flagged, and a class name on its own line next to it is still flagged.
+- [x] Verify every claim in the row against the code at 7865c322 (the Planner's list under Design Notes); a false claim stops the story.
+- [x] Demonstrate the mutations (Rule 19) and record them under `## Verification`.
 
 ## Design Notes
 
@@ -79,7 +81,23 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - `wc -w README.md` (once): at most 2,300.
 - `npm --prefix web test` (once), or its doc tests.
 
+**Mutations (Rule 19; each applied, run with `bash docker/tests/test-readme.sh`, observed red, reverted from a saved copy; `cmp` byte-identical and `git diff --stat` unchanged afterwards):**
+- mutation: drop `|| $0 == complexity` from `dev_names` (no exemption) → `FAIL dev-only: no ##class(, class name or error code ...` naming `README.md:38` (the approved row trips the rule without its exemption).
+- mutation: exempt by prefix instead of word for word (`index($0, "| Complexity |") == 1`) → `self-test: the Complexity row with a class name changed: not flagged`, `... with a class name added: not flagged`, `FAIL dev-only: a broken copy was not flagged` (the two new broken-copy rows are live).
+- mutation: README line 38 `over 40 items` → `over 50 items` → `FAIL dev-only` naming `README.md:38` (the exemption pins the row's wording).
+
+### Implement-stage results (2026-11-13, lead handoff edit)
+
+- README.md line 38 is byte-identical to the dispatch's approved line (`cmp` against line 20 of the dispatch prompt); `git diff` changes one README line. `COMPLEXITY_ROW`, sourced in bash, is byte-identical to it too.
+- `bash docker/tests/test-readme.sh`: `test-readme: all rules passed` (before the test edit: only `FAIL dev-only` on `README.md:38`). The `printf: write error: Broken pipe` lines on stderr are the script's own, unchanged.
+- `wc -w README.md`: 2,239 (cap 2,300; 2,175 before).
+- `bash docker/tests/test-boundaries.sh`: `test-boundaries: all rules passed`.
+- `npm --prefix web test`: 1,970 tests, 1,970 pass, 0 fail.
+- Claims re-checked by the lead at 7865c322: Agent/Triage, Diagnosis, Chat `Extends %AI.Agent`; Bridge/Adapter/Agent.cls:116 `Extends EnsLib.AI.Agent.OutboundAdapter`; Bridge/Policy/Gate.cls:97 `Extends %AI.Policy.Authorization`; StepAudit.cls:12 `Extends %AI.Policy.Audit`; StepRenderer.cls:12 `Extends %AI.Shell.StreamRenderer`; Docs/Embedding `Extends %AI.RAG.Embedding`, Docs/Store holds `%AI.RAG.KnowledgeBase` over `%AI.RAG.VectorStore.IRIS`; Fix/Executor.cls:1097 and :1126 call `##class(Ens.MessageHeader).ResendDuplicatedMessage`; Production.cls has 51 `<Item` elements; EnsLib.Workflow in Production.cls and Bridge/Approval.cls; Approval writes an audit entry through Bridge/Audit.cls (the only writer of the IRIS audit log); OcuTalon.Memory fuses the nearest (vector) list with the iFind keyword list (`Fuse`); ocutalon_extract.py reads PDF and Word.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: README.md's Complexity row is the Planner's approved text, verbatim; test-readme.sh's dev-only rule exempts exactly that row (COMPLEXITY_ROW, word for word, as it exempts the IPM load line) and gains two broken-copy rows. No other README line and no product file changes.
