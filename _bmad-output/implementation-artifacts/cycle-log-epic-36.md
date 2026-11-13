@@ -77,3 +77,5 @@
 2026-11-13T04:17:03Z	Story 36.2	fresh_check	env=recipe(fresh_warm_e36s2sf_forward,fresh_warm_e36s2sg_reverse) tests=Msg.Contracts,Core.CommandsRouting,Schedule.Reminders(one_per_call) result=pass order=forward,reverse story_base=16c525c8 torn_down=e36s2sf,e36s2sg lane-b_locks=empty
 2026-11-13T04:17:12Z	Story 36.2	committed	sha=0c80c58c submodules= ci=held_local runs=none pushed=no(waiting_for_4467921f_CI;U5_queue_rule) amendments=none footprint_extensions=none
 2026-11-13T04:17:12Z	Story 36.2	story_cycle	plan_to_commit_min=490 implement_passes=1 reviews=1 rework=0 first_ci=pending(held) models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-13T04:23:09Z	Epic 36	epic_context_compiled	spawn_at=2026-11-13T04:20:55Z reason=planning_artifact_newer(36.4_DW_bullets;36.1,36.2_done) model=opus effort=high words=1497
+2026-11-13T04:23:09Z	Story 36.4	stage_spawned	stage=plan spawn_at=2026-11-13T04:23:09Z model=opus agent_name=36-4-set-the-on-call-person-and-backup-in-settings-plan-1 cycle_iteration=1 effort=high
