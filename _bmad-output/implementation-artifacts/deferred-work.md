@@ -2168,6 +2168,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: same 8 findings on the spine at HEAD and after 9.1's Tables-line edit; they are prose format examples ({time}, {day}, {what happened}, {reason}, {entry}, {finding}, {n}), not template tokens
 - 2026-10-28T15:22:57Z status=by-design owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=harvest note=known baseline (Epic 9 start: lint=baseline 8 low placeholder, no AD findings; line 923's HostData row, U-120); the gate for a spine write is no new finding and no ad_id/ad_fields finding
+- 2026-11-12T22:55:31Z occurrence=36-1-record-the-setting-history-of-each-watched-production by=harvest note=same_placeholder_findings(10_low_on_baseline_9ca1d94a;none_added_by_36.1;no_ad_id/ad_fields)
+- 2026-11-12T23:28:28Z occurrence=36-1-record-the-setting-history-of-each-watched-production by=cr note=code_review_confirms_same_10_low_placeholder_findings_after_review_patches;none_new
 
 ### DW-352: 9.1's task 11 memlog entry (AD-33: OcuTalon.Eval.Data.CaseResult is Lane A's) was not appended: the spine's .memlog.md is gitignored and exists only in the main checkout
 - source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6683,6 +6685,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T10:33:24Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_109d59c8_run_43172863798_install-upgrade_row7_start_with_failing_step_not_ended_200s;superseded_head
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_install-upgrade_row6_upgrade_not_ready_200s;rerun_failed_jobs_green(attempt2)
 - 2026-11-12T10:09:42Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662764_iris(install-upgrade)_live:install-upgrade_row_6_'the_upgrade_did_not_end_ready_within_200_s'_on_OCT-epic21_ad2255ac(first_start_took_6_min:host_load;21.3_changes_no_install_or_startup_path);judged_again_on_the_integrated_head
+- 2026-11-12T15:47:10Z status=routed owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=lane_order note=Contest Planner standing burndown ruling 2026-11-12 (CI time-budget audit); inserted Story 0.32 with a DW-1082 acceptance bullet
+- 2026-11-12T18:09:13Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=adjudication note=fbe3deb0+review: install-upgrade row 6 ready budget 300 s with the ruled 'MEASURED row 6: the upgrade took N s to ready' line printed pass or fail (row 7 waits 300/330 s with MEASURED lines); still fails at the budget; install-upgrade unit deadline floor 1440 s; pinned by test-ci-config.sh budgets; CI proof on the next push (CI HOLD)
 - 2026-11-12T17:26:24Z occurrence=0-30 by=runner note=run_43260265319_job_131329319104_iris(install-upgrade)_on_ocutalon-ci-13_row_6_'the_upgrade_did_not_end_ready_within_200_s';OCT-epic0_05e29461;one_rerun_of_failed_jobs(lane_B_owns_the_fix)
 - 2026-11-12T18:16:53Z occurrence=0-30 by=runner note=run_43260265319_attempt_2_job_131370762952_iris(install-upgrade)_on_ocutalon-ci-9_row_7_'the_next_good_image_did_not_end_ready_within_200_s'(attempt_1_was_row_6_on_ci-13);second_red_of_the_unit_on_05e29461
 
@@ -6752,6 +6756,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: main run 42863516417 attempt 1 (v1.0.6 tag 96947f4d), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (shards-4) live:sign-in-2 R10 red at :470; green on one rerun; main badge green 19:45Z
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); no fix work now (Planner); rerun once per occurrence
+- 2026-11-13T01:01:54Z occurrence=feature-bc3eea8f note=ci_43320628392_att2_shards-4_R10
 
 ### DW-1094: flake: lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges ('trace_opened/run_again changes none of the session's data rows') and TestRunAgain ('steps 3 to 5 reset; the watch still counts')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7063,6 +7068,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner, 1.0.7 RC eval wording ruling, 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 1.0.7 RC eval, 3 real-model attempts: the model refused to save runbook text, cited 'Results runbook / Clearing the queue' and quoted it, but said 'runbook', failing only the phrase check
 - 2026-11-11T11:02:31Z status=routed owner=burndown by=owner note=ruled by the Contest Planner: widen eval/memory-documents-remember's phrase check to document|runbook|file; report-only; Epic 41's eval files; next free lane, ~30 min, after RELEASE DONE
+- 2026-11-12T14:17:29Z status=routed owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=lane_order note=orchestrator 2026-11-12: lane B's next item, inserted as Story 0.31 (DW-1123 acceptance bullet in epics.md)
+- 2026-11-12T15:05:57Z status=resolved-by:0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=adjudication note=38c3f267: eval/memory-documents-remember first keyPhrases group is [document, runbook, file]; pinned by Test.Eval.Report TestShippedTaintedCase and TestMemoryTurnTainted (runbook right, names-none wrong), Cases.TestMemoryCases; report-only unchanged; eval/results/rules-only.json re-run (3 entries of this case only)
 
 ### DW-1133: A classified MCP tool that its server stops listing loses its ToolClassification row at the next attach with no Tool audit entry and no admin notice
 - source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
@@ -7093,6 +7100,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: rail lists pendingApprovals(store) (web/src/app/rail/rail-view.ts:340); store approvals change only via approval events (live/live-store.ts:188-189); the press reply updates only the card's AnswerPress.local (approvals/answer-press.ts replied); event published async by Core.BridgeSink.Approved, read by the next poll (live-state.ts:19 POLL_DELAY_MS 1000)
 - 2026-11-11T20:10:49Z status=routed owner=burndown by=owner note=Contest Planner ruling 2026-11-11T20:09:53Z (owner delegation; reverses orchestrator veto U-318): judge-visible (Reject a fix is a featured More to try step). Follow-up story in approvals/phone/rail, dispatched by the orchestrator AFTER 21.2 merges, on any free lane, after 0.26 and DW-1123. Acceptance: a browser test presses Reject and the request is gone from the rail within 5 s, on the web and on the phone view. Ships in 1.0.8 only if merged before the cut, else 1.0.9. Not a 23.10 rework.
+- 2026-11-12T12:22:24Z owner=23-12-take-a-rejected-request-off-the-status-rail-at-once by=burndown note=chartered_as_Story_23.12_per_Planner_ruling_2026-11-11T20:09:53Z(follow-up_story,lane_D_after_23.9;orchestrator_continue_2026-11-12)
+- 2026-11-12T13:52:56Z status=resolved-by:23-12-take-a-rejected-request-off-the-status-rail-at-once by=adjudication note=f6a03be3:withAnswer(live-store)+LiveState.applyAnswer+AnswerPress.answered(card+phone);RA1(web)+RA2(phone)_reply-only_removal_polls_held;PA2(web)+PA3(phone)_gone_within_5s_of_press_on_real_request(85-105ms);unit:answer-press.test.mjs,live-store,rail-view
 ### DW-1164: EmailOut's system path (Story 21.6) needs Story 22.7 to fill SendEmail.ApprovalRef, the approval row's FixKind 'email' and FixParameters.recipients, and to replay with a context of Kind tool and provenance user; only seeded rows test it today
 - source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Channel/Email/Out.cls system path reads Bridge.Data.ApprovalRequest; tests seed the row; S1 spine sub-bullet records the contract
@@ -7160,6 +7169,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T21:32:07Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun of the failed job when the run completes
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749161 attempt 2)
 - 2026-11-12T10:33:23Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_e7c97dda_run_43170639261_install-fresh_live:install-start_row3_dev_start_not_ready_200s;superseded_head
+- 2026-11-12T16:31:16Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_job_131294447085_iris(install-fresh)_live:install-start_row_4_'the_restart_did_not_end_ready_within_200_s'(AFTER-START_ready_logged_just_before);one_rerun_of_failed_jobs_when_the_run_completes;Story_0.32_audits_this_wait
+- 2026-11-12T18:09:13Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_attempt2_install-fresh_job_131344108157_live:install-start_row_3_dev_start_200s;Story_0.32_raises_row_3_to_300s_and_row_4_to_270s
 - 2026-11-12T17:09:34Z occurrence=0-30 by=runner note=run_43260265319_job_131329318850_iris(install-fresh)_on_ocutalon-ci-13_live:install-start_row_4_'the_restart_did_not_end_ready_within_200_s'(after_STEP_merge_OK_3s;no_quiesce_error;rows_1-3_passed);OCT-epic0_05e29461;one_rerun_of_failed_jobs
 - 2026-11-12T18:07:04Z occurrence=0-30 by=runner note=run_43260265319_attempt_2_job_131370762866_iris(install-fresh)_on_ocutalon-ci-17_live:install-start_row_3_'the_dev_start_did_not_end_ready_within_200_s'(after_STEP_merge_OK_5s;rows_1-2_passed);attempt_1_was_row_4_on_ci-13;second_red_of_the_unit_on_05e29461
 
@@ -7169,6 +7180,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T21:39:35Z status=routed owner=burndown by=orchestrator note=infra (host load): one rerun per occurrence; a recurrence on a clean queue means the group needs a split (standing CI rule), never a longer timeout
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749306 attempt 2)
 - 2026-11-12T11:30:04Z occurrence=0-28 by=runner note=lane-a_run_43202138310_job_131127975712_ipm-install_on_ocutalon-ci-19_all_steps_success_then_cancelled_at_35m0s(10:52:33-11:27:33Z);host_load;OCT-epic0_2a6cfc67;rerun_failed_jobs_11:30Z
+- 2026-11-12T17:27:03Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_lane-a_43250436407_attempt1_ipm-install_cancelled_at_35m_job_timeout(job_131293987013?),attempt2_cancelled_again(job_131330870015);no_test_failed;infra_headroom;workflow_timeout_is_a_RELEASE_TOOL_item
+- 2026-11-12T17:27:26Z occurrence=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and note=0.32_Task0:ipm-install_1859s_median,2098s_largest_vs_2100s(1.13,1.00);ipm-install-p_1741s/1893s(1.21,1.11);REL-4_35min_is_a_Never-raise_bound_of_0.32;Planner:RELEASE_TOOL_and_REL-4
+- 2026-11-12T19:37:39Z by=cr note=0.32 rework 1 (Planner-approved, relayed as DW-1214): ipm-install/-p timeout 35->45, REL-4 35 min kept as target via MEASURED lines
+- 2026-11-12T19:41:25Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved (relayed as DW-1214): lane-a.yml ipm-install and ipm-install-p timeout-minutes 35 -> 45 as a hang backstop; REL-4's 35 min stays the target: ci/iris.sh teardown prints 'MEASURED <job> N s' and flags 'over REL-4' (log + step summary) over 2100 s (b24d2c64 + review patches)
 - 2026-11-12T17:18:12Z occurrence=0-30 by=runner note=lane-a_run_43260265609_job_131329321244_ipm-install_on_ocutalon-ci-19_cancelled_at_35m(16:35:09-17:10:37Z);host_load;OCT-epic0_05e29461;rerun_failed_jobs_17:18Z
 
 ### DW-1163: CI ops: GitHub Actions outage left zombie runs (queued at attempt 1; cancel says completed, rerun says running, force-cancel says not queued); recovery = a fresh push of a bookkeeping-only head, its result read by identity
@@ -7337,11 +7352,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 43206845957 (OCT-epic21 368c7a09) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 131144052048 iris (image) shard:lane-b@Contract,Core,Data,Live: printed stored value 'xrvjRiPqHbxlagA8SDES' starts with x; salt = base64url(GenCryptRand(16)); the 21.3 merge changes no line of Data/Webhook, Test/Data/Webhook, SecretHandoff or Data/Setting vs green eb289caf (git diff empty); 6 local passes on lane-C warm e21s3cw
 - 2026-11-12T12:25:40Z status=routed owner=burndown by=ci note=fix (Epic 35's test, one line): pick the replacement first character as lastChanged does, e.g. $Select($Extract(salt) = "x": "y", 1: "x"); one rerun meanwhile
+- 2026-11-12T18:46:14Z status=routed owner=0-31-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne by=runner note=Planner_standing_ruling:test-only_burndown_on_lane_A_after_0.30;chartered_as_Story_0.31
+- 2026-11-12T19:07:54Z status=resolved-by:0-31-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne by=adjudication note=FirstChanged_helper+fixed-x-salt_xHash_pass;mutation_red_on_lane-A_throwaway;class_green
+- 2026-11-12T19:09:46Z status=resolved-by:0-33-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne by=orchestrator note=renumbered_from_0-31
 
 ### DW-1195: flake/infra: live:sign-in chromium suite hit its 757 s suite timeout under host load (256 passed, 0 failed, 24 did not run)
 - source: ci 43227065531 feature 150b49c5 iris (shards-10) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Timed out waiting 757s for the test suite to run; 24 did not run; no test failed
 - 2026-11-12T14:15:46Z status=routed owner=burndown by=orchestrator note=one rerun per occurrence; if recurrent, size the shard's suite budget or split the shard
+- 2026-11-12T15:47:10Z status=routed owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=lane_order note=Contest Planner standing burndown ruling 2026-11-12 (CI time-budget audit); inserted Story 0.32 with a DW-1195 acceptance bullet
+- 2026-11-12T17:27:03Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_attempt1_iris(shards-10)_live:sign-in_suite_timeout_777s(264_passed,0_failed,16_did_not_run);rerun_failed_jobs
+- 2026-11-12T18:09:13Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=adjudication note=fbe3deb0+review: 'MEASURED live:<unit> suite N s' and suite-budget lines in test-sign-in.sh; deadline floors sign-in 1560 s, sign-in-2 and sign-in-3 1500 s give browser-suite budgets 1132-1178 s (>= 950 s and >= 1.4x medians over 27 runs); finite; pinned by test-ci-config.sh budgets; CI proof on the next push (CI HOLD)
+- 2026-11-12T18:09:13Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_attempt2_shards-10_job_131344110360_live:sign-in_suite_775s(259_passed,0_failed,21_not_run);fixed_forward_by_0.32
 
 ### DW-1192: Held-out incident snapshots are never compared with a fresh recording in CI; HeldOutCases errorHas markers are read nowhere
 - source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: med | fix-risk: low | footprint: in-story
@@ -7359,6 +7381,56 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/tests/test-eval-set.sh check_rules_flow: awk line-order pins only; rcf_rules runs the --rules-only forms, never the push run; lane-a evaluation job is the runtime proof
 - 2026-11-12T13:46:59Z status=by-design owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=spec Verification: Integration and CI ACs are proven by the lead's CI evidence (lane A evaluation job log and summary); a stubbed push run would emulate set, mock-wrong, demo gate and attempt runs
 
+### DW-1196: memory-documents-remember: the widened first key-phrase group is a weak source signal, since runbook also appears in the user's request and the cited document name
+- source: spec-0-31-dw-1123-the-memory-documents-remember-eval-accepts-document.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: case.json keyPhrases[0] = document|runbook|file; the turn text and citation both say Results runbook, so a reply that echoes its source meets the group (blind-hunter, edge-case-hunter)
+- 2026-11-12T15:03:40Z status=by-design owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=cr note=Contest Planner ruling 2026-11-11 (DW-1123) fixes the group; spec forbids changing description; report-only case
+
+### DW-1197: memory-documents-remember: file in the first key-phrase group is a lower-case substring match, so profile, filed or filename also meet it
+- source: spec-0-31-dw-1123-the-memory-documents-remember-eval-accepts-document.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Eval.Report Holds/Normalize is a plain substring test (unchanged); no test pins the substring behaviour for file (blind-hunter, edge-case-hunter)
+- 2026-11-12T15:03:40Z status=by-design owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=cr note=spec Design Notes keep the matcher unchanged and accept substring hits; report-only case, outside SM-1
+
+### DW-1198: No committed check ties eval/results/rules-only.json's embedded expectations to the current eval/<case>/case.json; a case edit without a rules-only re-run leaves stale text
+- source: spec-0-31-dw-1123-the-memory-documents-remember-eval-accepts-document.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: test-eval-set.sh committed-run checks (structure only) and compare.mjs --column (counts, date) never compare cases[].expected or turnChecks[].keyPhrases with case.json; AC 3 rests on the spec's one-off node diff (verification-gap)
+- 2026-11-12T15:03:40Z status=wontfix-accepted owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=cr note=reopen_if=a committed eval/results report is found whose expected or keyPhrases differ from its case.json at the same commit
+
+### DW-1212: CI iris group jobs: six groups' green median sits under 1.4x of the 40-minute job cap (shards-10 1.33 ... shards-2 1.39); the 0.32 unit floors raise their worst case toward it
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: 0.32 Task 0: ten newest green jobs, 2400 s / median: shards-10 1.33, shards-5 1.34, shards-11 1.35, shards 1.36, production 1.39, shards-2 1.39; largest job 1.17
+- 2026-11-12T17:27:25Z status=escalated owner=burndown by=harvest note=for the Planner: a job cap is a RELEASE TOOL hunk; rebalancing is a Story 0.20 kind of change
+- 2026-11-12T18:06:01Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs, no-op jobs out): shards-10 1.29, shards/11 1.35, shards-6 1.37, production/shards-2 1.39
+- 2026-11-12T19:41:24Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved (2026-11-12 ~18:30Z, relayed): ci.yml iris timeout-minutes 40 -> 50 (b24d2c64); no group rebalancing until after Sunday
+
+### DW-1213: CI checks job timeout (20 min) is 1.25x its green median (962 s; largest 1015 s)
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: 0.32 Task 0: ten newest green ci checks jobs
+- 2026-11-12T17:27:25Z status=escalated owner=burndown by=harvest note=for the Planner: workflow timeout-minutes is a RELEASE TOOL hunk
+- 2026-11-12T18:06:13Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs incl. red/cancelled): checks median 950 s, 1.26; largest 1015 s, 1.18
+- 2026-11-12T19:41:24Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved: ci.yml checks timeout-minutes 20 -> 25 (b24d2c64)
+
+### DW-1214: CI iris job timeout (40 min) is 1.33-1.66x the group medians; it is the last bound of a hang
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: 0.32 Task 0; see the group entry
+- 2026-11-12T17:27:26Z status=escalated owner=burndown by=harvest note=for the Planner: RELEASE TOOL hunk; 0.32's Never list forbids raising the 40-minute cap
+- 2026-11-12T18:06:13Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs, no-op jobs out): iris job cap 1.29-1.70x the group job medians; 1.17x the largest
+- 2026-11-12T19:41:25Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved: ci.yml iris timeout-minutes 40 -> 50 (b24d2c64); the Planner's 'DW-1214' (lane-a ipm-install) is ledger DW-1161
+
+### DW-1215: Playwright's 45 s per-test timeout is 1.27x the slowest online-allowance test and 1.38x online-demo's (medians of each run's slowest test)
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: 0.32 Task 0: online-allowance 35.5 s, online-demo 32.7 s, sign-in-3 31.6 s
+- 2026-11-12T17:27:26Z status=wontfix-accepted owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=harvest note=reopen_if=a CI red names a Playwright 45000ms test timeout on an otherwise passing suite
+
+### DW-1216: live:install-upgrade row 6 stays at the ruled 300 s, 1.37x its median gap (219 s upper bound), below the 1.4 rule
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 0.32 Task 0; DW-1082 rules exactly 300 s
+- 2026-11-12T17:27:26Z status=by-design owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=harvest note=Planner ruling DW-1082 fixes 300 s; the next audit reads the MEASURED row 6 lines
+
+### DW-1217: CI hosts: measure peak memory per job type (6 IRIS stacks per 15 GB host swap at peak) and propose 5 runners per host or per-stack memory limits to the Planner as a server change
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Planner data 2026-11-12 ~18:10Z: ci-b 0 load failures today, ci-c install-fresh 3 of 10 and install-upgrade 1 of 3, ci-d install-fresh 1 of 1, install-upgrade 3 of 5, shards-10 3 of 4; ci-b/ci-d 8 vCPU, 15 GB RAM, ~610 MB swap in use, load 7-8 (small samples)
+- 2026-11-12T18:34:21Z status=routed owner=burndown by=orchestrator note=audit family follow-up to Story 0.32 (orchestrator 2026-11-12 continue); a measurement plus a PROPOSAL only: any runner-count or memory-limit change is a server change for the Planner, never applied by a runner
 ### DW-1220: An approved native MCP call replayed by Replay.Run is not rewritten into call_mcp_tool, so it runs through AI Hub's client with no deadline, cut, call-time fingerprint check or audit entry
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
 - evidence: Gate.Decision reroutes only outside a replay; Test.Bridge.Gate TestMcpRewriteAndItsMark pins the non-rewrite; spec Never list assigns the MCP replay to 22.4
@@ -7434,6 +7506,40 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Planner swept 05e29461: no live link to a moved README anchor; test-readme product-links covers page links; docs/*.md has no generic dead-anchor check
 - 2026-11-12T16:44:12Z status=routed owner=burndown by=orchestrator note=1.0.9; does not hold 1.0.8
 
+### DW-1218: No test fails while the README comparison's agent column still reads 'measured at release 1.0.9' (the feature placeholder), so a merge to main would carry it unless the RC fork fills it
+- source: spec-0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil.md | severity: med | fix-risk: low | footprint: in-footprint
+- evidence: README.md agent column; the spec leaves it unpinned by ruling (variant F fills it in the RC fork); the Planner's RC checklist greps for the phrase (story-029-rulings 2026-11-12 item 1)
+- 2026-11-12T19:37:14Z status=by-design owner=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil by=harvest note=ruled:the_1.0.9_RC_fork_replaces_it_and_the_Planner's_RC_grep_requires_the_phrase_never_reaches_main
+- 2026-11-12T19:52:11Z occurrence=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil
+
+### DW-1219: test-readme.sh st() self-test harness passes whenever the checker prints anything, so a mutation that trips two clauses does not pin each clause alone
+- source: spec-0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: docker/tests/test-readme.sh st(): every self-test in the script has this shape; a harness-wide change
+- 2026-11-12T19:37:14Z status=wontfix-accepted owner=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil by=harvest note=reopen_if=a_review_finds_a_self-test_that_passes_on_the_wrong_clause_and_masks_a_real_regression
+### DW-1235: Setting history records only host and adapter settings: an item's core properties (Enabled, PoolSize, Schedule, ClassName) are not snapshotted, so turning an item off or changing its pool size gives no SettingChange
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Reader.Current builds entries from PopulateVirtualSettings (Host/Adapter only, irislib Ens/Config/Item.cls) plus stored Settings; GetStaticSettings (Core) is never read
+- 2026-11-12T23:28:28Z status=by-design owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=spec_bound: Decided 2 and ruling V2 fix Target Host|Adapter; reopen only by a spec amendment (Story 23.3 or a Planner call)
+
+### DW-1236: Reader.Settings turns a fault inside Reader.Current into a throw, but no test makes Current fault during a settings read, so dropping that throw would go unnoticed
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TestReadFailure throws from SettingHistory.Salts after the marks read; no test faults Current itself (needs a fault seam inside the namespace switch)
+- 2026-11-12T23:28:28Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=reopen_if=a production whose settings read faults inside Reader.Current logs no SettingHistory warning
+
+### DW-1237: Install.Step.Watch.Purge running the history purge after the incident purge returned an error is not pinned by a test
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TestPurgeFirstError fails both purges with day count 0; TestPurgeTriesBoth fails only the history side; pinning needs an old closed incident whose delete fails
+- 2026-11-12T23:28:28Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=reopen_if=a purge run whose IncidentManager.Purge returns an error leaves SettingSnapshot or SettingChange rows older than daysToKeep
+
+### DW-1238: Reader.Current's evidence read takes the first item of a name whatever its Enabled, so with same-name items it can describe the disabled copy
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Reader.Current evidence block: first name match then Quit; pre-existing (Epic 23 evidence path); 36.1's settings block now picks the first enabled item
+- 2026-11-13T00:21:26Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=reopen_if=an incident's evidence pack or notice names a disabled same-name item's queue, errors or settings (probe: a production with a disabled copy listed before the enabled item, then a failure on the enabled one)
+
+### DW-1242: Reader.Current's same-name pick in the settings snapshot honours a System Default Setting Enabled, but no test switches same-name items through one, so dropping that half would go unnoticed
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Reader.cls settings block: stEnabled = %GetSetting(..., "Enabled") else stItem.Enabled; TestSameNameItems sets only the stored Enabled; replacing the $Select by stItem.Enabled keeps every test green (verification-gap, acceptance-auditor)
+- 2026-11-13T00:43:25Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=reopen_if=a production switches same-name items with a System Default Setting Enabled and its setting history follows the disabled copy
 ### DW-1225: AC moved from 36.1 (Planner V1(b)): 23.3 declares Fix.Kind.RollbackSetting with RESOURCES, grants %Ens_ProductionConfig:W to OcuTalonServiceRole (demo install leaves it out), adds exactly one forbidden-list test exception, the ONLINESTATEMENT change and the overview sentence, and ships incident.settingChangeCause; result.settingRestored keeps its undo sentence only if 23.3 builds and tests the undo path
 - source: Contest Planner 36.1 spec gate ruling 2026-11-12, prompts/story-361-rulings-20261112.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 36.1 option (b): no unused write grant ships
@@ -7444,6 +7550,61 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T20:19:09Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=pins beyond the ruled (a),(b1),(b2) exceed the 1.0.8 ruling; reopen_if=a diff edits the pathspec or regex line of oauth_install_paths_clean
 - 2026-11-12T20:19:32Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=reopen_if=a diff edits oauth_install_paths_clean's pathspec or regex line; more pins exceed the 1.0.8 ruling
 
+### DW-1248: OPTIONS on /api/v1/files is answered by %CSP.REST's OnHandleOptionsRequest (an Allow list, no body), not the 404 not_found that AC 9 says for every method but POST
+- source: spec-25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: irislib/%CSP/REST.cls :272-275 and :392-393 answer OPTIONS before Http405, both before sign-in (Page) and after (DispatchRequest); no byte of a file is sent, so ruling 3 (ii) holds; FilesApi and api/files.spec.ts (ii) never try OPTIONS
+- 2026-11-13T03:34:16Z status=wontfix-accepted owner=25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram by=cr note=fix needs a public-package OPTIONS answer (Web.Hook precedent); reopen_if=OPTIONS under /ocutalon/api/v1/files sends any stored file byte or a spec asks 404 for it
+### DW-1231: AC for 37.1: fix the read-result reply contract (extracted-text summary ref, Add to documents offer, photo memory caption, read-failure reason) that Story 25.6 consumes
+- source: orchestrator ruling on 25.3's split, 2026-11-12 (veto U-326) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 25.3 plan: 25.6 needs a reply contract no story fixes
+- 2026-11-12T22:51:35Z status=routed owner=37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption by=orchestrator note=DW bullet added to 37.1's epics.md block at 25.3's merge
+### DW-1229: eval case mail-partner-notice expects digest alone, but the UX says the partner notice comes back as Digest or Tell now (mockups/states.html:982, EXPERIENCE Key Flows Coda), and the held-out-flagged mail-date-format-monday of the same shape expects tellnow; the attention agent chose tellnow in 14 of 15 RC attempts (1.0.4-1.0.8)
+- source: spec-0-35-routine-attention-decisions-meet-their-target.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: eval/mail-partner-notice/case.json expected digest; _bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/mockups/states.html:982 'the partner notice comes back as Digest or Tell now'; release-evidence/<v>-gates/rc-eval/set-*.json 15/15 misses
+- 2026-11-12T21:22:06Z status=routed owner=burndown by=harvest note=for the owner after the contest: decide the case's expected answer against the UX; the Planner ruled not to widen it during the contest (moving the goalposts after seeing the model's output)
+
+### DW-1254: 24.2: partner contacts' names and addresses go through the SecretHandoff (in memory only), never in a traced SaveSettings.Changes; the traced message holds only the handoff uri; values reach only the IRIS audit entry; one leak-scan test
+- source: Contest Planner 36.4 gate ruling S1 extension, 2026-11-13 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 36.4 S1: SaveSettings.Changes is visible in Visual Trace to OcuTalonTraceViewer (non-admin)
+- 2026-11-13T04:50:39Z status=routed owner=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=orchestrator note=AC bullet added to 24.2's epics.md block (Planner ruling)
+- 2026-11-13T07:23:37Z note=EXTENDED_by_Planner_2026-11-13:ProposeFix/DryRun/DryRunResult/PartnerNotice_carry_contact_ids_not_addresses_once_24.2_makes_contacts_real
+
+### DW-1255: audit: every other settings section for personal data in traced SaveSettings.Changes; anything personal moves to the SecretHandoff (mail-server host names and webhook names are not personal and can stay)
+- source: Contest Planner 36.4 gate ruling, 2026-11-13 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: SaveSettings.Changes is visible to OcuTalonTraceViewer, which non-admin accounts hold
+- 2026-11-13T04:50:39Z status=routed owner=burndown by=orchestrator note=Planner ruling; one audit story
+- 2026-11-13T07:23:37Z note=Planner_ruled_2026-11-13:fix_story_in_lane_C_after_21.8(email_address+user_handoff;security-overview_trace-role_sentence);SendEmail_ref_rule_on_22.7;Item.Sender_stays;see_prompts/rulings-371-dw1255-20261113.md
+### DW-1245: Story 36.1 breaks Test.Core.SettingsOps TestOnlyRunTimeWriter: its writer pattern matches the new globals ^OcuTalonP.SettingChange and ^OcuTalonP.SettingSnap
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: high | fix-risk: low | footprint: in-epic
+- evidence: 36.2 regression run, lane-b@Contract,Core,Data,Live part 4 red; file untouched by 36.2; pre-existing on cf2658d8 (36.1 head)
+- 2026-11-13T02:29:01Z status=open owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=36.1 rework iteration 2 ([CI]); shared surface 36.1 missed
+- 2026-11-13T03:16:58Z status=resolved-by:36-1-record-the-setting-history-of-each-watched-production by=adjudication note=9aa5a61a: TestOnlyRunTimeWriter global/SQL/ClassMethod branches end at a word boundary; mutations red; passed on fresh e36s1c3
+
+### DW-1246: Story 36.1 breaks Test.Data.Tables TestEveryTableIsRegistered: its XData Registry lacks rows for OcuTalon.Data.SettingChange and OcuTalon.Data.SettingSnapshot
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: high | fix-risk: low | footprint: in-epic
+- evidence: 36.2 regression run, lane-b part 6 red on warm and fresh; file untouched by 36.2; pre-existing on cf2658d8 (36.1 head)
+- 2026-11-13T02:29:01Z status=open owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=36.1 rework iteration 2 ([CI]); one-name appends to a contended list (Test/Data/Tables.cls is in Epic 21's diff)
+- 2026-11-13T03:16:58Z status=resolved-by:36-1-record-the-setting-history-of-each-watched-production by=adjudication note=9aa5a61a: Test.Data.Tables XData Registry rows for SettingChange and SettingSnapshot appended; mutations red; passed on fresh e36s1c3
+
+### DW-1249: V3 says the on-call (and partner-contact) from/to values appear in no trace, but a settings save is a production message whose body (SaveSettings Changes) Visual Trace shows
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Spine AD-19 on-call keys bullet (V3, ruled 2026-11-12) vs AD-1/AD-19 Saving a settings section: every save is one SaveSettings submitted through Commands.Submit, so the new address is stored in an Ens message body shown in Visual Trace; a leak-scan test as worded cannot pass.
+- 2026-11-13T04:03:56Z status=routed owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=36.4 plan keeps the values out of the message body (e.g. a SecretHandoff-style ref) or escalates V3's trace clause; 24.2 has the same
+
+### DW-1250: An on-call person or backup given only as an email address can never acknowledge a page, so the backup is always paged after oncall.escalationMinutes, and the accepted On call texts don't tell the admin
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 36.1 rules that email carries no acknowledgement; AckPage comes only from web_user, web_admin and telegram (CommandsIn Routes), which an address-only person has none of; settings.onCallByEmail and settings.onCallHelp say nothing about it.
+- 2026-11-13T04:03:56Z status=routed owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=36.4 plan proposes a help line for 'Someone else, by email' for acceptance, or records that this is intended
+
+### DW-1251: AD-14's page route contradicts itself: a page goes to the user's web chat, yet 'a person with no paired chat gets email only'; the web chat is called a chosen channel though oncall.*.channels offers only telegram,email; EmailOut can't update a copy to handled.marked
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Spine AD-14 'The page kind (step 5)' bullets (Story 36.2, ruled V6 text); 36.1 gives the page card a web Got it, so the likely reading is web chat always for a user plus the chosen channels, Telegram falling back to email.
+- 2026-11-13T04:03:56Z status=routed owner=24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on by=cr note=24.3 plan fixes the reading (recommended: web chat always; email-only means no Telegram copy) and amends the bullet (Rule 5/20)
+
+### DW-1252: CommandsIn's Routes doc comment lists each step's verbs but not step 5's AckPage and SaveSqlWatch
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls doc above XData Routes (:318-324) describes steps 1-4; Story 36.2 may edit only the two Routes rows in this contended file (Epic 21 edits ItemRunning). The rows and the spine carry the contract.
+- 2026-11-13T04:03:56Z status=wontfix-accepted owner=36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql by=cr note=reopen_if=a story edits the Routes doc comment of CommandsIn after Epic 21 merges, or a reader misroutes a step 5 verb
 ### DW-1244: EmailOut ignores a tool command's IdempotencyKey (AD-1), so a re-sent chat turn could send the own-address email twice
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls
 - evidence: found by the 22.7 plan; EmailOut keys de-duplication on ApprovalRef only; Channel/Email is Epic 21's (contended)

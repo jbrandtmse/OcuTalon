@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-13-2026 09:25
+last_updated: 11-13-2026 09:30
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -64,10 +64,13 @@ development_status:
   0-26-the-readme-leads-with-the-full-video-and-the-incident-path-a: done
   0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla: done
   0-28-dw-1171-follow-up-the-readme-s-contest-checklist-gets-a-vide: done
-  0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil: 
-    ready-for-dev
+  0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil: done
   0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm: done
+  0-31-dw-1123-the-memory-documents-remember-eval-accepts-document: done
+  0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and: done
+  0-33-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne: done
   0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so: done
+  0-35-routine-attention-decisions-meet-their-target: in-progress
   epic-0-retrospective: optional
 
   epic-1: done
@@ -351,6 +354,7 @@ development_status:
   23-9-resume-a-suspended-item-after-its-incident-closes: done
   23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass: done
   23-11-say-in-a-partner-notice-only-how-the-incident-ended: done
+  23-12-take-a-rejected-request-off-the-status-rail-at-once: done
   epic-23-retrospective: optional
 
   epic-24: backlog
@@ -361,9 +365,10 @@ development_status:
 
   epic-25: in-progress
   25-2-filter-past-decisions-and-incidents-on-the-history-page: done
-  25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: backlog
+  25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: done
   25-4-assign-approver-and-viewer-roles-in-settings: backlog
   25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: backlog
+  25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th: backlog
   epic-25-retrospective: optional
 
   epic-26: backlog
@@ -444,9 +449,11 @@ development_status:
   35-3-send-events-to-ocutalon-through-a-webhook: done
   epic-35-retrospective: optional
 
-  epic-36: backlog
-  36-1-record-the-setting-history-of-each-watched-production: backlog
-  36-2-set-the-on-call-person-and-backup-in-settings: backlog
+  epic-36: in-progress
+  36-1-record-the-setting-history-of-each-watched-production: done
+  36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql: done
+  36-4-set-the-on-call-person-and-backup-in-settings: ready-for-dev
+  36-3-link-the-worked-jira-example-from-the-admin-docs: backlog
   epic-36-retrospective: optional
 
   epic-37: in-progress

@@ -100,6 +100,10 @@
 ///     server_error. MemoryOps matches the ref to the session's own rows, so another session's ref is 404 not_found and the row is kept.
 ///   - The documents routes (Story 34.2; GET and POST /v1/documents, DELETE /v1/documents/:ref) are OcuTalon.Web.Documents', forwarded by
 ///     the map at the end of the URL map.
+///   - The files route (Story 25.3; POST /v1/files {clientId, name, content} with the bytes in base64) is OcuTalon.Web.Files', forwarded by its own map: it stores a PDF, Word,
+///     JPEG or PNG file (the type read from its bytes) under the CSP session's session and sends WebChatIn an Item of provenance untrusted that names the file by Ref, name,
+///     media type and size; 409 not_available on the online demo before the body is read; every other method and every path below it is 404 not_found, and no route serves
+///     a stored file's bytes back.
 ///   - The usage route (Story 37.2; GET /v1/usage?days=1|7|30) is OcuTalon.Web.Usage's, forwarded by its own map: the CSP session's own token and cost
 ///     buckets by local day, agent, channel, model and Estimated, with the request-size limit.
 ///   - The history routes (Story 25.2; GET /v1/history/decisions?outcome=&channel=&day=&fallback=&page= and GET /v1/history/incidents?page=) are OcuTalon.Web.History's, forwarded
@@ -286,6 +290,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/settings/check-thresholds" Method="POST" Call="SaveCheckThresholds"/>
 <Route Url="/v1/settings/demo-mode" Method="POST" Call="SaveDemoMode"/>
 <Map Prefix="/v1/documents" Forward="OcuTalon.Web.Documents"/>
+<Map Prefix="/v1/files" Forward="OcuTalon.Web.Files"/>
 <Map Prefix="/v1/usage" Forward="OcuTalon.Web.Usage"/>
 <Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>
 <Map Prefix="/v1/settings/channels/webhooks" Forward="OcuTalon.Web.HookSettings"/>
@@ -293,12 +298,13 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 }
 
 /// The request bodies larger than Web.BodyLimit's default that a route takes (Web.BodyLimit): POST /v1/documents takes a file in base64, up to
-/// OcuTalon.Web.Documents' BODYMAX (Test.Web.DocumentsApi TestBodyBounds pins the two equal). The forwarded class declares
-/// the same route with the remainder of the path.
+/// OcuTalon.Web.Documents' BODYMAX (Test.Web.DocumentsApi TestBodyBounds pins the two equal), and POST /v1/files (Story 25.3) takes one up to the same
+/// number (Test.Web.FilesApi pins it equal). The forwarded class declares the same route with the remainder of the path.
 XData BodyBounds [ MimeType = application/json ]
 {
 [
-{"method": "POST", "url": "/v1/documents", "bytes": 13985112}
+{"method": "POST", "url": "/v1/documents", "bytes": 13985112},
+{"method": "POST", "url": "/v1/files", "bytes": 13985112}
 ]
 }
 
@@ -349,6 +355,23 @@ ClassMethod IsSettingsUrl(url As %String) As %Boolean [ Private ]
 {
 	Set path = $ZConvert($Piece($Get(url), "?", 1), "L")
 	Quit (path = "/v1/settings") || ($Extract(path, 1, $Length("/v1/settings/")) = "/v1/settings/")
+}
+
+/// The answer to a known URL with a wrong verb: 405 method_not_allowed, except under /v1/files, which has no route but POST of the empty remainder (Story 25.3; OcuTalon.Web.Files):
+/// every other method there is 404 not_found, with no Allow header. The class that is dispatched first answers it, not the class a Map forwards to, so it is decided here.
+ClassMethod Http405(pSupportedVerbs As %String = "") As %Status
+{
+	If ..UnderFiles($ZConvert($Piece(%request.URL, "?", 1), "L")) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Quit ##super(pSupportedVerbs)
+}
+
+/// 1 when the path is the files route or below it (a path with /v1/files as a whole segment).
+ClassMethod UnderFiles(path As %String) As %Boolean [ Private ]
+{
+	Set at = $Find(path, "/v1/files")
+	If 'at Quit 0
+	Set next = $Extract(path, at)
+	Quit (next = "") || (next = "/")
 }
 
 /// The error body for 404, 405 and 500; the cause of a 500 is logged, never sent. Every other status is the
@@ -1234,7 +1257,8 @@ ClassMethod Unpair() As %Status [ Private ]
 /// and the rail (read through Ownership: the chat holds the newest CHATMAX of the session's turns, visible noticed
 /// incidents and web notice cards merged by time, oldest first; the rail its pending approval requests, checks, pending
 /// reminders and newest decisions), the signed-in user (the session row's, never the client's), admin (whether the signed-in user holds OcuTalonAdmin, which only decides the page's
-/// Settings link), the booleans onlineDemo and demoMode, models:
+/// Settings link), the booleans onlineDemo and demoMode, filesReadable (Story 25.3: whether the install's code can read a sent file, Core.Files.Readable; the page shows the
+/// paperclip and takes a chat drop only when it is true and the instance is not the online demo), models:
 /// the display names of the triage, diagnosis and chat agents' models, telegram: whether the release includes Telegram
 /// and the session's pairing, status: the active status conditions, and, only while demo mode is on, phone: the session's
 /// newest PHONEMAX simulated-phone messages, oldest first, mailbox: the session's newest MAILMAX simulated-mailbox emails,
@@ -1268,6 +1292,7 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 	Do body.%Set("admin", ..IsAdmin(), "boolean")
 	Do body.%Set("onlineDemo", ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1, "boolean")
 	Do body.%Set("demoMode", ##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Install.Step.Demo).#MODEKEY) = "1", "boolean")
+	Do body.%Set("filesReadable", ##class(OcuTalon.Core.Files).Readable(), "boolean")
 	Set body.models = {
 		"triage": (..ModelName(..ResolveModel("TriageAgent"))),
 		"diagnosis": (..ModelName(..ResolveModel("DiagnosisAgent"))),

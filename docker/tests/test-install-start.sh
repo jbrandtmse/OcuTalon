@@ -40,7 +40,9 @@
 #     OCUORDERS, and switched on again recreates it. The last restart has demo mode off and the foreign production defined and
 #     stopped: it ends ready, with the WARN line, the note, OCUORDERS and the definition kept, and OcuTalon's access gone.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its
-# volume and images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
+# volume and images. Every wait ends by an overall deadline, so even a failing run ends: 540 s when OCUTALON_LIVE_DEADLINE is unset
+# and the script runs on its own, 1200 s in CI; through ci/iris.sh live (CI's 1200 s or unset) the unit's floor in ci/units.sh
+# (unit_live_deadline) raises it.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose and the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
@@ -95,10 +97,10 @@ live_track_image
 cid=$(dc ps -q iris)
 [ -n "$cid" ] || die "no iris container in project $P"
 
-if ! wait_started_ready 400; then
+if ! wait_started_ready "$LIVE_FIRST_START_WAIT"; then
   start_log | tail -n 30 | cut -c1-200
   dc logs --tail 20 iris 2>&1 | cut -c1-200
-  die "row 1 the first start did not end ready within 400 s"
+  die "row 1 the first start did not end ready within $LIVE_FIRST_START_WAIT s"
 fi
 pass "row 1 the first start ended ready"
 
@@ -292,9 +294,9 @@ if ! dc up -d >/dev/null 2>&1; then
   die "row 3 recreate with docker-compose.dev.yml failed"
 fi
 cid=$(dc ps -q iris)
-if ! wait_started_ready 200; then
+if ! wait_started_ready 300; then
   start_log | tail -n 20 | cut -c1-200
-  die "row 3 the dev start did not end ready within 200 s"
+  die "row 3 the dev start did not end ready within 300 s"
 fi
 expected_run "cleared" "present $ipm_version" "already mapped" "ok" "loaded (dev)" "$version" > "$tmp/expected.row3"
 check_log "row 3" "$tmp/expected.row3"
@@ -662,9 +664,9 @@ CHK|not-foreign-running|1" \
 set_demo_mode 0
 dc stop iris >/dev/null 2>&1
 dc start iris >/dev/null 2>&1
-if ! wait_started_ready 200; then
+if ! wait_started_ready 270; then
   start_log | tail -n 20 | cut -c1-200
-  die "row 4 the restart did not end ready within 200 s"
+  die "row 4 the restart did not end ready within 270 s"
 fi
 expected_run "nothing to clear" "present $ipm_version" "already mapped" "OcuTalon.Data.Public.Settings is not compiled" \
   "loaded (public classes)" "$version" > "$tmp/expected.row4"

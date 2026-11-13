@@ -31,9 +31,9 @@ fi
 live_track_image
 cid=$(dc ps -q iris)
 [ -n "$cid" ] || die "no iris container in project $P"
-if ! wait_started_ready 400; then
+if ! wait_started_ready "$LIVE_FIRST_START_WAIT"; then
   start_log | tail -n 30 | cut -c1-200
-  die "the first start did not end ready within 400 s"
+  die "the first start did not end ready within $LIVE_FIRST_START_WAIT s"
 fi
 pass "the first start ended ready"
 

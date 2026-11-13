@@ -150,10 +150,12 @@ Method TestDeclarations()
 Method TestNoSettingRead()
 {
 	Set source = "OcuTalon.Test.Bridge.Source"
-	Set pattern = "ocutalon\.data\.setting"
+	Set pattern = "ocutalon\.data\.setting\b"
 	Do $$$AssertTrue($ClassMethod(source, "Matches", $Char(9)_"Set days = ##class(OcuTalon.Data.Setting).Get(""PurgeDays"")", pattern), "the scanner flags a read of a setting")
 	Do $$$AssertTrue('$ClassMethod(source, "Matches", "/// reads no OcuTalon.Data.Setting"_$Char(10)_$Char(9)_"Quit ##class(OcuTalon.Bridge.Purge).Run(days)", pattern), "and passes a comment line and a purge")
-	For class = "OcuTalon.Install.Task.Purge", "OcuTalon.Install.Step.Retention", "OcuTalon.Install.Step.Watch", "OcuTalon.Install.Step.Digest", "OcuTalon.Bridge.Purge", "OcuTalon.Data.Purge", "OcuTalon.Bridge.Time", "OcuTalon.Install.Registry", "OcuTalon.Digest.Data.Item", "OcuTalon.Digest.Data.CheckRun", "OcuTalon.Digest.Data.Sent" {
+	Do $$$AssertTrue('$ClassMethod(source, "Matches", $Char(9)_"Set changes = ##class(OcuTalon.Data.SettingChange).Purge(daysToKeep)", pattern), "and passes the setting history's own tables, whose names only begin like the settings table")
+	Do $$$AssertTrue($ClassMethod(source, "Matches", $Char(9)_"Set days = ##class(OcuTalon.Data.Setting).Get(""PurgeDays"")", pattern), "and still flags a read of OcuTalon.Data.Setting itself")
+	For class = "OcuTalon.Install.Task.Purge", "OcuTalon.Install.Step.Retention", "OcuTalon.Install.Step.Watch", "OcuTalon.Watch.SettingHistory", "OcuTalon.Data.SettingSnapshot", "OcuTalon.Data.SettingChange", "OcuTalon.Install.Step.Digest", "OcuTalon.Bridge.Purge", "OcuTalon.Data.Purge", "OcuTalon.Bridge.Time", "OcuTalon.Install.Registry", "OcuTalon.Digest.Data.Item", "OcuTalon.Digest.Data.CheckRun", "OcuTalon.Digest.Data.Sent" {
 		Do $$$AssertStatusOK($ClassMethod(source, "Text", class, .text), class_" has source")
 		Do $$$AssertEquals($ClassMethod(source, "Matches", text, pattern), 0, class_" names OcuTalon.Data.Setting nowhere")
 	}

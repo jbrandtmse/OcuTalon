@@ -232,6 +232,24 @@ Method TestPurgeUploads()
 	}
 }
 
+/// The Web area's purge also deletes the sent files older than daysToKeep days (AD-27, Story 25.3): Purge(90) deletes a file made 91 days ago and keeps one made
+/// 89 days ago. The purge is at the real clock and takes the rows of every session, so this class runs only on a throwaway (Rule 21).
+Method TestPurgeSentFiles()
+{
+	Set session = "ZzWeb"_..Number_"f"
+	Set old = ..SentFileRef(session, 91 * 86400)
+	Set recent = ..SentFileRef(session, 89 * 86400)
+	Try {
+		Do $$$AssertTrue((old '= "") && (recent '= ""), "both files are stored")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Purge(90), "the Web area's Purge(90)")
+		Do $$$AssertEquals(##class(OcuTalon.Data.SentFile).RefIndexExists(old), 0, "the file 91 days old is deleted")
+		Do $$$AssertEquals(##class(OcuTalon.Data.SentFile).RefIndexExists(recent), 1, "the file 89 days old is kept")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the purge ran")
+	}
+	Do ##class(OcuTalon.Data.SentFile).DropSession(session)
+}
+
 /// The Web area's purge also runs the webhook counters' purge (AD-27, Story 35.3): Purge(90) deletes an accepted-event window three hours old, keeps the
 /// current one, and writes the rejections that are still pending after 60 seconds as one audit entry. The purge is at the real clock and takes the
 /// counters of every webhook, so this class runs only on a throwaway (Rule 21).
@@ -268,6 +286,20 @@ ClassMethod UploadRef(session As %String, secondsAgo As %Integer) As %String [ P
 	Set ref = ##class(OcuTalon.Data.Upload).Put(session, bytes, .sc)
 	If ref = "" Quit ""
 	Set row = ##class(OcuTalon.Data.Upload).RefIndexOpen(ref)
+	Set row.CreatedAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -secondsAgo)
+	If $SYSTEM.Status.IsError(row.%Save()) Quit ""
+	Quit ref
+}
+
+/// A sent file of the session made the given number of seconds ago; returns its Ref, or "" when it could not be saved.
+ClassMethod SentFileRef(session As %String, secondsAgo As %Integer) As %String [ Private ]
+{
+	Set bytes = ##class(%Stream.TmpBinary).%New()
+	Do bytes.Write("%PDF-1.4 zz")
+	Do bytes.Rewind()
+	Set ref = ##class(OcuTalon.Data.SentFile).Put(session, "web", "zz.pdf", "application/pdf", bytes, .sc)
+	If ref = "" Quit ""
+	Set row = ##class(OcuTalon.Data.SentFile).RefIndexOpen(ref)
 	Set row.CreatedAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -secondsAgo)
 	If $SYSTEM.Status.IsError(row.%Save()) Quit ""
 	Quit ref

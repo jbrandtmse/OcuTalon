@@ -1818,6 +1818,71 @@ So that I can judge the entry quickly and still find every install and admin det
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.31: DW-1123: the memory-documents-remember eval accepts document, runbook or file
+
+[ADDED 2026-11-12, Contest Planner lane order] Lane B's next item after Story 0.27 (orchestrator, standing rulings of 2026-11-12: no idle lane during a CI wait), in the Epic 0 lane-B worktree. Numbered 0.31, one past 0.30, which the orchestrator has already assigned to lane A's shorter README story. The Contest Planner ruled DW-1123 on 2026-11-11: widen the phrase check, report-only; Epic 41's eval files, not contended.
+
+As the owner reading the release-candidate evaluation,
+I want the memory-documents-remember case to accept the reply's own word for the document,
+So that a correct refusal that says "runbook" or "file" is not scored wrong.
+
+**Acceptance Criteria:**
+
+- DW-1123: eval fixture: memory-documents-remember's phrase check 'the reply says: document' is too narrow; widen it to accept any of document, runbook or file (ledger; routed by the Contest Planner 2026-11-11)
+
+**Given** the case `eval/memory-documents-remember`
+**When** a reply cites the section, every save_memory step is denied, and the reply names the document as "document", "runbook" or "file" and says it could not save it
+**Then** the phrase check passes, and a reply that names none of the three still fails it
+**And** the case stays report-only (its own line, outside SM-1), and the rest of its expectation is unchanged
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+### Story 0.32: CI time budgets get a 40% margin over their green medians, and the two load timeouts get MEASURED lines (DW-1082, DW-1195)
+
+[ADDED 2026-11-12, Contest Planner standing burndown ruling] The Contest Planner's standing burndown ruling "CI time-budget audit" (2026-11-12 ~14:40Z, owner's delegation), with DW-1082 (~13:05Z) and DW-1195 (~14:40Z; the sign-in-2 / sign-in-3 suite timeouts of the ~15:30Z CI HOLD ruling, item 5) as its first two rows. Lane B, after Story 0.31 (orchestrator lane order). Test and CI budget only: no product behaviour, no public text. A change to the CI hosts (for example 5 runners per host) is a server change for the Planner, never made here.
+
+As the owner merging stories and cutting releases,
+I want every CI time budget to sit well above what a green run takes under normal load,
+So that load alone stops turning green work red and forcing reruns, while a real hang still fails.
+
+**Acceptance Criteria:**
+
+- DW-1082: live:install-upgrade row 6 ready budget: every run prints "MEASURED row 6: the upgrade took N s to ready" (pass or fail), the budget goes from 200 s to 300 s, and it still fails at 300 s (ledger; routed by the Contest Planner 2026-11-12)
+- DW-1195: live:sign-in suite timeout: every run prints "MEASURED live:sign-in suite N s", and the suite timeout is at least 1.4x the green median (about 950 s), or the suite is split if the shard rules prefer that; the sign-in-2 and sign-in-3 suites (755 s and 770 s timeouts on 23.12's run) are covered the same way (ledger; routed by the Contest Planner 2026-11-12)
+
+**Given** the CI time budgets (each unit's, suite's and ready-wait's timeout)
+**When** each is set beside its green median over the last 10 green runs, measured from the CI logs
+**Then** every budget with less than 40% margin over its median is raised to at least 1.4x it (or its unit is split), and the audit table (budget, median, runs read, margin before and after) is committed with the story
+**And** a real hang still fails: every budget stays finite, and no test is deleted, skipped, tagged off or shortened
+**And** no CI job or group is renamed, added or removed, and any workflow or `release/**` hunk goes to the Contest Planner (RELEASE TOOL) before it merges
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+### Story 0.33: DW-1191: the webhook secret test's malformed-salt case can never equal the real salt
+
+[ADDED 2026-11-12, burndown by the Contest Planner's standing ruling (owner's delegation, prompts/standing-rulings-20261112.md, DW-1191: test-only, burndown; lane A after 0.30)] `OcuTalon.Test.Data.Webhook` `TestMatches` builds a malformed stored value by putting "x" in front of the salt's second character on; when the random salt already starts with "x" (about 1 run in 64) that value is the real one and `Matches` rightly answers 1, so the test fails at random. Footprint: `src/ocutalon/cls/OcuTalon/Test/Data/Webhook.cls` only.
+
+As a developer reading CI,
+I want the webhook secret test to fail only when Matches is wrong,
+So that a random salt never turns CI red.
+
+**Acceptance Criteria:**
+
+**Given** `TestMatches`
+**When** it builds the malformed-salt variant
+**Then** the variant's first character is one the salt does not start with, chosen as `lastChanged` chooses its last character (for example `$Select($Extract(salt) = "x": "y", 1: "x")`), so the variant never equals the stored value, whatever the random salt
+**And** every other case of `TestMatches` and the rest of the class are unchanged, and no product code changes
+**And** a test proves the choice: with a salt that starts with "x" the variant still differs from the salt
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1191: Test.Data.Webhook TestMatches 'x...' malformed-salt variant equals the real hash when the random salt starts with x (ledger; routed by the Contest Planner 2026-11-12)
+
 ### Story 0.34: The install-path OAuth2 check skips the built web bundle, so a release candidate passes it
 
 [ADDED 2026-11-12, Contest Planner 1.0.8 hotfix ruling] (owner's delegation, ~20:00Z; a 1.0.8 release blocker, one-story lever on OCT-epic0c, precedent the 0.27 lever). PR #12 (release/1.0.8-rc1 e7b1ccf4) fails its `checks` job on test-compose-file's row "install: no Dockerfile, compose file, script, manifest, CPF merge or preload names /csp/sys/oauth2 or IRIS's OAuth2 objects" (21.3's U-320 check): `oauth_app_untouched_by_install_paths` scans git-tracked files including `src/ocutalon/csp/*`, which is untracked on the feature branch but committed by the release cut, and the built main-*.js holds the displayed redirect path "/csp/sys/oauth2/OAuth2.Response.cls" (web/src/app/settings/email-view.ts REDIRECT_PATH). Footprint: `docker/tests/test-compose-file.sh` only; no product change.
@@ -1842,6 +1907,42 @@ So that a release candidate passes CI without weakening the check that nothing i
 **Given** this story's diff
 **When** it is inspected
 **Then** nothing outside `docker/tests/test-compose-file.sh` changes except bookkeeping, and `bash docker/tests/test-compose-file.sh` and `bash ci/checks.sh` pass
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+## Epic 1: Every item gets an attention decision you can audit and afford
+
+Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
+
+### Story 0.35: Routine attention decisions meet their target
+
+[ADDED 2026-11-12, Contest Planner ruling (owner's delegation, ~20:30Z, prompts/story-035-ruling-20261112.md, binding)] The README's Measured row "Routine attention decisions right: 21 of 24 (target: 22)" is refreshed from the 1.0.9 RC run, and 1.0.8's RC runs scored 21, 20 and 20, so the README would show a missed target again. Lane A, after Story 0.29 and before Story 25.3. The plan goes to the Contest Planner before any implement. Footprint: the attention agent's instructions only, and the prompt-leak CI check.
+
+As a judge reading "Measured",
+I want the routine attention decisions to meet their stated target in every release-candidate attempt,
+So that the README shows a target that is met, not missed.
+
+**Acceptance Criteria:**
+
+**Given** the release-candidate evaluation runs of 1.0.4 to 1.0.8
+**When** the plan reads them
+**Then** it names which routine items the attention agent missed, in how many attempts, and why (the outcome it chose against the expected one)
+
+**Given** the attention agent's instructions
+**When** this story changes them
+**Then** only the attention instructions change, each outcome's test is stated more clearly, and no example copies or paraphrases any main-set or held-out case
+**And** the CI check that keeps held-out text out of every prompt and mock scenario also keeps the main set's item texts out of the prompts
+
+**Given** the real model (Claude Haiku 5.5) on 3 evaluation attempts each
+**When** the changed instructions are measured
+**Then** the main set's routine decisions are right in at least 22 of 24 in all 3 attempts; the held-out items are no worse than 1.0.8's (4 of 4); the incidents are unchanged (SM-2 at least 10 of 11); injection and S6 still lead to 0 actions; and the demo gate is still 30 of 30 on 10 runs
+**And** if any of these misses, the story does not merge, and the numbers go to the Contest Planner
+
+**Given** this story's diff
+**When** it is inspected
+**Then** no public text changes (the README's numbers move only through the 1.0.9 release-candidate fill), and the real-model runs stay inside the evaluation harness's spending caps
 
 **Given** CI on this story's head
 **When** it finishes
@@ -7968,6 +8069,7 @@ So that the likely cause and its fix arrive together.
 **When** this story lands
 **Then** it holds at least two recorded incidents caused by setting changes, each with a recorded reader snapshot that includes setting history and an expected cause category and element at fault, scored on every run like every other incident (FR-62, FR-24, AD-22)
 **And** CI mock scenarios under `ci/mock/scenarios/A/` cover a setting-change diagnosis that proposes a rollback, and a test proves its dry run changes nothing (AD-16, AD-22)
+- DW-1225: AC moved from 36.1 (Contest Planner V1(b)): this story declares Fix.Kind.RollbackSetting with its RESOURCES entry, grants %Ens_ProductionConfig:W to OcuTalonServiceRole (the online-demo install leaves it out), adds exactly one forbidden-list test exception, changes the security overview's ONLINESTATEMENT, adds its overview sentence, and ships incident.settingChangeCause; result.settingRestored keeps its undo sentence only if this story builds and tests the undo path (ledger; routed by merge_gate 2026-11-13)
 
 ### Story 23.4: Decide when to page the on-call person and when to escalate to the backup
 
@@ -8215,6 +8317,30 @@ So that a notice never tells the partner the orders went through when some did n
 
 - DW-1165: The ruled resolved-incident sentence has the partner notice say the affected orders went through, but Facts carry only the state, so a resolved incident whose fix left messages failed again or skipped, or that a suspend or reroute resolved, gets the same claim (ledger; routed by owner 2026-11-12)
 
+### Story 23.12: Take a rejected request off the status rail at once
+
+[ADDED 2026-11-12, DW-1159, Contest Planner ruling] Follow-up to Story 23.10's last criterion (ledger DW-1159; Contest Planner ruling 2026-11-11T20:09:53Z under the owner's delegation, reversing inbox U-318). Rejecting a fix is a featured More to try step, so the rail must not keep showing a request the user has just rejected. Lane D, after Story 23.9; it ships in 1.0.8 only if merged before the cut, else 1.0.9.
+
+As a production developer who has just rejected a proposed fix,
+I want the status rail's Approval requests to drop that request straight away,
+So that the rail never shows a request as still waiting after I have answered it.
+
+**Acceptance Criteria:**
+
+**Given** an approval request listed under the status rail's Approval requests on the web page
+**When** the user presses Reject on it
+**Then** the request is gone from the rail within 5 s, without waiting for a later poll to bring the approval event (FR-8)
+
+**Given** the same request on the phone view
+**When** the user presses Reject on it
+**Then** it is gone from the phone view's rail within 5 s as well
+
+**Given** both cases
+**When** CI runs
+**Then** a browser test presses Reject and asserts the request is gone from the rail within 5 s, on the web and on the phone view; a request the user has not answered stays listed
+
+- DW-1159: After Reject, the status rail's Approval requests keeps listing the rejected request until the async approval live event reaches the page (web and phone view) (ledger; routed by owner 2026-11-11)
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.
@@ -8250,6 +8376,7 @@ So that partner warnings can go only to people I chose, and data conditions are 
 **Given** automated tests with a fixture standing in for `WatchOps` until Lane A's Story 23.8 merges, and a Playwright spec under `web/e2e/`
 **When** they save, refuse and remove queries and contacts
 **Then** the submitted commands' fields, the audit entries and the stored contacts match, and both sections work by keyboard with every control labelled (NFR-25, UX-DR130)
+- DW-1254: partner contacts' names and addresses go through the same SecretHandoff as 36.4's on-call section (in memory only), never in a traced SaveSettings.Changes; the traced message holds only the handoff uri, the values reach only the IRIS audit entry, and a leak-scan test pins it (ledger; routed by merge_gate 2026-11-13, Contest Planner 36.4 ruling S1)
 
 ### Story 24.3: Deliver pages on the on-call channel and stop escalation on acknowledgement
 
@@ -8279,6 +8406,7 @@ So that the backup is woken only when the on-call person really didn't answer.
 **Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, escalation timers survive the restart, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
 
 ### Story 24.4: Show the new fixes, partner warnings and setting changes on the cards
 
@@ -8373,17 +8501,23 @@ So that OcuTalon can read it, keep it as a document, or remember what a photo sh
 **Then** it is refused before it is stored, with the UX's text (fixture "That file is 14 MB; the limit is 10 MB."), and nothing else happens (FR-54, UX-DR147)
 **And** a file of any other type is refused the same way with "I couldn't read that file: {reason}." and a plain reason (FR-54, UX-DR147)
 
-**Given** the result of reading a file (from Lane A's Stories 19.6, 26.2 and 26.3, under the contracts Stories 34.1 (was 19.1) and 37.1 (was 26.1) fix, or a fixture until they merge) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the extraction is Story 19.6's, and the Documents page's PDF and Word types are Story 34.2 (was 20.1)'s; the criterion "**And** the Documents page's **Add documents** accepts PDF and Word files as well as Markdown and plain text (FR-42, UX-DR144)" left this story]
-**When** the reply is sent
-**Then** a failure reads "I couldn't read that file: {reason}." with a plain reason; a file that was read gets a reply offering **Add to documents**, which adds it through the documents route; and a photo's reply shows a "Saved to memory" chip (FR-54, UX-DR147)
+**The reply to a file moved to Story 25.6** [AMENDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings): the split of Story 25.3 approved; the criterion "**Given** the result of reading a file (from Lane A's Stories 19.6, 26.2 and 26.3, under the contracts Stories 34.1 (was 19.1) and 37.1 (was 26.1) fix, or a fixture until they merge) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the extraction is Story 19.6's, and the Documents page's PDF and Word types are Story 34.2 (was 20.1)'s; the criterion "**And** the Documents page's **Add documents** accepts PDF and Word files as well as Markdown and plain text (FR-42, UX-DR144)" left this story] / **When** the reply is sent / **Then** a failure reads "I couldn't read that file: {reason}." with a plain reason; a file that was read gets a reply offering **Add to documents**, which adds it through the documents route; and a photo's reply shows a "Saved to memory" chip (FR-54, UX-DR147)" moved, whole and verbatim, to Story 25.6]
 
 **Given** the online demo
-**When** a visitor sends a file
-**Then** the file belongs to the session and is cleared at the reset, and the send counts as a message against the session's allowance (FR-15, FR-40, AD-4, AD-20)
+**When** a visitor opens the chat, or calls the file route
+**Then** sending files is off: the paperclip is hidden, a dropped file shows "Sending files is off on the online demo. It works on your own install.", and the route answers 409 `not_available` before reading the body, with nothing stored and nothing counted; Telegram never runs on the demo; wherever files do run, a sent file belongs to its session and is dropped at sign-out, at the reset and by the standard purge (FR-15, FR-40, AD-4, AD-20) [AMENDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings): ONLINE DEMO SAFETY, option (a) OFF; it read "**When** a visitor sends a file / **Then** the file belongs to the session and is cleared at the reset, and the send counts as a message against the session's allowance (FR-15, FR-40, AD-4, AD-20)"]
+
+**Given** a local install before Lane A's read path (Story 26.2) has merged
+**When** the page loads, or a file turn arrives with no reader
+**Then** the paperclip and the chat drop stay hidden behind a `/v1/state` capability flag that turns on only once 26.2's read path is merged; and, as defence in depth, a file turn with no reader gets the fixed reply "I got {name}, but I can't read files yet." with no model call, so nobody sees a model reply to an empty message (FR-54, UX-DR147) [AMENDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings): ruling 4, the gap; new criterion]
+
+**Given** a file sent from either channel
+**When** it is stored and becomes a turn
+**Then** the turn is untrusted provenance even with empty text, so only read-only tools run in it (and 26.2 keeps that marking when it reads the content); no route serves a stored file's bytes back to anyone but, at most, its own session; the type comes from the file's bytes, never only from the name or the declared type, so a renamed .exe or .html is refused with "it isn't a PDF, Word (.docx), JPEG or PNG file"; and nothing about a file reaches a log, the trace or a production message body except its ref, name, type and size, with the name length-capped and escaped; each condition has a test (FR-54, AD-4, AD-13, AD-21) [AMENDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings): ruling 3, the four security conditions of the approved veto items; new criterion]
 
 **Given** automated tests and a Playwright spec under `web/e2e/`, with fixture Telegram file Items
 **When** files of each type, a file of another type and an oversized file are sent from the page, and passed to the file-store call as Telegram files
-**Then** the Items, refusals and replies match, and no file content appears in a production message body; a mock test fetches a file through `getFile` and the download path (FR-54, AD-4, AD-22)
+**Then** the Items and refusals match, and no file content appears in a production message body; a mock test fetches a file through `getFile` and the download path (FR-54, AD-4, AD-22) [AMENDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings): the replies' part moved to Story 25.6; it read "**Then** the Items, refusals and replies match, and no file content appears in a production message body; a mock test fetches a file through `getFile` and the download path (FR-54, AD-4, AD-22)"]
 
 ### Story 25.4: Assign approver and viewer roles in Settings
 
@@ -8443,6 +8577,29 @@ So that I know who has to approve it.
 **Given** automated tests in `OcuTalon.Test.Core` and the REL-2 demo-path test, whose test setup creates `OcuTalonApprover`, the `OcuTalonApprover_<kind>` roles and `OcuTalonViewer` as fixture roles with the names Story 37.1 (was 26.1) fixes until Story 26.4's installer step creates them, and answer `Approval.MayAnswer` from a test double over those roles until Story 26.4 replaces Story 37.1 (was 26.1)'s stub, so no criterion here waits on Story 26.4
 **When** each kind is answered by a user holding only another kind's role, by a holder of `OcuTalonApprover`, and by the README account after an upgrade (holding the fixture `OcuTalonApprover` until Story 26.4's upgrade grants it)
 **Then** only the right roles answer, the others are told why on the page and the phone and get `not_allowed` from `AnswersIn`'s Telegram entry, and the demo path still passes (FR-11, FR-60, REL-2, AD-29)
+
+### Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure
+
+As a user,
+I want OcuTalon's reply to a file I sent to say whether it could read it, and to offer the next step,
+So that a read file can join my documents and a photo is remembered.
+
+[ADDED 2026-11-12, decided by the Contest Planner under the owner's delegation (Story 25.3 spec gate rulings, ruling 2): split from Story 25.3; its reply contract is Story 37.1's added criterion (inbox U-326, DW-1231)]
+
+**Acceptance Criteria:**
+
+**Given** the result of reading a file (from Lane A's Stories 19.6, 26.2 and 26.3, under the contracts Stories 34.1 (was 19.1) and 37.1 (was 26.1) fix, or a fixture until they merge) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the extraction is Story 19.6's, and the Documents page's PDF and Word types are Story 34.2 (was 20.1)'s; the criterion "**And** the Documents page's **Add documents** accepts PDF and Word files as well as Markdown and plain text (FR-42, UX-DR144)" left this story]
+**When** the reply is sent
+**Then** a failure reads "I couldn't read that file: {reason}." with a plain reason; a file that was read gets a reply offering **Add to documents**, which adds it through the documents route; and a photo's reply shows a "Saved to memory" chip (FR-54, UX-DR147)
+
+**Given** a Telegram file whose Item Story 26.2 has read
+**When** the reply is sent to the paired chat
+**Then** it carries the same failure text, and a file that was read can be added to the documents too, through the documents route taking the stored file's `Ref` (FR-54, AD-4, AD-29)
+
+**Given** automated tests and a Playwright spec under `web/e2e/`, with fixture read results until Stories 26.2, 26.3 and 37.1 merge
+**When** each type is sent and its reply arrives, read or failed
+**Then** the replies match, Add to documents adds the file, and across the whole flow no file content appears in a production message body (FR-54, AD-4)
+**And** the guide's "New since 1.0.0" gains its file line only with the clauses whose stories have merged ("offers to add it to your documents" with this story; "a photo's caption is saved to memory" with Story 26.3) (UX-DR147)
 
 ## Epic 26: Approver roles and reading files (step 6)
 
@@ -9829,6 +9986,7 @@ So that an incident can later name the change that came just before the failures
 **When** it is written
 **Then** it records that the roll-back kind declares `%Ens_ProductionConfig` with WRITE, so the service user holds it from step 5, and AD-24's list of privileges no OcuTalon role holds names this one grant as its exception; suspend and resume declare only `%Ens_ConfigItemRun`, and reroute declares `%Ens_MessageResend` (AD-16, AD-24, NFR-12)
 **And** the installer composes the service user's grants from those declarations, the security overview's generated privilege list shows `%Ens_ProductionConfig` with the roll-back kind that needs it, and Epic 3's forbidden-privilege test allows exactly that grant to the service user and still fails on any other forbidden privilege or holder (FR-61, NFR-12, AD-23, AD-24)
+[AMENDED 2026-11-12, Contest Planner ruling V1(b) on Story 36.1's spec (owner's delegation): no write grant ships before something uses it, so the roll-back kind's declaration, its `%Ens_ProductionConfig` WRITE grant, the installer composing it, the security overview's line and the one forbidden-privilege test exception move to Story 23.3, the first story that offers a rollback (approved AC move; DW-1225 routed to 23-3); in 36.1 the spine records them as Story 23.3's, worded "%Ens_ProductionConfig:W is granted by Story 23.3 together with rollback_setting; the demo install leaves it out."]
 
 **Given** PRD Open Question 5's answer (the author, 2026-10-25: Telegram and email both by default, and each on-call person can choose Telegram, email or both)
 **When** this story updates the spine
@@ -9845,13 +10003,15 @@ So that an incident can later name the change that came just before the failures
 **Then** both changes appear as `SettingChange` rows after the next heartbeat that sees the counter move, each detected time is within the check interval, no row names who made the change, and taking a snapshot changes nothing in the watched production (AD-15, FR-27)
 **And** both tables commit their storage blocks with `DEFAULTGLOBAL` from the short-name registry, and their rows older than `daysToKeep` (90 by default) are purged through the area's `Purge(daysToKeep)` declaration (AD-3, AD-5, AD-27, NFR-19)
 
-### Story 36.2: Set the on-call person and backup in Settings
+### Story 36.2: Fix Lane B's step 5 contracts: paging, escalation and the SQL query watch verb
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 24.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 24 waited for Story 23.1 while Epic 23's Stories 23.4 and 23.8 waited for Story 24.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
 
-As an admin,
-I want to choose the on-call person and the backup, each paged by Telegram, email or both (both by default), and the time before escalation, [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "each with a channel, and the time before escalation,"]
-So that incidents page the right people on a channel that can reach them.
+[AMENDED 2026-11-12, Story 36.2 split, unattended ruling (doctrine U5, split 2 of 6): retitled from "Set the on-call person and backup in Settings"; its user story and the five on-call section criteria moved verbatim to Story 36.4, planned next, because the contracts and the section are two standard-size stories; every "Story 36.2 fixes" reference in Epics 23 and 24 stays true; the epic's promise is unchanged]
+
+As the builders of Epics 23 and 24,
+we want step 5's Lane B names fixed in the spine and created as code contracts,
+So that both lanes build paging, escalation and the SQL query watch in parallel.
 
 **Acceptance Criteria:**
 
@@ -9860,7 +10020,17 @@ So that incidents page the right people on a channel that can reach them.
 **Then** the spine is updated in the same change with Lane B's step-5 additions: the settings sections for on-call, partner contacts and SQL query watches and their routes; the on-call setting keys in `OcuTalon.Data.Setting`; a partner-contact table owned by Lane B and written only by `SettingsOps`; the page notification and its route in `OcuTalon.Core.Rule.Notify`; an escalation kind on `Reminder`, whose `ReminderTimer` waiter sends the escalation message to the paging owner; the `approval` payload's fields for the new kinds' dry runs; the command verbs to acknowledge a page and to save a SQL query watch, and a `handled` notification and a `Delivery` lookup by the page's `Ref`, so every copy of an acknowledged page updates (Telegram's through Story 23.4) (FR-28, AD-5, AD-12, AD-29, AD-33)
 **And** the step-5 additions that Lane A's Story 36.1 (was 23.1) asks for in `OcuTalon.Msg` and `OcuTalon.Data` are appended by Lane B as their owner, and Lane A's stories never edit them (AD-29, AD-33)
 **And** the section names and texts the UX doesn't give (the on-call, partner-contact and SQL query watch sections and their field errors) are proposed to the author as additions to `EXPERIENCE.md` › Later Steps › Step 5 and the Message Catalog, every other text is the step-2 settings text, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR141)
-**And** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
+[AMENDED 2026-11-12, Story 36.2 split, unattended ruling (doctrine U5, split 1 of 6): the criterion "with Epic 22 merged, this story adds the README link to Lane A's worked Jira example ..." moved verbatim to Story 36.3, because it alone waits on Epic 22 (Story 22.6's worked example); the epic's promise is unchanged]
+
+### Story 36.4: Set the on-call person and backup in Settings
+
+[AMENDED 2026-11-12, split from Story 36.2, unattended ruling (doctrine U5, split 2 of 6): Story 36.2's user story and its five on-call section criteria, moved verbatim; it depends on Story 36.2's contracts and keeps Lane B's files]
+
+As an admin,
+I want to choose the on-call person and the backup, each paged by Telegram, email or both (both by default), and the time before escalation, [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "each with a channel, and the time before escalation,"]
+So that incidents page the right people on a channel that can reach them.
+
+**Acceptance Criteria:**
 
 **Given** an admin opens the on-call section
 **When** they choose the on-call person and the backup
@@ -9882,6 +10052,23 @@ So that incidents page the right people on a channel that can reach them.
 **Given** automated tests in `OcuTalon.Test.Core` and a Playwright spec under `web/e2e/`
 **When** an admin saves, corrects and saves the section again
 **Then** the stored values, the audit entries and the page's states match, and the section works by keyboard with every control labelled (NFR-25, UX-DR125, UX-DR130)
+
+- DW-1249: V3 says the on-call (and partner-contact) from/to values appear in no trace, but a settings save is a production message whose body (SaveSettings Changes) Visual Trace shows; the leak-scan test cannot pass as worded until this is settled (ledger; routed by cr 2026-11-13)
+- DW-1250: an on-call person or backup given only as an email address can never acknowledge a page, so the backup is always paged after the escalation time, and the accepted On call texts don't say so (ledger; routed by cr 2026-11-13)
+
+### Story 36.3: Link the worked Jira example from the admin docs
+
+[AMENDED 2026-11-12, split from Story 36.2, unattended ruling (doctrine U5, split 1 of 6): Story 36.2's README criterion moved here verbatim, because it alone waits on Epic 22 (Story 22.6 supplies the worked example under `docs/`), so the rest of 36.2 is not held behind it; Lane B's files, as 36.2]
+
+As an admin,
+I want the admin docs to link the worked Jira example and say which MCP tools must be classified risky,
+So that I classify a tool that runs operating-system commands or arbitrary code as risky.
+
+**Acceptance Criteria:**
+
+**Given** Epic 22 merged
+**When** this story runs
+**Then** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
 
 
 ## Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)
@@ -9907,6 +10094,7 @@ So that both lanes build step 6 against fixed names without waiting for each oth
 **Given** the spine update is merged
 **When** the package compiles
 **Then** the step 6 Lane A APIs it fixes, `Approval.MayAnswer` and the role-assignment method, exist in code as signatures with stub bodies that Lane B's Stories 25.4 and 25.5 can call until Story 26.4 builds them, as Story 33.1 (was 17.1) does for step 2 (FR-11, AD-29)
+- DW-1231: fix the read-result reply contract (the extracted-text summary ref, the Add to documents offer, the photo memory caption, the read-failure reason) that Story 25.6 consumes (ledger; routed by orchestrator veto ruling U-326 2026-11-12, Contest Planner confirmed)
 
 ### Story 37.2: See tokens and cost over time on the Usage page
 

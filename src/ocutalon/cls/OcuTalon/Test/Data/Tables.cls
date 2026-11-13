@@ -406,7 +406,8 @@ XData Contracts [ MimeType = application/json ]
    "CheckRows": "%String(MAXLEN=)",
    "Citations": "%String(MAXLEN=)",
    "Memories": "%String(MAXLEN=)",
-   "Learned": "%String(MAXLEN=)"
+   "Learned": "%String(MAXLEN=)",
+   "SentFile": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -803,6 +804,11 @@ XData Registry [ MimeType = application/json ]
   "class": "OcuTalon.Data.Upload"
  },
  {
+  "short": "SentFile",
+  "global": "^OcuTalonP.SentFile",
+  "class": "OcuTalon.Data.SentFile"
+ },
+ {
   "short": "Precedent",
   "global": "^OcuTalonP.Precedent",
   "class": "OcuTalon.Data.Precedent"
@@ -856,6 +862,16 @@ XData Registry [ MimeType = application/json ]
   "short": "HeartbeatBeat",
   "global": "^OcuTalonP.HeartbeatBeat",
   "class": "OcuTalon.Data.HeartbeatBeat"
+ },
+ {
+  "short": "SettingSnap",
+  "global": "^OcuTalonP.SettingSnap",
+  "class": "OcuTalon.Data.SettingSnapshot"
+ },
+ {
+  "short": "SettingChange",
+  "global": "^OcuTalonP.SettingChange",
+  "class": "OcuTalon.Data.SettingChange"
  }
 ]
 }
