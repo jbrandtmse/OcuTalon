@@ -179,3 +179,6 @@
 2026-11-13T04:38:39Z	Epic 22	ci_local_sweep	env=lane-D_warm_e22ssw(torn_down) classes=100(lane-a@Agent,Tools,Install;lane-b@Schedule,Web,Msg,Demo) failed=1(Test.Agent.Constants) note=pre-push_sweep_to_catch_count_and_contract_tests_the_queued_CI_groups_would_hit
 2026-11-13T04:38:39Z	Story 22.3	rework_opened	cycle_iteration=3 iteration=2 trigger=ci items=[CI]Agent.Constants_tool_count scope_baseline=7380a168
 2026-11-13T04:38:39Z	Story 22.3	stage_spawned	stage=implement spawn_at=2026-11-13T04:38:39Z model=sonnet agent_name=22-3-call-mcp-tools-only-through-the-governed-proxy-implement-3 cycle_iteration=3 effort=high note=rework_ci
+2026-11-13T04:54:21Z	Story 22.3	dev_complete	spawn_at=2026-11-13T04:38:39Z model=sonnet build_sha=f745a688 cycle_iteration=3 review_loop_iteration=1 followup_review_recommended=false deferred=0 files=2(Test/Agent/Constants.cls,spec) note=rework2_ci_tool_count
+2026-11-13T04:54:21Z	Story 22.4	ci_red_classified	run=43344958166 workflow=.github/workflows/ci.yml class=flake test=iris(install-upgrade)_row6_ready_budget_200s(DW-1082) action=rerun_on_the_next_head_if_it_recurs
+2026-11-13T04:54:21Z	Story 22.3	stage_spawned	stage=code-review spawn_at=2026-11-13T04:54:21Z model=opus agent_name=22-3-call-mcp-tools-only-through-the-governed-proxy-code-review-3 cycle_iteration=3 effort=high
