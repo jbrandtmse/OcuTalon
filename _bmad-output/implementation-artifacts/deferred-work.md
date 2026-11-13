@@ -7806,3 +7806,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; Story 21.4 pass 2 finding; Contest Planner ruling 2026-11-13 | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: 21.4 pass 2: initial bundle 1,011,990 bytes with the MCP section (from 992,400), 998.08 kB after lazy-loading it
 - 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
+
+### DW-1296: Audit every built-in tool's step record (Inputs and Result, Bridge/Adapter/StepBuffer.cls) for data the stored-row rule covers, including the partner delay notice route, Telegram and the memory/remember tools; list each tool and what its record shows
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Planner 22:00Z ruling (epic-22-rulings-20261113-1715.md): StepBuffer.InputsOf (L144) records a built-in tool's arguments verbatim in the turn's step summary (L132), which lands in ^Ens.MessageBodyD; 22.7 fixes send_email only
+- 2026-11-13T23:12:49Z status=routed owner=burndown by=orchestrator note=Planner_22:00Z:audit_DW;not_22.7_work;not_a_1.0.9_blocker
