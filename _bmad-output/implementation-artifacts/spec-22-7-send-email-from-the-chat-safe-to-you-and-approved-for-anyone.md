@@ -2,7 +2,7 @@
 title: 'Story 22.7: Send email from the chat, safe to you and approved for anyone else'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
+status: 'blocked'
 baseline_revision: 'cf9b6d2aa0d2e4e856d42fcdaa8ddb64a455b26f'
 baseline_commit: 'cf9b6d2aa0d2e4e856d42fcdaa8ddb64a455b26f'
 review_loop_iteration: 0
@@ -706,8 +706,8 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: done
-Blocking condition: none
+Status: blocked
+Blocking condition: PLANNER REPORT: the ruled security-overview line (P4 (b)) and the P4 (b) own-address assertion are false on the real chat route: a chat turn's Result message stores the tool step's Inputs (recipients, subject, text) in the trace. The three [Review] items did not land; nothing is committed.
 
 **Summary.** `send_email` is a built-in Chat tool. A call to the user's own address (checked by `Fix.Kind.Email.Classify` from stored facts only) is sent at once through `CommandCall.Run` (origin `tool`); any other call in a user's untainted turn is held by the new gate hook `Hold<NAME>` (`Gate.HoldByHook`), which raises a `fix` request of the new kind `email` with no incident and `FixExecutor` as result target. On approval `FixExecutor` (a new `ApprovalOutcome` branch) sends exactly the stored recipients, subject and text once with origin `system` and the `ApprovalRef`, through the real `CommandsIn` and `EmailOut`. In a tainted or untrusted turn every `send_email` call is refused `UNTRUSTED` (ruling H(i)); the online demo refuses before any submit or raise. Audit entries hold no address, subject or text (ruling H(iii)). DW-1164 is addressed by `Test.Fix.Email` (a request raised by the gate, approved, sent once by the real EmailOut system path).
 
@@ -748,3 +748,17 @@ Blocking condition: none
 - Review: 7 findings, 0 high, 0 patched, 0 deferred; 7 rejected with the reasons in the log. Follow-up review recommended: false (no high patched).
 - Verification: on lane D's warm throwaway `e22s7r2w`, `OcuTalon.Test.Bridge.Decide` (twice, the second run by the lead), `Test.Bridge.Compaction`, `Test.Bridge.Conversation`, `Test.Agent.RequestSize`, `Test.Agent.Constants` and `Test.Agent.Runners` passed, one per call; `test-class-rules.sh` and `test-boundaries.sh` exit 0. The mutation (drop the Email term) went red and was reverted byte-identical.
 - Residual risks: none beyond the hand-listed toolsets of the pin, which fails loudly when Chat gains a toolset.
+
+**Rework 3 (iteration 3 of 3): BLOCKED, nothing landed.** The three unchecked `[Review]` items (P4 (a), P4 (b), P1) were implemented together, verified green and then reverted, because the ruled overview line cannot be made true. The attempted change is saved as `_bmad-output/implementation-artifacts/spec-22-7-rework3-attempt.patch` (code, tests, GUIDE.md, `docs/security-overview.md`, `docker/tests/test-readme.sh`, and this spec's mutation lines and Rework 3 note; apply with `git apply`). The tree holds only this spec and that patch.
+
+Evidence (measured on lane D's warm throwaway `e22s7r3w`, torn down afterwards, after `Test.Fix.Email` ran its chat-turn tests; `OcuTalon.Test.Core.SecretHandoff.TraceLeaks` and a scan of `^Ens.MessageBodyD`):
+- `TraceLeaks("partner@example.test")`, `TraceLeaks("Delivery update")` and `TraceLeaks("The delivery will arrive on Friday.")` each answer `Ens.MessageBodyD`.
+- The nodes are the chat turn's `Result` message bodies, for example `^Ens.MessageBodyD(413,"Reply")`, whose step records hold the tool step "Sending an email" with the summary `send_email. Inputs: {"recipients":["partner@example.test"],"subject":"Delivery update","text":"The delivery w...`. The own-address chat turns hold the same (`^Ens.MessageBodyD(89,"Reply")` with `owner@example.test`, the subject and the text).
+- Cause: `src/bridge/cls/OcuTalon/Bridge/Adapter/StepBuffer.cls` builds each tool step's summary as `<name>. Inputs: <InputsOf(...)>`, and `InputsOf` returns the arguments of a built-in tool as they are (only MCP calls are reduced to server and tool). The summaries travel in `Msg.Result`/`Msg.Reply` bodies, so they are in Visual Trace and the message viewer.
+- The new tests pass because they do not run a chat turn (as the Planner's ruling says: raise through `Fix.Kind.Email.Raise`). They show that no approved or own-address SendEmail command, no `FixExecutor` or `EmailOut` message and no log line holds the content. They cannot show what the ruled line says: "An email to anyone else keeps [its subject and text] only in its approval record. No email's recipients are in the trace." On the chat route (the only route that raises such an email) the recipients, subject and text of the model's call are in the step records, and P4 (b)'s "the own address is not in the trace" is false there too.
+- Needed from the Planner: either (1) soften the ruled line to what holds (the SendEmail command and the approval/send path hold no recipient, subject or text; the chat turn that asks for the email shows them, like the chat message), or (2) rule a product change that keeps `send_email`'s Inputs out of the step summary (`StepBuffer.InputsOf` is Bridge/Lane B code, outside this story's footprint), and then the line stays. Either way P4 (a), the P4 tests, P1 and the doc pins are done in the patch and need no change except the line's wording or the pins that follow it.
+
+What the saved patch holds (all green on the warm throwaway before the revert): P4 (a) in `Channel/Email/Out.cls` (`Approved`; `Check`, `Send` and `SendClaimed` take subject and text) and `Fix/Kind/Email.cls` `Execute` (only ApprovalRef); `Test.Fix.Email` (`TestApprovedEmailIsInNoTraceGlobal`, `TestSystemSendTakesItsSubjectAndTextFromTheRow`, `TestSafeSendKeepsTheAddressOutOfTheTrace`, `Connect` through `SecretHandoff.Swap` because the 21.14 integration made every live test of the class fail at set-up); the P4 (b) overview bullet and the P1 GUIDE paragraph, word for word, with the pins of `test-readme.sh`. Classes and scripts that ran green on it: `Test.Fix.Email`, `Test.Tools.Email`, `Test.Fix.EmailCard`, `Test.Fix.EmailRoute`, `Test.Fix.Executor`, `Test.Channel.EmailOut`, `EmailLive`, `EmailIn`, `EmailOAuth`, `EmailOAuthPrivileges`, `EmailToken`, `Test.Core.CommandsStep4`, `Test.Core.SecretHandoff`, `Test.Install.SecurityOverview`, `Test.Bridge.Decide`, `test-readme.sh`, `test-release-sequence.sh overviewdoc overview overviewunit overviewdrift static`, `test-boundaries.sh`, `test-class-rules.sh`, `ci/checks.sh`. Mutations observed red and reverted byte-identical: Subject back on `Execute`; `Approved` quitting at once; `Approved` not refusing a different subject; the same for text; `EmailTools` carrying the address; and, from the review, `Approved` without the string-member guards (`TestSystemSendTakesItsSubjectAndTextFromTheRow` red) and without the `State` check (`TestEmptyRecipientsOfASystemSend` red).
+
+Review of the attempt (four layers; 20 findings): the verification-gap and blind layers found the same defect as the evidence above (confirmed by measurement, high for the public claim); the rest were low (the row-lacks-member fallback of `Approved` keeps Epic 21's seeded tests green and no row 22.7 raises lacks the members; two reads of one executing row; refusal fields for a bad row; GUIDE wording and placement are ruled text) and were not patched. Follow-up review recommended: false.
+
