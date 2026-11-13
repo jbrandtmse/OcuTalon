@@ -2,11 +2,11 @@
 title: 'Story 36.4: Set the on-call person and backup in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
-baseline_revision: 'a5a5cc2c27ea146fe19c87fa9701233a8d23c7df'
+status: 'done'
+baseline_revision: '71215884b780f03744957830c847882e483c1729'
 baseline_commit: 'a5a5cc2c27ea146fe19c87fa9701233a8d23c7df'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-36-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md'
@@ -203,7 +203,7 @@ Body members (all JSON strings except the minutes): `primaryPerson`, `primaryUse
 
 ### Review Findings
 
-- [ ] [CI] `web/e2e/settings/settings.spec.ts` S1f ("a failed load shows the load error, and Retry loads the page", L137) still expects `toHaveCount(7)` section links; with On call there are 8 (CI run 43474801972, iris (shards-4) live:sign-in-2, the only failure). Update it to 8 (the S1 case this story already updated to eight), sweep the e2e and node specs once more for any other count or list of the settings sections that now holds a stale 7 or omits On call, and run `live sign-in-2` for the part that holds settings.spec.ts on a fresh lane-B stack (`bash ci/iris.sh classes`-style listing or `--part k/n` until settings.spec.ts is in it). Pin with its mutation (back to 7 -> S1f red).
+- [x] [CI] `web/e2e/settings/settings.spec.ts` S1f ("a failed load shows the load error, and Retry loads the page", L137) still expects `toHaveCount(7)` section links; with On call there are 8 (CI run 43474801972, iris (shards-4) live:sign-in-2, the only failure). Update it to 8 (the S1 case this story already updated to eight), sweep the e2e and node specs once more for any other count or list of the settings sections that now holds a stale 7 or omits On call, and run `live sign-in-2` for the part that holds settings.spec.ts on a fresh lane-B stack (`bash ci/iris.sh classes`-style listing or `--part k/n` until settings.spec.ts is in it). Pin with its mutation (back to 7 -> S1f red).
 
 Code review 2026-11-13 (stage code-review, Tier 1 against `a5a5cc2c`, four layers: blind 10, edge 5, verification-gap 9, acceptance 11 = 35 reported; 14 kept as 13 entries (H2 was found twice), 21 rejected). Every review layer ran on opus with no model override.
 
@@ -279,6 +279,18 @@ Code review 2026-11-13 (stage code-review, Tier 1 against `a5a5cc2c`, four layer
   - `[low]` `[reject]` Intent 1: a missing or non-string person names `<role>User` - the spec's Shape row says "naming the field"; the person select is the field the page shows (by-design, Decided in-stage 17).
   - `[low]` `[reject]` Intent 2: a rule whose input is already refused is skipped, so a double-bad input names fewer fields - the matrix does not require more; the page shows the first in form order.
   - `[low]` `[reject]` Intent 3: the GET `on-call` member carries `users` and `pagesBuilt` - both are in the spec's `OnCallValues()` task (by-design).
+
+### 2026-11-13 - Review pass (rework iteration 1, CI item)
+- verdicts: 9 findings reported (blind 5, edge 2, verification-gap 2, intent 0; the intent layer was descriptive) - high 0, medium 0, low 7, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1: use `SECTIONS.length` for S1f's count - the explicit 8 is the same form S1 pins, and a derived count would follow a wrong list.
+  - `[false]` `[reject]` Blind 2 and Edge 1 (one claim, two rows in count): S1f goes red on a stack without On call (online demo shows 7) - settings.spec.ts runs on the live sign-in stack with the flag off and S1 pins the same eight links; no case in the file leaves the flag on across S1f.
+  - `[low]` `[reject]` Blind 3: the sweep result is not recorded in the spec - the fix edits this build's spec.
+  - `[low]` `[reject]` Blind 4: `review_loop_iteration` and `followup_review_recommended` stale - spec bookkeeping; the flag is set at finalize.
+  - `[low]` `[reject]` Blind 5: the mutation line's part number is not reproducible if specs change - spec-only.
+  - `[low]` `[reject]` Edge 2: comment on `SECTIONS` that on-call is POST-only - narrating comment, no named harm.
+  - `[low]` `[patch]` VG other 1: S8's doc comment said "nine settings calls"; the loop now makes ten POSTs - patched: comment now says ten and names them.
+  - `[low]` `[reject]` VG other 2: `on-call` in `SECTIONS` has no mutation line of its own - S8 pins no AC; the 403 AC's pinning test is `OnCallSettingsApi.TestNonAdmin403`, which has its line.
 
 ## Design Notes
 
@@ -470,6 +482,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: CR item 2 (the page keeps the saved values): removed `(saved)="keepOnCall($event)"` from `settings-page.ts` -> O10 red ("On call opened again shows the saved value": 15, the value the page loaded, not 33; the file's mode set to `default` for that run only); tree restored byte-identical (cmp)
 - mutation: CR item 8 (by-email user cleared): `OnCallRole` stores the typed name for a person that is not a known user (`1: name`) -> `SettingsOnCall.TestSavedCases` red ("with the user cleared, not stored"); tree restored byte-identical (cmp)
 - mutation: CR item 10 (%All at OnPreDispatch): `Api.OnPreDispatch`'s admin gate let `%All` through (`&& '(..Roles() [ "%All")`) -> `OnCallSettingsApi.TestNonAdmin403` red ("%All: the dispatch stops", "%All: 403 not_admin from OnPreDispatch"); tree restored byte-identical (cmp)
+- mutation: CI item (S1f's section count): `web/e2e/settings/settings.spec.ts` S1f's `toHaveCount(8)` put back to 7 -> `live sign-in-2 --part 11/12` red on S1f (`Expected: 7`, `Received: 8`, 25 other tests passed); reverted, `git status --short` and `git diff` byte-identical to before the mutation; the same assertion at 7 was red in CI run 43474801972; with 8 (and `SECTIONS` holding `on-call` for the non-admin 403 loop) the part passes, 26 passed.
 
 ## Auto Run Result
 
@@ -493,3 +506,5 @@ Blocking condition: none
 **Verification performed.** Warm stack: `SettingsOnCall`, `OnCallSettingsApi`, `SettingsSave`, `Web.Api` passed; `lane-b@Core` parts 1-4 and `lane-b@Web` parts 1-4 passed. Fresh stack: `SettingsOnCall` and `OnCallSettingsApi` passed. Node tests (on-call-view, settings-view, settings-refusal-sources, announce-focus-sources, ux-strings), `npm --prefix web test`, lint, build (1.01 MB initial), `test-ci-config.sh` and `test-boundaries.sh` passed. Live: `sign-in-2 --part 17/20` (O1-O9) passed; `sign-in --part 4/29` (H1-H3 and neighbours) passed on the second run (the first run failed `state-diagnosis.spec.ts` "no unavailable line" with a gateway ERROR #7913, a spec this story does not touch). `lint_spine.py`: only the pre-existing placeholder findings. All 15 `mutation:` lines recorded under Verification. Every stack torn down.
 
 **Residual risks.** The `settings.spec.ts` S1 browser run is left to CI (Decided in-stage 14). The patch subagent sent two warm class runs in one message once (both passed; a process slip, not a protocol violation of git). `new_units: none`.
+
+**Rework iteration 1 (CI item).** Implemented: `web/e2e/settings/settings.spec.ts` S1f now expects 8 section links, `SECTIONS` holds `on-call` (so S8's non-admin loop covers it) and S8's doc comment counts ten POSTs; the sweep of `web/e2e` and `web/scripts` found no other stale count (O6's seven links are deliberate). Review: 9 findings, one low patched (the S8 comment), 8 rejected with reasons in the triage log. Follow-up review recommended: false (this follow-up pass patched no high). Verification: `live sign-in-2 --part 11/12` on a fresh lane-B stack, 26 passed; `npm --prefix web test` 1991 passed; `bash docker/tests/test-boundaries.sh` passed; mutation line under `## Verification`.

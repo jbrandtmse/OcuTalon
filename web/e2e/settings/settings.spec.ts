@@ -13,7 +13,7 @@ import { adminAtSignIn, fixtureUser } from '../support/iris';
  * leaves the README account's Session.AdminAtSignIn at 1 and the live fixture user's at 0, the values their own sign-ins write.
  */
 const SETTINGS = '/ocutalon/api/v1/settings';
-const SECTIONS = ['check-thresholds', 'budgets', 'models', 'channels', 'daily-digest', 'time-zone', 'demo-mode'] as const;
+const SECTIONS = ['check-thresholds', 'budgets', 'models', 'channels', 'daily-digest', 'time-zone', 'on-call', 'demo-mode'] as const;
 const SAVED = 'Saved. Applies within a minute. Recorded in the audit log.';
 const DEMO_SAVED = 'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.';
 const FAILED = "Couldn't save. Nothing was changed.";
@@ -134,7 +134,7 @@ test('S1f: a failed load shows the load error, and Retry loads the page', async 
     await expect(sectionsNav(page), 'no sections').toHaveCount(0);
     await page.getByRole('button', { name: 'Retry', exact: true }).click();
     await expect(page.getByRole('heading', { level: 2 }), 'Retry loads the page').toHaveText('Models');
-    await expect(sectionsNav(page).getByRole('link')).toHaveCount(7);
+    await expect(sectionsNav(page).getByRole('link')).toHaveCount(8);
   } finally {
     await page.unroute('**/api/v1/settings');
   }
@@ -492,7 +492,7 @@ test('S7c: a Demo mode save shows and announces its own confirmation with the re
   }
 });
 
-/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on all nine settings calls. */
+/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on all ten settings POST calls (the eight sections, the digest send and the unenveloped check). */
 test('S8: a user without OcuTalonAdmin is denied', async ({ page }) => {
   const { user, password } = fixtureUser('LIVE');
   await loadedAfter(page, () => signIn(page, user, password));
