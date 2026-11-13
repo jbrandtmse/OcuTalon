@@ -216,3 +216,9 @@
 2026-11-13T01:35:21Z	Story 21.12	ledger_adjudicated	owned=1(DW-1207) resolved=1 reowned=0 terminal=0 slice_after=empty
 2026-11-13T01:35:21Z	Story 21.12	smoke_complete	method=cli(lead:test-readme.sh_real_tree_PASS;README_##_Measured_renamed->FAIL_readme-anchors_GUIDE.md:77;restored_cmp) result=pass iterations=1 defects_caught=0
 2026-11-13T01:35:21Z	Story 21.12	fresh_check	env=clean-checkout(no_runtime) tests=test-readme,test-boundaries,test-release-checklist,test-class-rules result=pass order=forward,reverse(stateless_scripts)
+2026-11-13T01:41:47Z	Story 21.8	committed	sha=41549d46 submodules= ci=pending runs=43346789014,43346789130 note=one_head_for_21.7+21.8+21.12_after_CI_HOLD_OFF(supersedes_9e428b94_rerun)
+2026-11-13T01:41:47Z	Story 21.12	committed	sha=41549d46 submodules= ci=pending runs=43346789014,43346789130 note=one_head_for_21.7+21.8+21.12_after_CI_HOLD_OFF(supersedes_9e428b94_rerun)
+2026-11-13T01:41:47Z	Story 21.7	ci_superseded	sha=9e428b94 note=its_rerun_superseded_by_the_one_head_41549d46(intended,orchestrator)
+2026-11-13T02:35:48Z	Story 21.8	ci_red_classified	run=43346789014 workflow=.github/workflows/ci.yml class=story test=test-release-notes.sh:static(names_outside_section_on_GUIDE.md:243,244=T4_steps_1-2) note=caused_by_21.8_T4_in_GUIDE.md(0.30_integrate-forward);other_jobs_still_running
+2026-11-13T02:35:48Z	Story 21.8	rework_opened	cycle_iteration=3 iteration=2 trigger=ci items=CI:release-notes_static_Gmail_section_exemption scope_baseline=41549d46 tracker=done->in-progress
+2026-11-13T02:35:48Z	Story 21.8	stage_spawned	stage=implement spawn_at=2026-11-13T02:35:48Z model=sonnet effort=high agent_name=21-8-implement-3 cycle_iteration=3 rework=2_of_3

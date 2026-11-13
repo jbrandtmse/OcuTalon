@@ -2,7 +2,7 @@
 title: 'Story 21.8: Read and send mail with the OAuth2 sign-in'
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '9a589d9c723a2a181a0c9ce6563805f36bc18bd1'
 baseline_commit: '9a589d9c723a2a181a0c9ce6563805f36bc18bd1'
 review_loop_iteration: 0
@@ -101,6 +101,8 @@ deferred:
 - [x] [Review] DW-1230 (Planner ruling E, security, before any push): in OAuth2 mode `EmailIn` sends the bearer token only over TLS (POP3S, or STLS if the adapter supports it). Plain POP3 is allowed only with `OCUTALON_TEST_OAUTH_MOCK=1` and host `mock`, exactly as `Sender.PlainAllowed` does for SMTP. Otherwise the poll refuses before any token is fetched or sent and records a plain reason (reuse an existing accepted reason if one fits; new wording is a Clarification for the Planner). -- `src/ocutalon/cls/OcuTalon/Channel/Email/Adapter.cls` (and the handler/Token path if the token fetch happens earlier) -- tests pin (a) a blank `SSLConfig` row and (b) `SSLCheckServerIdentity` 0 in OAuth2 mode are refused with no token sent and nothing reaching the stub, and (c) the mock exception (switch on + host `mock`) still polls; one `mutation:` line each.
 - [x] [Review] RELEASE TOOL pin (Planner ruling E, approved): the one-line exemption in `release/checklist.sh` `outward_hits()` (`mail.google.com` in the exact-match exemption for `docker/tests/test-readme.sh`'s `ALLOWED_HOSTS` line) stays exactly that line and nothing else; add a test pin that fails if the exemption is missing (outward check red on the README line) or widened (any other host or a non-exact match) -- in the existing release-checklist test script if one exists on this branch, else in `docker/tests/test-readme.sh` -- with its `mutation:` line.
 
+- [ ] [CI] checks job (ci run 43346789014, job 131627949864): `docker/tests/test-release-notes.sh` rule `static` fails `names_outside_section on GUIDE.md: got 'GUIDE.md:243 GUIDE.md:244', wanted ''` -- T4's steps 1 and 2 (now in GUIDE.md after the 0.30 integrate-forward) name `OAuth2.Response.cls`, `POP.AccessAsUser.All` and `SMTP.Send`, which the shared `names_outside_section` (docker/tests/lib-scan.sh) reads as dotted class names outside "For admins and developers". `test-readme.sh`'s `dev_names` already exempts the section "Gmail and Microsoft 365" (it names the provider consoles' own settings); make the release-notes `static` check honour the same exemption (a line counts only if it is outside BOTH sections; keep `names_outside_section`'s one-heading interface, or extend it to several headings with its existing self-tests updated), never by editing the ruled T4 text. Pin it: a class name planted in another GUIDE section is still reported; a dotted name in the Gmail section is not. `mutation:` line required.
+
 ### Review Findings
 
 Code review 2026-11-12 (`bmad-code-review`, full mode, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; tier full-opus). 0 decision-needed, 12 patch (all applied), 2 defer (ledgered), 21 rejected or closed at emission. No HIGH.
@@ -162,6 +164,8 @@ Rejected / closed at emission (round 2):
 - (by-design, ruling E and the dispatch allow an accepted reason; in Residual risks) acceptance-auditor 4: the refusal reads "OcuTalon couldn't reach the mail server." for a settings fault.
 
 ## Spec Change Log
+
+- 2026-11-13 (lead, rework iteration 2, trigger ci): the [CI] item above (release-notes `static` on GUIDE.md T4 lines).
 
 - 2026-11-12 (lead, rework iteration 1, trigger review-ruling): Planner ruling E (`prompts/gate-rulings-20261112-1810.md` E): DW-1230 fixed in this story before the push; the approved RELEASE TOOL line gets a test pin. DW-1226 stays decision-pending for the owner (post-contest).
 
