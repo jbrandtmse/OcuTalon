@@ -5619,6 +5619,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Adapter/Agent.cls Answer hands kind tool to Replay.Run before any composition; Replay.cls:65 adapter.Agent.ToolManager.ExecuteTool; documents is held (and so replayed) only when Decide's ToolClassification row cannot be read (Install/Step/Production.cls:294), and a host's own risky turn tool always would be
 - 2026-11-08T11:22:28Z status=decision-pending owner=burndown by=cr note=product call: Replay composes the approval owner's turn tools, or the guide states a turn tool must be classified safe; spec matrix Other kinds composes nothing for tool
 - 2026-11-08T12:32:34Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=owner note=planner_ruling(owner_delegation,orchestrator_relay):accepted_as_recommended:the_bridge_guide_says_a_turn_tool_must_be_classified_safe;the_line_is_NEW_text(PUBLIC_TEXT_proposed_in_the_part-2_contract,for_docs/bridge-guide.md:315);lands_in_22.6_unless_the_Planner_rules_it_into_1.0.4;reopen_if=a_turn_tool_call_is_ever_held_for_approval
+- 2026-11-13T21:33:00Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=docs/bridge-guide.md_TurnTools_bullet_P6(approved_turn-tool_sentence);test-bridge-guide.sh_turntools_pins_it(mutation:delete_the_sentence->red)
 
 ### DW-951: The upgrade harness's new api_get polls GET /v1/documents with no unique probe query, unlike state_get, so a gateway-kept answer could be read
 - source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: low | footprint: in-story
@@ -7494,6 +7495,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T20:12:17Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=harvest note=measure a 1-byte/s trickle; bound in 22.10's bounded client
 - 2026-11-12T21:11:47Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy
 - 2026-11-13T05:14:19Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=orchestrator note=Planner_H:recorded_in_AD-21_S11_as_a_measured_known_limit(31s_vs_2s);22.6_guide_MCP_section_states_it;no_public_hard-deadline_claim;22.10_deferred
+- 2026-11-13T21:33:00Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=Time_limits_paragraph_word_for_word_in_docs/mcp-jira-example.md+docs/security-overview.md(measured_31s/36s,mid-request_residual,no_hard_deadline);overviewdoc_OVW_MCP_LIMITS+deadline_checks;spine_AD-21_S11_record
 
 ### DW-1222: Gate rewrite mark ^||OcuTalonBP.McpRewrite is a single slot; two native MCP calls whose first passes interleave would mis-handle the second pass (unverified)
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
@@ -7518,6 +7520,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: OfferServers AddTool(spec) runs before OfferProxy RegisterToolSet; AttachServers refuses only names of the agent's own tools, so a server tool named call_mcp_tool is not refused. Either outcome (registration error drops every server; the server's tool shadows the proxy) is unmeasured.
 - 2026-11-12T21:11:47Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=cr note=maybe-false, would be medium: settle with a mock tool named call_mcp_tool; refuse the name at attach or register the proxy first
 - 2026-11-13T05:14:18Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=orchestrator note=Planner_H:test_that_a_server_tool_named_call_mcp_tool_or_any_built-in_name_is_refused_under_the_CURRENT_design;fix_narrowly_if_not
+- 2026-11-13T21:33:00Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=Bridge/Adapter/Agent.cls_proxy_registered_first+call_mcp_tool_built-in_when_the_host_names_a_proxy;Test.Mcp.Attach_TestProxyNameRefused,TestProxyNameNotShadowing,TestProxyNoneAdded,TestProxyNameKeptWithoutProxy,TestProxyNameRefusedAfterRest;spine_S20
 
 ### DW-1232: The mcp.replayToolChanged notice (R1) renders no text on the web chat and phone cards: Channel.WebChat.Out.ToolCallCard draws only the bridge sink's five toolCall.* keys
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls
@@ -7796,3 +7799,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace.md (code review) | severity: low | fix-risk: med | footprint: in-story
 - evidence: Holds tests data [ text on the raw node (Test/Core/SecretHandoff.cls Holds); %Stream.GlobalCharacter COMPRESS=1 stores compressed chunks; no OcuTalon message class has a %Stream property today (Data.SettingStream sets COMPRESS=0 for the same reason)
 - 2026-11-13T15:34:27Z status=wontfix-accepted owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=cr note=reopen_if=an OcuTalon message class gains a %Stream property, or a scanned value can share a stored element with a char above $Char(255)
+
+### DW-1286: docs/mcp-jira-example.md spells 'the request is canceled' while every other public text and the code use 'cancelled' (approval.cancelled, the overview's Approval audit line)
+- source: spec-22-6-document-a-worked-jira-example-and-mcp-governance.md (code-review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: P1 is ruled verbatim (Planner M(4)), so the one-letter change to 'cancelled' rewrites approved public text; the reviewer may not patch it. Grep: docs/mcp-jira-example.md is the only 'canceled' in the public docs.
+- 2026-11-13T21:29:41Z status=decision-pending owner=burndown by=cr note=22.6 CR BH9: Planner to approve 'cancelled' in P1 (one word) or keep as ruled

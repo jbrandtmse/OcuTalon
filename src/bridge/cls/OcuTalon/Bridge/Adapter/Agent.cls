@@ -48,9 +48,9 @@ Include Ensemble
 /// The governed proxy (Story 22.3; AD-10, AD-21, AD-31): before the tools of the first MCP server whose probe answered are added to a request's manager, the adapter registers
 /// the host's proxy toolset on it (the McpServersClass ProxyToolSet, OfferProxy), so that the proxy keeps its name when a server lists a tool of that name (AI Hub keeps the
 /// first tool registered under a name), and no agent has it in its own tools. The proxy's name (Policy.Gate MCPPROXY) counts as a built-in name when the host names a
-/// proxy: a server's tool of that name is reported refused, as one of the agent's own tools is. A request in which no server's tools were added offers no proxy: it goes on
-/// with a manager composed again that holds no MCP server (ComposeManager), because a manager cannot give a tool up, and so does a request whose proxy toolset cannot be registered
-/// (one warning). The gate runs every allowed native MCP call through the proxy and not AI Hub's client. The map of the request also names each recorded server
+/// proxy: a server's tool of that name is reported refused, as one of the agent's own tools is. A request in which no server's tools were added offers no proxy: when no
+/// probe answered, the proxy was never registered; when a probe answered but no server's tools were added after the proxy, the request goes on with a manager composed again
+/// that holds no MCP server (ComposeManager), because a manager cannot give a tool up, and so does a request whose proxy toolset cannot be registered (one warning). The gate runs every allowed native MCP call through the proxy and not AI Hub's client. The map of the request also names each recorded server
 /// (Context SetMcpTools), so that the gate can name the server in a proxy call and classify a direct call of the proxy as the native call of the same tool.
 /// The replay of an approved MCP call (Story 22.4; AD-10, AD-21): the agent's own manager holds no MCP server, so the replay runs the call as the proxy's call on a manager
 /// that holds only the host's proxy toolset (ProxyManager, which asks the McpServersClass setting itself, as the agent may have been built before any server existed: governed like every manager of a request, swapped in as the agent's tool manager and put back by RestoreTools,
@@ -670,8 +670,9 @@ Method BuildTurnManager() As %Status [ Private ]
 }
 
 /// A new tool manager with the tools of the request: the agent's toolsets, the tools attached when the agent was built (not the MCP servers), the tools of the class
-/// and, when offer is 1, the MCP servers that answer (OfferServers). proxied is 0 when offer is 1 and a server was added but the host's proxy toolset could not be
-/// registered on the manager (OfferServers), which BuildTurnManager answers with a manager that offers no MCP server; otherwise 1.
+/// and, when offer is 1, the MCP servers that answer (OfferServers). proxied is 0 when offer is 1 and a server's probe answered but the host's proxy toolset could not be
+/// registered on the manager, or it was registered and no server's tools were added after it (OfferServers), which BuildTurnManager answers with a manager that offers
+/// no MCP server; otherwise 1.
 Method ComposeManager(tools As %ListOfObjects = "", count As %Integer, offer As %Boolean, Output manager As %AI.ToolMgr, Output proxied As %Boolean) As %Status [ Private ]
 {
 	Set proxied = 1

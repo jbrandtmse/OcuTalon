@@ -855,7 +855,7 @@ Method TestProxyNoneAdded()
 	Set adapter = ..Runner().Adapter
 	Do ..Ok(adapter.BuildAgent(), "the agent builds with the server up")
 	If '$IsObject(adapter.Agent) Quit
-	Do $$$AssertEquals(##class(OcuTalon.Mcp.Attach).ProxyToolSet(), "OcuTalon.Tools.McpProxy", "the host names the governed proxy toolset")
+	Do $$$AssertEquals($ClassMethod(..#PROBEATTACH, "ProxyToolSet"), "OcuTalon.Tools.McpProxy", "the host names the governed proxy toolset")
 	Set before = ..OtherRequests()
 	Set mark = $ClassMethod(..#FIXTURE, "EventMark")
 	Do ##class(OcuTalon.Test.Mcp.Mock).Status(..Port, "500 Internal Server Error")
@@ -864,6 +864,66 @@ Method TestProxyNoneAdded()
 	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "LogRowsHolding", mark, "The MCP server " _ ..Server _ " is not available ("), 1, "with one warning that names the server")
 	Do $$$AssertEquals($Piece($Get(^||ZzTurn("config", 1)), "|", 4, 5), ..#OWN _ ",zz_turn_set|", "it lists none of the server's tools and no call_mcp_tool")
 	Do $$$AssertEquals(..Leaks(adapter), "", "the secret, which AI Hub's error text can hold, shows in none of the places that are checked")
+}
+
+/// Story 22.6 (QA; DW-1228, "the bridge alone is unchanged"): the proxy's name counts as a built-in name only when the host names a proxy toolset. On the fixture host ZzServers, whose
+/// ProxyToolSet is the base's "" (no proxy), a server's tool named call_mcp_tool is a tool like any other: the report refuses nothing and lists it among the attached tools, and the
+/// request's manager lists it with the server's other tools.
+Method TestProxyNameKeptWithoutProxy()
+{
+	If ..Guard() Quit
+	Do ..Use("McpServersClass", ..#SERVERS)
+	Do ..Use("TurnToolsClass", ..#TURNTOOLS)
+	Set ^OcuTalonTest("TurnTools", "give") = 0
+	Do ..Register($ListBuild("call_mcp_tool"), 1)
+	Set ^||ZzMcp("servers") = [{"server": (..Server), "config": ("AI.MCP.OcuTalon_" _ ..Server)}].%ToJSON()
+	Set ^||ZzMcp("probe") = 1
+	Set adapter = ..Runner().Adapter
+	Do ..Ok(adapter.BuildAgent(), "the agent builds with the server up")
+	If '$IsObject(adapter.Agent) Quit
+	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.ZzServers).ProxyToolSet(), "", "the host names no proxy toolset")
+	Set report = ##class(%DynamicAbstractObject).%FromJSON($Piece($Get(^||ZzMcp("report", 1)), "|", 2, *))
+	Set attached = ""
+	Set iterator = report.tools.%GetIterator()
+	While iterator.%GetNext(, .name) {
+		Set attached = attached _ $Select(attached = "": "", 1: ",") _ name
+	}
+	Do $$$AssertEquals(report.status _ "|" _ report.refused.%Size() _ "|" _ attached, "attached|0|call_mcp_tool,zz_delete_ticket,zz_lookup", "the report refuses nothing and attaches call_mcp_tool with the server's other tools")
+	Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "a request composes its manager")
+	Do $$$AssertEquals($Piece($Get(^||ZzTurn("config", 1)), "|", 4, 5), "call_mcp_tool,zz_delete_ticket,zz_lookup," _ ..#OWN _ ",zz_turn_set|call_mcp_tool,zz_delete_ticket,zz_lookup", "and the request's manager lists it once, with the server's other tools")
+	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
+}
+
+/// Story 22.6 (QA; DW-1228): a server that went silent and speaks again is reported attached by the request's own build of the report (OfferServers, ReportOf), and that report refuses
+/// the proxy's name as the build's did: the row holds call_mcp_tool as refused again and Tools gives it the status refused, while the server's other tools stay available.
+Method TestProxyNameRefusedAfterRest()
+{
+	If ..Guard() Quit
+	Do ..Use("McpServersClass", ..#PROBEATTACH)
+	Do ..Use("TurnToolsClass", ..#TURNTOOLS)
+	Set ^OcuTalonTest("TurnTools", "give") = 0
+	Do ..Register($ListBuild("call_mcp_tool"), 1)
+	Set adapter = ..Runner().Adapter
+	Do ..Ok(adapter.BuildAgent(), "the agent builds with the server up")
+	If '$IsObject(adapter.Agent) Quit
+	Do $$$AssertEquals(..Row().AttachStatus _ "|" _ $ListToString(..Row().RefusedTools), "attached|call_mcp_tool", "the build's report refuses call_mcp_tool")
+	Do ##class(OcuTalon.Test.Mcp.Mock).Silence(..Port)
+	Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "a request composes its manager although the server has gone silent")
+	Do $$$AssertEquals(..Row().AttachStatus _ "|" _ ..Row().AttachReason _ "|" _ $ListToString(..Row().RefusedTools), "unavailable|unreachable|", "the request's report says unavailable and holds no refused tool")
+	Do ##class(OcuTalon.Test.Mcp.Mock).Speak(..Port)
+	Hang ..RestWait(adapter)
+	Kill ^||ZzTurn("config")
+	Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "the first request after the rest composes its manager")
+	Do $$$AssertEquals($Piece($Get(^||ZzTurn("config", 1)), "|", 4, 5), "call_mcp_tool,zz_delete_ticket,zz_lookup," _ ..#OWN _ ",zz_turn_set|zz_delete_ticket,zz_lookup", "it lists the proxy once and the server's other tools")
+	Do $$$AssertEquals(..Row().AttachStatus _ "|" _ $ListToString(..Row().RefusedTools), "attached|call_mcp_tool", "the request's report says attached and refuses call_mcp_tool again")
+	Do $$$AssertStatusOK(##class(OcuTalon.Mcp.Ops).Tools(..Server, .tools), "Tools lists the server")
+	Set listed = ""
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		Set listed = listed _ $Select(listed = "": "", 1: ",") _ tool.name _ "|" _ tool.status
+	}
+	Do $$$AssertEquals(listed, "call_mcp_tool|refused,zz_delete_ticket|available,zz_lookup|available", "the proxy's name has the status refused, and the server's other tools are available")
+	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
 }
 
 Method TestAddToolFailsAtBuild()
