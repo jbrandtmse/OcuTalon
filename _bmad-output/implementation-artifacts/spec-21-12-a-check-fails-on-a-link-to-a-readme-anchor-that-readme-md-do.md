@@ -2,8 +2,8 @@
 title: 'Story 21.12: A check fails on a link to a README anchor that README.md does not have'
 type: 'chore'
 created: '2026-11-12'
-status: 'ready-for-dev'
-baseline_revision: '407b4dafb4ab2a7e4b012a690697115e16bc0747'
+status: 'done'
+baseline_revision: 'cb8981a11d8bf7ca76e196637b7d201cc192a044'
 baseline_commit: '407b4dafb4ab2a7e4b012a690697115e16bc0747'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -105,6 +105,29 @@ The rule's self-tests (`st`, planted files under `$tmp`), plus the run on the re
 
 ## Review Triage Log
 
+### 2026-11-12 -- Review pass
+- verdicts: 18 findings (the layers' items grouped by claim) -- high 0, medium 1, low 13, false 4, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` (blind, edge, verification-gap) the 'README.md from a folder that has none' self-test read the real tree's `docs/README.md` absence -- patched: the row plants `ra-none/x.md`, so adding a `docs/README.md` later cannot turn it red; its mutation re-run (resolver ignoring the folder) is red on it
+  - `[low]` `[reject]` (verification-gap) `GUIDE_RULES` completeness is unchecked for every rule -- pre-existing for all members, not worth a story; the rule's own `no-guide` mutation (no `"$GUIDE"` slot) is now recorded and red
+  - `[low]` `[patch]` (verification-gap) mutation lines missing for AC 1, the `no-guide` half of AC 5 and the `doc_files` exclusions -- spec text only: three lines added, the two runs observed red
+  - `[low]` `[reject]` (blind, verification-gap, edge) `headings` toggles only on a column-0 backtick fence, so a `~~~` or long fence in README could add a phantom slug -- README has neither; a guard would add a branch; residual risk noted
+  - `[low]` `[reject]` (blind, edge) non-ASCII README headings slug without their letters -- README is ASCII; spec Design Note 6 accepts the limit
+  - `[low]` `[reject]` (blind, edge) `#L10`, percent-encoded and `user-content-` fragments, `#x:~:text=` are flagged -- false reds only, no such link in the tree
+  - `[false]` `[reject]` (blind, edge) anchors should compare case-insensitively -- the sibling rule and decision 1 compare exactly; strict is safe by design
+  - `[low]` `[reject]` (blind, edge) HTML comments, indented code, multi-line spans, blockquote fences, escaped backticks, CRLF are not modelled -- false reds (one rare false green for an escaped backtick); none in the tree; the real-tree run passes
+  - `[low]` `[reject]` (blind, edge) the repository address is matched in one spelling (case, `http://`, `www`, `tree/main`, folder links) -- the AC lists the forms; by design
+  - `[low]` `[reject]` (blind, edge) hard-coded `REPO_URL` -- the AC names this repository's address, as the sibling rules do
+  - `[low]` `[reject]` (blind, verification-gap) the renamed-README real-surface row depends on the real `## Measured` and GUIDE.md:77 -- AC 2 asks for exactly that surface
+  - `[false]` `[reject]` (verification-gap) the 0-line rows pass vacuously -- the dead-link rows of each form and `a link after a fence` prove the extractor emits
+  - `[low]` `[reject]` (blind) a repeated unsluggable heading is reported at the first line -- README has no repeated heading; cosmetic
+  - `[low]` `[reject]` (edge) a listed file that is unreadable passes silently -- the list comes from `$listing`, which names existing files
+  - `[false]` `[reject]` (edge) `README.md#` flagged as a dead anchor -- spec decision 2
+  - `[false]` `[reject]` (edge) explicit `<a id>` anchors and setext headings -- spec decision 6 (false reds only, none in README)
+  - `[low]` `[reject]` (edge) unquoted or upper-case `href`, a link target wrapped over two lines, link text that is a URL -- false reds or rare misses, none in the tree
+  - `[low]` `[reject]` (verification-gap) `http://` and the other extractor branches have no row -- the dead-link rows pin each form named in the AC
+  - (intent-alignment) descriptive: the diff implements readings A, B, C, E, F, G and the whole-tree set D2 the spec decided; its remark that the real tree has no README anchor link besides GUIDE.md:77 matches the spec
+
 ## Design Notes
 
 **Governing ADs (Rule 6):** none binds the README check. AD-22 (testing and CI) is the nearest one and is kept: the check is hosted and hermetic, and it adds no unit or group. AD-29 is kept: `test-readme.sh` is a shared file, so the edits are placed. No spine change.
@@ -143,7 +166,7 @@ None.
 
 ## Verification
 
-Run every command from the worktree root, after `git rev-parse --show-toplevel` equals `/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/epic-21`. Use one command per foreground call with `timeout: 600000`. Each is sized under about 150 s (measured on the developer machine: test-readme 40 s, test-boundaries 9 s, test-release-checklist 37 s). No IRIS, no slot and no throwaway is used.
+Run every command from the worktree root, after `git rev-parse --show-toplevel` equals the worktree root. Use one command per foreground call with `timeout: 600000`. Each is sized under about 150 s (measured on the developer machine: test-readme 40 s, test-boundaries 9 s, test-release-checklist 37 s). No IRIS, no slot and no throwaway is used.
 
 Shared surfaces: `docker/tests/test-readme.sh`'s `RULES` and `GUIDE_RULES` lists and its PASS/FAIL line set (one new `readme-anchors` line). `headings` is read, not changed. `release/checklist.sh` `row_readme` reads only the exit code. `test-release-checklist.sh` stubs the script and pins only its `ALLOWED_HOSTS` line. No other tracked test asserts on the script's lines (searched with `git grep`).
 
@@ -166,10 +189,38 @@ Standing criterion: every test added or changed passes on a fresh environment, i
   - duplicate suffixes started at `-2` → the duplicate-heading row fails;
   - the resolver ignoring the linking file's folder → the wrong-folder row fails.
 - The implement stage writes the observed red line next to each mutation.
+- mutation: README.md `## Measured` renamed `## Measurements` -> `readme-anchors: GUIDE.md:77: the link (README.md#measured) names '#measured', and README.md has no heading with that slug`, `FAIL readme-anchors`, exit 1 (`readme-links` fails too); restored, `cmp` identical and `git diff --quiet README.md`
+- mutation: `[x](../README.md#nowhere)` appended to docs/install-ipm.md -> `readme-anchors: docs/install-ipm.md:388: the link (../README.md#nowhere) names '#nowhere', and README.md has no heading with that slug`, `FAIL readme-anchors`, exit 1; with `../README.md#measured` on that line -> `PASS readme-anchors`, exit 0; restored, `cmp` identical and `git diff --quiet docs/`
+- mutation: the slug lookup in `chk_readme_anchors` made always true -> `FAIL readme-anchors: a broken copy was not flagged` (12 self-test notes, e.g. `a link that two forms match: 0 lines flagged, 1 expected`), exit 1; restored, `cmp` identical
+- mutation: `doc_files` made to drop `docs/*` -> `readme-anchors: the documentation set holds no docs/*.md file`, `FAIL readme-anchors`, exit 1 (the real set fails closed first, so the file-set self-test note is not printed); restored, `cmp` identical
+- mutation: duplicate suffixes in `readme_slugs` started at -2 (`k += 2`) -> `self-test: a repeated heading: -1 is live and -2 is not: the output is not ...`, `FAIL readme-anchors: a broken copy was not flagged`, exit 1; restored, `cmp` identical
+- mutation: the resolver ignoring the linking file's folder (the `dir` of a relative path left empty) -> `self-test: README.md from a folder that has none: the output is not ...` (and one more row), `FAIL readme-anchors: a broken copy was not flagged`, exit 1; restored, `cmp` identical
+- mutation: `readme_anchors` left out of `RULES` -> `FAIL rules: rule_readme_anchors is not in RULES`, exit 1; restored, `cmp` identical
+- mutation: `rule_begin` of `rule_readme_anchors` without its `"$GUIDE"` slot -> `FAIL no-guide: rule readme_anchors does not fail when GUIDE.md is missing`, exit 1; restored, `cmp` identical
+- mutation: `doc_files` without its `.claude/*` and `release/records/*` exclusions -> `self-test: the documentation set is not the Markdown files but the root README, the build records and the release records`, `FAIL readme-anchors: a broken copy was not flagged`, exit 1; restored, `cmp` identical
+- AC 1 and AC 6 (the real tree and DW-1207) are pinned by the rows above: the rename and planted-link mutations are the AC 6 proofs, and the unmutated run (`PASS readme-anchors`, every other line unchanged against the original script's, exit 0) is AC 1.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). One file to change, `docker/tests/test-readme.sh`; no veto item, no public text. The documentation-set scope is decided in-stage (Design Notes), with a Rule 5 apply-and-report wording offered to the lead; `footprint_extensions: docker/tests/test-readme.sh`.
+**Summary.** `docker/tests/test-readme.sh` gains the rule `readme-anchors`. It reads every Markdown file of the documentation set (all tracked Markdown but README.md, `_bmad/`, `_bmad-output/`, `.claude/` and `release/records/`), extracts the links GitHub renders (inline, image, reference definition, href, autolink, bare address; none inside a fence or code span), resolves the ones that reach the root README.md (relative, `/README.md`, `blob/main` and `blob/HEAD`, the repository page with `#readme` live), and checks each anchor against README.md's heading slugs with GitHub's `-1`/`-2` suffixes. A dead link prints `<path>:<line>`, the target and the anchor. It fails closed with no GUIDE.md, no `docs/*.md` file, or an unsluggable README heading. Self-tests cover every matrix row on planted files.
+
+**Files changed.**
+- `docker/tests/test-readme.sh` -- helpers `doc_files`, `readme_slugs`, `md_links`, `readme_target`, `chk_readme_anchors` after `chk_readme_links`; `rule_readme_anchors` (with `ra_run`, `ra_expect`, `ra_line`) after `rule_readme_links`; `readme_anchors` after `readme_links` in `RULES` and `GUIDE_RULES`; the header updated.
+- This spec -- mutation lines, triage log, this result.
+
+**Review.** Four layers, 18 grouped findings: 1 patch (a self-test that relied on the real tree having no `docs/README.md`; now plants `ra-none/x.md`), 1 patch of spec text (three missing mutation lines, runs observed red), 12 low rejected and 4 false rejected, each with its reason in the triage log. Nothing deferred. Patched counts: medium 1, low 1. Follow-up review recommended: false.
+
+**Verification.**
+- `bash docker/tests/test-readme.sh`: `PASS readme-anchors`, every other PASS line identical to the original script's, `test-readme: all rules passed`, exit 0 (run after the last patch).
+- `bash docker/tests/test-boundaries.sh`: all rules passed. `bash docker/tests/test-release-checklist.sh`: all rules passed.
+- Nine mutations applied, observed red and reverted byte-identical (`cmp`); see `## Verification`.
+
+**Residual risks.**
+- `headings` (unchanged, reused) toggles only on a column-0 backtick fence, so a future `~~~` or long fence in README.md holding a `#` line could add a phantom slug (a false green, not only a false red as Design Note 6 says). README.md has none today.
+- Non-ASCII README headings slug without their letters (false red or, rarely, a false green).
+- `GUIDE_RULES` completeness is not checked for any rule (pre-existing).
+- The `printf: write error: Broken pipe` stderr lines existed before the change (same count, 14).
+- `footprint_extensions: docker/tests/test-readme.sh`.
