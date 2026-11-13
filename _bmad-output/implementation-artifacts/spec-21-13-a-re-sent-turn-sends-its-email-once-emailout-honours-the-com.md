@@ -108,6 +108,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-13 (lead, spec gate): V1 ruled KEEP (U-327, Design Notes).
+
 ## Review Triage Log
 
 ## Design Notes
@@ -145,6 +147,8 @@ Consumes: 21.6, 21.7 and `CommandCall.Run`. Consumed-by: 22.7, whose `send_email
    - a global.
 6. The lock comes with the shared block. EmailOut's pool is 1, so it matters only for a shadow instance beside the job.
 7. No Task 0: nothing needs measuring.
+
+**Ruling V1 (orchestrator, 2026-11-13, category veto, inbox U-327; the Planner may reverse):** KEEP the reuse of the existing nullable `Data.Delivery.DigestKey` for the 'tool'-prefixed 22-character `IdempotencyKey` hash, a pending claim written before the send and deleted after a failed send; no new column, index, table or global; nothing written on the online demo.
 
 ## Veto items
 
