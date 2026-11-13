@@ -2,7 +2,7 @@
 title: 'Story 22.3: Call MCP tools only through the governed proxy'
 type: 'feature'
 created: '2026-11-11'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '55c9a6de1893b04993e2094ff3d6245d43f9328d'
 baseline_commit: '55c9a6de1893b04993e2094ff3d6245d43f9328d'
 review_loop_iteration: 0
@@ -248,7 +248,11 @@ Rejected or closed at emission:
 - `[low]` `reject` the matrix's "about CALLSECONDS + 1 s" against the tests' + 3 s - the tests use the Task's bound. (blind-hunter)
 - `[low]` `reject` the frontmatter `deferred` items 3 and 4, the residual risks, the files list and the Spec Change Log wording are stale or unapplied - fixes that edit the spec; DW-1222 and DW-1223 are for the lead's adjudication (this review agrees both are resolved), and the wording change is honest and pinned (`TestProxyRewrite`, `TestTwoNativeCalls`, `ProxyJob`). (blind-hunter, acceptance-auditor, verification-gap)
 
+- [ ] [CI] checks: `docker/tests/test-release-sequence.sh` rule `overviewdoc` fails on af886ee3 (ci run 43344958166, job checks): its two controls "the can't-connect sentence below the first line" and "the MCP rules sentence dropped" expect a complaint, but the checker deliberately switches those two checks off once `src` holds `call_mcp_tool` ("while src has no MCP client"), which Story 22.3 added -- `docker/tests/test-release-sequence.sh` `t_overviewdoc` L2307/L2325 and `ovw_doc_problems` L2221/L2256 -- the fix must keep both controls meaningful (never skip or delete them): when `git -C "$root" grep -q call_mcp_tool -- src` holds, each control asserts the checker now gives NO complaint for that mutation (the switch is pinned); otherwise the controls stay as they are. Touch nothing else (the doc's MCP section is Story 22.6's). Verify with `bash docker/tests/test-release-sequence.sh` (about 130 s, foreground) and `bash docker/tests/test-boundaries.sh`.
+
 ## Spec Change Log
+
+- 2026-11-13 (runner, rework iteration 1, trigger ci): re-opened for the [CI] item above (checks job red on af886ee3: test-release-sequence overviewdoc controls).
 
 - 2026-11-12 (implement stage, measured platform fact; for the lead's post-hoc review as a Rule 5 apply-and-report amendment): the I/O matrix row "Rewrite" and the first AC say the mock logs "none from AI Hub's client". AI Hub's client sends its own `tools/list` before every tool call (22.9 evidence) and the rewrite cannot avoid it, so the observable that holds, and is pinned, is: from AI Hub's client only that `tools/list` and no `tools/call`; from client `iris` one `initialize`, the notification, one `tools/list` and one `tools/call`. The intent block is unchanged; the safety property (no call through AI Hub's client) is intact. Proposed wording for the row and the AC: "the mock logs no `tools/call` from AI Hub's client".
 
