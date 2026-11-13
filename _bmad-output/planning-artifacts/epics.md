@@ -1818,6 +1818,35 @@ So that I can judge the entry quickly and still find every install and admin det
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.34: The install-path OAuth2 check skips the built web bundle, so a release candidate passes it
+
+[ADDED 2026-11-12, Contest Planner 1.0.8 hotfix ruling] (owner's delegation, ~20:00Z; a 1.0.8 release blocker, one-story lever on OCT-epic0c, precedent the 0.27 lever). PR #12 (release/1.0.8-rc1 e7b1ccf4) fails its `checks` job on test-compose-file's row "install: no Dockerfile, compose file, script, manifest, CPF merge or preload names /csp/sys/oauth2 or IRIS's OAuth2 objects" (21.3's U-320 check): `oauth_app_untouched_by_install_paths` scans git-tracked files including `src/ocutalon/csp/*`, which is untracked on the feature branch but committed by the release cut, and the built main-*.js holds the displayed redirect path "/csp/sys/oauth2/OAuth2.Response.cls" (web/src/app/settings/email-view.ts REDIRECT_PATH). Footprint: `docker/tests/test-compose-file.sh` only; no product change.
+
+As the release owner cutting 1.0.8,
+I want the install-path OAuth2 check to skip the built browser bundle while still scanning every install path,
+So that a release candidate passes CI without weakening the check that nothing installs or starts the OAuth2 web application.
+
+**Acceptance Criteria:**
+
+**Given** `oauth_app_untouched_by_install_paths` in `docker/tests/test-compose-file.sh`
+**When** it scans the git-tracked install paths
+**Then** it no longer scans the built web bundle under `src/ocutalon/csp/` (a browser bundle cannot enable a server web application)
+**And** every other path in its list (Dockerfiles, compose files, install and CI scripts, module.xml, CPF merges, preloads, the Python sources, `.github/`, `release/`) is still scanned, and its file-count floor still holds on the feature branch and on a release candidate
+
+**Given** a throwaway git repository fixture
+**When** the check runs on it
+**Then** the string "/csp/sys/oauth2/OAuth2.Response.cls" in `src/ocutalon/csp/x.js` passes
+**And** the same string in a `Dockerfile`, or in `docker/merge.cpf`, still fails
+**And** undoing the exclusion turns the bundle fixture red (a demonstrated mutation, reverted byte for byte)
+
+**Given** this story's diff
+**When** it is inspected
+**Then** nothing outside `docker/tests/test-compose-file.sh` changes except bookkeeping, and `bash docker/tests/test-compose-file.sh` and `bash ci/checks.sh` pass
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.

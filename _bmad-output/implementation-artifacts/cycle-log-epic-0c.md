@@ -1,0 +1,25 @@
+# Cycle log: Epic 0, lane C (Story 0.34, 1.0.8 release-blocker hotfix lever; OCT-epic0c)
+
+2026-11-12T19:45:10Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=epic0c_hotfix_lever_story_0.34 lane=C ruling=contest_planner_1.0.8_hotfix_~20:00Z ci_hold_exempt=own_push_only
+2026-11-12T19:45:10Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-12T19:45:10Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-12T19:45:10Z	Epic 0	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-11-12T19:45:10Z	Epic 0	epic_branch_checked_out	repos=. head=36092ff1 branch=OCT-epic0c from=feature_36092ff1 note=not_yet_pushed
+2026-11-12T19:45:10Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-12T19:45:10Z	Epic 0	ledger_load	total=1196 open=0 routed=144 escalated=2 decision_pending=5 terminal=1045 owner_unknown=0 reowned_none=0 slice_0_34=empty
+2026-11-12T19:45:10Z	Epic 0	sprint_planning_skipped	reason=epic_start_recorded_by_lane_a story_inserted=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so generate=ok new_entries=1 dropped_orphans=0
+2026-11-12T19:45:10Z	Epic 0	retro_review_skipped	reason=skipped(policy)_recorded_in_cycle-log-epic-0
+2026-11-12T19:45:10Z	Story 0.34	story_created	path=_bmad-output/implementation-artifacts/spec-0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so.md build_status=ready-for-dev author=lead_from_planner_ruling plan_spawn=skipped(ruling:optional,precedent_0.33) model=claude-opus-5-5
+2026-11-12T19:45:54Z	Story 0.34	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-19 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false model=claude-opus-5-5
+2026-11-12T19:45:54Z	Story 0.34	stage_spawned	stage=implement spawn_at=2026-11-12T19:45:54Z model=claude-opus-5-5 agent_name=lead-handoff-edit cycle_iteration=1 story_base=36092ff1 mode=lead_handoff_edit_plus_self_review(ruling_step2)
+2026-11-12T20:10:44Z	Story 0.34	dev_complete	spawn_at=2026-11-12T19:47:00Z model=claude-opus-5-5 mode=lead_handoff_edit build_sha=6bb2b957 baseline_revision=916fcfbf story_base=36092ff1 review_loop_iteration=0 followup_review_recommended=false deferred=0 loc_added=36 loc_removed=8 files=1 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1 local_compose_file=132_pass checks_sh=32/32_pass_22.7min rc_sim=e7b1ccf4_shipped_FAIL_patched_PASS mutations=4_red_reverted_identical
+2026-11-12T20:10:44Z	Story 0.34	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5 note=AD-19_unchanged_test_only
+2026-11-12T20:10:44Z	Story 0.34	qa_skipped	reason=ruling_step3_deliverable_is_the_test_itself mutations_demonstrated=4
+2026-11-12T20:10:44Z	Story 0.34	stage_spawned	stage=code-review spawn_at=2026-11-12T20:10:44Z model=opus agent_name=0-34-code-review-1 cycle_iteration=1
+2026-11-12T20:23:59Z	Story 0.34	cr_complete	spawn_at=2026-11-12T20:09:00Z model=opus resolved=4 fixed_at_source=4 by_design=0 wontfix_theoretical=0 wontfix_accepted=1 routed=0 escalated=0 decision_pending=0 deferred=1 dismissed=5 high=0 med=2 low=3 rows=16 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus layers=blind-hunter,edge-case-hunter,verification-gap,acceptance-auditor ledger=DW-1224_wontfix-accepted patches=fixture_git_isolation(med),setup_failure_row(med),comment(low),mutation_lines(low) note=harness_ran_agent_and_layers_async_despite_run_in_background_false;lead_waited_in_bounded_foreground_polls_no_tree_edits
+2026-11-12T20:23:59Z	Story 0.34	ledger_adjudicated	owned=1 resolved=0 reowned=0 terminal=1 entries=DW-1224(wontfix-accepted_by_cr) slice_after=empty model=claude-opus-5-5
+2026-11-12T20:23:59Z	Story 0.34	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=rc_sim_scratch_clone_e7b1ccf4(19_csp_files,main-P7PESGFU.js_has_path):shipped_test_FAIL_U-320_row,reviewed_test_all_checks_passed;lead_M1_recheck_red_reverted_identical model=claude-opus-5-5
+2026-11-12T20:23:59Z	Story 0.34	fresh_check	env=clean-checkout(git_clone_--shared_at_6ab163f1+story_diff) tests=test-compose-file.sh(5_OAuth2_rows) result=pass order=forward,reverse tmp_leftovers=0
+2026-11-12T20:25:16Z	Story 0.34	committed	sha=1327fa1b code_sha=6bb2b957+1327fa1b submodules= ci=pending runs=43300084082,43300084119 amendments=none pushed=first_push_creates_origin/OCT-epic0c missing=none
+2026-11-12T20:25:16Z	Story 0.34	story_cycle	plan_to_commit_min=46 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:lead(opus,spec_from_ruling),implement:lead(opus,handoff_edit),qa:skipped(ruling),cr:opus
+2026-11-12T20:57:18Z	Story 0.34	ci_resolved	story=0.34 sha=1327fa1b runs=43300084082,43300084119 result=success failed=none via=none resolved_at=part_ready reruns=0 checks_job=success
