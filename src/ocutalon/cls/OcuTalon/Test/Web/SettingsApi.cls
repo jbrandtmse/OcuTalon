@@ -30,6 +30,8 @@
 ///   - TestChannelsRoute (Story 21.2): POST /v1/settings/channels on the online demo is 409 not_available with nothing offered or submitted, a password over 256
 ///     characters, a password that is not a JSON string (a number, an object) and a body that is not an object are 400 with nothing offered or submitted, a value with @{ or an unknown field is 400 through the production with the offered
 ///     password withdrawn, a command that the production does not take is 500 with the offered password withdrawn, and the password is in no answer, log row, ^OcuTalon* global or SaveSettings message;
+///     Story 21.14: an address or user name that is a number, an object or 257 characters is 400 naming it with nothing offered or submitted, and a body refused after the take (an incoming
+///     with @{) leaves a SaveSettings message whose address and user are hand-off references and whose incoming is plain, with neither value in any trace global or log row and the references taken back;
 ///   - TestAnswerMapping: each outcome of a save has its status, code and text;
 ///   - TestStateHasAdmin: the snapshot's admin follows the role.
 Class OcuTalon.Test.Web.SettingsApi Extends %UnitTest.TestCase
@@ -37,6 +39,9 @@ Class OcuTalon.Test.Web.SettingsApi Extends %UnitTest.TestCase
 
 /// The probe that carries the roles seam.
 Parameter PROBE = "OcuTalon.Test.Web.ApiProbe";
+
+/// The pattern of a hand-off reference.
+Parameter REFERENCE = "^secret://handoff/[0-9A-F]{32}$";
 
 /// The keys that the tests write.
 Parameter KEYS = "digest.time,digest.channels,checks.thresholds.diskFreePercent,checks.thresholds.journalFreePercent,checks.thresholds.licenseUsePercent,checks.thresholds.queueMessages,checks.thresholds.queueWaitMinutes";
@@ -550,7 +555,8 @@ Method TestChannelsRoute()
 	Set before = ..Handoffs()
 	Set rows = ..SaveSettingsRows()
 	Set secret = "zzchannelspw"_$Job_$Random(100000)
-	Set ok = {"address": "zzchannels@example.com", "incoming": "pop.example.com", "outgoing": "smtp.example.com", "user": "zzchannels", "password": (secret)}
+	Set address = "zzchan"_..Number_"x"_$Random(1000000)_"@example.com", user = "zzchanuser"_..Number_"x"_$Random(1000000)
+	Set ok = {"address": (address), "incoming": "pop.example.com", "outgoing": "smtp.example.com", "user": (user), "password": (secret)}
 	Try {
 		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 		Set body = ..Call("SaveChannels", ok.%ToJSON(), session, .response)
@@ -585,6 +591,36 @@ Method TestChannelsRoute()
 			Do $$$AssertEquals(..Handoffs(), before, field_": the offered password was withdrawn")
 			Do $$$AssertEquals(body [ secret, 0, field_": the answer does not hold the password")
 		}
+		// Story 21.14: the address and the user name are checked like the secrets, and the stored message holds only their references
+		Set rows = ..SaveSettingsRows()
+		For name = "address", "user" {
+			For type = "number", "object", "long" {
+				Set odd = {}.%FromJSON(ok.%ToJSON())
+				If type = "number" {
+					Do odd.%Set(name, 98765432123, "number")
+				} ElseIf type = "object" {
+					Do odd.%Set(name, {"p": "zzval98765432123"})
+				} Else {
+					Do odd.%Set(name, $Translate($Justify("", 257), " ", "a"), "string")
+				}
+				Set body = ..Call("SaveChannels", odd.%ToJSON(), session, .response)
+				Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""" _name_ """]}", "a "_name_" that is a "_type_": 400 bad_settings naming it")
+				Do $$$AssertEquals(..Handoffs()_"|"_..SaveSettingsRows(), before_"|"_rows, name_" "_type_": nothing was offered and nothing submitted")
+				Do $$$AssertEquals(..SaveSettingsHold("98765432123")_..SaveSettingsHold("zzval98765432123"), "00", name_" "_type_": no SaveSettings message holds the value")
+			}
+		}
+		Set held = {}.%FromJSON(ok.%ToJSON())
+		Do held.%Set("incoming", "x@{y", "string")
+		Set body = ..Call("SaveChannels", held.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""incoming""]}", "a body refused after the take: 400 naming incoming")
+		Do $$$AssertEquals(..Handoffs(), before, "the references were taken back")
+		Set stored = ##class(OcuTalon.Test.Core.SecretHandoff).NewestChanges()
+		Do $$$AssertEquals(stored.%GetTypeOf("address")_"|"_stored.%GetTypeOf("user"), "string|string", "the stored message has an address and a user")
+		Do $$$AssertTrue($Match(stored.address, ..#REFERENCE) && $Match(stored.user, ..#REFERENCE), "and they are references of the hand-off")
+		Do $$$AssertEquals(stored.incoming_"|"_stored.outgoing, "x@{y|smtp.example.com", "while incoming and outgoing are plain")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(address)_##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(user), "", "no trace global holds the address or the user name")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", address)_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", user), "00", "no log row holds them")
+		Do $$$AssertEquals(body [ address, 0, "and the answer does not hold the address")
 		Set rows = ..SaveSettingsRows()
 		Set clientSecret = "zzclientsecret"_$Job_$Random(100000)
 		Set long = {"address": "zzchannels@example.com", "incoming": "pop.example.com", "user": "zzchannels", "signIn": "google", "clientId": "zz-id.example", "clientSecret": ($Translate($Justify("", 257), " ", "c"))}
@@ -625,7 +661,9 @@ Method TestChannelsRoute()
 		Do $$$AssertEquals(..Handoffs(), before, "the offered password was withdrawn")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", secret)_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", clientSecret), "00", "no log row holds the password or the client secret")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(clientSecret), "", "no ^OcuTalon* global holds the client secret")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(clientSecret), "", "no trace global holds the client secret")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(secret), "", "no ^OcuTalon* global holds it")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(secret), "", "no trace global holds it")
 		Do $$$AssertEquals(..SaveSettingsHold(secret), 0, "and no SaveSettings message holds it")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")

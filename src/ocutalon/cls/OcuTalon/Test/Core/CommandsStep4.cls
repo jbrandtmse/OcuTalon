@@ -547,7 +547,8 @@ Method SetMailbox(owner As %String, address As %String) [ Private ]
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set("email.address", address), "email.address is set")
 }
 
-/// Saves the mailbox for the session through the real SaveEmail, run by a SettingsEmailProbe (stand-in credential, settings rows and production update).
+/// Saves the mailbox for the session through the real SaveEmail, run by a SettingsEmailProbe (stand-in credential, settings rows and production update). The address and
+/// user name are offered to the hand-off as the route does (Story 21.14), and every reference left is taken back.
 Method SaveMailbox(session As %String, address As %String) [ Private ]
 {
 	Set secret = "zzstep4pw"_$Job_$Random(100000)
@@ -555,7 +556,10 @@ Method SaveMailbox(session As %String, address As %String) [ Private ]
 	Do $$$AssertStatusOK(sc, "the password is offered")
 	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
 	Set command.Slug = "channels"
-	Set command.Changes = {"address": (address), "incoming": "pop.example.com", "user": "zzstep4", "password": (uri)}.%ToJSON()
+	Set body = {"address": (address), "incoming": "pop.example.com", "user": "zzstep4", "password": (uri)}
+	Set uris = $ListBuild(uri)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Core.SecretHandoff).Swap(body, .uris), "the address and user are offered")
+	Set command.Changes = body.%ToJSON()
 	Set command.ActingUser = "zzadmin"
 	Set command.SessionRef = session
 	Set command.Origin = "web_admin"
@@ -563,8 +567,12 @@ Method SaveMailbox(session As %String, address As %String) [ Private ]
 	Do $$$AssertStatusOK(sc, "a shadow instance of the settings probe is made")
 	Set sc = save.OnMessage(command, .result)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the real save is done")
-	Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .discard, 0)
-	Kill discard, secret
+	Set position = 0
+	While $ListNext(uris, position, one) {
+		Do ##class(OcuTalon.Core.SecretHandoff).Take(one, .discard, 0)
+		Kill discard
+	}
+	Kill secret
 }
 
 /// Puts a key back as found: its row with the value, or no row.

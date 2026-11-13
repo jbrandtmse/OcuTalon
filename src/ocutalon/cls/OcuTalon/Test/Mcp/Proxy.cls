@@ -364,7 +364,7 @@ Method TestNothingLeaks()
 	Do $$$AssertEquals(places, "", "nor the address of the mock: " _ places)
 }
 
-/// Where the value shows ("" when nowhere): the event log after the mark of the test, the stores of the key scan and the audit entries since the mark (of the source, when
+/// Where the value shows ("" when nowhere): the event log after the mark of the test, the stores of the key scan, the trace and the audit entries since the mark (of the source, when
 /// given: the Config Store audits the creation of a fixture entry, with its address, and that is no entry of OcuTalon).
 Method Places(value As %String, source As %String = "") As %String [ Private ]
 {
@@ -374,6 +374,7 @@ Method Places(value As %String, source As %String = "") As %String [ Private ]
 	If $ClassMethod("OcuTalon.Test.Agent.RunnerFixture", "LogRowsHolding", ..LogMark, value) Set places = places _ $ListBuild("the event log")
 	If $ClassMethod("OcuTalon.Test.Agent.KeyScan", "Find", value) '= "" Set places = places _ $ListBuild("a store of the key scan")
 	If ##class(OcuTalon.Test.Bridge.AuditLog).Entries(..AuditMark, source, , , value).%Size() Set places = places _ $ListBuild("the audit log")
+	If ##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(value) '= "" Set places = places _ $ListBuild("the trace")
 	Quit $ListToString(places, ", ")
 }
 

@@ -2,13 +2,21 @@
 title: 'The mailbox address and user name stay out of the trace'
 type: 'bugfix'
 created: '2026-11-13'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'b3fdf16c5c8d8352d496400b03c421d92d135fd6'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-21-context.md'
 warnings: ['oversized', 'retrofit_added_ruling_L']
-deferred: []
+deferred:
+  - summary: >-
+      Test.Watch.SettingSecret (Story 36.1) scans the trace by Ens.MessageHeader.Description only and has no TraceLeaks assertion.
+    evidence: |-
+      Ruling L lists the retrofit sites by story (21.2, 21.3, 21.8, 35.3, 22.3, 22.4); 36.1 is not listed, and a secret in a stored message body would pass that scan.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Watch/SettingSecret.cls:254
+    severity: low
 ---
 
 <intent-contract>
@@ -94,6 +102,34 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-13 - Review pass
+- verdicts: 20 findings - high 0, medium 4, low 13, false 7, maybe-false 0 (rows that share a root cause are marked carried; 3 medium entries)
+- findings:
+  - `[low]` `[reject]` Blind: a stored SaveSettings replayed from the message viewer is refused (the references are one-shot) - the intent says a plain value or a lost reference is refused naming the field; a save with a password was never replayable; spec-bound, not worth a guard.
+  - `[false]` `[reject]` Blind: the address can reach the trace by the digest mail's recipient - the spec leaves `Msg.Item.Sender` and `SendEmail.Recipients` out (ruling items 4 and 5); the tests claim only the save message.
+  - `[false]` `[reject]` Blind: the Public text sentence is too broad - the sentence is approved verbatim by the Planner (ruling item 5).
+  - `[false]` `[reject]` Blind: TraceLeaks scans are unbounded and may add run time - measured: Mcp.Attach 163 s before and 166 s after, other classes unchanged.
+  - `[medium]` `[patch]` Blind: the positive control covers two of the four globals - TestTraceLeaksFinds now also writes a header and a stream node and asserts both names; mutation line added.
+  - `[low]` `[patch]` Blind: NewestChanges is unfiltered - it now selects the newest message of slug channels.
+  - `[false]` `[reject]` Blind: PASSWORDMAX is misnamed and may differ from EmailShape's limits - the spec bounds all four fields by PASSWORDMAX (256) and keeps SettingsOps' exact rules, so each refusal is still a 400 naming the field.
+  - `[low]` `[patch]` Blind: helpers drop failures and the cleanup of TestTraceLeaksFinds is not in a Catch - the test now makes and deletes its rows around a Try/Catch.
+  - `[medium]` `[patch]` Edge: TestRefusedBodies' unknown-field case sent a plain address, so the refusal was no longer about the unknown field - the case goes through Save with references and asserts the refusal names no field.
+  - `[false]` `[reject]` Edge: the route's pre-check names only the pre-checked fields in a multi-fault body - decided in the spec (Design Notes), as for the password.
+  - `[low]` `[reject]` Edge: TakeMailbox names address and user before the fields of EmailShape in the refused list - only a body with both a take failure and another fault; the spec orders the take first, and the list is a set the page shows.
+  - `[false]` `[reject]` Edge: Places in Proxy and Attach pass constants to TraceLeaks and may meet leftovers - both classes ran green repeatedly on the shared warm stack; a hit would have been red.
+  - `[false]` `[reject]` Edge: an empty value gives a "[empty text]" trace place - fail-closed by design, and the same as for Leaks.
+  - `[low]` `[patch]` Edge: NewestChanges may read another save's message - carried with the Blind row above, fixed by the channels filter.
+  - `[low]` `[reject]` Edge: replay after the references are taken - carried with the Blind row above.
+  - `[medium]` `[patch]` Gap: TestOnlineDemo never shows the address and user references stay untaken - the test now takes both after the demo refusal; mutation line added.
+  - `[medium]` `[patch]` Gap: TraceLeaks finds only two of its four globals in the one test that proves it - carried with the Blind row above, fixed.
+  - `[low]` `[reject]` Gap: the TraceLeaks lines in SettingsEmail cannot see a persisted message - the spec requires them beside the 21.2 and 21.3 scans (ruling L), they do scan Ens.Util.LogD; the route and live tests carry the pin.
+  - `[low]` `[patch]` Gap: AC 4 and the new tests have no mutation line - the AC 4 line is added (Rule 19 is one per AC); the retrofit sites need none beyond TestTraceLeaksFinds' lines.
+  - `[low]` `[defer]` Gap: Test.Watch.SettingSecret (Story 36.1) is not retrofitted - out of the spec's listed sites; deferred.
+  - `[low]` `[reject]` Gap: TestAddressAndUserOutOfTheTrace scans once after the first poll - the value is written at the save, and the sibling scans cover the polls for the password.
+  - `[low]` `[reject]` Gap: TestTraceLeaksFinds deletes after its assertions with no Catch - carried with the Blind row above, fixed.
+  - `[low]` `[reject]` Intent: the tests of EmailLive, SettingsEmail and CommandsStep4 use the test-side Swap rather than the route - the route is pinned by TestChannelsRoute and its mutation; a drift of Swap would show there.
+  - `[low]` `[reject]` Intent: the SettingsEmail TraceLeaks lines are vacuous for the persisted message - carried with the Gap row above.
+
 ## Design Notes
 
 **Governing ADs:** AD-1 (every change is a traced command; the REST handoff bullet), AD-19 (fixed homes; the "Handing a secret" and mail-credential bullets: storage unchanged), AD-24/AD-25 (the trace role and the online demo's shared Visual Trace). No contradiction: the ruling widens what the handoff carries, for a synchronous save only.
@@ -134,6 +170,14 @@ Run every command from the worktree root, one per foreground call (`timeout: 600
 
 `<vars>` = `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=21 stage=implement'`. The warm tag is `e21s14iw` and the fresh tag `e21s14i`.
 
+**Implement-stage notes (lead, pre-answered):**
+- Order: build `TraceLeaks` and the retrofit first, then run the retrofitted classes against the UNCHANGED product code (`Api.cls`, `SettingsOps.cls` untouched) before any product change. A red scan caused by a secret really sitting in `^Ens.MessageBody*`, `^Ens.MessageHeaderD` or `^Ens.Util.LogD` is a REAL LEAK: change no product code, do not weaken, skip or exempt the assertion, and stop and report (test, value kind, global; never the value). A red caused by the retrofit itself (wrong argument, scan error) is fixed in the test.
+- Public text: exactly the sentence above. No other new public text.
+- Rule 19: every pin gets its `mutation:` line (applied, observed red, reverted byte-identical), written under Verification.
+- Rule 14: the spec is `oversized`; add nothing beyond its tasks.
+- Scan cost: `TraceLeaks` walks whole globals on a shared warm instance, and `Mcp.Attach` calls its `Leaks` about 25 times. If a class's run time grows by more than about 30 s, compute the scan once per test, not once per assertion, and record that here.
+- Runtime (lane C only): `OCUTALON_LOCK_DIR=<worktree parent>/.coordination/locks/lane-c`, `OCUTALON_TEST_WEB_PORT=52803`, `OCUTALON_LOCK_OWNER='epic=21 stage=implement'`; warm tag `e21s14iw`, fresh tag `e21s14i`. Never read `.env`, never send real mail, never touch another lane's containers, `ocutalon-aihub-test`, `ocupilot*` or `iris-community-edition`. A mutation of production-run code needs `ci/warm.sh down` then `up`. Tear down everything you start. Scratch only under the scratchpad directory given in the spawn prompt. No absolute local path in a tracked file. Do not touch any Epic 22 product file; the Mcp test files get the retrofit lines only. Do not edit the architecture spine.
+
 **Shared surfaces:** the shape of `SaveSettings.Changes` for slug `channels`. It is built or asserted by `Test.Core.SettingsEmail` (`Save`), `Test.Core.CommandsStep4` (`SaveMailbox`), `Test.Channel.EmailLive` (`Connect`, `Resave`, `ConnectOAuth`, l.837, l.1979), `Test.Web.SettingsApi` (`TestChannelsRoute`, `SaveSettingsHold`) and, read-only, `web/e2e/settings/email.spec.ts` (route input unchanged). Every test added or changed passes on a fresh environment, in either order, with unique values per run and every reference taken back.
 
 **Commands:**
@@ -152,7 +196,39 @@ Run every command from the worktree root, one per foreground call (`timeout: 600
 - `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh` (once each) -- pass.
 - `git diff -U0 -- src | grep -E '^[+-]\s*(Property|Index|<Value>|<Data|Storage|XData)'` (once) -- no output (no stored-data or section change).
 
+**Implement-stage results (Rule 19: each mutation applied, observed red, reverted byte-identical):**
+- Retrofit runs against the UNCHANGED product code (Api.cls, SettingsOps.cls untouched), all green, so no real leak: `Test.Web.HookSettingsApi`, `Test.Mcp.Attach` (about 163 s, as before the retrofit), `Test.Mcp.Proxy`, `Test.Mcp.Ops`, `Test.Mcp.Approval`, `Test.Mcp.ProxyJob`, `Test.Core.SettingsEmail`, `Test.Web.SettingsApi`, `Test.Channel.EmailLive`. The same classes, with `Test.Channel.EmailOAuth`, `Test.Core.CommandsStep4` and `Test.Core.SecretHandoff`, are green after the product change. The scan was not slowed, so no scan is cached.
+- mutation: `SettingsApi:TestChannelsRoute` -- `"address", "user"` removed from the offer loop of `SaveChannels` -> red (the `@{` cases, "a body refused after the take", "they are references of the hand-off" and "no trace global holds the address or the user name"); reverted, cmp identical.
+- mutation: `SettingsEmail:TestAddressAndUserByReference` -- the take step in `SettingsOps.TakeMailbox` keeps a plain string (no `AddField` on a failed take) -> red (plain address, plain user, lost user reference, never-offered reference); reverted, cmp identical.
+- mutation: `SecretHandoff:TestTraceLeaksFinds` -- `TraceLeaks` skips `Ens.Util.LogD` -> red ("names Ens.Util.LogD"); `TraceLeaks` returns "" at once -> red (both names); reverted, cmp identical.
+- mutation: `EmailLive:TestAddressAndUserOutOfTheTrace` -- `SaveEmail` adds `$$$LOGINFO` of `field("address")` (after `warm.sh down` and `up`) -> red ("no trace global holds the address"); reverted, cmp identical, then `warm.sh down`.
+- mutation: `SettingsEmail:TestOnlineDemo` (the online demo takes nothing) -- `TakeMailbox` moved above the online-demo check of `SaveEmail` -> red ("the address reference was not taken", "nor the user name's"); reverted, cmp identical.
+- mutation: `SecretHandoff:TestTraceLeaksFinds` (all four globals) -- `Ens.MessageBodyS` and `Ens.MessageHeaderD` removed from `TraceLeaks`' list -> red ("and Ens.MessageHeaderD for the header", "and Ens.MessageBodyS for the stream node"); reverted, cmp identical.
+- mutation: AC 4 (`incoming`, `outgoing` and the other fields stay plain), pin `SettingsApi:TestChannelsRoute` -- `"incoming"` added to the offer loop of `SaveChannels` -> red ("while incoming and outgoing are plain" and the `@{` cases); reverted, cmp identical.
+- mutation: the Public text line removed -> `grep -Fxc` is 0 (on a copy), 1 in the file.
+- Fresh checks (tag `e21s14i`, no warm; run again after the review patches): `TestChannelsRoute` and `TestAddressAndUserOutOfTheTrace` passed, `iris.sh teardown` left nothing.
+- After the review patches (warm tag `e21s14iw`, down afterwards): `SecretHandoff`, `SettingsEmail`, `SettingsApi`, `CommandsStep4` and `EmailLive` (115 s) pass. Scan cost: `Mcp.Attach` ran about 163 s before and 166 s after the retrofit, so no scan is computed once per test. `test-class-rules.sh` and `test-boundaries.sh` pass; the stored-data grep prints nothing.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `SaveChannels` now offers the mailbox address and user name to `SecretHandoff` like the password, so `SaveSettings.Changes` holds only references for them. `SettingsOps.SaveEmail` takes both with `TakeMailbox` before `EmailShape`; a plain string or a lost reference is refused naming the field, and the online demo still refuses first. Storage is unchanged. `TraceLeaks` (message bodies and streams, headers, log rows) is added to `Test.Core.SecretHandoff` and asserted beside every listed secret scan, with no real leak found against the unchanged product code. The Public text sentence is in `docs/security-overview.md`.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls`: the route swap and docs for address and user.
+- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls`: `TakeMailbox`, called by `SaveEmail`; docs.
+- `src/ocutalon/cls/OcuTalon/Core/SecretHandoff.cls`: doc only.
+- `docs/security-overview.md`: the approved sentence after the `OcuTalonTraceViewer` bullet.
+- `src/ocutalon/cls/OcuTalon/Test/Core/SecretHandoff.cls`: `Holds`, `TraceLeaks`, `Swap`, `NewestChanges`, `TestTraceLeaksFinds`.
+- `src/ocutalon/cls/OcuTalon/Test/Core/SettingsEmail.cls`, `Test/Web/SettingsApi.cls`, `Test/Channel/EmailLive.cls`, `Test/Core/CommandsStep4.cls`: the swap in the helpers, the new pins and the retrofit.
+- `src/ocutalon/cls/OcuTalon/Test/Web/HookSettingsApi.cls`, `Test/Mcp/Attach.cls`, `Proxy.cls`, `JobFixture.cls`, `Ops.cls`, `Approval.cls`, `ProxyJob.cls`: the retrofit lines only.
+
+**Review.** 20 findings from four layers: 5 patch entries applied (3 medium entries - the four-global positive control, the unknown-field case of `TestRefusedBodies` and the online demo's untaken references - and 2 low: the channels filter of `NewestChanges` and the AC 4 mutation line; the Catch around `TestTraceLeaksFinds`' cleanup is one more low), 1 deferred (low, in frontmatter), 14 rejected with their reasons in the triage log. No `high`.
+
+**Follow-up review recommendation:** `false` (no `high` was patched, as the stage prompt's override (c) sets; patched by entry verdict: high 0, medium 3, low 3).
+
+**Verification.** Retrofitted classes green against the unchanged product code and again after it; after the review patches `SecretHandoff`, `SettingsEmail`, `SettingsApi`, `CommandsStep4` and `EmailLive` pass (warm tag `e21s14iw`); the fresh checks of `TestChannelsRoute` and `TestAddressAndUserOutOfTheTrace` pass (tag `e21s14i`); `test-boundaries.sh` and `test-class-rules.sh` pass; the Public text grep is 1; the stored-data grep prints nothing. All stacks are torn down. Mutation lines are under Verification.
+
+**Residual risks.** `EmailLive` reads `email.address` with `KeyIndexOpen` because `Data.Setting.Get` returned an empty value in the test process once (not investigated; the cache may be stale for the first value after a save). `EmailOAuth` was green after the product change and was not re-run after the review patches (they touch no file it uses). The AD-1 and AD-19 spine wording is the lead's.

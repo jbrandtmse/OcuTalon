@@ -11,8 +11,13 @@
 ///   - TestEmptySecretRefused: Put of an empty value fails and creates no resource;
 ///   - TestWaitAndTimeout: a Take of a reference with no queued secret ends after its timeout and deletes the resource;
 ///   - TestCrossProcess: a second job takes the secret that this process put (the secret reaches another process), and the resource is gone;
-///   - TestNothingPersisted: after a round trip no ^OcuTalon* global, no Ens.Util.Log row and no Ens.MessageHeader row holds the secret.
+///   - TestNothingPersisted: after a round trip no ^OcuTalon* global, no Ens.Util.Log row and no Ens.MessageHeader row holds the secret;
+///   - TestTraceLeaksFinds (Story 21.14): TraceLeaks names ^Ens.Util.LogD for a text in a log row, ^Ens.MessageBodyD for a text in a SaveSettings message,
+///     ^Ens.MessageHeaderD for one in a header and ^Ens.MessageBodyS for one in a stream node (the trace scan finds what it is meant to find), and names nothing once all are deleted.
 /// Leaks(text) lists the ^OcuTalon* globals (OcuTalonTest excluded) whose data or subscripts hold the text; other test classes use it.
+/// TraceLeaks(text) lists the trace globals (^Ens.MessageBodyD, ^Ens.MessageBodyS, ^Ens.MessageHeaderD and ^Ens.Util.LogD) that hold it: every OcuTalon message shares
+/// the Ens.MessageBody extent, so Leaks never covered the trace. Swap(body, uris) offers the address and user of a channels body to the hand-off, as the route does;
+/// NewestChanges() is the parsed Changes of the newest stored SaveSettings message of the channels section.
 Class OcuTalon.Test.Core.SecretHandoff Extends %UnitTest.TestCase
 {
 
@@ -172,6 +177,47 @@ Method TestNothingPersisted()
 	Kill taken
 }
 
+/// Story 21.14: the trace scan finds a text in each of its four globals (a log row, a SaveSettings message, a message header and a node of the body stream
+/// global) and finds nothing once all are deleted. What a test makes is deleted even when it fails.
+Method TestTraceLeaksFinds()
+{
+	Set text = "zztrace"_..NewSecret()
+	Set (logId, bodyId, headerId, streamNode) = ""
+	Do $$$AssertEquals(..TraceLeaks(text), "", "before anything holds the text, no trace global does")
+	Do $$$AssertEquals(..TraceLeaks(""), "[empty text]", "an empty text is not a pass")
+	Try {
+		Do ##class(Ens.Util.Log).LogInfo("OcuTalon.Test.Core.SecretHandoff", "TestTraceLeaksFinds", text)
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM Ens_Util.Log WHERE Text = ?", text)
+		Set logId = $Select(result.%Next(): result.%GetData(1), 1: "")
+		Do $$$AssertTrue(logId '= "", "the log row is written")
+		Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
+		Set command.Slug = "channels"
+		Set command.Changes = "{""address"":"""_text_"""}"
+		Set command.ActingUser = "zzadmin"
+		Set command.Origin = "web_admin"
+		Do $$$AssertStatusOK(command.%Save(), "the message is saved")
+		Set bodyId = command.%Id()
+		Set header = ##class(Ens.MessageHeader).%New()
+		Set header.Description = text
+		Do $$$AssertStatusOK(header.%Save(), "the header is saved")
+		Set headerId = header.%Id()
+		Set streamNode = "zztrace"_$Job_$Random(1000000)
+		Set ^Ens.MessageBodyS(streamNode) = text
+		Set found = ","_..TraceLeaks(text)_","
+		Do $$$AssertTrue(found [ ",Ens.Util.LogD,", "TraceLeaks names Ens.Util.LogD for the log row")
+		Do $$$AssertTrue(found [ ",Ens.MessageBodyD,", "and Ens.MessageBodyD for the message")
+		Do $$$AssertTrue(found [ ",Ens.MessageHeaderD,", "and Ens.MessageHeaderD for the header")
+		Do $$$AssertTrue(found [ ",Ens.MessageBodyS,", "and Ens.MessageBodyS for the stream node")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	If logId '= "" Do ##class(Ens.Util.Log).%DeleteId(logId)
+	If bodyId '= "" Do ##class(OcuTalon.Msg.Command.SaveSettings).%DeleteId(bodyId)
+	If headerId '= "" Do ##class(Ens.MessageHeader).%DeleteId(headerId)
+	If streamNode '= "" Kill ^Ens.MessageBodyS(streamNode)
+	Do $$$AssertEquals(..TraceLeaks(text), "", "all deleted, no trace global holds the text")
+}
+
 /// The ^OcuTalon* globals of this namespace (mappings included; OcuTalonTest and the empty ones excluded) whose data or subscripts hold the text,
 /// as a comma list of names, or "" when none does.
 ClassMethod Leaks(text As %String) As %String
@@ -184,19 +230,66 @@ ClassMethod Leaks(text As %String) As %String
 	While result.%Next() {
 		Set name = result.%GetData(1)
 		If name = "OcuTalonTest" Continue
-		Set root = "^"_name
-		Set hit = 0
-		If $Data(@root) # 2 Set hit = (@root [ text)
-		Set node = root
-		For {
-			Quit:hit
-			Set node = $Query(@node, 1, data)
-			Quit:node=""
-			If (data [ text) || (node [ text) Set hit = 1
-		}
-		If hit Set found = found_$Select(found = "": "", 1: ",")_name
+		If ..Holds("^"_name, text) Set found = found_$Select(found = "": "", 1: ",")_name
 	}
 	Quit found
+}
+
+/// The trace globals (Ens.MessageBodyD, Ens.MessageBodyS, Ens.MessageHeaderD and Ens.Util.LogD, without the caret) whose data or subscripts hold the text,
+/// as a comma list of names, or "" when none does. Every OcuTalon message is stored in the Ens.MessageBody extent, so a value in a command is found here.
+ClassMethod TraceLeaks(text As %String) As %String
+{
+	If text = "" Quit "[empty text]"
+	Set found = ""
+	For name = "Ens.MessageBodyD", "Ens.MessageBodyS", "Ens.MessageHeaderD", "Ens.Util.LogD" {
+		If ..Holds("^"_name, text) Set found = found_$Select(found = "": "", 1: ",")_name
+	}
+	Quit found
+}
+
+/// The Changes of the newest stored SaveSettings message of the channels section, parsed ({} when there is none): the body of the last save as the production holds it.
+ClassMethod NewestChanges() As %DynamicObject
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Changes FROM OcuTalon_Msg_Command.SaveSettings WHERE Slug = 'channels' ORDER BY ID DESC")
+	If (result.%SQLCODE < 0) || 'result.%Next() Quit {}
+	Quit {}.%FromJSON(result.%GetData(1))
+}
+
+/// 1 when the global (its root, with the caret) holds the text in the data or in a subscript of any node.
+ClassMethod Holds(root As %String, text As %String) As %Boolean [ Private ]
+{
+	Set hit = 0
+	If $Data(@root) # 2 Set hit = (@root [ text)
+	Set node = root
+	For {
+		Quit:hit
+		Set node = $Query(@node, 1, data)
+		Quit:node=""
+		If (data [ text) || (node [ text) Set hit = 1
+	}
+	Quit hit
+}
+
+/// Offers each non-empty string member address and user of a channels body to the hand-off and puts the reference in its place, as the route does
+/// (Story 21.14); each reference is appended to uris, so that the caller can take it back. Changes the body in place: pass a copy.
+ClassMethod Swap(body As %DynamicObject, ByRef uris As %List) As %Status
+{
+	Set status = $$$OK
+	If '$Data(uris) Set uris = ""
+	For name = "address", "user" {
+		If body.%GetTypeOf(name) '= "string" Continue
+		Set value = body.%Get(name)
+		If value = "" Continue
+		Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(value, .uri)
+		Kill value
+		If $$$ISERR(sc) {
+			Set status = sc
+			Continue
+		}
+		Set uris = uris_$ListBuild(uri)
+		Do body.%Set(name, uri, "string")
+	}
+	Quit status
 }
 
 /// 1 when a row of the table holds the text in the column (a substring; a failed query counts as 1, so that it can never pass a check).
