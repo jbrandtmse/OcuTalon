@@ -7713,3 +7713,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 43457520830 (OCT-epic21 4af1db03, iris shards-9) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls
 - evidence: one failure on a head whose diff touches no bridge, model or agent code (21.14: settings handoff and test leak scans); class ran 137 s
 - 2026-11-13T17:35:59Z status=open owner=burndown by=epic-21-runner note=flake rule: one rerun of the failed job; occurrence 1
+- 2026-11-13T18:26:09Z note=occurrence 1 resolved by rerun: ci 43457520830 attempt 2 green on 4af1db03 (18:24Z)

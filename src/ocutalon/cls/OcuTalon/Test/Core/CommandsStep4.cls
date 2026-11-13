@@ -404,6 +404,12 @@ Method TestMcpEntryWrite()
 	Do $$$AssertEquals(..Left(server), "", "and leaves no row, resource, entry, collection or key")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(logMark, "the entry or the wallet secret of the MCP server could not be written"), warnings + 1, "with one warning of a fixed text")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "MCP", "MCP", server).%Size(), 4, "and no audit entry of it (the four of the two adds and the two removes before)")
+	// an add whose audit fails is undone: the row, the resource, the entry, the wallet key and the collection (Register's audit-failure path drops the entry first)
+	Set ^||ZzOps("auditError") = 1
+	Set result = ..AddThrough(server, url, secret)
+	Kill ^||ZzOps("auditError")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|not_audited|"_##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED, "an add whose audit fails is answered not_audited")
+	Do $$$AssertEquals(..Left(server), "", "and its row, resource, entry, wallet key and collection are all undone")
 	// a secret with a plain http:// address to another computer
 	Set command = ..NewAdd(server, "http://192.0.2.7/mcp")
 	Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Put(secret, .uri), "a secret is offered for a plain http address")

@@ -7,7 +7,7 @@
  * - SETTINGS_TEXTS is every fixed string of the page. The strings that EXPERIENCE.md does not write are ruled (U-269 for the unsaved prompt, the
  *   denied view's link, the threshold labels, the Demo mode texts and the landmark names; U-270 for the Demo step's text).
  *   demoSaved, the Demo mode section's own confirmation, is the text of Story 33.3's AC (DW-699): a saved mode reaches an open chat page only after a reload.
- * - SETTINGS_SECTIONS is the seven sections in the UX's order, each with its address slug.
+ * - SETTINGS_SECTIONS is the eight sections in the UX's order, each with its address slug. The eighth, Tools and MCP servers (Story 21.4), is mcp-view.ts.
  * - sectionSlug turns an address part into a section's slug: an unknown or missing one opens Models.
  * - pageOf says which page an address is: the settings page, the Documents page, the Usage page or the chat.
  * - THRESHOLD_FIELDS is the five fields of Check thresholds with their ranges; bodyOf, textsOf and isDirty are the rules of its form.
@@ -38,6 +38,7 @@ export const SETTINGS_TEXTS = {
     timeZone: 'Time zone',
     checkThresholds: 'Check thresholds',
     demoMode: 'Demo mode',
+    mcp: 'Tools and MCP servers',
   },
   save: 'Save changes',
   saved: 'Saved. Applies within a minute. Recorded in the audit log.',
@@ -125,7 +126,7 @@ export interface SettingsSection {
   label: string;
 }
 
-/** The seven sections in the UX's order. */
+/** The eight sections in the UX's order. */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'models', label: SETTINGS_TEXTS.sections.models },
   { slug: 'budgets', label: SETTINGS_TEXTS.sections.budgets },
@@ -134,6 +135,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'time-zone', label: SETTINGS_TEXTS.sections.timeZone },
   { slug: 'check-thresholds', label: SETTINGS_TEXTS.sections.checkThresholds },
   { slug: 'demo-mode', label: SETTINGS_TEXTS.sections.demoMode },
+  { slug: 'mcp', label: SETTINGS_TEXTS.sections.mcp },
 ];
 
 /** The slug of the section that an address part names, or models (the first) for an unknown or missing one. */

@@ -2,7 +2,7 @@
 title: 'Story 21.4: Add, remove and classify MCP servers and tools in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
+status: 'blocked'
 baseline_revision: '96bbbcd8ecb47dfd42eafb0b83cf1785d8099cd1'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -507,9 +507,62 @@ New, for the Planner (Settings > Tools and MCP servers unless said; online demo:
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: product finding (pre-answered override (c)): `Test.Mcp.Attach:TestRemovedServer` breaks because McpOps now drops the entry in `Unregister`. The untrusted-turn iteration's two assertions ("denied with UNREGISTERED", "so is the call to its other tool") now see `ERROR <%AICore>ToolNotFound: Tool not found: zz_lookup` instead of UNREGISTERED: the second turn re-attaches the recorded spec, the entry is gone, and AI Hub has no such tool. Confirmed: the test passes when the `DropEntry` call in `Unregister` is removed. The test was not weakened and `Unregister` was not changed beyond the spec. A ruling is needed (drop the entry at another point, or accept ToolNotFound as a denial).
+Status: blocked (frontmatter `status: 'blocked'`: B1 and B2 are open, and the Contest Planner is ruling them)
 
-Open for the ruling (found in the same pass): `Test.Mcp.Ops:TestNoAddressOrSecretInAnyText` failed because IRIS's own audit entry "Create Configuration: AI.MCP.OcuTalon_<server>" holds the entry's URL (query string included). The audit assertion was narrowed to source `OcuTalon`, one edit beyond the spec's "Clean only" for that file; whether the address in the instance audit log is acceptable is a security-posture question. No wallet secret appears in any audit entry of any source.
+**Implement pass 2 (2026-11-13; worktree `epic-21`, branch `wip/21-4-impl1`, HEAD `ea830d21`, everything below is UNCOMMITTED).**
 
-Done: ObjectScript product code, new ObjectScript tests, shared-surface updates, Lane A test cleanups, Task 0 (a)-(d), (f) (recorded in Design Notes). Not done: web section and web tests, docs and spine S1-S6, node/tsc/build checks, live browser parts, Rule 19 mutation lines, test-boundaries. The partial work is left uncommitted in the tree (HEAD 96bbbcd8); a patch copy is in the session scratch folder (e21s4impl/21-4-partial.patch).
+Still open (the two rulings; nothing in this pass decides them):
+- B1: `Test.Mcp.Attach:TestRemovedServer` sees `ERROR <%AICore>ToolNotFound: Tool not found: zz_lookup` instead of `UNREGISTERED` after McpOps drops the entry in `Unregister`. The `DropEntry` call in `Unregister` is kept as it is; the test is untouched. Confirmed red again in this pass (two asserts: "denied with UNREGISTERED" and "so is the call to its other tool").
+- B2: IRIS's own audit entry "Create Configuration: AI.MCP.OcuTalon_<server>" holds the entry URL; `Test.Mcp.Ops` `TestNoAddressOrSecretInAnyText` keeps pass 1's narrowing to source `OcuTalon` (not extended). `Test.Mcp.Ops` is green with it. The e2e M6 scan reads the audit table without that narrowing for the secret only: no entry of any source holds the secret (an address in IRIS's own entry is B2's question and is not asserted here).
+- Nothing else is gated by B1/B2.
+
+Done in pass 2:
+- Web section: `web/src/app/settings/mcp-view.ts` (MCP_TEXTS, `removeQuestion` with T7's nine forms, `statusText`, `toolStatusText`, `visibleTools`, `addBody`, `mcpOutcome`, `withClassification`), `mcp-section.ts` (states loading/ready/off/denied/failed; Servers table with Remove per row, T11 names; Add server form with Name, Address, Secret (`type="password"`, `autocomplete="off"`), field errors under each field with the first focused; the Remove dialog is the shared `ConfirmDialog` (Rule 2: its heading is the sentence, first-focused and naming the dialog); Tools table with "Unclassified only" and a three-radio `role="radiogroup"` per row named T10, `classification-*` chips, `Icon check` on the checked one, save at once, "Saved" per row, old value back on failure). `settings-view.ts` has the eighth section `mcp` ("Tools and MCP servers", last); `settings-page.ts` opens it (`@case ('mcp')`). `api-types.ts` and `api-client.ts` have `McpSettings`, `McpServerRow`, `McpToolRow`, `McpChanged`, `McpError` and `mcpSettings()`, `addMcpServer`, `removeMcpServer`, `classifyMcpTool`.
+- Web tests: new `web/scripts/mcp-view.test.mjs` (T7's forms, filter, body, outcome, T1 equal to `catalogText('settings.mcpOffOnDemo')`); `ux-strings.test.mjs` imports `MCP_TEXTS` and has the new entries (every T-text is a `ux` source from the new EXPERIENCE rows; "Unclassified (counts as risky)" and "Risky" are `ac`); `settings-view.test.mjs` is eight sections; the source guards `announce-focus-sources.test.mjs` (speakers, focus calls, render waits, ConfirmDialog users) and `floor-sources.test.mjs` (dialog openers, scrollers) name `mcp-section.ts`; new `web/e2e/api/mcp.spec.ts` (M1, M2-M4 and M6 as one case, M5), `web/e2e/settings/mcp.spec.ts` (B1-B5), `web/e2e/support/mcp.ts`; `settings.spec.ts` has the eighth section (S1, S1f, the POST list).
+- Docs: EXPERIENCE "Settings and requests (step 4)" has T1-T8, T10 and T11 as 17 rows (marker `[ADDED 2026-11-12, Story 21.4, Contest Planner ruling B]`; T6 is `Web.McpSettings` `MESSAGESECRET`); GUIDE.md "New since 1.0.0" has T9 under "Your integrations" after "Your own mailbox.". All verbatim.
+- Spine S1-S6 with markers (AD-19 two places, AD-21 two places, Seed (a row replaced and a row added), three REST rows, AD-1 sub-bullet); `lint_spine.py`: 10 low placeholder findings, the baseline, none new. `grep SaveMcpEntry|RemoveMcpEntry`: every hit in the spine is inside an "it read" clause, `src` has none. A `spine_updated` line is in `cycle-log-epic-21.md`.
+- Checks: `node --test web/scripts/` 1993 pass, 0 fail; `tsc -p tsconfig.e2e.json` clean; `npm run build` clean (initial bundle 998.08 kB against the 1 MB error budget, see Decided 17); `test-boundaries.sh`, `test-class-rules.sh`, `test-ci-config.sh` pass.
+- Live: `ci/iris.sh live sign-in-2 --part 10/12` (session, email, mcp: B1-B5) 20 of 20; `live sign-in --part 2/16` (api/mcp.spec.ts M1-M5 with the mock and a real runner build) 20 of 20; `live sign-in-2 --part 11/12` (settings.spec.ts) once failed on my own missed count (S1f `toHaveCount(7)`), fixed, and the re-run passed (26 of 26).
+- Warm ObjectScript classes (tag `e21s4iw2`, one class per call), all green: Core.CommandsStep4, Web.McpSettingsApi, Core.SettingsMcp, Mcp.Ops, Mcp.Classification, Mcp.Tools, Msg.Contracts, Msg.Catalog, Contract.Ac, Core.Routing, Web.Api, Web.SettingsApi, Web.HookSettingsApi, Core.SettingsWebhooks, Mcp.Attach:TestCommands, Mcp.Approval:TestRemovedWhilePending, :TestRemovedWhileApproved, :TestCancellingTwiceIsANoOp.
+- Task 0 (e): in M2 one chat message after the add let a runner build and attach the mock's two tools within 13.5 s of the whole case; which runner built was not recorded (the test asserts the result, not the runner).
+
+Red tests and why:
+- `Test.Mcp.Attach:TestRemovedServer` (2 asserts): B1 only.
+- No other red test remains.
+
+Mutations (Rule 19; each applied, observed red, reverted byte-identical and equal to HEAD):
+- mutation: removeQuestion m = 1 with the plural verb -> `mcp-view.test.mjs` red (and `ux-strings.test.mjs`) -> reverted
+- mutation: `visibleTools` keeps every tool with the filter on -> `mcp-view.test.mjs` red (2) -> reverted
+- mutation: `removeQuestion` treats one tool as many -> red -> reverted
+- mutation: `withClassification` counts unclassified over every server -> red (2) -> reverted
+- mutation: radiogroup `(change)` handler removed -> B3 red (`live sign-in-2 --part 10/12`) -> reverted
+- mutation: `Web.Api.HandOff` without `Set command.Handoff = uri` -> M2 red (`live sign-in --part 2/16`: no wallet key or collection made) -> reverted
+- mutation: `SaveEntry` call removed from `Ops.Register` -> `CommandsStep4` `TestMcpEntryWrite` red -> reverted
+- mutation: `DropEntry` removed from Register's audit-failure path -> NOT red at first (no test pinned it, in `CommandsStep4` or `Test.Mcp.Ops`); pin added (the audit-failure case in `TestMcpEntryWrite`), then red -> reverted
+- mutation: `DropEntry` call removed from `Ops.Unregister` (applied for the run and reverted; the call is as pass 1 left it) -> `TestMcpEntryWrite` red -> reverted
+- mutation: `ListMcpServers` origins `web_admin,tool` -> `TestOrigins` and `TestToolVerbs` red -> reverted
+- mutation: the secret checks of `Web.McpSettings.AddFields` skipped -> `McpSettingsApi` `TestAddRefusals` red -> reverted
+- mutation: `Discard` skipped in `Web.Api.HandOff` -> `McpSettingsApi` red (`TestAddRefusals`, `TestHandoffDiscardedOnFailure`) -> reverted
+- mutation: demo check after the body read in `Web.McpSettings.Add` -> `TestOnlineDemo` red -> reverted
+- mutation: `unclassified` counted over every tool in `ListMcp` -> `SettingsMcp` `TestList` red -> reverted
+- mutation: `PendingToolCalls` without the State filter -> `TestPendingByToolref` red -> reverted
+- mutation: `ToolSource` compared with `%EXACT` -> `TestPendingByToolref` red -> reverted
+- mutation: the demo refusal removed from `ListMcp` -> `TestOnlineDemo` red -> reverted
+- mutation: condition B, `Ops` address check skipped when a handoff is present -> `TestMcpEntryWrite` red -> reverted
+- mutation: condition B, `Web.McpSettings.AddFields` address check skipped when a secret is present -> `McpSettingsApi` `TestAddRefusals` red -> reverted
+(19 mutations, all observed red; none left in the tree.)
+
+Added beyond the task list, in this pass:
+- The audit-failure pin in `TestMcpEntryWrite` (`Test/Core/CommandsStep4.cls`): an add whose audit fails is `not_audited` and leaves no row, resource, entry, key or collection. It was the only mutation of the spec's list that no test caught.
+- Guard tests of the web source updated for the new file (`announce-focus-sources`, `floor-sources`): each lists the files that may announce, move focus, wait for a render, open a dialog or scroll; `mcp-section.ts` is added to each with its reason.
+
+Decided in this pass (reversible inside the story; Design Notes numbering continues):
+- (17) `mcp-section.ts` is loaded on demand (`import('./mcp-section')` through `NgComponentOutlet`, set when the section first opens). With it in the initial bundle the build was 1,011,990 bytes against the 1 MB error budget (the baseline was 992,400); on demand the initial bundle is 998.08 kB and the section is a 19.88 kB lazy chunk. The headroom is now about 1.9 kB: the next story that adds to the initial bundle will meet the budget. Flag for the lead (not a story decision).
+- (18) The Remove dialog is the shared `ConfirmDialog` with `ConfirmRequest` (Rule 2), not a new dialog in `unsaved-dialog.ts`'s shape: its heading is the sentence, which names the dialog and takes the first focus (UX-DR38). The failure line in the dialog, and under the form, the tool row and the add button, is the server's own `error.message` (for a 500 that is `MESSAGESERVERERROR`), and "Couldn't save. Nothing was changed." (`SETTINGS_TEXTS.failed`, accepted) when the server sent none: the page holds no copy of `MESSAGESERVERERROR`.
+- (19) A tool row that was classified while "Unclassified only" is on stays in the table until the section is opened again, so its "Saved" line can be read.
+- (20) M2, M3, M4 and M6 are one e2e case (one runner build for the four), titled "M2 to M4 and M6".
+- No sentence of the spec was left out for lack of an accepted text.
+
+Veto items from this pass: none. No new public text beyond T1-T11 (the reused texts are "Cancel", "Add server", "Remove", "Unclassified only", "Saved", "Retry" and the accepted settings texts), no stored-data shape, no security-posture change. One note for the record: the M2 spec starts the mock with the expected header value on an `irisScript` command line (a random throwaway secret in a throwaway stack, as the spec says "a random secret"), so it is visible to `ps` inside the CI host for the length of the call; no real credential is ever used.
+
+Stacks: warm `e21s4iw2` torn down (`ci/warm.sh down`); the throwaway tag `e21s4i` torn down with `ci/iris.sh teardown`.
