@@ -45,9 +45,10 @@
 ///     POST /v1/settings/channels (Stories 21.2, 21.6 and 21.3; AD-1, AD-19) connects the mailbox: SaveChannels takes {address, incoming, outgoing, user, signIn,
 ///     clientId, password, clientSecret}; outgoing, signIn (password, google or microsoft; default password), clientId, password and clientSecret are optional (an absent
 ///     or empty password or clientSecret keeps the stored one), and the body may not hold origin. With the online demo on it answers 409 not_available
-///     (MESSAGENOTAVAILABLE) before it reads the body. A password or clientSecret of more than 256 characters, or that is not a string, is 400 bad_settings naming it and
+///     (MESSAGENOTAVAILABLE) before it reads the body. An address, user, password or clientSecret of more than 256 characters, or that is not a string, is 400 bad_settings naming it and
 ///     nothing is offered; every other non-empty one is offered to SecretHandoff (in memory; the REST process stores nothing) and only the reference
-///     secret://handoff/<name> goes in the SaveSettings command's body, so no secret is in any command, message or log. The body also gets origin, the http or https
+///     secret://handoff/<name> goes in the SaveSettings command's body, so no secret, mailbox address or user name of the save (Story 21.14) is in its command, a message or a log;
+///     incoming, outgoing, signIn, clientId and origin stay plain. The body also gets origin, the http or https
 ///     origin of the request (PageOrigin), from which SettingsOps makes the OAuth2 redirection endpoint. After the submit returns, whatever it answered, every untaken
 ///     secret is discarded. The answers are those of Answer, with not_available 409.
 ///     POST /v1/settings/channels/sign-in (Story 21.3; AD-1) takes exactly {"action": "start"|"check"} (anything else is 400 bad_settings with fields ["action"]) and
@@ -195,7 +196,7 @@ Parameter MESSAGEBADSETTINGS = "Couldn't save. Nothing was changed.";
 /// The 409 message of an email save on the online demo (Public text P2).
 Parameter MESSAGENOTAVAILABLE = "Email can't be connected on the online demo. Nothing was changed.";
 
-/// The most characters of a mailbox password that the route offers.
+/// The most characters of a mailbox address, user name, password or client secret that the route offers.
 Parameter PASSWORDMAX = 256;
 
 /// The message of the 409 demo_step_failed of a demo mode save; {v} is on or off.
@@ -940,9 +941,9 @@ ClassMethod SaveCheckThresholds() As %Status
 
 /// POST /v1/settings/channels (Stories 21.2 and 21.3): see the class description. On the online demo it answers 409 not_available before the body is read. The
 /// body is a JSON object, and anything else is 400 bad_settings with no field and nothing offered or submitted. A body with an origin member is 400 with fields
-/// ["origin"]. A password or clientSecret that is present but not a JSON string, or a string of more than PASSWORDMAX characters, is 400 bad_settings
-/// with the field named, nothing offered or submitted, so that no secret value ever reaches the command. Any other non-empty string secret
-/// is offered to SecretHandoff and replaced in the body by its reference; the SaveSettings command (slug channels, origin web_admin, the IRIS user of
+/// ["origin"]. An address, user, password or clientSecret that is present but not a JSON string, or a string of more than PASSWORDMAX characters, is 400 bad_settings
+/// with the field named, nothing offered or submitted, so that no secret value, mailbox address or user name of the save ever reaches its command. Any other non-empty string
+/// of them is offered to SecretHandoff and replaced in the body by its reference (Story 21.14); the SaveSettings command (slug channels, origin web_admin, the IRIS user of
 /// the call, the CSP session's Ref) carries only those references and the request's origin. Whatever the submit answers, or throws, each reference is then taken with
 /// no wait and the value discarded (a Take of a reference that SettingsOps already took fails harmlessly). The answers are those of Answer.
 ClassMethod SaveChannels() As %Status
@@ -951,7 +952,7 @@ ClassMethod SaveChannels() As %Status
 	If '..SettingsBody(.body) Quit ..BadSettings([])
 	If body.%IsDefined("origin") Quit ..BadSettings(["origin"])
 	Set bad = []
-	For name = "password", "clientSecret" {
+	For name = "address", "user", "password", "clientSecret" {
 		Set type = body.%GetTypeOf(name)
 		If ((type '= "string") && (type '= "unassigned")) || ((type = "string") && ($Length(body.%Get(name)) > ..#PASSWORDMAX)) Do bad.%Push(name)
 	}
@@ -960,7 +961,7 @@ ClassMethod SaveChannels() As %Status
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set uris = ""
 	Try {
-		For name = "password", "clientSecret" {
+		For name = "address", "user", "password", "clientSecret" {
 			Set secret = $Select(body.%GetTypeOf(name) = "string": body.%Get(name), 1: "")
 			If secret = "" Continue
 			Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(secret, .uri)
