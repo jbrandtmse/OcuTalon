@@ -3914,3 +3914,7 @@
 2026-11-13T09:02:46Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=0898ebfb runs=43381440110,43381440045 result=success
 2026-11-13T09:02:46Z	Epic 23	ledger_routed_planned	story=23-3 entries=1(DW-1225) by=merge_gate
 2026-11-13T09:02:46Z	Epic 24	ledger_routed_planned	story=24-3 entries=1(DW-1251) by=merge_gate
+2026-11-13T09:04:49Z	Epic 21	runner_reported	PART_READY part=21.7+21.8+21.12+21.13 head=1dd5a240 code_head=f17e2566 ci=success runs=43391202522,43391202509 + PLANNER_REPORT 21.14(DW-1255)
+2026-11-13T09:04:49Z	Epic 21	ci_green_verified	head=f17e2566 runs=43391202522,43391202509 result=success
+2026-11-13T09:04:49Z	Epic 21	amendments_verified	amendments=spine(21.7_S1-S5,21.8_S1-S4,AD-19,AD-22,AD-14),epics(21.9-21.14_splits/inserts),EXPERIENCE(E1,E2,K) release_tool=release/checklist.sh_one_line(approved) ok=true
+2026-11-13T09:04:49Z	Epic 21	merge_enqueued	part=21.7+21.8+21.12+21.13 head=1dd5a240
