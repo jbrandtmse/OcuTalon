@@ -207,3 +207,6 @@
 2026-11-12T23:59:38Z	Story 21.12	story_created	spawn_at=2026-11-12T23:46:10Z model=opus effort=high path=_bmad-output/implementation-artifacts/spec-21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do.md build_status=ready-for-dev warnings=oversized
 2026-11-12T23:59:38Z	Story 21.12	spec_validated	service_introducing=false integration_ac=n/a(test-only;CI_reads_the_exit_code) adr_constrained_acs=none decision_dependency=none owned_ledger=DW-1207 addressed=1 declined=0 mutates_shared_runtime=false amendment=epics.md_21.12_AC1_file_set_explicit(Rule5_tier1) model=claude-opus-5-5
 2026-11-12T23:59:38Z	Story 21.12	stage_spawned	stage=implement spawn_at=2026-11-12T23:59:38Z model=sonnet effort=high agent_name=21-12-implement-1 cycle_iteration=1 story_base=407b4daf
+2026-11-13T00:38:46Z	Story 21.12	dev_complete	spawn_at=2026-11-13T00:00:10Z model=sonnet effort=high build_sha=43e14235 baseline_revision=cb8981a1 story_base=cb8981a1 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=1(docker/tests/test-readme.sh) mutations=9
+2026-11-13T00:38:46Z	Story 21.12	adr_verifications_complete	tool=none result=none_required
+2026-11-13T00:38:46Z	Story 21.12	stage_spawned	stage=qa spawn_at=2026-11-13T00:38:46Z model=sonnet effort=high agent_name=21-12-qa-1 cycle_iteration=1

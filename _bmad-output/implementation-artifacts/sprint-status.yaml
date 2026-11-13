@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-12-2026 23:59
+last_updated: 11-13-2026 00:38
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -326,8 +326,7 @@ development_status:
   21-10-answer-tool-call-and-standalone-approval-requests-on-every-c: 
     ready-for-dev
   21-11-show-standalone-fix-requests-with-their-reason-and-dry-run-o: backlog
-  21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do: 
-    in-progress
+  21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do: review
   21-6-send-email-over-smtp: done
   21-7-send-the-daily-digest-by-email: done
   epic-21-retrospective: optional
