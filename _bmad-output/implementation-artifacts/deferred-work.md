@@ -7695,3 +7695,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 22.6 gate ruling M(4), 2026-11-13 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 21.10 V4 removes the cut; 22.6 P2 states it
 - 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=Planner ruling M(4)
+
+### DW-1277: 36.4's On call section hides its 'OcuTalon doesn't send pages yet' line once OcuTalon.Data.Page is compiled, but that state is never observed: Data.Page arrives only with Story 23.4
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: spec deferred: list; the pagesBuilt=true branch has no test that can run before 23.4
+- 2026-11-13T16:35:03Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=harvest note=23.4 adds a test that the not-yet line disappears once Data.Page exists
