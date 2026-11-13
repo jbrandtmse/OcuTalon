@@ -267,3 +267,5 @@
 2026-11-13T08:12:38Z	Epic 21	ruling	question=DW-1255_fix choice=new_Story_21.14(Planner_DW-1255_audit_items_1,5) category=decide via=orchestrator note=deps_hash(reason=fix_forward)_is_the_orchestrator%27s;implement_after_21.8_merges
 2026-11-13T08:12:38Z	Story 21.14	ledger_routed_planned	story=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace entries=1(DW-1255) excess=0 by=orchestrator
 2026-11-13T08:12:38Z	Epic 21	stage_spawned	stage=epic_context spawn_at=2026-11-13T08:12:38Z model=opus effort=high agent_name=epic-21-context-prewarm-9 reason=planning_artifact_newer(21.14)
+2026-11-13T08:14:23Z	Epic 21	epic_context_compiled	reason=planning_artifact_newer(21.14) model=opus header_ok=true
+2026-11-13T08:14:23Z	Story 21.14	stage_spawned	stage=plan spawn_at=2026-11-13T08:14:23Z model=opus effort=high agent_name=21-14-plan-1 cycle_iteration=1
