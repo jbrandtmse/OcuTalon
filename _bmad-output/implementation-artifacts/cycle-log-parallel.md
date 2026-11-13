@@ -3993,3 +3993,12 @@
 2026-11-13T18:49:45Z	Epic 21	ci_green_verified	sha=4af1db03 runs=43457520830(ci,att2_after_DW-1280),43457520899(lane-a)
 2026-11-13T18:49:45Z	Epic 21	amendments_verified	amendments=spine_AD-1,AD-19,channels_route_row([AMENDED_21.14_ruling_L]) TraceLeaks_retrofit ok=true
 2026-11-13T18:49:45Z	Epic 21	merge_enqueued	part=21.14 head=4af1db03 feature=f29de0e7 for=1.0.10
+2026-11-13T18:50:06Z	Epic 21	epic_merged_to_feature	part=21.14 feature_sha=62db09e0 conflicts=tracker(ours+set_21-14=done;valid) code_overlap_with_37.1=none verified_on_origin=yes ci=own_run_required(union_4af1db03+f2fc3d3a) note=epic-37_done_status_pending_records
+2026-11-13T18:50:49Z	Run	owner_decision	via=contest_planner feature_run_62db09e0=let_finish_through_HOLD(red:classify;flake_rerun_only_after_main_CI_green) bundle=no_cap_raise;DW-1282_burndown(lazy_chunks,>=50kB_headroom);standing_rule=new_web_code_lazy,over_cap=STOP
+2026-11-13T18:51:20Z	Epic 22	runner_reported	PLANNER_REPORT story=22.7 P4=HIT subject+text_in_Ens.MessageBody(SendEmail;Email.cls:194-196,EmailTools.cls:41-43) recipients=clean local=a050cbb2(records) DW-1281->25.5 P1_reading=holds 22.6=split_to_wip/22-6(not_started)
+2026-11-13T18:52:03Z	Epic 22	owner_decision	via=contest_planner story=22.7 P4: approved_path=(a)_ApprovalRef_only,EmailOut_reads_FixParameters,TraceLeaks_3_globals+mutation; safe_path=(b)_accepted+security-overview_line; rework3=P1+P4+doc_line_or_STOP
+2026-11-13T19:02:19Z	Epic 25	runner_reported	PUBLIC_TEXT story=25.5 spec_gate=passed local=1f68862b(records) items=12_text+security+Q1-Q7 precondition=22.7_merged+25.4_done
+2026-11-13T19:03:14Z	Epic 25	owner_decision	via=contest_planner story=25.5 APPROVED items1-10,Q1(a)_raise_refusal(DW-1281),Q2-Q5,Q6_GUIDE_middle_sentence_replaced_by_25.5;audit=existing_refused_outcome_or_nothing file=prompts/story-255-rulings-20261113.md
+2026-11-13T19:23:21Z	Run	pre_hold_status	cut_sha=9a946ea3(code=0d3b0c18,green,contains_0.29) feature=62db09e0(ci_success_43486423697,lane-a_running_43486423766) part_ready_pending=none records=local_until_HOLD_OFF
+2026-11-13T19:30:21Z	Run	ci_green_verified	head=62db09e0(feature;37.1+21.14) runs=43486423697(ci),43486423766(lane-a) attempt=1
+2026-11-13T19:30:21Z	Epic 37	tracker_set	epic-37=done(runner_close_on_branch;records)
