@@ -6761,6 +6761,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T06:26:39Z occurrence=25-2 by=orchestrator note=run 42966931010 job 130346188889 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges + TestRunAgain (ci-12); OCT-epic25 284e8904
 - 2026-11-12T02:02:40Z occurrence=21-6 note=OCT-epic21 7c6dec3c run 43130059980 shards-6 TestOnlyTheMarkerChanges (run_again); GuideApi not in the 21.x diff; one rerun
 - 2026-11-12T02:34:04Z occurrence=21-6-send-email-over-smtp
+- 2026-11-13T08:11:13Z occurrence=36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql by=runner note=OCT-epic36 20e3655a ci run 43378472985 job 131730433698 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges (run_again: an event row watch.progress appeared); GuideApi not in the 36.x diff; one rerun
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
