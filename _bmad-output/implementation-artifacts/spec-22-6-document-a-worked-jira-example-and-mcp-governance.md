@@ -2,8 +2,9 @@
 title: 'Story 22.6: Document a worked Jira example and MCP governance'
 type: 'feature'
 created: '2026-11-13'
-status: 'ready-for-dev'
-baseline_revision: 'bb993ac29bcfd0c3a6d30bc49586e6256e0529ed'
+status: 'in-progress'
+baseline_revision: 'c13b1836a4885ecbc77a55bffc34f4dce01fd7e0'
+baseline_commit: 'c13b1836a4885ecbc77a55bffc34f4dce01fd7e0'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -194,6 +195,8 @@ deferred:
 - [ ] **Online-demo safety** (standing rule): every doc says that MCP is off on the demo; the code change is inert there (`TestDemoOffersNoProxy`).
 
 - [ ] **[RULED 2026-11-13, Planner M (4)] text conditions**: (a) P1 reads "No message, log, audit entry or answer holds the secret." (without "trace") until the TraceLeaks retrofit (Story 21.14's condition) passes for MCP secrets; (b) "A request that nobody answers within 24 hours expires." cites the code's expiry setting (`Bridge.Approval` `EXPIRYSECONDS`) in the claims and is pinned; (c) P2's "cut to 200 characters" must match the code at merge (Story 21.10 removes the cut and updates P2 and the worked example in the same commit — the orchestrator puts that DW bullet on 21.10); (d) M1 ("Connect an MCP server", hidden on the demo) — when it ships, the README Usability count becomes "Its More to try panel has seventeen more things to try, fifteen of them on the online demo" and every pin of that count follows in the same commit (README is Epic 0's: bring the change to the lead); (e) every other sentence is true of the code at merge, checked by review. Veto 1-6 APPROVED, including the split of the source part into new Story 22.12 (after 22.11 and 21.5, same release), the DW-1228 fix (proxy registered first, `call_mcp_tool` a refused name) and the S19 spine refinement.
+
+- [ ] **[RULED 2026-11-13 ~17:15Z, orchestrator R1 (prompts/epic-22-rulings-20261113-1715.md)] `docker/tests/test-readme.sh`, rule `docs` only (footprint extension)**: P2 replaces the overview sentence that rule `docs` pins, so `ci/checks.sh` fails with "the MCP rules line is not under ... with no heading between". Re-pin only the ruled MCP line, "under `## MCP tools` with no heading between": change `MCP_FRAME` (L1673), the `chk_docs` awk check (L1684-1686), its two controls (L3195-3209) and the header comment (L96) to match P2's committed text. Change nothing else in the file. `bash docker/tests/test-readme.sh docs` (and the whole file) and `ci/checks.sh`'s docs step exit 0; write the `mutation:` line (restore the old sentence in a copy -> rule `docs` red). Epic 21's Story 21.14 edits the same rule; whoever pushes second keeps both sides' pins (the lead handles that at integrate-forward).
 
 ## Spec Change Log
 
