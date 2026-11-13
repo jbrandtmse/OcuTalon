@@ -242,3 +242,6 @@
 2026-11-13T04:20:42Z	Story 21.13	ruling	question=V1(DigestKey_reuse) choice=keep category=veto via=orchestrator inbox=U-327
 2026-11-13T04:20:42Z	Epic 21	slot_loaded	server=ocutalon-slot-c bridge=62 ocutalon=963 CompilePackage_ck_errors=0 head=c8d849d2
 2026-11-13T04:20:42Z	Story 21.13	stage_spawned	stage=implement spawn_at=2026-11-13T04:20:42Z model=sonnet effort=high agent_name=21-13-implement-1 cycle_iteration=1 story_base=c8d849d2 note=local_only(push_after_5d5581eb_CI)
+2026-11-13T04:51:56Z	Story 21.13	dev_complete	spawn_at=2026-11-13T04:21:30Z model=sonnet effort=high build_sha=694b53a4 baseline_revision=f76320db story_base=f76320db deferred=0 mutations=7 residual=timeout-after-DATA_could_resend;stuck_claim_never_expires
+2026-11-13T04:51:56Z	Story 21.13	adr_verifications_complete	tool=none result=none_required
+2026-11-13T04:51:56Z	Story 21.13	stage_spawned	stage=qa spawn_at=2026-11-13T04:51:56Z model=sonnet effort=high agent_name=21-13-qa-1 cycle_iteration=1
