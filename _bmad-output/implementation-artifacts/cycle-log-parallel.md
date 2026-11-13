@@ -3856,3 +3856,10 @@
 2026-11-13T03:02:03Z	Epic 0	merge_enqueued	part=0.33+0.29 head=ab9bc6f7
 2026-11-13T03:03:08Z	Epic 0	epic_merged_to_feature	part=0.33+0.29 feature_sha=1fb800c2 merge_sha=1fb800c2 code=ab9bc6f7+2dae366c(no_code_overlap) epics_union=0.31,0.32,0.33,0.35 verified_on_origin=yes
 2026-11-13T03:03:35Z	Run	ci_cancelled	head=2dae366c runs=43348791057,43348791058 reason=superseded_by_1fb800c2(contains_it;cancel-superseded_rule_per_Planner_HOLD_OFF) note=2dae366c_code=cf91f2ba_green
+2026-11-13T03:04:23Z	Epic 22	runner_reported	CI_WAIT head=af886ee3(22.9+22.3+22.4) lane-a=success ci=pending local=6d61771f gates=22.7(veto7,text4,DW-1244_escalated,forced_copy),22.10(veto5,AD-21_re-architecture)
+2026-11-13T03:04:23Z	Epic 22	runner_resumed	relay=rulings_F(DW-1240,DW-1232,DW-1227,DW-1239) own_CI_wait=yes
+2026-11-13T03:05:20Z	Epic 22	owner_decision	via=contest_planner what=22.7_approved(+untrusted_send_email_refusal,+DW-1244_fix_in_lane_C_before_22.7_merge)+22.10_AD-21_re-architecture_DECLINED(DW-1228_test,DW-1221_known_limit,spec_deferred)+22.6_plan_now file=prompts/gate-rulings-20261112-1810.md#H relay=runners_22_and_21_at_turn_end
+2026-11-13T03:07:47Z	Epic 0	runner_reported	AB_READY story=0.35 head=e168d257 code_head=444d7333 runs=43356780569,43356780577 state=held_merge(Planner_A/B)
+2026-11-13T03:08:36Z	Epic 0	owner_decision	via=contest_planner what=0.35_A/B_after_owner_quota_reset_tonight(or_after_morning_reset_before_1.0.9_cut) note=owner_hold_point_12:30am_PST(~08:30Z);quota_near_95pct
+2026-11-13T03:51:35Z	Epic 25	runner_reported	LOCAL_READY story=25.3 local=625d84aa code=6c2d4979,14699ceb split=25.6_inserted
+2026-11-13T03:51:35Z	Run	deps_hash_rerecorded	reason=split note=epic-25_story_waits_25.6->37.1,26.2(hash_rerecord_at_merge)

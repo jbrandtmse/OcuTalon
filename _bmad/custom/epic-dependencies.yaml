@@ -394,7 +394,7 @@ epics:
   # ---- step 6
   epic-25: {lane: pool, depends_on: [], submodules: [],                               # Lane B's files; real: 37.2's rows and navigation, 37.1's role stubs (25.4, 25.5); "Epic 24" was order only (inference)
             # [AMENDED 2026-11-09, owner re-plan, consequence of Contest Planner ruling (ii), reported for veto] epic-level edge on epic-37 lifted to story level: 25.2 waits on Story 37.2 merged (its rows and navigation); 25.4 and 25.5 on Story 37.1 (role stubs)
-            story_waits_stories: {"25.2": "37.2", "25.4": "37.1", "25.5": "37.1"},
+            story_waits_stories: {"25.2": "37.2", "25.4": "37.1", "25.5": "37.1", "25.6": ["37.1", "26.2"]},   # [ADDED 2026-11-12, split of 25.3 into 25.3/25.6 (runner U5, Planner approved): 25.6 needs 37.1's reply-contract AC (U-326, DW-1231) and 26.2's read path]
             paths_hint: ["web/src/app/{usage,history,settings,chat,documents}/**", "web/src/app/api/**", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "src/ocutalon/cls/OcuTalon/Web/Public/Shell.cls", "src/ocutalon/cls/OcuTalon/Install/Step/Web.cls", "src/ocutalon/cls/OcuTalon/Core/{AnswersIn,SettingsOps}.cls", "src/ocutalon/cls/OcuTalon/Data/{File,Ownership}*.cls", "ci/mock/**", "src/ocutalon/cls/OcuTalon/Test/{Core,Web,Data}/**", "web/e2e/**"],
             story_waits: {"25.3": epic-20,                  # real: the Documents page's Add documents
                           "25.4": [epic-18, epic-16]}}      # real: a Settings section; the online demo account, Story 16.1 (M4)
