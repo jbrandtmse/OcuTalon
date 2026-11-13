@@ -127,3 +127,4 @@
 2026-11-13T19:54:29Z	Story 36.4	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=slice_empty cycle_iteration=3 model=claude-opus-5-5
 2026-11-13T20:00:38Z	Story 36.4	smoke_complete	method=other(fresh_lane-B_e36s4s3:Web.OnCallSettingsApi_incl_TraceLeaks_leak_scan) result=pass iterations=3 defects_caught=0 evidence=CLASS_line scope=rework2 model=claude-opus-5-5
 2026-11-13T20:00:38Z	Story 36.4	fresh_check	env=fresh_stack(e36s4s3) tests=Web.OnCallSettingsApi result=pass order=forward note=one_class_changed;reviewer_also_ran_fresh(e36s4c3) scope=rework2
+2026-11-13T20:01:11Z	Epic 36	integrated_forward	feature=848ae83c head=846cb711 conflicts_resolved=sprint-status.yaml(feature_side,regenerated,re-set_36-4=done) note=records-only_feature_commit
