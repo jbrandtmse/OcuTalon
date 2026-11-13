@@ -29,13 +29,17 @@
 #             the live step, a failed class step, --write, the run tag, and the teardown that follows every case
 #   overviewdrift (Story 14.1) docker/tests/lib-security-overview.sh on small overview files: the DRIFT line for a changed tool row, for a
 #             change outside the rows, for the fix kinds and for the privileges, and nothing for equal files
-#   overviewdoc   (Story 14.1, QA; Story 14.2) the committed docs/security-overview.md: its title, its three marker pairs once each and in order,
+#   overviewdoc   (Story 14.1, QA; Story 14.2; Story 22.6) the committed docs/security-overview.md: its title, its three marker pairs once each and in order,
 #             ASCII only, no machine path, no URL or address; no hand-written placeholder; the privilege-limits paragraph word for word under its
-#             heading; EXPERIENCE.md's kept-OCUORDERS sentence word for word; while src has no call_mcp_tool, the MCP section opening with the
-#             can't-connect sentence; the numbers and the audit types of the code in their sections; the five headings once each and in order, the
-#             no-scheduled-purge sentence, while src has no call_mcp_tool the MCP rules sentence, and the demo section's closing sentence (QA); with
-#             call_mcp_tool in src, the two MCP checks give no complaint, and with that switch forced off they still find their faults; and the
-#             CI claims of the file and of the live unit in ci/units.sh (every group runs on the file, shards-5 holds the unit)
+#             heading; EXPERIENCE.md's kept-OCUORDERS sentence word for word; the numbers and the audit types of the code in their sections; the five
+#             headings once each and in order, the no-scheduled-purge sentence and the demo section's closing sentence (QA); the MCP tools section
+#             (Story 22.6): no can't-connect or "When a release adds MCP support" sentence, a link to the worked example, the classification sentence
+#             and the Read-only sentence word for word, and the time-limits paragraph as one whole line; the Data section without "this release can't
+#             make"; no line with "deadline" outside the time-limits paragraph and no line about the changed-tool replay path (the checks run
+#             whatever src holds); the worked example docs/mcp-jira-example.md (mcp_doc_problems): its title, ASCII and no machine path, every address
+#             on example.com, the three shared texts word for word, no other "deadline" line, no replay-path and no source-poll text, the sentence that
+#             says MCP is off on the online demo and its link to the overview's MCP section; and the CI claims of the file and of the live unit in
+#             ci/units.sh (every group runs on the file, shards-5 holds the unit)
 #   ipmcheck  (Story 15.4) the ipmcheck step runs release/ipm-install.sh of the candidate (a stub in the seed repository, so no container is needed)
 #             on an export of the candidate's tree with the ipm step's artifact, the lane lock folder, a run tag and the job's deadline, and
 #             tears down after it: a pass records "## FR-57 job" and names push; a failure (exit 1 or any code but 0 and 75) stops the release before
@@ -2169,6 +2173,13 @@ DRIFT tool add_note"
 OVW_LIMITS="OcuTalon's production runs as IRIS's Interoperability system user, which holds \`%All\`. The service user is a privilege profile: the gate checks it before every tool call and the fix executor before every fix, but IRIS doesn't enforce it on the running code. The protections are the fixed tool inventory (no shell, no code, no data-changing SQL, tested), classification and approval, each fix kind's own validation, and the IRIS roles on the web and portal applications. Running tool code under the service user's own identity is deferred."
 OVW_EXPERIENCE=_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md
 
+# The MCP texts that the overview and the worked example (docs/mcp-jira-example.md) share, word for word (Story 22.6): the classification sentence, the Read-only
+# sentence and the time-limits paragraph.
+OVW_MCP_RISKY="An MCP tool that runs operating-system commands or arbitrary code must be classified Risky."
+OVW_MCP_READONLY="A Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so classify a tool Read-only only when you trust its server with what OcuTalon reads."
+OVW_MCP_LIMITS="OcuTalon's time limits for MCP servers are not hard deadlines. A server has 2 seconds to answer OcuTalon's check before a request offers its tools, and each listing of its tools, and 20 seconds to answer a tool call. Each limit applies to each wait for data and starts again whenever the server sends some, so a slow server can hold a request longer: in a test against a server that sent one byte a second, the 2-second check took 31 seconds and a 20-second call 36 seconds. A server that stops answering in the middle of a request, after its check passed, holds that request until it closes the connection."
+OVW_MCP_EXAMPLE=docs/mcp-jira-example.md
+
 # ovw_section <file> <title>: the lines under the "## <title>" heading, up to the next "## " heading.
 ovw_section() { awk -v h="## $2" '$0 == h { on = 1; next } on && /^## / { exit } on { print }' "$1"; }
 
@@ -2187,12 +2198,36 @@ ovw_phrases() {
   done
 }
 
+# ovw_text_problems <file>: one line per problem of a public text file: a character outside ASCII, a machine path.
+ovw_text_problems() {
+  local n
+  n=$(LC_ALL=C grep -c '[^[:print:][:space:]]' "$1")
+  [ "$n" -eq 0 ] || echo "$n line(s) with a character outside ASCII"
+  n=$(grep -cE '(/Us''ers/|/ho''me/|/pri''vate/|/t''mp/|[A-Za-z]:\\)' "$1")
+  [ "$n" -eq 0 ] || echo "$n line(s) with a machine path"
+}
+
+# ovw_mcp_shared_problems <file> <scope> <line prefix>: one line for each shared MCP text that the file lacks, word for word, as a whole line (with the prefix before
+# the sentence: "- " in the overview's rules, none in the worked example), and one for a line with "deadline" other than the time-limits paragraph or
+# a line about the changed-tool replay path (which no text describes). scope is the section to read ("" for the whole file).
+ovw_mcp_shared_problems() {
+  local f=$1 title=$2 prefix=$3 sec
+  if [ -n "$title" ]; then sec=$(ovw_section "$f" "$title"); else sec=$(cat "$f"); fi
+  printf '%s\n' "$sec" | grep -qxF -e "$prefix$OVW_MCP_RISKY" || echo "the MCP text lacks the classification sentence word for word"
+  printf '%s\n' "$sec" | grep -qxF -e "$prefix$OVW_MCP_READONLY" || echo "the MCP text lacks the Read-only sentence word for word"
+  printf '%s\n' "$sec" | grep -qxF -e "$OVW_MCP_LIMITS" || echo "the MCP text lacks the time-limits paragraph as one whole line"
+  grep -iF -e deadline "$f" | grep -vxF -e "$OVW_MCP_LIMITS" | grep -q . && echo "a line other than the time-limits paragraph mentions a deadline"
+  grep -qE 'replayToolChanged|after this request was made|needs a new approval' "$f" && echo "a line describes the changed-tool replay path"
+  return 0
+}
+
 # ovw_doc_problems <file>: one line per problem of the overview, nothing for a good file. The frame: the title line, each marker once and in
 # order, ASCII only, no machine path, no URL or address. The hand-written sections (Story 14.2): no placeholder, the privilege-limits paragraph
-# under its heading, the kept-OCUORDERS sentence, the MCP opening sentence while src has no MCP client, and the numbers and audit types of the code.
+# under its heading, the kept-OCUORDERS sentence, and the numbers and audit types of the code. The MCP tools section (Story 22.6): no sentence that says the release
+# can't connect, a link to the worked example, and the shared texts; the Data section holds no "this release can't make".
 ovw_doc_problems() {
   local f=$1 key b e n prev=0 owner='written by OcuTalon.Install.SecurityOverview, do not edit'
-  local kept v hours t first
+  local kept v hours t
   [ "$(sed -n 1p "$f")" = '# OcuTalon security overview' ] || echo "the first line is not the title"
   for key in tools fix-kinds privileges; do
     b=$(grep -nxF "<!-- BEGIN GENERATED $key: $owner -->" "$f" | cut -d: -f1)
@@ -2204,10 +2239,7 @@ ovw_doc_problems() {
     if [ "$b" -le "$prev" ] || [ "$e" -le "$b" ]; then echo "the $key markers are out of order"; fi
     prev=$e
   done
-  n=$(LC_ALL=C grep -c '[^[:print:][:space:]]' "$f")
-  [ "$n" -eq 0 ] || echo "$n line(s) with a character outside ASCII"
-  n=$(grep -cE '(/Us''ers/|/ho''me/|/pri''vate/|/t''mp/|[A-Za-z]:\\)' "$f")
-  [ "$n" -eq 0 ] || echo "$n line(s) with a machine path"
+  ovw_text_problems "$f"
   n=$(grep -cE '(:/''/|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)' "$f")
   [ "$n" -eq 0 ] || echo "$n line(s) with a URL or address"
   n=$(grep -c 'HAND-WRITTEN' "$f")
@@ -2219,13 +2251,10 @@ ovw_doc_problems() {
   elif ! grep -qF -e "$kept" "$f"; then
     echo "the kept-OCUORDERS sentence is not there word for word"
   fi
-  if ! git -C "$root" grep -q call_mcp_tool -- src; then
-    first=$(ovw_section "$f" 'MCP tools' | grep -m 1 .)
-    case $first in
-      "This release can't connect to MCP servers."*) ;;
-      *) echo "the MCP tools section does not open with the can't-connect sentence" ;;
-    esac
-  fi
+  ovw_section "$f" 'MCP tools' | grep -qE -e "can't connect to MCP servers|When a release adds MCP support" && echo "the MCP tools section still says that the release can't connect to MCP servers"
+  ovw_section "$f" 'MCP tools' | grep -qF -e '](mcp-jira-example.md)' || echo "the MCP tools section does not link the worked example"
+  ovw_section "$f" 'Data' | grep -qiF -e "this release can't make" && echo "the Data section still says that MCP calls are ones this release can't make"
+  ovw_mcp_shared_problems "$f" 'MCP tools' '- '
   v=$(ovw_code_value 's/^Parameter EXPIRYSECONDS = \([0-9][0-9]*\);.*$/\1/p' src/bridge/cls/OcuTalon/Bridge/Approval.cls)
   if [ -z "$v" ]; then
     echo "the code has no EXPIRYSECONDS"
@@ -2249,14 +2278,34 @@ ovw_doc_problems() {
   v=$(ovw_code_value 's/^Parameter ADDRESSLIMITSEED = \([0-9][0-9]*\);.*$/\1/p' src/ocutalon/cls/OcuTalon/Data/Setting.cls)
   if [ -z "$v" ]; then echo "the code has no ADDRESSLIMITSEED"; else ovw_phrases "$f" 'Online demo' "$v new sessions"; fi
   # QA (Story 14.2): the five hand-written headings once each and in order; the V1 sentence (U-223) and the closing sentence of the demo section
-  # (U-224); while src has no MCP client, the sentence that opens the rules.
+  # (U-224).
   n=$(grep -nxE '## (Limits of the privilege check|Approval and audit|Data|MCP tools|Online demo)' "$f" | sed 's/^[0-9]*:## //' | tr '\n' '|')
   [ "$n" = 'Limits of the privilege check|Approval and audit|Data|MCP tools|Online demo|' ] || echo "the five hand-written headings are not there once each, in order"
   ovw_section "$f" 'Data' | grep -qF -e 'no scheduled purge removes them' || echo "the Data section lacks the no-scheduled-purge sentence"
   ovw_section "$f" 'Online demo' | grep -qxF -e 'Each protection listed here is checked against the running demo before every release.' || echo "the Online demo section lacks the checked-before-every-release sentence"
-  if ! git -C "$root" grep -q call_mcp_tool -- src; then
-    ovw_section "$f" 'MCP tools' | grep -qF -e 'When a release adds MCP support, these rules apply:' || echo "the MCP tools section lacks the rules sentence"
-  fi
+  return 0
+}
+
+# mcp_doc_problems <file>: one line per problem of the worked example (Story 22.6), nothing for a good file: its title, ASCII only and no machine path, an address
+# only on example.com (a secret:// reference is no address), the shared texts word for word and no other "deadline" line, no text about the changed-tool replay path or
+# source polls, the sentence that says MCP is off on the online demo and the link to the overview's MCP section.
+mcp_doc_problems() {
+  local f=$1 url host
+  [ -f "$f" ] || { echo "the worked example is not at $OVW_MCP_EXAMPLE"; return 0; }
+  [ "$(sed -n 1p "$f")" = '# A Jira MCP server, step by step' ] || echo "the first line is not the title"
+  ovw_text_problems "$f"
+  for url in $(grep -oE 'https?:/''/[^/ )`]*' "$f"); do
+    host=${url#*:/''/}
+    host=${host%%:*}
+    case $host in
+      example.com|*.example.com) ;;
+      *) echo "an address is not on example.com" ;;
+    esac
+  done
+  ovw_mcp_shared_problems "$f" '' ''
+  grep -qiF -e 'source poll' "$f" && echo "a line mentions a source poll"
+  grep -qF -e 'MCP servers are off on the online demo: nobody can add one there, and OcuTalon reaches none.' "$f" || echo "the example lacks the sentence that says MCP is off on the online demo"
+  grep -qF -e '](security-overview.md#mcp-tools)' "$f" || echo "the example does not link the overview's MCP tools section"
   return 0
 }
 
@@ -2275,20 +2324,12 @@ ovw_ci_claims() {
   )
 }
 
-# ovw_doc_problems_no_mcp <file>: ovw_doc_problems with the MCP-client switch forced off (its git grep for call_mcp_tool in src answers no;
-# every other git call runs as usual), in a subshell, so the checks the switch turns off still run on a fixture.
-ovw_doc_problems_no_mcp() {
-  (
-    git() { [ "$*" = "-C $root grep -q call_mcp_tool -- src" ] && return 1; command git "$@"; }
-    ovw_doc_problems "$1"
-  )
-}
-
 t_overviewdoc() {
-  local doc=$root/docs/security-overview.md d=$tmp/ovwdoc grp want
+  local doc=$root/docs/security-overview.md ex=$root/$OVW_MCP_EXAMPLE d=$tmp/ovwdoc grp want
   rm -rf "$d"
   mkdir -p "$d"
   eq "the committed overview has a good frame" "$(ovw_doc_problems "$doc")" ""
+  eq "the committed worked example is good" "$(mcp_doc_problems "$ex")" ""
   # controls: the checker finds each kind of fault in a copy of the committed file
   sed 's/^# OcuTalon security overview$/# Overview/' "$doc" > "$d/title.md"
   eq "control: a changed title" "$(ovw_doc_problems "$d/title.md")" "the first line is not the title"
@@ -2313,17 +2354,26 @@ t_overviewdoc() {
   eq "control: the privilege-limits paragraph outside its section" "$(ovw_doc_problems "$d/outside.md")" "the privilege-limits paragraph is not there word for word"
   sed 's/OcuTalon left the OCUORDERS namespace in place because/OcuTalon left the OCUORDERS namespace in place as/' "$doc" > "$d/kept.md"
   eq "control: a word of the kept sentence" "$(ovw_doc_problems "$d/kept.md")" "the kept-OCUORDERS sentence is not there word for word"
-  # the can't-connect and rules-sentence checks run only while src has no MCP client: with one, the same faults give no complaint (the switch is pinned)
-  awk '{ print } $0 == "## MCP tools" { print ""; print "Note." }' "$doc" > "$d/mcp.md"
-  if git -C "$root" grep -q call_mcp_tool -- src; then
-    eq "control: the can't-connect fault changed the file" "$(cmp -s "$doc" "$d/mcp.md" && echo same || echo changed)" "changed"
-    eq "control: the can't-connect sentence below the first line, with an MCP client in src, is not checked" "$(ovw_doc_problems "$d/mcp.md")" ""
-  else
-    eq "control: the can't-connect sentence below the first line" "$(ovw_doc_problems "$d/mcp.md")" "the MCP tools section does not open with the can't-connect sentence"
-  fi
-  # the other way: with the switch forced off, the committed file still passes and each of the two faults gives its own complaint
-  eq "the committed overview, with the MCP-client switch forced off, has a good frame" "$(ovw_doc_problems_no_mcp "$doc")" ""
-  eq "control: the can't-connect sentence below the first line, with the switch forced off" "$(ovw_doc_problems_no_mcp "$d/mcp.md")" "the MCP tools section does not open with the can't-connect sentence"
+  # controls of the MCP tools section and the Data section (Story 22.6): each is a copy of the committed overview with one fault and yields its own problem line
+  awk '{ print } $0 == "## MCP tools" { print ""; print "This release can'"'"'t connect to MCP servers." }' "$doc" > "$d/mcp.md"
+  eq "control: the can't-connect sentence put back" "$(ovw_doc_problems "$d/mcp.md")" "the MCP tools section still says that the release can't connect to MCP servers"
+  sed 's/ When a release adds MCP support, these rules apply:$//; s/^\(On a local or IPM install.*\)$/\1 When a release adds MCP support, these rules apply:/' "$doc" > "$d/frame.md"
+  eq "control: the old rules sentence put back" "$(ovw_doc_problems "$d/frame.md")" "the MCP tools section still says that the release can't connect to MCP servers"
+  sed 's/](mcp-jira-example\.md)/](mcp-jira.md)/' "$doc" > "$d/link.md"
+  eq "control: the link to the worked example removed" "$(ovw_doc_problems "$d/link.md")" "the MCP tools section does not link the worked example"
+  sed 's/^- An MCP tool that runs operating-system commands or arbitrary code must be classified Risky\./- An MCP tool that runs operating-system commands or arbitrary code should be classified Risky./' "$doc" > "$d/risky.md"
+  eq "control: a word of the classification sentence" "$(ovw_doc_problems "$d/risky.md")" "the MCP text lacks the classification sentence word for word"
+  sed 's/classify a tool Read-only only when you trust/classify a tool Read-only only if you trust/' "$doc" > "$d/readonly.md"
+  eq "control: a word of the Read-only sentence" "$(ovw_doc_problems "$d/readonly.md")" "the MCP text lacks the Read-only sentence word for word"
+  sed 's/^OcuTalon'"'"'s time limits for MCP servers are not hard deadlines\. A server has 2 seconds/OcuTalon'"'"'s time limits for MCP servers are not hard deadlines. A server has 3 seconds/' "$doc" > "$d/limits.md"
+  eq "control: the time-limits paragraph changed" "$(ovw_doc_problems "$d/limits.md")" "the MCP text lacks the time-limits paragraph as one whole line
+a line other than the time-limits paragraph mentions a deadline"
+  { cat "$doc"; echo 'The server has a hard deadline of 30 seconds.'; } > "$d/deadline.md"
+  eq "control: a hard deadline line added" "$(ovw_doc_problems "$d/deadline.md")" "a line other than the time-limits paragraph mentions a deadline"
+  { cat "$doc"; echo 'An approved request whose tool changed before it ran needs a new approval.'; } > "$d/replay.md"
+  eq "control: a replay-path line added" "$(ovw_doc_problems "$d/replay.md")" "a line describes the changed-tool replay path"
+  sed 's/^- In calls to the MCP servers an admin has added, never on the online demo: .*$/- In calls to configured MCP servers, which this release can'"'"'t make./' "$doc" > "$d/data.md"
+  eq "control: the old Data bullet put back" "$(ovw_doc_problems "$d/data.md")" "the Data section still says that MCP calls are ones this release can't make"
   sed 's/^- It expires after 24 hours\./- It expires after 48 hours./' "$doc" > "$d/hours.md"
   eq "control: another expiry" "$(ovw_doc_problems "$d/hours.md")" "the Approval and audit section lacks '24 hours'"
   sed 's/^- `Tool`: /- Tool: /' "$doc" > "$d/type.md"
@@ -2340,14 +2390,6 @@ t_overviewdoc() {
   eq "control: another long retention" "$(ovw_doc_problems "$d/days90.md")" "the Data section lacks '90 days'"
   sed 's/ and no scheduled purge removes them\./ and a scheduled purge removes them./' "$doc" > "$d/purge.md"
   eq "control: the no-scheduled-purge sentence changed" "$(ovw_doc_problems "$d/purge.md")" "the Data section lacks the no-scheduled-purge sentence"
-  sed 's/ When a release adds MCP support, these rules apply:$//' "$doc" > "$d/rules.md"
-  if git -C "$root" grep -q call_mcp_tool -- src; then
-    eq "control: the MCP rules sentence fault changed the file" "$(cmp -s "$doc" "$d/rules.md" && echo same || echo changed)" "changed"
-    eq "control: the MCP rules sentence dropped, with an MCP client in src, is not checked" "$(ovw_doc_problems "$d/rules.md")" ""
-  else
-    eq "control: the MCP rules sentence dropped" "$(ovw_doc_problems "$d/rules.md")" "the MCP tools section lacks the rules sentence"
-  fi
-  eq "control: the MCP rules sentence dropped, with the switch forced off" "$(ovw_doc_problems_no_mcp "$d/rules.md")" "the MCP tools section lacks the rules sentence"
   sed 's/^Each protection listed here is checked against the running demo before every release\.$/Each protection listed here is checked against the running demo./' "$doc" > "$d/close.md"
   eq "control: the closing demo sentence changed" "$(ovw_doc_problems "$d/close.md")" "the Online demo section lacks the checked-before-every-release sentence"
   { cat "$doc"; printf '\n## Data\n'; } > "$d/heading.md"
@@ -2358,6 +2400,33 @@ t_overviewdoc() {
   eq "control: a link" "$(ovw_doc_problems "$d/url.md")" "1 line(s) with a URL or address"
   { cat "$doc"; printf 'Host %s\n' '10.20.30.''40'; } > "$d/ip.md"
   eq "control: an address" "$(ovw_doc_problems "$d/ip.md")" "1 line(s) with a URL or address"
+  # controls of the worked example (Story 22.6): a copy of the committed file with one fault yields its own problem line
+  eq "control: the worked example is missing" "$(mcp_doc_problems "$d/none.md")" "the worked example is not at $OVW_MCP_EXAMPLE"
+  sed 's/^# A Jira MCP server, step by step$/# A Jira server/' "$ex" > "$d/e-title.md"
+  eq "control: the example's title changed" "$(mcp_doc_problems "$d/e-title.md")" "the first line is not the title"
+  { cat "$ex"; printf 'caf\303\251\n'; } > "$d/e-ascii.md"
+  eq "control: a non-ASCII byte in the example" "$(mcp_doc_problems "$d/e-ascii.md")" "1 line(s) with a character outside ASCII"
+  { cat "$ex"; echo 'See /Us''ers/someone/git/x'; } > "$d/e-path.md"
+  eq "control: a machine path in the example" "$(mcp_doc_problems "$d/e-path.md")" "1 line(s) with a machine path"
+  sed 's/jira-mcp\.example\.com/jira-mcp.example.org/' "$ex" > "$d/e-host.md"
+  eq "control: an address that is not on example.com" "$(mcp_doc_problems "$d/e-host.md")" "an address is not on example.com"
+  sed 's/^An MCP tool that runs operating-system commands or arbitrary code must be classified Risky\./An MCP tool that runs operating-system commands or arbitrary code should be classified Risky./' "$ex" > "$d/e-risky.md"
+  eq "control: a word of the classification sentence in the example" "$(mcp_doc_problems "$d/e-risky.md")" "the MCP text lacks the classification sentence word for word"
+  sed 's/classify a tool Read-only only when you trust/classify a tool Read-only only if you trust/' "$ex" > "$d/e-readonly.md"
+  eq "control: a word of the Read-only sentence in the example" "$(mcp_doc_problems "$d/e-readonly.md")" "the MCP text lacks the Read-only sentence word for word"
+  sed 's/^OcuTalon'"'"'s time limits for MCP servers are not hard deadlines\. A server has 2 seconds/OcuTalon'"'"'s time limits for MCP servers are not hard deadlines. A server has 3 seconds/' "$ex" > "$d/e-limits.md"
+  eq "control: the time-limits paragraph changed in the example" "$(mcp_doc_problems "$d/e-limits.md")" "the MCP text lacks the time-limits paragraph as one whole line
+a line other than the time-limits paragraph mentions a deadline"
+  { cat "$ex"; echo 'The server has a hard deadline of 30 seconds.'; } > "$d/e-deadline.md"
+  eq "control: a hard deadline line in the example" "$(mcp_doc_problems "$d/e-deadline.md")" "a line other than the time-limits paragraph mentions a deadline"
+  { cat "$ex"; echo 'The replay says mcp.replayToolChanged.'; } > "$d/e-replay.md"
+  eq "control: a replay-path line in the example" "$(mcp_doc_problems "$d/e-replay.md")" "a line describes the changed-tool replay path"
+  { cat "$ex"; echo 'Set a source poll to check the server.'; } > "$d/e-poll.md"
+  eq "control: a source poll in the example" "$(mcp_doc_problems "$d/e-poll.md")" "a line mentions a source poll"
+  sed 's/MCP servers are off on the online demo: nobody can add one there/MCP servers are on the online demo: anybody can add one there/' "$ex" > "$d/e-demo.md"
+  eq "control: the demo sentence changed in the example" "$(mcp_doc_problems "$d/e-demo.md")" "the example lacks the sentence that says MCP is off on the online demo"
+  sed 's/](security-overview\.md#mcp-tools)/](security-overview.md)/' "$ex" > "$d/e-link.md"
+  eq "control: the link to the overview removed from the example" "$(mcp_doc_problems "$d/e-link.md")" "the example does not link the overview's MCP tools section"
   # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in shards-5
   # (the expected lines follow IRIS_GROUPS, so a group added to the matrix is checked too)
   want=$(ovw_ci_claims)
