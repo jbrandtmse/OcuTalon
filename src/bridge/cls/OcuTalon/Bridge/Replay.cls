@@ -17,17 +17,17 @@ Include Ensemble
 ///      ExecuteTool returns a result with a value (or a void result), and failed otherwise or when it raises. A call that failed is never retried.
 ///      The returned value is discarded: it reaches no column, no reply and no event, and appears only in the step record of the trace.
 ///      A row whose ToolSource is an MCP toolref (Story 22.4) is not run by name: the agent's own manager holds no MCP server (Story 22.9). The replay asks the
-///      host's ServerOf for the row's server (an empty one fails the run with no call), swaps in a manager that holds only the host's proxy toolset
-///      (Adapter.Agent ProxyManager) and runs call_mcp_tool {server, tool: ToolName, arguments: ToolArguments}. The gate takes the grant on the native triple (tool,
+///      host's ServerOf for the row's server (an empty one, and a row that holds no ToolFingerprint, fail the run with no call), swaps in a manager that holds only the host's
+///      proxy toolset (Adapter.Agent ProxyManager; when it cannot be built the run fails with no call) and runs call_mcp_tool {server, tool: ToolName, arguments: ToolArguments}. The gate takes the grant on the native triple (tool,
 ///      arguments, toolref), the proxy compares the live listing with the row's ToolFingerprint and refuses a change unrun, and the run is done only when the call
 ///      returned a value and the proxy noted no refusal (Context ReplayRefusal). A refusal ends the run failed, with the proxy's refusal sentence as FailureText, and a
 ///      refusal for a changed tool ends it with the result changed. The agent's own manager is put back on every path (RestoreTools).
 ///   3. One Action entry through Audit.Record (action the ToolName, target the ToolSource, the result, no counts, the approvalRef, the approver of
 ///      the row, the session of the owner when it is a Ref, the channel of the answer), and then FinishExecution of the Ref with the result, which
 ///      fires approval.result. A write or a finish that fails is a warning that names the Ref. The result interrupted is the one of a row that
-///      CloseInterrupted or the refused start of step 1 closes; CloseInterrupted also answers the hold that waits on the replay (Approval.AnswerHold).
+///      CloseInterrupted or the refused start of step 1 closes, and the result changed the one of an MCP call refused because its tool changed; CloseInterrupted also answers the hold that waits on the replay (Approval.AnswerHold).
 ///   4. The reply holds no text and no host data, Tainted 0, ToolsRun 1 (0 when the failure came before ExecuteTool was called), the step records and, for a call that failed, its redacted and cut error
-///      text as FailureText.
+///      text as FailureText; for an MCP row, the proxy's refusal sentence, or the internal NOSERVERTEXT, NOFINGERPRINTTEXT or NORESULTTEXT.
 ///   5. The context and the step buffer end, and the throwaway session is released, on every path.
 /// A replay holds LOCK ^OcuTalon.Bridge.Replay(<Ref>) from before StartExecution until after Record, and releases it on every path, so the lock
 /// says whether a replay of the Ref is alive. CloseInterrupted, which Approval.Reconcile runs after an instance start, closes an executing tool_call
@@ -47,7 +47,7 @@ Parameter NOSERVERTEXT = "the MCP server of the call is not known, so nothing wa
 Parameter NOFINGERPRINTTEXT = "the MCP request holds no fingerprint of the tool, so nothing was run";
 
 /// The FailureText of an MCP replay whose refusal sentence cannot be read. Internal, like INTERRUPTEDTEXT.
-Parameter NORESULTTEXT = "the MCP call was refused, so nothing was run";
+Parameter NORESULTTEXT = "the MCP call was refused or got no answer";
 
 /// Replays the approved call of the request (kind tool, ItemId the Ref of the approval request) in the job of adapter, which is the runner
 /// that holds the call. reply is the Reply described above; the status is an error only when the ItemId of the request is not the Ref of an

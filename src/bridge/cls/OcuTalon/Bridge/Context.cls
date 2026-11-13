@@ -321,8 +321,8 @@ ClassMethod ApprovedFingerprint(tool As %String) As %String
 	Quit $Select(tool = $ListGet(approved, 2): $ListGet(approved, 3), 1: "")
 }
 
-/// Notes the reason word of a replay that refused its call unrun (the proxy's changed, failed, timeout or demo), so that the replay can tell a refusal from a result: the
-/// tool answers a sentence either way. The last word noted stands. It does nothing for an empty word and when there is no context; it never throws.
+/// Notes the reason word of a replay whose proxy call was refused (the proxy's changed, failed, timeout or demo; failed and timeout can come after the request reached the
+/// server), so that the replay can tell a refusal from a result: the tool answers a sentence either way. The last word noted stands. It does nothing for an empty word and when there is no context; it never throws.
 ClassMethod NoteReplayRefusal(word As %String)
 {
 	If '..Active() || ($Get(word) = "") Quit

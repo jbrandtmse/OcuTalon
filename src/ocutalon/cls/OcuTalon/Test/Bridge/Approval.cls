@@ -1252,10 +1252,14 @@ Method TestCancelPending()
 	Do $$$AssertEquals(count, 0, "and cancels none")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Approval", "Approval", $List(refs, 1)).%Size(), 1, "and adds no second entry")
 
-	// a request that cannot be cancelled (another job holds the lock): one warning that names its Ref, and the error is returned
+	// a request that cannot be cancelled (another job holds its lock): one warning that names its Ref, the other request of the source is still cancelled, and the error is returned
+	Set row = ..NewRow("tool_call")
+	Set row.ToolSource = other
+	Set row.ToolFingerprint = fingerprint
+	Do $$$AssertStatusOK(..Raise(row, .nextRef), "a second request of the other source is raised")
 	Set run = $Name(^OcuTalonTest("Approval", "job", ..Number))
 	Kill @run
-	Job ##class(OcuTalon.Test.Bridge.Approval).HoldLockInJob(..Number, 60)
+	Job ##class(OcuTalon.Test.Bridge.Approval).HoldLockInJob(..Number, 60, otherRef)
 	Do ..WaitNode($Name(@run@("locked")), 20)
 	Do $$$AssertEquals($Get(@run@("locked")), 1, "the other job holds the lock")
 	If '$Get(@run@("locked")) {
@@ -1267,14 +1271,14 @@ Method TestCancelPending()
 	Set @run@("release") = 1
 	Do ..WaitNode($Name(@run@("done")), 20)
 	Do $$$AssertStatusNotOK(sc, "the first error is returned")
-	Do $$$AssertEquals(+count, 0, "and nothing was cancelled")
+	Do $$$AssertEquals(+count, 1, "and only the other request was cancelled")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(eventMark, "OcuTalon.Bridge.Approval", "CancelPending", $ListBuild(otherRef)), 1, "with one warning that names the Ref")
-	Do $$$AssertEquals(..Prop(otherRef, "State"), "pending", "the request is as it was")
+	Do $$$AssertEquals(..Prop(otherRef, "State") _ "|" _ ..Prop(nextRef, "State"), "pending|cancelled", "the locked request is as it was and the other one is cancelled")
 	Kill @run
 }
 
 /// Row 10: every pair of a state and a call is refused unless AD-11's path allows it. Fixture rows in the 8 states and an approved row past its
-/// expiry meet Answer approve and reject, Expire, Cancel, StartExecution and FinishExecution (done, failed, interrupted and x), each call on its
+/// expiry meet Answer approve and reject, Expire, Cancel, StartExecution and FinishExecution (done, failed, interrupted, changed and x), each call on its
 /// own row. A refusal names the Ref and the state, and changes no column and fires no event; an allowed change sets only its fields and fires its
 /// event (none for StartExecution, which takes no sink: Decide's HostSinkClass is ProbeSink here so that an event of it would show). Answer on a pending row and Cancel on a pending row are rows 1 and 9: a fixture has no task.
 Method TestEveryOtherTransitionIsRefused()
@@ -1287,7 +1291,7 @@ Method TestEveryOtherTransitionIsRefused()
 	Set changes = 0
 	Set none = ""
 	Set keys = $ListBuild("pending", "approved", "approvedPast", "rejected", "expired", "cancelled", "executing", "done", "failed")
-	Set ops = $ListBuild("answer approve", "answer reject", "expire", "cancel", "start", "finish done", "finish failed", "finish interrupted", "finish x")
+	Set ops = $ListBuild("answer approve", "answer reject", "expire", "cancel", "start", "finish done", "finish failed", "finish interrupted", "finish changed", "finish x")
 	Set keyPosition = 0
 	While $ListNext(keys, keyPosition, key) {
 		Set state = $Select(key = "approvedPast": "approved", 1: key)
@@ -1638,20 +1642,21 @@ Method TestTimerDeliversAnUndeliveredAnswer()
 	Do $$$AssertEquals(..Prop(ref, "State"), "approved", "the row stays approved")
 }
 
-/// The job body of TestLockHeld: takes LOCK ^OcuTalon.Bridge.Approval, reports it, and keeps it until the test sets release or the seconds
-/// pass.
-ClassMethod HoldLockInJob(number As %Integer, seconds As %Integer)
+/// The job body of TestLockHeld: takes LOCK ^OcuTalon.Bridge.Approval (only the node of the Ref when ref is given), reports it, and keeps it until the test sets release
+/// or the seconds pass.
+ClassMethod HoldLockInJob(number As %Integer, seconds As %Integer, ref As %String = "")
 {
 	Set run = $Name(^OcuTalonTest("Approval", "job", number))
+	Set node = $Select(ref = "": $Name(^OcuTalon.Bridge.Approval), 1: $Name(^OcuTalon.Bridge.Approval(ref)))
 	Try {
-		Lock +^OcuTalon.Bridge.Approval:10
+		Lock +@node:10
 		If $Test {
 			Set @run@("locked") = 1
 			Set deadline = $ZHorolog + seconds
 			While '$Get(@run@("release")) && ($ZHorolog < deadline) {
 				Hang 0.05
 			}
-			Lock -^OcuTalon.Bridge.Approval
+			Lock -@node
 		} Else {
 			Set @run@("error") = "the lock was not taken"
 		}
@@ -3356,6 +3361,7 @@ ClassMethod Expected(key As %String, op As %String) As %List [ Private ]
 	If (arg = "done") && (state = "executing") Quit $ListBuild("changed", "done", "approval.result")
 	If (arg = "failed") && ((state = "executing") || (state = "approved")) Quit $ListBuild("changed", "failed", "approval.result")
 	If (arg = "interrupted") && (state = "executing") Quit $ListBuild("changed", "failed", "approval.result")
+	If (arg = "changed") && (state = "executing") Quit $ListBuild("changed", "failed", "approval.result")
 	Quit $ListBuild("refused", state, "")
 }
 

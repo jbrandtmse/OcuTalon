@@ -1003,7 +1003,8 @@ Method TestProxyDirectIsClassifiedAsTheNativeCall()
 }
 
 /// Story 22.3 (matrix row "Not registered", "a server or tool missing from the map counts as unclassified"): a proxy call whose server the turn's map does not name is asked as the
-/// empty toolref: unclassified for the bridge's class (held in a user's turn, UNTRUSTED in an untrusted one), and UNREGISTERED for OcuTalon's, which registers servers; a call
+/// empty toolref: unclassified for the bridge's class (denied FAILED in a user's turn, as no toolref means no fingerprint and so no hold (Story 22.4), UNTRUSTED in an untrusted one),
+/// and UNREGISTERED for OcuTalon's, which registers servers; a call
 /// whose arguments name no server or no tool, or are not an object with text members, is unclassified; nothing is reported or tainted by any of them.
 Method TestProxyUnknownServer()
 {

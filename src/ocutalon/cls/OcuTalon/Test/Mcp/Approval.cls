@@ -18,7 +18,11 @@
 ///   - TestUnclassifiedReplays: the exact call approved for an unclassified tool runs once; TestRefusedReplayFails: a call that the server answers with an error ends the row failed, never done;
 ///     TestNoFingerprintNoReplay: an approved MCP request that holds no fingerprint is not replayed;
 ///   - TestNoFingerprintNoHold: a call of an MCP tool that the turn's map does not hold is denied FAILED and holds nothing;
-///   - TestDemoRefusesTheReplay (the Contest Planner's online-demo rule): with the online-demo flag on, an approved MCP request does not run: it fails before any outbound request.
+///   - TestReplayResultIsCut: a replay whose result is longer than the step's room ends done with the MCP audit outcome cut (DW-1220); TestChangedNoticeNamesToolAndServer: a run that ends
+///     changed sends the owner mcp.replayToolChanged with the tool and the server as its slots;
+///   - TestDemoRefusesTheReplay (the Contest Planner's online-demo rule): with the online-demo flag on, an approved MCP request does not run: it fails before any outbound request;
+///   - QA of the Contest Planner's conditions: TestReplayUsesOneSessionAndNoModelTurn (2(b)), TestReplayStopsWithoutTheWalletSecret (22.3's (e) on the replay), TestReplayLeavesOnlyTheNamedFacts
+///     (22.3's (a) and (d) on the replay), TestCancellingTwiceIsANoOp (2(c)) and TestDemoSendsTheMockNothing (the online-demo rule, strictly: the mock gets no request at all).
 Class OcuTalon.Test.Mcp.Approval Extends OcuTalon.Test.Mcp.JobFixture
 {
 
@@ -141,6 +145,12 @@ Method TestHeldThenReplayed()
 		Set names = names _ $ListBuild(name)
 	}
 	Do $$$AssertEquals($ListToString(names, ",") _ "|" _ approvals.%Size(), "answered,finished,started|3", "the request has three Approval entries: answered, started and finished")
+	Set answered = ""
+	Set iterator = approvals.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If entry.data.change = "answered" Set answered = entry.data.from _ ">" _ entry.data.to
+	}
+	Do $$$AssertEquals(answered, "pending>approved", "the answered entry records the approval: pending to approved")
 
 	// the agent's own manager holds no MCP server and no proxy once the replay is over
 	Set sc = $ClassMethod(..#FIXTURE, "Send", ..#RUNNER, ##class(OcuTalon.Bridge.Msg.ToolInventory).%New(), .response)
@@ -360,9 +370,50 @@ Method TestRefusedReplayFails()
 	Set ref = ..Approved("zz_delete_ticket", "{""id"":""T-9""}")
 	If ref = "" Quit
 	Do $ClassMethod(..#MOCK, "Call", ..Port, "iserror")
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Do $$$AssertEquals(..Replay(ref, .reply), "failed", "the replay ends the row failed")
 	Set row = ..Fresh(ref)
 	Do $$$AssertEquals(row.Result, "failed", "with the result failed, not done and not changed")
+	Do $$$AssertEquals($ClassMethod(..#MOCK, "Calls", ..Port, "zz_delete_ticket"), 1, "the call reached the server, which answered it with an error")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..#SERVER)
+	Do $$$AssertEquals(entries.%Size(), 1, "one MCP audit entry exists")
+	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.change _ "|" _ entries.%Get(0).data.tool _ "|" _ entries.%Get(0).data.outcome, "refused|zz_delete_ticket|failed", "it says refused, the tool and failed")
+}
+
+/// A replay whose result is longer than the model step has room for (DW-1220, the result cut): the row ends done and the MCP audit entry says cut.
+Method TestReplayResultIsCut()
+{
+	If '..Prepare() Quit
+	Set ref = ..Approved("zz_delete_ticket", "{""id"":""T-14""}")
+	If ref = "" Quit
+	Do $ClassMethod(..#MOCK, "Call", ..Port, "long", 100000)
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Do $$$AssertEquals(..Replay(ref, .reply), "done", "the replay ends the row done")
+	Do $$$AssertEquals($ClassMethod(..#MOCK, "Calls", ..Port, "zz_delete_ticket"), 1, "the mock logged exactly one tools/call")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..#SERVER)
+	Do $$$AssertEquals(entries.%Size(), 1, "one MCP audit entry exists")
+	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.change _ "|" _ entries.%Get(0).data.tool _ "|" _ entries.%Get(0).data.outcome, "called|zz_delete_ticket|cut", "it says called, the tool and cut")
+}
+
+/// The notice of a changed tool (R1): an executing MCP request that ends with the result changed sends the owner mcp.replayToolChanged with the tool and the server's name as its
+/// slots (the bridge sink's notice, recorded by OcuTalon.Test.Core.BridgeSinkNoticeProbe, so no channel renders it).
+Method TestChangedNoticeNamesToolAndServer()
+{
+	If '..Prepare() Quit
+	Set ref = ..Approved("zz_delete_ticket", "{""id"":""T-15""}")
+	If ref = "" Quit
+	Kill ^OcuTalonTest("BridgeSinkNotice")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).StartExecution(ref), "the run starts")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).FinishExecution(ref, "changed", "OcuTalon.Test.Core.BridgeSinkNoticeProbe"), "and ends with the result changed")
+	Set found = ""
+	For n = 1:1:+$Get(^OcuTalonTest("BridgeSinkNotice", "calls")) {
+		If $Get(^OcuTalonTest("BridgeSinkNotice", "calls", n, "approvalRef")) '= ref Continue
+		Set slots = $Get(^OcuTalonTest("BridgeSinkNotice", "calls", n, "slots"))
+		Set slots = $Select($IsObject(slots): slots, slots = "": {}, 1: {}.%FromJSON(slots))
+		Set found = found _ $ListBuild($Get(^OcuTalonTest("BridgeSinkNotice", "calls", n, "kind")) _ "|" _ $Get(^OcuTalonTest("BridgeSinkNotice", "calls", n, "catalogKey")) _ "|" _ slots.%Get("tool") _ "|" _ slots.%Get("server"))
+	}
+	Kill ^OcuTalonTest("BridgeSinkNotice")
+	Do $$$AssertEquals($ListToString(found, ","), "result|mcp.replayToolChanged|zz_delete_ticket|" _ ..#SERVER, "one result notice, mcp.replayToolChanged, names the tool and the server")
 }
 
 /// A request that holds no fingerprint (a row of an MCP tool made before the column existed): it is not replayed, so no call is made (condition 2(e)).
@@ -428,6 +479,157 @@ Method TestDemoRefusesTheReplay()
 	Do $$$AssertEquals(state, "failed", "the approval does not run the call: the row ends failed")
 	Do $$$AssertTrue($IsObject(reply) && (reply.ToolsRun = 0), "no tool ran")
 	Do $$$AssertEquals(..Credentialed(before), 0, "the mock got no request with the credential and no tools/call: the replay was refused before any outbound request")
+}
+
+/// The replay is one connection and no model turn (QA of the Contest Planner's condition 2(b)): the Mcp-Session-Id of the server's answer to initialize rides on the notification, the
+/// tools/list that checks the fingerprint and the tools/call that follows it, which is the first request after that list; no request of the model is made for the owner during the replay;
+/// and the arguments of the tools/call are the row's, member for member, in order, for a nested value.
+Method TestReplayUsesOneSessionAndNoModelTurn()
+{
+	If '..Prepare() Quit
+	Do $ClassMethod(..#MOCK, "Session", ..Port, "zzqasession")
+	Set arguments = "{""a"":{""k"":true,""s"":""x y""},""id"":""T-10"",""zz"":[1,2.5]}"
+	Set ref = ..Approved("zz_delete_ticket", arguments)
+	If ref = "" Quit
+	Set before = $ClassMethod(..#MOCK, "Requests", ..Port).%Size()
+	Set modelMark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Do $$$AssertEquals(..Replay(ref, .reply), "done", "the replay ends the row done")
+	Set sessions = ""
+	Set sent = ""
+	Set iterator = $ClassMethod(..#MOCK, "Requests", ..Port).%GetIterator()
+	While iterator.%GetNext(.index, .request) {
+		If (index >= before) && (request.client = "iris") && (request.auth = "matched") {
+			Set sessions = sessions _ $ListBuild(request.method _ "=" _ request.session)
+			If request.method = "tools/call" Set sent = request.arguments
+		}
+	}
+	Do $$$AssertEquals($ListToString(sessions, ","), "initialize=,notifications/initialized=zzqasession,tools/list=zzqasession,tools/call=zzqasession", "initialize opens the session and the notification, the list and the call all carry it, in that order with the call right after the list")
+	Do $$$AssertEquals(sent, ..Fresh(ref).ToolArguments, "the arguments sent are the row's: " _ sent _ " / " _ ..Fresh(ref).ToolArguments)
+	Do $$$AssertEquals(sent, arguments, "and the text that was stored: " _ sent _ " / " _ arguments)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(modelMark, .entries), "the model mock's log is read")
+	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "FindRequests", entries, ..SessionRef).%Size() + $ClassMethod(..#FIXTURE, "FindRequests", entries, ref).%Size(), 0, "no request of the model was made for the owner or the request during the replay")
+}
+
+/// The replay stops when the credential cannot be read (QA of 22.3's condition (e) on the replay): with the wallet secret gone, the approved request ends failed (not changed), the audit
+/// entry says refused with the outcome credential, and the server is sent no request with a credential, no list and no call.
+Method TestReplayStopsWithoutTheWalletSecret()
+{
+	If '..Prepare() Quit
+	Set ref = ..Approved("zz_delete_ticket", "{""id"":""T-11""}")
+	If ref = "" Quit
+	Do ..Ok(##class(%Wallet.KeyValue).Delete(..Collection() _ ".Key"), "the wallet secret of the server's entry is removed")
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set before = $ClassMethod(..#MOCK, "Requests", ..Port).%Size()
+	Do $$$AssertEquals(..Replay(ref, .reply), "failed", "the replay ends the row failed")
+	Do $$$AssertEquals(..Fresh(ref).Result, "failed", "with the result failed")
+	Set seen = ""
+	Set iterator = $ClassMethod(..#MOCK, "Requests", ..Port).%GetIterator()
+	While iterator.%GetNext(.index, .request) {
+		If (index >= before) && ((request.auth '= "absent") || (request.method '= "initialize")) Set seen = seen _ $ListBuild(request.method _ "/" _ request.client _ "/" _ request.auth)
+	}
+	Do $$$AssertEquals($ListToString(seen, ","), "", "the mock got no request with the credential, no list and no call (the runner's own unauthenticated initialize of the proxy's attach is none of them): " _ $ListToString(seen, ","))
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..#SERVER)
+	Do $$$AssertEquals(entries.%Size(), 1, "one MCP audit entry exists")
+	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.change _ "|" _ entries.%Get(0).data.tool _ "|" _ entries.%Get(0).data.outcome, "refused|zz_delete_ticket|credential", "it says refused, the tool and credential")
+}
+
+/// What a replay leaves behind (QA of 22.3's conditions (a) and (d) on the replay): the MCP audit entry holds exactly the change, the server, the tool, the outcome and the person, and
+/// neither it nor any other audit entry, event-log row, notice, event of the owner or Visual Trace body of the replay holds the credential, the server's address or an argument value.
+/// The argument value shows only in the request's own columns.
+Method TestReplayLeavesOnlyTheNamedFacts()
+{
+	If '..Prepare() Quit
+	Set marker = "ZZARGMARK12"
+	Set ref = ..Approved("zz_delete_ticket", "{""id"":""" _ marker _ """}")
+	If ref = "" Quit
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set eventMark = $ClassMethod(..#FIXTURE, "EventMark")
+	Set headerMark = ..HeaderMark()
+	Do $$$AssertEquals(..Replay(ref, .reply), "done", "the replay ends the row done")
+	Set row = ..Fresh(ref)
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..#SERVER)
+	Do $$$AssertEquals(entries.%Size(), 1, "one MCP audit entry exists")
+	If entries.%Size() = 1 {
+		Kill keys
+		Set iterator = entries.%Get(0).data.%GetIterator()
+		While iterator.%GetNext(.key) {
+			Set keys(key) = ""
+		}
+		Set names = ""
+		Set key = ""
+		For {
+			Set key = $Order(keys(key))
+			Quit:key=""
+			Set names = names _ $ListBuild(key)
+		}
+		Do $$$AssertEquals($ListToString(names, ","), "change,channel,irisUser,outcome,server,sessionRef,tool", "it holds the change, the server, the tool, the outcome and the person, and nothing else")
+	}
+	Set url = "127.0.0.1:" _ ..Port
+	Set secretAt = ..Shows(..Secret, eventMark, row)
+	Set urlAt = ..Shows(url, eventMark, row)
+	Set markerAt = ..Shows(marker, eventMark, row)
+	Do $$$AssertEquals(secretAt, "", "the credential shows nowhere")
+	Do $$$AssertEquals(urlAt, "", "the server's address shows nowhere")
+	Do $$$AssertEquals(markerAt, "a column of the request", "the argument value shows only in the request's own columns")
+	Set holds = ..TraceHolds(headerMark, $ListBuild(..Secret, url, marker), .scanned)
+	Do $$$AssertTrue(scanned > 0, "the Visual Trace of the replay was read (" _ scanned _ " bodies)")
+	Do $$$AssertEquals($ListToString(holds, ","), "0,0,0", "and holds neither the credential, the address nor the argument value")
+}
+
+/// Cancelling a request twice is a no-op (QA of the Contest Planner's condition 2(c)): the removal of the server cancels its pending request once, and a second Cancel and a second
+/// CancelPending change nothing, write no second Approval entry and fire no second approval event.
+Method TestCancellingTwiceIsANoOp()
+{
+	If '..Prepare() Quit
+	Set toolref = ##class(OcuTalon.Mcp.Attach).Toolref(..#SERVER)
+	Set row = ##class(OcuTalon.Test.Bridge.ApprovalRows).NewRow("tool_call", "zz_delete_ticket", "{""id"":""T-13""}", toolref, ..#RUNNER)
+	Set row.OwnerRef = ..SessionRef
+	Set row.ToolFingerprint = ##class(OcuTalon.Bridge.Context).ToolFingerprint(toolref, "zz_delete_ticket", "Deletes a ticket.", {"type": "object", "properties": {"id": {"type": "string"}}})
+	Set sc = ##class(OcuTalon.Test.Bridge.ApprovalRows).Save(row, "pending", 3600, ..#ANSWERER, .ref)
+	Do $$$AssertStatusOK(sc, "a pending request of the server is saved")
+	If $$$ISERR(sc) Quit
+	Do ..Track(ref)
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(..SessionRef, "approval").%Size()
+	Set result = ..RemoveServer()
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome, "1|removed", "the server is removed")
+	Do $$$AssertEquals(..Fresh(ref).State, "cancelled", "the pending request is cancelled")
+	Set after = ##class(OcuTalon.Test.Core.Observe).Events(..SessionRef, "approval", events + 1, 20).%Size()
+	Do $$$AssertEquals(after, events + 1, "and one approval event reached the owner's stream")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Approval", "Approval", ref, , 1).%Size(), 1, "with one Approval entry")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Bridge.Approval).Cancel(ref), "a second Cancel is refused")
+	Kill ^||ZzProbeSink
+	Set sc = ##class(OcuTalon.Bridge.Approval).CancelPending(toolref, "OcuTalon.Test.Bridge.ProbeSink", "web", ..#ANSWERER, ..SessionRef, .count)
+	Do $$$AssertStatusOK(sc, "a second CancelPending is OK")
+	Do $$$AssertEquals(+count, 0, "and cancels none")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "no second approval event was fired (the sink of the second call, which records in this job, got none)")
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Approval", "Approval", ref).%Size(), 1, "and no second Approval entry was written")
+	Do $$$AssertEquals(..Fresh(ref).State, "cancelled", "the request is still cancelled")
+}
+
+/// On the online demo an approved MCP request sends nothing (QA of the Contest Planner's online-demo rule, strictly): with the flag on the replay ends the row failed and the mock
+/// is sent no request of any kind, not the unauthenticated ones either.
+Method TestDemoSendsTheMockNothing()
+{
+	If '..Prepare() Quit
+	Set ref = ..Approved("zz_delete_ticket", "{""id"":""T-14""}")
+	If ref = "" Quit
+	Set settings = "OcuTalon.Data.Public.Settings"
+	Set saved = $ClassMethod(settings, "Get", "onlineDemo")
+	Set before = $ClassMethod(..#MOCK, "Requests", ..Port).%Size()
+	Set state = ""
+	Set reply = ""
+	Try {
+		Do ..Ok($ClassMethod(settings, "Set", "onlineDemo", 1), "the online-demo flag is on")
+		Set state = ..Replay(ref, .reply)
+	} Catch exception {
+		Do $$$AssertTrue(0, "the replay raised: " _ exception.DisplayString())
+	}
+	Do ..Ok($ClassMethod(settings, "Set", "onlineDemo", saved), "the flag is put back")
+	Do $$$AssertEquals(state, "failed", "the approval does not run the call: the row ends failed")
+	Do $$$AssertTrue($IsObject(reply) && (reply.ToolsRun = 0), "no tool ran")
+	Do $$$AssertEquals($ClassMethod(..#MOCK, "Requests", ..Port).%Size(), before, "the mock got no request of any kind")
 }
 
 /// --- helpers ---

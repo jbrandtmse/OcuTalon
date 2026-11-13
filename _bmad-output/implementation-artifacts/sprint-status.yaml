@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-12-2026 23:15
+last_updated: 11-13-2026 00:29
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -327,7 +327,7 @@ development_status:
   epic-22: in-progress
   22-2-classify-mcp-tools-by-server-and-name: done
   22-3-call-mcp-tools-only-through-the-governed-proxy: done
-  22-4-hold-risky-and-unclassified-mcp-calls-for-approval: review
+  22-4-hold-risky-and-unclassified-mcp-calls-for-approval: done
   22-5-poll-a-read-only-mcp-tool-as-a-source: ready-for-dev
   22-6-document-a-worked-jira-example-and-mcp-governance: backlog
   22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone: backlog

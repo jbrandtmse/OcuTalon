@@ -252,7 +252,7 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 /// Holds a call that is not safe: raises one tool_call request for it through Approval.Raise (see the class comment, step 5) and denies the
 /// call with HELD. It throws Raise's status when Raise fails, which Check turns into FAILED and one warning. A call of an MCP tool, native or through the governed proxy, is held
 /// in its native form (Story 22.4): the tool's name, the tool's own arguments, the toolref of its server and the fingerprint that the turn's map holds for the tool
-/// (HeldMcp); a call that has no toolref or no fingerprint there throws, so nothing is held that could never be replayed.
+/// (HeldMcp); a call that has no toolref or no fingerprint there throws, so no MCP call is held without the fingerprint that its replay is checked against.
 ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, source As %String, call As %DynamicObject, sinkClass As %String) As %Status [ Private ]
 {
 	Set type = call.%GetTypeOf("arguments")

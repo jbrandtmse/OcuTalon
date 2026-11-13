@@ -7330,6 +7330,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
 - evidence: Gate.Decision reroutes only outside a replay; Test.Bridge.Gate TestMcpRewriteAndItsMark pins the non-rewrite; spec Never list assigns the MCP replay to 22.4
 - 2026-11-12T20:12:17Z status=routed owner=22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=harvest note=22.4 replays through the proxy (S15)
+- 2026-11-13T00:37:12Z status=resolved-by:22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=adjudication note=replay_runs_call_mcp_tool_on_a_proxy-only_manager;Test.Mcp.Approval_TestHeldThenReplayed(no_tools/call_from_AI_Hub_client)+TestReplayResultIsCut
 
 ### DW-1221: Mcp.Client has no total deadline per request: Timeout applies per read, so a server that trickles bytes can hold a runner job past CALLSECONDS
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Mcp/Client.cls
@@ -7368,3 +7369,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Approval.cls
 - evidence: the request has Approval entries answered, started and finished only
 - 2026-11-12T23:13:35Z status=open owner=22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=harvest note=in-story: CR patches it (or closes it against the AC wording)
+- 2026-11-13T00:36:56Z status=resolved-by:22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=adjudication note=AC_wording_amended(Rule5_tier1;audit_trail_is_answered/started/finished;Raise_is_not_an_auditing_state_method;FR-9_asks_approval_answered)
+
+### DW-1239: Planner condition 1 (upgrade) is proven only locally: release/upgrade-harness.sh approves one seeded fix request but never rejects one and never reads ToolFingerprint
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Harness seed_approval/check_approval_upgrade (L1133-1166, L1460-1485): one Break-the-feed fix, approved on phone; no reject, no tool_call, no column check. test-install-upgrade.sh seeds none. Local pin Test.Mcp.ApprovalUpgrade covers the 25-slot storage only.
+- 2026-11-13T00:27:51Z status=escalated owner=burndown by=cr note=release/** is Epic 0's; harness needs a 2nd seeded request rejected after upgrade + SQL check ToolFingerprint empty
+
+### DW-1240: Planner condition 4 says an unknown toolref is HELD; the build denies it (UNREGISTERED under OcuTalon's classification, FAILED with no fingerprint) and never runs it
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Mcp.Classification.ClassifyMcp: ServerOf empty -> registered 0 -> gate UNREGISTERED, no row (Test.Bridge.Gate TestMcpBridgeAlone); no map fingerprint -> FAILED (2(e), S16); replay of such a row fails NOSERVERTEXT (TestUnknownToolref).
+- 2026-11-13T00:27:51Z status=decision-pending owner=burndown by=cr note=planner=confirm denial (fail closed, no row that could never run) satisfies condition 4's HELD; code kept
+
+### DW-1241: An approved MCP request whose server is removed and re-added under the same name before its replay starts runs on the re-added server
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: CancelPending cancels pending rows only (AD-11); the gate and Proxy.Registered check the Server row by name, and the fingerprint's server id is the name-based toolref, so the re-added server passes. Window: approval to replay start.
+- 2026-11-13T00:27:51Z status=wontfix-accepted owner=22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=cr note=reopen_if=a replay starts for a request approved before its server was removed and re-added

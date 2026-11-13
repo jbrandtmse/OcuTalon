@@ -442,8 +442,8 @@ ClassMethod Cancel(ref As %String, sinkClass As %String = "", channel As %String
 	Quit ..Move(ref, "Cancel", sinkClass, "pending", "cancelled", ##class(OcuTalon.Bridge.Ext.HostSink).#APPROVALCANCELLED, , , 1, "cancelled", irisUser, channel, sessionRef)
 }
 
-/// Cancels, through Cancel, every tool_call request in the state pending whose ToolSource equals source exactly (an MCP server's toolref, when the host removes the
-/// server). The arguments after source are Cancel's: sinkClass, and the channel, irisUser and sessionRef of the person on whose authority the requests are cancelled.
+/// Cancels, through Cancel, every tool_call request in the state pending whose ToolSource equals source under the column's SQL collation (SQLUPPER: case and trailing
+/// spaces aside, so a removal that names the server in another case still finds its requests) (an MCP server's toolref, when the host removes the server). The arguments after source are Cancel's: sinkClass, and the channel, irisUser and sessionRef of the person on whose authority the requests are cancelled.
 /// count is the number of requests cancelled. A request that cannot be cancelled (it was answered meanwhile, or Cancel refused) gives one warning that names its Ref and
 /// the others go on; the first error is returned. An empty source is an error and cancels nothing. A request in any other state is left alone.
 ClassMethod CancelPending(source As %String, sinkClass As %String = "", channel As %String = "", irisUser As %String = "", sessionRef As %String = "", Output count As %Integer) As %Status
