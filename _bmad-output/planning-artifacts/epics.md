@@ -7701,6 +7701,8 @@ So that I approve only calls I understand.
 **Given** a pending request that Lane A's Story 22.4 cancelled because its server was removed
 **When** the cancellation arrives
 **Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 35.2 (was 21.1)'s proposal (FR-47, FR-8, AD-11)
+- DW-1232: the mcp.replayToolChanged notice (22.4 R1) renders text on the web chat and phone cards (a catalog key in Channel/WebChat/Out.cls and the phone card); until this merges, no release notes, guide or More-to-try text describes the changed-tool replay path (ledger; routed by merge_gate 2026-11-13, Contest Planner F2)
+- DW-1266: when this story removes the 200-character inputs cut, update 22.6's guide sentence P2 and its worked example in the same commit (ledger; routed by merge_gate 2026-11-13, Contest Planner M(4))
 
 ### Story 21.11: Show standalone fix requests with their reason and dry run on every channel
 

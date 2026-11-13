@@ -3942,3 +3942,5 @@
 2026-11-13T13:18:23Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=0c481884 result=success note=newest_fully_green
 2026-11-13T13:18:23Z	Epic 21	ci_green_verified	head=4eb46cdd runs=43399692299,43399692062 result=success
 2026-11-13T13:18:23Z	Epic 21	merge_enqueued	part=21.7+21.8+21.12+21.13 head=9aec7dee code_head=4eb46cdd
+2026-11-13T13:19:18Z	Epic 21	epic_merged_to_feature	part=21.7+21.8+21.12+21.13 merge_sha=ce9716c6 code=4eb46cdd+22.x(no_code_conflict) verified_on_origin=yes
+2026-11-13T13:19:18Z	Epic 21	ledger_routed_planned	story=21-10 entries=2(DW-1232,DW-1266) by=merge_gate
