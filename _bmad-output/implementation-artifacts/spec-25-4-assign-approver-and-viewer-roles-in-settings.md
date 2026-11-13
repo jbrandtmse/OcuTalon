@@ -367,6 +367,15 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - there is no Settings link;
   - a `POST /v1/messages` from the page's context gets 403 `read_only`.
 
+- [ ] [Ruling] Planner rulings of 2026-11-13 ~18:55Z (`.coordination/prompts/story-254-rulings-20261113.md`, binding; summarized under Design Notes "Planner rulings"). Work them into the tasks above:
+  - Row 2 text CHANGED to exactly: "Approvers can answer the approval requests that reach them, for every kind of risky action. Viewers can open OcuTalon but can't chat, answer or change anything." (pin it equal in the page texts and its tests).
+  - C1 (critical): `Roles.Refusal` returns `user_system` (checked before `user_managed`) for IRIS's own accounts: `UnknownUser`, `_SYSTEM`, `SuperUser`, `Admin`, `CSPSystem`, `IAM`, `_Ensemble`, `_PUBLIC`, `HS_Services`, compared in lower case, plus any name starting with `_` or `%`. Field text (page and server, new approved PUBLIC TEXT): "This is an IRIS system account, so its roles can't be changed here." Tests: one per name class in `Test.Install.RolesAssign` (`UnknownUser`, `_SYSTEM`, `SuperUser`, a `%x` name), plus a real-HTTP case; `mutation:` line "the user_system check skipped -> red". `Holders` still lists such an account if it already holds an OcuTalon role, with `managed: true`.
+  - C2: `Test.Web.ViewerApi` also lists every GET route that writes anything (a row, a global, a command) for a viewer-only caller, other than the viewer's own session or presence row. Task 0 adds (f): find them (read `Web/Api.cls` GET handlers and measure on the throwaway). If ANY exists, HALT `blocked` with blocking condition `intent gap: C2 GET routes that write for a viewer: <list with file:line>` before implementing past Task 0.
+  - Task 0 (c) also measures how long a signed-in CSP session can last (the web applications' session timeout, and whether the durable session renews it). If a removed viewer could keep reading for MORE THAN 24 HOURS, HALT `blocked` with `intent gap: C-24h removed viewer session lasts <measured>` before implementing past Task 0. Otherwise row 9's two texts are both approved: the step-2 text, and "Saved. Applies when they next sign in. Recorded in the audit log." for a viewer removal only (if (c) shows the session keeps the role).
+  - C3 (report only, no code): record under Design Notes "Measured" whether `Channel.Telegram.In` and the email entry check that the person holds `OcuTalonUser` at USE time (not only at pairing or connection), with file:line. The lead files a DW if they don't.
+  - C4: `SecretHandoff` has no TTL on this branch (`Core/SecretHandoff.cls`: Put/Take/Discard only); do NOT widen it. The reverse uri left on a submit timeout is ledgered by the lead (low DW).
+  - DW-1282 (standing rule): the Roles section's web code (roles view and its section file) goes in a LAZY chunk (dynamic `import()`), never in the initial bundle; the build's initial-bundle cap (1 MB) must not be exceeded and is never raised. Name the chunk in Verification; if the initial bundle would exceed the cap, HALT `blocked` with `intent gap: DW-1282 initial bundle over cap`.
+  - Q8 amendments (applied by the lead in planning artifacts; nothing for the implement stage).
 **Acceptance Criteria:**
 - AC 1: Given an admin on a local install with the roles present, when they open Settings › Roles, then the users holding an OcuTalon role are listed with their roles. The admin can grant or remove `OcuTalonApprover` and `OcuTalonViewer` (per-kind roles are shown but are granted in IRIS, by V3). Each change goes through `SettingsOps` to `Roles.Assign`, confirms with "Saved. Applies within a minute. Recorded in the audit log." and writes one `Settings` audit entry. Every other role and every managed account is refused, with its text.
 - AC 2: Given a user holding only `OcuTalonViewer`, when they sign in, then the page, History and Usage load read-only: no composer, and no Approve, Reject, Dismiss, Break the feed or other state-changing control. Every state-changing route answers 403 `read_only` and changes nothing; sign-out still works.
@@ -378,9 +387,13 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
 
 ## Spec Change Log
 
+- 2026-11-13 ~19:10Z, lead: Contest Planner rulings on the Planner Gate (`story-254-rulings-20261113.md`): APPROVED with row 2 changed, row 9 both texts (conditional on Task 0 (c) and the 24-hour STOP), new `user_system` text (C1), C2 STOP condition, C3 report, C4 DW, Q1-Q8 approved, footprint extension into `Install/Step/Roles.cls` granted. Standing DW-1282: lazy chunk. Worked into Tasks & Acceptance as the `[Ruling]` item; Planner Gate row 2 and row 12 updated.
+
 ## Review Triage Log
 
 ## Design Notes
+
+**Planner rulings (2026-11-13 ~18:55Z, binding; `.coordination/prompts/story-254-rulings-20261113.md`).** APPROVED with two text changes (row 2 reworded; new `user_system` text) and four security conditions: C1 refuse IRIS system accounts (`user_system`, one test per name class, mutation); C2 any GET route that writes for a viewer-only caller is a STOP; C3 report the Telegram/email use-time `OcuTalonUser` check (DW if absent; not blocking); C4 no TTL in SecretHandoff, so a low DW, SecretHandoff not widened. Task 0 (c): a removed viewer able to keep reading > 24 h is a STOP. Q1 (a), Q2 both texts, Q3 yes, Q4 yes, Q5 (a), Q6 one entry, Q7 approved (pinned additive contract; footprint extension into Lane A `Install/Step/Roles.cls` granted by the orchestrator), Q8 approved (spine replacements, epics.md AC 1, and EXPERIENCE.md:1143 changed to row 2's second sentence). Standing rule DW-1282: new web code in lazy chunks; exceeding the initial-bundle cap is a STOP. Push only after the 1.0.9 CI HOLD lifts (1.0.10).
 
 **Architecture decisions (Rule 6):**
 - AD-1: commands are production messages; `ListRoles` is a read verb through `CommandsIn`.
@@ -489,7 +502,7 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
 
 **PUBLIC TEXT** (target `web/src/app/settings/roles-view.ts` `ROLES_TEXTS` unless noted; server messages are `Web.RoleSettings` parameters, pinned equal):
 1. Nav label and heading: "Roles". From UX: UX-DR141 and EXPERIENCE.md:1143. Target `settings-view.ts`.
-2. Intro: "Approvers can answer approval requests for every kind of risky action. Viewers see everything read-only, with no composer." The second sentence is from UX (EXPERIENCE.md:1143); the first is new.
+2. Intro (RULED 2026-11-13, changed): "Approvers can answer the approval requests that reach them, for every kind of risky action. Viewers can open OcuTalon but can't chat, answer or change anything."
 3. Per-kind note: "An approver role for one kind, such as OcuTalonApprover_resend, is granted in IRIS." New.
 4. List heading "People with an OcuTalon role"; row text: the user name, then the roles as IRIS names, comma-separated. New.
 5. Empty: "No IRIS user holds an OcuTalon role yet." New.
@@ -499,7 +512,7 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
 9. Confirmation: "Saved. Applies within a minute. Recorded in the audit log." From UX (EXPERIENCE.md:1100), reused from `settings-view.ts:43`. See question 2.
 10. Failure: "Couldn't save. Nothing was changed." Reused from `settings-view.ts:45`. Denied: `settings-view.ts:46`, reused.
 11. Load error: "Couldn't load the roles." with the button "Retry" ("Retry" reused from `webhooks-section.ts`). New.
-12. Refusals (page and server): (a) `user_unknown` "There is no IRIS user with that name."; (b) `user_managed` "OcuTalon manages this account, so its roles can't be changed here."; (c) `role` "Only the approver and viewer roles can be changed here." New.
+12. Refusals (page and server; (d) added by ruling C1): (d) `user_system` "This is an IRIS system account, so its roles can't be changed here."; (a) `user_unknown` "There is no IRIS user with that name."; (b) `user_managed` "OcuTalon manages this account, so its roles can't be changed here."; (c) `role` "Only the approver and viewer roles can be changed here." New.
 13. Online demo, 409 (server `MESSAGEROLESOFF`; visitors can't reach it, because they aren't admins): "Roles can't be changed on the online demo." New.
 14. Viewer (server `Web.Api` `MESSAGEREADONLY`, and the line in the composer's place, `shared/viewer-view.ts`): "You have the viewer role, so you can look but not change anything." New.
 15. More to try: none. GUIDE.md "New since 1.0.0": none. The section is admin-only, absent on the online demo, and hidden until Story 26.4 creates the roles, so a guide line would not be true yet; it goes with Story 26.4.

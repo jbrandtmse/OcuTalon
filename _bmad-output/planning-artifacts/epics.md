@@ -8652,7 +8652,7 @@ So that only the right people can approve each kind of action, and others can lo
 
 **Given** an admin opens Settings › Roles
 **When** it loads
-**Then** it lists the IRIS users holding an OcuTalon role with their approver and viewer roles, and lets the admin grant or remove `OcuTalonApprover`, any `OcuTalonApprover_<kind>` or `OcuTalonViewer` through `SettingsOps`, which calls Lane A's role-assignment method (Story 26.4, under the contract Story 37.1 (was 26.1) fixes; a stub until it merges); no other role can be granted or removed there (FR-11, AD-19, AD-24, UX-DR141, UX-DR147)
+**Then** it lists the IRIS users holding an OcuTalon role with their approver and viewer roles, and lets the admin grant or remove `OcuTalonApprover` or `OcuTalonViewer`, and shows the `OcuTalonApprover_<kind>` roles each user holds, which an administrator grants in IRIS (Planner ruling V3), through `SettingsOps`, which calls the role-assignment method that this story builds in Lane A's file (the lead's dispatch); no other role can be granted or removed there [AMENDED 2026-11-13, Story 25.4, Contest Planner ruling Q8 (V3); it read "lets the admin grant or remove `OcuTalonApprover`, any `OcuTalonApprover_<kind>` or `OcuTalonViewer` through `SettingsOps`, which calls Lane A's role-assignment method (Story 26.4, under the contract Story 37.1 (was 26.1) fixes; a stub until it merges)"] (FR-11, AD-19, AD-24, UX-DR141, UX-DR147)
 **And** each change confirms with the step-2 settings text and is audited as a settings change (FR-9, FR-17)
 
 **Given** a user holding `OcuTalonViewer`
