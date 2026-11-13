@@ -7663,6 +7663,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 37.1 spine AD-24 S2 personal-data clause; Planner V3/V4/V8
 - 2026-11-13T13:24:13Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+- 2026-11-13T23:37:37Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=adjudication note=ceaf3519+review_patches:SettingsOps.SaveRoles/ListRoles_handoff_both_ways;Test.Web.RolesApi_leak_scan;409_on_demo_per_route;Test.Install.RolesAssign_one_test_per_refusal
 
 ### DW-1268: 25.5 obligation from 37.1: AnswersIn calls Approval.MayAnswer before Answer; the not_allowed slot kind carries the row's ApproverKind; one 'Only an approver for ...' sentence per approver kind (seven: resend, reroute, suspend, rollback, partner, email, tool; setting rows keep today's rule) proposed as PUBLIC TEXT (only 'resends' is in EXPERIENCE.md)
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7761,3 +7762,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Web/Api.cls OnPreDispatch, IsAdmin; Web/RoleSettings.cls Refusal; Task 0 (c): 8 h idle timeout renewed per request
 - 2026-11-13T22:43:57Z status=escalated owner=burndown by=harvest note=security posture: extend the C-24h live re-read to OcuTalonAdmin (same call, p95 0.066 ms); for the Planner/decision sheet
+
+### DW-1297: Settings > Roles shows the step-2 text 'Saved. Applies within a minute. Recorded in the audit log.' for a save that changed nothing (changed false, e.g. granting a role the user already holds), though no audit entry is written
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: roles-section.ts change(): every 200 shows SETTINGS_TEXTS.saved; SaveRoles answers changed false and Assign writes no entry for a no-op (I/O matrix Repeat row)
+- 2026-11-13T23:26:30Z status=decision-pending owner=burndown by=cr note=needs a Planner text ruling: a no-change text, or no confirmation for changed false; new public text is owner-only
+
+### DW-1298: Viewer guards in 9 of the 14 guarded components (try-it row, more to try, demo guide Run again, got it, noise control, documents bar and Remove, mailbox, phone, chat drop) are pinned only by source-text regexes, with no rendered viewer check
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: viewer-sources.test.mjs matches template text; viewer.spec.ts V1/V2 render only the composer, Approve/Reject, Dismiss, Break the feed and the rail; the server's 403 read_only is pinned (ViewerApi, api/roles.spec.ts)
+- 2026-11-13T23:26:30Z status=wontfix-accepted owner=25-4-assign-approver-and-viewer-roles-in-settings by=cr note=reopen_if=a viewer sees a state-changing control on any page, or a guard edit leaves viewer-sources green while a control renders
+
+### DW-1299: POST /v1/settings/roles checks only the body's types before the SecretHandoff; an empty or 161-character user, or a role outside the allowlist, is handed over and refused one hop later by Roles.Refusal (Planner Gate SECURITY row 2 says 1-160 characters and the two roles)
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: RoleSettings.ShapeFields types only; the frozen I/O matrix (Unknown user, Role refused rows) and Decided in-stage 5 fix the 400 user_unknown/role answers, which the client gets unchanged; Assign refuses before any change
+- 2026-11-13T23:26:30Z status=by-design owner=25-4-assign-approver-and-viewer-roles-in-settings by=cr note=spec-bound: frozen matrix rows + Decided in-stage 5; no name leaves the handoff; reopens only via spec amendment

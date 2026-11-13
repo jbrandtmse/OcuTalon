@@ -62,7 +62,8 @@
 ///     IdempotencyKey): Ok 202 {"result":"sending"}; an error status, no result or any other outcome 500 server_error.
 ///     The Roles routes (Story 25.4; AD-13, AD-24) are GET and POST /v1/settings/roles, forwarded to OcuTalon.Web.RoleSettings (admin only; the online demo is 409 not_available before
 ///     the body is read). A user who holds OcuTalonViewer and not OcuTalonUser is a viewer: every request but a GET is 403 read_only before anything is read or submitted
-///     (POST /v1/session/end excepted), and so are GET /v1/memory/items and GET /v1/memory/pinned, which submit a command. Every request also re-reads the user's live roles
+///     (POST /v1/session/end excepted), and so are GET /v1/memory/items and GET /v1/memory/pinned, which submit a command; a viewer who also holds OcuTalonAdmin is
+///     no admin, so every /v1/settings route is 403 not_admin for it. Every request also re-reads the user's live roles
 ///     (LiveRoles): a user who then holds neither OcuTalonUser nor OcuTalonViewer is 401 signed_out and the CSP session ends, so a removed user or viewer role stops applying at the next request;
 ///     the other roles (OcuTalonAdmin among them) are read from the session and apply until it ends.
 ///     The snapshot also tells the page who is signed in, whether that user holds OcuTalonAdmin (admin), which mode
@@ -320,7 +321,7 @@ XData BodyBounds [ MimeType = application/json ]
 
 /// Every request, before the route is matched: the role check first (403 no_role from the session's roles; then the user's live role set, with 401 signed_out
 /// and the CSP session ended when it holds neither OcuTalonViewer nor OcuTalonUser, and 500 server_error, with the session kept, when it can't be read), then the
-/// viewer check (403 read_only), then, for /v1/settings and below it, the admin check, then the browser envelope, then the body size (Web.BodyLimit). A refusal
+/// viewer check (403 read_only), then, for /v1/settings and below it, the admin check (a viewer is no admin there, as in /v1/state), then the browser envelope, then the body size (Web.BodyLimit). A refusal
 /// writes its error and stops the dispatch.
 ClassMethod OnPreDispatch(url As %String, method As %String, ByRef continue As %Boolean) As %Status
 {
@@ -341,11 +342,12 @@ ClassMethod OnPreDispatch(url As %String, method As %String, ByRef continue As %
 		}
 		Quit ..Fail(401, "signed_out", ##class(OcuTalon.Web.Public.ApiBase).#MESSAGESIGNEDOUT)
 	}
-	If (..ViewerOnly() || ##class(OcuTalon.Web.Public.Shell).ViewerOnly(live)) && '..ViewerMay(method, url) {
+	Set readOnly = ..ViewerOnly() || ##class(OcuTalon.Web.Public.Shell).ViewerOnly(live)
+	If readOnly && '..ViewerMay(method, url) {
 		Set continue = 0
 		Quit ..Fail(403, "read_only", ..#MESSAGEREADONLY)
 	}
-	If ..IsSettingsUrl(url) && '..IsAdmin() {
+	If ..IsSettingsUrl(url) && ('..IsAdmin() || readOnly) {
 		Set continue = 0
 		Quit ..Fail(403, "not_admin", ..#MESSAGENOTADMIN)
 	}

@@ -13,11 +13,12 @@ import { SETTINGS_TEXTS } from './settings-view';
 
 /**
  * The Roles section of Settings (Story 25.4; FR-11; UX: Step 6, roles), for OcuTalonAdmin only, shown only while the snapshot's `rolesAssignable` is true. The
- * section's code is a lazy chunk (a deferred block of the settings page), so it adds nothing to the initial bundle. It lists the IRIS users who hold an OcuTalon role
+ * section's code is a lazy chunk (the settings page loads it with a dynamic import into a ViewContainerRef), so it adds nothing to the initial bundle. It lists the IRIS users who hold an OcuTalon role
  * (one group per user, named by the user), each with the roles as text and a Remove button for each assignable role the user holds, or "Managed by OcuTalon" in place of the
  * buttons; the form below it grants one of the two assignable roles to a user by name. The server judges everything: a refused call shows the text of its reason under the form, and the
  * announcer, the page's one live region, reads it once.
- *   - 200: the step-2 saved text shows and is read once, and the list is asked for again (the grant the section made shows in it);
+ *   - 200: the step-2 saved text shows and is read once, and the list is asked for again (the grant the section made shows in it); after a Remove, whose button
+ *     leaves with the role, the list heading takes focus once the list is drawn again;
  *   - 400 with a reason: that reason's text; 403: the page's denied text; 409 not_available: the section's own text in place of the form;
  *   - any other failure: "Couldn't save. Nothing was changed.".
  * A list that fails to load shows "Couldn't load the roles." with Retry in place of the form.
@@ -45,7 +46,7 @@ import { SETTINGS_TEXTS } from './settings-view';
         @case ('ready') {
           <p class="help">{{ texts.intro }}</p>
           <p class="help">{{ texts.perKind }}</p>
-          <h4 class="list-heading" id="roles-list-heading">{{ texts.listHeading }}</h4>
+          <h4 class="list-heading" id="roles-list-heading" tabindex="-1">{{ texts.listHeading }}</h4>
           @if (users().length === 0) {
             <p class="help" data-roles="empty">{{ texts.empty }}</p>
           } @else {
@@ -274,7 +275,7 @@ export class RolesSection {
           }
           this.done.set(true);
           this.announcer.announce(SETTINGS_TEXTS.saved);
-          this.load();
+          this.load(fromForm ? undefined : () => this.focusLater('#roles-list-heading'));
         },
         error: (error: unknown) => this.refused(error, fromForm),
       }),
@@ -291,7 +292,12 @@ export class RolesSection {
     this.refusal.set(text);
     this.announcer.announce(text);
     if (fromForm) {
-      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('#roles-user')?.focus(), { injector: this.injector });
+      this.focusLater('#roles-user');
     }
+  }
+
+  /** Moves focus to the element of the section that the selector names once the section is drawn again, for the user's own Grant or Remove. */
+  private focusLater(selector: string): void {
+    afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector });
   }
 }

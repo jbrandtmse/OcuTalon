@@ -10,8 +10,8 @@ import { fixtureUser } from '../support/iris';
  * routes and the real production, and the ZzRoleTarget fixture user (role OcuTalonUser) is the account whose roles change. Every case puts the target's roles back.
  *   RS1  on the real state the Settings navigation has no Roles entry, and #/settings/roles opens Models;
  *   RS2  with rolesAssignable true the nav lists Roles last; the section lists from the real route; by keyboard alone the admin grants OcuTalonViewer to the target and
- *        sees the saved text, then removes it with the target's Remove viewer button and sees the text again; an unknown user shows the refusal text; every control is
- *        reached by its label.
+ *        sees the saved text, then removes it with the target's Remove viewer button, sees the text again and finds focus on the list heading; an unknown user shows
+ *        the refusal text; every control is reached by its label.
  */
 const SAVED = 'Saved. Applies within a minute. Recorded in the audit log.';
 const UNKNOWN = 'There is no IRIS user with that name.';
@@ -87,6 +87,7 @@ test('RS2: with roles assignable, the admin lists, grants and removes by keyboar
     await expect(section.getByText(SAVED, { exact: true }), 'the text again').toBeVisible();
     await expect(row.getByText('OcuTalonUser', { exact: true })).toBeVisible();
     await expect(row.getByRole('button'), 'the role is gone').toHaveCount(0);
+    await expect(section.getByRole('heading', { level: 4, name: 'People with an OcuTalon role' }), 'focus goes to the list heading, as the pressed button is gone').toBeFocused();
 
     // Refusals show in the section.
     await section.getByLabel('IRIS user name', { exact: true }).fill('ZzNoSuchUser');

@@ -159,7 +159,7 @@ Method Guard() As %Boolean [ Private ]
 	Quit 1
 }
 
-/// Creates the fixture user with the roles and the application roles of a web request; returns its (random) password.
+/// Creates the fixture user with the roles (a comma list; a caller that needs the application roles of a web request adds them); returns its (random) password.
 Method NewUser(user As %String, roles As %String) As %String [ Private ]
 {
 	Set password = "Zz"_$TR($SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.GenCryptRand(18)), "+/=", "abc")_"xY9"

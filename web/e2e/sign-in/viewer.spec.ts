@@ -11,7 +11,8 @@ import { incidentOf, raise, refOf } from '../support/approvals';
  *   V1  the page loads (no no-role message), /state says viewer true and admin false, the composer is gone and the viewer line shows in its place, History and Usage open,
  *       and there is no Settings link;
  *   V2  with a pending approval card on the viewer's own session (the cards are made as IncidentManager makes them), Approve, Reject, Dismiss and Break the feed are all
- *       absent, though the card itself shows (so that their absence is not an empty page's), and no Telegram, persona, heartbeat or memory card is in the rail;
+ *       absent, though the card, the Dismiss component and the Break the feed box show (so that their absence is not an empty page's), and, with Telegram stubbed as
+ *       included, no Telegram, persona, heartbeat or memory card is in the rail, though the rail shows its other sections;
  *   V3  a POST /v1/messages from the page's own context is 403 read_only, and nothing is added to the chat.
  */
 const VIEWER_LINE = 'You have the viewer role, so you can look but not change anything.';
@@ -47,6 +48,8 @@ test('V2: with a pending approval card, no Approve, Reject, Dismiss or Break the
   const requests: string[] = [];
   await changeSnapshot(page, (snapshot) => {
     snapshot['demoMode'] = true;
+    const telegram = snapshot['telegram'] as Record<string, unknown> | undefined;
+    if (telegram !== undefined) telegram['included'] = true;
   });
   await loadedAfter(page, () => signIn(page, user, password));
   const incident = refOf('inc');
@@ -59,9 +62,11 @@ test('V2: with a pending approval card, no Approve, Reject, Dismiss or Break the
     await expect(page.getByRole('button', { name: /^Approve/ }), 'no Approve').toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Reject/ }), 'no Reject').toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Dismiss', exact: true }), 'no Dismiss').toHaveCount(0);
+    await expect(page.locator('app-demo-guide app-break-feed-box'), 'control: the demo guide mounts the Break the feed box, which the viewer gets empty').toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Break the feed', exact: true }), 'no Break the feed').toHaveCount(0);
     await expect(composerOf(page), 'and no composer').toHaveCount(0);
-    for (const heading of ['Telegram', 'Persona', 'Heartbeat', 'Memory']) {
+    await expect(railOf(page).getByRole('heading', { name: /^Recent decisions/ }), 'control: the rail shows its other sections').toBeVisible();
+    for (const heading of ['Telegram', 'Persona', 'Heartbeat checklist', 'Memory']) {
       await expect(railOf(page).getByRole('heading', { name: heading, exact: true }), `no ${heading} card in the rail`).toHaveCount(0);
     }
   } finally {

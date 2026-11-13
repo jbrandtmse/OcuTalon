@@ -1,7 +1,7 @@
 /// The Roles routes of Settings (Story 25.4; AD-1, AD-4, AD-13, AD-19, AD-24), forwarded from OcuTalon.Web.Api's URL map (<Map Prefix="/v1/settings/roles">). Admin only:
 /// Api's OnPreDispatch refuses a signed-in user without OcuTalonAdmin with 403 not_admin before the forward, and every route checks it again. On the online demo every
 /// route answers 409 not_available with MESSAGEROLESOFF before anything is read, handed over or submitted.
-///   - GET /v1/settings/roles submits one ListRoles (origin web_admin) and answers 200 {"users":[{user, roles, managed}]}: every IRIS user who holds an OcuTalon role,
+///   - GET /v1/settings/roles submits one ListRoles (origin web_admin, SessionRef the CSP session's) and answers 200 {"users":[{user, roles, managed}]}: every IRIS user who holds an OcuTalon role,
 ///     sorted by name without regard to case, roles the user's OcuTalon roles sorted, managed true for an account OcuTalon manages. The list reaches this process
 ///     only as the SecretHandoff uri in the result, taken once with Take. A ListRoles that is not available is 409, one that is not built 501, and any other
 ///     outcome, a failed take and an error 500 server_error.
@@ -46,10 +46,10 @@ ClassMethod OnlineDemo() As %Boolean [ Private ]
 	Quit (##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1)
 }
 
-/// "" when the route may run, else the refusal that has been written: 403 not_admin for a user without OcuTalonAdmin, 409 not_available on the online demo.
+/// "" when the route may run, else the refusal that has been written: 403 not_admin for a user without OcuTalonAdmin or for a viewer, 409 not_available on the online demo.
 ClassMethod Refusal() As %Status [ Private ]
 {
-	If '..IsAdmin() Quit ..Fail(403, "not_admin", ..#MESSAGENOTADMIN)
+	If '..IsAdmin() || ..ViewerOnly() Quit ..Fail(403, "not_admin", ..#MESSAGENOTADMIN)
 	If ..OnlineDemo() Quit ..Fail(409, "not_available", ..#MESSAGEROLESOFF)
 	Quit ""
 }
@@ -59,10 +59,13 @@ ClassMethod List() As %Status
 {
 	Set refused = ..Refusal()
 	If refused '= "" Quit refused
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set uri = ""
 	Set answer = ""
 	Try {
 		Set command = ##class(OcuTalon.Msg.Command.ListRoles).%New()
+		Set command.SessionRef = sessionRef
 		Set sc = ..Submit(command, .result)
 		If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
 		If '$IsObject(result) Throw ##class(%Exception.General).%New("CommandsIn answered no result")

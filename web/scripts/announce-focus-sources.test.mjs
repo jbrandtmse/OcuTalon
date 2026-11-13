@@ -170,7 +170,7 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/settings/email-section.ts': [1, 'the first field in error takes focus after the user\'s own Save changes (Story 21.2)'],
     'app/settings/time-zone-section.ts': [1, 'the select takes focus after the user\'s own Save changes is refused for the zone (Story 18.2)'],
     'app/settings/webhooks-section.ts': [1, 'the first field in error takes focus after the user\'s own Create webhook or Save changes (Story 35.3)'],
-    'app/settings/roles-section.ts': [1, 'the user name field takes focus after the user\'s own Grant is refused (Story 25.4)'],
+    'app/settings/roles-section.ts': [1, 'the user name field takes focus after the user\'s own Grant is refused, and the list heading after the user\'s own Remove, whose button leaves with the role (Story 25.4)'],
     'signin/splash.js': [1, 'a copy that fails on the splash gives the focus to the input whose value it selects, after the user pressed the copy button (Story 16.2)'],
   };
 

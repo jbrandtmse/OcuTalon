@@ -4,7 +4,8 @@
 /// everything else. The signed-in user's roles come from Test.Web.ApiProbe's seam; the fixture users have the prefix ZzRoleLeak and the fixture roles are
 /// Test.Install.RolesAssign's.
 ///   - TestNotAdmin: a user with the OcuTalon user role only gets 403 not_admin from OnPreDispatch and from each route, for GET and POST; %All is not the admin role;
-///   - TestViewerPostIsReadOnly: a viewer-only admin's POST is 403 read_only from OnPreDispatch, which stops the dispatch before the route runs;
+///   - TestViewerPostIsReadOnly: a viewer-only admin's POST is 403 read_only from OnPreDispatch, which stops the dispatch before the route runs, and its GET is 403
+///     not_admin, from OnPreDispatch and from the list route itself, with nothing submitted;
 ///   - TestOnlineDemo: with the online-demo flag set an admin gets 409 not_available for GET and POST, a malformed body included, with no handoff made and no command
 ///     submitted (the probe's counters and the command tables);
 ///   - TestBadShapes: each body that is not exactly {user, role, grant} of the right types is 400 bad_settings naming the fields, with no handoff and no submit;
@@ -112,6 +113,13 @@ Method TestViewerPostIsReadOnly()
 	Do $$$AssertEquals(continue, 0, "the dispatch stops")
 	Do $$$AssertTrue(written [ """read_only""", "403 read_only")
 	Do $$$AssertTrue(written [ "You have the viewer role, so you can look but not change anything.", "with the viewer text")
+	Set written = ..PreDispatch("/v1/settings/roles", "GET", .continue)
+	Do $$$AssertEquals(continue, 0, "GET: the dispatch stops")
+	Do $$$AssertTrue(written [ """not_admin""", "GET: a viewer is no admin, so the list is 403 not_admin")
+	If ..Missing '= "" Quit
+	Set body = ..Call("List", , .response)
+	Do $$$AssertEquals(response.Status, "403 Forbidden", "the list route refuses a viewer itself")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("RoleSettingsProbe", "submits")), 0, "and submits nothing")
 }
 
 Method TestOnlineDemo()

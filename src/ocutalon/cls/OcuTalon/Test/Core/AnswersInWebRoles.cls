@@ -12,7 +12,7 @@
 ///     production together with a second session, AnswersIn.FromPage answers an instance request through AnswerOps and the answered
 ///     approval event reaches both sessions' streams;
 ///   - TestDemoApproverOwnSessionOnly (Story 25.4): with the online demo forced on, a user who holds the demo account's roles, OcuTalonApprover and the application roles answers
-///     its own session's request through AnswersIn.FromPage (approved) and gets not_found for another session's request (not_visible on Telegram), which stays pending;
+///     its own session's request, whose RequiredRole is OcuTalonApprover, through AnswersIn.FromPage (approved) and gets not_found for another session's request (not_visible on Telegram), which stays pending;
 ///   - TestGuardRefusesOutsideAThrowaway: Reason is empty only for the CI override's pair of values, and the setup of a run whose
 ///     environment lacks them fails and provisions no user;
 ///   - TestFixtureUserIsRemoved: the hooks that end a test remove the fixture user, and a user left by an earlier run is removed
@@ -169,8 +169,8 @@ Method TestDemoApproverOwnSessionOnly()
 		Do $$$AssertStatusOK(..CreateUser(user, demoRoles), "the demo account's fixture user holds the demo roles, OcuTalonApprover and the application roles")
 		Set s1 = ..Session(user)
 		Set s2 = ..Session(..#USER_"other"_..Number)
-		Set own = ##class(OcuTalon.Test.Data.Fixture).Approval(s1, , "pending", , {"RequiredRole": "OcuTalonUser"})
-		Set other = ##class(OcuTalon.Test.Data.Fixture).Approval(s2, , "pending", , {"RequiredRole": "OcuTalonUser"})
+		Set own = ##class(OcuTalon.Test.Data.Fixture).Approval(s1, , "pending", , {"RequiredRole": "OcuTalonApprover"})
+		Set other = ##class(OcuTalon.Test.Data.Fixture).Approval(s2, , "pending", , {"RequiredRole": "OcuTalonApprover"})
 		Set ..Refs = ..Refs_","_own_","_other
 		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 		Set run = ..RunProbe("page", user, s1, "", own, "")

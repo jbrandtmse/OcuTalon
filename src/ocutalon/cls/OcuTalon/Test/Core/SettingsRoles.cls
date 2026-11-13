@@ -4,7 +4,8 @@
 ///   - TestChangesShape: Changes that are not exactly {"handoff": uri} are refused, and a uri that came with them is consumed;
 ///   - TestUriConsumedOnEveryOutcome: after a done, a refusal, a bad body, a stub, an error and the demo, the uri has no secret behind it any more;
 ///   - TestOriginAndDemo: an origin other than web_admin is not_allowed and the online demo is not_available, for both commands, and the stub is not called;
-///   - TestRefusalCodes: each refusal code of Roles.Refusal gives the field and the reason, and Assign is not called;
+///   - TestRefusalCodes: each refusal code of Roles.Refusal gives the field and the reason, online_demo gives not_available, a Refusal that throws gives failed, and
+///     Assign is not called;
 ///   - TestNotBuilt: a 5003 from either call gives not_built, and any other error gives failed;
 ///   - TestDataHoldsNoName: a done carries only {"changed"} (a list only {"handoff"}), no column of the CommandResult holds the user's name, and the list is behind the uri;
 ///   - TestBodyShape: a body that is not exactly {user, role, grant} of the right types is refused and the stub is not called;
@@ -102,6 +103,16 @@ Method TestRefusalCodes()
 		Do $$$AssertEquals(data.reason, code, "with the reason")
 		Do $$$AssertEquals(data.fields.%ToJSON(), $Select(code = "role": "[""role""]", 1: "[""user""]"), "and the field it belongs to")
 		Do $$$AssertEquals(..Calls("Assign"), 0, "and Assign is not called")
+	}
+	For code = "online_demo", "throw" {
+		Kill ^OcuTalonTest("RolesStub")
+		Set ^OcuTalonTest("RolesStub", "refusal") = code
+		Set uri = ..Put({"user": (..#NAME), "role": "OcuTalonViewer", "grant": true}.%ToJSON())
+		Set result = ..Save({"handoff": (uri)}.%ToJSON(), "web_admin")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, $Select(code = "throw": "0|failed", 1: "0|not_available"), code_" gives "_$Select(code = "throw": "failed", 1: "not_available"))
+		Do $$$AssertEquals(..Calls("Refusal"), 1, code_": Refusal was asked")
+		Do $$$AssertEquals(..Calls("Assign"), 0, code_": and Assign is not called")
+		Do $$$AssertEquals(..Taken(uri), 0, code_": the uri was consumed")
 	}
 }
 

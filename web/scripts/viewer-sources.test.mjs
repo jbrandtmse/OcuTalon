@@ -115,7 +115,8 @@ describe('the guards', () => {
 
 describe('the Settings link and the snapshot', () => {
   it('the header shows the link for `admin`, which the server reads false for a viewer', () => {
-    assert.match(code('header/header-nav.ts'), /admin/);
+    assert.match(code('header/header-nav.ts'), /@if \(admin\(\)\) \{/);
+    assert.match(code('header/header-nav.ts'), /admin = computed\(\(\) => this\.live\.snapshot\(\)\?\.admin === true\)/);
     assert.match(api, /Do body\.%Set\("admin", \.\.IsAdmin\(\) && 'readOnly, "boolean"\)/);
   });
 

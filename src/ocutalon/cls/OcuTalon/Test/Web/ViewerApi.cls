@@ -5,9 +5,11 @@
 ///     memory reads that submit a command;
 ///   - TestEveryGetRouteIsClassified: the GET routes are exactly the ones this class knows, each read-only except the memory items and pinned reads (C2), so that a new GET
 ///     route that writes must be decided here;
-///   - TestMemoryReadsRefuseAViewer: GET /v1/memory/items (with and without q) and /v1/memory/pinned are 403 read_only for a viewer, and pass for a user;
+///   - TestMemoryReadsRefuseAViewer: GET /v1/memory/items (with and without q) and /v1/memory/pinned are 403 read_only for a viewer, with the dispatch stopped before any
+///     route runs (so nothing is submitted), and pass for a user;
 ///   - TestViewerAndUser: with OcuTalonViewer and OcuTalonUser nothing is refused, and viewer is false;
-///   - TestViewerAndAdmin: with OcuTalonViewer and OcuTalonAdmin, POST /v1/settings/budgets is read_only and admin is false;
+///   - TestViewerAndAdmin: with OcuTalonViewer and OcuTalonAdmin, POST /v1/settings/budgets is read_only, the settings reads (GET /v1/settings, the webhooks and the Roles
+///     list, which submits a command) are 403 not_admin, and admin is false;
 ///   - TestHasRole: Shell.HasRole admits the viewer and the user and refuses OcuTalonTraceViewer alone, and ViewerOnly is true only for the viewer without the user role;
 ///   - TestStateFlags: /v1/state's viewer, admin and rolesAssignable for each role set, with the flag of the roles' existence on and off;
 ///   - TestDemoAccount: the demo account's roles with the online demo forced give admin, viewer and rolesAssignable false, and the Roles routes 403 not_admin;
@@ -104,6 +106,7 @@ Method TestMemoryReadsRefuseAViewer()
 		Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonViewer"
 		Set written = ..PreDispatch(url, "GET", .continue)
 		Do $$$AssertEquals(continue, 0, url_": a viewer's dispatch stops")
+		Do $$$AssertEquals(..Status, "403 Forbidden", url_": with status 403")
 		Do $$$AssertTrue(written [ """read_only""", url_": 403 read_only")
 		Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser"
 		Set written = ..PreDispatch(url, "GET", .continue)
@@ -133,6 +136,11 @@ Method TestViewerAndAdmin()
 	Set written = ..PreDispatch("/v1/settings/budgets", "POST", .continue)
 	Do $$$AssertEquals(continue, 0, "the dispatch stops")
 	Do $$$AssertTrue(written [ """read_only""", "POST /v1/settings/budgets is 403 read_only")
+	For url = "/v1/settings", "/v1/settings/channels/webhooks", "/v1/settings/roles" {
+		Set written = ..PreDispatch(url, "GET", .continue)
+		Do $$$AssertEquals(continue, 0, "GET "_url_": the dispatch stops")
+		Do $$$AssertTrue(written [ """not_admin""", "GET "_url_": 403 not_admin, as admin is false in /v1/state")
+	}
 	Set body = ..State("OcuTalonViewer,OcuTalonAdmin")
 	Do $$$AssertEquals(body.admin, 0, "admin is false")
 	Do $$$AssertEquals(body.viewer, 1, "viewer is true")
@@ -280,6 +288,9 @@ ClassMethod Writes(url As %String) As %Boolean [ Private ]
 /// 1 when the stand-in session of the last PreDispatch was ended (EndSession).
 Property Ended As %Boolean [ Private ];
 
+/// The response status that the last PreDispatch left.
+Property Status As %String [ Private ];
+
 /// Runs OnPreDispatch of Web.Api's probe for the URL and method with a stand-in request; returns what it wrote. continue is the dispatch flag it left.
 Method PreDispatch(url As %String, method As %String, Output continue) As %String [ Private ]
 {
@@ -292,6 +303,7 @@ Method PreDispatch(url As %String, method As %String, Output continue) As %Strin
 	Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, ..#PROBE, "OnPreDispatch", $Translate(url, ":", "z"), method, .continue)
 	Do $$$AssertStatusOK(sc, "OnPreDispatch returns OK")
 	Set ..Ended = +%session.EndSession
+	Set ..Status = %response.Status
 	Quit written
 }
 

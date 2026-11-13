@@ -15,7 +15,9 @@
 ///     the OcuTalon roles before and after, the acting admin, the session and the channel; the same call again changes nothing (changed 0) and writes no entry; a role name
 ///     in another case is written with the allowlist's spelling; the README account is assignable;
 ///   - TestAuditFailurePutsTheRoleBack: when the entry cannot be written the role change is put back and Assign answers the error;
-///   - TestHolders: it lists the users who hold an OcuTalon role, sorted without regard to case, with only their OcuTalon roles, sorted, and managed set.
+///   - TestHolders: it lists the users who hold an OcuTalon role, sorted without regard to case, with only their OcuTalon roles, sorted, and managed set;
+///   - TestHoldersSortIgnoresCase (QA): two fixture users whose names differ in case at the point that decides the order (ZzRolesAAB1 and ZzRolesAAa2) come back in the
+///     order of their lower-case names, not of their raw names, whatever other users the instance holds.
 Class OcuTalon.Test.Install.RolesAssign Extends %UnitTest.TestCase
 {
 
@@ -280,7 +282,7 @@ Method TestAuditFailurePutsTheRoleBack()
 	Do $$$AssertEquals(changed, 0, "changed is 0")
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("RolesAssign", "auditCalls")), 1, "the entry was tried once")
 	Do $$$AssertEquals(..RoleSet(user), before, "and the role is back off the user")
-	Do ##class(OcuTalon.Install.Step.Roles).Assign(user, "OcuTalonViewer", 1, .changed, "zzadmin")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Assign(user, "OcuTalonViewer", 1, .changed, "zzadmin"), "control: the real grant that the removal half needs is made")
 	Set before = ..RoleSet(user)
 	Set sc = ##class(OcuTalon.Test.Install.ZzRolesAuditFails).Assign(user, "OcuTalonViewer", 0, .changed, "zzadmin")
 	Do $$$AssertStatusNotOK(sc, "a removal whose entry cannot be written is an error")
@@ -308,7 +310,7 @@ Method TestHolders()
 			Do $$$AssertEquals($Extract(row.roles.%Get(j), 1, 8), "OcuTalon", row.user_": every role listed is an OcuTalon role")
 		}
 		Set order = order_$Select(order = "": "", 1: $Char(1))_$ZConvert(row.user, "L")
-		If $Extract(row.user, 1, $Length(..#USER)) = ..#USER Set found(row.user) = row
+		If $Extract(row.user, 1, $Length(..#USER)) = ..#USER Set found(row.user) = row, at(row.user) = i
 	}
 	Set sorted = 1
 	Set previous = ""
@@ -324,7 +326,24 @@ Method TestHolders()
 	Do $$$AssertEquals(found(b).roles.%ToJSON(), "[""OcuTalonApprover"",""OcuTalonViewer""]", "a user's roles are sorted")
 	Do $$$AssertEquals($Data(found(none)), 0, "a user with no OcuTalon role is not listed")
 	Do $$$AssertEquals(found(managed).managed, 1, "an account that the installer made is managed")
-	Do $$$AssertTrue($Order(found(a)) = b, "and the fixture users come in name order")
+	Do $$$AssertTrue($Data(at(a)) && $Data(at(b)) && (at(a) < at(b)), "and the fixture users come in name order in the list")
+}
+
+Method TestHoldersSortIgnoresCase()
+{
+	If '..Guard() Quit
+	Set upper = ..NewUser("AB1", "OcuTalonViewer")
+	Set lower = ..NewUser("Aa2", "OcuTalonApprover")
+	Set sc = ##class(OcuTalon.Install.Step.Roles).Holders(.users)
+	Do $$$AssertStatusOK(sc, "Holders is OK")
+	Set (upperAt, lowerAt) = ""
+	For i = 0:1:users.%Size() - 1 {
+		If users.%Get(i).user = upper Set upperAt = i
+		If users.%Get(i).user = lower Set lowerAt = i
+	}
+	Do $$$AssertTrue((upperAt '= "") && (lowerAt '= ""), "control: both fixture users are listed")
+	Do $$$AssertTrue(upper ] lower = 0, "control: by raw name "_upper_" comes before "_lower)
+	Do $$$AssertTrue((lowerAt '= "") && (upperAt '= "") && (lowerAt < upperAt), lower_" is listed before "_upper_", the order of the lower-case names")
 }
 
 Method TestHoldersListsSystemAccountAsManaged()
