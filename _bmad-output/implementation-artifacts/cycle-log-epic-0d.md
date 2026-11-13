@@ -26,3 +26,7 @@
 2026-11-13T14:44:39Z	Story 0.36	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 slice_after=empty model=claude-opus-5-5
 2026-11-13T14:44:39Z	Story 0.36	smoke_complete	method=cli result=pass iterations=2 defects_caught=1 evidence=test-readme.sh_against_real_README(all_rules_passed);README_line38_cmp_COMPLEXITY_ROW_identical;wc_w=2241;cr_caught_test-release-notes_red_before_push model=claude-opus-5-5
 2026-11-13T14:44:39Z	Story 0.36	fresh_check	env=clean-checkout(git_clone_--shared_at_5c1ef1cf) tests=test-readme.sh,test-release-notes.sh result=pass order=forward,reverse
+2026-11-13T14:45:03Z	Story 0.36	committed	sha=81b65a6a code_sha=f2feb3cf+0e66493b+5c1ef1cf submodules= ci=pending runs=43445650699,43445650884 amendments=none pushed=first_push_creates_origin/OCT-epic0d missing=none
+2026-11-13T14:45:03Z	Story 0.36	story_cycle	plan_to_commit_min=36 implement_passes=2 reviews=2 rework=1 first_ci=pending models=plan:lead(opus,spec_from_dispatch),implement:lead(opus,handoff_edit),qa:skipped(dispatch),cr:opus+lead_scoped_recheck
+2026-11-13T15:38:28Z	Story 0.36	ci_resolved	story=0.36 sha=81b65a6a runs=43445650699,43445650884 result=success failed=none via=none resolved_at=part_ready reruns=0 checks_job=success web_job=success
+2026-11-13T15:40:29Z	Epic 0	epic_merged_to_feature	part=0.36 repos=. feature_sha=4aa34ca4 merge_sha=4aa34ca4 merged_head=81b65a6a submodules= by=orchestrator
