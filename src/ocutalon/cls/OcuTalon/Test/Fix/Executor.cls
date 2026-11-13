@@ -90,7 +90,13 @@ Include Ensemble
 ///     them), the owner as the session when that is a Ref, and no member beside the shape; a write that fails logs one Type 3 warning (LOGAUDIT) and the FixResult still goes;
 ///   - TestFailedSendLogsOneWarning: a send that fails logs one Type 3 warning and the request is closed all the same;
 ///   - TestUnknownRequest: a request that is neither a DryRun, an Execute nor an ApprovalOutcome (Story 22.7) is the error 5001 that names its class, with no answer; an ApprovalOutcome, approved or not, for a Ref with no row is handled
-///     and answered OK (Test.Fix.Email has the email requests).
+///     and answered OK (Test.Fix.Email has the email requests);
+///   - TestEmailSendThatFailsInsideEndsFailedOnce (QA, DW-1263; matrix row "Approved, send fails"): an approved email request whose send throws or gives an error status (the probe's CarryIs) ends failed
+///     through FinishExecution, with a FixRun that counts one and none sent and Out's MESSAGEFAILED as its Reason, one Type 3 warning (LOGEMAIL) that names the request, one Action entry of the action
+///     email with the result failed and no address, subject or text, and no FixResult;
+///   - TestEmailNeverSubmittedIsNotSent (QA, DW-1263): the email kind's Execute for a run whose request has no row, and for no run, submits nothing and answers {sent 0, outcome failed, Out's MESSAGEFAILED};
+///   - TestEmailStartFails: an approved email request whose StartExecution fails while its row is still approved ends failed with EMAILNOSTART and sends nothing; one that another job started, or
+///     a cancel moved on, while StartExecution failed is read again and refused: the row is as the other change left it, no FixRun, one info line, and the email kind's Execute is never called.
 /// Story 7.5 (AD-5, AD-16, AD-18, AD-23, AD-33; DW-395) adds the ends that no waiter makes. These tests call Install.Step.Fix.ReconcileWith and Interrupt and Sweep of
 /// Test.Fix.RunProbe (a Fix.Run whose seams are canned) over fixture runs, rows and incidents. The test process holds the lock of each fixture run from its save until the test
 /// ends (Hold), and the runs are deleted before the locks are let go, so that the production's own Sweep, which runs on every Tick of a stack, never takes a fixture run; a test that
@@ -189,6 +195,9 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ..FreeRuns()
 	Do ##class(OcuTalon.Test.Fix.RunProbe).Reset()
 	Do ##class(OcuTalon.Install.Step).TakeWarnings()
+	For i = 1:1:$Length(..Refs, ",") {
+		If $Piece(..Refs, ",", i) '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FixRun WHERE ApprovalRef = ?", $Piece(..Refs, ",", i))
+	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
 	Set ..Incidents = ""
@@ -1402,6 +1411,107 @@ Method TestFailedSendLogsOneWarning()
 	Do $$$AssertEquals(warned, 1, "and one Type 3 warning names the request: "_text)
 	If warned Do $$$AssertTrue($Find(text, ref) > 0, "the Ref is in the warning")
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Report", $Parameter(..#PROBE, "LOGRESULT"))
+}
+
+Method TestEmailSendThatFailsInsideEndsFailedOnce()
+{
+	Set sentence = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEFAILED")
+	For how = "throw", "error" {
+		Set host = ..Host()
+		If '$IsObject(host) Quit
+		Set host.CarryIs = how
+		Set owner = ..Owner("email"_how)
+		Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set ref = ..EmailRequest(owner)
+		Do $$$AssertStatusOK(..SendOutcome(host, ref), how_": an approved outcome whose send fails inside is handled")
+		Do $$$AssertEquals(..Row(ref), "failed|failed|finished", how_": the request is closed failed")
+		Do $$$AssertEquals($Select($IsObject(host.Carried): host.Carried.%Size()_"|"_host.Carried.%Get(0).class, 1: "0|"), "1|OcuTalon.Fix.Kind.Email", how_": the email kind's Execute was called once")
+		Set run = ##class(OcuTalon.Data.FixRun).OfRequest(ref)
+		Do $$$AssertTrue($IsObject(run), how_": it has a FixRun")
+		If $IsObject(run) Do $$$AssertEquals(run.IncidentRef_"|"_run.Total_"|"_run.Resent_"|"_run.Reason_"|"_(run.EndedAt '= ""), "|1|0|"_sentence_"|1", how_": that counts one and none sent, ended, with Out's MESSAGEFAILED")
+		Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "SendEmail", $Parameter(..#PROBE, "LOGEMAIL")_ref)
+		Do $$$AssertEquals(warned, 1, how_": one Type 3 warning names the request: "_text)
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "SendEmail", $Parameter(..#PROBE, "LOGEMAIL")_ref)
+		Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 0, how_": no FixResult goes to IncidentManager")
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(since, "OcuTalon", "Action", "", "EmailOut", "", 1, 20)
+		Set found = 0
+		Set iterator = entries.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			If '$IsObject(entry.data) || (entry.data.%Get("action") '= "email") || (entry.data.%Get("approvalRef") '= ref) Continue
+			Set found = found + 1
+			Set text = $ZConvert(entry.%ToJSON(), "L")
+			Do $$$AssertEquals(entry.data.result_"|"_entry.data.counts.recipients, "failed|1", how_": the Action entry says failed, with one recipient")
+			Do $$$AssertEquals((text [ "example.test")_"|"_(text [ "a seeded subject")_"|"_(text [ "a seeded text"), "0|0|0", how_": and holds no address, subject or text")
+		}
+		Do $$$AssertEquals(found, 1, how_": one Action entry of the action email names the request")
+	}
+}
+
+Method TestEmailNeverSubmittedIsNotSent()
+{
+	Set sentence = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEFAILED")
+	Set missing = ##class(OcuTalon.Data.FixRun).%New()
+	Set missing.ApprovalRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set parameters = {"recipients": ["zz-executor@example.test"], "subject": "A subject", "text": "A text."}
+	For case = "a run whose request has no row", "no run" {
+		Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+		Set sc = ##class(OcuTalon.Fix.Kind.Email).Execute("", parameters, "1", .result, $Select(case = "no run": "", 1: missing))
+		Do $$$AssertStatusOK(sc, case_": Execute answers OK")
+		Do $$$AssertEquals($IsObject(result), 1, case_": with a result")
+		If $IsObject(result) Do $$$AssertEquals(result.sent_"|"_result.outcome_"|"_result.message, "0|failed|"_sentence, case_": that says not sent, failed, with Out's MESSAGEFAILED")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionSince(mark, "CommandsIn"), "", case_": and no command reached CommandsIn")
+	}
+}
+
+Method TestEmailStartFails()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.StartIs = "the lock could not be taken"
+	Set owner = ..Owner("emailstart")
+
+	// the row is still approved on disk: the run could not start
+	Set ref = ..EmailRequest(owner)
+	Do $$$AssertStatusOK(..SendOutcome(host, ref), "an approved email whose StartExecution fails is handled")
+	Do $$$AssertEquals(..Row(ref), "failed|failed|finished", "the request is closed failed")
+	Set run = ##class(OcuTalon.Data.FixRun).OfRequest(ref)
+	Do $$$AssertTrue($IsObject(run), "it has a FixRun")
+	If $IsObject(run) Do $$$AssertEquals(run.IncidentRef_"|"_run.Resent_"|"_run.Reason_"|"_(run.EndedAt '= ""), "|0|"_##class(OcuTalon.Fix.Kind.Email).#EMAILNOSTART_"|1", "with no incident, none sent, EMAILNOSTART as its reason, ended")
+
+	// another job started the row, or a cancel moved it on, while StartExecution failed: the row the handler holds is stale
+	For moved = "executing", "cancelled" {
+		Set host.StartMoves = moved
+		Set ref = ..EmailRequest(owner)
+		Set infos = ..Infos()
+		Do $$$AssertStatusOK(..SendOutcome(host, ref), moved_" on disk: the approved outcome is handled")
+		Do $$$AssertEquals(..Row(ref), moved_"||", moved_" on disk: the row is as the other change left it")
+		Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.FixRun).OfRequest(ref)), 0, moved_" on disk: no FixRun is written")
+		Do $$$AssertEquals(..Infos() - infos, 1, moved_" on disk: one info line is logged")
+	}
+	Set host.StartMoves = ""
+	Do $$$AssertEquals($Select($IsObject(host.Carried): host.Carried.%Size(), 1: 0), 0, "the email kind's Execute was never called")
+	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 0, "and no FixResult went to IncidentManager")
+}
+
+/// An approved email request of the owner, without an incident, to one recipient; its Ref.
+Method EmailRequest(owner As %String) As %String
+{
+	Set parameters = {"recipients": ["zz-executor@example.test"], "subject": "A seeded subject", "text": "A seeded text."}.%ToJSON()
+	Set dry = {"to": ["zz-executor@example.test"], "subject": "A seeded subject", "text": "A seeded text."}.%ToJSON()
+	Quit ..Request(owner, "", "approved", {"FixKind": "email", "FixParameters": (parameters), "DryRun": (dry), "FixTargets": "1", "ResultTarget": "FixExecutor"})
+}
+
+/// Hands the probe an approved ApprovalOutcome for the Ref; the status.
+Method SendOutcome(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String) As %Status
+{
+	Set message = ##class(OcuTalon.Bridge.Msg.ApprovalOutcome).%New()
+	Set message.ApprovalRef = ref
+	Set message.Outcome = "approved"
+	Set response = ""
+	Set sc = host.OnMessage(message, .response)
+	Do $$$AssertEquals(response, "", "the handler gives no response")
+	Quit sc
 }
 
 Method TestUnknownRequest()

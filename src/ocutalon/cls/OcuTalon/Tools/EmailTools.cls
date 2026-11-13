@@ -41,7 +41,7 @@ ClassMethod SendEmail(recipients As %DynamicArray(DESCRIPTION = "The email addre
 	Set command.Text = text
 	Set refusal = ##class(OcuTalon.Tools.CommandCall).Run(command, .result)
 	If $IsObject(refusal) Quit ..Return(refusal)
-	Set sc = ##class(OcuTalon.Fix.Kind.Email).Audit(result.Outcome, "", context.OwnerRef, context.Channel, recipients.%Size())
+	Set sc = ##class(OcuTalon.Fix.Kind.Email).Audit(result.Outcome, "", context.OwnerRef, context.Channel, $Length(command.Recipients, ","))
 	If $$$ISERR(sc) {
 		$$$LOGWARNING("A send_email call could not write its audit entry: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 	}

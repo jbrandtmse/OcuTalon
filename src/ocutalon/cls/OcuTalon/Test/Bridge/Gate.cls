@@ -1663,8 +1663,8 @@ Method TestAllowedEndToEnd()
 
 /// Row 18, the built-in tools: every tool of every toolset of OcuTalon.Tools whose classification with {} (or with its case, CASES) is not safe, or
 /// throws, goes through a fresh %AI.ToolMgr with the gate and the step audit policy in a user's turn, and is denied, its method does not run and its
-/// only step is denied. A built-in tool that classifies by its arguments has an entry in CASES, or this test fails. There is no risky built-in tool
-/// today, so the test shows that the scan finds the tools and fails nothing. DW-176: no built-in tool that AI Hub marks REQUIRESAUTH (AuthMarks) is
+/// only step is denied. A built-in tool that classifies by its arguments has an entry in CASES, or this test fails. Since Story 22.7 the one built-in
+/// tool that is not safe is send_email for its CASES entry (an address that is nobody's own), which is denied whether its hook raises a request or refuses. DW-176: no built-in tool that AI Hub marks REQUIRESAUTH (AuthMarks) is
 /// safe or classifies by its arguments, because the gate never reads metadata's requires_auth: such a tool declares itself risky.
 Method TestEveryRiskyBuiltInIsDenied()
 {

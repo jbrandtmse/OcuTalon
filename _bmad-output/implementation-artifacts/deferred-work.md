@@ -7098,6 +7098,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Channel/Email/Out.cls system path reads Bridge.Data.ApprovalRequest; tests seed the row; S1 spine sub-bullet records the contract
 - 2026-11-11T23:31:06Z status=routed owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=harvest note=22.7 confirms both contracts with a test through the real FixExecutor and Replay.Run
 - 2026-11-12T00:31:01Z occurrence=21-6-send-email-over-smtp by=cr note=also: Gate taints a context before a non-trustedOutput call runs, so CleanTurn refuses 22.7's safe own-address send unless TRUSTEDOUTPUT 1
+- 2026-11-13T08:06:03Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=Test.Fix.Email_e2e(gate-raised_request,approved,real_EmailOut_send_once;origin_system;ApprovalRef);replay_part_n/a(risky_path_sends_via_FixExecutor)
 
 ### DW-1167: EmailIn takes in the mail OcuTalon itself sent to the own address (a tool email, and with 21.7 every digest) as a new untrusted item: EmailOut marks nothing and EmailIn filters nothing
 - source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: med | footprint: in-epic
@@ -7464,8 +7465,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
 - evidence: matrix row says raised; product question whether a non-owner may send through the owner's mailbox at all
 - 2026-11-13T07:03:52Z status=decision-pending owner=burndown by=harvest note=product ruling needed (Planner)
+- 2026-11-13T07:47:28Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=cr note=also_send-time:_mailbox_reconnected_by_another_session_between_raise_and_approval_sends_from_the_new_owner's_mailbox
 
 ### DW-1263: The MESSAGEFAILED exception and never-submitted paths of an approved email have no test
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
 - evidence: needs a probe seam
 - 2026-11-13T07:03:52Z status=open owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=harvest note=in-story: QA adds a probe-seam test or closes with reopen_if
+- 2026-11-13T08:06:03Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=Test.Fix.Executor_TestEmailSendThatFailsInsideEndsFailedOnce,TestEmailNeverSubmittedIsNotSent,TestEmailStartFails+Test.Fix.Email_TestCommandsInGivesNoAnswerEndsFailed;mutations_red

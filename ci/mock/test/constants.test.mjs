@@ -164,10 +164,10 @@ test('Story 22.3: the mock reads call_mcp_tool from OcuTalon.Tools.Names', () =>
   assert.ok(scenarios.all.some((s) => s.name === 'mcp-proxy-call' && toolUseNames(s).includes('call_mcp_tool')), 'the scenario mcp-proxy-call calls call_mcp_tool');
 });
 
-test('Story 22.7: the mock reads send_email from OcuTalon.Tools.Names and three scenarios call it', () => {
+test('Story 22.7: the mock reads send_email from OcuTalon.Tools.Names and four scenarios call it', () => {
   const { toolNames, scenarios } = readAll();
   assert.ok(toolNames.includes('send_email'), 'send_email is among the tool names that the mock reads');
-  for (const name of ['send-email-own', 'send-email-other', 'send-email-injected']) {
+  for (const name of ['send-email-own', 'send-email-other', 'send-email-injected', 'send-email-after-documents']) {
     assert.ok(scenarios.all.some((s) => s.name === name && toolUseNames(s).includes('send_email')), `the scenario ${name} calls send_email`);
   }
 });

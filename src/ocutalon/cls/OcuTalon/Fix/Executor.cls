@@ -122,7 +122,7 @@ Parameter COPYDONE = "Completed";
 Parameter COPYFAILED = "Error,Aborted,Discarded,Suspended";
 
 /// The start of each log line of the executor.
-Parameter LOGREFUSED = "FixExecutor refused an Execute for request ";
+Parameter LOGREFUSED = "FixExecutor refused request ";
 
 Parameter LOGFINISH = "FixExecutor could not close request ";
 

@@ -5,10 +5,10 @@
 ///   - Classify gives safe only when the call's parameters are valid and every recipient is the session user's own address (OwnAddressOnly), and risky otherwise, also for bad input and
 ///     for an exception. It reads only the call's recipients, subject and text, the stored product keys email.address and email.owner (Data.Setting.Fresh) and the context's OwnerRef.
 ///   - Raise refuses before it raises anything, with Channel.Email.Out's sentence: on the online demo (MESSAGEUNAVAILABLE), with no mailbox address (MESSAGENOTCONNECTED) and for
-///     parameters that CheckParameters refuses (MESSAGEREFUSED). Otherwise it raises one fix request with no incident and ResultTarget FixExecutor through Approval.Raise.
+///     parameters that CheckParameters or the dry run refuses (MESSAGEREFUSED; the dry run also refuses recipients too long for a SendEmail command). Otherwise it raises one fix request with no incident and ResultTarget FixExecutor through Approval.Raise.
 ///   - Execute submits the approved email as a SendEmail command with origin system, the request's ApprovalRef and the owner's session, and answers {sent, outcome, message} from the
 ///     CommandResult; it sends nothing itself. FixExecutor calls it after StartExecution, so one approval sends once; Out claims the approval as the second guard.
-///   - Audit writes the one Action entry of a send (tool or approved): the action email, the target EmailOut, the outcome and the number of recipients. It holds no address, subject or text.
+///   - Audit writes the one Action entry of a send (tool or approved): the action email, the target EmailOut, the outcome, the number of recipients sent to and, for an approved send, the IRIS user who approved it (AD-17). It holds no address, subject or text.
 /// Lane A.
 Class OcuTalon.Fix.Kind.Email Extends OcuTalon.Fix.Kind
 {
@@ -158,13 +158,16 @@ ClassMethod SendTo(recipients As %DynamicArray) As %String
 }
 
 /// The targets 1..n (the recipients' positions) and the dry run {"to", "subject", "text"} of the parameters, which change nothing. incident is not used (an email has none). An error status
-/// that says why when the parameters do not pass CheckParameters.
+/// that says why when the parameters do not pass CheckParameters, or when the recipients, joined as Execute sends them, do not fit the Recipients of a SendEmail command (its own validation).
 ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, Output targets As %String, Output dryRun As %DynamicObject) As %Status
 {
 	Set targets = ""
 	Set dryRun = ""
 	Set sc = ..CheckParameters(parameters, "")
 	If $$$ISERR(sc) Quit sc
+	If $$$ISERR(##class(OcuTalon.Msg.Command.SendEmail).RecipientsIsValid(..Joined(parameters.recipients))) {
+		Quit $$$ERROR($$$GeneralError, "The parameter 'recipients' of "_..#NAME_" is longer than a SendEmail command holds")
+	}
 	For i = 1:1:parameters.recipients.%Size() {
 		Set targets = targets _ $Select(targets = "": "", 1: ",") _ i
 	}
@@ -205,17 +208,23 @@ ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicOb
 	Set command.ApprovalRef = row.Ref
 	Set command.Subject = parameters.subject
 	Set command.Text = parameters.text
-	Set joined = ""
-	Set iterator = parameters.recipients.%GetIterator()
-	While iterator.%GetNext(, .address) {
-		Set joined = joined _ $Select(joined = "": "", 1: ",") _ address
-	}
-	Set command.Recipients = joined
+	Set command.Recipients = ..Joined(parameters.recipients)
 	Set answered = ""
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .answered)
 	If $$$ISERR(sc) || '$IsObject(answered) Quit $$$OK
 	Set result = {"sent": (+answered.Ok), "outcome": (answered.Outcome), "message": (answered.Message)}
 	Quit $$$OK
+}
+
+/// The recipients of an approved email as the Recipients of its SendEmail command: the entries as they are, joined by commas.
+ClassMethod Joined(recipients As %DynamicArray) As %String [ Private ]
+{
+	Set joined = ""
+	Set iterator = recipients.%GetIterator()
+	While iterator.%GetNext(, .address) {
+		Set joined = joined _ $Select(joined = "": "", 1: ",") _ address
+	}
+	Quit joined
 }
 
 /// Raises the request of a risky send_email call (see the class description). arguments is the call's arguments, ownerRef and traceRef those of the context and sinkClass the host sink
@@ -261,8 +270,9 @@ ClassMethod Raise(arguments As %DynamicObject, ownerRef As %String, traceRef As 
 }
 
 /// Writes the one Action entry of an email send (see the class description). outcome is the CommandResult's outcome word or the run's result, approvalRef is the request's Ref ("" for a
-/// tool send), sessionRef the session (or ""), channel a channel of Msg.Enum CHANNEL (system for any other value) and recipients the number of recipients. It holds no address, subject or text.
-ClassMethod Audit(outcome As %String, approvalRef As %String, sessionRef As %String, channel As %String, recipients As %Integer) As %Status
+/// tool send), sessionRef the session (or ""), channel a channel of Msg.Enum CHANNEL (system for any other value), recipients the number of recipients and irisUser the IRIS user who
+/// answered the request (AD-17; the job's own user when it is empty, as for a tool send). It holds no address, subject or text.
+ClassMethod Audit(outcome As %String, approvalRef As %String, sessionRef As %String, channel As %String, recipients As %Integer, irisUser As %String = "") As %Status
 {
 	Set data = {}
 	Do data.%Set("action", ..#NAME, "string")
@@ -270,13 +280,13 @@ ClassMethod Audit(outcome As %String, approvalRef As %String, sessionRef As %Str
 	Do data.%Set("result", outcome, "string")
 	Do data.%Set("counts", {"recipients": (+recipients)})
 	Do data.%Set("approvalRef", approvalRef, "string")
-	Do data.%Set("irisUser", $Username, "string")
+	Do data.%Set("irisUser", $Select($Get(irisUser) '= "": irisUser, 1: $Username), "string")
 	Do data.%Set("sessionRef", $Select(##class(OcuTalon.Bridge.Approval).IsRef(sessionRef): sessionRef, 1: ""), "string")
 	Do data.%Set("channel", $Select($ListFind($ListFromString(##class(OcuTalon.Bridge.Msg.Enum).#CHANNEL), channel): channel, 1: "system"), "string")
 	Quit ##class(OcuTalon.Bridge.Audit).Record("Action", data)
 }
 
-/// The Audit of an approved email: the entry of the request's row, with the approver's channel (system when none) and the number of recipients in its parameters.
+/// The Audit of an approved email: the entry of the request's row, with the approver's IRIS user and channel (the job's user and system when none) and the number of recipients in its parameters.
 ClassMethod AuditRow(row As OcuTalon.Bridge.Data.ApprovalRequest, outcome As %String) As %Status
 {
 	Set count = 0
@@ -285,7 +295,7 @@ ClassMethod AuditRow(row As OcuTalon.Bridge.Data.ApprovalRequest, outcome As %St
 	} Catch {
 		Set count = 0
 	}
-	Quit ..Audit(outcome, row.Ref, row.OwnerRef, row.AnsweredChannel, count)
+	Quit ..Audit(outcome, row.Ref, row.OwnerRef, row.AnsweredChannel, count, row.AnsweredBy)
 }
 
 }

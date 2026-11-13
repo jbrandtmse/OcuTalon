@@ -11,10 +11,10 @@
 ///     stored keys at once;
 ///   - TestSendTo: the own address once for any number of spellings of it, and the entries otherwise;
 ///   - TestSafeSend: a safe call submits one SendEmail (origin tool, the session of the call, the key <ItemId>:1, the stored address once, the subject and the text) and answers exactly
-///     {ok, outcome, message} of the CommandResult, nothing of its Ref or Data; one Action entry holds no address, subject or text;
+///     {ok, outcome, message} of the CommandResult, nothing of its Ref or Data; one Action entry counts the one address sent to and holds no address, subject or text;
 ///   - TestNoSession: no context, an owner that is not a session's Ref or an empty ItemId answer NOSESSION and submit nothing;
 ///   - TestOnlineDemo: with onlineDemo 1 the tool answers not_available with EmailOut's sentence and submits and audits nothing, and the hook sets that sentence as its refusal and raises nothing;
-///   - TestHoldRefusals: the hook raises nothing and sets EmailOut's sentence for no mailbox address (MESSAGENOTCONNECTED) and for parameters that EmailOut would refuse (MESSAGEREFUSED);
+///   - TestHoldRefusals: the hook raises nothing and sets EmailOut's sentence for no mailbox address (MESSAGENOTCONNECTED) and for parameters that EmailOut would refuse or that a SendEmail command cannot hold (MESSAGEREFUSED);
 ///   - TestHoldRaisesTheRequest: the hook raises one fix request of the kind email with the exact row shape, for another address, the own address plus another, and another session's call to
 ///     the mailbox address; it carries no Tool field and no incident, its dry run holds every recipient, the subject and the text, and the model's answer is the gate's HELD;
 ///   - TestGateDecides: through the gate, a user's turn gets HELD for another address and a safe own address is allowed; an untrusted or tainted turn is denied UNTRUSTED for both, with no
@@ -251,7 +251,7 @@ Method TestSafeSend()
 	Do $$$AssertEquals(mine.%Size(), 1, "one Action entry of the action email is written")
 	If mine.%Size() = 1 {
 		Set data = mine.%Get(0).data
-		Do $$$AssertEquals(data.action_"|"_data.target_"|"_data.result_"|"_data.approvalRef_"|"_data.sessionRef_"|"_data.counts.recipients, "email|EmailOut|sent||"_owner_"|2", "the entry says email, EmailOut, sent, no approval, the session and the number of recipients")
+		Do $$$AssertEquals(data.action_"|"_data.target_"|"_data.result_"|"_data.approvalRef_"|"_data.sessionRef_"|"_data.counts.recipients, "email|EmailOut|sent||"_owner_"|1", "the entry says email, EmailOut, sent, no approval, the session and the number of recipients sent to (the own address once)")
 		Set text = mine.%Get(0).%ToJSON()
 		Do $$$AssertEquals(($ZConvert(text, "L") [ "example.test")_"|"_(text [ "zz subject")_"|"_(text [ "zz text"), "0|0|0", "and holds no address, subject or text")
 	}
@@ -344,6 +344,8 @@ Method TestHoldRefusals()
 	Set cases($Increment(n)) = "an empty text|[""partner@example.test""]|s|"
 	Set cases($Increment(n)) = "a text of white space|[""partner@example.test""]|s| "_$Char(10)_" "
 	Set cases($Increment(n)) = "a text with a control character|[""partner@example.test""]|s|a"_$Char(7)_"b"
+	Set wide = $Translate($Justify("", 60), " ", "x")_"@"_$Translate($Justify("", 45), " ", "d")_".test"
+	Set cases($Increment(n)) = "20 valid addresses that, joined, are longer than a SendEmail command holds|"_..Times(wide, 20).%ToJSON()_"|s|t"
 	For i = 1:1:n {
 		Set arguments = {"subject": ($Piece(cases(i), "|", 3)), "text": ($Piece(cases(i), "|", 4))}
 		Set arguments.recipients = {}.%FromJSON("{""r"":"_$Piece(cases(i), "|", 2)_"}").r
