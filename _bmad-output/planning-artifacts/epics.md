@@ -7751,6 +7751,27 @@ So that a retry never emails anyone twice.
 
 - DW-1244: EmailOut ignores a tool command's IdempotencyKey (AD-1), so a re-sent chat turn could send the own-address email twice (ledger; routed by the orchestrator 2026-11-13, entry on OCT-epic22's ledger; linked entry here)
 
+### Story 21.14: The mailbox address and user name stay out of the trace
+
+> [ADDED 2026-11-13, fix story inserted by the Epic 21 runner under the Contest Planner's DW-1255 audit ruling (prompts/rulings-371-dw1255-20261113.md, items 1 and 5); implemented after Story 21.8 merges]
+
+As an admin,
+I want the mailbox's address and user name kept out of the trace,
+So that someone who can read traces does not learn them.
+
+**Acceptance Criteria:**
+
+**Given** an admin saves Settings > Channels > Email
+**When** the save reaches `SettingsOps`
+**Then** the mailbox `address` and `user` travel by the same handoff swap as the password and the client secret in `Web/Api.cls`: `SaveSettings.Changes` holds only their handoff references, the values reach only `SettingsOps` and IRIS's own audit entry, and `incoming`, `outgoing`, `signIn`, `clientId` and `origin` stay as they are
+**And** a leak-scan test shows neither value in any traced message, log row, trace or `^OcuTalon*` global after a save (DW-1255)
+
+**Given** `docs/security-overview.md`
+**When** it describes the trace role
+**Then** it states plainly that anyone with the trace role sees each item's content, including an email's sender (`Msg.Item.Sender` stays, by the ruling) (DW-1255)
+
+- DW-1255: audit: personal data in traced SaveSettings.Changes (the email channel's address and user) moves to the SecretHandoff; the security overview states what the trace role sees (ledger; routed by the orchestrator 2026-11-13)
+
 ### Story 21.6: Send email over SMTP
 
 > [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.2 and before 21.3, which reuses `EmailIn` and `EmailOut`.
