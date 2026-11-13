@@ -34,6 +34,8 @@
 ///     real CommandsIn routes it to real EmailOut and the stub holds exactly that mail (UTF-8 kept, one plain part, no attachment) with one Delivery row; a
 ///     second session, another address and a tainted or untrusted turn are refused and the stub receives nothing; the online demo flag refuses with
 ///     not_available even though the rows are present and enabled;
+///   - TestReSentTurnSendsOnce (Story 21.13): the owner's chat turn with an ItemId sends its email through CommandCall.Run; the same turn again, and once more after
+///     EmailOut restarts, answers sent and the stub holds exactly one mail and the owner one Delivery row; a turn with another ItemId adds one mail;
 ///   - TestSystemSendIsClaimedByItsApproval (rulings a, f): a system send with the approval of an executing email fix reaches the stub; the same approval again,
 ///     and after EmailOut restarts, is already_sent and the stub holds one mail; a failed send keeps its claim; a send with no approval row is refused;
 ///   - TestSendFailuresByStubMode (matrix "Send fails"): connect refused, AUTH refused, RCPT rejected and DATA rejected answer failed with P1a, P1b, Q4 and Q4, once,
@@ -318,12 +320,14 @@ Method MockServer() [ Private ]
 }
 
 /// A tool turn of the session: a bridge context (provenance, taint) and a SendEmail submitted through Commands.Submit, which real CommandsIn routes to
-/// real EmailOut. Answers the CommandResult.
-Method ToolSend(owner As %String, recipients As %String, subject As %String, text As %String, provenance As %String = "user", tainted As %Boolean = 0) As OcuTalon.Msg.CommandResult [ Private ]
+/// real EmailOut. Answers the CommandResult. With an itemId the turn is that item (a turn that is sent again has the same ItemId) and the command goes through
+/// OcuTalon.Tools.CommandCall.Run, which sets the key <ItemId>:1 as a tool does; without one the command is submitted with a key of its own.
+Method ToolSend(owner As %String, recipients As %String, subject As %String, text As %String, provenance As %String = "user", tainted As %Boolean = 0, itemId As %String = "") As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Do ..MockServer()
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
 	Set request.OwnerRef = owner
+	Set request.ItemId = itemId
 	Set request.Provenance = provenance
 	Set result = ""
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, ##class(OcuTalon.Data.Session).RefIndexOpen(owner).TraceRef), "a tool turn begins")
@@ -334,9 +338,14 @@ Method ToolSend(owner As %String, recipients As %String, subject As %String, tex
 		Set command.Recipients = recipients
 		Set command.Subject = subject
 		Set command.Text = text
-		Set command.IdempotencyKey = "zzlivekey"_$Increment(^OcuTalonTest("EmailLive", "key"))
-		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "tool", .result)
-		Do $$$AssertStatusOK(sc, "the command is submitted")
+		If itemId '= "" {
+			Set refusal = ##class(OcuTalon.Tools.CommandCall).Run(command, .result)
+			Do $$$AssertTrue('$IsObject(refusal), "the command is submitted through CommandCall.Run")
+		} Else {
+			Set command.IdempotencyKey = "zzlivekey"_$Increment(^OcuTalonTest("EmailLive", "key"))
+			Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "tool", .result)
+			Do $$$AssertStatusOK(sc, "the command is submitted")
+		}
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the tool turn runs without an exception")
 	}
@@ -1327,6 +1336,32 @@ Method DeliveryId() As %String [ Private ]
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND OwnerRef = ? ORDER BY ID", ..Owner)
 	Do result.%Next()
 	Quit result.%GetData(1)
+}
+
+/// Story 21.13, the surface pin: a re-sent turn sends its email once. The turn is sent through the real CommandCall.Run, with the same ItemId (so the same key),
+/// again, and after EmailOut restarts.
+Method TestReSentTurnSendsOnce()
+{
+	If '..Guard() Quit
+	Try {
+		Set result = ..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the mailbox and the SMTP server are connected")
+		Set sent = "1|sent|The email was sent."
+		Set first = ..ToolSend(..Owner, "zzlive@example.com", "zz turn", "zz text", "user", 0, "zzliveturnx0000001")
+		Do $$$AssertEquals(first.Ok_"|"_first.Outcome_"|"_first.Message, sent, "the turn with ItemId X sends its email")
+		Set again = ..ToolSend(..Owner, "zzlive@example.com", "zz turn, reworded", "zz text, reworded", "user", 0, "zzliveturnx0000001")
+		Do $$$AssertEquals(again.Ok_"|"_again.Outcome_"|"_again.Message, sent, "the same turn again answers as the first send did")
+		Do ..Restart(..#SENDITEM)
+		Set restarted = ..ToolSend(..Owner, "zzlive@example.com", "zz turn", "zz text", "user", 0, "zzliveturnx0000001")
+		Do $$$AssertEquals(restarted.Ok_"|"_restarted.Outcome_"|"_restarted.Message, sent, "and so does the same turn after EmailOut restarts")
+		Do $$$AssertEquals(..Mails().%Size()_"|"_..Deliveries(..Owner), "1|1", "the stub holds exactly one mail and the owner has one Delivery row")
+		Set next = ..ToolSend(..Owner, "zzlive@example.com", "zz next turn", "zz text", "user", 0, "zzliveturny0000001")
+		Do $$$AssertEquals(next.Ok_"|"_next.Outcome_"|"_next.Message, sent, "a turn with ItemId Y is sent")
+		Do $$$AssertEquals(..Mails().%Size()_"|"_..Deliveries(..Owner), "2|2", "and adds exactly one mail and one row")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
 }
 
 /// Rulings a and f: a system send is allowed by the approval request of an executing email fix and is sent once per approval, also after EmailOut restarts.

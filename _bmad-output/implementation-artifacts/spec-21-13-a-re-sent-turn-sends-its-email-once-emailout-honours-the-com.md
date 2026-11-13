@@ -2,7 +2,8 @@
 title: "Story 21.13: A re-sent turn sends its email once (EmailOut honours the command's idempotency key)"
 type: 'bugfix'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'f76320db76eb675214aded797e63ca40e511a332'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -112,6 +113,31 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-12 -- Review pass
+- verdicts: 21 findings -- high 0, medium 1, low 16, false 4, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: the spine edit is dated 2026-11-13 -- the stage prompt and the spec's S-item fix that marker, `[ADDED 2026-11-13, Story 21.13, DW-1244]`.
+  - `[low]` `[reject]` Blind: the spine sentence omits the key-only rule, the session scope and the error-after-claim mark, and sits on the 21.6 bullet -- the sentence is the spec's own wording (spec-bound; a fix edits the spec's S-item); the class description, `Delivery` and `SendEmail` doc comments carry the detail.
+  - `[low]` `[reject]` Blind: a repeat with other words answers `sent` -- Design Notes decided 2 and the intent ("only the key decides"; "answers exactly as the first send did"); by design.
+  - `[low]` `[reject]` Blind and Edge: a pending claim, an error after the claim, or a failed `%DeleteId` blocks the key with `failed` for good -- the matrix rows "Never finished" and "Error after the claim" require it, so that a job stopped during a send fails safe; a `%DeleteId` failure is theoretical (a one-row delete by its own id).
+  - `[low]` `[reject]` Blind: `Send` chooses delete or mark by `claim.ApprovalRef = ""` -- the spec's Code Map says so; the AC2 mutation below turns the system tests red when it is inverted.
+  - `[low]` `[reject]` Blind: keyed claim rows accumulate, `DigestKey` has no index -- ruled V1 (U-327): no new index, existing retention; the lookup uses the `OwnerRef`/`Channel` index.
+  - `[low]` `[reject]` Blind: weak test assertions (`'[ "zzkey"`, no `ToolKeyOf` vs `DigestKeyOf` test, no `%DeleteId` failure test, no concurrency test, no failed-then-retried live test) -- each is covered by a stronger row (length, hash equality through `KeyRows`, the lock test, the unit retry rows) or is theoretical; one exception is patched as P1 below.
+  - `[low]` `[reject]` Edge: a failure after the server accepted the mail (timeout after DATA, class unreachable) deletes the claim, so a re-sent turn can send twice -- the intent says every `Sender.Classify` class deletes the claim ("so no failed tool send leaves a row", "that failure answer is unchanged"); a rare residual risk of the intent, listed under residual risks.
+  - `[low]` `[reject]` Edge: sent claim not cleared / not deleted on a save or delete error -- as the pending-claim row above: theoretical.
+  - `[low]` `[reject]` Edge: a repeat after the mailbox is disconnected or the address changed answers `not_connected` / `refused` -- the intent puts the repeat rule after the online-demo check, `Check` and `Authorised`; by design.
+  - `[false]` `[reject]` Edge: two rows with one owner and key make the answer depend on row order -- a failed or pending claim is never deleted and a sent claim is written once, under the lock, after `Claimed` found none, so two rows of one key cannot arise.
+  - `[false]` `[reject]` Edge: a tool command with an empty `SessionRef` shares one instance-wide scope -- `Authorised` refuses a tool command with an empty `SessionRef` (`Out.cls` L395) and `TestToolRecipients` pins it.
+  - `[low]` `[reject]` Edge: an exception after `Send` deleted the claim could re-save it as failed -- nothing between the delete and the return of `Send` throws (a log call); theoretical.
+  - `[medium]` `[patch]` Verification gap: no `EmailOut` unit test sends a keyed tool command that `Authorised` or `Check` refuses, nor one on the online demo, so moving the keyed branch above those checks stays green -- patched (P2): keyed refused rows in `TestToolRecipients` (another address, no subject; nothing delivered or claimed) and a key on the `TestOnlineDemo` sends (no claim written); the mutation "keyed sends skip `Authorised`" turns `TestToolRecipients` red.
+  - `[low]` `[reject]` Verification gap: the exact-case recheck in `Claimed` is unpinned -- a case-only collision of two 22-character hashes is negligible, and a seeded upper-cased hash may equal the original.
+  - `[low]` `[patch]` Verification gap and Blind: the seeding of another session's claim ignores the `Record` status, so the scoping row could pass with no row -- patched (P1): the status is asserted and the rows of both sessions are counted before the send.
+  - `[low]` `[patch]` Verification gap: AC2 and AC3 have no `mutation:` line -- Rule 19 closes it inside the pass: both lines are written below, the AC2 mutation applied and observed red, reverted byte-identical.
+  - `[low]` `[reject]` Verification gap: the "restart" row of `TestToolKeySendsOnce` is not distinct from the repeat row -- the real restart is pinned by `TestReSentTurnSendsOnce` (`Restart`); not a vacuous assertion.
+  - `[false]` `[reject]` Verification gap: self-containment -- the layer found none; no finding.
+  - `[low]` `[reject]` Verification gap: the tests compute the expected `DigestKey` with the product's `ToolKeyOf` (circular) -- the hash helper is shared with the digest path, whose own test pins it; a changed hash only changes the stored value of a keyed claim, never the answer.
+  - `[low]` `[reject]` Intent alignment (descriptive): the diff implements reading A (the handler) and pins B and C live; position, a real chat re-submit and the 22.7 tool are not exercised -- reading D waits for Story 22.7, and position is `CommandCall`'s (not changed here).
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -191,9 +217,36 @@ No catalog, route, table shape or count changes. Every test added or changed pas
 - `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh` (once each) -- pass.
 - `git diff -U0 -- src | grep -E '^[+-]\s*(Property|Index|<Value>|<Data|Storage)'` (once) -- no output.
 
+**Mutation record (implement stage, lane-C throwaways):**
+- mutation: the key lookup removed (`SendClaimed` never calls `Claimed` for a keyed tool send) -> `Test.Channel.EmailOut:TestToolKeySendsOnce` red (repeat, restart, other key, scoped, never finished and error-after-claim rows); reverted byte-identical
+- mutation: a failed tool claim kept and marked failed instead of deleted -> `Test.Channel.EmailOut:TestToolKeySendsOnce` red (the failed-then-retried rows); reverted byte-identical
+- mutation: the key lock not taken -> `Test.Channel.EmailOut:TestToolKeyIsLocked` red (the Lock held row); reverted byte-identical
+- mutation: the `If claim.ApprovalRef = ""` test of `Send` inverted (an approval's failed claim is deleted, a keyed tool claim is marked failed; AC2, the system path unchanged) -> `Test.Channel.EmailOut:TestNoDoubleSend` red (and `TestSignInMessage`, `TestToolKeySendsOnce`); reverted byte-identical, green again on the same stack
+- mutation: a `Property` line added to `Data.Delivery` (AC3, no stored-data change) -> the Verification command `git diff -U0 -- src | grep -E '^[+-]\s*(Property|Index|<Value>|<Data|Storage)'` prints it; reverted byte-identical
+- mutation: keyed tool sends skip `Authorised` (AC1's order: the repeat rule after `Check` and `Authorised`) -> `Test.Channel.EmailOut:TestToolRecipients` red (the keyed refused rows); reverted byte-identical
+- mutation: the key lookup removed (warm stack down and up, as the production job runs the code) -> `Test.Channel.EmailLive:TestReSentTurnSendsOnce` red (the stub held more than one mail); reverted byte-identical
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). Spec verified against the READY FOR DEVELOPMENT standard. Veto V1 (the existing `Delivery.DigestKey` column reused for keyed tool claims; no new column, index or global) is for the Planner. No new public text. The spine S-item (AD-14, additive) is for the lead. No IRIS was used (no Task 0).
+**Summary.** A tool send with an `IdempotencyKey` is claimed like an approval: `Handle` routes it to the new private `SendClaimed` (the approval claim block, generalised; the lock name and the lookup are its parameters). The claim row is the session's `Data.Delivery` row of channel `email` with an empty `ApprovalRef` and `ToolKeyOf`'s 22-character hash in `DigestKey`. The same key again answers `1|sent|The email was sent.` and sends nothing; a pending or failed claim and a held lock answer `failed`; a classified send failure deletes the claim so the key can be sent again. No new column, index, table, global or public text. The AD-14 `EmailOut` sentence is in the spine with the marker `[ADDED 2026-11-13, Story 21.13, DW-1244]` (lint: only the 10 baseline low `placeholder` findings).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls`: `SendClaimed`, `ToolKeyOf`, `HashOf` (shared with `DigestKeyOf`), `Claimed` with the owner-and-key lookup, `Send` deleting a claim with no `ApprovalRef` after a failed send, class description.
+- `src/ocutalon/cls/OcuTalon/Data/Delivery.cls`, `src/ocutalon/cls/OcuTalon/Msg/Command/SendEmail.cls`: doc comments only.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/EmailOut.cls`: `TestToolKeySendsOnce`, `TestToolKeyIsLocked`, keyed refused rows in `TestToolRecipients`, a key on `TestOnlineDemo`, helpers `Hash`, `KeyRows`, `KeyRowId`, `key` arguments.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/EmailLive.cls`: `ToolSend` with an optional `itemId` (through `CommandCall.Run`), `TestReSentTurnSendsOnce`.
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: the additive AD-14 sentence, `updated:` refreshed.
+
+**Review.** 21 findings from four layers: patches applied 3 (medium 1, low 2: keyed refused and online-demo rows in `EmailOut`, the seeding status of the scoping row, the AC2 and AC3 mutation lines), items deferred 0, rejected 18 with their reasons in the Review Triage Log.
+
+**Follow-up review recommended:** false (one medium patched, tests only).
+
+**Verification.** Implement stage on lane-C throwaways: `Test.Channel.EmailOut`, the whole `Test.Channel.EmailLive`, `EmailLive:TestReSentTurnSendsOnce`, `Test.Data.Tables`, `Test.Channel.EmailIn`, `Test.Core.CommandsStep4` and `Test.Data.Delivery` passed; `EmailOut:TestToolKeySendsOnce` and `EmailLive:TestReSentTurnSendsOnce` passed on a fresh stack. After the review patches: `Test.Channel.EmailOut` passed warm (twice, once after the mutations were reverted) and on a fresh stack; `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh` passed; the Property/Index/Storage diff check printed nothing; the spine lint shows only the 10 baseline low `placeholder` findings. Matrix Test Audit: every row of the I/O matrix has a covering test that ran and passed (Repeat, After restart, Other key, No key, Failed then retried, Never finished, Error after the claim and Tool command with an ApprovalRef in `TestToolKeySendsOnce`; Lock held in `TestToolKeyIsLocked`; System path in the unchanged 21.6 tests; Online demo in `TestOnlineDemo`). All stacks torn down.
+
+**Residual risks.**
+- A send that failed after the server had accepted the mail (a timeout after DATA, classed unreachable) deletes its claim, as the intent requires, so a re-sent turn could then send it a second time.
+- A claim left pending (job stopped during a send) or marked failed (error after the claim) answers `failed` for that key for good; nothing expires it.
+- Keyed claim rows stay with the session's other `Delivery` rows under the existing retention.

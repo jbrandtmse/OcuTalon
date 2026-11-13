@@ -7,7 +7,8 @@
 /// EmailIn read through the methods SentByEmail, TakeEcho, DigestEmailsSince and DigestEmailSent below.
 /// A row of channel email is EmailOut's: its ChannelMessageId is the random Ref that the email carries in its X-OcuTalon-Ref header, so that EmailIn
 /// can tell the mail that comes back to the polled mailbox from other mail (SentByEmail, TakeEcho). A digest's row (Kind digest) also keeps DigestKey,
-/// which makes one digest go by email once; it keeps no text and no address.
+/// which makes one digest go by email once; so does the row of a tool send with an IdempotencyKey, whose DigestKey is the hash of the key (EmailOut.ToolKeyOf)
+/// and which makes the send go once for the key of its session. These rows keep no text and no address.
 Class OcuTalon.Data.Delivery Extends %Persistent
 {
 
@@ -42,14 +43,17 @@ Property DecisionRef As %String(MAXLEN = 22);
 Property DueAt As %String(MAXLEN = 20);
 
 /// The fallback reason the card shows: one of Msg.Enum FALLBACKREASON; empty when the card is not a fallback. On EmailOut's claim of an approval (a row
-/// of channel email with an ApprovalRef) it is instead pending while the send has not finished, failed when it did not go through, and empty once sent.
+/// of channel email with an ApprovalRef) or of a keyed tool send (a row of channel email with a DigestKey and no Kind) it is instead pending while the send
+/// has not finished, failed when an error followed the claim, and empty once sent. A failed approval send keeps its row, marked failed; a failed keyed tool
+/// send deletes its row.
 Property FallbackReason As %String(MAXLEN = 32);
 
 /// The check rows of a web digest card, as the JSON array of the digest's Slots rows ({result, entry, finding, checkedAt}); empty for any other row.
 Property CheckRows As %String(MAXLEN = "");
 
-/// The key of a digest that went by email (EmailOut.DigestKeyOf), 22 characters; empty for any other row. One digest sends once: a row with the key
-/// means the digest was sent.
+/// The key of a digest that went by email (EmailOut.DigestKeyOf), or of a tool send with an IdempotencyKey (EmailOut.ToolKeyOf), 22 characters; empty for
+/// any other row. One digest sends once: a row with the key means the digest was sent. A keyed tool send's row with the key is sent when its
+/// FallbackReason is empty.
 Property DigestKey As %String(MAXLEN = 22);
 
 /// When EmailIn took the email that came back with this row's Ref and made no Item of it, UTC to the second; empty until then. A Ref is used once.

@@ -16,12 +16,19 @@
 ///     Bridge.Data.ApprovalRequest must be of Kind fix, in State executing, with FixKind FIXKIND, and its FixParameters member recipients (an array
 ///     of addresses) must equal the command's recipients as a set of lower-cased addresses. Any other origin, a missing row or any mismatch answers
 ///     refused, naming recipients, and sends nothing;
-///   - a system send is claimed first (Claim): under a lock on its ApprovalRef, a Data.Delivery row of channel email with that ApprovalRef means the
+///   - a system send is claimed first (SendClaimed): under a lock on its ApprovalRef, a Data.Delivery row of channel email with that ApprovalRef means the
 ///     approval was sent already, so the answer is already_sent (Ok 1, MESSAGESENT) and nothing is sent; a row marked failed (a send that did not go
 ///     through) or still pending (a send that never finished, such as one whose job was stopped during it) answers failed (Ok 0, MESSAGEFAILED) and sends
 ///     nothing; otherwise the claim row is written, with FallbackReason pending (CLAIMPENDING), and the send follows. A sent email clears the mark; a
 ///     failed send, or an error after the claim, keeps the claim with FallbackReason failed, so no approval is ever sent twice and only an email that
 ///     was sent ever answers already_sent;
+///   - a tool send with an IdempotencyKey is claimed the same way (SendClaimed), by its session and the key, and only the key decides: the subject, the
+///     text and the recipients of a repeat are not compared. The claim row has the owner of the command's SessionRef, an empty ApprovalRef (even when the
+///     command names an approval) and, in DigestKey, ToolKeyOf: 22 characters of the hash of the key, never equal to a digest's key. Under a lock on the
+///     owner and the key, a sent row for the key answers sent (Ok 1, MESSAGESENT), as the first send did, and sends nothing; a row that is pending or
+///     marked failed, or a lock that cannot be taken in CLAIMWAIT, answers failed (Ok 0, MESSAGEFAILED) and sends nothing; otherwise the claim is written
+///     pending and the send follows. A sent email clears the mark. A failed send (one of Sender.Classify's classes) deletes the claim, so that the key
+///     can be sent again and no failed tool send leaves a row; an error after the claim marks it failed. A tool send with no key is sent every time;
 ///   - the message is one text/plain part in UTF-8 with no attachment, sent once through Deliver. Success records a Data.Delivery row (owner: the
 ///     command's SessionRef, or instance when it has none; channel email; the Ref of the header as the message id; the approval's Ref for a system send) and
 ///     answers sent (Ok 1, MESSAGESENT). A failure answers failed (Ok 0) with the message of Sender.Classify's class: MESSAGEUNREACHABLE,
@@ -145,20 +152,29 @@ Method Handle(request As OcuTalon.Msg.Command.SendEmail) As OcuTalon.Msg.Command
 	If bad.%Size() Quit ..Refused(bad)
 	If '..Authorised(request, from, .recipients) Quit ..Refused(["recipients"])
 	Set owner = $Select(request.SessionRef '= "": request.SessionRef, 1: ..#INSTANCE)
-	If (request.Origin '= "system") || (request.ApprovalRef = "") Quit ..Send(request, from, .recipients, owner, "")
-	Set approval = request.ApprovalRef
-	Lock +^OcuTalon.EmailOut.Approval(approval):..#CLAIMWAIT
+	If (request.Origin = "system") && (request.ApprovalRef '= "") Quit ..SendClaimed(request, from, .recipients, owner, request.ApprovalRef, "")
+	If (request.Origin = "tool") && (request.IdempotencyKey '= "") Quit ..SendClaimed(request, from, .recipients, owner, "", ..ToolKeyOf(request))
+	Quit ..Send(request, from, .recipients, owner, "")
+}
+
+/// The claimed send of the class description, for a system send (approval is its ApprovalRef, key "") and for a keyed tool send (approval "", key is
+/// ToolKeyOf). Under a lock on the approval or on the owner and key, a Data.Delivery row of channel email for it is looked up (Claimed); then the answer
+/// is that of the class description, or the claim row is written pending and the send follows. A claim row never carries an ApprovalRef for a tool send.
+Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, approval As %String, key As %String) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set lockName = $Select(approval '= "": $Name(^OcuTalon.EmailOut.Approval(approval)), 1: $Name(^OcuTalon.EmailOut.Key(owner, key)))
+	Lock +@lockName:..#CLAIMWAIT
 	If '$Test Quit ..Result(0, "failed", ..#MESSAGEFAILED)
 	Set result = ""
 	Set claim = ""
 	Try {
-		Set claimed = ..Claimed(approval)
+		Set claimed = ..Claimed(approval, owner, key)
 		If claimed = ..#CLAIMFAILED {
 			Set result = ..Result(0, "failed", ..#MESSAGEFAILED)
 		} ElseIf claimed {
-			Set result = ..Result(1, "already_sent", ..#MESSAGESENT)
+			Set result = $Select(approval '= "": ..Result(1, "already_sent", ..#MESSAGESENT), 1: ..Result(1, "sent", ..#MESSAGESENT))
 		} Else {
-			Set sc = ##class(OcuTalon.Data.Delivery).Record(owner, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), approval, "", "", "", "", ..#CLAIMPENDING, .claim)
+			Set sc = ##class(OcuTalon.Data.Delivery).Record(owner, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), approval, "", "", "", "", ..#CLAIMPENDING, .claim, "", key)
 			Set result = $Select($$$ISERR(sc): ..Result(0, "failed", ..#MESSAGEFAILED), 1: ..Send(request, from, .recipients, owner, claim))
 		}
 	} Catch exception {
@@ -169,12 +185,13 @@ Method Handle(request As OcuTalon.Msg.Command.SendEmail) As OcuTalon.Msg.Command
 			Do claim.%Save()
 		}
 	}
-	Lock -^OcuTalon.EmailOut.Approval(approval)
+	Lock -@lockName
 	Quit result
 }
 
-/// Builds the message, delivers it once and answers; claim is the claim row of a system send, "" for a tool send. The Ref of the header is the claim
-/// row's, or a new one that the Delivery row of a sent tool email keeps.
+/// Builds the message, delivers it once and answers; claim is the claim row of a claimed send, "" for an unclaimed tool send. The Ref of the header is the claim
+/// row's, or a new one that the Delivery row of a sent unclaimed tool email keeps. A failed send keeps the claim of an approval, marked failed, and deletes
+/// the claim of a keyed tool send (it has no ApprovalRef), so that the same key can be sent again.
 Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, claim As OcuTalon.Data.Delivery) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set ref = $Select($IsObject(claim): claim.ChannelMessageId, 1: ##class(OcuTalon.Bridge.Ids).NewRef())
@@ -193,9 +210,14 @@ Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef re
 	Set class = ##class(OcuTalon.Channel.Email.Sender).Classify(sc)
 	Set errorMessage = $Select(class = ##class(OcuTalon.Channel.Email.Sender).#REFUSED: $Select(..OAuth2Mode(): ..#MESSAGESIGNIN, 1: ..#MESSAGEREFUSEDLOGIN), class = ##class(OcuTalon.Channel.Email.Sender).#REJECTED: ..#MESSAGEREJECTED, 1: ..#MESSAGEUNREACHABLE)
 	If $IsObject(claim) {
-		Set claim.FallbackReason = "failed"
-		Set saved = claim.%Save()
-		If $$$ISERR(saved) $$$LOGERROR("EmailOut could not mark the claim of a failed send")
+		If claim.ApprovalRef = "" {
+			Set deleted = ##class(OcuTalon.Data.Delivery).%DeleteId(claim.%Id())
+			If $$$ISERR(deleted) $$$LOGERROR("EmailOut could not remove the claim of a failed send")
+		} Else {
+			Set claim.FallbackReason = "failed"
+			Set saved = claim.%Save()
+			If $$$ISERR(saved) $$$LOGERROR("EmailOut could not mark the claim of a failed send")
+		}
 	}
 	$$$LOGWARNING("EmailOut did not send the email: "_class)
 	Quit ..Result(0, "failed", errorMessage)
@@ -301,7 +323,19 @@ Method SendDigestLocked(request As OcuTalon.Msg.Notification, from As %String, o
 ClassMethod DigestKeyOf(request As OcuTalon.Msg.Notification) As %String
 {
 	Set lf = $Char(10)
-	Set input = request.SessionRef_lf_request.DecisionRef_lf_request.CatalogKey_lf_request.Slots_lf_$Extract(##class(OcuTalon.Data.Time).NowUtc(), 1, 10)
+	Quit ..HashOf(request.SessionRef_lf_request.DecisionRef_lf_request.CatalogKey_lf_request.Slots_lf_$Extract(##class(OcuTalon.Data.Time).NowUtc(), 1, 10))
+}
+
+/// The key of a tool send: 22 characters of the SHA-256 hash of the word tool, a line feed and the command's IdempotencyKey, so that it never equals the key
+/// of a digest. It holds no address and no text; the session is the owner of the claim row, not part of the hash.
+ClassMethod ToolKeyOf(request As OcuTalon.Msg.Command.SendEmail) As %String
+{
+	Quit ..HashOf("tool"_$Char(10)_request.IdempotencyKey)
+}
+
+/// 22 characters of the SHA-256 hash of the input (UTF-8), in URL-safe Base64.
+ClassMethod HashOf(input As %String) As %String [ Private ]
+{
 	Quit $Translate($SYSTEM.Encryption.Base64Encode($Extract($SYSTEM.Encryption.SHAHash(256, $ZConvert(input, "O", "UTF8")), 1, 16), 1), "+/=", "-_")
 }
 
@@ -394,17 +428,26 @@ Method Authorised(request As OcuTalon.Msg.Command.SendEmail, from As %String, By
 	Quit (key = "")
 }
 
-/// What a Delivery row of channel email says about the approval: 0 when there is none, CLAIMFAILED when the row is the claim of a send that failed or
-/// never finished (FallbackReason failed or CLAIMPENDING), and 1 for a row of an email that was sent.
-ClassMethod Claimed(approval As %String) As %Integer [ Private ]
+/// What a Delivery row of channel email says about a claim: for an approval (approval is not empty) the row with that ApprovalRef, for a keyed tool send
+/// (approval empty) the row of the owner whose DigestKey is exactly key (the column compares without regard to case, so the value read is compared
+/// again). 0 when there is none, CLAIMFAILED when the row is the claim of a send that failed or never finished (FallbackReason failed or CLAIMPENDING),
+/// and 1 for a row of an email that was sent.
+ClassMethod Claimed(approval As %String, owner As %String = "", key As %String = "") As %Integer [ Private ]
 {
 	Set statement = ##class(%SQL.Statement).%New()
-	Set sc = statement.%Prepare("SELECT TOP 1 FallbackReason FROM OcuTalon_Data.Delivery WHERE ApprovalRef = ? AND Channel = ?")
+	If approval '= "" {
+		Set sc = statement.%Prepare("SELECT TOP 1 FallbackReason, DigestKey FROM OcuTalon_Data.Delivery WHERE ApprovalRef = ? AND Channel = ?")
+	} Else {
+		Set sc = statement.%Prepare("SELECT FallbackReason, DigestKey FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = ? AND DigestKey = ?")
+	}
 	If $$$ISERR(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
-	Set rows = statement.%Execute(approval, ..#CHANNEL)
+	Set rows = $Select(approval '= "": statement.%Execute(approval, ..#CHANNEL), 1: statement.%Execute(owner, ..#CHANNEL, key))
 	If rows.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(rows.%SQLCODE, rows.%Message)
-	If 'rows.%Next() Quit 0
-	Quit $Select(rows.%Get("FallbackReason") = "": 1, 1: ..#CLAIMFAILED)
+	Set found = 0
+	While 'found && rows.%Next() {
+		If (approval '= "") || (rows.%Get("DigestKey") = key) Set found = $Select(rows.%Get("FallbackReason") = "": 1, 1: ..#CLAIMFAILED)
+	}
+	Quit found
 }
 
 /// A refused answer naming the fields.

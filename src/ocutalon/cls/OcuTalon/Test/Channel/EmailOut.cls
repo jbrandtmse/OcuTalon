@@ -24,8 +24,14 @@ Include Ensemble
 ///   - TestNoDoubleSend (ruling f): a system send is claimed by its approval: the same approval again, after a restart of the operation, answers already_sent and
 ///     delivers nothing more; the claim is written pending before the send and cleared once the email is sent; after a failed send, an error after the claim,
 ///     or a claim whose send never finished, it answers failed and delivers nothing; the claim row of a failed send says failed;
+///   - TestToolKeySendsOnce (Story 21.13): a tool send with an IdempotencyKey is sent once per key of its session: the same key again, also with other words and
+///     after a restart of the operation, answers sent and delivers nothing more; another key, another session's claim of the same key and a send with no key
+///     are sent; a failed send removes its claim and the key can be sent again; a claim that never finished or an error after the claim answers failed and
+///     delivers nothing; the claim is pending during the send and keeps no text and no address; a tool command that names an approval makes a claim with no
+///     approval and leaves that approval's own send alone;
 ///   - TestClaimIsLocked (ruling f): while another process holds the approval's lock a system send of it answers failed, delivers nothing and writes no claim;
 ///     with the lock free the same approval is sent once;
+///   - TestToolKeyIsLocked (Story 21.13): the same for a keyed tool send and the lock of its session and key;
 ///   - TestUnexpectedErrorAnswersFailed: an error thrown inside the send is answered as failed, never as an error status;
 ///   - TestNoPersonalDataInTheLog: after sends and failures whose server words and addresses are known, no Ens.Util.Log row holds an address, a subject, a
 ///     text or the server's words;
@@ -606,6 +612,11 @@ Method TestToolRecipients()
 		Set result = ..Send("tool", ..#OWNER, recipients, "ok", "ok")
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|refused|"_refused, "'"_recipients_"' is refused")
 	}
+	Set result = ..Send("tool", ..#OWNER, "other@example.com", "ok", "ok", "", "zzkey-refused-1")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|refused|"_refused, "a keyed send to another address is refused")
+	Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, "", "ok", "", "zzkey-refused-2")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|refused|"_refused, "and a keyed send with no subject is refused")
+	Do $$$AssertEquals(..Delivered()_"|"_..KeyRows(..#OWNER, ..Hash("zzkey-refused-1"))_"|"_..KeyRows(..#OWNER, ..Hash("zzkey-refused-2")), "0|0|0", "and neither is delivered or claimed")
 	Set result = ..Send("tool", ..#OTHER, ..#ADDRESS, "ok", "ok")
 	Do $$$AssertEquals(result.Outcome, "refused", "another session than email.owner is refused")
 	Set result = ..Send("tool", "", ..#ADDRESS, "ok", "ok")
@@ -677,10 +688,10 @@ Method TestOnlineDemo()
 	Do ..Mailbox()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	For origin = "tool", "system" {
-		Set result = ..Send(origin, ..#OWNER, ..#ADDRESS, "ok", "ok", ..Approval("zzemailoutap0030"_origin, ..#ADDRESS))
+		Set result = ..Send(origin, ..#OWNER, ..#ADDRESS, "ok", "ok", ..Approval("zzemailoutap0030"_origin, ..#ADDRESS), "zzkey-demo")
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|not_available|Email can't be connected on the online demo. Nothing was changed.", "origin "_origin_": not_available on the online demo")
 	}
-	Do $$$AssertEquals(..Delivered(), 0, "nothing was delivered")
+	Do $$$AssertEquals(..Delivered()_"|"_..KeyRows(..#OWNER, ..Hash("zzkey-demo")), "0|0", "nothing was delivered and no claim was written")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
 	Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, "ok", "ok")
 	Do $$$AssertEquals(result.Outcome, "sent", "and the same send goes through off the online demo")
@@ -812,6 +823,69 @@ Method TestNoDoubleSend()
 	Do $$$AssertEquals(..Delivered(), calls, "and nothing is delivered")
 }
 
+/// Story 21.13: a tool send is sent once per IdempotencyKey of its session, also after a restart and after a failure.
+Method TestToolKeySendsOnce()
+{
+	Do ..Mailbox()
+	Set sent = $Parameter(..#PROBE, "MESSAGESENT")
+	Set failed = $Parameter(..#PROBE, "MESSAGEFAILED")
+	Set hash = ..Hash("zzkey-1")
+	Set first = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-1")
+	Do $$$AssertEquals(first.Ok_"|"_first.Outcome_"|"_first.Message, "1|sent|"_sent, "the first send of the key is sent")
+	Do $$$AssertEquals($Get(^||OcuTalonEmailOutProbe("claim", 1)), "pending", "its claim was written, marked pending, before the send")
+	Set row = ##class(OcuTalon.Data.Delivery).%OpenId(..KeyRowId(..#OWNER, hash))
+	Do $$$AssertEquals(row.FallbackReason_"|"_row.ApprovalRef_"|"_row.Text_"|"_row.Kind, "|||", "and the claim of the sent email is no longer marked, and holds no approval and no text")
+	Do $$$AssertEquals($Length(row.DigestKey), 22, "its DigestKey is 22 characters")
+	Do $$$AssertTrue(row.DigestKey '[ "zzkey", "and holds no part of the key")
+	Set again = ..Send("tool", ..#OWNER, ..#ADDRESS, "another subject", "other words", "", "zzkey-1")
+	Do $$$AssertEquals(again.Ok_"|"_again.Outcome_"|"_again.Message, "1|sent|"_sent, "the same key again, worded differently, answers as the first send did")
+	Do $$$AssertEquals(..Delivered()_"|"_..Deliveries(..#OWNER), "1|1", "and delivers nothing more: one Delivery row")
+	Kill ^||OcuTalonEmailOutProbe("sent")
+	Set restarted = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-1")
+	Do $$$AssertEquals(restarted.Ok_"|"_restarted.Outcome, "1|sent", "in a new instance of the operation the claim still holds (it is a table row)")
+	Do $$$AssertEquals($Data(^||OcuTalonEmailOutProbe("sent")), 0, "and nothing is delivered")
+	Set other = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-2")
+	Do $$$AssertEquals(other.Ok_"|"_other.Outcome_"|"_..Delivered()_"|"_..Deliveries(..#OWNER), "1|sent|2|2", "another key is sent: one more mail and one more row")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..#OTHER, "email", "zzemailoutother", "", "", "", "", "", "", , "", ..Hash("zzkey-3")), "another session's sent claim of the same key is made")
+	Do $$$AssertEquals(..KeyRows(..#OTHER, ..Hash("zzkey-3"))_"|"_..KeyRows(..#OWNER, ..Hash("zzkey-3")), "1|0", "and it is the only row of that key")
+	Set scoped = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-3")
+	Do $$$AssertEquals(scoped.Outcome_"|"_..Delivered(), "sent|3", "a sent claim of the same key in another session does not stop this session's send")
+	Set calls = ..Delivered()
+	Do ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text")
+	Do ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text")
+	Do $$$AssertEquals(..Delivered(), calls + 2, "a send with no key is sent every time")
+	Set ^||OcuTalonEmailOutProbe("answer") = "unreachable"
+	Set calls = ..Delivered()
+	Set bad = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-5")
+	Do $$$AssertEquals(bad.Ok_"|"_bad.Outcome_"|"_bad.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEUNREACHABLE"), "a failed send answers failed with its class's sentence")
+	Do $$$AssertEquals(..Delivered()_"|"_..KeyRows(..#OWNER, ..Hash("zzkey-5")), (calls + 1)_"|0", "and leaves no row")
+	Kill ^||OcuTalonEmailOutProbe("answer")
+	Set retried = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-5")
+	Do $$$AssertEquals(retried.Ok_"|"_retried.Outcome, "1|sent", "the retry of the key is sent")
+	Do $$$AssertEquals(..Delivered()_"|"_..KeyRows(..#OWNER, ..Hash("zzkey-5")), (calls + 2)_"|1", "once, with one row")
+	Set pendingHash = ..Hash("zzkey-6")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..#OWNER, "email", "zzemailoutpending", "", "", "", "", "", "pending", , "", pendingHash), "the claim of a send that never finished is made")
+	Set calls = ..Delivered()
+	Set never = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-6")
+	Do $$$AssertEquals(never.Ok_"|"_never.Outcome_"|"_never.Message, "0|failed|"_failed, "a claim whose send never finished answers failed")
+	Do $$$AssertEquals(..Delivered(), calls, "and nothing is delivered")
+	Set ^||OcuTalonEmailOutProbe("answer") = "throw"
+	Set thrown = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-7")
+	Do $$$AssertEquals(thrown.Ok_"|"_thrown.Outcome_"|"_thrown.Message, "0|failed|"_failed, "an error after the claim answers failed")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).%OpenId(..KeyRowId(..#OWNER, ..Hash("zzkey-7"))).FallbackReason, "failed", "and marks the claim failed")
+	Kill ^||OcuTalonEmailOutProbe("answer")
+	Set calls = ..Delivered()
+	Set repeated = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-7")
+	Do $$$AssertEquals(repeated.Ok_"|"_repeated.Outcome_"|"_repeated.Message, "0|failed|"_failed, "the same key again answers failed, never that the email was sent")
+	Do $$$AssertEquals(..Delivered(), calls, "and nothing is delivered")
+	Set approval = ..Approval("zzemailoutap0060", ..#ADDRESS)
+	Set viaTool = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", approval, "zzkey-8")
+	Do $$$AssertEquals(viaTool.Outcome_"|"_..Claims(approval)_"|"_..KeyRows(..#OWNER, ..Hash("zzkey-8")), "sent|0|1", "a tool command that names an approval makes a claim with no approval")
+	Set calls = ..Delivered()
+	Set system = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", approval)
+	Do $$$AssertEquals(system.Outcome_"|"_..Delivered()_"|"_..Claims(approval), "sent|"_(calls + 1)_"|1", "and that approval's own system send is still sent once")
+}
+
 /// Ruling f, the lock: while another process holds the approval's lock, a system send of that approval sends nothing and claims nothing; once the lock is free
 /// the same approval is sent. The other process signals when it holds the lock, and again when it has released it.
 Method TestClaimIsLocked()
@@ -839,17 +913,46 @@ Method TestClaimIsLocked()
 	Kill ^OcuTalonTest("EmailOutLock")
 }
 
-/// The other process of TestClaimIsLocked: holds the lock of the approval until the test releases it (or 60 seconds pass).
-ClassMethod HoldLock(approval As %String)
+/// Story 21.13, the lock of a keyed tool send: while another process holds the lock of the session and the key, a send of that key sends nothing and claims
+/// nothing; once the lock is free the same key is sent once.
+Method TestToolKeyIsLocked()
 {
-	Lock +^OcuTalon.EmailOut.Approval(approval):5
+	Do ..Mailbox()
+	Set hash = ..Hash("zzkey-lock")
+	Kill ^OcuTalonTest("EmailOutLock")
+	Job ##class(OcuTalon.Test.Channel.EmailOut).HoldLock("", ..#OWNER, hash)
+	Set held = ..WaitFlag("held")
+	Try {
+		Do $$$AssertTrue(held, "the other process holds the key's lock")
+		If held {
+			Set locked = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-lock")
+			Do $$$AssertEquals(locked.Ok_"|"_locked.Outcome_"|"_locked.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEFAILED"), "a send of the key while the lock is held answers failed")
+			Do $$$AssertEquals(..Delivered()_"|"_..KeyRows(..#OWNER, hash), "0|0", "and delivers nothing and writes no claim")
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Set ^OcuTalonTest("EmailOutLock", "release") = 1
+	Do $$$AssertTrue(..WaitFlag("done"), "the other process released the lock")
+	Set sent = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-lock")
+	Do $$$AssertEquals(sent.Ok_"|"_sent.Outcome, "1|sent", "with the lock free the same key is sent")
+	Do $$$AssertEquals(..Delivered()_"|"_..KeyRows(..#OWNER, hash), "1|1", "once, with one claim")
+	Kill ^OcuTalonTest("EmailOutLock")
+}
+
+/// The other process of TestClaimIsLocked and TestToolKeyIsLocked: holds the lock of the approval, or of the session and the key of a tool send when key is
+/// given, until the test releases it (or 60 seconds pass).
+ClassMethod HoldLock(approval As %String, owner As %String = "", key As %String = "")
+{
+	Set name = $Select(key '= "": $Name(^OcuTalon.EmailOut.Key(owner, key)), 1: $Name(^OcuTalon.EmailOut.Approval(approval)))
+	Lock +@name:5
 	If '$Test Quit
 	Set ^OcuTalonTest("EmailOutLock", "held") = 1
 	Set deadline = $ZHorolog + 60
 	While ('$Data(^OcuTalonTest("EmailOutLock", "release"))) && ($ZHorolog < deadline) {
 		Hang 0.1
 	}
-	Lock -^OcuTalon.EmailOut.Approval(approval)
+	Lock -@name
 	Set ^OcuTalonTest("EmailOutLock", "done") = 1
 }
 
@@ -1085,7 +1188,7 @@ ClassMethod Message() As %Net.MailMessage [ Private ]
 }
 
 /// A SendEmail command.
-ClassMethod Command(origin As %String, sessionRef As %String, recipients As %String, subject As %String, text As %String, approvalRef As %String = "") As OcuTalon.Msg.Command.SendEmail [ Private ]
+ClassMethod Command(origin As %String, sessionRef As %String, recipients As %String, subject As %String, text As %String, approvalRef As %String = "", key As %String = "") As OcuTalon.Msg.Command.SendEmail [ Private ]
 {
 	Set command = ##class(OcuTalon.Msg.Command.SendEmail).%New()
 	Set command.Origin = origin
@@ -1094,15 +1197,16 @@ ClassMethod Command(origin As %String, sessionRef As %String, recipients As %Str
 	Set command.Subject = subject
 	Set command.Text = text
 	Set command.ApprovalRef = approvalRef
+	Set command.IdempotencyKey = key
 	Quit command
 }
 
 /// Sends the command through a new shadow instance of the probe, and answers the CommandResult.
-Method Send(origin As %String, sessionRef As %String, recipients As %String, subject As %String, text As %String, approvalRef As %String = "") As OcuTalon.Msg.CommandResult [ Private ]
+Method Send(origin As %String, sessionRef As %String, recipients As %String, subject As %String, text As %String, approvalRef As %String = "", key As %String = "") As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set probe = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
 	Do $$$AssertStatusOK(sc, "the probe is made")
-	Set sc = probe.OnSendEmail(..Command(origin, sessionRef, recipients, subject, text, approvalRef), .response)
+	Set sc = probe.OnSendEmail(..Command(origin, sessionRef, recipients, subject, text, approvalRef, key), .response)
 	Do $$$AssertStatusOK(sc, "the status is OK")
 	Do $$$AssertTrue($IsObject(response), "and the answer is a CommandResult")
 	Quit response
@@ -1183,6 +1287,33 @@ ClassMethod Claims(approval As %String) As %Integer [ Private ]
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND ApprovalRef = ?", approval)
 	Do result.%Next()
 	Quit +result.%GetData(1)
+}
+
+/// The DigestKey that a tool send of the key has (EmailOut.ToolKeyOf).
+ClassMethod Hash(key As %String) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Channel.Email.Out).ToolKeyOf(..Command("tool", "", "", "", "", "", key))
+}
+
+/// The number of Delivery rows of channel email of the owner with exactly this DigestKey.
+ClassMethod KeyRows(owner As %String, hash As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT DigestKey FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND OwnerRef = ? AND DigestKey = ?", owner, hash)
+	Set count = 0
+	While result.%Next() {
+		If result.%Get("DigestKey") = hash Set count = count + 1
+	}
+	Quit count
+}
+
+/// The id of the first Delivery row of channel email of the owner with exactly this DigestKey.
+ClassMethod KeyRowId(owner As %String, hash As %String) As %String [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, DigestKey FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND OwnerRef = ? AND DigestKey = ? ORDER BY ID", owner, hash)
+	While result.%Next() {
+		If result.%Get("DigestKey") = hash Quit
+	}
+	Quit result.%Get("ID")
 }
 
 ClassMethod ClaimId(approval As %String) As %String [ Private ]
