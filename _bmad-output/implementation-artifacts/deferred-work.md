@@ -7503,3 +7503,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-35-routine-attention-decisions-meet-their-target.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: eval/mail-partner-notice/case.json expected digest; _bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/mockups/states.html:982 'the partner notice comes back as Digest or Tell now'; release-evidence/<v>-gates/rc-eval/set-*.json 15/15 misses
 - 2026-11-12T21:22:06Z status=routed owner=burndown by=harvest note=for the owner after the contest: decide the case's expected answer against the UX; the Planner ruled not to widen it during the contest (moving the goalposts after seeing the model's output)
+
+### DW-1253: EmailOut ignores a tool command's IdempotencyKey (AD-1), so a re-sent chat turn could send the own-address email twice (linked to DW-1244 on OCT-epic22's ledger)
+- source: Contest Planner ruling H(ii), 2026-11-13 (22.7 plan, DW-1244) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: EmailOut keys de-duplication on ApprovalRef only (22.7 plan); Channel/Email is Epic 21's
+- 2026-11-13T04:04:48Z status=routed owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=orchestrator note=linked=DW-1244(OCT-epic22);the_orchestrator_reconciles_both_after_merge;22.7_merge_waits_for_this_fix

@@ -7734,6 +7734,23 @@ So that moving or renaming a README section can never leave a dead link behind.
 
 - DW-1207: test: one check that fails when any file outside README.md (docs/*.md included) links a README anchor README.md doesn't have (ledger; routed by orchestrator 2026-11-12)
 
+### Story 21.13: A re-sent turn sends its email once (EmailOut honours the command's idempotency key)
+
+> [ADDED 2026-11-13, fix story inserted by the Epic 21 runner under the Contest Planner's ruling H(ii) (DW-1244, routed to Lane C); Story 22.7's merge waits for it]
+
+As a user,
+I want a chat turn that is sent again to send its email only once,
+So that a retry never emails anyone twice.
+
+**Acceptance Criteria:**
+
+**Given** a `SendEmail` command from origin `tool` that carries an `IdempotencyKey` (AD-1), which `EmailOut` has already sent
+**When** the same command arrives again with the same key (a re-sent turn, a replay, or after a restart)
+**Then** `EmailOut` sends nothing the second time and answers as for the first send, and exactly one mail reaches the SMTP stub; a different key sends normally; the system path's existing approval-keyed de-duplication (21.6 ruling (f)) is unchanged
+**And** a test pins it: a re-sent turn with the same key sends once (DW-1244)
+
+- DW-1244: EmailOut ignores a tool command's IdempotencyKey (AD-1), so a re-sent chat turn could send the own-address email twice (ledger; routed by the orchestrator 2026-11-13, entry on OCT-epic22's ledger; linked entry here)
+
 ### Story 21.6: Send email over SMTP
 
 > [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.2 and before 21.3, which reuses `EmailIn` and `EmailOut`.

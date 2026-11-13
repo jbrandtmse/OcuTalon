@@ -231,3 +231,6 @@
 2026-11-13T03:18:12Z	Epic 21	pushed	head=44908d0d ci=pending runs=43358029164,43358029109 part=21.7+21.8+21.12 note=supersedes_41549d46(checks_red=21.8_story,fixed_in_rework_2)
 2026-11-13T04:03:54Z	Story 21.8	ruling	question=DW-1234,README_More_link choice=planner_ruling_G:switch_ratified(condition:comment_at_the_definition+AD-19_credential_rule);More_link_approved_verbatim(already_in_README_from_the_integrate-forward:comma_form,and_before_last) category=veto via=orchestrator
 2026-11-13T04:03:54Z	Story 21.8	lead_fix	files=Channel/Email/Sender.cls(one_doc_line_at_PLAINVARIABLE),ARCHITECTURE-SPINE.md(AD-19_credential_rule_sentence) review=lead_scoped(comment-only;no_behaviour) checks=test-readme(README_2175_words<=2300_with_0.29_H3),test-boundaries,test-class-rules,test-release-notes_pass,spine_lint_10_low_baseline
+2026-11-13T04:04:48Z	Epic 21	pushed	head=5d5581eb ci=pending runs=43363054369,43363054440 part=21.7+21.8+21.12 note=supersedes_44908d0d(intended)
+2026-11-13T04:04:48Z	Epic 21	ruling	question=DW-1244_fix choice=new_fix_Story_21.13(Planner_H(ii)) category=decide via=orchestrator note=deps_hash(reason=fix_forward)_and_22.7_wait_are_the_orchestrator%27s;linked_entry_DW-1253
+2026-11-13T04:04:48Z	Story 21.13	ledger_routed_planned	story=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com entries=1(DW-1253) excess=0 by=orchestrator
