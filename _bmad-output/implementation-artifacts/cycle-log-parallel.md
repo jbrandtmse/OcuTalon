@@ -3936,3 +3936,9 @@
 2026-11-13T10:02:45Z	Run	inbox_hold_item	id=U-328
 2026-11-13T10:02:45Z	Run	all_parked_report_sent	to=Contest_Planner
 2026-11-13T10:02:58Z	Run	protocol_violation	stage=hold depth=0 agent=orchestrator violation=force-push(git_push_-f)_of_own_backup_ref_hold/feature-records-20261113(668090a4->239bc971) consequence=none(ref_created_minutes_earlier_by_orchestrator_as_backup_only;no_shared_branch,no_CI,no_one_else_reads_it) detected_by=orchestrator outcome=reported_to_owner_and_Planner;no_further_force_pushes(use_a_new_ref_name_instead)
+2026-11-13T10:03:28Z	Run	planner_ack	what=force-push_self-report_acknowledged(no_loss;new_ref_490c0e04) hold=stands resume=Planner_RESUME_after_owner_reset
+2026-11-13T13:17:38Z	Run	unattended_resumed	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec lock_token=1794477728-57457 via=Contest_Planner_RESUME(owner_quota_reset_13:16Z) hold_cleared=yes same_session
+2026-11-13T13:17:38Z	Epic 0	ci_rerun	sha=e168d257 run=43356780569 job=iris(browser)demo-path_06-trace_step5 reason=compare(Planner;0.35_held_merge)
+2026-11-13T13:18:23Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=0c481884 result=success note=newest_fully_green
+2026-11-13T13:18:23Z	Epic 21	ci_green_verified	head=4eb46cdd runs=43399692299,43399692062 result=success
+2026-11-13T13:18:23Z	Epic 21	merge_enqueued	part=21.7+21.8+21.12+21.13 head=9aec7dee code_head=4eb46cdd
