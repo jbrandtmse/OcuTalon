@@ -7462,3 +7462,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 36.4 gate ruling, 2026-11-13 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: SaveSettings.Changes is visible to OcuTalonTraceViewer, which non-admin accounts hold
 - 2026-11-13T04:50:39Z status=routed owner=burndown by=orchestrator note=Planner ruling; one audit story
+
+### DW-1267: 25.4 obligation from 37.1: the Roles section hands the target user name and role to SettingsOps through SecretHandoff (Changes holds only {handoff}) and Holders' list returns through a handoff uri; a leak-scan test of the change's message bodies for the target user name; routes admin-only, 409 not_available on the online demo before the body, a test per refusal
+- source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 37.1 spine AD-24 S2 personal-data clause; Planner V3/V4/V8
+- 2026-11-13T13:24:13Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+
+### DW-1268: 25.5 obligation from 37.1: AnswersIn calls Approval.MayAnswer before Answer; the not_allowed slot kind carries the row's ApproverKind; one 'Only an approver for ...' sentence per approver kind (seven: resend, reroute, suspend, rollback, partner, email, tool; setting rows keep today's rule) proposed as PUBLIC TEXT (only 'resends' is in EXPERIENCE.md)
+- source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 37.1 spine AD-11 S1; Planner V6/V8
+- 2026-11-13T13:24:13Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+
+### DW-1269: 25.6 obligation from 37.1: Conversation calls Agent.Input.ReadFile before a file turn's requests and ends the turn with result.text when read is 0; renders the read result (fileRef, kind, read, reason, text, chars, cut, addable) and the HostData member caption (memoryRef, text), naming the carriers; Add to documents by fileRef. 'No file content in a production message body' = no bytes and no image (extracted text may reach the turn)
+- source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 37.1 spine AD-21 S4 + Conventions S6 (DW-1231); Planner V8 + escalation ruling
+- 2026-11-13T13:24:14Z status=routed owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+
+### DW-1270: 26.2 obligation from 37.1: build Agent.Input.ReadFile for PDF and Word and set READSFILES; read the file once for ReadFile and Render in the same job, or re-read; extracted text may reach the turn's Input like chat text (Planner: 26.2 does not move into the runner); mind Docs.Extract's up-to-45 s run in Conversation's job (pool size)
+- source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 37.1 spine AD-21 S4; Planner V8 + escalation ruling
+- 2026-11-13T13:24:14Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+
+### DW-1271: 26.4 obligation from 37.1 rulings: Roles.Assign admin-only with an allowlist of exactly OcuTalonApprover and OcuTalonViewer, refusing every % role, every other OcuTalon role (per-kind roles included) and the installer-managed accounts, an IRIS audit entry per assignment and removal, a test per refusal; pin the demo account's and the README account's OcuTalonApprover in tests; setting rows (persona proposals) keep RequiredRole OcuTalonUser and no ApproverKind (no OcuTalonApprover_setting)
+- source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 37.1 spine AD-24 S2, AD-11 S1; Planner V2/V3/V6
+- 2026-11-13T13:24:14Z status=routed owner=26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
