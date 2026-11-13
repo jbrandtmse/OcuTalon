@@ -6461,6 +6461,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T07:54:01Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_b99d6529_run_42768243726_browser_06-trace_signedOut;one_rerun
 - 2026-11-10T17:42:06Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980616591 iris(browser) live:demo-path 06-trace .finish-done not found after navigation to ?signedOut=1; OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
 - 2026-11-11T07:02:27Z occurrence=feature-c241f87c by=orchestrator note=run 42969082500 job 130353082261 iris(browser) live:demo-path 06-trace 'the run total' not found after navigation to ?signedOut=1 (ci-4); rerun of failed jobs
+- 2026-11-13T20:28:39Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=OCT-epic36 f0239dc8 ci run 43497681249 job 132134959499 iris(browser) live:demo-path 06-trace.spec.ts:23 run-total not found after navigation to ?signedOut=1; demo path untouched by 36.4; one rerun
 
 ### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -6761,6 +6762,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (shards-4) live:sign-in-2 R10 red at :470; green on one rerun; main badge green 19:45Z
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); no fix work now (Planner); rerun once per occurrence
 - 2026-11-13T01:01:54Z occurrence=feature-bc3eea8f note=ci_43320628392_att2_shards-4_R10
+- 2026-11-13T20:38:47Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=OCT-epic36 f0239dc8 ci run 43497681249 job 132134959516 iris(shards-4) live:sign-in-2 rail.spec.ts:432 R10; only diff the heartbeat card's real check-in at 20:26 between live read and reload; rail untouched by 36.4; one rerun
 
 ### DW-1094: flake: lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges ('trace_opened/run_again changes none of the session's data rows') and TestRunAgain ('steps 3 to 5 reset; the watch still counts')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
