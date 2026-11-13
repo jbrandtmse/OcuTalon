@@ -2,7 +2,8 @@
 title: "Story 37.1: Fix step 6's contracts: approver roles and the photo caption"
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '6ca4386e502ce25848e2251823e2444f90817061'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -90,6 +91,38 @@ deferred: []
 - 2026-11-13, lead, Contest Planner rulings (`rulings-371-dw1255-20261113.md`, "37.1 plan", binding; owner's delegation): spine amendments AD-11, AD-24, AD-17, AD-21, AD-31, AD-6, AD-29, the Conventions row, four ownership rows and the Deferred-row removal APPROVED as additive (orchestrator U7/U14). V1, V2 (both `OcuTalonApprover` grants; Story 26.4 pins them), V5, V7 approved. V3: `Assign`/`Holders` admin-only, an allowlist of exactly `OcuTalonApprover` and `OcuTalonViewer`, every `%` role and the installer-managed accounts refused, an IRIS audit entry per assignment and removal, 409 on the demo before the body, a test per refusal (S2 updated). V4: approved, with AD-17 narrowed by the Planner's exact sentence (S3 updated). V6: the ALTERNATIVE, `setting` rows keep today's rule (S1 updated; seven approver kinds, no `OcuTalonApprover_setting`; AC 2 updated). V8: each new obligation on 25.4, 25.5, 25.6, 26.2 (and 26.4's V2/V3 conditions) is filed as a ledger entry routed to that story's key; the orchestrator adds the epics.md bullets post-merge. Escalation: Story 25.6's "no file content in a production message body" means no bytes and no image; extracted text may reach the turn like chat text, and 26.2 does not move into the runner. Story code is unchanged by the rulings (stubs only); the implement stage applies them in the spine text.
 
 ## Review Triage Log
+
+### 2026-11-13 -- Review pass
+- verdicts: 28 findings -- high 0, medium 0, low 22, false 6, maybe-false 0 (the intent-alignment layer is descriptive and filed no finding)
+- findings:
+  - `[low]` `[reject]` BH1: AD-17 "Prevents: identities in audit data" is not edited beside the V4 bullet -- the Planner's ruling V4 says the narrowing is "added as its own bullet", and S3 gives that text exactly; spec-bound, not a patch.
+  - `[low]` `[reject]` BH2: AD-31's "the three settings" sentence follows the ContentClass block -- S5 fixes the anchor (before that sentence) and the spec forbids rewording existing sentences; the count is Story 26.3's to correct when it adds the setting.
+  - `[low]` `[reject]` BH3: `lint_spine` is a weak pin for AC 1/2 -- the spec records this honestly in the mutation line; AC 1/2 are document ACs pinned by the reviewer's read (Manual checks).
+  - `[low]` `[reject]` BH4: no mutation for `Holders` -- Rule 19 asks one mutation per AC; AC 3 has three demonstrated, and `TestRoleStubs` asserts `Holders`' 5003 and `[]` after a preset "zz".
+  - `[low]` `[reject]` BH5: tests assume the README account exists -- the matrix row names that account, and `Test.Bridge.Approval` (`ANSWERER`) relies on it the same way; it ran green on a fresh and a warm stack.
+  - `[low]` `[reject]` BH6: fixture hygiene (unchecked `Save`, no `$IsObject(nobody)`, counter global) -- a failed save fails loudly in the test, the counter global is allowed by `test-boundaries.sh`; guards would add branches to a test for no reachable harm.
+  - `[low]` `[reject]` BH7: `TestRoleStubs` uses `%All` on the README account -- the matrix prescribes exactly those two calls; the stub changes nothing.
+  - `[false]` `[reject]` BH8: an explicit `ApprovalRole` of `OcuTalonUser` defeats per-kind roles -- AD-11 says the setting names the role that answers every kind and that a set value stays; it is the stated design, not a gap.
+  - `[low]` `[patch]` BH9: the `ReadFile` line splits the `Agent.Input` class doc -- moved to the end of the doc block (`Input.cls`).
+  - `[low]` `[reject]` EH1: `HoldsRole` answers 0 on a read denial without a log -- pre-existing behaviour of `HoldsRole`, shared with `Answer`; `MayAnswer` must answer `Answer`'s rule.
+  - `[false]` `[reject]` EH2: `RefIndexOpen` is outside a Try -- `IsRef` rejects malformed Refs first and `RefIndexOpen` on a well-formed Ref answers "" and does not throw; the matrix rows pass.
+  - `[false]` `[reject]` EH3: state and expiry are ignored -- documented in S1 and in the method doc ("Answer decides those").
+  - `[low]` `[reject]` EH4: no `$IsObject(nobody)` guard in the test -- same as BH6.
+  - `[low]` `[reject]` EH5: the table-wide `COUNT(*)` can flake under concurrent writers -- the spec prescribes this comparison, and the test stack runs no concurrent approval writer; the scoped `RowFacts` assertion also holds.
+  - `[low]` `[reject]` EH6: README account assumed -- same as BH5.
+  - `[low]` `[reject]` EH7: `%DeleteId` status is not checked in cleanup -- a stray row would not change any later assertion (every test reads its own Ref).
+  - `[low]` `[reject]` EH8: `Assign` with empty or non-boolean input is unpinned -- stub; Story 26.4 owns the refusal tests (S2).
+  - `[low]` `[reject]` EH9: `ReadFile` with an empty Item is unpinned -- stub; the bare path returns the same 5003 and `{}` without reading the item.
+  - `[low]` `[reject]` EH10: the `>= 93` floor tolerates dropped signatures -- the spec says "raise the floor to 93"; the per-signature checks fail for a dropped entry's method.
+  - `[low]` `[reject]` EH11: the spine says the kinds "today" include `rollback` and `email` before their fix kinds exist -- spec-bound text (S2); AD-16 itself marks `rollback_setting` "not declared yet", and S1 says callers set the kind from each fix kind's parameter.
+  - `[false]` `[reject]` EH12: `MayAnswer` 1 does not guarantee `Answer` will not answer `not_allowed` -- the doc says `Answer` decides state and expiry, and `Answer` applies the same role rule under the lock.
+  - `[low]` `[reject]` VG1: "fires nothing, no audit entry" has no observing assertion -- the spec prescribes the `State`/`AnsweredBy`/`AnsweredAt`/`COUNT(*)` comparison; `MayAnswer` takes no sink, so it cannot fire an event, and a state-neutral audit write is not demonstrable without building a valid Approval entry in a mutation. Not a reachable failure.
+  - `[low]` `[reject]` VG2: the AC 1/2 mutation line pins a different property than the ACs -- the line states what it proves; the spec's own planned mutation did not hold, and the document ACs are read-pinned.
+  - `[low]` `[reject]` VG3: README account hermeticity -- same as BH5.
+  - `[low]` `[reject]` VG4: table-wide count -- same as EH5.
+  - `[false]` `[reject]` VG5: the stub test would leave a grant if the stub were replaced -- theoretical until Story 26.4, which rewrites these tests with its refusal tests.
+  - `[low]` `[patch]` VG6: the `Test.Bridge.Api` class doc says nothing else is written -- added the `^OcuTalonTest("BridgeApi", "n")` counter to the sentence (`Api.cls`).
+  - `[false]` `[reject]` VG7: the Auto Run Result section still says ready-for-dev -- it is written at finalize; the verification outcomes are recorded there.
 
 ## Design Notes
 
@@ -296,6 +329,13 @@ Every IRIS line runs with the lane prefix `P` = `OCUTALON_LOCK_DIR="$(dirname "$
   - Make `ReadFile` set `result = {"read":1}`, and `TestReadFileStub` goes red.
 - AC 4: make `MayAnswer` call `Answer` (a write), and `TestMayAnswer`'s "writes nothing" case goes red.
 - Record each as `mutation: <change> -> <test went red>`, reverted, with `git status --short` and `git diff --stat` unchanged.
+- Demonstrated (2026-11-13, implement; each reverted, `git status --short` and `git diff` byte-identical afterwards):
+  - mutation: AC 1 and AC 2, `lint_spine` structural pin: the word "rule" (any case) replaced by "Rxle" in the whole AD-24 block -> `lint_spine` reports `ad_fields` "AD-24 missing required field(s): rule" (high). Removing only the `**Rule:**` line stays green, because the check is a case-insensitive substring match on the whole block and the block's prose says "rule" elsewhere.
+  - mutation: AC 3, `MayAnswer`'s output argument renamed `kind` to `role` -> `Test.Contract.Ac` `TestCrossLaneSignatures` red ("MayAnswer takes (ref,irisUser,*kind) in that order").
+  - mutation: AC 3, `MayAnswer` ends with `Quit 1` -> `Test.Bridge.Api` `TestMayAnswer` red (OcuTalonWorkflow, nobody-role and empty-user cases).
+  - mutation: AC 3, `Assign` ends with `Quit $$$OK` -> `Test.Bridge.Api` `TestRoleStubs` red (both Assign cases).
+  - mutation: AC 3, `ReadFile` sets `result = {"read":1}` -> `Test.Bridge.Api` `TestReadFileStub` red ("and the result is empty").
+  - mutation: AC 4, `MayAnswer` calls `..Answer(ref, "approve", "web", irisUser, row.OwnerRef)` before its `Quit` -> `Test.Bridge.Api` `TestMayAnswer` red ("no state, answer field or row count changed").
 
 **Shared surfaces:** `Test.Contract.Ac`'s signature list and floor (89 to 93); the spine's ownership tables, the Conventions table and the Deferred list; the `ApprovalRequest` rows the test makes and deletes. Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
@@ -305,5 +345,28 @@ Every IRIS line runs with the lane prefix `P` = `OCUTALON_LOCK_DIR="$(dirname "$
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Step 6's Lane A contracts are written into the spine as additive bullets and rows (S1 to S9, each marked `[ADDED 2026-11-13, Story 37.1]`; the AD-17 and Deferred-row changes marked `[AMENDED]`), and four cross-lane APIs compile and are pinned in `Test.Contract.Ac`: `Approval.MayAnswer` (today's `HoldsRole` rule, `kind` empty, writes nothing), and the stubs `Install.Step.Roles.Assign` and `Holders` and `Agent.Input.ReadFile` (5003, `changed` 0, `users` `[]`, `result` `{}`). The Epic 36 deliverables of Design Notes' open point 3 were re-checked against the merged spine; S9 sits after "Epic 36's names", and S2 states that the `%Ens_ProductionConfig:W` exception stays Story 23.3's and the online demo leaves it out. Planner rulings V1 to V8 are applied as the spec states them.
+
+**Files changed.**
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: S1 (AD-11), S2 (AD-24), S3 and the V4 bullet (AD-17), S4 (AD-21), S5 (AD-31) and its AD-6 clause, S6 (Conventions row), S7 (four ownership rows), S9 (AD-29); the Deferred row removed (S8).
+- `src/bridge/cls/OcuTalon/Bridge/Approval.cls`: `MayAnswer` after `HoldsRole`; class-doc line.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls`: `Assign` and `Holders` stubs; class-doc line.
+- `src/ocutalon/cls/OcuTalon/Agent/Input.cls`: `ReadFile` stub; class-doc line.
+- `src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls`: four signatures, floor 93, class-doc count 93.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Api.cls`: `TestMayAnswer`, `TestRoleStubs`, `TestReadFileStub`, cleanup in `OnAfterOneTest`.
+
+**Review.** 28 findings from three layers (the intent-alignment layer was descriptive): 2 patches applied (both doc comments), 0 deferred, 26 rejected with the reason in the triage log. No HIGH or MEDIUM. Follow-up review recommended: false (no patched high, fewer than two patched mediums).
+
+**Verification.**
+- `lint_spine`: 10 findings, all low `placeholder`, before (HEAD) and after.
+- `test-class-rules.sh` (bridge-refs) and `test-boundaries.sh`: pass, after the last patch too.
+- Warm stack, `(loop)` classes: `Test.Bridge.Api`, `Test.Contract.Ac` (93 signatures), `Test.Bridge.Approval`, `Test.Install.Registry`, `Test.Agent.Render` passed; `Test.Bridge.Api` and `Test.Agent.Render` passed again after the two doc patches.
+- `(once)` `shard lane-a --part 1/16` to `16/16`: every class passed except `Test.Channel.EmailLive` (part 4, `TestDigestReachesTheStub`, three digest-text assertions) and `Test.Fix.Restart` (part 11, "and warns of nothing"). Neither touches a file of this story. `EmailLive` failed again alone on the warm stack and passed alone on a fresh stack (115 s); `Fix.Restart` passed alone on a fresh stack (40 s). They are warm-stack leftovers (state kept from the earlier classes of the sweep), not defects of this change; the lane-a CI run of the merged feature head passed.
+- `(once)` `shard lane-b@Contract,Core,Data,Demo,Live,Msg,Web --part 1/12` to `12/12`: every class passed.
+- Matrix Test Audit: every row is covered by `TestMayAnswer`, `TestRoleStubs`, `TestReadFileStub` or `Test.Contract.Ac`, and each ran and passed.
+- Mutations demonstrated and reverted: see `## Verification`.
+
+**Residual risks.** The mutation pin for AC 1 and AC 2 is `lint_spine`'s structural check only; the substance of S1 to S9 is read-pinned. Story 26.4 must rewrite `TestRoleStubs` with the refusal tests when `Assign` is built. The tests use the README account `ocutalon`, as `Test.Bridge.Approval` does.

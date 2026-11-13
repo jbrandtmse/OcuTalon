@@ -3,6 +3,8 @@
 /// granted roles, so a start rewrites the roles and no area overwrites another's grants. Roles are structural
 /// (AD-19). A declaration of a forbidden resource (FORBIDDEN), or of a resource that the instance does not have, fails the step before any
 /// role is touched.
+///   - Assign(userName, role, grant, .changed) and Holders(.users) are the run-time role calls of Settings > Roles (AD-24, step 6): stubs until Story 26.4, which answer
+///     "not implemented" (5003) and change and read nothing.
 Class OcuTalon.Install.Step.Roles Extends OcuTalon.Install.Step
 {
 
@@ -17,6 +19,26 @@ ClassMethod Run() As %Status
 	Set sc = ..Compose(.roles)
 	If $$$ISERR(sc) Quit sc
 	Quit ..Apply(.roles)
+}
+
+/// Grants (grant 1) or removes (grant 0) one role of an existing IRIS user (AD-24, step 6); changed is 1 when the user's roles changed and 0 when the user already
+/// was in that state. It is admin-only, works from an allowlist of exactly OcuTalonApprover and OcuTalonViewer, refuses every other role, every % role and the
+/// installer-managed accounts with an error that names what it refused, writes one IRIS audit entry for each assignment and removal, and runs in %SYS in the
+/// caller's job, which needs %Admin_Secure:USE.
+/// A stub until Story 26.4: it answers "not implemented" (5003), sets changed to 0 and changes nothing.
+ClassMethod Assign(userName As %String, role As %String, grant As %Boolean, Output changed As %Boolean) As %Status
+{
+	Set changed = 0
+	Quit $$$ERROR($$$NotImplemented)
+}
+
+/// Lists the users who hold an OcuTalon role (AD-24, step 6) in users, a %DynamicArray of {user, roles} with the OcuTalon roles each holds, sorted. It runs in
+/// %SYS in the caller's job, which needs %Admin_Secure:USE.
+/// A stub until Story 26.4: it answers "not implemented" (5003), sets users to [] and reads nothing.
+ClassMethod Holders(Output users As %DynamicArray) As %Status
+{
+	Set users = []
+	Quit $$$ERROR($$$NotImplemented)
 }
 
 /// roles(role, resource) = the union of the permissions declared for it, in the order R, W, U.
