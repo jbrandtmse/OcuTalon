@@ -3871,3 +3871,6 @@
 2026-11-13T04:13:53Z	Epic 23	merge_enqueued	part=23.12 head=182ff57f
 2026-11-13T04:14:21Z	Epic 23	epic_merged_to_feature	part=23.12 feature_sha=83ea7bc8 merge_sha=83ea7bc8 code=415ea02d+feature(no_code_overlap) verified_on_origin=yes
 2026-11-13T04:14:31Z	Run	ci_cancelled	head=1fb800c2 runs=43356317170,43356317369 reason=superseded_by_83ea7bc8(contains_it;queued)
+2026-11-13T04:15:11Z	Epic 23	runner_complete	runner=a577865a7d29a39ad part_completion=23.7,23.10,23.11,23.9,23.12 merged=83ea7bc8 waiting=23.3,23.4,23.8(on_Epic_36) unpushed=none
+2026-11-13T04:19:16Z	Epic 21	ruling	question=21.13_V1_reuse_Delivery.DigestKey_for_tool_IdempotencyKey_hash(tool_prefix) choice=keep rejected=new_column,global,body_match why=no_schema_change;append-only;distinct_prefix category=veto inbox=U-327 policy=5086036
+2026-11-13T04:19:16Z	Epic 21	runner_reported	CI_WAIT head=5d5581eb(21.7+21.8+21.12,rulings_G) runs=43363054369,43363054440 + 21.13_planned(V1) local=c8d849d2
