@@ -5,6 +5,7 @@ import { AnswerPress } from '../approvals/answer-press';
 import { APPROVAL_TEXTS, approvalView, type ApprovalContext } from '../approvals/approval-view';
 import { messageTime } from '../chat/page-time';
 import { Icon } from '../icon/icon';
+import { LiveState } from '../live/live-state';
 import type { ApprovalPayload, PhonePayload } from '../live/payloads';
 import { renderMessageText } from '../msg/catalog';
 import { approvalTitle } from '../rail/rail-view';
@@ -59,7 +60,8 @@ export function messageContext(nowMs: number, instanceZone: string, onlineDemo: 
  * The buttons are there only while the message names a request and has no answer, neither the server's (its edit of the message
  * when the request was answered) nor the phone's own press (phone-view.ts requestView). A press goes through AnswerPress with
  * channel 'phone', the same press as the chat's request card: both buttons go busy together (a spinner, aria-busy and aria-disabled,
- * never `disabled`), a repeat press sends nothing, and after 10 s with no answer both are restored with the busy notice. The answer
+ * never `disabled`), a repeat press sends nothing, and after 10 s with no answer both are restored with the busy notice. The reply's
+ * request also goes to the page's live store at once (LiveState.applyAnswer), so the status rail drops an answered request. The answer
  * line, in message form ("Approved from the simulated phone at 14:15."), replaces the buttons in the same place; when a button had
  * focus, the shared focus rule (shared/focus-rule.ts) puts it on the line (tabindex -1).
  *
@@ -220,6 +222,7 @@ export class PhoneRequest {
   protected readonly noticeId = `phone-notice-${++lastId}`;
 
   private readonly api = inject(ApiClient);
+  private readonly live = inject(LiveState);
   private readonly announcer = inject(Announcer);
   private readonly popovers = inject(Popovers);
   private readonly injector = inject(Injector);
@@ -230,6 +233,7 @@ export class PhoneRequest {
   private readonly answer = new AnswerPress({
     answer: (ref, action, channel) => this.api.answerApproval(ref, action, channel),
     channel: 'phone',
+    answered: (approval) => this.live.applyAnswer(approval),
     context: () => this.context(),
     announcer: this.announcer,
     destroyRef: this.destroyRef,

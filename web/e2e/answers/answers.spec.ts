@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page, type Response, type Route } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
-import { DRY_RUN, raise, refOf, today } from '../support/approvals';
+import { DRY_RUN, messageOf, noticeOnPhone, phoneOf, raise, refOf, today } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
 import { CARD_MS, composerOf, inMs, mainOf, railOf, unique, loadedAfter } from '../support/floor';
 import { answerHeaders, answerQuietly, chk, cleanFixtureRows, fixtureUser, irisScript, quoted, readApproval, seedApproval, sendNotification, sinkEvent } from '../support/iris';
@@ -55,10 +55,8 @@ const pageHhmm = (iso: string): string => clock(iso, 'en-GB', 'UTC');
 /** The incident card and the request card of a ref, in the chat. */
 const requestCard = (page: Page, ref: string): Locator => page.locator(`app-chat-panel [data-part="approval"][data-key="${ref}"]`);
 
-/** The simulated phone, its feed, and the message of a Ref. */
-const phoneOf = (page: Page): Locator => page.locator('app-simulated-phone');
+/** The simulated phone's feed. */
 const feedOf = (page: Page): Locator => phoneOf(page).locator('.feed');
-const messageOf = (page: Page, ref: string): Locator => phoneOf(page).locator(`.notification[data-key="${ref}"]`);
 
 /** The rail's row of a request, and its jump button. */
 const rowOfRequest = (page: Page, ref: string): Locator => railOf(page).locator(`li.row[data-row-key="approvals:${ref}"]`);
@@ -71,42 +69,6 @@ async function open(page: Page): Promise<void> {
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   await expect(composerOf(page)).toBeVisible();
   await expect(phoneOf(page), 'the stack is in demo mode: the phone shows').toBeVisible();
-}
-
-/** The slots of an incident.withFix / incident.laterRequest notice for the fixture request: 50 orders since two minutes ago. */
-function noticeSlots(since: string): Record<string, unknown> {
-  return {
-    count: 50,
-    itemNoun: { one: 'order', other: 'orders' },
-    time: since,
-    cause: 'Data format change',
-    fixSummary: 'repair the order date and resend 50 orders',
-    field: 'OrderDate',
-    before: '10/16/2026',
-    after: '2026-10-16',
-    resendCount: 50,
-  };
-}
-
-/**
- * Sends the incident notice of a request through Notify, as IncidentManager will (kind incident, or approval for a later request),
- * and returns the phone message that asks for it once the page shows it. `since` is the time the notice names.
- */
-async function noticeOnPhone(page: Page, user: string, request: string, incident: string, since: string, kind: 'incident' | 'approval' = 'incident'): Promise<{ ref: string; message: Locator }> {
-  await sendNotification(user, {
-    kind,
-    catalogKey: kind === 'incident' ? 'incident.withFix' : 'incident.laterRequest',
-    slots: noticeSlots(since),
-    approvalRef: request,
-    incidentRef: incident,
-  });
-  let ref = '';
-  await expect
-    .poll(async () => (ref = (await phoneMessage(user, request))?.ref ?? ''), { message: 'the phone message of the request exists', timeout: CARD_MS })
-    .not.toBe('');
-  const message = messageOf(page, ref);
-  await expect(message, 'and the phone shows it').toHaveCount(1, { timeout: CARD_MS });
-  return { ref, message };
 }
 
 /** The two buttons of a phone message, by their names. */

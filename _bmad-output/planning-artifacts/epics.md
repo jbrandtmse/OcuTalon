@@ -8296,6 +8296,30 @@ So that a notice never tells the partner the orders went through when some did n
 
 - DW-1165: The ruled resolved-incident sentence has the partner notice say the affected orders went through, but Facts carry only the state, so a resolved incident whose fix left messages failed again or skipped, or that a suspend or reroute resolved, gets the same claim (ledger; routed by owner 2026-11-12)
 
+### Story 23.12: Take a rejected request off the status rail at once
+
+[ADDED 2026-11-12, DW-1159, Contest Planner ruling] Follow-up to Story 23.10's last criterion (ledger DW-1159; Contest Planner ruling 2026-11-11T20:09:53Z under the owner's delegation, reversing inbox U-318). Rejecting a fix is a featured More to try step, so the rail must not keep showing a request the user has just rejected. Lane D, after Story 23.9; it ships in 1.0.8 only if merged before the cut, else 1.0.9.
+
+As a production developer who has just rejected a proposed fix,
+I want the status rail's Approval requests to drop that request straight away,
+So that the rail never shows a request as still waiting after I have answered it.
+
+**Acceptance Criteria:**
+
+**Given** an approval request listed under the status rail's Approval requests on the web page
+**When** the user presses Reject on it
+**Then** the request is gone from the rail within 5 s, without waiting for a later poll to bring the approval event (FR-8)
+
+**Given** the same request on the phone view
+**When** the user presses Reject on it
+**Then** it is gone from the phone view's rail within 5 s as well
+
+**Given** both cases
+**When** CI runs
+**Then** a browser test presses Reject and asserts the request is gone from the rail within 5 s, on the web and on the phone view; a request the user has not answered stays listed
+
+- DW-1159: After Reject, the status rail's Approval requests keeps listing the rejected request until the async approval live event reaches the page (web and phone view) (ledger; routed by owner 2026-11-11)
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.
