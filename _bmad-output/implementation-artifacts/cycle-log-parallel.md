@@ -3903,3 +3903,10 @@
 2026-11-13T06:51:12Z	Epic 37	runner_dispatched	model=opus runner=epic-runner-37 lane=A slot=ocutalon-slot-a prompt=prompts/dispatch-epic-37-371-20261113.md base=91c837e3 tasks=DW-1255_audit,37.1_plan push=none
 2026-11-13T07:22:09Z	Epic 37	runner_ended	reason=waiting waiting_on=epic-36+Planner_rulings head=694097e0(local_only) reports=DW-1255_audit,37.1_plan(veto1-8,AD_amendments_7)
 2026-11-13T07:23:37Z	Run	owner_decision	via=contest_planner what=DW-1255_audit_rulings+37.1_plan_rulings(V1-V8,AD_amendments,V6_alternative) file=prompts/rulings-371-dw1255-20261113.md relay=runners_C,D,37_at_turn_end
+2026-11-13T07:54:34Z	Run	owner_decision	via=contest_planner what=HOLD_at_10:00Z_tonight(quota_84pct_at_07:50Z,~4pct/h) rule="from 09:30Z start no stage that cannot reach its boundary by ~10:15Z; prefer short items, reviews, records, pushes" note=0.35_A/B_after_morning_reset
+2026-11-13T08:11:54Z	Epic 21	runner_reported	CI_WAIT head=f17e2566(21.7+21.8+21.12+21.13;fixes_for_5d5581eb_reds:Watch.Summary_one-word_lane_A,email.spec_E7_strict-mode) runs=43391202522,43391202509 local=63684923
+2026-11-13T08:11:54Z	Epic 21	runner_resumed	tasks=plan_DW-1255_fix_story(implement_after_21.8),hold_notice_10:00Z
+2026-11-13T09:00:44Z	Epic 36	runner_reported	PART_READY part=36.1+36.2 head=16499946 code_head=20e3655a ci=success runs=43378472985(att2,DW-1094),43378472843
+2026-11-13T09:00:44Z	Epic 36	ci_cancelled	head=16499946 runs=43397122469,43397122429 reason=records-only(code_identical_to_green_20e3655a)
+2026-11-13T09:00:44Z	Epic 36	amendments_verified	amendments=epics_36.1/36.2/36.3/36.4 extensions=Install/Step/Watch.cls,short-names.tsv,Test/Bridge/CodeRules.cls,Test/Data/Tables.cls ok=true
+2026-11-13T09:00:44Z	Epic 36	merge_enqueued	part=36.1+36.2 head=16499946
