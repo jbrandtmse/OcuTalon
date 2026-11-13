@@ -228,3 +228,4 @@
 2026-11-13T03:10:05Z	Story 21.8	smoke_complete	method=cli(test-release-notes.sh_all_16_rules,test-readme.sh,test-boundaries.sh_on_the_final_tree) result=pass iterations=1 cycle_iteration=3
 2026-11-13T03:10:05Z	Story 21.8	fresh_check	env=clean-checkout(stateless_scripts) result=pass order=forward,reverse cycle_iteration=3
 2026-11-13T03:17:50Z	Epic 21	integrated	feature=1fb800c2(0.31+0.32,0.33+0.29;merges_of_green_epic_heads,feature_CI_pending) merge=local conflicts_resolved=test-readme.sh(plain_union:header_stories/DW,doc_comment,public-text+gmail-section_lines,RULES/GUIDE_RULES+gmail_section,readme_anchors),sprint-status.yaml(feature_side_regenerated,re-set) merged_tree_checks=readme,release-notes,compose-file,release-checklist,class-rules,boundaries,storage,ci-config_pass
+2026-11-13T03:18:12Z	Epic 21	pushed	head=44908d0d ci=pending runs=43358029164,43358029109 part=21.7+21.8+21.12 note=supersedes_41549d46(checks_red=21.8_story,fixed_in_rework_2)
