@@ -4,76 +4,112 @@
 
 ## Goal
 
-Epic 37 is step 6's contract epic. It groups the first Lane A story and the first Lane B story of step 6 so that the step's feature epics (25 and 26) can build in parallel, and each story keeps its home lane's files. This dispatch builds only Story 37.2, Lane B's Usage page. A signed-in user sees their own tokens and cost over a chosen range, grouped by day, agent, channel or model, and each day's largest model request against the 100,000-token limit. The page shows what OcuTalon costs, and it shows a request that comes close to the size limit. Story 37.1 (Lane A: approver roles, role-check stubs, the photo caption) waits on Epic 36 and is not built now.
+Epic 37 is step 6's contract epic. It holds the step's first Lane A story and first Lane B story so that the feature epics, 25 (Lane B) and 26 (Lane A), can build in parallel against fixed names. Story 37.2, the Usage page, is done and merged. The remaining story, 37.1, is Lane A's contract-naming story. It fixes step 6's names in the spine and puts them in code as stubs: the approver and viewer roles and the resources they hold, the role-check and role-assignment methods, the photo-caption request, and the read-result reply contract that Story 25.6 uses. Once these names exist, Stories 25.4, 25.5, 25.6, 26.2, 26.3 and 26.4 can build and test without waiting for each other.
 
 ## Stories
 
-- Story 37.1: Fix step 6's contracts: approver roles and the photo caption (context only; not in this dispatch)
-- Story 37.2: See tokens and cost over time on the Usage page
+- Story 37.1: Fix step 6's contracts: approver roles and the photo caption
+- Story 37.2: See tokens and cost over time on the Usage page (done)
 
 ## Requirements & Constraints
 
-- **The view:** tokens and cost by day, agent, channel and model. In every grouping, a range's totals equal the sum of the decision and turn costs in that range. Each day shows its largest model request against the 100,000-token limit, the request-size ceiling that every turn and decision records.
-- **Token kinds:** input, output, cache-read and cache-write, all four. Input already includes cached input.
-- **Compaction rows** count under their own agent (`compaction`) and are marked as estimated (`Estimated` true). Their tokens are not reported by AI Hub, so they are estimates.
-- **Evaluation rows** (owner `eval`) never appear.
-- **Isolation:** a user sees only the usage rows of their own session. Another session's rows never appear. On a local install, the IRIS user's durable session owns the rows. The page is for any signed-in user, not admins only.
-- **Empty range:** the page shows "No model use in this period."
-- **Accessibility:** the page works by keyboard alone, every control has a label, and text contrast meets WCAG 2.1 AA. Nothing relies on colour alone. Text resizes to 200% without loss, and the layout stacks below 1024 CSS px.
-- **Tests:** add automated tests and a Playwright spec under `web/e2e/`. Use fixture usage rows across days, agents, channels and models. For each grouping, show that:
-  - each total equals the sum of its rows;
-  - the chart and the table agree;
-  - another session's rows never appear;
-  - the page works by keyboard with labelled controls.
-- **Texts:** every user-facing text must be plain language. Any text the UX doesn't already give is proposed for approval before it ships.
-- **Re-plan of 2026-11-09:** each judge-visible feature in this re-plan also gets a "More to try" item and a README "New since 1.0.0" line. Both texts are PUBLIC TEXT for the Contest Planner's approval.
-- **Release:** the story ships in the first daily release after it merges.
+- **Roles (step 6):**
+  - An admin assigns approver roles, either for all risky actions or for one kind, and a viewer role.
+  - A user without the right approver role still sees the request but cannot answer it, and is told why.
+  - The audit entry for an approval records the approver's role.
+  - The online demo account also holds the approver role. On the demo, only the session that owns a request can answer it, so both checks apply.
+- **Approval kinds the roles cover:** at least resend, reroute, suspend and resume, roll back, partner warnings and tool calls. These come from step 5.
+- **Files and photos (step 6):**
+  - A file sent from the chat or Telegram becomes an item and can be added as a document.
+  - A photo gets a model caption, which is kept as a memory.
+  - When reading fails, the user is told why.
+  - Files over 10 MB are refused.
+- **The read-result reply contract (DW-1231):** Story 37.1 must fix the shape of the result that Story 25.6 turns into the reply. It has four parts:
+  - the extracted-text summary reference;
+  - the **Add to documents** offer;
+  - the photo's memory caption: the caption plus the memory's reference, which drives the "Saved to memory" chip;
+  - the read-failure reason, which reaches the user as "I couldn't read that file: {reason}."
+
+  Story 25.6 uses fixtures until 37.1, 26.2 and 26.3 merge, so the names must be final. The contract must also work for Telegram, where **Add to documents** goes through the documents route using the stored file's `Ref`.
+- **No PDF or Word extraction work here.** It moved to step 3 and is built (Stories 19.6, 19.7, 34.1 and 34.2).
+- **Release:** the story ships in the first daily release after the epic merges.
 
 ## Technical Decisions
 
-- **Spine update in the same change:** add only this story's own step-6 rows: the usage read, in the REST table and the ownership tables, and the header navigation's Usage entry.
-  - Do not add the History read or its entry; they come with Story 25.2. The header shows no History entry until 25.2 merges.
-  - Do not add the file upload route, the private file table or the Roles routes; they come with Stories 25.3, 25.4, 25.5 and 37.1.
-  - The step-6 asks from Lane A's Story 37.1 come with the stories that build them, not with this story.
-  - Mark the amendments in the spine's `[ADDED <date>, Story 37.2]` form.
-- **Data source:** use `OcuTalon.Bridge.Data.Usage`, which is Lane A's and read-only for Lane B.
-  - The runner writes one row per agent turn, with: `DecisionRef`, `ItemId`, `Kind`, `OwnerRef`, `RecordedAt` (UTC), agent, channel, model, model-request count, the four token counts, the largest estimated request size, cost and `Estimated`.
-  - Decision and turn totals are sums of these rows. OcuTalon keeps no copies of bridge records. Cost is computed from the bridge's price table.
-  - If you need a property the table doesn't have, ask Lane A for it. Never edit the class.
-- **Reads go through `OcuTalon.Data.Ownership`** (Lane B). Web and Core never query bridge tables directly.
-  - The signed-in user has no SQL privilege. Unchecked prepares are allowed only in `Session.ForUser`, `Live.Event.Since` and `Ownership.Rows`, and a CI allow-list enforces this.
-  - A new owner-scoped read must therefore use `Ownership.Rows`:
-    - the caller's `SessionRef` comes from the CSP session, never from request input;
-    - the SQL text is fixed per row kind and never built from caller-supplied text;
-    - the owner check sits in the `WHERE` clause;
-    - a second-session test shows that it returns none of another session's rows.
-  - No endpoint accepts a `SessionRef` from the client.
-  - `TurnCost` and `RunCost` already exist on Ownership.
-- **REST:** the usage read belongs under `/api/v1/` on `OcuTalon.Web.Api`, behind the existing envelope (401 `signed_out`, 403 `no_role`).
-- **Times:** store times as UTC ISO 8601 to the second, and render them only through `OcuTalon.Data.Time`. The spine does not say which zone sets the day boundary for usage grouping. The daily cost cap's day ends at midnight in the instance zone (`OcuTalon.Bridge.Time`).
-- **Retention:** `Bridge.Purge(daysToKeep)` deletes usage rows older than the retention window. The online demo's reset erases all usage rows.
-- **Ownership:** Lane B owns `web/`, `OcuTalon.Web`, `OcuTalon.Data.Ownership` and the Lane B test packages (`OcuTalon.Test.<Area>`). Stay inside Lane B's files.
+- **The story's shape:** fix the names in the spine and add stubs in code, in the same change. Follow the pattern of Story 33.1.
+  - Cross-lane APIs are signatures with stub bodies. Callers test against the stubs with fixtures until Story 26.4 builds them.
+  - `OcuTalon.Test.Contract.Ac`'s signature oracle pins the cross-lane signatures, and the owning lane keeps it green.
+  - An unbuilt production item answers "not implemented" and carries `Parameter STUB = 1`.
+  - Mark spine changes `[ADDED <date>, Story 37.1]` or `[AMENDED …]`, keeping the old text.
+- **The stubs Story 37.1 must create:**
+  - `Approval.MayAnswer(Ref, IrisUser)`, which Story 26.4 builds. It answers whether the user may answer the request, or else the kind of role they would need.
+  - A role-assignment method in the installer's role area. It grants or removes only the approver and viewer roles, and Story 26.4 makes it refuse every other role, `OcuTalonAdmin` and `%All` included.
+  - Lane B calls both: `AnswersIn` (Story 25.5) and `SettingsOps` for the Roles section (Story 25.4).
+- **How approvals work now:**
+  - `OcuTalon.Bridge.Approval.Raise` creates the `ApprovalRequest` row, and the row is the truth.
+  - Only the API changes its state (`Answer`, `Expire`, `Cancel`, `StartExecution`, `FinishExecution`), each under `LOCK ^OcuTalon.Bridge.Approval(Ref)`.
+  - `Answer` already checks the row's `RequiredRole` against the user's recursed role set and returns `not_allowed`.
+  - Every channel answers through `AnswersIn`, one handler that applies the owning-session rule and then calls `AnswerOps` → `Approval.Answer`.
+  - `AnswersIn`'s Telegram result codes already include `not_allowed` (the approver-role refusal) with the request's kind as its slot.
+  - Step 6 adds the role check in that one handler.
+  - Story 26.4 makes `Raise` record which roles may answer: `OcuTalonApprover` or the kind's role.
+- **The approval-role setting:**
+  - It is `Decide`'s host setting `ApprovalRole`, in category Bridge, read through `Ext.Accessor.ValueFor`. It is seeded with `OcuTalonUser` until step 6, and an empty value refuses `Raise`.
+  - The spine must state how the approver roles take over from it. Story 26.4's upgrade then moves the setting.
+  - A `setting` request (a proposed persona) also uses this setting as its required role.
+  - `ApprovalKind` is `fix, tool_call, setting`, while the per-kind roles are finer (resend, reroute, and so on). The spine update must say how a row maps to `OcuTalonApprover_<kind>`.
+- **The bridge stays separable:**
+  - No `OcuTalon.Bridge` class may reference another `OcuTalon` package, and a CI check enforces this.
+  - The bridge reaches its host only through the extension classes named in `Decide`'s settings, so a standalone bridge still works with whatever role its developer sets.
+  - OcuTalon's role names therefore reach the bridge through settings or extension classes. They are never hard-coded in bridge code.
+- **Roles and their limits:**
+  - Step 6 roles: `OcuTalonApprover` (every kind), one `OcuTalonApprover_<kind>` per approval kind, and `OcuTalonViewer`.
+  - The installer composes their grants from each area's `Grants()`.
+  - No OcuTalon role may hold `%All`, `%Development`, `%Ens_MessageEditResend`, `%Ens_MessageDiscard`, `%Ens_ProductionRun`, `%Ens_ProductionConfig` or the Workflow inbox.
+  - No person is a Workflow user: `OcuTalonApprovals` has exactly one member, `OcuTalonWorkflow`.
+  - Story 26.4 checks roles with `$SYSTEM.Security.CheckUserPermission` on a resource each approver role holds. The spine must name those resources.
+  - `OcuTalonViewer` must hold what the post-sign-in check needs to admit a viewer who has no `OcuTalonUser`.
+  - The security overview lists the new roles.
+- **The AD-24 amendment:** from step 6 the online demo account holds `OcuTalonApprover` beside `OcuTalonUser` and `OcuTalonTraceViewer`. It is never an admin, and the owning-session rule still applies. The README account gains `OcuTalonApprover` on upgrade.
+- **Settings and audit:**
+  - At run time, `SettingsOps` is the only writer of settings, and installer steps write only seeds. The Roles section therefore changes roles through `SettingsOps`, which calls Lane A's role-assignment method. Each change is audited as a settings change.
+  - From step 6, audit entries name the acting user's role, along with the user, the `SessionRef` and the channel.
+- **The photo-caption request (built by 26.3):**
+  - It goes through `Decide` in a fresh AI session that is never linked to the conversation, and its usage and cost are recorded.
+  - It uses `%AI.Agent`'s `ChatWithContent` with `ImageData`, under the model-use rules: no sampling parameters and an output cap of at least 4,000 tokens.
+  - The image never appears in a production message body, an agent step or a log.
+  - A usable caption is saved through the save-memory command, with the photo as its source, marked untrusted.
+  - An unusable reply takes the fallback route and saves no memory.
+  - Any new value in an enumeration (such as `RequestKind`) must go into both `OcuTalon.Msg.Enum` and `OcuTalon.Bridge.Msg.Enum`, which a contract test keeps equal.
+- **Files as they stand (Story 25.3, Lane B):**
+  - `OcuTalon.Core.Files` provides `Store`, `Open`, `Describe`, `SetItem` and `RefusalText`.
+  - An `OcuTalon.Msg.Item` with provenance `untrusted` carries `FileRef`, `FileName`, `FileMediaType` and `FileSize`, never the bytes.
+  - `Core.Files.Readable()` is 1 only once `Agent.Input`'s parameter `READSFILES` is 1, which Story 26.2 adds. Until then a file turn gets `Core.Files.NoReaderText` and no model request.
+  - `Docs.Extract.Read` answers `{ok:0, reason}` with fixed codes: `too_large`, `contents_too_large`, `wrong_type`, `encrypted`, `damaged`, `no_text`, `legacy_doc`, `timed_out` and `failed`. `Failure(code)` fits each code into the "couldn't read" sentence.
+- **Precedent for data attached to a reply:** code-built `HostData` members on the bridge `Reply` (`citations`, `memories`, `learned`). `Conversation` (Lane B) carries them onto the `Turn`, the `Outbound` and `chat.message`. They are built from tool results, never from model text, and absent when empty.
+- **Ownership:** 37.1 changes only Lane A files: `OcuTalon.Bridge.*`, Lane A's installer areas and tests (`OcuTalon.Test.Bridge`), and Lane A's catalog class `Catalog.Watch`. A Lane B contract addition (for example on `AnswersIn`, `Core.Files`, the Roles routes or `chat.message`) gets its spine row from the story that builds it. When 37.1 needs a property on a Lane B contract, it asks Lane B for it.
 
 ## UX & Interaction Patterns
 
-- **Navigation:** open the page from the header navigation. Its Usage entry joins Chat, Settings (admins only) and Documents. Use the `header-nav-item` component with `aria-current="page"` on the current page's item. Its styles: muted ink, ink when current, a 2px bottom bar in the action colour.
-- **Page title:** "Usage · OcuTalon". Keep the main-page heading structure: an `h2` per region.
-- **Controls and content:**
-  - a range control;
-  - a grouping control (day, agent, channel or model);
-  - the `usage-chart`: token bars in `chart-tokens` (#1A6F6D; dark mode #45B9B3) and the cost line in `chart-cost` (#102A45; dark mode #AAB6C8), with `border`-coloured gridlines. Each series is labelled directly as well as in the legend.
-  - a table beneath the chart, with a row for every bar and every point;
-  - each day's largest request shown against the 100,000-token limit.
-- **Number formats:**
-  - Tokens use digit separators.
-  - USD shows "<$0.0001" below that amount, 4 decimals under $0.01, 3 under $1, and 2 otherwise ($0.0006, $0.042, $1.24).
-  - Costs and counts use tabular figures. No text is under 12px, and only values to compare use the mono face.
-- **Empty state:** "No model use in this period." (the "usage empty" catalog key).
+- **Can't answer:**
+  - The Approve and Reject buttons are absent, and the status reads the sentence for the request's kind. Fixture: "Only an approver for resends can answer this request."
+  - On the phone and in Telegram, a press gets the same sentence, as an alert that stays until dismissed.
+  - Texts are rendered from the catalog. A new text is proposed for approval before it ships.
+- **Answered:** "Approved from {channel} at {time}" on every copy within 5 seconds, as before.
+- **File replies:**
+  - On failure: "I couldn't read that file: {reason}."
+  - A file that was read: a reply offering **Add to documents**.
+  - A photo: a "Saved to memory" chip.
+  - The guide's "New since 1.0.0" file line gains each clause only once its story has merged.
+- **Roles and viewers:**
+  - Settings gains a Roles section, for admins only.
+  - A viewer sees everything read-only, with no composer and no Approve, Reject, Dismiss or Break the feed.
 
 ## Cross-Story Dependencies
 
-- **37.2 and 37.1:** after the 2026-11-10 amendment, Story 37.2 adds only its own spine rows. It no longer waits for 37.1. Epic 37's edge on Epic 36 now applies to Story 37.1 alone.
-- **Downstream:** Story 25.2 (the History read and the header's History entry) depends on 37.2. Stories 25.4 and 25.5 depend on 37.1.
-- **Other systems:**
-  - Usage rows come from Lane A's runner (AD-20).
-  - The online demo's daily cap and gateway spend are separate and unchanged; they are read through `Bridge.Budget.State()`.
+- **Upstream:** the epic's real edge is Epic 36, for step 5's approval kinds. The sprint file still shows Epic 36 in backlog. Of step 5's kinds, Stories 23.2 (suspend, resume and reroute) and 23.5 (partner notices) are done; Story 23.3 (roll back) is still in backlog.
+- **Downstream (wait on 37.1):**
+  - Stories 25.4 and 25.5 call the `MayAnswer` and role-assignment stubs, and their tests create fixture roles with the names 37.1 fixes.
+  - Story 25.6 uses the read-result reply contract.
+  - Stories 26.2, 26.3 and 26.4 build on 37.1's names and replace its stubs.
+- **Inside Epic 37:** Story 37.2 no longer depends on 37.1, because each story now adds its own step-6 spine rows.
