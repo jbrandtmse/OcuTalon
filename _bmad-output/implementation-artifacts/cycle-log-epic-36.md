@@ -140,3 +140,5 @@
 2026-11-13T22:00:16Z	Epic 36	ledger_burndown_chartered	story=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages entries=DW-1282 reason=Planner_ruling(option_b;taken_now,before_epic_close) note=numbered_N.<M+1>=36.5;reused_at_the_epic_close_burn-down_gate
 2026-11-13T22:00:16Z	Epic 36	ledger_routed_planned	story=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages entries=1(DW-1282) excess=0 by=burndown
 2026-11-13T22:00:16Z	Epic 36	deps_hash_note	reason=burndown_inserted(36.5) note=orchestrator_re-records_the_graph_hash
+2026-11-13T22:02:26Z	Epic 36	epic_context_compiled	spawn_at=2026-11-13T22:01:30Z reason=planning_artifact_newer(36.5_chartered;rulings) model=opus effort=high words=1173
+2026-11-13T22:02:26Z	Story 36.5	stage_spawned	stage=plan spawn_at=2026-11-13T22:02:26Z model=opus agent_name=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages-plan-1 cycle_iteration=1 effort=high
