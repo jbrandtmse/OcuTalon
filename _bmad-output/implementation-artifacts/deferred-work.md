@@ -7395,6 +7395,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Planner swept 05e29461: no live link to a moved README anchor; test-readme product-links covers page links; docs/*.md has no generic dead-anchor check
 - 2026-11-12T16:44:12Z status=routed owner=burndown by=orchestrator note=1.0.9; does not hold 1.0.8
 - 2026-11-12T23:42:58Z status=routed owner=21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do by=burndown note=Planner_ruling_E:Lane_C_takes_DW-1207_as_burndown;Story_21.12_inserted(test-only)
+- 2026-11-13T01:33:34Z status=resolved-by:21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do by=adjudication note=43e14235+QA+review:rule_readme-anchors_in_docker/tests/test-readme.sh(every_tracked_Markdown_file_but_README.md,_bmad*,.claude,release/records;relative,root,blob_main/HEAD,repo_page;GitHub_slugs);self-tests_plant_dead_and_live_links;lead_smoke:README_heading_rename_flags_GUIDE.md:77
 
 ### DW-1225: AC moved from 36.1 (Planner V1(b)): 23.3 declares Fix.Kind.RollbackSetting with RESOURCES, grants %Ens_ProductionConfig:W to OcuTalonServiceRole (demo install leaves it out), adds exactly one forbidden-list test exception, the ONLINESTATEMENT change and the overview sentence, and ships incident.settingChangeCause; result.settingRestored keeps its undo sentence only if 23.3 builds and tests the undo path
 - source: Contest Planner 36.1 spec gate ruling 2026-11-12, prompts/story-361-rulings-20261112.md | severity: med | fix-risk: low | footprint: in-epic
@@ -7405,3 +7406,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/tests/test-compose-file.sh oauth_install_paths_clean: 58 files scanned, floor 40 catches only release/* (25); fixtures plant only /csp/sys/oauth2/OAuth2.Response.cls; gap predates 0.34 (Story 21.3)
 - 2026-11-12T20:19:09Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=pins beyond the ruled (a),(b1),(b2) exceed the 1.0.8 ruling; reopen_if=a diff edits the pathspec or regex line of oauth_install_paths_clean
 - 2026-11-12T20:19:32Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=reopen_if=a diff edits oauth_install_paths_clean's pathspec or regex line; more pins exceed the 1.0.8 ruling
+
+### DW-1243: readme-anchors md_links models no block context: links in HTML comments or indented code are read, and a 4+-space backtick line outside a list toggles the fence
+- source: spec-21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do.md (cr) | severity: low | fix-risk: med | footprint: in-story
+- evidence: md_links strips all leading spaces before the fence test and has no HTML-comment state (edge and blind probes): false reds for comments and indented code, a false green only after a 4+-space backtick line outside a list. The doc set has none today.
+- 2026-11-13T01:28:20Z status=wontfix-accepted owner=21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do by=cr note=reopen_if=a doc-set file links README.md#x inside <!-- --> or indented code, or holds a 4+-space backtick line outside a list

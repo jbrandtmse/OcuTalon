@@ -210,3 +210,9 @@
 2026-11-13T00:38:46Z	Story 21.12	dev_complete	spawn_at=2026-11-13T00:00:10Z model=sonnet effort=high build_sha=43e14235 baseline_revision=cb8981a1 story_base=cb8981a1 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=1(docker/tests/test-readme.sh) mutations=9
 2026-11-13T00:38:46Z	Story 21.12	adr_verifications_complete	tool=none result=none_required
 2026-11-13T00:38:46Z	Story 21.12	stage_spawned	stage=qa spawn_at=2026-11-13T00:38:46Z model=sonnet effort=high agent_name=21-12-qa-1 cycle_iteration=1
+2026-11-13T01:02:02Z	Story 21.12	qa_complete	spawn_at=2026-11-13T00:39:20Z model=sonnet effort=high tests=test-readme.sh(readme-anchors:+2_self-test_rows:other-folder_README.md_skip,protocol-relative_link) tests_added=2 mutations_demonstrated=2 probes=16(14_already_caught) closing_sections_present=true
+2026-11-13T01:02:02Z	Story 21.12	stage_spawned	stage=code-review spawn_at=2026-11-13T01:02:02Z model=opus effort=high agent_name=21-12-code-review-1 cycle_iteration=1
+2026-11-13T01:35:21Z	Story 21.12	cr_complete	spawn_at=2026-11-13T01:02:30Z model=opus effort=high review_tier=full-opus resolved=10 fixed_at_source=10 wontfix_accepted=1(DW-1243) dismissed=8 high=0 med=3 low=8 rows=19 unresolved_high_med=0 final_status=done note=entries_line_reported_low=1;counts_here_from_its_narrative
+2026-11-13T01:35:21Z	Story 21.12	ledger_adjudicated	owned=1(DW-1207) resolved=1 reowned=0 terminal=0 slice_after=empty
+2026-11-13T01:35:21Z	Story 21.12	smoke_complete	method=cli(lead:test-readme.sh_real_tree_PASS;README_##_Measured_renamed->FAIL_readme-anchors_GUIDE.md:77;restored_cmp) result=pass iterations=1 defects_caught=0
+2026-11-13T01:35:21Z	Story 21.12	fresh_check	env=clean-checkout(no_runtime) tests=test-readme,test-boundaries,test-release-checklist,test-class-rules result=pass order=forward,reverse(stateless_scripts)

@@ -138,10 +138,13 @@
 #                  release/records/) that resolves to the root README.md and names an anchor reaches a heading slug of README.md as GitHub
 #                  renders it (the first of a repeated heading as it is, then with -1, -2, ...; anchors compare exactly): a relative path
 #                  resolved against the linking file's folder, /README.md, this repository's blob/main and blob/HEAD README.md address
-#                  and its repository page (where #readme is also live); one line per link names the file, the line and the anchor.
+#                  and its repository page (where #readme is also live); one line per link names the file, the line and the anchor,
+#                  or that the link leaves the repository or names another folder's README.md that the tree does not hold.
 #                  A link counts only where GitHub renders one (inline, reference definition, href, autolink, bare address), never in
 #                  a code fence or a code span; a link to a pinned ref is not checked. It fails closed on a set with no GUIDE.md or no
-#                  docs/ file and on a README heading that carries a link or a tag, ends in a closing # run or ends in a space
+#                  docs/ file, on a README heading that carries a link, a tag, an entity, _emphasis_ or an :emoji:, starts or ends
+#                  in a space, ends in a closing # run or has more than six #, and on a README code fence of tildes, of four or more
+#                  backticks or indented
 #   must-scan      docker/tests/test-boundaries.sh's must-scan list for paths and keys names README.md and GUIDE.md, so the most public
 #                  files can never drop out of that scan
 #
@@ -163,7 +166,7 @@
 # rule that names it does, which is checked first (a FAIL no-readme or no-guide line names a rule that does not), and so is that every
 # rule_* function is in RULES (a FAIL rules line names
 # one that is not). Prints one PASS, FAIL or SKIP line per rule; a failing rule prints what is
-# wrong (a README line number or a missing text); exits 0 only when no rule fails.
+# wrong (a line number or a missing text); exits 0 only when no rule fails.
 # shellcheck disable=SC2016
 set -u
 export LC_ALL=C
@@ -1769,8 +1772,9 @@ readme_slugs() {
 }
 
 # md_links <file>: line and target of each link that GitHub renders outside a code fence and a code span, tab separated: an inline
-# link or image [t](target), a reference definition [label]: target, an href="target", an autolink <https://...> and a bare
-# https:// address. A link that more than one form matches, and a target repeated on a line, is listed once.
+# link or image [t](target), a reference definition [label]: target (a footnote [^label]: is text whose links count), an
+# href="target", an autolink <https://...> and a bare https:// address. A link that more than one form matches, and a target repeated
+# on a line, is listed once.
 md_links() {
   awk '
     function nospans(s,   out, n, i, run, j, k, found) {
@@ -1811,7 +1815,7 @@ md_links() {
       }
       if (fence != "") next
       rest = nospans($0)
-      if (rest ~ /^ *\[[^]]+\]:[ \t]*[^ \t]/) {
+      if (rest ~ /^ *\[[^]^][^]]*\]:[ \t]*[^ \t]/) {
         t = rest; sub(/^ *\[[^]]+\]:[ \t]*/, "", t)
         if (substr(t, 1, 1) == "<") { sub(/^</, "", t); sub(/>.*/, "", t) } else sub(/[ \t].*/, "", t)
         emit(t); next
@@ -1827,7 +1831,7 @@ md_links() {
         if (how == "inline") {
           rest = substr(rest, best + 2); sub(/^[ \t]+/, "", rest)
           if (substr(rest, 1, 1) == "<") {
-            q = index(rest, ">"); t = (q > 0) ? substr(rest, 2, q - 2) : ""; rest = (q > 0) ? substr(rest, q + 1) : ""
+            q = index(rest, ">"); t = (q > 0) ? substr(rest, 2, q - 2) : ""; rest = (q > 0) ? substr(rest, q + 1) : substr(rest, 2)
           } else {
             depth = 0; n = length(rest)
             for (i = 1; i <= n; i++) {
@@ -1903,18 +1907,22 @@ readme_target() {
 
 # readme-anchors: chk_readme_anchors <readme> <list file> <guide>: the list holds one repository-path TAB file-to-read pair per line,
 # the documentation set. Fails closed on a list without the guide or without a docs/ file, and on a README heading in a form that
-# headings does not slug as GitHub does. Every link of the list's files that resolves to the README and names an anchor reaches a
-# heading slug of the README (readme_slugs); on this repository's page #readme is live too.
+# headings does not slug as GitHub does, or on a README code fence that headings does not read (tildes, four or more backticks,
+# indented). Every link of the list's files that resolves to the README and names an anchor reaches a heading slug of the README
+# (readme_slugs); on this repository's page #readme is live too.
 chk_readme_anchors() {
   local slugs p f row lvl text h n t before frag res
   if ! cut -f1 "$2" | grep -qxF -- "$3"; then echo "readme-anchors: the documentation set holds no $3"; fi
   if ! cut -f1 "$2" | grep -qE '^docs/.*\.(md|markdown)$'; then echo "readme-anchors: the documentation set holds no docs/*.md file"; fi
   slugs=$(readme_slugs "$1")
+  grep -nE '^ *(~~~|````)|^ +```' "$1" | cut -d: -f1 | while IFS= read -r n; do
+    echo "readme-anchors: $README:$n: a code fence in a form this check does not read as GitHub does"
+  done
   headings "$1" | while IFS= read -r row; do
     lvl=${row%%$'\t'*}
     text=${row#*$'\t'}
     text=${text#*$'\t'}
-    if printf '%s' "$text" | grep -Eq '\]\(|<|(^|[[:space:]])#+$|[[:space:]]$'; then
+    if [ "$lvl" -gt 6 ] || printf '%s' "$text" | grep -Eq '\]\(|\]\[|<|&[A-Za-z0-9#]+;|(^|[[:space:]])_|_($|[[:space:]])|:[a-z0-9_+-]+:|(^|[[:space:]])#+$|^[[:space:]]|[[:space:]]$'; then
       h=$(printf '%*s' "$lvl" '' | tr ' ' '#')
       n=$(grep -nxF -- "$h $text" "$1" | head -n 1 | cut -d: -f1)
       echo "readme-anchors: $README:$n: the heading '$text' is not in a form this check slugs as GitHub does"
@@ -2874,7 +2882,7 @@ ra_line() {
 }
 
 rule_readme_anchors() {
-  local m="$tmp/ra/M.md" form path text out n
+  local m="$tmp/ra/M.md" form path text out n kept
   rule_begin readme-anchors "$README" "$tmp/ra.list" "$GUIDE" || return
   mkdir -p "$tmp/ra"
   printf '%s\n' "$listing" | doc_files | while IFS= read -r path; do printf '%s\t%s\n' "$path" "$path"; done > "$tmp/ra.list"
@@ -2884,19 +2892,27 @@ rule_readme_anchors() {
   # The set fails closed without the guide or without a docs/ file.
   st 'the documentation set without GUIDE.md' 2 "$tmp/ra.list" '$0 !~ /^GUIDE\.md\t/' chk_readme_anchors
   st 'the documentation set without a docs/ file' 2 "$tmp/ra.list" '$0 !~ /^docs\//' chk_readme_anchors
-  # The real README with the Measured heading renamed: the guide's link is flagged.
-  st 'README.md#measured with the Measured heading renamed' 1 "$README" '/^## Measured$/ { print "## Measurements"; next } { print }' chk_readme_anchors
+  # The real README with the Measured heading renamed: a planted link to it is flagged.
+  if mutate "$README" '/^## Measured$/ { print "## Measurements"; next } { print }'; then
+    ra_expect 'README.md#measured with the Measured heading renamed' "$tmp/m" GUIDE.md '[a](README.md#measured)' 1
+  else
+    st_note 'README.md#measured with the Measured heading renamed: the edit changed nothing'
+  fi
   # M is a README with one heading, Measured (slug measured).
   printf '# Title\n\n## Measured\n\ntext\n' > "$m"
   # Every form of a link that reaches a heading is live, and with a dead anchor each form is flagged alone.
   ra_expect 'a live link of every form, in a root file' "$m" GUIDE.md $'[a](README.md#measured)\n[b](./README.md#measured)\n[r]: README.md#measured\n<a href="README.md#measured">x</a>\n[q](README.md?plain=1#measured)' 0
-  ra_expect 'a live link of every form, in docs/' "$m" docs/x.md $'[c](../README.md#measured)\n[d](/README.md#measured)\n[e](https://github.com/jbrandtmse/OcuTalon/blob/main/README.md#measured)\n[f](https://github.com/jbrandtmse/OcuTalon/blob/HEAD/README.md#measured)\n<https://github.com/jbrandtmse/OcuTalon#measured>\nhttps://github.com/jbrandtmse/OcuTalon#readme\n[g](https://github.com/jbrandtmse/OcuTalon/#readme)\nSee https://github.com/jbrandtmse/OcuTalon#measured.\n![i](../README.md#measured)' 0
+  ra_expect 'a live link of every form, in docs/' "$m" docs/x.md $'[c](../README.md#measured)\n[d](/README.md#measured)\n[e](https://github.com/jbrandtmse/OcuTalon/blob/main/README.md#measured)\n[f](https://github.com/jbrandtmse/OcuTalon/blob/HEAD/README.md#measured)\n<https://github.com/jbrandtmse/OcuTalon#measured>\nhttps://github.com/jbrandtmse/OcuTalon#readme\n[g](https://github.com/jbrandtmse/OcuTalon/#readme)\nSee https://github.com/jbrandtmse/OcuTalon#measured.\n![i](../README.md#measured)\nSee (https://github.com/jbrandtmse/OcuTalon#measured).\n[https://github.com/jbrandtmse/OcuTalon#measured](https://github.com/jbrandtmse/OcuTalon#measured)\nhttps://github.com/jbrandtmse/OcuTalon?tab=readme-ov-file#measured' 0
+  ra_expect 'a live link two folders deep' "$m" eval/a/b.md '[x](../../README.md#measured)' 0
   while read -r path text; do
     ra_expect "a dead link: $text" "$m" "$path" "$text" 1
   done <<'EOT'
 GUIDE.md [a](README.md#nowhere)
 GUIDE.md [b](./README.md#nowhere)
 GUIDE.md [r]: README.md#nowhere
+GUIDE.md [r]: <README.md#nowhere>
+GUIDE.md [^1]: see [x](README.md#nowhere)
+GUIDE.md [a](<b) and [c](README.md#nowhere)
 GUIDE.md <a href="README.md#nowhere">x</a>
 GUIDE.md <a href='README.md#nowhere'>x</a>
 GUIDE.md [q](README.md?plain=1#nowhere)
@@ -2905,11 +2921,13 @@ GUIDE.md ![a](README.md#nowhere)
 docs/x.md [c](../README.md#nowhere)
 docs/x.md [d](/README.md#nowhere)
 docs/x.md [d](/docs/../README.md#nowhere)
+eval/a/b.md [x](../../README.md#nowhere)
 docs/x.md [e](https://github.com/jbrandtmse/OcuTalon/blob/main/README.md#nowhere)
 docs/x.md [f](https://github.com/jbrandtmse/OcuTalon/blob/HEAD/README.md#nowhere)
 docs/x.md <https://github.com/jbrandtmse/OcuTalon#nowhere>
 docs/x.md https://github.com/jbrandtmse/OcuTalon#nowhere
 docs/x.md https://github.com/jbrandtmse/OcuTalon/#nowhere
+docs/x.md https://github.com/jbrandtmse/OcuTalon?tab=readme-ov-file#nowhere
 docs/x.md See (https://github.com/jbrandtmse/OcuTalon#nowhere) and more.
 docs/x.md See https://github.com/jbrandtmse/OcuTalon#nowhere.
 docs/x.md <a href="https://github.com/jbrandtmse/OcuTalon#nowhere">x</a>
@@ -2930,6 +2948,10 @@ EOT
   ra_expect 'an anchor in the wrong case' "$m" GUIDE.md '[a](README.md#Measured)' 1
   # A README in another folder is not the root README.
   ra_line 'README.md from a folder that has none' "$m" ra-none/x.md '[x](README.md#measured)' "readme-anchors: ra-none/x.md:1: the link (README.md#measured) names ra-none/README.md, which is not a file of the tree"
+  kept=$listing
+  listing=$'ra-has/README.md\n'"$listing"
+  ra_expect 'README.md from a folder that has one, which is not the root README' "$m" ra-has/x.md '[x](README.md#nowhere)' 0
+  listing=$kept
   ra_line 'a path out of the repository' "$m" GUIDE.md '[x](../README.md#measured)' "readme-anchors: GUIDE.md:1: the link (../README.md#measured) leaves the repository"
   # Not a link: a code span, a fence of either kind, a pinned ref, another file and the page's own anchors.
   ra_expect 'an anchor in a code span' "$m" GUIDE.md $'`[x](README.md#nowhere)`\n``a ` [x](README.md#nowhere)``' 0
@@ -2939,9 +2961,9 @@ EOT
   ra_expect 'a link after a fence' "$m" GUIDE.md $'```\nx\n```\n[x](README.md#nowhere)' 1
   ra_expect 'a link to a pinned ref' "$m" docs/x.md '[x](https://github.com/jbrandtmse/OcuTalon/blob/v1.0.0/README.md#nowhere)' 0
   ra_expect 'a link to a repository that only starts with this one' "$m" docs/x.md '[x](https://github.com/jbrandtmse/OcuTalon-fork#nowhere)' 0
-  ra_expect 'a link to another file or to its own heading' "$m" docs/x.md $'[x](../GUIDE.md#nowhere)\n[y](#nowhere)\n[z](https://example.org/README.md#nowhere)' 0
+  ra_expect 'a link to another file or to its own heading' "$m" docs/x.md $'[x](../GUIDE.md#nowhere)\n[y](#nowhere)\n[z](https://example.org/README.md#nowhere)\n[w](//example.org/README.md#nowhere)' 0
   # A README heading in a form that headings does not slug as GitHub does.
-  for form in '## See [the link](x)' '## A <b>tag</b>' '## Closing ##' '## Trailing '; do
+  for form in '## See [the link](x)' '## A <b>tag</b>' '## Closing ##' '## Trailing ' '##   Leading' '## See [the link][r]' '## A &amp; B' '## The _real_ thing' '## :tada: Party' '####### Seven'; do
     { cat "$m"; printf '\n%s\n' "$form"; } > "$tmp/ra/M.form.md"
     n=$(grep -c '' "$tmp/ra/M.form.md")
     out=$(ra_run "$tmp/ra/M.form.md" GUIDE.md '')
@@ -2949,6 +2971,11 @@ EOT
       "readme-anchors: README.md:$n: the heading '"*"' is not in a form this check slugs as GitHub does") ;;
       *) st_note "the heading '$form' is not flagged by its line" ;;
     esac
+  done
+  for form in '~~~' '````' ' ```'; do
+    printf '# Title\n\n## Measured\n\n%s\n# x\n%s\n' "$form" "$form" > "$tmp/ra/M.fence.md"
+    out=$(ra_run "$tmp/ra/M.fence.md" GUIDE.md '')
+    if [ "$out" != "$(printf 'readme-anchors: README.md:5: a code fence in a form this check does not read as GitHub does\nreadme-anchors: README.md:7: a code fence in a form this check does not read as GitHub does')" ]; then st_note "a README fence '$form' is not flagged by its lines"; fi
   done
   printf '# Title\n\n## C# notes\n' > "$tmp/ra/M.hash.md"
   ra_expect 'a heading with a hash that does not close it' "$tmp/ra/M.hash.md" GUIDE.md '[a](README.md#c-notes)' 0
