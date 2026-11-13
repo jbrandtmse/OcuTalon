@@ -3897,3 +3897,4 @@
 2026-11-13T06:49:58Z	Epic 37	ledger_routed_planned	story=37-1 entries=1(DW-1231) excess=0 by=merge_gate(after_25.3_merge)
 2026-11-13T06:49:58Z	Run	deps_hash_rerecorded	reason=ledger_routed note=DW-1231_bullet_on_37.1
 2026-11-13T06:50:01Z	Epic 25	epic_merged_to_feature	part=25.3 feature_sha=0898ebfb merge_sha=197c069d code=4832dea7+23.12(no_code_overlap) verified_on_origin=yes
+2026-11-13T06:50:11Z	Run	ci_cancelled	head=83ea7bc8 run=43364200347(queued) reason=superseded_by_0898ebfb(contains_it)
