@@ -1862,6 +1862,27 @@ So that load alone stops turning green work red and forcing reruns, while a real
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.33: DW-1191: the webhook secret test's malformed-salt case can never equal the real salt
+
+[ADDED 2026-11-12, burndown by the Contest Planner's standing ruling (owner's delegation, prompts/standing-rulings-20261112.md, DW-1191: test-only, burndown; lane A after 0.30)] `OcuTalon.Test.Data.Webhook` `TestMatches` builds a malformed stored value by putting "x" in front of the salt's second character on; when the random salt already starts with "x" (about 1 run in 64) that value is the real one and `Matches` rightly answers 1, so the test fails at random. Footprint: `src/ocutalon/cls/OcuTalon/Test/Data/Webhook.cls` only.
+
+As a developer reading CI,
+I want the webhook secret test to fail only when Matches is wrong,
+So that a random salt never turns CI red.
+
+**Acceptance Criteria:**
+
+**Given** `TestMatches`
+**When** it builds the malformed-salt variant
+**Then** the variant's first character is one the salt does not start with, chosen as `lastChanged` chooses its last character (for example `$Select($Extract(salt) = "x": "y", 1: "x")`), so the variant never equals the stored value, whatever the random salt
+**And** every other case of `TestMatches` and the rest of the class are unchanged, and no product code changes
+**And** a test proves the choice: with a salt that starts with "x" the variant still differs from the salt
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1191: Test.Data.Webhook TestMatches 'x...' malformed-salt variant equals the real hash when the random salt starts with x (ledger; routed by the Contest Planner 2026-11-12)
+
 ### Story 0.34: The install-path OAuth2 check skips the built web bundle, so a release candidate passes it
 
 [ADDED 2026-11-12, Contest Planner 1.0.8 hotfix ruling] (owner's delegation, ~20:00Z; a 1.0.8 release blocker, one-story lever on OCT-epic0c, precedent the 0.27 lever). PR #12 (release/1.0.8-rc1 e7b1ccf4) fails its `checks` job on test-compose-file's row "install: no Dockerfile, compose file, script, manifest, CPF merge or preload names /csp/sys/oauth2 or IRIS's OAuth2 objects" (21.3's U-320 check): `oauth_app_untouched_by_install_paths` scans git-tracked files including `src/ocutalon/csp/*`, which is untracked on the feature branch but committed by the release cut, and the built main-*.js holds the displayed redirect path "/csp/sys/oauth2/OAuth2.Response.cls" (web/src/app/settings/email-view.ts REDIRECT_PATH). Footprint: `docker/tests/test-compose-file.sh` only; no product change.
@@ -1886,6 +1907,42 @@ So that a release candidate passes CI without weakening the check that nothing i
 **Given** this story's diff
 **When** it is inspected
 **Then** nothing outside `docker/tests/test-compose-file.sh` changes except bookkeeping, and `bash docker/tests/test-compose-file.sh` and `bash ci/checks.sh` pass
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+## Epic 1: Every item gets an attention decision you can audit and afford
+
+Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
+
+### Story 0.35: Routine attention decisions meet their target
+
+[ADDED 2026-11-12, Contest Planner ruling (owner's delegation, ~20:30Z, prompts/story-035-ruling-20261112.md, binding)] The README's Measured row "Routine attention decisions right: 21 of 24 (target: 22)" is refreshed from the 1.0.9 RC run, and 1.0.8's RC runs scored 21, 20 and 20, so the README would show a missed target again. Lane A, after Story 0.29 and before Story 25.3. The plan goes to the Contest Planner before any implement. Footprint: the attention agent's instructions only, and the prompt-leak CI check.
+
+As a judge reading "Measured",
+I want the routine attention decisions to meet their stated target in every release-candidate attempt,
+So that the README shows a target that is met, not missed.
+
+**Acceptance Criteria:**
+
+**Given** the release-candidate evaluation runs of 1.0.4 to 1.0.8
+**When** the plan reads them
+**Then** it names which routine items the attention agent missed, in how many attempts, and why (the outcome it chose against the expected one)
+
+**Given** the attention agent's instructions
+**When** this story changes them
+**Then** only the attention instructions change, each outcome's test is stated more clearly, and no example copies or paraphrases any main-set or held-out case
+**And** the CI check that keeps held-out text out of every prompt and mock scenario also keeps the main set's item texts out of the prompts
+
+**Given** the real model (Claude Haiku 5.5) on 3 evaluation attempts each
+**When** the changed instructions are measured
+**Then** the main set's routine decisions are right in at least 22 of 24 in all 3 attempts; the held-out items are no worse than 1.0.8's (4 of 4); the incidents are unchanged (SM-2 at least 10 of 11); injection and S6 still lead to 0 actions; and the demo gate is still 30 of 30 on 10 runs
+**And** if any of these misses, the story does not merge, and the numbers go to the Contest Planner
+
+**Given** this story's diff
+**When** it is inspected
+**Then** no public text changes (the README's numbers move only through the 1.0.9 release-candidate fill), and the real-model runs stay inside the evaluation harness's spending caps
 
 **Given** CI on this story's head
 **When** it finishes

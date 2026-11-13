@@ -7329,6 +7329,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 43206845957 (OCT-epic21 368c7a09) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 131144052048 iris (image) shard:lane-b@Contract,Core,Data,Live: printed stored value 'xrvjRiPqHbxlagA8SDES' starts with x; salt = base64url(GenCryptRand(16)); the 21.3 merge changes no line of Data/Webhook, Test/Data/Webhook, SecretHandoff or Data/Setting vs green eb289caf (git diff empty); 6 local passes on lane-C warm e21s3cw
 - 2026-11-12T12:25:40Z status=routed owner=burndown by=ci note=fix (Epic 35's test, one line): pick the replacement first character as lastChanged does, e.g. $Select($Extract(salt) = "x": "y", 1: "x"); one rerun meanwhile
+- 2026-11-12T18:46:14Z status=routed owner=0-31-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne by=runner note=Planner_standing_ruling:test-only_burndown_on_lane_A_after_0.30;chartered_as_Story_0.31
+- 2026-11-12T19:07:54Z status=resolved-by:0-31-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne by=adjudication note=FirstChanged_helper+fixed-x-salt_xHash_pass;mutation_red_on_lane-A_throwaway;class_green
+- 2026-11-12T19:09:46Z status=resolved-by:0-33-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne by=orchestrator note=renumbered_from_0-31
 
 ### DW-1195: flake/infra: live:sign-in chromium suite hit its 757 s suite timeout under host load (256 passed, 0 failed, 24 did not run)
 - source: ci 43227065531 feature 150b49c5 iris (shards-10) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7415,6 +7418,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Planner swept 05e29461: no live link to a moved README anchor; test-readme product-links covers page links; docs/*.md has no generic dead-anchor check
 - 2026-11-12T16:44:12Z status=routed owner=burndown by=orchestrator note=1.0.9; does not hold 1.0.8
 
+### DW-1218: No test fails while the README comparison's agent column still reads 'measured at release 1.0.9' (the feature placeholder), so a merge to main would carry it unless the RC fork fills it
+- source: spec-0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil.md | severity: med | fix-risk: low | footprint: in-footprint
+- evidence: README.md agent column; the spec leaves it unpinned by ruling (variant F fills it in the RC fork); the Planner's RC checklist greps for the phrase (story-029-rulings 2026-11-12 item 1)
+- 2026-11-12T19:37:14Z status=by-design owner=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil by=harvest note=ruled:the_1.0.9_RC_fork_replaces_it_and_the_Planner's_RC_grep_requires_the_phrase_never_reaches_main
+- 2026-11-12T19:52:11Z occurrence=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil
+
+### DW-1219: test-readme.sh st() self-test harness passes whenever the checker prints anything, so a mutation that trips two clauses does not pin each clause alone
+- source: spec-0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: docker/tests/test-readme.sh st(): every self-test in the script has this shape; a harness-wide change
+- 2026-11-12T19:37:14Z status=wontfix-accepted owner=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil by=harvest note=reopen_if=a_review_finds_a_self-test_that_passes_on_the_wrong_clause_and_masks_a_real_regression
 ### DW-1225: AC moved from 36.1 (Planner V1(b)): 23.3 declares Fix.Kind.RollbackSetting with RESOURCES, grants %Ens_ProductionConfig:W to OcuTalonServiceRole (demo install leaves it out), adds exactly one forbidden-list test exception, the ONLINESTATEMENT change and the overview sentence, and ships incident.settingChangeCause; result.settingRestored keeps its undo sentence only if 23.3 builds and tests the undo path
 - source: Contest Planner 36.1 spec gate ruling 2026-11-12, prompts/story-361-rulings-20261112.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 36.1 option (b): no unused write grant ships
@@ -7429,3 +7442,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator ruling on 25.3's split, 2026-11-12 (veto U-326) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 25.3 plan: 25.6 needs a reply contract no story fixes
 - 2026-11-12T22:51:35Z status=routed owner=37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption by=orchestrator note=DW bullet added to 37.1's epics.md block at 25.3's merge
+### DW-1229: eval case mail-partner-notice expects digest alone, but the UX says the partner notice comes back as Digest or Tell now (mockups/states.html:982, EXPERIENCE Key Flows Coda), and the held-out-flagged mail-date-format-monday of the same shape expects tellnow; the attention agent chose tellnow in 14 of 15 RC attempts (1.0.4-1.0.8)
+- source: spec-0-35-routine-attention-decisions-meet-their-target.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: eval/mail-partner-notice/case.json expected digest; _bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/mockups/states.html:982 'the partner notice comes back as Digest or Tell now'; release-evidence/<v>-gates/rc-eval/set-*.json 15/15 misses
+- 2026-11-12T21:22:06Z status=routed owner=burndown by=harvest note=for the owner after the contest: decide the case's expected answer against the UX; the Planner ruled not to widen it during the contest (moving the goalposts after seeing the model's output)
