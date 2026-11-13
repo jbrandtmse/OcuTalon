@@ -7434,3 +7434,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/tests/test-compose-file.sh oauth_install_paths_clean: 58 files scanned, floor 40 catches only release/* (25); fixtures plant only /csp/sys/oauth2/OAuth2.Response.cls; gap predates 0.34 (Story 21.3)
 - 2026-11-12T20:19:09Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=pins beyond the ruled (a),(b1),(b2) exceed the 1.0.8 ruling; reopen_if=a diff edits the pathspec or regex line of oauth_install_paths_clean
 - 2026-11-12T20:19:32Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=reopen_if=a diff edits oauth_install_paths_clean's pathspec or regex line; more pins exceed the 1.0.8 ruling
+
+### DW-1244: EmailOut ignores a tool command's IdempotencyKey (AD-1), so a re-sent chat turn could send the own-address email twice
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls
+- evidence: found by the 22.7 plan; EmailOut keys de-duplication on ApprovalRef only; Channel/Email is Epic 21's (contended)
+- 2026-11-13T01:59:09Z status=escalated owner=burndown by=harvest note=for the orchestrator: a Lane C fix (Epic 21) before or with 22.7
