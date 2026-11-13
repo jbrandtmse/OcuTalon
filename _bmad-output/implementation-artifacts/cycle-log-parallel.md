@@ -3855,3 +3855,4 @@
 2026-11-13T03:02:03Z	Epic 0	amendments_verified	amendments=epics_0.33+0.35_blocks extensions=Test/Data/Webhook.cls,README.md,GUIDE.md,test-readme.sh,test-eval-set.sh ok=true note=0.35_code_absent
 2026-11-13T03:02:03Z	Epic 0	merge_enqueued	part=0.33+0.29 head=ab9bc6f7
 2026-11-13T03:03:08Z	Epic 0	epic_merged_to_feature	part=0.33+0.29 feature_sha=1fb800c2 merge_sha=1fb800c2 code=ab9bc6f7+2dae366c(no_code_overlap) epics_union=0.31,0.32,0.33,0.35 verified_on_origin=yes
+2026-11-13T03:03:35Z	Run	ci_cancelled	head=2dae366c runs=43348791057,43348791058 reason=superseded_by_1fb800c2(contains_it;cancel-superseded_rule_per_Planner_HOLD_OFF) note=2dae366c_code=cf91f2ba_green
