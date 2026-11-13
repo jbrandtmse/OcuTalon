@@ -3888,3 +3888,9 @@
 2026-11-13T06:02:09Z	Run	owner_decision	via=contest_planner what=CI_throughput_rule(green_by_identity;cancel_feature_runs_when_code==green_head) file=prompts/standing-rulings-20261112.md
 2026-11-13T06:02:09Z	Epic 21	owner_decision	via=contest_planner what=21.13_HIGH_fix_kept;U-327_narrowed_stands;PUBLIC_TEXT_may-have-sent_sentence file=prompts/gate-rulings-20261112-1810.md#K
 2026-11-13T06:02:09Z	Run	ci_observed	head=83ea7bc8 identity=none(combines_415ea02d+1fb800c2_code) action=keep_feature_runs
+2026-11-13T06:25:27Z	Epic 36	runner_reported	PART_READY story=36.1 code_head=4467921f(ci_green_43358586991,43358586910) records_head=20e3655a(carries_36.2_review_patches,CI_pending_43378472985,43378472843)
+2026-11-13T06:25:27Z	Epic 36	merge_deferred	story=36.1 reason=4467921f_contains_36.2_implement_without_its_review_patches;merge_36.1+36.2_together_when_20e3655a_green
+2026-11-13T06:49:23Z	Epic 25	runner_reported	PART_READY part=25.3 head=eb99dc1f code_head=4832dea7 ci=success runs=43362271090,43362271172
+2026-11-13T06:49:23Z	Epic 25	ci_green_verified	head=4832dea7 runs=43362271090,43362271172 result=success
+2026-11-13T06:49:23Z	Epic 25	amendments_verified	amendments=epics_25.3_ACs(markers)+25.6_inserted extensions=Channel/WebChat,Core/Files,Data/SentFile,Web/Files,web/shared ok=true
+2026-11-13T06:49:23Z	Epic 25	merge_enqueued	part=25.3 head=eb99dc1f
