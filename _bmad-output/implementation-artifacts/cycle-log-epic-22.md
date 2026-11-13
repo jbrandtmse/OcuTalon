@@ -206,3 +206,4 @@
 2026-11-13T08:06:03Z	Story 22.7	cr_complete	spawn_at=2026-11-13T07:34:16Z model=opus resolved=10 fixed_at_source=10 deferred=1(DW-1262_occurrence) dismissed=12 high=1(AD-17:approved_email_audit_named_the_system_user;fixed) med=4 low=6 rows=32 unresolved_high_med=0 final=done review_tier=full-opus
 2026-11-13T08:06:03Z	Story 22.7	ledger_adjudicated	owned=2 resolved=2(DW-1164,DW-1263) reowned=0 terminal=0
 2026-11-13T08:06:03Z	Epic 22	ci_red_classified	run=43370177969 workflow=.github/workflows/ci.yml class=pending(rerun_to_classify) test=iris(shards-3)_live:demo-switch_step5/8_chat_or_rail_differs_from_S0(23/33,25/25)_no_ledgered_match action=one_rerun_of_failed_jobs_when_the_run_completes;red_again=story
+2026-11-13T08:06:43Z	Story 22.7	spine_updated	ad=AD-10,AD-16,audit(W1-W4_record) reason=rule20(Planner_H_approved) by=runner story=22-7 lint=unchanged(10_pre-existing_low)
