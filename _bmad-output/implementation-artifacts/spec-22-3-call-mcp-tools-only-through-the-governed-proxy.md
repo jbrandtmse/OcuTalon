@@ -2,8 +2,8 @@
 title: 'Story 22.3: Call MCP tools only through the governed proxy'
 type: 'feature'
 created: '2026-11-11'
-status: 'in-progress'
-baseline_revision: '55c9a6de1893b04993e2094ff3d6245d43f9328d'
+status: 'done'
+baseline_revision: '804300dd0e74edb68ca7f6345537c1b76691b4dd'
 baseline_commit: '55c9a6de1893b04993e2094ff3d6245d43f9328d'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -248,7 +248,7 @@ Rejected or closed at emission:
 - `[low]` `reject` the matrix's "about CALLSECONDS + 1 s" against the tests' + 3 s - the tests use the Task's bound. (blind-hunter)
 - `[low]` `reject` the frontmatter `deferred` items 3 and 4, the residual risks, the files list and the Spec Change Log wording are stale or unapplied - fixes that edit the spec; DW-1222 and DW-1223 are for the lead's adjudication (this review agrees both are resolved), and the wording change is honest and pinned (`TestProxyRewrite`, `TestTwoNativeCalls`, `ProxyJob`). (blind-hunter, acceptance-auditor, verification-gap)
 
-- [ ] [CI] checks: `docker/tests/test-release-sequence.sh` rule `overviewdoc` fails on af886ee3 (ci run 43344958166, job checks): its two controls "the can't-connect sentence below the first line" and "the MCP rules sentence dropped" expect a complaint, but the checker deliberately switches those two checks off once `src` holds `call_mcp_tool` ("while src has no MCP client"), which Story 22.3 added -- `docker/tests/test-release-sequence.sh` `t_overviewdoc` L2307/L2325 and `ovw_doc_problems` L2221/L2256 -- the fix must keep both controls meaningful (never skip or delete them): when `git -C "$root" grep -q call_mcp_tool -- src` holds, each control asserts the checker now gives NO complaint for that mutation (the switch is pinned); otherwise the controls stay as they are. Touch nothing else (the doc's MCP section is Story 22.6's). Verify with `bash docker/tests/test-release-sequence.sh` (about 130 s, foreground) and `bash docker/tests/test-boundaries.sh`.
+- [x] [CI] checks: `docker/tests/test-release-sequence.sh` rule `overviewdoc` fails on af886ee3 (ci run 43344958166, job checks): its two controls "the can't-connect sentence below the first line" and "the MCP rules sentence dropped" expect a complaint, but the checker deliberately switches those two checks off once `src` holds `call_mcp_tool` ("while src has no MCP client"), which Story 22.3 added -- `docker/tests/test-release-sequence.sh` `t_overviewdoc` L2307/L2325 and `ovw_doc_problems` L2221/L2256 -- the fix must keep both controls meaningful (never skip or delete them): when `git -C "$root" grep -q call_mcp_tool -- src` holds, each control asserts the checker now gives NO complaint for that mutation (the switch is pinned); otherwise the controls stay as they are. Touch nothing else (the doc's MCP section is Story 22.6's). Verify with `bash docker/tests/test-release-sequence.sh` (about 130 s, foreground) and `bash docker/tests/test-boundaries.sh`.
 
 ## Spec Change Log
 
@@ -311,6 +311,19 @@ Rejected or closed at emission:
     - `[low]` `[patch]` Test.Mcp.Classification and Test.Bridge.Audit are not in the Verification loop - both ran green after the patches; both lines added to the loop.
     - `[low]` `[reject]` the AC text says "only client iris" while the tests allow AI Hub's tools/list - a measured platform fact (22.9 evidence); recorded in the Spec Change Log for the lead; the safety property holds.
   - Intent Alignment Auditor: 0 findings (descriptive report: the diff implements the rewrite-inside-the-callback reading, tested at the tool-manager level through the shadow runner and at unit level; divergences B (tools/list), C, D, E, F are the rows above).
+
+### 2026-11-12 - Review pass (rework iteration 1, [CI] item)
+
+- verdicts: 13 findings from the layers, grouped in the 7 rows below - high 0, medium 0, low 13, false 0, maybe-false 0
+- findings:
+  - `[low]` `[patch]` the two "not checked" controls stay green when their mutation does not change the file (blind-hunter, edge-case-hunter, verification-gap) - patched: each asserts the fixture differs from the committed doc (`cmp -s`) before the empty-complaint assertion; mutation line added.
+  - `[low]` `[reject]` the `else` branches never run while src holds `call_mcp_tool`, and a deleted checker check would leave the controls green (blind-hunter, verification-gap, intent-alignment) - the item prescribes exactly this pin ("otherwise the controls stay as they are"); the doc's MCP section and its real controls are Story 22.6's.
+  - `[low]` `[reject]` the controls repeat the checker's inline guard (edge-case-hunter, intent-alignment) - deliberate: one shared helper would flip both and the control could not go red; the mutation line proves it.
+  - `[low]` `[reject]` the Rework note lacks a passing result (blind-hunter, intent-alignment) - the passing runs are recorded in the Auto Run Result.
+  - `[low]` `[reject]` the rework note and change-log date 2026-11-13 (blind-hunter, edge-case-hunter, verification-gap, intent-alignment) - the date comes from the lead's change-log entry for this iteration.
+  - `[low]` `[reject]` header comments name only the checker's switch (blind-hunter) - the comment above the controls states the pin; cosmetic.
+  - `[low]` `[reject]` the guard reads the tracked src, state the test did not create (verification-gap) - the same predicate as the checker's; both agree by construction.
+  - Intent Alignment Auditor: reading A (pin the switch) implemented; no divergence beyond the rows above.
 
 ## Design Notes
 
@@ -499,6 +512,11 @@ There are no `(once)` lines. CI runs the full suite (`live:security-overview`, t
 - `mutation:` `Exchange` passes the answer's seconds as the connect bound of tools/call (no `PROBESECONDS`) -> `Test.Mcp.Client:TestCallToolSilent` red ("at once").
 - Green after the patches: `Test.Mcp.Attach` (167 s), `Test.Mcp.Proxy`, `Test.Mcp.Client`, `Test.Mcp.ProxyJob`, `Test.Mcp.Server`, `Test.Mcp.Ops`, `Test.Bridge.CodeRules`, `Test.Bridge.Ext`; `test-class-rules.sh` and `test-boundaries.sh` exit 0.
 
+**Rework (CI, 2026-11-13; `docker/tests/test-release-sequence.sh` `t_overviewdoc`; each mutation applied to the file, observed red, reverted byte for byte, `git status --short` and `git diff --stat` identical to before):**
+- `mutation:` the guard of `ovw_doc_problems` flipped (`if ! git -C "$root" grep -q call_mcp_tool -- src` to `if git ...`, both occurrences, so the MCP checks run although `src` holds `call_mcp_tool`) -> rule `overviewdoc` red in "control: the can't-connect sentence below the first line, with an MCP client in src, is not checked" and "control: the MCP rules sentence dropped, with an MCP client in src, is not checked"; the controls keep their own inline guard, so flipping the checker's alone turns them red.
+
+- `mutation:` the fixture of the can't-connect control made a no-op (the awk anchor `## MCP tools` changed to `## MCP toolz`) and the rules fixture's sed pattern made a no-match -> rule `overviewdoc` red in "the can't-connect fault changed the file" and "the MCP rules sentence fault changed the file" (got 'same', wanted 'changed'); reverted byte for byte.
+
 **Shared surfaces:**
 - `Tools.Names` (the mock's count; `CheckToolRows`);
 - the overview's generated rows and `docs/security-overview.md`;
@@ -528,23 +546,14 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 Status: done
 Blocking condition: none
 
-**Summary.** Native MCP calls the gate allows now run only through `call_mcp_tool`, OcuTalon's governed proxy: the gate rewrites the call's name and arguments (Task 0 variant: setting `name` and `arguments`; no `toolref` needed; F1 and `MCPUSEPROXY` not used). The proxy lists the tool again just before `tools/call`, refuses a changed fingerprint unrun, resolves the wallet credential in memory, cuts the result through `Tools.Result`, taints the turn and writes one `MCP` `called`/`refused` audit entry (server, tool, outcome). A direct proxy call is classified like the native call; the gate checks `U` on the server's resource. The proxy is offered only by a request's composed manager that holds a server, never on the online demo (`MCPDEMO`, before any request).
+**Summary (rework iteration 1, the `[CI]` item only).** The two `overviewdoc` controls of `docker/tests/test-release-sequence.sh` ("the can't-connect sentence below the first line" and "the MCP rules sentence dropped") now pin the checker's switch: while `src` holds `call_mcp_tool` each asserts that its fixture differs from the committed overview and that the checker gives no complaint; otherwise they are unchanged. Neither control is skipped or deleted.
 
-**Files changed.**
-- Bridge: `Policy/Gate.cls` (proxy constant, direct-call classification, resource check, marked rewrite, label), `Context.cls` (server map, reroute notes), `Adapter/Agent.cls` (offers the proxy after the first server), `Adapter/StepBuffer.cls` (label, inputs without argument values), `Ext/{Classification,McpServers}.cls`, `Audit.cls` (call shape).
-- OcuTalon: `Mcp/Client.cls` (`ListTool`, `CallTool`, `CALLSECONDS`), new `Mcp/Proxy.cls`, `Mcp/{Attach,Classification}.cls` (overrides), new `Tools/McpCall.cls` and `Tools/McpProxy.cls`, `Tools/Names.cls`.
-- Mock and docs: `ci/mock/scenarios/A/mcp-proxy-call.json`, `ci/mock/test/constants.test.mjs`, the generated tools section of `docs/security-overview.md`.
-- Tests: new `Test/Mcp/Proxy.cls` with fixtures `Test/Mcp/{ZzProxy,ZzBrokenProxy}.cls` and `Test/Bridge/ZzGateServers.cls`; extended `Test/Mcp/{Client,Attach,Classification,Mock}.cls`, `Test/Bridge/{Gate,Audit,Ext,CodeRules,ZzGateClassification,ZzTurnAdapter}.cls`, `Test/Install/SecurityOverview.cls`.
-- Evidence: `_bmad-output/implementation-artifacts/evidence/22-3-task0-proxy.md`.
+**Files changed.** `docker/tests/test-release-sequence.sh` (`t_overviewdoc`); this spec (ticked item, `mutation:` lines, triage row, this section).
 
-**Review findings.** 40 findings: patches applied 10 rows (one medium: an assertion in `TestProxyCut` that could not fail; the rest low: the gate now reroutes after the taint, `OfferServers` stops at once when the proxy cannot be registered, a long string body is refused, the dead no-auth branch of `Proxy.Header` is removed, the cut audit outcome is pinned, two mutation lines, a non-vacuous leak guard, comment fixes, two classes added to the loop); 4 items deferred (replay not rewritten - routed to 22.4; no total read deadline; single-slot rewrite mark with parallel calls, unverified; wallet read inside a runner job, unverified); the rest rejected with reasons in the triage log above (4 false, the others low and spec-bound, theoretical or owned by 22.6).
+**Review findings.** 13 findings from the three finding layers (all low), grouped in 7 rows: 1 patched (the fixture-differs assertion for both controls), 6 rejected with reasons in the Review Triage Log, 0 deferred.
 
-**Follow-up review recommended:** false (no high patched; one medium patched).
+**Follow-up review recommended:** false (no high patched; follow-up pass: one low patched).
 
-**Verification performed (lane D warm stack, tag e22s3vw, torn down).** Passed: `Test.Mcp.Client`, `Test.Mcp.Proxy`, `Test.Mcp.Attach`, `Test.Bridge.Gate`, `Test.Bridge.CodeRules`, `Test.Bridge.Ext`, `Test.Bridge.Audit`, `Test.Mcp.Classification`, `Test.Install.SecurityOverview`, `Test.Agent.Runners`; `node --test ci/mock/test/constants.test.mjs` (9 pass); `test-boundaries.sh`, `test-class-rules.sh`, `test-ci-config.sh` exit 0. Review-pass mutations (cut audit outcome, address in a log line, label control characters) went red in the named tests and were reverted byte for byte. Not run here: `docker/tests/test-security-overview.sh` and the full CI suite (CI HOLD; the lead runs the fresh-environment check).
+**Verification performed.** `bash docker/tests/test-release-sequence.sh`: PASS all rules, run alone after the patch; `bash docker/tests/test-boundaries.sh`: all rules passed. Mutations: the checker's guards flipped -> both pinned controls red; the fixtures made no-ops -> both "changed the file" assertions red; each reverted byte-identical.
 
-**Residual risks.**
-- The deferred items above; the wallet read in a runner job is an inference (condition (e) was stopped on only if the read failed; it did not in a `%All` session).
-- AI Hub still sends its own `tools/list` before each tool call; the matrix/AC wording "none from AI Hub's client" is recorded in the Spec Change Log for the lead's amendment.
-- The step record of a rewritten call is labelled through a per-tool-name note list (`Context.NoteRerouted`), because AI Hub's audit policy sees the model's original name.
-- The Telegram plain-text rule is pinned by the existing `Test.Channel.TelegramOut`; the web escape relies on React.
+**Residual risks.** None new. Once Story 22.6 rewrites the overview's MCP section, its real controls replace these.

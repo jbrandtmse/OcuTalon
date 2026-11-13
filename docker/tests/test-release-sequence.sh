@@ -2303,8 +2303,14 @@ t_overviewdoc() {
   eq "control: the privilege-limits paragraph outside its section" "$(ovw_doc_problems "$d/outside.md")" "the privilege-limits paragraph is not there word for word"
   sed 's/OcuTalon left the OCUORDERS namespace in place because/OcuTalon left the OCUORDERS namespace in place as/' "$doc" > "$d/kept.md"
   eq "control: a word of the kept sentence" "$(ovw_doc_problems "$d/kept.md")" "the kept-OCUORDERS sentence is not there word for word"
+  # the can't-connect and rules-sentence checks run only while src has no MCP client: with one, the same faults give no complaint (the switch is pinned)
   awk '{ print } $0 == "## MCP tools" { print ""; print "Note." }' "$doc" > "$d/mcp.md"
-  eq "control: the can't-connect sentence below the first line" "$(ovw_doc_problems "$d/mcp.md")" "the MCP tools section does not open with the can't-connect sentence"
+  if git -C "$root" grep -q call_mcp_tool -- src; then
+    eq "control: the can't-connect fault changed the file" "$(cmp -s "$doc" "$d/mcp.md" && echo same || echo changed)" "changed"
+    eq "control: the can't-connect sentence below the first line, with an MCP client in src, is not checked" "$(ovw_doc_problems "$d/mcp.md")" ""
+  else
+    eq "control: the can't-connect sentence below the first line" "$(ovw_doc_problems "$d/mcp.md")" "the MCP tools section does not open with the can't-connect sentence"
+  fi
   sed 's/^- It expires after 24 hours\./- It expires after 48 hours./' "$doc" > "$d/hours.md"
   eq "control: another expiry" "$(ovw_doc_problems "$d/hours.md")" "the Approval and audit section lacks '24 hours'"
   sed 's/^- `Tool`: /- Tool: /' "$doc" > "$d/type.md"
@@ -2322,7 +2328,12 @@ t_overviewdoc() {
   sed 's/ and no scheduled purge removes them\./ and a scheduled purge removes them./' "$doc" > "$d/purge.md"
   eq "control: the no-scheduled-purge sentence changed" "$(ovw_doc_problems "$d/purge.md")" "the Data section lacks the no-scheduled-purge sentence"
   sed 's/ When a release adds MCP support, these rules apply:$//' "$doc" > "$d/rules.md"
-  eq "control: the MCP rules sentence dropped" "$(ovw_doc_problems "$d/rules.md")" "the MCP tools section lacks the rules sentence"
+  if git -C "$root" grep -q call_mcp_tool -- src; then
+    eq "control: the MCP rules sentence fault changed the file" "$(cmp -s "$doc" "$d/rules.md" && echo same || echo changed)" "changed"
+    eq "control: the MCP rules sentence dropped, with an MCP client in src, is not checked" "$(ovw_doc_problems "$d/rules.md")" ""
+  else
+    eq "control: the MCP rules sentence dropped" "$(ovw_doc_problems "$d/rules.md")" "the MCP tools section lacks the rules sentence"
+  fi
   sed 's/^Each protection listed here is checked against the running demo before every release\.$/Each protection listed here is checked against the running demo./' "$doc" > "$d/close.md"
   eq "control: the closing demo sentence changed" "$(ovw_doc_problems "$d/close.md")" "the Online demo section lacks the checked-before-every-release sentence"
   { cat "$doc"; printf '\n## Data\n'; } > "$d/heading.md"
