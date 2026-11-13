@@ -1767,7 +1767,8 @@ ClassMethod IsOrigin(text As %String) As %Boolean [ Private ]
 
 /// Takes the mailbox address and the user name of the parsed body from the hand-off (Story 21.14), as the password is taken: a member that is a string is the
 /// reference of SecretHandoff and is replaced by the value it names. A string that is not a reference, or a reference that names nothing, is named in bad (once)
-/// and the value is not used. A member of another type, or an empty string, is left for EmailShape, which refuses it in the order of the form. The values are held in local variables and the parsed body only, and killed here.
+/// and the value is not used. A member of another type, or an empty string, is left for EmailShape, which refuses it in the order of the form. The values are held in
+/// the parsed body (in memory, for SaveEmail) and in a local variable that is killed here; nothing is written or logged.
 ClassMethod TakeMailbox(changes As %DynamicObject, bad As %DynamicArray) [ Private ]
 {
 	For name = "address", "user" {
@@ -1785,7 +1786,7 @@ ClassMethod TakeMailbox(changes As %DynamicObject, bad As %DynamicArray) [ Priva
 /// Validates the body of the email section into field: address, host and port (the incoming server), ohost and oport (the outgoing server, both ""
 /// for none), user (canonical), signIn (password, google or microsoft; password when absent), clientId, origin and password and clientSecret, the hand-off
 /// references or "". The address and the user name are the values that TakeMailbox took from the hand-off (the body holds them only here, in memory), and are
-/// validated as they were when they came in plain. Each refused field is named in bad: a field that is missing or is not a
+/// validated by the rules below. Each refused field is named in bad: a field that is missing or is not a
 /// JSON string (the outgoing server, signIn, clientId, origin and the two secrets may be missing or empty), one that holds "@{" or a control character, an address that is not
 /// one address (IsAddress), a server that is not host or host:port (HostPort: a host name of letters, digits, hyphens and dots, lower-cased; a port 1
 /// to 65535, else DEFAULTPORT for incoming and DEFAULTSMTPPORT for outgoing), a user name of 1 to 256 characters, a sign-in method that is not one of SIGNINS,

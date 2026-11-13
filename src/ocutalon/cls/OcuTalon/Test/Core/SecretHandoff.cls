@@ -16,7 +16,7 @@
 ///     ^Ens.MessageHeaderD for one in a header and ^Ens.MessageBodyS for one in a stream node (the trace scan finds what it is meant to find), and names nothing once all are deleted.
 /// Leaks(text) lists the ^OcuTalon* globals (OcuTalonTest excluded) whose data or subscripts hold the text; other test classes use it.
 /// TraceLeaks(text) lists the trace globals (^Ens.MessageBodyD, ^Ens.MessageBodyS, ^Ens.MessageHeaderD and ^Ens.Util.LogD) that hold it: every OcuTalon message shares
-/// the Ens.MessageBody extent, so Leaks never covered the trace. Swap(body, uris) offers the address and user of a channels body to the hand-off, as the route does;
+/// the Ens.MessageBody extent, which Leaks (^OcuTalon* only) does not scan. Swap(body, uris) offers the address and user of a channels body to the hand-off, as the route does;
 /// NewestChanges() is the parsed Changes of the newest stored SaveSettings message of the channels section.
 Class OcuTalon.Test.Core.SecretHandoff Extends %UnitTest.TestCase
 {

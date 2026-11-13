@@ -7654,6 +7654,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T04:50:39Z status=routed owner=burndown by=orchestrator note=Planner ruling; one audit story
 - 2026-11-13T08:12:38Z status=routed owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=orchestrator note=Planner_DW-1255_audit_ruling_items_1,5:email_address+user_via_handoff;security-overview_trace-role_sentence;after_21.8_merges
 - 2026-11-13T07:23:37Z note=Planner_ruled_2026-11-13:fix_story_in_lane_C_after_21.8(email_address+user_handoff;security-overview_trace-role_sentence);SendEmail_ref_rule_on_22.7;Item.Sender_stays;see_prompts/rulings-371-dw1255-20261113.md
+- 2026-11-13T15:42:41Z status=resolved-by:21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=adjudication note=Planner ruling items 1,5 delivered (address+user via SecretHandoff; trace-role sentence); ruling L TraceLeaks retrofit green; build cc3c9df4 + QA/CR in the next commit
 ### DW-1245: Story 36.1 breaks Test.Core.SettingsOps TestOnlyRunTimeWriter: its writer pattern matches the new globals ^OcuTalonP.SettingChange and ^OcuTalonP.SettingSnap
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: high | fix-risk: low | footprint: in-epic
 - evidence: 36.2 regression run, lane-b@Contract,Core,Data,Live part 4 red; file untouched by 36.2; pre-existing on cf2658d8 (36.1 head)
@@ -7699,3 +7700,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Watch/SettingSecret.cls
 - evidence: ruling L lists retrofit sites by story (21.2, 21.3, 21.8, 35.3, 22.3, 22.4); 36.1 is not listed; a secret in a stored message body would pass that scan (SettingSecret.cls:254)
 - 2026-11-13T14:27:11Z status=open owner=burndown by=21.14-implement note=TraceLeaks retrofit gap outside ruling L's list; one assertion beside l.254
+- 2026-11-13T15:34:31Z status=wontfix-accepted owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=cr note=LOW out-of-footprint (Lane A Watch test), burndown owns no LOW; reopen_if=SettingSecret leak scan next edited or TraceLeaks finds a 36.1 secret
+
+### DW-1276: TraceLeaks/Holds match raw stored bytes, so a value inside a compressed ^Ens.MessageBodyS chunk, split across two chunks, or in a $List element widened to UTF-16 by a character above $Char(255) is not found
+- source: spec-21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: Holds tests data [ text on the raw node (Test/Core/SecretHandoff.cls Holds); %Stream.GlobalCharacter COMPRESS=1 stores compressed chunks; no OcuTalon message class has a %Stream property today (Data.SettingStream sets COMPRESS=0 for the same reason)
+- 2026-11-13T15:34:27Z status=wontfix-accepted owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=cr note=reopen_if=an OcuTalon message class gains a %Stream property, or a scanned value can share a stored element with a char above $Char(255)

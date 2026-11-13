@@ -96,6 +96,41 @@ deferred:
 - Given `docs/security-overview.md`, when a reader reads the roles list, then it holds the Public text sentence word for word, after the `OcuTalonTraceViewer` bullet (DW-1255, ruling item 5).
 - Given every existing scan that says a mail password, OAuth2 client secret or token, webhook secret or MCP credential is never in a trace (21.2, 21.3, 21.8, 35.3, 22.3, 22.4), when it runs, then it also asserts that `TraceLeaks` of that value is "" over `^Ens.MessageBodyD`, `^Ens.MessageBodyS`, `^Ens.MessageHeaderD` and `^Ens.Util.LogD`, and it passes against the product code (ruling L). A red is reported as a leak, not fixed in this story (pin `SecretHandoff:TestTraceLeaksFinds` for the helper; the retrofitted classes listed in the tasks).
 
+### Review Findings
+
+Code review 2026-11-13 (four layers, full mode): 27 findings; 9 kept (high 0, medium 1, low 8), 18 rejected. No real leak: no retrofit scan was red against the product code.
+
+- [x] [Review][Patch] (med) Proxy's `Places` scanned the whole trace for fixed values (the argument constant, the mock's `127.0.0.1:<port>`), so another test's stored message (Attach's `AddMcpServer` URL) could turn it red with no leak; the trace is now scanned for the test's own secret only [src/ocutalon/cls/OcuTalon/Test/Mcp/Proxy.cls:378]
+- [x] [Review][Patch] (low) `Offered` ignored `Swap`'s status [src/ocutalon/cls/OcuTalon/Test/Core/SettingsEmail.cls:1033]
+- [x] [Review][Patch] (low) The route docs claimed no address or user name is in any message; now scoped to the save's own command [src/ocutalon/cls/OcuTalon/Web/Api.cls:50]
+- [x] [Review][Patch] (low) `TakeMailbox`'s doc said the values are "killed here"; it now says where they are held [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:1771]
+- [x] [Review][Patch] (low) Rule 14: history in comments (`EmailShape` "as they were when they came in plain", "Leaks never covered the trace", the "QA" labels) [SettingsOps.cls, Test/Core/SecretHandoff.cls, Test/Web/SettingsApi.cls]
+- [x] [Review][Patch] (low) `TestChannelsRoute`: the refused-after-take answer was checked for the address only, and the 256-character user's stored reference was not checked [src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls:624]
+- [x] [Review][Patch] (low) `TestChannelsRoute`: saves made after its trace scan were never scanned; one final `TraceLeaks` of the address and both user names is added [src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls:683]
+- [x] [Review][Patch] (low) AC 6's retrofit had no `mutation:` line; one was applied and recorded under Verification [spec]
+- [x] [Review][Defer] (low) `Holds` matches raw stored bytes, so a compressed stream chunk, a split chunk or a UTF-16 `$List` element is not seen [src/ocutalon/cls/OcuTalon/Test/Core/SecretHandoff.cls:259] -- closed `wontfix-accepted` (DW-1276; no OcuTalon message has a stream property).
+- DW-1272 (implement deferral, Test.Watch.SettingSecret): a LOW out of footprint, closed `wontfix-accepted` with `reopen_if` (burndown owns no LOW).
+
+Rejected:
+- `false` Edge: `NewestChanges` may throw on bad JSON -- `Changes` is always written by `%ToJSON`, and every caller is inside a Try that turns an exception into a failed assertion.
+- `false` Auditor: no real HTTP request (Rule 3) -- `web/e2e/settings/email.spec.ts` posts to the route over HTTP; run in this review, green.
+- `false` Auditor: no route-driven completed save -- email.spec.ts E2 saves through the route and GET shows the address and user; green.
+- `false` Auditor: existing tests changed beyond the helpers -- the `Save` switch is the helper change; the rest are the implement stage's logged review patches.
+- `false` Auditor: the `test-readme.sh` rule is not a task -- it is AC 5's pin (Rule 19), a placed edit.
+- `false` Gap: no mutation drops `Ens.MessageBodyD` alone -- "TraceLeaks returns '' at once" turns its assertion red.
+- `low` Edge/Blind/Gap: the four globals skip IOLog, RuleLog, index and other stream globals -- spec-bound: ruling L and AC 6 name the four globals.
+- `low` Edge: `Swap` leaves a member plain when `Put` fails, and `SubmitChannels` submits anyway -- needs an Event-resource failure; every caller asserts the status, so the test is red.
+- `low` Edge: `SubmitChannels` has no Try around `Commands.Submit` -- it returns a status; the same shape as the existing helpers.
+- `low` Edge: `CommandsStep4.SaveMailbox` reads `result.Ok` before the take-back -- only after a failed save; resources are in memory; pre-existing order.
+- `low` Blind: the spec's review counts disagree -- the fix edits the spec under review.
+- `low` Blind: the spec contradicts itself on the setting cache -- the fix edits the spec under review.
+- `low` Blind: a never-offered reference is tested for `user` only -- same branch as the lost reference, tested for both fields.
+- `low` Gap: the SettingsEmail and Ops retrofits see only the log -- required by ruling L beside every existing scan; the route and live pins cover the message.
+- `low` Gap: EmailLive's reference check reads the newest channels message, not this save's -- the unique-value `TraceLeaks` assertions carry the pin.
+- `low` Gap: the live test scans before any poll -- spec-bound (the save message only).
+- `low` Gap: `Handoffs()` counts instance-wide -- pre-existing; one class runs at a time per stack, and nothing else makes hand-offs.
+- `low` Auditor: `TakeMailbox` leaves "" to `EmailShape` -- the same refusal, naming the same field.
+
 ## Spec Change Log
 
 - 2026-11-13 (lead, Planner ruling L): the gate is approved as planned, and so are the AD-1, AD-19 and route-row wording (the spine is amended in the bookkeeping commit). The Public text is approved verbatim. Added the condition: the TraceLeaks retrofit into the leak scans of 21.2, 21.3, 21.8, 35.3, 22.3 and 22.4, its AC and its runs. A red retrofit scan is a real leak, so implement halts `blocked` and the lead reports it before any fix.
@@ -208,6 +243,23 @@ Run every command from the worktree root, one per foreground call (`timeout: 600
 - mutation: the Public text line removed -> `grep -Fxc` is 0 (on a copy), 1 in the file.
 - Fresh checks (tag `e21s14i`, no warm; run again after the review patches): `TestChannelsRoute` and `TestAddressAndUserOutOfTheTrace` passed, `iris.sh teardown` left nothing.
 - After the review patches (warm tag `e21s14iw`, down afterwards): `SecretHandoff`, `SettingsEmail`, `SettingsApi`, `CommandsStep4` and `EmailLive` (115 s) pass. Scan cost: `Mcp.Attach` ran about 163 s before and 166 s after the retrofit, so no scan is computed once per test. `test-class-rules.sh` and `test-boundaries.sh` pass; the stored-data grep prints nothing.
+
+**QA-stage results (Rule 19; warm tag `e21s14qw`, lane C, down afterwards):**
+- Gaps closed: AC 4 had a pin only for `incoming` and `outgoing`, none for `signIn`, `clientId` and the route's `origin`; the route limit had a pin only above 256 characters (257), none at 256.
+- mutation: `SettingsApi:TestChannelsRoute` (AC 4, `signIn` and `clientId`) -- `"signIn", "clientId"` added to both name lists of `SaveChannels` -> red ("the stored message holds signIn, clientId and incoming as they came"); reverted, cmp identical.
+- mutation: `SettingsApi:TestChannelsRoute` (AC 4, `origin`) -- the route sets `origin` to a hand-off reference form -> red ("and its origin, which the route adds, is plain"); reverted, cmp identical.
+- mutation: `SettingsApi:TestChannelsRoute` (the 256-character edge of the matrix row "odd value") -- `> ..#PASSWORDMAX` made `>=` -> red ("a user name of 256 characters passes the route: only incoming is refused"); reverted, cmp identical.
+- mutation: `docker/tests/test-readme.sh` rule `docs` (AC 5, the Public text had only a manual grep) -- the sentence removed from `docs/security-overview.md` -> `FAIL docs` ("does not hold the ruled line ... once" and "not the bullet right after the OcuTalonTraceViewer bullet"); reverted, cmp identical. The rule's own self-tests (`st`) remove, change and move the sentence and all flag it.
+- After the edits: `SettingsApi` (whole class) passes; `bash docker/tests/test-readme.sh`, `test-class-rules.sh` and `test-boundaries.sh` pass.
+- Matrix rows checked with no further gap: route save (unique values, references, no trace/log/answer hit), odd value (number, object, 257 for address and user), plain value at the owner, lost reference (lost and never offered), refused after the take, online demo (route and owner), no handoff left (`Handoffs()` after every route call, including the 500 case with no taker).
+- `Data.Setting.Get` after a save: a per-process cache (60 s) that predates 21.14 (see the QA report in the spec's Issues). Evidence in the warm stack: `Get` of an unwritten key answers "", another process writes it, `Get` still answers "" and `Fresh` answers the value. Every production reader of `email.address` and `email.owner` (`CommandsIn.Stored`, `Rule.Functions`, `Channel.Email.In`, `Channel.Email.Out`, `SettingsOps.Stored`) uses `Fresh` or a row read; `EmailLive` primes the cache itself (its `Setup` calls `Get("email.address")` before the save).
+- Files touched (QA): `src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls` (QA), `docker/tests/test-readme.sh` (QA).
+
+**Code-review results (lane C; warm tag `e21s14cw`, fresh tag `e21s14cr`; all torn down):**
+- Rule 3, real HTTP: `ci/iris.sh live sign-in-2 --part 4/4` (fresh stack) passed 49 of 49, among them `web/e2e/settings/email.spec.ts` (6 tests): the form's save goes over HTTP through `SaveChannels` (swap) and `SettingsOps` (take), and GET shows the saved address and user. Also green: `SettingsApi:TestChannelsRoute`, `EmailLive:TestAddressAndUserOutOfTheTrace`.
+- mutation: AC 6 retrofit, pin `EmailLive:TestPasswordOnlyInTheCredential` -- `SaveEmail`'s done result carries `"zz"_secret` in `Data` (a stored `CommandResult`; after `warm.sh down` and `up`) -> red on "and no trace global does" alone; reverted, cmp identical, `down`/`up`, green.
+- Proxy hermeticity: a stored message holding the fixed `ARGUMENT` was planted in the warm stack -> the retrofit line as implemented went red ("the argument value shows ... "), the patched line (trace scanned for `..Secret` only) is green; the planted row was deleted.
+- After the review patches: `SettingsApi`, `SettingsEmail`, `SecretHandoff`, `Mcp.Proxy` and `EmailLive` (115 s) pass; `test-class-rules.sh` and `test-boundaries.sh` pass; the stored-data grep prints nothing.
 
 ## Auto Run Result
 

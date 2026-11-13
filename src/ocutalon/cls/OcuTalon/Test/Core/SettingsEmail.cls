@@ -1030,7 +1030,7 @@ Method Offered(address As %String, user As %String) As %DynamicObject [ Private 
 {
 	Set copy = ..Body(address, ..#HOST, user, ..Offer(..Secret("offered")))
 	Set uris = ..Uris
-	Do ##class(OcuTalon.Test.Core.SecretHandoff).Swap(copy, .uris)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Core.SecretHandoff).Swap(copy, .uris), "the address and user are offered")
 	Set ..Uris = uris
 	Quit copy
 }
