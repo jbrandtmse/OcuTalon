@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pins README.md and GUIDE.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26, 0.28, 0.29, 0.30 and 21.12; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171, DW-1207). Hermetic: it starts
+# Pins README.md and GUIDE.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26, 0.28, 0.29, 0.30, 0.36 and 21.12; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171, DW-1207). Hermetic: it starts
 # nothing, needs no network and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules). That the README's video
 # addresses answer is checked online by docker/tests/check-readme-video.sh, which this script never runs.
 #
@@ -113,7 +113,8 @@
 #   after-start-log  the README's after-start log command names the path that docker/after-start.sh writes, and says which lines to
 #                  look for (the walkthrough ran it)
 #   dev-only       in the README and the guide, no ##class(, class name or error code outside the sections "For admins and developers" and "Gmail and Microsoft 365",
-#                  except the IPM load line of "Install it with IPM", word for word (Story 11.24)
+#                  except the IPM load line of "Install it with IPM", word for word (Story 11.24), and the Complexity row of "For judges:
+#                  where to look", word for word (Story 0.36: the Planner-approved row names the platform classes OcuTalon is built from)
 #   public-text    the README's not-affiliated note, BMAD Method and Claude Code credit and licence pointers; OpenClaw only in the
 #                  README's note; in the README and the guide, no other model provider, "from your phone", "per step", "never used for tuning",
 #                  private infrastructure or IPv4 address
@@ -329,6 +330,9 @@ ONLINE_ROW='| Online demo |'
 VIDEO_ROW='| Video | [One incident, approved from a phone, traced]('"$YT_FULL"') (3:04, also as an [MP4 file]('"$MP4_FULL"')), and the [35-second teaser]('"$TEASER_URL"'). |'
 USE_HEAD='| Usability | The demo guide walks [one incident, end to end](#one-incident-end-to-end) in about two minutes, and [the full video]('"$YT_FULL"') shows it in 3:04. Its More to try panel has '
 USE_TAIL=' more things to try, fifteen of them on the online demo ([New since 1.0.0]('"$GUIDE_URL"'#new-since-100)).'
+# The Planner-approved Complexity row of "For judges" (Story 0.36), word for word. It names AI Hub and Interoperability classes on
+# purpose, so the dev-only rule exempts exactly this line; a changed copy is flagged again.
+COMPLEXITY_ROW='| Complexity | One Interoperability production of over 40 items runs three AI Hub agents, each an `%AI.Agent`: attention decisions, diagnosis and chat ([Production.cls](src/ocutalon/cls/OcuTalon/Production.cls)). It is built from the platform'\''s own parts. OcuTalon'\''s outbound adapter extends AI Hub'\''s `EnsLib.AI.Agent.OutboundAdapter` ([Agent.cls](src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls)), and the gate that checks every tool call before it runs is an `%AI.Policy.Authorization` ([Gate.cls](src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls)). Each Visual Trace step comes from an `%AI.Policy.Audit` and an `%AI.Shell.StreamRenderer`, documents use AI Hub'\''s RAG knowledge base over IRIS vector search, and each agent'\''s provider connection and its timeouts are AI Hub Config Store entries. On the Interoperability side, approvals are `EnsLib.Workflow` tasks, a fix resends with `Ens.MessageHeader.ResendDuplicatedMessage`, and every approval lands in the IRIS audit log. Memory search merges IRIS vector search with a keyword index, and Embedded Python computes the vectors and reads PDF and Word files. |'
 # The approved header block (Story 0.21): README.md lines 1 to HEADER_LINES, word for word, as a quoted heredoc, because the lines
 # hold quotes, with its trailing newline stripped. HEADER_IMAGE_HOSTS are the image hosts and paths that only those lines may use;
 # one of its entries, HEADER_RAW_DIR, is the path of this repository's images on its main branch (the logo's address).
@@ -1377,13 +1381,14 @@ chk_must_scan() {
 
 # dev-only: file:line of each line outside the H2 sections "For admins and developers" and "Gmail and Microsoft 365" (which names the provider consoles' own settings) with a ##class( call, a class name (a dotted
 # name whose parts start with an upper-case letter, a leading % allowed), an ERROR #<digits> code or an <UPPER> error name.
-# The IPM load line (IPM_LOAD) is exempt, word for word. The scanner takes the README and the guide.
+# The IPM load line (IPM_LOAD) and the judges' Complexity row (COMPLEXITY_ROW, Story 0.36) are exempt, word for word. The scanner
+# takes the README and the guide.
 dev_names() {
-  awk -v ipmload="$IPM_LOAD" '
+  awk -v ipmload="$IPM_LOAD" -v complexity="$COMPLEXITY_ROW" '
     FNR == 1 { stop = 0 }
     /^## / { stop = ($0 == "## For admins and developers" || $0 == "## Gmail and Microsoft 365") }
     stop { next }
-    $0 == ipmload { next }
+    $0 == ipmload || $0 == complexity { next }
     /##class\(/ || /ERROR #[0-9]+/ || /<[A-Z][A-Z][A-Z]+>/ || /(^|[^A-Za-z0-9_])%?[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)+/ { print FILENAME ":" FNR }
   ' "$@"
 }
@@ -2702,6 +2707,9 @@ an error name|It showed <UNDEFINED> there.
 EOF
   st 'the IPM load line changed above the section' 1 "$GUIDE" '{ sub(/zpm\/0\.10\.10\/installer/, "zpm/0.10.9/installer") } { print }' dev_names_1
   st 'the IPM load line with a second call on its line' 1 "$GUIDE" '/^s r=##class\(%Net\.HttpRequest\)/ { $0 = $0 " d ##class(Foo.Bar).Baz()" } { print }' dev_names_1
+  st 'the Complexity row with a class name changed' 1 "$README" '/^\| Complexity \| / { sub(/%AI\.Policy\.Audit/, "%AI.Policy.Audits") } { print }' dev_names_1
+  st 'the Complexity row with a class name added' 1 "$README" '/^\| Complexity \| / { sub(/ \|$/, " See OcuTalon.Core.Admin. |") } { print }' dev_names_1
+  st 'a class name on the line after the Complexity row' 1 "$README" '{ print } /^\| Complexity \| / { print "The class OcuTalon.Core.X does it." }' dev_names_1
   st_append 'a class name after the admin section' '## After\n\nThe class OcuTalon.Core.X does it.' dev_names_1
   st 'a class name after the admin section of the guide' 1 "$GUIDE" '{ print } END { print "## After\n\nThe class OcuTalon.Core.X does it." }' dev_names_1
   if [ "$st_bad" -ne 0 ] && [ -z "$(dev_names "$README" "$GUIDE")" ]; then

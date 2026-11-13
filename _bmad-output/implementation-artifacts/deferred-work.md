@@ -6696,6 +6696,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:reminder-restart_telegram_park;one_rerun_with_the_next_push
 - 2026-11-11T00:03:57Z occurrence=feature-9f7db82c by=orchestrator note=run 42924654980 job 130207908005 iris(shards) on ocutalon-ci-15, unit live:online-allowance: 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then 'the first start did not end ready within 400 s'; same signature as the reminder-restart one, now in another unit; rerun of failed jobs
 - 2026-11-12T11:23:19Z occurrence=0-28 by=runner note=run_43202138313_job_131127976608_iris(shards-9)_on_ocutalon-ci-5_unit_shard:lane-a@Bridge_stack_start:'Telegram_park:_TelegramOut_still_has_an_Ens.Job_entry_(Alive,dequeuing)_32_s_after_it_was_disabled';OCT-epic0_2a6cfc67(README+test-readme_over_feature_eb289caf);one_rerun_of_failed_jobs
+- 2026-11-13T15:39:38Z occurrence=feature-7865c322 by=orchestrator note=run 43432696788 iris(shards-4) Telegram park 32 s, first start not ready in 510 s; same code green on 81b65a6a (43445650699); not rerun (superseded)
 ### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
@@ -6767,6 +6768,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T06:26:39Z occurrence=25-2 by=orchestrator note=run 42966931010 job 130346188889 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges + TestRunAgain (ci-12); OCT-epic25 284e8904
 - 2026-11-12T02:02:40Z occurrence=21-6 note=OCT-epic21 7c6dec3c run 43130059980 shards-6 TestOnlyTheMarkerChanges (run_again); GuideApi not in the 21.x diff; one rerun
 - 2026-11-12T02:34:04Z occurrence=21-6-send-email-over-smtp
+- 2026-11-13T15:39:38Z occurrence=feature-7865c322 by=orchestrator note=run 43432696788 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges+TestRunAgain; same code green on OCT-epic0d 81b65a6a (43445650699); not rerun (superseded by 4aa34ca4, green by identity)
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6908,6 +6910,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 07:52:08Z: the first-run-in-USER checks passed; the second run in OCUTALON took 126 s and failed at Initialize with the CPF merge error; 25.2 changes no install, Install or IPM file
 - 2026-11-11T08:31:54Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence): an IRIS CPF merge ((-100)) failed during the IPM install; one rerun per occurrence; real if it recurs on an install-touching head
 - 2026-11-12T02:06:01Z occurrence=0-26 note=OCT-epic0 540dfce5 lane-a run 43134792086 ipm-install: Shell() in USER Initialize FAILURE, CPF merge zf(-100) exited 7; 0.26 changes README/tests only; one rerun
+- 2026-11-13T01:54:34Z occurrence=0-29 by=runner note=run_43331999232_job_131578715028_iris(production)_on_ocutalon-ci-4_live:production-restart_first_start:'Error_merging_CPF_file._$zf(-100)_exited_with_7'(Initialize_FAILURE,no_test_ran);OCT-epic0_ab9bc6f7(0.33+0.29);rerun_failed_jobs
 ### DW-1120: UsagePage announces its failed read and never withdraws it, so a stale error can be spoken after a successful Retry
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: usage-page.ts:474 announces USAGE_TEXTS.error on every failure through the shared Announcer; nothing withdraws it on the next answer. Same root as 25.2's H12 CI red, fixed for History only by Announcer.retract (25.2 rework 2).
@@ -7721,3 +7724,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 22.6 gate ruling M(4), 2026-11-13 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 21.10 V4 removes the cut; 22.6 P2 states it
 - 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=Planner ruling M(4)
+
+### DW-1273: Known regression from Story 0.35: finding-orders-stopped and finding-results-stopped (expected act) went to tellnow in 3 of 5 NEW A/B attempts (4 misses in 10), against 0 of 18 on OLD; the new wording ('switched off or disabled ... a change someone chose to make') pulls a stopped production in with the disabled items
+- source: spec-0-35-routine-attention-decisions-meet-their-target.md | severity: med | fix-risk: low | footprint: in-footprint
+- evidence: release-evidence/ab-035/RESULT.md (Contest Planner A/B, 2026-11-13); not unsafe: Tell now still tells the person at once
+- 2026-11-13T14:41:41Z status=routed owner=0-37-a-production-that-stopped-is-a-fault-to-look-into-not-a-choi by=runner note=Story 0.37 (planning only in this dispatch; Saturday's release, after 1.0.9): separate the two by MEANING (a disabled item is a choice -> tellnow; a production that stopped is a fault -> act), never by copying case text; gate: the same A/B ship rule (a)-(e)
