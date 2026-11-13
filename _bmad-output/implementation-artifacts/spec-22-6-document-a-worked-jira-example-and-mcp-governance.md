@@ -192,7 +192,11 @@ deferred:
 - [ ] **DW-1228** (ledger, ruling H): it is not refused under the current design (Code Map), so it gets the narrow fix and the two tests above.
 - [ ] **Online-demo safety** (standing rule): every doc says that MCP is off on the demo; the code change is inert there (`TestDemoOffersNoProxy`).
 
+- [ ] **[RULED 2026-11-13, Planner M (4)] text conditions**: (a) P1 reads "No message, log, audit entry or answer holds the secret." (without "trace") until the TraceLeaks retrofit (Story 21.14's condition) passes for MCP secrets; (b) "A request that nobody answers within 24 hours expires." cites the code's expiry setting (`Bridge.Approval` `EXPIRYSECONDS`) in the claims and is pinned; (c) P2's "cut to 200 characters" must match the code at merge (Story 21.10 removes the cut and updates P2 and the worked example in the same commit — the orchestrator puts that DW bullet on 21.10); (d) M1 ("Connect an MCP server", hidden on the demo) — when it ships, the README Usability count becomes "Its More to try panel has seventeen more things to try, fifteen of them on the online demo" and every pin of that count follows in the same commit (README is Epic 0's: bring the change to the lead); (e) every other sentence is true of the code at merge, checked by review. Veto 1-6 APPROVED, including the split of the source part into new Story 22.12 (after 22.11 and 21.5, same release), the DW-1228 fix (proxy registered first, `call_mcp_tool` a refused name) and the S19 spine refinement.
+
 ## Spec Change Log
+
+- 2026-11-13 (runner, Planner ruling M (4)): gate APPROVED with the text conditions above; Story 22.12 to be inserted in epics.md.
 
 ## Review Triage Log
 

@@ -7460,12 +7460,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: high | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Live/Payload/Approval.cls
 - evidence: 22.7 Task 0: the Live approval payload renders dryRun.to as an object reference; the card is Story 21.11's (Lane B/C, contended); the stored dry run is exact
 - 2026-11-13T07:03:52Z status=escalated owner=burndown by=harvest note=for the orchestrator: 22.7's merge must also wait for the card fix (21.11 or a Live payload fix in Lane B), per ruling H (iii)
+- 2026-11-13T09:22:32Z status=routed owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=orchestrator note=Planner_M(1):fix_inside_22.7(Live_payload_footprint_extension);22.7_waits
 
 ### DW-1262: A non-owner session's send_email to the mailbox owner's address is raised as an approval and, once approved, sent from the owner's mailbox with that session as SessionRef
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
 - evidence: matrix row says raised; product question whether a non-owner may send through the owner's mailbox at all
 - 2026-11-13T07:03:52Z status=decision-pending owner=burndown by=harvest note=product ruling needed (Planner)
 - 2026-11-13T07:47:28Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=cr note=also_send-time:_mailbox_reconnected_by_another_session_between_raise_and_approval_sends_from_the_new_owner's_mailbox
+- 2026-11-13T09:22:32Z status=routed owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=orchestrator note=Planner_M(2):interim_admin-only_approval_for_email_to_others(test)+guide_sentence;resolved_by_this_interim+25.5
 
 ### DW-1263: The MESSAGEFAILED exception and never-submitted paths of an approved email have no test
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
@@ -7477,3 +7479,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-22.md | severity: med | fix-risk: low | footprint: docker/tests/test-demo-switch.sh
 - evidence: a758d17a ci 43370177969 attempt 1 shards-3 red, attempt 2 green; the S0 hash covers /state chat+rail, so a rail item changing during the switch (inference) would explain it
 - 2026-11-13T09:04:32Z status=routed owner=burndown by=flake note=find what in /state.rail changes across the demo switch; pin or exclude it
+- 2026-11-13T09:22:32Z note=Planner_M(3):CI_flake_family_one_rerun_allowed
+
+### DW-1265: P2 and the worked example in docs say MCP results are cut to 200 characters; Story 21.10 removes the cut and must update P2 and the example in the same commit
+- source: spec-22-6-document-a-worked-jira-example-and-mcp-governance.md | severity: low | fix-risk: low | footprint: docs/mcp-jira-example.md
+- evidence: Planner ruling M (4)(c)
+- 2026-11-13T09:22:33Z status=routed owner=burndown by=harvest note=orchestrator: DW bullet on Story 21.10 (another epic's block)

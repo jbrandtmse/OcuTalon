@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-13-2026 08:04 UTC
+last_updated: 11-13-2026 09:25
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -337,6 +337,7 @@ development_status:
   22-9-bound-mcp-attach-and-listing-with-a-timeout: done
   22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie: 
     ready-for-dev
+  22-12-document-polling-a-jira-mcp-tool-as-a-source: backlog
   epic-22-retrospective: optional
 
   epic-23: in-progress

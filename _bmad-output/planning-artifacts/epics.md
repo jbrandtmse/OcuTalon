@@ -7775,6 +7775,7 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **Given** the documentation in `docs/`
 **When** this story merges
 **Then** a worked example connects a Jira MCP server over HTTPS with its credential as a `secret://` IRIS Wallet reference, classifies its tools (searches read-only; creating, changing or commenting on tickets risky), sets "new tickets assigned to me" as a source poll, and shows the digest's Jira entry and a held risky call (FR-50, FR-48, UX-DR106)
+**And** [AMENDED 2026-11-13, Contest Planner ruling M (4) (Rule 5 split, veto 2 approved): the source half of this criterion -- setting "new tickets assigned to me" as a source poll, the digest's Jira entry and the source half of the release check -- moved to Story 22.12; this story documents the tools half only]
 **And** this story supplies the worked example's path under `docs/`, from which Lane B's Story 36.2 (was 24.1) adds the README link, so it needs no Lane B action (FR-58, AD-29)
 
 **Given** the security overview, whose MCP section Epic 14 wrote for releases without MCP support
@@ -7886,6 +7887,20 @@ So that a server that stops answering in the middle of a request can never hold 
 **Then** OcuTalon's own Streamable HTTP client (Story 22.3's, with Story 22.9's bounds) does the listing and the call, both give up within a bounded time with a clear error, and the turn goes on without that server's tools; AI Hub's MCP client is no longer used for listing or calling, and the gate, classification by fingerprint, approval and audit apply exactly as before (FR-47, FR-48, FR-49, AD-10, AD-21, AD-31)
 **And** AD-21's "AI Hub lists, OcuTalon calls" rule and its Story 22.9 residual note are amended to match (AD-21)
 - [AMENDED 2026-11-13, Contest Planner ruling H: the AD-21 re-architecture this story proposes is DECLINED for the contest window; the story is deferred to the owner's decision after the contest and is not built in this release. DW-1221 moved to Story 22.6 (recorded as a measured known limit in AD-21 S11); it read "- DW-1221: Mcp.Client has no total deadline per request (Timeout is per read), so a server that trickles bytes can hold a runner job past CALLSECONDS (ledger; routed by harvest 2026-11-12)"]
+
+### Story 22.12: Document polling a Jira MCP tool as a source
+
+As a production developer,
+I want the worked Jira example to show a read-only Jira MCP tool polled as a source, with the source on my digest's coverage list,
+So that I can set up new-ticket polling the governed way.
+
+**Lane:** A. **Depends on:** Stories 22.5 and 22.11 (the polled source) and Lane B's Story 21.5 merged (story-level). [ADDED 2026-11-13, Contest Planner ruling M (4): split from Story 22.6's first criterion; same release]
+
+**Acceptance Criteria:**
+
+**Given** the worked example `docs/mcp-jira-example.md` from Story 22.6
+**When** this story merges
+**Then** it sets "new tickets assigned to me" as a source poll of a Read-only Jira search tool, shows the source's entry on the digest's coverage list (checked, or not checked with its reason), and the source half of the release check covers it, with every sentence true of the code at merge and brought to the Planner as PUBLIC TEXT (FR-50, FR-36, AD-28)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 
