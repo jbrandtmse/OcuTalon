@@ -2,9 +2,9 @@
 title: 'Story 22.3: Call MCP tools only through the governed proxy'
 type: 'feature'
 created: '2026-11-11'
-status: 'in-progress'
-baseline_revision: '804300dd0e74edb68ca7f6345537c1b76691b4dd'
-baseline_commit: '804300dd0e74edb68ca7f6345537c1b76691b4dd'
+status: 'done'
+baseline_revision: 'cc3bea77f492a14bd200bc8ba22bd2d26aaa4e3c'
+baseline_commit: 'cc3bea77f492a14bd200bc8ba22bd2d26aaa4e3c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -265,7 +265,8 @@ Rejected or closed at emission (this re-review):
 - `[low]` `wontfix-theoretical` the switch's `git grep` also matches comments and test classes - the checker's predicate predates this story; real if `call_mcp_tool` left the code but stayed in a comment, and Story 22.6 replaces these controls. (verification-gap)
 - `[low]` `reject` older ACs (the label's web escape and Telegram parse mode, the 40,000-character total, condition (e)) have no `mutation:` line - outside the rework range and not HIGH; round 1 closed them. (verification-gap)
 
-- [ ] [CI] iris (shards-8): `OcuTalon.Test.Agent.Constants` `TestToolNames` fails on af886ee3 (ci run 43344958166, unit shard:lane-a@Agent): "there are 21 tool names (Story 23.2 adds propose_fix)" -- Story 22.3 added `Tools.Names.#CALLMCPTOOL` (`call_mcp_tool`), so the count is now 22 -- `src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls` L44 -- update the expected count to the real number and the message to name Story 22.3's `call_mcp_tool`; if the test also lists the names, add `call_mcp_tool` there. Verify with `ci/iris.sh class OcuTalon.Test.Agent.Constants` on a lane D warm stack.
+- [x] [CI] iris (shards-8): `OcuTalon.Test.Agent.Constants` `TestToolNames` fails on af886ee3 (ci run 43344958166, unit shard:lane-a@Agent): "there are 21 tool names (Story 23.2 adds propose_fix)" -- Story 22.3 added `Tools.Names.#CALLMCPTOOL` (`call_mcp_tool`), so the count is now 22 -- `src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls` L44 -- update the expected count to the real number and the message to name Story 22.3's `call_mcp_tool`; if the test also lists the names, add `call_mcp_tool` there. Verify with `ci/iris.sh class OcuTalon.Test.Agent.Constants` on a lane D warm stack.
+  - `mutation:` drop `CALLMCPTOOL` from `Tools.Names` -> `Test.Agent.Constants:TestToolNames` red (the count of 22 and the `call_mcp_tool` value assertion); reverted byte-identical.
 
 ## Spec Change Log
 
@@ -343,6 +344,18 @@ Rejected or closed at emission (this re-review):
   - `[low]` `[reject]` header comments name only the checker's switch (blind-hunter) - the comment above the controls states the pin; cosmetic.
   - `[low]` `[reject]` the guard reads the tracked src, state the test did not create (verification-gap) - the same predicate as the checker's; both agree by construction.
   - Intent Alignment Auditor: reading A (pin the switch) implemented; no divergence beyond the rows above.
+
+### 2026-11-12 - Review pass (rework iteration 2, [CI] item, follow-up pass false)
+
+- verdicts: 6 findings from the layers - high 0, medium 0, low 6, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` the ticked item records only the red mutation, no green run (blind-hunter) - the green runs are recorded in the Auto Run Result; the item asks for no run id.
+  - `[low]` `[reject]` `baseline_revision` and `baseline_commit` moved to cc3bea77 (blind-hunter) - step-03 requires capturing the baseline at each re-dispatch; the earlier rounds stay in the Review Triage Log.
+  - `[low]` `[reject]` the test message and comment do not attribute `PROPOSEFIX` to Story 23.2 (blind-hunter) - the comment lists the name and the count is correct; cosmetic.
+  - `[low]` `[reject]` the count is a bare number that each tool-adding story must bump (blind-hunter) - the item prescribes updating the expected count; a derived count would stop pinning the set.
+  - `[low]` `[reject]` no value assertions for `PROPOSEFIX` and `DOCUMENTS` (blind-hunter) - outside this item ("work only this item").
+  - `[low]` `[reject]` the RELEASE1 negative check uses the literal `call_mcp_tool` where `INCIDENTSUMMARY` uses `$Parameter` (blind-hunter) - the literal matches the `propose_persona` line beside it, and the value assertion above pins the parameter.
+  - Edge Case Hunter: 0 findings. Verification Gap Reviewer: 0 findings (count of 22 checked against `Tools.Names`). Intent Alignment Auditor: reading C plus D (count and message, two pins on `call_mcp_tool`, item ticked) implemented; no divergence beyond the rows above.
 
 ## Design Notes
 
@@ -570,14 +583,14 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 Status: done
 Blocking condition: none
 
-**Summary (rework iteration 1, the `[CI]` item only).** The two `overviewdoc` controls of `docker/tests/test-release-sequence.sh` ("the can't-connect sentence below the first line" and "the MCP rules sentence dropped") now pin the checker's switch: while `src` holds `call_mcp_tool` each asserts that its fixture differs from the committed overview and that the checker gives no complaint; otherwise they are unchanged. Neither control is skipped or deleted.
+**Summary (rework iteration 2, the `[CI]` item only).** `Test.Agent.Constants:TestToolNames` expects 22 tool names (message names Story 22.3's `call_mcp_tool`) and pins `Tools.Names.CALLMCPTOOL` = `call_mcp_tool` and its absence from `RELEASE1`.
 
-**Files changed.** `docker/tests/test-release-sequence.sh` (`t_overviewdoc`); this spec (ticked item, `mutation:` lines, triage row, this section).
+**Files changed.** `src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls` (`TestToolNames` count, message, doc comment, two assertions); this spec (ticked item with `mutation:` line, triage row, this section).
 
-**Review findings.** 13 findings from the three finding layers (all low), grouped in 7 rows: 1 patched (the fixture-differs assertion for both controls), 6 rejected with reasons in the Review Triage Log, 0 deferred.
+**Review findings.** 6 findings (all low): 0 patched, 6 rejected with reasons in the Review Triage Log, 0 deferred.
 
-**Follow-up review recommended:** false (no high patched; follow-up pass: one low patched).
+**Follow-up review recommended:** false (follow-up pass; no high patched; patched counts: high 0, medium 0, low 0).
 
-**Verification performed.** `bash docker/tests/test-release-sequence.sh`: PASS all rules, run alone after the patch; `bash docker/tests/test-boundaries.sh`: all rules passed. Mutations: the checker's guards flipped -> both pinned controls red; the fixtures made no-ops -> both "changed the file" assertions red; each reverted byte-identical.
+**Verification performed.** `OCUTALON_WARM=1 ci/iris.sh class OcuTalon.Test.Agent.Constants` and `OcuTalon.Test.Agent.Instructions` on the lane D warm stack: pass; `bash docker/tests/test-boundaries.sh`: all rules passed. Mutation: `CALLMCPTOOL` dropped from `Tools.Names` -> `TestToolNames` red; reverted byte-identical. `ci/warm.sh down` ran, no containers left.
 
-**Residual risks.** None new. Once Story 22.6 rewrites the overview's MCP section, its real controls replace these.
+**Residual risks.** A fresh CI run has to confirm shards-8 after the lead's push.
