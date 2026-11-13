@@ -7762,11 +7762,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Web/Api.cls OnPreDispatch, IsAdmin; Web/RoleSettings.cls Refusal; Task 0 (c): 8 h idle timeout renewed per request
 - 2026-11-13T22:43:57Z status=escalated owner=burndown by=harvest note=security posture: extend the C-24h live re-read to OcuTalonAdmin (same call, p95 0.066 ms); for the Planner/decision sheet
+- 2026-11-13T23:56:04Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=lead note=Planner_final_ruling_2:_live_re-read_extends_to_OcuTalonAdmin_under_C-24h_rules,_into_25.4_now
 
 ### DW-1297: Settings > Roles shows the step-2 text 'Saved. Applies within a minute. Recorded in the audit log.' for a save that changed nothing (changed false, e.g. granting a role the user already holds), though no audit entry is written
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: roles-section.ts change(): every 200 shows SETTINGS_TEXTS.saved; SaveRoles answers changed false and Assign writes no entry for a no-op (I/O matrix Repeat row)
 - 2026-11-13T23:26:30Z status=decision-pending owner=burndown by=cr note=needs a Planner text ruling: a no-change text, or no confirmation for changed false; new public text is owner-only
+- 2026-11-13T23:56:04Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=lead note=Planner_final_ruling_3:_option_a:_no_audit_entry_and_text_No_change:_{user}'s_roles_are_already_as_you_set_them.,_into_25.4_now
 
 ### DW-1298: Viewer guards in 9 of the 14 guarded components (try-it row, more to try, demo guide Run again, got it, noise control, documents bar and Remove, mailbox, phone, chat drop) are pinned only by source-text regexes, with no rendered viewer check
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-story
@@ -7781,3 +7783,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; Story 21.4 pass 2 finding; Contest Planner ruling 2026-11-13 | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: 21.4 pass 2: initial bundle 1,011,990 bytes with the MCP section (from 992,400), 998.08 kB after lazy-loading it
 - 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
+
+### DW-1303: Self-lockout: Settings > Roles lets an admin grant OcuTalonViewer to themselves, which (viewer wins, Planner 25.4 final ruling 1) locks them out of Settings; the save must refuse it with reason self_viewer and the text: "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin."
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Install/Step/Roles.cls Refusal and Web/RoleSettings.cls have no acting-user check (grep self/actingUser at 8d2db7ce); Planner 25.4 final ruling 1 (story-254-rulings-20261113.md, ~00:05Z Nov 14)
+- 2026-11-13T23:56:04Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=lead note=Planner ruling: report-only check found no refusal; routed to 25.5 with reason self_viewer and the given text (PUBLIC TEXT approved by the ruling)

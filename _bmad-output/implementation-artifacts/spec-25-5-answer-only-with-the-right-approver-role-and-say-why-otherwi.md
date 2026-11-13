@@ -241,6 +241,7 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
   - Q2: `MayApprove` stays admin-only until 26.4's plan. Q3, Q4 (item 9) approved.
   - Q5: implement precondition APPROVED: 22.7 merged and integrated forward, and 25.4 implemented; do NOT split the story.
   - Q6: 25.5 carries the GUIDE update as its own change: in GUIDE.md "## Gmail and Microsoft 365", P1's paragraph (shipped by 22.7), replace ONLY the middle sentence ("When OcuTalon asks you to approve an email, only an OcuTalon admin can approve it: without the admin role your approval is refused and the email isn't sent, and no other user can answer your request.") with, word for word: "Only an OcuTalon admin can have OcuTalon email another address: without the admin role, OcuTalon tells you so and sends nothing." Keep the first and last sentences unchanged; update every doc-test pin it trips without changing the wording. The review checks it against the merged raise refusal; a mismatch is a STOP (`PUBLIC TEXT:`).
+- [ ] [Ledger] DW-1303 (routed by the lead 2026-11-14 from the Contest Planner's 25.4 final ruling 1; PUBLIC TEXT approved by that ruling): `Install.Step.Roles.Refusal` / `SettingsOps.SaveRoles` refuse an admin granting `OcuTalonViewer` to THEMSELVES (the acting user equals the target user, compared in lower case) with reason `self_viewer` and the field text, word for word: "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin." Nothing changes and no audit entry is written. Tests: a class-level refusal test with its `mutation:` line (the check skipped -> red), and a real-HTTP case as the README admin. Removing one's own viewer role, and granting oneself `OcuTalonApprover`, stay allowed. Footprint: 25.4's files (`Install/Step/Roles.cls`, `Web/RoleSettings.cls`, `web/src/app/settings/roles-view.ts`, lazy chunk only).
 **Acceptance Criteria:**
 - AC 1: Given an answer from any channel to a request the session can see, when `AnswersIn`'s handler takes it, then after the ownership and answer-shape checks it asks `Approval.MayAnswer` for the session's IRIS user. On 0 it returns `not_allowed` with `{"kind"}`, answers nothing and sends nothing to `AnswerOps`. On 1 it hands the answer over as before.
 - AC 2: Given the online demo, when the demo-role user holding the fixture `OcuTalonApprover` answers, then its own request is answered and another session's request is refused by the owning-session rule and stays pending: both checks run.
@@ -253,6 +254,8 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
 - DW-1268: AC 1, AC 3, AC 4 and the catalog task.
 
 ## Spec Change Log
+
+- 2026-11-14 ~00:00Z, lead: DW-1303 (self_viewer refusal) routed to this story by the Contest Planner's 25.4 final ruling 1; added as a `[Ledger]` task and an epics.md bullet.
 
 - 2026-11-13 ~19:40Z, lead: Contest Planner rulings recorded (`story-255-rulings-20261113.md`): all APPROVED; audit addition (existing outcome only); Q1 (a) with DW-1281 resolved-by 25.5; Q5 precondition; Q6 GUIDE middle-sentence replacement carried by 25.5. Worked into Tasks & Acceptance as the `[Ruling]` item. Implement still waits for 22.7 merged + 25.4 done.
 

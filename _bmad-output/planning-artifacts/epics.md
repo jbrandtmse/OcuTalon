@@ -8702,6 +8702,7 @@ So that I know who has to approve it.
 **When** each kind is answered by a user holding only another kind's role, by a holder of `OcuTalonApprover`, and by the README account after an upgrade (holding the fixture `OcuTalonApprover` until Story 26.4's upgrade grants it)
 **Then** only the right roles answer, the others are told why on the page and the phone and get `not_allowed` from `AnswersIn`'s Telegram entry, and the demo path still passes (FR-11, FR-60, REL-2, AD-29)
 - DW-1268: 37.1's obligation for 25.5: AnswersIn calls Approval.MayAnswer before Answer, the not_allowed slot carries the row's ApproverKind, and one 'Only an approver for ...' sentence per approver kind (seven; setting rows keep today's rule) comes as PUBLIC TEXT (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
+- DW-1303: Settings > Roles must refuse an admin giving themselves OcuTalonViewer (self-lockout; viewer wins), reason self_viewer, text "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin." (ledger; routed by lead 2026-11-14, Contest Planner 25.4 final ruling 1)
 
 ### Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure
 

@@ -140,3 +140,6 @@
 2026-11-13T23:51:45Z	Story 25.4	committed	sha=93dd1568 submodules= ci=hold(not_pushed;CI_HOLD_1.0.9) runs=none amendments=epics.md(25.4_AC1),EXPERIENCE.md:1143,ARCHITECTURE-SPINE.md(AD-24_S2,row_1614) note=local_only;LOCAL_READY
 2026-11-13T23:51:45Z	Story 25.4	story_cycle	plan_to_commit_min=330 implement_passes=2(task0_halt,full) reviews=1 rework=0 first_ci=pending(hold) models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=two_planner_gates(gate,task0_stops)
 2026-11-13T23:52:18Z	Epic 25	integrated_forward	feature=848ae83c(records_only) head=c9f1ede4 conflicts_resolved=sprint-status.yaml(feature_side,regenerated,25.4=done,25.5=ready-for-dev) code_diff_vs_tested=none pushed=no(ci_hold)
+2026-11-13T23:56:35Z	Story 25.4	rework_opened	cycle_iteration=3 iteration=1 trigger=planner_final_rulings(story-254-rulings-20261113.md) items=DW-1290,DW-1297 scope_baseline=8d2db7ce note=ruling1_no_veto(viewer_wins);self_viewer_not_refused->DW-1303_routed_25.5
+2026-11-13T23:56:35Z	Epic 25	ledger_routed_planned	story=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi entries=1(DW-1303) excess=0 by=lead
+2026-11-13T23:56:35Z	Story 25.4	stage_spawned	stage=implement spawn_at=2026-11-13T23:56:35Z model=sonnet agent_name=25-4-assign-approver-and-viewer-roles-in-settings-implement-3 cycle_iteration=3 note=rework_1
