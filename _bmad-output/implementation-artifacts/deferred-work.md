@@ -7751,3 +7751,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Channel/Telegram/In.cls:184,204,256 and Channel/Email/In.cls:37 never read OcuTalonUser/$Roles/GetUserRecursedRoleSet; Bridge/Approval.cls:325,412 does at answer time (measured by 25.4 Task 0, C3)
 - 2026-11-13T19:31:44Z status=routed owner=burndown by=spec_gate note=Planner ruling C3 (story-254-rulings-20261113.md): report only, does not block 25.4
+
+### DW-1289: Roles audit entry is redacted (from/to blanked) for a user whose name ends in a sensitive suffix (token, secret, password, apikey, ...), because Assign's setting is roles.<userName> and Bridge.Audit.Record redacts by setting name
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Install/Step/Roles.cls Assign + Bridge/Audit.cls Record (Redact.SensitiveKey); the roles.<user> shape is pinned by the Matrix
+- 2026-11-13T22:43:57Z status=wontfix-accepted owner=25-4-assign-approver-and-viewer-roles-in-settings by=harvest note=reopen_if=an admin reports a roles.* audit entry with blank from/to, or a real install has a user named with a sensitive suffix
+
+### DW-1290: A removed OcuTalonAdmin role keeps applying to an open CSP session until it ends (IsAdmin and RoleSettings.Refusal read the session's $Roles; only OcuTalonUser/OcuTalonViewer are re-read live per ruling C-24h); an admin who loses the role and keeps a tab polling keeps /v1/settings and the Roles routes
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Web/Api.cls OnPreDispatch, IsAdmin; Web/RoleSettings.cls Refusal; Task 0 (c): 8 h idle timeout renewed per request
+- 2026-11-13T22:43:57Z status=escalated owner=burndown by=harvest note=security posture: extend the C-24h live re-read to OcuTalonAdmin (same call, p95 0.066 ms); for the Planner/decision sheet
