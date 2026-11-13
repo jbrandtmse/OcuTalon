@@ -2709,6 +2709,7 @@ EOF
   st 'the IPM load line with a second call on its line' 1 "$GUIDE" '/^s r=##class\(%Net\.HttpRequest\)/ { $0 = $0 " d ##class(Foo.Bar).Baz()" } { print }' dev_names_1
   st 'the Complexity row with a class name changed' 1 "$README" '/^\| Complexity \| / { sub(/%AI\.Policy\.Audit/, "%AI.Policy.Audits") } { print }' dev_names_1
   st 'the Complexity row with a class name added' 1 "$README" '/^\| Complexity \| / { sub(/ \|$/, " See OcuTalon.Core.Admin. |") } { print }' dev_names_1
+  st 'a class name on the line after the Complexity row' 1 "$README" '{ print } /^\| Complexity \| / { print "The class OcuTalon.Core.X does it." }' dev_names_1
   st_append 'a class name after the admin section' '## After\n\nThe class OcuTalon.Core.X does it.' dev_names_1
   st 'a class name after the admin section of the guide' 1 "$GUIDE" '{ print } END { print "## After\n\nThe class OcuTalon.Core.X does it." }' dev_names_1
   if [ "$st_bad" -ne 0 ] && [ -z "$(dev_names "$README" "$GUIDE")" ]; then

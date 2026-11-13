@@ -55,6 +55,23 @@ Update, in the same commit, every test pin the new row trips. If a pin would for
 - [x] Verify every claim in the row against the code at 7865c322 (the Planner's list under Design Notes); a false claim stops the story.
 - [x] Demonstrate the mutations (Rule 19) and record them under `## Verification`.
 
+### Review Findings
+
+Code review 1 (2026-11-13; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, no model override).
+
+- [ ] [Review][Decision] HIGH: the row's claim "the model and its timeouts are AI Hub Config Store entries" is false as worded at 7865c322: the entry never holds the model — fix-risk: low (a wording change only, but owner-approved public text, so the Planner decides; the reviewer does not edit it). Evidence: `Install/Step/Provider.cls:7-8` ("An entry holds the provider, the key placeholder ..., the endpoint overrides ... and the timeouts ..., and never a model (the model is the runner's Model setting, AD-7)"); `Bridge/ConfigStore.cls:10-11` ("The model is checked and never written, because an entry never holds a model (AD-7)") and `:63` (`merged.%Remove("model")`); spine AD-7 Rule ("`ProviderConfig` holds the provider, the `@{env:...}` key placeholder, `base_url` and `http_config` only, never the model"; "The Config Store entry's own `model` is ignored"). True part: each runner's AI Hub `AI.LLM.OcuTalon<Agent>` Config Store entry holds its provider connection and timeouts (`Provider.cls:181`, `Timeouts.cls`). A wording the code supports, for the Planner: "each agent's model connection and its timeouts are AI Hub Config Store entries". Owner: lead, to the Planner (PUBLIC TEXT); the story stays in-progress until the row is re-approved and COMPLEXITY_ROW follows it.
+- [x] [Review][Patch] HIGH: `docker/tests/test-release-notes.sh`'s copy of the dev-only check (`static_names`, run by CI's `release-notes` check) had no exemption for the row, so CI went red (`names_outside_section on README.md: got 'README.md:38'`, `FAIL static`) [docker/tests/test-release-notes.sh:881] — fix-risk: low (extends `static_names` with the same word-for-word exemption it has for IPM_LOAD, read from test-readme.sh's COMPLEXITY_ROW; one more broken-copy line). Reviewer ruling: the intent's "update every test pin the new row trips" covers this file, as 11.24 needed for the IPM line.
+- [x] [Review][Patch] MED: the broken-copy row the task names ("a class name on its own line next to it is still flagged") was missing; the row added instead tests a class name inside the row, so an exemption that leaked to the next line passed [docker/tests/test-readme.sh:2712] — fix-risk: low (one `st` row; mutation below). Sources: all four layers.
+- [x] [Review][Patch] LOW: the Word cap and Links rows of the I/O matrix had no `mutation:` line — fix-risk: low (closed in-pass, mutation below).
+
+Rejected:
+- low: the exemption is not scoped to the judges' section or to the README (the exact row pasted elsewhere would pass) — theoretical; the IPM_LOAD exemption works the same way.
+- low: no rule ties the row's class names to the classes' superclasses — no judges' row is tied to code, and the fix is new rules, not a correction.
+- low: "every approval lands in the IRIS audit log" holds only while instance-wide auditing is on — it is on in OcuTalon's image (docker/tests/test-audit.sh row 10), the Audit install step warns when it is off, README line 52 already says the same, and the wording is owner-fixed.
+- low: the implement-stage record omits evidence for two claims — the fix is a spec edit; this review's claim check covers every claim.
+- low: a later edit of the row fails dev-only with a generic message — the comment on COMPLEXITY_ROW says why, and any row change needs the Planner first.
+- low: the claim check and "one changed README line" have no automated pin — a human check by nature; both verified in this review, and COMPLEXITY_ROW pins line 38 word for word.
+
 ## Design Notes
 
 - Governing ADs: none binds README prose directly; the claims cite AD-backed code (AD-7 agents, AD-19 Config Store, the gate and audit classes). The text is public-facing and owner-approved through the Planner (policy `veto_window` "public-facing text" is satisfied by that approval).
@@ -85,6 +102,10 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: drop `|| $0 == complexity` from `dev_names` (no exemption) → `FAIL dev-only: no ##class(, class name or error code ...` naming `README.md:38` (the approved row trips the rule without its exemption).
 - mutation: exempt by prefix instead of word for word (`index($0, "| Complexity |") == 1`) → `self-test: the Complexity row with a class name changed: not flagged`, `... with a class name added: not flagged`, `FAIL dev-only: a broken copy was not flagged` (the two new broken-copy rows are live).
 - mutation: README line 38 `over 40 items` → `over 50 items` → `FAIL dev-only` naming `README.md:38` (the exemption pins the row's wording).
+- mutation (code review 1): the exemption in `dev_names` leaks to the next line (`{ getline; next }`) → `self-test: a class name on the line after the Complexity row: not flagged`, `FAIL dev-only: a broken copy was not flagged`.
+- mutation (code review 1): drop the Complexity clause from `static_names` in `docker/tests/test-release-notes.sh` → `names_outside_section on README.md: got 'README.md:38'`, `break: the load line changed, a class name and the Complexity row changed are reported: got '... ipm.md:4 ...'`, `FAIL static` (`bash docker/tests/test-release-notes.sh`, about 20 s).
+- mutation (code review 1): README.md with 70 words appended (2,309 words) and the row's Gate.cls link pointed at `Gatex.cls` → `FAIL word-cap` and `FAIL readme-links` (and `FAIL dev-only`, the row changed).
+- Code review 1 also ran `bash docker/tests/test-release-notes.sh` (it is in CI's `CHECK_SCRIPTS`; before the patch `FAIL static` on `README.md:38`, after it every rule passes) and `bash docker/tests/test-readme.sh` (`all rules passed`). Each mutation was reverted from a saved copy: `cmp` identical, `git status --short` and `git diff --stat` unchanged.
 
 ### Implement-stage results (2026-11-13, lead handoff edit)
 
