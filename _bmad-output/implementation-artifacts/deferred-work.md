@@ -7708,3 +7708,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace.md (code review) | severity: low | fix-risk: med | footprint: in-story
 - evidence: Holds tests data [ text on the raw node (Test/Core/SecretHandoff.cls Holds); %Stream.GlobalCharacter COMPRESS=1 stores compressed chunks; no OcuTalon message class has a %Stream property today (Data.SettingStream sets COMPRESS=0 for the same reason)
 - 2026-11-13T15:34:27Z status=wontfix-accepted owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=cr note=reopen_if=an OcuTalon message class gains a %Stream property, or a scanned value can share a stored element with a char above $Char(255)
+
+### DW-1280: Test.Bridge.ModelChange:TestSetModelEveryAgent flakes in CI: 'DiagnosisAgent was not restarted'
+- source: ci run 43457520830 (OCT-epic21 4af1db03, iris shards-9) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls
+- evidence: one failure on a head whose diff touches no bridge, model or agent code (21.14: settings handoff and test leak scans); class ran 137 s
+- 2026-11-13T17:35:59Z status=open owner=burndown by=epic-21-runner note=flake rule: one rerun of the failed job; occurrence 1
