@@ -2,7 +2,7 @@
 title: 'Story 22.7: Send email from the chat, safe to you and approved for anyone else'
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'b602e292fd1b9de3492d8dc982b1137ce1e46013'
 baseline_commit: 'b602e292fd1b9de3492d8dc982b1137ce1e46013'
 review_loop_iteration: 0
@@ -347,6 +347,8 @@ Rejected:
 - `low` `EmailTools.SendEmail` never reads its recipients argument (acceptance 7): the gate decides before the body runs and the only address it can reach is the mailbox's own.
 - `low` `CreateUser` is repeated in `Test.Fix.Email` and `Test.Fix.EmailCard` (Rule 2, own check): a three-line wrapper of one `Security.Users.Create` call with different roles, not a near-copy of logic.
 - `reject` (fix edits the spec under review) The spec's frontmatter `status`, the stale Auto Run Result and Tasks lines, the triage-log counts, the edited-methods list (no `Handle`), the `(loop)` list without `Test.Fix.EmailRoute`/`Test.Fix.EmailCard` (CI's shards run them by folder) and the proposed GUIDE sentences (blind 4-8, edge 6, verification-gap 7).
+
+- [ ] [CI] iris (shards-9) `shard:lane-a@Bridge`: `OcuTalon.Test.Bridge.Decide` `TestEstimateTokens` fails on f0cc2010 — "Chat: the system prompt of the live agent, 9577, and the JSON of the Reminders, Watching, Persona and Memory toolsets' tools, 20513" (https://github.com/jbrandtmse/OcuTalon/actions/runs/43454578653/job/131985214716). Cause: this story added `OcuTalon.Tools.Email` to `Agent.Chat` `TOOLSETS`, so `AgentChars` of Chat now also counts the `send_email` tool's JSON, while the pin sums only four toolsets (a shared surface the story's `Shared surfaces:` line missed). Fix (test only, `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls`): measure the Email toolset's tool JSON the way the others are measured, add it to the Chat sum and name it in the assertion message (and in any doc comment that lists Chat's toolsets); keep the catalog-within-a-tenth check; write its `mutation:` line (drop the Email term -> red). Then grep the other pins of Chat's toolsets or request size (`Test/Bridge/{ZzToolsets,Compaction,Conversation}.cls`, `Test/Agent/RequestSize.cls`) and confirm each still holds on a warm throwaway (one class per call); change one only if it fails. Add `Agent.Chat TOOLSETS (Test.Bridge.Decide TestEstimateTokens)` to the `Shared surfaces:` line.
 
 ## Spec Change Log
 
