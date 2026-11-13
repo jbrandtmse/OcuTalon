@@ -93,12 +93,22 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-12, Contest Planner rulings on V1-V7 (binding) applied by the runner to Design Notes and Proposed public text; no re-plan needed (the contracts' plan is unchanged; the texts are now accepted, so EXPERIENCE.md gets the Settings (step 5) block per Decided 12).
+
 - 2026-11-12, runner ruling (doctrine U5 decide, split 2 of 6; logged `ruling` in cycle-log-epic-36.md): split (A) applied in epics.md. Story 36.2 is retitled "Fix Lane B's step 5 contracts: paging, escalation and the SQL query watch verb" (sprint key `36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql`; this file renamed to match) and keeps the first criterion with its "And" clauses; Story 36.4 "Set the on-call person and backup in Settings" takes the user story and the five on-call section criteria verbatim (planned next). Earlier, Story 36.3 took the README Jira-example criterion (split 1 of 6). Status reset to `draft` for re-planning and validation as the contracts story; the on-call section's design notes remain as input for 36.4's plan.
 - 2026-11-12, re-plan (cycle_iteration 2): the blocking split condition is dropped (`### Proposed split` is now a short record of the ruling); the `multiple-goals` warning is cleared; the on-call-only notes are grouped under `### For Story 36.4 (input to its plan)`; Code Map line anchors re-checked at `6c55d82c362a55c9e0747db25086545642e3cd38`; Decided in-stage 4 corrected (WatchOps's answer) and 11-15 added (the second "And" clause's reading, the EXPERIENCE.md condition, online-demo behaviour, 36.1 order, the local regression sizing); an acceptance mapping, AC 1's spine check and one mutation per AC added; the Verification lines resized (no whole `ci/checks.sh` line). The frozen intent block is unchanged. KEEP: the Spine additions, the Proposed public text and the veto items, verbatim.
 
 ## Review Triage Log
 
 ## Design Notes
+
+### Planner rulings (2026-11-12, binding; `.coordination/prompts/story-362-rulings-20261112.md`)
+- Splits approved: 36.2 = contracts; 36.4 (on-call Settings); 36.3 (Jira docs link, after 22.6). Order 36.1 -> 36.2 -> 36.4 -> 36.3.
+- V1 routes named in the spine (admin-only; demo visitors 403, an admin 409 `not_available`; 36.2 adds none): approved.
+- V2 stored data: approved (a removed contact's row is deleted; the demo never writes; `SetReminder` append-only).
+- V3: audit WITH from/to values, ONLY in the IRIS audit log; in no other log, trace, digest, notice or eval output; ONE leak-scan test pins it (36.4 / 24.2). 36.2 writes this rule into the spine.
+- V4 (no grants), V5 (page email only to the configured address for that role, only for a real page row, once; CI mail mock only; Telegram only to the paired chat; 36.2 sends nothing; never on the demo), V6 (AD additions): approved. The demo-safety pin that `SaveSqlWatch` is refused from `web_user`: approved.
+- V7 text: approved verbatim EXCEPT `settings.onCallOffOnDemo` and `settings.sqlHelp` (rewritten below); `settings.partnersHelp` approved on condition 24.2 pins both halves. The strings SHIP in 36.4 and 24.2 (`settings-view.ts`), not in 36.2; 36.2 writes the accepted texts into EXPERIENCE.md › Message Catalog › "Settings (step 5)" (they are now accepted), with the two replacements and the two conditions noted. No GUIDE or More-to-try line for 36.2.
 
 **Ledger inbox (Rule 17):** none owned by `36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql` (`owned_ledger=0`).
 
@@ -195,7 +205,7 @@ No criterion contradicts an AD's Rule. (Spine headings at `6c55d82c362a55c9e0747
   - `oncall.escalationMinutes`: a whole number from 1 to 1440, default 15.
   - A role is configured when its user or its address is set. With no on-call person, nothing is paged.
   - The online demo never has these keys: the section is refused `not_available` and absent from `GET /api/v1/settings`.
-  - Audit entries hold from/to values like the step-2 keys (veto V3).
+  - Audit entries hold from/to values like the step-2 keys, ONLY in the IRIS audit log, never in any other log, trace, digest, notice or eval output; one leak-scan test pins it in the story that writes the keys (36.4; 24.2 for partner contacts) (veto V3, RULED 2026-11-12).
 - **AD-19, step-5 settings sections (all admin-only through `OnPreDispatch`; on the online demo each answers 409 `not_available` and is absent from the GET):**
   - `on-call`: `POST /api/v1/settings/on-call`, kind `oncall`, its own saver (Story 36.4).
   - `partner-contacts`: `POST /api/v1/settings/partner-contacts`, kind `contacts`, its own saver writing the partner-contact table (Story 24.2).
@@ -253,7 +263,8 @@ No criterion contradicts an AD's Rule. (Spine headings at `6c55d82c362a55c9e0747
   - Online demo: none of it is written.
 - **V3, people's contact data.**
   - On-call user names and email addresses, and partner names and addresses, are stored as plain configuration.
-  - Recommended: audit the on-call keys like the other product keys, with from/to values and addresses. The IRIS audit log is admin-only, and an admin must see who was put on call.
+  - **RULED (Planner, 2026-11-12): audit WITH the from/to values** (where pages and partner warnings go is security-relevant; redirecting them is an attack). Conditions: the values go ONLY into the IRIS audit log (admin-only) and appear in no other log, trace, digest, notice or eval output; ONE leak-scan test pins that (in Story 36.4 for the on-call keys, Story 24.2 for partner contacts; 36.2 writes the rule into the spine).
+  - (Was recommended: audit the on-call keys like the other product keys, with from/to values and addresses.)
   - Alternative: redact addresses in the audit through `Redact.SensitiveKey`.
   - Never in a production message, log or trace beyond the audit entry.
   - Online demo: none.
@@ -288,11 +299,11 @@ On call (Story 36.4):
 - `settings.onCallBadMinutes` (field error): "Enter a whole number of minutes from 1 to 1440. Nothing was changed."
 - `settings.onCallNoChannel` (field error on Page by): "Choose a way to reach this person: Telegram needs a paired chat, email needs an address. Nothing was changed."
 - `settings.onCallUnknownUser` (field error on Person): "{user} isn't an OcuTalon user any more. Choose again. Nothing was changed."
-- `settings.onCallOffOnDemo` (the 409 `not_available` body): "The online demo has no on-call person, because it has no admin. On your own install, an admin chooses one here."
+- `settings.onCallOffOnDemo` (the 409 `not_available` body): "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here." (Planner ruling 2026-11-12: replaces "because it has no admin")
 
 Partner contacts (Story 24.2):
 - `settings.partnersSection`: "Partner contacts"
-- `settings.partnersHelp`: "Partner warnings go only to the people listed here, and only after you approve each one."
+- `settings.partnersHelp`: "Partner warnings go only to the people listed here, and only after you approve each one." (Planner ruling 2026-11-12: approved on condition that Story 24.2 pins both halves in tests)
 - `settings.partnerName`: "Name"; `settings.partnerEmail`: "Email address"; `settings.partnerProductions`: "Productions it concerns"; `settings.partnerAdd`: "Add contact"; `settings.partnerRemove`: "Remove"
 - `settings.partnerRemoveConfirm`: "Remove {name}? Partner warnings will stop going to {address}."
 - `settings.partnerBadName`: "Enter a name of 1 to 128 characters. Nothing was changed."
@@ -301,7 +312,7 @@ Partner contacts (Story 24.2):
 
 SQL query watches (Story 24.2; the refusal reasons come from `WatchOps`, Story 23.8):
 - `settings.sqlSection`: "SQL query watches"
-- `settings.sqlHelp`: "OcuTalon runs each query on its schedule as a user that can only read, and tells you when the result changes."
+- `settings.sqlHelp`: "OcuTalon runs each query on its schedule and tells you when the result changes." (Planner ruling 2026-11-12: the "as a user that can only read" wording is a security claim AD-18 marks (inference); it may ship only once Story 23.8's test proves the reader user is refused on INSERT, UPDATE, DELETE and DDL)
 - `settings.sqlName`: "Name"; `settings.sqlQuery`: "Query (one SELECT statement)"; `settings.sqlMinutes`: "minutes"; `settings.sqlSave`: "Save query"; `settings.sqlRemove`: "Remove"
 - `settings.sqlColumns` (list headings): "Schedule", "Last run", "Last result"
 - `settings.sqlBadName`: "Enter a name of 1 to 128 characters. Nothing was changed."
