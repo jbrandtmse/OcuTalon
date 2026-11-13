@@ -3869,3 +3869,4 @@
 2026-11-13T04:13:53Z	Epic 23	ci_green_verified	head=415ea02d runs=43342524742,43342524753 result=success
 2026-11-13T04:13:53Z	Epic 23	amendments_verified	amendments=epics_23.12_block extensions=14_web_files ok=true
 2026-11-13T04:13:53Z	Epic 23	merge_enqueued	part=23.12 head=182ff57f
+2026-11-13T04:14:21Z	Epic 23	epic_merged_to_feature	part=23.12 feature_sha=83ea7bc8 merge_sha=83ea7bc8 code=415ea02d+feature(no_code_overlap) verified_on_origin=yes
