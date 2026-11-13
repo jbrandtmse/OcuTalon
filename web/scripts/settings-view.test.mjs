@@ -46,6 +46,7 @@ const {
   sectionLabel,
   sectionPath,
   sectionSlug,
+  shownSections,
   settingsMatch,
   stepFailedText,
   storedChannels,
@@ -58,16 +59,27 @@ const {
 const DEFAULTS = { diskFreePercent: 10, journalFreePercent: 10, licenseUsePercent: 90, queueMessages: 100, queueWaitMinutes: 10 };
 
 describe('the sections', () => {
-  it('are the seven of the UX, in its order, each with a slug of its own', () => {
+  it('are the seven of the UX, in its order, then Roles, each with a slug of its own', () => {
     assert.deepEqual(
       SETTINGS_SECTIONS.map((section) => section.label),
-      ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode'],
+      ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode', 'Roles'],
     );
     assert.deepEqual(
       SETTINGS_SECTIONS.map((section) => section.slug),
+      ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'demo-mode', 'roles'],
+    );
+    assert.equal(new Set(SETTINGS_SECTIONS.map((section) => section.slug)).size, 8);
+  });
+
+  it('list Roles only when roles can be assigned, and open Models for the address of a hidden Roles', () => {
+    assert.deepEqual(
+      shownSections(false).map((section) => section.slug),
       ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'demo-mode'],
     );
-    assert.equal(new Set(SETTINGS_SECTIONS.map((section) => section.slug)).size, 7);
+    assert.equal(shownSections(true).length, 8);
+    assert.equal(sectionSlug('roles', false), 'models');
+    assert.equal(sectionSlug('roles', true), 'roles');
+    assert.equal(sectionSlug('roles'), 'roles');
   });
 
   it('open Models for an unknown or a missing address part', () => {

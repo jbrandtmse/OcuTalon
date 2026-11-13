@@ -7,8 +7,9 @@
  * - SETTINGS_TEXTS is every fixed string of the page. The strings that EXPERIENCE.md does not write are ruled (U-269 for the unsaved prompt, the
  *   denied view's link, the threshold labels, the Demo mode texts and the landmark names; U-270 for the Demo step's text).
  *   demoSaved, the Demo mode section's own confirmation, is the text of Story 33.3's AC (DW-699): a saved mode reaches an open chat page only after a reload.
- * - SETTINGS_SECTIONS is the seven sections in the UX's order, each with its address slug.
- * - sectionSlug turns an address part into a section's slug: an unknown or missing one opens Models.
+ * - SETTINGS_SECTIONS is the eight sections in the UX's order, each with its address slug; Roles (Story 25.4) is last and shows only while the snapshot's
+ *   `rolesAssignable` is true, so shownSections(rolesShown) leaves it out otherwise.
+ * - sectionSlug turns an address part into a section's slug: an unknown, missing or hidden (hidden) one opens Models.
  * - pageOf says which page an address is: the settings page, the Documents page, the Usage page or the chat.
  * - THRESHOLD_FIELDS is the five fields of Check thresholds with their ranges; bodyOf, textsOf and isDirty are the rules of its form.
  * - stepFailedText is the Demo step's text for the value that was written.
@@ -38,6 +39,7 @@ export const SETTINGS_TEXTS = {
     timeZone: 'Time zone',
     checkThresholds: 'Check thresholds',
     demoMode: 'Demo mode',
+    roles: 'Roles',
   },
   save: 'Save changes',
   saved: 'Saved. Applies within a minute. Recorded in the audit log.',
@@ -125,7 +127,7 @@ export interface SettingsSection {
   label: string;
 }
 
-/** The seven sections in the UX's order. */
+/** The eight sections in the UX's order; Roles is last and is shown only through shownSections(true). */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'models', label: SETTINGS_TEXTS.sections.models },
   { slug: 'budgets', label: SETTINGS_TEXTS.sections.budgets },
@@ -134,11 +136,20 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'time-zone', label: SETTINGS_TEXTS.sections.timeZone },
   { slug: 'check-thresholds', label: SETTINGS_TEXTS.sections.checkThresholds },
   { slug: 'demo-mode', label: SETTINGS_TEXTS.sections.demoMode },
+  { slug: 'roles', label: SETTINGS_TEXTS.sections.roles },
 ];
 
+/** The slug of the section that exists only while roles can be assigned. */
+export const ROLES_SLUG = 'roles';
+
+/** The sections the navigation lists: all but Roles unless rolesShown. */
+export function shownSections(rolesShown: boolean): readonly SettingsSection[] {
+  return SETTINGS_SECTIONS.filter((section) => rolesShown || section.slug !== ROLES_SLUG);
+}
+
 /** The slug of the section that an address part names, or models (the first) for an unknown or missing one. */
-export function sectionSlug(part: string | null | undefined): string {
-  return SETTINGS_SECTIONS.find((section) => section.slug === part)?.slug ?? SETTINGS_SECTIONS[0].slug;
+export function sectionSlug(part: string | null | undefined, rolesShown = true): string {
+  return shownSections(rolesShown).find((section) => section.slug === part)?.slug ?? SETTINGS_SECTIONS[0].slug;
 }
 
 /** The name of the section with the slug (models for an unknown slug). */

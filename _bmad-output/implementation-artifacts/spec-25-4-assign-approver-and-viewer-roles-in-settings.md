@@ -2,16 +2,30 @@
 title: 'Story 25.4: Assign approver and viewer roles in Settings'
 type: 'feature'
 created: '2026-11-13'
-status: 'in-progress'
-baseline_revision: 'cc9040ab3174e69cf562592e4f36b1381d034be0'
+status: 'done'
+baseline_revision: '0d9406059723f0dd6c44b895747f3b2cfcd73b2d'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
   - '{project-root}/_bmad-output/implementation-artifacts/epic-25-context.md'
   - '{project-root}/_bmad/custom/skill-rules.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      A Settings audit entry for a user whose name ends in a sensitive suffix (token, secret, password, pwd, apikey, username, userid and the like) is written with from and to redacted.
+    evidence: |-
+      Bridge.Audit.Record blanks from and to when Redact.SensitiveKey flags the setting name, and Assign's setting is roles.<userName>, so a user named for example svc.token keeps its entry but loses the role lists. The setting shape roles.<user> is pinned by the Matrix, so the fix (a different member for the user, or an exemption for roles.*) changes a pinned shape.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls Assign; src/bridge/cls/OcuTalon/Bridge/Audit.cls Record
+    severity: low
+  - summary: >-
+      A removed OcuTalonAdmin role keeps applying to an open CSP session until it ends, because IsAdmin and RoleSettings.Refusal read the session's $Roles; only OcuTalonUser and OcuTalonViewer are re-read live (ruling C-24h).
+    evidence: |-
+      Task 0 (c) measured that the web applications renew the 8-hour idle timeout on every request, so an admin who loses the role and keeps a tab polling keeps /v1/settings and the Roles routes. The behaviour is the pre-existing one for the admin role; the ruling scoped the live re-read to the two roles that admit a session.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Web/Api.cls OnPreDispatch, IsAdmin; src/ocutalon/cls/OcuTalon/Web/RoleSettings.cls Refusal
+    severity: medium
 ---
 
 <intent-contract>
@@ -195,13 +209,13 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (measure; throwaway only, with `$LANE` and tag `e25s4i`; record the results under Design Notes "Measured"):
+- [x] Task 0 (DONE in implement pass 1; results under Design Notes "Measured (Task 0, implement stage 2026-11-13 ...)", not re-run):
   - (a) In a production job (`SettingsOps`' context), `Security.Users.AddRoles` and `RemoveRoles` change only the named role.
   - (b) `$SYSTEM.Security.Check("%Admin_Secure","USE")` is 1 in the `SettingsOps` job and 0 in a job logged in as a fixture user holding `OcuTalonAdmin` plus the application roles.
   - (c) After `RemoveRoles(viewer,"OcuTalonViewer")`, does a signed-in viewer's CSP session keep `$Roles` until it signs out (`curl GET /v1/state` before and after)? This decides PUBLIC TEXT row 9 (Planner question 2).
   - (d) Read a `Settings` entry back from `%SYS.Audit` within the existing polling helper's timeout.
   - (e) A `SecretHandoff` put by the production job is taken by the CSP process (the cross-process direction). In-process is measured: up to 3.6 MB.
-- [ ] `Install/Step/Roles.cls` -- Replace the stubs:
+- [x] `Install/Step/Roles.cls` -- Replace the stubs:
   - Add `Parameter ASSIGNABLE = "OcuTalonApprover,OcuTalonViewer";`.
   - Add `Parameter SQLREADER = "OcuTalonSqlReader";` (AD-18's name; a refusal even before that user exists).
   - `ClassMethod Refusal(userName As %String, role As %String) As %String` returns `""` or one code:
@@ -221,8 +235,8 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - `Holders(Output users)`: the demo refusal and the privilege check. In `%SYS`, the `Security.Users:List` rows that hold any role starting with `ROLEPREFIX`, each as `{user, roles: [sorted OcuTalon roles], managed: (Refusal(user,"OcuTalonViewer") = "user_managed")}`, sorted by `$ZConvert(user,"L")` and then by name.
   - Rewrite the class doc lines and the method docs to state the built contract (Rule 14: the contract, not the history).
   - -- AC 1, AC 6; V3.
-- [ ] `Msg/Command/ListRoles.cls` (new; extends `OcuTalon.Msg.Command`, with no property) and `Core/CommandsIn.cls` -- one `XData Routes` row: `{"verb": "ListRoles", "owner": "SettingsOps", "origins": "web_admin"}`, plus one doc line. -- The read verb of the list.
-- [ ] `Core/SettingsOps.cls` -- The contended hunks under Design Notes:
+- [x] `Msg/Command/ListRoles.cls` (new; extends `OcuTalon.Msg.Command`, with no property) and `Core/CommandsIn.cls` -- one `XData Routes` row: `{"verb": "ListRoles", "owner": "SettingsOps", "origins": "web_admin"}`, plus one doc line. -- The read verb of the list.
+- [x] `Core/SettingsOps.cls` -- The contended hunks under Design Notes:
   - `ListRoles(command)`:
     1. Refuse unless the origin is `web_admin`.
     2. Return `not_available` on the demo.
@@ -240,7 +254,7 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - It writes no audit entry of its own (`Assign`'s is the change's entry, Planner question 6).
   - Update the class-doc lines.
   - -- AC 1, DW-1267.
-- [ ] `Web/RoleSettings.cls` (new; extends `OcuTalon.Web.Api`, the HookSettings pattern) and one `Map` line in `Web/Api.cls` -- UrlMap `Url=""` GET `List` and POST `Save`.
+- [x] `Web/RoleSettings.cls` (new; extends `OcuTalon.Web.Api`, the HookSettings pattern) and one `Map` line in `Web/Api.cls` -- UrlMap `Url=""` GET `List` and POST `Save`.
   - `Refusal()`: 403 `not_admin`, then 409 `not_available` with `MESSAGEROLESOFF`, before the body is read.
   - `List`:
     1. Submit `ListRoles` (`web_admin`).
@@ -255,21 +269,21 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
     5. Map the outcomes: `done` 200 `{"result":"done","changed"}`; `refused` 400 `bad_settings` with `{fields, reason}` and the reason's message (PUBLIC TEXT 12); `not_available` 409; `not_built` 501; anything else 500.
   - `ClassMethod RolesReady(roleClass As %String = "OcuTalon.Install.Step.Roles") As %Boolean` is 1 only when `$Parameter(roleClass,"STEP6ROLES")` is exactly 1. The argument is the test seam, as `Core.Files.Readable` does it.
   - -- AC 1, AC 4, AC 5, DW-1267.
-- [ ] `Web/Public/Shell.cls` -- Add `Parameter VIEWERROLE = "OcuTalonViewer";`.
+- [x] `Web/Public/Shell.cls` -- Add `Parameter VIEWERROLE = "OcuTalonViewer";`.
   - `HasRole(roles As %String = {$Roles})` admits `ROLE` or `VIEWERROLE` by whole name.
   - New `ViewerOnly(roles As %String = {$Roles})`: holds `VIEWERROLE` and not `ROLE`.
   - Update the class doc.
   - -- AC 2.
-- [ ] `Web/Api.cls` -- The contended hunks under Design Notes:
+- [x] `Web/Api.cls` -- The contended hunks under Design Notes:
   - The viewer block in `OnPreDispatch` right after the role check: a viewer-only user whose method is not `GET`, unless the request is `POST /v1/session/end`, gets `Fail(403,"read_only",..#MESSAGEREADONLY)`.
   - Private `ViewerOnly()` returns `Shell.ViewerOnly(..Roles())`, so the probe's `Roles` drives it.
   - `HasUserRole` keeps calling `Shell.HasRole()`.
   - `StateBody`: `admin` is `..IsAdmin() && '..ViewerOnly()`, and two booleans follow `filesReadable`: `viewer` (`..ViewerOnly()`) and `rolesAssignable` (onlineDemo off and `Web.RoleSettings.RolesReady()`).
   - Update the doc lines.
   - -- AC 2, AC 3.
-- [ ] `web/src/app/api/api-types.ts`, `api-client.ts` -- Add `viewer` and `rolesAssignable` to `StateSnapshot`, after `filesReadable`. Add `RoleHolder {user, roles, managed}` and the methods `listRoles()` and `saveRole(user, role, grant)`. -- AC 1, AC 2.
-- [ ] `web/src/app/shared/viewer-view.ts` (new, pure) -- `isViewer(snapshot)`, which only `snapshot?.viewer === true` makes true, and `VIEWER_TEXTS.line` (PUBLIC TEXT 14). It is the single reader, following `demo-view.ts`. -- AC 2.
-- [ ] The viewer guards. Each component's control is hidden when `isViewer(live.snapshot())`, with no new layout. -- AC 2.
+- [x] `web/src/app/api/api-types.ts`, `api-client.ts` -- Add `viewer` and `rolesAssignable` to `StateSnapshot`, after `filesReadable`. Add `RoleHolder {user, roles, managed}` and the methods `listRoles()` and `saveRole(user, role, grant)`. -- AC 1, AC 2.
+- [x] `web/src/app/shared/viewer-view.ts` (new, pure) -- `isViewer(snapshot)`, which only `snapshot?.viewer === true` makes true, and `VIEWER_TEXTS.line` (PUBLIC TEXT 14). It is the single reader, following `demo-view.ts`. -- AC 2.
+- [x] The viewer guards. Each component's control is hidden when `isViewer(live.snapshot())`, with no new layout. -- AC 2.
   - `chat/chat-panel.ts`: no composer, `VIEWER_TEXTS.line` in its place, and no chat drop.
   - `approvals/approval-request-card.ts`: no Approve or Reject.
   - `incidents/incident-dismiss.ts`.
@@ -281,7 +295,7 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - `rail/status-rail.ts`: no Telegram, persona, heartbeat or memory card.
   - `documents/documents-page.ts`: no add, sample or remove.
   - `mailbox/simulated-mailbox.ts`: no Simulate, send or samples.
-- [ ] `web/src/app/settings/roles-view.ts` and `roles-section.ts` (new; siblings `webhooks-view.ts` and `webhooks-section.ts`), `settings-view.ts`, `settings-page.ts`:
+- [x] `web/src/app/settings/roles-view.ts` and `roles-section.ts` (new; siblings `webhooks-view.ts` and `webhooks-section.ts`), `settings-view.ts`, `settings-page.ts`:
   - `ROLES_TEXTS` (PUBLIC TEXT 2-8 and 11-12) and `roleOutcome(status, body)`: 403 is `denied`, 409 is `off`, a 400 with `reason` is that reason's text, and anything else is `failed`.
   - The section shows:
     - the intro and the per-kind note;
@@ -293,12 +307,12 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - Add `roles` to `SETTINGS_SECTIONS` last, with the label `Roles`.
   - `settings-page.ts` shows the nav entry and `@case ('roles')` only when `admin && rolesAssignable && !onlineDemo` (an unknown or hidden slug goes to Models, as `sectionSlug` does).
   - -- AC 1, AC 5.
-- [ ] `docker/tests/lib-live.sh`, `docker/tests/test-sign-in.sh` -- Add `live_fixture_role <name>`, which creates a role with no resources in `%SYS` only when it is absent and prints `CHK|fixture-role|1`.
+- [x] `docker/tests/lib-live.sh`, `docker/tests/test-sign-in.sh` -- Add `live_fixture_role <name>`, which creates a role with no resources in `%SYS` only when it is absent and prints `CHK|fixture-role|1`.
   - Before the users, create the fixture roles `OcuTalonApprover`, `OcuTalonApprover_` plus each of `resend,reroute,suspend,rollback,partner,email,tool`, and `OcuTalonViewer`.
   - Create the fixture users `ZzViewer` (`OcuTalonViewer`) and `ZzRoleTarget` (`OcuTalonUser`) with random passwords.
   - Pass them to Playwright as `OCUTALON_VIEWER_USER/_PASSWORD` and `OCUTALON_ROLETARGET_USER/_PASSWORD`, and add both passwords to the `show_log` redaction.
   - -- AC 6 fixture setup.
-- [ ] `Test/Install/RolesAssign.cls` (new; lane-a `@Install`; THROWAWAY guard) -- It covers:
+- [x] `Test/Install/RolesAssign.cls` (new; lane-a `@Install`; THROWAWAY guard) -- It covers:
   - one test method per refusal row of the matrix, each asserting the error names the role or user, the user's recursed role set is unchanged, and there is no new audit entry;
   - `%Admin_Secure` missing, through a job logged in as a fixture admin;
   - the online demo, with the public flag forced and restored;
@@ -307,8 +321,8 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - `Holders`: sorted, OcuTalon roles only, `managed` set, refused on the demo.
   - The fixture roles and users have the prefix `ZzRolesA` and are removed before and after.
   - -- AC 1, AC 6; V3 "a test for each refusal".
-- [ ] `Test/Bridge/Api.cls` -- Replace `TestRoleStubs` with `TestRoleCalls`, which mutates nothing: `Assign("ocutalon","%All",0)` is a 5001 naming the role with the README roles unchanged; `Holders` does not answer 5003. Update the class doc. `Test/Contract/Ac.cls`: add `{"class":"OcuTalon.Install.Step.Roles","method":"Refusal","args":"userName,role","returns":"%String"}` and raise the floor and the doc count to 94. -- The contract.
-- [ ] `Test/Core/SettingsRoles.cls` (new; lane-b `@Core`; THROWAWAY guard; sibling `SettingsWebhooks`) -- For `ListRoles` and `SaveRoles` through `SettingsOps`:
+- [x] `Test/Bridge/Api.cls` -- Replace `TestRoleStubs` with `TestRoleCalls`, which mutates nothing: `Assign("ocutalon","%All",0)` is a 5001 naming the role with the README roles unchanged; `Holders` does not answer 5003. Update the class doc. `Test/Contract/Ac.cls`: add `{"class":"OcuTalon.Install.Step.Roles","method":"Refusal","args":"userName,role","returns":"%String"}` and raise the floor and the doc count to 94. -- The contract.
+- [x] `Test/Core/SettingsRoles.cls` (new; lane-b `@Core`; THROWAWAY guard; sibling `SettingsWebhooks`) -- For `ListRoles` and `SaveRoles` through `SettingsOps`:
   - `Changes` that are not exactly `{handoff}` are refused;
   - the uri is consumed on every outcome, the demo included;
   - a `system` origin is refused;
@@ -316,7 +330,7 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - a 5003 from a stub subclass gives `not_built`;
   - `Data` holds only the handoff or `changed`, never a name.
   - -- AC 1, DW-1267.
-- [ ] `Test/Web/RolesApi.cls` and `Test/Web/RoleSettingsProbe.cls` (new; lane-b rest; THROWAWAY guard for the production cases):
+- [x] `Test/Web/RolesApi.cls` and `Test/Web/RoleSettingsProbe.cls` (new; lane-b rest; THROWAWAY guard for the production cases):
   - not admin 403 for GET and POST;
   - viewer-only POST 403 `read_only`;
   - the demo gives 409 for GET and POST with a malformed body, with no handoff resource made and no command submitted (probe counters);
@@ -328,7 +342,7 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - `GET` lists the fixture user;
   - `RolesReady` is 0 on this branch and 1 for a probe class with `STEP6ROLES = 1`.
   - -- AC 1, AC 4, AC 5, DW-1267.
-- [ ] `Test/Web/ViewerApi.cls` (new; lane-b rest; probe only, no mutation):
+- [x] `Test/Web/ViewerApi.cls` (new; lane-b rest; probe only, no mutation):
   - Enumerate every `Route` and `Map` of `Web.Api`'s compiled UrlMap and of each forwarded class. For roles `OcuTalonViewer`, every route whose method is not GET gets 403 `read_only` and `continue` 0, with no submit. `POST /v1/session/end` passes. GET routes pass.
   - With roles `OcuTalonViewer,OcuTalonUser`, nothing is refused.
   - With roles `OcuTalonViewer,OcuTalonAdmin`, `POST /v1/settings/budgets` gets `read_only` and `admin` is false.
@@ -336,38 +350,38 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - `/v1/state`: `viewer`, `admin` and `rolesAssignable` for each role set.
   - The demo-account role set `OcuTalonUser,OcuTalonTraceViewer,OcuTalonApprover` with the demo forced: `admin`, `viewer` and `rolesAssignable` are false, and the Roles routes give `not_admin`.
   - -- AC 2, AC 3, AC 4.
-- [ ] `Test/Core/AnswersInWebRoles.cls` -- Add `TestDemoApproverOwnSessionOnly`. A fixture user with `DEMOROLES` + fixture `OcuTalonApprover` + the application roles, with `onlineDemo` forced and restored:
+- [x] `Test/Core/AnswersInWebRoles.cls` -- Add `TestDemoApproverOwnSessionOnly`. A fixture user with `DEMOROLES` + fixture `OcuTalonApprover` + the application roles, with `onlineDemo` forced and restored:
   - answers its own session's request (approved);
   - gets `not_visible` for another session's request, which stays pending.
   - It reuses the class's guard and cleanup. -- AC 3.
-- [ ] `Test/Web/Api.cls:132`, `web/e2e/api/api.spec.ts:135`, `web/e2e/frame/frame.spec.ts:607` -- Add the two new state keys to the key order. -- Shared surface.
-- [ ] `web/scripts/roles-view.test.mjs` and `web/scripts/viewer-sources.test.mjs` (new), and `web/scripts/ux-strings.test.mjs` -- They cover:
+- [x] `Test/Web/Api.cls:132`, `web/e2e/api/api.spec.ts:135`, `web/e2e/frame/frame.spec.ts:607` -- Add the two new state keys to the key order. -- Shared surface.
+- [x] `web/scripts/roles-view.test.mjs` and `web/scripts/viewer-sources.test.mjs` (new), and `web/scripts/ux-strings.test.mjs` -- They cover:
   - `roleOutcome` for each status and reason;
   - the texts equal to PUBLIC TEXT, and to `Web.RoleSettings`' parameters, read from the class source;
   - every guarded component file imports `isViewer`;
   - `isViewer` true only for `viewer: true`.
-- [ ] `web/e2e/api/roles.spec.ts` (new, chromium; real HTTP) -- It covers:
+- [x] `web/e2e/api/roles.spec.ts` (new, chromium; real HTTP) -- It covers:
   - 401 when signed out (GET and POST);
   - the LIVE `OcuTalonUser` fixture gets 403 `not_admin` (GET and POST);
   - the viewer gets 403 `read_only` on `POST /v1/settings/roles` and on every state-changing route of the Matrix table (one request each, then `GET /v1/state` shows its chat unchanged), while `POST /v1/session/end` answers 200;
   - the README admin: GET lists `ZzRoleTarget`; grant `OcuTalonViewer` (`changed` true, then false), GET shows it, remove (`changed` true);
   - each refused role and user of the matrix, and a bad shape, gets 400 with its reason;
   - each test restores the target's roles.
-- [ ] `web/e2e/settings/roles.spec.ts` (new, sign-in-2) -- It covers:
+- [x] `web/e2e/settings/roles.spec.ts` (new, sign-in-2) -- It covers:
   - On the real state the Settings nav has no Roles entry.
   - With `/state` stubbed to `rolesAssignable: true` (the 25.3 `changeSnapshot` pattern):
     - the README admin opens Roles, which lists from the real route;
     - by keyboard only, the admin grants `OcuTalonViewer` to `ZzRoleTarget` and sees the step-2 text, then removes it and sees the text again;
     - an unknown user shows PUBLIC TEXT 12a;
     - every control is reached by its label (`getByLabel`/`getByRole` name).
-- [ ] `web/e2e/sign-in/viewer.spec.ts` (new, chromium) -- `ZzViewer` signs in with the real sign-in and sees no no-role message. It covers:
+- [x] `web/e2e/sign-in/viewer.spec.ts` (new, chromium) -- `ZzViewer` signs in with the real sign-in and sees no no-role message. It covers:
   - the composer is absent, and the viewer line is shown;
   - with a pending approval card, an incident and demo mode stubbed into the snapshot, Approve, Reject, Dismiss and Break the feed are absent;
   - History and Usage open;
   - there is no Settings link;
   - a `POST /v1/messages` from the page's context gets 403 `read_only`.
 
-- [ ] [Ruling] Planner rulings of 2026-11-13 ~18:55Z (`.coordination/prompts/story-254-rulings-20261113.md`, binding; summarized under Design Notes "Planner rulings"). Work them into the tasks above:
+- [x] [Ruling] Planner rulings of 2026-11-13 ~18:55Z (`.coordination/prompts/story-254-rulings-20261113.md`, binding; summarized under Design Notes "Planner rulings"). Work them into the tasks above:
   - Row 2 text CHANGED to exactly: "Approvers can answer the approval requests that reach them, for every kind of risky action. Viewers can open OcuTalon but can't chat, answer or change anything." (pin it equal in the page texts and its tests).
   - C1 (critical): `Roles.Refusal` returns `user_system` (checked before `user_managed`) for IRIS's own accounts: `UnknownUser`, `_SYSTEM`, `SuperUser`, `Admin`, `CSPSystem`, `IAM`, `_Ensemble`, `_PUBLIC`, `HS_Services`, compared in lower case, plus any name starting with `_` or `%`. Field text (page and server, new approved PUBLIC TEXT): "This is an IRIS system account, so its roles can't be changed here." Tests: one per name class in `Test.Install.RolesAssign` (`UnknownUser`, `_SYSTEM`, `SuperUser`, a `%x` name), plus a real-HTTP case; `mutation:` line "the user_system check skipped -> red". `Holders` still lists such an account if it already holds an OcuTalon role, with `managed: true`.
   - C2: `Test.Web.ViewerApi` also lists every GET route that writes anything (a row, a global, a command) for a viewer-only caller, other than the viewer's own session or presence row. Task 0 adds (f): find them (read `Web/Api.cls` GET handlers and measure on the throwaway). If ANY exists, HALT `blocked` with blocking condition `intent gap: C2 GET routes that write for a viewer: <list with file:line>` before implementing past Task 0.
@@ -376,7 +390,7 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - C4: `SecretHandoff` has no TTL on this branch (`Core/SecretHandoff.cls`: Put/Take/Discard only); do NOT widen it. The reverse uri left on a submit timeout is ledgered by the lead (low DW).
   - DW-1282 (standing rule): the Roles section's web code (roles view and its section file) goes in a LAZY chunk (dynamic `import()`), never in the initial bundle; the build's initial-bundle cap (1 MB) must not be exceeded and is never raised. Name the chunk in Verification; if the initial bundle would exceed the cap, HALT `blocked` with `intent gap: DW-1282 initial bundle over cap`.
   - Q8 amendments (applied by the lead in planning artifacts; nothing for the implement stage).
-- [ ] [Ruling] Task 0 rulings (Contest Planner ~19:40Z, `story-254-rulings-20261113.md` "Task 0 rulings", BINDING; Task 0 is DONE, its measurements stand under Design Notes "Measured"; do not re-run it):
+- [x] [Ruling] Task 0 rulings (Contest Planner ~19:40Z, `story-254-rulings-20261113.md` "Task 0 rulings", BINDING; Task 0 is DONE, its measurements stand under Design Notes "Measured"; do not re-run it):
   - C-24h, option (a): `Web.Api` `OnPreDispatch` re-reads the signed-in user's live role set with `$SYSTEM.Security.GetUserRecursedRoleSet($Username)` and ends the CSP session (401 `signed_out`, as an expired session answers) when the user holds neither `OcuTalonViewer` nor `OcuTalonUser`. Conditions: (1) it runs in the REST process as the signed-in user with NO escalation: no grant, no privileged job, no `$Roles` change; if the call needs a privilege the user lacks, HALT `blocked` with `intent gap: C-24h re-read needs a privilege: <evidence>`. (2) If the call returns an error, refuse only that ONE request (401, or the existing failure code) and do NOT end the session. (3) Measure the added cost per request (p95 over at least 200 requests, recorded under Design Notes "Measured"); if p95 is over about 5 ms, add a per-session cache of AT MOST 60 s (keeps "Applies within a minute" true); otherwise no cache. (4) Row 9 is the step-2 text ONLY ("Saved. Applies within a minute. Recorded in the audit log."); drop the conditional "Saved. Applies when they next sign in. ..." text everywhere. Tests: a viewer whose `OcuTalonViewer` is removed gets 401 within 60 s on the same session while it keeps polling; the same for a user whose `OcuTalonUser` is removed; a user holding both roles who loses one is unaffected; `mutation:` "the re-read skipped -> red". These are throwaway-only (they change roles).
   - C2, option (a): `GET /v1/memory/items` (with or without `q`) and `GET /v1/memory/pinned` answer 403 `read_only` to a viewer-only caller, before anything is submitted (no command, no allowance write). `Test.Web.ViewerApi` pins both (status, code, and that nothing was submitted). The viewer page never calls either route (the memory cards are hidden for a viewer; pin it in the web test).
   - C3 (DW-1284) and C4 (DW-1283) are ledgered by the lead; nothing to do here.
@@ -396,6 +410,41 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
 - 2026-11-13 ~19:10Z, lead: Contest Planner rulings on the Planner Gate (`story-254-rulings-20261113.md`): APPROVED with row 2 changed, row 9 both texts (conditional on Task 0 (c) and the 24-hour STOP), new `user_system` text (C1), C2 STOP condition, C3 report, C4 DW, Q1-Q8 approved, footprint extension into `Install/Step/Roles.cls` granted. Standing DW-1282: lazy chunk. Worked into Tasks & Acceptance as the `[Ruling]` item; Planner Gate row 2 and row 12 updated.
 
 ## Review Triage Log
+
+### 2026-11-13 - Review pass
+- verdicts: 30 rows for the 37 findings the layers reported (a defect that two layers reported shares one row) - high 0, medium 7, low 17, false 6, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind: the simulated phone shows Approve and Reject to a viewer (`phone/phone-request.ts`), and Edge: the same, plus handlers not guarded -- real (demo mode on); `isViewer` guard added, `phone/phone-request.ts` joined `GUARDED`, `phone-request-sources.test.mjs` updated; the handlers are reached only through the hidden buttons and the server refuses with 403, so no handler guard (rejected).
+  - `[low]` `[patch]` Blind: the `MESSAGENOTADMIN` doc comment sits on `MESSAGEREADONLY` -- real; the parameter moved above it.
+  - `[low]` `[patch]` Blind: "a role that an admin removed stops applying" over-claims (the admin role is read from the session) -- real; Api doc and spine sentence narrowed to the two roles; the admin case is deferred (below).
+  - `[low]` `[patch]` Blind and Edge: `Assign` ignores the put-back's status -- real but needs two failures; the error is appended to the audit error.
+  - `[low]` `[patch]` Blind and Edge: `SettingsOps.SaveRoles` calls `Refusal` without a Try -- real after the handoff is taken; a thrown error is now `failed`.
+  - `[medium]` `[patch]` Blind and VG: `Holders` `managed` for a system-named account unpinned and the test header claims it -- real; `TestHoldersListsSystemAccountAsManaged` added, header corrected, mutation line written.
+  - `[medium]` `[patch]` Edge and VG: `/v1/state` `viewer` and `admin` read the session's roles while `OnPreDispatch` also uses the live roles -- real (a user cut down to the viewer role sees controls that answer 403); `StateBody` reads the live roles too, `TestStateFollowsLiveRoles` and its mutation added.
+  - `[medium]` `[patch]` VG: nothing pins that the CSP session ends after the live re-read's 401 -- real (the second 401 would come back anyway); `ViewerApi` asserts `EndSession` on both paths and `LiveRolesApi` gives the role back and still expects 401; mutation line written.
+  - `[medium]` `[patch]` VG: `RoleSettings` outcome mapping (List 500 on fail and throw, 501 `not_built` for List and Save) untested -- real; `TestListAndSaveOutcomes` and a `notbuilt` probe mode added, mutation line written.
+  - `[medium]` `[patch]` VG (Rule 19): assertions that cannot fail (`IsObject(users)` after `users = []`, `users.%Size() = 0` on the demo refusal, a probe counter that the test never reaches) and a count that leftovers satisfy (`lists >= 1`) -- real; the first three removed, the count compared with its value before the test.
+  - `[low]` `[patch]` Blind: the spine's "p95 under 0.1 ms measured" is not backed by a recorded figure -- the measured 0.066 ms over 250 calls is now the stated figure.
+  - `[low]` `[defer]` Edge: a user name ending in a sensitive suffix makes `Audit.Record` redact the roles in the entry -- real, rare, and the `roles.<user>` setting is pinned by the Matrix; deferred.
+  - `[medium]` `[defer]` Blind: a removed OcuTalonAdmin keeps applying until the session ends -- pre-existing behaviour of the admin check, outside ruling C-24h; deferred.
+  - `[false]` `[reject]` Edge: `ViewerMay` lets a trailing-slash variant of `/v1/memory/items` through -- `%CSP.REST` matches a route's regular expression against the whole URL, so the variant matches no route (the case variants are pinned in `TestMemoryReadsRefuseAViewer`).
+  - `[false]` `[reject]` VG: viewer guards "have no running test" and a bypass keeps the regexes green -- `viewer-sources.test.mjs` pins each guarded template's `@if (!viewer())` structure, so `@if (true)` fails it; the rendered controls of the four AC names run in `viewer.spec.ts`.
+  - `[false]` `[reject]` Edge: `LiveRoles` would sign out an externally authenticated user with no stored roles -- ruling C-24h fixed the call; OcuTalon signs in by password against IRIS users.
+  - `[false]` `[reject]` Edge: the Roles routes accept an empty or 161-character `user` before a handoff, against the task text -- the frozen I/O matrix says 400 `user_unknown` for both; the matrix wins (two rows: ShapeFields and its claim).
+  - `[false]` `[reject]` Edge: `List` leaves a handoff when `Data` has none -- SettingsOps is the only producer and always sets it.
+  - `[low]` `[reject]` Blind: `SaveRoles` reuses `MESSAGEWEBHOOKSAVED` and the text says "Applies within a minute" -- the text is ruled (PUBLIC TEXT 9); only the constant's name is off.
+  - `[low]` `[reject]` Blind: tests fail when Story 26.4 lands -- by design: the tripwires are named under Consumed-by.
+  - `[low]` `[reject]` Blind: `LiveRolesApi` hard-codes port 52773 and the namespace -- the test runs inside the throwaway, where that is the web port.
+  - `[low]` `[reject]` Blind: `viewer-sources.test.mjs` is regexes over template text -- the project's pattern for web sources; rendered evidence is `viewer.spec.ts`.
+  - `[low]` `[reject]` Edge: `Switch` leaves a change unreverted when the re-read fails after it -- theoretical (`wontfix-theoretical`: the re-read of a user just changed).
+  - `[low]` `[reject]` Edge: `roleOutcome` shows `denied` for a viewer-admin's 403 `read_only` -- unreachable: `admin` is false for a viewer, so the section is never shown.
+  - `[low]` `[reject]` Edge: two overlapping loads in the Roles section -- every change disables its button while it runs; not worth the code.
+  - `[low]` `[reject]` Edge: the lazy chunk fails to load -- a deploy race on an admin-only page; not worth the code.
+  - `[low]` `[reject]` Edge: a deep link to Roles before the snapshot arrives shows Models first -- the page needs the snapshot's `admin` for every section.
+  - `[false]` `[reject]` VG: acceptance criteria without a mutation line -- one mutation per AC is recorded (Rule 19); the rows named are second halves.
+  - `[low]` `[reject]` VG: `TestDemoApproverOwnSessionOnly` is unmutated -- it pins `Approval.Answer`'s own rule, which this story does not change.
+  - `[low]` `[reject]` Intent: the Roles routes are not gated by `RolesReady()` -- the flag gates the section, as the intent says; the routes are admin-only and `Assign` refuses an unknown role by name.
+
 
 ## Design Notes
 
@@ -493,7 +542,7 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
 12. `new_units: none`. `ci_groups`:
     - `shards` (lane-a `@Install`: `Test.Install.RolesAssign`);
     - `image` (lane-b `@Core`: `Test.Core.SettingsRoles`);
-    - `shards-6` (lane-b rest: `Test.Web.RolesApi`, `Test.Web.ViewerApi`);
+    - `shards-6` (lane-b rest: `Test.Web.RolesApi`, `Test.Web.ViewerApi`, and `Test.Web.LiveRolesApi`, which the C-24h ruling added; the probes `RoleSettingsProbe`, `RolesReadyProbe`, `Test.Core.RolesStub`, `Test.Core.SettingsRolesProbe` and `Test.Install.ZzRolesAuditFails` are not test classes);
     - `shards-2` (lane-a rest: `Test.Bridge.Api`; the Contract class runs in lane-b `@Contract` in `image`);
     - `shards-10` (`live:sign-in`: `api/roles.spec.ts`, `sign-in/viewer.spec.ts`);
     - `shards-4` (`live:sign-in-2`: `settings/roles.spec.ts`).
@@ -516,6 +565,28 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - `GET /v1/memory/pinned` (`Web/Api.cls:2002` -> `ReadPinned` :2024) submits a `ListPinnedMemories` command through the production.
   - Every other GET (`/v1/state`, `/v1/events`, `/v1/persona`, `/v1/heartbeat`, `/v1/memory/precedents`, `/v1/memory/notes`, `/v1/memory/items` with no `q`, `/v1/documents`, `/v1/documents/:ref`, `/v1/history/decisions`, `/v1/history/incidents`, `/v1/usage`) changed no `^OcuTalon*` global beyond the background mark above. `/v1/settings` (GET) is read-only code (`SettingsOps.Values`).
 - C3 (report only). Neither `Channel.Telegram.In` (`Channel/Telegram/In.cls:184` `OnProcessInput`, `Run` :204, `Poll` :256) nor the email entry (`Channel/Email/In.cls:37` `OnProcessInput`: owner from the product key `email.owner`, then `Send` to the Item target) mentions `OcuTalonUser`, `$Roles` or `GetUserRecursedRoleSet` anywhere under `Channel/Telegram` or `Channel/Email`. So a message is taken in on the strength of the pairing (Telegram) or the saved mailbox (email), not of the person's role at USE time. What does re-check at USE time is the approval answer: `Bridge/Approval.cls:325` and :412 (`Answer` reads `$SYSTEM.Security.GetUserRecursedRoleSet(irisUser)` under the row's lock). The lead files a DW for the two entries.
+
+**Measured (C-24h, implement pass 2, 2026-11-13, a warm throwaway of tag `e25s4jw`):**
+- The re-read, `$SYSTEM.Security.GetUserRecursedRoleSet($Username, .roles)`, runs in a job that logged in (`$SYSTEM.Security.Login`) as a fixture user holding `OcuTalonUser` and the web applications' database roles and no `%Admin_Secure:USE` (the job's `$SYSTEM.Security.Check("%Admin_Secure","USE")` read 0): the status is OK and the roles are the user's. So it needs no privilege, no grant and no privileged job (condition 1).
+- Added cost per request, 250 calls in that job (`Test.Web.LiveRolesApi.TestRereadCostIsSmall`): p95 0.066 ms, median 0.056 ms, max 0.204 ms. That is far under 5 ms, so there is no per-session cache (condition 3); every request re-reads, so a removal applies at the very next request.
+- Over real HTTP against the throwaway's own web server (`TestRemovedViewerEndsItsSession`, `TestRemovedUserEndsItsSession`): a signed-in viewer (or user) has its role removed with `Security.Users.RemoveRoles`; its next request on the same CSP session is 401 `signed_out`, and the one after it too (the session is over). A user who holds both roles and loses one still answers 200.
+- Web bundle (`npm --prefix web run build`): the baseline `HEAD` build has an initial total of 991.99 kB (cap 1 MB). With the Roles section's code in a deferred `@defer` block the first build was 1.01 MB (the first `@defer` in the app brings Angular's defer runtime) and over the cap; with `NgComponentOutlet` it was 999.88 kB; with a `ViewContainerRef` and a dynamic `import('./roles-section')` in `settings-page.ts` it is 997.54 kB (main 701.28 kB, shared chunk 251.64 kB, styles 44.61 kB). The lazy chunk is `roles-section` (`chunk-5MM255DR.js` in that build, 9.13 kB raw, 2.94 kB transferred). The headroom under the cap is 2.46 kB, so Stories 25.5 and 25.6 must put their web code in lazy chunks too.
+
+**Decided in-stage (implement pass 2, 2026-11-13):**
+1. `Roles.Refusal` checks, in order: the online demo, the role, an empty or over-long name (`user_unknown`), IRIS's own accounts (`user_system`, by name, before any lookup, so a `%x` name that does not exist is `user_system`), the managed accounts by name (`user_managed`, whether or not the account exists: the service, Workflow and SQL-watch users and the public `demoUser`/`readonlyUser`), the lookup (`user_unknown`) and last the FullName marker (`user_managed`). The task text listed `user_unknown` before `user_managed`; the SQL-watch user must be refused before it exists, so the by-name checks come first.
+2. `Assign` runs `Refusal` inside a Try: a job without `%Admin_Secure:USE` cannot enter `%SYS` for the user lookup (a `<PROTECT>`), so `Assign` answers the privilege error that names `%Admin_Secure` instead of throwing (measured by `TestNoPrivilege`).
+3. `OnPreDispatch` order: role check (403 `no_role`, from the session's `$Roles`), then the live re-read (401 `signed_out` and `%session.Logout(1)` with `EndSession = 1` when the live roles hold neither role; 500 `server_error` for that one request, with the session kept, when the read fails), then the viewer block, then the admin check. The viewer block refuses when the session's roles say viewer-only OR the live roles do, so a user whose `OcuTalonUser` was removed but who still holds `OcuTalonViewer` is read-only at the next request, not at the next sign-in. The memory GETs of ruling C2 are part of `ViewerMay` (the one place that says what a viewer may do).
+4. The test seams that this needs are `Web.Api.LiveRoles` and `Web.Api.RolesInstalled` (private class methods that a probe overrides), `Web.RoleSettings.Offer` (the `SecretHandoff.Put`), `Install.Step.Roles.Audit` (the one audit write, overridden by `Test.Install.ZzRolesAuditFails`) and `SettingsOps.RolesClass`. The probes `ApiProbe`, `HookSettingsProbe`, `MemoryApiProbe`, `FilesProbe` and `DocumentsProbe` answer the live roles as the roles of the test; `ApiProbe.HasUserRole` now admits the viewer by `Shell.HasRole`.
+5. The matrix says an empty user and a 161-character user get 400 with reason `user_unknown`, and the task text says `user` is a string of 1 to 160 characters in the route's shape check. The route follows the matrix: `user` must be a string, and `Install.Step.Roles.Refusal` answers `user_unknown` for an empty or over-long one.
+6. `POST /v1/session/end` answers 204 (what `Web.Api.EndSession` has always answered), not 200 as the e2e task line says; `api/roles.spec.ts` R3 pins 204.
+7. `Test.Core.AnswersInWebRoles.TestDemoApproverOwnSessionOnly` pins `not_found` for another session's request: `AnswersIn.FromPage` answers `not_found` (the route's 404) and only `FromTelegram` calls the same verdict `not_visible`.
+8. `Test.Core.SettingsRoles` is not guarded by `Reason`: it runs on `Test.Core.RolesStub`, so it changes no security object and needs no production; the real changes are `RolesAssign`'s, `RolesApi`'s and `LiveRolesApi`'s, which are guarded.
+9. The Roles section announces through the `Announcer` (the page's one live region: `announce-focus-sources.test.mjs` forbids any `aria-live` in a template), so "refusals in a polite live region" is the Announcer's, with the refusal text also shown under the form. `announce-focus-sources.test.mjs`, `approval-sources.test.mjs` and `try-it-qa.test.mjs` pin the new speaker, focus call, render wait and the two `@if` forms.
+10. `ux-strings.test.mjs`: "Roles" and "Role" are in EXPERIENCE.md, so they sit under `ux`; the other new strings sit under one `ruled` entry for the Planner's rulings.
+11. The Settings navigation hides Roles through `shownSections(rolesShown)` (`admin && rolesAssignable && !onlineDemo`); `sectionSlug(part, rolesShown)` sends the address of a hidden Roles to Models.
+12. Spine: the additive rows and the AD-13 viewer bullet are in `ARCHITECTURE-SPINE.md` marked `[ADDED 2026-11-13, Story 25.4]`; the lead's replacements are not applied. `lint_spine.py` reports the same 10 low findings as `HEAD`.
+13. `docker/tests/test-sign-in.sh` makes the nine fixture roles with `live_fixture_role` (only when absent, no resources) before the users, and the fixture users `ZzViewer` and `ZzRoleTarget`; `web/e2e/support/iris.ts` has the fixture kinds `VIEWER` and `ROLETARGET`. `Test.Web.PublicTexts` classifies `Shell.VIEWERROLE` as not a text (33 such parameters).
+14. C3 and C4 are as ruled: DW-1284 and DW-1283 are the lead's; nothing was widened in `SecretHandoff`.
 
 ## Planner Gate
 
@@ -643,11 +714,46 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - AC 5: make `RolesReady` answer 1 → `RolesApi` and `settings/roles.spec.ts` (real state) go red.
 - AC 6: skip the audit write → `RolesAssign` (one entry per change) goes red. Drop the managed-account check → the `RolesAssign` refusal methods go red.
 
+**Recorded (implement pass 2, 2026-11-13).** Tags `e25s4j` (fresh) and `e25s4jw` (warm) stand for `e25s4i`; lock dir lane-a, web port 52801.
+
+- Classes green on the warm stack, one per call: `Test.Install.RolesAssign`, `Test.Core.SettingsRoles`, `Test.Web.RolesApi`, `Test.Web.ViewerApi`, `Test.Web.LiveRolesApi`, `Test.Bridge.Api`, `Test.Contract.Ac`, `Test.Core.AnswersInWebRoles`, `Test.Web.Api`, `Test.Web.SettingsApi`, `Test.Web.HookSettingsApi`, `Test.Core.SettingsWebhooks`, `Test.Core.SecretHandoff`, `Test.Web.Shell`, `Test.Web.SignIn`, `Test.Install.Registry`, and, as the probes and the key order changed, `Test.Web.MemoryApi`, `FilesApi`, `DocumentsApi`, `HistoryApi`, `UsageApi`, `BodyLimit`, `PersonaApi`, `MailboxApi`, `SessionEvents`, `SessionEndApi`, `Live`, `Status`, `PublicTexts`, `Test.Msg.Contracts`, `Test.Core.CommandsStep3` and `CommandsStep4`.
+- `node --test` of the whole web suite: 2003 tests pass. `npm --prefix web run lint` and `npm --prefix web run build` pass (the build's initial total is 997.54 kB, under the 1 MB cap; lazy chunk `roles-section`). `bash docker/tests/test-boundaries.sh`, `test-class-rules.sh`, `test-ci-config.sh`, `test-storage.sh` and `test-lib-live.sh` pass. `lint_spine.py`: the same 10 low findings as `HEAD`.
+- Live, on fresh throwaways (`ci/iris.sh live sign-in --part 4/30`: `api/pairing`, `api/persona` and `api/roles.spec.ts` 7 pass; `--part 26/30`: `sign-in/viewer.spec.ts` 3 pass; `ci/iris.sh live sign-in-2 --part 17/20`: `settings/email.spec.ts` and `settings/roles.spec.ts` 8 pass, and `--part 11/12`: `settings/settings.spec.ts` 27 of 28 pass before the keyboard step of RS2 was changed to type V; the rerun passed). Not run live: `api/api.spec.ts` and `frame/frame.spec.ts` (their `/v1/state` key order changed, and `Test.Web.Api` pins the same order), the whole `sign-in` and `sign-in-2` units, `live demo-path`, `bash ci/checks.sh`.
+
+**Shared surfaces (record):** `/v1/state` key order (`Test/Web/Api.cls`, `Test/Web/FilesApi.cls`, `e2e/api/api.spec.ts`, `e2e/frame/frame.spec.ts`) and `StateSnapshot`; `Web.Api`'s URL map and `OnPreDispatch` order (`ApiProbe`, `HookSettingsProbe`, `MemoryApiProbe`, `FilesProbe` and `DocumentsProbe` answer the live roles); `SettingsOps`' `XData Sections` and `Values()` (`SettingsApi` green); `CommandsIn`'s Routes (`Test.Msg.Contracts`, `CommandsStep4` green); `Test.Contract.Ac`'s signature count (94; `Assign`'s trailing arguments are pinned too); `Test.Bridge.Api`'s stub pins (`TestRoleCalls`); the Settings nav (`SETTINGS_SECTIONS`, `settings-view.test.mjs`; `settings.spec.ts` S1 green on the real state); the fixture users and roles of `test-sign-in.sh`; the `ux-strings` lists; `announce-focus-sources.test.mjs`, `approval-sources.test.mjs` and `try-it-qa.test.mjs`; `Test.Web.PublicTexts` (`Shell.VIEWERROLE`); the spine's tables.
+
+**Chunk:** the Roles section's web code (`roles-section.ts`, which imports `roles-view.ts`) is the lazy chunk `roles-section` (`chunk-5MM255DR.js`, 9.13 kB); `settings-page.ts` loads it with a dynamic `import('./roles-section')` through a `ViewContainerRef`.
+
+**Mutations (Rule 19), each applied, observed red, reverted byte-identical (`git status --short` and `git diff --stat` unchanged), and the class green again on the same stack:**
+- mutation: AC 1, `Parameter ASSIGNABLE` without `OcuTalonViewer` in `Install/Step/Roles.cls` -> `Test.Install.RolesAssign` `TestGrantAndRemove` and `TestAuditFailurePutsTheRoleBack` red.
+- mutation: AC 1 / DW-1267, the target's name added to `SaveSettings.Changes` in `Web/RoleSettings.cls` (`{"handoff": uri, "user": name}`) -> `Test.Web.RolesApi` `TestChangesIsOnlyAHandoff` and `TestGrantAndRemove` red.
+- mutation: AC 2, the viewer block of `OnPreDispatch` replaced by `If 0 {` -> `Test.Web.ViewerApi` `TestEveryWriteRouteRefusesAViewer` red.
+- mutation: AC 2, the composer guard replaced by `@if (false) {` in `chat/chat-panel.ts` (rebuilt bundle) -> `sign-in/viewer.spec.ts` V2 red ("there is no composer").
+- mutation: AC 3, `rolesAssignable` without `(body.onlineDemo = 0) &&` -> `Test.Web.ViewerApi` `TestDemoAccount` red; and `admin` without `&& 'readOnly` (`StateBody`) -> `TestStateFlags` and `TestViewerAndAdmin` red.
+- mutation: AC 4, the body parsed before the demo refusal in `RoleSettings.Save` -> `Test.Web.RolesApi` `TestOnlineDemo` red (malformed body, 400 instead of 409).
+- mutation: AC 5, `RolesReady` answering 1 -> `Test.Web.RolesApi` `TestRolesReady` red. (`settings/roles.spec.ts` RS1 reads the same flag from the real state and was not run against this mutation.)
+- mutation: AC 6, the `Assign` audit write replaced by `Set sc = $$$OK` -> `Test.Install.RolesAssign` `TestAuditFailurePutsTheRoleBack` and `TestGrantAndRemove` red; and the managed-account check replaced by `If 0 Quit "user_managed"` -> `TestManagedUserRefused` red.
+- mutation: C1, the `user_system` check replaced by `If 0 Quit "user_system"` -> `Test.Install.RolesAssign` `TestSystemUserRefused` red (the grant to `UnknownUser` went through on the throwaway, and the test now takes it back).
+- mutation: C-24h, the live re-read's `If '..HasRole(live)` replaced by `If 0 {` -> `Test.Web.LiveRolesApi` `TestRemovedViewerEndsItsSession` and `Test.Web.ViewerApi` `TestLiveRolesRefusal` red.
+- mutation: C2, `ViewerMay` answering 1 for a GET of `/v1/memory/items` and `/v1/memory/pinned` -> `Test.Web.ViewerApi` `TestMemoryReadsRefuseAViewer` and `TestEveryWriteRouteRefusesAViewer` red.
+- mutation: AC 2 / C-24h (review pass), the two lines that end the session (`Do %session.Logout(1)`, `Set %session.EndSession = 1`) removed from the live re-read's refusal -> `Test.Web.ViewerApi` `TestLiveRolesRefusal` ("the CSP session is ended") and `Test.Web.LiveRolesApi` `TestRemovedViewerEndsItsSession` (401 after the role is given back) red.
+- mutation: AC 2 (review pass), `StateBody` reading only the session's roles for `viewer` (the live-roles line removed) -> `Test.Web.ViewerApi` `TestStateFollowsLiveRoles` red.
+- mutation: C1 (review pass), `Holders` without `|| (code = "user_system")` in `managed` -> `Test.Install.RolesAssign` `TestHoldersListsSystemAccountAsManaged` red.
+- mutation: AC 1 (review pass), `RoleSettings.List` answering 500 instead of 501 for `not_built` -> `Test.Web.RolesApi` `TestListAndSaveOutcomes` red.
+- mutation: AC 2 (review pass), `phone/phone-request.ts` without `&& !viewer()` on the simulated phone's buttons -> `web/scripts/viewer-sources.test.mjs` "the simulated phone shows no Approve or Reject for a viewer" red.
+- Not mutated: `TestDemoApproverOwnSessionOnly` (AC 3's second half; its guard is `Approval.Answer`'s own owner rule, which Story 25.4 does not touch).
+
 ## Auto Run Result
 
-Status: in-progress (re-dispatch after the Planner's Task 0 rulings; pass 1's condition, kept for the record:)
-Blocking condition (pass 1): intent gap: C-24h removed viewer session lasts without an upper bound while the page polls (up to 8 hours after the tab closes); and intent gap: C2 GET routes that write for a viewer: GET /v1/memory/items?q= (Web/Api.cls:1985,2083-2089; on the online demo Core/CommandsIn.cls:196-198 and Core/Allowance.cls:63 write an allowance entry) and GET /v1/memory/pinned (Web/Api.cls:2002,2024), each submitting a command through the production
+Status: done
+Blocking condition: none
 
-Planned 2026-11-13 (plan stage, halt after planning). The spec meets the READY FOR DEVELOPMENT standard. The Planner Gate (PUBLIC TEXT 15 items, SECURITY 11, QUESTIONS 8) goes to the Contest Planner before implement. The lead applies the spine replacements and the epics.md AC 1 amendment listed under Design Notes.
+Summary. Story 25.4 builds `Install.Step.Roles.Assign`, `Refusal` and `Holders` (allowlist of `OcuTalonApprover` and `OcuTalonViewer`, the refusals including `user_system`, one `Settings` audit entry per effective change, put-back when the entry fails), the `ListRoles` read verb and `SettingsOps.SaveRoles`, the admin-only `Web.RoleSettings` routes with `SecretHandoff` in both directions, the viewer role (`Shell.HasRole`, `ViewerOnly`, 403 `read_only` in `OnPreDispatch`, the two memory GETs refused, `/v1/state` `viewer` and `rolesAssignable`), the live role re-read (ruling C-24h; p95 0.066 ms over 250 calls, no cache), the viewer guards in 14 components, the lazy `roles-section` chunk (initial bundle 997.59 kB of 1 MB) and the Settings > Roles section. `new_units: none`; `ci_groups` as in Design Notes decision 12.
 
-Implement pass 1 (2026-11-13): Task 0 only, then HALT by the Planner rulings' two STOP conditions (C-24h and C2). Measurements a-f and C3 are under Design Notes "Measured (Task 0, implement stage)". No product code, test or web file was changed. Recommendation: (1) C-24h: have `Api.OnPreDispatch` re-read the signed-in user's live role set for a viewer-only session (`$SYSTEM.Security.GetUserRecursedRoleSet($Username)`, which `Approval.Answer` already uses at USE time) and end the CSP session when it no longer holds `OcuTalonViewer` or `OcuTalonUser`, or accept the 8-hour idle cap and rule that a removed viewer's read-only access until sign-out is acceptable; either is an AD-13 decision. (2) C2: rule that `SearchMemory` and `ListPinnedMemories` are read commands that a viewer may send (no product row changes on a local install; the online demo has no viewer role), or have `Web.Api` refuse both routes for a viewer with 403 `read_only`.
+Files. Lane A: `Install/Step/Roles.cls`. Core: `Core/SettingsOps.cls`, `Core/CommandsIn.cls`, `Msg/Command/ListRoles.cls`. Web: `Web/Api.cls`, `Web/RoleSettings.cls`, `Web/Public/Shell.cls`. Tests: `Test/Install/RolesAssign.cls`, `Test/Core/SettingsRoles.cls` (with `RolesStub`, `SettingsRolesProbe`), `Test/Web/RolesApi.cls`, `ViewerApi.cls`, `LiveRolesApi.cls`, probes, `Test/Bridge/Api.cls`, `Test/Contract/Ac.cls`, `Test/Core/AnswersInWebRoles.cls`. Web: `viewer-view.ts`, `roles-view.ts`, `roles-section.ts`, `settings-page.ts`, `settings-view.ts`, `api-client.ts`, `api-types.ts` and the viewer guards; unit and e2e specs; `docker/tests/lib-live.sh` and `test-sign-in.sh` fixtures; spine rows.
+
+Review. 37 findings in 30 rows, patches applied in 11 rows (6 medium, 5 low), deferred 2 (see frontmatter), the rest rejected with their reasons in the Review Triage Log. Follow-up review recommended: true, because six medium findings were patched in this pass; the unverified risk is the new live-roles reading in `StateBody` and `OnPreDispatch` (viewer flag from the session's or the live roles) and the tests added for it.
+
+Verification (this pass, after the last patch). Warm stack (tag e25s4jw), one class per call, all passed: `Test.Install.RolesAssign`, `Test.Core.SettingsRoles`, `Test.Web.RolesApi`, `Test.Web.ViewerApi`, `Test.Web.LiveRolesApi`, `Test.Bridge.Api`, `Test.Contract.Ac`, `Test.Core.AnswersInWebRoles`, `Test.Web.Api`, `Test.Web.SettingsApi`, `Test.Web.HookSettingsApi`, `Test.Core.SettingsWebhooks`, `Test.Core.SecretHandoff`, `Test.Web.Shell`, `Test.Web.SignIn`, `Test.Install.Registry`, `Test.Web.DocumentsApi`, `FilesApi`, `UsageApi`, `HistoryApi`, `MemoryApi`, `SessionEvents`, `PublicTexts` and `Test.Msg.Contracts`. `node --test` of the five listed web scripts: 110 pass; `npm --prefix web test` 2005 pass; `npm --prefix web run lint` and `run build` pass. Live on fresh throwaways (tag e25s4j): `sign-in` parts 1/30 (api.spec, 20), 4/30 (roles.spec, 7), 19/30 (frame.spec, 21) and 26/30 (viewer.spec, 3), `sign-in-2` part 17/20 (roles.spec, 8) and `live demo-path` all passed. `bash ci/checks.sh`: all 32 scripts passed. `lint_spine.py`: the same 10 low findings as `HEAD`. Five new mutations observed red and reverted (Verification). Both tags torn down.
+
+Residual risks. The initial bundle has 2.4 kB of headroom under the 1 MB cap, so Stories 25.5 and 25.6 must lazy-load their web code. The Roles section is hidden on a real install until Story 26.4 adds `STEP6ROLES`, so its page flow is exercised with a stubbed state flag (`settings/roles.spec.ts` RS2); the routes underneath are real. C3 (DW-1284) and C4 (DW-1283) are the lead's.

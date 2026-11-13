@@ -11,6 +11,8 @@
 ///   - TestInstanceAnswerReachesBothWatchers (DW-68): with a CSP session bound to a session of that user, which watches the
 ///     production together with a second session, AnswersIn.FromPage answers an instance request through AnswerOps and the answered
 ///     approval event reaches both sessions' streams;
+///   - TestDemoApproverOwnSessionOnly (Story 25.4): with the online demo forced on, a user who holds the demo account's roles, OcuTalonApprover and the application roles answers
+///     its own session's request through AnswersIn.FromPage (approved) and gets not_found for another session's request (not_visible on Telegram), which stays pending;
 ///   - TestGuardRefusesOutsideAThrowaway: Reason is empty only for the CI override's pair of values, and the setup of a run whose
 ///     environment lacks them fails and provisions no user;
 ///   - TestFixtureUserIsRemoved: the hooks that end a test remove the fixture user, and a user left by an earlier run is removed
@@ -154,6 +156,41 @@ Method TestInstanceAnswerReachesBothWatchers()
 		Do $$$AssertEquals(payload.ref_"|"_payload.state_"|"_payload.answeredChannel, request_"|approved|web", "and it is the answered request")
 	}
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Type = 3 AND Text %STARTSWITH ?", "OcuTalon.Bridge.Approval: no open task of "_request)
+}
+
+Method TestDemoApproverOwnSessionOnly()
+{
+	If '..Guard() Quit
+	Set created = ##class(OcuTalon.Test.Install.RolesAssign).EnsureRoles()
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Try {
+		Set demoRoles = ##class(OcuTalon.Install.Step.Users).#DEMOROLES_",OcuTalonApprover,"_$Piece(..Roles(), ",", 2, *)
+		Set user = ..#USER_..Number_"d"
+		Do $$$AssertStatusOK(..CreateUser(user, demoRoles), "the demo account's fixture user holds the demo roles, OcuTalonApprover and the application roles")
+		Set s1 = ..Session(user)
+		Set s2 = ..Session(..#USER_"other"_..Number)
+		Set own = ##class(OcuTalon.Test.Data.Fixture).Approval(s1, , "pending", , {"RequiredRole": "OcuTalonUser"})
+		Set other = ##class(OcuTalon.Test.Data.Fixture).Approval(s2, , "pending", , {"RequiredRole": "OcuTalonUser"})
+		Set ..Refs = ..Refs_","_own_","_other
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Set run = ..RunProbe("page", user, s1, "", own, "")
+		If run '= "" {
+			Do $$$AssertEquals($Get(@run@("login")), 1, "control: the job logs in as the demo account's user")
+			Do $$$AssertEquals($Get(@run@("page")), "1|done|"_s1, "it answers its own session's request")
+			Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(own)
+			Do $$$AssertEquals(row.State_"|"_row.AnsweredBy, "approved|"_user, "which is approved by that user")
+		}
+		Set run = ..RunProbe("page", user, s1, "", other, "")
+		If run '= "" {
+			Do $$$AssertEquals($Get(@run@("page")), "1|not_found|"_s1, "it gets not_found (not_visible to Telegram) for another session's request")
+			Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(other)
+			Do $$$AssertEquals(row.State, "pending", "which stays pending")
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do ##class(OcuTalon.Test.Install.RolesAssign).DropRoles(created)
 }
 
 Method TestGuardRefusesOutsideAThrowaway()

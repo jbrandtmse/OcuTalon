@@ -60,6 +60,11 @@
 ///     other outcome or status 500 server_error.
 ///     POST /v1/settings/daily-digest/send never reads the body and submits one SendDigest (origin web_admin, the CSP session's Ref, a fresh
 ///     IdempotencyKey): Ok 202 {"result":"sending"}; an error status, no result or any other outcome 500 server_error.
+///     The Roles routes (Story 25.4; AD-13, AD-24) are GET and POST /v1/settings/roles, forwarded to OcuTalon.Web.RoleSettings (admin only; the online demo is 409 not_available before
+///     the body is read). A user who holds OcuTalonViewer and not OcuTalonUser is a viewer: every request but a GET is 403 read_only before anything is read or submitted
+///     (POST /v1/session/end excepted), and so are GET /v1/memory/items and GET /v1/memory/pinned, which submit a command. Every request also re-reads the user's live roles
+///     (LiveRoles): a user who then holds neither OcuTalonUser nor OcuTalonViewer is 401 signed_out and the CSP session ends, so a removed user or viewer role stops applying at the next request;
+///     the other roles (OcuTalonAdmin among them) are read from the session and apply until it ends.
 ///     The snapshot also tells the page who is signed in, whether that user holds OcuTalonAdmin (admin), which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
 ///     and the active status conditions, then, only while demo mode is on, the simulated phone, the simulated mailbox
@@ -187,6 +192,9 @@ Parameter MESSAGESERVERERROR = "Something went wrong inside OcuTalon. Try again.
 
 Parameter MESSAGENOTBUILT = "This part of OcuTalon isn't built yet.";
 
+/// The answer to a viewer-only user's request that changes anything (403 read_only).
+Parameter MESSAGEREADONLY = "You have the viewer role, so you can look but not change anything.";
+
 /// The message of the 403 not_admin of every settings call.
 Parameter MESSAGENOTADMIN = "Only OcuTalon admins can open settings.";
 
@@ -295,6 +303,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Map Prefix="/v1/usage" Forward="OcuTalon.Web.Usage"/>
 <Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>
 <Map Prefix="/v1/settings/channels/webhooks" Forward="OcuTalon.Web.HookSettings"/>
+<Map Prefix="/v1/settings/roles" Forward="OcuTalon.Web.RoleSettings"/>
 </Routes>
 }
 
@@ -309,13 +318,32 @@ XData BodyBounds [ MimeType = application/json ]
 ]
 }
 
-/// Every request, before the route is matched: the role check first, then, for /v1/settings and below it, the admin check, then the browser
-/// envelope, then the body size (Web.BodyLimit). A refusal writes its error and stops the dispatch.
+/// Every request, before the route is matched: the role check first (403 no_role from the session's roles; then the user's live role set, with 401 signed_out
+/// and the CSP session ended when it holds neither OcuTalonViewer nor OcuTalonUser, and 500 server_error, with the session kept, when it can't be read), then the
+/// viewer check (403 read_only), then, for /v1/settings and below it, the admin check, then the browser envelope, then the body size (Web.BodyLimit). A refusal
+/// writes its error and stops the dispatch.
 ClassMethod OnPreDispatch(url As %String, method As %String, ByRef continue As %Boolean) As %Status
 {
 	If '..HasUserRole() {
 		Set continue = 0
 		Quit ..Fail(403, "no_role", ##class(OcuTalon.Web.Public.Login).#ERRORNOROLE)
+	}
+	Set sc = ..LiveRoles(.live)
+	If $SYSTEM.Status.IsError(sc) {
+		Set continue = 0
+		Quit ..ServerError(sc)
+	}
+	If '##class(OcuTalon.Web.Public.Shell).HasRole(live) {
+		Set continue = 0
+		If $IsObject($Get(%session)) {
+			Do %session.Logout(1)
+			Set %session.EndSession = 1
+		}
+		Quit ..Fail(401, "signed_out", ##class(OcuTalon.Web.Public.ApiBase).#MESSAGESIGNEDOUT)
+	}
+	If (..ViewerOnly() || ##class(OcuTalon.Web.Public.Shell).ViewerOnly(live)) && '..ViewerMay(method, url) {
+		Set continue = 0
+		Quit ..Fail(403, "read_only", ..#MESSAGEREADONLY)
 	}
 	If ..IsSettingsUrl(url) && '..IsAdmin() {
 		Set continue = 0
@@ -349,6 +377,35 @@ ClassMethod Roles() As %String [ Private ]
 ClassMethod IsAdmin() As %Boolean [ Private ]
 {
 	Quit ##class(OcuTalon.Core.Admin).Held(..Roles())
+}
+
+/// 1 when the signed-in user holds OcuTalonViewer and not OcuTalonUser (Story 25.4). A test subclass drives it through Roles.
+ClassMethod ViewerOnly() As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Web.Public.Shell).ViewerOnly(..Roles())
+}
+
+/// 1 when a viewer-only user may make the request: a GET, except the two memory reads that submit a command (items and pinned), and POST /v1/session/end.
+ClassMethod ViewerMay(method As %String, url As %String) As %Boolean [ Private ]
+{
+	Set path = $ZConvert($Piece($Get(url), "?", 1), "L")
+	If ($ZConvert($Get(method), "U") = "POST") && (path = "/v1/session/end") Quit 1
+	If $ZConvert($Get(method), "U") '= "GET" Quit 0
+	Quit (path '= "/v1/memory/items") && (path '= "/v1/memory/pinned")
+}
+
+/// 1 when the install can assign the approver and viewer roles (Web.RoleSettings RolesReady). A test subclass overrides it.
+ClassMethod RolesInstalled() As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Web.RoleSettings).RolesReady()
+}
+
+/// The signed-in user's roles as the instance holds them now, recursed (the CSP session keeps its roles from sign-in). It runs as the signed-in user and
+/// needs no privilege for the user's own name. A test subclass overrides it.
+ClassMethod LiveRoles(Output roles As %String) As %Status [ Private ]
+{
+	Set roles = ""
+	Quit $SYSTEM.Security.GetUserRecursedRoleSet($Username, .roles)
 }
 
 /// 1 when the URL (below the application) is /v1/settings or below it.
@@ -1259,7 +1316,8 @@ ClassMethod Unpair() As %Status [ Private ]
 /// incidents and web notice cards merged by time, oldest first; the rail its pending approval requests, checks, pending
 /// reminders and newest decisions), the signed-in user (the session row's, never the client's), admin (whether the signed-in user holds OcuTalonAdmin, which only decides the page's
 /// Settings link), the booleans onlineDemo and demoMode, filesReadable (Story 25.3: whether the install's code can read a sent file, Core.Files.Readable; the page shows the
-/// paperclip and takes a chat drop only when it is true and the instance is not the online demo), models:
+/// paperclip and takes a chat drop only when it is true and the instance is not the online demo), viewer (Story 25.4: the user's roles, from the session or live, hold OcuTalonViewer and not OcuTalonUser, so
+/// the page is read-only; admin reads false for such a user) and rolesAssignable (the online demo is off and Web.RoleSettings RolesReady is 1, which decides the Roles section), models:
 /// the display names of the triage, diagnosis and chat agents' models, telegram: whether the release includes Telegram
 /// and the session's pairing, status: the active status conditions, and, only while demo mode is on, phone: the session's
 /// newest PHONEMAX simulated-phone messages, oldest first, mailbox: the session's newest MAILMAX simulated-mailbox emails,
@@ -1290,10 +1348,14 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 		"rail": (rail),
 		"user": (session.IrisUser)
 	}
-	Do body.%Set("admin", ..IsAdmin(), "boolean")
+	Set readOnly = ..ViewerOnly()
+	If 'readOnly && $SYSTEM.Status.IsOK(..LiveRoles(.live)) Set readOnly = ##class(OcuTalon.Web.Public.Shell).ViewerOnly(live)
+	Do body.%Set("admin", ..IsAdmin() && 'readOnly, "boolean")
 	Do body.%Set("onlineDemo", ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1, "boolean")
 	Do body.%Set("demoMode", ##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Install.Step.Demo).#MODEKEY) = "1", "boolean")
 	Do body.%Set("filesReadable", ##class(OcuTalon.Core.Files).Readable(), "boolean")
+	Do body.%Set("viewer", readOnly, "boolean")
+	Do body.%Set("rolesAssignable", (body.onlineDemo = 0) && ..RolesInstalled(), "boolean")
 	Set body.models = {
 		"triage": (..ModelName(..ResolveModel("TriageAgent"))),
 		"diagnosis": (..ModelName(..ResolveModel("DiagnosisAgent"))),

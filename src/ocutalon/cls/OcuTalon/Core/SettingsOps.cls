@@ -44,6 +44,12 @@
 /// Persona(sessionRef) and Heartbeat(sessionRef) read a person's values from their rows, ForgetPerson(sessionRef) deletes every per-person key of a session
 /// (SessionOps.End calls it), and PersonaKey names a persona key. A written value applies to other processes when their 60-second
 /// Setting cache entries expire.
+/// ListRoles and the roles section of SaveSettings (Story 25.4, origin web_admin) reach OcuTalon.Install.Step.Roles (Holders and Assign) in this job, which holds
+/// %Admin_Secure:USE. The user name and the role of a save arrive only as the SecretHandoff uri that is the whole of Changes ({"handoff": uri}), and the list
+/// leaves only as the uri in the CommandResult's Data ({"handoff": uri}): no other user's name is in a command, a CommandResult, a log line or a global. A save
+/// takes its uri first, on every path. Outcomes: done (a save's Data is {"changed": 0 or 1}), refused (Data {"fields": ["role" or "user"], "reason": the code of
+/// Roles.Refusal}, or {"fields": []} for a shape that is not {user, role, grant}), not_available (the online demo), not_allowed (an origin other than web_admin),
+/// not_built (Roles answered 5003) and failed. The change's one audit entry is Assign's; ListRoles and SaveRoles write none.
 /// SaveSettings saves one section of the settings page (XData Sections: the section's fields, each with its key or bridge name, its kind and
 /// its default). The outcomes are done (Ok 1; a save that changes nothing is done too), refused (a value, a field or the section is not
 /// acceptable; Data is {"fields": [the names of the refused fields]}), not_built (a bridge value's Check answered "not implemented", code 5003:
@@ -190,6 +196,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	If class = "OcuTalon.Msg.Command.SetHeartbeat" Quit ..SaveHeartbeat(command)
 	If class = "OcuTalon.Msg.Command.CreateWebhook" Quit ..CreateWebhook(command)
 	If class = "OcuTalon.Msg.Command.SetWebhookSecret" Quit ..SetWebhookSecret(command)
+	If class = "OcuTalon.Msg.Command.ListRoles" Quit ..ListRoles(command)
 	Quit ..Result(0, "unknown_command", ##class(OcuTalon.Core.CommandsIn).#MESSAGEUNKNOWN)
 }
 
@@ -908,7 +915,8 @@ XData Sections [ MimeType = application/json ]
   {"name": "signIn", "optional": 1},
   {"name": "clientId", "optional": 1},
   {"name": "password", "optional": 1},
-  {"name": "clientSecret", "optional": 1}]}
+  {"name": "clientSecret", "optional": 1}]},
+ {"slug": "roles", "kind": "roles", "fields": []}
 ]
 }
 
@@ -941,7 +949,7 @@ ClassMethod Values() As %DynamicObject
 	Set sections = {}
 	Set iterator = ..Sections().%GetIterator()
 	While iterator.%GetNext(, .section) {
-		If (section.kind = "bridge") || (section.kind = "models") || (section.kind = "email") Continue
+		If (section.kind = "bridge") || (section.kind = "models") || (section.kind = "email") || (section.kind = "roles") Continue
 		Set values = {}
 		Set fields = section.fields.%GetIterator()
 		While fields.%GetNext(, .field) {
@@ -1015,6 +1023,7 @@ Method Save(command As OcuTalon.Msg.Command.SaveSettings) As OcuTalon.Msg.Comman
 	If '$IsObject(changes) || 'changes.%IsA("%Library.DynamicObject") Quit ..Refused([])
 	If section.kind = "models" Quit ..SaveModels(command, changes)
 	If section.kind = "email" Quit ..SaveEmail(command, changes)
+	If section.kind = "roles" Quit ..SaveRoles(command, changes)
 	Set bad = [], refused = 0, wanted = ""
 	Set fields = section.fields.%GetIterator()
 	While fields.%GetNext(, .field) {
@@ -2356,6 +2365,75 @@ ClassMethod WebhookFieldText(key As %String, value As %String = "") As %String
 	Set slots = $Case(key, "settings.refusedExpansion": {"marker": (value)}, "settings.webhookNameTaken": {"name": (value)}, : {})
 	Set text = ##class(OcuTalon.Msg.Catalog).Render(key, slots, "web", .sc)
 	Quit $Select($$$ISERR(sc) || (text = ""): ..#MESSAGENOTSAVED, 1: text)
+}
+
+/// The class of the role calls; a test subclass overrides it.
+ClassMethod RolesClass() As %String [ Private ]
+{
+	Quit "OcuTalon.Install.Step.Roles"
+}
+
+/// Carries out a ListRoles and returns the CommandResult to answer; see the class description.
+Method ListRoles(command As OcuTalon.Msg.Command.ListRoles) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	If command.Origin '= "web_admin" Quit ..Result(0, "not_allowed", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTALLOWED)
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..#MESSAGENOTSAVED)
+	Set sc = $ClassMethod(..RolesClass(), "Holders", .users)
+	If ..NotImplemented(sc) Quit ..Result(0, "not_built", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTBUILT)
+	If $$$ISERR(sc) || '$IsObject($Get(users)) {
+		$$$LOGERROR("The holders of the OcuTalon roles could not be listed")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(users.%ToJSON(), .uri)
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The list of the OcuTalon roles could not be handed over")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Quit ..Result(1, "done", "", {"handoff": (uri)}.%ToJSON())
+}
+
+/// Carries out the roles section of a SaveSettings: see the class description.
+Method SaveRoles(command As OcuTalon.Msg.Command.SaveSettings, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set json = ""
+	Set uri = $Select(changes.%GetTypeOf("handoff") = "string": changes.handoff, 1: "")
+	Set taken = ..TakeSecret(uri, .json)
+	If command.Origin '= "web_admin" Quit ..Result(0, "not_allowed", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTALLOWED)
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..#MESSAGENOTSAVED)
+	If (changes.%Size() '= 1) || (uri = "") Quit ..Refused([])
+	If $$$ISERR(taken) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(json)
+	} Catch {
+		Set body = ""
+	}
+	Set json = ""
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") || (body.%Size() '= 3) Quit ..Refused([])
+	If (body.%GetTypeOf("user") '= "string") || (body.%GetTypeOf("role") '= "string") || (body.%GetTypeOf("grant") '= "boolean") Quit ..Refused([])
+	Set userName = body.user
+	Set role = body.role
+	Set grant = body.grant
+	Try {
+		Set code = $ClassMethod(..RolesClass(), "Refusal", userName, role)
+	} Catch {
+		$$$LOGERROR("The roles change could not be checked")
+		Quit
+	}
+	If '$Data(code) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	If code = "online_demo" Quit ..Result(0, "not_available", ..#MESSAGENOTSAVED)
+	If code '= "" {
+		Set data = {"fields": ([($Select(code = "role": "role", 1: "user"))]), "reason": (code)}
+		Quit ..Result(0, "refused", ..#MESSAGENOTSAVED, data.%ToJSON())
+	}
+	Set sc = $ClassMethod(..RolesClass(), "Assign", userName, role, grant, .changed, command.ActingUser, command.SessionRef, "web")
+	If ..NotImplemented(sc) Quit ..Result(0, "not_built", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTBUILT)
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The roles change failed")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Set data = {}
+	Do data.%Set("changed", +$Get(changed), "boolean")
+	Quit ..Result(1, "done", ..#MESSAGEWEBHOOKSAVED, data.%ToJSON())
 }
 
 }

@@ -20,6 +20,7 @@ import { DemoView } from '../shared/demo-view';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { Layout, RAIL_REGION } from '../shared/layout';
 import { HEIGHT_QUERIES, LAYOUT_QUERIES, LAYOUT_TEXTS } from '../shared/layout-view';
+import { isViewer } from '../shared/viewer-view';
 import { Popovers } from '../shared/popover';
 import { ServerButton } from '../shared/server-button';
 import { readFlag, writeFlag } from '../shared/stored-flag';
@@ -218,7 +219,9 @@ const FOCUS_RULE: FocusRule = {
                   <app-more-to-try [id]="morePanelId" [items]="items()" [floor]="floor()" (pressed)="chosen.set(true)" (squeezed)="squeezed.set(true)" />
                 }
                 <app-try-it-row data-guide-focus="tryIt" />
-                <app-server-button class="run-again" variant="secondary" [action]="runAgain" data-guide-focus="runAgain">{{ texts.runAgain }}</app-server-button>
+                @if (!viewer()) {
+                  <app-server-button class="run-again" variant="secondary" [action]="runAgain" data-guide-focus="runAgain">{{ texts.runAgain }}</app-server-button>
+                }
               </div>
             } @else {
               <div class="prompt" tabindex="-1" data-guide-focus="bar" [attr.data-guide-step]="guide.selected === 3 ? '3' : null">
@@ -238,6 +241,7 @@ const FOCUS_RULE: FocusRule = {
                     <span class="prompt-text" tabindex="-1" data-guide-focus="text">{{ prompt.quoted }}</span>
                     @switch (prompt.action) {
                       @case ('send') {
+                        @if (!viewer()) {
                         <button
                           type="button"
                           class="button button-primary"
@@ -246,6 +250,7 @@ const FOCUS_RULE: FocusRule = {
                           [attr.aria-describedby]="allowanceText() ? reasonId : null"
                           (click)="send(prompt.text)"
                         >{{ texts.send }}</button>
+                        }
                       }
                       @case ('showMe') {
                         <button type="button" class="button button-primary" data-guide-focus="action" (click)="showMe()">{{ texts.showMe }}</button>
@@ -617,6 +622,8 @@ const FOCUS_RULE: FocusRule = {
 })
 export class DemoGuide {
   private readonly live = inject(LiveState);
+  /** True for a viewer (Story 25.4): no Run again, no Send and no marker post. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
   private readonly demoView = inject(DemoView);
   private readonly outbox = inject(ChatOutbox);
   private readonly allowance = inject(AllowanceState);
@@ -800,6 +807,9 @@ export class DemoGuide {
 
   /** Writes a marker and keeps its 200 answer as the guide view. A failure adds no text: a press of Open the trace writes it again. */
   protected mark(marker: GuideMarker): void {
+    if (this.viewer()) {
+      return;
+    }
     this.post(marker).subscribe({ error: () => undefined });
   }
 
