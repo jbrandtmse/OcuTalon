@@ -7620,6 +7620,8 @@ So that it works without storing my mail password.
 
 ### Story 21.4: Add, remove and classify MCP servers and tools in Settings
 
+> [AMENDED 2026-11-12, split at its spec gate, Contest Planner ruling V10 (owner's delegation)] The changed-tool banner criterion moved verbatim to Story 21.9; this story keeps the rest.
+
 > [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1041] The MCP settings write (IRIS Wallet secret and Config Store entry) moves into `McpOps`, an operation, never the REST process; AD-1 stays unchanged. Story 35.2 left the routes as stubs that change nothing; this story replaces them and adds the `/v1/settings/mcp` route with the standing real-HTTP route tests.
 
 As an admin,
@@ -7646,15 +7648,27 @@ So that I decide which added tools OcuTalon may use, and how.
 **When** the admin picks an option
 **Then** it saves at once through the classify command, confirms with "Saved", and is audited by `McpOps` (FR-48, FR-9, UX-DR145, UX-DR130)
 
-**Given** a tool whose description or inputs changed, which Lane A's Story 22.2 made Unclassified
-**When** an admin opens Settings
-**Then** a banner, in the wording the author accepted from Story 35.2 (was 21.1)'s proposal, names the tool, and its control shows Unclassified, alongside the notice card the admin's chat gets (FR-48, UX-DR145)
-
 **Given** the online demo
 **When** anyone signs in
 **Then** MCP settings are off: no MCP endpoint runs on the demo, the demo account sees no settings, nobody can add or remove a server, and the demo says so in a plain line (public text at this story's spec gate) (FR-47, FR-59, AD-25) [AMENDED 2026-11-11, Contest Planner ruling: the online-demo safety rule; no MCP endpoint runs on the demo] (it read: "only the preconfigured allow-listed servers exist, the demo account sees no settings, and nobody can add or remove a server")
 
+### Story 21.9: Show the changed-tool banner in Settings
+
+> [AMENDED 2026-11-12, split from Story 21.4 at its spec gate, Contest Planner ruling V10 (owner's delegation)] Criterion moved verbatim from Story 21.4; runs after 21.4; it needs Lane A's Tools(server) to say which unclassified tools McpOps cleared after a fingerprint change (21.4's C1, a cross-epic ask to Epic 22).
+
+As an admin,
+I want Settings to tell me which tool changed and was made Unclassified,
+So that I classify it again knowingly.
+
+**Acceptance Criteria:**
+
+**Given** a tool whose description or inputs changed, which Lane A's Story 22.2 made Unclassified
+**When** an admin opens Settings
+**Then** a banner, in the wording the author accepted from Story 35.2 (was 21.1)'s proposal, names the tool, and its control shows Unclassified, alongside the notice card the admin's chat gets (FR-48, UX-DR145)
+
 ### Story 21.5: Set up source polls and answer tool-call approval requests
+
+> [AMENDED 2026-11-12, split at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] The approval-request criteria (2, 3 and 4) moved verbatim to Story 21.10; this story keeps the source poll (criterion 1).
 
 As an admin,
 I want to set a read-only tool as a source, and see exactly what a held tool call will run before I approve it,
@@ -7667,19 +7681,98 @@ So that sources feed OcuTalon new items and I approve only calls I understand.
 **Then** the form uses the wording the author accepted from Story 35.2 (was 21.1)'s proposal, the admin-checked route submits the source-poll command to Lane A's `McpOps`, which Lane A's Story 22.5 runs, the source belongs to the admin's session, and a tool that isn't Read-only can't be chosen, with the reason shown beside it (FR-50, FR-33, UX-DR145, UX-DR133)
 **And** until Story 22.5 merges, the tests submit the source-poll command to a `McpOps` test double that records it (AD-29)
 
+### Story 21.10: Answer tool-call and standalone approval requests on every channel
+
+> [AMENDED 2026-11-12, split at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] The standalone fix request criterion moved verbatim to Story 21.11; this story keeps the tool-call card and the cancelled request.
+
+> [AMENDED 2026-11-12, split from Story 21.5 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.5 (criteria 2, 3 and 4); runs after Lane A's Story 22.4 merges (fixture requests for 22.4 and 22.7 until they merge); it needs nothing from 21.4 or 22.5.
+
+As an admin,
+I want to see exactly what a held tool call or a standalone fix request will run before I approve it,
+So that I approve only calls I understand.
+
+**Acceptance Criteria:**
+
 **Given** a pending approval request of kind `tool_call` with no incident, raised by Lane A's Story 22.4 (a fixture request until it merges)
 **When** it shows in the web chat
 **Then** the card shows "Approval needed", "Why:" with its reason, "Run {tool} on {server}", the exact inputs as labelled lines, "No dry run is available for this tool. Approving runs exactly this call once.", **Approve**, **Reject** and the expiry, under release 1's approval card rules (FR-8, FR-49, UX-DR75, UX-DR145)
 **And** the rail's approval row, the phone notification and the Telegram message carry the same content as plain text with **Approve** and **Reject**, and the first answer wins everywhere (FR-8, FR-20, UX-DR52, UX-DR83, UX-DR114)
+
+**Given** a pending request that Lane A's Story 22.4 cancelled because its server was removed
+**When** the cancellation arrives
+**Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 35.2 (was 21.1)'s proposal (FR-47, FR-8, AD-11)
+- DW-1232: the mcp.replayToolChanged notice (22.4 R1) renders text on the web chat and phone cards (a catalog key in Channel/WebChat/Out.cls and the phone card); until this merges, no release notes, guide or More-to-try text describes the changed-tool replay path (ledger; routed by merge_gate 2026-11-13, Contest Planner F2)
+- DW-1266: when this story removes the 200-character inputs cut, update 22.6's guide sentence P2 and its worked example in the same commit (ledger; routed by merge_gate 2026-11-13, Contest Planner M(4))
+
+### Story 21.11: Show standalone fix requests with their reason and dry run on every channel
+
+> [AMENDED 2026-11-12, split from Story 21.10 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criterion moved verbatim from Story 21.10 (originally Story 21.5's); runs after Lane A's Story 22.7 merges (a fixture request until it does), since 22.7 fixes the email request row's shape.
+
+As an admin,
+I want a fix request that has no incident to show its reason and its exact dry run on every channel,
+So that I approve only what I understand.
+
+**Acceptance Criteria:**
 
 **Given** a standalone fix request, such as an email to someone other than the user from Lane A's Story 22.7 (a fixture request until it merges)
 **When** it shows on any channel
 **Then** it carries "Why:" and its dry run with the exact text and every recipient (FR-8, FR-44, UX-DR75)
 **And** because it has no incident, its `approval`, `answered` and `result` notifications come from `OcuTalon.Core.BridgeSink` through `NoticesIn`, as a tool call's do, and this story builds that (`IncidentManager` sends them only for an incident's fix requests), so the phone and Telegram get the buttons and in-place edits (FR-8, AD-31, AD-32)
 
-**Given** a pending request that Lane A's Story 22.4 cancelled because its server was removed
-**When** the cancellation arrives
-**Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 35.2 (was 21.1)'s proposal (FR-47, FR-8, AD-11)
+### Story 21.12: A check fails on a link to a README anchor that README.md does not have
+
+> [ADDED 2026-11-12, inserted by the Epic 21 runner under the Contest Planner's ruling E ("take DW-1207 as burndown" in Lane C's idle time); test-only, no product change]
+
+As the maintainer,
+I want one check that fails when any file outside README.md links a README anchor that README.md does not have,
+So that moving or renaming a README section can never leave a dead link behind.
+
+**Acceptance Criteria:**
+
+**Given** any tracked Markdown file other than README.md (GUIDE.md and docs/*.md included; the append-only records under `_bmad-output/`, the owner-only `_bmad/` and `.claude/`, and the frozen `release/records/` left out) that links `README.md#<anchor>` (relative or by the repository URL) [AMENDED 2026-11-12, Story 21.12 spec gate, Rule 5 tier 1: the file set made explicit so the check can pass on records nobody may edit]
+**When** the check runs in CI
+**Then** it fails, naming the file, line and anchor, for every anchor that is not a heading anchor of README.md as GitHub renders it, and passes when every such link resolves
+**And** the check proves it can fail: a planted dead link is flagged and a live one is not (DW-1207)
+
+- DW-1207: test: one check that fails when any file outside README.md (docs/*.md included) links a README anchor README.md doesn't have (ledger; routed by orchestrator 2026-11-12)
+
+### Story 21.13: A re-sent turn sends its email once (EmailOut honours the command's idempotency key)
+
+> [ADDED 2026-11-13, fix story inserted by the Epic 21 runner under the Contest Planner's ruling H(ii) (DW-1244, routed to Lane C); Story 22.7's merge waits for it]
+
+As a user,
+I want a chat turn that is sent again to send its email only once,
+So that a retry never emails anyone twice.
+
+**Acceptance Criteria:**
+
+**Given** a `SendEmail` command from origin `tool` that carries an `IdempotencyKey` (AD-1), which `EmailOut` has already sent
+**When** the same command arrives again with the same key (a re-sent turn, a replay, or after a restart)
+**Then** `EmailOut` sends nothing the second time and answers as for the first send, and exactly one mail reaches the SMTP stub; a different key sends normally; the system path's existing approval-keyed de-duplication (21.6 ruling (f)) is unchanged
+**And** a test pins it: a re-sent turn with the same key sends once (DW-1244)
+
+- DW-1244: EmailOut ignores a tool command's IdempotencyKey (AD-1), so a re-sent chat turn could send the own-address email twice (ledger; routed by the orchestrator 2026-11-13, entry on OCT-epic22's ledger; linked entry here)
+
+### Story 21.14: The mailbox address and user name stay out of the trace
+
+> [ADDED 2026-11-13, fix story inserted by the Epic 21 runner under the Contest Planner's DW-1255 audit ruling (prompts/rulings-371-dw1255-20261113.md, items 1 and 5); implemented after Story 21.8 merges]
+
+As an admin,
+I want the mailbox's address and user name kept out of the trace,
+So that someone who can read traces does not learn them.
+
+**Acceptance Criteria:**
+
+**Given** an admin saves Settings > Channels > Email
+**When** the save reaches `SettingsOps`
+**Then** the mailbox `address` and `user` travel by the same handoff swap as the password and the client secret in `Web/Api.cls`: `SaveSettings.Changes` holds only their handoff references, the values reach only `SettingsOps` and IRIS's own audit entry, and `incoming`, `outgoing`, `signIn`, `clientId` and `origin` stay as they are
+**And** a leak-scan test shows neither value in any traced message, log row, trace or `^OcuTalon*` global after a save (DW-1255)
+
+**Given** `docs/security-overview.md`
+**When** it describes the trace role
+**Then** it states plainly that anyone with the trace role sees each item's content, including an email's sender (`Msg.Item.Sender` stays, by the ruling) (DW-1255)
+
+- DW-1255: audit: personal data in traced SaveSettings.Changes (the email channel's address and user) moves to the SecretHandoff; the security overview states what the trace role sees (ledger; routed by the orchestrator 2026-11-13)
 
 ### Story 21.6: Send email over SMTP
 
@@ -7837,6 +7930,7 @@ So that a tool I added can't change anything until I say yes.
 **Given** the mock MCP server's risky tool, with no platform policy covering it
 **When** the automated test asks for it in a user's turn
 **Then** the tool doesn't run without an approved request, runs once after approval, and the audit log holds the request, the answer and the call (FR-49, FR-9, NFR-13, AD-22)
+- DW-1220: An approved native MCP call replayed by Replay.Run is not rewritten into call_mcp_tool, so it runs through AI Hub's client with no deadline, cut, call-time fingerprint check or audit entry (ledger; routed by harvest 2026-11-12)
 
 ### Story 22.5: Poll a read-only MCP tool as a source
 
@@ -7890,6 +7984,7 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **Given** the worked example's guidance on classifying MCP tools, which the README's admin section (the admin guide) repeats
 **When** it describes classifying MCP tools
 **Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.2 (was 24.1) copies that sentence into the README's admin section with the link (FR-10, FR-61)
+- [AMENDED 2026-11-13, Contest Planner ruling F(2) on DW-1232] Until Story 21.10 merges (the web and phone cards for `mcp.replayToolChanged`), no release notes, guide or More to try text describes the changed-tool replay path; if a release carries 22.4 without 21.10, the notes leave that path out.
 
 ### Story 22.7: Send email from the chat, safe to you and approved for anyone else
 
@@ -7982,6 +8077,7 @@ So that a server that stops answering in the middle of a request can never hold 
 **When** the runner lists its tools or the model calls one of them
 **Then** OcuTalon's own Streamable HTTP client (Story 22.3's, with Story 22.9's bounds) does the listing and the call, both give up within a bounded time with a clear error, and the turn goes on without that server's tools; AI Hub's MCP client is no longer used for listing or calling, and the gate, classification by fingerprint, approval and audit apply exactly as before (FR-47, FR-48, FR-49, AD-10, AD-21, AD-31)
 **And** AD-21's "AI Hub lists, OcuTalon calls" rule and its Story 22.9 residual note are amended to match (AD-21)
+- DW-1221: Mcp.Client has no total deadline per request (Timeout is per read), so a server that trickles bytes can hold a runner job past CALLSECONDS (ledger; routed by harvest 2026-11-12)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 
@@ -8049,6 +8145,7 @@ So that the likely cause and its fix arrive together.
 **When** this story lands
 **Then** it holds at least two recorded incidents caused by setting changes, each with a recorded reader snapshot that includes setting history and an expected cause category and element at fault, scored on every run like every other incident (FR-62, FR-24, AD-22)
 **And** CI mock scenarios under `ci/mock/scenarios/A/` cover a setting-change diagnosis that proposes a rollback, and a test proves its dry run changes nothing (AD-16, AD-22)
+- DW-1225: AC moved from 36.1 (Contest Planner V1(b)): this story declares Fix.Kind.RollbackSetting with its RESOURCES entry, grants %Ens_ProductionConfig:W to OcuTalonServiceRole (the online-demo install leaves it out), adds exactly one forbidden-list test exception, changes the security overview's ONLINESTATEMENT, adds its overview sentence, and ships incident.settingChangeCause; result.settingRestored keeps its undo sentence only if this story builds and tests the undo path (ledger; routed by merge_gate 2026-11-13)
 
 ### Story 23.4: Decide when to page the on-call person and when to escalate to the backup
 
@@ -8385,6 +8482,7 @@ So that the backup is woken only when the on-call person really didn't answer.
 **Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, escalation timers survive the restart, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
 
 ### Story 24.4: Show the new fixes, partner warnings and setting changes on the cards
 
@@ -9964,6 +10062,7 @@ So that an incident can later name the change that came just before the failures
 **When** it is written
 **Then** it records that the roll-back kind declares `%Ens_ProductionConfig` with WRITE, so the service user holds it from step 5, and AD-24's list of privileges no OcuTalon role holds names this one grant as its exception; suspend and resume declare only `%Ens_ConfigItemRun`, and reroute declares `%Ens_MessageResend` (AD-16, AD-24, NFR-12)
 **And** the installer composes the service user's grants from those declarations, the security overview's generated privilege list shows `%Ens_ProductionConfig` with the roll-back kind that needs it, and Epic 3's forbidden-privilege test allows exactly that grant to the service user and still fails on any other forbidden privilege or holder (FR-61, NFR-12, AD-23, AD-24)
+[AMENDED 2026-11-12, Contest Planner ruling V1(b) on Story 36.1's spec (owner's delegation): no write grant ships before something uses it, so the roll-back kind's declaration, its `%Ens_ProductionConfig` WRITE grant, the installer composing it, the security overview's line and the one forbidden-privilege test exception move to Story 23.3, the first story that offers a rollback (approved AC move; DW-1225 routed to 23-3); in 36.1 the spine records them as Story 23.3's, worded "%Ens_ProductionConfig:W is granted by Story 23.3 together with rollback_setting; the demo install leaves it out."]
 
 **Given** PRD Open Question 5's answer (the author, 2026-10-25: Telegram and email both by default, and each on-call person can choose Telegram, email or both)
 **When** this story updates the spine
@@ -9980,13 +10079,15 @@ So that an incident can later name the change that came just before the failures
 **Then** both changes appear as `SettingChange` rows after the next heartbeat that sees the counter move, each detected time is within the check interval, no row names who made the change, and taking a snapshot changes nothing in the watched production (AD-15, FR-27)
 **And** both tables commit their storage blocks with `DEFAULTGLOBAL` from the short-name registry, and their rows older than `daysToKeep` (90 by default) are purged through the area's `Purge(daysToKeep)` declaration (AD-3, AD-5, AD-27, NFR-19)
 
-### Story 36.2: Set the on-call person and backup in Settings
+### Story 36.2: Fix Lane B's step 5 contracts: paging, escalation and the SQL query watch verb
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 24.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 24 waited for Story 23.1 while Epic 23's Stories 23.4 and 23.8 waited for Story 24.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
 
-As an admin,
-I want to choose the on-call person and the backup, each paged by Telegram, email or both (both by default), and the time before escalation, [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "each with a channel, and the time before escalation,"]
-So that incidents page the right people on a channel that can reach them.
+[AMENDED 2026-11-12, Story 36.2 split, unattended ruling (doctrine U5, split 2 of 6): retitled from "Set the on-call person and backup in Settings"; its user story and the five on-call section criteria moved verbatim to Story 36.4, planned next, because the contracts and the section are two standard-size stories; every "Story 36.2 fixes" reference in Epics 23 and 24 stays true; the epic's promise is unchanged]
+
+As the builders of Epics 23 and 24,
+we want step 5's Lane B names fixed in the spine and created as code contracts,
+So that both lanes build paging, escalation and the SQL query watch in parallel.
 
 **Acceptance Criteria:**
 
@@ -9995,7 +10096,17 @@ So that incidents page the right people on a channel that can reach them.
 **Then** the spine is updated in the same change with Lane B's step-5 additions: the settings sections for on-call, partner contacts and SQL query watches and their routes; the on-call setting keys in `OcuTalon.Data.Setting`; a partner-contact table owned by Lane B and written only by `SettingsOps`; the page notification and its route in `OcuTalon.Core.Rule.Notify`; an escalation kind on `Reminder`, whose `ReminderTimer` waiter sends the escalation message to the paging owner; the `approval` payload's fields for the new kinds' dry runs; the command verbs to acknowledge a page and to save a SQL query watch, and a `handled` notification and a `Delivery` lookup by the page's `Ref`, so every copy of an acknowledged page updates (Telegram's through Story 23.4) (FR-28, AD-5, AD-12, AD-29, AD-33)
 **And** the step-5 additions that Lane A's Story 36.1 (was 23.1) asks for in `OcuTalon.Msg` and `OcuTalon.Data` are appended by Lane B as their owner, and Lane A's stories never edit them (AD-29, AD-33)
 **And** the section names and texts the UX doesn't give (the on-call, partner-contact and SQL query watch sections and their field errors) are proposed to the author as additions to `EXPERIENCE.md` › Later Steps › Step 5 and the Message Catalog, every other text is the step-2 settings text, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR141)
-**And** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
+[AMENDED 2026-11-12, Story 36.2 split, unattended ruling (doctrine U5, split 1 of 6): the criterion "with Epic 22 merged, this story adds the README link to Lane A's worked Jira example ..." moved verbatim to Story 36.3, because it alone waits on Epic 22 (Story 22.6's worked example); the epic's promise is unchanged]
+
+### Story 36.4: Set the on-call person and backup in Settings
+
+[AMENDED 2026-11-12, split from Story 36.2, unattended ruling (doctrine U5, split 2 of 6): Story 36.2's user story and its five on-call section criteria, moved verbatim; it depends on Story 36.2's contracts and keeps Lane B's files]
+
+As an admin,
+I want to choose the on-call person and the backup, each paged by Telegram, email or both (both by default), and the time before escalation, [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "each with a channel, and the time before escalation,"]
+So that incidents page the right people on a channel that can reach them.
+
+**Acceptance Criteria:**
 
 **Given** an admin opens the on-call section
 **When** they choose the on-call person and the backup
@@ -10017,6 +10128,23 @@ So that incidents page the right people on a channel that can reach them.
 **Given** automated tests in `OcuTalon.Test.Core` and a Playwright spec under `web/e2e/`
 **When** an admin saves, corrects and saves the section again
 **Then** the stored values, the audit entries and the page's states match, and the section works by keyboard with every control labelled (NFR-25, UX-DR125, UX-DR130)
+
+- DW-1249: V3 says the on-call (and partner-contact) from/to values appear in no trace, but a settings save is a production message whose body (SaveSettings Changes) Visual Trace shows; the leak-scan test cannot pass as worded until this is settled (ledger; routed by cr 2026-11-13)
+- DW-1250: an on-call person or backup given only as an email address can never acknowledge a page, so the backup is always paged after the escalation time, and the accepted On call texts don't say so (ledger; routed by cr 2026-11-13)
+
+### Story 36.3: Link the worked Jira example from the admin docs
+
+[AMENDED 2026-11-12, split from Story 36.2, unattended ruling (doctrine U5, split 1 of 6): Story 36.2's README criterion moved here verbatim, because it alone waits on Epic 22 (Story 22.6 supplies the worked example under `docs/`), so the rest of 36.2 is not held behind it; Lane B's files, as 36.2]
+
+As an admin,
+I want the admin docs to link the worked Jira example and say which MCP tools must be classified risky,
+So that I classify a tool that runs operating-system commands or arbitrary code as risky.
+
+**Acceptance Criteria:**
+
+**Given** Epic 22 merged
+**When** this story runs
+**Then** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
 
 
 ## Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)

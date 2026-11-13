@@ -79,7 +79,11 @@
 /// OAuthStart, OAuthState), registers IRIS's OAuth2 client OcuTalonMail with the client secret, which then lives only there; a provider changed or a Password
 /// saved removes the client and its tokens. Each change is audited without the secret: email.signIn (the method names), email.clientId (set, changed or
 /// removed), email.clientSecret (set or removed), email.oauthOwned (the lists) and email.oauthApp (the web application /csp/sys/oauth2 enabled or disabled).
-/// The mark emailSignIn {at, provider, signedIn} follows each register, remove and check. A MailSignIn (origin web_admin) with action start enables the web
+/// With a provider (Story 21.8) it also writes the rows OAuth2ApplicationName (OAUTHAPPLICATION) and OAuth2CallBackHandler (OAUTHHANDLER, Channel.Email.Token) on EmailIn
+/// and, when it has an outgoing server, on EmailOut, so that the adapters log in with XOAUTH2; Password, or a cleared outgoing server, deletes them, and a failed save
+/// puts them back like any row. No OAuth2Scope, OAuth2SessionId or OAuth2AuthProperties row is written.
+/// The mark emailSignIn {at, provider, signedIn} follows each register, remove and check; the page's signedIn is that mark, and false after a poll failed on the sign-in after
+/// the mark's time (Story 21.8; a reader of the mark emailPoll only). A MailSignIn (origin web_admin) with action start enables the web
 /// application when it is disabled (audited) and answers Ok, Outcome started and Data {"url"}, IRIS's authorization address for the consent; action check answers
 /// Outcome checked and Data {"signedIn"} and records the mark; a mailbox without a provider is refused with Data {"fields": ["signIn"]}, and the online demo
 /// is not_available.
@@ -836,6 +840,12 @@ Parameter SIGNINS = "password,google,microsoft";
 
 Parameter SIGNINMARK = "emailSignIn";
 
+/// The rows of a provider sign-in on the mail items (Story 21.8): IRIS's OAuth2 client OcuTalonMail (the application name, as Channel.Email.OAuth names it)
+/// and the handler class that gets its access token.
+Parameter OAUTHAPPLICATION = "OcuTalonMail";
+
+Parameter OAUTHHANDLER = "OcuTalon.Channel.Email.Token";
+
 /// The POP3 port of a server written without one (implicit TLS), and the port that uses STARTTLS (RFC 2595).
 Parameter DEFAULTPORT = 995;
 
@@ -1033,7 +1043,7 @@ ClassMethod Refused(bad As %DynamicArray) As OcuTalon.Msg.CommandResult [ Privat
 }
 
 /// 1 when the body's value of the field is acceptable, and canonical is its form to store. A value that is missing, is not a JSON string or
-/// number, or holds "@{" is not; an int is a whole number of its range, a time is HH:MM, channels is a non-empty list of web, phone and telegram
+/// number, or holds "@{" is not; an int is a whole number of its range, a time is HH:MM, channels is a non-empty list of web, phone, telegram and email
 /// without a repeat (stored in that order), and a bridge value is a string of at most BRIDGEMAX characters (the bridge checks the rest).
 ClassMethod Field(field As %DynamicObject, changes As %DynamicObject, Output canonical As %String) As %Boolean [ Private ]
 {
@@ -1059,11 +1069,11 @@ ClassMethod Field(field As %DynamicObject, changes As %DynamicObject, Output can
 		Set picked = ""
 		For i = 1:1:$Length(text, ",") {
 			Set one = $Piece(text, ",", i)
-			If '$ListFind($ListBuild("web", "phone", "telegram"), one) || $ListFind(picked, one) Quit
+			If '$ListFind($ListBuild("web", "phone", "telegram", "email"), one) || $ListFind(picked, one) Quit
 			Set picked = picked_$ListBuild(one)
 		}
 		If $ListLength(picked) '= $Length(text, ",") Quit 0
-		For one = "web", "phone", "telegram" {
+		For one = "web", "phone", "telegram", "email" {
 			If $ListFind(picked, one) Set canonical = canonical_$Select(canonical = "": "", 1: ",")_one
 		}
 		Quit 1
@@ -1553,8 +1563,8 @@ Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 			Set sc = ..WriteCredential(field("user"), secret, 'exists || (secret '= ""))
 			If $$$ISOK(sc) Set written = written_$ListBuild("credential")
 		}
-		If $$$ISOK(sc) Set sc = ..WriteItemSettings(..#MAILITEM, ..ItemRows(field("host"), field("port")), .rows)
-		If $$$ISOK(sc) && ((field("ohost") '= "") || (oldOutgoing '= "")) Set sc = ..WriteItemSettings(..#SENDITEM, ..OutRows(field("ohost"), field("oport")), .rows)
+		If $$$ISOK(sc) Set sc = ..WriteItemSettings(..#MAILITEM, ..ItemRows(field("host"), field("port"), provider), .rows)
+		If $$$ISOK(sc) && ((field("ohost") '= "") || (oldOutgoing '= "")) Set sc = ..WriteItemSettings(..#SENDITEM, ..OutRows(field("ohost"), field("oport"), provider), .rows)
 		If $$$ISOK(sc) && provider {
 			Set sc = ..RegisterOAuth(signIn, field("clientId"), clientSecret, field("origin"), oldOwned, .changed, .newOwned, .app)
 			If $$$ISOK(sc) Set didRegister = 1
@@ -1673,18 +1683,35 @@ ClassMethod RecordSignIn(provider As %String, signedIn As %Boolean) [ Private ]
 	If $$$ISERR(sc) $$$LOGERROR("The sign-in mark could not be recorded: "_$SYSTEM.Status.GetErrorText(sc))
 }
 
-/// 1 when the mark emailSignIn says that the provider is signed in.
+/// 1 when the mark emailSignIn says that the provider is signed in and no poll has failed on the sign-in after it (PollFailedOnSignIn). A reader only: the mark
+/// keeps its one writer.
 ClassMethod SignedInMark(provider As %String) As %Boolean [ Private ]
 {
 	Set value = ##class(OcuTalon.Data.StatusMark).Get(..#SIGNINMARK)
 	If value = "" Quit 0
 	Try {
 		Set mark = {}.%FromJSON(value)
-		Set signedIn = (mark.provider = provider) && (+mark.signedIn = 1)
+		Set signedIn = (mark.provider = provider) && (+mark.signedIn = 1) && '..PollFailedOnSignIn(mark.at)
 	} Catch {
 		Set signedIn = 0
 	}
 	Quit signedIn
+}
+
+/// 1 when the mark emailPoll says that the latest poll failed with the sign-in reason (Channel.Email.Adapter REASONSIGNIN) after the time since, the time of the
+/// mark emailSignIn: the provider's sign-in is no longer accepted, whatever the token row says. A poll from before the sign-in, or from the same second (a time stamp has
+/// no finer grain, and the poll that failed just before the consent is in that second), is not counted.
+ClassMethod PollFailedOnSignIn(since As %String) As %Boolean [ Private ]
+{
+	Set value = ##class(OcuTalon.Data.StatusMark).Get(##class(OcuTalon.Channel.Email.Adapter).#MARK)
+	If value = "" Quit 0
+	Try {
+		Set poll = {}.%FromJSON(value)
+		Set failed = (+poll.ok = 0) && (poll.reason = ##class(OcuTalon.Channel.Email.Adapter).#REASONSIGNIN) && (poll.at ] since)
+	} Catch {
+		Set failed = 0
+	}
+	Quit failed
 }
 
 /// Carries out a MailSignIn and returns the CommandResult to answer (see the class description). The online demo is not_available; an action that is not start
@@ -1897,18 +1924,29 @@ ClassMethod SslFor(port As %Integer, item As %String = {..#MAILITEM}) As %String
 	Quit ##class(OcuTalon.Install.Step.SSL).#NAME_$Select(starttls: "*", 1: "")
 }
 
-/// The System Default Settings rows of EmailIn that a mailbox needs, as host and port: name, value pairs in a list.
-ClassMethod ItemRows(host As %String, port As %Integer) As %List [ Private ]
+/// The System Default Settings rows of EmailIn that a mailbox needs, as host and port: name, value pairs in a list, and the OAuth2 rows of OAuthRows (with provider 0
+/// both marked for deletion, a third element 1).
+ClassMethod ItemRows(host As %String, port As %Integer, provider As %Boolean = 0) As %List [ Private ]
 {
-	Quit $ListBuild($ListBuild("POP3Server", host), $ListBuild("POP3Port", port), $ListBuild("Credentials", ..#CREDENTIAL), $ListBuild("SSLConfig", ..SslFor(port)), $ListBuild("Enabled", 1))
+	Quit $ListBuild($ListBuild("POP3Server", host), $ListBuild("POP3Port", port), $ListBuild("Credentials", ..#CREDENTIAL), $ListBuild("SSLConfig", ..SslFor(port)), $ListBuild("Enabled", 1)) _ ..OAuthRows(provider)
+}
+
+/// The System Default Settings rows that tell an item to sign in with OAuth2 (Story 21.8): with a provider OAuth2ApplicationName and OAuth2CallBackHandler,
+/// otherwise the same two marked for deletion. No scope, session or auth-properties row is ever written: the handler names the session, and the scope is fixed
+/// at consent.
+ClassMethod OAuthRows(provider As %Boolean) As %List [ Private ]
+{
+	If provider Quit $ListBuild($ListBuild("OAuth2ApplicationName", ..#OAUTHAPPLICATION), $ListBuild("OAuth2CallBackHandler", ..#OAUTHHANDLER))
+	Quit $ListBuild($ListBuild("OAuth2ApplicationName", "", 1), $ListBuild("OAuth2CallBackHandler", "", 1))
 }
 
 /// The System Default Settings rows of EmailOut for an outgoing server: name, value pairs, and a third element 1 for a row to delete. With a host: the
-/// server, the port, the credential, the SSLConfig, SSLCheckServerIdentity 1 and Enabled 1. With no host: Enabled 0 and the server and port rows deleted.
-ClassMethod OutRows(host As %String, port As %Integer) As %List [ Private ]
+/// server, the port, the credential, the SSLConfig, SSLCheckServerIdentity 1, Enabled 1 and the OAuth2 rows of OAuthRows. With no host: Enabled 0 and the
+/// server, port and OAuth2 rows deleted.
+ClassMethod OutRows(host As %String, port As %Integer, provider As %Boolean = 0) As %List [ Private ]
 {
-	If host = "" Quit $ListBuild($ListBuild("Enabled", 0), $ListBuild("SMTPServer", "", 1), $ListBuild("SMTPPort", "", 1))
-	Quit $ListBuild($ListBuild("SMTPServer", host), $ListBuild("SMTPPort", port), $ListBuild("Credentials", ..#CREDENTIAL), $ListBuild("SSLConfig", ..SslFor(port, ..#SENDITEM)), $ListBuild("SSLCheckServerIdentity", 1), $ListBuild("Enabled", 1))
+	If host = "" Quit $ListBuild($ListBuild("Enabled", 0), $ListBuild("SMTPServer", "", 1), $ListBuild("SMTPPort", "", 1)) _ ..OAuthRows(0)
+	Quit $ListBuild($ListBuild("SMTPServer", host), $ListBuild("SMTPPort", port), $ListBuild("Credentials", ..#CREDENTIAL), $ListBuild("SSLConfig", ..SslFor(port, ..#SENDITEM)), $ListBuild("SSLCheckServerIdentity", 1), $ListBuild("Enabled", 1)) _ ..OAuthRows(provider)
 }
 
 /// Writes the rows of the list (ItemRows or OutRows) of the item that differ from the stored ones, and deletes the rows marked for deletion that exist. It

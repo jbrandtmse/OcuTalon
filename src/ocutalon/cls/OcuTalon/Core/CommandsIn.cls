@@ -285,7 +285,7 @@ ClassMethod IsNotRegistered(sc As %Status) As %Boolean [ Private ]
 }
 
 /// 1 when the production item has an alive job that is not in error.
-ClassMethod ItemRunning(item As %String) As %Boolean [ Private ]
+ClassMethod ItemRunning(item As %String) As %Boolean
 {
 	Set result = ##class(%ResultSet).%New("Ens.Job:Enumerate")
 	If $$$ISERR(result.Execute()) Quit 0
@@ -362,7 +362,9 @@ XData Routes [ MimeType = application/json ]
  {"verb": "CreateWebhook", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "SetWebhookSecret", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "ProposeFix", "owner": "IncidentManager", "origins": "tool"},
- {"verb": "ListPinnedMemories", "owner": "MemoryOps", "origins": "web_user"}
+ {"verb": "ListPinnedMemories", "owner": "MemoryOps", "origins": "web_user"},
+ {"verb": "AckPage", "owner": "IncidentManager", "origins": "web_user,web_admin,telegram"},
+ {"verb": "SaveSqlWatch", "owner": "WatchOps", "origins": "web_admin"}
 ]
 }
 

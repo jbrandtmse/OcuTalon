@@ -9,6 +9,9 @@
 ///   - Kind digest: the session's own channels that digest.channels also names (Functions.DigestNamed): WebChatOut when web is named,
 ///     SimPhoneOut when phone is named and demo mode is on, TelegramOut when telegram is named and the session is paired; nothing
 ///     when none holds. A digest never takes the generic route below;
+///   - Kind digest, in the rule DigestEmail beside the one above: EmailOut as well when Functions.DigestEmail holds for the session (digest.channels
+///     names email, the session owns the mailbox, email.address is an address, EmailOut has an alive job, not the online demo; Story 21.7). Its
+///     send adds to the targets of the rule above, so EmailOut is the one channel that never needs the combinations of the rule above;
 ///   - any other Kind: WebChatOut, SimPhoneOut as well when demo mode is on, and TelegramOut as well when the session is paired.
 /// A session is paired only while Telegram is included, so a release without Telegram never sends to TelegramOut.
 Class OcuTalon.Core.Rule.Notify Extends Ens.Rule.Definition [ CompileAfter = OcuTalon.Core.Rule.Functions ]
@@ -77,6 +80,12 @@ XData RuleDefinition [ XMLNamespace = "http://www.intersystems.com/rule" ]
 <otherwise>
 <send transform="" target="WebChatOut"></send>
 </otherwise>
+</rule>
+<rule name="DigestEmail">
+<constraint name="msgClass" value="OcuTalon.Msg.Notification"></constraint>
+<when condition="Document.Kind=&quot;digest&quot; &amp;&amp; DigestEmail(Document.SessionRef)">
+<send transform="" target="EmailOut"></send>
+</when>
 </rule>
 </ruleSet>
 </ruleDefinition>

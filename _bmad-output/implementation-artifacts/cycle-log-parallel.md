@@ -3896,3 +3896,51 @@
 2026-11-13T06:49:23Z	Epic 25	merge_enqueued	part=25.3 head=eb99dc1f
 2026-11-13T06:49:58Z	Epic 37	ledger_routed_planned	story=37-1 entries=1(DW-1231) excess=0 by=merge_gate(after_25.3_merge)
 2026-11-13T06:49:58Z	Run	deps_hash_rerecorded	reason=ledger_routed note=DW-1231_bullet_on_37.1
+2026-11-13T06:50:01Z	Epic 25	epic_merged_to_feature	part=25.3 feature_sha=0898ebfb merge_sha=197c069d code=4832dea7+23.12(no_code_overlap) verified_on_origin=yes
+2026-11-13T06:50:11Z	Run	ci_cancelled	head=83ea7bc8 run=43364200347(queued) reason=superseded_by_0898ebfb(contains_it)
+2026-11-13T06:50:40Z	Epic 25	runner_complete	runner=aa000b22fa7fb6f0c story=25.3 merged=197c069d unpushed=none waiting=25.4,25.5(37.1),25.6(37.1+26.2)
+2026-11-13T06:51:12Z	Epic 37	owner_decision	via=contest_planner what=lane_A_next(DW-1255_read-only_audit;then_plan_37.1;then_idle) 
+2026-11-13T06:51:12Z	Epic 37	runner_dispatched	model=opus runner=epic-runner-37 lane=A slot=ocutalon-slot-a prompt=prompts/dispatch-epic-37-371-20261113.md base=91c837e3 tasks=DW-1255_audit,37.1_plan push=none
+2026-11-13T07:22:09Z	Epic 37	runner_ended	reason=waiting waiting_on=epic-36+Planner_rulings head=694097e0(local_only) reports=DW-1255_audit,37.1_plan(veto1-8,AD_amendments_7)
+2026-11-13T07:23:37Z	Run	owner_decision	via=contest_planner what=DW-1255_audit_rulings+37.1_plan_rulings(V1-V8,AD_amendments,V6_alternative) file=prompts/rulings-371-dw1255-20261113.md relay=runners_C,D,37_at_turn_end
+2026-11-13T07:54:34Z	Run	owner_decision	via=contest_planner what=HOLD_at_10:00Z_tonight(quota_84pct_at_07:50Z,~4pct/h) rule="from 09:30Z start no stage that cannot reach its boundary by ~10:15Z; prefer short items, reviews, records, pushes" note=0.35_A/B_after_morning_reset
+2026-11-13T08:11:54Z	Epic 21	runner_reported	CI_WAIT head=f17e2566(21.7+21.8+21.12+21.13;fixes_for_5d5581eb_reds:Watch.Summary_one-word_lane_A,email.spec_E7_strict-mode) runs=43391202522,43391202509 local=63684923
+2026-11-13T08:11:54Z	Epic 21	runner_resumed	tasks=plan_DW-1255_fix_story(implement_after_21.8),hold_notice_10:00Z
+2026-11-13T09:00:44Z	Epic 36	runner_reported	PART_READY part=36.1+36.2 head=16499946 code_head=20e3655a ci=success runs=43378472985(att2,DW-1094),43378472843
+2026-11-13T09:00:44Z	Epic 36	ci_cancelled	head=16499946 runs=43397122469,43397122429 reason=records-only(code_identical_to_green_20e3655a)
+2026-11-13T09:00:44Z	Epic 36	amendments_verified	amendments=epics_36.1/36.2/36.3/36.4 extensions=Install/Step/Watch.cls,short-names.tsv,Test/Bridge/CodeRules.cls,Test/Data/Tables.cls ok=true
+2026-11-13T09:00:44Z	Epic 36	merge_enqueued	part=36.1+36.2 head=16499946
+2026-11-13T09:02:20Z	Epic 36	epic_merged_to_feature	part=36.1+36.2 feature_sha=ea10d2d4 merge_sha=ea10d2d4 code=20e3655a+feature(auto-merged_appends:Test/Data/Tables.cls,Test/Msg/Contracts.cls,short-names.tsv) spine_reconciled=Tables_line_union,rows_both lint=baseline verified_on_origin=yes
+2026-11-13T09:02:46Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=0898ebfb runs=43381440110,43381440045 result=success
+2026-11-13T09:02:46Z	Epic 23	ledger_routed_planned	story=23-3 entries=1(DW-1225) by=merge_gate
+2026-11-13T09:02:46Z	Epic 24	ledger_routed_planned	story=24-3 entries=1(DW-1251) by=merge_gate
+2026-11-13T09:04:49Z	Epic 21	runner_reported	PART_READY part=21.7+21.8+21.12+21.13 head=1dd5a240 code_head=f17e2566 ci=success runs=43391202522,43391202509 + PLANNER_REPORT 21.14(DW-1255)
+2026-11-13T09:04:49Z	Epic 21	ci_green_verified	head=f17e2566 runs=43391202522,43391202509 result=success
+2026-11-13T09:04:49Z	Epic 21	amendments_verified	amendments=spine(21.7_S1-S5,21.8_S1-S4,AD-19,AD-22,AD-14),epics(21.9-21.14_splits/inserts),EXPERIENCE(E1,E2,K) release_tool=release/checklist.sh_one_line(approved) ok=true
+2026-11-13T09:04:49Z	Epic 21	merge_enqueued	part=21.7+21.8+21.12+21.13 head=1dd5a240
+2026-11-13T09:05:09Z	Epic 21	merge_gate_blocked	reason=spine_AD-14_both_sides_amended(36.2_page_kind_"third_allowed_send"_vs_21.7_digest_"third_path"+21.8_OAuth2_bullet) action=merge_aborted;resume_runner_C_integrate_forward(U14)
+2026-11-13T09:06:01Z	Epic 22	runner_reported	PART_READY part=22.9+22.3+22.4 head=a758d17a ci=success runs=43370177969(att2:DW-555,DW-1264_new),43370177998 merge=HELD(Planner_J_live_harness_run) 22.7=local_done(push_held:21.13+DW-1261) gate=22.6
+2026-11-13T09:06:10Z	Epic 21	owner_decision	via=contest_planner what=21.14_approved+TraceLeaks_retrofit_condition(21.2/21.3/21.8,35.3,22.3/22.4,36.4)+security-overview_text file=prompts/gate-rulings-20261112-1810.md#L relay=runner_C_at_turn_end;runners_D,B_notice_for_retrofit
+2026-11-13T09:07:06Z	Epic 22	owner_decision	via=contest_planner what=DW-1261_fix_before_22.7(Live_payload_from_stored_row)+DW-1262_interim(admin_only_for_others)+DW-1264_flake+22.6_gate_approved(conditions_P1/P2/M1/expiry) file=prompts/gate-rulings-20261112-1810.md#M relay=runner_22_at_turn_end note=DW-1261_done_inside_22.7_by_lane_D
+2026-11-13T09:17:08Z	Run	hold_prep	live_runners=C(a782ad9fd103aa691,integrate_forward),D(a54c08573d57fa9de,harness_run_if_fits) both_told_hold_rules_in_their_resume_messages idle=B(36),A(37),0,23,25 action=no_mid-stage_message_needed
+2026-11-13T09:20:36Z	Epic 22	runner_reported	HARNESS=pass rows=13/13 approval_checks=6 run=09:06:54Z-09:19:38Z tag=e22sharn1 log=scratchpad/e22sharn/run/ shared_incident_risk=not_seen
+2026-11-13T09:20:36Z	Epic 22	ci_green_verified	head=a758d17a runs=43370177969(att2),43370177998 result=success
+2026-11-13T09:20:36Z	Epic 22	merge_enqueued	part=22.9+22.3+22.4 head=a758d17a condition_J=met
+2026-11-13T09:21:49Z	Epic 22	epic_merged_to_feature	part=22.9+22.3+22.4 merge_sha=3d94a219 code=a758d17a+feature(CodeRules_union) condition_J=met(harness_recorded_in_spec-22-4)
+2026-11-13T09:22:17Z	Run	ci_cancelled	head=ea10d2d4 runs=43397985131(queued),43397984995(in_progress) reason=superseded_by_0c481884(contains_it;cancel-superseded_rule)
+2026-11-13T09:59:45Z	Run	hold_ordered	reason=owner_quota_HOLD_NOW_via_Planner(2am_PST) lock=kept
+2026-11-13T09:59:45Z	Epic 22	stage_api_error	runner=a54c08573d57fa9de error=other(403_Cloudflare_authentication_failed:"Please run /login") note=runner_died_after_merge_relay
+2026-11-13T10:00:31Z	Run	hold_saved	WIP_pushed_by_explicit_path refs=hold/OCT-epic22-20261113(46d7407e,17_commits_incl_22.7_code),hold/OCT-epic36-20261113(4e2c246b),hold/OCT-epic37-20261113(694097e0) ci_triggered=no(refs_outside_workflow_patterns) dirty_trees=none
+2026-11-13T10:02:25Z	Epic 21	runner_ended	reason=hold head=9aec7dee origin=4eb46cdd(CI_pending:43399692299,43399692062) backup=hold/OCT-epic21-20261113
+2026-11-13T10:02:25Z	Run	hold_complete	shas=feature:0c481884(CI_pending),OCT-epic21:4eb46cdd(+hold/9aec7dee),OCT-epic22:a758d17a(+hold/46d7407e),OCT-epic36:16499946(+hold/4e2c246b),OCT-epic37:91c837e3(+hold/694097e0),OCT-epic0:e168d257(0.35_held_merge) worktrees=clean runners=all_ended locks=none throwaways=none hold_patches=none lock=kept(no_run-end)
+2026-11-13T10:02:45Z	Run	inbox_hold_item	id=U-328
+2026-11-13T10:02:45Z	Run	all_parked_report_sent	to=Contest_Planner
+2026-11-13T10:02:58Z	Run	protocol_violation	stage=hold depth=0 agent=orchestrator violation=force-push(git_push_-f)_of_own_backup_ref_hold/feature-records-20261113(668090a4->239bc971) consequence=none(ref_created_minutes_earlier_by_orchestrator_as_backup_only;no_shared_branch,no_CI,no_one_else_reads_it) detected_by=orchestrator outcome=reported_to_owner_and_Planner;no_further_force_pushes(use_a_new_ref_name_instead)
+2026-11-13T10:03:28Z	Run	planner_ack	what=force-push_self-report_acknowledged(no_loss;new_ref_490c0e04) hold=stands resume=Planner_RESUME_after_owner_reset
+2026-11-13T13:17:38Z	Run	unattended_resumed	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec lock_token=1794477728-57457 via=Contest_Planner_RESUME(owner_quota_reset_13:16Z) hold_cleared=yes same_session
+2026-11-13T13:17:38Z	Epic 0	ci_rerun	sha=e168d257 run=43356780569 job=iris(browser)demo-path_06-trace_step5 reason=compare(Planner;0.35_held_merge)
+2026-11-13T13:18:23Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=0c481884 result=success note=newest_fully_green
+2026-11-13T13:18:23Z	Epic 21	ci_green_verified	head=4eb46cdd runs=43399692299,43399692062 result=success
+2026-11-13T13:18:23Z	Epic 21	merge_enqueued	part=21.7+21.8+21.12+21.13 head=9aec7dee code_head=4eb46cdd
+2026-11-13T13:19:18Z	Epic 21	epic_merged_to_feature	part=21.7+21.8+21.12+21.13 merge_sha=ce9716c6 code=4eb46cdd+22.x(no_code_conflict) verified_on_origin=yes
+2026-11-13T13:19:18Z	Epic 21	ledger_routed_planned	story=21-10 entries=2(DW-1232,DW-1266) by=merge_gate

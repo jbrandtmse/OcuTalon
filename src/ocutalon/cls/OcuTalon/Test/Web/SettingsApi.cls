@@ -290,6 +290,16 @@ Method TestSaveThresholds()
 	Set body = ..Call("SaveDailyDigest", {"time": "06:45", "channels": "phone,web"}.%ToJSON(), session, .response)
 	Do $$$AssertEquals(response.Status, "200 OK", "the digest section saves too: "_body)
 	Do $$$AssertEquals(..Row("digest.time")_"|"_..Row("digest.channels"), "06:45|web,phone", "the digest keys are written")
+	// Story 21.7 (QA): the route accepts email, stored last, and refuses a list that holds a name of no channel with the field named and nothing changed.
+	Set body = ..Call("SaveDailyDigest", {"time": "06:45", "channels": "email,web"}.%ToJSON(), session, .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "a save that names email is 200: "_body)
+	Do $$$AssertEquals(..Row("digest.channels"), "web,email", "and stores the channels in their fixed order, email last")
+	Do $$$AssertEquals({}.%FromJSON(..Call("Settings", "", session, .response)).sections.%Get("daily-digest").channels, "web,email", "GET /v1/settings shows the stored value at once")
+	For channels = "web,sms,email", "email,email", "Email", "email;web" {
+		Set body = ..Call("SaveDailyDigest", {"time": "06:45", "channels": (channels)}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""channels""]}", "the channels '"_channels_"' are refused with the field named")
+		Do $$$AssertEquals(..Row("digest.channels"), "web,email", "'"_channels_"' changed nothing")
+	}
 }
 
 /// An admin's POST /v1/settings/daily-digest/send answers 202 {"result":"sending"}, and the production records one requested Sent row of the CSP

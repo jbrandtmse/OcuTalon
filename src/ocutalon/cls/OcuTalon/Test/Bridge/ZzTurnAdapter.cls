@@ -1,14 +1,18 @@
 /// The runner's adapter of the per-request tool tests (Story 19.5; AD-6, AD-31): it attaches the toolset OcuTalon.Test.Bridge.ZzTurnToolset in
 /// OnAfterAgentInit, through Attach, and notes in ^||ZzTurn("config", n) what each session config it composes finds: the class of the authorization and of
 /// the audit policy of the agent's tool manager, whether that manager is not the one the agent was built with (the manager of the request), and the names of
-/// the tools it discovers, then the names of those whose source is mcp. AttachedCount gives the number of specs that Attach has recorded (AttachedSpecs, the specs), and TwoConfigs composes the session config twice for one request (ComposeTwice, for an agent that is built already).
+/// the tools it discovers, then the names of those whose source is mcp. AttachedCount gives the number of specs that Attach has recorded (AttachedSpecs, the specs), RestLeft the seconds left of the longest rest of an MCP server, and TwoConfigs composes the session config twice for one request (ComposeTwice, for an agent that is built already). MapBroken runs the map with no tool manager.
 /// OpenTurn composes the session config once for a request of the kind turn of the owner and leaves the request's tools in place, with the context that the caller began
 /// (Story 22.8): CallTool then runs a tool of the request's tool manager through the gate, and CloseTurn ends the request's tools. CallTool answers <OK> for a call
-/// that ran and the text of the error status of AI Hub for a call that did not (a denial of the gate carries its sentence).
+/// that ran and the text of the error status of AI Hub for a call that did not (a denial of the gate carries its sentence); CallValue answers the result that the model would read.
 /// While the node ^OcuTalonTest("TurnTools", "fail") is 1, SessionConfigFor fails after the adapter's composition has run, so that the request ends in an error
-/// with the request's manager assigned. Nothing else differs from the adapter.
+/// with the request's manager assigned. RESTSECONDS is 3 (the adapter's is 60), so that a test can act inside the rest of a server that failed in a request and then
+/// wait it out (Story 22.9). Nothing else differs from the adapter.
 Class OcuTalon.Test.Bridge.ZzTurnAdapter Extends OcuTalon.Bridge.Adapter.Agent
 {
+
+/// The seconds that a server rests after a request found it silent.
+Parameter RESTSECONDS = 3;
 
 Method OnAfterAgentInit(ByRef agent As %AI.Agent) As %Status [ Private ]
 {
@@ -30,6 +34,19 @@ Method AttachedSpecs() As %List
 	Quit ..Attached
 }
 
+/// The seconds left of the longest rest of a recorded MCP server, 0 when none rests.
+Method RestLeft() As %Decimal
+{
+	Set left = 0
+	Set spec = ""
+	For {
+		Set spec = $Order(..McpRest(spec), 1, until)
+		If spec = "" Quit
+		If until - $ZHorolog > left Set left = until - $ZHorolog
+	}
+	Quit left
+}
+
 /// Composes the session config twice for one request of the kind turn of the owner, as a request that compacts its history does, and ends the request's
 /// tools. The status is the first error.
 Method TwoConfigs(owner As %String) As %Status
@@ -49,10 +66,14 @@ Method OpenTurn(owner As %String) As %Status
 	Quit ..SessionConfigFor(.config)
 }
 
-/// Builds the turn's MCP map and runs the turn-start check (MapMcpTools) on the manager that the agent has now, with the context that the caller began.
-Method MapOwn()
+/// Builds the turn's MCP map (MapMcpTools) while the agent has no tool manager at all, so that the listing fails as a manager that cannot be listed does, and puts the
+/// manager back.
+Method MapBroken()
 {
+	Set manager = ..Agent.ToolManager
+	Set ..Agent.ToolManager = ""
 	Do ..MapMcpTools()
+	Set ..Agent.ToolManager = manager
 }
 
 /// Runs the tool of the request's tool manager with the arguments: <OK> when it ran, else the text of the error.
@@ -63,6 +84,19 @@ Method CallTool(name As %String, arguments As %DynamicObject = {{}}) As %String
 		Return "<OK>"
 	} Catch exception {
 		Return $SYSTEM.Status.GetErrorText(##class(%AI.System).HandleError(exception, 1))
+	}
+}
+
+/// Runs the tool of the request's tool manager with the arguments and answers what the model would read as its result: the text of the value, or its JSON when it is an object
+/// (Story 22.3), and "<ERROR> " and the text of the error when the call did not run.
+Method CallValue(name As %String, arguments As %DynamicObject = {{}}) As %String
+{
+	Try {
+		Set result = ..Agent.ToolManager.ExecuteTool(name, arguments)
+		Set value = result.%Get("value")
+		Return $Select($IsObject(value): value.%ToJSON(), 1: value)
+	} Catch exception {
+		Return "<ERROR> " _ $SYSTEM.Status.GetErrorText(##class(%AI.System).HandleError(exception, 1))
 	}
 }
 

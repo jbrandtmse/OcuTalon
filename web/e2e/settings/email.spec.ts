@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import { expect, test, type Locator, type Page } from '../support/fixtures';
 
-import { envelope, signInOverHttp } from '../sign-in/helpers';
+import { README_ACCOUNT, envelope, signInOverHttp } from '../sign-in/helpers';
 import { signInReadmeLoaded } from '../support/floor';
 import { chk, fixtureUser, irisScript } from '../support/iris';
 
@@ -26,6 +26,11 @@ import { chk, fixtureUser, irisScript } from '../support/iris';
  *     redirect to the provider's consent page itself (a redirect back to IRIS's OAuth2.Response with a code and the same state), and everything server to server
  *     (IRIS's code exchange with the mock's token step) is real; the button opens a new tab that lands on Settings > Channels and shows "Signed in with Google."; GET shows
  *     signedIn, clientSecretSet and no secret; a second session gets 403 on GET and both routes. It puts back the OAuth2 objects and the web application's flag.
+ *   - E7 (Story 21.7): the daily digest by email. With the mailbox saved and no outgoing server, Settings > Daily digest shows no Email box; once the outgoing
+ *     server (the CI mock's SMTP stub) is saved the box shows, checking it and saving stores the channels with `email` last, "Send my digest now" delivers exactly
+ *     one mail to the stub (read through EmailLive.SmtpState, as the browser reaches IRIS only), and the LIVE fixture user's POST of channels with `email` is 403 and
+ *     changes nothing; a call with no session is 401, the admin's POST of a list with a name of no channel (or a repeated or mis-cased one) is 400 bad_settings naming
+ *     channels and changes nothing, and a second admin session reads the stored channels. The channels are put back and the mailbox removed afterwards.
  */
 const SETTINGS = '/ocutalon/api/v1/settings';
 const CHANNELS = `${SETTINGS}/channels`;
@@ -76,11 +81,11 @@ async function counts(): Promise<{ handoffs: string; saves: string; keys: string
   return { handoffs: chk(lines, 'handoffs') ?? '?', saves: chk(lines, 'saves') ?? '?', keys: chk(lines, 'keys') ?? '?', out: chk(lines, 'out') ?? '?' };
 }
 
-/** Removes the mailbox the test connected, and what it made: the settings rows of EmailIn, the credential, the keys, the seen rows, the mark, the decisions. */
+/** Removes the mailbox the test connected, and what it made: the settings rows of EmailIn and EmailOut (the OAuth2 rows of a provider save included), the credential, the keys, the seen rows, the mark, the decisions. */
 async function removeMailbox(): Promise<void> {
   await irisScript(
     [
-      'For i="EmailIn","EmailOut" { For n="POP3Server","POP3Port","SMTPServer","SMTPPort","Credentials","SSLConfig","SSLCheckServerIdentity","Enabled" { Set id="OcuTalon.Production||"_i_"||*||"_n If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Do ##class(Ens.Config.DefaultSettings).%DeleteId(id) } }',
+      'For i="EmailIn","EmailOut" { For n="POP3Server","POP3Port","SMTPServer","SMTPPort","Credentials","SSLConfig","SSLCheckServerIdentity","Enabled","OAuth2ApplicationName","OAuth2CallBackHandler","OAuth2Scope","OAuth2SessionId","OAuth2AuthProperties" { Set id="OcuTalon.Production||"_i_"||*||"_n If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Do ##class(Ens.Config.DefaultSettings).%DeleteId(id) } }',
       'If ##class(Ens.Config.Credentials).%ExistsId("OcuTalonMail") Do ##class(Ens.Config.Credentials).%DeleteId("OcuTalonMail")',
       'For k="email.address","email.owner","email.signIn","email.clientId","email.oauthOwned" { Set r=##class(OcuTalon.Data.Setting).KeyIndexOpen(k) If $IsObject(r) Do ##class(OcuTalon.Data.Setting).%DeleteId(r.%Id()) }',
       'Do ##class(OcuTalon.Test.Channel.EmailOAuth).Wipe()',
@@ -393,8 +398,155 @@ test('E6: an admin registers the OAuth2 client and signs in with Google, and no 
     } finally {
       await other.dispose();
     }
+
+    // QA (Story 21.8): the provider withdraws the grant while the access token is still valid. The next poll of EmailIn is refused at the stub, fails on the sign-in, and
+    // GET /v1/settings then says signedIn false: the README admin reads it (200) and so does a second admin session, the LIVE fixture user is refused (403) and sees no mailbox.
+    // The product always writes SSLConfig OcuTalonClient and the stub is plain, so the poll needs the fixture row that EmailLive.PlainStub writes (removeMailbox deletes it).
+    await irisScript('Do ##class(OcuTalon.Test.Channel.EmailLive).OAuthControl("revoke",{})\nDo ##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault("OcuTalon.Production","EmailIn","SSLConfig","","zz test fixture")');
+    const polled = await irisScript(
+      [
+        'Set m=##class(OcuTalon.Data.StatusMark).Get("emailPoll"),at=$Select(m="":"",1:{}.%FromJSON(m).at)',
+        'While ##class(OcuTalon.Data.Time).NowUtc()=at { Hang 0.1 }',
+        'Set s=##class(OcuTalon.Data.StatusMark).Get("emailSignIn"),sat=$Select(s="":"",1:{}.%FromJSON(s).at)',
+        'While \'(##class(OcuTalon.Data.Time).NowUtc()]sat) { Hang 0.1 }',
+        'Set item="OcuTalon.Production||EmailIn",a=##class(Ens.Director).TempStopConfigItem(item,1),b=##class(Ens.Director).TempStopConfigItem(item,0),end=$ZHorolog+60,o=""',
+        'For { Hang 0.5 Set m=##class(OcuTalon.Data.StatusMark).Get("emailPoll") Set o=$Select(m="":"",1:{}.%FromJSON(m)) If $IsObject(o),o.at\'=at Quit  If $ZHorolog>end Quit }',
+        'Write !,"CHK|poll|",$Select($IsObject(o)&&(o.at\'=at):o.ok_"|"_o.reason,1:"none")',
+      ].join('\n'),
+    );
+    expect(chk(polled, 'poll'), 'the poll after the withdrawn grant fails on the sign-in').toBe('0|The mail sign-in is no longer valid. Sign in again in Settings > Channels > Email.');
+    const revoked = await page.request.get(SETTINGS);
+    expect(revoked.status(), 'GET /v1/settings as the README admin is 200').toBe(200);
+    const revokedChannels = ((await revoked.json()) as { sections: { channels: Channels } }).sections.channels;
+    expect(revokedChannels.signedIn, 'GET says not signed in after the failed poll').toBe(false);
+    expect([revokedChannels.signIn, revokedChannels.clientSecretSet], 'and still shows the method and the registered client').toEqual(['google', true]);
+    const admin2 = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    const live2 = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    try {
+      await signInOverHttp(admin2, README_ACCOUNT.user, README_ACCOUNT.password);
+      const second = await admin2.get(SETTINGS);
+      expect(second.status(), "a second admin session's GET is 200").toBe(200);
+      expect(((await second.json()) as { sections: { channels: Channels } }).sections.channels.signedIn, 'and says not signed in too').toBe(false);
+      await signInOverHttp(live2, live.user, live.password);
+      const denied = await live2.get(SETTINGS);
+      expect(denied.status(), 'the LIVE fixture user\'s GET is 403').toBe(403);
+      const deniedText = await denied.text();
+      expect(deniedText.includes('signedIn') || deniedText.includes('e2e@example.com') || deniedText.includes(clientId), 'and holds nothing of the mailbox').toBe(false);
+    } finally {
+      await admin2.dispose();
+      await live2.dispose();
+    }
   } finally {
     await page.context().unroute(/\/csp\/sys\/oauth2\/OAuth2\.Response\.cls\?auth=1/);
+    await removeMailbox();
+  }
+});
+
+/** The mail count and first recipient of the CI mock's SMTP stub, as "n|to" ("?" when the stub does not answer). */
+async function smtpMail(): Promise<string> {
+  const lines = await irisScript(
+    [
+      'Set s=##class(OcuTalon.Test.Channel.EmailLive).SmtpState()',
+      'If s="" { Write !,"CHK|mail|?" } Else { Write !,"CHK|mail|",s.messages.%Size(),"|",$Select(s.messages.%Size():s.messages.%Get(0).to.%Get(0),1:"") }',
+    ].join('\n'),
+  );
+  return chk(lines, 'mail') ?? '?';
+}
+
+/** The digest time and channels as the admin session reads them. */
+async function digestValues(page: Page): Promise<{ time: string; channels: string }> {
+  const response = await page.request.get(SETTINGS);
+  expect(response.status(), 'GET /v1/settings as an admin').toBe(200);
+  return ((await response.json()) as { sections: { 'daily-digest': { time: string; channels: string } } }).sections['daily-digest'];
+}
+
+/** E7 (Story 21.7): the Email box of Settings > Daily digest shows once outgoing is saved, stores `email`, and Send my digest now reaches the SMTP stub; the LIVE fixture user is refused. */
+test('E7: the Email digest box shows once outgoing is saved, stores email, and Send my digest now delivers one mail', async ({ page, playwright }) => {
+  const live = fixtureUser('LIVE');
+  const address = 'e2e@example.com';
+  await removeMailbox();
+  await openChannels(page);
+  const before = await digestValues(page);
+  try {
+    const group = page.locator('section[data-section="email"]');
+    const save = group.getByRole('button', { name: 'Save changes', exact: true });
+    await group.getByLabel('Your email address', { exact: true }).fill(address);
+    await group.getByLabel('Incoming mail server (POP3)', { exact: true }).fill('mock:1110');
+    await group.getByLabel('User name', { exact: true }).fill('e2e');
+    await group.locator('#email-password').fill(`Zz-e2e-${randomBytes(9).toString('hex')}`);
+    await save.click();
+    await expect(group.locator('p.saved'), 'the mailbox without an outgoing server is saved').toHaveText(SAVED);
+
+    await sectionsNav(page).getByRole('link', { name: 'Daily digest', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Daily digest' })).toBeVisible();
+    await expect(page.getByRole('checkbox', { name: 'The web chat', exact: true }), 'the section is open').toBeVisible();
+    await expect(page.getByRole('checkbox', { name: 'Email', exact: true }), 'no Email box before the outgoing server is saved').toHaveCount(0);
+
+    await sectionsNav(page).getByRole('link', { name: 'Channels', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Channels' })).toBeVisible();
+    await group.getByLabel('Outgoing mail server (SMTP)', { exact: true }).fill('mock:1025');
+    await save.click();
+    await expect(group.locator('p.saved'), 'the outgoing server is saved').toHaveText(SAVED);
+    await expect.poll(emailOutRuns, { message: 'EmailOut runs', timeout: 60_000, intervals: [2000] }).toBe('1');
+
+    await sectionsNav(page).getByRole('link', { name: 'Daily digest', exact: true }).click();
+    const box = page.getByRole('checkbox', { name: 'Email', exact: true });
+    await expect(box, 'the Email box shows once address and outgoing are saved').toBeVisible();
+    await expect(box, 'and is not checked before it is chosen').not.toBeChecked();
+    await box.check();
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await expect(page.locator('p.saved', { hasText: SAVED }), 'the saved text shows').toBeVisible();
+    const saved = (await digestValues(page)).channels.split(',');
+    expect(saved[saved.length - 1], 'the stored channels end with email').toBe('email');
+    expect(saved.filter((name) => name === 'email'), 'and name it once').toHaveLength(1);
+
+    await irisScript('Do ##class(OcuTalon.Test.Channel.EmailLive).SmtpControl("reset",{})');
+    expect(await smtpMail(), 'the stub holds no mail yet').toBe('0|');
+    await page.getByRole('button', { name: 'Send my digest now', exact: true }).click();
+    await expect(page.locator('#digest-send-result'), 'the page confirms the send').toHaveText('Sending your digest now.');
+    await expect.poll(smtpMail, { message: 'the stub holds one digest mail, for the saved address', timeout: 60_000, intervals: [2000] }).toBe(`1|${address}`);
+
+    // The LIVE fixture user is refused, and the stored channels are as they were.
+    const api = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    try {
+      await signInOverHttp(api, live.user, live.password);
+      const refused = await api.post(`${SETTINGS}/daily-digest`, { headers: envelope(), data: { time: before.time, channels: 'web,email' } });
+      expect(refused.status(), 'POST /v1/settings/daily-digest with email is 403 for the LIVE fixture user').toBe(403);
+      expect(await refused.json(), 'not_admin with the ruled text').toEqual({ error: { code: 'not_admin', message: DENIED } });
+    } finally {
+      await api.dispose();
+    }
+    expect((await digestValues(page)).channels.split(','), 'the refused call changed nothing').toEqual(saved);
+
+    // QA (21.7), the real-HTTP route rule: no session is 401, the admin's own list with a name of no channel is 400 with the field named, and a second admin session sees
+    // the one stored value (the channels are the instance's, not a session's). Each leaves the stored channels as they were.
+    const anonymous = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    try {
+      const unsigned = await anonymous.post(`${SETTINGS}/daily-digest`, { headers: envelope(), data: { time: before.time, channels: 'web,email' } });
+      expect(unsigned.status(), 'POST /v1/settings/daily-digest with email and no session is 401').toBe(401);
+    } finally {
+      await anonymous.dispose();
+    }
+    for (const channels of ['web,sms,email', 'email,email', 'Email']) {
+      const bad = await page.request.post(`${SETTINGS}/daily-digest`, { headers: envelope(), data: { time: before.time, channels } });
+      expect(bad.status(), `the admin's POST of channels '${channels}' is 400`).toBe(400);
+      const body = (await bad.json()) as { error: { code: string }; fields: string[] };
+      expect([body.error.code, body.fields], `'${channels}': bad_settings naming channels`).toEqual(['bad_settings', ['channels']]);
+      expect((await digestValues(page)).channels.split(','), `'${channels}' changed nothing`).toEqual(saved);
+    }
+    const second = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    try {
+      await signInOverHttp(second, README_ACCOUNT.user, README_ACCOUNT.password);
+      const seen = await second.get(SETTINGS);
+      expect(seen.status(), 'GET /v1/settings as a second admin session').toBe(200);
+      const stored = ((await seen.json()) as { sections: { 'daily-digest': { channels: string } } }).sections['daily-digest'].channels;
+      expect(stored.split(','), 'the second session reads the channels the first stored, email last').toEqual(saved);
+    } finally {
+      await second.dispose();
+    }
+  } finally {
+    const put = await page.request.post(`${SETTINGS}/daily-digest`, { headers: envelope(), data: before });
+    expect(put.status(), 'the digest channels are put back').toBe(200);
     await removeMailbox();
   }
 });

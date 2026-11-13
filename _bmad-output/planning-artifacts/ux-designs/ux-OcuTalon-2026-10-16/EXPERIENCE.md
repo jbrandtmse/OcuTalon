@@ -847,6 +847,8 @@ The digest is one message to a session. Its parts come in this order: a greeting
 | Items were saved and the summary request fell back | "Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). The most recent are under Recent decisions on your OcuTalon page." |
 | No item saved in the window | "Nothing was saved for later." |
 | Every digest (the cost) | "Yesterday's cost: {cost}." (two decimals, as the Formats rule says) |
+| The subject of the digest email (step 4, a mailbox and an outgoing mail server saved; [ADDED 2026-11-12, Story 21.7, Contest Planner ruling E1]) | "Your OcuTalon digest" (the same for every day, with no all-clear in it) |
+| The Email box of Settings › Daily digest (shows only once the address and the outgoing mail server are saved; [ADDED 2026-11-12, Story 21.7, Contest Planner ruling E2]) | "Email" |
 
 ### Incident notice with approval request (FR-24, FR-25, FR-8)
 
@@ -1021,6 +1023,54 @@ Banners stack in this table's order.
 | Email refused (the `CommandResult.Message` of `EmailOut` when a recipient, the subject or the text is not allowed, or the recipients are not the ones the send may go to) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling, edited] | "The email wasn't sent because a recipient, the subject or the text wasn't allowed." |
 | Email, no outgoing server (the `CommandResult.Message` of `EmailOut` and of `CommandsIn` when `EmailOut` is not running or the mailbox has no address) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "No outgoing mail server is connected, so the email wasn't sent." |
 | Email rejected by the server (the `CommandResult.Message` of `EmailOut` when the mail server answers the sender, a recipient or the message with an error) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "The mail server didn't accept the email, so it wasn't sent." |
+| Email may have gone out (the `CommandResult.Message` of `EmailOut` for a tool send with an `IdempotencyKey` when the mail server stopped answering while the email was being sent, and for the same key again) [ADDED 2026-11-13, Story 21.13, Contest Planner ruling K] | "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again." |
+
+### Settings (step 5)
+
+[ADDED 2026-11-12, Story 36.2, Contest Planner ruling V7] (PUBLIC TEXT) These are the texts proposed in Story 36.2 and accepted by the Contest Planner on 2026-11-12, verbatim, with two replacements (`settings.onCallOffOnDemo` and `settings.sqlHelp`, shown here as accepted) and two conditions: Story 24.2 must pin both halves of `settings.partnersHelp` in tests, and the read-only claim for SQL query watches may ship only after Story 23.8's test proves the reader user is refused INSERT, UPDATE, DELETE and DDL. No code ships any of them in Story 36.2: they ship in Story 36.4 (On call) and Story 24.2 (Partner contacts, SQL query watches), in `web/src/app/settings/settings-view.ts`. Reused as they are: "Save changes", "Saved. Applies within a minute. Recorded in the audit log.", "Couldn't save. Nothing was changed.", the unsaved-changes dialog texts, "Only OcuTalon admins can open settings.", the channel names "Telegram" and "Email", "Check every" and "This part of OcuTalon isn't built yet. Nothing was changed."
+
+| Case | Text |
+| --- | --- |
+| `settings.onCallSection`, Settings nav label and heading, Story 36.4 | "On call" |
+| `settings.onCallHelp`, Settings > On call, help | "Choose who OcuTalon pages when an incident starts, and who it pages next if nobody presses Got it in time." |
+| `settings.onCallNotYet`, Settings > On call, shown while `OcuTalon.Data.Page` isn't compiled, so the text claims only what the product does | "OcuTalon doesn't send pages yet. It keeps these choices for when it does." |
+| `settings.onCallPrimary`, Settings > On call, group legend | "On-call person" |
+| `settings.onCallBackup`, Settings > On call, group legend | "Backup" |
+| `settings.onCallPerson`, Settings > On call, select label | "Person" |
+| `settings.onCallNobody`, Settings > On call, select option | "Nobody" |
+| `settings.onCallByEmail`, Settings > On call, select option (the other options are each OcuTalon user name) | "Someone else, by email" |
+| `settings.onCallEmail`, Settings > On call, field label | "Email address for pages" |
+| `settings.onCallChannels`, Settings > On call, group legend | "Page by" |
+| `settings.onCallTelegramUnpaired`, Settings > On call, beside a Telegram option that can't be chosen, for a user | "{user} hasn't paired Telegram, so OcuTalon can't message them there yet. They can pair it on their own OcuTalon page." |
+| `settings.onCallTelegramEmailOnly`, Settings > On call, the same, for an address-only person | "Telegram needs an OcuTalon user with a paired chat." |
+| `settings.onCallMinutes`, Settings > On call, field label | "Minutes before paging the backup" |
+| `settings.onCallMinutesHelp`, Settings > On call, help under the minutes | "15 unless you change it." |
+| `settings.badEmail`, Settings > On call and Partner contacts, field error | "Enter an email address such as name@example.com. Nothing was changed." |
+| `settings.onCallBadMinutes`, Settings > On call, field error | "Enter a whole number of minutes from 1 to 1440. Nothing was changed." |
+| `settings.onCallNoChannel`, Settings > On call, field error on Page by | "Choose a way to reach this person: Telegram needs a paired chat, email needs an address. Nothing was changed." |
+| `settings.onCallUnknownUser`, Settings > On call, field error on Person | "{user} isn't an OcuTalon user any more. Choose again. Nothing was changed." |
+| `settings.onCallOffOnDemo`, the 409 `not_available` body of `POST /api/v1/settings/on-call` (Planner ruling 2026-11-12: replaces "because it has no admin") | "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here." |
+| `settings.partnersSection`, Settings nav label and heading, Story 24.2 | "Partner contacts" |
+| `settings.partnersHelp`, Settings > Partner contacts, help (condition: Story 24.2 pins both halves in tests, that warnings go only to the listed people and only after each is approved) | "Partner warnings go only to the people listed here, and only after you approve each one." |
+| `settings.partnerName`, Settings > Partner contacts, field label | "Name" |
+| `settings.partnerEmail`, Settings > Partner contacts, field label | "Email address" |
+| `settings.partnerProductions`, Settings > Partner contacts, field label | "Productions it concerns" |
+| `settings.partnerAdd`, Settings > Partner contacts, button | "Add contact" |
+| `settings.partnerRemove`, Settings > Partner contacts, button | "Remove" |
+| `settings.partnerRemoveConfirm`, Settings > Partner contacts, confirmation | "Remove {name}? Partner warnings will stop going to {address}." |
+| `settings.partnerBadName`, Settings > Partner contacts, field error | "Enter a name of 1 to 128 characters. Nothing was changed." |
+| `settings.partnerNoProduction`, Settings > Partner contacts, field error | "Choose at least one production. Nothing was changed." |
+| `settings.partnersOffOnDemo`, Settings > Partner contacts, the 409 `not_available` body | "Partner contacts are off on the online demo, where partner warnings go to simulated contacts. They work on your own install." |
+| `settings.sqlSection`, Settings nav label and heading, Story 24.2 | "SQL query watches" |
+| `settings.sqlHelp`, Settings > SQL query watches, help (Planner ruling 2026-11-12: replaces the wording that said the query runs as a user that can only read; that claim may be added only once Story 23.8's test proves the reader user is refused INSERT, UPDATE, DELETE and DDL) | "OcuTalon runs each query on its schedule and tells you when the result changes." |
+| `settings.sqlName`, Settings > SQL query watches, field label | "Name" |
+| `settings.sqlQuery`, Settings > SQL query watches, field label | "Query (one SELECT statement)" |
+| `settings.sqlMinutes`, Settings > SQL query watches, unit beside the interval | "minutes" |
+| `settings.sqlSave`, Settings > SQL query watches, button | "Save query" |
+| `settings.sqlRemove`, Settings > SQL query watches, button | "Remove" |
+| `settings.sqlColumns`, Settings > SQL query watches, list headings | "Schedule", "Last run", "Last result" |
+| `settings.sqlBadName`, Settings > SQL query watches, field error | "Enter a name of 1 to 128 characters. Nothing was changed." |
+| `settings.sqlOffOnDemo`, Settings > SQL query watches, the 409 `not_available` body | "SQL query watches are off on the online demo. They work on your own install." |
 
 ## Visual Trace Links
 
@@ -1079,7 +1129,7 @@ Lighter specs. Components with behavior of their own are under Component Pattern
 
 ### Step 5: more fixes (brief)
 
-Reroute, suspend and resume, and roll back each use the approval request card with their own dry run (FR-26). A partner warning's request shows the exact text and recipients (FR-29). On the demo the recipients are simulated contacts, and the approved notice goes to the Simulated mailbox. [ADDED 2026-11-10, Story 23.5, Contest Planner ruling] A setting-change cause adds "The feed broke four minutes after this setting changed." (FR-27) On the online demo only the reroute is offered, because every visitor shares the Orders production. [ADDED 2026-11-09, Story 23.2, Contest Planner ruling]
+Reroute, suspend and resume, and roll back each use the approval request card with their own dry run (FR-26). A partner warning's request shows the exact text and recipients (FR-29). On the demo the recipients are simulated contacts, and the approved notice goes to the Simulated mailbox. [ADDED 2026-11-10, Story 23.5, Contest Planner ruling] A setting-change cause adds "The feed broke four minutes after this setting changed." (FR-27) On the online demo only the reroute is offered, because every visitor shares the Orders production. [ADDED 2026-11-09, Story 23.2, Contest Planner ruling] [ADDED 2026-11-12, Story 36.2, Contest Planner ruling V7] Settings gains three admin-only sections, On call, Partner contacts and SQL query watches, with the texts in Message Catalog › Settings (step 5). On the online demo none of them is offered: visitors aren't admins, so Settings refuses them (403), and even an admin's save of one of these sections answers `not_available` (409), and the page hides them.
 
 ### Step 6: usage, history, files, and roles
 

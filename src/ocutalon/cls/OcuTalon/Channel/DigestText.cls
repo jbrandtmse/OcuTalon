@@ -1,5 +1,5 @@
 /// The text of a digest for a channel (Story 17.10; AD-32). It is the shared rendering code of the *Out operations (OcuTalon.Channel.Telegram.Out,
-/// OcuTalon.Channel.WebChat.Out and OcuTalon.Channel.SimPhone.Out), and only they call it: producers never render. Text(slots, channel) is the
+/// OcuTalon.Channel.WebChat.Out, OcuTalon.Channel.SimPhone.Out and, from Story 21.7, OcuTalon.Channel.Email.Out), and only they call it: producers never render. Text(slots, channel) is the
 /// rendering through OcuTalon.Msg.Catalog.Render, for the channel, of every {key, slots} of the Slots' parts and lines, and nothing else is added:
 ///   - the pieces go in this order: the parts up to the first one whose key is one of AFTERLINES, then one coverage line for each element of lines, then
 ///     the rest of the parts; when no part has such a key, the lines go last;

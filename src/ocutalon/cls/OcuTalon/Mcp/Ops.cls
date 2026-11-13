@@ -6,7 +6,8 @@
 ///     before it writes anything; a refusal has the outcome not_allowed, and a wrong sender or origin or a missing acting user is also one warning.
 ///   - The order of an add is Validate (name, address), Register (the row, then the resource and its grant through OcuTalon.Install.Step.Mcp.Grant),
 ///     Audit (an MCP entry), Restart (SettingsOps.RestartRunners, after the server's lock is released). A remove is Unregister (the tool rows and the
-///     row, then Install.Step.Mcp.Revoke), Audit, Restart. A classification is Validate, Save, Audit (a Tool entry; no restart, since the gate reads the rows). An audit that fails undoes
+///     row, then Install.Step.Mcp.Revoke), Audit, then, once the removal has committed, the cancel of the pending approval requests of the server's tools (Approval CancelPending,
+///     in the admin's name; a failure is one warning and the removal stands), Restart. A classification is Validate, Save, Audit (a Tool entry; no restart, since the gate reads the rows). An audit that fails undoes
 ///     the change, and the outcome is not_audited. A restart that fails keeps the change (the next start attaches it), and the outcome is failed.
 ///   - The address of a server is https://, or http:// to this computer (127.0.0.1, localhost or [::1]) for development, with no user information and no
 ///     @{ in it (AD-19). The address, a credential and AI Hub's error text are never stored, logged, audited or put in a notice by this class; the Config
@@ -194,8 +195,24 @@ Method Unregister(request As OcuTalon.Msg.Command.RemoveMcpServer, Output respon
 		Set sc = exception.AsStatus()
 	}
 	If $$$ISERR(sc) Quit ..Failed(.response, "the MCP server could not be removed", sc, $Select($Get(audited) = 0: "not_audited", 1: "failed"))
+	Do ..CancelPending(server, request)
 	Set restart = 1
 	Quit ..Answer(.response, 1, "removed", ..#MESSAGEREMOVED)
+}
+
+/// Cancels the pending approval requests of the tools of the server that Unregister has just removed and committed (Story 22.4; AD-11): Approval CancelPending for the server's
+/// toolref (Attach Toolref), in the name of the acting admin, with the channel and the session of the command (the members of the removal's audit entry). A request that cannot be
+/// cancelled, and a failure of the call, are one warning; the removal and its answer stand. A request that is approved and not yet run is not cancelled (AD-11 allows only a pending
+/// request to be): the gate denies its replay because the server is no longer registered.
+Method CancelPending(server As %String, request As OcuTalon.Msg.Command.RemoveMcpServer) [ Private ]
+{
+	Try {
+		Set who = ..McpData("removed", server, request)
+		Set sc = ##class(OcuTalon.Bridge.Approval).CancelPending(##class(OcuTalon.Mcp.Attach).Toolref(server), , who.channel, who.irisUser, who.sessionRef, .count)
+		If $$$ISERR(sc) $$$LOGWARNING("OcuTalon.Mcp.Ops: the pending requests of the removed MCP server could not all be cancelled: " _ ##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	} Catch exception {
+		$$$LOGWARNING("OcuTalon.Mcp.Ops: the pending requests of the removed MCP server could not be cancelled: " _ ##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
 }
 
 /// The restart of the runners after a saved change: the answer is the outcome and message given, or failed when the restart fails (the change is kept).

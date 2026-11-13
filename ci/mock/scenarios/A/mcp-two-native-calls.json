@@ -1,0 +1,29 @@
+{
+  "name": "mcp-two-native-calls",
+  "match": {
+    "marker": "mcp-two-native-calls"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": [
+        {
+          "name": "zz_lookup",
+          "input": {
+            "id": "1"
+          }
+        },
+        {
+          "name": "zz_lookup",
+          "input": {
+            "id": "2"
+          }
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "text": "Both lookups ran."
+    }
+  ]
+}

@@ -4,7 +4,7 @@ Include Ensemble
 /// address of every recipient that failed and sets the business host's Retry on a connect error, so that a send could repeat after DATA; this
 /// adapter sends once and logs nothing. Its settings are the parent's: SMTPServer, SMTPPort, Credentials (the Interoperability credential
 /// OcuTalonMail), SSLConfig (OcuTalonClient for implicit TLS, OcuTalonClient* for STARTTLS) and SSLCheckServerIdentity, which the product writes as
-/// 1 and OnInit forces to 1; the OAuth2 settings stay for Story 21.3.
+/// 1 and OnInit forces to 1, and the OAuth2 settings of Story 21.8.
 /// The transport is TLS only (V7, ruling c). Each send, in order:
 ///   - Transport decides how to connect: "tls" when SSLConfig is exactly OcuTalonClient or OcuTalonClient* (with the server's host name checked),
 ///     "plain" only when PlainAllowed holds (the CI-only environment variable OCUTALON_TEST_PLAIN_SMTP is 1 AND the server host is exactly
@@ -12,16 +12,20 @@ Include Ensemble
 ///     connection is made. No setting, row, route or form value can switch plain on;
 ///   - the credential OcuTalonMail is read again (never kept from an earlier send), so that a changed password applies at the next send; with no
 ///     credential or no user name the send fails (SMTPAUTHFailed) before any connection is made;
+///   - with OAuth2ApplicationName set (a Google or Microsoft 365 sign-in) the handler OAuth2CallBackHandler (Channel.Email.Token) gives the access token,
+///     which IRIS renews when it has expired, and the login is AUTH XOAUTH2 with the credential's user name; a token that cannot be had fails the send
+///     (SMTPAUTHFailed). The token is held in the authenticator, and in the SASL mechanism of its login, for that send only and both are emptied after it, whatever the outcome;
 ///   - the message goes to %Net.SMTP once: ContinueAfterBadSend is 0 (a rejected recipient is the whole send's failure, no partial send) and a
 ///     failure is never repeated. Each command's timeout is TIMEOUT seconds (DATATIMEOUT for the end of the message), each under the 120 seconds that
 ///     the command gate waits; a whole send to a server that is slow at every command can still take longer than that.
 /// SendMail answers the status of %Net.SMTP, and Classify says what a status means for the person: unreachable (the server could not be reached or
 /// used: connection, TLS, STARTTLS, a first answer that is not a greeting, a timeout), refused (the user name or password was refused or there was
-/// none), or rejected (the server answered the sender, a recipient or the message with an error).
+/// none, or in OAuth2 mode the token could not be had or was refused), or rejected (the server answered the sender, a recipient or the message with an error).
 Class OcuTalon.Channel.Email.Sender Extends EnsLib.EMail.OutboundAdapter
 {
 
-/// The CI-only environment variable (ruling c) that lets the adapter use plain SMTP, and the one host name it then does.
+/// The CI-only environment variable (ruling c) that lets the adapter use plain SMTP, and EmailIn's adapter plain POP3 in OAuth2 mode (PlainFor), and the one host name they then do.
+/// It also allows plain POP3 in OAuth2 mode, for the CI mock only (host mock; set only in ci/compose.ci.yml).
 Parameter PLAINVARIABLE = "OCUTALON_TEST_PLAIN_SMTP";
 
 Parameter PLAINHOST = "mock";
@@ -75,7 +79,14 @@ ClassMethod IsOn(value As %String) As %Boolean
 /// 1 when plain SMTP is allowed for the host: the switch is on and the host is exactly the CI stub's.
 ClassMethod PlainAllowed(host As %String) As %Boolean
 {
-	Quit ..SwitchOn() && ($Get(host) = ..#PLAINHOST)
+	Quit ..PlainFor($Get(host), ..SwitchOn())
+}
+
+/// The rule of PlainAllowed for a given state of the switch: plain is allowed only when the switch is on and the host is exactly the CI stub's. EmailIn's adapter
+/// (Channel.Email.Adapter) applies the same rule to its POP3 connection in OAuth2 mode, so there is one rule for the plain exception.
+ClassMethod PlainFor(host As %String, switchOn As %Boolean) As %Boolean
+{
+	Quit $Get(switchOn) && ($Get(host) = ..#PLAINHOST)
 }
 
 /// How this send connects: "plain", "tls" or "" (see the class description).
@@ -107,13 +118,29 @@ Method SendMail(pMailMessage As %Net.MailMessage, Output pFailedRecipients As %L
 	Set ..SMTP.ContinueAfterBadSend = 0
 	If ..OAuth2ApplicationName '= "" {
 		Set granted = 0, token = ""
-		Set sc = $ClassMethod(..OAuth2CallBackHandler, "OnGetAccessToken", $This, ..OAuth2GrantType, ..OAuth2ApplicationName, ..OAuth2SessionId, ..%CredentialsObj.Username, ..OAuth2Scope, ..OAuth2AuthProperties, ..OAuth2GrantTypeSpecific, .granted, .token)
-		If $$$ISERR(sc) Quit $$$ERROR($$$SMTPAUTHFailed)
+		Try {
+			Set sc = $ClassMethod(..OAuth2CallBackHandler, "OnGetAccessToken", $This, ..OAuth2GrantType, ..OAuth2ApplicationName, ..OAuth2SessionId, ..%CredentialsObj.Username, ..OAuth2Scope, ..OAuth2AuthProperties, ..OAuth2GrantTypeSpecific, .granted, .token)
+		} Catch exception {
+			Set sc = exception.AsStatus(), token = ""
+		}
+		If $$$ISERR(sc) || '$Get(granted) || (token = "") Quit $$$ERROR($$$SMTPAUTHFailed)
 		Set ..SMTP.authenticator.AccessToken = token
+		Kill token
 	}
-	Set sc = ..SMTP.Send(pMailMessage)
-	If $$$ISERR(sc) && (..OAuth2ApplicationName '= "") Set ..SMTP.authenticator.AccessToken = ""
+	Try {
+		Set sc = ..SMTP.Send(pMailMessage)
+	} Catch exception {
+		If ..OAuth2ApplicationName '= "" Do ..ForgetToken()
+		Throw exception
+	}
+	If ..OAuth2ApplicationName '= "" Do ..ForgetToken()
 	Quit sc
+}
+
+/// Empties the access token from the authenticator and drops the SASL mechanism that its login made, which holds a copy of the token (%Net.Authenticator.Start).
+Method ForgetToken() [ Private ]
+{
+	Set ..SMTP.authenticator.AccessToken = "", ..SMTP.authenticator.Mechanism = ""
 }
 
 /// What a failed send means: UNREACHABLE, REFUSED or REJECTED (see the class description). An OK status gives "".
@@ -123,6 +150,22 @@ ClassMethod Classify(sc As %Status) As %String
 	If $$$StatusEquals(sc, $$$SMTPAUTHFailed) Quit ..#REFUSED
 	If $$$StatusEquals(sc, $$$SMTPResponse) || $$$StatusEquals(sc, $$$SMTPNoSend) Quit ..#REJECTED
 	Quit ..#UNREACHABLE
+}
+
+/// 1 when a failed send may still have reached the server: a timeout waiting for an answer (SMTPTimeout, which does not say which answer, so any, the
+/// one at the end of the message included), or a connection lost once the message was started (SMTPConnectionFailed during DATA). Any other failure
+/// (the server could not be reached or dropped the connection before the message, refused the login or answered with an error) means the server did
+/// not take the email. An OK status gives 0.
+ClassMethod MayHaveSent(sc As %Status) As %Boolean
+{
+	If $$$ISOK($Get(sc, $$$OK)) Quit 0
+	If $$$StatusEquals(sc, $$$SMTPTimeout) Quit 1
+	Do $SYSTEM.Status.DecomposeStatus(sc, .errors)
+	Set found = 0
+	For i = 1:1:$Get(errors) {
+		If ($Get(errors(i, "code")) = $$$SMTPConnectionFailed) && ($Get(errors(i, "param", 1)) = "DATA") Set found = 1
+	}
+	Quit found
 }
 
 }

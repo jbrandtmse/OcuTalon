@@ -202,7 +202,8 @@ XData Contracts [ MimeType = application/json ]
    "FixParameters": "%String(MAXLEN=)",
    "FixTargets": "%String(MAXLEN=)",
    "ToolSource": "%String(MAXLEN=512)",
-   "Runner": "%String(MAXLEN=128)"
+   "Runner": "%String(MAXLEN=128)",
+   "ToolFingerprint": "%String(MAXLEN=64)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -450,7 +451,9 @@ XData Contracts [ MimeType = application/json ]
    "DecisionRef": "%String(MAXLEN=22)",
    "DueAt": "%String(MAXLEN=20)",
    "FallbackReason": "%String(MAXLEN=32)",
-   "CheckRows": "%String(MAXLEN=)"
+   "CheckRows": "%String(MAXLEN=)",
+   "DigestKey": "%String(MAXLEN=22)",
+   "EchoedAt": "%String(MAXLEN=20)"
   },
   "indexes": {
    "ApprovalRefChannelOwnerRefIndex": "ApprovalRef,Channel,OwnerRef",
@@ -861,6 +864,16 @@ XData Registry [ MimeType = application/json ]
   "short": "HeartbeatBeat",
   "global": "^OcuTalonP.HeartbeatBeat",
   "class": "OcuTalon.Data.HeartbeatBeat"
+ },
+ {
+  "short": "SettingSnap",
+  "global": "^OcuTalonP.SettingSnap",
+  "class": "OcuTalon.Data.SettingSnapshot"
+ },
+ {
+  "short": "SettingChange",
+  "global": "^OcuTalonP.SettingChange",
+  "class": "OcuTalon.Data.SettingChange"
  }
 ]
 }

@@ -168,6 +168,9 @@ export class DailyDigestSection {
   /** True while Telegram is included and on or paused: its box shows. */
   readonly telegramShown = input(false);
 
+  /** True while the mailbox has an address and an outgoing mail server saved: the Email box shows. */
+  readonly emailShown = input(false);
+
   /** The saved values, for the page to keep. */
   readonly saved = output<SettingsSections['daily-digest']>();
 
@@ -184,7 +187,7 @@ export class DailyDigestSection {
 
   /** The typed time. */
   protected readonly timeText = signal('');
-  /** The channels that are checked, in the order web, phone, telegram. */
+  /** The channels that are checked, in the order web, phone, telegram, email. */
   private readonly checked = signal<DigestChannel[]>([]);
   /** The values that the server holds: the form is dirty when it differs from them. */
   private readonly baseline = signal<{ time: string; channels: string }>({ time: '', channels: '' });
@@ -198,7 +201,7 @@ export class DailyDigestSection {
 
   /** The channel boxes that show, with their labels and whether they are checked. */
   protected readonly boxes = computed(() =>
-    digestChannelBoxes(this.demoMode(), this.telegramShown()).map((channel) => ({
+    digestChannelBoxes(this.demoMode(), this.telegramShown(), this.emailShown()).map((channel) => ({
       channel,
       label: SETTINGS_TEXTS.dailyDigest[channel],
       checked: this.checked().includes(channel),
@@ -206,7 +209,7 @@ export class DailyDigestSection {
   );
 
   /** The channels that a save would send: the boxes that show as they are checked, the others as the server holds them. */
-  private readonly body = computed(() => digestBody(this.timeText(), digestChannelsBody(this.baseline().channels, digestChannelBoxes(this.demoMode(), this.telegramShown()), this.checked())));
+  private readonly body = computed(() => digestBody(this.timeText(), digestChannelsBody(this.baseline().channels, digestChannelBoxes(this.demoMode(), this.telegramShown(), this.emailShown()), this.checked())));
 
   constructor() {
     let started = false;
@@ -222,7 +225,7 @@ export class DailyDigestSection {
     });
     let last = false;
     effect(() => {
-      const dirty = isDigestFormDirty(this.timeText(), this.checked(), digestChannelBoxes(this.demoMode(), this.telegramShown()), this.baseline());
+      const dirty = isDigestFormDirty(this.timeText(), this.checked(), digestChannelBoxes(this.demoMode(), this.telegramShown(), this.emailShown()), this.baseline());
       if (dirty !== last) {
         last = dirty;
         this.dirtyChange.emit(dirty);

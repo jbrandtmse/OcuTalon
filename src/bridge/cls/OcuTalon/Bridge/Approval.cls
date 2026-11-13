@@ -6,6 +6,8 @@ Include Ensemble
 ///     inside an open transaction ($TLevel above 0): the round trip to ApprovalStartIn commits every open level of the caller, and the hold's job
 ///     cannot see a row that is not committed. It runs in the caller's job and leaves that job's session and current header ids as they were
 ///     (StartHold), so a host job's later event-log rows keep their session. The gate (Policy.Gate) raises a tool_call request for a held call;
+///   - CancelPending cancels, through Cancel, every pending tool_call request of one ToolSource (the toolref of an MCP server that its host removed). A tool_call
+///     request whose ToolSource is an MCP toolref (it starts mcp:) carries the ToolFingerprint of the tool at the hold, which Raise requires, and no other request may carry one;
 ///   - Answer, Expire, Cancel, StartExecution and FinishExecution are the five state methods: each takes
 ///     LOCK +^OcuTalon.Bridge.Approval(<Ref>) for LOCKSECONDS plus TASKSECONDS (FinishExecution refuses an unknown result before it locks),
 ///     reads the row as the database holds it under that lock, changes it along AD-11's one path (pending to approved, rejected, expired or
@@ -83,7 +85,7 @@ Parameter SETTINGKEYS = "key,ownerRef,old,new";
 /// session is started, tagged with the row's TraceRef.
 ///   1. It refuses, before anything is written, a request that is not an unsaved ApprovalRequest, a Kind that is not one of Msg.Enum
 ///      APPROVALKIND, an OwnerRef that is neither a 22-character reference, instance nor eval, a tool_call without a ToolName or with
-///      ToolArguments that are not a JSON object or with a DryRun, a FixKind, FixParameters or FixTargets, a fix without a DryRun that is a
+///      ToolArguments that are not a JSON object or with a DryRun, an MCP tool_call (ToolSource starting mcp:) without a ToolFingerprint, a ToolFingerprint on any other request, a FixKind, FixParameters or FixTargets, a fix without a DryRun that is a
 ///      JSON object or without a ResultTarget or with a ToolName or ToolArguments or without a FixKind (the fix kind's name, a plain string),
 ///      with FixParameters (the exact change) that are not a JSON object or without FixTargets (the fixed targets); a setting (the value's own
 ///      change, AD-11) whose OwnerRef is not a 22-character reference, whose DryRun is not a JSON object with exactly the keys of SETTINGKEYS
@@ -218,7 +220,10 @@ ClassMethod Validate(request As %RegisteredObject, Output role As %String) As %S
 		If request.FixKind '= "" Quit ..Refuse("FixKind", "must be empty for a tool_call request")
 		If request.FixParameters '= "" Quit ..Refuse("FixParameters", "must be empty for a tool_call request")
 		If request.FixTargets '= "" Quit ..Refuse("FixTargets", "must be empty for a tool_call request")
+		If ..IsMcpSource(request.ToolSource) && (request.ToolFingerprint = "") Quit ..Refuse("ToolFingerprint", "is empty for a tool_call request of an MCP tool, which is held only at the fingerprint it was classified at")
+		If '..IsMcpSource(request.ToolSource) && (request.ToolFingerprint '= "") Quit ..Refuse("ToolFingerprint", "must be empty for a tool_call request that is not of an MCP tool")
 	} ElseIf kind = "fix" {
+		If request.ToolFingerprint '= "" Quit ..Refuse("ToolFingerprint", "must be empty for a fix request")
 		If request.ToolSource '= "" Quit ..Refuse("ToolSource", "must be empty for a fix request")
 		If request.Runner '= "" Quit ..Refuse("Runner", "must be empty for a fix request")
 		If '..IsJsonObject(request.DryRun) Quit ..Refuse("DryRun", "is not a JSON object")
@@ -245,6 +250,12 @@ ClassMethod Validate(request As %RegisteredObject, Output role As %String) As %S
 	Quit $$$OK
 }
 
+/// 1 when the ToolSource of a tool_call request is that of an MCP tool: it starts mcp: (in any letter case), the form of the toolref the gate classified the call by.
+ClassMethod IsMcpSource(source As %String) As %Boolean
+{
+	Quit $ZConvert($Extract(source, 1, 4), "L") = "mcp:"
+}
+
 /// OK when the request is a well-formed setting request (AD-11): the value's own change, asked of the one session that owns the value. OwnerRef is a
 /// session Ref (never instance or eval, which every watcher sees), ResultTarget names the item that receives the outcome, and none of the tool_call
 /// and fix fields is set. DryRun is a JSON object of exactly the keys of SETTINGKEYS: key (a non-empty string), ownerRef (a string equal to
@@ -252,7 +263,7 @@ ClassMethod Validate(request As %RegisteredObject, Output role As %String) As %S
 ClassMethod ValidateSetting(request As OcuTalon.Bridge.Data.ApprovalRequest) As %Status [ Private ]
 {
 	If '..IsRef(request.OwnerRef) Quit ..Refuse("OwnerRef", "is not a 22-character reference, which a setting request requires")
-	For name = "ToolSource", "Runner", "ToolName", "ToolArguments", "FixKind", "FixParameters", "FixTargets", "IncidentRef" {
+	For name = "ToolSource", "Runner", "ToolName", "ToolArguments", "ToolFingerprint", "FixKind", "FixParameters", "FixTargets", "IncidentRef" {
 		If $Property(request, name) '= "" Return ..Refuse(name, "must be empty for a setting request")
 	}
 	If request.ResultTarget = "" Quit ..Refuse("ResultTarget", "is empty for a setting request")
@@ -431,6 +442,35 @@ ClassMethod Cancel(ref As %String, sinkClass As %String = "", channel As %String
 	Quit ..Move(ref, "Cancel", sinkClass, "pending", "cancelled", ##class(OcuTalon.Bridge.Ext.HostSink).#APPROVALCANCELLED, , , 1, "cancelled", irisUser, channel, sessionRef)
 }
 
+/// Cancels, through Cancel, every tool_call request in the state pending whose ToolSource equals source under the column's SQL collation (SQLUPPER: case and trailing
+/// spaces aside, so a removal that names the server in another case still finds its requests) (an MCP server's toolref, when the host removes the server). The arguments after source are Cancel's: sinkClass, and the channel, irisUser and sessionRef of the person on whose authority the requests are cancelled.
+/// count is the number of requests cancelled. A request that cannot be cancelled (it was answered meanwhile, or Cancel refused) gives one warning that names its Ref and
+/// the others go on; the first error is returned. An empty source is an error and cancels nothing. A request in any other state is left alone.
+ClassMethod CancelPending(source As %String, sinkClass As %String = "", channel As %String = "", irisUser As %String = "", sessionRef As %String = "", Output count As %Integer) As %Status
+{
+	Set count = 0
+	If $Get(source) = "" Quit $SYSTEM.Status.Error(5001, "OcuTalon.Bridge.Approval.CancelPending needs the source of the requests to cancel")
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE Kind = 'tool_call' AND State = 'pending' AND ToolSource = ?", source)
+	If rows.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "The pending tool calls cannot be read: SQLCODE " _ rows.%SQLCODE _ " " _ rows.%Message)
+	Set refs = ""
+	While rows.%Next() {
+		Set refs = refs _ $ListBuild(rows.%Get("Ref"))
+	}
+	If rows.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "The pending tool calls cannot be read: SQLCODE " _ rows.%SQLCODE _ " " _ rows.%Message)
+	Set status = $$$OK
+	Set position = 0
+	While $ListNext(refs, position, ref) {
+		Set sc = ..Cancel(ref, sinkClass, channel, irisUser, sessionRef)
+		If $$$ISOK(sc) {
+			Set count = count + 1
+			Continue
+		}
+		$$$LOGWARNING("OcuTalon.Bridge.Approval: the pending request " _ ref _ " was not cancelled: " _ ##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		If status = $$$OK Set status = sc
+	}
+	Quit status
+}
+
 /// Moves an approved request whose ExpiresAt is still ahead (SecondsUntil above 0) to executing, the check and the change together under the
 /// lock, so that of two callers at once exactly one succeeds. A row past its expiry stays approved and gets an error that says so; any other
 /// state, or a missing row, is an error that names the Ref and the state. No event fires: AD-31 has no type for executing.
@@ -439,15 +479,16 @@ ClassMethod StartExecution(ref As %String) As %Status
 	Quit ..Move(ref, "StartExecution", "", "approved", "executing", , , 1, , "started")
 }
 
-/// Closes a request with the result of the run. result must be done, failed or interrupted; any other value is an error that names it and the
-/// Ref, and nothing is locked. An executing row becomes done (result done) or failed (failed or interrupted); an approved row whose run could not
+/// Closes a request with the result of the run. result must be done, failed, interrupted or changed (the replay of an MCP tool that changed since the hold, which
+/// it refused unrun); any other value is an error that names it and the
+/// Ref, and nothing is locked. An executing row becomes done (result done) or failed (failed, interrupted or changed); an approved row whose run could not
 /// start becomes failed, but only with the result failed. Result is set to the given result and FinishedAt to now. Every other case, and a
 /// missing row, is an error that names the Ref, the state and the result. After the unlock it fires approval.result from this job, to
 /// sinkClass (empty: the HostSinkClass setting).
 ClassMethod FinishExecution(ref As %String, result As %String, sinkClass As %String = "") As %Status
 {
-	If '$ListFind($ListBuild("done", "failed", "interrupted"), result) {
-		Quit $SYSTEM.Status.Error(5001, "OcuTalon.Bridge.Approval.FinishExecution refuses the result '" _ result _ "' for " _ $Extract(ref, 1, 64) _ ": it is not done, failed or interrupted")
+	If '$ListFind($ListBuild("done", "failed", "interrupted", "changed"), result) {
+		Quit $SYSTEM.Status.Error(5001, "OcuTalon.Bridge.Approval.FinishExecution refuses the result '" _ result _ "' for " _ $Extract(ref, 1, 64) _ ": it is not done, failed, interrupted or changed")
 	}
 	Quit ..Move(ref, "FinishExecution", sinkClass, $Select(result = "failed": "executing,approved", 1: "executing"), $Select(result = "done": "done", 1: "failed"), ##class(OcuTalon.Bridge.Ext.HostSink).#APPROVALRESULT, result, , , "finished")
 }

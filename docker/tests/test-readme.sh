@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pins README.md and GUIDE.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26, 0.28, 0.29 and 0.30; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171). Hermetic: it starts
+# Pins README.md and GUIDE.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26, 0.28, 0.29, 0.30 and 21.12; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171, DW-1207). Hermetic: it starts
 # nothing, needs no network and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules). That the README's video
 # addresses answer is checked online by docker/tests/check-readme-video.sh, which this script never runs.
 #
@@ -8,7 +8,8 @@
 # (also the guide), try-it, interesting, measured, video, checklist-video, judges-usability, path and licence; GUIDE.md for use-cases,
 # how-you-talk, outcomes, install, install-pointer, commands, key-account, lan, sign-in-address (also the README), demo-mode,
 # admin-commands, after-start-log, ipm and the three telegram rules; both files for comparison (the H3 in the README, the pointer in the guide), new-since, teaser (its media clauses), images, once,
-# dev-only, public-text, telegram-demo, no-telegram, product-links and readme-links. With no GUIDE.md every rule that names it fails
+# dev-only, public-text, telegram-demo, no-telegram, product-links and readme-links; README.md's headings and the documentation set
+# (below) for readme-anchors. With no GUIDE.md every rule that names it fails
 # closed (a FAIL no-guide line names a rule that does not).
 #
 # What it pins, one rule each:
@@ -111,11 +112,14 @@
 #   admin-commands the OCUTALON and %SYS terminal sessions and the password line, as the README walkthrough ran them
 #   after-start-log  the README's after-start log command names the path that docker/after-start.sh writes, and says which lines to
 #                  look for (the walkthrough ran it)
-#   dev-only       in the README and the guide, no ##class(, class name or error code outside the section "For admins and developers",
+#   dev-only       in the README and the guide, no ##class(, class name or error code outside the sections "For admins and developers" and "Gmail and Microsoft 365",
 #                  except the IPM load line of "Install it with IPM", word for word (Story 11.24)
 #   public-text    the README's not-affiliated note, BMAD Method and Claude Code credit and licence pointers; OpenClaw only in the
 #                  README's note; in the README and the guide, no other model provider, "from your phone", "per step", "never used for tuning",
 #                  private infrastructure or IPv4 address
+#   gmail-section  in GUIDE.md, the "Your own mailbox" bullet (T3) and the section "Gmail and Microsoft 365" (T4) are the approved text word for word, the
+#                  section is after "Telegram" and before "Stop, start and update", the bullet's #gmail-and-microsoft-365 link is the heading's
+#                  anchor, and GUIDE.md, README.md, docs/ and release/ say nothing of least or minimum privilege (Story 21.8, DW-1180)
 #   telegram-section  the section "Telegram" is there after "Sign in" and before "Stop, start and update", with its five numbered steps and
 #                  the facts a person needs to follow them (@BotFather, /newbot, /setjoingroups, TELEGRAM_BOT_TOKEN=, the restart
 #                  command, "its own bot", and that the steps are for "your own install")
@@ -137,11 +141,24 @@
 #                  header block's logo (by its docs/images/ path or its raw.githubusercontent.com address) is a file the tree lists;
 #                  img.shields.io, and this repository's raw.githubusercontent.com main/docs/images/ path, are allowed only on the
 #                  header block's lines; no two headings of a file share a slug
+#   readme-anchors every link of the documentation set (GUIDE.md, the Markdown files of docs/ and every other Markdown file of the tree
+#                  but README.md, the build records of _bmad/, _bmad-output/ and .claude/ and the frozen release records of
+#                  release/records/) that resolves to the root README.md and names an anchor reaches a heading slug of README.md as GitHub
+#                  renders it (the first of a repeated heading as it is, then with -1, -2, ...; anchors compare exactly): a relative path
+#                  resolved against the linking file's folder, /README.md, this repository's blob/main and blob/HEAD README.md address
+#                  and its repository page (where #readme is also live); one line per link names the file, the line and the anchor,
+#                  or that the link leaves the repository or names another folder's README.md that the tree does not hold.
+#                  A link counts only where GitHub renders one (inline, reference definition, href, autolink, bare address), never in
+#                  a code fence or a code span; a link to a pinned ref is not checked. It fails closed on a set with no GUIDE.md or no
+#                  docs/ file, on a README heading that carries a link, a tag, an entity, _emphasis_ or an :emoji:, starts or ends
+#                  in a space, ends in a closing # run or has more than six #, and on a README code fence of tildes, of four or more
+#                  backticks or indented
 #   must-scan      docker/tests/test-boundaries.sh's must-scan list for paths and keys names README.md and GUIDE.md, so the most public
 #                  files can never drop out of that scan
 #
 # What it reads, all from files that git tracks or has not ignored (lib-scan.sh's scan_files; never .env): README.md, GUIDE.md, LICENSE,
-# docs/install-ipm.md, docs/bridge-guide.md, docs/security-overview.md, the sizes of the linked files of docs/images/, install.sh,
+# docs/install-ipm.md, docs/bridge-guide.md, docs/security-overview.md, the Markdown files of the documentation set (readme-anchors),
+# the sizes of the linked files of docs/images/, install.sh,
 # the tree's file list (for the files of docs/images/), src/ocutalon/cls/OcuTalon/Core/Admin.cls, src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls, the UX design's EXPERIENCE.md,
 # docker/after-start.sh, docker/tests/test-boundaries.sh, docker-compose.yml, web/src/app/**/*.ts (not *.spec.ts) and src/**/*.cls
 # (not /Test/).
@@ -157,7 +174,7 @@
 # rule that names it does, which is checked first (a FAIL no-readme or no-guide line names a rule that does not), and so is that every
 # rule_* function is in RULES (a FAIL rules line names
 # one that is not). Prints one PASS, FAIL or SKIP line per rule; a failing rule prints what is
-# wrong (a README line number or a missing text); exits 0 only when no rule fails.
+# wrong (a line number or a missing text); exits 0 only when no rule fails.
 # shellcheck disable=SC2016
 set -u
 export LC_ALL=C
@@ -253,6 +270,7 @@ Install it yourself
 Set a model key
 Sign in
 Telegram
+Gmail and Microsoft 365
 Stop, start and update
 Troubleshooting
 For admins and developers'
@@ -268,7 +286,7 @@ Credits and licences'
 # paragraph of "More".
 POINTER="The guide lists what is new since release 1.0.0 for your integrations, your documents and memory, and personas, the heartbeat checklist and the digest: [New since 1.0.0]($GUIDE_URL#new-since-100)."
 MORE_HEAD='## More'
-MORE="[The OcuTalon guide]($GUIDE_URL) has the rest: [New since 1.0.0]($GUIDE_URL#new-since-100), [What you can use it for]($GUIDE_URL#what-you-can-use-it-for), [How you talk to it]($GUIDE_URL#how-you-talk-to-it), [What OcuTalon does]($GUIDE_URL#what-ocutalon-does), [Install it yourself]($GUIDE_URL#install-it-yourself), [Set a model key]($GUIDE_URL#set-a-model-key), [Sign in]($GUIDE_URL#sign-in), [Telegram on your own install]($GUIDE_URL#telegram), [Stop, start and update]($GUIDE_URL#stop-start-and-update), [Troubleshooting]($GUIDE_URL#troubleshooting) and [For admins and developers]($GUIDE_URL#for-admins-and-developers)."
+MORE="[The OcuTalon guide]($GUIDE_URL) has the rest: [New since 1.0.0]($GUIDE_URL#new-since-100), [What you can use it for]($GUIDE_URL#what-you-can-use-it-for), [How you talk to it]($GUIDE_URL#how-you-talk-to-it), [What OcuTalon does]($GUIDE_URL#what-ocutalon-does), [Install it yourself]($GUIDE_URL#install-it-yourself), [Set a model key]($GUIDE_URL#set-a-model-key), [Sign in]($GUIDE_URL#sign-in), [Telegram on your own install]($GUIDE_URL#telegram), [Gmail and Microsoft 365]($GUIDE_URL#gmail-and-microsoft-365), [Stop, start and update]($GUIDE_URL#stop-start-and-update), [Troubleshooting]($GUIDE_URL#troubleshooting) and [For admins and developers]($GUIDE_URL#for-admins-and-developers)."
 # The ruled line of the guide's "Tests and CI" section that names the README check (Planner Edit 2).
 GUIDE_CI_LINE='`bash ci/checks.sh` runs the checks that need no container, among them the check of the README. The GitHub Actions workflow in `.github/workflows/ci.yml` runs them and the web build on pushes and pull requests, and the browser tests and the IRIS tests on pushes and on pull requests from this repository'"'"'s own branches.'
 # The README's word cap, by wc -w (Story 0.30).
@@ -1357,13 +1375,13 @@ chk_must_scan() {
   ' "$1"
 }
 
-# dev-only: file:line of each line outside the H2 section "For admins and developers" with a ##class( call, a class name (a dotted
+# dev-only: file:line of each line outside the H2 sections "For admins and developers" and "Gmail and Microsoft 365" (which names the provider consoles' own settings) with a ##class( call, a class name (a dotted
 # name whose parts start with an upper-case letter, a leading % allowed), an ERROR #<digits> code or an <UPPER> error name.
 # The IPM load line (IPM_LOAD) is exempt, word for word. The scanner takes the README and the guide.
 dev_names() {
   awk -v ipmload="$IPM_LOAD" '
     FNR == 1 { stop = 0 }
-    /^## / { stop = ($0 == "## For admins and developers") }
+    /^## / { stop = ($0 == "## For admins and developers" || $0 == "## Gmail and Microsoft 365") }
     stop { next }
     $0 == ipmload { next }
     /##class\(/ || /ERROR #[0-9]+/ || /<[A-Z][A-Z][A-Z]+>/ || /(^|[^A-Za-z0-9_])%?[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)+/ { print FILENAME ":" FNR }
@@ -1421,6 +1439,42 @@ telegram_mode() {
   fi
   body=$(awk '/^ClassMethod Included\(/ { on = 1; next } on && /^\}/ { exit } on { print }' "$1" | tr -d '\r' | tr '\t\n' '  ' | sed 's/  */ /g; s/^ //; s/ $//')
   if [ "$body" = '{ Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1' ]; then echo testonly; else echo included; fi
+}
+
+# gmail-section (Story 21.8, QA; Public text T3 and T4, DW-1180): the "Your own mailbox" bullet of "New since 1.0.0" and the section "Gmail and Microsoft 365" are the approved
+# text word for word (the bullet is the line GM_T3; the section is GM_T4, between its heading and the next one), the section sits after "Telegram" and before "Stop, start and update",
+# the bullet's link #gmail-and-microsoft-365 is the heading's own anchor, and nothing in the README, GUIDE.md, docs/ or release/ says or implies least privilege (DW-1180).
+# S1 is GUIDE.md (the texts moved there with Story 0.30), S2 the text of README.md, docs/ and release/ (assembled from the files that exist).
+H_GM='Gmail and Microsoft 365'
+GM_ANCHOR='gmail-and-microsoft-365'
+GM_T3='- **Your own mailbox.** On your own install, an admin connects a POP3 mailbox in Settings > Channels > Email, with a password or by signing in with Google or Microsoft 365 (see [Gmail and Microsoft 365](#gmail-and-microsoft-365)). OcuTalon makes an attention decision on each email that arrives after that, sends the email to the model for it, and leaves your mail on the server. Email is read as untrusted content: nothing in an email can approve, change or run anything. With an outgoing mail server saved, Settings > Daily digest can also send your digest to that address. The online demo keeps its simulated mailbox.'
+IFS= read -r -d '' GM_T4 <<'GMEOF' || true
+Signing in with Google or Microsoft 365 is optional, and these steps are for your own install. OcuTalon then reads the mailbox over POP3 and sends over SMTP with the sign-in instead of a stored password, and IRIS renews the sign-in's access token when it expires. The provider steps below follow Google's and Microsoft's documentation; their consoles change, so check their current pages if a name differs.
+
+1. Open http://localhost:52773/ocutalon/, go to Settings > Channels > Email and choose the Sign-in method Google or Microsoft 365. The form shows the Redirect address: the address you opened OcuTalon at, followed by `/csp/sys/oauth2/OAuth2.Response.cls` (for example `http://localhost:52773/csp/sys/oauth2/OAuth2.Response.cls`). Google and Microsoft accept an `http://` Redirect address only for `localhost`, so open OcuTalon at `http://localhost:52773/ocutalon/` for this step, or serve it over `https://`.
+2. Create the OAuth2 client with the provider. **Google:** in the Google Cloud console, create an OAuth client ID of type Web application and add the Redirect address under Authorized redirect URIs; OcuTalon asks for the scope `https://mail.google.com/`. Turn on POP in the mailbox's Gmail settings. On the OAuth consent screen, add the mailbox's address as a test user. While the app's publishing status is Testing, Google ends the sign-in after 7 days, and you sign in again. **Microsoft 365:** in the Microsoft Entra admin center, register an application, add the Redirect address as a Web redirect URI, create a client secret, and add the delegated permissions `POP.AccessAsUser.All`, `SMTP.Send` and `offline_access`. POP and authenticated SMTP must be allowed for the mailbox.
+3. In the form, enter the Client ID and the Client secret, the mailbox's address, the incoming and outgoing servers (for example `pop.gmail.com:995` and `smtp.gmail.com:465`, or `outlook.office365.com:995` and `smtp.office365.com:587`) and the mailbox's address as the user name, then save.
+4. Press "Sign in with Google" (or Microsoft 365). The provider's consent page opens in a new tab; after you agree, the tab returns to Settings, which shows "Signed in with Google."
+
+If the sign-in is withdrawn at the provider, the next check of the mailbox fails with "The mail sign-in is no longer valid." and Settings offers the sign-in again. Saving the Password method removes the sign-in from IRIS. The online demo has no real mailbox and no sign-in.
+GMEOF
+LEAST_RE='least[- ]privilege|minimum privilege'
+chk_gmail_section() {
+  local f=$1 g=${2:-} sec="$tmp/sec.gm" want="$tmp/want.gm" order slug
+  if ! grep -qxF -- "$GM_T3" "$f"; then echo "gmail-section: the 'Your own mailbox' bullet is not the approved text (T3)"; fi
+  section "$f" "$H_GM" | awk '{ l[NR] = $0 } END { s = 1; while (s <= NR && l[s] == "") s++; e = NR; while (e >= s && l[e] == "") e--; for (i = s; i <= e; i++) print l[i] }' > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "gmail-section: no section '$H_GM'"
+  else
+    printf '%s' "$GM_T4" > "$want"
+    if ! cmp -s "$sec" "$want"; then echo "gmail-section: the section '$H_GM' is not the approved text (T4)"; fi
+  fi
+  order=$(headings "$f" | awk -F'\t' '$1 == 2 { print $3 }' | grep -xF -e 'Telegram' -e "$H_GM" -e 'Stop, start and update' | tr '\n' '|')
+  if [ "$order" != "Telegram|$H_GM|Stop, start and update|" ]; then echo "gmail-section: the section is not between 'Telegram' and 'Stop, start and update'"; fi
+  slug=$(printf '%s' "$H_GM" | tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9-')
+  if [ "$slug" != "$GM_ANCHOR" ] || ! grep -qF -- "(#$GM_ANCHOR)" "$f" || ! grep -qxF -- "## $H_GM" "$f"; then echo "gmail-section: the link #$GM_ANCHOR does not reach the heading '$H_GM'"; fi
+  if grep -qiE "$LEAST_RE" "$f"; then echo "gmail-section: $f says or implies least privilege (DW-1180)"; fi
+  if [ -n "$g" ] && [ -f "$g" ] && grep -qiE "$LEAST_RE" "$g"; then echo "gmail-section: README.md, docs/ or release/ says or implies least privilege (DW-1180)"; fi
 }
 
 # telegram-section (Story 12.9)
@@ -1713,7 +1767,7 @@ chk_product_links() {
 
 # readme-links (Design Notes 8 and 9): chk_readme_links <readme> <guide>: both files are checked.
 # Any edit to the ALLOWED_HOSTS line below must update the no-outward allowance in release/checklist.sh in the same commit.
-ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com community.intersystems.com openexchange.intersystems.com'
+ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com community.intersystems.com openexchange.intersystems.com mail.google.com'
 URL_RE='https?://[^][:space:])>"<`]+'
 # url_allowed <url> [extra hosts]: the allow-list, plus the extra hosts (space separated) when given.
 url_allowed() {
@@ -1784,6 +1838,216 @@ chk_readme_links() {
       if ! url_allowed "$url" "$extra"; then echo "readme-links: $f: the address $url is not on the allow-list"; fi
     done | sort -u
   done
+}
+
+# readme-anchors: the README anchors that the other Markdown files link.
+REPO_URL=https://github.com/jbrandtmse/OcuTalon
+
+# doc_files: from a list of paths on standard input, the Markdown files of the documentation set: every *.md and *.markdown file but
+# the root README, the build records (_bmad/, _bmad-output/, .claude/) and the frozen release records (release/records/).
+doc_files() {
+  local f
+  while IFS= read -r f; do
+    case $f in
+      "$README" | _bmad/* | _bmad-output/* | .claude/* | release/records/*) continue ;;
+      *.md | *.markdown) printf '%s\n' "$f" ;;
+    esac
+  done
+}
+
+# readme_slugs <readme>: the anchor of each heading outside a code fence, as GitHub renders it: the slug of headings, and for a slug that
+# an earlier heading holds, the slug with -1, then -2, and on.
+readme_slugs() {
+  headings "$1" | cut -f2 | awk '
+    { s = $0; c = s; k = cnt[s]
+      while (c in used) { k++; c = s "-" k }
+      cnt[s] = k; used[c] = 1; print c }
+  '
+}
+
+# md_links <file>: line and target of each link that GitHub renders outside a code fence and a code span, tab separated: an inline
+# link or image [t](target), a reference definition [label]: target (a footnote [^label]: is text whose links count), an
+# href="target", an autolink <https://...> and a bare https:// address. A link that more than one form matches, and a target repeated
+# on a line, is listed once.
+md_links() {
+  awk '
+    function nospans(s,   out, n, i, run, j, k, found) {
+      out = ""; n = length(s); i = 1
+      while (i <= n) {
+        if (substr(s, i, 1) != "`") { out = out substr(s, i, 1); i++; continue }
+        run = 0
+        while (substr(s, i + run, 1) == "`") run++
+        j = i + run; found = 0
+        while (j <= n) {
+          if (substr(s, j, 1) == "`") {
+            k = 0
+            while (substr(s, j + k, 1) == "`") k++
+            if (k == run) { found = 1; break }
+            j += k
+          } else j++
+        }
+        if (found) { out = out " "; i = j + run } else { out = out substr(s, i, run); i += run }
+      }
+      return out
+    }
+    function emit(t) {
+      if (t == "" || ((FNR SUBSEP t) in seen)) return
+      seen[FNR SUBSEP t] = 1
+      printf "%d\t%s\n", FNR, t
+    }
+    function first(p, kind) { if (p > 0 && (best == 0 || p < best)) { best = p; how = kind } }
+    BEGIN { pun = "?!.,:;*_~\047\"" }
+    {
+      s = $0; sub(/^[ ]+/, "", s)
+      c = substr(s, 1, 1)
+      if ((c == "`" || c == "~") && substr(s, 1, 3) == c c c) {
+        run = 0
+        while (substr(s, run + 1, 1) == c) run++
+        tail = substr(s, run + 1)
+        if (fence == "" && !(c == "`" && index(tail, "`") > 0)) { fence = c; flen = run; next }
+        if (fence == c && run >= flen && tail ~ /^[ \t]*$/) { fence = ""; next }
+      }
+      if (fence != "") next
+      rest = nospans($0)
+      if (rest ~ /^ *\[[^]^][^]]*\]:[ \t]*[^ \t]/) {
+        t = rest; sub(/^ *\[[^]]+\]:[ \t]*/, "", t)
+        if (substr(t, 1, 1) == "<") { sub(/^</, "", t); sub(/>.*/, "", t) } else sub(/[ \t].*/, "", t)
+        emit(t); next
+      }
+      while (rest != "") {
+        best = 0; how = ""
+        first(index(rest, "]("), "inline")
+        first(index(rest, "href=\""), "dq")
+        first(index(rest, "href=\047"), "sq")
+        first(index(rest, "https://"), "bare")
+        first(index(rest, "http://"), "bare")
+        if (best == 0) break
+        if (how == "inline") {
+          rest = substr(rest, best + 2); sub(/^[ \t]+/, "", rest)
+          if (substr(rest, 1, 1) == "<") {
+            q = index(rest, ">"); t = (q > 0) ? substr(rest, 2, q - 2) : ""; rest = (q > 0) ? substr(rest, q + 1) : substr(rest, 2)
+          } else {
+            depth = 0; n = length(rest)
+            for (i = 1; i <= n; i++) {
+              c = substr(rest, i, 1)
+              if (c == " " || c == "\t") break
+              if (c == "(") depth++
+              else if (c == ")") { if (depth == 0) break; depth-- }
+            }
+            t = substr(rest, 1, i - 1); rest = substr(rest, i)
+          }
+          emit(t)
+          q = index(rest, ")"); rest = (q > 0) ? substr(rest, q + 1) : ""
+        } else if (how == "dq" || how == "sq") {
+          rest = substr(rest, best + 6)
+          q = index(rest, (how == "dq") ? "\"" : "\047")
+          if (q == 0) break
+          emit(substr(rest, 1, q - 1)); rest = substr(rest, q + 1)
+        } else {
+          rest = substr(rest, best); n = length(rest)
+          for (i = 1; i <= n; i++) {
+            c = substr(rest, i, 1)
+            if (c == " " || c == "\t" || c == "<" || c == ">" || c == "\"" || c == "]") break
+          }
+          t = substr(rest, 1, i - 1); rest = substr(rest, i)
+          while (t != "") {
+            c = substr(t, length(t), 1)
+            if (index(pun, c) > 0) { t = substr(t, 1, length(t) - 1); continue }
+            if (c == ")") {
+              u = t; o = gsub(/\(/, "", u); u = t; cl = gsub(/\)/, "", u)
+              if (cl > o) { t = substr(t, 1, length(t) - 1); continue }
+            }
+            break
+          }
+          emit(t)
+        }
+      }
+    }
+  ' "$1"
+}
+
+# readme_target <repository path of the linking file> <target without its ?query and #anchor>: what the target is when it resolves to a
+# README.md: "readme" (the root file), "repo" (this repository's page, where #readme is also an anchor), "leaves" (a relative path out
+# of the repository) or "other <path>" (another folder's README.md). Nothing for any other target.
+readme_target() {
+  local dir path=$2 r
+  case $path in
+    "$REPO_URL/blob/main/$README" | "$REPO_URL/blob/HEAD/$README") echo readme; return ;;
+    "$REPO_URL" | "$REPO_URL/") echo repo; return ;;
+    *:* | //*) return ;;
+  esac
+  if [ "${path##*/}" != "$README" ]; then return; fi
+  dir=""
+  case $path in
+    /*) ;;
+    *) case $1 in */*) dir=${1%/*} ;; esac ;;
+  esac
+  r=$(printf '%s/%s\n' "$dir" "$path" | awk -F/ '
+    { n = 0
+      for (i = 1; i <= NF; i++) {
+        if ($i == "" || $i == ".") continue
+        if ($i == "..") { if (n == 0) { print "OUT"; exit } n--; continue }
+        p[++n] = $i
+      }
+      out = ""
+      for (i = 1; i <= n; i++) out = out (i > 1 ? "/" : "") p[i]
+      print out }')
+  case $r in
+    OUT) echo leaves ;;
+    "$README") echo readme ;;
+    *) echo "other $r" ;;
+  esac
+}
+
+# readme-anchors: chk_readme_anchors <readme> <list file> <guide>: the list holds one repository-path TAB file-to-read pair per line,
+# the documentation set. Fails closed on a list without the guide or without a docs/ file, and on a README heading in a form that
+# headings does not slug as GitHub does, or on a README code fence that headings does not read (tildes, four or more backticks,
+# indented). Every link of the list's files that resolves to the README and names an anchor reaches a heading slug of the README
+# (readme_slugs); on this repository's page #readme is live too.
+chk_readme_anchors() {
+  local slugs p f row lvl text h n t before frag res
+  if ! cut -f1 "$2" | grep -qxF -- "$3"; then echo "readme-anchors: the documentation set holds no $3"; fi
+  if ! cut -f1 "$2" | grep -qE '^docs/.*\.(md|markdown)$'; then echo "readme-anchors: the documentation set holds no docs/*.md file"; fi
+  slugs=$(readme_slugs "$1")
+  grep -nE '^ *(~~~|````)|^ +```' "$1" | cut -d: -f1 | while IFS= read -r n; do
+    echo "readme-anchors: $README:$n: a code fence in a form this check does not read as GitHub does"
+  done
+  headings "$1" | while IFS= read -r row; do
+    lvl=${row%%$'\t'*}
+    text=${row#*$'\t'}
+    text=${text#*$'\t'}
+    if [ "$lvl" -gt 6 ] || printf '%s' "$text" | grep -Eq '\]\(|\]\[|<|&[A-Za-z0-9#]+;|(^|[[:space:]])_|_($|[[:space:]])|:[a-z0-9_+-]+:|(^|[[:space:]])#+$|^[[:space:]]|[[:space:]]$'; then
+      h=$(printf '%*s' "$lvl" '' | tr ' ' '#')
+      n=$(grep -nxF -- "$h $text" "$1" | head -n 1 | cut -d: -f1)
+      echo "readme-anchors: $README:$n: the heading '$text' is not in a form this check slugs as GitHub does"
+    fi
+  done
+  while IFS=$'\t' read -r p f; do
+    [ -n "$p" ] || continue
+    md_links "$f" | while IFS=$'\t' read -r n t; do
+      case $t in *'#'*) ;; *) continue ;; esac
+      before=${t%%#*}
+      before=${before%%\?*}
+      frag=${t#*#}
+      res=$(readme_target "$p" "$before")
+      case $res in
+        '') continue ;;
+        leaves)
+          echo "readme-anchors: $p:$n: the link ($t) leaves the repository"
+          continue
+          ;;
+        "other "*)
+          if ! in_tree "${res#other }" 2>/dev/null; then echo "readme-anchors: $p:$n: the link ($t) names ${res#other }, which is not a file of the tree"; fi
+          continue
+          ;;
+      esac
+      if [ -n "$frag" ]; then
+        if printf '%s\n' "$slugs" | grep -qxF -- "$frag"; then continue; fi
+        if [ "$res" = repo ] && [ "$frag" = readme ]; then continue; fi
+      fi
+      echo "readme-anchors: $p:$n: the link ($t) names '#$frag', and $README has no heading with that slug"
+    done
+  done < "$2"
 }
 
 # word-cap: chk_word_cap <readme>: wc -w at most WORD_CAP.
@@ -2581,6 +2845,29 @@ rule_product_links() {
   fi
 }
 
+rule_gmail_section() {
+  local priv="$tmp/priv.in" f
+  : > "$priv"
+  while IFS= read -r f; do grep -hI '' "$f" >> "$priv" 2> /dev/null; done < <(find README.md docs release -path release/records -prune -o -type f -print 2> /dev/null)
+  rule_begin gmail-section "$GUIDE" "$priv" || return
+  st 'the heading renamed' 1 "$GUIDE" '/^## Gmail and Microsoft 365$/ { print "## Google mail"; next } { print }' chk_gmail_section
+  st 'the section removed' 1 "$GUIDE" '/^## Gmail and Microsoft 365$/ { skip = 1; next } skip && /^## / { skip = 0 } !skip' chk_gmail_section
+  st 'the bullet without the password' 1 "$GUIDE" '{ sub(/ with a password or by signing in with Google or Microsoft 365/, " by signing in with Google or Microsoft 365") } { print }' chk_gmail_section
+  st 'the bullet without the link' 1 "$GUIDE" '{ sub(/ \(see \[Gmail and Microsoft 365\]\(#gmail-and-microsoft-365\)\)/, "") } { print }' chk_gmail_section
+  st 'the bullet link pointing elsewhere' 1 "$GUIDE" '{ sub(/\(#gmail-and-microsoft-365\)/, "(#gmail)") } { print }' chk_gmail_section
+  st 'the bullet tail changed' 1 "$GUIDE" '{ sub(/The online demo keeps its simulated mailbox\./, "The online demo keeps its mailbox.") } { print }' chk_gmail_section
+  st 'the intro reworded' 1 "$GUIDE" '{ sub(/Signing in with Google or Microsoft 365 is optional/, "Signing in with Google or Microsoft 365 is easy") } { print }' chk_gmail_section
+  st 'step 1 reworded' 1 "$GUIDE" '{ sub(/Google and Microsoft accept an `http:\/\/` Redirect address only for `localhost`/, "Google and Microsoft accept any Redirect address") } { print }' chk_gmail_section
+  st 'the Google scope changed' 1 "$GUIDE" '/^## / { s = ($0 == "## Gmail and Microsoft 365") } s { sub(/scope `https:\/\/mail\.google\.com\/`/, "scope `mail`") } { print }' chk_gmail_section
+  st 'the Microsoft permissions changed' 1 "$GUIDE" '{ sub(/`POP.AccessAsUser.All`, `SMTP.Send` and `offline_access`/, "`Mail.Read`") } { print }' chk_gmail_section
+  st 'step 4 removed' 1 "$GUIDE" '/^## / { s = ($0 == "## Gmail and Microsoft 365") } !(s && /^4\. /)' chk_gmail_section
+  st 'the closing paragraph removed' 1 "$GUIDE" '/^If the sign-in is withdrawn at the provider/ { next } { print }' chk_gmail_section
+  st 'the section after Stop, start and update' 1 "$GUIDE" '{ l[NR] = $0 } /^## Gmail and Microsoft 365$/ { t = NR } END { e = t; while (e < NR && l[e + 1] !~ /^## /) e++; for (i = 1; i <= NR; i++) { if (t && i >= t && i <= e) continue; print l[i] } for (j = t; j <= e; j++) print l[j] }' chk_gmail_section
+  st_append 'a least-privilege claim in GUIDE.md' 'The measured list is the least privilege that works.' chk_gmail_section
+  st 'a minimum-privilege claim in README.md, docs/ or release/' 2 "$priv" '{ print } END { print "This is the minimum privilege."}' chk_gmail_section
+  finish gmail-section 'the mailbox bullet and the Gmail and Microsoft 365 section are the approved text, in place, linked by their anchor, with no least-privilege wording anywhere' chk_gmail_section
+}
+
 rule_telegram_section() {
   local n
   rule_begin telegram-section "$GUIDE" || return
@@ -2703,6 +2990,131 @@ rule_readme_links() {
   st 'a shields.io image in the guide' 2 "$GUIDE" '{ print } END { print ""; print "<img src=\"https://img.shields.io/badge/a-b-blue\" alt=\"x\">" }' chk_readme_links
   st 'two headings with one slug, in the guide' 2 "$GUIDE" '{ print } END { print ""; print "## Sign in" }' chk_readme_links
   finish readme-links 'every link of the README and the guide, Markdown or HTML, reaches a heading of the file it names, a file or folder of the repository, or an allow-listed host, and img.shields.io only in the header block' chk_readme_links
+}
+
+# ra_run <README copy> <repository path> <text>: chk_readme_anchors on a documentation set of one planted file with that text and that
+# repository path, besides an empty GUIDE.md and an empty docs/ file.
+ra_run() {
+  mkdir -p "$tmp/ra"
+  : > "$tmp/ra/empty.md"
+  printf '%s\n' "$3" > "$tmp/ra/f.md"
+  { printf 'GUIDE.md\t%s\n' "$tmp/ra/empty.md"; printf 'docs/pad.md\t%s\n' "$tmp/ra/empty.md"; printf '%s\t%s\n' "$2" "$tmp/ra/f.md"; } > "$tmp/ra/list"
+  chk_readme_anchors "$1" "$tmp/ra/list" "$GUIDE"
+}
+
+# ra_expect <label> <README copy> <repository path> <text> <count>: the checker flags exactly <count> lines of the text.
+ra_expect() {
+  local n
+  n=$(ra_run "$2" "$3" "$4" | grep -c '^readme-anchors: ')
+  if [ "$n" -ne "$5" ]; then st_note "$1: $n lines flagged, $5 expected"; fi
+}
+
+# ra_line <label> <README copy> <repository path> <text> <line>: the checker's output for the text is exactly that line.
+ra_line() {
+  local out
+  out=$(ra_run "$2" "$3" "$4")
+  if [ "$out" != "$5" ]; then st_note "$1: the output is not '$5'"; fi
+}
+
+rule_readme_anchors() {
+  local m="$tmp/ra/M.md" form path text out n kept
+  rule_begin readme-anchors "$README" "$tmp/ra.list" "$GUIDE" || return
+  mkdir -p "$tmp/ra"
+  printf '%s\n' "$listing" | doc_files | while IFS= read -r path; do printf '%s\t%s\n' "$path" "$path"; done > "$tmp/ra.list"
+  # The documentation set: Markdown files, but not the root README, the build records or the release records.
+  out=$(printf '%s\n' GUIDE.md CLAUDE.md docs/a.md eval/x/y.md release/demo-host-checks.md web/README.md newdir/z.md README.md _bmad/x.md _bmad-output/x.md .claude/x.md release/records/1.0.0/rc4.md docs/b.markdown docs/c.txt | doc_files)
+  if [ "$out" != "$(printf '%s\n' GUIDE.md CLAUDE.md docs/a.md eval/x/y.md release/demo-host-checks.md web/README.md newdir/z.md docs/b.markdown)" ]; then st_note 'the documentation set is not the Markdown files but the root README, the build records and the release records'; fi
+  # The set fails closed without the guide or without a docs/ file.
+  st 'the documentation set without GUIDE.md' 2 "$tmp/ra.list" '$0 !~ /^GUIDE\.md\t/' chk_readme_anchors
+  st 'the documentation set without a docs/ file' 2 "$tmp/ra.list" '$0 !~ /^docs\//' chk_readme_anchors
+  # The real README with the Measured heading renamed: a planted link to it is flagged.
+  if mutate "$README" '/^## Measured$/ { print "## Measurements"; next } { print }'; then
+    ra_expect 'README.md#measured with the Measured heading renamed' "$tmp/m" GUIDE.md '[a](README.md#measured)' 1
+  else
+    st_note 'README.md#measured with the Measured heading renamed: the edit changed nothing'
+  fi
+  # M is a README with one heading, Measured (slug measured).
+  printf '# Title\n\n## Measured\n\ntext\n' > "$m"
+  # Every form of a link that reaches a heading is live, and with a dead anchor each form is flagged alone.
+  ra_expect 'a live link of every form, in a root file' "$m" GUIDE.md $'[a](README.md#measured)\n[b](./README.md#measured)\n[r]: README.md#measured\n<a href="README.md#measured">x</a>\n[q](README.md?plain=1#measured)' 0
+  ra_expect 'a live link of every form, in docs/' "$m" docs/x.md $'[c](../README.md#measured)\n[d](/README.md#measured)\n[e](https://github.com/jbrandtmse/OcuTalon/blob/main/README.md#measured)\n[f](https://github.com/jbrandtmse/OcuTalon/blob/HEAD/README.md#measured)\n<https://github.com/jbrandtmse/OcuTalon#measured>\nhttps://github.com/jbrandtmse/OcuTalon#readme\n[g](https://github.com/jbrandtmse/OcuTalon/#readme)\nSee https://github.com/jbrandtmse/OcuTalon#measured.\n![i](../README.md#measured)\nSee (https://github.com/jbrandtmse/OcuTalon#measured).\n[https://github.com/jbrandtmse/OcuTalon#measured](https://github.com/jbrandtmse/OcuTalon#measured)\nhttps://github.com/jbrandtmse/OcuTalon?tab=readme-ov-file#measured' 0
+  ra_expect 'a live link two folders deep' "$m" eval/a/b.md '[x](../../README.md#measured)' 0
+  while read -r path text; do
+    ra_expect "a dead link: $text" "$m" "$path" "$text" 1
+  done <<'EOT'
+GUIDE.md [a](README.md#nowhere)
+GUIDE.md [b](./README.md#nowhere)
+GUIDE.md [r]: README.md#nowhere
+GUIDE.md [r]: <README.md#nowhere>
+GUIDE.md [^1]: see [x](README.md#nowhere)
+GUIDE.md [a](<b) and [c](README.md#nowhere)
+GUIDE.md <a href="README.md#nowhere">x</a>
+GUIDE.md <a href='README.md#nowhere'>x</a>
+GUIDE.md [q](README.md?plain=1#nowhere)
+GUIDE.md [a](<README.md#nowhere>)
+GUIDE.md ![a](README.md#nowhere)
+docs/x.md [c](../README.md#nowhere)
+docs/x.md [d](/README.md#nowhere)
+docs/x.md [d](/docs/../README.md#nowhere)
+eval/a/b.md [x](../../README.md#nowhere)
+docs/x.md [e](https://github.com/jbrandtmse/OcuTalon/blob/main/README.md#nowhere)
+docs/x.md [f](https://github.com/jbrandtmse/OcuTalon/blob/HEAD/README.md#nowhere)
+docs/x.md <https://github.com/jbrandtmse/OcuTalon#nowhere>
+docs/x.md https://github.com/jbrandtmse/OcuTalon#nowhere
+docs/x.md https://github.com/jbrandtmse/OcuTalon/#nowhere
+docs/x.md https://github.com/jbrandtmse/OcuTalon?tab=readme-ov-file#nowhere
+docs/x.md See (https://github.com/jbrandtmse/OcuTalon#nowhere) and more.
+docs/x.md See https://github.com/jbrandtmse/OcuTalon#nowhere.
+docs/x.md <a href="https://github.com/jbrandtmse/OcuTalon#nowhere">x</a>
+docs/x.md `x` [c](../README.md#nowhere)
+docs/x.md [c](../README.md#)
+docs/x.md [c](../README.md#readme)
+docs/x.md [c](/README.md#readme)
+EOT
+  ra_expect 'a link that two forms match' "$m" docs/x.md '[https://github.com/jbrandtmse/OcuTalon#nowhere](https://github.com/jbrandtmse/OcuTalon#nowhere)' 1
+  ra_expect 'a link in an HTML link and its text' "$m" docs/x.md '<a href="https://github.com/jbrandtmse/OcuTalon#nowhere">https://github.com/jbrandtmse/OcuTalon#nowhere</a>' 1
+  ra_expect 'the dead links of a file, one line each' "$m" docs/x.md $'[a](../README.md#nowhere)\n[b](../README.md#measured)\n[c](../README.md#elsewhere)' 2
+  ra_line 'the line of a dead link' "$m" docs/x.md $'text\n\nsee [a](../README.md#nowhere) and [b](../README.md#measured)' "readme-anchors: docs/x.md:3: the link (../README.md#nowhere) names '#nowhere', and README.md has no heading with that slug"
+  # A heading renamed, a repeated heading and the case of an anchor.
+  printf '# Title\n\n## Measurements\n' > "$tmp/ra/M.renamed.md"
+  ra_line 'the Measured heading renamed' "$tmp/ra/M.renamed.md" GUIDE.md '[a](README.md#measured)' "readme-anchors: GUIDE.md:1: the link (README.md#measured) names '#measured', and README.md has no heading with that slug"
+  printf '# Title\n\n## Measured\n\ntext\n\n## Measured\n' > "$tmp/ra/M.dup.md"
+  ra_line 'a repeated heading: -1 is live and -2 is not' "$tmp/ra/M.dup.md" GUIDE.md $'[a](README.md#measured)\n[b](README.md#measured-1)\n[c](README.md#measured-2)' "readme-anchors: GUIDE.md:3: the link (README.md#measured-2) names '#measured-2', and README.md has no heading with that slug"
+  ra_expect 'an anchor in the wrong case' "$m" GUIDE.md '[a](README.md#Measured)' 1
+  # A README in another folder is not the root README.
+  ra_line 'README.md from a folder that has none' "$m" ra-none/x.md '[x](README.md#measured)' "readme-anchors: ra-none/x.md:1: the link (README.md#measured) names ra-none/README.md, which is not a file of the tree"
+  kept=$listing
+  listing=$'ra-has/README.md\n'"$listing"
+  ra_expect 'README.md from a folder that has one, which is not the root README' "$m" ra-has/x.md '[x](README.md#nowhere)' 0
+  listing=$kept
+  ra_line 'a path out of the repository' "$m" GUIDE.md '[x](../README.md#measured)' "readme-anchors: GUIDE.md:1: the link (../README.md#measured) leaves the repository"
+  # Not a link: a code span, a fence of either kind, a pinned ref, another file and the page's own anchors.
+  ra_expect 'an anchor in a code span' "$m" GUIDE.md $'`[x](README.md#nowhere)`\n``a ` [x](README.md#nowhere)``' 0
+  ra_expect 'an anchor in a backtick fence' "$m" GUIDE.md $'```\n[x](README.md#nowhere)\n```' 0
+  ra_expect 'an anchor in a tilde fence' "$m" GUIDE.md $'~~~\n[x](README.md#nowhere)\n~~~' 0
+  ra_expect 'an anchor in a longer fence' "$m" GUIDE.md $'````\n```\n[x](README.md#nowhere)\n````' 0
+  ra_expect 'a link after a fence' "$m" GUIDE.md $'```\nx\n```\n[x](README.md#nowhere)' 1
+  ra_expect 'a link to a pinned ref' "$m" docs/x.md '[x](https://github.com/jbrandtmse/OcuTalon/blob/v1.0.0/README.md#nowhere)' 0
+  ra_expect 'a link to a repository that only starts with this one' "$m" docs/x.md '[x](https://github.com/jbrandtmse/OcuTalon-fork#nowhere)' 0
+  ra_expect 'a link to another file or to its own heading' "$m" docs/x.md $'[x](../GUIDE.md#nowhere)\n[y](#nowhere)\n[z](https://example.org/README.md#nowhere)\n[w](//example.org/README.md#nowhere)' 0
+  # A README heading in a form that headings does not slug as GitHub does.
+  for form in '## See [the link](x)' '## A <b>tag</b>' '## Closing ##' '## Trailing ' '##   Leading' '## See [the link][r]' '## A &amp; B' '## The _real_ thing' '## :tada: Party' '####### Seven'; do
+    { cat "$m"; printf '\n%s\n' "$form"; } > "$tmp/ra/M.form.md"
+    n=$(grep -c '' "$tmp/ra/M.form.md")
+    out=$(ra_run "$tmp/ra/M.form.md" GUIDE.md '')
+    case $out in
+      "readme-anchors: README.md:$n: the heading '"*"' is not in a form this check slugs as GitHub does") ;;
+      *) st_note "the heading '$form' is not flagged by its line" ;;
+    esac
+  done
+  for form in '~~~' '````' ' ```'; do
+    printf '# Title\n\n## Measured\n\n%s\n# x\n%s\n' "$form" "$form" > "$tmp/ra/M.fence.md"
+    out=$(ra_run "$tmp/ra/M.fence.md" GUIDE.md '')
+    if [ "$out" != "$(printf 'readme-anchors: README.md:5: a code fence in a form this check does not read as GitHub does\nreadme-anchors: README.md:7: a code fence in a form this check does not read as GitHub does')" ]; then st_note "a README fence '$form' is not flagged by its lines"; fi
+  done
+  printf '# Title\n\n## C# notes\n' > "$tmp/ra/M.hash.md"
+  ra_expect 'a heading with a hash that does not close it' "$tmp/ra/M.hash.md" GUIDE.md '[a](README.md#c-notes)' 0
+  finish readme-anchors 'every README anchor that a Markdown file outside README.md links, relative or by the repository address, is a heading slug of README.md as GitHub renders it' chk_readme_anchors
 }
 
 rule_must_scan() {
@@ -2836,9 +3248,9 @@ rule_guide() {
   finish guide 'GUIDE.md has its ruled title, its H2 sections in order and its ruled Tests and CI line; the README holds the ruled pointer and the More paragraph once each, and the More paragraph links the guide and each of its H2 sections' chk_guide
 }
 
-RULES='top word_cap guide try_it interesting measured comparison use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
+RULES='top word_cap guide try_it interesting measured comparison use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text gmail_section telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links readme_anchors must_scan ipm licence docs'
 # The rules that name the guide: with no GUIDE.md each one fails closed.
-GUIDE_RULES='guide comparison new_since use_cases how_you_talk images once teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links ipm telegram_section telegram_strings telegram_facts telegram_demo'
+GUIDE_RULES='guide comparison new_since use_cases how_you_talk images once teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links ipm telegram_section telegram_strings telegram_facts telegram_demo readme_anchors gmail_section'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {
