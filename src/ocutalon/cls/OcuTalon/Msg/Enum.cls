@@ -27,7 +27,7 @@ Parameter APPROVALSTATE = "pending,approved,rejected,expired,cancelled,executing
 Parameter APPROVALKIND = "fix,tool_call,setting";
 
 /// Notification kinds (AD-32).
-Parameter NOTIFICATIONKIND = "tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest,handled,summary";
+Parameter NOTIFICATIONKIND = "tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest,handled,summary,page";
 
 /// Results of a background check (AD-18).
 Parameter CHECKRESULT = "passed,failed,not_checked";

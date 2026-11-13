@@ -861,6 +861,16 @@ XData Registry [ MimeType = application/json ]
   "short": "HeartbeatBeat",
   "global": "^OcuTalonP.HeartbeatBeat",
   "class": "OcuTalon.Data.HeartbeatBeat"
+ },
+ {
+  "short": "SettingSnap",
+  "global": "^OcuTalonP.SettingSnap",
+  "class": "OcuTalon.Data.SettingSnapshot"
+ },
+ {
+  "short": "SettingChange",
+  "global": "^OcuTalonP.SettingChange",
+  "class": "OcuTalon.Data.SettingChange"
  }
 ]
 }
