@@ -842,6 +842,30 @@ Method TestAddToolFailsInRequest()
 	Do $$$AssertEquals(..AddressShows(), "", "and the server's address shows in no log line or report")
 }
 
+/// Story 22.6 (review VG1; DW-1228), the sibling of TestAddToolFailsInRequest on a host that names a proxy (OcuTalon.Mcp.Attach, whose ProxyToolSet is the governed proxy): the server's
+/// probe answers (the mock answers every request with a status line, which is an answer) and AddTool fails, so the proxy was registered on the request's manager and no server's tools
+/// were added after it. OfferServers gives 0, and the request's manager is rebuilt with no MCP server and no proxy: it lists none of the server's tools and no call_mcp_tool.
+Method TestProxyNoneAdded()
+{
+	If ..Guard() Quit
+	Do ..Use("McpServersClass", ..#PROBEATTACH)
+	Do ..Use("TurnToolsClass", ..#TURNTOOLS)
+	Set ^OcuTalonTest("TurnTools", "give") = 0
+	Do ..Register(, 1)
+	Set adapter = ..Runner().Adapter
+	Do ..Ok(adapter.BuildAgent(), "the agent builds with the server up")
+	If '$IsObject(adapter.Agent) Quit
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.Attach).ProxyToolSet(), "OcuTalon.Tools.McpProxy", "the host names the governed proxy toolset")
+	Set before = ..OtherRequests()
+	Set mark = $ClassMethod(..#FIXTURE, "EventMark")
+	Do ##class(OcuTalon.Test.Mcp.Mock).Status(..Port, "500 Internal Server Error")
+	Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "a request composes its manager although AddTool of the server fails after the probe answered")
+	Do $$$AssertTrue(..OtherRequests() > before, "AI Hub's client reached the server in the request, so the probe answered and AddTool ran and failed")
+	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "LogRowsHolding", mark, "The MCP server " _ ..Server _ " is not available ("), 1, "with one warning that names the server")
+	Do $$$AssertEquals($Piece($Get(^||ZzTurn("config", 1)), "|", 4, 5), ..#OWN _ ",zz_turn_set|", "it lists none of the server's tools and no call_mcp_tool")
+	Do $$$AssertEquals(..Leaks(adapter), "", "the secret, which AI Hub's error text can hold, shows in none of the places that are checked")
+}
+
 Method TestAddToolFailsAtBuild()
 {
 	If ..Guard() Quit

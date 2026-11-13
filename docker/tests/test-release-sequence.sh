@@ -38,8 +38,10 @@
 #             make"; no line with "deadline" outside the time-limits paragraph and no line about the changed-tool replay path (the checks run
 #             whatever src holds); the worked example docs/mcp-jira-example.md (mcp_doc_problems): its title, ASCII and no machine path, every address
 #             on example.com, the three shared texts word for word, no other "deadline" line, no replay-path and no source-poll text, the sentence that
-#             says MCP is off on the online demo and its link to the overview's MCP section; and the CI claims of the file and of the live unit in
-#             ci/units.sh (every group runs on the file, shards-5 holds the unit)
+#             says MCP is off on the online demo, the expiry sentence of the approval request (the hours of Bridge.Approval EXPIRYSECONDS, read from the
+#             class source) and its link to the overview's MCP section; the overview's own demo-off sentence in its MCP tools section, the Data
+#             section's MCP bullet, the MCP audit line and the Pairing, MCP and Tool sentence of its audit section, each word for word (VG3); and
+#             the CI claims of the file and of the live unit in ci/units.sh (every group runs on the file, shards-5 holds the unit)
 #   ipmcheck  (Story 15.4) the ipmcheck step runs release/ipm-install.sh of the candidate (a stub in the seed repository, so no container is needed)
 #             on an export of the candidate's tree with the ipm step's artifact, the lane lock folder, a run tag and the job's deadline, and
 #             tears down after it: a pass records "## FR-57 job" and names push; a failure (exit 1 or any code but 0 and 75) stops the release before
@@ -2179,6 +2181,10 @@ OVW_MCP_RISKY="An MCP tool that runs operating-system commands or arbitrary code
 OVW_MCP_READONLY="A Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so classify a tool Read-only only when you trust its server with what OcuTalon reads."
 OVW_MCP_LIMITS="OcuTalon's time limits for MCP servers are not hard deadlines. A server has 2 seconds to answer OcuTalon's check before a request offers its tools, and each listing of its tools, and 20 seconds to answer a tool call. Each limit applies to each wait for data and starts again whenever the server sends some, so a slow server can hold a request longer: in a test against a server that sent one byte a second, the 2-second check took 31 seconds and a 20-second call 36 seconds. A server that stops answering in the middle of a request, after its check passed, holds that request until it closes the connection."
 OVW_MCP_EXAMPLE=docs/mcp-jira-example.md
+OVW_MCP_DEMOOFF="MCP servers are off on the online demo: nobody can add one there, and OcuTalon reaches none."
+OVW_MCP_DATA="- In calls to the MCP servers an admin has added, never on the online demo: a check that the server answers, the list of its tools, and each tool call with its arguments, which can hold content that OcuTalon read. The results come back as untrusted content."
+OVW_MCP_AUDIT='- `MCP`: a server added or removed, or a tool called or refused;'
+OVW_MCP_PAIRING="Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, or classify an MCP tool, so a release without those features writes none of them."
 
 # ovw_section <file> <title>: the lines under the "## <title>" heading, up to the next "## " heading.
 ovw_section() { awk -v h="## $2" '$0 == h { on = 1; next } on && /^## / { exit } on { print }' "$1"; }
@@ -2255,6 +2261,10 @@ ovw_doc_problems() {
   ovw_section "$f" 'MCP tools' | grep -qF -e '](mcp-jira-example.md)' || echo "the MCP tools section does not link the worked example"
   ovw_section "$f" 'Data' | grep -qiF -e "this release can't make" && echo "the Data section still says that MCP calls are ones this release can't make"
   ovw_mcp_shared_problems "$f" 'MCP tools' '- '
+  ovw_section "$f" 'MCP tools' | grep -qF -e "$OVW_MCP_DEMOOFF" || echo "the MCP tools section lacks the sentence that says MCP is off on the online demo"
+  ovw_section "$f" 'Data' | grep -qxF -e "$OVW_MCP_DATA" || echo "the Data section lacks the MCP bullet word for word"
+  ovw_section "$f" 'Approval and audit' | grep -qxF -e "$OVW_MCP_AUDIT" || echo "the Approval and audit section lacks the MCP audit line word for word"
+  ovw_section "$f" 'Approval and audit' | grep -qF -e "$OVW_MCP_PAIRING" || echo "the Approval and audit section lacks the Pairing, MCP and Tool sentence word for word"
   v=$(ovw_code_value 's/^Parameter EXPIRYSECONDS = \([0-9][0-9]*\);.*$/\1/p' src/bridge/cls/OcuTalon/Bridge/Approval.cls)
   if [ -z "$v" ]; then
     echo "the code has no EXPIRYSECONDS"
@@ -2304,7 +2314,13 @@ mcp_doc_problems() {
   done
   ovw_mcp_shared_problems "$f" '' ''
   grep -qiF -e 'source poll' "$f" && echo "a line mentions a source poll"
-  grep -qF -e 'MCP servers are off on the online demo: nobody can add one there, and OcuTalon reaches none.' "$f" || echo "the example lacks the sentence that says MCP is off on the online demo"
+  grep -qF -e "$OVW_MCP_DEMOOFF" "$f" || echo "the example lacks the sentence that says MCP is off on the online demo"
+  v=$(ovw_code_value 's/^Parameter EXPIRYSECONDS = \([0-9][0-9]*\);.*$/\1/p' src/bridge/cls/OcuTalon/Bridge/Approval.cls)
+  if [ -z "$v" ]; then
+    echo "the code has no EXPIRYSECONDS"
+  else
+    grep -qF -e "A request that nobody answers within $((v / 3600)) hours expires." "$f" || echo "the example lacks the sentence that a request expires after $((v / 3600)) hours"
+  fi
   grep -qF -e '](security-overview.md#mcp-tools)' "$f" || echo "the example does not link the overview's MCP tools section"
   return 0
 }
@@ -2373,7 +2389,16 @@ a line other than the time-limits paragraph mentions a deadline"
   { cat "$doc"; echo 'An approved request whose tool changed before it ran needs a new approval.'; } > "$d/replay.md"
   eq "control: a replay-path line added" "$(ovw_doc_problems "$d/replay.md")" "a line describes the changed-tool replay path"
   sed 's/^- In calls to the MCP servers an admin has added, never on the online demo: .*$/- In calls to configured MCP servers, which this release can'"'"'t make./' "$doc" > "$d/data.md"
-  eq "control: the old Data bullet put back" "$(ovw_doc_problems "$d/data.md")" "the Data section still says that MCP calls are ones this release can't make"
+  eq "control: the old Data bullet put back" "$(ovw_doc_problems "$d/data.md")" "the Data section still says that MCP calls are ones this release can't make
+the Data section lacks the MCP bullet word for word"
+  sed 's/MCP servers are off on the online demo: nobody can add one there/MCP servers are on the online demo: anybody can add one there/' "$doc" > "$d/demooff.md"
+  eq "control: the demo sentence changed in the overview" "$(ovw_doc_problems "$d/demooff.md")" "the MCP tools section lacks the sentence that says MCP is off on the online demo"
+  sed 's/^- In calls to the MCP servers an admin has added, never on the online demo: /- In calls to the MCP servers an admin has added: /' "$doc" > "$d/mcpdata.md"
+  eq "control: the Data bullet changed" "$(ovw_doc_problems "$d/mcpdata.md")" "the Data section lacks the MCP bullet word for word"
+  sed 's/^- `MCP`: a server added or removed, or a tool called or refused;$/- `MCP`: a server added or removed;/' "$doc" > "$d/mcpaudit.md"
+  eq "control: the MCP audit line changed" "$(ovw_doc_problems "$d/mcpaudit.md")" "the Approval and audit section lacks the MCP audit line word for word"
+  sed 's/ or classify an MCP tool, so a release without those features writes none of them\./, so a release without those features writes none of them./' "$doc" > "$d/pairing.md"
+  eq "control: the Pairing, MCP and Tool sentence changed" "$(ovw_doc_problems "$d/pairing.md")" "the Approval and audit section lacks the Pairing, MCP and Tool sentence word for word"
   sed 's/^- It expires after 24 hours\./- It expires after 48 hours./' "$doc" > "$d/hours.md"
   eq "control: another expiry" "$(ovw_doc_problems "$d/hours.md")" "the Approval and audit section lacks '24 hours'"
   sed 's/^- `Tool`: /- Tool: /' "$doc" > "$d/type.md"
@@ -2425,6 +2450,8 @@ a line other than the time-limits paragraph mentions a deadline"
   eq "control: a source poll in the example" "$(mcp_doc_problems "$d/e-poll.md")" "a line mentions a source poll"
   sed 's/MCP servers are off on the online demo: nobody can add one there/MCP servers are on the online demo: anybody can add one there/' "$ex" > "$d/e-demo.md"
   eq "control: the demo sentence changed in the example" "$(mcp_doc_problems "$d/e-demo.md")" "the example lacks the sentence that says MCP is off on the online demo"
+  sed 's/A request that nobody answers within 24 hours expires\./A request that nobody answers within 48 hours expires./' "$ex" > "$d/e-hours.md"
+  eq "control: another expiry in the example" "$(mcp_doc_problems "$d/e-hours.md")" "the example lacks the sentence that a request expires after 24 hours"
   sed 's/](security-overview\.md#mcp-tools)/](security-overview.md)/' "$ex" > "$d/e-link.md"
   eq "control: the link to the overview removed from the example" "$(mcp_doc_problems "$d/e-link.md")" "the example does not link the overview's MCP tools section"
   # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in shards-5

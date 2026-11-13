@@ -93,7 +93,7 @@
 #   docs           the sentences this story added to other public files, word for word: the build 109 sentence at the end of the
 #                  bridge guide's build 154 bullet and of the IPM page's build 154 bullet (U-241 item 7), and the two ruled lines of
 #                  the security overview (U-242): what an approval request shows for a tool call, in the approval section and in the
-#                  MCP rules, which still sit under "This release can't connect to MCP servers." with no heading between; the old
+#                  MCP rules, which sit under the "## MCP tools" heading with no other heading between; the old
 #                  "exact call" wording is gone; and the sentence on what the trace role reads (Story 21.14, DW-1255), once and as the
 #                  bullet right after the OcuTalonTraceViewer bullet
 #   install-pointer  every guide section that install.sh names ("The Troubleshooting section of GUIDE.md") is an H2 heading of GUIDE.md,
@@ -1677,7 +1677,7 @@ IPM_SENTENCE='Build 109, which the Early Access portal now offers in place of bu
 L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).'
 L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step."
 L2114="- Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text."
-MCP_FRAME="This release can't connect to MCP servers. When a release adds MCP support, these rules apply:"
+MCP_FRAME="## MCP tools"
 chk_docs() {
   if ! grep -F -- "$BRIDGE_BULLET_START" "$1" | grep -q -F -- "$BRIDGE_SENTENCE"; then
     echo "docs: $BRIDGE_DOC has no build 154 bullet that holds the build 109 sentence"
@@ -1692,8 +1692,8 @@ chk_docs() {
     echo "docs: the trace role's sentence is not the bullet right after the OcuTalonTraceViewer bullet"
   fi
   if grep -q -F -- 'the exact call' "$3"; then echo "docs: $SECOV_DOC still promises 'the exact call'"; fi
-  if ! awk -v f="$MCP_FRAME" -v l="$L187" '$0 == f { a = NR } $0 == l { b = NR } /^#/ && a && !b { h = 1 } END { exit !(a && b && a < b && !h) }' "$3"; then
-    echo "docs: the MCP rules line is not under \"$MCP_FRAME\" with no heading between"
+  if ! awk -v f="$MCP_FRAME" -v l="$L187" '/^#/ && a && !b { h = 1 } $0 == f { a = NR } $0 == l { b = NR } END { exit !(a && b && a < b && !h) }' "$3"; then
+    echo "docs: the MCP rules line is not under \"$MCP_FRAME\" with no other heading between"
   fi
 }
 
@@ -3213,8 +3213,8 @@ rule_docs() {
   st 'the approval section line without the 200 characters' 3 "$secov_p" '{ sub(/, cut to 200 characters/, "") } { print }' chk_docs
   st 'the MCP rules back to the exact call' 3 "$secov_p" 'index($0, "- Every call passes the gate, an approval request when needed (showing the tool") == 1 { print "- Every call passes the gate, an approval request when needed (showing the exact call), an audit entry (read-only calls included) and an agent step."; next } { print }' chk_docs
   st 'the MCP rules line without the full call kept' 3 "$secov_p" '{ sub(/, with the full call kept in the approval record\), an audit entry/, "), an audit entry") } { print }' chk_docs
-  st 'the MCP framing sentence removed' 3 "$secov_p" '!/^This release can.t connect to MCP servers\./' chk_docs
-  st 'a heading between the framing sentence and the rules line' 3 "$secov_p" '/^- An MCP tool that runs commands must be classified risky\./ { print "## Other"; print "" } { print }' chk_docs
+  st 'the MCP tools heading removed' 3 "$secov_p" '!/^## MCP tools$/' chk_docs
+  st 'a heading between the MCP tools heading and the rules line' 3 "$secov_p" 'index($0, "- Every call passes the gate, an approval request when needed (showing the tool") == 1 { print "## Other"; print "" } { print }' chk_docs
   st 'the trace role sentence removed' 3 "$secov_p" 'index($0, "- Anyone with the trace role can read the content of every item") != 1' chk_docs
   st 'the trace role sentence changed' 3 "$secov_p" '{ sub(/an email.s sender, subject and text/, "an email subject") } { print }' chk_docs
   st 'the trace role sentence moved down one bullet' 3 "$secov_p" 'index($0, "- Anyone with the trace role can read the content of every item") == 1 { held = $0; next } { print } index($0, "- The local (README) account holds all three roles.") == 1 && held != "" { print held; held = "" }' chk_docs
