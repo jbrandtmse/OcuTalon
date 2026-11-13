@@ -3962,3 +3962,8 @@
 2026-11-13T15:39:51Z	Epic 0	epic_merged_to_feature	part=0.36 feature_sha=4aa34ca4 merge_sha=4aa34ca4 code=81b65a6a(identical_tree_outside_bookkeeping) verified_on_origin=yes
 2026-11-13T15:39:51Z	Run	ci_red_classified	head=7865c322 run=43432696788 red=shards-6(GuideApi TestOnlyTheMarkerChanges/TestRunAgain=DW-1094)+shards-4(Telegram park=DW-1083) class=ledgered_flakes evidence=same_code_green_on_81b65a6a(43445650699,43445650884)
 2026-11-13T15:39:51Z	Run	ci_green_by_identity	head=4aa34ca4 code_head=81b65a6a runs=43445650699,43445650884 cancelled=43454728174,43454728180(throughput_rule)
+2026-11-13T15:40:50Z	Epic 0	runner_complete	scope=story_0.36_on_OCT-epic0d head=6a2c0945(records) runner=a9256bee86633bf3c cancelled=43454976674,43454976655(records_only),43454867343,43454728174,43454728180
+2026-11-13T16:00:15Z	Epic 0	runner_reported	PART_READY story=0.35 head=e27e9f14 ci=success runs=43446298492,43446298472 local=d239c7f6(records_unpushed) DW=1273(owner_0-37) story_0.37=backlog epics_fix=dup_Epic1_heading_removed
+2026-11-13T16:00:15Z	Epic 0	ci_green_verified	sha=e27e9f14 runs=43446298492(ci),43446298472(lane-a) attempt=1
+2026-11-13T16:00:15Z	Epic 0	amendments_verified	amendments=spec-0-35_AB_section,epics_0.37_block+DW-1273,epics_dup_heading_fix extensions=Agent/Triage.cls,Test/Agent/Instructions.cls,docker/tests/test-eval-set.sh ok=true
+2026-11-13T16:00:15Z	Epic 0	merge_enqueued	part=0.35 head=e27e9f14 feature=910c0ace code_overlap_with_0.36=none ci=own_feature_head_run(union_of_two_green_code_heads)
