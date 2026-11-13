@@ -15,6 +15,7 @@
 ///   - TestNotAdmin: a user without OcuTalonAdmin gets 403 not_admin from OnPreDispatch and from each route, and nothing is offered or submitted;
 ///   - TestOnlineDemo: with the online-demo flag set every route answers 409 not_available with the accepted text before it reads the body, and nothing is offered,
 ///     submitted or written;
+///   - TestFailedAnswers: a command answered failed, not_audited or not_allowed is 500 server_error and one answered not_available is 409, on each of the four routes;
 ///   - TestHandoffDiscardedOnFailure: when the submit fails or throws, the add answers 500 and the secret's handoff is discarded all the same.
 Class OcuTalon.Test.Web.McpSettingsApi Extends %UnitTest.TestCase
 {
@@ -426,6 +427,30 @@ Method TestHandoffDiscardedOnFailure()
 		Do $$$AssertTrue(uri '= "", mode_": the command carried a handoff uri")
 		Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0), mode_": the handoff is gone")
 		Do $$$AssertEquals(left, "", "and held nothing")
+	}
+	Do $$$AssertEquals(..Rows(), before, "nothing is stored")
+}
+
+/// Every route answers 500 server_error for a command that McpOps or SettingsOps answered failed, not_audited or not_allowed, and 409 not_available with their message for not_available.
+Method TestFailedAnswers()
+{
+	If '..Guard() Quit
+	Set before = ..Rows()
+	Set server = ..Server("o")
+	For outcome = "failed", "not_audited", "not_allowed", "not_available" {
+		Kill ^OcuTalonTest("McpSettingsProbe")
+		Set ^OcuTalonTest("McpSettingsProbe", "mode") = "outcome:" _ outcome
+		Set status = $Select(outcome = "not_available": "409 Conflict", 1: "500 Internal Server Error")
+		Set code = $Select(outcome = "not_available": "not_available", 1: "server_error")
+		For route = "List", "Add", "Remove", "Classify" {
+			Set body = $Case(route,
+				"Add": {"name": (server), "address": (..#URL)}.%ToJSON(),
+				"Classify": {"server": (server), "tool": "t", "classification": "risky"}.%ToJSON(),
+				: "")
+			Set body = ..Call(route, body, , $Select(route = "Remove": server, 1: ""), .response)
+			Do $$$AssertEquals(response.Status, status, route_" answers "_status_" for "_outcome)
+			Do $$$AssertEquals({}.%FromJSON(body).error.code, code, route_": "_code_" for "_outcome)
+		}
 	}
 	Do $$$AssertEquals(..Rows(), before, "nothing is stored")
 }

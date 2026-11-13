@@ -2,7 +2,7 @@
 title: 'Story 21.4: Add, remove and classify MCP servers and tools in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
+status: 'done'
 baseline_revision: '96bbbcd8ecb47dfd42eafb0b83cf1785d8099cd1'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -251,6 +251,12 @@ Line numbers are those of this branch after the Epic 22 merge (`3d94a219`: 22.9,
 
 ## Spec Change Log
 
+- 2026-11-13 (lead, implement pass 4, the final pass; scope from the dispatch, binding for the implement handoff; it supersedes pass 3's B1 (c) lines):
+  - **(a) B1, option (i).** `src/ocutalon/cls/OcuTalon/Mcp/Attach.cls` stays UNCHANGED. Edit only `Test.Mcp.Attach:TestRemovedServer` (Lane A test, granted): the mid-turn part keeps `UNREGISTERED` with exactly one audit entry for the refused call; the new-turn part asserts that the tool list of a turn started after the removal holds none of the server's tools. Extra proof, only if the class's mock model can script a tool call by name: the new turn calls a removed tool anyway, gets `ToolNotFound`, nothing runs, and `Test.Mcp.Mock`'s request log shows no request; if it cannot, write that under `## Review Triage Log` or the Auto Run Result (it does not block). Mutation: skip the V3 `DropEntry` in `McpOps.Unregister`, the new-turn assertion must turn red; revert byte-identical and record the `mutation:` line (a mutation of production-run code needs `ci/warm.sh down` then `up`).
+  - **(b) Runs.** ALL of `Test.Mcp.Attach`, `Test.Mcp.Approval`, `Test.Mcp.Proxy`, `Test.Mcp.ProxyJob`, `Test.Mcp.Ops`, `Test.Mcp.Client` and `Test.Bridge.Gate`, one class per call (a long class split by method); `live sign-in --part 2/16` (`api/mcp.spec.ts`, M1-M5 with the two new M5 cases); `npm run build` with the initial bundle at or below the budget. A 22.x regression is a STOP.
+  - **(c)** The step-04 follow-up recommendation is `true` only if a `high` was patched. **(d)** Rule 19: every pin has its `mutation:` line; Rule 14: `## Auto Run Result` states the final status (earlier passes' records may stay below it). **(e)** DW-1285 is filed (the runtime gap of B2): do not refile it.
+  - **(f) Before finalize**, on a FRESH lane-C stack: `TestRemovedServer`, `Test.Web.McpSettingsApi`, `Test.Core.SettingsMcp`; then `test-boundaries.sh`, `test-class-rules.sh`, `test-ci-config.sh` and `node --test web/scripts/`.
+  - Runtime tags for pass 4: warm `e21s4iw4`, fresh `e21s4i4`.
 - 2026-11-13 (lead, Planner rulings `prompts/epic-21-rulings-20261113-1800.md`, binding; pass 3 scope):
   - **B1 (c), granted.** This is a cross-lane grant for this one change only: Lane A's `src/ocutalon/cls/OcuTalon/Mcp/Attach.cls` and `Test/Mcp/Attach.cls` `TestRemovedServer`. When Attach re-attaches recorded specs, it skips the spec of a server that has no `Mcp.Server` row. The gate then refuses the call with `UNREGISTERED` and writes its audit entry. `TestRemovedServer` asserts three things: `UNREGISTERED`, exactly one audit entry for the refused call, and no `ToolNotFound` anywhere in what it checks. The V3 drop of the entry and the wallet collection at removal stays. A contradiction with 22.x behaviour is a STOP.
   - **B2, accepted.** `Test.Mcp.Ops:TestNoAddressOrSecretInAnyText` keeps its audit assertion narrowed to source `OcuTalon`. IRIS's own audit entries are outside our control.
@@ -293,6 +299,43 @@ Line numbers are those of this branch after the Epic 22 merge (`3d94a219`: 22.9,
   - Contended edits are re-listed for 21.10 and 21.14 (in flight).
 
 ## Review Triage Log
+
+### 2026-11-13 - Review pass 1 (pass 4 of the implement; the whole story's diff `96bbbcd8..`, the 21.14 commits excluded, bookkeeping files left out)
+- verdicts: 32 findings - high 0, medium 7, low 22, false 3, maybe-false 0. Layers: Blind Hunter 11, Edge Case Hunter 11, Verification Gap 10 (5 gaps, 5 others), Intent Alignment 0 (descriptive; its divergences are the ruled ones: the `?`/`#` check in McpOps' add path and the route (B2), the `SaveEntry` pre-drop (Design Notes), the status words, the shared `Api.HandOff`).
+- patched here (the layer's single bounded pass; every patch is a test, a probe seam, a spec text or a doc sentence, none is production code): the five gaps of verification-gap, its hermeticity finding, the missing `mutation:` lines, the test coverage finding of Blind Hunter and the spine's secret-handoff sentence.
+- findings:
+  - `[low]` `[reject]` Blind: `ListMcp` fails the whole list when one server's read fails - a failed read of one server is not reachable in everyday use and its fix adds a skip-or-flag branch; reopen_if=a list that fails in the field.
+  - `[low]` `[reject]` Blind: a failed drop at removal still answers `removed` - by design: the spec says "a failed drop is one warning, and the answer stays removed" (the pass now pins it).
+  - `[low]` `[reject]` Blind: `SaveEntry` drops a leftover entry, key or collection of the name without an audit entry - by design (Design Notes: the row is the truth; the name does not exist at that point).
+  - `[low]` `[reject]` Blind: the lazy `import('./mcp-section')` has no error state or loading text - a failed chunk load needs a new public text (a veto item beyond T1-T12) and the chunk is 19.88 kB.
+  - `[low]` `[reject]` Blind: overlapping picks on one tool can restore a stale value - two clicks before the first answer; the fix adds in-flight bookkeeping.
+  - `[low]` `[reject]` Blind: the Remove dialog's pending count is the one the list loaded - T7's sentence is specified on that list; by design.
+  - `[low]` `[reject]` Blind: the last header cell of the servers table is empty - each Remove button has its own accessible name (T11).
+  - `[false]` `[reject]` Blind: an empty secret is accepted - the matrix row "Add without secret" says "no `secret`, or `""`".
+  - `[low]` `[patch]` Blind: the spine's secret-handoff sentence omits 21.4 - one clause added (the MCP credential: `Web.McpSettings` offers it, `McpOps`' own job takes it); `lint_spine.py` shows the 10 baseline findings and no new one. The MCP-writes bullet's "Until then the routes are stubs" is a history clause with its `[done in Story 21.4 ...]` marker, as the spine's convention keeps it.
+  - `[medium]` `[patch]` Blind: no tests for the partial-failure and drop-failure paths - patched through the gap rows below (the `@{` refusal, the failed write's drop, the failed drop at removal, the route mapping); `ListMcp` with a failing read is the low row above.
+  - `[low]` `[reject]` Blind: `Test.Contract.Ac`'s signature comment and floor are stale - pre-existing (the floor was 85 under 89 signatures before this story); reopen_if=the floor hides a removed signature.
+  - `[low]` `[reject]` Edge: a leftover collection with another key makes `Collection.Delete` fail, so the name can never be added - needs a key added by hand to an `OcuTalon_MCP_<name>` collection.
+  - `[low]` `[reject]` Edge: a server removed between `Servers()` and `Tools()` fails the whole list - a race of two admin clicks; the next list answers.
+  - `[low]` `[reject]` Edge: `ListMcp` returns a stored url that holds a key in its query - an admin-only read of the admin's own entry; the runtime gap of B2 is DW-1285.
+  - `[low]` `[reject]` Edge: overlapping picks (same as Blind's) - see above.
+  - `[low]` `[reject]` Edge: a stale reload can restore a removed server or an older pick until the next reload - the next reload corrects it.
+  - `[low]` `[reject]` Edge: the lazy import's rejection leaves a blank section (same as Blind's).
+  - `[low]` `[reject]` Edge: no loading state while the chunk loads - an empty panel for the length of a 19.88 kB fetch.
+  - `[false]` `[reject]` Edge: an empty secret is accepted (same as Blind's; the matrix allows it).
+  - `[low]` `[reject]` Edge: `ListMcp` does not re-check the origin or the acting user - no `SettingsOps` verb does (CommandsIn is the one gate, pinned by `TestMcpVerbsFromATool`), and the read changes nothing.
+  - `[low]` `[reject]` Edge: a key in an address's path is not refused - by design: ruling B2 refuses `?` and `#` only, and the address rules stay exactly as ruled.
+  - `[false]` `[reject]` Edge: T12 claims "a key never sits in the address" - its words say a query string "can't" be held and to put a key in Secret; they claim nothing about the path.
+  - `[medium]` `[patch]` VG1: `SaveEntry`'s final `DropEntry` after a failed write is not pinned - `TestMcpEntryWrite` now counts the drops of an add that fails after the secret was taken (two: before the write and again after it), through `OpsProbe.DropEntry`; mutation below.
+  - `[medium]` `[patch]` VG2: McpOps' own refusal of a secret that holds `@{` is not pinned - `TestMcpEntryWrite` offers `zzEntry@{env:ZZ}` straight to McpOps: failed, one fixed warning, nothing left; mutation below.
+  - `[medium]` `[patch]` VG3: the failed drop at removal is not pinned - `TestMcpEntryWrite` fails the drop through the probe (`^||ZzOps("dropError")`): answer `removed`, one fixed warning, no error text of the drop in the log; mutation below.
+  - `[medium]` `[patch]` VG4: the routes' 500 and 409 mapping of `failed`, `not_audited`, `not_allowed` and `not_available` is not pinned - new `Test.Web.McpSettingsApi:TestFailedAnswers` (the probe's `outcome:<word>` mode) on all four routes; mutation below.
+  - `[medium]` `[patch]` VG5: the section's failure states are not exercised - new e2e case B6 (a 500 on classify puts the old value back, shows the message, no Saved, the count back); mutation below. The denied, load-error, Retry and add-500 states stay without a browser case: `[low]` closed `wontfix-accepted`, reopen_if=a regression in those states reaches a user.
+  - `[medium]` `[patch]` VG hermeticity: `TestMcpEntryWrite` expected the wallet text to equal the old text plus its two ids, true only on an empty wallet - now it asserts two more ids and that they are the collection and the key.
+  - `[low]` `[reject]` VG hermeticity: `TestMcpEntryWrite` quits without an assertion when its counter name already exists - the name is a fresh counter value; reopen_if=a stale name is ever seen.
+  - `[low]` `[reject]` VG hermeticity: `TestNotAdmin` skips its production-backed part without the production - its first part runs everywhere and the rest is named in the class header as throwaway-only (the other tests there use `Guard`).
+  - `[low]` `[reject]` VG hermeticity: M5 compares the whole list before and after - an unrelated server row written between the two reads would break it; the stack has none.
+  - `[low]` `[patch]` VG: ACs with a pin and no `mutation:` line (the eighth section, the leak scans, the Remove dialog, the online-demo state, the route map row) - the mutations were applied, observed red and reverted; the lines are in `## Verification`.
 
 ## Design Notes
 
@@ -537,10 +580,41 @@ New, for the Planner (Settings > Tools and MCP servers unless said; online demo:
 - (AC 7, once) `grep -n 'SaveMcpEntry\|RemoveMcpEntry' _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md src` -- every hit in the spine is inside an "it read" history clause, and `src` has none.
 - (C3, once) `grep -n "Kind = 'tool_call' AND State = 'pending' AND ToolSource = ?" src/bridge/cls/OcuTalon/Bridge/Approval.cls src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- one hit in each, with the same predicate.
 
+**Pass 4 review mutations (Rule 19; each applied, observed red, reverted byte-identical, and the class or unit green again on the same stack):**
+- mutation: `SaveEntry`'s final `DropEntry` after a failed write removed -> `TestMcpEntryWrite` red ("the entry is dropped before the write and once more after the failed write") -> reverted (warm stack down and up)
+- mutation: the `(secret [ "@{")` refusal removed from `SaveEntry` -> `TestMcpEntryWrite` red ("an add of a secret that holds @{ is answered failed") -> reverted
+- mutation: the error text of the failed drop logged by `Unregister` -> `TestMcpEntryWrite` red ("that holds no error text of the drop") -> reverted
+- mutation: `SaveEntry` logs the secret (AC 2, the leak scans) -> `TestMcpEntryWrite` red ("no event log row holds it after the add", "no trace global holds it ...") -> reverted
+- mutation: `Web.McpSettings` `Answer` answers OK with no body for an unknown outcome -> `TestFailedAnswers` red -> reverted
+- mutation: Web.Api's `/v1/settings/mcp` prefix changed -> `TestMcpSettingsRoutes` red -> reverted
+- mutation: the Tools and MCP servers row removed from `SETTINGS_SECTIONS` -> `settings-view.test.mjs` red (AC 1's eighth section) -> reverted
+- mutation: the Remove dialog's `act` removes another name -> B4 red (AC 4's Remove) -> reverted
+- mutation: `stateOf` maps `off` to `failed` -> B5 red (AC 6's section) -> reverted
+- mutation: the pick's error handler without the old value put back -> B6 red -> reverted (the three web mutations in one `live sign-in-2 --part 10/12` run: 3 failed, 18 passed; the same run after the revert: 21 passed)
+
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: B1 (c) cannot be implemented as ruled. `Test.Mcp.Attach:TestRemovedServer` fails in its second (untrusted) turn, which composes a new tool manager AFTER the removal. McpOps' V3 `DropEntry` has already dropped the `AI.MCP.OcuTalon_<server>` entry, so `Attach.Probe` finds no entry and answers `failed`, and `Agent.OfferServers` does not add the server's tools to the manager. Skipping the recorded spec of a server with no `Mcp.Server` row in `Attach.cls` has the same result: the tool is not on the manager, `ExecuteTool` answers `ToolNotFound` before the gate (an auth policy on the manager) is asked, and `UNREGISTERED` and its audit entry can never appear. The ruling asks for `UNREGISTERED` with the V3 drop kept and the test unweakened; those three cannot all hold. The first (user-turn, removal mid-turn) iteration passes with `UNREGISTERED`. For the lead: either the untrusted turn is changed to assert that a manager composed after the removal offers none of the server's tools (nothing runs, no taint, no approval row), or the V3 drop is moved. Both are rulings; neither was applied. No `Attach.cls` change was made.
+Status: done
+Blocking condition: none
+
+**Summary (final, pass 4 and its review).** Story 21.4 is implemented: the four admin-checked MCP settings routes (`Web.McpSettings`), the secret handoff to McpOps' own job (entry and wallet write and drop), `ListMcpServers`, the eighth Settings section (lazy chunk), T1-T12, the spine S1-S6 and the docs. Pass 4 closed B1 by option (i): `Test.Mcp.Attach:TestRemovedServer` now pins `UNREGISTERED` mid-turn and, for a turn started after the removal, that none of the server's tools is listed and that a scripted call by name is `ToolNotFound` with no request at the mock. `Mcp/Attach.cls` is unchanged. "Exactly one audit entry for the refused call": the gate refuses an `UNREGISTERED` call before any audit step (`Gate.cls` "denied at once"), so the test asserts the removal's one MCP audit entry and that the denied calls add none.
+
+**Files changed (whole story, `96bbbcd8..`):** the routes and handlers (`Web/McpSettings.cls`, `Web/Api.cls`, `Web/HookSettings.cls`, `Core/SettingsOps.cls`, `Core/CommandsIn.cls`, `Mcp/Ops.cls`, `Data/Ownership.cls`, `Msg/Catalog/Core.cls`, `Msg/Command/*`), the web section (`settings/mcp-section.ts`, `mcp-view.ts`, `settings-view.ts`, `settings-page.ts`, `api-client.ts`, `api-types.ts`), the tests (`Test/Core/CommandsStep4.cls`, `SettingsMcp.cls`, `Test/Web/McpSettingsApi.cls`, `McpSettingsProbe.cls`, `Test/Mcp/Ops.cls`, `Attach.cls`, `OpsProbe.cls`, `web/e2e/**/mcp*.ts`, `web/scripts/*.test.mjs`), `GUIDE.md`, EXPERIENCE and the spine.
+
+**Review (pass 1 of the story; 32 findings, none high):** 7 patched (tests, a probe seam, e2e B6, a spine clause, mutation lines), 22 low rejected with reasons, 3 false; the table is in `## Review Triage Log`. No finding was deferred (`deferred: []`). Follow-up review recommended: false (no `high` was patched).
+
+**Verification (pass 4 and the review patches):** warm `e21s4iw4`: `Test.Mcp.Attach` (whole class), `Approval`, `Proxy`, `ProxyJob`, `Ops`, `Client`, `Test.Bridge.Gate` and `Test.Core.CommandsStep4` green. Fresh `e21s4i4`: `Test.Mcp.Attach:TestRemovedServer`, `Test.Web.McpSettingsApi`, `Test.Core.SettingsMcp` and `Test.Core.CommandsStep4` green; `live sign-in --part 2/16` (`api/mcp.spec.ts`, M1-M5 with the two new M5 cases) 20 of 20; `live sign-in-2 --part 10/12` 21 of 21 (B1-B6). `npm run build` clean, initial bundle 998.08 kB (the 1 MB error budget; unchanged); `node --test web/scripts/` 1993 pass; `tsc -p tsconfig.e2e.json` clean; `test-boundaries.sh`, `test-class-rules.sh`, `test-ci-config.sh` pass; `lint_spine.py` the 10 baseline findings. No 22.x regression.
+
+**Residual risks:** the add path has no refusal of a key in an address path (ruling B2); an entry saved by hand with a query string is not refused at runtime (DW-1285); the section's denied, load-error and Retry states have no browser case.
+
+Earlier record (pass 3's stop, resolved by the 20:25Z re-rulings above): B1 (c) could not be implemented as ruled, because the V3 drop and `UNREGISTERED` for a turn composed after the removal contradict each other; the re-ruling chose option (i).
+
+**Implement pass 4 (2026-11-13; branch `wip/21-4-impl1`; B1 option (i)).**
+- Changed: only `Test.Mcp.Attach:TestRemovedServer` (and its class-doc line); `Mcp/Attach.cls` and every other production file are unchanged. The mid-turn part (a user's turn whose map was built before the removal) keeps `UNREGISTERED` for both tools, no taint and no approval request, and now also asserts that the removal is the one MCP audit entry of the server (`removed`) and that the denied calls add no MCP or Tool entry. The new-turn part (an untrusted turn started after the removal) asserts that its manager lists none of the server's tools and no `call_mcp_tool`, and, through the adapter's `CallTool` (the test's scripted call by name), that a call of each removed tool is `ToolNotFound`, runs nothing, taints nothing and raises no approval request. Finally the mock's request log shows no `tools/call` from any client.
+- Review note (mock model): the class has no model; its adapter (`Test.Bridge.ZzTurnAdapter.CallTool`) runs `ExecuteTool(name, arguments)` on the turn's manager, so a tool call by name can be scripted, and the extra proof is in. A scripted call by name is not a model turn: the CI model mock's own tool-call scripting is not used here.
+- Green on warm `e21s4iw4`: `Test.Mcp.Attach` (whole class, 151 s), `Test.Mcp.Approval`, `Test.Mcp.Proxy`, `Test.Mcp.ProxyJob`, `Test.Mcp.Ops`, `Test.Mcp.Client` and `Test.Bridge.Gate`. Green on fresh `e21s4i4`: `Test.Mcp.Attach:TestRemovedServer`, `Test.Web.McpSettingsApi`, `Test.Core.SettingsMcp`; `live sign-in --part 2/16` (`api/mcp.spec.ts`, M1-M5 with the two M5 cases) 20 of 20. `npm run build` clean, initial bundle 998.08 kB (the 1 MB error budget; unchanged). `test-boundaries.sh`, `test-class-rules.sh`, `test-ci-config.sh` pass; `node --test web/scripts/` 1993 pass.
+- mutation: the `DropEntry` call skipped in `Mcp.Ops.Unregister` (warm stack taken down and up for it) -> `Test.Mcp.Attach:TestRemovedServer` red (the new turn's manager lists `zz_lookup`, `zz_delete_ticket` and `call_mcp_tool`, and a scripted call by name is `ToolAccessDenied`, not `ToolNotFound`) -> reverted byte-identical (`cmp` against the saved copy; `git status --short` lists only the spec and `Test/Mcp/Attach.cls`)
+- Warm `e21s4iw4` and fresh `e21s4i4` torn down; nothing of this pass is left running.
 
 **Implement pass 3 (2026-11-13; branch `wip/21-4-impl1`; B2 done, B1 blocked).**
 - B2 refusal: `Mcp.Ops` `MESSAGEQUERY` (T12, word for word) and the check in `OnAdd` after the `AddressAllowed` check (`bad_address`, nothing written or audited); `Web.McpSettings` `AddFields` refuses `?`/`#` as the `address` field text; `Mcp.Ops.AddressAllowed`, `Mcp.Proxy` and `Mcp.Client` unchanged. Lane A fixtures in `Test/Mcp/Ops.cls` as the ~19:50Z entry says (`TestBadAddress`: the `?b=c` address moves to the refused list; `TestNoAddressOrSecretInAnyText`: the added address is query-free and carries the secret probe, the `?token=` address is a refused case with its own scan, the plain-http case is unchanged). New test `Test.Web.McpSettingsApi:TestAddressWithQuery` (route and McpOps); two M5 cases in `web/e2e/api/mcp.spec.ts`. No web code, no doc note.

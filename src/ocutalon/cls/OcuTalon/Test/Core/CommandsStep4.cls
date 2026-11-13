@@ -340,6 +340,8 @@ Method TestToolVerbs()
 ///   - an add with no secret writes an entry with no auth member and no wallet collection;
 ///   - an add whose handoff cannot be taken (it was taken before) answers failed with one fixed warning and leaves no row, resource, entry, collection or key;
 ///   - an add of a secret with a non-loopback http:// address is refused with the address text (the condition of the Contest Planner): nothing is written and the handoff is not taken;
+///   - an add of a secret that holds @{ is answered failed by McpOps itself, with one fixed warning, nothing left, and the entry dropped again after the failed write (the drop is counted through the probe);
+///   - a remove whose entry or wallet drop fails is answered removed, with one fixed warning that holds no text of the failure;
 ///   - a remove cancels the server's pending tool_call row (the count of Ownership.PendingToolCalls is 1 before and 0 after), audits one MCP entry, and drops the entry, key and collection.
 /// The secret shows in no audit entry, event log row, trace global or ^OcuTalon* global, and the test's rows, entries, collections and approval rows are gone afterwards.
 Method TestMcpEntryWrite()
@@ -367,7 +369,9 @@ Method TestMcpEntryWrite()
 	Do $$$AssertEquals(+(details.%ToJSON() [ secret), 0, "the entry does not hold the secret")
 	Do $$$AssertEquals(##class(%Wallet.Collection).Exists(collection)_"|"_##class(%Wallet.Secret).Exists(collection_".Key"), "1|1", "the wallet collection and key exist")
 	Do $$$AssertEquals(+(##class(%Wallet.KeyValue).GetSecretValue(collection_".Key") [ secret), 1, "the wallet key holds the secret")
-	Do $$$AssertEquals(..WalletIds(), found_$Select(found = "": "", 1: ";")_"Collection:"_collection_";Secret:"_collection_".Key", "and the wallet gained only them")
+	Set gained = ..WalletIds()
+	Do $$$AssertEquals($Length(gained, ";") - $Select(found = "": 0, 1: $Length(found, ";")), 2, "and the wallet gained two ids")
+	Do $$$AssertEquals((";" _ gained _ ";") [ (";Collection:" _ collection _ ";") && ((";" _ gained _ ";") [ (";Secret:" _ collection _ ".Key;")), 1, "which are the collection and the key")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", server).%Size(), 1, "one MCP audit entry names the server")
 	Do ..AssertNoLeak(secret, mark, logMark, "after the add")
 	// a remove: the pending request of the server is counted, cancelled and its entry dropped
@@ -410,6 +414,18 @@ Method TestMcpEntryWrite()
 	Kill ^||ZzOps("auditError")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|not_audited|"_##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED, "an add whose audit fails is answered not_audited")
 	Do $$$AssertEquals(..Left(server), "", "and its row, resource, entry, wallet key and collection are all undone")
+	// a secret that holds @{ is refused by McpOps itself (the route is not its only sender): the add fails with one warning, nothing is left, and the entry is dropped again after the failed write
+	Set warnings = ##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(logMark, "the entry or the wallet secret of the MCP server could not be written")
+	Set command = ..NewAdd(server, url)
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Put("zzEntry@{env:ZZ}", .uri), "a secret that holds @{ is offered")
+	Set command.Handoff = uri
+	Kill ^||ZzOps("drops")
+	Set result = ..RunThrough(command)
+	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|failed|"_##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED, "an add of a secret that holds @{ is answered failed")
+	Do $$$AssertEquals(..Left(server), "", "and leaves no row, resource, entry, collection or key")
+	Do $$$AssertEquals(+$Get(^||ZzOps("drops")), 2, "the entry is dropped before the write and once more after the failed write")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(logMark, "the entry or the wallet secret of the MCP server could not be written"), warnings + 1, "with one warning of a fixed text")
 	// a secret with a plain http:// address to another computer
 	Set command = ..NewAdd(server, "http://192.0.2.7/mcp")
 	Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Put(secret, .uri), "a secret is offered for a plain http address")
@@ -422,6 +438,17 @@ Method TestMcpEntryWrite()
 	Kill kept
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "MCP", "MCP", server).%Size(), 4, "and no audit entry of the refused add")
 	Do ..AssertNoLeak(secret, mark, logMark, "after the refusals")
+	// a remove whose entry and wallet drop fails: the server is removed all the same, with one warning of a fixed text that holds no text of the wallet or the Config Store
+	Set result = ..AddThrough(server, url, "")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|added", "an add with no secret is answered added")
+	Set warnings = ##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(logMark, "of the removed MCP server could not all be dropped")
+	Set ^||ZzOps("dropError") = 1
+	Set result = ..RunThrough(..NewRemove(server))
+	Kill ^||ZzOps("dropError")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "1|removed|"_##class(OcuTalon.Mcp.Ops).#MESSAGEREMOVED, "a remove whose drop fails is answered removed")
+	Do $$$AssertEquals(..Left(server), "", "and the row, the tool rows and the resource are gone")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(logMark, "of the removed MCP server could not all be dropped"), warnings + 1, "with one warning of a fixed text")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(logMark, "zzwallettext"), 0, "that holds no error text of the drop")
 	Kill secret
 	Do ..DropStubFixtures()
 	Do $$$AssertEquals(..StubServer, "", "the test's rows, entry, collection and approval rows are removed")

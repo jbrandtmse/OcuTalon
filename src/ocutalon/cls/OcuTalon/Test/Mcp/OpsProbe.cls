@@ -5,7 +5,8 @@
 ///   - Notice records each notification in ^||ZzOps("notice", n) as a list of the session, the kind, the catalog key and the slots (and answers an error
 ///     when ^||ZzOps("noticeError") is 1), and sends nothing;
 ///   - Restart counts its calls in ^||ZzOps("restarts") and answers an error when ^||ZzOps("restartError") is 1; it restarts nothing;
-///   - WriteAudit answers an error when ^||ZzOps("auditError") is 1, else it writes the entry through the real writer.
+///   - WriteAudit answers an error when ^||ZzOps("auditError") is 1, else it writes the entry through the real writer;
+///   - DropEntry counts its calls in ^||ZzOps("drops") and drops through the real method, and answers an error with a recognizable text when ^||ZzOps("dropError") is 1 (after the real drop).
 /// Shadow gives a probe whose request header names the sender, as the production does, and a test calls its MessageHandler with a command.
 Class OcuTalon.Test.Mcp.OpsProbe Extends OcuTalon.Mcp.Ops
 {
@@ -69,6 +70,14 @@ ClassMethod Notice(notification As OcuTalon.Msg.Notification) As %Status [ Priva
 	If $Get(^||ZzOps("noticeError")) = 1 Quit $SYSTEM.Status.Error(5001, "zz the notice failed on purpose")
 	Set ^||ZzOps("notice", $Increment(^||ZzOps("notice"))) = $ListBuild(notification.SessionRef, notification.Kind, notification.CatalogKey, notification.Slots)
 	Quit $SYSTEM.Status.OK()
+}
+
+ClassMethod DropEntry(server As %String) As %Status [ Private ]
+{
+	Set ^||ZzOps("drops") = $Get(^||ZzOps("drops")) + 1
+	Set sc = ##super(server)
+	If $Get(^||ZzOps("dropError")) = 1 Quit $SYSTEM.Status.Error(5001, "zz the drop failed on purpose: zzwallettext")
+	Quit sc
 }
 
 ClassMethod Restart() As %Status [ Private ]

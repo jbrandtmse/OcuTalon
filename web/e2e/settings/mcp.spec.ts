@@ -5,7 +5,7 @@ import { signInReadmeLoaded } from '../support/floor';
 import { approvalState, dropMcpServer, leftovers, seedMcpServer } from '../support/mcp';
 
 /**
- * Story 21.4, Settings > Tools and MCP servers in a real browser, signed in as the README admin (B1 to B5; the sign-in-2 unit). The servers of B1, B3 and B4 are
+ * Story 21.4, Settings > Tools and MCP servers in a real browser, signed in as the README admin (B1 to B6; the sign-in-2 unit). The servers of B1, B3 and B4 are
  * fixture rows made with irisScript (a server row, its tool rows and, for B4, a pending `tool_call` approval row whose ToolSource is the server's toolref), and
  * B2 adds a server through the form (at a loopback address nothing listens on; it has no tools). Every case removes its `zz` servers, tools, approval rows, entries
  * and wallet keys in `finally`.
@@ -15,7 +15,8 @@ import { approvalState, dropMcpServer, leftovers, seedMcpServer } from '../suppo
  *   B3  a pick in a tool's radiogroup shows the check icon and "Saved" at once, and survives a reload;
  *   B4  the Remove dialog says "Remove {server}? Its 12 tools go at once, and 1 pending approval request for them is canceled."; Cancel keeps the server; Remove
  *       takes it and its tools off the lists and leaves the pending fixture row canceled;
- *   B5  a 409 not_available (fulfilled by the test) shows the online demo's line in place of the content.
+ *   B5  a 409 not_available (fulfilled by the test) shows the online demo's line in place of the content;
+ *   B6  a pick whose save fails (a 500 fulfilled by the test) puts the old value back and shows the server's message in the row.
  * The texts are written out here as the oracle.
  */
 const MCP = '/ocutalon/api/v1/settings/mcp';
@@ -202,4 +203,28 @@ test('B5: a 409 not_available shows the online demo\'s line in place of the cont
   await expect(page.getByRole('button', { name: 'Add server', exact: true }), 'there is no form').toHaveCount(0);
   await expect(page.getByRole('textbox'), 'and no field').toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Servers', exact: true }), 'and no group').toHaveCount(0);
+});
+
+test('B6: a pick whose save fails puts the old value back and shows the message', async ({ page }) => {
+  test.setTimeout(180_000);
+  const name = `zzb6${tag()}`;
+  const FAILED = 'Something went wrong inside OcuTalon. Try again.';
+  try {
+    await seedMcpServer(name, [{ name: 'zz_fail' }]);
+    await page.route(`**${MCP}/classify`, async (route) => {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: FAILED } }) });
+    });
+    await openMcp(page);
+    const row = tools(page).locator(`tr[data-tool="zz_fail"][data-server="${name}"]`);
+    const group = row.getByRole('radiogroup', { name: `Classification of zz_fail on ${name}`, exact: true });
+    await expect(group.getByRole('radio', { name: 'Unclassified (counts as risky)', exact: true })).toBeChecked();
+    await group.getByRole('radio', { name: 'Read-only', exact: true }).click();
+    await expect(row.getByText(FAILED, { exact: true }), 'the server\'s message shows in the row').toBeVisible();
+    await expect(group.getByRole('radio', { name: 'Unclassified (counts as risky)', exact: true }), 'the old value is back').toBeChecked();
+    await expect(group.getByRole('radio', { name: 'Read-only', exact: true }), 'and the pick is not kept').not.toBeChecked();
+    await expect(row.locator('p.saved[data-saved="classify"]'), 'with no Saved').toHaveCount(0);
+    await expect(servers(page).locator(`tr[data-server="${name}"]`).getByRole('cell').nth(3), 'the unclassified count is back too').toHaveText('1');
+  } finally {
+    await dropMcpServer(name);
+  }
 });
