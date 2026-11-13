@@ -3847,3 +3847,4 @@
 2026-11-13T01:58:16Z	Epic 0	ci_green_verified	head=cf91f2ba runs=43331852589,43331852594 result=success stories=0.31+0.32
 2026-11-13T01:58:16Z	Epic 0	amendments_verified	amendments=epics_0.31+0.32_blocks extensions=eval_case+results,Test/Eval/*,ci/units.sh,ci/iris.sh,lib-live.sh,test-ci-config,test-lib-live,first-start_scripts release_tool=4_timeout-minutes(Planner_approved_as_landed) ok=true
 2026-11-13T01:58:16Z	Epic 0	merge_enqueued	part=0.31+0.32 head=a3e95871 code_head=cf91f2ba
+2026-11-13T01:58:36Z	Epic 0	epic_merged_to_feature	part=0.31+0.32 feature_sha=2dae366c merge_sha=2dae366c code=cf91f2ba verified_on_origin=yes
