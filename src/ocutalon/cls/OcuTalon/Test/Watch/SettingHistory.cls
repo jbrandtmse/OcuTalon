@@ -57,7 +57,7 @@ Property TakenCounter As %String;
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
-	Do ..DropItems()
+	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DropItems())
 	Do ..DropHistory()
 	Quit sc
 }
@@ -156,17 +156,32 @@ ClassMethod DropHistory()
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingSnapshot WHERE Namespace = ? AND Production = ?", ..#ORDERS, ..#ORDERSPRODUCTION)
 }
 
-/// The class of the item that the definition changes.
+/// The class of the item that the definition changes, "" when the definition has no such item.
 ClassMethod ItemClass() As %String
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#ORDERS
 	Set production = ##class(Ens.Config.Production).%OpenId(..#ORDERSPRODUCTION)
 	If '$IsObject(production) Quit ""
+	Set class = ""
 	For i = 1:1:production.Items.Count() {
-		If production.Items.GetAt(i).Name = ..#DEFINEDITEM Quit
+		If production.Items.GetAt(i).Name = ..#DEFINEDITEM Set class = production.Items.GetAt(i).ClassName Quit
 	}
-	Quit $Select(i '> production.Items.Count(): production.Items.GetAt(i).ClassName, 1: "")
+	Quit class
+}
+
+/// The Enabled of each item of that name in the saved Orders definition, in the order of its item list, joined by "|".
+ClassMethod EnabledInOrder(name As %String) As %String
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set production = ##class(Ens.Config.Production).%OpenId(..#ORDERSPRODUCTION)
+	If '$IsObject(production) Quit ""
+	Set found = ""
+	For i = 1:1:production.Items.Count() {
+		If production.Items.GetAt(i).Name = name Set found = found_$Select(found = "": "", 1: "|")_(+production.Items.GetAt(i).Enabled)
+	}
+	Quit found
 }
 
 /// Adds an item to the saved Orders definition, marked by MARK: the class (the defined item's when className is empty), enabled or not, at position in the
@@ -174,6 +189,7 @@ ClassMethod ItemClass() As %String
 ClassMethod AddItem(name As %String, enabled As %Boolean, position As %Integer = 0, settings As %DynamicArray = "", className As %String = "") As %Status
 {
 	Set class = $Select(className '= "": className, 1: ..ItemClass())
+	If class = "" Quit $SYSTEM.Status.Error(5001, "The definition has no item "_..#DEFINEDITEM)
 	New $NAMESPACE
 	Set $NAMESPACE = ..#ORDERS
 	Set production = ##class(Ens.Config.Production).%OpenId(..#ORDERSPRODUCTION)
@@ -197,11 +213,8 @@ ClassMethod AddItem(name As %String, enabled As %Boolean, position As %Integer =
 	}
 	Set sc = item.%Save()
 	If $$$ISERR(sc) Quit sc
-	If position > 0 {
-		Do production.Items.InsertAt(item, position)
-	} Else {
-		Do production.Items.Insert(item)
-	}
+	Set sc = $Select(position > 0: production.Items.InsertAt(item, position), 1: production.Items.Insert(item))
+	If $$$ISERR(sc) Quit sc
 	Quit production.%Save()
 }
 
@@ -558,6 +571,7 @@ Method TestSameNameItems()
 	Do $$$AssertStatusOK(..AddItem(..#DEFINEDITEM, 0, 0, [{"target": "Host", "name": (..#NOTE), "value": "disabled last"}]), "and another comes last")
 	Do $$$AssertStatusOK(..AddItem("ZzSameName", 0, 0, [{"target": "Host", "name": (..#NOTE), "value": "zz-first"}]), "two disabled items share another name")
 	Do $$$AssertStatusOK(..AddItem("ZzSameName", 0, 0, [{"target": "Host", "name": (..#NOTE), "value": "zz-second"}]), "and neither is enabled")
+	Do $$$AssertEquals(..EnabledInOrder(..#DEFINEDITEM), "0|1|0", "the definition lists a disabled copy, then the enabled item, then the other disabled copy")
 	Do ..Watched()
 	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
 	Set entry = ..Entry(..Newest(), ..#DEFINEDITEM, ..#NOTE)
@@ -601,6 +615,7 @@ Method TestClassSettings()
 	Do $$$AssertEquals(reference.target_"|"_reference.value_"|"_reference.credential_"|"_reference.hash, "Adapter|"_proxyA_"|0|", "the class setting that references a credential keeps its ID, with credential 0 and no hash")
 	Do $$$AssertEquals(secret.target_"|"_secret.value_"|"_secret.credential, "Adapter||1", "the class setting whose name looks like a secret has no value and credential 1")
 	Do $$$AssertTrue(##class(OcuTalon.Data.Webhook).Matches(secret.hash, secretA), "and a hash that matches its value")
+	Do $$$AssertEquals(..Newest().Settings.Read(100000000) [ secretA, 0, "the secret is nowhere in the first snapshot's stored settings")
 	Set hash = secret.hash
 	Do $$$AssertStatusOK(..ChangeStored(item, 0, "Adapter", "ProxyAuthorization", proxyB), "the reference is changed")
 	Do $$$AssertStatusOK(..ChangeStored(item, 0, "Adapter", "UseCookies", secretB), "and so is the secret")

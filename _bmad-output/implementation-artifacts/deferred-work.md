@@ -7371,3 +7371,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Reader.Current evidence block: first name match then Quit; pre-existing (Epic 23 evidence path); 36.1's settings block now picks the first enabled item
 - 2026-11-13T00:21:26Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=reopen_if=an incident's evidence pack or notice names a disabled same-name item's queue, errors or settings (probe: a production with a disabled copy listed before the enabled item, then a failure on the enabled one)
+
+### DW-1242: Reader.Current's same-name pick in the settings snapshot honours a System Default Setting Enabled, but no test switches same-name items through one, so dropping that half would go unnoticed
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Reader.cls settings block: stEnabled = %GetSetting(..., "Enabled") else stItem.Enabled; TestSameNameItems sets only the stored Enabled; replacing the $Select by stItem.Enabled keeps every test green (verification-gap, acceptance-auditor)
+- 2026-11-13T00:43:25Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=reopen_if=a production switches same-name items with a System Default Setting Enabled and its setting history follows the disabled copy
