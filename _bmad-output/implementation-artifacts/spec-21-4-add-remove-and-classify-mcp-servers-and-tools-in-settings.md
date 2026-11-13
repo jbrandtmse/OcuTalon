@@ -2,7 +2,7 @@
 title: 'Story 21.4: Add, remove and classify MCP servers and tools in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'blocked'
+status: 'in-progress'
 baseline_revision: '96bbbcd8ecb47dfd42eafb0b83cf1785d8099cd1'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -265,6 +265,13 @@ Line numbers are those of this branch after the Epic 22 merge (`3d94a219`: 22.9,
     - :512 keeps its own refusal reason (plain http to a non-loopback host).
     - `Test/Mcp/Client.cls` is unchanged.
   - Reported to the coordinator for veto.
+- 2026-11-13 ~20:25Z (lead, Planner "21.4 RE-RULINGS", binding; these supersede B1 (c)):
+  - **B1: option (i).** `Mcp/Attach.cls` stays unchanged. The grant is a Lane A edit to `Test.Mcp.Attach:TestRemovedServer` only:
+    - The mid-turn part keeps `UNREGISTERED`, with exactly one audit entry.
+    - The new-turn part asserts that the tool list of a turn started after the removal holds none of the server's tools.
+    - Extra proof, if the mock model can script a tool call by name: the new turn calls a removed tool anyway, gets `ToolNotFound`, nothing runs, and the mock MCP server's request log shows no request. If the mock model can't script that, say so in the review notes; it does not block.
+    - Mutation: skip the V3 drop, and the new-turn assertion goes red.
+  - **B2: the placement is accepted** (add path and route only; `AddressAllowed` is unchanged). The fixture moves are approved. The runtime gap (an entry already saved with a query string) is ledgered LOW to burndown.
 
 - 2026-11-13 (pass 3 scope, from the lead's dispatch; binding for the implement handoff):
   - **B1 (c).** Make the smallest change in `src/ocutalon/cls/OcuTalon/Mcp/Attach.cls` so the re-attach of recorded specs skips the spec of a server that has no `Mcp.Server` row, with no other Attach change. Never weaken `TestRemovedServer` (UNREGISTERED, exactly one audit entry for the refused call, no `ToolNotFound` anywhere it checks). Keep the V3 `DropEntry` in `Unregister`. Run ALL of `Test.Mcp.Attach`, `Test.Mcp.Approval`, `Test.Mcp.Proxy`, `Test.Mcp.ProxyJob`, `Test.Mcp.Ops`, `Test.Mcp.Client` and `Test.Bridge.Gate`, one class per call (a long class by method). A 22.x regression or contradiction is a STOP: set `blocked`, name it, halt.
