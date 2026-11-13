@@ -7694,3 +7694,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 22.6 gate ruling M(4), 2026-11-13 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 21.10 V4 removes the cut; 22.6 P2 states it
 - 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=Planner ruling M(4)
+
+### DW-1272: Test.Watch.SettingSecret (Story 36.1) scans the trace by Ens.MessageHeader.Description only and has no TraceLeaks assertion
+- source: spec-21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Watch/SettingSecret.cls
+- evidence: ruling L lists retrofit sites by story (21.2, 21.3, 21.8, 35.3, 22.3, 22.4); 36.1 is not listed; a secret in a stored message body would pass that scan (SettingSecret.cls:254)
+- 2026-11-13T14:27:11Z status=open owner=burndown by=21.14-implement note=TraceLeaks retrofit gap outside ruling L's list; one assertion beside l.254
