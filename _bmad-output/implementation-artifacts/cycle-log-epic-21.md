@@ -276,3 +276,5 @@
 2026-11-13T09:14:32Z	Epic 21	integrated	feature=ea10d2d4(36.1+36.2) merge=local conflicts_resolved=ARCHITECTURE-SPINE.md(AD-14_union:21.7_digest_bullets+36.2_page_bullets;EmailOut_paths_numbered:digest_third,page_fourth[AMENDED_marker];both_ADDED_markers_kept;no_Rule_change;lint_10_low),sprint-status.yaml(feature_side_regenerated,re-set) merged_tree_checks=warm_e21s21mw(Data.Tables,CommandsStep4,EmailOut,EmailIn,SettingsEmail,EmailLive)_pass;readme,boundaries,class-rules,release-notes,compose-file,storage_pass
 2026-11-13T09:14:56Z	Epic 21	pushed	head=4eb46cdd ci=pending runs=43399692299,43399692062 part=21.7+21.8+21.12+21.13 note=integrated_ea10d2d4(36.1+36.2);code_equals_f17e2566_plus_feature
 2026-11-13T10:01:59Z	Epic 21	parked	reason=hold(requested_at=2026-11-13T09:59:45Z) boundary=after_push_4eb46cdd ci=pending(ci.yml 43399692299 in_progress; lane-a 43399692062 success) next=resolve_ci_4eb46cdd_then_PART_READY wip=none stacks=none
+2026-11-13T13:22:03Z	Epic 21	resumed	hold_cleared=13:17Z merged=ce9716c6(21.7+21.8+21.12+21.13)
+2026-11-13T13:22:03Z	Epic 21	integrated	feature=7865c322 merge=local conflicts=none lint_10_low boundaries_pass

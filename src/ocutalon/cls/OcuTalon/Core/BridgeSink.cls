@@ -28,7 +28,8 @@ Include Ensemble
 ///     its State; an empty or other action sends nothing;
 ///   - approval.expired: kind answered, answered.expired {time = ExpiresAt};
 ///   - approval.result: kind result, toolCall.done for Result done and toolCall.failed for failed or interrupted, {tool, time =
-///     FinishedAt}; an empty Result or FinishedAt sends nothing;
+///     FinishedAt}, and mcp.replayToolChanged {tool, server = ServerOf(ToolSource)} for Result changed (an approved MCP call whose tool
+///     changed after the request was made, refused unrun, Story 22.4); an empty Result or FinishedAt sends nothing;
 ///   - approval.cancelled: nothing.
 /// A request held before ToolSource and Runner existed (either is empty) is closed failed by Decide and gets no notice from
 /// approval.result. Its fallback Decision (kind tool, Fallback 1, a first Reasons line) is the one that speaks, on
@@ -92,6 +93,9 @@ Parameter KEYDONE = "toolCall.done";
 Parameter KEYFAILED = "toolCall.failed";
 
 Parameter KEYFAILEDWHY = "toolCall.failedWithReason";
+
+/// The key of the notice for an approved MCP call that was refused because its tool changed after the request was made (Result changed, Story 22.4).
+Parameter KEYCHANGED = "mcp.replayToolChanged";
 
 Parameter KEYAPPROVED = "answered.approved";
 
@@ -246,8 +250,9 @@ ClassMethod ToolNoticeOf(type As %String, row As OcuTalon.Bridge.Data.ApprovalRe
 	}
 	If type = ..#APPROVALEXPIRED Quit ..Compose(..#ANSWEREDKIND, ..#KEYEXPIRED, {"time": (row.ExpiresAt)}, row)
 	If type = ..#APPROVALRESULT {
-		Set key = $Case(row.Result, "done": ..#KEYDONE, "failed": ..#KEYFAILED, "interrupted": ..#KEYFAILED, : "")
+		Set key = $Case(row.Result, "done": ..#KEYDONE, "failed": ..#KEYFAILED, "interrupted": ..#KEYFAILED, "changed": ..#KEYCHANGED, : "")
 		If (key = "") || (row.FinishedAt = "") Quit ""
+		If key = ..#KEYCHANGED Quit ..Compose(..#RESULTKIND, key, {"tool": (row.ToolName), "server": (..ServerOf(row.ToolSource))}, row)
 		Quit ..Compose(..#RESULTKIND, key, {"tool": (row.ToolName), "time": (row.FinishedAt)}, row)
 	}
 	Quit ""

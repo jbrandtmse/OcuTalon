@@ -7701,6 +7701,8 @@ So that I approve only calls I understand.
 **Given** a pending request that Lane A's Story 22.4 cancelled because its server was removed
 **When** the cancellation arrives
 **Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 35.2 (was 21.1)'s proposal (FR-47, FR-8, AD-11)
+- DW-1232: the mcp.replayToolChanged notice (22.4 R1) renders text on the web chat and phone cards (a catalog key in Channel/WebChat/Out.cls and the phone card); until this merges, no release notes, guide or More-to-try text describes the changed-tool replay path (ledger; routed by merge_gate 2026-11-13, Contest Planner F2)
+- DW-1266: when this story removes the 200-character inputs cut, update 22.6's guide sentence P2 and its worked example in the same commit (ledger; routed by merge_gate 2026-11-13, Contest Planner M(4))
 
 ### Story 21.11: Show standalone fix requests with their reason and dry run on every channel
 
@@ -7928,6 +7930,7 @@ So that a tool I added can't change anything until I say yes.
 **Given** the mock MCP server's risky tool, with no platform policy covering it
 **When** the automated test asks for it in a user's turn
 **Then** the tool doesn't run without an approved request, runs once after approval, and the audit log holds the request, the answer and the call (FR-49, FR-9, NFR-13, AD-22)
+- DW-1220: An approved native MCP call replayed by Replay.Run is not rewritten into call_mcp_tool, so it runs through AI Hub's client with no deadline, cut, call-time fingerprint check or audit entry (ledger; routed by harvest 2026-11-12)
 
 ### Story 22.5: Poll a read-only MCP tool as a source
 
@@ -7981,6 +7984,7 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **Given** the worked example's guidance on classifying MCP tools, which the README's admin section (the admin guide) repeats
 **When** it describes classifying MCP tools
 **Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.2 (was 24.1) copies that sentence into the README's admin section with the link (FR-10, FR-61)
+- [AMENDED 2026-11-13, Contest Planner ruling F(2) on DW-1232] Until Story 21.10 merges (the web and phone cards for `mcp.replayToolChanged`), no release notes, guide or More to try text describes the changed-tool replay path; if a release carries 22.4 without 21.10, the notes leave that path out.
 
 ### Story 22.7: Send email from the chat, safe to you and approved for anyone else
 
@@ -8073,6 +8077,7 @@ So that a server that stops answering in the middle of a request can never hold 
 **When** the runner lists its tools or the model calls one of them
 **Then** OcuTalon's own Streamable HTTP client (Story 22.3's, with Story 22.9's bounds) does the listing and the call, both give up within a bounded time with a clear error, and the turn goes on without that server's tools; AI Hub's MCP client is no longer used for listing or calling, and the gate, classification by fingerprint, approval and audit apply exactly as before (FR-47, FR-48, FR-49, AD-10, AD-21, AD-31)
 **And** AD-21's "AI Hub lists, OcuTalon calls" rule and its Story 22.9 residual note are amended to match (AD-21)
+- DW-1221: Mcp.Client has no total deadline per request (Timeout is per read), so a server that trickles bytes can hold a runner job past CALLSECONDS (ledger; routed by harvest 2026-11-12)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 
@@ -8140,6 +8145,7 @@ So that the likely cause and its fix arrive together.
 **When** this story lands
 **Then** it holds at least two recorded incidents caused by setting changes, each with a recorded reader snapshot that includes setting history and an expected cause category and element at fault, scored on every run like every other incident (FR-62, FR-24, AD-22)
 **And** CI mock scenarios under `ci/mock/scenarios/A/` cover a setting-change diagnosis that proposes a rollback, and a test proves its dry run changes nothing (AD-16, AD-22)
+- DW-1225: AC moved from 36.1 (Contest Planner V1(b)): this story declares Fix.Kind.RollbackSetting with its RESOURCES entry, grants %Ens_ProductionConfig:W to OcuTalonServiceRole (the online-demo install leaves it out), adds exactly one forbidden-list test exception, changes the security overview's ONLINESTATEMENT, adds its overview sentence, and ships incident.settingChangeCause; result.settingRestored keeps its undo sentence only if this story builds and tests the undo path (ledger; routed by merge_gate 2026-11-13)
 
 ### Story 23.4: Decide when to page the on-call person and when to escalate to the backup
 
@@ -8476,6 +8482,7 @@ So that the backup is woken only when the on-call person really didn't answer.
 **Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, escalation timers survive the restart, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
 
 ### Story 24.4: Show the new fixes, partner warnings and setting changes on the cards
 

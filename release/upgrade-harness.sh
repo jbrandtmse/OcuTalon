@@ -319,6 +319,21 @@ state_incident() {
 # state_phone_has <state.json> <text>: a message of the simulated phone has exactly that text.
 state_phone_has() { jq -e --arg t "$2" '[.phone[]? | (.text // "")] | any(. == $t)' "$1" > /dev/null 2>&1; }
 
+# answer_rejected <answer body file>: 0 only for the body of a POST /v1/approvals/:ref/answer that is done and shows the request as rejected
+# ({"result":"done","approval":{"state":"rejected"}}); any other result or state, and a body that is no JSON, is 1.
+answer_rejected() { jq -e '.result == "done" and .approval.state == "rejected"' "$1" > /dev/null 2>&1 || return 1; }
+
+# fingerprint_empty <reading of approval_fingerprint> [absent-ok]: 0 when the row's ToolFingerprint reads empty. A previous build that predates the
+# property has no such column: that reads as empty only when the second argument is absent-ok (before the upgrade); a value, no row and a
+# failed read are never empty.
+fingerprint_empty() {
+  case $1 in
+    "=") return 0 ;;
+    "<nocolumn>") [ "${2:-}" = absent-ok ] ;;
+    *) return 1 ;;
+  esac
+}
+
 # state_notice <state.json> <kind> <text part>: the text of the first chat notice of that kind that holds the part.
 state_notice() {
   local out
@@ -644,6 +659,26 @@ reminder_waiting() { # the ReminderTimer instances of the Ref that wait
 }
 approval_hold() { # the id of the live ApprovalHold of the Ref, or nothing
   printf '%s\n' "Write !,\"CHK|h|\",##class(OcuTalon.Bridge.Approval).LiveHold(\"$1\")" 'Halt' | session_value OCUTALON h
+}
+
+# approval_fingerprint <request ref>: the ToolFingerprint of the request by SQL, as "=<value>" ("=" when it is empty); "<nocolumn>" when the table
+# has no such column (a previous build that predates the property), "<norow>" when no request has the Ref and "<error>" for any other failed read.
+approval_fingerprint() {
+  printf '%s\n' \
+    "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT ToolFingerprint FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE Ref = ?\",\"$1\")" \
+    'Write !,"CHK|fp|",$Select(rs.%SQLCODE=-29:"<nocolumn>",rs.%SQLCODE<0:"<error>",rs.%Next():"="_rs.%GetData(1),1:"<norow>")' \
+    'Halt' | session_value OCUTALON fp
+}
+
+# approval_copy <request ref>: raises a second pending request that is a copy of the request (same incident, owner, fix and dry run; its own Ref)
+# through OcuTalon.Bridge.Approval.Raise in the running stack, and prints its Ref; nothing when it could not be raised. A property the build lacks is
+# left out of the copy. A second Break the feed press is no way to get one: the press is refused while the first incident awaits approval.
+approval_copy() {
+  printf '%s\n' \
+    "Set a=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(\"$1\"),ref=\"\"" \
+    'If $IsObject(a) { Set b=##class(OcuTalon.Bridge.Data.ApprovalRequest).%New() Set list=$ListBuild("Kind","IncidentRef","OwnerRef","TraceRef","DryRun","ResultTarget","FixKind","FixParameters","FixTargets"),i=0 While $ListNext(list,i,n) { If ##class(%Dictionary.CompiledProperty).%ExistsId("OcuTalon.Bridge.Data.ApprovalRequest||"_n) { Set $Property(b,n)=$Property(a,n) } } Set sc=##class(OcuTalon.Bridge.Approval).Raise(b,.ref) If $System.Status.IsError(sc) { Set ref="" } }' \
+    'Write !,"CHK|copy|",ref' \
+    'Halt' | session_value OCUTALON copy
 }
 
 demo_row() { # the demo.mode row: "<Value>|<UpdatedAt>"
@@ -1164,6 +1199,40 @@ seed_approval() {
   else
     fail "approval: the pending request has no live ApprovalHold"
   fi
+  seed_second_request
+}
+
+# seed_second_request: a second pending request on the previous build (Story 22.4, DW-1239), then ToolFingerprint of both rows read as empty.
+seed_second_request() {
+  rej_ref=$(approval_copy "$req_ref")
+  if [ -z "$rej_ref" ]; then
+    fail "approval: a second pending request could not be raised as a copy of $req_ref"
+    return
+  fi
+  env_set "$state/seed.env" rej_ref "$rej_ref"
+  if wait_until 30 second_pending; then
+    pass "approval: a second pending request $rej_ref is raised on the same incident, to be rejected after the upgrade"
+  else
+    fail "approval: the second request $rej_ref is not pending in the rail's approvals"
+  fi
+  fingerprints_empty "before the upgrade" absent-ok
+}
+
+second_pending() { state_get && state_pending_approval "$tmp/state.json" "$rej_ref" > /dev/null; }
+
+# fingerprints_empty <when> [absent-ok]: ToolFingerprint of both seeded requests reads empty by SQL (a fail line when either does not).
+fingerprints_empty() {
+  local one two
+  one=$(approval_fingerprint "$req_ref") two=$(approval_fingerprint "$rej_ref")
+  if fingerprint_empty "$one" "${2:-}" && fingerprint_empty "$two" "${2:-}"; then
+    if [ "$one$two" = "<nocolumn><nocolumn>" ]; then
+      pass "approval: $1 ToolFingerprint is not a column yet on this build, so it is empty for both requests"
+    else
+      pass "approval: $1 ToolFingerprint is empty for both requests"
+    fi
+  else
+    fail "approval: $1 ToolFingerprint reads '$one' for $req_ref and '$two' for ${rej_ref:-no second request}, wanted empty for both"
+  fi
 }
 
 # seed_reminder_one <marker> <client id> <text> <reply> <reminder text> <prefix>: sends one reminder turn and keeps the reminder's ref
@@ -1472,6 +1541,11 @@ check_approval_upgrade() {
     fail "approval: the pending request is '$now', wanted '$req_ref|$req_expires'"
     return
   fi
+  if [ -z "$rej_ref" ]; then
+    fail "approval: no second request was seeded, so there is nothing to reject"
+    return
+  fi
+  fingerprints_empty "after the upgrade"
   if [ "$(api_post "approvals/$req_ref/answer" '{"action":"approve","channel":"phone"}')" = 200 ]; then
     pass "approval: approving on the phone channel answered 200"
   else
@@ -1483,6 +1557,13 @@ check_approval_upgrade() {
   else
     fail "approval: within 120 s the incident was '$(state_incident "$tmp/state.json" "$inc_ref")' and the phone item '$TEXT_RESULT' was $(state_phone_has "$tmp/state.json" "$TEXT_RESULT" && echo there || echo missing)"
   fi
+  # The answer takes both members: the route refuses a body without a channel (400 bad_answer).
+  if [ "$(api_post "approvals/$rej_ref/answer" '{"action":"reject","channel":"web"}')" = 200 ] && answer_rejected "$tmp/post.body"; then
+    pass "approval: rejecting the second request answered 200 and the request is rejected"
+  else
+    fail "approval: rejecting the second request did not answer 200 with the request rejected ($(jq -r '.error.code // .approval.state // ""' "$tmp/post.body" 2> /dev/null))"
+  fi
+  fingerprints_empty "after the answers"
 }
 
 approval_resolved() {
@@ -1626,6 +1707,7 @@ load_seed() {
   fact=$(env_get "$state/seed.env" fact)
   req_ref=$(env_get "$state/seed.env" req_ref)
   req_expires=$(env_get "$state/seed.env" req_expires)
+  rej_ref=$(env_get "$state/seed.env" rej_ref)
   inc_ref=$(env_get "$state/seed.env" inc_ref)
   hold_before=$(env_get "$state/seed.env" hold_before)
   r1_ref=$(env_get "$state/seed.env" r1_ref)

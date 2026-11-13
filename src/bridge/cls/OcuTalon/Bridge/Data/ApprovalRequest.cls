@@ -60,7 +60,7 @@ Property AnsweredBy As %String(MAXLEN = 128);
 /// When the request was answered.
 Property AnsweredAt As %String(MAXLEN = 20);
 
-/// done, failed or interrupted, from FinishExecution (AD-11).
+/// done, failed, interrupted or changed, from FinishExecution (AD-11).
 Property Result As %String(MAXLEN = 32);
 
 /// When the run finished.
@@ -80,6 +80,9 @@ Property ToolSource As %String(MAXLEN = 512);
 
 /// The runner item whose job held the call, which replays it once it is approved; empty for a fix and a setting request and for a row held before this property existed.
 Property Runner As %String(MAXLEN = 128);
+
+/// The fingerprint of an MCP tool at the hold; empty for every other request and for a row held before this property existed.
+Property ToolFingerprint As %String(MAXLEN = 64);
 
 Index RefIndex On Ref [ Unique ];
 
@@ -164,6 +167,9 @@ Storage Default
 </Value>
 <Value name="25">
 <Value>Runner</Value>
+</Value>
+<Value name="26">
+<Value>ToolFingerprint</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonBP.ApprovalD</DataLocation>
