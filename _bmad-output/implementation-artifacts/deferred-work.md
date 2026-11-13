@@ -7457,8 +7457,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 36.4 gate ruling S1 extension, 2026-11-13 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 36.4 S1: SaveSettings.Changes is visible in Visual Trace to OcuTalonTraceViewer (non-admin)
 - 2026-11-13T04:50:39Z status=routed owner=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=orchestrator note=AC bullet added to 24.2's epics.md block (Planner ruling)
+- 2026-11-13T07:23:37Z note=EXTENDED_by_Planner_2026-11-13:ProposeFix/DryRun/DryRunResult/PartnerNotice_carry_contact_ids_not_addresses_once_24.2_makes_contacts_real
 
 ### DW-1255: audit: every other settings section for personal data in traced SaveSettings.Changes; anything personal moves to the SecretHandoff (mail-server host names and webhook names are not personal and can stay)
 - source: Contest Planner 36.4 gate ruling, 2026-11-13 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: SaveSettings.Changes is visible to OcuTalonTraceViewer, which non-admin accounts hold
 - 2026-11-13T04:50:39Z status=routed owner=burndown by=orchestrator note=Planner ruling; one audit story
+- 2026-11-13T07:23:37Z note=Planner_ruled_2026-11-13:fix_story_in_lane_C_after_21.8(email_address+user_handoff;security-overview_trace-role_sentence);SendEmail_ref_rule_on_22.7;Item.Sender_stays;see_prompts/rulings-371-dw1255-20261113.md

@@ -3898,3 +3898,8 @@
 2026-11-13T06:49:58Z	Run	deps_hash_rerecorded	reason=ledger_routed note=DW-1231_bullet_on_37.1
 2026-11-13T06:50:01Z	Epic 25	epic_merged_to_feature	part=25.3 feature_sha=0898ebfb merge_sha=197c069d code=4832dea7+23.12(no_code_overlap) verified_on_origin=yes
 2026-11-13T06:50:11Z	Run	ci_cancelled	head=83ea7bc8 run=43364200347(queued) reason=superseded_by_0898ebfb(contains_it)
+2026-11-13T06:50:40Z	Epic 25	runner_complete	runner=aa000b22fa7fb6f0c story=25.3 merged=197c069d unpushed=none waiting=25.4,25.5(37.1),25.6(37.1+26.2)
+2026-11-13T06:51:12Z	Epic 37	owner_decision	via=contest_planner what=lane_A_next(DW-1255_read-only_audit;then_plan_37.1;then_idle) 
+2026-11-13T06:51:12Z	Epic 37	runner_dispatched	model=opus runner=epic-runner-37 lane=A slot=ocutalon-slot-a prompt=prompts/dispatch-epic-37-371-20261113.md base=91c837e3 tasks=DW-1255_audit,37.1_plan push=none
+2026-11-13T07:22:09Z	Epic 37	runner_ended	reason=waiting waiting_on=epic-36+Planner_rulings head=694097e0(local_only) reports=DW-1255_audit,37.1_plan(veto1-8,AD_amendments_7)
+2026-11-13T07:23:37Z	Run	owner_decision	via=contest_planner what=DW-1255_audit_rulings+37.1_plan_rulings(V1-V8,AD_amendments,V6_alternative) file=prompts/rulings-371-dw1255-20261113.md relay=runners_C,D,37_at_turn_end
