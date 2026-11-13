@@ -7719,3 +7719,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (Contest Planner B2 re-ruling ~20:25Z) | severity: low | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Mcp/Ops.cls
 - evidence: Mcp.Ops.AddressAllowed (called by Mcp.Proxy:84 at call time) does not refuse ? or #; changing it changes 22.x runtime behaviour
 - 2026-11-13T20:19:21Z status=open owner=burndown by=epic-21-runner note=Planner ruling: if ever closed, the fix goes through AddressAllowed with a Lane D test change
+
+### DW-1291: An MCP add or removal whose runner restart fails answers 500 server_error, although McpOps kept the change
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: McpOps answers failed after a kept change when RestartRunners fails (22.2 contract); Web.McpSettings maps failed to 500 as the spec says; the section reloads the list, which shows the truth
+- 2026-11-13T23:03:21Z status=by-design owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=spec maps every outcome but added/removed/saved to 500; McpOps' restart-failure contract is 22.2's
+
+### DW-1292: A 403 inside Settings > Tools and MCP servers shows the section's denied text, not the page's denied view
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: med | footprint: in-story
+- evidence: the section is rendered through ngComponentOutlet, which binds no output, and the spec gives the section its own denied state (loading/ready/off/denied/failed)
+- 2026-11-13T23:03:22Z status=by-design owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=spec-bound: the section's states are ruled; a page-level forward needs an injected seam
+
+### DW-1293: McpOps checks only @{ and emptiness of a handed-over MCP secret; the length and character rule lives in the route
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: SaveEntry refuses @{ and an empty secret; the 1 to 4,096 printable-ASCII rule is Web.McpSettings.AddFields'; AddMcpServer is accepted from web_admin only, whose one submitter is that route
+- 2026-11-13T23:03:22Z status=wontfix-theoretical owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=real only if a second web_admin submitter of AddMcpServer appears
+
+### DW-1294: An exception thrown in McpOps Register after SaveEntry would leave the entry and wallet secret without undo
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: after SaveEntry only WriteAudit runs, which returns a status; SaveEntry and DropEntry never throw; OnAdd's catch (22.2) undoes nothing, as for Grant before
+- 2026-11-13T23:03:22Z status=wontfix-theoretical owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=real only if WriteAudit or a later step can throw
+
+### DW-1295: The MCP e2e cleanup never revokes the server's IRIS resource, and no leftovers check names it
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/e2e/support/mcp.ts dropMcpServer and api/mcp.spec.ts cleanup delete row, entry, key and collection but call no Install.Step.Mcp.Revoke; only a failed DELETE in finally leaves a resource, on a throwaway stack
+- 2026-11-13T23:03:22Z status=wontfix-accepted owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=reopen_if=a live sign-in or sign-in-2 run reports a leftover OcuTalon_MCP_zz* resource or grant

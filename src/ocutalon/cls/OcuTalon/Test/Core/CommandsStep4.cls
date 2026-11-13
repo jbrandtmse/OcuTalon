@@ -24,8 +24,10 @@
 ///   - TestRestartRunnersWithoutProduction: RestartRunners' work answers OK and restarts nothing for no running production or another one;
 ///   - TestMcpEntryWrite (Story 21.4; DW-1041): through McpOps' handler, an add with a secret writes the entry AI.MCP.OcuTalon_<server> (a bearer secret:// reference) and the wallet key
 ///     OcuTalon_MCP_<server>.Key, an add without one writes the no-credential entry and no collection, an add whose handoff cannot be taken is failed and leaves nothing, a refused
-///     address with a secret writes nothing, and a remove cancels the server's pending tool_call row (counted by Ownership.PendingToolCalls before) and drops the entry, key and
-///     collection; the secret shows in no audit entry, event log row, trace global or ^OcuTalon* global, and the test's objects are gone afterwards;
+///     address with a secret writes nothing, an add whose audit fails is undone, a secret that holds @{ is refused by McpOps itself (the entry dropped again after the failed write),
+///     a remove cancels the server's pending tool_call row (counted by Ownership.PendingToolCalls before) and drops the entry, key and collection, a remove whose drop fails is
+///     still removed with one fixed warning, and a remove that names the server in other letters drops the objects of the row's own name; the secret shows in no audit entry,
+///     event log row, trace global or ^OcuTalon* global, and the test's objects are gone afterwards;
 ///   - TestWebhookVerbs (Story 35.3): CreateWebhook and SetWebhookSecret by every origin reach SettingsOps from web_admin only and are refused from the others
 ///     (the chat text for tool, also inside a bridge context; the admin-only text for web_user, system, telegram, timer, "zz" and ""), with nothing sent; the
 ///     real TOOLVERBS holds neither, and the real Routes send both to SettingsOps from web_admin only;
@@ -334,14 +336,16 @@ Method TestToolVerbs()
 }
 
 /// The entry write that McpOps does in its own job (Story 21.4; AD-19, AD-21; DW-1041), through McpOps' handler as CommandsIn would deliver the command, with the
-/// restart of the runners left out (Test.Mcp.OpsProbe):
+/// restart of the runners left out and the drop counted (Test.Core.McpOpsProbe):
 ///   - an add with a secret answers added, writes the entry AI.MCP.OcuTalon_<server> (read without resolving: the address and a bearer token that is the secret:// reference of the key
 ///     OcuTalon_MCP_<server>.Key, no secret) and the wallet key that holds the secret, and audits one MCP entry;
 ///   - an add with no secret writes an entry with no auth member and no wallet collection;
 ///   - an add whose handoff cannot be taken (it was taken before) answers failed with one fixed warning and leaves no row, resource, entry, collection or key;
 ///   - an add of a secret with a non-loopback http:// address is refused with the address text (the condition of the Contest Planner): nothing is written and the handoff is not taken;
 ///   - an add of a secret that holds @{ is answered failed by McpOps itself, with one fixed warning, nothing left, and the entry dropped again after the failed write (the drop is counted through the probe);
+///   - an add whose audit fails is answered not_audited, and its row, resource, entry, wallet key and collection are all undone;
 ///   - a remove whose entry or wallet drop fails is answered removed, with one fixed warning that holds no text of the failure;
+///   - a remove that names the server in other letters (the row's name index ignores case) drops the entry, the key and the collection of the row's own name;
 ///   - a remove cancels the server's pending tool_call row (the count of Ownership.PendingToolCalls is 1 before and 0 after), audits one MCP entry, and drops the entry, key and collection.
 /// The secret shows in no audit entry, event log row, trace global or ^OcuTalon* global, and the test's rows, entries, collections and approval rows are gone afterwards.
 Method TestMcpEntryWrite()
@@ -449,6 +453,13 @@ Method TestMcpEntryWrite()
 	Do $$$AssertEquals(..Left(server), "", "and the row, the tool rows and the resource are gone")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(logMark, "of the removed MCP server could not all be dropped"), warnings + 1, "with one warning of a fixed text")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(logMark, "zzwallettext"), 0, "that holds no error text of the drop")
+	// a remove that names the server in upper case: the row is found (its name index ignores case), and the entry, key and collection of the row's own name are dropped
+	Set result = ..AddThrough(server, url, secret)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|added", "an add with a secret is answered added")
+	Do $$$AssertEquals(##class(%Wallet.Secret).Exists(collection_".Key"), 1, "and its wallet key exists")
+	Set result = ..RunThrough(..NewRemove($ZConvert(server, "U")))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|removed", "a remove that names it in upper case is answered removed")
+	Do $$$AssertEquals(..Left(server), "", "and the row, the tool rows, the resource, the entry, the wallet key and the collection are gone")
 	Kill secret
 	Do ..DropStubFixtures()
 	Do $$$AssertEquals(..StubServer, "", "the test's rows, entry, collection and approval rows are removed")
@@ -527,7 +538,7 @@ Method AddThrough(server As %String, url As %String, secret As %String) As OcuTa
 /// Delivers the command to McpOps' handler through a probe that is told CommandsIn sent it, with the restart left out, and answers the CommandResult.
 Method RunThrough(command As OcuTalon.Msg.Command) As OcuTalon.Msg.CommandResult [ Private ]
 {
-	Set probe = ##class(OcuTalon.Test.Mcp.OpsProbe).Shadow("CommandsIn", .sc)
+	Set probe = ##class(OcuTalon.Test.Core.McpOpsProbe).Shadow("CommandsIn", .sc)
 	Do $$$AssertStatusOK(sc, "the probe of McpOps is made")
 	Set sc = probe.MessageHandler(command, .result)
 	Do $$$AssertStatusOK(sc, "the command is delivered and answered with an OK status")

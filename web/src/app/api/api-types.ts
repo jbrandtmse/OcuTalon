@@ -363,7 +363,7 @@ export interface McpToolRow {
   status: string;
 }
 
-/** The 200 answer to GET /ocutalon/api/v1/settings/mcp: the servers and the tools of all of them, both sorted by name. */
+/** The 200 answer to GET /ocutalon/api/v1/settings/mcp: the servers sorted by name, and the tools of all of them, server by server in that order and by name within a server. */
 export interface McpSettings {
   servers: McpServerRow[];
   tools: McpToolRow[];

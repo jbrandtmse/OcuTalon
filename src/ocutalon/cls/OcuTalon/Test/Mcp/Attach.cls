@@ -14,7 +14,7 @@
 ///   - TestChangedTool (Story 22.2): a classified tool whose description the mock changes between two builds is unclassified with the new fingerprint after the second build,
 ///     a Tool entry is audited, and each admin session gets one mcp.toolChanged notice;
 ///   - TestCommands (Story 22.2): through Commands.Submit and CommandsIn with the production running, an AddMcpServer makes the row, the resource, the grant and the audit entry
-///     and restarts the runner jobs, whose build then lists the tools; a ClassifyTool keeps the fingerprint and is audited; a ClassifyTool of origin tool is refused; a
+///     and restarts the runner jobs, whose build then lists the tools and sends the handed-over secret as the bearer token (Story 21.4); a ClassifyTool keeps the fingerprint and is audited; a ClassifyTool of origin tool is refused; a
 ///     RemoveMcpServer removes the rows, the resource and the grant;
 ///   - TestTurnManager (row 2): the manager that a request with turn tools composes lists the mock's tools too;
 ///   - TestTurnServerDown: the server is down when a request composes its manager: the probe says no, and the request still gets its manager, without the server's tools;
@@ -379,6 +379,14 @@ Method TestCommands()
 	Do ..Ok(host.Adapter.BuildAgent(), "the build of a runner attaches the server that the command added")
 	Set listed = ..ToolsText()
 	Do $$$AssertEquals(listed, "zz_delete_ticket|unclassified|available,zz_lookup|unclassified|available", "as unclassified and available")
+	Set sent = 0, unmatched = 0
+	Set iterator = ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%GetIterator()
+	While iterator.%GetNext(, .request) {
+		If request.client = "iris" Continue
+		Set sent = sent + 1
+		If request.auth '= "matched" Set unmatched = unmatched + 1
+	}
+	Do $$$AssertEquals((sent > 0) _ "|" _ unmatched, "1|0", "AI Hub's client sent the handed-over secret as the bearer token with every request")
 	Set fingerprint = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_lookup").Fingerprint
 	Do $$$AssertEquals($Length(fingerprint), 64, "zz_lookup has a fingerprint")
 	// a classification keeps the fingerprint and is audited

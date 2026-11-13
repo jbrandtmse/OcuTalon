@@ -43,18 +43,18 @@ export const MCP_TEXTS = {
   remove: {
     manyTools: {
       none: 'Remove {server}? Its {n} tools go at once.',
-      one: 'Remove {server}? Its {n} tools go at once, and 1 pending approval request for them is canceled.',
-      more: 'Remove {server}? Its {n} tools go at once, and {m} pending approval requests for them are canceled.',
+      one: 'Remove {server}? Its {n} tools go at once, and 1 pending approval request for them is cancelled.',
+      more: 'Remove {server}? Its {n} tools go at once, and {m} pending approval requests for them are cancelled.',
     } satisfies RemoveForms,
     oneTool: {
       none: 'Remove {server}? Its 1 tool goes at once.',
-      one: 'Remove {server}? Its 1 tool goes at once, and 1 pending approval request for it is canceled.',
-      more: 'Remove {server}? Its 1 tool goes at once, and {m} pending approval requests for it are canceled.',
+      one: 'Remove {server}? Its 1 tool goes at once, and 1 pending approval request for it is cancelled.',
+      more: 'Remove {server}? Its 1 tool goes at once, and {m} pending approval requests for it are cancelled.',
     } satisfies RemoveForms,
     noTools: {
       none: 'Remove {server}? It has no tools.',
-      one: 'Remove {server}? 1 pending approval request for its tools is canceled.',
-      more: 'Remove {server}? {m} pending approval requests for its tools are canceled.',
+      one: 'Remove {server}? 1 pending approval request for its tools is cancelled.',
+      more: 'Remove {server}? {m} pending approval requests for its tools are cancelled.',
     } satisfies RemoveForms,
     name: 'Remove {server}',
   },

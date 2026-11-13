@@ -11,10 +11,11 @@
 ///     removal stands), Restart. A classification is Validate, Save, Audit (a Tool entry; no restart, since the gate reads the rows). An audit that fails undoes
 ///     the change, and the outcome is not_audited. A restart that fails keeps the change (the next start attaches it), and the outcome is failed.
 ///   - The address of a server is https://, or http:// to this computer (127.0.0.1, localhost or [::1]) for development, with no user information and no
-///     @{ in it (AD-19). An add whose address holds a ? or a # (a query string or a fragment) is refused too, as bad_address with MESSAGEQUERY (Story 21.4), so that a
-///     key never sits in the entry's address; AddressAllowed, which Mcp.Proxy asks at call time, is unchanged. The address and the credential are stored only in the Config Store entry AI.MCP.OcuTalon_<server> and the wallet key
-///     OcuTalon_MCP_<server>.Key that this class writes in its own job (Story 21.4; the credential reaches it only through the command's Handoff, a SecretHandoff
-///     uri, taken once); the address, a credential and the error text of the wallet, the Config Store or AI Hub are never stored elsewhere, logged, audited or put in a notice.
+///     @{ in it (AD-19). An add whose address holds a ? or a # (a query string or a fragment) is refused too, as bad_address with MESSAGEQUERY (Story 21.4), so that no
+///     query string sits in the entry's address; AddressAllowed, which Mcp.Proxy asks at call time, is unchanged. This class writes the credential only to the wallet key
+///     OcuTalon_MCP_<server>.Key and the address only to the Config Store entry AI.MCP.OcuTalon_<server>, in its own job (Story 21.4; the credential reaches it only
+///     through the command's Handoff, a SecretHandoff uri, taken once), and it never logs, audits or puts in a notice the address, a credential or the error text of the
+///     wallet, the Config Store or AI Hub. The address also travels in the command and in the settings list, and IRIS's own audit entry of the entry's creation holds it.
 ///   - Tools: the tools of a server for Settings.
 ///   - RecordAttach: writes what a runner reported about one attach (OcuTalon.Mcp.Attach.OnAttach) to the server's row (AttachStatus, AttachReason,
 ///     AttachedAt, RefusedTools) and, for an attached server, keeps one ToolClassification row for each tool it listed or refused (a new one is
@@ -184,7 +185,8 @@ Method Register(request As OcuTalon.Msg.Command.AddMcpServer, Output response As
 }
 
 /// The remove, under the server's lock: Unregister (the rows and the grant, in one transaction with the audit). restart is 1 when the change is saved and
-/// audited, so that the caller restarts the runners once the lock is released.
+/// audited, so that the caller restarts the runners once the lock is released. The row is found by its name in any letter case (NameIndex), and the entry and
+/// the wallet secret are dropped under the row's own name, since their names are exact.
 Method Unregister(request As OcuTalon.Msg.Command.RemoveMcpServer, Output response As OcuTalon.Msg.CommandResult, Output restart As %Boolean) As %Status [ Private ]
 {
 	Set server = request.Server
@@ -192,6 +194,7 @@ Method Unregister(request As OcuTalon.Msg.Command.RemoveMcpServer, Output respon
 	Set id = ""
 	If $Match(server, ##class(OcuTalon.Mcp.Server).#NAMEPATTERN) Do ##class(OcuTalon.Mcp.Server).NameIndexExists(server, .id)
 	If id = "" Quit ..Answer(.response, 0, "not_found", ..#MESSAGENOSERVER)
+	Set stored = ##class(OcuTalon.Mcp.Server).NameGetStored(id)
 	Set level = $TLevel
 	TSTART
 	Try {
@@ -216,7 +219,7 @@ Method Unregister(request As OcuTalon.Msg.Command.RemoveMcpServer, Output respon
 	}
 	If $$$ISERR(sc) Quit ..Failed(.response, "the MCP server could not be removed", sc, $Select($Get(audited) = 0: "not_audited", 1: "failed"))
 	Do ..CancelPending(server, request)
-	If $$$ISERR(..DropEntry(server)) $$$LOGWARNING("OcuTalon.Mcp.Ops: the entry or the wallet secret of the removed MCP server could not all be dropped")
+	If $$$ISERR(..DropEntry(stored)) $$$LOGWARNING("OcuTalon.Mcp.Ops: the entry or the wallet secret of the removed MCP server could not all be dropped")
 	Set restart = 1
 	Quit ..Answer(.response, 1, "removed", ..#MESSAGEREMOVED)
 }

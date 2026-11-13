@@ -42,7 +42,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Do ..Clean()
-	Do $$$AssertEquals(..Leftovers(), "", "the test leaves no row, entry or approval row behind")
+	Do $$$AssertEquals(..Leftovers(), "", "the test leaves no row, tool row, entry or approval row behind")
 	Kill ^OcuTalonTest("SettingsOpsProbe"), ^||OcuTalonSettingsOpsProbe
 	Quit $$$OK
 }
@@ -225,6 +225,8 @@ Method Leftovers() As %String [ Private ]
 		Set name = $Piece(..Names, ",", i)
 		If name = "" Continue
 		If ##class(OcuTalon.Mcp.Server).NameIndexExists(name) Set places = places_$ListBuild(name_" row")
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", name)
+		If result.%Next(), result.%GetData(1) Set places = places_$ListBuild(name_" tool rows")
 		If ##class(%ConfigStore.Configuration).Exists("AI.MCP.OcuTalon_"_name) Set places = places_$ListBuild(name_" entry")
 	}
 	For i = 1:1:$Length(..Refs, ",") {

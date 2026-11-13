@@ -17,6 +17,9 @@
 ///     submitted or written;
 ///   - TestFailedAnswers: a command answered failed, not_audited or not_allowed is 500 server_error and one answered not_available is 409, on each of the four routes;
 ///   - TestHandoffDiscardedOnFailure: when the submit fails or throws, the add answers 500 and the secret's handoff is discarded all the same.
+///   - QA additions: TestAddAcceptsTheLimits (a name of 40, an address of 2,000 and a secret of 4,096 printable characters are added and stored as sent), TestAddWithoutSecret (an absent
+///     secret and "" add the no-credential entry), TestNotAdminComesFirst (403 before the demo's 409 and before the body, on every route), TestRefusedAddsLeakNoSecret (the secret of a refused or failed
+///     add is in no answer, log row, audit entry, trace or global) and TestClassifyEveryWord (each word, the list's counts and the Tool audit entries, the tool-name limits).
 Class OcuTalon.Test.Web.McpSettingsApi Extends %UnitTest.TestCase
 {
 
@@ -455,6 +458,178 @@ Method TestFailedAnswers()
 	Do $$$AssertEquals(..Rows(), before, "nothing is stored")
 }
 
+/// QA (Story 21.4): the edges of what an add accepts. A name of 40 characters, an address of 2,000 and a secret of 4,096 printable ASCII characters (every one of `!` to `~`, with `"`, `\`,
+/// `%`, `#`, `?`, `{` and `@` in it, and no `@{`) are accepted and stored as they were sent: the wallet holds the secret byte for byte, and the entry holds the address.
+/// mutation: ADDRESSMAX or SECRETMAX compared with >= (or the name limit lowered to 39) -> red; the secret's pattern narrowed to letters and digits -> red.
+Method TestAddAcceptsTheLimits()
+{
+	If '..Guard() Quit
+	Set name40 = $Extract("zzmcpapi"_..Number_"lim"_$Translate($Justify("", 40), " ", "x"), 1, 40)
+	Set address2000 = $Extract("https://127.0.0.1:1/"_$Translate($Justify("", 2000), " ", "a"), 1, 2000)
+	Set secret = ""
+	For i = 1:1:4096 Set secret = secret_$Char(33 + ((i - 1) # 94))
+	Do $$$AssertEquals($Length(name40)_"|"_$Length(address2000)_"|"_$Length(secret)_"|"_(secret [ "@{"), "40|2000|4096|0", "the three values are at their limits and hold no @{")
+	Set ..Names = ..Names_$Select(..Names = "": "", 1: ",")_name40
+	Set log = ##class(OcuTalon.Test.Web.WebhookTools).LastLog()
+	// the name of 40 characters, the plain address
+	Set body = ..Call("Add", {"name": (name40), "address": (..#URL)}.%ToJSON(), , , .response)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).result, "200 OK|added", "a name of 40 characters is added")
+	Do $$$AssertTrue(##class(OcuTalon.Mcp.Server).NameIndexExists(name40), "its row is written")
+	Do $$$AssertEquals($IsObject(..ServerOf(..Call("List", , , , .response), name40)), 1, "and it is listed")
+	Do $$$AssertEquals({}.%FromJSON(..Call("Remove", , , name40, .response)).result, "removed", "and removed")
+	// the address of 2,000 characters
+	Set one = ..Server("l")
+	Set body = ..Call("Add", {"name": (one), "address": (address2000)}.%ToJSON(), , , .response)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).result, "200 OK|added", "an address of 2,000 characters is added")
+	Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).GetDetails("AI.MCP.OcuTalon_"_one, .details, 0, 0), "its entry is read")
+	Do $$$AssertEquals(details.url, address2000, "the entry holds the address as it was sent")
+	Set row = ..ServerOf(..Call("List", , , , .response), one)
+	Do $$$AssertEquals($IsObject(row) && (row.address = address2000), 1, "and the list shows it")
+	Do $$$AssertEquals({}.%FromJSON(..Call("Remove", , , one, .response)).result, "removed", "and it is removed")
+	// the secret of 4,096 characters, every printable ASCII character in it
+	Set two = ..Server("m")
+	Set body = ..Call("Add", {"name": (two), "address": (..#URL), "secret": (secret)}.%ToJSON(), , , .response)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).result, "200 OK|added", "a secret of 4,096 printable characters is added")
+	Do $$$AssertEquals(+(body [ secret), 0, "the answer holds no secret")
+	Set stored = ##class(%Wallet.KeyValue).GetSecretValue("OcuTalon_MCP_"_two_".Key")
+	Set token = stored
+	If $Extract(stored) = "{" Try { Set token = {}.%FromJSON(stored).token } Catch { Set token = "" }
+	Do $$$AssertEquals(token, secret, "the wallet holds the secret byte for byte")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(secret), "", "no trace global holds it")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Web.WebhookTools).LogText(log) '[ secret, "no event log row holds it")
+	Do $$$AssertEquals({}.%FromJSON(..Call("Remove", , , two, .response)).result, "removed", "and it is removed")
+	Kill secret, stored, token
+}
+
+/// QA (Story 21.4, matrix row "Add without secret"): an add with no secret member, and one with "secret": "", both add the server with the no-credential entry (an address and no auth member), no wallet
+/// collection or key, and a command that carries no handoff.
+/// mutation: the secret check refuses an empty string -> red; the route offers a handoff for an empty secret -> red.
+Method TestAddWithoutSecret()
+{
+	If '..Guard() Quit
+	Set wallet = ..Wallet()
+	For variant = "absent", "empty" {
+		Set server = ..Server($Select(variant = "absent": "p", 1: "q"))
+		Set request = {"name": (server), "address": (..#URL)}
+		If variant = "empty" Set request.secret = ""
+		Kill ^OcuTalonTest("McpSettingsProbe")
+		Set body = ..Call("Add", request.%ToJSON(), , , .response)
+		Do $$$AssertEquals(response.Status_"|"_body, "200 OK|"_{"result": "added", "message": (##class(OcuTalon.Mcp.Ops).#MESSAGEADDED)}.%ToJSON(), "the add with the secret "_variant_" is answered added")
+		Do $$$AssertEquals($Get(^OcuTalonTest("McpSettingsProbe", "uri")), "", variant_": the command carries no handoff")
+		Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).GetDetails("AI.MCP.OcuTalon_"_server, .details, 0, 0), variant_": the entry is read")
+		Do $$$AssertEquals(details.url_"|"_details.%IsDefined("auth"), ..#URL_"|0", variant_": it holds the address and no auth member")
+		Do $$$AssertEquals(##class(%Wallet.Collection).Exists("OcuTalon_MCP_"_server)_"|"_##class(%Wallet.Secret).Exists("OcuTalon_MCP_"_server_".Key"), "0|0", variant_": no wallet collection or key is made")
+		Set row = ..ServerOf(..Call("List", , , , .response), server)
+		Do $$$AssertEquals($IsObject(row) && (row.address = ..#URL), 1, variant_": the list shows the address")
+		Do $$$AssertEquals({}.%FromJSON(..Call("Remove", , , server, .response)).result, "removed", variant_": removed")
+	}
+	Do $$$AssertEquals(..Wallet(), wallet, "the wallet is as it was")
+}
+
+/// QA (Story 21.4, matrix rows "Not an admin" and "Online demo"): the admin check comes first on every route, before the online-demo check and before the body is read. A user without OcuTalonAdmin
+/// gets 403 not_admin on the online demo too, whatever the body (valid, not JSON or empty), and nothing is offered or submitted.
+/// mutation: the demo check before the admin check in Refusal, or the body read before Refusal in Add or Classify -> red.
+Method TestNotAdminComesFirst()
+{
+	If '..Guard() Quit
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser"
+	Set before = ..Rows()
+	Set good = {"name": "zzmcpnoadm", "address": (..#URL), "secret": "zz-noadmin-secret-0123456789"}.%ToJSON()
+	For demo = 0, 1 {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", demo)
+		For route = "List", "Add", "Remove", "Classify" {
+			For text = good, "not json", "[]", "" {
+				Set body = ..Call(route, text, , "zz", .response)
+				Do $$$AssertEquals(response.Status, "403 Forbidden", route_" with '"_$Extract(text, 1, 10)_"', demo "_demo_": 403")
+				Do $$$AssertEquals({}.%FromJSON(body).error.code, "not_admin", route_": not_admin")
+			}
+		}
+	}
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("McpSettingsProbe", "handoffs"))+$Get(^OcuTalonTest("McpSettingsProbe", "submits")), 0, "nothing was offered or submitted")
+	Do $$$AssertEquals(..Rows(), before, "nothing is stored")
+}
+
+/// QA (Story 21.4, "secret handling"): the secret of a refused or failed add is in no answer, event log row, OcuTalon audit entry, trace global (message body, header or log row), stored command or ^OcuTalon* global:
+/// the refusal of the route (a bad name with a good secret), a name that exists (McpOps' refusal, after the handoff was made), and a submit that fails, throws or is answered failed or not_audited.
+/// mutation: the route logs the secret on McpOps' refusal (Answer's exists branch), or puts it into the refusal's fields -> red.
+Method TestRefusedAddsLeakNoSecret()
+{
+	If '..Guard() Quit
+	Set secret = ..NewSecret()
+	Set exists = ..Server("x")
+	Do ..MakeRow(exists)
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set log = ##class(OcuTalon.Test.Web.WebhookTools).LastLog()
+	Set cases = $ListBuild("refused|1bad|", "exists|"_exists_"|", "fail|"_..Server("y")_"|fail", "throw|"_..Server("z")_"|throw", "failed|"_..Server("w")_"|outcome:failed", "not_audited|"_..Server("v")_"|outcome:not_audited")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = $Piece(case, "|", 1)
+		Kill ^OcuTalonTest("McpSettingsProbe")
+		Set mode = $Piece(case, "|", 3)
+		If mode '= "" Set ^OcuTalonTest("McpSettingsProbe", "mode") = mode
+		Set body = ..Call("Add", {"name": ($Piece(case, "|", 2)), "address": (..#URL), "secret": (secret)}.%ToJSON(), , , .response)
+		Do $$$AssertTrue(response.Status '= "200 OK", label_": the add is refused or fails ("_response.Status_")")
+		Do $$$AssertEquals(+(body [ secret), 0, label_": the answer holds no secret")
+		Set uri = $Get(^OcuTalonTest("McpSettingsProbe", "uri"))
+		If uri '= "" {
+			Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0), label_": the handoff is gone")
+			Do $$$AssertEquals(left, "", label_": and held nothing")
+		}
+	}
+	Do $$$AssertTrue(##class(OcuTalon.Test.Web.WebhookTools).LogText(log) '[ secret, "no event log row holds the secret")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", , , secret).%Size(), 0, "no OcuTalon audit entry holds it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(secret), "", "no trace global (message body, header or log row) holds it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(secret), "", "and no ^OcuTalon* global holds it")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Web.WebhookTools).Columns("OcuTalon_Msg_Command.AddMcpServer") '[ secret, "the stored AddMcpServer messages do not hold it")
+	Kill secret
+}
+
+/// QA (Story 21.4, matrix row "Classify"): a pick of each of the three words is saved on the server and tool that were named and on no other, and the list follows: the tool's classification, the server's
+/// unclassified count and the Tool audit entry of each change. A tool of 128 characters can be classified, one of 129 and a name in another case are 404 and change nothing.
+/// mutation: Classify sends one fixed word (read-only) in place of the pick, or the other server's name, or the tool limit compared with >= -> red.
+Method TestClassifyEveryWord()
+{
+	If '..Guard() Quit
+	Set a = ..Server("a")
+	Set b = ..Server("b")
+	Do ..MakeRow(a)
+	Do ..MakeRow(b)
+	Set long = $Translate($Justify("", 128), " ", "t")
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	For tool = "zz_lookup", "zz_other", long {
+		Do ..MakeTool(a, tool)
+	}
+	Do ..MakeTool(b, "zz_lookup")
+	Set steps = $ListBuild("risky|2", "read-only|2", "unclassified|3", "risky|2")
+	Set position = 0
+	While $ListNext(steps, position, step) {
+		Set word = $Piece(step, "|", 1)
+		Set body = ..Call("Classify", {"server": (a), "tool": "zz_lookup", "classification": (word)}.%ToJSON(), , , .response)
+		Do $$$AssertEquals(response.Status_"|"_body, "200 OK|"_{"result": "saved", "message": "Saved"}.%ToJSON(), word_": saved")
+		Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(a, "zz_lookup").Classification, word, word_": the row has it")
+		Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(a, "zz_other").Classification_"|"_##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(b, "zz_lookup").Classification, "unclassified|unclassified", word_": no other tool changed")
+		Set listed = ..Call("List", , , , .response)
+		Set rowA = ..ServerOf(listed, a)
+		Set rowB = ..ServerOf(listed, b)
+		Do $$$AssertEquals($IsObject(rowA) && $IsObject(rowB) && (rowA.unclassified_"|"_rowB.unclassified = ($Piece(step, "|", 2)_"|1")), 1, word_": the unclassified counts of the two servers")
+		Set found = ""
+		Set iterator = {}.%FromJSON(listed).tools.%GetIterator()
+		While iterator.%GetNext(, .item) {
+			If (item.server = a) && (item.name = "zz_lookup") Set found = item.classification
+		}
+		Do $$$AssertEquals(found, word, word_": the tools array shows it")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Tool", "Tool", a, , 4).%Size(), 4, "each of the four changes has its Tool audit entry")
+	Set body = ..Call("Classify", {"server": (a), "tool": (long), "classification": "risky"}.%ToJSON(), , , .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "a tool of 128 characters is classified")
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(a, long).Classification, "risky", "and its row has it")
+	For tool = long_"t", "ZZ_OTHER", " zz_other" {
+		Set body = ..Call("Classify", {"server": (a), "tool": (tool), "classification": "risky"}.%ToJSON(), , , .response)
+		Do $$$AssertEquals(response.Status, "404 Not Found", "'"_$Extract(tool, 1, 12)_"' ("_$Length(tool)_" characters) is 404")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(a, "zz_other").Classification, "unclassified", "and zz_other is as it was")
+}
+
 /// --- helpers ---
 /// A refused add: the label, the request body as JSON text and the fields expected in the answer as JSON text.
 Method Case(label As %String, body As %DynamicObject, fields As %DynamicObject) As %List [ Private ]
@@ -493,6 +668,18 @@ Method MakeRow(server As %String) [ Private ]
 	Set row.Name = server
 	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertStatusOK(row.%Save(), "the fixture row "_server_" is saved")
+}
+
+/// A tool row of the server, unclassified.
+Method MakeTool(server As %String, tool As %String) [ Private ]
+{
+	Set row = ##class(OcuTalon.Mcp.ToolClassification).%New()
+	Set row.Server = server
+	Set row.Tool = tool
+	Set row.Classification = "unclassified"
+	Set row.Fingerprint = "zzfp"
+	Set row.ChangedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(row.%Save(), "the fixture tool row "_$Extract(tool, 1, 12)_" of "_server_" is saved")
 }
 
 /// The member of the list answer's servers with the name, or "".

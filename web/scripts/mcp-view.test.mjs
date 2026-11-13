@@ -72,29 +72,29 @@ describe('the section\'s fixed strings', () => {
 
 describe('removeQuestion', () => {
   it('is the accepted sentence of the story for Jira with 12 tools and 1 pending request', () => {
-    assert.equal(removeQuestion('Jira', 12, 1), 'Remove Jira? Its 12 tools go at once, and 1 pending approval request for them is canceled.');
+    assert.equal(removeQuestion('Jira', 12, 1), 'Remove Jira? Its 12 tools go at once, and 1 pending approval request for them is cancelled.');
   });
 
   it('has the three forms for more than one tool', () => {
     assert.equal(removeQuestion('Jira', 12, 0), 'Remove Jira? Its 12 tools go at once.');
-    assert.equal(removeQuestion('Jira', 2, 3), 'Remove Jira? Its 2 tools go at once, and 3 pending approval requests for them are canceled.');
+    assert.equal(removeQuestion('Jira', 2, 3), 'Remove Jira? Its 2 tools go at once, and 3 pending approval requests for them are cancelled.');
   });
 
   it('has the three forms for one tool', () => {
     assert.equal(removeQuestion('Jira', 1, 0), 'Remove Jira? Its 1 tool goes at once.');
-    assert.equal(removeQuestion('Jira', 1, 1), 'Remove Jira? Its 1 tool goes at once, and 1 pending approval request for it is canceled.');
-    assert.equal(removeQuestion('Jira', 1, 4), 'Remove Jira? Its 1 tool goes at once, and 4 pending approval requests for it are canceled.');
+    assert.equal(removeQuestion('Jira', 1, 1), 'Remove Jira? Its 1 tool goes at once, and 1 pending approval request for it is cancelled.');
+    assert.equal(removeQuestion('Jira', 1, 4), 'Remove Jira? Its 1 tool goes at once, and 4 pending approval requests for it are cancelled.');
   });
 
   it('has the three forms for no tool', () => {
     assert.equal(removeQuestion('Jira', 0, 0), 'Remove Jira? It has no tools.');
-    assert.equal(removeQuestion('Jira', 0, 1), 'Remove Jira? 1 pending approval request for its tools is canceled.');
-    assert.equal(removeQuestion('Jira', 0, 2), 'Remove Jira? 2 pending approval requests for its tools are canceled.');
+    assert.equal(removeQuestion('Jira', 0, 1), 'Remove Jira? 1 pending approval request for its tools is cancelled.');
+    assert.equal(removeQuestion('Jira', 0, 2), 'Remove Jira? 2 pending approval requests for its tools are cancelled.');
   });
 
   it('puts a name that holds a replacement pattern in as it is', () => {
     assert.equal(removeQuestion('a$&b', 3, 0), 'Remove a$&b? Its 3 tools go at once.');
-    assert.equal(removeQuestion('{n}', 3, 2), 'Remove {n}? Its 3 tools go at once, and 2 pending approval requests for them are canceled.');
+    assert.equal(removeQuestion('{n}', 3, 2), 'Remove {n}? Its 3 tools go at once, and 2 pending approval requests for them are cancelled.');
   });
 });
 

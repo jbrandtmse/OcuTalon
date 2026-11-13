@@ -193,7 +193,7 @@ const NONE: McpSettings = { servers: [], tools: [] };
                   </tr>
                 </thead>
                 <tbody>
-                  @for (tool of visible(); track key(tool); let index = $index) {
+                  @for (tool of visible(); track key(tool)) {
                     <tr [attr.data-tool]="tool.name" [attr.data-server]="tool.server">
                       <th scope="row" class="name">{{ tool.name }}</th>
                       <td>{{ tool.server }}</td>
@@ -202,7 +202,7 @@ const NONE: McpSettings = { servers: [], tools: [] };
                         <div class="radios" role="radiogroup" [attr.aria-label]="groupName(tool)">
                           @for (option of options; track option.value) {
                             <label class="radio">
-                              <input type="radio" [name]="'mcp-class-' + index" [value]="option.value" [checked]="tool.classification === option.value" (change)="pick(tool, option.value)" />
+                              <input type="radio" [name]="'mcp-class:' + tool.server + ':' + tool.name" [value]="option.value" [checked]="tool.classification === option.value" (change)="pick(tool, option.value)" />
                               <span [class]="'chip chip-' + option.value">{{ option.label }}</span>
                               @if (tool.classification === option.value) {
                                 <app-icon class="selected" name="check" [size]="16" />
