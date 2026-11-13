@@ -3910,3 +3910,4 @@
 2026-11-13T09:00:44Z	Epic 36	ci_cancelled	head=16499946 runs=43397122469,43397122429 reason=records-only(code_identical_to_green_20e3655a)
 2026-11-13T09:00:44Z	Epic 36	amendments_verified	amendments=epics_36.1/36.2/36.3/36.4 extensions=Install/Step/Watch.cls,short-names.tsv,Test/Bridge/CodeRules.cls,Test/Data/Tables.cls ok=true
 2026-11-13T09:00:44Z	Epic 36	merge_enqueued	part=36.1+36.2 head=16499946
+2026-11-13T09:02:20Z	Epic 36	epic_merged_to_feature	part=36.1+36.2 feature_sha=ea10d2d4 merge_sha=ea10d2d4 code=20e3655a+feature(auto-merged_appends:Test/Data/Tables.cls,Test/Msg/Contracts.cls,short-names.tsv) spine_reconciled=Tables_line_union,rows_both lint=baseline verified_on_origin=yes
