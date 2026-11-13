@@ -2,8 +2,8 @@
 title: 'Story 21.8: Read and send mail with the OAuth2 sign-in'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
-baseline_revision: '9a589d9c723a2a181a0c9ce6563805f36bc18bd1'
+status: 'done'
+baseline_revision: '9e7ffd4806c416e4d247096c546dd4c41e2478a1'
 baseline_commit: '9a589d9c723a2a181a0c9ce6563805f36bc18bd1'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -101,7 +101,7 @@ deferred:
 - [x] [Review] DW-1230 (Planner ruling E, security, before any push): in OAuth2 mode `EmailIn` sends the bearer token only over TLS (POP3S, or STLS if the adapter supports it). Plain POP3 is allowed only with `OCUTALON_TEST_OAUTH_MOCK=1` and host `mock`, exactly as `Sender.PlainAllowed` does for SMTP. Otherwise the poll refuses before any token is fetched or sent and records a plain reason (reuse an existing accepted reason if one fits; new wording is a Clarification for the Planner). -- `src/ocutalon/cls/OcuTalon/Channel/Email/Adapter.cls` (and the handler/Token path if the token fetch happens earlier) -- tests pin (a) a blank `SSLConfig` row and (b) `SSLCheckServerIdentity` 0 in OAuth2 mode are refused with no token sent and nothing reaching the stub, and (c) the mock exception (switch on + host `mock`) still polls; one `mutation:` line each.
 - [x] [Review] RELEASE TOOL pin (Planner ruling E, approved): the one-line exemption in `release/checklist.sh` `outward_hits()` (`mail.google.com` in the exact-match exemption for `docker/tests/test-readme.sh`'s `ALLOWED_HOSTS` line) stays exactly that line and nothing else; add a test pin that fails if the exemption is missing (outward check red on the README line) or widened (any other host or a non-exact match) -- in the existing release-checklist test script if one exists on this branch, else in `docker/tests/test-readme.sh` -- with its `mutation:` line.
 
-- [ ] [CI] checks job (ci run 43346789014, job 131627949864): `docker/tests/test-release-notes.sh` rule `static` fails `names_outside_section on GUIDE.md: got 'GUIDE.md:243 GUIDE.md:244', wanted ''` -- T4's steps 1 and 2 (now in GUIDE.md after the 0.30 integrate-forward) name `OAuth2.Response.cls`, `POP.AccessAsUser.All` and `SMTP.Send`, which the shared `names_outside_section` (docker/tests/lib-scan.sh) reads as dotted class names outside "For admins and developers". `test-readme.sh`'s `dev_names` already exempts the section "Gmail and Microsoft 365" (it names the provider consoles' own settings); make the release-notes `static` check honour the same exemption (a line counts only if it is outside BOTH sections; keep `names_outside_section`'s one-heading interface, or extend it to several headings with its existing self-tests updated), never by editing the ruled T4 text. Pin it: a class name planted in another GUIDE section is still reported; a dotted name in the Gmail section is not. `mutation:` line required.
+- [x] [CI] checks job (ci run 43346789014, job 131627949864): `docker/tests/test-release-notes.sh` rule `static` fails `names_outside_section on GUIDE.md: got 'GUIDE.md:243 GUIDE.md:244', wanted ''` -- T4's steps 1 and 2 (now in GUIDE.md after the 0.30 integrate-forward) name `OAuth2.Response.cls`, `POP.AccessAsUser.All` and `SMTP.Send`, which the shared `names_outside_section` (docker/tests/lib-scan.sh) reads as dotted class names outside "For admins and developers". `test-readme.sh`'s `dev_names` already exempts the section "Gmail and Microsoft 365" (it names the provider consoles' own settings); make the release-notes `static` check honour the same exemption (a line counts only if it is outside BOTH sections; keep `names_outside_section`'s one-heading interface, or extend it to several headings with its existing self-tests updated), never by editing the ruled T4 text. Pin it: a class name planted in another GUIDE section is still reported; a dotted name in the Gmail section is not. `mutation:` line required.
 
 ### Review Findings
 
@@ -235,6 +235,17 @@ Rejected / closed at emission (round 2):
   - `[false]` `[reject]` Intent: the "plain" verdict is not enforced on the connection (the production row for host `mock` carries `OcuTalonClient`) — it fails to connect, never sends a token in the clear; the live cases blank `SSLConfig` for the stub
   - `[low]` `[reject]` Intent: the identity check is stricter than the sender's — intended (ruling: TLS)
 
+### 2026-11-12 — Review pass (rework 2, the [CI] item)
+- verdicts: 11 findings — high 0, medium 0, low 10, false 0, maybe-false 1 (blind-hunter 4, edge-case-hunter 6, verification-gap 1 note and no gap; the intent auditor is descriptive and filed none)
+- findings:
+  - `[low]` `[patch]` blind-hunter 3 + edge-case-hunter 1: the usage line of `names_outside_section` still read `<heading>` — the comment now reads `<headings>` and shows the newline-joined form.
+  - `[low]` `[reject]` blind-hunter 1 + edge-case-hunter 3 + verification-gap note: the two exempt headings live in `static_names` and in `dev_names` — `dev_names` keeps the IPM-load-line exemption inside its own awk, and a third section added to one list fails the other's check loudly, not silently; the spec asks to mirror the exemption.
+  - `[low]` `[reject]` blind-hunter 2 + edge-case-hunter 5: README.md is not planted — it holds no Gmail section, and `test-readme.sh`'s own pins cover its dev-only rule.
+  - `[low]` `[reject]` blind-hunter 4: no green run recorded in the spec's Results paragraph — this pass's runs are in `## Auto Run Result`; the oversized spec takes nothing more.
+  - `[low]` `[reject]` edge-case-hunter 2: CRLF or a backslash in a heading — GUIDE.md and README.md are LF, the callers pass plain headings, and the match was exact before.
+  - `[low]` `[reject]` edge-case-hunter 4: a colon in a file path splits `file:line` — the original loop split the same way, and the test files live in a mktemp folder.
+  - `[maybe-false]` `[reject]` edge-case-hunter 6: the recorded mutation `stop = 1` is red in `checks`, `library` and `static` — checked in this pass: applied again, all three rules FAIL, reverted byte-identical.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):** AD-1 (no new command or route; `SettingsOps` is the only writer of the item rows), AD-3 (no new switching class: IRIS's own `GetAccessToken` switches to `%SYS` inside the call, just as 21.3's `Start` reaches `%SYS.OAuth2.Authorization`; `Channel.Email.OAuth` keeps its one caller and its S1 scope), AD-10 (no new tool path; the tool send keeps its AD-10 rules), AD-14 (email channel, `emailPoll` contract, the Delivery rows), AD-17 (no new audit entry: the rows follow the `email.signIn` change already audited), AD-19 (token homes; S1), AD-22 (mock; S3), AD-24 (no grant, the production as `_Ensemble`; S2), AD-25 (online demo), AD-29/AD-33 (Lane B). No AC contradicts an AD Rule. AD-19's 21.3 bullet says "OcuTalon reads only whether the row holds an access token ..., never a value, and never refreshes or revokes" and in the same bullet "Token use by the adapters, refresh and revocation are Story 21.8's". This story reads that sentence as describing 21.3's registration and state code (`Channel.Email.OAuth`), which stays as it is, and adds the adapters' token use as S1 (veto V5).
@@ -347,6 +358,7 @@ Run every command from the worktree root after `git rev-parse --show-toplevel` m
 - mutation: `OAuthRows(0)` answers "" (no delete marks for Password) → `SettingsEmail` `TestProviderRows` red.
 - mutation: the README heading "Gmail and Microsoft 365" renamed → `docker/tests/test-readme.sh` red (readme-links, dev-only).
 - mutation: the floor check of `EmailOAuthPrivileges` run with `FLOOR` added to the resources → `TestRegisterNeedsEachPrivilege` red (registering succeeds with the floor, so the floor is needed).
+- mutation (rework 2, release-notes `static`): the Gmail heading dropped from the exempt list of `static_names` -> `test-release-notes.sh` rule `static` red ("names_outside_section on GUIDE.md", and the pin that a dotted name in the guide's Gmail and Microsoft 365 section is not reported); `names_outside_section` exempting every H2 section (`stop = 1`) -> rules `checks`, `library` and `static` red ("a class name planted in another guide section is reported" got nothing). Each applied, observed red, reverted byte-identical (`cmp`; `git status --short` and `git diff --stat` unchanged).
 
 **Results (implement, 2026-11-12):** `node --test ci/mock/test/` 182 pass (the three files alone: 48); on the warm throwaway `e21s8iw`: `EmailToken`, `EmailIn`, `EmailOut`, `SettingsEmail`, `EmailOAuthPrivileges`, `EmailOAuth`, `SettingsApi` and `SettingsSave` pass, the six new `EmailLive` cases pass, and the 21.x regressions `TestOAuthSaveSignInAndRemove`, `TestSaveAndFirstPoll`, `TestFailedPollReasons`, `TestSendFailuresByStubMode`, `TestToolSendReachesTheStub` and `TestBaselineAndNewMail` pass. On a fresh stack `e21s8i` the browser part `live sign-in-2 --part 13/15` (E6) passes (it failed once, before decision 14). `test-readme.sh`, `test-class-rules.sh`, `test-compose-file.sh` and `test-release-checklist.sh` pass; `test-boundaries.sh` passes (its "paths" rule had failed on an absolute local path in the tracked specs of 21.4 line 190 and 21.5 line 308, not on any file of this story; the finalize stage replaced the path in those two lines with "the worktree root"). The least-privilege grep finds nothing. `lint_spine.py` reports the same 10 low-severity placeholder findings (`{time}`, `{n}`, ...) as the spine before this story, none new.
 
@@ -410,3 +422,18 @@ Blocking condition: none
 **Verification.** Warm throwaway `e21s8iw2`: `EmailIn` passes after the last patch; earlier in this pass `EmailOut`, `EmailToken`, `EmailOAuth` and the live OAuth2 `EmailLive` cases passed on the same code. `test-release-checklist.sh`, `test-boundaries.sh` and `test-class-rules.sh` pass. Mutations in `## Verification`. The throwaway is torn down.
 
 **Residual risks.** The switch is `OCUTALON_TEST_PLAIN_SMTP` (shared with the sender), not the `OCUTALON_TEST_OAUTH_MOCK` the ruling names; CI sets both. The refusal reuses the "couldn't reach" sentence for a settings fault.
+
+### Rework 2 (CI: release-notes `static` on GUIDE.md) -- this pass only
+
+Status: done
+Blocking condition: none
+
+**Summary.** `names_outside_section` (docker/tests/lib-scan.sh) takes several headings, one per line; the `static` rule of `test-release-notes.sh` now exempts "For admins and developers" and "Gmail and Microsoft 365", as `dev_names` of `test-readme.sh` does, so GUIDE.md lines 243-244 (the approved T4 text, unedited) no longer count. Pinned: a class name planted in another GUIDE section is reported; a dotted name in the Gmail section is not.
+
+**Files changed.** `docker/tests/lib-scan.sh` (several headings); `docker/tests/test-release-notes.sh` (`static_names`, the multi-heading self-test and the two GUIDE pins).
+
+**Review.** 11 findings (low 10, false 0, maybe-false 1, high 0, medium 0). Patched: 1 low (the usage comment). Deferred: none. Rejected with reasons: see the triage log above. Follow-up review recommendation: false (no high patched).
+
+**Verification.** `test-release-notes.sh` (all rules), `test-readme.sh`, `test-boundaries.sh` and `test-class-rules.sh` pass on the final tree. The `mutation:` line is in `## Verification`.
+
+**Residual risks.** The two exempt lists (`static_names`, `dev_names`) are separate; release/notes.sh still passes one heading.
