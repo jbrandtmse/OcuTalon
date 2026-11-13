@@ -2000,7 +2000,7 @@ Method AddressShows() As %String [ Private ]
 
 /// Where the secret shows, as a text of the places ("" when nowhere). The value is looked for by containment and is never part of the text: the event log after the
 /// mark of the test, the stores of the key scan, the audit entries since the mark, the specs recorded as attached, the statuses and the catalog of the agent's manager,
-/// the fields of the fixture row, the request log of the mock and the notices that the probe recorded.
+/// the fields of the fixture row, the request log of the mock, the notices that the probe recorded and the trace (message bodies, message headers and log rows; Story 21.14).
 Method Leaks(adapter As OcuTalon.Test.Bridge.ZzTurnAdapter) As %String [ Private ]
 {
 	Set secret = ..Secret
@@ -2008,6 +2008,7 @@ Method Leaks(adapter As OcuTalon.Test.Bridge.ZzTurnAdapter) As %String [ Private
 	If $ClassMethod(..#FIXTURE, "LogRowsHolding", ..LogMark, secret) Set places = places _ $ListBuild("the event log")
 	If $ClassMethod("OcuTalon.Test.Agent.KeyScan", "Find", secret) '= "" Set places = places _ $ListBuild("a store of the key scan")
 	If ##class(OcuTalon.Test.Bridge.AuditLog).Entries(..AuditMark, , , , secret).%Size() Set places = places _ $ListBuild("the audit log")
+	If ##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(secret) '= "" Set places = places _ $ListBuild("the trace")
 	If $ListToString(adapter.AttachedSpecs()) [ secret Set places = places _ $ListBuild("an Attached spec")
 	If $IsObject(adapter.Agent) {
 		Set toolManager = adapter.Agent.ToolManager
