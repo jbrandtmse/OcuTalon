@@ -7385,3 +7385,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/tests/test-compose-file.sh oauth_install_paths_clean: 58 files scanned, floor 40 catches only release/* (25); fixtures plant only /csp/sys/oauth2/OAuth2.Response.cls; gap predates 0.34 (Story 21.3)
 - 2026-11-12T20:19:09Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=pins beyond the ruled (a),(b1),(b2) exceed the 1.0.8 ruling; reopen_if=a diff edits the pathspec or regex line of oauth_install_paths_clean
 - 2026-11-12T20:19:32Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=reopen_if=a diff edits oauth_install_paths_clean's pathspec or regex line; more pins exceed the 1.0.8 ruling
+
+### DW-1245: Story 36.1 breaks Test.Core.SettingsOps TestOnlyRunTimeWriter: its writer pattern matches the new globals ^OcuTalonP.SettingChange and ^OcuTalonP.SettingSnap
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: high | fix-risk: low | footprint: in-epic
+- evidence: 36.2 regression run, lane-b@Contract,Core,Data,Live part 4 red; file untouched by 36.2; pre-existing on cf2658d8 (36.1 head)
+- 2026-11-13T02:29:01Z status=open owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=36.1 rework iteration 2 ([CI]); shared surface 36.1 missed
+
+### DW-1246: Story 36.1 breaks Test.Data.Tables TestEveryTableIsRegistered: its XData Registry lacks rows for OcuTalon.Data.SettingChange and OcuTalon.Data.SettingSnapshot
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: high | fix-risk: low | footprint: in-epic
+- evidence: 36.2 regression run, lane-b part 6 red on warm and fresh; file untouched by 36.2; pre-existing on cf2658d8 (36.1 head)
+- 2026-11-13T02:29:01Z status=open owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=36.1 rework iteration 2 ([CI]); one-name appends to a contended list (Test/Data/Tables.cls is in Epic 21's diff)

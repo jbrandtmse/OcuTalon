@@ -2,7 +2,7 @@
 title: 'Story 36.1: Record the setting history of each watched production'
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '5a27798b2a5fe9f58a613fd3129f6a96239449c2'
 baseline_commit: '5a27798b2a5fe9f58a613fd3129f6a96239449c2'
 review_loop_iteration: 0
@@ -138,6 +138,10 @@ deferred:
 
 ### Review Findings
 
+- [ ] [CI] DW-1245: `OcuTalon.Test.Core.SettingsOps` `TestOnlyRunTimeWriter` fails: its writer pattern for `Data.Setting`'s global matches the new globals `^OcuTalonP.SettingChange` and `^OcuTalonP.SettingSnap` [src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls] -- HIGH (would turn CI `shard:lane-b` red on 36.1's head cf2658d8). Fix the pattern so it names only `Data.Setting`'s own global (a word boundary, as 36.1 did for `TestNoSettingRead` in `Test/Install/Retention.cls`), keeping the guard's intent; pin with a mutation.
+- [ ] [CI] DW-1246: `OcuTalon.Test.Data.Tables` `TestEveryTableIsRegistered` fails: its `XData Registry` lacks rows for `OcuTalon.Data.SettingChange` and `OcuTalon.Data.SettingSnapshot` [src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls] -- HIGH (CI `shard:lane-b` red, warm and fresh). Append the two rows in the registry's own format (one-name appends; the file is also in Epic 21's diff, so append only); pin with a mutation.
+- [ ] [CI] Shared-surface sweep: find every other test that enumerates tables, globals, classes or storage (e.g. grep `src/ocutalon/cls/OcuTalon/Test` for `OcuTalonP`, `Registry`, `%Dictionary`, `short-names`, `ExtentSize`, `Every`) and run each such class once on a lane-B throwaway against this branch; fix any the two new tables or `Data.SettingStream` break, the same way. Report the list checked.
+
 Code review 2026-11-12 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 33 raw findings, 15 entries after grouping: high 0, medium 6, low 9; 15 rejected). Planner rulings V1(b), V3, V4, the `Never:` list and the one-line `Checks/Process.cls` edit all hold. Open: the two medium patches below, for the story's one rework iteration.
 
 - [x] [Review][Patch] Items that share a name are merged in a snapshot [src/ocutalon/cls/OcuTalon/Watch/Reader.cls:941] -- medium, fix-risk med. IRIS allows several items with one `Name` when only one is enabled (`Current` already handles it for `disabled`), but the settings block keys `stAll(stItem.Name, target, setting)`, so each setting takes the value of whichever same-named item comes last and a change to the running copy can be masked or misattributed. Fix: in the settings block, take one item per name, the first enabled item of that name, else the first, and add a live test in `Test/Watch/SettingHistory.cls` (for example a disabled copy of `OrdersFromPartner` added to the saved Orders definition with another stored value: the snapshot keeps the enabled copy's value, and changing the disabled copy is no change; OnAfterOneTest removes the copy), with its `mutation:` line. (blind-hunter + edge-case-hunter)
@@ -189,6 +193,8 @@ Rejected:
 - reject (spec edit): the round above's "Open:" line, frontmatter `status`/`review_loop_iteration` against sprint status, and DW-1238's frontmatter `deferred:` entry against its ledger `wontfix-accepted` -- the frontmatter is build-auto's machine state, and DW-1238 was filed by the lead (a LOW, which `burndown` never owns). (acceptance-auditor + blind-hunter + edge-case-hunter)
 
 ## Spec Change Log
+
+- 2026-11-13, rework iteration 2 of 3 (lead; trigger: ci, found locally by Story 36.2's lane-b regression run before CI reported on 36.1's pushed head cf2658d8): work ONLY the three unchecked `[CI]` items (DW-1245, DW-1246, the shared-surface sweep).
 
 - 2026-11-12, rework iteration 1 of 3 (lead; trigger: first review left 2 in-story MEDs unpatched, fix-risk med): work ONLY the two unchecked `[Review]` items under `### Review Findings` (same-name items merged in a snapshot, `Reader.cls:941`; class-setting credential branches never run on live data, `Reader.cls:924`) and the tests they name.
 
