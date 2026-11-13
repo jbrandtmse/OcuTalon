@@ -333,3 +333,6 @@
 2026-11-12T14:16:10Z	Story 23.12	story_cycle	plan_to_commit_min=103 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-13T01:02:47Z	Story 23.12	ci_resolved	story=23.12 sha=4444bda0 runs=43235350028(attempt3),43235350476 result=success failed=none via=none resolved_at=integrate_forward first_ci=flake(reruns_by_orchestrator)
 2026-11-13T01:07:37Z	Epic 23	integrated_forward	feature=bc3eea8f(1.0.8_merge-back:0.30_GUIDE.md,21.3,0.27,0.28,0.34) conflicts_resolved=sprint-status.yaml(feature_side,regenerated,re-set_23-12=done),web/scripts/rail-view.test.mjs(plain_union:GUIDE_URL+README_URL_import,withAnswer_import;both_tests_kept;no_behaviour_choice) merged_tree=npm_web_1945_pass,lint_ok,build_ok,test-boundaries_ok,sign-in-2_part8/12_RA1/RA2_pass(e23s12m,torn_down)
+2026-11-13T01:08:31Z	Story 23.12	committed	sha=415ea02d note=re-integrated_onto_bc3eea8f(1.0.8_merge-back);supersedes_4444bda0_for_merge ci=pending runs=43342524742,43342524753
+2026-11-13T01:08:31Z	Epic 23	ledger_burndown_skipped	reason=epic_open(23.3,23.4,23.8_wait_on_Epic_36;part_completion_precedent_2026-11-11) epic_owned_open=1(23-3:owned_by_waiting_story) this_dispatch_resolved=DW-1068,DW-1186,DW-1159
+2026-11-13T01:08:31Z	Epic 23	epic_retro_skipped	reason=policy(gates.retrospective:skip)
