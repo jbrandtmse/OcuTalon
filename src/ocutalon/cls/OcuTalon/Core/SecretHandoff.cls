@@ -1,6 +1,7 @@
 /// SecretHandoff, the in-memory hand-off of one secret from the REST process to the operation that stores it (AD-1, AD-19): a secret the page
 /// sent (a mail password, a hook secret) never enters a command, a message, a log, a trace or a global; the command carries only a
-/// reference, secret://handoff/<name>, and the operation that carries the command out takes the secret by that reference.
+/// reference, secret://handoff/<name>, and the operation that carries the command out takes the secret by that reference. It also carries the
+/// mailbox address and user name of a synchronous channels save (Story 21.14), which the trace role must not read in a traced message.
 ///   - Put creates a uniquely named $SYSTEM.Event resource, signals the secret into it as the one queued message, and answers the
 ///     reference. The resource lives in memory only and is deleted by the Take that ends it.
 ///   - Take waits at most timeoutSec seconds for the queued message, answers it in secret and always deletes the resource: a second Take

@@ -62,10 +62,11 @@
 /// SetModel with its audit entry (TriageAgent.model, TriageAgent.secondModel, price.<model>.<key>). A later failure puts back what was written (SetModel
 /// and SetPrice with the old values) and audits each put-back. A value that equals the current one is dropped.
 /// The email section (Stories 21.2, 21.6 and 21.3; kind email, slug channels) connects a mailbox: the body is {address, incoming, outgoing, user, password,
-/// signIn, clientId, clientSecret, origin} where outgoing is optional (absent or empty: no outgoing server), password and clientSecret are SecretHandoff
+/// signIn, clientId, clientSecret, origin} where outgoing is optional (absent or empty: no outgoing server), address and user (Story 21.14: the trace role reads
+/// every message) are SecretHandoff references and never the values, password and clientSecret are SecretHandoff
 /// references (or absent or empty to keep the stored one) and never the secrets, signIn is password (the default), google or microsoft, clientId is the
 /// provider's client ID (required with a provider), and origin is the page's origin that the REST route adds (required with a provider; a person's body does
-/// not hold it). SaveEmail takes the secrets from the hand-off, writes the product keys email.address and email.owner (the session of
+/// not hold it). SaveEmail takes the address, the user name and the secrets from the hand-off, writes the product keys email.address and email.owner (the session of
 /// the admin who saved, so the mailbox moves to the last saving admin), the credential OcuTalonMail (user name and password, used by both servers) and the
 /// System Default Settings rows of EmailIn (POP3Server, POP3Port, Credentials, SSLConfig and Enabled) and of EmailOut (SMTPServer, SMTPPort,
 /// Credentials, SSLConfig, SSLCheckServerIdentity and Enabled; a cleared outgoing server writes Enabled 0 and deletes the server rows), and has a
@@ -1473,7 +1474,8 @@ Method TestModel(command As OcuTalon.Msg.Command.TestModel) As OcuTalon.Msg.Comm
 }
 
 /// Saves the email section of a SaveSettings command (Stories 21.2 and 21.3; AD-1, AD-17, AD-19; see the class description); changes is the parsed body.
-/// In order: the online demo refuses (not_available, nothing offered or read); every field is validated (EmailShape: address, incoming server
+/// In order: the online demo refuses (not_available, nothing offered or read); the address and the user name are taken from the hand-off (TakeMailbox: a plain value, or
+/// a reference that names nothing, is refused naming the field); every field is validated (EmailShape: address, incoming server
 /// as host or host:port, user name, the sign-in method with its client ID and origin, and the secrets' hand-off references or nothing) and the secrets taken
 /// from the hand-off, so that a refusal names every refused field and changes nothing; then the changes against the stored values, each with its Settings audit entry
 /// written first (address and user as "set" or "changed", the server as host:port, the credential as "set" or "removed", the sign-in method as the two names,
@@ -1490,6 +1492,7 @@ Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 	If ..OnlineDemo() Quit ..Result(0, "not_available", ..#MESSAGEUNAVAILABLE)
 	Set bad = []
 	Kill field
+	Do ..TakeMailbox(changes, bad)
 	Set unknown = ..EmailShape(changes, .field, bad)
 	Set signIn = field("signIn"), provider = (signIn '= "password")
 	If signIn = "" Quit ..Refused(bad)
@@ -1782,9 +1785,28 @@ ClassMethod IsOrigin(text As %String) As %Boolean [ Private ]
 	Quit ($Length(text) <= 300) && $Match(text, "^https?://([A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:.]+\])(:[0-9]{1,5})?$")
 }
 
+/// Takes the mailbox address and the user name of the parsed body from the hand-off (Story 21.14), as the password is taken: a member that is a string is the
+/// reference of SecretHandoff and is replaced by the value it names. A string that is not a reference, or a reference that names nothing, is named in bad (once)
+/// and the value is not used. A member of another type, or an empty string, is left for EmailShape, which refuses it in the order of the form. The values are held in
+/// the parsed body (in memory, for SaveEmail) and in a local variable that is killed here; nothing is written or logged.
+ClassMethod TakeMailbox(changes As %DynamicObject, bad As %DynamicArray) [ Private ]
+{
+	For name = "address", "user" {
+		If (changes.%GetTypeOf(name) '= "string") || (changes.%Get(name) = "") Continue
+		Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(changes.%Get(name), .value)
+		If $$$ISERR(sc) {
+			Do ..AddField(bad, name)
+		} Else {
+			Do changes.%Set(name, value, "string")
+		}
+		Kill value
+	}
+}
+
 /// Validates the body of the email section into field: address, host and port (the incoming server), ohost and oport (the outgoing server, both ""
 /// for none), user (canonical), signIn (password, google or microsoft; password when absent), clientId, origin and password and clientSecret, the hand-off
-/// references or "". Each refused field is named in bad: a field that is missing or is not a
+/// references or "". The address and the user name are the values that TakeMailbox took from the hand-off (the body holds them only here, in memory), and are
+/// validated by the rules below. Each refused field is named in bad: a field that is missing or is not a
 /// JSON string (the outgoing server, signIn, clientId, origin and the two secrets may be missing or empty), one that holds "@{" or a control character, an address that is not
 /// one address (IsAddress), a server that is not host or host:port (HostPort: a host name of letters, digits, hyphens and dots, lower-cased; a port 1
 /// to 65535, else DEFAULTPORT for incoming and DEFAULTSMTPPORT for outgoing), a user name of 1 to 256 characters, a sign-in method that is not one of SIGNINS,
