@@ -251,3 +251,6 @@
 2026-11-13T16:54:25Z	Story 22.7	ci_red_classified	run=43454578653 workflow=.github/workflows/ci.yml class=infra test=iris(browser)_live:online-demo(package_Initialize_CPF_merge_zf(-100)_exit_7;no_test_ran;DW-1119_occurrence) action=re-judged_on_the_rework_head
 2026-11-13T16:54:25Z	Story 22.7	rework_opened	cycle_iteration=3 iteration=2 trigger=ci items=[CI]Test.Bridge.Decide_TestEstimateTokens scope_baseline=cba33f64
 2026-11-13T16:54:25Z	Story 22.7	stage_spawned	stage=implement spawn_at=2026-11-13T16:54:25Z model=sonnet agent_name=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone-implement-3 cycle_iteration=3 effort=high note=rework2_ci
+2026-11-13T17:14:27Z	Story 22.7	dev_complete	spawn_at=2026-11-13T16:55:00Z model=sonnet build_sha=8179fdc8 baseline_revision=cf9b6d2a cycle_iteration=3 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=2(Test/Bridge/Decide.cls,spec) note=rework2_ci(Email_toolset_in_the_Chat_sum;mutation_red)
+2026-11-13T17:14:27Z	Story 22.7	adr_verifications_complete	tool=none acs=none result=none_required mutations=none
+2026-11-13T17:14:27Z	Story 22.7	stage_spawned	stage=code-review spawn_at=2026-11-13T17:14:27Z model=opus agent_name=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone-code-review-3 cycle_iteration=3 effort=high note=scoped_rework2(cf9b6d2a..HEAD)
