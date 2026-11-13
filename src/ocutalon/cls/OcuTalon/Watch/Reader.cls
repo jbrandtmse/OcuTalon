@@ -53,8 +53,9 @@ Include (Ensemble, EnsConstants, EnsErrors)
 ///     "className", "businessType", "enabled"} per item, enabled as IRIS runs it.
 ///   - Settings reads the setting history marks of a production (Story 36.1): the namespace's production-change counter and the production's start mark, and
 ///     with full every item's effective settings (its stored settings with the class defaults and the System Default Settings that apply), inside the same switching
-///     method and under the same two checks. A setting that references an Ens.Config.Credentials entry keeps the ID it holds; any other setting whose name
-///     CredentialName matches loses its value and is given a salted hash, which only tells a later read that the value changed. It writes nothing.
+///     method and under the same two checks. Items that share a name are one: the first of them that is enabled as IRIS runs it, else the first. A setting that
+///     references an Ens.Config.Credentials entry keeps the ID it holds; any other setting whose name CredentialName matches loses its value and is given a
+///     salted hash, which only tells a later read that the value changed. It writes nothing.
 ///   - Good reads, for each failed header given as a reference (Story 7.9), the newest good messages from the same source: at most limit headers of Status 9 (Completed),
 ///     IsError 0 and Type 1 (Request) whose SourceConfigName, TargetConfigName, MessageBodyClassName and SuperSession all equal the reference's (an empty SuperSession
 ///     matches only an empty one), highest header id first, no id twice. It reads them inside Current, under the same two checks as Evidence, through the same
@@ -534,7 +535,8 @@ ClassMethod Items(namespace As %String, production As %String, Output items As %
 /// of "item|target|setting" to the earlier hash) when it still matches the value, so that a change of the secret is told and nothing else is. The outcome is
 /// read (marks, and settings with full, hold what was found), unreadable (the service user cannot read the namespace: nothing was entered) or not_current (the
 /// production is not the namespace's own, or a name is empty: nothing was read), as for Failures; marks are empty and settings [] with the others. A namespace that
-/// cannot be read for another reason is an error. It writes nothing and switches namespace in Current only.
+/// cannot be read for another reason is an error. Items that share a name are one: the settings of the first of them that is enabled as IRIS runs it (the stored
+/// Enabled unless a System Default Setting Enabled overrides it), else of the first. It writes nothing and switches namespace in Current only.
 ClassMethod Settings(namespace As %String, production As %String, full As %Boolean = 0, salts As %DynamicObject = "", Output marks As %DynamicObject, Output settings As %DynamicArray) As %String
 {
 	Set marks = {"counter": "", "started": ""}
@@ -916,6 +918,15 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 					If fullSettings && $IsObject($Get(definition)) {
 						For stI = 1:1:definition.Items.Count() {
 							Set stItem = definition.Items.GetAt(stI)
+							Set stEnabled = $Select(##class(Ens.Config.DefaultSettings).%GetSetting(name, stItem.Name, stItem.ClassName, "", "Enabled", .stSetting): stSetting, 1: stItem.Enabled)
+							If '$Data(stPick(stItem.Name)) || ('stPick(stItem.Name, "on") && stEnabled) {
+								Set stPick(stItem.Name) = stI
+								Set stPick(stItem.Name, "on") = ''stEnabled
+							}
+						}
+						For stI = 1:1:definition.Items.Count() {
+							Set stItem = definition.Items.GetAt(stI)
+							If stPick(stItem.Name) '= stI Continue
 							Kill stRow
 							Try {
 								$$$ThrowOnError(stItem.PopulateVirtualSettings())

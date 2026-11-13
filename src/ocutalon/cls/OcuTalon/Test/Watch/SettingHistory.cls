@@ -20,6 +20,10 @@ Include Ensemble
 ///   - TestCredentialsReference: a setting that holds an Ens.Config.Credentials ID is recorded with the IDs, as a plain value;
 ///   - TestSecretValue: a setting whose value is a secret is recorded with both values blank and its hash in the snapshot only, and the same secret read again with
 ///     the earlier hash is no change;
+///   - TestSameNameItems: items that share a name are one in a snapshot, the first of them that is enabled (else the first); a change to a disabled copy is no
+///     change, and a change to the enabled one is recorded with its own earlier value;
+///   - TestClassSettings: on an item whose class has a credentialsSelector setting that is not named Credentials and a class setting whose name looks like a secret,
+///     the first keeps its ID with credential 0 and the second is blank with a hash that never reaches a change row;
 ///   - TestSkippedReads: a watched production whose namespace the service user cannot read (unreadable) or that is not the namespace's own (not_current) gets
 ///     no snapshot and no warning;
 ///   - TestReadFailure: a production whose read throws gets no row and a warning, and the next watched production is still snapshotted;
@@ -38,6 +42,12 @@ Parameter SDSSETTING = "RetryInterval";
 
 Parameter SDSVALUE = 7;
 
+/// The comment that marks the items a test adds to the saved Orders definition, so that they are the only ones taken out again.
+Parameter MARK = "zz-setting-history-test";
+
+/// The class of the item that TestClassSettings adds: its adapter has ProxyAuthorization (a credentialsSelector setting) and UseCookies (a name that looks like a secret).
+Parameter PROBECLASS = "EnsLib.HTTP.GenericOperation";
+
 /// The spelling of the Orders namespace that a test made watched in addition to the exact one, "" when none: its Orders history is removed with the test.
 Property Other As %String;
 
@@ -47,6 +57,7 @@ Property TakenCounter As %String;
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
+	Do ..DropItems()
 	Do ..DropHistory()
 	Quit sc
 }
@@ -58,6 +69,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		If $Get(^IRIS.Temp.EnsProdModCounter(..#ORDERS)) = "" Set ^IRIS.Temp.EnsProdModCounter(..#ORDERS) = ..TakenCounter
 		Set ..TakenCounter = ""
 	}
+	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DropItems())
 	Set sc = $SYSTEM.Status.AppendStatus(sc, $ClassMethod(..#DEFINITION, "Put", 0))
 	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DropDefault())
 	Do ..DropHistory()
@@ -142,6 +154,109 @@ ClassMethod DropHistory()
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingSnapshot WHERE (Namespace = 'ZZNS' AND Production = 'Zz.Unreadable') OR (Namespace = ? AND Production = 'Zz.NotCurrent')", ..#ORDERS)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingChange WHERE Namespace = ? AND Production = ?", ..#ORDERS, ..#ORDERSPRODUCTION)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingSnapshot WHERE Namespace = ? AND Production = ?", ..#ORDERS, ..#ORDERSPRODUCTION)
+}
+
+/// The class of the item that the definition changes.
+ClassMethod ItemClass() As %String
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set production = ##class(Ens.Config.Production).%OpenId(..#ORDERSPRODUCTION)
+	If '$IsObject(production) Quit ""
+	For i = 1:1:production.Items.Count() {
+		If production.Items.GetAt(i).Name = ..#DEFINEDITEM Quit
+	}
+	Quit $Select(i '> production.Items.Count(): production.Items.GetAt(i).ClassName, 1: "")
+}
+
+/// Adds an item to the saved Orders definition, marked by MARK: the class (the defined item's when className is empty), enabled or not, at position in the
+/// definition's items (the end when 0), with settings (a dynamic array of {"target", "name", "value"}). It does not update the running production.
+ClassMethod AddItem(name As %String, enabled As %Boolean, position As %Integer = 0, settings As %DynamicArray = "", className As %String = "") As %Status
+{
+	Set class = $Select(className '= "": className, 1: ..ItemClass())
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set production = ##class(Ens.Config.Production).%OpenId(..#ORDERSPRODUCTION)
+	If '$IsObject(production) Quit $SYSTEM.Status.Error(5001, "There is no definition of "_..#ORDERSPRODUCTION)
+	Set item = ##class(Ens.Config.Item).%New()
+	Set item.Production = production
+	Set item.Name = name
+	Set item.ClassName = class
+	Set item.Enabled = enabled
+	Set item.PoolSize = 1
+	Set item.Comment = ..#MARK
+	If $IsObject(settings) {
+		Set iterator = settings.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			Set setting = ##class(Ens.Config.Setting).%New()
+			Set setting.Target = entry.target
+			Set setting.Name = entry.name
+			Set setting.Value = entry.value
+			Do item.Settings.Insert(setting)
+		}
+	}
+	Set sc = item.%Save()
+	If $$$ISERR(sc) Quit sc
+	If position > 0 {
+		Do production.Items.InsertAt(item, position)
+	} Else {
+		Do production.Items.Insert(item)
+	}
+	Quit production.%Save()
+}
+
+/// Sets the stored setting of the items of that name whose Enabled is enabled (the setting is added where it is not there), and saves the definition.
+ClassMethod ChangeStored(name As %String, enabled As %Boolean, target As %String, setting As %String, value As %String) As %Status
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set production = ##class(Ens.Config.Production).%OpenId(..#ORDERSPRODUCTION)
+	If '$IsObject(production) Quit $SYSTEM.Status.Error(5001, "There is no definition of "_..#ORDERSPRODUCTION)
+	Set changed = 0
+	Set sc = $$$OK
+	For i = 1:1:production.Items.Count() {
+		Set item = production.Items.GetAt(i)
+		If (item.Name '= name) || (+item.Enabled '= +enabled) Continue
+		Set found = 0
+		For j = 1:1:item.Settings.Count() {
+			Set stored = item.Settings.GetAt(j)
+			If (stored.Target = target) && (stored.Name = setting) Set stored.Value = value, found = 1
+		}
+		If 'found {
+			Set stored = ##class(Ens.Config.Setting).%New()
+			Set stored.Target = target
+			Set stored.Name = setting
+			Set stored.Value = value
+			Do item.Settings.Insert(stored)
+		}
+		Set sc = item.%Save()
+		If $$$ISERR(sc) Quit
+		Set changed = changed + 1
+	}
+	If $$$ISERR(sc) Quit sc
+	If 'changed Quit $SYSTEM.Status.Error(5001, "The definition has no such item "_name)
+	Quit production.%Save()
+}
+
+/// Takes the items that AddItem added out of the saved Orders definition and deletes them; OK when there are none.
+ClassMethod DropItems() As %Status
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set production = ##class(Ens.Config.Production).%OpenId(..#ORDERSPRODUCTION)
+	If '$IsObject(production) Quit $$$OK
+	Set removed = 0
+	For i = production.Items.Count():-1:1 {
+		Set item = production.Items.GetAt(i)
+		If '$IsObject(item) Continue
+		If item.Comment '= ..#MARK Continue
+		Do production.RemoveItem(item)
+		Set removed = removed + 1
+	}
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Config.Item WHERE Production = ? AND Comment = ?", ..#ORDERSPRODUCTION, ..#MARK)
+	If result.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "The marked items were not deleted: SQLCODE "_result.%SQLCODE)
+	If 'removed Quit $$$OK
+	Quit production.%Save()
 }
 
 /// The number of snapshots of the Orders production.
@@ -433,6 +548,87 @@ Method TestSecretValue()
 	Set newest = ..Newest()
 	Do $$$AssertEquals(newest.Settings.Read(100000000) [ first, 0, "neither secret is in the stored settings")
 	Do $$$AssertEquals(newest.Settings.Read(100000000) [ second, 0, "not the second either")
+}
+
+Method TestSameNameItems()
+{
+	If '..Ready() Quit
+	Do $$$AssertStatusOK($ClassMethod(..#DEFINITION, "Put", 1, "", "enabled value", ..#NOTE), "the enabled item has a stored setting")
+	Do $$$AssertStatusOK(..AddItem(..#DEFINEDITEM, 0, 1, [{"target": "Host", "name": (..#NOTE), "value": "disabled first"}]), "a disabled copy of it comes first in the definition")
+	Do $$$AssertStatusOK(..AddItem(..#DEFINEDITEM, 0, 0, [{"target": "Host", "name": (..#NOTE), "value": "disabled last"}]), "and another comes last")
+	Do $$$AssertStatusOK(..AddItem("ZzSameName", 0, 0, [{"target": "Host", "name": (..#NOTE), "value": "zz-first"}]), "two disabled items share another name")
+	Do $$$AssertStatusOK(..AddItem("ZzSameName", 0, 0, [{"target": "Host", "name": (..#NOTE), "value": "zz-second"}]), "and neither is enabled")
+	Do ..Watched()
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Set entry = ..Entry(..Newest(), ..#DEFINEDITEM, ..#NOTE)
+	Do $$$AssertTrue($IsObject(entry), "the first snapshot holds the setting of the item")
+	If $IsObject(entry) Do $$$AssertEquals(entry.value, "enabled value", "its value is the enabled item's, not that of a disabled copy before it or after it")
+	Set other = ..Entry(..Newest(), "ZzSameName", ..#NOTE)
+	Do $$$AssertTrue($IsObject(other), "the snapshot holds the setting of the name that has no enabled item")
+	If $IsObject(other) Do $$$AssertEquals(other.value, "zz-first", "its value is the first item's")
+	Do $$$AssertEquals(..Changes().%Size(), 0, "a first snapshot has no change")
+	Set marked = ..Newest().Counter
+	Do $$$AssertStatusOK(..ChangeStored(..#DEFINEDITEM, 0, "Host", ..#NOTE, "disabled changed"), "the disabled copies are changed")
+	Do $$$AssertTrue(..Counter() '= marked, "and the production-change counter moved")
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Do $$$AssertEquals(..Newest().Counter, ..Counter(), "the Tick read the settings again: the snapshot holds the new counter")
+	Do $$$AssertEquals(..Changes().%Size(), 0, "that is no change")
+	Do $$$AssertStatusOK(..ChangeStored(..#DEFINEDITEM, 1, "Host", ..#NOTE, "enabled changed"), "the enabled item is changed")
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Set changes = ..Changes(..#NOTE)
+	Do $$$AssertEquals(changes.%Size()_"|"_..Changes().%Size(), "1|1", "that is one change")
+	If changes.%Size() = 1 {
+		Set row = changes.%Get(0)
+		Do $$$AssertEquals(row.item_"|"_row.oldValue_"|"_row.newValue_"|"_row.source, ..#DEFINEDITEM_"|enabled value|enabled changed|production", "from the enabled item's earlier value to its new one")
+	}
+}
+
+Method TestClassSettings()
+{
+	If '..Ready() Quit
+	Set item = "ZzHttpProbe"
+	Set proxyA = "ZzProxyA"
+	Set proxyB = "ZzProxyB"
+	Set secretA = "zz-cookie-one-"_$Random(1000000000)
+	Set secretB = "zz-cookie-two-"_$Random(1000000000)
+	Do $$$AssertStatusOK(..AddItem(item, 0, 0, [{"target": "Adapter", "name": "ProxyAuthorization", "value": (proxyA)}, {"target": "Adapter", "name": "UseCookies", "value": (secretA)}], ..#PROBECLASS), "an item whose adapter has a credentialsSelector setting and a secret-looking class setting is saved")
+	Do ..Watched()
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Set reference = ..Entry(..Newest(), item, "ProxyAuthorization")
+	Set secret = ..Entry(..Newest(), item, "UseCookies")
+	Do $$$AssertTrue($IsObject(reference) && $IsObject(secret), "the first snapshot holds both class settings")
+	If '$IsObject(reference) || '$IsObject(secret) Quit
+	Do $$$AssertEquals(reference.target_"|"_reference.value_"|"_reference.credential_"|"_reference.hash, "Adapter|"_proxyA_"|0|", "the class setting that references a credential keeps its ID, with credential 0 and no hash")
+	Do $$$AssertEquals(secret.target_"|"_secret.value_"|"_secret.credential, "Adapter||1", "the class setting whose name looks like a secret has no value and credential 1")
+	Do $$$AssertTrue(##class(OcuTalon.Data.Webhook).Matches(secret.hash, secretA), "and a hash that matches its value")
+	Set hash = secret.hash
+	Do $$$AssertStatusOK(..ChangeStored(item, 0, "Adapter", "ProxyAuthorization", proxyB), "the reference is changed")
+	Do $$$AssertStatusOK(..ChangeStored(item, 0, "Adapter", "UseCookies", secretB), "and so is the secret")
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Set proxy = ..Changes("ProxyAuthorization")
+	Set cookies = ..Changes("UseCookies")
+	Do $$$AssertEquals(proxy.%Size()_"|"_cookies.%Size()_"|"_..Changes().%Size(), "1|1|2", "each is one change")
+	If proxy.%Size() = 1 {
+		Set row = proxy.%Get(0)
+		Do $$$AssertEquals(row.item_"|"_row.target_"|"_row.oldValue_"|"_row.newValue_"|"_row.credential, item_"|Adapter|"_proxyA_"|"_proxyB_"|0", "the reference's change holds the old and the new ID and Credential 0")
+	}
+	If cookies.%Size() = 1 {
+		Set row = cookies.%Get(0)
+		Do $$$AssertEquals(row.item_"|"_row.target_"|"_row.oldValue_"|"_row.newValue_"|"_row.credential, item_"|Adapter|||1", "the secret's change holds both values blank and Credential 1")
+	}
+	Set newest = ..Newest()
+	Set stored = newest.Settings.Read(100000000)
+	Set text = ..Changes().%ToJSON()
+	Do $$$AssertEquals(stored [ secretA, 0, "neither secret is in the stored settings")
+	Do $$$AssertEquals(stored [ secretB, 0, "not the second either")
+	Do $$$AssertEquals(text [ secretA, 0, "neither is in a change row")
+	Do $$$AssertEquals(text [ secretB, 0, "not the second either")
+	Do $$$AssertEquals(text [ hash, 0, "and the earlier hash is not in a change row")
+	Set entry = ..Entry(newest, item, "UseCookies")
+	If $IsObject(entry) {
+		Do $$$AssertTrue(##class(OcuTalon.Data.Webhook).Matches(entry.hash, secretB), "the new hash matches the new secret")
+		Do $$$AssertEquals(text [ entry.hash, 0, "and it is not in a change row either")
+	}
 }
 
 Method TestSkippedReads()
