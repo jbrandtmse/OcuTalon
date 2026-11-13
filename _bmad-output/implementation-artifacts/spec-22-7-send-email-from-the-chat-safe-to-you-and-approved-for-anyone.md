@@ -2,7 +2,8 @@
 title: 'Story 22.7: Send email from the chat, safe to you and approved for anyone else'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '5c819bdc3e966b491bc06ed215cf20a998df03b5'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -10,7 +11,35 @@ context:
   - '{project-root}/_bmad-output/implementation-artifacts/spec-21-6-send-email-over-smtp.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The approval card for an email request shows the recipients as the text of an object reference and carries no subject or text, so a user can approve an email from a card that does not show it.
+    evidence: |-
+      Task 0 item 2 (evidence/22-7-task0-email.md): Live.Payload.Approval.FromRow has no email branch and Part.DryRun.To is a %String, so dryRun.to reads 2@%Library.DynamicArray and subject and text are absent. The stored dry run itself holds the exact recipients, subject and text (pinned in Test.Tools.Email). Live is Lane B and the card rendering is Story 21.11 (Consumed-by).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Live/Payload/Approval.cls, Live/Payload/Part/DryRun.cls
+    severity: medium
+  - summary: >-
+      A non-owner session's send_email call to the mailbox address is raised as an approval request, and when approved it is sent from the owner's mailbox with that session as SessionRef.
+    evidence: |-
+      The matrix row "No mailbox" says another session's call to the mailbox address is risky and is raised, and Test.Tools.Email TestHoldRaisesTheRequest pins it. Out.Authorised on the system path checks the row, its recipients and its state, not email.owner. Whether a second user of one install may use the first user's mailbox with an approval is a product decision the spec did not settle (unverified).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls Raise
+    severity: medium (unverified)
+  - summary: >-
+      The exception path and the never-submitted path of an approved email (MESSAGEFAILED) have no test.
+    evidence: |-
+      Test.Fix.Email covers a stub that rejects the recipients and a stopped EmailOut, both answered by a CommandResult. No test throws inside FixExecutor.SendEmail or makes Commands.Submit fail; it needs a probe subclass seam like Test.Fix.ExecutorProbe.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Fix/Executor.cls SendEmail Catch, Fix/Kind/Email.cls Execute
+    severity: low
+  - summary: >-
+      The safe path has no test that the same turn sent twice leaves one mail, because EmailOut ignores the command's idempotency key until Story 21.13 (DW-1244) merges.
+    evidence: |-
+      Planner ruling (ii): 21.13 fixes DW-1244 before 22.7 merges. The repeat assertion belongs in Test.Fix.Email TestSafeTurn once it does (submit the same ItemId:1 command twice; the stub holds one mail).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Fix/Email.cls TestSafeTurn
+    severity: medium
 ---
 
 <intent-contract>
@@ -159,7 +188,7 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] **Task 0** (implement stage). Run it on lane D's warm throwaway `e22s7iw`, with scratch classes `ZzT7*` that are removed afterwards. Record each answer in `_bmad-output/implementation-artifacts/evidence/22-7-task0-email.md`:
+- [x] **Task 0** (implement stage). Run it on lane D's warm throwaway `e22s7iw`, with scratch classes `ZzT7*` that are removed afterwards. Record each answer in `_bmad-output/implementation-artifacts/evidence/22-7-task0-email.md`:
   1. On a seeded approved email row, `Commands.Submit(SendEmail, "system")` from inside FixExecutor's job: record that it reaches `EmailOut` with origin `system` (there is no bridge context in that job) and that the stub gets 1 mail.
   2. Run `Live.Payload.Approval.FromRow` and `Core.BridgeSink` `approval.raised` on an email row. Record that there is no error, and record the payload's `fixKind` and `dryRun` fields, for Story 21.11 and the residual.
   3. Record that an argument of type `%DynamicArray` reaches the tool method as an array from the mock's `toolUse` input.
@@ -168,7 +197,7 @@ deferred: []
      - Red: copy its pattern into the Email kind, with the reason "SettingsOps cannot be a callback helper", and drop SettingsOps from the list.
   5. Record what `Fix.Run` `Interrupt` and `Sweep` do with an email run that has no incident and no `EndedAt`.
   6. Record that the warm stack reaches the stub as `EmailLive` does (`OCUTALON_TEST_PLAIN_SMTP`, host `mock`).
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls`:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls`:
   - `HookFor(source, name, prefix = "Classify")`: the same naming rule. Only `Classify` has the class-wide fallback.
   - In `Hold` (rule 4 only: a user's turn, not a replay, a class source, not MCP or the proxy): when `HookFor(source, name, "Hold")` finds the `[ Internal ]` `Hold<NAME>`, call `$ClassMethod(source, hook, ArgumentsObject(arguments), context.OwnerRef, context.TraceRef, sinkClass, .ref, .refusal)` instead of building a `tool_call` row:
     - an error status throws (`FAILED` and one warning);
@@ -177,8 +206,8 @@ deferred: []
     - neither gives `FAILED`.
   - With no hook, nothing changes.
   - Update the class doc's step 5 and the doc of `HookFor`.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Data/ApprovalRequest.cls` -- add `subject,text` to `DRYRUNKEYS` and document the email keys (`to` is an array for kind `email`). There is no storage change.
-- [ ] `src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls` (new; it extends `OcuTalon.Fix.Kind`):
+- [x] `src/bridge/cls/OcuTalon/Bridge/Data/ApprovalRequest.cls` -- add `subject,text` to `DRYRUNKEYS` and document the email keys (`to` is an array for kind `email`). There is no storage change.
+- [x] `src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls` (new; it extends `OcuTalon.Fix.Kind`):
   - Parameters: `NAME` "email" (pinned equal to `Channel.Email.Out` `FIXKIND`), `PARAMETERS` "recipients,subject,text", `TARGETTYPE` "recipient", `DIAGNOSED` 0, `ASKED` 0, `RESOURCES` "", `RESULTTARGET` "FixExecutor", `EMAILNOSTART`. The limits are read from EmailOut's parameters with `$Parameter`, never copied.
   - `CheckParameters`:
     - `recipients` is an array of 1-20 addresses (Task 0 item 4);
@@ -197,8 +226,8 @@ deferred: []
     - when `CheckParameters` fails, `MESSAGEREFUSED`.
     Otherwise it builds the row from the I/O matrix and calls `Approval.Raise`.
   - `Audit(outcome, approvalRef, sessionRef, channel, recipients)` writes one `Action` entry: action `email`, target `EmailOut`, result = the outcome, counts `{"recipients": n}`. It holds no address, subject or text.
-- [ ] `src/ocutalon/cls/OcuTalon/Fix/Kind.cls` -- add `OcuTalon.Fix.Kind.Email` to `KINDS`.
-- [ ] `src/ocutalon/cls/OcuTalon/Fix/Executor.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Fix/Kind.cls` -- add `OcuTalon.Fix.Kind.Email` to `KINDS`.
+- [x] `src/ocutalon/cls/OcuTalon/Fix/Executor.cls`:
   - In `OnMessage`, handle `OcuTalon.Bridge.Msg.ApprovalOutcome`:
     - a non-approved outcome: one info line, nothing else;
     - approved: reuse `Refusal`. The row must be Kind `fix`, FixKind `email` and have an empty IncidentRef; otherwise `Refuse`.
@@ -213,8 +242,8 @@ deferred: []
   - No `Report` and no FixResult for a row with no incident.
   - An `Execute` naming a row with no incident is refused (`LOGREFUSED`, nothing changes).
   - Extend `Refusal`, `Start`, `End`, `Close` and `TakeRun`; do not copy them.
-- [ ] `src/ocutalon/cls/OcuTalon/Fix/Run.cls` -- `Sweep` returns no FixResult for a run with an empty IncidentRef. `Interrupt` closes its request `interrupted` as it does today (adjust per Task 0 item 5).
-- [ ] `src/ocutalon/cls/OcuTalon/Tools/EmailTools.cls` (new; it extends `OcuTalon.Tools.Result`):
+- [x] `src/ocutalon/cls/OcuTalon/Fix/Run.cls` -- `Sweep` returns no FixResult for a run with an empty IncidentRef. `Interrupt` closes its request `interrupted` as it does today (adjust per Task 0 item 5).
+- [x] `src/ocutalon/cls/OcuTalon/Tools/EmailTools.cls` (new; it extends `OcuTalon.Tools.Result`):
   - Parameters: `STEPLABELSENDEMAIL`, `READONLYSENDEMAIL` 0, `TRUSTEDOUTPUTSENDEMAIL` 1, `CLASSIFYRULESENDEMAIL`.
   - `[ Internal ]` `ClassifySENDEMAIL(arguments)` and `HoldSENDEMAIL(...)`, which only delegate to `Fix.Kind.Email`.
   - `SendEmail(recipients As %DynamicArray, subject, text) As %DynamicObject`:
@@ -224,13 +253,13 @@ deferred: []
     4. The answer is `{ok, outcome, message}` from the `CommandResult` and nothing else.
     5. `Email.Audit` when the command was submitted.
   - The class doc names its trusted-output basis.
-- [ ] `src/ocutalon/cls/OcuTalon/Tools/Email.cls` (new `%AI.ToolSet`, the pattern of `Persona.cls`) -- one tool, `send_email`.
-- [ ] `src/ocutalon/cls/OcuTalon/Tools/Names.cls` -- add `SENDEMAIL = "send_email"`. It is not in RELEASE1.
-- [ ] `src/ocutalon/cls/OcuTalon/Agent/Chat.cls` -- add `OcuTalon.Tools.Email` to `TOOLSETS` and the instruction line from Public text.
-- [ ] `ci/mock/scenarios/A/send-email-own.json`, `send-email-other.json` and `send-email-injected.json` (new; markers of the same names). Reply 1 is a `toolUse` of `send_email`: own `["owner@example.test"]`, other `["partner@example.test"]`. Reply 2 is fixed text.
-- [ ] `ci/mock/test/constants.test.mjs` -- a "Story 22.7" row: `send_email` is in `Tools.Names`, and each of the 3 scenarios calls it.
-- [ ] `docs/security-overview.md` -- regenerate through `Install.SecurityOverview.Regenerate`, as Story 22.3 did. This adds the `send_email` tool row (per call) and the `email` fix-kind row.
-- [ ] Tests (each one creates and removes its own mailbox settings, rows, stub state and demo flag):
+- [x] `src/ocutalon/cls/OcuTalon/Tools/Email.cls` (new `%AI.ToolSet`, the pattern of `Persona.cls`) -- one tool, `send_email`.
+- [x] `src/ocutalon/cls/OcuTalon/Tools/Names.cls` -- add `SENDEMAIL = "send_email"`. It is not in RELEASE1.
+- [x] `src/ocutalon/cls/OcuTalon/Agent/Chat.cls` -- add `OcuTalon.Tools.Email` to `TOOLSETS` and the instruction line from Public text.
+- [x] `ci/mock/scenarios/A/send-email-own.json`, `send-email-other.json` and `send-email-injected.json` (new; markers of the same names). Reply 1 is a `toolUse` of `send_email`: own `["owner@example.test"]`, other `["partner@example.test"]`. Reply 2 is fixed text.
+- [x] `ci/mock/test/constants.test.mjs` -- a "Story 22.7" row: `send_email` is in `Tools.Names`, and each of the 3 scenarios calls it.
+- [x] `docs/security-overview.md` -- regenerate through `Install.SecurityOverview.Regenerate`, as Story 22.3 did. This adds the `send_email` tool row (per call) and the `email` fix-kind row.
+- [x] Tests (each one creates and removes its own mailbox settings, rows, stub state and demo flag):
   - `src/ocutalon/cls/OcuTalon/Test/Tools/Email.cls` (new, unit):
     - every Classify row of the matrix (case and spaces, duplicates, mixed, empty, 21, no mailbox, another session, no context, `{}`, extra keys such as `"classification":"safe"`);
     - `SendTo`;
@@ -254,8 +283,8 @@ deferred: []
 - Given the tool inventory and the security overview, when they are generated, then `send_email` is listed for the Chat agent with "per call: " and its rule, not read-only, trusted output, and the fix kind `email` is listed as risky with no resources.
 - **DW-1164:** Given a request raised by the gate's hook (no seeded row), when the real `FixExecutor` runs its approval, then the row holds `FixKind` `email` and `FixParameters.recipients` as an array, the `SendEmail` carries that row's `ApprovalRef` with origin `system`, and the real `EmailOut`'s system path accepts it (the stub holds one mail). The replay part is declined under Design Notes.
 
-- [ ] **[RULED 2026-11-13, Planner H (i)] `send_email` is NOT read-only for AD-10 rule 4.** In any turn that holds untrusted content (a failed message, an email, a webhook event, a document, a tool result), every `send_email` call is refused `UNTRUSTED`, self-addressed included: no send, no approval request, no `CommandsIn` call. Pin it with an injection case (`send-email-injected`): an email whose text asks OcuTalon to email someone yields no send and no approval request, both for the user's own address and for another address; a mutation that lets a self-addressed call through in a tainted turn goes red.
-- [ ] **[RULED 2026-11-13, Planner H (iii)]** Audit entries hold no address, subject or text (veto item 5, as planned); the approval request's dry run carries the exact recipients, subject and text so the card shows them before the user approves (pinned on the stored dry run; the card rendering is Story 21.11's).
+- [x] **[RULED 2026-11-13, Planner H (i)] `send_email` is NOT read-only for AD-10 rule 4.** In any turn that holds untrusted content (a failed message, an email, a webhook event, a document, a tool result), every `send_email` call is refused `UNTRUSTED`, self-addressed included: no send, no approval request, no `CommandsIn` call. Pin it with an injection case (`send-email-injected`): an email whose text asks OcuTalon to email someone yields no send and no approval request, both for the user's own address and for another address; a mutation that lets a self-addressed call through in a tainted turn goes red.
+- [x] **[RULED 2026-11-13, Planner H (iii)]** Audit entries hold no address, subject or text (veto item 5, as planned); the approval request's dry run carries the exact recipients, subject and text so the card shows them before the user approves (pinned on the stored dry run; the card rendering is Story 21.11's).
 - [ ] **[RULED 2026-11-13, Planner H (ii)]** DW-1244 (EmailOut ignores the command's idempotency key) is fixed by Lane C's new Story 21.13 before 22.7 merges; 22.7 itself does not edit `Channel/Email/**`. This story's merge waits for 21.13.
 
 ## Spec Change Log
@@ -263,6 +292,38 @@ deferred: []
 - 2026-11-13 (runner, Planner rulings H for 22.7 applied): veto 1-7 APPROVED with conditions (i) send_email not read-only: refused UNTRUSTED in any turn with untrusted content, self-addressed included, injection case pinned; (ii) DW-1244 fixed by Lane C's Story 21.13, 22.7's merge waits for it; (iii) audit holds no address/subject/text, the card shows exact recipients/subject/text. (a) the forced copy of the own-address check is approved, with a unification ledger entry for after the contest; (c) the AC citation 21.5 -> 21.11 is approved (epics.md amended). PUBLIC TEXT: the four new strings, the instruction line and the tool/argument descriptions approved verbatim.
 
 ## Review Triage Log
+
+### 2026-11-13 - Review pass
+- verdicts: 28 rows - high 0, medium 7, low 15, false 5, maybe-false 1 (the intent-alignment layer reported readings and divergences, no findings; its eight divergences were each checked and none needs action)
+- findings:
+  - `[medium]` `[defer]` Blind 1 / Verification-gap 9: Raise does not check that the owner session owns the mailbox - the matrix row fixes it (raised), so not a defect of the code; the product question is deferred, severity medium unverified (the `maybe-false` is the product question, listed once here)
+  - `[medium]` `[defer]` Blind 2 / Edge 5 / Verification-gap 8: the card for an email row shows garbage `to` and no subject or text - real, Lane B and Story 21.11 (ledger owner 21.11); deferred
+  - `[low]` `[patch]` Blind 3 / Verification-gap 5: `TestNotApprovedSendsNothing` compared the row with itself after the Execute - patched: the whole row is captured before the Execute
+  - `[low]` `[patch]` Blind 4: stale tool counts in `Test.Watch.Turns` and `Test.Tools.Persona` messages - patched (nineteen, other eighteen). The long assertion messages of `Test.Tools.Reminders` are lists of added tools in a historic comment and are left
+  - `[low]` `[patch]` Blind 5: `Test.Agent.Runners` header omitted EmailTools - patched
+  - `[low]` `[reject]` Blind 6: the own-address rule is copied three times with nothing pinning them together - the copy is forced by U-177 and approved by the Planner (ruling a), unification is ledger DW-1256
+  - `[medium]` `[patch]` Blind 7 / Edge 2: an object or array recipient made `Parameters` throw on `%Push` (measured: `<ILLEGAL VALUE>`), so Raise gave FAILED instead of the refusal sentence - patched in `Fix.Kind.Email.Parameters` (an empty string for CheckParameters to refuse); pinned by two new rows in `TestHoldRefusals`
+  - `[false]` `[reject]` Blind 8: HoldByHook trusts any non-empty ref - the hook is the tool class's own code, found on the source class, and a hook that lied would also be able to lie about a tool_call; pinned by the zz_hold_raise gate row as the documented contract
+  - `[low]` `[reject]` Blind 9: the Chat instruction says nothing about refusals - the instruction line is approved verbatim (Public text); any other text is not shippable here
+  - `[medium]` `[patch]` Blind 10 / Verification-gap 11: `TestSendFailuresEndFailedOnce` could leave EmailOut stopped - patched: `MailOutStopped` flag and `Disconnect` starts the item again
+  - `[false]` `[reject]` Blind 11: a rejected or expired request leaves no Action entry - the spec says a non-approved outcome logs one info line and nothing else; nothing was sent, so there is nothing to audit
+  - `[low]` `[reject]` Edge 1: `..Return` in the hooks charges the step budget and may swap the status for a note near the limit - the code rule (TestToolsReturnThroughResult) requires Return in a tool class and McpCall's hook does the same; reordering the gate to let a ref win over an error status was tried and reverted, because the existing gate pin (a hook returning an error status with a ref is FAILED) is the spec's behavior
+  - `[low]` `[reject]` Edge 3: a lost reply from `Commands.Submit` ends the request failed although the mail may have gone - the submit is synchronous in one process; no realistic lost-reply path (wontfix-theoretical)
+  - `[low]` `[reject]` Edge 4: an exception outside the Try blocks of `SendEmail` leaves the request executing - the next production start's `Interrupt` closes it (pinned by `TestInterruptedRunHasNoResult`); not worth a wrapper
+  - `[medium]` `[patch]` Verification-gap 1: an approved outcome for an email row with an incident was not tested - patched: a new case in `TestNotApprovedSendsNothing`
+  - `[medium]` `[patch]` Verification-gap 2: the limits were tested only on the refusal side - patched: a subject of exactly 200 characters, a text of exactly 100,000 characters and a tab/CR text are raised, and another address stays risky at the limits
+  - `[low]` `[defer]` Verification-gap 3: the MESSAGEFAILED path has no test - deferred (needs a probe seam)
+  - `[medium]` `[defer]` Verification-gap 4: no repeated-delivery pin for the safe path - blocked on Story 21.13 (DW-1244); deferred to the story that merges it
+  - `[low]` `[reject]` Verification-gap 6: several ACs have no `mutation:` line - one mutation per AC is recorded for AC 1 to 7 and DW-1164; the rest are extra assertions, not pinning tests. One added for the overview AC
+  - `[false]` `[reject]` Verification-gap 7: `ExecutorProbe.Refusal(row)` has one formal argument - `Test.Fix.Executor` ran green after the change, so the call is accepted
+  - `[false]` `[reject]` Verification-gap 10: the Interrupt/Sweep test counts production-wide results - the test seeds its own runs and the other Fix tests clean theirs; the assertion has held on three runs of the warm stack
+  - `[low]` `[reject]` Verification-gap 12: the 3-second hang proves "stays rejected" by time and does not assert the info line - the row state and the absence of a mail are the pinned outcome
+  - `[low]` `[reject]` Verification-gap 13: the spec edits and `docs/security-overview.md` are not in the reviewed diff - read as stated; the overview rows are pinned by `Test.Install.SecurityOverview` and CI's `live:security-overview`
+  - `[low]` `[reject]` Verification-gap 14: `FixExecutor` and the kind never compare the row's owner with `email.owner` - same root cause as Blind 1, listed there
+  - `[low]` `[reject]` Verification-gap 15: no shipped test pins `FromRow` for an email row - Lane B (Story 21.11) renders it; the measurement is in the evidence file
+  - `[low]` `[reject]` Verification-gap 16: `TestOnlineDemoSendsNothing` restarts the Chat runner outside `OnAfterOneTest` - the restart is the last statement and a failed assertion does not skip it
+  - `[false]` `[reject]` Edge claims check: no spec claim was contradicted
+  - `[maybe-false]` `[reject]` Verification-gap 17: whether `Fix.Run` Sweep in the test is isolated from the production's own Tick - the Tick runs `Sweep` on the same rows only for runs it marked; no leftover seen on three runs
 
 ## Design Notes
 
@@ -295,6 +356,16 @@ No AC contradicts an AD's Rule. AD-16 already says "Story 22.7 extends AD-10 ite
 5. **FixRun reuse.** One FixRun row per email run, with an empty IncidentRef, holds the plain reason for 21.11. `Sweep` skips such runs.
 6. **No split.** There are about 9 source files, against the product default of 6. The safe path, the risky path and DW-1164 cannot ship apart: without the risky path, an email to anyone else is a dead hold. If the lead prefers a split, the seam is "risky path (hook, kind, executor) = 22.7b".
 7. **The audit entry** is written by `Fix.Kind.Email.Audit` on both paths, because `EmailOut` writes none.
+8. **Classify also needs valid parameters.** `Classify` gives `safe` only when the call's recipients, subject and text pass `CheckParameters` as well as the recipient rule, so a bad subject or text is `risky` and the hook refuses it with `MESSAGEREFUSED` (matrix row Bad parameters). `Parameters` copies only `recipients` (each string trimmed), `subject` and `text`, so an extra key such as `"classification":"safe"` has no effect.
+9. **Hooks quit through `..Return`.** `TestToolsReturnThroughResult` allows a tool provider to quit only `..Return(`, so `ClassifySENDEMAIL` and `HoldSENDEMAIL` do. A classification call therefore adds 4 or 5 characters (and a hold, 1) to the step's `ToolResultChars`, which is negligible against 40,000, and a cut value would classify as unclassified (risky).
+10. **Risky sends keep the recipients as given.** They are trimmed, case and duplicates are kept, and FixTargets are the positions `1..n`. `AsApproved` compares the dry run's `to` with `FixParameters.recipients` as JSON text, so order matters.
+11. **Demo flag.** The kind refuses when `+onlineDemo` is not 0 (stricter than EmailOut's `= 1`, so a stray value fails closed); the tool body uses `Watch.Reader.OnlineDemo()`, because a tool class may not name `Data.Setting`.
+12. **An `Execute` for any fix with an empty IncidentRef is refused** (`Refusal` returns "it has no incident", before `Unusable`), as the spec asks for email rows; no existing test relied on the old `UNUSABLE` route for such a row. An approved `ApprovalOutcome` is refused unless the row is `fix`, `email` and has no incident.
+13. **The email run's audit and FixRun.** `Finish` writes the kind's `AuditRow` when the row has no incident, with the CommandResult's outcome word (`sent`, `failed`, `not_connected`, ...) as the entry's result, or the run's result (`failed`) for an email that could not start. The FixRun counts Total 1 and Resent 0 or 1 (Completed stays 0); the Reason is empty when sent. A command that never reached CommandsIn, or an exception, is `failed` with `EmailOut`'s existing `MESSAGEFAILED` sentence.
+14. **Interrupted email runs.** `Interrupt` is unchanged. `Fix.Run` `EndMarked` writes the email kind's entry (result `interrupted`) and returns no FixResult when the run has no incident. `Mark` sets Total to the number of recipients, so a marked email run's Total is that number, not 1.
+15. **The toolset's `<Description>` is the approved tool description**, so no other model-facing text ships.
+16. **Test surfaces touched beyond the listed ones:** `Test.Tools.CommandsDouble` answers `SendEmail` (Ok, `sent`, EmailOut's sentence, plus a Ref and a Data text that a test shows are left out of the tool's answer); the tool-name lists of `Test.Tools.{Persona,Reminders}` and `Test.Watch.{Turns,Tools}` gain `send_email`; `Test.Data.Tables` pins `DRYRUNKEYS` (one line, see Contended edits); `Test.Bridge.ZzGateHold` is the fixture of the hold hook, in no toolset, so `TestGovernanceSample`'s count of nine is unchanged.
+17. **Scenario names.** `send-email-injected` names the saved address; the other-address injected case runs the same scenario with another address saved.
 
 **Extend, don't copy (Rule 2):**
 - `EmailTools` follows `DigestTools`, `McpCall` (the hook and `CLASSIFYRULE`) and `PersonaTools` (the demo refusal), and `Email.cls` follows `Persona.cls`.
@@ -305,7 +376,7 @@ No AC contradicts an AD's Rule. AD-16 already says "Story 22.7 extends AD-10 ite
 - The `EmailLive` stub helpers are copied into `Test.Fix.Email` for the same reason.
 - **No replay:** AD-16 sends through `FixExecutor`, not 30.3's replay.
 
-**Contended edits:** none made. These are for the orchestrator, and nothing is edited:
+**Contended edits:** one line in `Test/Data/Tables.cls` (Epic 21 lists it as contended): the `DRYRUNKEYS` pin gained `subject,text`, because adding the keys breaks that assertion otherwise; the lead may revert it and take the line at the merge. Nothing else contended was edited. For the orchestrator, and nothing is edited:
 1. `CommandsIn.OwnAddressOnly` and `EmailOut.Authorised` could call `Fix.Kind.Email.OwnAddressOnly`.
 2. **AD-1 gap:** `EmailOut` ignores a tool command's `IdempotencyKey`, so a re-sent turn could send the own-address email twice. This needs Lane C, and needs a ledger entry.
 3. The web, phone and Telegram cards and the `Live` payload for the email dry run are Story 21.11's (already planned, after 22.7).
@@ -432,6 +503,23 @@ There are no `(once)` lines. CI runs the full suite (the shards, `live:security-
 | `TRUSTEDOUTPUTSENDEMAIL` 0 | `Test.Fix.Email` safe turn (`CleanTurn` refuses) |
 | `Report` runs for a row with no incident | `Test.Fix.Email` (IncidentManager refused line) |
 
+**Observed mutations (Rule 19; implement stage, each applied, observed red, reverted byte-identical):**
+- mutation: `Fix.Kind.Email` ignores `email.owner` in `OwnAddressOnly` -> `Test.Tools.Email` `TestClassify` went red (a mailbox of another session; the mailbox moves to another session; no mailbox owner).
+- mutation: the recipient comparison without lower-casing -> `Test.Tools.Email` `TestClassify` went red (the own address, in another case with spaces, twice, 20 times).
+- mutation: the gate ignores `Hold<NAME>` (`If 0 && (hook '= "")`) -> `Test.Bridge.Gate` `TestHoldHook` went red, and `Test.Fix.Email` `TestRiskyTurnApprovedSendsOnce` went red ("exactly one approval request exists, and it is of the kind email": the call became a `tool_call` row).
+- mutation: `FixExecutor` skips `StartExecution` (`Set sc = $$$OK`) -> `Test.Fix.Email` `TestRiskyTurnApprovedSendsOnce` went red. EmailOut's own check (the row must be `executing`) refuses the send, so the stub holds 0 mails, not 2: the second guard holds, and the first is pinned by the done state and the mail count.
+- mutation: `FixExecutor` does not check that an approved outcome is for an email request (the `outcome &&` line of `Refusal`) -> `Test.Fix.Email` `TestNotApprovedSendsNothing` went red (other kind). Ignoring only the state check of `Refusal` leaves the test green, because `StartExecution` refuses the same rows (nothing is sent, nothing changes); ignoring the state check and `StartExecution` together makes it red (a FixRun is written for each non-approved row, no info line).
+- mutation: `Fix.Kind.Email.Raise` ignores the demo flag (`If 0 {`) -> `Test.Tools.Email` `TestOnlineDemo` went red (the hook raised a request).
+- mutation: the tool's answer adds `subject` -> `Test.Tools.Email` `TestSafeSend` went red (the answer and its members).
+- mutation: `TRUSTEDOUTPUTSENDEMAIL` 0 -> `Test.Fix.Email` `TestSafeTurn` went red (CommandsIn's `CleanTurn` refuses, so the stub holds 0 mails).
+- mutation: `Finish` runs `Audit` and `Report` for a row with no incident -> `Test.Fix.Email` `TestRiskyTurnApprovedSendsOnce` went red (no email Action entry; a FixResult for IncidentManager).
+- mutation: `READONLYSENDEMAIL` 1 (a self-addressed call allowed in a tainted turn) -> `Test.Tools.Email` `TestGateDecides` and `TestClassify` went red, and `Test.Fix.Email` `TestInjectedTurn` went red (the own-address step was not denied UNTRUSTED).
+- mutation: `Fix.Run` `EndMarked` without the empty-incident guard -> `Test.Fix.Email` `TestInterruptedRunHasNoResult` went red (Sweep returned 1 FixResult and no email entry).
+- mutation: `Fix.Kind.Email.Parameters` pushes an object or array recipient as it is -> `Test.Tools.Email` `TestHoldRefusals` went red (the object and array recipient rows).
+- mutation: `FixExecutor.Refusal` without the empty-incident clause for an outcome (the production's FixExecutor item restarted after the reload) -> `Test.Fix.Email` `TestNotApprovedSendsNothing` went red (the approved outcome for an email request that has an incident).
+- mutation: `Fix.Kind` `KINDS` without `OcuTalon.Fix.Kind.Email` -> `Test.Install.SecurityOverview` `TestFixKindRows` went red (the `email` row of the overview).
+- Note: a reload of a class into the warm stack does not reach the production's running jobs; restart the item (`Ens.Director` `TempStopConfigItem` or `RestartProduction`, through `docker exec` on the warm container) before a mutation of a class that a job runs.
+
 **Shared surfaces:**
 - the Chat toolset and tool inventory (`Constants`, `Runners`, `Instructions`);
 - the gate's `TRUSTEDTOOLS`/`READONLYTOOLS` and every-tool rows;
@@ -449,5 +537,29 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `send_email` is a built-in Chat tool. A call to the user's own address (checked by `Fix.Kind.Email.Classify` from stored facts only) is sent at once through `CommandCall.Run` (origin `tool`); any other call in a user's untainted turn is held by the new gate hook `Hold<NAME>` (`Gate.HoldByHook`), which raises a `fix` request of the new kind `email` with no incident and `FixExecutor` as result target. On approval `FixExecutor` (a new `ApprovalOutcome` branch) sends exactly the stored recipients, subject and text once with origin `system` and the `ApprovalRef`, through the real `CommandsIn` and `EmailOut`. In a tainted or untrusted turn every `send_email` call is refused `UNTRUSTED` (ruling H(i)); the online demo refuses before any submit or raise. Audit entries hold no address, subject or text (ruling H(iii)). DW-1164 is addressed by `Test.Fix.Email` (a request raised by the gate, approved, sent once by the real EmailOut system path).
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls`: `HookFor` prefix argument, `HoldByHook`, doc.
+- `src/bridge/cls/OcuTalon/Bridge/Data/ApprovalRequest.cls`: `DRYRUNKEYS` gains `subject,text`.
+- `src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls` (new), `Fix/Kind.cls` (`KINDS`), `Fix/Executor.cls` (outcome branch, `SendEmail`, `Refusal`, email audit), `Fix/Run.cls` (`EndMarked` for a run with no incident).
+- `src/ocutalon/cls/OcuTalon/Tools/EmailTools.cls`, `Tools/Email.cls` (new), `Tools/Names.cls`, `Agent/Chat.cls` (toolset and the approved instruction line).
+- `ci/mock/scenarios/A/send-email-{own,other,injected}.json` (new), `ci/mock/test/constants.test.mjs`, `docs/security-overview.md` (regenerated), `evidence/22-7-task0-email.md` (Task 0 answers).
+- Tests: `Test/Tools/Email.cls`, `Test/Fix/Email.cls`, `Test/Bridge/ZzGateHold.cls` (new); updated `Test/Bridge/{Gate,CodeRules}`, `Test/Agent/{Constants,Instructions,Runners}`, `Test/Install/SecurityOverview`, `Test/Fix/{Kind,Executor,PartnerWarning}`, `Test/Tools/{CommandsDouble,Persona,Reminders}`, `Test/Watch/{Turns,Tools}`, `Test/Data/Tables`.
+
+**Review.** 28 triage rows (see the log): 7 patched (the object/array recipient crash in `Parameters`, the self-comparing assertion, the incident-row outcome case, positive limit rows, EmailOut restart in `Disconnect`, stale count messages and a header comment), 4 deferred (card rendering for Story 21.11, non-owner mailbox use as a product question, the `MESSAGEFAILED` path, the repeat pin after Story 21.13), the rest rejected with the reasons in the log.
+
+**Verification.** Warm stack `e22s7iw` on lane D: passed `Test.Tools.Email`, `Test.Fix.Email` (24 s, production restarted after the last code change), `Test.Bridge.Gate`, `Test.Fix.Executor`, `Test.Tools.Persona`, `Test.Watch.Turns`, `Test.Agent.Runners`, `Test.Install.SecurityOverview`; the implementer's run also passed `Test.Fix.{Kind,PartnerWarning,Refused,AskedTurns}`, `Test.Agent.{Constants,Instructions}`, `Test.Bridge.{CodeRules,Approval}`, `Test.Core.CommandsStep4`, `Test.Channel.{EmailOut,EmailLive}`, `Test.Data.Tables`, `Test.Watch.Tools` and the release-sequence overview scripts. `test-boundaries`, `test-class-rules`, `test-ci-config` and `node --test ci/mock/test/constants.test.mjs` exit 0 (`test-mock` passed on its second run; the first failed once on an OAuth token test, a port clash). Not run: `Test.Fix.Email` in reverse order and the fresh-environment check (the lead's Rule 19 check).
+
+**Follow-up review recommended: false** (no high patched; seven medium patched in tests and one parameter guard, all verified by a red-then-green run).
+
+**Residual risks.**
+- Story 21.13 (DW-1244) must merge before this story: until then a re-sent turn can send the own-address email twice. The ruling bullet in Tasks stays open for the merge gate.
+- The approval card for an email row shows garbage `to` and no subject or text until Story 21.11 (deferred item 1); the dry run in the database is exact.
+- A non-owner session's request, once approved, is sent from the mailbox owner's account (deferred item 2); the spec's matrix fixes the raise, a product ruling is needed.
+- Contended edits: one line in `Test/Data/Tables.cls` (Epic 21 listed it; the `DRYRUNKEYS` pin must follow the new keys) and `Test/Watch/{Turns,Tools}.cls`, `Test/Tools/{Persona,Reminders}.cls` tool-name pins (Lane A). No `Channel/**`, `Core/*`, `Msg/**`, `Live/**`, `web/**`, `Mcp/Ops.cls` or Lane B test was touched.
+- Spine updates W1 to W4 (Design Notes) are for the lead to write.
+- A reload into a warm stack does not reach the production's running jobs; restart the item before a mutation of a class a job runs.

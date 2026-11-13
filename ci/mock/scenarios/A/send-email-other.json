@@ -1,0 +1,25 @@
+{
+  "name": "send-email-other",
+  "match": {
+    "marker": "send-email-other"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "send_email",
+        "input": {
+          "recipients": [
+            "partner@example.test"
+          ],
+          "subject": "Delivery update",
+          "text": "The delivery will arrive on Friday."
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I've asked for your approval to send the email."
+    }
+  ]
+}

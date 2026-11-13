@@ -134,7 +134,7 @@ Parameter DENIED = "<%AICore>ToolAccessDenied";
 /// The built-in tools that declare TRUSTEDOUTPUT 1 and those that declare READONLY 1, as provider:name lists. A built-in tool that declares either
 /// flag fails TestFlagsAreListed until it is added here: that edit is the review of its output (message bodies, event-log text, email, webhook, MCP
 /// and document results are never trusted output).
-Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:dismiss_incident,OcuTalon.Tools.WatchTools:propose_fix,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.RecentActivity:recent_activity,OcuTalon.Tools.PersonaTools:propose_persona,OcuTalon.Tools.DigestTools:send_digest,OcuTalon.Tools.MemoryTools:save_memory,OcuTalon.Tools.MemoryTools:search_memories,OcuTalon.Tools.MemoryTools:list_memories,OcuTalon.Tools.MemoryTools:forget_memory";
+Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:dismiss_incident,OcuTalon.Tools.WatchTools:propose_fix,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.RecentActivity:recent_activity,OcuTalon.Tools.PersonaTools:propose_persona,OcuTalon.Tools.DigestTools:send_digest,OcuTalon.Tools.MemoryTools:save_memory,OcuTalon.Tools.MemoryTools:search_memories,OcuTalon.Tools.MemoryTools:list_memories,OcuTalon.Tools.MemoryTools:forget_memory,OcuTalon.Tools.EmailTools:send_email";
 
 Parameter READONLYTOOLS = "OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.WatchReads:read_failed_messages,OcuTalon.Tools.WatchReads:read_event_log,OcuTalon.Tools.WatchReads:read_item_settings,OcuTalon.Tools.RecentActivity:recent_activity,OcuTalon.Tools.RecentActivity:incident_summary,OcuTalon.Tools.MemoryTools:search_memories,OcuTalon.Tools.MemoryTools:list_memories";
 
@@ -150,8 +150,8 @@ Parameter SUSPICIOUSREASON = "The CI mock decides act for the suspicious request
 
 /// The risky arguments of the built-in tools that classify by their arguments (a Classify method), one entry for each: provider:name=<JSON>,
 /// the entries separated by a line feed. The governance test runs such a tool with them, and fails for a tool of that kind that has no entry
-/// (TestEveryRiskyBuiltInIsDenied). There is no such tool today.
-Parameter CASES = "";
+/// (TestEveryRiskyBuiltInIsDenied). Since Story 22.7 that is send_email, whose risky case names an address that is nobody's own.
+Parameter CASES = "OcuTalon.Tools.EmailTools:send_email={""recipients"":[""zzgate-other@example.test""],""subject"":""A subject"",""text"":""A text""}";
 
 /// The System Default Settings rows before the test touched them (RunnerFixture.RememberDefault), to be put back.
 Property SavedRows As %List;
@@ -628,6 +628,69 @@ Method TestArgumentDependent()
 	Do $$$AssertEquals(..Sentence(..Verdict("zz_gate_args", ..#TOOLS, "not json", ..#SINK)), $Parameter(gate, "FAILED"), "arguments that are not JSON are denied with FAILED")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, gate, "Warn", $ListBuild("zz_gate_args")), 1, "with one warning that names the tool")
 	Do $$$AssertEquals(..Sentence(..Verdict("zz_gate_args", ..#TOOLS, "[1,2]", ..#SINK)), $Parameter(gate, "FAILED"), "and so are arguments that are JSON but no object")
+}
+
+/// Story 22.7: a risky call of a class that declares Hold<NAME> is held by that method, in a user's untainted turn only, and not as a tool_call request. The hook gets the call's arguments
+/// as an object (a copy), the context's OwnerRef and TraceRef and the sink class. A ref is denied with HELD, a refusal with its own sentence (also when a ref is set), an error status or an
+/// exception with FAILED and one warning that names the tool, and neither a ref nor a refusal with FAILED; the hook raises its own request, so the gate leaves no tool_call row. A class-wide
+/// Hold is never called: a tool of the class without a hook of its own is held as a tool_call request. The hook is never called for an untrusted turn, a tainted turn, a replay or a call that
+/// is allowed.
+Method TestHoldHook()
+{
+	Set gate = ..#GATE
+	Set class = "OcuTalon.Test.Bridge.ZzGateHold"
+	Set held = $Parameter(gate, "HELD")
+	Set failed = $Parameter(gate, "FAILED")
+	Set untrusted = $Parameter(gate, "UNTRUSTED")
+	Set refusal = $Parameter(class, "REFUSAL")
+	Kill ^||ZzGateHold
+	Do $$$AssertEquals($ClassMethod(gate, "HookFor", class, "zz_hold_raise", "Hold"), "HoldZZHOLDRAISE", "the hold hook of a tool is Hold<NAME>")
+	Do $$$AssertEquals($ClassMethod(gate, "HookFor", class, "zz_hold_plain", "Hold"), "", "a tool with no hook of its own has none: Hold has no class-wide form")
+	Do $$$AssertEquals($ClassMethod(gate, "HookFor", class, "zz_hold_plain")_"|"_$ClassMethod(gate, "HookFor", class, "zz_hold_raise"), "ClassifyZZHOLDPLAIN|ClassifyZZHOLDRAISE", "and the classification hook is found as before")
+	Set request = ..Begin()
+	Kill ^||ZzProbeSink
+	Set arguments = {"a": 1, "nested": {"b": 2}}
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Do $$$AssertEquals(..Sentence(..Verdict("zz_hold_raise", class, arguments, ..#SINK)), held, "a risky call whose hook sets a ref is denied with HELD")
+	Do $$$AssertEquals(+$Get(^||ZzGateHold), 1, "the hook was called once")
+	Do $$$AssertEquals($ListToString($Get(^||ZzGateHold(1)), "|"), "zz_hold_raise|"_arguments.%ToJSON()_"|"_request.OwnerRef_"|"_request.TraceRef_"|"_..#SINK, "with the arguments, the OwnerRef and the TraceRef of the context and the sink class")
+	Do $$$AssertEquals($ListLength(..ApprovalRefs(request.OwnerRef))_"|"_..SinkCalls("approval.raised")_"|"_..SinkCalls("turn.step"), "0|0|0", "the gate raised no tool_call request, and fired no event of its own")
+	Do $$$AssertEquals(arguments.%ToJSON(), "{""a"":1,""nested"":{""b"":2}}", "the call's arguments are as they were")
+	Do $$$AssertEquals(..Sentence(..Verdict("zz_hold_refuse", class, arguments, ..#SINK)), refusal, "a hook that sets a refusal is denied with that sentence")
+	Do $$$AssertEquals(..Sentence(..Verdict("zz_hold_both", class, arguments, ..#SINK)), refusal, "and a refusal outranks a ref")
+	Do $$$AssertEquals(..Sentence(..Verdict("zz_hold_neither", class, arguments, ..#SINK)), failed, "a hook that sets neither is denied with FAILED")
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Do $$$AssertEquals(..Sentence(..Verdict("zz_hold_error", class, arguments, ..#SINK)), failed, "a hook that returns an error status is denied with FAILED")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, gate, "Warn", $ListBuild("zz_hold_error")), 1, "with one warning that names the tool")
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Do $$$AssertEquals(..Sentence(..Verdict("zz_hold_throw", class, arguments, ..#SINK)), failed, "a hook that raises an exception is denied with FAILED")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, gate, "Warn", $ListBuild("zz_hold_throw")), 1, "with one warning that names the tool")
+	Do $$$AssertEquals(+$Get(^||ZzGateHold), 6, "each of the six hooks was called once")
+	Do $$$AssertEquals($ListLength(..ApprovalRefs(request.OwnerRef)), 0, "and no hook left a request")
+
+	Set before = +$Get(^||ZzGateHold)
+	Do $$$AssertEquals(..Sentence(..Verdict("zz_hold_plain", class, arguments, ..#SINK)), held, "a risky tool with no hook of its own is held as before")
+	Do ..AssertHeld(request, "zz_hold_plain", arguments.%ToJSON(), "no hook", 0, class)
+	Do $$$AssertEquals(+$Get(^||ZzGateHold), before, "and the class-wide Hold is never called")
+	Do ##class(OcuTalon.Bridge.Context).End()
+
+	Set request = ..Begin("turn", "user")
+	Do $$$AssertEquals(..Sentence(..Verdict("zz_hold_safe", class, arguments, ..#SINK)), "<OK>", "a call that is safe by code is allowed")
+	Do $$$AssertEquals(+$Get(^||ZzGateHold), before, "and its hook is not called")
+	Do ##class(OcuTalon.Bridge.Context).End()
+
+	Set request = ..Begin("turn", "untrusted")
+	Do $$$AssertEquals(..Sentence(..Verdict("zz_hold_raise", class, arguments, ..#SINK)), untrusted, "in an untrusted turn a risky call is denied with UNTRUSTED")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set request = ..Begin("turn", "user")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Put("Tainted", 1), "the turn is tainted")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("zz_hold_raise", ..Call("zz_hold_raise", arguments), ..Meta(class), ..#SINK)), untrusted, "in a tainted turn it is denied with UNTRUSTED")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set request = ..Begin("tool", "user")
+	Do $$$AssertEquals(..Sentence(..Verdict("zz_hold_raise", class, arguments, ..#SINK)), failed, "in a replay with no grant it is denied with FAILED")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do $$$AssertEquals(+$Get(^||ZzGateHold), before, "no hook was called in an untrusted turn, a tainted turn or a replay")
+	Do $$$AssertEquals($ListLength(..ApprovalRefs(request.OwnerRef)), 0, "and no request was raised")
 }
 
 /// Only the exact values safe and risky classify a tool, in a parameter, a Classify method or the setting; what code declares is final, so a value

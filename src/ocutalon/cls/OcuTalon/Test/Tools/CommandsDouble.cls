@@ -19,6 +19,8 @@
 ///         SettingsOps answers with the ApprovalRef of the request it raises);
 ///       SaveMemory: Outcome saved, the message "The CI double saved the memory.", and MEMORYREF as Ref (Story 19.3);
 ///       ForgetMemory: Outcome forgotten and the message "The CI double forgot the memory." (Story 19.3);
+///       SendEmail: Outcome sent, the message of EmailOut's MESSAGESENT, and SENDREF as Ref and a Data text that holds the command's subject, so that a test shows that an
+///         answer built from the result leaves them out (Story 22.7);
 ///       any other verb: Ok 0, Outcome not_handled.
 ///   - It follows the modes that a test sets (the test that sets one kills ^OcuTalonTest("CommandsDouble")):
 ///       ^OcuTalonTest("CommandsDouble","refuse",<the verb's class name without its package>) = <message>: Ok 0, Outcome refused, and that message;
@@ -47,6 +49,9 @@ Parameter PROPOSEREF = "zzProposalDouble000001";
 
 /// The Ref that the double gives a memory it "saves": 22 characters.
 Parameter MEMORYREF = "zzMemoryDouble00000001";
+
+/// The Ref that the double gives a SendEmail it "sends": 22 characters.
+Parameter SENDREF = "zzSendEmailDouble00001";
 
 /// The message of the double's answer to a Dismiss (Test.Bridge.Gate reads it as one of the code's own texts).
 Parameter DISMISSMESSAGE = "The CI double dismissed the incident.";
@@ -110,6 +115,12 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 		Set result.Ok = 1
 		Set result.Outcome = "forgotten"
 		Set result.Message = "The CI double forgot the memory."
+	} ElseIf verb = "SendEmail" {
+		Set result.Ok = 1
+		Set result.Outcome = "sent"
+		Set result.Message = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGESENT")
+		Set result.Ref = ..#SENDREF
+		Set result.Data = {"subject": (pInput.Subject), "recipients": (pInput.Recipients)}.%ToJSON()
 	} ElseIf verb = "ListReminders" {
 		Set result.Ok = 1
 		Set result.Outcome = "listed"

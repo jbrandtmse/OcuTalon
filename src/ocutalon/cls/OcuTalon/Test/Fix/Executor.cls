@@ -89,7 +89,8 @@ Include Ensemble
 ///     the production and namespace of the incident, the result, the counts as numbers, the request's Ref, the approver and channel (the system and the job's user without
 ///     them), the owner as the session when that is a Ref, and no member beside the shape; a write that fails logs one Type 3 warning (LOGAUDIT) and the FixResult still goes;
 ///   - TestFailedSendLogsOneWarning: a send that fails logs one Type 3 warning and the request is closed all the same;
-///   - TestUnknownRequest: a request that is neither a DryRun nor an Execute is the error 5001 that names its class, with no answer.
+///   - TestUnknownRequest: a request that is neither a DryRun, an Execute nor an ApprovalOutcome (Story 22.7) is the error 5001 that names its class, with no answer; an ApprovalOutcome, approved or not, for a Ref with no row is handled
+///     and answered OK (Test.Fix.Email has the email requests).
 /// Story 7.5 (AD-5, AD-16, AD-18, AD-23, AD-33; DW-395) adds the ends that no waiter makes. These tests call Install.Step.Fix.ReconcileWith and Interrupt and Sweep of
 /// Test.Fix.RunProbe (a Fix.Run whose seams are canned) over fixture runs, rows and incidents. The test process holds the lock of each fixture run from its save until the test
 /// ends (Hold), and the runs are deleted before the locks are let go, so that the production's own Sweep, which runs on every Tick of a stack, never takes a fixture run; a test that
@@ -1411,6 +1412,13 @@ Method TestUnknownRequest()
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5001, "a request of another class is the error 5001, not 5003")
 	Do $$$AssertTrue($Find($SYSTEM.Status.GetErrorText(sc), "Ens.StringRequest") > 0, "which names the class: "_$SYSTEM.Status.GetErrorText(sc))
 	Do $$$AssertEquals(response, "", "and gives no answer")
+	For outcome = "approved", "rejected", "expired" {
+		Set message = ##class(OcuTalon.Bridge.Msg.ApprovalOutcome).%New()
+		Set message.ApprovalRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set message.Outcome = outcome
+		Do $$$AssertStatusOK(host.OnMessage(message, .response), "an ApprovalOutcome '"_outcome_"' for a Ref with no row is handled")
+		Do $$$AssertEquals(response, "", "and gives no answer")
+	}
 }
 
 Method TestInterruptMarksOnlyRunsCutByTheRestart()

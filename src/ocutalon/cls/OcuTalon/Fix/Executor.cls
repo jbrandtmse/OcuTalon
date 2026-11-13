@@ -75,6 +75,12 @@ Include (EnsConstants, EnsErrors)
 ///     Statuses (the read of the copies), Waiting (the waiting runs) and WriteAudit (the audit write) are private methods that a test subclass overrides
 ///     (Test.Fix.ExecutorProbe); its WAITSECONDS, WAITPAUSE and WAITLOCK are read as ..# in the instance methods, so a subclass's values apply. Read (the read behind Statuses),
 ///     Tally (the count of the copies), FailReason, ActionEntry and ResultOf are public class methods, which Fix.Run calls too.
+///   - A request of the kind email (Story 22.7; Fix.Kind.Email) has no incident and ResultTarget FixExecutor, so ApprovalHold sends the outcome here as an OcuTalon.Bridge.Msg.ApprovalOutcome (Outcome).
+///     A rejected or expired outcome logs one Type 4 line and does nothing else. An approved one is refused (LOGREFUSED, nothing changes) unless the row is a fix of the kind email with no
+///     incident that is approved; an Execute for a fix with no incident is refused alike. Then SendEmail: a row that is past its expiry, or whose parameters, targets or stored dry run are not as
+///     approved (Fix.Kind.Email AsApproved), ends failed with the reason EMAILNOSTART and sends nothing; otherwise Start (StartExecution) is the only gate, the FixRun is saved (no incident, Total 1),
+///     the kind's Execute sends the row's recipients, subject and text once with origin system, and Finish closes the request (done when sent, else failed with the CommandResult's message as
+///     the reason). The Action entry is the kind's Audit, and nothing goes to IncidentManager.
 /// FixExecutor calls no model. Lane A.
 Class OcuTalon.Fix.Executor Extends Ens.BusinessOperation
 {
@@ -142,6 +148,8 @@ Parameter LOGPARTWAY = "FixExecutor stopped the resend of request ";
 
 Parameter LOGDELIVER = "FixExecutor could not deliver the notice of request ";
 
+Parameter LOGEMAIL = "FixExecutor could not send the email of request ";
+
 /// The lock of one run's end (a subscript of it is the FixRun's id), and the longest a job waits for it, in seconds (see End and Mark).
 Parameter RUNLOCK = "^OcuTalon.Fix.Run";
 
@@ -160,6 +168,7 @@ Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.P
 	If $IsObject(pRequest) {
 		If pRequest.%IsA("OcuTalon.Fix.Msg.DryRun") Quit ..DryRun(pRequest, .pResponse)
 		If pRequest.%IsA("OcuTalon.Fix.Msg.Execute") Quit ..Execute(pRequest)
+		If pRequest.%IsA("OcuTalon.Bridge.Msg.ApprovalOutcome") Quit ..Outcome(pRequest)
 	}
 	Quit $SYSTEM.Status.Error(5001, "FixExecutor does not handle a request of the class '"_$Select($IsObject(pRequest): $ClassName(pRequest), 1: "none")_"'")
 }
@@ -250,19 +259,87 @@ Method Execute(request As OcuTalon.Fix.Msg.Execute) As %Status
 	Quit $$$OK
 }
 
+/// Handles the outcome of an email request (see the class description). Always OK.
+Method Outcome(request As OcuTalon.Bridge.Msg.ApprovalOutcome) As %Status [ Private ]
+{
+	Set ref = request.ApprovalRef
+	If request.Outcome '= ..#APPROVED {
+		Do ..Refuse(ref, "its outcome is "_$Extract(request.Outcome, 1, 32)_", so nothing is sent")
+		Quit $$$OK
+	}
+	Set row = $Select(ref = "": "", 1: ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref))
+	Set why = ..Refusal(row, 1)
+	If why '= "" {
+		Do ..Refuse(ref, why)
+		Quit $$$OK
+	}
+	Do ..SendEmail(row)
+	Quit $$$OK
+}
+
+/// The run of an approved email (see the class description): the parameters and the stored dry run are checked as approved and the request is not past its expiry (else it ends failed
+/// with EMAILNOSTART, sending nothing), then StartExecution, the FixRun, the kind's Execute and Finish. An exception of the send ends the run failed with Out's MESSAGEFAILED.
+Method SendEmail(row As OcuTalon.Bridge.Data.ApprovalRequest) [ Private ]
+{
+	Set class = "OcuTalon.Fix.Kind.Email"
+	Set reason = ##class(OcuTalon.Fix.Kind.Email).#EMAILNOSTART
+	Set parameters = ""
+	Set stored = ""
+	Try {
+		Set parameters = {}.%FromJSON(row.FixParameters)
+		Set stored = {}.%FromJSON(row.DryRun)
+	} Catch {
+		Set parameters = ""
+	}
+	Set usable = (row.ExpiresAt ] ##class(OcuTalon.Data.Time).NowUtc()) && $IsObject(parameters) && $IsObject(stored)
+	If usable Set usable = $$$ISOK($ClassMethod(class, "DryRun", "", parameters, .targets, .dryRun)) && (targets = row.FixTargets) && $ClassMethod(class, "AsApproved", stored, parameters)
+	If 'usable {
+		Do ..CouldNotStart(row, 1, reason, 0)
+		Quit
+	}
+	Set sc = ..Start(row.Ref)
+	If $$$ISERR(sc) {
+		If $$$ISOK(row.%Reload()) && (row.State = ..#APPROVED) {
+			Do ..CouldNotStart(row, 1, reason, 0)
+		} Else {
+			Do ..Refuse(row.Ref, "it could not be started: "_$SYSTEM.Status.GetErrorText(sc))
+		}
+		Quit
+	}
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	Set run.ApprovalRef = row.Ref
+	Set run.IncidentRef = row.IncidentRef
+	Set run.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set sc = run.%Save()
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGRUN_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	}
+	Set result = ""
+	Try {
+		$$$ThrowOnError(..Carry(class, "", parameters, row.FixTargets, .result, run))
+	} Catch exception {
+		$$$LOGWARNING(..#LOGEMAIL_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+		Set result = {"sent": 0, "outcome": "failed", "message": ($Parameter($Parameter(class, "OUT"), "MESSAGEFAILED"))}
+	}
+	Set sent = +result.sent
+	Do ..Finish(row, run, $Select(sent: "done", 1: "failed"), {"total": 1, "resent": (sent), "completed": 0, "failedAgain": 0, "skipped": 0, "reason": ($Select(sent: "", 1: result.message)), "outcome": (result.outcome)})
+}
+
 /// Moves the request from approved to executing (Approval.StartExecution; a seam for the tests).
 Method Start(ref As %String) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Bridge.Approval).StartExecution(ref)
 }
 
-/// Why the Execute is refused: no row, not a fix, or not approved; "" when it is taken up. An approved request past its expiry is taken up: it ends as could not
-/// start (Execute).
-Method Refusal(row As OcuTalon.Bridge.Data.ApprovalRequest) As %String [ Private ]
+/// Why the Execute or the outcome is refused: no row, not a fix, or not approved; "" when it is taken up. An approved request past its expiry is taken up: it ends as could not
+/// start (Execute). An Execute is refused for a fix with no incident, and an outcome (outcome 1, Story 22.7) for any fix but an email request with no incident.
+Method Refusal(row As OcuTalon.Bridge.Data.ApprovalRequest, outcome As %Boolean = 0) As %String [ Private ]
 {
 	If '$IsObject(row) Quit "there is no approval request with that Ref"
 	If row.Kind '= ..#KINDFIX Quit "it is a "_row.Kind_" request, not a fix"
 	If row.State '= ..#APPROVED Quit "it is "_row.State_", not approved"
+	If outcome && ((row.FixKind '= ##class(OcuTalon.Fix.Kind.Email).#NAME) || (row.IncidentRef '= "")) Quit "it is not an email request"
+	If 'outcome && (row.IncidentRef = "") Quit "it has no incident"
 	Quit ""
 }
 
@@ -558,8 +635,26 @@ Method Finish(row As OcuTalon.Bridge.Data.ApprovalRequest, run As OcuTalon.Data.
 		}
 	}
 	Do ..Close(row.Ref, result)
+	If row.IncidentRef = "" {
+		Do ..AuditEmail(row, result, counts)
+		Quit
+	}
 	Do ..Audit(row, result, counts)
 	Do ..Report(row, counts)
+}
+
+/// Writes the Action entry of an email run that ended (Fix.Kind.Email AuditRow: the outcome word of counts, else the result). A write that fails logs one Type 3 warning (LOGAUDIT).
+Method AuditEmail(row As OcuTalon.Bridge.Data.ApprovalRequest, result As %String, counts As %DynamicObject) [ Private ]
+{
+	Set sc = $$$OK
+	Try {
+		Set sc = ##class(OcuTalon.Fix.Kind.Email).AuditRow(row, $Select(counts.%Get("outcome") '= "": counts.%Get("outcome"), 1: result))
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGAUDIT_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	}
 }
 
 /// Takes the lock of the run (RUNLOCK, the FixRun's id as its subscript), waiting at most RUNLOCKSECONDS; 1 when it is taken, and FreeRun lets it go. A job that holds it takes it again

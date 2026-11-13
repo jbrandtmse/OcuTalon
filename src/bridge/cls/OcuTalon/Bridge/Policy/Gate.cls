@@ -57,7 +57,11 @@ Include Ensemble
 ///      request. Classification, permissions and the provenance of the context still apply first (a replay is a user's turn: its Provenance must be user),
 ///      and an allowed call is reported and taints like any other. The taint is not read in a replay context, because the grant is single use: the
 ///      call that follows the allowed one is denied by the missing grant (FAILED), whatever the taint says.
-///   5. (other contexts) The result: a safe call is allowed, and every other call is held (Hold): the gate raises one approval request of kind tool_call through
+///   5. (other contexts) The result: a safe call is allowed, and every other call is held (Hold). A call of a class that declares the [ Internal ] class method Hold<NAME>
+///      (HookFor with the prefix Hold; no class-wide form, and never for an MCP call or the proxy) is held by that method in place of the tool_call row (HoldByHook, Story 22.7):
+///      Hold<NAME>(arguments, ownerRef, traceRef, sinkClass, .ref, .refusal) raises its own request; an error status is FAILED with one warning, a refusal is denied with the
+///      refusal's sentence, a ref is HELD, and neither is FAILED. It is reached only in a user's turn that is untainted and not a replay (step 4 denies the others first).
+///      Otherwise the gate raises one approval request of kind tool_call through
 ///      Approval.Raise and denies the call with HELD. The request is built from the call and the context only:
 ///        - Kind tool_call, ToolName the call's name, ToolSource the source of the call (the class or the MCP toolref the call was classified by),
 ///          Runner the runner item of the context (DW-194: the runner that replays the call once it is approved), and ToolArguments the call's arguments as given: an object as its %ToJSON(), a JSON text that
@@ -261,6 +265,10 @@ ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, source As 
 	}
 	Set arguments = ..ArgumentsOf(call)
 	Set fingerprint = ""
+	If '..IsProxyCall(source, name) && '..IsMcp(source) {
+		Set hook = ..HookFor(source, name, "Hold")
+		If hook '= "" Quit ..HoldByHook(context, source, hook, arguments, sinkClass)
+	}
 	If ..IsProxyCall(source, name) {
 		Set held = ..HeldMcp(arguments)
 		Set name = held.tool
@@ -290,6 +298,20 @@ ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, source As 
 	Set sc = ##class(OcuTalon.Bridge.Approval).Raise(request, .ref, sinkClass)
 	If $$$ISERR(sc) $$$ThrowStatus(sc)
 	Quit ..Denial(..#HELD)
+}
+
+/// Holds a call through the hold hook of its tool's class (Story 22.7): the class method hook(arguments, ownerRef, traceRef, sinkClass, .ref, .refusal) that the class declares raises
+/// its own request, in place of the tool_call row. An error status throws, which Check turns into FAILED and one warning. A refusal is denied with the refusal's sentence, a ref is
+/// denied with HELD, and neither is denied with FAILED.
+ClassMethod HoldByHook(context As OcuTalon.Bridge.Context, source As %String, hook As %String, arguments As %RegisteredObject, sinkClass As %String) As %Status [ Private ]
+{
+	Set ref = ""
+	Set refusal = ""
+	Set sc = $ClassMethod(source, hook, ..ArgumentsObject(arguments), context.OwnerRef, context.TraceRef, sinkClass, .ref, .refusal)
+	If $$$ISERR(sc) $$$ThrowStatus(sc)
+	If refusal '= "" Quit ..Denial(refusal)
+	If ref '= "" Quit ..Denial(..#HELD)
+	Quit ..Denial(..#FAILED)
 }
 
 /// The native form of a held call of the governed proxy: {"tool", "toolref", "arguments", "fingerprint"}, from the proxy call's arguments (server, tool, arguments): the tool, the
@@ -693,16 +715,17 @@ ClassMethod EntryFor(source As %String, name As %String) As %DynamicObject [ Pri
 	Quit found
 }
 
-/// The name of the class method that classifies the tool in code: Classify<NAME>, else Classify, where NAME is the tool's name in upper case
-/// with _ and - removed; "" when the class has neither as a class method. The governance test asks it which tools classify by their arguments.
-ClassMethod HookFor(source As %String, name As %String) As %String
+/// The name of the class method of the tool that the prefix names in code: <prefix><NAME>, where NAME is the tool's name in upper case with _ and - removed,
+/// else (for the prefix Classify only) the class-wide Classify; "" when the class has neither as a class method. The prefix Classify is the classification
+/// hook, which the governance test asks about the tools that classify by their arguments; the prefix Hold names the hold hook (Hold), which has no class-wide form.
+ClassMethod HookFor(source As %String, name As %String, prefix As %String = "Classify") As %String
 {
 	Set hook = ""
 	Try {
-		Set own = "Classify"_$ZConvert($Translate(name, "_-"), "U")
+		Set own = prefix_$ZConvert($Translate(name, "_-"), "U")
 		If $$$comMemberKeyGet(source, $$$cCLASSmethod, own, $$$cMETHclassmethod) = 1 {
 			Set hook = own
-		} ElseIf $$$comMemberKeyGet(source, $$$cCLASSmethod, "Classify", $$$cMETHclassmethod) = 1 {
+		} ElseIf (prefix = "Classify") && ($$$comMemberKeyGet(source, $$$cCLASSmethod, "Classify", $$$cMETHclassmethod) = 1) {
 			Set hook = "Classify"
 		}
 	} Catch {

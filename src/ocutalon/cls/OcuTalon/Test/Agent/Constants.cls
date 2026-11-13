@@ -25,9 +25,9 @@ Method TestAgents()
 	Do $$$AssertTrue(($List(keys, 1) '= $List(keys, 2)) && ($List(keys, 1) '= $List(keys, 3)) && ($List(keys, 2) '= $List(keys, 3)), "the keys are distinct")
 }
 
-/// OcuTalon.Tools.Names holds 22 distinct snake_case values: the 12 of release 1, PROPOSEPERSONA, DIGESTTOOLS (Story 17.6), the four memory names,
-/// DOCUMENTS (Story 19.4), INCIDENTSUMMARY (Story 23.6), PROPOSEFIX (Story 23.2) and CALLMCPTOOL (Story 22.3). RELEASE1 lists exactly the 12 of
-/// release 1, comma-separated, and none of the ten later names; MEMORYTOOLS lists the four memory names.
+/// OcuTalon.Tools.Names holds 23 distinct snake_case values: the 12 of release 1, PROPOSEPERSONA, DIGESTTOOLS (Story 17.6), the four memory names,
+/// DOCUMENTS (Story 19.4), INCIDENTSUMMARY (Story 23.6), PROPOSEFIX (Story 23.2), CALLMCPTOOL (Story 22.3) and SENDEMAIL (Story 22.7). RELEASE1 lists exactly the 12 of
+/// release 1, comma-separated, and none of the eleven later names; MEMORYTOOLS lists the four memory names.
 Method TestToolNames()
 {
 	Set statement = ##class(%SQL.Statement).%New()
@@ -42,7 +42,7 @@ Method TestToolNames()
 		Do $$$AssertTrue('$ListFind(names, value), value_" is distinct")
 		Set names = names _ $ListBuild(value)
 	}
-	Do $$$AssertEquals(count, 22, "there are 22 tool names (Story 22.3 adds call_mcp_tool)")
+	Do $$$AssertEquals(count, 23, "there are 23 tool names (Story 22.7 adds send_email)")
 	Set release = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1"))
 	Do $$$AssertEquals($ListLength(release), 12, "RELEASE1 lists 12 names")
 	Do $$$AssertEquals($ListFind(release, $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")), 0, "and send_digest of step 2 is not among them")
@@ -57,6 +57,8 @@ Method TestToolNames()
 	Do $$$AssertEquals($ListFind(release, $Parameter("OcuTalon.Tools.Names", "INCIDENTSUMMARY")), 0, "and it is not in RELEASE1")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "CALLMCPTOOL"), "call_mcp_tool", "the governed MCP proxy tool is call_mcp_tool")
 	Do $$$AssertTrue('$ListFind(release, "call_mcp_tool"), "RELEASE1 does not list call_mcp_tool")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "SENDEMAIL"), "send_email", "the email tool is send_email")
+	Do $$$AssertTrue('$ListFind(release, "send_email"), "RELEASE1 does not list send_email")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "PROPOSEFIX"), "propose_fix", "the fix tool is propose_fix")
 	Do $$$AssertTrue('$ListFind(release, "propose_fix"), "RELEASE1 does not list propose_fix")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "CHECKSTATUS"), "check_status", "the status tool is check_status")
