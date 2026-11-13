@@ -303,6 +303,7 @@ Method TestSecretNeverStored()
 		Set messages = ..Columns("OcuTalon_Msg_Command.CreateWebhook")_..Columns("OcuTalon_Msg_Command.SetWebhookSecret")_..Columns("OcuTalon_Msg.CommandResult")
 		Do $$$AssertTrue(messages '[ secret, label_": no command or result message holds it")
 		Do $$$AssertTrue(##class(OcuTalon.Test.Web.WebhookTools).LogText(log) '[ secret, label_": no event log row holds it")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(secret), "", label_": no trace global (message body, header or log row) holds it")
 		Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon")
 		Set text = ""
 		For i = 0:1:audit.%Size() - 1 {
