@@ -307,3 +307,6 @@
 2026-11-13T18:50:45Z	Story 21.10	ruling	file=prompts/epic-21-rulings-20261113-1800.md V8=granted(Telegram/Out.cls+TelegramOut.cls_only) V9=approved V10=approved(pinned_definition:Cc,Cf,Zl,Zp+tab;surrogate_halves;TAG_built_with_$Char(56128,56385);web+Telegram_exact_line_test) V11=D1_approved_amended_last_sentence,D2_approved(after_22.6),D3_approved_after_22.6(catalog_equality_check) order=after_22.6
 2026-11-13T18:50:45Z	Story 21.4	spec_amended	by=lead reason=rulings_B1_B2 change_log=yes public_text=T12
 2026-11-13T18:50:45Z	Story 21.4	stage_spawned	stage=implement spawn_at=2026-11-13T18:50:45Z model=sonnet effort=high agent_name=21-4-implement-3 cycle_iteration=1 branch=wip/21-4-impl1
+2026-11-13T19:49:06Z	Story 21.4	stage_blocked	stage=implement pass=3 condition=lead_extra_STOP(c):Lane_A_fixtures_use_?_(Test/Mcp/Ops.cls:148,:503) code_changed=none
+2026-11-13T19:49:06Z	Story 21.4	decision	by=lead within=ruling_B2 check=add_path+route_not_AddressAllowed(Proxy:84_call-time_unchanged) fixtures=Ops.cls:148_to_refused;:503_added_case_query-free_probe,old_?token_case_refused_and_no_leak report=coordinator_veto
+2026-11-13T19:49:06Z	Story 21.4	stage_spawned	stage=implement spawn_at=2026-11-13T19:49:06Z model=sonnet effort=high agent_name=21-4-implement-3b cycle_iteration=1 branch=wip/21-4-impl1
