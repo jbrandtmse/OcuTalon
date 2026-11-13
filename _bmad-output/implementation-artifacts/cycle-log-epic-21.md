@@ -222,3 +222,5 @@
 2026-11-13T02:35:48Z	Story 21.8	ci_red_classified	run=43346789014 workflow=.github/workflows/ci.yml class=story test=test-release-notes.sh:static(names_outside_section_on_GUIDE.md:243,244=T4_steps_1-2) note=caused_by_21.8_T4_in_GUIDE.md(0.30_integrate-forward);other_jobs_still_running
 2026-11-13T02:35:48Z	Story 21.8	rework_opened	cycle_iteration=3 iteration=2 trigger=ci items=CI:release-notes_static_Gmail_section_exemption scope_baseline=41549d46 tracker=done->in-progress
 2026-11-13T02:35:48Z	Story 21.8	stage_spawned	stage=implement spawn_at=2026-11-13T02:35:48Z model=sonnet effort=high agent_name=21-8-implement-3 cycle_iteration=3 rework=2_of_3
+2026-11-13T02:55:49Z	Story 21.8	dev_complete	build_sha=d0fc93bb baseline_revision=9e7ffd48 cycle_iteration=3 rework=2 deferred=0 files=docker/tests/lib-scan.sh(names_outside_section_takes_several_headings),docker/tests/test-release-notes.sh(static_exempts_Gmail_and_Microsoft_365;pins) mutations=2 model=sonnet
+2026-11-13T02:55:49Z	Story 21.8	stage_spawned	stage=code-review spawn_at=2026-11-13T02:55:49Z model=opus effort=high agent_name=21-8-code-review-3 cycle_iteration=3 scope=9e7ffd48..HEAD
