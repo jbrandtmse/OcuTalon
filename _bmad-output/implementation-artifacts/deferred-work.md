@@ -7390,8 +7390,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: high | fix-risk: low | footprint: in-epic
 - evidence: 36.2 regression run, lane-b@Contract,Core,Data,Live part 4 red; file untouched by 36.2; pre-existing on cf2658d8 (36.1 head)
 - 2026-11-13T02:29:01Z status=open owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=36.1 rework iteration 2 ([CI]); shared surface 36.1 missed
+- 2026-11-13T03:16:58Z status=resolved-by:36-1-record-the-setting-history-of-each-watched-production by=adjudication note=9aa5a61a: TestOnlyRunTimeWriter global/SQL/ClassMethod branches end at a word boundary; mutations red; passed on fresh e36s1c3
 
 ### DW-1246: Story 36.1 breaks Test.Data.Tables TestEveryTableIsRegistered: its XData Registry lacks rows for OcuTalon.Data.SettingChange and OcuTalon.Data.SettingSnapshot
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: high | fix-risk: low | footprint: in-epic
 - evidence: 36.2 regression run, lane-b part 6 red on warm and fresh; file untouched by 36.2; pre-existing on cf2658d8 (36.1 head)
 - 2026-11-13T02:29:01Z status=open owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=36.1 rework iteration 2 ([CI]); one-name appends to a contended list (Test/Data/Tables.cls is in Epic 21's diff)
+- 2026-11-13T03:16:58Z status=resolved-by:36-1-record-the-setting-history-of-each-watched-production by=adjudication note=9aa5a61a: Test.Data.Tables XData Registry rows for SettingChange and SettingSnapshot appended; mutations red; passed on fresh e36s1c3

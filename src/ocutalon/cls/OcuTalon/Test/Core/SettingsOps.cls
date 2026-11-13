@@ -339,7 +339,9 @@ Method TestAllowList()
 /// line and a FROM clause held in a string are writes. The scan is line by line: a read whose FROM or JOIN is on another line than
 /// the name, whose FROM starts a line or a string, that names the table after a comma or a FROM option, or that has more white
 /// space after FROM is flagged (write a read as one SELECT line), and a DELETE whose next line starts with a keyword before FROM is
-/// not. The scanner is first shown to flag synthetic violators and to pass a comment-only mention and the reads.
+/// not. The global is the class's data, index or stream global, and the SQL table and the $ClassMethod name end at a word boundary,
+/// so the setting snapshot and change tables, whose names only begin like the class's, are not Data.Setting. The scanner is first
+/// shown to flag synthetic violators and to pass a comment-only mention, the reads and those two tables and their globals.
 Method TestOnlyRunTimeWriter()
 {
 	Set writer = "(OcuTalon\.Data\.Setting\)\.(Set|%New|%OpenId|%Open|KeyIndexOpen|KeyIndexDelete|%DeleteId|%DeleteExtent|%Delete|%KillExtent)\(|\^(\|[^|]*\||\[[^\]]*\])?OcuTalonP\.Setting[DIS]?\b|(DELETE.*|(^|"")\s*FROM\s+|(?<!FROM\s{1,8})(?<!JOIN\s{1,8}))OcuTalon_Data\.Setting\b|\$ClassMethod\(.OcuTalon\.Data\.Setting\b)"

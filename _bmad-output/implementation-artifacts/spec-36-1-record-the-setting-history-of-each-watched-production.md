@@ -192,6 +192,27 @@ Rejected:
 - false: `TestClassSettings` stores a string in the `%Boolean` `UseCookies` -- the probe item is disabled and never runs, and V3 / Decided 5 accept that a non-secret is hashed because of its name.
 - reject (spec edit): the round above's "Open:" line, frontmatter `status`/`review_loop_iteration` against sprint status, and DW-1238's frontmatter `deferred:` entry against its ledger `wontfix-accepted` -- the frontmatter is build-auto's machine state, and DW-1238 was filed by the lead (a LOW, which `burndown` never owns). (acceptance-auditor + blind-hunter + edge-case-hunter)
 
+Code review 2026-11-13, CI rework re-review (iteration 2 of 3; diff `848178dc..HEAD` plus the working tree; four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all at the session model; 13 raw findings, 3 entries after grouping: high 0, medium 0, low 3, all closed in this pass; 9 rejected). The checklist:
+- (1) DW-1245 is fixed. All three branches of `TestOnlyRunTimeWriter`'s `writer` pattern now name only `Data.Setting`'s own storage. The global branch is `OcuTalonP\.Setting[DIS]?\b`, which covers exactly `^OcuTalonP.SettingD/I/S` (`Data/Setting.cls:133-137`) and the bare `DEFAULTGLOBAL`. The SQL and `$ClassMethod` branches end at `\b`.
+- (1, continued) The guard's intent holds. The `##class(OcuTalon.Data.Setting).<writer>(` branch is unchanged. The class scan still covers every non-test class except `Data.Setting` and still requires `SettingsOps` to match. Outside `SettingsOps`, the only product line that names `OcuTalon_Data.Setting` is a read (`Eval/Report.cls:1459`).
+- (2) DW-1246 is fixed. The two rows match `src/short-names.tsv` and each class's `DEFAULTGLOBAL`, and the edit is pure insertion after `HeartbeatBeat`. `TestPrivateRecords` also checks the rows' `global` against storage and the private database.
+- (3) The sweep is adequate. It missed one class, `Test.Eval.Incident`: `TestToolsWriteNothing` checksums every `^OcuTalon*` global, and the new `SettingSnap*`/`SettingChange*` globals are among them. The test tolerates a running job's write in one of its `ATTEMPTS` windows, and it passed on a fresh stack. Every other enumerating class outside the list was read and judged unaffected (verification-gap).
+- (3, continued) Appending `OcuTalon.Data.Webhook` to `CALLBACKHELPERS` is the right fix. `TestWatchReadsCallOnlyListed` scans `Watch.Reader` as a whole class. `Data.Webhook` calls only `Data.Time` and `Bridge.Audit`, both already listed, and it holds no namespace switch, Python or `%AI` name. `READERCLASSES` does not need it, because the only caller of `Reader.Settings` is the Tick path.
+- (3, AD-3) AD-3 holds. The only `Data.Webhook` calls are in `Reader.SettingEntry` (`Reader.cls:571`), which `Settings` calls at `:554`, after `Current` has returned. `Current` (`:616-992`) calls no OcuTalon class.
+- (4) Planner rulings, the `Never:` list and `Tick` are intact. The product `Core/SettingsOps.cls` is untouched. `Checks/Process.cls` keeps its one SettingHistory line in `Tick` (`:256`). No Planner ruling is departed from.
+- [x] [Review][Patch] The doc comment of `TestOnlyRunTimeWriter` did not state that the global, SQL and `$ClassMethod` names end at `Data.Setting`'s own storage, or that the snapshot and change tables pass [src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls:342] -- low; two contract sentences added (comment only). (blind-hunter)
+- [x] [Review][Patch] The three changed guard classes were not re-run on a fresh stack, though DW-1246 was red there too [Test/Data/Tables.cls, Test/Core/SettingsOps.cls, Test/Bridge/CodeRules.cls] -- low (Rule 19 standing criterion); the reviewer ran each on a fresh lane-B throwaway (tag e36s1c3): all passed. (blind-hunter + verification-gap)
+- [x] [Review][Patch] The shared-surface sweep did not list `Test.Eval.Incident` (`TestToolsWriteNothing` checksums every `^OcuTalon*` global, the setting-history globals included) [src/ocutalon/cls/OcuTalon/Test/Eval/Incident.cls:423-440] -- low; it passed on a fresh lane-B throwaway, and its `ATTEMPTS` windows absorb a heartbeat write, which `SettingHistory.Watch` makes at most on a first snapshot, a moved counter or the hourly check. (verification-gap)
+
+Rejected:
+- false: a `Data.Setting` global followed directly by `_` escapes the global branch's `\b` (edge-case-hunter) -- no ObjectScript write of a global can have `_` right after its name (Set, Kill, Merge and `$Increment` need `=`, `(`, `)` or a space), so only a read is spelled that way.
+- false: `_` after the SQL or `$ClassMethod` name escapes `\b` (edge-case-hunter) -- `OcuTalon_Data.Setting_x` would be another table, and the `$ClassMethod` class name is a string closed by a quote.
+- low: under `(?i)` the global branch also flags `^OcuTalonP.Settings(` and `^OcuTalonP.Setting.X` (edge-case-hunter) -- no such global exists, and an over-flag is a loud red that names the line.
+- low: `CodeRules` `GOVERNANCE` still matches `ocutalon[._]data[._]setting` and `ocutalonp\.setting` by prefix, so a Tools class naming the new tables would count as a governance reference (blind-hunter) -- outside the rework range and not high: no Tools class names them today, and a later tool on them (Story 23.3) gets a red that names the line.
+- reject (spec edit): `Test/Bridge/CodeRules.cls`'s `CALLBACKHELPERS` lines are also changed by `OCT-epic22`, and the Contended overlaps table has no rows for the three files this rework touched (blind-hunter + acceptance-auditor) -- the lead records the footprint extension; the merge note is in the stage report.
+- reject (spec edit): the rework edits test files of another area under "Lane A files only" (acceptance-auditor) -- the lead's `[CI]` items DW-1245, DW-1246 and the sweep direct these edits.
+- reject (spec edit): the follow-up pass's triage header counts (`low 10` against 9 rows) and DW-1245's "Done:" text, which predates the `\b` on the SQL and `$ClassMethod` branches (blind-hunter) -- tracking text of the pass under review.
+
 ## Spec Change Log
 
 - 2026-11-13, rework iteration 2 of 3 (lead; trigger: ci, found locally by Story 36.2's lane-b regression run before CI reported on 36.1's pushed head cf2658d8): work ONLY the three unchecked `[CI]` items (DW-1245, DW-1246, the shared-surface sweep).
@@ -275,6 +296,18 @@ Rejected:
   - `[low]` `[patch]` The sweep list is partial (verification-gap) -- `Test.Contract.Ac`, `Test.Core.SettingsCommands` and `Test.Install.Retention` run too and passed; listed.
   - `[false]` `[reject]` Scope reading: the edits touch files outside the overlap table (intent-alignment) -- `Test/Core/SettingsOps.cls` is in the epic footprint, `Tables.cls` is append-only, and `CodeRules.cls` is reported as a footprint extension.
   - `[false]` `[reject]` `Reader` may call `Data.Webhook` inside `Current`'s namespace switch (intent-alignment) -- `SettingEntry` runs in `Settings` after `Current` returns (`Reader.cls` line 554).
+
+### 2026-11-13 -- CI rework iteration 2 re-review (code review)
+- verdicts: 13 findings -- high 0, medium 0, low 6, false 2, maybe-false 0, rejected for a spec edit 5 (3 rows)
+- findings:
+  - `[low]` `[patch]` `TestOnlyRunTimeWriter`'s doc comment did not state the boundaries (blind-hunter) -- two contract sentences added.
+  - `[low]` `[patch]` No fresh-stack run of the three changed guard classes (blind-hunter, verification-gap) -- `Test.Data.Tables`, `Test.Core.SettingsOps` and `Test.Bridge.CodeRules` passed on fresh lane-B throwaways.
+  - `[low]` `[patch]` The sweep missed `Test.Eval.Incident` (verification-gap) -- passed on a fresh lane-B throwaway; its `ATTEMPTS` windows absorb a heartbeat write.
+  - `[false]` `[reject]` `_` after the global name escapes `\b` (edge-case-hunter) -- no write can be spelled that way.
+  - `[false]` `[reject]` `_` after the SQL or `$ClassMethod` name escapes `\b` (edge-case-hunter) -- not this table or class.
+  - `[low]` `[reject]` `(?i)` over-flags `Settings`-like globals (edge-case-hunter) -- none exists; an over-flag is loud.
+  - `[low]` `[reject]` `GOVERNANCE`'s setting prefix (blind-hunter) -- outside the rework range, not high, no current match.
+  - `[low]` `[reject]` Epic 22's edit of the `CALLBACKHELPERS` lines and the missing Contended overlaps rows; another area's test files under "Lane A files only"; the follow-up pass's counts and DW-1245's "Done:" text (blind-hunter, acceptance-auditor) -- each fix is a spec edit; the merge note goes to the lead.
 
 ## Design Notes
 
@@ -531,6 +564,8 @@ Every command uses the lane-B variables `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCU
 - (CI rework 2, review) mutation: drop the word boundary after `\$ClassMethod\(.OcuTalon\.Data\.Setting` -> `TestOnlyRunTimeWriter` ("and a $ClassMethod call on them"), observed red, restored
 - (CI rework 2, review) mutation: narrow the global branch's `[DIS]?` to `[D]?` -> `TestOnlyRunTimeWriter` ("the scanner flags the index global" and "the stream global"), observed red, restored
 - (CI rework 2, review) mutation: drop the `SettingSnap` row from `Test.Data.Tables` `XData Registry` -> `TestEveryTableIsRegistered` ("OcuTalon.Data.SettingSnapshot has a registry row"), observed red, restored
+- (CI rework 2, re-review) mutation lines: every recorded `(CI rework 2)` line was checked against the test and is accurate, so none was added; the re-review's only code change is a doc comment.
+- (CI rework 2, re-review) verification: the reviewer ran `Test.Data.Tables`, `Test.Core.SettingsOps` (with the doc-comment patch), `Test.Bridge.CodeRules` and `Test.Eval.Incident` on fresh lane-B throwaways (tag e36s1c3, one class per call). All passed, and the tag was torn down.
 - Shared-surface note: the leak-scan surfaces of `SettingSecret.TestSecretAppearsNowhere` other than the global scan (`Leaks`) have no consumer of the setting tables in this story, so they are a guard that becomes live when Story 23.3's evidence pack reads `SettingChange`; each also asserts its read produced output.
 
 **Shared surfaces:**
@@ -539,7 +574,7 @@ Every command uses the lane-B variables `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCU
 - `Checks.Tick`'s steps (every test that drives `Test.Watch.Case.Tick`).
 - `OrdersDefinition.Put` (`Test/Watch/Evidence.cls`, `Test/Eval/Record.cls`): its default call is unchanged.
 - `Reader.Current`'s parameter list (every Reader method calls it; the new flag is appended last).
-- The `^OcuTalon*` global set that `SecretHandoff.Leaks` scans: the two new globals hold no other test's secret.
+- The `^OcuTalon*` global set that `SecretHandoff.Leaks` scans: the two new globals hold no other test's secret. `Eval.Incident` `TestToolsWriteNothing` checksums the same set and retries over its `ATTEMPTS` windows.
 - The spine's ownership tables.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
