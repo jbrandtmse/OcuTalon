@@ -3911,3 +3911,6 @@
 2026-11-13T09:00:44Z	Epic 36	amendments_verified	amendments=epics_36.1/36.2/36.3/36.4 extensions=Install/Step/Watch.cls,short-names.tsv,Test/Bridge/CodeRules.cls,Test/Data/Tables.cls ok=true
 2026-11-13T09:00:44Z	Epic 36	merge_enqueued	part=36.1+36.2 head=16499946
 2026-11-13T09:02:20Z	Epic 36	epic_merged_to_feature	part=36.1+36.2 feature_sha=ea10d2d4 merge_sha=ea10d2d4 code=20e3655a+feature(auto-merged_appends:Test/Data/Tables.cls,Test/Msg/Contracts.cls,short-names.tsv) spine_reconciled=Tables_line_union,rows_both lint=baseline verified_on_origin=yes
+2026-11-13T09:02:46Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=0898ebfb runs=43381440110,43381440045 result=success
+2026-11-13T09:02:46Z	Epic 23	ledger_routed_planned	story=23-3 entries=1(DW-1225) by=merge_gate
+2026-11-13T09:02:46Z	Epic 24	ledger_routed_planned	story=24-3 entries=1(DW-1251) by=merge_gate

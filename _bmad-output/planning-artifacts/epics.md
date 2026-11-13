@@ -8049,6 +8049,7 @@ So that the likely cause and its fix arrive together.
 **When** this story lands
 **Then** it holds at least two recorded incidents caused by setting changes, each with a recorded reader snapshot that includes setting history and an expected cause category and element at fault, scored on every run like every other incident (FR-62, FR-24, AD-22)
 **And** CI mock scenarios under `ci/mock/scenarios/A/` cover a setting-change diagnosis that proposes a rollback, and a test proves its dry run changes nothing (AD-16, AD-22)
+- DW-1225: AC moved from 36.1 (Contest Planner V1(b)): this story declares Fix.Kind.RollbackSetting with its RESOURCES entry, grants %Ens_ProductionConfig:W to OcuTalonServiceRole (the online-demo install leaves it out), adds exactly one forbidden-list test exception, changes the security overview's ONLINESTATEMENT, adds its overview sentence, and ships incident.settingChangeCause; result.settingRestored keeps its undo sentence only if this story builds and tests the undo path (ledger; routed by merge_gate 2026-11-13)
 
 ### Story 23.4: Decide when to page the on-call person and when to escalate to the backup
 
@@ -8385,6 +8386,7 @@ So that the backup is woken only when the on-call person really didn't answer.
 **Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, escalation timers survive the restart, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
 
 ### Story 24.4: Show the new fixes, partner warnings and setting changes on the cards
 
