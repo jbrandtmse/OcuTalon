@@ -22,6 +22,10 @@
 ///   - TestFeedRemoved: Install over the running feed succeeds and runs, and after the OnAfterAllTests of another instance that holds only the feed no
 ///     namespace, database, folder, resource, grant, marker, role or web application of the feed is left, the service role's Resources are what they
 ///     were before the feed, and Reader.Productions lists no feed;
+///   - (Story 0.27, DW-1192) TestHeldOutCommittedIsCurrent: OnBeforeAllTests also sends the inputs of the held-out incidents (Feed.Fixture HeldOutCases)
+///     and re-induces each; their names and the incident cases of eval/held-out/ are the same set, no name is one of the feed's other cases, and for
+///     each, in this run's recording and in the committed eval/held-out/<name>/snapshot.json, the source is the feed's item, every failure holds every
+///     errorHas marker, and the pack of the committed snapshot equals the live pack once VOLATILE is removed from both;
 ///   - TestNoIncidentMade: the Orders WatchMark was held while the failures were sent, and the recordings made no Orders incident;
 ///   - TestCleanRemovesBatch: the OnAfterAllTests of a run removes the messages of a batch of one order, its folder, the hold and the fixture settings
 ///     left in the Orders definition, with an OK status;
@@ -53,6 +57,9 @@ Parameter RECIPES = "orders-date-format,orders-date-no-evidence";
 /// The fields of an evidence pack that a re-induced incident cannot repeat (row ids and times), comma-separated. A dotted name is a field of an object
 /// field, and a field of every entry of a list.
 Parameter VOLATILE = "firstAt,lastAt,sample.headerId,sample.at,trace.headerId,trace.timeCreated";
+
+/// The set of Feed.Fixture that holds the inputs of the held-out incidents (eval/held-out/, Story 0.27).
+Parameter HELDOUTSET = "HeldOutCases";
 
 /// The folder of this class's captures; each run uses a folder of its own below it.
 Parameter TMP = "/tmp/zz-eval-record/";
@@ -89,6 +96,9 @@ Property FeedInstalled As %Boolean;
 /// By the name of each case of the feed, the reference that is the SuperSession of the case's messages.
 Property FeedRefs As %DynamicObject;
 
+/// By the name of each held-out incident (Feed.Fixture HeldOutCases), the reference that is the SuperSession of its messages.
+Property HeldOutRefs As %DynamicObject;
+
 /// The Resources of the service role before the feed was installed (after a leftover was removed), as the security database holds them.
 Property RoleBefore As %String(MAXLEN = 4000);
 
@@ -115,6 +125,7 @@ Method OnBeforeAllTests() As %Status
 	Set ..HoldChecked = 0
 	Set ..FeedInstalled = 0
 	Set ..FeedRefs = {}
+	Set ..HeldOutRefs = {}
 	Set ..RoleBefore = ""
 	Set ..Start = ""
 	Set ..Folder = ##class(%File).NormalizeDirectory(##class(%File).SubDirectoryName(..#TMP, ##class(OcuTalon.Bridge.Ids).NewRef()))
@@ -142,6 +153,10 @@ Method OnBeforeAllTests() As %Status
 		Set recipes = $ListFromString(..Recipes()), position = 0
 		While (..Missing = "") && $ListNext(recipes, position, name) {
 			Do ..Make(name)
+		}
+		Set held = $ListFromString(##class(OcuTalon.Test.Eval.Feed.Fixture).Names(..#HELDOUTSET)), position = 0
+		While (..Missing = "") && $ListNext(held, position, name) {
+			Do ..Make(name, ..#HELDOUTSET)
 		}
 	} Catch exception {
 		Set ..Missing = "The incidents could not be recorded: "_exception.DisplayString()
@@ -185,11 +200,13 @@ Method InstallFeed() [ Private ]
 	Set ..FeedInstalled = 1
 	Set sc = ##class(OcuTalon.Test.Eval.Feed.Fixture).Install()
 	If $$$ISOK(sc) Set sc = ##class(OcuTalon.Test.Eval.Feed.Fixture).Start(.refs)
+	If $$$ISOK(sc) Set sc = ##class(OcuTalon.Test.Eval.Feed.Fixture).Start(.held, ..#HELDOUTSET)
 	If $$$ISERR(sc) {
 		Set ..Missing = "The test feed could not be installed and started: "_$SYSTEM.Status.GetErrorText(sc)
 		Quit
 	}
 	Set ..FeedRefs = refs
+	Set ..HeldOutRefs = held
 }
 
 /// Releases the Orders WatchMark when held is 1, deletes the folder with everything in it, and deletes the Orders messages of the batches (the
@@ -205,10 +222,11 @@ ClassMethod Clean(refs As %DynamicArray, folder As %String, held As %Boolean) As
 }
 
 /// Induces the incident, builds the live pack and captures the same failures with Eval.Record; keeps the three in Recorded. A fault ends the
-/// recordings, with the reason in Missing.
-Method Make(name As %String) [ Private ]
+/// recordings, with the reason in Missing. set is "" for a recipe of Recipes(), or HELDOUTSET for a held-out incident, whose committed case is
+/// eval/held-out/<name>/case.json.
+Method Make(name As %String, set As %String = "") [ Private ]
 {
-	Set sc = ..Induce(name, .namespace, .production, .item, .keys)
+	Set sc = ..Induce(name, .namespace, .production, .item, .keys, set)
 	If $$$ISERR(sc) {
 		Set ..Missing = "The incident "_name_" could not be induced: "_$SYSTEM.Status.GetErrorText(sc)
 		Quit
@@ -223,9 +241,9 @@ Method Make(name As %String) [ Private ]
 		Set ..Missing = "The live pack of "_name_" could not be built: "_$SYSTEM.Status.GetErrorText(sc)
 		Quit
 	}
-	Set committed = ##class(OcuTalon.Test.Eval.Cases).Read(##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER), name)
+	Set committed = ##class(OcuTalon.Test.Eval.Cases).Read($Select(set = "": ##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER), 1: ..HeldOutFolder()), name)
 	If '$IsObject(committed) {
-		Set ..Missing = "eval/"_name_"/case.json does not exist"
+		Set ..Missing = $Select(set = "": "eval/", 1: "eval/held-out/")_name_"/case.json does not exist"
 		Quit
 	}
 	Set case = {"name": (name), "description": (committed.description), "expectation": (committed.expectation)}
@@ -294,10 +312,15 @@ ClassMethod RecordNoEvidence(folder As %String) As %Status
 
 /// Gives where and which the failures of the incident are: the namespace, production and item they are at and the keys of their failed headers (h<id>,
 /// ascending). For the demo's incidents it sends the failures into the Orders production (SendBatch: the date-format batch of 50, or SendNoEvidence's batch of 3) and keeps the batch's reference in Refs; for a case of the test feed it
-/// waits for the failures that OnBeforeAllTests sent. An unknown name is an error.
-Method Induce(name As %String, Output namespace As %String, Output production As %String, Output item As %String, Output keys As %String) As %Status
+/// waits for the failures that OnBeforeAllTests sent; for set HELDOUTSET, a held-out incident of the feed, likewise. An unknown name is an error.
+Method Induce(name As %String, Output namespace As %String, Output production As %String, Output item As %String, Output keys As %String, set As %String = "") As %Status
 {
 	Set keys = ""
+	If set '= "" {
+		Set ref = ..HeldOutRefs.%Get(name)
+		If ref = "" Quit $$$ERROR($$$GeneralError, "The test feed sent no batch for the held-out incident "_name)
+		Quit ##class(OcuTalon.Test.Eval.Feed.Fixture).Keys(name, ref, .namespace, .production, .item, .keys, set)
+	}
 	If $IsObject(##class(OcuTalon.Test.Eval.Feed.Fixture).Definition(name)) {
 		Set ref = ..FeedRefs.%Get(name)
 		If ref = "" Quit $$$ERROR($$$GeneralError, "The test feed sent no batch for the case "_name)
@@ -507,6 +530,52 @@ Method TestFeedCasesRecorded()
 			Set expected.recordedBy = ##class(OcuTalon.Eval.Record).#RECORDEDBY
 			Do $$$AssertEquals(committed.%ToJSON(), expected.%ToJSON(), name_": the committed case.json is the case of the definition")
 		}
+	}
+}
+
+/// (Story 0.27, DW-1192) The held-out incidents (Feed.Fixture HeldOutCases) are the incident cases of eval/held-out/, in both directions, and none of
+/// them is a case of the feed's evaluation set. For each, in this run's recording (the reader's answer) and in the committed
+/// eval/held-out/<name>/snapshot.json, the source is the feed's item, there are as many failures as the inputs have messages and every error holds every
+/// errorHas marker (AssertFeedSnapshot); and the pack that Build gives the committed snapshot equals the live pack once VOLATILE is removed from both, so
+/// a held-out snapshot that went stale against Capture or EvidencePack fails here as the evaluation set's do in TestCommittedIsCurrent.
+Method TestHeldOutCommittedIsCurrent()
+{
+	If '..Guard() Quit
+	Set fixture = "OcuTalon.Test.Eval.Feed.Fixture"
+	Set folder = ..HeldOutFolder()
+	Set held = $ListFromString($ClassMethod(fixture, "Names", ..#HELDOUTSET)), cases = ..IncidentCases(folder), main = $ListFromString($ClassMethod(fixture, "Names"))
+	Do $$$AssertTrue($ListLength(held) > 0, "the feed holds the inputs of the held-out incidents: "_$ListLength(held))
+	Set position = 0
+	While $ListNext(cases, position, name) {
+		Do $$$AssertTrue($ListFind(held, name), name_": the incident case of eval/held-out/ has inputs in "_..#HELDOUTSET)
+	}
+	Set position = 0
+	While $ListNext(held, position, name) {
+		Do $$$AssertTrue($ListFind(cases, name), name_": the held-out inputs have an incident case in eval/held-out/")
+		Do $$$AssertNotTrue($ListFind(main, name), name_": the held-out incident is not a case of the feed's evaluation set")
+	}
+	Set iterator = $ClassMethod(fixture, "Definitions", ..#HELDOUTSET).%GetIterator()
+	While iterator.%GetNext(, .definition) {
+		Set name = definition.name
+		Do $$$AssertTrue($IsObject(definition.errorHas) && (definition.errorHas.%Size() > 0), name_": the held-out inputs name the markers of the error")
+		Set entry = ..Entry(name)
+		If $IsObject(entry) {
+			Do $$$AssertEquals(entry.error, "", name_": Capture succeeded")
+			Do ..AssertFeedSnapshot(name_" (this run)", definition, entry.answer)
+		}
+		Set file = ##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#SNAPSHOTFILE, ##class(%File).SubDirectoryName(folder, name))
+		Do $$$AssertTrue(##class(%File).Exists(file), name_": the committed held-out snapshot exists")
+		If '##class(%File).Exists(file) Continue
+		Set snapshot = ""
+		Do $$$AssertStatusOK(##class(OcuTalon.Watch.EvidencePack).Load(file, .snapshot), name_": the committed held-out snapshot is a reader snapshot")
+		If '$IsObject(snapshot) Continue
+		Do ..AssertFeedSnapshot(name_" (committed)", definition, snapshot)
+		If '$IsObject(entry) Continue
+		Do $$$AssertStatusOK(##class(OcuTalon.Watch.EvidencePack).Build(snapshot, .committed), name_": Build reads the committed held-out snapshot")
+		If '$IsObject(committed) Continue
+		Set stable = ..Stable(committed)
+		Do $$$AssertTrue($IsObject(stable.sample) && (stable.count > 0) && (stable.item '= "") && (stable.errorPattern '= ""), name_": what VOLATILE leaves of the committed pack is not empty")
+		Do ..AssertSamePack(name_": the committed held-out snapshot's pack equals the live pack apart from VOLATILE", stable, ..Stable(entry.live))
 	}
 }
 
@@ -967,6 +1036,12 @@ Method Entry(name As %String) As %DynamicObject [ Private ]
 	Set entry = ..Recorded.%Get(name)
 	Do $$$AssertTrue($IsObject(entry), name_": the incident was recorded in OnBeforeAllTests")
 	Quit $Select($IsObject(entry): entry, 1: "")
+}
+
+/// The held-out set's folder (eval/held-out/ below Eval.In FOLDER).
+ClassMethod HeldOutFolder() As %String [ Private ]
+{
+	Quit ##class(%File).NormalizeDirectory(##class(%File).SubDirectoryName(##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER), "held-out"))
 }
 
 /// The names of the incident cases that the folder holds, as a list, in the order of Eval.In CaseNames.

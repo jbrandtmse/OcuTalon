@@ -499,6 +499,7 @@ services:
       OCUTALON_MODEL_BASE_URL: http://mock:8080/v1/
       OCUTALON_MOCK_KEY_HEADER: "1"
       OCUTALON_TEST_PLAIN_SMTP: "1"
+      OCUTALON_TEST_OAUTH_MOCK: "1"
       OCUTALON_TELEGRAM_API_BASE: http://mock:8080
       TELEGRAM_BOT_TOKEN: ocutalon-ci-dummy-bot-token
     volumes:
@@ -578,6 +579,13 @@ ci_sets_plain_smtp_for_iris() {
     && [ "$(ci_block iris | grep -cx '      OCUTALON_TEST_PLAIN_SMTP: "1"')" -eq 1 ]
 }
 
+# The CI-only OAuth2 mock switch of Story 21.3 (ruling 4): the iris block sets OCUTALON_TEST_OAUTH_MOCK to "1", once, and nothing else in the file
+# mentions it.
+ci_sets_oauth_mock_for_iris() {
+  [ "$(code "$ci" | grep -c 'OCUTALON_TEST_OAUTH_MOCK')" -eq 1 ] \
+    && [ "$(ci_block iris | grep -cx '      OCUTALON_TEST_OAUTH_MOCK: "1"')" -eq 1 ]
+}
+
 # The Bot API wiring of Story 10.3: the iris block sets OCUTALON_TELEGRAM_API_BASE to the mock, once, and TELEGRAM_BOT_TOKEN to the dummy,
 # once, and no other line of the file names either variable.
 ci_sets_telegram_base_for_iris() {
@@ -604,6 +612,77 @@ mock_key_header_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_MOCK_KEY_HEADER' "
 # Only ci/compose.ci.yml sets the plain-SMTP switch (Story 21.6): no surface that ships or that a developer starts without the CI override names it.
 plain_smtp_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_TEST_PLAIN_SMTP' "$1"; }
 
+# Only ci/compose.ci.yml sets the OAuth2 mock switch (Story 21.3): no surface that ships or that a developer starts without the CI override names it.
+oauth_mock_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_TEST_OAUTH_MOCK' "$1"; }
+
+# Every compose file of the repository outside the CI override, and every Dockerfile, is free of the OAuth2 mock switch (the shipped compose files and
+# the image never set it). The list comes from git, so a compose file added later is covered.
+oauth_mock_only_in_ci() {
+  local f n=0
+  while IFS= read -r f; do
+    [ "$f" = "$ci" ] && continue
+    n=$((n + 1))
+    oauth_mock_absent "$f" || return 1
+  done < <(git ls-files -- '*compose*.yml' '*compose*.yaml' 'Dockerfile' '*/Dockerfile' | grep -v '\.cls$')
+  [ "$n" -ge 5 ]
+}
+
+# Story 21.3 (U-320 conditions 2 and 7): nothing that installs or starts the product touches IRIS's OAuth2 objects or the web application /csp/sys/oauth2. The web
+# application is enabled only by Channel.Email.OAuth during an admin's register or sign-in action (the class test TestOnlyOneCallerOfTheClass pins the classes), so no
+# Dockerfile, compose file, install script, package manifest, CPF merge, start or health script, preload or Python source names it, on the online demo or anywhere
+# else. The list comes from git, so a file added later under these paths is covered. The built web bundle under src/ocutalon/csp/ is not scanned (Story 0.34): the
+# release cut commits it, and its JavaScript only shows the admin the redirect path to register with the provider; a browser bundle cannot enable that web
+# application or create OAuth2 objects.
+# oauth_install_paths_clean <repository> <floor> passes when no listed file of that repository names them and at least <floor> files were scanned.
+oauth_install_paths_clean() {
+  local dir=$1 floor=$2 f n=0
+  while IFS= read -r f; do
+    [ -f "$dir/$f" ] || continue
+    n=$((n + 1))
+    if grep -qiE 'csp/sys/oauth2|OAuth2\.(Client|ServerDefinition|AccessToken)' "$dir/$f"; then
+      echo "names IRIS's OAuth2 objects or /csp/sys/oauth2: $f"
+      return 1
+    fi
+  done < <(git -C "$dir" ls-files -- Dockerfile 'docker-compose*.yml' install.sh module.xml .env.example 'docker/*' 'release/*' 'src/cpf/*' 'src/module.xml' 'src/preload/*' 'preload/*' 'src/ocutalon/python/*' '.github/*' ci/compose.ci.yml 'ci/*.sh' | grep -v '^docker/tests/')
+  [ "$n" -ge "$floor" ]
+}
+oauth_app_untouched_by_install_paths() { oauth_install_paths_clean . 40; }
+
+# Story 0.34: the same scan on a throwaway repository that holds a clean Dockerfile, with the redirect path the web bundle shows appended to <file>. Prints the
+# scan's output and returns its status (0 clean, 1 named); a fixture that cannot be built, or whose <file> git does not track, returns 2. Git runs without the
+# caller's GIT_DIR, GIT_WORK_TREE or GIT_INDEX_FILE and without global, system or XDG settings, so no ignore rule outside the fixture decides what is tracked.
+oauth_scan_fixture() ( # oauth_scan_fixture <file>
+  local w rc
+  unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
+  w=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-oauth-scan.XXXXXX") || return 2
+  export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 XDG_CONFIG_HOME="$w/.git/xdg"
+  if ! { git -C "$w" init -q && mkdir -p "$w/$(dirname "$1")" && printf 'FROM scratch\n' > "$w/Dockerfile" &&
+    printf 'const REDIRECT_PATH = "%s";\n' '/csp/sys/oauth2/OAuth2.Response.cls' >> "$w/$1" && git -C "$w" add -A -f &&
+    git -C "$w" ls-files --error-unmatch -- "$1" >/dev/null 2>&1; }; then
+    rm -rf "$w"
+    return 2
+  fi
+  oauth_install_paths_clean "$w" 1
+  rc=$?
+  rm -rf "$w"
+  return "$rc"
+)
+oauth_scan_fixture_cannot_build() { # passes when a fixture with no temporary folder, or no file to plant the path in, returns 2
+  local rc
+  TMPDIR=/nonexistent/ocutalon oauth_scan_fixture src/ocutalon/csp/x.js
+  rc=$?
+  [ "$rc" -eq 2 ] || return 1
+  oauth_scan_fixture ''
+  rc=$?
+  [ "$rc" -eq 2 ]
+}
+oauth_scan_fixture_names() { # passes when the scan fails on <file> and names exactly that file
+  local out rc
+  out=$(oauth_scan_fixture "$1")
+  rc=$?
+  [ "$rc" -eq 1 ] && [ "$out" = "names IRIS's OAuth2 objects or /csp/sys/oauth2: $1" ]
+}
+
 # Only ci/compose.ci.yml sets the Bot API base and gives a bot token a value (Story 10.3): the file must exist, must not name the base and
 # must not hold the dummy token. A judge's file may still name TELEGRAM_BOT_TOKEN, as an empty key to fill in (.env.example) or as a
 # variable to read.
@@ -612,6 +691,13 @@ telegram_wiring_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_TELEGRAM_API_BASE'
 check "ci: the file is exactly the mock's wiring (project name, iris variables and log volume, mock service, log volume)" ci_file_is_exact
 check "ci: the iris service sets OCUTALON_MOCK_KEY_HEADER to \"1\", once, and no other line names it" ci_sets_mock_key_header_for_iris
 check "ci: the iris service sets OCUTALON_TEST_PLAIN_SMTP to \"1\", once, and no other line names it" ci_sets_plain_smtp_for_iris
+check "ci: the iris service sets OCUTALON_TEST_OAUTH_MOCK to \"1\", once, and no other line names it" ci_sets_oauth_mock_for_iris
+check "ci: no compose file or Dockerfile outside ci/compose.ci.yml names OCUTALON_TEST_OAUTH_MOCK" oauth_mock_only_in_ci
+check "install: no Dockerfile, compose file, script, manifest, CPF merge or preload names /csp/sys/oauth2 or IRIS's OAuth2 objects (the web application is enabled only by an admin's sign-in action)" oauth_app_untouched_by_install_paths
+check "install: the OAuth2 scan skips the built web bundle: the redirect path in src/ocutalon/csp/x.js passes (a throwaway repository)" oauth_scan_fixture src/ocutalon/csp/x.js
+check "install: the OAuth2 scan still fails the redirect path in a Dockerfile, and names it (a throwaway repository)" oauth_scan_fixture_names Dockerfile
+check "install: the OAuth2 scan still fails the redirect path in docker/merge.cpf, and names it (a throwaway repository)" oauth_scan_fixture_names docker/merge.cpf
+check "install: an OAuth2 scan fixture that cannot be built returns 2, never a pass (no temporary folder, or no file to plant the path in)" oauth_scan_fixture_cannot_build
 check "ci: the iris service sets OCUTALON_TELEGRAM_API_BASE to the mock, once, and no other line names it" ci_sets_telegram_base_for_iris
 check "ci: the iris service sets TELEGRAM_BOT_TOKEN to the dummy, once, and no other line names it" ci_sets_telegram_token_for_iris
 check "ci: the dummy bot token matches no key pattern" ci_dummy_token_is_no_key
@@ -619,6 +705,7 @@ for f in "$compose" "$dev" "$dockerfile" .env.example docker/merge.cpf docker/he
   docker/tests/compose.throwaway.yml docker/tests/lib-live.sh; do
   check "judges: $f does not name OCUTALON_MOCK_KEY_HEADER (only ci/compose.ci.yml sets it)" mock_key_header_absent "$f"
   check "judges: $f does not name OCUTALON_TEST_PLAIN_SMTP (only ci/compose.ci.yml sets it)" plain_smtp_absent "$f"
+  check "judges: $f does not name OCUTALON_TEST_OAUTH_MOCK (only ci/compose.ci.yml sets it)" oauth_mock_absent "$f"
   check "judges: $f names neither OCUTALON_TELEGRAM_API_BASE nor the dummy bot token (only ci/compose.ci.yml sets them)" telegram_wiring_absent "$f"
 done
 check "ci: top-level name ocutalon-ci" has_line "$ci" '^name:[[:space:]]*ocutalon-ci[[:space:]]*$'

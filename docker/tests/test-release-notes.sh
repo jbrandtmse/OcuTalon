@@ -26,8 +26,9 @@
 #   - no-network: the stubs for curl, wget, gh, ssh and nc are live (a call leaves a marker), and a run leaves none;
 #   - library: release_previous_tag and names_outside_section;
 #   - static: the rules on release/notes.sh and on this file; the not-affiliated note of release/notes.sh, release/checklist.sh and
-#     README.md is one text; names_outside_section finds nothing in README.md, as the README's own rule does, except the line that
-#     equals the IPM_LOAD value of test-readme.sh word for word (a changed load line is still reported; no IPM_LOAD value fails);
+#     README.md is one text; names_outside_section finds nothing in README.md or GUIDE.md, as test-readme.sh's dev-only rule does,
+#     except the line that equals the IPM_LOAD value of test-readme.sh word for word (a changed load line is still reported; no
+#     IPM_LOAD value fails);
 #   - real-tree: the real mapping parses and names real story and epic headings; a run on a fresh repository holding the real scripts,
 #     mapping, module.xml, tracker and epics.md of HEAD (no tag) passes stories, dev-only and public-text, and its areas row passes or
 #     fails only for epics outside release 1 (RELEASE1_EPICS); notes.sh itself still fails areas for such an epic.
@@ -327,7 +328,7 @@ t_base() {
 
 # The IPM package and the registry install (Story 15.4): copied lines, the slot, and a record without the sections.
 t_ipm() {
-  local pub slot="Not run yet. After this version is published to the package registry, the README's two commands are run once against the registry on a clean build 154 instance, and the result is recorded here."
+  local pub slot="Not run yet. After this version is published to the package registry, the guide's two commands are run once against the registry on a clean build 154 instance, and the result is recorded here."
   newcase
   {
     cat "$rec"
@@ -916,10 +917,10 @@ t_static() {
   ipm_load=$(sed -n "s/^IPM_LOAD='\(.*\)'\$/\1/p" docker/tests/test-readme.sh)
   [ -n "$ipm_load" ] || { echo "  static: docker/tests/test-readme.sh holds no IPM_LOAD='...' line"; bad=1; }
   printf '%s\n%sx\nThe class %s does it.\n' "$ipm_load" "$ipm_load" "$PLANT_CLASS" > "$tmp/ipm.md"
-  for s in "$tmp/ipm.md" README.md; do
+  for s in "$tmp/ipm.md" README.md GUIDE.md; do
     o=$(. docker/tests/lib-scan.sh; names_outside_section '## For admins and developers' "$s" |
       while IFS=: read -r f n; do [ -n "$ipm_load" ] && [ "$(sed -n "${n}p" "$f")" = "$ipm_load" ] || printf '%s:%s\n' "$f" "$n"; done)
-    if [ "$s" = README.md ]; then eq "names_outside_section on README.md" "$o" ""
+    if [ "$s" = README.md ] || [ "$s" = GUIDE.md ]; then eq "names_outside_section on $s" "$o" ""
     else eq "break: the load line changed and a class name are reported" "$(printf '%s' "$o" | tr '\n' ' ')" "$s:2 $s:3"; fi
   done
 }

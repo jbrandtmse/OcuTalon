@@ -76,7 +76,7 @@ NOTES_TRACKER=_bmad-output/implementation-artifacts/sprint-status.yaml
 NOTES_EPICS=_bmad-output/planning-artifacts/epics.md
 NOTES_DEV_HEADING='## For admins and developers'
 NOTES_FORMAT='ocutalon.evalResult/1'
-NOTES_REGISTRY_SLOT="Not run yet. After this version is published to the package registry, the README's two commands are run once against the registry on a clean build 154 instance, and the result is recorded here."
+NOTES_REGISTRY_SLOT="Not run yet. After this version is published to the package registry, the guide's two commands are run once against the registry on a clean build 154 instance, and the result is recorded here."
 NOTES_ROWS="stories areas eval rehearsal upgrade dev-only public-text"
 
 # The inspiration's name and its not-affiliated note, assembled here so that this file never spells the name.

@@ -42,12 +42,18 @@
 ///     the CSP session's Ref (AD-4), and answers: Ok 200 {"result":"done","sections"}; a refused value, a missing or unknown field or a body that is not an object 400
 ///     bad_settings with "fields", the names of the refused fields; not_built 501; step_failed (the demo step failed after the value was written)
 ///     409 demo_step_failed; not_audited, failed and any other outcome or status 500 server_error.
-///     POST /v1/settings/channels (Story 21.2; AD-1, AD-19) connects the POP3 mailbox: SaveChannels takes {address, incoming, user, password} (the password may
-///     be absent or empty to keep the stored one). With the online demo on it answers 409 not_available (MESSAGENOTAVAILABLE) before it reads the body. A
-///     password of more than 256 characters is 400 bad_settings with fields ["password"] and is not offered; any other non-empty password string is
-///     offered to SecretHandoff (in memory; the REST process stores nothing) and only the reference secret://handoff/<name> goes in the SaveSettings
-///     command's body, so the password is in no command, message or log. After the submit returns, whatever it answered, an untaken secret is discarded.
-///     The answers are those of Answer, with not_available 409.
+///     POST /v1/settings/channels (Stories 21.2, 21.6 and 21.3; AD-1, AD-19) connects the mailbox: SaveChannels takes {address, incoming, outgoing, user, signIn,
+///     clientId, password, clientSecret}; outgoing, signIn (password, google or microsoft; default password), clientId, password and clientSecret are optional (an absent
+///     or empty password or clientSecret keeps the stored one), and the body may not hold origin. With the online demo on it answers 409 not_available
+///     (MESSAGENOTAVAILABLE) before it reads the body. A password or clientSecret of more than 256 characters, or that is not a string, is 400 bad_settings naming it and
+///     nothing is offered; every other non-empty one is offered to SecretHandoff (in memory; the REST process stores nothing) and only the reference
+///     secret://handoff/<name> goes in the SaveSettings command's body, so no secret is in any command, message or log. The body also gets origin, the http or https
+///     origin of the request (PageOrigin), from which SettingsOps makes the OAuth2 redirection endpoint. After the submit returns, whatever it answered, every untaken
+///     secret is discarded. The answers are those of Answer, with not_available 409.
+///     POST /v1/settings/channels/sign-in (Story 21.3; AD-1) takes exactly {"action": "start"|"check"} (anything else is 400 bad_settings with fields ["action"]) and
+///     submits one MailSignIn (origin web_admin, the IRIS user of the call, the CSP session's Ref, PageOrigin): start answers 200 {"result":"started","url"}, the address
+///     that opens IRIS's authorization flow in a new tab, and check 200 {"result":"checked","signedIn"}; a client that is not registered is 400 bad_settings with
+///     fields ["signIn"]; on the online demo it is 409 not_available before the body is read; any other outcome or status is 500 server_error.
 ///     POST /v1/settings/models takes {"agents", "prices"} (SettingsOps' models section); POST /v1/settings/models/test takes exactly {"agent": string} and submits one
 ///     TestModel (origin web_admin): Ok 200 {"answered", "seconds", "reason"}; a bad body or an agent that is refused 400 bad_settings with fields ["agent"]; any
 ///     other outcome or status 500 server_error.
@@ -273,6 +279,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/settings/models/test" Method="POST" Call="TestModel"/>
 <Route Url="/v1/settings/budgets" Method="POST" Call="SaveBudgets"/>
 <Route Url="/v1/settings/channels" Method="POST" Call="SaveChannels"/>
+<Route Url="/v1/settings/channels/sign-in" Method="POST" Call="SignInMail"/>
 <Route Url="/v1/settings/daily-digest" Method="POST" Call="SaveDailyDigest"/>
 <Route Url="/v1/settings/daily-digest/send" Method="POST" Call="SendDigest"/>
 <Route Url="/v1/settings/time-zone" Method="POST" Call="SaveTimeZone"/>
@@ -908,36 +915,38 @@ ClassMethod SaveCheckThresholds() As %Status
 	Quit ..SaveSection("check-thresholds")
 }
 
-/// POST /v1/settings/channels (Story 21.2): see the class description. On the online demo it answers 409 not_available before the body is read. The
-/// body is a JSON object, and anything else is 400 bad_settings with no field and nothing offered or submitted. A password that is present but not
-/// a JSON string, or a string of more than PASSWORDMAX characters, is 400 bad_settings with fields ["password"], nothing offered or submitted, so
-/// that no password value ever reaches the command. Any other non-empty string password
+/// POST /v1/settings/channels (Stories 21.2 and 21.3): see the class description. On the online demo it answers 409 not_available before the body is read. The
+/// body is a JSON object, and anything else is 400 bad_settings with no field and nothing offered or submitted. A body with an origin member is 400 with fields
+/// ["origin"]. A password or clientSecret that is present but not a JSON string, or a string of more than PASSWORDMAX characters, is 400 bad_settings
+/// with the field named, nothing offered or submitted, so that no secret value ever reaches the command. Any other non-empty string secret
 /// is offered to SecretHandoff and replaced in the body by its reference; the SaveSettings command (slug channels, origin web_admin, the IRIS user of
-/// the call, the CSP session's Ref) carries only that reference. Whatever the submit answers, or throws, the reference is then taken with no wait and
-/// the value discarded (a Take of a reference that SettingsOps already took fails harmlessly). The answers are those of Answer.
+/// the call, the CSP session's Ref) carries only those references and the request's origin. Whatever the submit answers, or throws, each reference is then taken with
+/// no wait and the value discarded (a Take of a reference that SettingsOps already took fails harmlessly). The answers are those of Answer.
 ClassMethod SaveChannels() As %Status
 {
 	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 Quit ..Fail(409, "not_available", ..#MESSAGENOTAVAILABLE)
 	If '..SettingsBody(.body) Quit ..BadSettings([])
-	Set type = body.%GetTypeOf("password")
-	Set password = $Select(type = "string": body.password, 1: "")
-	If ((type '= "string") && (type '= "unassigned")) || ($Length(password) > ..#PASSWORDMAX) {
-		Kill password
-		Quit ..BadSettings(["password"])
+	If body.%IsDefined("origin") Quit ..BadSettings(["origin"])
+	Set bad = []
+	For name = "password", "clientSecret" {
+		Set type = body.%GetTypeOf(name)
+		If ((type '= "string") && (type '= "unassigned")) || ((type = "string") && ($Length(body.%Get(name)) > ..#PASSWORDMAX)) Do bad.%Push(name)
 	}
+	If bad.%Size() Quit ..BadSettings(bad)
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
-	If $SYSTEM.Status.IsError(sc) {
-		Kill password
-		Quit ..ServerError(sc)
-	}
-	Set uri = ""
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set uris = ""
 	Try {
-		If password '= "" {
-			Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(password, .uri)
-			Kill password
+		For name = "password", "clientSecret" {
+			Set secret = $Select(body.%GetTypeOf(name) = "string": body.%Get(name), 1: "")
+			If secret = "" Continue
+			Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(secret, .uri)
+			Kill secret
 			If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
-			Do body.%Set("password", uri, "string")
+			Set uris = uris_$ListBuild(uri)
+			Do body.%Set(name, uri, "string")
 		}
+		Do body.%Set("origin", ..PageOrigin(), "string")
 		Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
 		Set command.Slug = "channels"
 		Set command.Changes = body.%ToJSON()
@@ -945,15 +954,63 @@ ClassMethod SaveChannels() As %Status
 		Set command.SessionRef = sessionRef
 		Set sc = ..SubmitChannels(command, .result)
 	} Catch exception {
-		Kill password
+		Kill secret
 		Set sc = exception.AsStatus()
 	}
-	If uri '= "" {
-		Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .discard, 0)
+	Set position = 0
+	While $ListNext(uris, position, one) {
+		Do ##class(OcuTalon.Core.SecretHandoff).Take(one, .discard, 0)
 		Kill discard
 	}
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Quit ..Answer(result, "")
+}
+
+/// POST /v1/settings/channels/sign-in (Story 21.3): see the class description. The online demo answers 409 not_available before the body is read; the body is
+/// exactly {"action": "start" or "check"}. One MailSignIn is submitted through Commands.Submit with origin web_admin.
+ClassMethod SignInMail() As %Status
+{
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 Quit ..Fail(409, "not_available", ..#MESSAGENOTAVAILABLE)
+	If '..SettingsBody(.body) || (body.%Size() '= 1) || (body.%GetTypeOf("action") '= "string") || ((body.action '= "start") && (body.action '= "check")) Quit ..BadSettings(["action"])
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set command = ##class(OcuTalon.Msg.Command.MailSignIn).%New()
+	Set command.Action = body.action
+	Set command.PageOrigin = ..PageOrigin()
+	Set command.ActingUser = $USERNAME
+	Set command.SessionRef = sessionRef
+	Set sc = ..SubmitSignIn(command, .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Outcome = "refused" {
+		Try {
+			Set fields = ##class(%DynamicAbstractObject).%FromJSON(result.Data).fields
+		} Catch {
+			Set fields = ""
+		}
+		Quit ..BadSettings($Select($IsObject(fields): fields, 1: ["signIn"]))
+	}
+	If result.Outcome = "not_available" Quit ..Fail(409, "not_available", ..#MESSAGENOTAVAILABLE)
+	If 'result.Ok || ((result.Outcome '= "started") && (result.Outcome '= "checked")) Quit ..ServerError($SYSTEM.Status.Error(5001, "SettingsOps answered the mail sign-in with '"_result.Outcome_"'"))
+	Try {
+		Set answer = {"result": (result.Outcome)}
+		Set data = ##class(%DynamicAbstractObject).%FromJSON(result.Data)
+		Set iterator = data.%GetIterator()
+		While iterator.%GetNext(.name, .value) {
+			Do answer.%Set(name, value, data.%GetTypeOf(name))
+		}
+	} Catch exception {
+		Return ..ServerError(exception.AsStatus())
+	}
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write answer.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The origin of the request, as the browser envelope checks it: http or https (from %request.Secure) and the Host header. A test subclass overrides it.
+ClassMethod PageOrigin() As %String [ Private ]
+{
+	Quit $Select(%request.Secure: "https", 1: "http")_"://"_%request.GetCgiEnv("HTTP_HOST")
 }
 
 /// The save of one settings section (AD-1, AD-4, AD-19): the body is a JSON object of the section's field to value, and anything else is 400
@@ -977,6 +1034,12 @@ ClassMethod SaveSection(section As %String) As %Status [ Private ]
 
 /// The one submit of SaveChannels: the command through Commands.Submit with origin web_admin. A test subclass overrides it.
 ClassMethod SubmitChannels(command As OcuTalon.Msg.Command.SaveSettings, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+}
+
+/// The one submit of SignInMail: the command through Commands.Submit with origin web_admin. A test subclass overrides it.
+ClassMethod SubmitSignIn(command As OcuTalon.Msg.Command.MailSignIn, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
 }

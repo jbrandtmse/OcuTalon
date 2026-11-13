@@ -707,7 +707,7 @@ test('S12: the Channels section shows the state of Telegram, read only', async (
   } else if (telegram.state === 'off' || telegram.state === 'rejected') {
     await expect(notSetUp, 'a bot that is not set up shows that').toBeVisible();
     const link = page.getByRole('link', { name: 'How to set it up' });
-    await expect(link, 'with the README link').toHaveAttribute('href', /#telegram$/);
+    await expect(link, 'with the guide link').toHaveAttribute('href', /\/GUIDE\.md#telegram$/);
     await expect(link, 'that opens in a new tab').toHaveAttribute('target', '_blank');
   } else {
     await expect(on, 'a bot that is on shows that').toBeVisible();

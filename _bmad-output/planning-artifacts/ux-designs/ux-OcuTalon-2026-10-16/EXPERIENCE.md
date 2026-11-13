@@ -934,13 +934,13 @@ Banners stack in this table's order.
 
 | Banner | Text | Action | Can be closed |
 | --- | --- | --- | --- |
-| Allowance used up: session (danger) | "You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram). You can send more at {time}." | "Install it yourself" (README) | No |
+| Allowance used up: session (danger) | "You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram). You can send more at {time}." | "Install it yourself" (GUIDE.md) | No |
 | Allowance used up: daily cap (danger) | "The online demo has used today's model allowance. Decisions use fixed rules until {time}." | "Install it yourself" | No |
 | Unreachable (danger) | "Can't reach OcuTalon. Retrying every 10 seconds." | None | No |
-| No model key (warning, FR-38) | Step 1: "OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon." From step 2: "…Add a key for a supported provider (for example, ANTHROPIC_API_KEY) to the .env file and restart OcuTalon." | "How to set a key" (README) | No |
+| No model key (warning, FR-38) | Step 1: "OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon." From step 2: "…Add a key for a supported provider (for example, ANTHROPIC_API_KEY) to the .env file and restart OcuTalon." | "How to set a key" (GUIDE.md) | No |
 | Daily cost cap reached (warning, local) | "OcuTalon has reached today's cost limit of {cap}. Decisions use fixed rules until {time}." | "Budgets" (Settings, admins) | No |
 | Heartbeat stalled (warning, FR-32) | "Background checks have paused: the heartbeat last ran at {time}. Watches and reminders may be late until it recovers." | None | No |
-| Bot in use (warning, FR-22) | "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot." | "Set up a bot" (README) | No |
+| Bot in use (warning, FR-22) | "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot." | "Set up a bot" (GUIDE.md) | No |
 | Reset soon (warning) | "The demo resets in 5 minutes. Your session and Telegram pairing will be cleared." | None | Yes |
 | Reconnecting (info) | "Reconnecting… New messages may be delayed." | None | Yes |
 
@@ -985,6 +985,12 @@ Banners stack in this table's order.
 | Sign in with a provider (`settings.emailSignIn`, Settings > Channels, OAuth2 button; the provider is Google or Microsoft 365) | "Sign in with {provider}" |
 | Client ID label (`settings.emailClientId`, Settings > Channels, field label) | "Client ID" |
 | Client secret label (`settings.emailClientSecret`, Settings > Channels, write-only field label) | "Client secret" |
+| Sign-in method label (N1, Story 21.3, ruled U-320, Settings > Channels, radiogroup label) | "Sign-in method" |
+| Sign-in method options (N2, Story 21.3, ruled U-320, Settings > Channels, radiogroup options; the provider name is the `{provider}` of `settings.emailSignIn`) | "Password", "Google", "Microsoft 365" |
+| Redirect address label (N3, Story 21.3, ruled U-320, Settings > Channels, label of the address to register) | "Redirect address" |
+| Redirect address help (N3, Story 21.3, ruled U-320, Settings > Channels, help under the address) | "Add this address to your OAuth2 client at {provider} as an authorized redirect URI." |
+| Signed-in state (N4, Story 21.3, ruled U-320, Settings > Channels, state line when tokens are held) | "Signed in with {provider}." |
+| Not-signed-in state (N4, Story 21.3, ruled U-320, Settings > Channels, state line before sign-in) | "Not signed in yet. Save, then sign in with {provider}." |
 | Webhooks heading (`settings.webhooksHeading`, Settings > Channels, group heading) | "Webhooks" |
 | Webhooks help (`settings.webhooksHelp`, Settings > Channels, webhooks help) | "Other systems can send OcuTalon any JSON event. Each webhook has its own secret, which the sender puts in the X-OcuTalon-Webhook-Secret header." |
 | Webhook name label (`settings.webhookName`, Settings > Channels, field label) | "Name" |

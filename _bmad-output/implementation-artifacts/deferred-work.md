@@ -2940,6 +2940,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T05:58:31Z occurrence=23-5-draft-partner-delay-notices-that-are-sent-only-after-approva note=CI run 42963531773 (52db267d) iris (shards) live:online-allowance D1 S1 the daily cap banner shows (ci-10); classified FLAKE by the orchestrator
 - 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625133 iris(shards) live:online-allowance D1 daily-cap banner (ci-13); OCT-epic25 4af29b25; rerun of failed jobs
 - 2026-11-12T06:04:38Z occurrence=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=ci run 43156101436 iris(shards) live:online-allowance D1 S1 banner on c27ff301; head superseded by the next integrate-forward, so not rerun
+- 2026-11-12T17:12:43Z occurrence=0-30 by=runner note=run_43260265319_job_131329318810_iris(shards)_on_ocutalon-ci-10_live:online-allowance_D1_'S1:_the_daily_cap_banner_shows'_not_found_60s(L147);L134_the_card's_GUIDE_install_link_passed;OCT-epic0_05e29461;one_rerun_of_failed_jobs
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -6678,6 +6679,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T16:15:42Z status=routed owner=burndown by=ci note=flake:install-upgrade_row7;one_rerun_with_the_next_push
 - 2026-11-12T10:33:24Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_109d59c8_run_43172863798_install-upgrade_row7_start_with_failing_step_not_ended_200s;superseded_head
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_install-upgrade_row6_upgrade_not_ready_200s;rerun_failed_jobs_green(attempt2)
+- 2026-11-12T10:09:42Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662764_iris(install-upgrade)_live:install-upgrade_row_6_'the_upgrade_did_not_end_ready_within_200_s'_on_OCT-epic21_ad2255ac(first_start_took_6_min:host_load;21.3_changes_no_install_or_startup_path);judged_again_on_the_integrated_head
+- 2026-11-12T17:26:24Z occurrence=0-30 by=runner note=run_43260265319_job_131329319104_iris(install-upgrade)_on_ocutalon-ci-13_row_6_'the_upgrade_did_not_end_ready_within_200_s';OCT-epic0_05e29461;one_rerun_of_failed_jobs(lane_B_owns_the_fix)
+- 2026-11-12T18:16:53Z occurrence=0-30 by=runner note=run_43260265319_attempt_2_job_131370762952_iris(install-upgrade)_on_ocutalon-ci-9_row_7_'the_next_good_image_did_not_end_ready_within_200_s'(attempt_1_was_row_6_on_ci-13);second_red_of_the_unit_on_05e29461
 
 ### DW-1083: flake candidate: live:reminder-restart 'Telegram park: TelegramOut still has an Ens.Job entry (Alive, dequeuing) 33 s after it was disabled', then the first start did not end ready within 400 s
 - source: spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7124,6 +7128,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: timing assert on the poll interval under CI load; 23.7 changes no live/poll code
 - 2026-11-11T15:17:02Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); one rerun per occurrence; rerun deferred until RESUME (HOLD)
 - 2026-11-12T06:52:37Z occurrence=feature note=74ee76dc ci 43160772937 shards-4 live:sign-in-2 L1 poll gap 2076 ms vs 2000; one rerun
+- 2026-11-12T16:31:02Z occurrence=23-12 note=4444bda0_rerun_attempt2_L1_gap_2088ms
 ### DW-1143: K29 under sign-in-3 (no model, no CI mock) seeds the queue row instead of running press->turn->start_watch->row end to end
 - source: spec-23-7-watch-queue-backlogs-between-digests.md | severity: med | fix-risk: low | footprint: in-story(web/e2e/guide/more-to-try-queues.spec.ts)
 - evidence: sign-in-3 has no CI mock; K29 pins press->one prompt (mutation red); Test.Watch.Turns:TestQueuesThroughTheAgent pins prompt->start_watch(kind queues)->row->check event; rail-view.test.mjs and K29 pin the row render
@@ -7153,6 +7158,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T21:32:07Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun of the failed job when the run completes
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749161 attempt 2)
 - 2026-11-12T10:33:23Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_e7c97dda_run_43170639261_install-fresh_live:install-start_row3_dev_start_not_ready_200s;superseded_head
+- 2026-11-12T17:09:34Z occurrence=0-30 by=runner note=run_43260265319_job_131329318850_iris(install-fresh)_on_ocutalon-ci-13_live:install-start_row_4_'the_restart_did_not_end_ready_within_200_s'(after_STEP_merge_OK_3s;no_quiesce_error;rows_1-3_passed);OCT-epic0_05e29461;one_rerun_of_failed_jobs
+- 2026-11-12T18:07:04Z occurrence=0-30 by=runner note=run_43260265319_attempt_2_job_131370762866_iris(install-fresh)_on_ocutalon-ci-17_live:install-start_row_3_'the_dev_start_did_not_end_ready_within_200_s'(after_STEP_merge_OK_5s;rows_1-2_passed);attempt_1_was_row_4_on_ci-13;second_red_of_the_unit_on_05e29461
 
 ### DW-1161: CI headroom: lane-a ipm-install takes 28-30 min against its 35-min job timeout; under host load it times out (cancelled at 35m0s) with no test failed
 - source: feature c33e0916, lane-a run 43099749306 job ipm-install on ocutalon-ci-10 | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7160,6 +7167,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T21:39:35Z status=routed owner=burndown by=orchestrator note=infra (host load): one rerun per occurrence; a recurrence on a clean queue means the group needs a split (standing CI rule), never a longer timeout
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749306 attempt 2)
 - 2026-11-12T11:30:04Z occurrence=0-28 by=runner note=lane-a_run_43202138310_job_131127975712_ipm-install_on_ocutalon-ci-19_all_steps_success_then_cancelled_at_35m0s(10:52:33-11:27:33Z);host_load;OCT-epic0_2a6cfc67;rerun_failed_jobs_11:30Z
+- 2026-11-12T17:18:12Z occurrence=0-30 by=runner note=lane-a_run_43260265609_job_131329321244_ipm-install_on_ocutalon-ci-19_cancelled_at_35m(16:35:09-17:10:37Z);host_load;OCT-epic0_05e29461;rerun_failed_jobs_17:18Z
 
 ### DW-1163: CI ops: GitHub Actions outage left zombie runs (queued at attempt 1; cancel says completed, rerun says running, force-cancel says not queued); recovery = a fresh push of a bookkeeping-only head, its result read by identity
 - source: OCT-epic21 2242c77d runs 43096469670, 43096469722 (2026-11-11 Actions major outage) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7171,6 +7179,59 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T22:18:46Z status=routed owner=burndown by=cr note=lead: Rule 20 spine write (AD-10 rule 1, AD-21 S3) recording ruling 2(a); no code change
 - 2026-11-11T22:20:57Z status=resolved-by:22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=adjudication note=spine_AD-10_rule1_and_AD-21_S3_now_state_SHA-256_hex_over_server_id,name,description,schema(Rule20_record_of_Planner_ruling_2(a));lint_unchanged
 
+### DW-1179: A provider-mode mailbox keeps EmailIn and EmailOut on the stored credential, which then has no password, so EmailIn's poll fails with the refused-login sentence until the adapters get their OAuth2 settings
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: SaveEmail writes OcuTalonMail with an empty password in provider mode; adapters have no OAuth2 rows, handler or XOAUTH2 yet
+- 2026-11-12T05:15:24Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8's token use makes the poll and the send work in provider mode
+- 2026-11-12T06:03:18Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2
+
+### DW-1180: The privileges that registering the mail OAuth2 client needs are measured only for the throwaway's production user (_Ensemble with %All)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Channel/Email/OAuth.cls Sys ran under _Ensemble (%All on the throwaway); OAuth2.Client/ServerDefinition need %Admin_OAuth2_Client:USE and Security.Applications access on a narrower user (unverified)
+- 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=measure or state the least set, or accept _Ensemble as the documented production user
+- 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=privileges are a veto item; rec: name _Ensemble the measured user, measure AD-24 roles in 21.8 live run
+- 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=orchestrator note=Contest Planner ruling (prompts/epic-21-rulings-213.md, last section): accepted with conditions; 21.3's spec names _Ensemble as the measured production user, which held %All on the throwaway (the run proves the path, not least privilege); Story 21.8's live run lists each privilege that registration needs with a refused-without-it check (AC added to 21.8's block); no public text may claim least privilege
+
+### DW-1181: A SaveEmail that fails after IRIS's OAuth2 client was replaced, changed or removed puts OcuTalon's own stores back but cannot restore the client, its secret or its tokens
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: PutBackEmail restores keys, credential and rows; only a client first registered from Password is removed again
+- 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=hold the old client until the save completes, or accept with a probe
+- 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=fix-risk high (old secret unrecoverable once replaced); rec: wontfix-accepted reopen_if=a failed provider save in CI/smoke
+- 2026-11-12T06:23:54Z status=wontfix-accepted by=orchestrator note=Contest Planner ruling (prompts/epic-21-rulings-213.md, last section): the state lie is fixed in 21.3 (SettingsOps.ForgetClient: after a failed save that already replaced, changed or removed IRIS's client of the old provider, the old provider's client ID is removed, audited, and its mark says not signed in; pinned by Test.Core.SettingsEmail TestFailedReplaceShowsNotRegistered, mutation observed); the IRIS client itself is still not restored; reopen_if=a failed provider save in CI or a smoke leaves Settings showing a provider registered or signed in, or a Register/Remove that IRIS refuses part-way leaves a changed client behind
+
+### DW-1182: The tab where the admin pressed Sign in keeps its state line at Not signed in yet until reloaded; only the landing tab checks
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: email-section.ts: only the signin=1 landing tab posts check; the original tab has no re-check on focus or visibility; spec is silent on it
+- 2026-11-12T06:03:19Z status=wontfix-accepted owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=reopen_if=a smoke or user report confuses the stale original tab with a failed sign-in
+
+### DW-1183: OAuth.SwitchOn with the CI variable unset is never run; TestSwitchOnReadsTheVariable pins its source text only
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: every CI IRIS process has OCUTALON_TEST_OAUTH_MOCK=1 and other tests use the probe's SwitchOn; changing the process env risks other tests
+- 2026-11-12T06:03:19Z status=wontfix-accepted owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=reopen_if=SwitchOn's body changes or the text pin is edited
+
+### DW-1184: The install-path scans for /csp/sys/oauth2 read method code and listed files only; a class Parameter naming the path would pass both
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestOnlyOneCallerOfTheClass reads method code; test-compose-file.sh oauth_app_untouched_by_install_paths lists no src/ocutalon/cls path
+- 2026-11-12T06:03:19Z status=wontfix-theoretical owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=cr note=real if an Install step gains a Parameter or XData naming /csp/sys/oauth2
+
+### DW-1185: flake: Test.Channel.EmailLive TestOAuthSaveSignInAndRemove's check for IRIS's own masked-secret audit entry of the OAuth2 client failed once on a warm stack after passing twice (the entry appears late)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: lane-C warm e21s3xw 2026-11-12 ~06:22Z: FAIL 'IRIS's own audit entry of the client shows its secret masked'; passed on e21s3fw forward and reverse; implement saw one earlier and added a 5 s wait
+- 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8 extends EmailLive's OAuth cases: wait on the entry by its own id or poll longer; one rerun + occurrence= meanwhile
+- 2026-11-12T10:09:41Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662676_iris(production)_shard:lane-a@Channel_on_OCT-epic21_ad2255ac:FAIL_'IRIS's_own_audit_entry_of_the_client_shows_its_secret_masked'(second_occurrence:local_warm_06:22Z+CI)
+- 2026-11-12T10:09:42Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=ci note=21.3's_own_new_test_red_in_CI_on_its_own_head:class=story([CI]_rework_in_21.3,lane_prompt);fix_the_SysAuditMasks_wait(scope_to_this_test's_mark,poll_longer_or_by_entry_id);21.8's_bullet_then_reads_resolved
+- 2026-11-12T10:55:53Z status=resolved-by:21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=adjudication note=rework_1_commit_4f309fcb+re-review_patches:SysAuditMasks_reads_this_test's_own_entry_by_UTCTimeStamp_from_its_mark_via_AuditLog.Wait(30_s),ClientId_and_ClientSecret_mask_lines_pinned;3_mutations_red_on_final_code(e21s3i3w,e21s3c2w);CI_on_the_integrated_head_confirms
+
+### DW-1188: flake candidate: lane-b@rest Test.Schedule.Reminders TestFiresOnEveryChannel ('the session has one web card', 'one phone message', 'one notification event is published', 'and one phone event') red once in CI shards-6
+- source: CI run 43172123661 (OCT-epic21 ad2255ac) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 131027662801 iris (shards-6) shard:lane-b@rest 2026-11-12T08:01Z: 4 asserts red, 1 of 51 classes; Story 21.3 changes no Schedule, Reminder, Notify or channel-out class; first sighting
+- 2026-11-12T10:09:42Z status=routed owner=burndown by=ci note=flake rule: one rerun; judged again on the integrated 21.3 head's CI
+
+### DW-1189: docker/tests/test-audit.sh and test-demo-switch.sh count %SYS.Audit rows with WHERE Event = ..., which goes through the Event index that %SYS.Audit.UpdateIndices refreshes about once a minute, so a fresh entry can be invisible for up to ~60 s (flake risk)
+- source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md (rework 1) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: measured on lane-C warm e21s3i2w 2026-11-12: a UTCTimeStamp read saw the OAuth2 creation entry 0.4 s after the save, WHERE Event = 'OAuth2' first saw it 34 s later; the same pattern sits in the two scripts
+- 2026-11-12T10:41:28Z status=routed owner=burndown by=harvest note=fix: read rows from a time mark (UTCTimeStamp) and compare Event in code, as EmailLive.SysAuditMasks now does; owner docker/tests (Epic 15 area)
+- 2026-11-12T10:53:25Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=cr:real_exposure_test-demo-switch.sh:248_unwaited_audit0;EventSource/EventType_lag_too;release/standalone-bridge.sh:910,927
 ### DW-1172: The incident's plural item noun, supplied by the model in the diagnosis payload, now enters the trusted SystemNote of the partner-notice draft (Story 23.11 noun ruling)
 - source: spec-23-11-say-in-a-partner-notice-only-how-the-incident-ended.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Watch.Notice.Noun checks only that both forms are non-empty; IncidentManager stores diagnosis.itemNoun as given; PartnerWarning.SystemNote substitutes noun.other into the code-written instruction (AD-10/AD-14 trust boundary)
@@ -7231,3 +7292,72 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rows 7-12 online-demo specs: 1 failed (R2, 2.3 s) at resume.spec.ts:143 page.goto ERR_ABORTED; spec unchanged since 83a6f3c1 (Nov 4); the head changes README.md and test-readme.sh over feature eb289caf; 18 runners busy
 - 2026-11-12T11:14:12Z status=routed owner=burndown by=runner note=flake class (first occurrence): one rerun of failed jobs; a second red on the same head is real; likely fix: gotoSettled at L143 as DW-690 did
 - 2026-11-12T12:22:47Z status=routed owner=burndown by=runner note=rerun_attempt_2_of_run_43202138313_green_on_2a6cfc67(flake_confirmed)
+
+### DW-1199: The allowance notice cards' install link (Allowance.cls INSTALLLINK) still points at README#install-it-yourself, which Story 0.30 moved to GUIDE.md: on the online demo the link opens the README top while the banner of the same state opens GUIDE.md
+- source: spec-0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm.md | severity: med | fix-risk: low | footprint: in-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Core/Allowance.cls:37 INSTALLLINK=https://github.com/jbrandtmse/OcuTalon#install-it-yourself; used at L236,L251 (slots.readmeLink); pinned by Test/Core/{Allowance,AllowanceInProduction,BridgeSink,WebChatMessages,WebChatOut}.cls, web/e2e-online/allowance/{daily-cap,messages}.spec.ts, web/scripts/{allowance-sources,banner-view}.test.mjs; found by 4 build-auto review layers
+- 2026-11-12T15:25:32Z status=decision-pending owner=0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm by=harvest note=planner:extend_Q1_to_INSTALLLINK(GUIDE_URL#install-it-yourself)+its_pins?src/**_closed_by_the_intent;recommended_yes(same_ruled_change,link_target_only)
+- 2026-11-12T15:28:37Z status=open owner=0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm by=orchestrator note=ruled_yes_2026-11-12~15:35Z(decide;Planner_may_reverse):extend_Q1_to_INSTALLLINK=GUIDE.md#install-it-yourself+pins;rework_iteration_1_of_0.30
+- 2026-11-12T15:50:44Z status=resolved-by:0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm by=adjudication note=db889be9_INSTALLLINK=GUIDE.md#install-it-yourself;allowance-sources_ratchet;5_IRIS_classes_green
+
+### DW-1200: WatchTools.READMELINK (OcuTalon#readme), the watch.onlyOrders answer's readmeLink and the Splash and busy-page 'Install it yourself (README)' links open the README top, where the full install section no longer lives (it moved to GUIDE.md in Story 0.30)
+- source: spec-0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Tools/WatchTools.cls:47 READMELINK=https://github.com/jbrandtmse/OcuTalon#readme; Splash and busy page labels '(README)'; the README top is live and keeps the 4 install steps plus links into GUIDE.md (More, pointer); outside the Q1/DW-1199 ruling
+- 2026-11-12T15:50:44Z status=wontfix-accepted owner=0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm by=harvest note=reopen_if=the_Planner_wants_those_links_on_GUIDE.md#install-it-yourself(visible_text_'(README)'_would_change_too:PUBLIC_TEXT)_or_a_judge_review_says_the_install_link_lands_wrong
+- 2026-11-12T16:18:28Z occurrence=0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm by=cr note=same_root(server-side_text_naming_the_README_for_moved_material):src/ocutalon/cls/OcuTalon/Install/Step/Users.cls:310_account_comment_'the_README_says_how_to_change_the_password'(steps_now_in_GUIDE.md#change-the-readme-accounts-password;README_More_links_there);blind-hunter+edge-case-hunter_0.30_code_review;src/**_closed_by_the_intent;same_reopen_if
+
+### DW-1202: A change to README.md or GUIDE.md alone (or to Core/Allowance.cls alone) runs no web job in CI, though web/scripts tests read them word for word (sources-docs, usage-docs, history-docs, more-to-try-view, allowance-sources): a GUIDE-only edit such as Story 0.29's can turn those pins red on the trunk unseen
+- source: spec-0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/units.sh:219 WEB_INPUT_PATTERN lists neither README.md nor GUIDE.md nor Core/Allowance.cls; .github/workflows/ci.yml:90 npm --prefix web test runs only when web==true; test-ci-changes.sh pins 'the README runs no group' and (Story 0.30, spec-mandated) 'the guide runs no group' false none; pre-existing for README.md, extended to GUIDE.md and Allowance.cls by 0.30; ci/** closed by the 0.30 intent
+- 2026-11-12T16:18:27Z status=routed owner=burndown by=cr note=found by blind-hunter+edge-case-hunter at the 0.30 code review; fix: add README\.md$|GUIDE\.md$ (and the Allowance.cls ratchet's input) to WEB_INPUT_PATTERN and flip the two paths_case web flags to true, weighed against REL-4's 35-minute CI budget
+
+### DW-1203: ARCHITECTURE-SPINE.md Consistency Conventions row 'README link' (L1255) still says the README's Telegram section is #telegram (the rail's 'How to set it up' link) and that server text names the README address; after Story 0.30's Q1 ruling and DW-1199 the rail, settings and banner links and Allowance.cls INSTALLLINK use GUIDE_URL (links.ts) with the section's anchor, and the spine has no GUIDE_URL convention
+- source: spec-0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md:1255 README link row vs web/src/app/links.ts GUIDE_URL, telegram-card.ts:197, channels-section.ts:96, banner-stack.ts:29-31, Allowance.cls:37; spec Design Notes checked AD Rules only and says no AD is contradicted
+- 2026-11-12T16:18:28Z status=escalated owner=burndown by=cr note=acceptance-auditor at the 0.30 code review; the substance is ruled (Planner Q1, orchestrator DW-1199), only the spine text lags; proposed amendment: add to the row 'A link to a section of the guide (GUIDE.md: install, set a key, Telegram) uses GUIDE_URL = https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md in links.ts with the section anchor, through readmeSection, and server text that points at those sections uses the same address; the guide's Telegram section is #telegram' [AMENDED <date>, Story 0.30, Planner Q1/DW-1199]; a spine amendment is a veto-window item, so it needs the orchestrator's or Planner's ruling
+- 2026-11-12T16:38:24Z status=resolved-by:0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm by=orchestrator note=ruled_decide;spine_Conventions_README_link_row_amended_by_runner_(Rule_20_light_path,lint_unchanged,no_AD_changed)
+### DW-1191: flake (test defect, random): Test.Data.Webhook TestMatches 'x...' is not a stored value of the secret: the malformed-salt variant "x"_$Extract(salt, 2, *) equals the real hash whenever the random salt already starts with x (about 1 run in 64), so Matches rightly answers 1
+- source: CI run 43206845957 (OCT-epic21 368c7a09) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 131144052048 iris (image) shard:lane-b@Contract,Core,Data,Live: printed stored value 'xrvjRiPqHbxlagA8SDES' starts with x; salt = base64url(GenCryptRand(16)); the 21.3 merge changes no line of Data/Webhook, Test/Data/Webhook, SecretHandoff or Data/Setting vs green eb289caf (git diff empty); 6 local passes on lane-C warm e21s3cw
+- 2026-11-12T12:25:40Z status=routed owner=burndown by=ci note=fix (Epic 35's test, one line): pick the replacement first character as lastChanged does, e.g. $Select($Extract(salt) = "x": "y", 1: "x"); one rerun meanwhile
+
+### DW-1195: flake/infra: live:sign-in chromium suite hit its 757 s suite timeout under host load (256 passed, 0 failed, 24 did not run)
+- source: ci 43227065531 feature 150b49c5 iris (shards-10) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Timed out waiting 757s for the test suite to run; 24 did not run; no test failed
+- 2026-11-12T14:15:46Z status=routed owner=burndown by=orchestrator note=one rerun per occurrence; if recurrent, size the shard's suite budget or split the shard
+
+### DW-1192: Held-out incident snapshots are never compared with a fresh recording in CI; HeldOutCases errorHas markers are read nowhere
+- source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Test.Eval.Record (TestCommittedIsCurrent, TestFeedCasesRecorded) covers the default Cases set and top-level eval/ incidents only; a stale held-out snapshot would pass CI (agent measurement quality, not safety)
+- 2026-11-12T12:47:26Z status=open owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=harvest note=implement pass 2 deferred; extend Test.Eval.Record to the HeldOutCases set (Rule 2)
+- 2026-11-12T13:46:16Z status=resolved-by:0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=OcuTalon.Test.Eval.Record extended (Rule 2): OnBeforeAllTests also sends Feed.Fixture HeldOutCases and re-induces each held-out incident; new TestHeldOutCommittedIsCurrent asserts the eval/held-out incident set equals HeldOutCases, every errorHas marker on this run's and the committed snapshot, and the committed held-out pack equals the live pack apart from VOLATILE. Passed on a lane-B warm stack; mutations (snapshot ShipmentId edited; errorHas #7204->#7299) went red and were reverted.
+
+### DW-1193: record-eval.sh held-out mode repeats the feed mode's session call and copy-out loop instead of sharing one helper
+- source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: docker/tests/record-eval.sh: the held-out block (session_value Record call, name loop, copy_out) mirrors the feed block; the file already repeats this shape per mode (no-evidence)
+- 2026-11-12T13:46:16Z status=wontfix-accepted owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=reopen_if=a further record-eval.sh mode copies the session-call and copy-out block again, or the feed and held-out blocks diverge in a fix applied to only one of them
+
+### DW-1194: The push run's comparison output (COMPARISON line, step-summary table, committed-results check) is pinned locally only by source-text order checks; the stub never runs the push run
+- source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: medium | fix-risk: high | footprint: in-story
+- evidence: docker/tests/test-eval-set.sh check_rules_flow: awk line-order pins only; rcf_rules runs the --rules-only forms, never the push run; lane-a evaluation job is the runtime proof
+- 2026-11-12T13:46:59Z status=by-design owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=spec Verification: Integration and CI ACs are proven by the lead's CI evidence (lane A evaluation job log and summary); a stubbed push run would emulate set, mock-wrong, demo gate and attempt runs
+
+### DW-1205: flake candidate: shard:lane-a@Fix Test.Fix TestFailedAgainIsNotRetried red once ('it holds 3/3/0/3/0: the copies failed again'), passed on rerun
+- source: ci 43235350028 OCT-epic23 4444bda0 iris (shards-11) attempt 1 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: logic assertion (not a timeout) under a saturated CI host ~15:00Z; passed on attempt 2; 23.12 changes web live-store only
+- 2026-11-12T16:31:02Z status=routed owner=burndown by=orchestrator note=Planner rule: a logic red is not a load flake by default; investigate ordering/state the copies counter depends on; a second red on any head = real
+
+### DW-1207: test: one check that fails when any file outside README.md (docs/*.md included) links a README anchor README.md doesn't have
+- source: Contest Planner 0.30 DW-1199 sweep, 2026-11-12 | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Planner swept 05e29461: no live link to a moved README anchor; test-readme product-links covers page links; docs/*.md has no generic dead-anchor check
+- 2026-11-12T16:44:12Z status=routed owner=burndown by=orchestrator note=1.0.9; does not hold 1.0.8
+
+### DW-1225: AC moved from 36.1 (Planner V1(b)): 23.3 declares Fix.Kind.RollbackSetting with RESOURCES, grants %Ens_ProductionConfig:W to OcuTalonServiceRole (demo install leaves it out), adds exactly one forbidden-list test exception, the ONLINESTATEMENT change and the overview sentence, and ships incident.settingChangeCause; result.settingRestored keeps its undo sentence only if 23.3 builds and tests the undo path
+- source: Contest Planner 36.1 spec gate ruling 2026-11-12, prompts/story-361-rulings-20261112.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 36.1 option (b): no unused write grant ships
+- 2026-11-12T20:22:09Z status=routed owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=orchestrator note=approved AC move into 23.3 (unplanned); bullet added to 23.3's epics.md block post-merge by the orchestrator
+### DW-1224: U-320's install-path OAuth2 scan pins only Dockerfile and docker/* and the regex's csp/sys/oauth2 alternative; dropping another pathspec entry (e.g. ci/*.sh, .github/*) or the OAuth2.(Client|ServerDefinition|AccessToken) alternative passes every row
+- source: spec-0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: docker/tests/test-compose-file.sh oauth_install_paths_clean: 58 files scanned, floor 40 catches only release/* (25); fixtures plant only /csp/sys/oauth2/OAuth2.Response.cls; gap predates 0.34 (Story 21.3)
+- 2026-11-12T20:19:09Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=pins beyond the ruled (a),(b1),(b2) exceed the 1.0.8 ruling; reopen_if=a diff edits the pathspec or regex line of oauth_install_paths_clean
+- 2026-11-12T20:19:32Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=reopen_if=a diff edits oauth_install_paths_clean's pathspec or regex line; more pins exceed the 1.0.8 ruling

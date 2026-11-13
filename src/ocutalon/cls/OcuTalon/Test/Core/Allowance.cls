@@ -403,16 +403,16 @@ Method TestNotices()
 	Set notice = ##class(OcuTalon.Core.Allowance).Notice("zzref", "2030-06-15T10:00:00Z")
 	Do $$$AssertEquals(notice.SessionRef_"|"_notice.Kind_"|"_notice.CatalogKey, "zzref|allowance|conversation.sessionAllowance", "the session notice")
 	Set slots = {}.%FromJSON(notice.Slots)
-	Do $$$AssertEquals(slots.%GetTypeOf("limit")_"|"_slots.limit_"|"_slots.time_"|"_slots.readmeLink, "number|50|2030-06-15T10:00:00Z|https://github.com/jbrandtmse/OcuTalon#install-it-yourself", "with the limit, the time and the install link")
+	Do $$$AssertEquals(slots.%GetTypeOf("limit")_"|"_slots.limit_"|"_slots.time_"|"_slots.readmeLink, "number|50|2030-06-15T10:00:00Z|https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself", "with the limit, the time and the install link")
 	Do $$$AssertEquals(slots.%Size(), 3, "and nothing else")
 	Set capped = ##class(OcuTalon.Core.Allowance).DailyCapNotice("zzref", "2030-06-16T04:00:00Z")
 	Do $$$AssertEquals(capped.SessionRef_"|"_capped.Kind_"|"_capped.CatalogKey, "zzref|allowance|conversation.dailyCap", "the daily-cap notice")
 	Set slots = {}.%FromJSON(capped.Slots)
-	Do $$$AssertEquals(slots.time_"|"_slots.readmeLink_"|"_slots.%Size(), "2030-06-16T04:00:00Z|https://github.com/jbrandtmse/OcuTalon#install-it-yourself|2", "with the time and the install link")
+	Do $$$AssertEquals(slots.time_"|"_slots.readmeLink_"|"_slots.%Size(), "2030-06-16T04:00:00Z|https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself|2", "with the time and the install link")
 	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("conversation.sessionAllowance", notice.Slots, "web", "2030-06-15T09:00:00Z", 1, .sc)
 	Do $$$AssertStatusOK(sc, "the catalog renders the session notice")
 	Set clock = ##class(OcuTalon.Data.Time).ForMessage("2030-06-15T10:00:00Z", "2030-06-15T09:00:00Z")
-	Do $$$AssertEquals(text, "You've used this session's 50 messages for the hour. You can send more at "_clock_" ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", "as the UX's text, in instance time and ET")
+	Do $$$AssertEquals(text, "You've used this session's 50 messages for the hour. You can send more at "_clock_" ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself", "as the UX's text, in instance time and ET")
 }
 
 /// The email limit: with fewer than 20 incoming emails in the past hour MailAllowed allows; with 20 it refuses and retryAt is the
@@ -505,7 +505,7 @@ Method TestNoticeCarriesTheConfiguredLimit()
 	Do $$$AssertEquals(slots.%GetTypeOf("limit")_"|"_slots.limit, "number|7", "the slot is the number 7")
 	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("conversation.sessionAllowance", notice.Slots, "web", "2030-06-15T09:00:00Z", 1, .sc)
 	Do $$$AssertStatusOK(sc, "the catalog renders it")
-	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).TimeReads(text, "You've used this session's 7 messages for the hour. You can send more ", " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", "2030-06-15T10:00:00Z") '= "", "as 7 messages, at the notice's time: "_text)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).TimeReads(text, "You've used this session's 7 messages for the hour. You can send more ", " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself", "2030-06-15T10:00:00Z") '= "", "as 7 messages, at the notice's time: "_text)
 }
 
 /// A retryAt on another day than the reading reads with its day, as "on <day> at HH:MM ET" and not "at <day> at HH:MM ET", whatever the
@@ -518,7 +518,7 @@ Method TestNoticeOnAnotherDay()
 	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("conversation.sessionAllowance", notice.Slots, "web", "2030-06-15T09:00:00Z", 1, .sc)
 	Do $$$AssertStatusOK(sc, "the catalog renders the notice")
 	Set head = "You've used this session's 50 messages for the hour. You can send more "
-	Set tail = " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself"
+	Set tail = " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself"
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(text, head, tail, retryAt), "otherday", "the time carries its day: "_text)
 	Set day = ##class(OcuTalon.Data.Time).ForMessage(retryAt, "2030-06-15T09:00:00Z")
 	Do $$$AssertEquals(text, head_"on "_day_tail, "as 'on <day> at HH:MM', not 'at <day> at HH:MM': "_text)

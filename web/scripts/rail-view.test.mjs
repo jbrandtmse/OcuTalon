@@ -17,7 +17,7 @@ const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, heartbeatReadKey
 const { countdownText, pageWhen } = await import(app('chat', 'page-time.ts'));
 const { DECISION_TEXTS, confidenceText, formatCost, outcomeOf, reasonLines } = await import(app('chat', 'decision-view.ts'));
 const { CHAT_TEXTS, NOTICE_TEXTS } = await import(app('chat', 'chat-view.ts'));
-const { README_URL } = await import(app('links.ts'));
+const { GUIDE_URL, README_URL } = await import(app('links.ts'));
 const { applyEvents, fromSnapshot, withAnswer } = await import(app('live', 'live-store.ts'));
 
 /** Thursday 22 October 2026, 14:13:30 UTC. */
@@ -139,9 +139,10 @@ describe('the fixed strings', () => {
     assert.equal(format().separator, ' \u00B7 ');
   });
 
-  it('link the README\'s Telegram section in place of #readme', () => {
+  it('link the guide\'s Telegram section, and a README section in place of #readme', () => {
     assert.equal(TELEGRAM_ANCHOR, 'telegram');
-    assert.equal(readmeSection(README_URL, TELEGRAM_ANCHOR), 'https://github.com/jbrandtmse/OcuTalon#telegram');
+    assert.equal(readmeSection(GUIDE_URL, TELEGRAM_ANCHOR), 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#telegram');
+    assert.equal(readmeSection(README_URL, 'measured'), 'https://github.com/jbrandtmse/OcuTalon#measured');
     assert.equal(readmeSection('https://example.test/r', 'x'), 'https://example.test/r#x');
   });
 });

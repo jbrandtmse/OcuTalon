@@ -8,6 +8,8 @@
 #     byte; the checklist section appears once and is replaced by a second run;
 #   - rows: each automated row, mutated in a fresh copy, fails with file:line (or a count) and without the planted text, and with no other
 #     row failing but the ones that must (a name outside the note fails name-only-in-note as well);
+#   - guide-rows: on the tree after Story 0.30 (a GUIDE.md next to the README) note-readme and product-name still find their text in
+#     README.md and fail when the note is only in the guide or the name is on line 1 of the README; no row reads text from the guide;
 #   - author: the author rows are read from the record only: no section, a malformed line, an impossible date, another word, a leap day,
 #     a date with text, the precedence of fail over not confirmed, and the section never changed;
 #   - refusals: each refusal exits 2 with one line, and the record is neither created nor changed;
@@ -107,6 +109,7 @@ mkbase() {
   stub "$b/docker/tests/test-bridge-guide.sh" bridge-guide
   stub "$b/docker/tests/test-boundaries.sh" boundaries
   printf '# OcuTalon\n\n%s\n' "$NOTE" > "$b/README.md"
+  printf '# OcuTalon guide: install, features and administration\n\nA plain sentence.\n' > "$b/GUIDE.md"
   printf '<div>\n  <p>%s</p>\n</div>\n' "$NOTE" > "$b/web/src/app/about/about-dialog.ts"
   printf '<Export>\n  <Document name="ocutalon.ZPM">\n    <Module>\n      <Name>ocutalon</Name>\n      <Version>1.0.0</Version>\n    </Module>\n  </Document>\n</Export>\n' > "$b/src/module.xml"
   printf '{\n  "name": "ocutalon-web",\n  "dependencies": {\n    "@angular/core": "1",\n    "qrcode-generator": "2",\n    "rxjs": "7"\n  },\n  "devDependencies": {\n    "typescript": "5"\n  }\n}\n' > "$b/web/package.json"
@@ -313,6 +316,40 @@ t_name_rows() {
   commit_all
   expect_fail "name in the first line of the README" "product-name name-only-in-note "
   has "first line: place" "$out" "README.md:1"
+}
+
+# The tree after Story 0.30 moved the install, feature and admin material to GUIDE.md: the rows that read the README (note-readme and
+# product-name) still find their text in README.md, and no row extracts text from the guide.
+t_guide_rows() {
+  newcase
+  std
+  eq "post-move tree: exit" "$rc" 0
+  eq "post-move tree: no failed row" "$(failed_ids)" ""
+  has "post-move tree: note-readme passes" "$out" "PASS note-readme"
+  has "post-move tree: product-name passes" "$out" "PASS product-name"
+  # The note in the guide and not in the README: note-readme fails.
+  newcase
+  printf '# OcuTalon\n\nA plain sentence.\n' > "$W/README.md"
+  printf '# OcuTalon guide: install, features and administration\n\n%s\n' "$NOTE" > "$W/GUIDE.md"
+  commit_all
+  std
+  eq "note moved to the guide: exit" "$rc" 1
+  has "note moved to the guide: note-readme fails" "$(failed_ids)" "note-readme "
+  has "note moved to the guide: the row names README.md" "$out" "README.md: the note is missing or not word for word"
+  # The name from the note on line 1 of the README: product-name fails on the post-move tree.
+  newcase
+  printf '# %s\n\n%s\n' "$NAME" "$NOTE" > "$W/README.md"
+  commit_all
+  std
+  has "name on README line 1: product-name fails" "$(failed_ids)" "product-name "
+  has "name on README line 1: the place" "$out" "README.md:1"
+  # The same name on line 1 of the guide, with a clean README: product-name reads the README alone, so it passes.
+  newcase
+  printf '# %s guide\n\nA plain sentence.\n' "$NAME" > "$W/GUIDE.md"
+  commit_all
+  std
+  has "name on guide line 1: product-name passes" "$out" "PASS product-name"
+  lacks "name on guide line 1: product-name is not among the failed rows" "$(failed_ids)" "product-name "
 }
 
 t_licence_rows() {
@@ -813,7 +850,7 @@ t_registry_row() {
   has "absent: result" "$out" "RESULT pass"
   has "absent: the LATER line" "$out" "$line $rec"
   eq "absent: one LATER line" "$(printf '%s\n' "$out" | grep -c '^LATER ')" 1
-  has "absent: the table row" "$(sect "$rec" "## Release checklist")" "| registry-install | later | After this version was published to the package registry, the README's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output. |"
+  has "absent: the table row" "$(sect "$rec" "## Release checklist")" "| registry-install | later | After this version was published to the package registry, the guide's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output. |"
   has "absent: the section's result" "$(sect "$rec" "## Release checklist")" "Result: pass"
   lacks "absent: no confirmed row" "$(sect "$rec" "## Release checklist")" "| registry-install | confirmed |"
   eq "absent: the seven author rows are unchanged" "$(printf '%s\n' "$out" | grep -c '^PASS .* the record says the author confirmed this on ')" 7
@@ -1050,6 +1087,7 @@ t_video_script() {
 rule base t_base
 rule note-rows t_note_rows
 rule name-rows t_name_rows
+rule guide-rows t_guide_rows
 rule licence-rows t_licence_rows
 rule script-rows t_script_rows
 rule source-rows t_source_rows
