@@ -3,6 +3,7 @@ title: 'Story 22.6: Document a worked Jira example and MCP governance'
 type: 'feature'
 created: '2026-11-13'
 status: 'ready-for-dev'
+baseline_revision: 'bb993ac29bcfd0c3a6d30bc49586e6256e0529ed'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -124,26 +125,26 @@ deferred:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] **Task 0** (implement stage; lane D warm throwaway `e22s6iw`). Record the answers in `_bmad-output/implementation-artifacts/evidence/22-6-task0-proxy-name.md`:
+- [x] **Task 0** (implement stage; lane D warm throwaway `e22s6iw`). Record the answers in `_bmad-output/implementation-artifacts/evidence/22-6-task0-proxy-name.md`:
   1. With the current code, a shadow-runner request whose mock server also lists `call_mcp_tool` (`Register($ListBuild("call_mcp_tool"), 1)`): record what the request's manager offers under that name, which code runs for `call_mcp_tool {server, tool: zz_lookup}`, and whether `AddTool` or `OfferProxy` returns an error.
   2. The same after the fix: `AddTool` succeeds, and the server's `call_mcp_tool` shows `unavailable` in the tool statuses.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls` -- DW-1228:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls` -- DW-1228:
   - `AttachServers` and `OfferServers` append `##class(OcuTalon.Bridge.Policy.Gate).#MCPPROXY` to `builtin`, but only when the host names a proxy (a non-empty `ProxyToolSet()`; the bridge alone is unchanged).
   - In `OfferServers`, the proxy toolset is registered on the manager before the first server's `AddTool`. A request in which no server's tools were added still ends with no proxy: `OfferServers` gives 0, so that `BuildTurnManager` builds its manager with no MCP server.
   - Update the method and class docs.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Ext/McpServers.cls` -- class doc only. The `refused` sentence names the proxy's name too. The `ServerOf` paragraph says, per ruling F(1), that a toolref that gets `""` is denied and never held or run.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls` -- new methods, each creating and removing its own `zz` server and rows:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Ext/McpServers.cls` -- class doc only. The `refused` sentence names the proxy's name too. The `ServerOf` paragraph says, per ruling F(1), that a toolref that gets `""` is denied and never held or run.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls` -- new methods, each creating and removing its own `zz` server and rows:
   - `TestProxyNameRefused`, a sibling of `TestShadow`: the report's `refused`, `RefusedTools`, the `refused` status from `Tools(server)`, one `mcp.toolShadowsBuiltIn` notice, the empty fingerprint.
   - `TestProxyNameNotShadowing`, a sibling of `TestTurnShadow` and `TestDirectCall`: the request's `call_mcp_tool {server, tool: zz_lookup}` runs the governed proxy, with one `MCP` `called` entry and the mock's `tools/call` naming `zz_lookup`, never `call_mcp_tool`. `zz_lookup` is still offered, and the no-secret scan passes (`Leaks`).
-- [ ] `src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls` -- new `Parameter MCPSTATEMENT`, the P4 sentence. `PrivilegesText` emits it after the Roles table, built from `Install.Step.Mcp` `RESOURCEPREFIX` and `PERMISSION` and `Install.Step.Users` `SERVICEROLE`, so that it cannot drift. Update the class doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls` -- new `TestMcpResourceStatement` (the shape of `TestFixKindRows`' ONLINESTATEMENT pin): the privileges text holds the P4 sentence once, word for word, after the Roles table and before "### With demo mode on".
-- [ ] `docs/security-overview.md`:
+- [x] `src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls` -- new `Parameter MCPSTATEMENT`, the P4 sentence. `PrivilegesText` emits it after the Roles table, built from `Install.Step.Mcp` `RESOURCEPREFIX` and `PERMISSION` and `Install.Step.Users` `SERVICEROLE`, so that it cannot drift. Update the class doc.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls` -- new `TestMcpResourceStatement` (the shape of `TestFixKindRows`' ONLINESTATEMENT pin): the privileges text holds the P4 sentence once, word for word, after the Roles table and before "### With demo mode on".
+- [x] `docs/security-overview.md`:
   - the hand-written edits P2, P3 and P5;
   - the generated privileges region regenerated with `ci/iris.sh live security-overview --write` (Verification), never edited by hand.
-- [ ] `docs/mcp-jira-example.md` -- new, exactly P1.
-- [ ] `docs/bridge-guide.md` -- the TurnTools bullet L316 becomes P6, and the McpServers bullet L317 becomes P7.
-- [ ] `docker/tests/test-bridge-guide.sh` -- the `turntools` pinned copies of those two lines (L649-650) become P6 and P7. Update the header comment L26-27.
-- [ ] `docker/tests/test-release-sequence.sh` `overviewdoc`:
+- [x] `docs/mcp-jira-example.md` -- new, exactly P1.
+- [x] `docs/bridge-guide.md` -- the TurnTools bullet L316 becomes P6, and the McpServers bullet L317 becomes P7.
+- [x] `docker/tests/test-bridge-guide.sh` -- the `turntools` pinned copies of those two lines (L649-650) become P6 and P7. Update the header comment L26-27.
+- [x] `docker/tests/test-release-sequence.sh` `overviewdoc`:
   - **Drop the switch.** Remove both `git grep call_mcp_tool -- src` switch blocks from `ovw_doc_problems`, `ovw_doc_problems_no_mcp`, and the four switch-dependent controls with their two forced-off controls. `src` now always holds the proxy, so the switch can only hide the new checks.
   - **New checks in `ovw_doc_problems`, each with one problem line:**
     1. The MCP tools section holds no "can't connect to MCP servers" and no "When a release adds MCP support".
@@ -468,6 +469,15 @@ Every `ci/iris.sh` and `ci/warm.sh` call carries the lane variables: `OCUTALON_L
 - (once) `OCUTALON_RUN_TAG=e22s6i ci/iris.sh live security-overview`, then teardown -- expected: pass, no DRIFT line
 - (once) `bash docker/tests/test-release-sequence.sh overviewdoc overview overviewunit overviewdrift static` -- expected: exit 0 (named rule subsets; the whole script takes about 170 s)
 
+**Mutation lines (Rule 19; each applied, observed red, reverted byte for byte, `git status --short` and `git diff` identical to before; implement stage, 2026-11-13, lane D warm throwaway `e22s6iw`):**
+- `mutation:` one word of the classification sentence changed in `docs/mcp-jira-example.md` ("must be" to "should be") -> rule `overviewdoc` red ("the committed worked example is good: got 'the MCP text lacks the classification sentence word for word'").
+- `mutation:` "This release can't connect to MCP servers." put back as the first line of the overview's MCP tools section -> `overviewdoc` red ("the committed overview has a good frame: got 'the MCP tools section still says that the release can't connect to MCP servers'").
+- `mutation:` `PrivilegesText` skips `MCPSTATEMENT` -> `Test.Install.SecurityOverview:TestMcpResourceStatement` red (five assertions: the line, once, after the Roles heading, after the last Roles row, before the demo mode section).
+- `mutation:` the DW-950 sentence deleted from the TurnTools bullet of `docs/bridge-guide.md` -> `test-bridge-guide.sh` rule `turntools` red ("the guide lacks ruled line 3 of the TurnToolsClass wording").
+- `mutation:` `OfferProxy` moved after the first server's `AddTool` in `OfferServers` -> `Test.Mcp.Attach:TestProxyNameNotShadowing` red (the call does not run the proxy, no `tools/call zz_lookup` from client `iris`, no `MCP` audit entry).
+- `mutation:` `MCPPROXY` dropped from `builtin` (`WithProxyName` adds nothing) -> `Test.Mcp.Attach:TestProxyNameRefused` red (row, Tools status, notice, notice slots, fingerprint).
+- `mutation:` `docs/mcp-jira-example.md` renamed -> `overviewdoc` red ("the worked example is not at docs/mcp-jira-example.md").
+
 **Shared surfaces:**
 - the attach and offer reports' `refused` list and `Mcp.Server.RefusedTools`;
 - the order of a request manager's tools (`Test.Mcp.Attach`, `ProxyJob`, `Approval`);
@@ -479,7 +489,9 @@ Every test added or changed passes on a fresh environment, in either order. CI r
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap: P2 replaces the framing sentence "This release can't connect to MCP servers. When a release adds MCP support, these rules apply:" and the bullet "An MCP tool that runs commands must be classified risky.", and `docker/tests/test-readme.sh` rule `docs` (the hosted `checks` job's `bash ci/checks.sh`) pins both: `MCP_FRAME` (L1673), its check in `chk_docs` (L1684-1686) and the control at L3203. `bash docker/tests/test-readme.sh docs` now fails with "the MCP rules line is not under ... with no heading between". The spec does not name this file, and Story 21.14 (Epic 21, lane C, not merged) also edits rule `docs` there (its AC 5 pin), so the path is contended (Rule 11 (c)).
 
-Planned only (Halt after planning). Epic context reused (not recompiled). No code changed, nothing committed.
+Recommended amendment (for the lead; it preserves the product promise): allow `docker/tests/test-readme.sh` as a Lane A file of this story, limited to rule `docs`: drop `MCP_FRAME` and its awk check, and replace them with "the line L187 sits under the `## MCP tools` heading with no other heading between" (the same intent: the ruled line is in the MCP rules); in the controls, drop 'the MCP framing sentence removed', and change 'a heading between the framing sentence and the rules line' to insert a heading before L187's line (anchored on a bullet that P2 keeps, for example `/^- Results are untrusted content\./`, or on L187 itself); update the header comment at L96 (it says the MCP rules "still sit under 'This release can't connect to MCP servers.'"). Report it as a footprint extension and expect a small merge conflict with 21.14's hunk in the same rule.
+
+State of the tree (nothing committed; HEAD is still the baseline): the implementation, tests, docs, Task 0 evidence and the spec's seven `mutation:` lines are done and uncommitted in the working tree. The handoff pass verified, on the lane D warm stack `e22s6iw`: `Test.Mcp.Attach` 178.84 s, `Test.Install.SecurityOverview` 12.86 s, `Test.Mcp.ProxyJob` 3.53 s, `Test.Mcp.Approval` 67.84 s, `Test.Mcp.Ops` 6.05 s, `Test.Agent.Runners` 42.19 s, `Test.Bridge.CodeRules` 7.48 s, all passed; `test-bridge-guide.sh`, `test-boundaries.sh`, `test-class-rules.sh`, `test-ci-config.sh` and `test-release-sequence.sh overviewdoc overview overviewunit overviewdrift static` exit 0; the fresh throwaway `e22s6i` ran `live security-overview --write` (only P4 added in the generated region) and then the plain run with no DRIFT. The warm stack was taken down. Not yet run: the review layers (step 4) and the fresh-environment re-run after the amendment. Claims that cannot be checked until Story 21.4 merges: the Settings wording, the Wallet and `AI.MCP.OcuTalon_<server>` write and removal, and "The server's tools show in the Tools table once OcuTalon next uses its agents".
