@@ -82,3 +82,4 @@
 2026-11-13T06:54:23Z	Epic 37	retro_review_skipped	reason=already_recorded_2026-11-10(retro_review_skipped) note=no_new_x0_input_in_authority(DW-1231_already_routed_to_37.1_as_AC)
 2026-11-13T06:57:51Z	Epic 37	protocol_violation	stage=epic_context_prewarm depth=1 agent=prewarm-epic37 violation=harness_backgrounded_Agent_call_despite_run_in_background_false consequence=none(runner_did_read-only_audit_meanwhile,touched_no_file_until_completion) detected_by=runner outcome=waited_for_completion_notification_then_reconciled
 2026-11-13T06:57:51Z	Epic 37	epic_context_compiled	reason=planning_artifact_newer model=opus words=1737 header=ok
+2026-11-13T06:58:14Z	Story 37.1	stage_spawned	stage=plan spawn_at=2026-11-13T06:58:14Z model=opus agent_name=37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption-plan-1 cycle_iteration=1 note=plan_only;implement_waits_on_epic-36
