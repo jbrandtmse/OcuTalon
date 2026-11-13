@@ -888,6 +888,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-8-show-the-status-rail.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Story 2.8's rail took the initial bundle from 485.9 kB to 503.22 kB; the error limit is 1 MB and no PRD, epic or spine target sets the budget (Angular's default)
 - 2026-10-23T15:53:22Z status=wontfix-accepted owner=2-8-show-the-status-rail by=cr note=reopen_if=the initial bundle passes 550 kB, or a build or CI step fails on the budget warning; then split or lazy-load
+- 2026-11-13T16:56:07Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings
 
 ### DW-122: A session that stops watching a production keeps that production's pending instance approval rows in its live rail until a reload, because later approval events no longer reach it
 - source: spec-2-8-show-the-status-rail.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -1009,6 +1010,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-15-lay-the-page-out-at-every-supported-width.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: ng build of clean copies: 050ca9a 530.80 kB raw (128.04 kB transfer), a35f7bc 538.57 kB (129.75 kB); the story adds 7.77 kB raw and 1.71 kB transfer (1.5%), not material
 - 2026-10-25T01:26:11Z status=wontfix-accepted owner=2-15-lay-the-page-out-at-every-supported-width by=cr note=reopen_if=the initial bundle passes 600 kB raw or 150 kB transfer, or a page-load measurement misses its target
+- 2026-11-13T16:56:06Z status=escalated owner=burndown by=cr note=reopen_if met (36.4 cr): initial 1,007.44 kB failed the 1MB error budget; raised to 1.05MB; a lazy Settings route measured 921.36 kB
 
 ### DW-190: In WebKit (Safari) a mouse press on the Status button or on the narrow-window note's Close leaves focus on the page body: Safari focuses no pressed button, so Story 2.15's focus hand-back after a click does not run
 - source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: low | fix-risk: med | footprint: in-epic
@@ -7671,11 +7673,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Spine AD-19 on-call keys bullet (V3, ruled 2026-11-12) vs AD-1/AD-19 Saving a settings section: every save is one SaveSettings submitted through Commands.Submit, so the new address is stored in an Ens message body shown in Visual Trace; a leak-scan test as worded cannot pass.
 - 2026-11-13T04:03:56Z status=routed owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=36.4 plan keeps the values out of the message body (e.g. a SecretHandoff-style ref) or escalates V3's trace clause; 24.2 has the same
+- 2026-11-13T17:24:05Z status=resolved-by:36-4-set-the-on-call-person-and-backup-in-settings by=adjudication note=S1(b) shipped: Web.OnCallSettings hands the body through SecretHandoff; traced SaveSettings holds only the handoff; TestValuesOnlyInTheAuditLog (mutation red) and H4
 
 ### DW-1250: An on-call person or backup given only as an email address can never acknowledge a page, so the backup is always paged after oncall.escalationMinutes, and the accepted On call texts don't tell the admin
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 36.1 rules that email carries no acknowledgement; AckPage comes only from web_user, web_admin and telegram (CommandsIn Routes), which an address-only person has none of; settings.onCallByEmail and settings.onCallHelp say nothing about it.
 - 2026-11-13T04:03:56Z status=routed owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=36.4 plan proposes a help line for 'Someone else, by email' for acceptance, or records that this is intended
+- 2026-11-13T17:24:05Z status=resolved-by:36-4-set-the-on-call-person-and-backup-in-settings by=adjudication note=P1 settings.onCallByEmailHelp shipped verbatim (Planner P1 closes DW-1250); on-call-view tests and O-specs
 
 ### DW-1251: AD-14's page route contradicts itself: a page goes to the user's web chat, yet 'a person with no paired chat gets email only'; the web chat is called a chosen channel though oncall.*.channels offers only telegram,email; EmailOut can't update a copy to handled.marked
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7700,3 +7704,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: spec deferred: list; the pagesBuilt=true branch has no test that can run before 23.4
 - 2026-11-13T16:35:03Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=harvest note=23.4 adds a test that the not-yet line disappears once Data.Page exists
+
+### DW-1278: SettingsOps.OnCallUsers walks the Data.Session and Data.Pairing storage globals from the web process (GET /v1/settings) to list every user, outside the owning classes and outside Ownership (AD-13's 'no other unchecked path')
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Core/SettingsOps.cls OnCallUsers: $Order(^OcuTalonP.SessionD) and (^OcuTalonP.PairingD) with %OpenId, chosen in-stage (Decided 19) because the web process holds no SQL privilege; V4 allows the admin-only list but no ruling covers this read path; the precedents (Webhook.ForSession, Upload) walk their own class's globals
+- 2026-11-13T16:56:16Z status=escalated owner=burndown by=cr note=security posture (AD-13): rule whether an admin roster read by object access is allowed, or move it into Data.Session/Ownership
+
+### DW-1279: Web.OnCallSettings copies Web.HookSettings' OnlineDemo and Submit verbatim and Hand nearly (Rule 2), instead of a shared settings hand-off in Web.Api
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: OnCallSettings.cls OnlineDemo/Submit equal HookSettings.cls:35-38,141-144; Hand differs only in the Offer seam, Changes vs Handoff and the not_available branch; the spec's own 24.2 note says extend, don't copy
+- 2026-11-13T16:56:16Z status=wontfix-accepted owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=reopen_if=a third settings route copies Hand (Story 24.2 partner contacts): then move OnlineDemo, Submit and Hand into Web.Api

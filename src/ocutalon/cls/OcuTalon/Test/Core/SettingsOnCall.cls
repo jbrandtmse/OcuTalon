@@ -5,6 +5,9 @@
 ///   - TestSavedCases: a user with a paired chat, a user without one by email, a person by email, the by-email address trimmed, and the minutes 1, 1440 and "15"
 ///     are saved as sent, with the user cleared for a person by email;
 ///   - TestUserNameKeepsTheRostersSpelling: a user typed in another case is matched and stored as the Data.Session row holds the name;
+///   - TestUserNameSpellingIsStableAcrossSaves: the same user typed in another case is "nothing changed" (no row, no audit entry);
+///   - TestUserNameOverTheBoundIsRefused: a roster user name over ONCALLUSERMAX is refused as <role>User, one of exactly the bound is saved;
+///   - TestAddressLengthBound: an address of 254 characters is saved and one of 255 is refused as <role>Email;
 ///   - TestTelegramNeedsAPairedChat: telegram is refused for a user whose sessions have no paired chat and for a person by email, and accepted for a paired one;
 ///   - TestRefusals: each refused value names its field, and nothing is written or audited (the minutes, the user, the address, the channels, the shape);
 ///   - TestSaveAuditsEachChangeWithItsValues: each changed key has its Settings audit entry with from and to, the admin's user, the session and the web channel,
@@ -99,6 +102,9 @@ Method TestSavedCases()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a user with a paired chat and a person by email are saved")
 	Do $$$AssertEquals(..OnCallValue("primaryUser")_"|"_..OnCallValue("primaryEmail")_"|"_..OnCallValue("primaryChannels"), paired_"|a@x.io|telegram,email", "the user is stored as sent")
 	Do $$$AssertEquals(..Row("oncall.backup.user")_"|"_..Row("oncall.backup.email")_"|"_..Row("oncall.backup.channels")_"|"_..Row("oncall.escalationMinutes"), "|b@x.io|email|20", "the person by email has no user")
+	Set result = ..Save(..Body(..Role("user", paired, "a@x.io", "telegram,email"), ..Role("email", unpaired, "d@x.io", "email"), 20))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a person by email whose user member names a user is saved")
+	Do $$$AssertEquals(..Row("oncall.backup.user")_"|"_..Row("oncall.backup.email"), "|d@x.io", "with the user cleared, not stored")
 	Do ..Reset()
 	Set result = ..Save(..Body(..Role("user", unpaired, "", "email"), ..Role("email", "", "  c@x.io ", "email"), 20))
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|refused", "a user without an address cannot be paged by email")
@@ -128,6 +134,72 @@ Method TestUserNameKeepsTheRostersSpelling()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a user typed in another case is matched")
 	Do $$$AssertEquals(..Row("oncall.primary.user")_"|"_..Row("oncall.backup.user"), user_"|"_user, "and stored as the Data.Session row holds the name, for both roles")
 	Do $$$AssertEquals(..AuditData(1).to, user, "and the audit entry holds the same spelling")
+}
+
+/// (QA) Saving the user again in another case is "nothing changed": the stored spelling is the roster's, so no row is written and no audit entry is made.
+Method TestUserNameSpellingIsStableAcrossSaves()
+{
+	Set user = "zzOc"_..Tag_"Stable"
+	Do ##class(OcuTalon.Test.Data.Fixture).Session(user)
+	Set nobody = ..Role("nobody", "", "", "")
+	Set result = ..Save(..Body(..Role("user", $ZConvert(user, "L"), "a@x.io", "email"), nobody, 15))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a user typed in lower case is saved")
+	Do $$$AssertEquals(..Row("oncall.primary.user"), user, "with the roster's spelling")
+	Do ..Reset()
+	Set rows = ..Rows()
+	Set stamp = ##class(OcuTalon.Data.Setting).KeyIndexOpen("oncall.primary.user").UpdatedAt
+	Set result = ..Save(..Body(..Role("user", $ZConvert(user, "U"), "a@x.io", "email"), nobody, 15))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the same user typed in upper case is done")
+	Do $$$AssertEquals(..Audits()_"|"_..Rows(), "0|"_rows, "and changes nothing: no audit entry, no new row")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexOpen("oncall.primary.user").UpdatedAt, stamp, "and the user row is not written again")
+	Do $$$AssertEquals(..Row("oncall.primary.user"), user, "the stored spelling stays the roster's")
+}
+
+/// (QA) A user name over ONCALLUSERMAX is refused as <role>User even when a roster row holds it (the guard is a refusal without a lookup), and a name of exactly the
+/// bound is accepted. No Data.Session name can exceed its MAXLEN through %Save, so the long row is made with an UPDATE %NOCHECK.
+Method TestUserNameOverTheBoundIsRefused()
+{
+	Set limit = $Parameter("OcuTalon.Core.SettingsOps", "ONCALLUSERMAX")
+	Set exact = "zzoc"_..Tag_$Translate($Justify("", limit - $Length("zzoc"_..Tag)), " ", "x")
+	Set over = exact_"y"
+	Do $$$AssertEquals($Length(exact)_"|"_$Length(over), limit_"|"_(limit + 1), "the two names are the bound and one more")
+	Do ##class(OcuTalon.Test.Data.Fixture).Session(exact)
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzoc"_..Tag_"short")
+	Set statement = ##class(%SQL.Statement).%New()
+	Do $$$AssertStatusOK(statement.%Prepare("UPDATE %NOCHECK OcuTalon_Data.Session SET IrisUser = ? WHERE Ref = ?"), "the long row is prepared")
+	Set rs = statement.%Execute(over, ref)
+	Do $$$AssertEquals(rs.%SQLCODE, 0, "and made: the roster holds a user name over the bound")
+	Set found = ""
+	Set iterator = ##class(OcuTalon.Core.SettingsOps).Values().sections.%Get("on-call").users.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		If (one.user = exact) || (one.user = over) Set found = found_$ListBuild($Length(one.user))
+	}
+	Do $$$AssertEquals($ListToString(found), limit_","_(limit + 1), "both names are in the roster")
+	Set nobody = ..Role("nobody", "", "", "")
+	Set result = ..Save(..Body(..Role("user", over, "a@x.io", "email"), nobody, 15))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_..Fields(result), "0|refused|primaryUser", "a roster user over the bound is refused as a primary user")
+	Set result = ..Save(..Body(nobody, ..Role("user", over, "a@x.io", "email"), 15))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_..Fields(result), "0|refused|backupUser", "and as a backup user")
+	Do $$$AssertEquals(..Rows()_"|"_..Audits(), "0|0", "nothing was written or audited")
+	Set result = ..Save(..Body(..Role("user", exact, "a@x.io", "email"), nobody, 15))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a roster user of exactly the bound is saved")
+	Do $$$AssertEquals(..Row("oncall.primary.user"), exact, "and stored")
+}
+
+/// (QA) An address of 254 characters is accepted and one of 255 is refused as <role>Email (the matrix's "at most 254 characters"), each with a valid local part and domain.
+Method TestAddressLengthBound()
+{
+	Set local = $Translate($Justify("", 64), " ", "a")
+	Set domain = $Translate($Justify("", 63), " ", "b")_"."_$Translate($Justify("", 63), " ", "b")_"."_$Translate($Justify("", 57), " ", "b")_".com"
+	Set exact = local_"@"_domain
+	Set over = local_"@"_$Piece(domain, ".", 1, 2)_"."_$Translate($Justify("", 58), " ", "b")_".com"
+	Do $$$AssertEquals($Length(exact)_"|"_$Length(over), "254|255", "the two addresses are 254 and 255 characters long")
+	Set nobody = ..Role("nobody", "", "", "")
+	Set result = ..Save(..Body(..Role("email", "", over, "email"), nobody, 15))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_..Fields(result), "0|refused|primaryEmail", "an address of 255 characters is refused")
+	Set result = ..Save(..Body(nobody, ..Role("email", "", " "_exact_" ", "email"), 15))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "an address of 254 characters is saved, trimmed")
+	Do $$$AssertEquals(..Row("oncall.backup.email"), exact, "and stored whole")
 }
 
 Method TestTelegramNeedsAPairedChat()
@@ -166,7 +238,7 @@ Method TestRefusals()
 		$ListBuild("a by-email person with a bad address", ..Body(nobody, ..Role("email", "", "nope", "email"), 15).%ToJSON(), "backupEmail"),
 		$ListBuild("a user with a bad address", ..Body(..Role("user", paired, "nope@", "telegram"), nobody, 15).%ToJSON(), "primaryEmail"),
 		$ListBuild("an address with a space", ..Body(..Role("email", "", "a b@x.io", "email"), nobody, 15).%ToJSON(), "primaryEmail"),
-		$ListBuild("an address over 254 characters", ..Body(..Role("email", "", $Translate($Justify("", 250), " ", "a")_"@x.io", "email"), nobody, 15).%ToJSON(), "primaryEmail"),
+		$ListBuild("an address whose local part is over 64 characters", ..Body(..Role("email", "", $Translate($Justify("", 250), " ", "a")_"@x.io", "email"), nobody, 15).%ToJSON(), "primaryEmail"),
 		$ListBuild("email chosen with no address", ..Body(..Role("user", paired, "", "email"), nobody, 15).%ToJSON(), "primaryChannels"),
 		$ListBuild("no channel", ..Body(..Role("user", paired, "a@x.io", ""), nobody, 15).%ToJSON(), "primaryChannels"),
 		$ListBuild("a channel that is not one", ..Body(..Role("user", paired, "a@x.io", "sms"), nobody, 15).%ToJSON(), "primaryChannels"),

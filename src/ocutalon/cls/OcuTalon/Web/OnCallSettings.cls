@@ -18,7 +18,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 </Routes>
 }
 
-/// 1 when the online-demo flag is set. A test subclass overrides it.
+/// 1 when the online-demo flag is set.
 ClassMethod OnlineDemo() As %Boolean [ Private ]
 {
 	Quit (##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1)

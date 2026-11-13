@@ -7,7 +7,7 @@ import { announcements, recordAnnouncements } from '../support/page';
 import { ON_CALL_KEYS, auditMark, auditSince, readOnCall, resetOnCall, restoreOnCall, type OnCallStored } from '../support/on-call';
 
 /**
- * Story 36.4, the On call section of Settings in a real browser, signed in as the README admin (O1 to O6; the sign-in-2 unit). The README account holds
+ * Story 36.4, the On call section of Settings in a real browser, signed in as the README admin (O1 to O11; the sign-in-2 unit). The README account holds
  * OcuTalonAdmin, and has a session, so it is one of the OcuTalon users that the section lists. The cases run one after the other, because the on-call values are
  * the instance's own: each case starts from Nobody for both roles with 15 minutes (beforeEach, through the route), and puts back the values it found (afterEach).
  *   O1  the nav link, the heading, the help and the not-yet line, the two legends, a labelled control for every field, the Telegram box disabled with its text,
@@ -21,7 +21,9 @@ import { ON_CALL_KEYS, auditMark, auditSince, readOnCall, resetOnCall, restoreOn
  *   O6  a GET with no on-call member (the online demo) hides the section and opens Models for its address;
  *   O7  a 409 shows the off-demo text in place of the form, and leaving the page then asks nothing;
  *   O8  a 403 shows the denied view in place of the section;
- *   O9  a user with a paired chat (a routed GET) has Telegram enabled and checked by default, and the saved body carries telegram,email.
+ *   O9  a user with a paired chat (a routed GET) has Telegram enabled and checked by default, and the saved body carries telegram,email;
+ *   O10 an edit made while the save is pending is kept and stays unsaved, and the section opened again shows the saved values (the page keeps them);
+ *   O11 a refused user (a routed 400 naming primaryUser) shows its filled text under the Person select, which is marked invalid, described by it and focused.
  * The texts are written out here as the oracle.
  */
 const SAVED = 'Saved. Applies within a minute. Recorded in the audit log.';
@@ -36,6 +38,7 @@ const EMAIL_ONLY = 'Telegram needs an OcuTalon user with a paired chat.';
 const OFF_ON_DEMO = "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here.";
 const UNSAVED = 'You have unsaved changes in this section. Leave without saving?';
 const DENIED = 'Only OcuTalon admins can open settings.';
+const UNKNOWN_USER = (user: string): string => `${user} isn't an OcuTalon user any more. Choose again. Nothing was changed.`;
 
 const pagesNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true });
 const sectionsNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Settings sections', exact: true });
@@ -383,4 +386,61 @@ test('O9: a user with a paired chat has Telegram enabled and checked, and the sa
   expect(posted.length, 'one save was posted').toBe(1);
   expect(posted[0], 'its body names the user and both channels').toMatchObject({ primaryPerson: 'user', primaryUser: README_ACCOUNT.user, primaryChannels: 'telegram,email' });
   expect(await readOnCall(page.request), 'nothing was written: the route answered it').toEqual(found);
+});
+
+test('O10: an edit made while the save is pending is kept and stays unsaved, and On call opened again shows the saved values', async ({ page }) => {
+  test.setTimeout(180_000);
+  const before = found as OnCallStored;
+  await openOnCall(page);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/api/v1/settings/on-call', async (route) => {
+    if (route.request().method() === 'POST') await gate;
+    await route.continue().catch(() => undefined);
+  });
+  try {
+    const sent = before.escalationMinutes === 33 ? '34' : '33';
+    const typed = sent === '33' ? '35' : '36';
+    await minutes(page).fill(sent);
+    await saveButton(page).click();
+    await expect(saveButton(page), 'the save is pending').toHaveAttribute('aria-busy', 'true');
+    await minutes(page).fill(typed);
+    const answered = page.waitForResponse((response) => response.url().endsWith('/v1/settings/on-call') && response.request().method() === 'POST');
+    release();
+    expect((await answered).status(), 'the save answers').toBe(200);
+    await expect(saveButton(page), 'and the button is restored').not.toHaveAttribute('aria-busy', 'true');
+    await expect(minutes(page), 'the edit made meanwhile is kept').toHaveValue(typed);
+    await expect(savedText(page), 'no saved text shows for a form that is still unsaved').toHaveCount(0);
+    expect((await readOnCall(page.request)).escalationMinutes, 'the sent value was saved').toBe(Number(sent));
+    await sectionsNav(page).getByRole('link', { name: 'Demo mode', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog, 'the form is still unsaved, so a section link asks first').toBeVisible();
+    await dialog.getByRole('button', { name: 'Leave without saving', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 2 })).toHaveText('Demo mode');
+    await sectionsNav(page).getByRole('link', { name: 'On call', exact: true }).click();
+    await expect(minutes(page), 'On call opened again shows the saved value, not the one the page loaded').toHaveValue(sent);
+    await sectionsNav(page).getByRole('link', { name: 'Demo mode', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 2 }), 'and leaving it asks nothing').toHaveText('Demo mode');
+    await expect(dialog).toHaveCount(0);
+  } finally {
+    release();
+    await page.unroute('**/api/v1/settings/on-call');
+  }
+});
+
+test('O11: a refused user shows its filled text under the Person select, which is marked, described by it and focused', async ({ page }) => {
+  test.setTimeout(180_000);
+  await openOnCall(page);
+  await page.route('**/api/v1/settings/on-call', async (route) => {
+    await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: { code: 'bad_settings', message: FAILED }, fields: ['primaryUser'] }) });
+  });
+  await person(primary(page)).selectOption(`user:${README_ACCOUNT.user}`);
+  await address(primary(page)).fill(`zz-o11-${stamp()}@example.com`);
+  await saveButton(page).click();
+  await expect(page.locator('#oncall-primary-person-error'), 'the filled text names the user').toHaveText(UNKNOWN_USER(README_ACCOUNT.user));
+  await expect(person(primary(page)), 'the Person select is marked invalid').toHaveAttribute('aria-invalid', 'true');
+  await expect(person(primary(page)), 'and described by its error').toHaveAttribute('aria-describedby', 'oncall-primary-person-error');
+  await expect(person(primary(page)), 'and takes focus').toBeFocused();
+  await expect(page.locator('#oncall-error'), 'no form error shows').toHaveCount(0);
+  await expect(savedText(page), 'and no saved text').toHaveCount(0);
 });

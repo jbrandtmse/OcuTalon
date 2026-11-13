@@ -2,8 +2,8 @@ import { expect, test, type APIRequestContext } from '../support/fixtures';
 
 import { README_ACCOUNT, envelope, expectError, signInOverHttp } from '../sign-in/helpers';
 import { readmeSession } from '../support/demo-path';
-import { fixtureUser } from '../support/iris';
-import { ON_CALL_API, ON_CALL_KEYS, SETTINGS_API, auditMark, auditSince, freshValues, readOnCall, restoreOnCall, type OnCallStored } from '../support/on-call';
+import { chk, fixtureUser, irisScript, quoted } from '../support/iris';
+import { ON_CALL_API, ON_CALL_KEYS, SETTINGS_API, auditMark, auditSince, freshValues, readOnCall, resetOnCall, restoreOnCall, type OnCallStored } from '../support/on-call';
 
 /**
  * Story 36.4, the on-call route over real HTTP, on the stack that test-sign-in.sh seeds (a local install). The README account holds OcuTalonAdmin; the LIVE
@@ -12,9 +12,13 @@ import { ON_CALL_API, ON_CALL_KEYS, SETTINGS_API, auditMark, auditSince, freshVa
  *   H1  the LIVE user gets 403 not_admin on GET /v1/settings and POST /v1/settings/on-call; the rows are unchanged and no audit entry names an on-call key;
  *   H2  the README admin gets 200 with the on-call section, a fresh process reads the new values through Data.Setting.Get (the read path of Stories 23.4 and
  *       24.3), and each changed key has an audit entry with from, to, the admin's user and session;
- *   H3  a bad address is 400 bad_settings naming primaryEmail, with nothing changed and nothing audited.
+ *   H3  a bad address is 400 bad_settings naming primaryEmail, with nothing changed and nothing audited;
+ *   H4  on the online demo (the flag set for the case and put back after it) the README admin's POST is 409 not_available with the off-demo text, a body that is
+ *       not a JSON object included (the refusal comes before the body is read), nothing is changed or audited, and GET /v1/settings has no on-call member.
+ * H2 starts from Nobody for both roles and 15 minutes (saved through the route), so that its changes do not depend on what an earlier run left.
  */
 const NOT_ADMIN = 'Only OcuTalon admins can open settings.';
+const OFF_ON_DEMO = "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here.";
 
 /** A unique tag for the case's addresses. */
 const tag = (): string => `${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
@@ -69,6 +73,8 @@ test('H2: the README admin saves, a fresh process reads the values, and each cha
   const primary = `zz-h2p-${t}@example.com`;
   const backup = `zz-h2b-${t}@example.com`;
   try {
+    await resetOnCall(request);
+    const start = await readOnCall(request);
     const mark = await auditMark();
     const response = await request.post(ON_CALL_API, { headers: envelope(), data: bodyOf(primary, backup, 25) });
     expect(response.status(), await response.text()).toBe(200);
@@ -96,8 +102,8 @@ test('H2: the README admin saves, a fresh process reads the values, and each cha
       'oncall.escalationMinutes': '25',
     });
 
-    const wanted = ON_CALL_KEYS.flatMap(([key, member]) => (String(before[member]) === String(got[member]) ? [] : [{ setting: key, from: String(before[member]), to: String(got[member]) }]));
-    expect(wanted.length, 'the case changes at least the two addresses and the minutes').toBeGreaterThanOrEqual(3);
+    const wanted = ON_CALL_KEYS.flatMap(([key, member]) => (String(start[member]) === String(got[member]) ? [] : [{ setting: key, from: String(start[member]), to: String(got[member]) }]));
+    expect(wanted.length, 'from Nobody and 15 minutes the case changes the user, the two addresses, both channels and the minutes').toBe(6);
     const entries = await auditSince(mark, wanted.length);
     const byKey = <T extends { setting: string }>(list: T[]): T[] => [...list].sort((a, b) => a.setting.localeCompare(b.setting));
     expect(
@@ -130,5 +136,29 @@ test('H3: a bad address is 400 bad_settings naming primaryEmail, and nothing is 
     expect(await auditSince(mark, 0), 'and nothing was audited').toEqual([]);
   } finally {
     await restoreOnCall(request, before);
+  }
+});
+
+test('H4: on the online demo the admin is 409 not_available before the body is read, nothing changes, and GET has no on-call member', async ({ request }) => {
+  test.setTimeout(180_000);
+  await admin(request);
+  const stored = await freshValues();
+  const was = chk(await irisScript('Write !,"CHK|demo|",##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")'), 'demo');
+  expect(was, 'the online-demo flag could be read').toBeDefined();
+  try {
+    const set = chk(await irisScript('Write !,"CHK|set|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.Public.Settings).Set("onlineDemo",1))'), 'set');
+    expect(set, 'the online-demo flag is set for the case').toBe('1');
+    const mark = await auditMark();
+    const t = tag();
+    await expectError(await request.post(ON_CALL_API, { headers: envelope(), data: bodyOf(`zz-h4p-${t}@example.com`, `zz-h4b-${t}@example.com`, 44) }), 409, 'not_available', OFF_ON_DEMO);
+    await expectError(await request.post(ON_CALL_API, { headers: envelope(), data: 'not a JSON object' }), 409, 'not_available', OFF_ON_DEMO);
+    const response = await request.get(SETTINGS_API);
+    expect(response.status(), 'GET /v1/settings still answers the admin').toBe(200);
+    const body = (await response.json()) as { sections: Record<string, unknown> };
+    expect(Object.keys(body.sections), 'with no on-call member').not.toContain('on-call');
+    expect(await freshValues(), 'the rows are unchanged').toEqual(stored);
+    expect(await auditSince(mark, 0), 'and nothing was audited').toEqual([]);
+  } finally {
+    await irisScript(`Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo",${quoted(was ?? '')})`);
   }
 });
