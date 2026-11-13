@@ -2,7 +2,7 @@
 title: 'Story 21.4: Add, remove and classify MCP servers and tools in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'blocked'
+status: 'in-progress'
 baseline_revision: '96bbbcd8ecb47dfd42eafb0b83cf1785d8099cd1'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -43,7 +43,7 @@ deferred: []
 | List | README admin, GET `/v1/settings/mcp`. Servers `zzA` (attached; 3 tool rows: read-only, risky and refused, unclassified) and `zzB` (never attached) | 200 `{"servers":[{name,address,status,tools,unclassified,pending}],"tools":[{server,name,classification,status}]}`, sorted by name. `zzA` is `attached`, 3, 1, 0. `zzB` has status `""` and 0, 0, 0. No secret, no `secret://` reference, no fingerprint | A failed read is 500 `server_error` |
 | Add with secret | `{"name":"zzA","address":"http://127.0.0.1:<mock>/mcp","secret":"<24 random>"}` | 200 `{"result":"added","message":MESSAGEADDED}`. Row, resource and grant. Entry `AI.MCP.OcuTalon_zzA`: `url`, plus the secret as a `secret://OcuTalon_MCP_zzA.Key#token` reference (bearer, Task 0). Wallet key `OcuTalon_MCP_zzA.Key` holds the secret. One `MCP` audit entry `added`. Runners restarted. After a runner build, the mock saw the credential (`matched`), and GET lists the mock's tools `unclassified` | -- |
 | Add without secret | no `secret`, or `""` | As above, with the no-credential entry form (Task 0 b). No wallet collection | -- |
-| Add refused | non-loopback `http://`; user info; `@{` in a value; a bad name; an existing name; a secret that is not a string, is over 4,096 characters or has a space or control character | 400 `bad_mcp_server`, `fields` {name/address/secret: text}: MESSAGENAME, MESSAGEADDRESS, MESSAGEEXISTS (`exists`, from McpOps), `settings.refusedExpansion` (`@{`), T6 | A route-checked case offers nothing to the handoff. An McpOps refusal (`exists`, or its own name or address check) is mapped to its field after the handoff is discarded. Nothing is written or audited either way |
+| Add refused | non-loopback `http://`; user info; a query string or fragment (any `?` or `#`, T12; ruling B2); `@{` in a value; a bad name; an existing name; a secret that is not a string, is over 4,096 characters or has a space or control character | 400 `bad_mcp_server`, `fields` {name/address/secret: text}: MESSAGENAME, MESSAGEADDRESS, MESSAGEEXISTS (`exists`, from McpOps), `settings.refusedExpansion` (`@{`), T6 | A route-checked case offers nothing to the handoff. An McpOps refusal (`exists`, or its own name or address check) is mapped to its field after the handoff is discarded. Nothing is written or audited either way |
 | Add write fails | The handoff cannot be taken (an already-taken or unknown uri), or the entry or wallet write fails | McpOps answers `failed`. No row, resource, grant, entry, collection or key is left. One warning with a fixed text. Route: 500 `server_error` | The page reloads the list |
 | Remove | DELETE `/v1/settings/mcp/servers/zzA`, after the dialog; one pending `tool_call` row of `zzA` | 200 `{"result":"removed","message":MESSAGEREMOVED}`. Row, tool rows, resource, grant, entry, key and collection are gone. The pending row is `cancelled` (22.4's `CancelPending`, merged). One `MCP` audit entry `removed`. GET lists no `zzA` | Unknown name: 404 `not_found` |
 | Classify | POST `/v1/settings/mcp/classify` `{"server","tool","classification":"read-only"}` | 200 `{"result":"saved","message":"Saved"}`. Row `read-only`. A `Tool` audit entry | Unknown server or tool: 404. Another word or shape: 400 `bad_classification` |
@@ -251,6 +251,13 @@ Line numbers are those of this branch after the Epic 22 merge (`3d94a219`: 22.9,
 
 ## Spec Change Log
 
+- 2026-11-13 (lead, Planner rulings `prompts/epic-21-rulings-20261113-1800.md`, binding; pass 3 scope):
+  - **B1 (c), granted.** This is a cross-lane grant for this one change only: Lane A's `src/ocutalon/cls/OcuTalon/Mcp/Attach.cls` and `Test/Mcp/Attach.cls` `TestRemovedServer`. When Attach re-attaches recorded specs, it skips the spec of a server that has no `Mcp.Server` row. The gate then refuses the call with `UNREGISTERED` and writes its audit entry. `TestRemovedServer` asserts three things: `UNREGISTERED`, exactly one audit entry for the refused call, and no `ToolNotFound` anywhere in what it checks. The V3 drop of the entry and the wallet collection at removal stays. A contradiction with 22.x behaviour is a STOP.
+  - **B2, accepted.** `Test.Mcp.Ops:TestNoAddressOrSecretInAnyText` keeps its audit assertion narrowed to source `OcuTalon`. IRIS's own audit entries are outside our control.
+  - **B2, added refusal.** Both McpOps' address check and the route's refuse an address that holds `?` or `#` (a query string or a fragment). It is a 400 `bad_mcp_server` with the field `address`, the McpOps refusal mapped to its field like the others, and nothing written or audited. The new field text is T12, word for word: "An MCP server's address can't hold a query string (the part after ?). Put a key in Secret instead. Nothing was changed." Add one test that refuses such an address at the route and at McpOps, with its mutation: the check skipped -> red. No doc note. If Task 0's measured attach address, or the Jira example's address (`docs/mcp-jira-example.md` and the guide, if present), needs a query string, STOP and report.
+  - The address rules stay EXACTLY as ruled. Lane D's 22.6 review checks its claims against them at its merge.
+  - Keep new web code in lazily loaded chunks. The initial bundle has about 1.9 kB of headroom.
+
 - 2026-11-12 (lead, spec gate): Planner rulings B applied (V1-V12 approved; the plain-HTTP-with-secret condition added as an AC; 21.9 split written into epics.md; T1-T11 verbatim; implement after 22.4 merges).
 - 2026-11-13 (plan, spec refresh): refresh after 22.4 merged. Epic 22 (22.9, 22.3, 22.4) is merged into this branch (`3d94a219`). These changes need no new ruling; every ruled item (V1-V12, T1-T11, condition B, the 21.9 split) is unchanged.
   - Every Code Map and Task line was re-verified against the tree.
@@ -450,6 +457,7 @@ New, for the Planner (Settings > Tools and MCP servers unless said; online demo:
 - T7 dialog sentences. With n > 1 tools: "Remove {server}? Its {n} tools go at once." (m = 0); "... and 1 pending approval request for them is canceled." (m = 1, accepted); "Remove {server}? Its {n} tools go at once, and {m} pending approval requests for them are canceled." (m > 1). With n = 1: "Remove {server}? Its 1 tool goes at once." (m = 0); "Remove {server}? Its 1 tool goes at once, and 1 pending approval request for it is canceled." (m = 1); "Remove {server}? Its 1 tool goes at once, and {m} pending approval requests for it are canceled." (m > 1). With n = 0: "Remove {server}? It has no tools." (m = 0); "Remove {server}? 1 pending approval request for its tools is canceled." (m = 1); "Remove {server}? {m} pending approval requests for its tools are canceled." (m > 1).
 - T8 tools table headers: "Tool", "Server", "Status", "Classification". Statuses: "Available", "Unavailable", "Refused: a built-in tool has this name". Empty: "No tools yet." With the filter on: "No unclassified tools."
 - T9 "New since 1.0.0" bullet: "- **MCP servers in Settings.** On your own install, an admin adds an MCP server in Settings > Tools and MCP servers, with an optional secret kept in the IRIS Wallet, and classifies each of its tools as Read-only or Risky; until then a tool counts as risky. MCP servers are off on the online demo."
+- T12 address field error (ruling B2, approved verbatim): "An MCP server's address can't hold a query string (the part after ?). Put a key in Secret instead. Nothing was changed."
 - T10 radiogroup name: "Classification of {tool} on {server}". T11 remove button name: "Remove {server}".
 
 ## Verification
