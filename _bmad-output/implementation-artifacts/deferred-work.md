@@ -7407,6 +7407,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Harness seed_approval/check_approval_upgrade (L1133-1166, L1460-1485): one Break-the-feed fix, approved on phone; no reject, no tool_call, no column check. test-install-upgrade.sh seeds none. Local pin Test.Mcp.ApprovalUpgrade covers the 25-slot storage only.
 - 2026-11-13T00:27:51Z status=escalated owner=burndown by=cr note=release/** is Epic 0's; harness needs a 2nd seeded request rejected after upgrade + SQL check ToolFingerprint empty
+- 2026-11-13T03:12:27Z status=resolved-by:22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=orchestrator note=Planner_F4_hunk_approved;release/upgrade-harness.sh_second_request+reject(channel_web)+ToolFingerprint_empty_x3;pinned_in_docker/tests/test-upgrade-harness.sh_rule_approval-reject;Test.Mcp.ApprovalUpgrade_kept;unexercised_on_a_live_stack_until_the_1.0.9_RC
 
 ### DW-1240: Planner condition 4 says an unknown toolref is HELD; the build denies it (UNREGISTERED under OcuTalon's classification, FAILED with no fingerprint) and never runs it
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: in-story
