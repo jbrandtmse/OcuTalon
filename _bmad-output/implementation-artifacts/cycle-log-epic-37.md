@@ -72,3 +72,11 @@
 2026-11-11T01:25:19Z	Story 37.2	ci_resolved	story=37.2 sha=3e21a085 runs=42933194753,42933194884 failed=none via=none result=success resolved_at=merge_gate
 2026-11-11T01:25:19Z	Epic 37	part_merge	story=37.2 head=3e21a085 feature=878da0d2(ea5374ef+37.2) by=orchestrator note=DW-1096_amended_by_orchestrator;DW-1102_AC_added_to_25.2;More_to_try_twelve_items
 2026-11-11T01:25:19Z	Epic 37	epic_runner_complete	stories_completed=1(37.2) part=true epic_status=in-progress(37.1_waits_on_epic-36) lane=B_idle_after
+2026-11-13T06:53:36Z	Epic 37	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-13T06:53:36Z	Epic 37	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-13T06:53:36Z	Epic 37	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_lane_A_dw1255_audit_and_371_plan_20261113 lane=A slot=ocutalon-slot-a port=52801 inbox_verify=ok hold=none
+2026-11-13T06:53:36Z	Epic 37	integrated_forward	feature=0898ebfb head=8d55ace6 conflicts_resolved=none pushed=no(dispatch_no_push) purpose=read_current_tree_for_DW-1255_and_plan_37.1
+2026-11-13T06:53:36Z	Epic 37	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-13T06:53:36Z	Epic 37	ledger_load	total=1214 open=0 routed=144 escalated=2 decision_pending=5 terminal=1063 owner_unknown=0 owned_epic37=1(DW-1231->37-1) reowned_none=0
+2026-11-13T06:54:23Z	Epic 37	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true warnings=known_non_epic_headings_only mode=headless_readiness_recheck
+2026-11-13T06:54:23Z	Epic 37	retro_review_skipped	reason=already_recorded_2026-11-10(retro_review_skipped) note=no_new_x0_input_in_authority(DW-1231_already_routed_to_37.1_as_AC)
