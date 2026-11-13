@@ -190,3 +190,5 @@
 2026-11-13T05:14:34Z	Epic 22	planner_rulings_applied	source=<coordination>/prompts/gate-rulings-20261112-1810.md#H via=orchestrator 22.7=approved_with_conditions(i_untrusted_refusal_self_included,ii_merge_waits_21.13,iii_audit_no_content_card_shows_content;forced_copy_ok+DW-1256;AC_21.5->21.11) 22.10=AD-21_re-architecture_declined(spec_deferred_owner_decision);DW-1228->22.6_test;DW-1221->S11_record+22.6_guide 22.6=plan_now_against_current_AD-21
 2026-11-13T05:14:34Z	Epic 22	spine_updated	ad=AD-21(S11_record) reason=rule20(Planner_H:DW-1221_measured_known_limit) by=runner story=22-10 lint=unchanged(10_pre-existing_low)
 2026-11-13T05:14:34Z	Epic 22	ledger_routed_planned	story=22-6-document-a-worked-jira-example-and-mcp-governance entries=2(DW-1228,DW-1221) excess=0 by=orchestrator
+2026-11-13T05:19:30Z	Epic 22	epic_context_compiled	reason=planning_artifact_newer(rulings_H) model=opus words=1555
+2026-11-13T05:19:30Z	Story 22.6	stage_spawned	stage=plan spawn_at=2026-11-13T05:19:30Z model=opus agent_name=22-6-document-a-worked-jira-example-and-mcp-governance-plan-1 cycle_iteration=1 effort=high
