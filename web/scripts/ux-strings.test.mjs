@@ -68,6 +68,7 @@ const IMPORTED = [
   ['settings/settings-view.ts', ['SETTINGS_TEXTS']],
   ['settings/email-view.ts', ['EMAIL_TEXTS']],
   ['documents/documents-view.ts', ['DOCUMENTS_TEXTS', 'REASON_TEXTS']],
+  ['chat/files-view.ts', ['FILES_TEXTS']],
   ['documents/sample-runbook-view.ts', ['SAMPLE_RUNBOOK_TEXTS']],
   ['chat/noise-view.ts', ['NOISE_TEXTS']],
   ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS', 'ANSWER_WORDS']],
@@ -201,6 +202,8 @@ const SOURCES = {
     'Test',
     'None',
     'Output',
+    'That file is {size}; the limit is 10 MB.',
+    "I couldn't read that file: {reason}.",
     'Documents',
     'Add documents',
     'Add the sample runbook',
@@ -712,6 +715,13 @@ const SOURCES = {
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 25.3 rulings at the spec gate 2026-11-12 (the Contest Planner under the owner\'s delegation, story-253-rulings-20261112.md: PUBLIC TEXT rows 1 to 9 approved verbatim; rows 2 and 3 sit under ux, because EXPERIENCE.md holds them)': [
+      'Send a file',
+      "it isn't a PDF, Word (.docx), JPEG or PNG file",
+      'the file is empty',
+      'Sending files is off on the online demo. It works on your own install.',
+      'File not sent',
+    ],
     'Story 25.2 rulings at the spec gate 2026-11-10 (the Contest Planner under the owner\'s delegation, spec gate of Story 25.2, relayed by the orchestrator: PUBLIC TEXT approved as proposed: the Any outcome and Any channel options, the three Fallback options, Clear filters, the Noticed and Closed times, the two no-summary lines, the pager texts and the names of the two pagers, the empty line of no incidents, and the error line; the tab names, the Outcome and Date labels, the two empty lines of decisions and the More to try item sit under ux, because EXPERIENCE.md holds them)': [
       'Any outcome',
       'Any channel',

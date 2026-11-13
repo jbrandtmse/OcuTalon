@@ -111,14 +111,14 @@ export async function holdPoll(page: Page): Promise<() => Promise<number>> {
 }
 
 /**
- * Holds every /state request of the page until release() is called, then lets the held ones through to the server. With `first`, only the
- * first `first` requests are held (Story 32.6): later ones go straight to the server, and held() counts the ones still waiting.
+ * Holds every request of the page to a route until release() is called, then lets the held ones through to the server. With `first`,
+ * only the first `first` requests are held (Story 32.6): later ones go straight to the server, and held() counts the ones still waiting.
  */
-export async function holdState(page: Page, first?: number): Promise<{ release: () => void; held: () => number }> {
+async function holdMatching(page: Page, url: string | RegExp, first?: number): Promise<{ release: () => void; held: () => number }> {
   const waiting: Array<() => void> = [];
   let released = false;
   let seen = 0;
-  await page.route(`**${STATE}`, async (route: Route) => {
+  await page.route(url, async (route: Route) => {
     seen += 1;
     if (!released && (first === undefined || seen <= first)) {
       await new Promise<void>((resolve) => waiting.push(resolve));
@@ -132,4 +132,17 @@ export async function holdState(page: Page, first?: number): Promise<{ release: 
     },
     held: () => waiting.length,
   };
+}
+
+/** Holds every /state request of the page until release() is called, then lets the held ones through to the server. */
+export async function holdState(page: Page, first?: number): Promise<{ release: () => void; held: () => number }> {
+  return holdMatching(page, `**${STATE}`, first);
+}
+
+/**
+ * Holds every /events request of the page until release() is called, then lets the held ones through to the server. Unlike holdPoll it
+ * leaves the page's clock running, so that the rest of the page (a press and its reply) works while the polls wait.
+ */
+export async function holdPolls(page: Page): Promise<{ release: () => void; held: () => number }> {
+  return holdMatching(page, POLLS);
 }

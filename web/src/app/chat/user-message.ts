@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 
 import { Icon } from '../icon/icon';
 import { CHAT_TEXTS, type TurnView } from './chat-view';
+import { FileChip } from './file-chip';
 import { pageTime } from './page-time';
 
 /** The count of the messages that have been made, which gives each one's "Not sent" an id of its own. */
@@ -12,15 +13,21 @@ let lastNotSent = 0;
  * with its text lines capped at chat-text-max (UX-DR58), with the text's line breaks kept. The line under it holds the caption ("via Telegram" or "From the demo guide") and the time,
  * in the browser's zone and hour format. A message whose post failed also says "Not sent" and offers Retry sending, which
  * posts the same message again; Retry sending is described by that "Not sent" (aria-describedby). The element
- * takes focus only when the New messages button sends it there.
+ * takes focus only when the New messages button sends it there. A message that carries a file (Story 25.3) shows the file's name and size in a chip under the
+ * text, and has no bubble when it has no text.
  */
 @Component({
   selector: 'app-user-message',
-  imports: [Icon],
+  imports: [FileChip, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="message" data-part="user" [attr.data-key]="turn().key" tabindex="-1">
-      <div class="bubble">{{ turn().text }}</div>
+      @if (turn().text !== '') {
+        <div class="bubble">{{ turn().text }}</div>
+      }
+      @if (turn().sentFile; as file) {
+        <app-file-chip [file]="file" />
+      }
       <div class="line">
         <span class="when">{{ when() }}</span>
         @if (turn().send === 'failed') {

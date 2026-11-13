@@ -2,8 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, i
 
 import { allowanceReason } from '../banners/banner-stack';
 import { AllowanceState } from '../live/allowance-state';
+import { ChatFiles } from './chat-files';
 import { ChatOutbox } from './chat-outbox';
 import { CHAT_TEXTS } from './chat-view';
+import { ACCEPT_FILES, FILES_TEXTS } from './files-view';
 
 /** The most lines the field shows before it scrolls. */
 const MAX_LINES = 5;
@@ -22,6 +24,8 @@ export const COMPOSER_REASON_ID = 'composer-allowance-reason';
  * banner's own text, is visible above the field, in the paragraph #composer-allowance-reason that both controls are described by. Send
  * and Enter then do nothing, and the typed text stays in the field. At the time the allowance returns the reason and the markings clear.
  * After a send the field is empty, shrunk and focused. It takes no focus on its own.
+ * While the snapshot says the install can read a file and it is not the online demo (ChatFiles.controls), a paperclip button named "Send a file" comes before the
+ * field and opens the file picker (Enter and Space work as on any button); the files go to ChatFiles, and a refusal shows above the composer (Story 25.3).
  * On the online demo a message that the server refused with 503 comes back (Story 16.5): the outbox offers its text and the field takes
  * it only while it is empty or blank, never moving focus; a field that holds other text keeps it.
  */
@@ -32,7 +36,18 @@ export const COMPOSER_REASON_ID = 'composer-allowance-reason';
     @if (reason(); as text) {
       <p class="reason" [id]="reasonId">{{ text }}</p>
     }
+    @if (files.refusal(); as refusal) {
+      <p class="file-refusal">{{ refusal }}</p>
+    }
     <div class="composer">
+      @if (files.controls().paperclip) {
+        <button type="button" class="button button-secondary attach" [attr.aria-label]="fileTexts.send" (click)="picker.click()">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </svg>
+        </button>
+        <input #picker type="file" multiple hidden [accept]="acceptFiles" (change)="picked(picker)" />
+      }
       <label class="visually-hidden" for="composer-field">{{ texts.composerLabel }}</label>
       <textarea
         #field
@@ -87,6 +102,22 @@ export const COMPOSER_REASON_ID = 'composer-allowance-reason';
       color: var(--composer-placeholder);
       opacity: 1;
     }
+    .attach {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: var(--space-target-min);
+      min-height: var(--space-target-min);
+      padding: 0;
+    }
+    .file-refusal {
+      margin: 0 0 var(--space-2);
+      color: var(--ink-muted);
+      font-size: var(--type-body-sm-font-size);
+      font-weight: var(--type-body-sm-font-weight);
+      line-height: var(--type-body-sm-line-height);
+    }
     .reason {
       margin: 0 0 var(--space-2);
       color: var(--ink-muted);
@@ -99,9 +130,12 @@ export const COMPOSER_REASON_ID = 'composer-allowance-reason';
 export class Composer {
   private readonly outbox = inject(ChatOutbox);
   private readonly allowance = inject(AllowanceState);
+  protected readonly files = inject(ChatFiles);
   private readonly field = viewChild.required<ElementRef<HTMLTextAreaElement>>('field');
 
   protected readonly texts = CHAT_TEXTS;
+  protected readonly fileTexts = FILES_TEXTS;
+  protected readonly acceptFiles = ACCEPT_FILES;
 
   /** The id of the reason that the field and Send are described by while the message allowance is used up. */
   protected readonly reasonId = COMPOSER_REASON_ID;
@@ -125,6 +159,13 @@ export class Composer {
     field.value = text;
     this.grow();
     return true;
+  }
+
+  /** The files the picker gave go to the chat's file sending; the text in the field is left as it is. */
+  protected picked(input: HTMLInputElement): void {
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    void this.files.add(files);
   }
 
   /** Enter sends; Shift+Enter, and Enter while an IME composition is open, do not. */

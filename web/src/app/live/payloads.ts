@@ -123,6 +123,13 @@ export interface Memory {
   savedAt?: string;
 }
 
+export interface SentFile {
+  ref?: string;
+  name?: string;
+  mediaType?: string;
+  size?: number;
+}
+
 export interface StatusSlots {
   limit?: number;
   cap?: number;
@@ -157,6 +164,7 @@ export interface ChatMessagePayload {
   citations?: Citation[];
   memories?: Memory[];
   learned?: Learned[];
+  sentFile?: SentFile;
   traceUrl?: string;
 }
 

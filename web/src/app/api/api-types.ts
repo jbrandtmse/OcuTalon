@@ -58,6 +58,8 @@ export interface StateSnapshot {
   admin: boolean;
   onlineDemo: boolean;
   demoMode: boolean;
+  /** True only when the install's code can read a file that is sent (Story 25.3; 26.2 turns it on): the paperclip and the chat's file drop show only then, and never on the online demo. */
+  filesReadable: boolean;
   models: { triage: string; diagnosis: string; chat: string };
   telegram: TelegramState;
   status: StatusPayload[];
@@ -85,6 +87,26 @@ export interface MessagePost {
 /** The 202 answer to a message: its clientId, also for a repeat of one the server already holds. */
 export interface MessageAccepted {
   clientId: string;
+}
+
+/** POST /ocutalon/api/v1/files: one file of the chat, its bytes in base64 (Story 25.3). The session is the caller's; the body never names one. */
+export interface FilePost {
+  clientId: string;
+  name: string;
+  content: string;
+}
+
+/** The 202 answer to a file: its clientId and the stored file's Ref, name, media type and size; a repeat of a clientId answers the clientId alone. */
+export interface FileAccepted {
+  clientId: string;
+  file?: { ref: string; name: string; mediaType: string; size: number };
+}
+
+/** The error body of POST /v1/files: `error` for any refusal, and for a 400 `bad_file` the `reason` (too_large, empty or wrong_type) and the `size` in bytes. */
+export interface FileRefusal {
+  error?: { code?: string; message?: string };
+  reason?: string;
+  size?: number;
 }
 
 /** POST /ocutalon/api/v1/mailbox/incoming: one simulated email. The session is the caller's; the body never names one. */

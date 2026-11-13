@@ -7096,6 +7096,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: rail lists pendingApprovals(store) (web/src/app/rail/rail-view.ts:340); store approvals change only via approval events (live/live-store.ts:188-189); the press reply updates only the card's AnswerPress.local (approvals/answer-press.ts replied); event published async by Core.BridgeSink.Approved, read by the next poll (live-state.ts:19 POLL_DELAY_MS 1000)
 - 2026-11-11T20:10:49Z status=routed owner=burndown by=owner note=Contest Planner ruling 2026-11-11T20:09:53Z (owner delegation; reverses orchestrator veto U-318): judge-visible (Reject a fix is a featured More to try step). Follow-up story in approvals/phone/rail, dispatched by the orchestrator AFTER 21.2 merges, on any free lane, after 0.26 and DW-1123. Acceptance: a browser test presses Reject and the request is gone from the rail within 5 s, on the web and on the phone view. Ships in 1.0.8 only if merged before the cut, else 1.0.9. Not a 23.10 rework.
+- 2026-11-12T12:22:24Z owner=23-12-take-a-rejected-request-off-the-status-rail-at-once by=burndown note=chartered_as_Story_23.12_per_Planner_ruling_2026-11-11T20:09:53Z(follow-up_story,lane_D_after_23.9;orchestrator_continue_2026-11-12)
+- 2026-11-12T13:52:56Z status=resolved-by:23-12-take-a-rejected-request-off-the-status-rail-at-once by=adjudication note=f6a03be3:withAnswer(live-store)+LiveState.applyAnswer+AnswerPress.answered(card+phone);RA1(web)+RA2(phone)_reply-only_removal_polls_held;PA2(web)+PA3(phone)_gone_within_5s_of_press_on_real_request(85-105ms);unit:answer-press.test.mjs,live-store,rail-view
 ### DW-1164: EmailOut's system path (Story 21.6) needs Story 22.7 to fill SendEmail.ApprovalRef, the approval row's FixKind 'email' and FixParameters.recipients, and to replay with a context of Kind tool and provenance user; only seeded rows test it today
 - source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Channel/Email/Out.cls system path reads Bridge.Data.ApprovalRequest; tests seed the row; S1 spine sub-bullet records the contract
@@ -7495,6 +7497,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md (code review, rework 2 re-review) | severity: low | fix-risk: low | footprint: in-story
 - evidence: docker/tests/test-release-notes.sh static_names and docker/tests/test-readme.sh dev_names (:1290) each spell '## For admins and developers' and '## Gmail and Microsoft 365'. Drift is loud (both scan the same README.md/GUIDE.md) but costs a CI round trip: the 21.8 CI red was this drift. Rule 2 copy with a weak reason.
 - 2026-11-13T03:04:07Z status=wontfix-accepted owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=cr note=reopen_if=a heading is added to or removed from dev_names (test-readme.sh) or static_names (test-release-notes.sh)
+### DW-1248: OPTIONS on /api/v1/files is answered by %CSP.REST's OnHandleOptionsRequest (an Allow list, no body), not the 404 not_found that AC 9 says for every method but POST
+- source: spec-25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: irislib/%CSP/REST.cls :272-275 and :392-393 answer OPTIONS before Http405, both before sign-in (Page) and after (DispatchRequest); no byte of a file is sent, so ruling 3 (ii) holds; FilesApi and api/files.spec.ts (ii) never try OPTIONS
+- 2026-11-13T03:34:16Z status=wontfix-accepted owner=25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram by=cr note=fix needs a public-package OPTIONS answer (Web.Hook precedent); reopen_if=OPTIONS under /ocutalon/api/v1/files sends any stored file byte or a spec asks 404 for it
 ### DW-1231: AC for 37.1: fix the read-result reply contract (extracted-text summary ref, Add to documents offer, photo memory caption, read-failure reason) that Story 25.6 consumes
 - source: orchestrator ruling on 25.3's split, 2026-11-12 (veto U-326) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 25.3 plan: 25.6 needs a reply contract no story fixes
@@ -7529,3 +7535,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: low | footprint: in-story
 - evidence: Out.Send logs and continues when %DeleteId of its own row fails; the outcome is fail-safe (never a second send)
 - 2026-11-13T05:49:04Z status=wontfix-theoretical owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=real if Delivery deletes start failing under load (LOGERROR 'could not remove the claim' seen in Ens.Util.Log)
+### DW-1254: 24.2: partner contacts' names and addresses go through the SecretHandoff (in memory only), never in a traced SaveSettings.Changes; the traced message holds only the handoff uri; values reach only the IRIS audit entry; one leak-scan test
+- source: Contest Planner 36.4 gate ruling S1 extension, 2026-11-13 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 36.4 S1: SaveSettings.Changes is visible in Visual Trace to OcuTalonTraceViewer (non-admin)
+- 2026-11-13T04:50:39Z status=routed owner=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=orchestrator note=AC bullet added to 24.2's epics.md block (Planner ruling)
+
+### DW-1255: audit: every other settings section for personal data in traced SaveSettings.Changes; anything personal moves to the SecretHandoff (mail-server host names and webhook names are not personal and can stay)
+- source: Contest Planner 36.4 gate ruling, 2026-11-13 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: SaveSettings.Changes is visible to OcuTalonTraceViewer, which non-admin accounts hold
+- 2026-11-13T04:50:39Z status=routed owner=burndown by=orchestrator note=Planner ruling; one audit story

@@ -1,4 +1,4 @@
-/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 35 payload
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 36 payload
 /// and part classes (Story 41.15 adds the part Learned and the chat message's learned; Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 20.2 the parts Citation and Memory and the chat message's citations and memories, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
@@ -90,7 +90,7 @@ Method TestContracts()
 			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
 		}
 	}
-	Do $$$AssertEquals(classes, 35, "the contracts hold the 35 payload and part classes")
+	Do $$$AssertEquals(classes, 36, "the contracts hold the 36 payload and part classes")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
 }
@@ -1271,7 +1271,8 @@ XData Contracts [ MimeType = application/json ]
    "Checks": "list Of OcuTalon.Live.Payload.Part.CheckRow(%JSONFIELDNAME=checks)",
    "Citations": "list Of OcuTalon.Live.Payload.Part.Citation(%JSONFIELDNAME=citations)",
    "Memories": "list Of OcuTalon.Live.Payload.Part.Memory(%JSONFIELDNAME=memories)",
-   "Learned": "list Of OcuTalon.Live.Payload.Part.Learned(%JSONFIELDNAME=learned)"
+   "Learned": "list Of OcuTalon.Live.Payload.Part.Learned(%JSONFIELDNAME=learned)",
+   "SentFile": "OcuTalon.Live.Payload.Part.SentFile(%JSONFIELDNAME=sentFile)"
   }
  },
  "OcuTalon.Live.Payload.Check": {
@@ -1600,6 +1601,15 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "MemoryRef": "%String(%JSONFIELDNAME=memoryRef,MAXLEN=128)",
    "Fact": "%String(%JSONFIELDNAME=fact,MAXLEN=)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.SentFile": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "Name": "%String(%JSONFIELDNAME=name,MAXLEN=255)",
+   "MediaType": "%String(%JSONFIELDNAME=mediaType,MAXLEN=128)",
+   "Size": "%Integer(%JSONFIELDNAME=size)"
   }
  },
  "OcuTalon.Live.Payload.Part.Memory": {

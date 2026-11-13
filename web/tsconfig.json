@@ -12,7 +12,8 @@
     "importHelpers": true,
     "target": "ES2022",
     "module": "preserve",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "rewriteRelativeImportExtensions": true
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

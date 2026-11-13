@@ -405,7 +405,8 @@ XData Contracts [ MimeType = application/json ]
    "CheckRows": "%String(MAXLEN=)",
    "Citations": "%String(MAXLEN=)",
    "Memories": "%String(MAXLEN=)",
-   "Learned": "%String(MAXLEN=)"
+   "Learned": "%String(MAXLEN=)",
+   "SentFile": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -802,6 +803,11 @@ XData Registry [ MimeType = application/json ]
   "short": "Upload",
   "global": "^OcuTalonP.Upload",
   "class": "OcuTalon.Data.Upload"
+ },
+ {
+  "short": "SentFile",
+  "global": "^OcuTalonP.SentFile",
+  "class": "OcuTalon.Data.SentFile"
  },
  {
   "short": "Precedent",

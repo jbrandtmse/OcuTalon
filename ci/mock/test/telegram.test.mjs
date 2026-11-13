@@ -1,5 +1,5 @@
-// Tests of the Telegram Bot API side of the CI mock (Story 10.3; AD-22; the mock rows of the I/O matrix): the five methods and their
-// defaults, the refusals, the update queue with its long poll and offset, the queued replies and the call list, the scenario form, the
+// Tests of the Telegram Bot API side of the CI mock (Story 10.3 and, for getFile and the download, Story 25.3; AD-22; the mock rows of the I/O matrix): the six methods and their
+// defaults, the fixture files that getFile and the download serve, the refusals, the update queue with its long poll and offset, the queued replies and the call list, the scenario form, the
 // scenarios that no model request can select, and the rule that the token is logged by its length only, in stdout and in
 // requests.jsonl. Each test makes its own fixture tree and log folder, starts its own server on 127.0.0.1 with port 0 and removes
 // everything afterwards (helpers.mjs). The token-like strings are built at run time. Needs Node 24 and nothing else.
@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { BOT_PATH, MAX_POLL_SECONDS } from '../mock.mjs';
+import { BOT_PATH, FILE_PATH, MAX_POLL_SECONDS } from '../mock.mjs';
 import { loadScenarios } from '../scenarios.mjs';
 import { spawnServer, withServer } from './helpers.mjs';
 
@@ -102,17 +102,12 @@ test('mock getMe: GET and POST answer the default bot, with no model key, and th
   });
 });
 
-test('mock refusals: an empty token is 401, getFile and an unknown method are 404, a multipart body is 400', async () => {
+test('mock refusals: an empty token is 401, an unknown method is 404, a multipart body is 400', async () => {
   await withServer({}, async ({ base, readLog }) => {
     const unauthorized = await fetch(`${base}/bot/getMe`);
     assert.equal(unauthorized.status, 401);
     const unauthorizedBody = await unauthorized.json();
     assert.deepEqual(unauthorizedBody, { ok: false, error_code: 401, description: 'Unauthorized' });
-    const file = await bot(base, DUMMY, 'getFile', { json: { file_id: 'x' } });
-    assert.equal(file.status, 404);
-    assert.equal(file.json.ok, false);
-    assert.equal(file.json.error_code, 404);
-    assert.ok(file.json.description.includes('Story 25.3'), file.text);
     const kick = await bot(base, DUMMY, 'kick');
     assert.equal(kick.status, 404);
     assert.deepEqual(Object.keys(kick.json), ['ok', 'error_code', 'description']);
@@ -124,15 +119,15 @@ test('mock refusals: an empty token is 401, getFile and an unknown method are 40
     assert.equal(badJson.status, 400);
     const put = await bot(base, DUMMY, 'getMe', { verb: 'PUT' });
     assert.equal(put.status, 405);
-    for (const text of [JSON.stringify(unauthorizedBody), file.text, kick.text, multipart.text, badJson.text, put.text]) assert.equal(text.includes(DUMMY), false);
+    for (const text of [JSON.stringify(unauthorizedBody), kick.text, multipart.text, badJson.text, put.text]) assert.equal(text.includes(DUMMY), false);
     const entries = readLog();
-    assert.deepEqual(entries.map((e) => e.rejected), ['no-token', 'get-file', 'unknown-method', 'multipart', 'bad-body', 'method']);
-    assert.deepEqual(entries.map((e) => e.status), [401, 404, 404, 400, 400, 405]);
+    assert.deepEqual(entries.map((e) => e.rejected), ['no-token', 'unknown-method', 'multipart', 'bad-body', 'method']);
+    assert.deepEqual(entries.map((e) => e.status), [401, 404, 400, 400, 405]);
     assert.equal(entries[0].tokenLength, 0);
     assert.equal(entries[1].tokenLength, DUMMY.length);
     assert.equal(JSON.stringify(entries).includes(DUMMY), false);
     const calls = (await control(base, 'calls', 'GET')).json.calls;
-    assert.deepEqual(calls.map((c) => c.method), ['getFile', 'kick', 'sendMessage', 'sendMessage'], 'the 401 and the 405 are no calls; the other refusals are');
+    assert.deepEqual(calls.map((c) => c.method), ['kick', 'sendMessage', 'sendMessage'], 'the 401 and the 405 are no calls; the other refusals are');
   });
 });
 
@@ -300,7 +295,6 @@ test('mock replies: a scenario that is not telegram, a bad method or bad replies
       [{ scenario: 'triage' }, 'a model scenario'],
       [{ scenario: 'no-such-scenario' }, 'an unknown scenario'],
       [{ scenario: 'tg-conflict', method: 'getUpdates', replies: [{ status: 200, body: {} }] }, 'a scenario with a method'],
-      [{ method: 'getFile', replies: [{ status: 200, body: {} }] }, 'getFile'],
       [{ method: 'kick', replies: [{ status: 200, body: {} }] }, 'a method the mock does not serve'],
       [{ method: 'getMe' }, 'no replies'],
       [{ method: 'getMe', replies: [] }, 'empty replies'],
@@ -314,8 +308,6 @@ test('mock replies: a scenario that is not telegram, a bad method or bad replies
       assert.equal(r.status, 400, what);
       assert.equal(r.json.error.type, 'invalid_request_error', what);
     }
-    const file = await control(base, 'replies', 'POST', { method: 'getFile', replies: [{ status: 200, body: {} }] });
-    assert.ok(file.json.error.message.includes('Story 25.3'));
     assert.equal((await bot(base, DUMMY, 'getMe')).json.result.username, 'ocutalon_ci_bot', 'a refused request queued nothing');
     const unknown = await control(base, 'nowhere', 'POST');
     assert.equal(unknown.status, 404);
@@ -344,14 +336,14 @@ test('the server refuses a telegram scenario file that breaks the format, naming
   try {
     fs.mkdirSync(path.join(dir, 'A'));
     fs.mkdirSync(path.join(dir, 'B'));
-    fs.writeFileSync(path.join(dir, 'A', 'tg-bad.json'), JSON.stringify({ name: 'tg-bad', match: { telegram: 'getFile' }, replies: [{ status: 200, body: {} }] }));
+    fs.writeFileSync(path.join(dir, 'A', 'tg-bad.json'), JSON.stringify({ name: 'tg-bad', match: { telegram: 'kick' }, replies: [{ status: 200, body: {} }] }));
     fs.writeFileSync(path.join(dir, 'B', 'tg-text.json'), JSON.stringify({ name: 'tg-text', match: { telegram: 'getMe' }, replies: [{ status: 200, text: 'x' }] }));
     const s = spawnServer(SERVER, ['--port', '0', '--scenarios', dir]);
     try {
       const exit = await s.exitWithin();
       assert.equal(exit.code, 1);
       assert.equal(s.stdout(), '');
-      assert.ok(s.stderr().includes('A/tg-bad.json') && s.stderr().includes('Story 25.3'), s.stderr());
+      assert.ok(s.stderr().includes('A/tg-bad.json') && s.stderr().includes('match telegram must be one of'), s.stderr());
       assert.ok(s.stderr().includes('B/tg-text.json'), s.stderr());
     } finally {
       s.child.kill('SIGKILL');
@@ -384,4 +376,127 @@ test('over a real server process, the token appears in neither stdout nor reques
     s.child.kill('SIGKILL');
     fs.rmSync(logDir, { recursive: true, force: true });
   }
+});
+
+// The fixture file of the Story 25.3 tests: every byte value, so that a text encoding of the download would change it.
+const FIXTURE_BYTES = Buffer.from(Array.from({ length: 512 }, (_, i) => i % 256));
+const FIXTURE = { fileId: 'AgAD-file_1', filePath: 'documents/file_1.pdf', contentType: 'application/pdf', base64: FIXTURE_BYTES.toString('base64') };
+
+async function download(base, token, filePath, { verb = 'GET' } = {}) {
+  const res = await fetch(`${base}/file/bot${token}/${filePath}`, { method: verb });
+  return { status: res.status, bytes: Buffer.from(await res.arrayBuffer()), headers: res.headers };
+}
+
+test('the file download path grammar is /file/bot<token>/<file_path>, with the token possibly empty', () => {
+  assert.deepEqual(FILE_PATH.exec('/file/bot123:abc/documents/file_1.pdf').slice(1), ['123:abc', 'documents/file_1.pdf']);
+  assert.deepEqual(FILE_PATH.exec('/file/bot/photos/a.jpg').slice(1), ['', 'photos/a.jpg']);
+  for (const other of ['/file/bot123', '/file/bot123/', '/bot123/getFile', '/file/x/y', '/v1/messages']) assert.equal(FILE_PATH.test(other), false, other);
+  assert.equal(BOT_PATH.test('/file/bot123/documents/a.pdf'), false, 'a download path is no Bot API path');
+});
+
+test('mock files (Story 25.3): getFile answers the registered file and the download serves exactly its bytes and type', async () => {
+  await withServer({}, async ({ base, lines, logFile, readLog }) => {
+    const registered = await control(base, 'files', 'POST', FIXTURE);
+    assert.equal(registered.status, 200);
+    assert.deepEqual(registered.json, { ok: true, fileId: FIXTURE.fileId, filePath: FIXTURE.filePath, size: FIXTURE_BYTES.length });
+    const got = await bot(base, REAL_SHAPE, 'getFile', { json: { file_id: FIXTURE.fileId } });
+    assert.equal(got.status, 200);
+    assert.deepEqual(Object.keys(got.json), ['ok', 'result']);
+    assert.deepEqual(Object.keys(got.json.result), ['file_id', 'file_unique_id', 'file_size', 'file_path']);
+    assert.equal(got.json.result.file_id, FIXTURE.fileId);
+    assert.equal(typeof got.json.result.file_unique_id, 'string');
+    assert.ok(got.json.result.file_unique_id.length > 0 && got.json.result.file_unique_id !== FIXTURE.fileId);
+    assert.equal(got.json.result.file_size, FIXTURE_BYTES.length);
+    assert.equal(got.json.result.file_path, FIXTURE.filePath);
+    const query = await bot(base, REAL_SHAPE, 'getFile', { verb: 'GET', query: `?file_id=${FIXTURE.fileId}` });
+    assert.deepEqual(query.json, got.json, 'the parameters may come from the query too');
+    const file = await download(base, REAL_SHAPE, got.json.result.file_path);
+    assert.equal(file.status, 200);
+    assert.ok(file.bytes.equals(FIXTURE_BYTES), 'the download returns the same bytes');
+    assert.equal(file.headers.get('content-type'), 'application/pdf');
+    assert.equal(file.headers.get('content-length'), String(FIXTURE_BYTES.length));
+    const entries = readLog();
+    assert.deepEqual(entries.map((e) => [e.method, e.path, e.status, e.tokenLength]), [
+      ['POST', '/bot[redacted]/getFile', 200, REAL_SHAPE.length],
+      ['GET', '/bot[redacted]/getFile', 200, REAL_SHAPE.length],
+      ['GET', '/file/bot[redacted]/documents/file_1.pdf', 200, REAL_SHAPE.length],
+    ]);
+    assert.deepEqual(Object.keys(JSON.parse(lines[2])), ['ts', 'id', 'method', 'path', 'status', 'scenario', 'selectedBy', 'marker', 'step', 'countdown', 'headerNames', 'keyLength', 'tokenLength', 'rejected', 'model', 'maxTokens']);
+    assert.deepEqual(entries[2].request, { botMethod: 'download', paramNames: ['file_path'] });
+    const everything = `${lines.join('')}${fs.readFileSync(logFile, 'utf8')}`;
+    for (const secret of [REAL_SHAPE, 'B'.repeat(35)]) assert.equal(everything.includes(secret), false, 'the log holds the token');
+    const calls = (await control(base, 'calls', 'GET')).json.calls;
+    assert.deepEqual(calls.map((c) => c.method), ['getFile', 'getFile', 'download']);
+    assert.deepEqual(calls[2].params, { file_path: FIXTURE.filePath });
+    assert.equal(JSON.stringify(calls).includes('B'.repeat(35)), false, 'and the call list holds no token');
+  });
+});
+
+test('mock files: an unknown file_id is 400, an unknown path 404, an empty token 401, a method other than GET 405', async () => {
+  await withServer({}, async ({ base, readLog }) => {
+    await control(base, 'files', 'POST', FIXTURE);
+    const unknown = await bot(base, DUMMY, 'getFile', { json: { file_id: 'nope' } });
+    assert.equal(unknown.status, 400);
+    assert.deepEqual(unknown.json, { ok: false, error_code: 400, description: 'Bad Request: invalid file_id' });
+    const missing = await bot(base, DUMMY, 'getFile');
+    assert.deepEqual(missing.json, { ok: false, error_code: 400, description: 'Bad Request: invalid file_id' }, 'no file_id at all is the same refusal');
+    const path404 = await download(base, DUMMY, 'documents/other.pdf');
+    assert.equal(path404.status, 404);
+    assert.deepEqual(JSON.parse(path404.bytes.toString('utf8')), { ok: false, error_code: 404, description: 'Not Found' });
+    const noToken = await fetch(`${base}/file/bot/${FIXTURE.filePath}`);
+    assert.equal(noToken.status, 401);
+    assert.deepEqual(await noToken.json(), { ok: false, error_code: 401, description: 'Unauthorized' });
+    const post = await download(base, DUMMY, FIXTURE.filePath, { verb: 'POST' });
+    assert.equal(post.status, 405);
+    assert.deepEqual(readLog().map((e) => e.rejected), ['bad-file-id', 'bad-file-id', 'unknown-file', 'no-token', 'method']);
+    const calls = (await control(base, 'calls', 'GET')).json.calls;
+    assert.deepEqual(calls.map((c) => c.method), ['getFile', 'getFile', 'download'], 'the refused calls with a token and a method are listed; the 401 and the 405 are not');
+  });
+});
+
+test('mock files: a queued reply for getFile wins over the registry, and reset clears the registry', async () => {
+  await withServer({}, async ({ base }) => {
+    await control(base, 'files', 'POST', FIXTURE);
+    const scripted = { ok: false, error_code: 400, description: 'Bad Request: file is too big' };
+    await control(base, 'replies', 'POST', { method: 'getFile', replies: [{ status: 400, body: scripted }] });
+    const first = await bot(base, DUMMY, 'getFile', { json: { file_id: FIXTURE.fileId } });
+    assert.deepEqual([first.status, first.json], [400, scripted], 'the queued reply answers the first call');
+    const second = await bot(base, DUMMY, 'getFile', { json: { file_id: FIXTURE.fileId } });
+    assert.equal(second.json.result.file_path, FIXTURE.filePath, 'and the registry the next');
+    await control(base, 'reset');
+    assert.equal((await bot(base, DUMMY, 'getFile', { json: { file_id: FIXTURE.fileId } })).status, 400, 'reset clears the registry');
+    assert.equal((await download(base, DUMMY, FIXTURE.filePath)).status, 404);
+    assert.deepEqual((await control(base, 'calls', 'GET')).json.calls.map((c) => c.method), ['getFile', 'download'], 'and the calls');
+  });
+});
+
+test('mock files: registering the same id or path again replaces the file, and a bad body is 400', async () => {
+  await withServer({}, async ({ base }) => {
+    await control(base, 'files', 'POST', FIXTURE);
+    const other = { ...FIXTURE, filePath: 'photos/file_2.jpg', contentType: 'image/jpeg', base64: Buffer.from('jpeg bytes').toString('base64') };
+    assert.equal((await control(base, 'files', 'POST', other)).status, 200);
+    assert.equal((await download(base, DUMMY, FIXTURE.filePath)).status, 404, 'the same id now names the new path');
+    const file = await download(base, DUMMY, other.filePath);
+    assert.equal(file.bytes.toString(), 'jpeg bytes');
+    assert.equal(file.headers.get('content-type'), 'image/jpeg');
+    const cases = [
+      [[1], 'a list'],
+      [{ ...FIXTURE, fileId: '' }, 'an empty fileId'],
+      [{ ...FIXTURE, fileId: 'a b' }, 'a fileId with a space'],
+      [{ ...FIXTURE, filePath: '../etc/passwd' }, 'a path with ..'],
+      [{ ...FIXTURE, filePath: '/abs.pdf' }, 'an absolute path'],
+      [{ ...FIXTURE, filePath: 'a//b.pdf' }, 'an empty path part'],
+      [{ ...FIXTURE, contentType: 'pdf' }, 'a content type that is no media type'],
+      [{ ...FIXTURE, base64: '!!' }, 'bad base64'],
+      [{ ...FIXTURE, base64: 5 }, 'base64 that is not a string'],
+    ];
+    for (const [payload, what] of cases) {
+      const r = await control(base, 'files', 'POST', payload);
+      assert.equal(r.status, 400, what);
+      assert.equal(r.json.error.type, 'invalid_request_error', what);
+    }
+    const bad = await fetch(`${base}/_mock/telegram/files`, { method: 'POST', body: '{ not json' });
+    assert.equal(bad.status, 400);
+    assert.equal((await download(base, DUMMY, other.filePath)).status, 200, 'a refused body changed nothing');
+  });
 });

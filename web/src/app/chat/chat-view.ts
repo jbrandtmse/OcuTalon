@@ -33,6 +33,7 @@ import type {
   Learned,
   Memory,
   NotificationPayload,
+  SentFile,
   TurnStepPayload,
 } from '../live/payloads';
 
@@ -141,6 +142,8 @@ export interface TurnView {
   memories?: readonly Memory[];
   /** The learned saves the reply announces, as its chat.message carries them (the server decided which show); absent when it has none. */
   learned?: readonly Learned[];
+  /** The file the message carries, as its chat.message served it (Story 25.3); absent for a message of text. */
+  sentFile?: SentFile;
   /** Where the turn's trace opens, as the chat.message served it; absent when the message has none. */
   traceUrl?: string;
 }
@@ -414,6 +417,9 @@ export function chatView(
     }
     if (message.learned !== undefined && message.learned.length > 0) {
       view.learned = message.learned;
+    }
+    if (message.sentFile !== undefined) {
+      view.sentFile = message.sentFile;
     }
     if (message.traceUrl) {
       view.traceUrl = message.traceUrl;
