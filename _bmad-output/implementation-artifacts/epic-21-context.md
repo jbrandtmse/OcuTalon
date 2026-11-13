@@ -4,56 +4,57 @@
 
 ## Goal
 
-Lane B's step 4 feature epic. An admin connects a real mailbox (POP3 read, SMTP send, or Gmail and Microsoft 365 through OAuth2), so each new email becomes an untrusted item with its own attention decision and OcuTalon can email the user, including the daily digest. Admins also add, remove and classify MCP servers and their tools in Settings, set read-only tools up as source polls, and answer tool-call approval requests on every channel. The epic builds on contracts Epic 35 fixed (Story 21.1 became Story 35.2). Webhooks moved to Story 35.3 (parked until after voting), so this epic ships no webhook work despite its title. Spec-gate splits: 21.2 into 21.2 (POP3 read), 21.6 (SMTP send) and 21.7 (digest by email); 21.3 into 21.3 (register the mail OAuth2 client and sign in) and 21.8 (read and send mail with that sign-in).
+Lane B's step 4 feature epic. The email half is built: a real mailbox over POP3 and SMTP, with a password or a Gmail or Microsoft 365 OAuth2 sign-in. Each email becomes an untrusted item with its own decision, OcuTalon emails the user (daily digest included), and a re-sent turn emails nobody twice. One email fix is left: 21.14 (DW-1255) keeps the mailbox address and user name out of the trace. Then comes the MCP half: admins add, remove and classify MCP servers and tools, see changed tools made Unclassified, set Read-only tools up as source polls, and see exactly what a held tool call or standalone fix will run, on every channel. Webhooks shipped in Epic 35.
 
 ## Stories
 
 - Story 21.2: Read a mailbox over POP3 (done)
-- Story 21.3: Register the mail OAuth2 client and sign in (stopped at ready-for-dev, awaiting a Contest Planner ruling on the AD-3 amendment)
-- Story 21.4: Add, remove and classify MCP servers and tools in Settings
-- Story 21.5: Set up source polls and answer tool-call approval requests
 - Story 21.6: Send email over SMTP (done)
-- Story 21.7: Send the daily digest by email (next)
-- Story 21.8: Read and send mail with the OAuth2 sign-in (waits on 21.3)
+- Story 21.7: Send the daily digest by email (done)
+- Story 21.3: Register the mail OAuth2 client and sign in (done)
+- Story 21.8: Read and send mail with the OAuth2 sign-in (done; pushed, CI pending)
+- Story 21.12: A check fails on a link to a README anchor that README.md does not have (done; pushed, CI pending)
+- Story 21.13: A re-sent turn sends its email once (done; pushed, CI pending)
+- Story 21.14: The mailbox address and user name stay out of the trace (backlog; next to plan, implements after 21.8 merges)
+- Story 21.4: Add, remove and classify MCP servers and tools in Settings (ready-for-dev)
+- Story 21.9: Show the changed-tool banner in Settings (backlog)
+- Story 21.5: Set up source polls (ready-for-dev)
+- Story 21.10: Answer tool-call approval requests on every channel (ready-for-dev, Planner-ruled)
+- Story 21.11: Show standalone fix requests with their reason and dry run on every channel (backlog)
 
 ## Requirements & Constraints
 
-- **Online demo safety (standing rule, overrides any text about "preconfigured" or "allow-listed" demo servers):** real mail, OAuth and MCP endpoints never run on the online demo. The simulated mailbox stays; `EmailIn`/`EmailOut` stay disabled (`EmailOut` answers `not_available` whatever the rows say); email, OAuth, MCP and source-poll settings are off; the demo account sees no settings; nobody can add or remove a server, and the demo says so in a plain line (public text settled at 21.4's spec gate).
-- **Secrets:** every secret field is write-only; any admin value containing `@{` is refused; no command, message, log, trace, audit entry, global, GET or test output holds a secret, only a reference. Homes: mail credentials in Interoperability credential `OcuTalonMail` (shared by `EmailIn` and `EmailOut`); OAuth2 tokens and client secrets only inside IRIS's OAuth2 client; MCP secrets in the IRIS Wallet, referenced from Config Store entry `AI.MCP.OcuTalon_<server>`.
-- **Outbound email:** origin `tool` only to exactly the session user's own address; origin `system` only for an executing email-fix approval (below). The digest goes only to the own address as plain catalog-rendered text, recorded as a `Delivery`; email is offered as a digest channel only once a mailbox is connected.
-- **Settings changes** apply within a minute and are audited without secrets (OAuth connect/remove entries hold no client secret or token).
-- **OAuth2:** 21.3 registers the client (client ID, write-only client secret) and opens consent in a new tab so IRIS's OAuth2 client holds the tokens; 21.8 has `EmailIn`/`EmailOut` use them, refreshes tokens without the admin (a revoked grant fails the poll with a plain reason and the mailbox counts as not checked), and writes the README (creating the client with Google and Microsoft, the redirect address for each, connecting in Settings).
-- **Only accepted text ships:** texts come from the keys accepted for Story 35.2 (`settings.*`, `answered.canceled`, in `OcuTalon.Msg.Catalog.Core`). New public text (the OAuth README and redirect guidance, 21.4's demo line) goes to the author first.
-- **CI:** the CI-only mock serves a POP3 stub (21.2) and an SMTP stub (21.6); no real email is ever sent.
+- **21.14 (DW-1255):** saving Settings > Channels > Email sends `address` and `user` through the same `SecretHandoff` swap `Web/Api.cls` uses for `password` and `clientSecret`. `SaveSettings.Changes` holds only handoff references, and the values reach only `SettingsOps` and IRIS's own audit entry. `incoming`, `outgoing`, `signIn`, `clientId` and `origin` are unchanged. A leak-scan test finds neither value in any traced message, log row, trace or `^OcuTalon*` global after a save. `docs/security-overview.md` says plainly that the trace role sees each item's content, including an email's sender (`Msg.Item.Sender` stays).
+- **Personal data:** `SecretHandoff` is for synchronous saves only. Data that must persist (22.7's recipients) goes in a stored private row, and the traced message carries only its reference. `EmailOut` de-duplicates a `tool` `SendEmail` on its `IdempotencyKey` (21.13).
+- **Online demo safety:** no real mail, OAuth or MCP endpoint ever runs on the demo. Every MCP settings route answers 409 `not_available` with the accepted line "MCP servers are off on the online demo: nobody can add one, and OcuTalon reaches none. They work on your own install." It answers before it reads the body.
+- **Secrets:** fields are write-only, and any value containing `@{` is refused. A secret never appears in a log, trace, audit entry, global, GET or test output. MCP secrets live in the IRIS Wallet. A secret sent to a non-loopback `http://` address is refused with `MESSAGEADDRESS`.
+- **Plain mail:** OAuth2 bearer tokens go out only over TLS. The CI-only `OCUTALON_TEST_PLAIN_SMTP` (`Sender.PlainFor`) allows plain POP3/SMTP for host `mock` only, set only in `ci/compose.ci.yml`. No text may claim least privilege.
+- **Approvals:** the first answer wins on every channel, and a cancelled request stops its buttons everywhere. Over 4,096 characters, Telegram shows the head, no Approve button, and "The inputs are too long to show here. See them on your OcuTalon page before you approve."; the web card shows everything.
+- **Only accepted text ships:** 21.4's T1-T11 and "Polled every {n} minutes"; 21.10's T1 "Why: {tool} counts as risky, so it runs only after an approval." and T2 ("Inputs:" then "{name}: {value}" JSON lines, or "{}"); `toolCall.requestOnServer` and `answered.canceled`.
+- **Docs:** install, admin and how-to text goes in `GUIDE.md`, and README.md keeps the pointers.
+- **CI** uses only the CI mock: POP3 and SMTP stubs with XOAUTH2, a fake OAuth2 server, and `Test.Mcp.Mock`. It never reaches a real provider.
 
 ## Technical Decisions
 
-- **Lanes:** Lane B owns `Core/**`, `Web/**`, `Channel/**`, `Data/**` (Lane B tables), `Msg/Command/**`, `Msg/Catalog/Core.cls`, `web/`, and items `EmailIn`/`EmailOut`. Lane A owns `Mcp/**`, `src/bridge/**`, `Install/**`, `Msg/Catalog/Watch.cls` and `Digest.Process`.
-- **Commands (AD-1):** every change is a production message submitted with origin `web_admin` from admin-checked routes; REST code never writes the wallet, the Config Store or credentials. Secrets reach the operation through `OcuTalon.Core.SecretHandoff` (in-memory, single take; the command carries `secret://handoff/<name>`); reuse it for the OAuth2 client secret and the MCP secret.
-- **Email in (21.2):** `EmailIn` with its own POP3 adapter, `Data.MailSeen` for no-repeats, `SettingsOps.SaveEmail` (sole writer of `email.address`/`email.owner`), route `POST /api/v1/settings/channels`; poll outcome in status mark `emailPoll` (`at`, `ok`, `reason`, `lastOkAt`; never server text, an address or a credential).
-- **Email out (21.6):** `OcuTalon.Channel.Email.Out` (item `EmailOut`) with adapter `Channel.Email.Sender` (subclass of `EnsLib.EMail.OutboundAdapter`): one plain-text UTF-8 part from `email.address`, TLS only (`OcuTalonClient` implicit on 465, `OcuTalonClient*` STARTTLS otherwise), server identity always checked, one try. Plain SMTP only with CI-only `OCUTALON_TEST_PLAIN_SMTP=1` and host `mock`. Outcomes: `sent`, `already_sent`, `refused`, `not_connected`, `failed`, `not_available`. Recipients are enforced in `EmailOut` itself: a system send needs `SendEmail.ApprovalRef` of an executing `fix` approval with `FixKind` `email` whose `FixParameters.recipients` equals the recipients (lower-cased set); a `Data.Delivery` claim row (channel `email`) makes one approval send at most once. Logs counts and outcomes only.
-- **CommandsIn clean-turn rule (21.6, AD-10):** refuses a tool `SendEmail` in a bridge context whose provenance isn't `user` or whose turn is tainted (an approved replay's context is clean), and answers `not_connected` when `EmailOut` has no alive job. Story 22.7's own-address tool must declare `TRUSTEDOUTPUT` 1 or every ordinary turn refuses it (DW-1164).
-- **SettingsOps (21.6):** writes `EmailOut`'s System Default Settings rows (`SMTPServer`, `SMTPPort`, `Credentials` `OcuTalonMail`, `SSLConfig`, `SSLCheckServerIdentity` 1, `Enabled`); an empty server writes `Enabled` 0. Every successful email save runs the detached production update, even when no row changed (DW-1139 settled).
-- **Digest by email (21.7, Planner ruling Q1):** routed through Notify, which gains the email channel; `Digest.Process` (Lane A) keeps building the content and gets no email knowledge (DW-820). Add the `email` channel to `OcuTalon.Msg.Catalog.Render` as plain text under the `phone` rules, with render tests for every key `EmailOut` sends.
-- **DW-1167 (carried by 21.7):** `EmailIn` takes in OcuTalon's own mail to the polled address (a tool email, and with 21.7 every digest) as a new untrusted item: `EmailOut` sets no recognisable header and `EmailIn` has no sender or header filter. Mark `EmailOut`'s mail and have `EmailIn` skip it, or rule it harmless.
-- **OAuth2 (21.3):** one new class switches to `%SYS` (in one `New $NAMESPACE` method) to register the IRIS OAuth2 client and must be added to AD-3's namespace-switching list in the same change; this AD-3 amendment awaits the Planner's ruling. 21.8 has `EmailIn`/`EmailOut` take tokens through the adapters' OAuth2 settings for POP3 and SMTP.
-- **MCP (21.4):** `McpOps` (Lane A) handles add/remove/classify and the real `Tools(server)`. DW-1041 (ruled): the Config Store and wallet write moves into `McpOps`, never the REST process. 21.4 replaces the `SettingsOps.SaveMcpEntry`/`RemoveMcpEntry` stubs and their pins in `Test.Core.CommandsStep4` on purpose.
-- **REST rows, each with real-HTTP route tests:** `GET /api/v1/settings/mcp`, `POST .../mcp/servers`, `DELETE .../mcp/servers/<server>`, `POST .../mcp/classify` (21.4); `POST .../mcp/sources`, `DELETE .../mcp/sources/<ref>` (21.5).
-- **Approvals with no incident (21.5):** for `tool_call` requests and standalone email fixes, `OcuTalon.Core.BridgeSink` sends `approval`, `answered` and `result` through `NoticesIn`; `IncidentManager` covers only an incident's fix requests.
-- **Catalog quirk:** `settings.refusedExpansion` takes `@{` as the slot `marker`.
+- **Lanes:** Lane B (this epic) owns `Core/**`, `Web/**`, `Channel/**` (except `Channel/Telegram/**`), `Data/**`, `Msg/Command/**`, `Msg/Catalog/Core.cls` and `web/`. Lane A owns `Mcp/**`, `Fix/**`, `Watch/**`, `Digest/**`, `src/bridge/**`, `Install/**` and `release/**`.
+- **Commands (AD-1, AD-8):** every change is a production message, and its owner ignores a repeated `IdempotencyKey`. The `/v1/settings` routes submit with origin `web_admin`, and the REST process writes nothing. `CommandsIn` refuses MCP verbs from origin `tool`.
+- **MCP writes:** `McpOps` (Lane A) is the only writer of a server's row, wallet secret, Config Store entry `AI.MCP.OcuTalon_<server>` and resource. 21.4 replaces the `SettingsOps` stubs and adds `Web.McpSettings` (GET `/api/v1/settings/mcp`, POST servers, DELETE `servers/<server>`, POST classify). 21.5 adds the sources routes. Tools and counts come from `Mcp.Ops.Tools(server)`.
+- **Notices (AD-31, AD-32):** producers never render text. `BridgeSink` fills the slots and `Msg.Catalog.Render` writes the text for each channel. `BridgeSink` stays asynchronous and never waits more than 1 s on a lock.
+- **21.10:** add a new `inputs` slot type to `BridgeSink.ToolNoticeOf`: exact, uncut, one JSON value per line, still masked by `Bridge.Redact`. The approval payload gains `server` and `cancelledAt`. `answered.canceled` goes out only when the `Mcp.Server` row is gone; a session end cancels quietly. The reason line is written by code, never by the model.
+- **21.11:** notices, web card and rail title for a fix request with no incident, reusing 21.10's branches.
 
 ## UX & Interaction Patterns
 
-- **Settings › Channels › Email:** address, POP3 server, Outgoing mail server (SMTP), user, write-only password; OAuth2 adds Client ID, Client secret and "Sign in with {provider}" (consent opens in a new tab). Secret fields show `settings.secretSet`/`settings.secretNotSet`; a save shows "Saved. Applies within a minute. Recorded in the audit log."
-- **Settings › Daily digest:** offers email as a channel only once a mailbox is connected.
-- **Settings › Tools and MCP servers:** server list (name, address, status, tool count, unclassified count); Add server (name, `https://` or loopback, optional write-only secret; tools arrive Unclassified); Remove asks first ("Remove Jira? Its 12 tools go at once, and 1 pending approval request for them is canceled."); tools table with "Unclassified only" filter and a `role="radiogroup"` per tool ("Unclassified (counts as risky)", "Read-only", "Risky") that saves at once with "Saved"; a changed tool gets `settings.toolChangedBanner`.
-- **Source-poll form:** `settings.source*` keys; a non-Read-only tool can't be chosen, with the reason beside it.
-- **Tool-call card:** "Approval needed", "Why:", "Run {tool} on {server}", inputs as labelled lines, the no-dry-run line, Approve, Reject, expiry; rail, phone and Telegram carry the same as plain text; first answer wins; a cancelled request shows `answered.canceled`, its buttons stop everywhere and it leaves the rail within one live update. Standalone fixes show "Why:" and a dry run with exact text and every recipient.
+- **Settings › Tools and MCP servers:** a server list and a tools table with an "Unclassified only" filter. Each tool has a `role="radiogroup"` with Unclassified (counts as risky), Read-only and Risky. A choice saves at once and shows "Saved". Remove asks for confirmation.
+- **Sources (21.5):** "Use as a source" on a Read-only tool opens a form: name, arguments as JSON, and an interval (6 choices, 15 minutes by default). Other tools show "Only a Read-only tool can be a source."
+- **Tool-call card (21.10):** "Approval needed", "Why:", "Run {tool} on {server}", the labelled inputs, the no-dry-run sentence, Approve, Reject and the expiry. Rail rows have no answer buttons. A cancelled card shows "Canceled at HH:MM: the MCP server {server} was removed. Nothing was changed." and leaves the rail within one live update.
 
 ## Cross-Story Dependencies
 
-- **Order:** 21.2 and 21.6 done; 21.3 stopped at ready-for-dev pending the Planner's AD-3 ruling; 21.7 next (needs `EmailOut`); 21.8 right after 21.3 (reuses `EmailIn`/`EmailOut`); then 21.4, 21.5 (sources only tools 21.4 classified).
-- **Lane A:** 22.2 is done (`McpOps`, real `Tools`). 22.8 (MCP classification by fingerprint in the gate) is merged on feature but not yet on this branch; merge feature before 21.4. Not yet built: 22.4 (raises/cancels `tool_call` requests), 22.5 (runs source polls), 22.7 (email tool and email fix kind; until then only seeded rows test `EmailOut`'s system path, DW-1164). Test against fixture requests and a `McpOps` test double meanwhile.
-- **Downstream:** Story 24.3 pages by email through `EmailOut` and the `email` renderer from 21.7.
-- **DW-1041 contention:** the wallet/Config Store write lands in `Mcp/Ops.cls`, a Lane A file contended with Epic 22; 21.4 must also reconcile spine passages that still say routes call `SettingsOps.SaveMcpEntry`.
-- **Open:** the AD-3 amendment for 21.3 (Planner ruling) and the OAuth README text for 21.8 (author acceptance).
+- **Email fixes:** 21.14 implements after 21.8 merges and touches `Web/Api.cls`, `Core/SettingsOps.cls`, `Test.Core.SettingsEmail`, `Test.Web.SettingsApi` and `docs/security-overview.md`. Story 22.7 (Lane A, chat email) merges only after 21.13 lands, and only once it carries recipients by private-row reference.
+- **MCP order:** 22.4 → 21.4 → 22.5 → 21.5. 21.9 follows 21.4 and needs `Tools(server)` to report the tools that were cleared. 21.10 is built after 22.4 merges: integrate forward first, and use fixture requests until then. 21.11 follows 22.7.
+- **Contention:**
+  - `Mcp/Ops.cls`, `Core/SettingsOps.cls` (21.14 and 21.4 both edit it).
+  - `Core/BridgeSink.cls`: 22.4 may add one branch (`mcp.replayToolChanged`) and one `Test.Core.ToolCallNotices` row, merged as a union.
+  - README.md, GUIDE.md and `test-readme.sh`: placed edits only.
+- **Downstream:** 24.3 sends email through `EmailOut`. 22.6 documents the MCP settings.

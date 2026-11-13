@@ -21,6 +21,7 @@ const {
   digestBody,
   digestChannelBoxes,
   digestChannelsBody,
+  emailBoxShown,
   budgetsBody,
   firstInError,
   isBudgetsDirty,
@@ -235,11 +236,22 @@ describe('the Time zone section (Story 18.2)', () => {
 });
 
 describe('the Daily digest section (Story 18.2)', () => {
-  it('shows the web chat always, the simulated phone only in demo mode and Telegram only when it is shown', () => {
-    assert.deepEqual(digestChannelBoxes(false, false), ['web']);
-    assert.deepEqual(digestChannelBoxes(true, false), ['web', 'phone']);
-    assert.deepEqual(digestChannelBoxes(false, true), ['web', 'telegram']);
-    assert.deepEqual(digestChannelBoxes(true, true), ['web', 'phone', 'telegram']);
+  it('shows the web chat always, the simulated phone only in demo mode, Telegram only when it is shown and Email only when it is shown', () => {
+    assert.deepEqual(digestChannelBoxes(false, false, false), ['web']);
+    assert.deepEqual(digestChannelBoxes(true, false, false), ['web', 'phone']);
+    assert.deepEqual(digestChannelBoxes(false, true, false), ['web', 'telegram']);
+    assert.deepEqual(digestChannelBoxes(true, true, false), ['web', 'phone', 'telegram']);
+    assert.deepEqual(digestChannelBoxes(false, false, true), ['web', 'email']);
+    assert.deepEqual(digestChannelBoxes(true, false, true), ['web', 'phone', 'email']);
+    assert.deepEqual(digestChannelBoxes(true, true, true), ['web', 'phone', 'telegram', 'email'], 'the order is web, phone, telegram, email');
+  });
+
+  it('shows the Email box only while an address and an outgoing mail server are both saved (the online demo has no mailbox values)', () => {
+    assert.equal(emailBoxShown({ address: 'dana@example.com', outgoing: 'smtp.example.com' }), true);
+    assert.equal(emailBoxShown({ address: 'dana@example.com', outgoing: '' }), false, 'no outgoing server yet');
+    assert.equal(emailBoxShown({ address: '', outgoing: 'smtp.example.com' }), false, 'no address');
+    assert.equal(emailBoxShown({ address: ' ', outgoing: ' ' }), false);
+    assert.equal(emailBoxShown(undefined), false, 'the online demo');
   });
 
   it('shows the Telegram box while Telegram is included and on, or paused, and not otherwise', () => {
@@ -259,6 +271,11 @@ describe('the Daily digest section (Story 18.2)', () => {
     assert.equal(digestChannelsBody('web', ['web'], ['web']), 'web', 'a hidden channel that was not stored stays out');
     assert.equal(digestChannelsBody('phone,web', ['web', 'phone'], ['phone', 'web']), 'web,phone', 'the order is always web, phone, telegram');
     assert.equal(digestChannelsBody('telegram,web', ['web'], ['web']), 'web,telegram', 'a hidden Telegram keeps its stored state');
+    assert.equal(digestChannelsBody('web,email', ['web'], ['web']), 'web,email', 'a hidden Email keeps its stored state');
+    assert.equal(digestChannelsBody('email,web', ['web'], []), '', 'unchecking the only shown box does not save the hidden Email alone');
+    assert.equal(digestChannelsBody('web', ['web', 'email'], ['email', 'web']), 'web,email', 'a checked Email box is stored, after the other channels');
+    assert.equal(digestChannelsBody('web,phone,telegram,email', ['web', 'email'], ['web']), 'web,phone,telegram', 'an unchecked shown Email box is dropped, and the hidden ones stay');
+    assert.equal(digestChannelsBody('email,telegram,phone,web', ['web'], ['web']), 'web,phone,telegram,email', 'the order is web, phone, telegram, email');
     assert.equal(digestChannelsBody('web,phone,telegram', ['web', 'phone', 'telegram'], ['telegram']), 'telegram');
     assert.equal(digestChannelsBody('web', ['web'], []), '', 'no channel at all is sent as it is, and the server refuses it');
     assert.equal(digestChannelsBody(' Telegram , WEB ,fax', ['phone'], ['phone']), 'web,phone,telegram', 'a stored value is read trimmed and lowercased, and a name that is no channel is dropped');
@@ -267,6 +284,7 @@ describe('the Daily digest section (Story 18.2)', () => {
   it('reads the stored channels as the channels they name', () => {
     assert.deepEqual(storedChannels('phone, WEB,fax,,web'), ['web', 'phone']);
     assert.deepEqual(storedChannels(''), []);
+    assert.deepEqual(storedChannels('Email,web'), ['web', 'email'], 'email is a digest channel, read trimmed and lowercased, after web');
   });
 
   it('builds the body from the trimmed time and the channels', () => {
@@ -287,6 +305,8 @@ describe('the Daily digest section (Story 18.2)', () => {
     assert.equal(isDigestFormDirty('08:00', ['phone', 'web'], ['web'], phoneOnly), true, 'checking the web chat is an edit');
     assert.equal(isDigestFormDirty('08:30', ['phone'], ['web'], phoneOnly), true, 'so is a new time');
     assert.equal(isDigestFormDirty('08:00', ['web'], ['web', 'phone'], { time: '08:00', channels: 'web,phone' }), true, 'unchecking a shown box is an edit');
+    assert.equal(isDigestFormDirty('08:00', ['web', 'email'], ['web'], { time: '08:00', channels: 'web,email' }), false, 'outgoing not saved, email stored: nothing was edited');
+    assert.equal(isDigestFormDirty('08:00', ['web', 'email'], ['web', 'email'], { time: '08:00', channels: 'web' }), true, 'checking the shown Email box is an edit');
   });
 
   it('pins the ruled texts of the section, byte for byte', () => {
@@ -297,6 +317,7 @@ describe('the Daily digest section (Story 18.2)', () => {
     assert.equal(texts.web, 'The web chat');
     assert.equal(texts.phone, 'The simulated phone');
     assert.equal(texts.telegram, 'Telegram');
+    assert.equal(texts.email, 'Email');
     assert.equal(texts.sendNow, 'Send my digest now');
     assert.equal(texts.sendNowDone, 'Sending your digest now.');
     assert.equal(texts.sendNowFailed, "Couldn't send your digest. Try again.");

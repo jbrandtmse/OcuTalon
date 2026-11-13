@@ -1,4 +1,4 @@
-/// Tests of the email section of SaveSettings and of MailSignIn in OcuTalon.Core.SettingsOps (Stories 21.2, 21.6 and 21.3; AD-1, AD-17, AD-19), driven through a shadow instance of
+/// Tests of the email section of SaveSettings and of MailSignIn in OcuTalon.Core.SettingsOps (Stories 21.2, 21.6, 21.3 and 21.8; AD-1, AD-17, AD-19), driven through a shadow instance of
 /// OcuTalon.Test.Core.SettingsEmailProbe: the credential, the settings rows of EmailIn and EmailOut, the production update, IRIS's OAuth2 client and the sign-in mark are
 /// stand-ins, the audit write is a recording seam, and the hand-off is the real OcuTalon.Core.SecretHandoff. Safe on a slot: the product keys of KEYS and the public
 /// setting onlineDemo are saved before the tests and put back after them, and every reference a test offers is discarded. Every text is written out here.
@@ -29,6 +29,9 @@
 ///     or another provider, is refused naming clientSecret), TestProviderChange (row 3), TestRemove (row 4: Password saved removes the client and clears the keys),
 ///     TestRefusedProviderValues (row 5), TestForeignObjects (row 6: a refused register is failed and everything is put back), TestOAuthAudits (email.oauthApp and email.oauthOwned),
 ///     TestSignInStart, TestSignInCheck and TestSignInRefused (the MailSignIn handler), TestProviderOnlineDemo, TestNoClientSecretAnywhere.
+///   - Story 21.8: TestProviderRows (the rows OAuth2ApplicationName and OAuth2CallBackHandler on EmailIn and, with a server, EmailOut; none of OAuth2Scope, OAuth2SessionId or
+///     OAuth2AuthProperties; Password and a cleared outgoing server delete them), TestProviderRowsPutBack (a failed save puts them back like any row), TestSignedInFollowsThePoll
+///     (the page's signedIn is false after a poll failed on the sign-in after the mark's time, and not for one from before it or from its second, with the marks put back).
 Class OcuTalon.Test.Core.SettingsEmail Extends %UnitTest.TestCase
 {
 
@@ -496,6 +499,107 @@ Method TestProviderFirstSave()
 	Do $$$AssertEquals(values.signIn_"|"_values.clientId_"|"_values.clientSecretSet_"|"_values.passwordSet_"|"_values.signedIn, "google|"_..#CLIENTID_"|1|0|0", "the page shows the method, the client ID, a registered client and no password")
 }
 
+/// Story 21.8, V2: a provider save writes OAuth2ApplicationName and OAuth2CallBackHandler on EmailIn, and on EmailOut when it has a server, and no scope, session
+/// or auth-properties row; Password deletes them; a cleared outgoing server deletes the rows of EmailOut; a failed save puts them back like any row.
+Method TestProviderRows()
+{
+	Set oauth = "OAuth2ApplicationName=OcuTalonMail;OAuth2CallBackHandler=OcuTalon.Channel.Email.Token"
+	Set result = ..Save(..ProviderBody("google", ..Offer(..Secret("rows")), , , {"outgoing": "smtp.example.com:465"}))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a provider save with an outgoing server is done")
+	Do $$$AssertEquals(..Rows(), "POP3Server=pop.example.com;POP3Port=995;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient;Enabled=1;"_oauth, "EmailIn has the mailbox rows and the two OAuth2 rows")
+	Do $$$AssertEquals(..Rows("EmailOut"), "SMTPServer=smtp.example.com;SMTPPort=465;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient;SSLCheckServerIdentity=1;Enabled=1;"_oauth, "EmailOut has the same two")
+	Do $$$AssertEquals(..RowNames("EmailIn"), "Credentials,Enabled,OAuth2ApplicationName,OAuth2CallBackHandler,POP3Port,POP3Server,SSLConfig", "EmailIn holds no OAuth2Scope, OAuth2SessionId or OAuth2AuthProperties row")
+	Do $$$AssertEquals(..RowNames("EmailOut"), "Credentials,Enabled,OAuth2ApplicationName,OAuth2CallBackHandler,SMTPPort,SMTPServer,SSLCheckServerIdentity,SSLConfig", "nor does EmailOut")
+	// Password deletes both
+	Do ..Clear()
+	Set removed = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("rowspw")), ..#SMTPHOST_":465"))
+	Do $$$AssertEquals(removed.Outcome, "done", "Password saved over the provider is done")
+	Do $$$AssertEquals(..Rows()_"|"_..Rows("EmailOut"), "POP3Server=pop.example.com;POP3Port=995;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient;Enabled=1|SMTPServer=smtp.example.com;SMTPPort=465;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient;SSLCheckServerIdentity=1;Enabled=1", "the OAuth2 rows are gone from both items")
+	Do $$$AssertEquals(..Count("deleteSds"), 4, "four rows were deleted")
+	// a provider with no outgoing server: EmailOut gets no row
+	Do ..Reset()
+	Do ..Save(..ProviderBody("microsoft", ..Offer(..Secret("rowsin"))))
+	Do $$$AssertEquals(..Rows()_"|"_..Rows("EmailOut"), "POP3Server=pop.example.com;POP3Port=995;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient;Enabled=1;"_oauth_"|", "with no outgoing server only EmailIn has the OAuth2 rows")
+	// an outgoing server added, then cleared
+	Do ..Save(..ProviderBody("microsoft", "", , , {"outgoing": "smtp.example.com"}))
+	Do $$$AssertEquals(..Rows("EmailOut"), "SMTPServer=smtp.example.com;SMTPPort=587;Credentials=OcuTalonMail;SSLConfig=OcuTalonClient*;SSLCheckServerIdentity=1;Enabled=1;"_oauth, "an outgoing server saved later gets them")
+	Do ..Save(..ProviderBody("microsoft", ""))
+	Do $$$AssertEquals(..Rows("EmailOut"), "Credentials=OcuTalonMail;SSLConfig=OcuTalonClient*;SSLCheckServerIdentity=1;Enabled=0", "a cleared outgoing server deletes the server and the OAuth2 rows")
+	Do $$$AssertEquals(..RowNames("EmailOut")_"|"_..RowNames("EmailIn"), "Credentials,Enabled,SSLCheckServerIdentity,SSLConfig|Credentials,Enabled,OAuth2ApplicationName,OAuth2CallBackHandler,POP3Port,POP3Server,SSLConfig", "and EmailIn keeps its own")
+}
+
+/// Story 21.8: a save that fails after the rows were written puts the OAuth2 rows back (none, over a password mailbox) with the others, and a failed Password save puts
+/// them back over a provider.
+Method TestProviderRowsPutBack()
+{
+	Set stages = $ListBuild("register|register|error", "update|start|error", "EmailIn OAuth2 row|sdsAt|3", "EmailOut OAuth2 row|sdsAt|7")
+	Set position = 0
+	While $ListNext(stages, position, stage) {
+		Do ..Reset()
+		Do ..SeedEarlier()
+		Set ^OcuTalonTest("SettingsEmailProbe", "answer", $Piece(stage, "|", 2)) = $Piece(stage, "|", 3)
+		Set was = ..State()
+		Set result = ..Save(..ProviderBody("google", ..Offer(..Secret("putback")), , , {"outgoing": "new.smtp.example.com:465"}))
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a failed "_$Piece(stage, "|", 1)_" is failed")
+		Kill ^OcuTalonTest("SettingsEmailProbe", "answer")
+		Do $$$AssertEquals(..State()_"|"_..RowNames("EmailIn")_"|"_..RowNames("EmailOut"), was_"|Credentials,Enabled,POP3Port,POP3Server,SSLConfig|Credentials,Enabled,SMTPPort,SMTPServer,SSLCheckServerIdentity,SSLConfig", "a failed "_$Piece(stage, "|", 1)_": the rows are as they were, with no OAuth2 row")
+	}
+	// a failed Password save over a provider puts the two rows back
+	Do ..Reset()
+	Do ..SeedProvider("google", "client,server,app")
+	For item = "EmailIn", "EmailOut" {
+		Set ^||OcuTalonSettingsEmailProbe("sds", item, "OAuth2ApplicationName") = "OcuTalonMail"
+		Set ^||OcuTalonSettingsEmailProbe("sds", item, "OAuth2CallBackHandler") = "OcuTalon.Channel.Email.Token"
+	}
+	Set ^||OcuTalonSettingsEmailProbe("sds", "EmailOut", "SMTPServer") = ..#SMTPHOST
+	Set ^||OcuTalonSettingsEmailProbe("sds", "EmailOut", "SMTPPort") = 587
+	Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+	Set was = ..RowNames("EmailIn")_"|"_..RowNames("EmailOut")
+	Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("pwfail")), ..#SMTPHOST))
+	Do $$$AssertEquals(result.Outcome, "failed", "a Password save whose update fails is failed")
+	Kill ^OcuTalonTest("SettingsEmailProbe", "answer")
+	Do $$$AssertEquals(..RowNames("EmailIn")_"|"_..RowNames("EmailOut"), was, "the OAuth2 rows are put back on both items")
+	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("sds", "EmailIn", "OAuth2CallBackHandler")_"|"_^||OcuTalonSettingsEmailProbe("sds", "EmailOut", "OAuth2ApplicationName"), "OcuTalon.Channel.Email.Token|OcuTalonMail", "with their values")
+}
+
+/// Story 21.8, V6: the page's signedIn is the mark emailSignIn, unless the latest poll failed with the sign-in reason after the mark's time; a poll from before
+/// the mark or from its second, another reason and a good poll do not count. The marks are put back.
+Method TestSignedInFollowsThePoll()
+{
+	Set signMark = ##class(OcuTalon.Data.StatusMark).Get("emailSignIn"), pollMark = ##class(OcuTalon.Data.StatusMark).Get("emailPoll")
+	Set signInReason = $Parameter("OcuTalon.Channel.Email.Adapter", "REASONSIGNIN"), other = $Parameter("OcuTalon.Channel.Email.Adapter", "REASONUNREACHABLE")
+	Set at = "2026-11-12T10:00:10Z", before = "2026-11-12T10:00:09Z", after = "2026-11-12T10:00:11Z"
+	Set cases = $ListBuild(
+		$ListBuild("no poll yet", "google", 1, "", 1),
+		$ListBuild("a sign-in failure at the mark's time (the poll just before the consent)", "google", 1, $ListBuild(0, signInReason, at), 1),
+		$ListBuild("a sign-in failure after the mark", "google", 1, $ListBuild(0, signInReason, after), 0),
+		$ListBuild("a sign-in failure from before the mark", "google", 1, $ListBuild(0, signInReason, before), 1),
+		$ListBuild("another reason after the mark", "google", 1, $ListBuild(0, other, after), 1),
+		$ListBuild("a good poll after the mark", "google", 1, $ListBuild(1, "", after), 1),
+		$ListBuild("a mark that says not signed in, and a good poll", "google", 0, $ListBuild(1, "", after), 0),
+		$ListBuild("a mark of another provider", "microsoft", 1, $ListBuild(1, "", after), 0))
+	Set position = 0
+	Try {
+		While $ListNext(cases, position, case) {
+			Set mark = {"at": (at), "provider": ($List(case, 2)), "signedIn": ($List(case, 3))}
+			Do ##class(OcuTalon.Data.StatusMark).Record("emailSignIn", mark.%ToJSON())
+			Set poll = $List(case, 4)
+			Do ##class(OcuTalon.Data.StatusMark).Record("emailPoll", $Select(poll = "": "", 1: {"at": ($List(poll, 3)), "ok": ($List(poll, 1)), "reason": ($List(poll, 2)), "lastOkAt": ""}.%ToJSON()))
+			Do $$$AssertEquals($ClassMethod(..#PROBE, "DerivedMark", "google"), $List(case, 5) && ($List(case, 2) = "google"), $List(case, 1)_": the derived reading")
+		}
+		Do ##class(OcuTalon.Data.StatusMark).Record("emailSignIn", {"at": (at), "provider": "google", "signedIn": 1}.%ToJSON())
+		Do ##class(OcuTalon.Data.Setting).Set("email.signIn", "google")
+		Do ##class(OcuTalon.Data.StatusMark).Record("emailPoll", {"at": (after), "ok": 0, "reason": (signInReason), "lastOkAt": ""}.%ToJSON())
+		Do $$$AssertEquals($ClassMethod("OcuTalon.Core.SettingsOps", "EmailValues").signedIn, 0, "the page's signedIn is false after a poll failed on the sign-in")
+		Do ##class(OcuTalon.Data.StatusMark).Record("emailPoll", {"at": (after), "ok": 1, "reason": "", "lastOkAt": (after)}.%ToJSON())
+		Do $$$AssertEquals($ClassMethod("OcuTalon.Core.SettingsOps", "EmailValues").signedIn, 1, "and true again after a good poll")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ##class(OcuTalon.Data.StatusMark).Record("emailSignIn", signMark)
+	Do ##class(OcuTalon.Data.StatusMark).Record("emailPoll", pollMark)
+}
+
 /// Story 21.3: a provider keeps no mail password: an earlier password is removed and audited, whatever the typed fields.
 Method TestProviderClearsPassword()
 {
@@ -806,6 +910,9 @@ Method TestProviderOnlineDemo()
 	Set result = ..SignIn("check")
 	Do $$$AssertEquals(result.Outcome, "not_available", "so is the check")
 	Do $$$AssertEquals(..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned")_"|"_$Get(^||OcuTalonSettingsEmailProbe("calls"), 0), "|||0", "nothing is written or called")
+	// QA (Story 21.8): the online demo writes no System Default Settings row at all, so neither OAuth2 row exists on either mail item (V2: "none written")
+	Do $$$AssertEquals($Data(^||OcuTalonSettingsEmailProbe("sds")), 0, "no System Default Settings row of either mail item was written")
+	Do $$$AssertEquals(..Rows("EmailIn")_..Rows("EmailOut"), "", "so neither OAuth2 row is on EmailIn or EmailOut")
 	Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0)
 	Do $$$AssertEquals($$$ISOK(sc)_"|"_(left = secret), "1|1", "the hand-off was not touched")
 	Kill left
@@ -1001,8 +1108,20 @@ ClassMethod Row(key As %String) As %String [ Private ]
 ClassMethod Rows(item As %String = "EmailIn") As %String [ Private ]
 {
 	Set out = ""
-	For name = "POP3Server", "POP3Port", "SMTPServer", "SMTPPort", "Credentials", "SSLConfig", "SSLCheckServerIdentity", "Enabled" {
+	For name = "POP3Server", "POP3Port", "SMTPServer", "SMTPPort", "Credentials", "SSLConfig", "SSLCheckServerIdentity", "Enabled", "OAuth2ApplicationName", "OAuth2CallBackHandler" {
 		If $Data(^||OcuTalonSettingsEmailProbe("sds", item, name)) Set out = out_$Select(out = "": "", 1: ";")_name_"="_^||OcuTalonSettingsEmailProbe("sds", item, name)
+	}
+	Quit out
+}
+
+/// The names of every row that the probe holds for the item, comma-separated and sorted (to show that no row beyond the known ones is written).
+ClassMethod RowNames(item As %String) As %String [ Private ]
+{
+	Set out = "", name = ""
+	For {
+		Set name = $Order(^||OcuTalonSettingsEmailProbe("sds", item, name))
+		Quit:name=""
+		Set out = out_$Select(out = "": "", 1: ",")_name
 	}
 	Quit out
 }

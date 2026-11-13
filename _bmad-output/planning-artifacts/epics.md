@@ -7620,6 +7620,8 @@ So that it works without storing my mail password.
 
 ### Story 21.4: Add, remove and classify MCP servers and tools in Settings
 
+> [AMENDED 2026-11-12, split at its spec gate, Contest Planner ruling V10 (owner's delegation)] The changed-tool banner criterion moved verbatim to Story 21.9; this story keeps the rest.
+
 > [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1041] The MCP settings write (IRIS Wallet secret and Config Store entry) moves into `McpOps`, an operation, never the REST process; AD-1 stays unchanged. Story 35.2 left the routes as stubs that change nothing; this story replaces them and adds the `/v1/settings/mcp` route with the standing real-HTTP route tests.
 
 As an admin,
@@ -7646,15 +7648,27 @@ So that I decide which added tools OcuTalon may use, and how.
 **When** the admin picks an option
 **Then** it saves at once through the classify command, confirms with "Saved", and is audited by `McpOps` (FR-48, FR-9, UX-DR145, UX-DR130)
 
-**Given** a tool whose description or inputs changed, which Lane A's Story 22.2 made Unclassified
-**When** an admin opens Settings
-**Then** a banner, in the wording the author accepted from Story 35.2 (was 21.1)'s proposal, names the tool, and its control shows Unclassified, alongside the notice card the admin's chat gets (FR-48, UX-DR145)
-
 **Given** the online demo
 **When** anyone signs in
 **Then** MCP settings are off: no MCP endpoint runs on the demo, the demo account sees no settings, nobody can add or remove a server, and the demo says so in a plain line (public text at this story's spec gate) (FR-47, FR-59, AD-25) [AMENDED 2026-11-11, Contest Planner ruling: the online-demo safety rule; no MCP endpoint runs on the demo] (it read: "only the preconfigured allow-listed servers exist, the demo account sees no settings, and nobody can add or remove a server")
 
+### Story 21.9: Show the changed-tool banner in Settings
+
+> [AMENDED 2026-11-12, split from Story 21.4 at its spec gate, Contest Planner ruling V10 (owner's delegation)] Criterion moved verbatim from Story 21.4; runs after 21.4; it needs Lane A's Tools(server) to say which unclassified tools McpOps cleared after a fingerprint change (21.4's C1, a cross-epic ask to Epic 22).
+
+As an admin,
+I want Settings to tell me which tool changed and was made Unclassified,
+So that I classify it again knowingly.
+
+**Acceptance Criteria:**
+
+**Given** a tool whose description or inputs changed, which Lane A's Story 22.2 made Unclassified
+**When** an admin opens Settings
+**Then** a banner, in the wording the author accepted from Story 35.2 (was 21.1)'s proposal, names the tool, and its control shows Unclassified, alongside the notice card the admin's chat gets (FR-48, UX-DR145)
+
 ### Story 21.5: Set up source polls and answer tool-call approval requests
+
+> [AMENDED 2026-11-12, split at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] The approval-request criteria (2, 3 and 4) moved verbatim to Story 21.10; this story keeps the source poll (criterion 1).
 
 As an admin,
 I want to set a read-only tool as a source, and see exactly what a held tool call will run before I approve it,
@@ -7667,19 +7681,96 @@ So that sources feed OcuTalon new items and I approve only calls I understand.
 **Then** the form uses the wording the author accepted from Story 35.2 (was 21.1)'s proposal, the admin-checked route submits the source-poll command to Lane A's `McpOps`, which Lane A's Story 22.5 runs, the source belongs to the admin's session, and a tool that isn't Read-only can't be chosen, with the reason shown beside it (FR-50, FR-33, UX-DR145, UX-DR133)
 **And** until Story 22.5 merges, the tests submit the source-poll command to a `McpOps` test double that records it (AD-29)
 
+### Story 21.10: Answer tool-call and standalone approval requests on every channel
+
+> [AMENDED 2026-11-12, split at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] The standalone fix request criterion moved verbatim to Story 21.11; this story keeps the tool-call card and the cancelled request.
+
+> [AMENDED 2026-11-12, split from Story 21.5 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.5 (criteria 2, 3 and 4); runs after Lane A's Story 22.4 merges (fixture requests for 22.4 and 22.7 until they merge); it needs nothing from 21.4 or 22.5.
+
+As an admin,
+I want to see exactly what a held tool call or a standalone fix request will run before I approve it,
+So that I approve only calls I understand.
+
+**Acceptance Criteria:**
+
 **Given** a pending approval request of kind `tool_call` with no incident, raised by Lane A's Story 22.4 (a fixture request until it merges)
 **When** it shows in the web chat
 **Then** the card shows "Approval needed", "Why:" with its reason, "Run {tool} on {server}", the exact inputs as labelled lines, "No dry run is available for this tool. Approving runs exactly this call once.", **Approve**, **Reject** and the expiry, under release 1's approval card rules (FR-8, FR-49, UX-DR75, UX-DR145)
 **And** the rail's approval row, the phone notification and the Telegram message carry the same content as plain text with **Approve** and **Reject**, and the first answer wins everywhere (FR-8, FR-20, UX-DR52, UX-DR83, UX-DR114)
+
+**Given** a pending request that Lane A's Story 22.4 cancelled because its server was removed
+**When** the cancellation arrives
+**Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 35.2 (was 21.1)'s proposal (FR-47, FR-8, AD-11)
+
+### Story 21.11: Show standalone fix requests with their reason and dry run on every channel
+
+> [AMENDED 2026-11-12, split from Story 21.10 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criterion moved verbatim from Story 21.10 (originally Story 21.5's); runs after Lane A's Story 22.7 merges (a fixture request until it does), since 22.7 fixes the email request row's shape.
+
+As an admin,
+I want a fix request that has no incident to show its reason and its exact dry run on every channel,
+So that I approve only what I understand.
+
+**Acceptance Criteria:**
 
 **Given** a standalone fix request, such as an email to someone other than the user from Lane A's Story 22.7 (a fixture request until it merges)
 **When** it shows on any channel
 **Then** it carries "Why:" and its dry run with the exact text and every recipient (FR-8, FR-44, UX-DR75)
 **And** because it has no incident, its `approval`, `answered` and `result` notifications come from `OcuTalon.Core.BridgeSink` through `NoticesIn`, as a tool call's do, and this story builds that (`IncidentManager` sends them only for an incident's fix requests), so the phone and Telegram get the buttons and in-place edits (FR-8, AD-31, AD-32)
 
-**Given** a pending request that Lane A's Story 22.4 cancelled because its server was removed
-**When** the cancellation arrives
-**Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 35.2 (was 21.1)'s proposal (FR-47, FR-8, AD-11)
+### Story 21.12: A check fails on a link to a README anchor that README.md does not have
+
+> [ADDED 2026-11-12, inserted by the Epic 21 runner under the Contest Planner's ruling E ("take DW-1207 as burndown" in Lane C's idle time); test-only, no product change]
+
+As the maintainer,
+I want one check that fails when any file outside README.md links a README anchor that README.md does not have,
+So that moving or renaming a README section can never leave a dead link behind.
+
+**Acceptance Criteria:**
+
+**Given** any tracked Markdown file other than README.md (GUIDE.md and docs/*.md included; the append-only records under `_bmad-output/`, the owner-only `_bmad/` and `.claude/`, and the frozen `release/records/` left out) that links `README.md#<anchor>` (relative or by the repository URL) [AMENDED 2026-11-12, Story 21.12 spec gate, Rule 5 tier 1: the file set made explicit so the check can pass on records nobody may edit]
+**When** the check runs in CI
+**Then** it fails, naming the file, line and anchor, for every anchor that is not a heading anchor of README.md as GitHub renders it, and passes when every such link resolves
+**And** the check proves it can fail: a planted dead link is flagged and a live one is not (DW-1207)
+
+- DW-1207: test: one check that fails when any file outside README.md (docs/*.md included) links a README anchor README.md doesn't have (ledger; routed by orchestrator 2026-11-12)
+
+### Story 21.13: A re-sent turn sends its email once (EmailOut honours the command's idempotency key)
+
+> [ADDED 2026-11-13, fix story inserted by the Epic 21 runner under the Contest Planner's ruling H(ii) (DW-1244, routed to Lane C); Story 22.7's merge waits for it]
+
+As a user,
+I want a chat turn that is sent again to send its email only once,
+So that a retry never emails anyone twice.
+
+**Acceptance Criteria:**
+
+**Given** a `SendEmail` command from origin `tool` that carries an `IdempotencyKey` (AD-1), which `EmailOut` has already sent
+**When** the same command arrives again with the same key (a re-sent turn, a replay, or after a restart)
+**Then** `EmailOut` sends nothing the second time and answers as for the first send, and exactly one mail reaches the SMTP stub; a different key sends normally; the system path's existing approval-keyed de-duplication (21.6 ruling (f)) is unchanged
+**And** a test pins it: a re-sent turn with the same key sends once (DW-1244)
+
+- DW-1244: EmailOut ignores a tool command's IdempotencyKey (AD-1), so a re-sent chat turn could send the own-address email twice (ledger; routed by the orchestrator 2026-11-13, entry on OCT-epic22's ledger; linked entry here)
+
+### Story 21.14: The mailbox address and user name stay out of the trace
+
+> [ADDED 2026-11-13, fix story inserted by the Epic 21 runner under the Contest Planner's DW-1255 audit ruling (prompts/rulings-371-dw1255-20261113.md, items 1 and 5); implemented after Story 21.8 merges]
+
+As an admin,
+I want the mailbox's address and user name kept out of the trace,
+So that someone who can read traces does not learn them.
+
+**Acceptance Criteria:**
+
+**Given** an admin saves Settings > Channels > Email
+**When** the save reaches `SettingsOps`
+**Then** the mailbox `address` and `user` travel by the same handoff swap as the password and the client secret in `Web/Api.cls`: `SaveSettings.Changes` holds only their handoff references, the values reach only `SettingsOps` and IRIS's own audit entry, and `incoming`, `outgoing`, `signIn`, `clientId` and `origin` stay as they are
+**And** a leak-scan test shows neither value in any traced message, log row, trace or `^OcuTalon*` global after a save (DW-1255)
+
+**Given** `docs/security-overview.md`
+**When** it describes the trace role
+**Then** it states plainly that anyone with the trace role sees each item's content, including an email's sender (`Msg.Item.Sender` stays, by the ruling) (DW-1255)
+
+- DW-1255: audit: personal data in traced SaveSettings.Changes (the email channel's address and user) moves to the SecretHandoff; the security overview states what the trace role sees (ledger; routed by the orchestrator 2026-11-13)
 
 ### Story 21.6: Send email over SMTP
 

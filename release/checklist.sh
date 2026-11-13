@@ -385,7 +385,7 @@ outward_hits() {
     -e 'twitter[.]com' -e '(^|[^A-Za-z0-9._-])x[.]com/' -e 'linkedin[.]com' -e 'youtube[.]com' -e 'medium[.]com' \
     -e '(^|[^A-Za-z0-9._-])dev[.]to/' -e 'reddit[.]com' "$@" 2> /dev/null \
     | grep -vx -e 'docker/tests/check-readme-video[.]sh:[0-9]*:OEMBED="https://www[.]youtube[.]com/oembed"' \
-      -e "docker/tests/test-readme[.]sh:[0-9]*:ALLOWED_HOSTS='localhost demo[.]ocutalon[.]com youtu[.]be github[.]com/jbrandtmse/OcuTalon github[.]com/bmad-code-org claude[.]com console[.]anthropic[.]com docs[.]anthropic[.]com evaluation[.]intersystems[.]com docs[.]intersystems[.]com www[.]intersystems[.]com ideas[.]intersystems[.]com docs[.]docker[.]com learn[.]microsoft[.]com community[.]intersystems[.]com openexchange[.]intersystems[.]com'" | cut -d: -f1,2
+      -e "docker/tests/test-readme[.]sh:[0-9]*:ALLOWED_HOSTS='localhost demo[.]ocutalon[.]com youtu[.]be github[.]com/jbrandtmse/OcuTalon github[.]com/bmad-code-org claude[.]com console[.]anthropic[.]com docs[.]anthropic[.]com evaluation[.]intersystems[.]com docs[.]intersystems[.]com www[.]intersystems[.]com ideas[.]intersystems[.]com docs[.]docker[.]com learn[.]microsoft[.]com community[.]intersystems[.]com openexchange[.]intersystems[.]com mail[.]google[.]com'" | cut -d: -f1,2
 }
 
 row_no_outward() {
