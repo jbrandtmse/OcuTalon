@@ -39,7 +39,7 @@ Method TestContracts()
 Method TestVerbsInheritTheCommonFields()
 {
 	Set classes = $ListBuild("IncidentCommand")
-	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession", "SetHeartbeat", "RunHeartbeat", "MarkNoise", "ForgetPrecedent", "AddMcpServer", "RemoveMcpServer", "ClassifyTool", "SetSourcePoll", "RemoveSourcePoll", "SendEmail", "ProposeFix", "CreateWebhook", "SetWebhookSecret")
+	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession", "SetHeartbeat", "RunHeartbeat", "MarkNoise", "ForgetPrecedent", "AddMcpServer", "RemoveMcpServer", "ClassifyTool", "SetSourcePoll", "RemoveSourcePoll", "SendEmail", "ProposeFix", "CreateWebhook", "SetWebhookSecret", "AckPage", "SaveSqlWatch")
 	Set position = 0
 	While $ListNext(verbs, position, verb) {
 		Set classes = classes _ $ListBuild("Command."_verb)
@@ -69,7 +69,7 @@ Method TestEnumerations()
 	Set expected("INCIDENTOPENVARIANT") = "fallback,no_fix,rejected,expired"
 	Set expected("APPROVALSTATE") = "pending,approved,rejected,expired,cancelled,executing,done,failed"
 	Set expected("APPROVALKIND") = "fix,tool_call,setting"
-	Set expected("NOTIFICATIONKIND") = "tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest,handled,summary"
+	Set expected("NOTIFICATIONKIND") = "tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest,handled,summary,page"
 	Set expected("CHECKRESULT") = "passed,failed,not_checked"
 	Set expected("CHANNEL") = "web,phone,mailbox,telegram,email,webhook,slack,system,heartbeat"
 	Set expected("ORIGIN") = "web_user,web_admin,telegram,tool,timer,system"
@@ -232,6 +232,13 @@ XData Contracts [ MimeType = application/json ]
    "CatchUp": "%Boolean"
   }
  },
+ "OcuTalon.Msg.Escalation": {
+  "super": "Ens.Request",
+  "props": {
+   "IncidentRef": "%String(MAXLEN=22)",
+   "PageRef": "%String(MAXLEN=22)"
+  }
+ },
  "OcuTalon.Msg.Command": {
   "super": "Ens.Request",
   "abstract": 1,
@@ -260,7 +267,10 @@ XData Contracts [ MimeType = application/json ]
    "Text": "%String(MAXLEN=1000)",
    "DueAt": "%String(MAXLEN=20)",
    "DelaySeconds": "%Integer",
-   "LocalDueAt": "%String(MAXLEN=19)"
+   "LocalDueAt": "%String(MAXLEN=19)",
+   "Kind": "%String(MAXLEN=32)",
+   "IncidentRef": "%String(MAXLEN=22)",
+   "PageRef": "%String(MAXLEN=22)"
   }
  },
  "OcuTalon.Msg.Command.CancelReminder": {
@@ -321,6 +331,29 @@ XData Contracts [ MimeType = application/json ]
    "IncidentRef": "%String(MAXLEN=22)",
    "FixKind": "%String(MAXLEN=64)",
    "Parameters": "%String(MAXLEN=1000)"
+  }
+ },
+ "OcuTalon.Msg.Command.AckPage": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Ref": "%String(MAXLEN=22)",
+   "Channel": "%String(MAXLEN=32)"
+  }
+ },
+ "OcuTalon.Msg.Command.SaveSqlWatch": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Action": "%String(MAXLEN=16)",
+   "CheckRef": "%String(MAXLEN=22)",
+   "Name": "%String(MAXLEN=128)",
+   "Query": "%String(MAXLEN=4000)",
+   "IntervalMinutes": "%Integer"
   }
  },
  "OcuTalon.Msg.Command.SetDemoMode": {

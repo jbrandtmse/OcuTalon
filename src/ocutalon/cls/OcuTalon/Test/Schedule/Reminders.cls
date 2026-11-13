@@ -24,6 +24,9 @@ Include Ensemble
 ///     nothing: a set is a fresh set (never reused_key); a cancel with the other session's Ref gets the unknown-Ref refusal, member for
 ///     member, and with its own Ref cancels it normally; the session's own command again gets its first result;
 ///   - TestSetRepeatOneWaiter: a SetReminder submitted twice with one key makes one row, one waiter and one created event;
+///   - TestEscalationNotBuilt (Story 36.2): a SetReminder of Kind escalation (origin system, and origin tool inside a bridge context) and one
+///     of Kind other are refused not_built with the not-built sentence, and make no row, no waiter and no event; a Kind reminder is still
+///     set and its one waiter is counted;
 ///   - TestSeveralCancelsFromOneToolCall (U-118): three cancels of one tool call, with the keys <item>:1 to :3, each cancel their own
 ///     reminder; the call run again gets each command its first result, and with the Refs in another order a key for another Ref is
 ///     reused_key;
@@ -658,6 +661,62 @@ Method TestSetRepeatOneWaiter()
 	Do $$$AssertEquals(commands.%Size(), 1, "and it is the only one under the session")
 	Do ##class(OcuTalon.Test.Core.Observe).Events(session, "reminder", 1, ..#WAIT)
 	Do $$$AssertEquals(..EventStates(session), "pending", "and one created event is published")
+}
+
+/// Before Story 24.3 an escalation timer is refused not_built and stores nothing (AD-18, Story 36.2): a SetReminder of Kind escalation
+/// from origin system (with a delay, an incident and a page), one of Kind escalation inside a bridge context (origin tool) and one of
+/// Kind other all answer Ok 0, not_built, with the not-built sentence; the session has no new Reminder row, no waiter starts and no
+/// event is published. The waiter check reads the session's trace, which only a command under the bridge context writes to, so a
+/// SetReminder of Kind reminder under the same context is the positive control: it is set and its one waiter is counted.
+Method TestEscalationNotBuilt()
+{
+	If '..Guard() Quit
+	Set session = ..Session("escal")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Set sentence = "This part of OcuTalon isn't built yet. Nothing was changed."
+	Do $$$AssertEquals(..Rows(session), 0, "the session starts with no reminder row")
+	For which = 1, 2, 3 {
+		Set command = ##class(OcuTalon.Msg.Command.SetReminder).%New()
+		Set command.SessionRef = session
+		Set command.IdempotencyKey = "zzesc" _ which _ ..Number
+		Set command.Text = "zz escalation " _ ..Number
+		Set command.DelaySeconds = 60
+		Set command.Kind = $Select(which = 3: "other", 1: "escalation")
+		If which < 3 {
+			Set command.IncidentRef = "zzinc" _ ..Number
+			Set command.PageRef = "zzpage" _ ..Number
+		}
+		If which = 2 {
+			Set result = ##class(OcuTalon.Test.Schedule.ReminderFixture).Submit(session, command)
+		} Else {
+			Set result = ""
+			Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .result)
+			Do $$$AssertStatusOK(sc, "the command " _ which _ " is submitted")
+		}
+		Do $$$AssertTrue($IsObject(result), "the command " _ which _ " is answered")
+		If $IsObject(result) {
+			Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "0|not_built|" _ sentence, "the command " _ which _ " is not_built, with the sentence")
+			Do $$$AssertEquals(result.Ref _ "|" _ result.DueAt, "|", "and names no reminder")
+		}
+	}
+	Do $$$AssertEquals(..Rows(session), 0, "no Reminder row was made")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "ReminderOps", "ReminderTimer").%Size(), 0, "and no waiter was started")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(session, "reminder").%Size(), 0, "and no reminder event was published")
+
+	Set command = ##class(OcuTalon.Msg.Command.SetReminder).%New()
+	Set command.SessionRef = session
+	Set command.IdempotencyKey = "zzesc4" _ ..Number
+	Set command.Text = "zz plain " _ ..Number
+	Set command.DelaySeconds = 300
+	Set command.Kind = "reminder"
+	Set result = ##class(OcuTalon.Test.Schedule.ReminderFixture).Submit(session, command)
+	Do $$$AssertTrue($IsObject(result), "a SetReminder of Kind reminder is answered")
+	If $IsObject(result) {
+		Do ..Keep(result.Ref)
+		Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome, "1|set", "and set")
+	}
+	Do $$$AssertEquals(..Rows(session), 1, "and makes its one row")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "ReminderOps", "ReminderTimer").%Size(), 1, "and its one waiter is counted by the same check")
 }
 
 /// Three cancels of one tool call, submitted back to back through CommandCall.Run with the keys <item>:1 to :3 (U-118): each cancels its

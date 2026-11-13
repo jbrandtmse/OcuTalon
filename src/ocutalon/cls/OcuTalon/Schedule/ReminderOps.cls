@@ -98,6 +98,7 @@ Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.P
 /// Sets the reminder of the command and returns the CommandResult to answer.
 Method Set(command As OcuTalon.Msg.Command.SetReminder, now As %String) As OcuTalon.Msg.CommandResult [ Private ]
 {
+	If (command.Kind '= "") && (command.Kind '= "reminder") Quit ..Result(0, "not_built", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTBUILT)
 	If '..SessionExists(command.SessionRef) Quit ..Refuse("no_session")
 	If command.IdempotencyKey '= "" {
 		Set first = ..KeyedRow("IdempotencyKey", command.SessionRef, command.IdempotencyKey)

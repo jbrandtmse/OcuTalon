@@ -2,14 +2,29 @@
 title: 'Story 36.2: Fix Lane B''s step 5 contracts: paging, escalation and the SQL query watch verb'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'bafc84137bb664fe8514a4eb533728540c42526f'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-36-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-36-1-record-the-setting-history-of-each-watched-production.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Test.Core.SettingsOps TestOnlyRunTimeWriter fails on Story 36.1's classes: its writer pattern matches the globals ^OcuTalonP.SettingChange and ^OcuTalonP.SettingSnap.
+    evidence: |-
+      Both warm-stack and shard runs print FAIL "OcuTalon.Data.SettingChange does not write the Setting rows" and the same for SettingSnapshot. The writer pattern's alternative OcuTalonP\.Setting is a prefix of the 36.1 tables' globals. This diff touches none of these files; the classes were committed by Story 36.1 (5bb099ae).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls (TestOnlyRunTimeWriter)
+    severity: medium
+  - summary: >-
+      Test.Data.Tables TestEveryTableIsRegistered fails for OcuTalon.Data.SettingChange and OcuTalon.Data.SettingSnapshot: the test's own XData Registry lacks their rows.
+    evidence: |-
+      Fails on a fresh stack (tag e36s2i) and in the lane-b shard part 6/6. src/short-names.tsv has the two rows (lines 39-40); the test reads its XData copy. Story 36.1 did not append them there. This diff touches neither file.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls (XData Registry)
+    severity: medium
 ---
 
 <intent-contract>
@@ -99,6 +114,30 @@ deferred: []
 - 2026-11-12, re-plan (cycle_iteration 2): the blocking split condition is dropped (`### Proposed split` is now a short record of the ruling); the `multiple-goals` warning is cleared; the on-call-only notes are grouped under `### For Story 36.4 (input to its plan)`; Code Map line anchors re-checked at `6c55d82c362a55c9e0747db25086545642e3cd38`; Decided in-stage 4 corrected (WatchOps's answer) and 11-15 added (the second "And" clause's reading, the EXPERIENCE.md condition, online-demo behaviour, 36.1 order, the local regression sizing); an acceptance mapping, AC 1's spine check and one mutation per AC added; the Verification lines resized (no whole `ci/checks.sh` line). The frozen intent block is unchanged. KEEP: the Spine additions, the Proposed public text and the veto items, verbatim.
 
 ## Review Triage Log
+
+### 2026-11-12 — Review pass
+- verdicts: 20 findings — high 0, medium 3, low 16, false 1, maybe-false 0 (the four layers reported 31 items; items from different layers that make the same claim share one row, with the layers named)
+- findings:
+  - `[medium]` `[patch]` AckPage accepted origins web_user and web_admin are tried by no test (blind hunter, edge hunter, verification gap, intent) -- `TestRoutes` tried only telegram; patched: `TestRoutes` now tries `AckPage` from web_user, web_admin and telegram (14 verbs, 16 pairs), mutation line added.
+  - `[low]` `[patch]` `CommandsRouting` header still says 12 verbs and lacks `TestStepFiveRefusals` (blind hunter, verification gap) -- patched in the header.
+  - `[low]` `[reject]` `TestOriginRules` not extended to the new verbs (blind hunter) -- `TestRoutes` now pins every accepted origin of both verbs and `TestStepFiveRefusals` every refused one, so the matrix is covered; extending the 96-pair oracle adds nothing.
+  - `[medium]` `[patch]` The escalation refusal is tested only from origin system, never from the chat's origin tool (blind hunter, intent) -- patched: `TestEscalationNotBuilt` also submits an escalation inside a bridge context (origin tool).
+  - `[low]` `[reject]` No bridge-context form of the step 5 refusals (blind hunter) -- `TestContextMeansTool` pins the generic mechanism and neither verb has a path of its own.
+  - `[low]` `[reject]` The spine says the unbuilt owners answer `failed` and no test shows it (blind hunter, verification gap, intent) -- Decided in-stage 4 states it as inference from Lane A's code; the reviewer read `IncidentManager` and agrees; pinning it needs the real Lane A owners (Stories 23.4, 23.8).
+  - `[low]` `[reject]` EmailOut's page claim does not name the `Delivery` column (blind hunter) -- spec-bound: the contract is the spec's Spine additions verbatim, built by Story 24.3.
+  - `[false]` `[reject]` The spec's Auto Run Result still said ready-for-dev (blind hunter) -- rewritten at finalize.
+  - `[low]` `[reject]` The catalog has no texts for the page, the SQL query errors or the remove confirmation (blind hunter) -- only accepted texts may be written; never invent wording.
+  - `[low]` `[reject]` `Action`, `Channel` and `IntervalMinutes` carry no value lists or bounds (blind hunter, edge hunter) -- spec-bound: Execution fixes the property types and `Test.Msg.Contracts` pins them; the owners (Stories 23.4, 23.8, 24.2) validate.
+  - `[low]` `[reject]` `settings.onCallMinutesHelp` repeats the default 15 (blind hunter) -- an accepted text, verbatim.
+  - `[medium]` `[patch]` The "no waiter" assertion reads the session's trace, which a direct `Commands.Submit` never writes to, so it could not fail (edge hunter, verification gap) -- patched: the escalation cases that need it run under the bridge context, and the mutation run shows the waiter check red.
+  - `[low]` `[patch]` The Kind reminder control did not count its waiter (edge hunter, verification gap) -- patched: the waiter count is asserted 1 after the plain set.
+  - `[low]` `[reject]` The Kind guard is case-sensitive and runs before `SessionExists` (edge hunter, intent) -- the order is the spec's (Code Map); an unknown spelling fails closed as `not_built`.
+  - `[low]` `[reject]` Nothing pins that a `page` takes the generic route (edge hunter, intent) -- `Notify` is not edited (Decided in-stage 1); the claim is "unchanged".
+  - `[low]` `[reject]` AC 1's check cannot fail for two of its eleven names (verification gap) -- the AC 1 mutation removes the line holding `oncall.escalationMinutes` and goes red; the other nine names are absent from the baseline.
+  - `[low]` `[reject]` AC 5 has no red check (verification gap) -- the spec fixes it as a review of the EXPERIENCE.md diff; no code ships.
+  - `[low]` `[reject]` The "no event" assertion is an immediate snapshot (verification gap) -- the row-count assertion catches a stored row, and the event check went red in the mutation run.
+  - `[low]` `[reject]` Whether the EXPERIENCE.md block equals the runner's accepted list cannot be seen in the diff (intent) -- the block is the spec's Proposed public text with the Planner's rulings; the runner's binding context lists the same texts.
+  - `[low]` `[reject]` The spine additions go beyond the four gaps named in the Problem (intent) -- they are the spec's Spine additions list, verbatim.
 
 ## Design Notes
 
@@ -354,9 +393,34 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - AC 4: remove the Kind guard in `ReminderOps.Set` → `TestEscalationNotBuilt`
 - AC 5: no code and no test; its check is the review of `git diff -- <EXPERIENCE.md>` against the runner's accepted list (empty when none is reported)
 
+**Mutation record (implement stage; each applied, observed red, reverted, and the file compared byte-identical with its backup):**
+- mutation: AC 1: deleted the line holding `oncall.escalationMinutes` from the spine → AC 1's check printed `MISSING oncall.escalationMinutes`
+- mutation: AC 2: dropped `PageRef` from `Msg.Escalation` → `Test.Msg.Contracts` `TestContracts` failed ("property PageRef is missing"); dropped `page` from NOTIFICATIONKIND → `TestEnumerations` failed
+- mutation: AC 3: removed the `AckPage` Routes row → `Test.Core.CommandsRouting` `TestRoutes` failed ("AckPage is sent once"); added `web_user` to `SaveSqlWatch`'s origins → `TestStepFiveRefusals` failed ("SaveSqlWatch from web_user is not_allowed"); dropped `web_user` from `AckPage`'s origins → `TestRoutes` failed ("AckPage: the key arrives unchanged", and the other checks of that pair)
+- mutation: AC 4: removed the Kind guard in `ReminderOps.Set` → `Test.Schedule.Reminders` `TestEscalationNotBuilt` failed on all three refusals, the row count, the waiter count and the event count. A warm stack runs the old ReminderOps job until the production restarts, so the red run came on the second full class run after the edit (and the green one on the second run after the revert).
+- mutation: AC 5: no code and no test; `git diff` of EXPERIENCE.md holds only the accepted "Settings (step 5)" block and one Step 5 line
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan pass 2 (after split (A) was ruled): the spec is re-planned as the contracts story and meets the READY-FOR-DEVELOPMENT standard. Pending the Planner's ruling (they do not block implement): veto items V1-V6 and the proposed public texts (V7). Only accepted texts reach EXPERIENCE.md (Decided in-stage 12). `new_units: none`.
+Summary: Story 36.2 writes Lane B's step 5 contracts into the spine (AD-1, AD-14, AD-16, AD-18, AD-19, AD-29, AD-33, with the V3 audit rule) and creates their code contracts: `page` in NOTIFICATIONKIND, `Msg.Escalation`, `Command.AckPage`, `Command.SaveSqlWatch`, `SetReminder.Kind`, `IncidentRef` and `PageRef` (storage Values 5-7), the two `CommandsIn` Routes rows, and the `ReminderOps` `not_built` guard. EXPERIENCE.md gains the accepted "Settings (step 5)" block and one Step 5 line. No route, table, grant or UI is added and nothing is sent.
+
+Files changed:
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- step 5 Lane B bullets; memlog entry appended.
+- `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- "Settings (step 5)" catalog block and a Step 5 line.
+- `src/ocutalon/cls/OcuTalon/Msg/Enum.cls` -- `,page` appended.
+- `src/ocutalon/cls/OcuTalon/Msg/Escalation.cls`, `Msg/Command/AckPage.cls`, `Msg/Command/SaveSqlWatch.cls` -- new messages.
+- `src/ocutalon/cls/OcuTalon/Msg/Command/SetReminder.cls` -- three properties appended.
+- `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls` -- two Routes rows appended.
+- `src/ocutalon/cls/OcuTalon/Schedule/ReminderOps.cls` -- Kind guard at the top of `Set`.
+- `src/ocutalon/cls/OcuTalon/Test/Msg/Contracts.cls`, `Test/Core/CommandsRouting.cls`, `Test/Schedule/Reminders.cls` -- contract entries, route and refusal tests, `TestEscalationNotBuilt`.
+
+Review: 20 findings; 5 patched (3 medium, 2 low), 2 deferred (pre-existing failures from Story 36.1, in the `deferred:` list), 13 rejected with their reasons in the Review Triage Log.
+
+Follow-up review recommended: true. The first pass patched three mediums (AckPage origins, the tool-origin escalation case, the vacuous waiter check) in tests that only their author has re-read; they were run green and the AC 3 and AC 4 mutations went red afterwards. Patched counts by verdict: medium 3, low 2.
+
+Verification (lane-B throwaways only; warm tag e36s2iw and fresh tag e36s2i, both torn down): `Test.Msg.Contracts` (warm and fresh), `Test.Core.CommandsRouting` and `Test.Schedule.Reminders` passed after the patches, with their mutations observed red and the tree compared identical after each revert; `test-storage.sh`, `test-ci-config.sh`, `test-boundaries.sh`, `catalog.test.mjs` (69) and `npm --prefix web test` (1932) passed; AC 1's check printed nothing. `lane-b@Contract,Core,Data,Live` parts 1-6 passed except `Test.Core.SettingsOps` (part 4) and `Test.Data.Tables` (part 6), both failing on Story 36.1's classes (deferred); `lane-b@Web` parts 1-4, `Test.Msg.Catalog`, `ReminderChat`, `ReminderLogic` and `ReminderZone` passed. `lint_spine.py` reports `"ok": false` with 10 low "unfilled template token" findings, the same 10 as the baseline spine (`{time}`, `{old}`, `{new}`, `{day}` and others in catalog-template prose), so Rule 20's `"ok": true` cannot be met by any spine edit until they are cleared; this story adds none.
+
+Residual risks: the two deferred 36.1 test failures turn the CI `shard:lane-b` group red until fixed; the unattended runner should route them to a story that may touch `Test/Core/SettingsOps.cls` and `Test/Data/Tables.cls`.
