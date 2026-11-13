@@ -259,3 +259,6 @@
 2026-11-13T17:30:34Z	Epic 22	integrated_forward	feature=9a946ea3 head=c88639d1 conflicts_resolved=sprint-status.yaml(bookkeeping) auto_merged=Test/Agent/Instructions.cls(union:0.35_Triage_phrases) checks=test-boundaries,test-class-rules,test-readme_rc0
 2026-11-13T17:30:34Z	Story 22.7	smoke_complete	method=other(rework2+merged_tree;lane-D_warm_e22s7f3w:Test.Fix.Email,Test.Agent.Runners) result=pass iterations=2 defects_caught=0 torn_down=e22s7f3w
 2026-11-13T17:30:34Z	Story 22.7	fresh_check	env=recipe(new_lane-D_warm_stack_e22s7f3w) tests=2(Bridge.Decide,Agent.Instructions) result=pass order=forward,reverse
+2026-11-13T17:30:56Z	Story 22.7	committed	sha=25c2e4da submodules= ci=pending runs=43473495462,43473495076 amendments=none note=rework2_CI_fix+integrate_forward_9a946ea3;supersedes_f0cc2010(ci_43454578653_red:shards-9_story,browser_infra_DW-1119)
+2026-11-13T17:30:56Z	Story 22.7	story_cycle	plan_to_commit_min=na(resumed) implement_passes=3 reviews=3 rework=2 first_ci=story models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-13T17:30:56Z	Story 22.6	story_waiting	story=22-6-document-a-worked-jira-example-and-mcp-governance on=orchestrator_ruling(test-readme.sh_rule_docs_footprint_extension_vs_Epic21_21.14) patch=set-aside/22-6-document-a-worked-jira-example-and-mcp-governance-1.patch
