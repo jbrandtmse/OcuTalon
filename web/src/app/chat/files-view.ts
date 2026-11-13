@@ -46,8 +46,9 @@ export function checkFile(file: { name: string; size: number }): '' | FileRefusa
   if (file.size === 0) {
     return 'empty';
   }
-  const dot = file.name.lastIndexOf('.');
-  return dot >= 0 && EXTENSIONS.includes(file.name.slice(dot).toLowerCase()) ? '' : 'wrong_type';
+  const name = file.name.trim();
+  const dot = name.lastIndexOf('.');
+  return dot >= 0 && EXTENSIONS.includes(name.slice(dot).toLowerCase()) ? '' : 'wrong_type';
 }
 
 /** The sentence for a refusal code and the file's size in bytes; any code but too_large and empty reads as wrong_type. */

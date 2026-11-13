@@ -15,8 +15,8 @@
 //   GET  /_mock/telegram/calls         {"calls":[{seq, ts, method, params}, ...]}, every Bot API call with a token, in order
 //   POST /_mock/telegram/files         {"fileId","filePath","contentType","base64"}: registers a fixture file that getFile and the download serve
 //   POST /_mock/telegram/reset         clears the updates, the queued replies, the calls, the files and the counters
-//   GET  /file/bot<token>/<file_path>  the download of a registered file (Story 25.3): its bytes with its Content-Type and Content-Length; an empty token is a 401
-//                                      and an unknown path a 404, as Bot API errors; it is recorded in the calls as {method: "download", params: {file_path}}
+//   GET  /file/bot<token>/<file_path>  the download of a registered file (Story 25.3): its bytes with its Content-Type and Content-Length; an empty token is a 401,
+//                                      a method other than GET a 405 and an unknown path a 404, as Bot API errors; it is recorded in the calls as {method: "download", params: {file_path}}
 // A Bot API call is answered by the first queued reply of its method; else getUpdates by the update queue (updates below the offset
 // are dropped, and a negative offset is a 400; with none queued it waits until one is queued or min(timeout, 50) seconds pass, then answers an empty list, and a
 // client that hangs up ends the wait; a reply queued for getUpdates while it waits answers it at once); else by the default of the method: getMe the bot ocutalon_ci_bot, sendMessage and

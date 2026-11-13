@@ -122,6 +122,7 @@ test('the files route: signed out, the accepted types, the refusals, the bounds 
   await signInOverHttp(request, live.user, live.password);
   const session = await sessionRefOfUser(live.user);
   const prefix = `zzfilesapi${Date.now()}`;
+  const start = await rowsOf(session);
   try {
     const anonymous = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
     try {
@@ -152,7 +153,7 @@ test('the files route: signed out, the accepted types, the refusals, the bounds 
       expect(answer.file).toEqual({ ref: expect.stringMatching(/^[A-Za-z0-9_-]{22}$/), name, mediaType, size: bytes.length });
       refs.push(answer.file.ref);
     }
-    expect(await rowsOf(session), 'one row for each file, all of the LIVE session').toBe(4);
+    expect(await rowsOf(session), 'one row for each file, all of the LIVE session').toBe(start + 4);
 
     // The refusals, with their exact answers.
     const refused: Array<[string, string, Buffer, string, Record<string, unknown>?]> = [
@@ -201,23 +202,34 @@ test('the files route: signed out, the accepted types, the refusals, the bounds 
     const huge = Buffer.concat([Buffer.from('%PDF-'), Buffer.alloc(14 * 1024 * 1024 - 5, 0x20)]);
     const bodyTooLarge = await post(request, FILES, bodyOf(`${prefix}big2`, 'huge.pdf', huge));
     await expectError(bodyTooLarge, 413, 'body_too_large', TOO_LARGE);
-    expect(await rowsOf(session), 'no refusal stored a row').toBe(4);
+    expect(await rowsOf(session), 'no refusal stored a row').toBe(start + 4);
 
     // The envelope.
     const data = bodyOf(`${prefix}e`, 'a.pdf', bytesOf('pdf'));
     await expectError(await request.fetch(FILES, { method: 'POST', headers: envelope({ 'x-ocutalon-request': undefined }), data }), 403, 'no_request_header', NO_REQUEST_HEADER);
     await expectError(await request.fetch(FILES, { method: 'POST', headers: envelope({ 'content-type': 'text/plain' }), data }), 403, 'not_json', NOT_JSON);
     await expectError(await request.fetch(FILES, { method: 'POST', headers: envelope({ origin: 'http://evil.example' }), data }), 403, 'wrong_origin', WRONG_ORIGIN);
-    expect(await rowsOf(session), 'and none stored a row').toBe(4);
+    expect(await rowsOf(session), 'and none stored a row').toBe(start + 4);
 
     // A repeat of a clientId is 202 with the clientId alone, and keeps one row.
     const repeat = await post(request, FILES, bodyOf(`${prefix}t0`, 'a.pdf', bytesOf('pdf')));
     expect(repeat.status()).toBe(202);
     expect(await repeat.json()).toEqual({ clientId: `${prefix}t0` });
-    expect(await rowsOf(session), 'the second file of the repeat is dropped').toBe(4);
+    expect(await rowsOf(session), 'the second file of the repeat is dropped').toBe(start + 4);
   } finally {
     await clean(session, prefix);
   }
+});
+
+test('the real state says the install cannot read a file: filesReadable is false, as a boolean right after demoMode (a tripwire for Story 26.2)', async ({ request }) => {
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
+  const response = await request.get(STATE);
+  expect(response.status(), await response.text()).toBe(200);
+  const state = (await response.json()) as Record<string, unknown>;
+  const keys = Object.keys(state);
+  expect(state['filesReadable'], 'no READSFILES on Agent.Input on this branch').toBe(false);
+  expect(keys[keys.indexOf('demoMode') + 1], 'the key follows demoMode').toBe('filesReadable');
 });
 
 test('the trace-only user is refused: 403 no_role', async ({ playwright, baseURL }) => {
@@ -293,6 +305,8 @@ test('isolation and the no-reader reply: a second session never sees the file, a
     await signInOverHttp(second, other.user, other.password);
     secondRef = await sessionRefOfUser(other.user);
     expect(secondRef, 'the second account is another session').not.toBe(first);
+    const startFirst = await rowsOf(first);
+    const startSecond = await rowsOf(secondRef);
 
     // The mark: the highest message header, the highest event log row and the mock log's length.
     const marks = await irisScript(
@@ -318,7 +332,13 @@ test('isolation and the no-reader reply: a second session never sees the file, a
     expect(tooLongName.length).toBe(400);
     const longResponse = await post(request, FILES, bodyOf(`${prefix}b`, tooLongName, bytesOf('pdf', marker)));
     await expectError(longResponse, 400, 'bad_file', BAD_FILE);
-    expect(await rowsOf(first), 'the 400-character name stored nothing: one row').toBe(1);
+    expect(await rowsOf(first), 'the 400-character name stored nothing: one row').toBe(startFirst + 1);
+
+    // A sessionRef in the body is no way into another session: the row stays LIVE's, and PANEL has no row and no file turn.
+    const aimed = await post(request, FILES, bodyOf(`${prefix}s`, 'aimed.pdf', bytesOf('pdf', 'zzaimed'), { sessionRef: secondRef }));
+    expect(aimed.status(), await aimed.text()).toBe(202);
+    expect(await rowsOf(first), 'the aimed file is LIVE\'s').toBe(startFirst + 2);
+    expect(await rowsOf(secondRef), 'and PANEL has no file row').toBe(startSecond);
 
     // LIVE's state and events carry the sentFile; the second session's never do, and the second session's never reach LIVE.
     const done = await doneTurn(request, file.ref);
@@ -330,12 +350,18 @@ test('isolation and the no-reader reply: a second session never sees the file, a
     expect(published.length, 'LIVE sees its own file in its events').toBeGreaterThanOrEqual(1);
     expect((await filesInState(second)).filter((payload) => (payload['sentFile'] as SentFile).ref === file.ref), "PANEL's state holds none of LIVE's files").toEqual([]);
     const otherStream = await second.get(`/ocutalon/api/v1/events?after=0&afterInstance=0`);
+    expect(otherStream.status(), "PANEL's events are read").toBe(200);
     expect(JSON.stringify(await otherStream.json()).includes(file.ref), "PANEL's events hold none of LIVE's files").toBe(false);
     const panelFile = await post(second, FILES, bodyOf(`${prefix}p`, 'panel.pdf', bytesOf('pdf', 'zzpanel')));
     expect(panelFile.status(), await panelFile.text()).toBe(202);
     const panelRef = ((await panelFile.json()) as { file: SentFile }).file.ref;
     await doneTurn(second, panelRef);
     expect((await filesInState(request)).some((payload) => (payload['sentFile'] as SentFile).ref === panelRef), "LIVE's state holds none of PANEL's files").toBe(false);
+    const ownStream = await request.get(`/ocutalon/api/v1/events?after=${cursor}&afterInstance=0`);
+    expect(ownStream.status(), "LIVE's events are read").toBe(200);
+    const ownEvents = JSON.stringify(await ownStream.json());
+    expect(ownEvents.includes(file.ref), "LIVE's events hold its own file (the positive control)").toBe(true);
+    expect(ownEvents.includes(panelRef), "LIVE's events hold none of PANEL's files").toBe(false);
 
     // Ruling 4 (a tripwire for Story 26.2): the install cannot read a file, the reply is the fixed one, and no model was asked.
     const state = (await (await request.get(STATE)).json()) as { filesReadable: unknown };
@@ -361,6 +387,10 @@ test('isolation and the no-reader reply: a second session never sees the file, a
         'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?",item)',
         'Do rs.%Next()',
         'Write !,"CHK|decisions|",rs.%GetData(1)',
+        `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader h, OcuTalon_Bridge_Msg.Request r WHERE h.ID > ? AND h.TargetConfigName = ? AND h.MessageBodyClassName = 'OcuTalon.Bridge.Msg.Request' AND h.MessageBodyId = r.ID AND r.ItemId IN (SELECT t.ItemId FROM OcuTalon_Data.Turn t WHERE t.SessionRef IN (?, ?) AND t.ClientId %STARTSWITH ?)",${headerMark},##class(OcuTalon.Core.Conversation).#DECIDE,${quoted(first)},${quoted(secondRef)},${quoted(prefix)})`,
+        'Write !,"CHK|decidesql|",rs.%SQLCODE',
+        'Do rs.%Next()',
+        'Write !,"CHK|decides|",rs.%GetData(1)',
         `Set sc=##class(OcuTalon.Test.Contract.Mock).LogSince(${mockMark},.entries)`,
         `Set marker=${quoted(marker)},name=${quoted(name)},n=0,named=0,i=entries.%GetIterator()`,
         'While i.%GetNext(,.entry) { Set json=entry.%ToJSON() Set:$Find(json,marker) n=n+1 Set:((entry.path="/v1/messages")&&$Find(json,name)) named=named+1 }',
@@ -377,6 +407,8 @@ test('isolation and the no-reader reply: a second session never sees the file, a
     expect(JSON.stringify(sentFile).includes(marker)).toBe(false);
     expect(chk(hits, 'reply')).toBe(`I got ${name}, but I can't read files yet.`);
     expect(Number(chk(hits, 'decisions')), "the turn's Item has no Decision of any kind").toBe(0);
+    expect(chk(hits, 'decidesql'), 'the count of Decide requests could be read').toBe('0');
+    expect(Number(chk(hits, 'decides')), "no request reached Decide after the mark for the test's file turns: none made a model call").toBe(0);
     expect(Number(chk(hits, 'mockmarker')), 'the marker is in no mock request').toBe(0);
     expect(Number(chk(hits, 'mocknamed')), 'no model request names the file').toBe(0);
   } finally {

@@ -4,6 +4,7 @@
 /// sentence is written out here.
 ///   - TestFileItemBecomesTurn: a web file Item and a Telegram file Item each become a Turn of their own session with SentFile set from the stored row (exactly ref, name,
 ///     mediaType and size), no text, the Item's channel, and the queued chat.message carries sentFile with those four keys;
+///   - TestSentFileFromTheRow: an Item whose file name, media type and size differ from its stored row gives a Turn whose SentFile is the row's (Core.Files.Describe);
 ///   - TestNoReaderReply: with no reader (the real Core.Files.Readable), each of the two turns ends done with the reply "I got {name}, but I can't read files yet." (the
 ///     safe name), nothing is sent to Decide, the done chat.message carries the reply and sentFile, one Outbound goes to Notify with that text and the turn's channel, and
 ///     the turn is not tainted;
@@ -96,6 +97,21 @@ Method TestFileItemBecomesTurn()
 		Do $$$AssertEquals(payload.state_"|"_payload.text, "queued|", channel_": the first one is the queued turn")
 		Do $$$AssertEquals(payload.sentFile.%ToJSON(), row.SentFile, channel_": and carries sentFile, with exactly those four keys")
 	}
+}
+
+Method TestSentFileFromTheRow()
+{
+	Set session = ..Session("row")
+	Set file = ..Store(session, "web", "zz-row.pdf")
+	Set item = ..FileItem(session, "web", file)
+	Set item.FileName = "zz-"_$Char(8238)_"fdp.exe"
+	Set item.FileMediaType = "text/html"
+	Set item.FileSize = 1
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(item, .response), "the file Item is taken")
+	Set turns = ..Turns(session)
+	Do $$$AssertEquals(turns.Count(), 1, "one Turn")
+	If turns.Count() '= 1 Quit
+	Do $$$AssertEquals(turns.GetAt(1).SentFile, ##class(OcuTalon.Core.Files).Describe(file.ref, session).%ToJSON(), "SentFile is the stored row's ref, name, media type and size, never the Item's")
 }
 
 Method TestNoReaderReply()

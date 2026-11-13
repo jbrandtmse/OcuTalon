@@ -1,7 +1,7 @@
-import { expect, test, type Locator, type Page, type Request } from '../support/fixtures';
+import { expect, test, type JSHandle, type Locator, type Page, type Request } from '../support/fixtures';
 
 import { signIn, signInOverHttp } from '../sign-in/helpers';
-import { changeSnapshot, post } from '../support/api';
+import { STATE, changeSnapshot, post } from '../support/api';
 import { loadedAfter } from '../support/floor';
 import { chk, fixtureUser, irisScript, quoted } from '../support/iris';
 import { sessionRefOfUser } from '../support/memory';
@@ -39,6 +39,27 @@ const chips = (page: Page): Locator => page.locator('app-file-chip');
 const refusal = (page: Page): Locator => page.locator('p.file-refusal');
 const fileInput = (page: Page): Locator => page.locator('app-composer input[type="file"]');
 const chat = (page: Page): Locator => page.locator('app-chat-panel');
+
+/** Dispatches a drag event of that type with the transfer on the element and says whether a handler took it: true when one cancelled the browser's own handling. */
+async function taken(target: Locator, type: 'dragover' | 'drop', transfer: JSHandle<DataTransfer>): Promise<boolean> {
+  return target.evaluate(
+    (element, [kind, data]) => {
+      const event = new DragEvent(kind, { bubbles: true, cancelable: true, dataTransfer: data });
+      element.dispatchEvent(event);
+      return event.defaultPrevented;
+    },
+    [type, transfer] as const,
+  );
+}
+
+/** A transfer that carries text and no file, as a drag of selected words does. */
+async function textTransfer(page: Page): Promise<JSHandle<DataTransfer>> {
+  return page.evaluateHandle(() => {
+    const data = new DataTransfer();
+    data.setData('text/plain', 'zz dragged words');
+    return data;
+  });
+}
 
 /** The bodies' paths of the page's file posts, as they are made. */
 function watchFilePosts(page: Page): () => number {
@@ -80,15 +101,15 @@ test.afterEach(async () => {
 /** The size line that the chip shows for a fixture file of that many bytes (under 1 MB it is whole KB, rounded up). */
 const sizeOf = (bytes: number): string => `${Math.ceil(bytes / 1024)} KB`;
 
-const TYPES: Array<{ name: string; mimeType: string; buffer: () => Buffer }> = [
-  { name: 'zz-report.pdf', mimeType: 'application/pdf', buffer: pdf },
-  { name: 'zz-letter.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: docx },
-  { name: 'zz-photo.jpg', mimeType: 'image/jpeg', buffer: jpeg },
-  { name: 'zz-scan.png', mimeType: 'image/png', buffer: png },
+const TYPES: Array<{ name: string; mimeType: string; buffer: () => Buffer; way: 'Enter' | 'Space' | 'click' }> = [
+  { name: 'zz-report.pdf', mimeType: 'application/pdf', buffer: pdf, way: 'Enter' },
+  { name: 'zz-letter.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: docx, way: 'Space' },
+  { name: 'zz-photo.jpg', mimeType: 'image/jpeg', buffer: jpeg, way: 'click' },
+  { name: 'zz-scan.png', mimeType: 'image/png', buffer: png, way: 'Enter' },
 ];
 
 for (const type of TYPES) {
-  test(`the paperclip by keyboard sends ${type.name}: the chip shows its name and size, the reply is the fixed one, and both survive a reload`, async ({ page }) => {
+  test(`the paperclip (${type.way === 'click' ? 'by mouse' : `by keyboard, ${type.way}`}) sends ${type.name}: the chip shows its name and size, the reply is the fixed one, and both survive a reload`, async ({ page }) => {
     const posts = watchFilePosts(page);
     await open(page, { filesReadable: true, onlineDemo: false });
     const button = paperclip(page);
@@ -98,7 +119,8 @@ for (const type of TYPES) {
     await page.keyboard.press('Shift+Tab');
     await expect(button).toBeFocused();
     const chooser = page.waitForEvent('filechooser');
-    await page.keyboard.press('Enter');
+    if (type.way === 'click') await button.click();
+    else await page.keyboard.press(type.way);
     const bytes = type.buffer();
     await (await chooser).setFiles({ name: type.name, mimeType: type.mimeType, buffer: bytes });
     const line = `${type.name}${DOT}${sizeOf(bytes.length)}`;
@@ -121,6 +143,8 @@ test('a drop on the chat is the second way', async ({ page }) => {
     return data;
   });
   const surface = page.locator('app-chat-panel');
+  const field = page.getByRole('textbox', { name: 'Message OcuTalon' });
+  expect(await taken(field, 'drop', await textTransfer(page)), 'a drop of text on the field is left to the field').toBe(false);
   await surface.dispatchEvent('dragover', { dataTransfer: transfer });
   await expect(surface, 'the chat shows the outline while a file is over it').toHaveClass(/dragging/);
   await surface.dispatchEvent('drop', { dataTransfer: transfer });
@@ -139,8 +163,10 @@ test('refusals before anything is sent: 14 MB, a .txt and an empty .pdf, each wi
   await expect.poll(() => announcements(page, 'That file is 14 MB; the limit is 10 MB.')).toBeGreaterThanOrEqual(1);
   await fileInput(page).setInputFiles({ name: 'zz-notes.txt', mimeType: 'text/plain', buffer: Buffer.from('plain text') });
   await expect(refusal(page)).toHaveText(WRONG_TYPE);
+  await expect.poll(() => announcements(page, WRONG_TYPE)).toBeGreaterThanOrEqual(1);
   await fileInput(page).setInputFiles({ name: 'zz-empty.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(0) });
   await expect(refusal(page)).toHaveText("I couldn't read that file: the file is empty.");
+  await expect.poll(() => announcements(page, "I couldn't read that file: the file is empty.")).toBeGreaterThanOrEqual(1);
   expect(posts(), 'no request was sent for any of the three').toBe(0);
   await expect(chips(page)).toHaveCount(0);
 });
@@ -195,12 +221,36 @@ test('with filesReadable false there is no paperclip, and a drop sends nothing a
     return data;
   });
   const surface = page.locator('app-chat-panel');
-  await surface.dispatchEvent('dragover', { dataTransfer: transfer });
-  await surface.dispatchEvent('drop', { dataTransfer: transfer });
+  expect(await taken(surface, 'dragover', transfer), 'no handler takes the drag').toBe(false);
+  expect(await taken(surface, 'drop', transfer), 'nor the drop: the browser keeps its own handling').toBe(false);
   await expect(surface).not.toHaveClass(/dragging/);
   await expect(refusal(page)).toHaveCount(0);
   await expect(page.getByText(OFF_ON_DEMO)).toHaveCount(0);
   expect(posts()).toBe(0);
+});
+
+test('on the real state, with no stub, the paperclip is hidden because the install cannot read a file yet (a tripwire for Story 26.2)', async ({ page }) => {
+  // No changeSnapshot here: this is the page as every real install shows it on this branch. The stubbed cases above cannot hide a regression of the real flag.
+  const posts = watchFilePosts(page);
+  const { user, password } = fixtureUser('PANEL');
+  await loadedAfter(page, () => signIn(page, user, password));
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await expect(page.getByRole('textbox', { name: 'Message OcuTalon' })).toBeVisible();
+  const state = (await (await page.request.get(STATE)).json()) as Record<string, unknown>;
+  expect(state['filesReadable'], 'the real /v1/state says the install cannot read a file').toBe(false);
+  expect(state['onlineDemo'], 'and it is no online demo, so the flag alone hides the paperclip').toBe(false);
+  await expect(paperclip(page)).toHaveCount(0);
+  await expect(fileInput(page)).toHaveCount(0);
+  const transfer = await page.evaluateHandle(() => {
+    const data = new DataTransfer();
+    data.items.add(new File(['%PDF-1.4 dropped'], 'zz-real.pdf', { type: 'application/pdf' }));
+    return data;
+  });
+  const surface = page.locator('app-chat-panel');
+  expect(await taken(surface, 'dragover', transfer), 'no handler takes the drag').toBe(false);
+  expect(await taken(surface, 'drop', transfer), 'nor the drop: the browser keeps its own handling').toBe(false);
+  await expect(refusal(page)).toHaveCount(0);
+  expect(posts(), 'a drop sends nothing').toBe(0);
 });
 
 test('on the online demo there is no paperclip, and a drop shows the off text', async ({ page }) => {
@@ -213,6 +263,9 @@ test('on the online demo there is no paperclip, and a drop shows the off text', 
     return data;
   });
   const surface = page.locator('app-chat-panel');
+  // A drag of text into the field is the field's own: the drop is not taken, and no off text shows for it.
+  expect(await taken(page.getByRole('textbox', { name: 'Message OcuTalon' }), 'drop', await textTransfer(page)), 'a drop of text on the field is left to the field').toBe(false);
+  await expect(refusal(page)).toHaveCount(0);
   await surface.dispatchEvent('dragover', { dataTransfer: transfer });
   await surface.dispatchEvent('drop', { dataTransfer: transfer });
   await expect(refusal(page)).toHaveText(OFF_ON_DEMO);
@@ -225,8 +278,11 @@ test("a second session never sees another session's file", async ({ page, reques
   const name = `zz-live-only-${Date.now()}.pdf`;
   const sent = await post(request, FILES, JSON.stringify({ clientId: `zzfilesui${Date.now()}`, name, content: pdf().toString('base64') }));
   expect(sent.status(), await sent.text()).toBe(202);
+  const ref = ((await sent.json()) as { file: { ref: string } }).file.ref;
   const session = await sessionRefOfUser(live.user);
   try {
+    // The positive control: LIVE's own state shows the file's turn, so its absence on PANEL's page is isolation, not a turn that never came.
+    await expect.poll(async () => JSON.stringify(await (await request.get(STATE)).json()).includes(ref), { timeout: 30_000 }).toBe(true);
     await open(page, { filesReadable: true, onlineDemo: false });
     await expect(chat(page).getByText(name)).toHaveCount(0);
     await expect(chips(page).filter({ hasText: name })).toHaveCount(0);

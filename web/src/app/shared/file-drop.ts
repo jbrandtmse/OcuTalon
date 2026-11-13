@@ -50,6 +50,9 @@ export class FileDrop {
   }
 
   private dropped(event: DragEvent): void {
+    if (!event.dataTransfer?.types.includes('Files')) {
+      return;
+    }
     event.preventDefault();
     this.dragging.set(false);
     this.files.emit(Array.from(event.dataTransfer?.files ?? []));

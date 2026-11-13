@@ -4,7 +4,8 @@
 ///   - TestOwnerScoped: Ownership.SentFile finds a row only for its own session, matches the Ref exactly (a case variant is not found) and answers "" for an empty Ref;
 ///   - TestDropSession: DropSession deletes every row of the session and no other session's, and a call with no SessionRef deletes nothing; Drop deletes one
 ///     row of the session and leaves another session's row with the same Ref alone;
-///   - TestPurgeBoundary: Purge deletes the rows made before now minus daysToKeep days and a row with no time, keeps a row exactly that old and every younger one;
+///   - TestPurgeBoundary: Purge deletes the rows made before now minus daysToKeep days and a row with no time, keeps a row exactly that old and every younger one; its now
+///     is in January 2000, so no row that the test did not make (Put always sets CreatedAt) is old enough to be deleted;
 ///   - TestRegistry: the table sets the DEFAULTGLOBAL of its src/short-names.tsv row, stores its data, index and stream in that global's family and has them in the private
 ///     database (Test.Data.Tables pins the row itself).
 Class OcuTalon.Test.Data.SentFile Extends %UnitTest.TestCase
@@ -71,10 +72,10 @@ Method TestDropSession()
 
 Method TestPurgeBoundary()
 {
-	Set now = "2030-06-10T12:00:00Z"
-	Set old = ..Add("ZzSentFileA", "old.pdf", "2030-05-10T11:59:59Z")
-	Set edge = ..Add("ZzSentFileA", "edge.pdf", "2030-05-11T12:00:00Z")
-	Set young = ..Add("ZzSentFileA", "young.pdf", "2030-06-10T11:00:00Z")
+	Set now = "2000-01-31T12:00:00Z"
+	Set old = ..Add("ZzSentFileA", "old.pdf", "2000-01-01T11:59:59Z")
+	Set edge = ..Add("ZzSentFileA", "edge.pdf", "2000-01-01T12:00:00Z")
+	Set young = ..Add("ZzSentFileA", "young.pdf", "2000-01-31T11:00:00Z")
 	Set none = ..Add("ZzSentFileB", "none.pdf", "")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.SentFile).Purge(30, now), "Purge")
 	Do $$$AssertEquals(+##class(OcuTalon.Data.SentFile).RefIndexExists(old), 0, "a row more than 30 days old is deleted")

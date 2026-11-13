@@ -21,9 +21,10 @@ const parameter = (name) => {
 
 describe('checkFile', () => {
   it('accepts each extension in any case, whatever the bytes are, up to 10,485,760 bytes', () => {
-    for (const name of ['a.pdf', 'A.PDF', 'b.docx', 'c.jpg', 'c.JPEG', 'd.png', 'e.f.png', 'x.pdf ']) {
-      assert.equal(checkFile({ name: name.trim(), size: 1 }), '', name);
+    for (const name of ['a.pdf', 'A.PDF', 'b.docx', 'c.jpg', 'c.JPEG', 'd.png', 'e.f.png']) {
+      assert.equal(checkFile({ name, size: 1 }), '', name);
     }
+    assert.equal(checkFile({ name: ' x.pdf  ', size: 1 }), '', 'the extension is read after the white space is trimmed, as the server reads it');
     assert.equal(checkFile({ name: 'big.pdf', size: FILE_MAX }), '');
     assert.equal(FILE_MAX, 10485760);
   });

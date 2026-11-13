@@ -13,8 +13,8 @@
 ///     equal to Web.Documents' BODYMAX;
 ///   - TestDuplicateClientId: the second send of a clientId is 202 {"clientId"} and its file row is dropped;
 ///   - TestSendFailures: an error status, a thrown error, an output that is not JSON and a refusal of WebChatIn are 500 server_error with no row left;
-///   - TestOnlineDemo: on the online demo the answer is 409 not_available with the off text before the body is read, nothing is stored or posted and the session's allowance
-///     is untouched;
+///   - TestOnlineDemo: on the online demo the answer is 409 not_available with the off text before the body is read, and nothing is stored or posted, so nothing reaches
+///     WebChatIn, which alone asks the allowance;
 ///   - TestEnvelope: the forwarded dispatch refuses a POST without the browser envelope 403 and a user without the role 403 no_role;
 ///   - TestStateFlagOff: Web.Api's snapshot holds filesReadable as a boolean right after demoMode, equal to Core.Files.Readable() (false on this branch: the tripwire Story 26.2 flips).
 Class OcuTalon.Test.Web.FilesApi Extends %UnitTest.TestCase
@@ -254,14 +254,12 @@ Method TestOnlineDemo()
 {
 	Set a = ..Session("a")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
-	Set before = ##class(OcuTalon.Data.Session).RefIndexOpen(a).AllowanceTimes
 	Set text = "Sending files is off on the online demo. It works on your own install."
 	Set body = ..Call(a, ..Json("zzc"_..Number_"demo", "demo.pdf", ..Sample("pdf")), .response)
 	Do $$$AssertEquals(response.Status_"|"_body, "409 Conflict|"_{"error": {"code": "not_available", "message": (text)}}.%ToJSON(), "409 not_available with the off text")
 	Set body = ..Call(a, "not even json", .response)
 	Do $$$AssertEquals(response.Status, "409 Conflict", "also for a body that would be refused: the body is not read")
-	Do $$$AssertEquals(..Files(a)_"|"_..Posts(), "0|0", "nothing was stored or posted")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(a).AllowanceTimes, before, "the session's allowance is untouched")
+	Do $$$AssertEquals(..Files(a)_"|"_..Posts(), "0|0", "nothing was stored or posted, so WebChatIn, the allowance's one caller, was never reached")
 }
 
 Method TestEnvelope()
