@@ -224,3 +224,6 @@
 2026-11-13T02:35:48Z	Story 21.8	stage_spawned	stage=implement spawn_at=2026-11-13T02:35:48Z model=sonnet effort=high agent_name=21-8-implement-3 cycle_iteration=3 rework=2_of_3
 2026-11-13T02:55:49Z	Story 21.8	dev_complete	build_sha=d0fc93bb baseline_revision=9e7ffd48 cycle_iteration=3 rework=2 deferred=0 files=docker/tests/lib-scan.sh(names_outside_section_takes_several_headings),docker/tests/test-release-notes.sh(static_exempts_Gmail_and_Microsoft_365;pins) mutations=2 model=sonnet
 2026-11-13T02:55:49Z	Story 21.8	stage_spawned	stage=code-review spawn_at=2026-11-13T02:55:49Z model=opus effort=high agent_name=21-8-code-review-3 cycle_iteration=3 scope=9e7ffd48..HEAD
+2026-11-13T03:10:05Z	Story 21.8	cr_complete	scope=9e7ffd48..HEAD resolved=3 wontfix_accepted=1(DW-1247) dismissed=4 high=0 med=0 low=1 rows=11 unresolved_high_med=0 final_status=done cycle_iteration=3 model=opus
+2026-11-13T03:10:05Z	Story 21.8	smoke_complete	method=cli(test-release-notes.sh_all_16_rules,test-readme.sh,test-boundaries.sh_on_the_final_tree) result=pass iterations=1 cycle_iteration=3
+2026-11-13T03:10:05Z	Story 21.8	fresh_check	env=clean-checkout(stateless_scripts) result=pass order=forward,reverse cycle_iteration=3

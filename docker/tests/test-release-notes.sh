@@ -873,8 +873,9 @@ t_library() {
   eq "names_outside_section: an error name, a dotted class name, two files" "$o" "$tmp/sec2.md:1 $tmp/sec2.md:2 $tmp/sec.md:2 $tmp/sec.md:6 "
   o=$(. "$root/docker/tests/lib-scan.sh"; names_outside_section '## Other' "$tmp/sec.md" | tr '\n' ' ')
   eq "names_outside_section: the heading is a parameter" "$o" "$tmp/sec.md:2 $tmp/sec.md:4 "
-  o=$(. "$root/docker/tests/lib-scan.sh"; names_outside_section "$(printf '%s\n%s' '## For admins and developers' '## Other')" "$tmp/sec.md" | tr '\n' ' ')
-  eq "names_outside_section: several headings, one per line, are all exempt" "$o" "$tmp/sec.md:2 "
+  printf '## Third\nERROR #5002 here\n' | cat "$tmp/sec.md" - > "$tmp/sec3.md"
+  o=$(. "$root/docker/tests/lib-scan.sh"; names_outside_section "$(printf '%s\n%s' '## For admins and developers' '## Other')" "$tmp/sec3.md" | tr '\n' ' ')
+  eq "names_outside_section: several headings, one per line, are all exempt and no other" "$o" "$tmp/sec3.md:2 $tmp/sec3.md:9 "
 }
 
 # static_names <ipm load line> <file>: file:line of each line names_outside_section reports outside "For admins and developers" and
@@ -922,8 +923,9 @@ t_static() {
   eq "the note of release/notes.sh" "$(. release/notes.sh; printf '%s' "$notes_note")" "$NOTE"
   eq "the note of release/checklist.sh" "$(. release/checklist.sh; printf '%s' "$CK_NOTE")" "$NOTE"
   [ "$(grep -c -F -- "$NOTE" README.md)" -gt 0 ] || { echo "  README.md does not hold the note word for word"; bad=1; }
-  # names_outside_section is the README's own developer-section rule (dev_names of test-readme.sh): it finds nothing there either,
-  # except the line that equals IPM_LOAD of test-readme.sh word for word (read from that one line; a changed load line is reported).
+  # static_names is the README's own developer-section rule (dev_names of test-readme.sh, the same two exempt sections): it finds nothing
+  # there either, except the line that equals IPM_LOAD of test-readme.sh word for word (read from that one line; a changed load line is
+  # reported).
   local ipm_load s
   ipm_load=$(sed -n "s/^IPM_LOAD='\(.*\)'\$/\1/p" docker/tests/test-readme.sh)
   [ -n "$ipm_load" ] || { echo "  static: docker/tests/test-readme.sh holds no IPM_LOAD='...' line"; bad=1; }

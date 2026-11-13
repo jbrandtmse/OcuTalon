@@ -7411,3 +7411,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do.md (cr) | severity: low | fix-risk: med | footprint: in-story
 - evidence: md_links strips all leading spaces before the fence test and has no HTML-comment state (edge and blind probes): false reds for comments and indented code, a false green only after a 4+-space backtick line outside a list. The doc set has none today.
 - 2026-11-13T01:28:20Z status=wontfix-accepted owner=21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do by=cr note=reopen_if=a doc-set file links README.md#x inside <!-- --> or indented code, or holds a 4+-space backtick line outside a list
+
+### DW-1247: The release-notes static check's exempt headings (static_names) repeat dev_names' list instead of one source
+- source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md (code review, rework 2 re-review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: docker/tests/test-release-notes.sh static_names and docker/tests/test-readme.sh dev_names (:1290) each spell '## For admins and developers' and '## Gmail and Microsoft 365'. Drift is loud (both scan the same README.md/GUIDE.md) but costs a CI round trip: the 21.8 CI red was this drift. Rule 2 copy with a weak reason.
+- 2026-11-13T03:04:07Z status=wontfix-accepted owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=cr note=reopen_if=a heading is added to or removed from dev_names (test-readme.sh) or static_names (test-release-notes.sh)
