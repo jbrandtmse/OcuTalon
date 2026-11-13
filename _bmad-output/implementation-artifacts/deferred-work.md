@@ -6749,6 +6749,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: main run 42863516417 attempt 1 (v1.0.6 tag 96947f4d), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (shards-4) live:sign-in-2 R10 red at :470; green on one rerun; main badge green 19:45Z
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); no fix work now (Planner); rerun once per occurrence
+- 2026-11-13T01:01:54Z occurrence=feature-bc3eea8f note=ci_43320628392_att2_shards-4_R10
 
 ### DW-1094: flake: lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges ('trace_opened/run_again changes none of the session's data rows') and TestRunAgain ('steps 3 to 5 reset; the watch still counts')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
