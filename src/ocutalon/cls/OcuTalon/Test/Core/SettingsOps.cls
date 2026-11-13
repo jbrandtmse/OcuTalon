@@ -342,13 +342,19 @@ Method TestAllowList()
 /// not. The scanner is first shown to flag synthetic violators and to pass a comment-only mention and the reads.
 Method TestOnlyRunTimeWriter()
 {
-	Set writer = "(OcuTalon\.Data\.Setting\)\.(Set|%New|%OpenId|%Open|KeyIndexOpen|KeyIndexDelete|%DeleteId|%DeleteExtent|%Delete|%KillExtent)\(|\^(\|[^|]*\||\[[^\]]*\])?OcuTalonP\.Setting|(DELETE.*|(^|"")\s*FROM\s+|(?<!FROM\s{1,8})(?<!JOIN\s{1,8}))OcuTalon_Data\.Setting|\$ClassMethod\(.OcuTalon\.Data\.Setting)"
+	Set writer = "(OcuTalon\.Data\.Setting\)\.(Set|%New|%OpenId|%Open|KeyIndexOpen|KeyIndexDelete|%DeleteId|%DeleteExtent|%Delete|%KillExtent)\(|\^(\|[^|]*\||\[[^\]]*\])?OcuTalonP\.Setting[DIS]?\b|(DELETE.*|(^|"")\s*FROM\s+|(?<!FROM\s{1,8})(?<!JOIN\s{1,8}))OcuTalon_Data\.Setting\b|\$ClassMethod\(.OcuTalon\.Data\.Setting\b)"
 	Set seeder = "OcuTalon\.Data\.Setting\)\.Seed\("
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do ##class(OcuTalon.Data.Setting).Set(k, v)", writer), "the scanner flags a Set")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Set row = ##class(OcuTalon.Data.Setting).%New()", writer), "the scanner flags a %New")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(k)", writer), "the scanner flags a KeyIndexOpen")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Kill ^OcuTalonP.SettingD(1)", writer), "the scanner flags the global")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Kill ^|""OCUTALON""|OcuTalonP.SettingD", writer), "the scanner flags the global by an extended reference")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Kill ^OcuTalonP.SettingI", writer), "the scanner flags the index global")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Kill ^OcuTalonP.SettingS", writer), "the scanner flags the stream global")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches("  Kill ^OcuTalonP.SettingSnapD"_$Char(10)_"  Kill ^OcuTalonP.SettingSnapI"_$Char(10)_"  Kill ^OcuTalonP.SettingSnapS", writer), "the scanner passes the globals of the setting snapshots, whose names only begin like the settings table")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches("  Kill ^OcuTalonP.SettingChangeD"_$Char(10)_"  Kill ^OcuTalonP.SettingChangeI"_$Char(10)_"  Kill ^OcuTalonP.SettingChangeS", writer), "and the globals of the setting changes")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(DELETE FROM OcuTalon_Data.SettingSnapshot WHERE ID = 1)"_$Char(10)_"  &sql(DELETE FROM OcuTalon_Data.SettingChange WHERE ID = 1)", writer), "the scanner passes an SQL write to the snapshot and change tables")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches("  Do $ClassMethod(""OcuTalon.Data.SettingSnapshot"", ""%KillExtent"")"_$Char(10)_"  Do $ClassMethod(""OcuTalon.Data.SettingChange"", ""%KillExtent"")", writer), "and a $ClassMethod call on them")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do ##class(OcuTalon.Data.Setting).%KillExtent()", writer), "the scanner flags a %KillExtent")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do ##class(OcuTalon.Data.Setting).KeyIndexDelete(k)", writer), "the scanner flags a KeyIndexDelete")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(UPDATE OcuTalon_Data.Setting SET Value = 1)", writer), "the scanner flags an SQL write")
