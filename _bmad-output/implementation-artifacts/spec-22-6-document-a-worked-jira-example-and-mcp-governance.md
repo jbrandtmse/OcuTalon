@@ -2,7 +2,7 @@
 title: 'Story 22.6: Document a worked Jira example and MCP governance'
 type: 'feature'
 created: '2026-11-13'
-status: 'blocked'
+status: 'in-progress'
 baseline_revision: 'c13b1836a4885ecbc77a55bffc34f4dce01fd7e0'
 baseline_commit: 'c13b1836a4885ecbc77a55bffc34f4dce01fd7e0'
 review_loop_iteration: 0
@@ -198,6 +198,10 @@ deferred:
 
 - [ ] **[RULED 2026-11-13 ~17:15Z, orchestrator R1 (prompts/epic-22-rulings-20261113-1715.md)] `docker/tests/test-readme.sh`, rule `docs` only (footprint extension)**: P2 replaces the overview sentence that rule `docs` pins, so `ci/checks.sh` fails with "the MCP rules line is not under ... with no heading between". Re-pin only the ruled MCP line, "under `## MCP tools` with no heading between": change `MCP_FRAME` (L1673), the `chk_docs` awk check (L1684-1686), its two controls (L3195-3209) and the header comment (L96) to match P2's committed text. Change nothing else in the file. `bash docker/tests/test-readme.sh docs` (and the whole file) and `ci/checks.sh`'s docs step exit 0; write the `mutation:` line (restore the old sentence in a copy -> rule `docs` red). Epic 21's Story 21.14 edits the same rule; whoever pushes second keeps both sides' pins (the lead handles that at integrate-forward).
 
+- [ ] [Review] **R1 patch, re-applied over 21.14 (orchestrator R1)**: the previous pass implemented and verified the R1 item, then saved it as `_bmad-output/implementation-artifacts/set-aside/22-6-r1-test-readme-docs-pin.patch` and reverted the file. Since then this branch integrated feature 62db09e0, which carries Story 21.14's own edits to the same rule `docs`, so the patch no longer applies cleanly. Apply it with `git apply --3way` and resolve by KEEPING BOTH SIDES: 21.14's pins and controls and 22.6's re-pin of the ruled MCP line under `## MCP tools`. If keeping both is not a plain union (one side's pin contradicts the other's text), HALT `blocked` with the exact hunk; never drop a pin. Then tick the R1 item above, keep its `mutation:` line (move it from `## Auto Run Result` into `## Verification`), and run `bash docker/tests/test-readme.sh` and `bash ci/checks.sh`.
+- [ ] [Review] **VG1 (review, MED)**: the `If registered && 'added Quit 0` branch of `Bridge/Adapter/Agent.cls` `OfferServers` has no test on a proxy-naming host. Add a sibling of `TestAddToolFailsInRequest` in `Test/Mcp/Attach.cls` (a NEW method; never edit an existing helper) on a host that names a proxy: every answering server's `AddTool` fails -> `OfferServers` gives 0 and the manager is rebuilt with no MCP server and no proxy. Write its `mutation:` line.
+- [ ] [Review] **VG3 (review, MED)**: P3 (the Data bullet), P5's audit lines, the overview's demo-off sentence and the worked example's 24-hour claim have no pin. Add them to `overviewdoc` / `mcp_doc_problems` in `docker/tests/test-release-sequence.sh` with one fault control each; the 24-hour pin cites `Bridge.Approval` `EXPIRYSECONDS` (ruling M(4)(b)) by reading it from the class source, not a copied number. Write the `mutation:` lines.
+
 ## Spec Change Log
 
 - 2026-11-13 (runner, Planner ruling M (4)): gate APPROVED with the text conditions above; Story 22.12 to be inserted in epics.md.
@@ -240,6 +244,8 @@ deferred:
   - `[low]` `[reject]` IA9: the diff changes the build-time attach report as well as the request's manager - the spec's Task names both (`AttachServers` and `OfferServers`), and `TestProxyNameRefused` pins the first.
 
 ## Design Notes
+
+**Ruled 2026-11-13 ~19:00Z (orchestrator, prompts/epic-22-rulings-20261113-1715.md, Step 3): VERIFY AT MERGE** (ruling M(4): "true of the code at merge"). The five sentences that describe Story 21.4's Settings surface (Add server; the Wallet and Config Store write; removing the entry and the secret; the Tools table and its classification control; an admin adding servers from Settings) ship as approved text and are NOT checked against this tree: 22.6 does not push or merge before 21.4 merges; then it integrates forward and a review layer checks each of the five against the merged code (a false claim is a STOP with PUBLIC TEXT; code is never changed to fit the text). Every other sentence must be true of this tree.
 
 **Governing ADs (Rule 6):**
 - AD-2: the bridge names only its own `Gate.MCPPROXY`.
