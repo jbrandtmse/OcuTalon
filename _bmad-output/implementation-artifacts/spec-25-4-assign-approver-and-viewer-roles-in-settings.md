@@ -2,7 +2,7 @@
 title: 'Story 25.4: Assign approver and viewer roles in Settings'
 type: 'feature'
 created: '2026-11-13'
-status: 'blocked'
+status: 'in-progress'
 baseline_revision: 'cc9040ab3174e69cf562592e4f36b1381d034be0'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -376,6 +376,10 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
   - C4: `SecretHandoff` has no TTL on this branch (`Core/SecretHandoff.cls`: Put/Take/Discard only); do NOT widen it. The reverse uri left on a submit timeout is ledgered by the lead (low DW).
   - DW-1282 (standing rule): the Roles section's web code (roles view and its section file) goes in a LAZY chunk (dynamic `import()`), never in the initial bundle; the build's initial-bundle cap (1 MB) must not be exceeded and is never raised. Name the chunk in Verification; if the initial bundle would exceed the cap, HALT `blocked` with `intent gap: DW-1282 initial bundle over cap`.
   - Q8 amendments (applied by the lead in planning artifacts; nothing for the implement stage).
+- [ ] [Ruling] Task 0 rulings (Contest Planner ~19:40Z, `story-254-rulings-20261113.md` "Task 0 rulings", BINDING; Task 0 is DONE, its measurements stand under Design Notes "Measured"; do not re-run it):
+  - C-24h, option (a): `Web.Api` `OnPreDispatch` re-reads the signed-in user's live role set with `$SYSTEM.Security.GetUserRecursedRoleSet($Username)` and ends the CSP session (401 `signed_out`, as an expired session answers) when the user holds neither `OcuTalonViewer` nor `OcuTalonUser`. Conditions: (1) it runs in the REST process as the signed-in user with NO escalation: no grant, no privileged job, no `$Roles` change; if the call needs a privilege the user lacks, HALT `blocked` with `intent gap: C-24h re-read needs a privilege: <evidence>`. (2) If the call returns an error, refuse only that ONE request (401, or the existing failure code) and do NOT end the session. (3) Measure the added cost per request (p95 over at least 200 requests, recorded under Design Notes "Measured"); if p95 is over about 5 ms, add a per-session cache of AT MOST 60 s (keeps "Applies within a minute" true); otherwise no cache. (4) Row 9 is the step-2 text ONLY ("Saved. Applies within a minute. Recorded in the audit log."); drop the conditional "Saved. Applies when they next sign in. ..." text everywhere. Tests: a viewer whose `OcuTalonViewer` is removed gets 401 within 60 s on the same session while it keeps polling; the same for a user whose `OcuTalonUser` is removed; a user holding both roles who loses one is unaffected; `mutation:` "the re-read skipped -> red". These are throwaway-only (they change roles).
+  - C2, option (a): `GET /v1/memory/items` (with or without `q`) and `GET /v1/memory/pinned` answer 403 `read_only` to a viewer-only caller, before anything is submitted (no command, no allowance write). `Test.Web.ViewerApi` pins both (status, code, and that nothing was submitted). The viewer page never calls either route (the memory cards are hidden for a viewer; pin it in the web test).
+  - C3 (DW-1284) and C4 (DW-1283) are ledgered by the lead; nothing to do here.
 **Acceptance Criteria:**
 - AC 1: Given an admin on a local install with the roles present, when they open Settings › Roles, then the users holding an OcuTalon role are listed with their roles. The admin can grant or remove `OcuTalonApprover` and `OcuTalonViewer` (per-kind roles are shown but are granted in IRIS, by V3). Each change goes through `SettingsOps` to `Roles.Assign`, confirms with "Saved. Applies within a minute. Recorded in the audit log." and writes one `Settings` audit entry. Every other role and every managed account is refused, with its text.
 - AC 2: Given a user holding only `OcuTalonViewer`, when they sign in, then the page, History and Usage load read-only: no composer, and no Approve, Reject, Dismiss, Break the feed or other state-changing control. Every state-changing route answers 403 `read_only` and changes nothing; sign-out still works.
@@ -386,6 +390,8 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
 - DW-1267: the handoff in both directions, the leak scan, admin-only routes and a test per refusal (addressed by the `RoleSettings`, `SettingsOps` and `RolesApi` tasks above).
 
 ## Spec Change Log
+
+- 2026-11-13 ~19:40Z, lead: Planner Task 0 rulings: C-24h option (a) with four conditions (no escalation; an error refuses one request only; p95 > ~5 ms allows a <= 60 s per-session cache; row 9 = step-2 text only), C2 option (a) (both memory GETs 403 read_only for a viewer, nothing submitted). Worked into Tasks & Acceptance as the second `[Ruling]` item; status reset blocked -> in-progress (re-dispatch protocol); implement pass 2.
 
 - 2026-11-13 ~19:10Z, lead: Contest Planner rulings on the Planner Gate (`story-254-rulings-20261113.md`): APPROVED with row 2 changed, row 9 both texts (conditional on Task 0 (c) and the 24-hour STOP), new `user_system` text (C1), C2 STOP condition, C3 report, C4 DW, Q1-Q8 approved, footprint extension into `Install/Step/Roles.cls` granted. Standing DW-1282: lazy chunk. Worked into Tasks & Acceptance as the `[Ruling]` item; Planner Gate row 2 and row 12 updated.
 
@@ -639,8 +645,8 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: C-24h removed viewer session lasts without an upper bound while the page polls (up to 8 hours after the tab closes); and intent gap: C2 GET routes that write for a viewer: GET /v1/memory/items?q= (Web/Api.cls:1985,2083-2089; on the online demo Core/CommandsIn.cls:196-198 and Core/Allowance.cls:63 write an allowance entry) and GET /v1/memory/pinned (Web/Api.cls:2002,2024), each submitting a command through the production
+Status: in-progress (re-dispatch after the Planner's Task 0 rulings; pass 1's condition, kept for the record:)
+Blocking condition (pass 1): intent gap: C-24h removed viewer session lasts without an upper bound while the page polls (up to 8 hours after the tab closes); and intent gap: C2 GET routes that write for a viewer: GET /v1/memory/items?q= (Web/Api.cls:1985,2083-2089; on the online demo Core/CommandsIn.cls:196-198 and Core/Allowance.cls:63 write an allowance entry) and GET /v1/memory/pinned (Web/Api.cls:2002,2024), each submitting a command through the production
 
 Planned 2026-11-13 (plan stage, halt after planning). The spec meets the READY FOR DEVELOPMENT standard. The Planner Gate (PUBLIC TEXT 15 items, SECURITY 11, QUESTIONS 8) goes to the Contest Planner before implement. The lead applies the spine replacements and the epics.md AC 1 amendment listed under Design Notes.
 

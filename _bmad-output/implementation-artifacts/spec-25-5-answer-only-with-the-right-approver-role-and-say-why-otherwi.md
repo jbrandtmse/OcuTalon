@@ -234,6 +234,13 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
   - AD-16's email bullet: the raise-time refusal.
   - Then run `lint_spine.py`.
 
+- [ ] [Ruling] Contest Planner rulings on the Planner Gate (2026-11-13 ~19:10Z, `.coordination/prompts/story-255-rulings-20261113.md`, BINDING; summarized under Design Notes "Planner rulings"):
+  - PUBLIC TEXT items 1-10 approved as written; item 11's removal and item 12 agreed; Q7 plurals approved.
+  - SECURITY approved (checks a-e in the planned order; tests as listed), plus: a raise-time refusal writes Email's EXISTING audit entry with a refused outcome and no address, ONLY IF `Fix.Kind.Email`'s audit already has such an outcome; otherwise write nothing. Never add an audit kind in this story.
+  - Q1 (a): refuse at raise time with `MayApprove` on the requester's IRIS user, item 10's text; the footprint extension into `Fix/Kind/Email.cls` applies after 22.7 is merged and integrated forward. DW-1281 (lane D's email DW) closes with it, `resolved-by:25-5-...` (lead, at adjudication).
+  - Q2: `MayApprove` stays admin-only until 26.4's plan. Q3, Q4 (item 9) approved.
+  - Q5: implement precondition APPROVED: 22.7 merged and integrated forward, and 25.4 implemented; do NOT split the story.
+  - Q6: 25.5 carries the GUIDE update as its own change: in GUIDE.md "## Gmail and Microsoft 365", P1's paragraph (shipped by 22.7), replace ONLY the middle sentence ("When OcuTalon asks you to approve an email, only an OcuTalon admin can approve it: without the admin role your approval is refused and the email isn't sent, and no other user can answer your request.") with, word for word: "Only an OcuTalon admin can have OcuTalon email another address: without the admin role, OcuTalon tells you so and sends nothing." Keep the first and last sentences unchanged; update every doc-test pin it trips without changing the wording. The review checks it against the merged raise refusal; a mismatch is a STOP (`PUBLIC TEXT:`).
 **Acceptance Criteria:**
 - AC 1: Given an answer from any channel to a request the session can see, when `AnswersIn`'s handler takes it, then after the ownership and answer-shape checks it asks `Approval.MayAnswer` for the session's IRIS user. On 0 it returns `not_allowed` with `{"kind"}`, answers nothing and sends nothing to `AnswerOps`. On 1 it hands the answer over as before.
 - AC 2: Given the online demo, when the demo-role user holding the fixture `OcuTalonApprover` answers, then its own request is answered and another session's request is refused by the owning-session rule and stays pending: both checks run.
@@ -247,9 +254,13 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
 
 ## Spec Change Log
 
+- 2026-11-13 ~19:40Z, lead: Contest Planner rulings recorded (`story-255-rulings-20261113.md`): all APPROVED; audit addition (existing outcome only); Q1 (a) with DW-1281 resolved-by 25.5; Q5 precondition; Q6 GUIDE middle-sentence replacement carried by 25.5. Worked into Tasks & Acceptance as the `[Ruling]` item. Implement still waits for 22.7 merged + 25.4 done.
+
 ## Review Triage Log
 
 ## Design Notes
+
+**Planner rulings (2026-11-13 ~19:10Z, binding; `.coordination/prompts/story-255-rulings-20261113.md`).** APPROVED for 1.0.10: PUBLIC TEXT 1-10 as written (11, 12 agreed; plurals fine; item 10 "another address" is true for every case that reaches it); SECURITY as listed plus the existing-audit-outcome-only rule for the raise refusal; Q1 (a) raise-time refusal (footprint extension into `Fix/Kind/Email.cls` after 22.7 merges; DW-1281 resolved-by 25.5); Q2 admin-only until 26.4; Q3, Q4 approved; Q5 implement precondition approved, no split; Q6 GUIDE middle sentence replaced by 25.5 (text in the `[Ruling]` task).
 
 **Architecture decisions (Rule 6):**
 - AD-1: `AnswersIn` is the one entry, and `AnswerOps` its only sender.
