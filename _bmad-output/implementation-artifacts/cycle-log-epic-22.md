@@ -171,3 +171,5 @@
 2026-11-13T03:45:27Z	Story 22.4	ci_red_classified	run=43344958166 workflow=.github/workflows/ci.yml class=story test=iris(image):Test.Data.Tables_TestContracts(ToolFingerprint_not_in_contract) first_red=af886ee3 fix_for=22-4
 2026-11-13T03:45:27Z	Story 22.4	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=[CI]Data.Tables_contract_ToolFingerprint scope_baseline=218d6e6b
 2026-11-13T03:45:27Z	Story 22.4	stage_spawned	stage=implement spawn_at=2026-11-13T03:45:27Z model=sonnet agent_name=22-4-hold-risky-and-unclassified-mcp-calls-for-approval-implement-2 cycle_iteration=2 effort=high note=rework_ci
+2026-11-13T03:53:13Z	Story 22.4	dev_complete	spawn_at=2026-11-13T03:45:27Z model=sonnet build_sha=b76c7a29 cycle_iteration=2 review_loop_iteration=1 followup_review_recommended=false deferred=0 files=2(Test/Data/Tables.cls_one-entry_append(contended_Lane_B;precedent),spec) note=rework_ci
+2026-11-13T03:53:13Z	Story 22.3	stage_spawned	stage=code-review spawn_at=2026-11-13T03:53:13Z model=opus agent_name=22-3+22-4-rework-code-review-2 cycle_iteration=2 effort=high note=one_stage_agent_runs_both_scoped_re-reviews_sequentially
