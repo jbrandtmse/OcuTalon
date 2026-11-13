@@ -6875,6 +6875,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-2-see-tokens-and-cost-over-time-on-the-usage-page.md | severity: low | fix-risk: low | footprint: web/e2e/floor/keyboard.spec.ts
 - evidence: lane-B throwaway e37s2s3 on d282b2b7 2026-11-11 ~00:17Z: 1 failed/106 passed; rerun 107/107; 37.2 does not touch the decision strip or trace link
 - 2026-11-11T00:24:50Z status=routed owner=burndown by=harvest note=flake:keyboard.spec_K2_focus_after_link.focus();one_rerun_green
+- 2026-11-13T18:13:12Z status=wontfix-accepted by=burndown note=epic-37_burn-down:one_occurrence,one_rerun_green,test-only(floor_keyboard.spec_K2_focus);reopen_if=keyboard.spec_K2_goes_red_again_on_any_head(then_route_to_the_lane_owning_web/e2e_floor_specs_with_the_failure_message)
 
 ### DW-1117: A partner request approved after its incident was closed stays approved for good: its session is never purged and a repeated approved outcome is told again
 - source: spec-23-5 code review (rework iteration 2) | severity: med | fix-risk: med | footprint: in-story
