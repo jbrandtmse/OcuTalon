@@ -366,6 +366,7 @@ epics:
             story_waits: {"21.2": [epic-17, epic-18], "21.6": [epic-17, epic-18], "21.7": [epic-17, epic-18],   # [ADDED 2026-11-11, split of 21.2 into 21.2/21.6/21.7 (runner U5); waits copied from 21.2]
                                  # real: Settings › Daily digest and the digest EmailOut sends
                           "21.4": epic-18,                  # real: a new Settings section
+                          "21.10": epic-22, "21.11": epic-22, "21.9": epic-22,   # [ADDED 2026-11-12, splits 21.5 -> 21.5/21.10 and 21.10 -> 21.10/21.11, 21.4 -> 21.4/21.9 (runner U5; Planner approved 21.5's and 21.4's); real, story level: 21.10 after 22.4 merges, 21.11 after 22.7, 21.9 after Lane A's `changed` flag; 21.4 after 22.4 and 21.5 after 21.4 + 22.5 (orchestrator Mcp/Ops.cls order 22.4 -> 21.4 -> 22.5, Planner-confirmed)]
                           "21.5": epic-31}}                 # real: tool-call notices through NoticesIn moved from 6.3 to Story 31.2 (M2); 31.2 itself waits for 30.3; v2: Catalog/Render.cls gains the email channel, 21.2 (M9)
   # [AMENDED 2026-11-11, Contest Planner ruling under the owner's delegation: real dependency is 35.1/35.2; 35.3 is independent] epic-level edge on epic-35 lifted to story level: 35.1 and 35.2 merged at 1d3cc767
   epic-22: {lane: A, depends_on: [], submodules: [],                           # real: 35.1's names; 35.2's verbs (22.2, and 22.5 and 22.7, M3); "Epic 19" is footprint only, carried by 35.1's wait
