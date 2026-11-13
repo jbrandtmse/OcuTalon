@@ -2,7 +2,7 @@
 title: 'Story 21.4: Add, remove and classify MCP servers and tools in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
+status: 'blocked'
 baseline_revision: '96bbbcd8ecb47dfd42eafb0b83cf1785d8099cd1'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -266,6 +266,15 @@ Line numbers are those of this branch after the Epic 22 merge (`3d94a219`: 22.9,
     - `Test/Mcp/Client.cls` is unchanged.
   - Reported to the coordinator for veto.
 
+- 2026-11-13 (pass 3 scope, from the lead's dispatch; binding for the implement handoff):
+  - **B1 (c).** Make the smallest change in `src/ocutalon/cls/OcuTalon/Mcp/Attach.cls` so the re-attach of recorded specs skips the spec of a server that has no `Mcp.Server` row, with no other Attach change. Never weaken `TestRemovedServer` (UNREGISTERED, exactly one audit entry for the refused call, no `ToolNotFound` anywhere it checks). Keep the V3 `DropEntry` in `Unregister`. Run ALL of `Test.Mcp.Attach`, `Test.Mcp.Approval`, `Test.Mcp.Proxy`, `Test.Mcp.ProxyJob`, `Test.Mcp.Ops`, `Test.Mcp.Client` and `Test.Bridge.Gate`, one class per call (a long class by method). A 22.x regression or contradiction is a STOP: set `blocked`, name it, halt.
+  - **B2 refusal.** The check goes in McpOps' ADD path, beside `OnAdd`/`Register`'s address check, and in the route; NOT in `Mcp.Ops.AddressAllowed`. An address holding `?` or `#` is refused as 400 `bad_mcp_server` with field `address`; nothing is written or audited. T12's text goes where the other address messages live, registered the way they are, with the apostrophes authored as the neighbours do. Change the `Test/Mcp/Ops.cls` fixtures exactly as the ~19:50Z entry says. Add ONE test of the refusal covering both the route and McpOps, with its `mutation:` line (check skipped -> red). Keep the narrowing in `TestNoAddressOrSecretInAnyText`. No doc note. The address rules stay exactly as ruled; nothing more.
+  - **STOP only if** Task 0's attach address or the Jira example's address needs `?` or `#` (`docs/mcp-jira-example.md` does not exist, so this does not fire). Fixtures do not trigger a STOP.
+  - **Web.** Any new web code stays in the lazily loaded MCP chunk; check the initial bundle with `npm run build` (about 1.9 kB of headroom). If the web shows the server's refusal text, no web text is needed.
+  - **Rule 19.** Every new pin gets its `mutation:` line. **Rule 14.** `## Auto Run Result` states the story's final status; pass 2's record stays below it.
+  - **Verification for this pass.** On a fresh lane-C stack run `TestRemovedServer`, the new refusal test, `Test.Web.McpSettingsApi` and `Test.Core.SettingsMcp`; then `ci/iris.sh build` and `live sign-in-2 --part 10/12`; then `test-boundaries.sh`, `test-class-rules.sh` and `node --test web/scripts/`.
+  - **Runtime tags for pass 3.** Warm `e21s4iw3`, fresh `e21s4i3`; a mutation of production-run code needs `ci/warm.sh down` then `up`.
+
 - 2026-11-12 (lead, spec gate): Planner rulings B applied (V1-V12 approved; the plain-HTTP-with-secret condition added as an AC; 21.9 split written into epics.md; T1-T11 verbatim; implement after 22.4 merges).
 - 2026-11-13 (plan, spec refresh): refresh after 22.4 merged. Epic 22 (22.9, 22.3, 22.4) is merged into this branch (`3d94a219`). These changes need no new ruling; every ruled item (V1-V12, T1-T11, condition B, the 21.9 split) is unchanged.
   - Every Code Map and Task line was re-verified against the tree.
@@ -523,7 +532,15 @@ New, for the Planner (Settings > Tools and MCP servers unless said; online demo:
 
 ## Auto Run Result
 
-Status: in-progress (B1 and B2 are now ruled; pass 3 applies them with the lead's decisions in the Spec Change Log. Pass 2's record follows.)
+Status: blocked
+Blocking condition: B1 (c) cannot be implemented as ruled. `Test.Mcp.Attach:TestRemovedServer` fails in its second (untrusted) turn, which composes a new tool manager AFTER the removal. McpOps' V3 `DropEntry` has already dropped the `AI.MCP.OcuTalon_<server>` entry, so `Attach.Probe` finds no entry and answers `failed`, and `Agent.OfferServers` does not add the server's tools to the manager. Skipping the recorded spec of a server with no `Mcp.Server` row in `Attach.cls` has the same result: the tool is not on the manager, `ExecuteTool` answers `ToolNotFound` before the gate (an auth policy on the manager) is asked, and `UNREGISTERED` and its audit entry can never appear. The ruling asks for `UNREGISTERED` with the V3 drop kept and the test unweakened; those three cannot all hold. The first (user-turn, removal mid-turn) iteration passes with `UNREGISTERED`. For the lead: either the untrusted turn is changed to assert that a manager composed after the removal offers none of the server's tools (nothing runs, no taint, no approval row), or the V3 drop is moved. Both are rulings; neither was applied. No `Attach.cls` change was made.
+
+**Implement pass 3 (2026-11-13; branch `wip/21-4-impl1`; B2 done, B1 blocked).**
+- B2 refusal: `Mcp.Ops` `MESSAGEQUERY` (T12, word for word) and the check in `OnAdd` after the `AddressAllowed` check (`bad_address`, nothing written or audited); `Web.McpSettings` `AddFields` refuses `?`/`#` as the `address` field text; `Mcp.Ops.AddressAllowed`, `Mcp.Proxy` and `Mcp.Client` unchanged. Lane A fixtures in `Test/Mcp/Ops.cls` as the ~19:50Z entry says (`TestBadAddress`: the `?b=c` address moves to the refused list; `TestNoAddressOrSecretInAnyText`: the added address is query-free and carries the secret probe, the `?token=` address is a refused case with its own scan, the plain-http case is unchanged). New test `Test.Web.McpSettingsApi:TestAddressWithQuery` (route and McpOps); two M5 cases in `web/e2e/api/mcp.spec.ts`. No web code, no doc note.
+- Green on warm `e21s4iw3`: `Web.McpSettingsApi`, `Mcp.Ops`, `Core.SettingsMcp`, `Core.CommandsStep4`, `Mcp.Attach:TestCommands`. `ci/iris.sh build` and `live sign-in-2 --part 10/12` passed on `e21s4i3`; `node --test web/scripts/` 1993 pass; `tsc -p tsconfig.e2e.json` clean; `test-boundaries.sh` and `test-class-rules.sh` pass. Red: `Mcp.Attach:TestRemovedServer` (B1, as above). Not run: the 22.x classes (no Attach change), `npm run build` (no web change), the live `api/mcp.spec.ts` part (the two new M5 cases are not run live).
+- mutation: the `?`/`#` check skipped in `Web.McpSettings.AddFields` -> `TestAddressWithQuery` red (route cases) -> reverted
+- mutation: the `?`/`#` check skipped in `Mcp.Ops.OnAdd` -> `TestAddressWithQuery` red (McpOps cases) -> reverted
+- Warm and fresh stacks (`e21s4iw3`, `e21s4i3`) torn down. No review layers were run (the story is blocked).
 
 **Implement pass 2 (2026-11-13; worktree `epic-21`, branch `wip/21-4-impl1`, HEAD `ea830d21`, everything below is UNCOMMITTED).**
 

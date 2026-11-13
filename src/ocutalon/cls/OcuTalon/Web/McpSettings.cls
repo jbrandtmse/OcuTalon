@@ -6,7 +6,7 @@
 ///     ListMcpServers: no secret, no secret:// reference and no fingerprint. A read that fails is 500 server_error.
 ///   - POST /v1/settings/mcp/servers takes exactly {"name": string, "address": string} and an optional "secret": a string. It answers 200 {"result":"added","message"}. A body of
 ///     another shape is 400 bad_mcp_server with fields {}. Each value is checked before anything is put into the handoff: the name against Mcp.Server NAMEPATTERN, the address
-///     against Mcp.Ops AddressAllowed (an http:// address to another computer is refused, with or without a secret), any @{ in a value, and the secret (1 to 4,096 printable
+///     against Mcp.Ops AddressAllowed (an http:// address to another computer is refused, with or without a secret) and for a ? or a # (a query string or a fragment: Mcp.Ops MESSAGEQUERY), any @{ in a value, and the secret (1 to 4,096 printable
 ///     ASCII characters, no space), and a refusal is 400 bad_mcp_server with fields {name, address, secret} (each the field's text) and nothing is offered, submitted or written. A name that
 ///     exists, and a value that McpOps refuses itself, are the same 400, mapped to their field.
 ///   - DELETE /v1/settings/mcp/servers/<server> answers 200 {"result":"removed","message"}; a name that no server has is 404 not_found.
@@ -147,6 +147,8 @@ ClassMethod AddFields(name As %String, address As %String, secretType As %String
 		Do fields.%Set("address", ##class(OcuTalon.Core.SettingsOps).WebhookFieldText("settings.refusedExpansion", "@{"))
 	} ElseIf ($Length(address) > ..#ADDRESSMAX) || '##class(OcuTalon.Mcp.Ops).AddressAllowed(address) {
 		Do fields.%Set("address", ##class(OcuTalon.Mcp.Ops).#MESSAGEADDRESS)
+	} ElseIf (address [ "?") || (address [ "#") {
+		Do fields.%Set("address", ##class(OcuTalon.Mcp.Ops).#MESSAGEQUERY)
 	}
 	If secretType = "" Quit fields
 	If secretType '= "string" {

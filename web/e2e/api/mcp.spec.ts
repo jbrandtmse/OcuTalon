@@ -24,6 +24,7 @@ const ADDED = 'The MCP server was added. Its tools count as risky until an admin
 const REMOVED = "The MCP server was removed, so its tools can't be used.";
 const BAD_NAME = "An MCP server's name is a letter followed by up to 39 letters, digits or underscores. Nothing was changed.";
 const BAD_ADDRESS = "An MCP server's address must start with https:// (or point to this computer, for development). Nothing was changed.";
+const QUERY_ADDRESS = "An MCP server's address can't hold a query string (the part after ?). Put a key in Secret instead. Nothing was changed.";
 const EXISTS = 'An MCP server with that name already exists. Nothing was changed.';
 const EXPANSION = "This can't contain @{, which IRIS would read as a reference to a setting. Nothing was changed.";
 const BAD_SECRET = 'Use a secret of up to 4,096 letters, digits and punctuation, with no spaces. Nothing was changed.';
@@ -212,6 +213,8 @@ test('M5: each refused add is 400 bad_mcp_server with its field text, and nothin
   const cases: Array<{ what: string; body: Record<string, unknown>; fields: Record<string, string> }> = [
     { what: 'a non-loopback http address', body: { name: names[0], address: 'http://example.invalid/mcp' }, fields: { address: BAD_ADDRESS } },
     { what: 'a non-loopback http address with a secret (condition B)', body: { name: names[1], address: 'http://example.invalid/mcp', secret: 'zz-secret-0123456789' }, fields: { address: BAD_ADDRESS } },
+    { what: 'a query string in the address', body: { name: names[0], address: 'https://127.0.0.1:1/mcp?token=zz' }, fields: { address: QUERY_ADDRESS } },
+    { what: 'a fragment in the address, with a secret', body: { name: names[1], address: 'https://127.0.0.1:1/mcp#zz', secret: 'zz-secret-0123456789' }, fields: { address: QUERY_ADDRESS } },
     { what: 'user info in the address', body: { name: names[2], address: 'https://user:pass@127.0.0.1:1/mcp' }, fields: { address: BAD_ADDRESS } },
     { what: 'a setting reference in the name', body: { name: 'zz@{x}', address: loopback }, fields: { name: EXPANSION } },
     { what: 'a setting reference in the address', body: { name: names[3], address: 'https://127.0.0.1:1/@{x}' }, fields: { address: EXPANSION } },

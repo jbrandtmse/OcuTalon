@@ -145,9 +145,16 @@ Method TestBadAddress()
 	}
 	Do $$$AssertEquals(..Written(server), "", "nothing is written")
 	Do $$$AssertEquals(+$Get(^||ZzOps("restarts")), 0, "and no runner is restarted")
-	For url = "https://example.com/mcp", "http://127.0.0.1:8080/mcp", "http://localhost/mcp", "http://[::1]:9/mcp", "https://example.com:8443/a?b=c", "https://example.com:65535/mcp", "http://127.0.0.1:1/mcp" {
+	For url = "https://example.com/mcp", "http://127.0.0.1:8080/mcp", "http://localhost/mcp", "http://[::1]:9/mcp", "https://example.com:65535/mcp", "http://127.0.0.1:1/mcp" {
 		Do $$$AssertEquals(##class(OcuTalon.Mcp.Ops).AddressAllowed(url), 1, "'" _ url _ "' is allowed")
 	}
+	// a query string or a fragment is refused by the add with T12 (ruling B2); AddressAllowed, which Mcp.Proxy asks at call time, is unchanged
+	For url = "https://example.com:8443/a?b=c", "https://example.com/mcp#frag" {
+		Set result = ..Run(..#SENDER, ..Add(server, url))
+		Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "0|bad_address|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGEQUERY, "'" _ url _ "' is refused with the query-string text")
+		Do $$$AssertEquals(##class(OcuTalon.Mcp.Ops).AddressAllowed(url), 1, "while AddressAllowed still allows it at call time")
+	}
+	Do $$$AssertEquals(..Written(server), "", "and nothing is written for them")
 }
 
 Method TestBadNameAndTaken()
@@ -500,7 +507,7 @@ Method TestNoAddressOrSecretInAnyText()
 	Set admin = ..MakeAdmin()
 	Set ^||ZzOps("admins") = $ListBuild(admin)
 	Set server = ..Server("l")
-	Set url = "https://" _ address _ ".example.invalid/mcp?token=" _ secret
+	Set url = "https://" _ address _ ".example.invalid/mcp/" _ secret
 	Set texts = ""
 	// the add, its refusals and its failures
 	Set result = ..Run(..#SENDER, ..Add(server, url))
@@ -511,6 +518,9 @@ Method TestNoAddressOrSecretInAnyText()
 	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
 	Set result = ..Run(..#SENDER, ..Add(..Server("m"), "http://" _ address _ ".example.invalid/mcp?token=" _ secret))
 	Do $$$AssertEquals(result.Outcome, "bad_address", "an address that is not allowed is refused")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set result = ..Run(..#SENDER, ..Add(..Server("r"), "https://" _ address _ ".example.invalid/mcp?token=" _ secret))
+	Do $$$AssertEquals(result.Outcome, "bad_address", "an address with a query string is refused")
 	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
 	Set result = ..Run(..#SENDER, ..Add("1" _ address, url))
 	Do $$$AssertEquals(result.Outcome, "bad_name", "a bad name is refused")

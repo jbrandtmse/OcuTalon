@@ -11,7 +11,8 @@
 ///     removal stands), Restart. A classification is Validate, Save, Audit (a Tool entry; no restart, since the gate reads the rows). An audit that fails undoes
 ///     the change, and the outcome is not_audited. A restart that fails keeps the change (the next start attaches it), and the outcome is failed.
 ///   - The address of a server is https://, or http:// to this computer (127.0.0.1, localhost or [::1]) for development, with no user information and no
-///     @{ in it (AD-19). The address and the credential are stored only in the Config Store entry AI.MCP.OcuTalon_<server> and the wallet key
+///     @{ in it (AD-19). An add whose address holds a ? or a # (a query string or a fragment) is refused too, as bad_address with MESSAGEQUERY (Story 21.4), so that a
+///     key never sits in the entry's address; AddressAllowed, which Mcp.Proxy asks at call time, is unchanged. The address and the credential are stored only in the Config Store entry AI.MCP.OcuTalon_<server> and the wallet key
 ///     OcuTalon_MCP_<server>.Key that this class writes in its own job (Story 21.4; the credential reaches it only through the command's Handoff, a SecretHandoff
 ///     uri, taken once); the address, a credential and the error text of the wallet, the Config Store or AI Hub are never stored elsewhere, logged, audited or put in a notice.
 ///   - Tools: the tools of a server for Settings.
@@ -47,6 +48,8 @@ Parameter MESSAGEADDED = "The MCP server was added. Its tools count as risky unt
 Parameter MESSAGEREMOVED = "The MCP server was removed, so its tools can't be used.";
 
 Parameter MESSAGEADDRESS = "An MCP server's address must start with https:// (or point to this computer, for development). Nothing was changed.";
+
+Parameter MESSAGEQUERY = "An MCP server's address can't hold a query string (the part after ?). Put a key in Secret instead. Nothing was changed.";
 
 Parameter MESSAGENAME = "An MCP server's name is a letter followed by up to 39 letters, digits or underscores. Nothing was changed.";
 
@@ -89,6 +92,7 @@ Method OnAdd(request As OcuTalon.Msg.Command.AddMcpServer, Output response As Oc
 	Set server = request.Server
 	If '$Match(server, ##class(OcuTalon.Mcp.Server).#NAMEPATTERN) Quit ..Answer(.response, 0, "bad_name", ..#MESSAGENAME)
 	If '..AddressAllowed(request.Url) Quit ..Answer(.response, 0, "bad_address", ..#MESSAGEADDRESS)
+	If (request.Url [ "?") || (request.Url [ "#") Quit ..Answer(.response, 0, "bad_address", ..#MESSAGEQUERY)
 	If '..Lock(server) Quit ..Answer(.response, 0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	Set sc = $$$OK
 	Set restart = 0

@@ -8,6 +8,9 @@
 ///   - TestAddRefusals: every refused add (a bad or long name, an address that is not https:// or loopback, user information, @{ in a value, a secret that is not a
 ///     string, is too long or has a space or a control character, a plain http:// address to another computer with and without a secret) answers 400 bad_mcp_server
 ///     with its fields, offers nothing to the handoff, submits nothing and writes nothing; a name that exists is mapped to its field after the handoff is discarded;
+///   - TestAddressWithQuery (ruling B2, T12): an address that holds a ? or a # (a query string or a fragment) is refused by the route (400 bad_mcp_server, the field address, the
+///     text of Mcp.Ops MESSAGEQUERY, with and without a secret, nothing offered, submitted or written) and by McpOps itself (bad_address with the same text, nothing written or audited,
+///     the handoff untaken); a plain http:// address to another computer that also holds a ? keeps the address text;
 ///   - TestBadBodies, TestClassifyErrors, TestRemoveUnknown: the shapes and the 400 and 404 answers of classify and remove, with nothing submitted;
 ///   - TestNotAdmin: a user without OcuTalonAdmin gets 403 not_admin from OnPreDispatch and from each route, and nothing is offered or submitted;
 ///   - TestOnlineDemo: with the online-demo flag set every route answers 409 not_available with the accepted text before it reads the body, and nothing is offered,
@@ -225,6 +228,71 @@ Method TestAddRefusals()
 	Do $$$AssertEquals(left, "", "and held nothing")
 	Do $$$AssertEquals(..Wallet(), wallet, "nothing was written to the wallet")
 	Do $$$AssertEquals(##class(%ConfigStore.Configuration).Exists("AI.MCP.OcuTalon_"_good), 0, "and no entry")
+}
+
+/// Ruling B2 (T12): the route and McpOps both refuse an address with a ? or a # before anything is offered or written. mutation: the check skipped in
+/// Web.McpSettings AddFields -> the route cases red; skipped in Mcp.Ops OnAdd -> the McpOps cases red.
+Method TestAddressWithQuery()
+{
+	If '..Guard() Quit
+	Set query = ##class(OcuTalon.Mcp.Ops).#MESSAGEQUERY
+	Set address = ##class(OcuTalon.Mcp.Ops).#MESSAGEADDRESS
+	Do $$$AssertEquals(query, "An MCP server's address can't hold a query string (the part after ?). Put a key in Secret instead. Nothing was changed.", "T12's text, word for word")
+	Set good = ..Server("q")
+	Set secret = ..NewSecret()
+	Set before = ..Rows()
+	Set wallet = ..Wallet()
+	Set messages = ..Messages()
+	// the route
+	Set urls = $ListBuild("https://example.com/mcp?token=abc", "https://example.com/mcp#frag", "https://example.com/mcp?", "https://example.com/mcp#", "http://127.0.0.1:9/mcp?x=1", "https://example.com:8443/a?b=c")
+	Set position = 0
+	While $ListNext(urls, position, url) {
+		For withSecret = 0, 1 {
+			Set body = {"name": (good), "address": (url)}
+			If withSecret Set body.secret = secret
+			Kill ^OcuTalonTest("McpSettingsProbe")
+			Set text = ..Call("Add", body.%ToJSON(), , , .response)
+			Set label = "the route, '"_url_"'"_$Select(withSecret: " with a secret", 1: "")
+			Do $$$AssertEquals(response.Status, "400 Bad Request", label_": 400")
+			Set answer = {}.%FromJSON(text)
+			Do $$$AssertEquals(answer.error.code_"|"_answer.error.message, "bad_mcp_server|"_..#TEXT, label_": bad_mcp_server with the plain message")
+			Do $$$AssertEquals(answer.fields.%ToJSON(), {"address": (query)}.%ToJSON(), label_": the field address with T12")
+			Do $$$AssertEquals(+$Get(^OcuTalonTest("McpSettingsProbe", "handoffs")), 0, label_": nothing was offered to the handoff")
+			Do $$$AssertEquals(+$Get(^OcuTalonTest("McpSettingsProbe", "submits")), 0, label_": nothing was submitted")
+			Do $$$AssertEquals(+(text [ secret), 0, label_": the answer does not echo the secret")
+		}
+	}
+	// a plain http:// address to another computer keeps its own refusal, whatever follows the path
+	Kill ^OcuTalonTest("McpSettingsProbe")
+	Set text = ..Call("Add", {"name": (good), "address": "http://192.0.2.7/mcp?token=abc", "secret": (secret)}.%ToJSON(), , , .response)
+	Do $$$AssertEquals({}.%FromJSON(text).fields.%ToJSON(), {"address": (address)}.%ToJSON(), "an http address to another computer with a query keeps the address text")
+	// McpOps itself, with the route's check out of the way: each address is refused with the same text, the handoff is not taken and nothing is written or audited
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set position = 0
+	While $ListNext(urls, position, url) {
+		Set command = ##class(OcuTalon.Msg.Command.AddMcpServer).%New()
+		Set command.Server = good
+		Set command.Url = url
+		Set command.Origin = "web_admin"
+		Set command.ActingUser = "zzadmin"
+		Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Put(secret, .uri), "McpOps, '"_url_"': a secret is offered")
+		Set command.Handoff = uri
+		Set probe = ##class(OcuTalon.Test.Mcp.OpsProbe).Shadow("CommandsIn", .sc)
+		Do $$$AssertStatusOK(sc, "the probe of McpOps is made")
+		Set sc = probe.MessageHandler(command, .result)
+		Do $$$AssertStatusOK(sc, "the command is delivered")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|bad_address|"_query, "McpOps, '"_url_"': refused as bad_address with T12")
+		Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, .kept, 0), "McpOps did not take the handoff")
+		Do $$$AssertEquals(kept, secret, "it still held the secret")
+		Kill kept
+		Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+	}
+	Do $$$AssertEquals(..Rows(), before, "no row was written")
+	Do $$$AssertEquals(..Wallet(), wallet, "the wallet is unchanged")
+	Do $$$AssertEquals(..Leftovers(), "", "no entry, key or collection was written")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "MCP", "MCP", good).%Size(), 0, "no audit entry was written")
+	Do $$$AssertEquals(..Messages(), messages, "and no command of the route was stored")
+	Kill secret
 }
 
 Method TestBadBodies()
