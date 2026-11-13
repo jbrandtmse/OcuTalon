@@ -3848,3 +3848,9 @@
 2026-11-13T01:58:16Z	Epic 0	amendments_verified	amendments=epics_0.31+0.32_blocks extensions=eval_case+results,Test/Eval/*,ci/units.sh,ci/iris.sh,lib-live.sh,test-ci-config,test-lib-live,first-start_scripts release_tool=4_timeout-minutes(Planner_approved_as_landed) ok=true
 2026-11-13T01:58:16Z	Epic 0	merge_enqueued	part=0.31+0.32 head=a3e95871 code_head=cf91f2ba
 2026-11-13T01:58:36Z	Epic 0	epic_merged_to_feature	part=0.31+0.32 feature_sha=2dae366c merge_sha=2dae366c code=cf91f2ba verified_on_origin=yes
+2026-11-13T02:06:28Z	Epic 0	runner_complete	runner=epic-runner-0b stories=0.27,0.31,0.32 merged=90777cf8,2dae366c unpushed=none
+2026-11-13T02:18:00Z	Epic 0	ci_rerun	sha=ab9bc6f7 run=43331999232 attempt=2 by=runner_A job=iris(production)
+2026-11-13T03:02:03Z	Epic 0	runner_reported	PART_READY part=0.33+0.29 head=ab9bc6f7 ci=success runs=43331999232(att2,DW-1119_infra),43331999315
+2026-11-13T03:02:03Z	Epic 0	ci_green_verified	head=ab9bc6f7 runs=43331999232,43331999315 result=success
+2026-11-13T03:02:03Z	Epic 0	amendments_verified	amendments=epics_0.33+0.35_blocks extensions=Test/Data/Webhook.cls,README.md,GUIDE.md,test-readme.sh,test-eval-set.sh ok=true note=0.35_code_absent
+2026-11-13T03:02:03Z	Epic 0	merge_enqueued	part=0.33+0.29 head=ab9bc6f7
