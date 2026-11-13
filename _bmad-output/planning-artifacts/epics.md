@@ -1818,6 +1818,50 @@ So that I can judge the entry quickly and still find every install and admin det
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.31: DW-1123: the memory-documents-remember eval accepts document, runbook or file
+
+[ADDED 2026-11-12, Contest Planner lane order] Lane B's next item after Story 0.27 (orchestrator, standing rulings of 2026-11-12: no idle lane during a CI wait), in the Epic 0 lane-B worktree. Numbered 0.31, one past 0.30, which the orchestrator has already assigned to lane A's shorter README story. The Contest Planner ruled DW-1123 on 2026-11-11: widen the phrase check, report-only; Epic 41's eval files, not contended.
+
+As the owner reading the release-candidate evaluation,
+I want the memory-documents-remember case to accept the reply's own word for the document,
+So that a correct refusal that says "runbook" or "file" is not scored wrong.
+
+**Acceptance Criteria:**
+
+- DW-1123: eval fixture: memory-documents-remember's phrase check 'the reply says: document' is too narrow; widen it to accept any of document, runbook or file (ledger; routed by the Contest Planner 2026-11-11)
+
+**Given** the case `eval/memory-documents-remember`
+**When** a reply cites the section, every save_memory step is denied, and the reply names the document as "document", "runbook" or "file" and says it could not save it
+**Then** the phrase check passes, and a reply that names none of the three still fails it
+**And** the case stays report-only (its own line, outside SM-1), and the rest of its expectation is unchanged
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
+### Story 0.32: CI time budgets get a 40% margin over their green medians, and the two load timeouts get MEASURED lines (DW-1082, DW-1195)
+
+[ADDED 2026-11-12, Contest Planner standing burndown ruling] The Contest Planner's standing burndown ruling "CI time-budget audit" (2026-11-12 ~14:40Z, owner's delegation), with DW-1082 (~13:05Z) and DW-1195 (~14:40Z; the sign-in-2 / sign-in-3 suite timeouts of the ~15:30Z CI HOLD ruling, item 5) as its first two rows. Lane B, after Story 0.31 (orchestrator lane order). Test and CI budget only: no product behaviour, no public text. A change to the CI hosts (for example 5 runners per host) is a server change for the Planner, never made here.
+
+As the owner merging stories and cutting releases,
+I want every CI time budget to sit well above what a green run takes under normal load,
+So that load alone stops turning green work red and forcing reruns, while a real hang still fails.
+
+**Acceptance Criteria:**
+
+- DW-1082: live:install-upgrade row 6 ready budget: every run prints "MEASURED row 6: the upgrade took N s to ready" (pass or fail), the budget goes from 200 s to 300 s, and it still fails at 300 s (ledger; routed by the Contest Planner 2026-11-12)
+- DW-1195: live:sign-in suite timeout: every run prints "MEASURED live:sign-in suite N s", and the suite timeout is at least 1.4x the green median (about 950 s), or the suite is split if the shard rules prefer that; the sign-in-2 and sign-in-3 suites (755 s and 770 s timeouts on 23.12's run) are covered the same way (ledger; routed by the Contest Planner 2026-11-12)
+
+**Given** the CI time budgets (each unit's, suite's and ready-wait's timeout)
+**When** each is set beside its green median over the last 10 green runs, measured from the CI logs
+**Then** every budget with less than 40% margin over its median is raised to at least 1.4x it (or its unit is split), and the audit table (budget, median, runs read, margin before and after) is committed with the story
+**And** a real hang still fails: every budget stays finite, and no test is deleted, skipped, tagged off or shortened
+**And** no CI job or group is renamed, added or removed, and any workflow or `release/**` hunk goes to the Contest Planner (RELEASE TOOL) before it merges
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
 ### Story 0.34: The install-path OAuth2 check skips the built web bundle, so a release candidate passes it
 
 [ADDED 2026-11-12, Contest Planner 1.0.8 hotfix ruling] (owner's delegation, ~20:00Z; a 1.0.8 release blocker, one-story lever on OCT-epic0c, precedent the 0.27 lever). PR #12 (release/1.0.8-rc1 e7b1ccf4) fails its `checks` job on test-compose-file's row "install: no Dockerfile, compose file, script, manifest, CPF merge or preload names /csp/sys/oauth2 or IRIS's OAuth2 objects" (21.3's U-320 check): `oauth_app_untouched_by_install_paths` scans git-tracked files including `src/ocutalon/csp/*`, which is untracked on the feature branch but committed by the release cut, and the built main-*.js holds the displayed redirect path "/csp/sys/oauth2/OAuth2.Response.cls" (web/src/app/settings/email-view.ts REDIRECT_PATH). Footprint: `docker/tests/test-compose-file.sh` only; no product change.
