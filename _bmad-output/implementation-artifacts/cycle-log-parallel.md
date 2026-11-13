@@ -3967,3 +3967,7 @@
 2026-11-13T16:00:15Z	Epic 0	ci_green_verified	sha=e27e9f14 runs=43446298492(ci),43446298472(lane-a) attempt=1
 2026-11-13T16:00:15Z	Epic 0	amendments_verified	amendments=spec-0-35_AB_section,epics_0.37_block+DW-1273,epics_dup_heading_fix extensions=Agent/Triage.cls,Test/Agent/Instructions.cls,docker/tests/test-eval-set.sh ok=true
 2026-11-13T16:00:15Z	Epic 0	merge_enqueued	part=0.35 head=e27e9f14 feature=910c0ace code_overlap_with_0.36=none ci=own_feature_head_run(union_of_two_green_code_heads)
+2026-11-13T16:01:04Z	Epic 0	epic_merged_to_feature	part=0.35(+0.37_opened,DW-1273) feature_sha=0d3b0c18 conflicts=epics(union_0.36+0.37),tracker(ours+set_0-35=done,0-37=backlog;valid) verified_on_origin=yes ci=own_run_required(union_of_81b65a6a+e27e9f14_code)
+2026-11-13T16:02:01Z	Epic 0	runner_complete	scope=story_0.35_on_OCT-epic0(0.37_opened_backlog) runner=ab7ca201cab027b95 local=f38bf106(2_records_commits_unpushed_by_order) origin=e27e9f14
+2026-11-13T16:16:18Z	Epic 37	runner_reported	CI_WAIT story=37.1 head=f2fc3d3a runs=43459664457(ci),43459664265(lane-a) base=0d3b0c18 DW=1267..1271(V8_routed) DW-1231=resolved local=2f48133c(records) note=ledger_union_misplaced_DW-1255_routing_under_DW-1271(re-appended)
+2026-11-13T17:05:36Z	Run	ci_green_verified	head=0d3b0c18(feature;0.35+0.36) runs=43458370984(ci),43458370349(lane-a) attempt=1 note=1.0.9_candidate
