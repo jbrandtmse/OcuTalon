@@ -3878,3 +3878,5 @@
 2026-11-13T04:48:45Z	Epic 36	ci_cancelled	head=cf2658d8 run=43345196978 reason=superseded_by_4467921f(known_red:DW-1245,DW-1246)
 2026-11-13T04:48:45Z	Epic 36	runner_reported	PLANNER_REPORT head=4467921f(36.1+36.2_implement) runs=43358586991,43358586910 local=f8e3d9c0(36.2_done) gate=36.4(S1_security,S2_spine,P1_text) routed=DW-1251->24.3(post-merge_bullet)
 2026-11-13T04:48:45Z	Run	ruling	question=contended_SettingsOps/settings-page/settings-view(36.4_vs_Epic_21) choice=36.4_implements_after_21.7+21.8+21.12_merge(integrate_forward_first) category=decide policy=5086036
+2026-11-13T04:49:11Z	Epic 36	ci_observed	head=cf2658d8 run=43345196978 result=failure(completed_before_cancel;expected_DW-1245/1246) correction_of=ci_cancelled superseded_by=4467921f
+2026-11-13T04:51:06Z	Epic 36	owner_decision	via=contest_planner what=36.4_gate(S1_b_SecretHandoff;S2;P1_text;order_after_lane_C) extension=24.2_AC_DW-1254(added_to_epics.md);audit_DW-1255_burndown file=prompts/story-362-rulings-20261112.md

@@ -8355,6 +8355,7 @@ So that partner warnings can go only to people I chose, and data conditions are 
 **Given** automated tests with a fixture standing in for `WatchOps` until Lane A's Story 23.8 merges, and a Playwright spec under `web/e2e/`
 **When** they save, refuse and remove queries and contacts
 **Then** the submitted commands' fields, the audit entries and the stored contacts match, and both sections work by keyboard with every control labelled (NFR-25, UX-DR130)
+- DW-1254: partner contacts' names and addresses go through the same SecretHandoff as 36.4's on-call section (in memory only), never in a traced SaveSettings.Changes; the traced message holds only the handoff uri, the values reach only the IRIS audit entry, and a leak-scan test pins it (ledger; routed by merge_gate 2026-11-13, Contest Planner 36.4 ruling S1)
 
 ### Story 24.3: Deliver pages on the on-call channel and stop escalation on acknowledgement
 
