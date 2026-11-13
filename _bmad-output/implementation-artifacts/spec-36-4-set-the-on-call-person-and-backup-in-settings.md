@@ -246,6 +246,26 @@ Code review 2026-11-13 (stage code-review, Tier 1 against `a5a5cc2c`, four layer
 - Acceptance 10 (low): no stack has a paired chat, so the paired path is mock-only in the browser; `TestTelegramNeedsAPairedChat` covers the server.
 - Acceptance 11 (info): the section's CSS repeats the sibling sections' styles; a shared stylesheet is outside this story.
 
+### Review Findings (2026-11-13, rework re-review, iteration 1 of 3)
+
+Code review 2026-11-13 (stage code-review, Tier 1 against the rework baseline `71215884`, diff `71215884..HEAD` plus the working tree with `cycle-log-epic-36.md` and `sprint-status.yaml` excluded, no untracked files; HEAD `e00c0e0b`). Four layers ran on opus with no model override (`_bmad/custom/model-overrides.yaml` absent), each verified the worktree top level and left `git status --short` and HEAD unchanged: blind 4, edge 2, verification-gap 2 (no gap findings, 2 other findings), acceptance 3 (1 low, 2 informational) = 11 reported; 1 kept as 1 entry (found by three layers), 8 rejected as 7 rows. high 0, medium 0, low 1.
+
+Checklist (the lead's, all confirmed fixed):
+- CI run 43474801972's red (S1f expected 7 section links, found 8): S1f now expects `toHaveCount(8)` (`web/e2e/settings/settings.spec.ts` L137); its `mutation:` line is under `## Verification` (back to 7 -> red on `live sign-in-2 --part 11/12`).
+- S8's non-admin loop: `SECTIONS` (L16) now holds `on-call`, and `POST /v1/settings/on-call` reaches a real route (`Web.Api` Map `/v1/settings/on-call` -> `Web.OnCallSettings`), refused 403 `not_admin` by `Api.OnPreDispatch` before the forward.
+- No other stale count or list of the settings sections remains in `web/e2e` or `web/scripts`: S1 (L82), the S1 slug loop (L89) and `settings-view.test.mjs` (L64, L68, L70) hold eight with On call; the other `toHaveCount(8)` hits (`rail.spec.ts`, `memory-card.spec.ts`, `demo-path/01-page.spec.ts`) count the rail's sections. O6's seven links (`web/e2e/settings/on-call.spec.ts` L321) are deliberate and correct: O6 deletes the `on-call` member from the GET and asserts that the navigation has no On call.
+
+- [x] [Review][Patch] (low) S8's doc comment claimed 403 on "all ten settings POST calls", but the settings surface has more admin-only POST routes that S8 does not call (`/v1/settings/models/test`, `/v1/settings/channels/sign-in`, the `/v1/settings/channels/webhooks` routes), the "unenveloped check" is a second POST to `check-thresholds`, and the GET it asserts first was left out [web/e2e/settings/settings.spec.ts:495] (blind-hunter+edge-case-hunter+acceptance-auditor) -- comment now names exactly what S8 asserts: GET `/v1/settings`, the POST of each of the eight sections, the digest send, and a check-thresholds POST without the envelope. Comment-only; `npm --prefix web run lint` (`tsc -p tsconfig.e2e.json` and the scripts' `node --check`) passed.
+
+**Rejected (7 rows, 8 reports).**
+- Blind 2 (low, spec-only): the checked `[x] [CI]` item has no "-- what was done" tail; the sweep and fix are recorded in the Auto Run Result's rework paragraph and in the checklist above; a fix edits the spec.
+- Blind 3 (low, spec-only): the implement stage's rework review-pass block names no baseline or models; this round records both; a fix edits the spec.
+- Blind 4 (low, spec-only): Residual risks still says the S1 browser run is left to CI, while the rework's `live sign-in-2 --part 11/12` ran all 26 `settings.spec.ts` cases, S1 included; a fix edits the spec's run record.
+- Edge 2 / Verification-gap other 2 (low; not a Rule 19 hermeticity defect): S1f's count of 8 (like S1's, from round 1) holds only while `onlineDemo` is off, which S1f neither sets nor asserts. It depends on the fresh-install default, not on another test's leftovers or run order: in its project (`sign-in-2`, one worker, `fullyParallel: false`) the only writers of the flag set it off (`support/persona.ts`, `heartbeat-card.spec.ts`), and the one case that turns it on (`web/e2e/api/on-call.spec.ts` H4) runs in `chromium` and restores it in `finally`. A leaked flag fails loud (7 links, red), never false-green. The fix (a server-side flag reset before S1 and S1f) is more than a direct correction; `reopen_if=` S1 or S1f red in CI with `Received: 7` on a stack whose GET has no `on-call` member.
+- Verification-gap other 1 (low, spec-only): `on-call` in S8's loop meets the shared `OnPreDispatch` gate first, so it tests nothing on-call-specific, and the rework note's "S8's non-admin loop covers it" overstates it. AC5's 403 is pinned at the route by `OnCallSettingsApi.TestNonAdmin403` (mutation line CR item 10); a fix edits the spec's wording.
+- Acceptance low (spec-only): frontmatter `review_loop_iteration` reads 0 after rework iteration 1; bookkeeping with no functional effect, and the frontmatter is the lead's.
+- Acceptance informational (no defect): the baseline moved to `71215884`, an ancestor of HEAD (the write-ahead commit before fix `aedb62fd`); consistent.
+
 ## Spec Change Log
 
 - 2026-11-13, rework iteration 1 of 3 (lead; trigger: ci, story red on 662c0d83): work ONLY the unchecked `[CI]` item (S1f section count).

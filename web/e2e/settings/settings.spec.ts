@@ -492,7 +492,7 @@ test('S7c: a Demo mode save shows and announces its own confirmation with the re
   }
 });
 
-/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on all ten settings POST calls (the eight sections, the digest send and the unenveloped check). */
+/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on GET /v1/settings, on the POST of each of the eight sections, on the digest send and on a check-thresholds POST without the envelope. */
 test('S8: a user without OcuTalonAdmin is denied', async ({ page }) => {
   const { user, password } = fixtureUser('LIVE');
   await loadedAfter(page, () => signIn(page, user, password));
