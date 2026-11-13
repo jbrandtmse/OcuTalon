@@ -2,7 +2,7 @@
 title: 'Story 36.4: Set the on-call person and backup in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'a5a5cc2c27ea146fe19c87fa9701233a8d23c7df'
 baseline_commit: 'a5a5cc2c27ea146fe19c87fa9701233a8d23c7df'
 review_loop_iteration: 0
@@ -203,6 +203,8 @@ Body members (all JSON strings except the minutes): `primaryPerson`, `primaryUse
 
 ### Review Findings
 
+- [ ] [CI] `web/e2e/settings/settings.spec.ts` S1f ("a failed load shows the load error, and Retry loads the page", L137) still expects `toHaveCount(7)` section links; with On call there are 8 (CI run 43474801972, iris (shards-4) live:sign-in-2, the only failure). Update it to 8 (the S1 case this story already updated to eight), sweep the e2e and node specs once more for any other count or list of the settings sections that now holds a stale 7 or omits On call, and run `live sign-in-2` for the part that holds settings.spec.ts on a fresh lane-B stack (`bash ci/iris.sh classes`-style listing or `--part k/n` until settings.spec.ts is in it). Pin with its mutation (back to 7 -> S1f red).
+
 Code review 2026-11-13 (stage code-review, Tier 1 against `a5a5cc2c`, four layers: blind 10, edge 5, verification-gap 9, acceptance 11 = 35 reported; 14 kept as 13 entries (H2 was found twice), 21 rejected). Every review layer ran on opus with no model override.
 
 - [x] [Review][Patch] (high) The online-demo 409 had no real-HTTP test, as the Planner's Route ruling requires ("real-HTTP tests (LIVE `OcuTalonUser` 403, the README admin OK, online demo 409)"); only the stand-in-request IRIS test and routed browser cases covered it [web/e2e/api/on-call.spec.ts] -- added H4: the flag set for the case (put back in `finally`), the README admin's POST is 409 `not_available` with the accepted text, a body that is not a JSON object is 409 too (so the refusal precedes the read), the rows and the audit log are unchanged, and GET has no `on-call` member.
@@ -245,6 +247,8 @@ Code review 2026-11-13 (stage code-review, Tier 1 against `a5a5cc2c`, four layer
 - Acceptance 11 (info): the section's CSS repeats the sibling sections' styles; a shared stylesheet is outside this story.
 
 ## Spec Change Log
+
+- 2026-11-13, rework iteration 1 of 3 (lead; trigger: ci, story red on 662c0d83): work ONLY the unchecked `[CI]` item (S1f section count).
 
 - 2026-11-13, anchors re-checked by the runner after integrating forward onto feature 7865c322 (Epic 21's 21.7, 21.8, 21.12, 21.13 merged; tree at 89381b3d). The line numbers below in this spec are from the pre-merge tree: locate every edit by CONTENT, not by line. Current positions: `Core/SettingsOps.cls` `ALLOWLIST` L104 (now also carries `email.address,email.owner,email.signIn,email.clientId,email.oauthOwned`), `XData Sections` L882 (the last section is now `{"slug": "channels", "kind": "email", ...}` at L902, not the old `channels` row), `Values` L938 with the kind skip at L943 (now `bridge`, `models` OR `email`) and `If '..OnlineDemo() Do sections.%Set("channels", ..EmailValues())` at L960 (add the on-call line after it, the same way), `Field` channels branch L1067; `web/src/app/settings/settings-page.ts` imports L1-21, `@switch (active())` L60, `sections = SETTINGS_SECTIONS` L213; `Test/Core/SettingsSave.cls` `TestValues` expected keys at L435 (`"sections,bridge,providers,instanceZone,prices"`); `Web/Api.cls` Maps L292-296 (add the on-call Map before `/v1/settings/channels/webhooks` or after it, matching the existing longest-prefix order), `OnPreDispatch` admin check L319, `IsAdmin` L348. Epic 21's change of the `channels` section into kind `email` is the one structural difference: follow its pattern (a section kind with its own values method, skipped in the generic loop) for kind `oncall`. 21.14's `TraceLeaks` helper has NOT landed on feature: write the leak scan as planned and note that 21.14 retrofits it.
 
