@@ -32,6 +32,14 @@ Include Ensemble
 ///   - TestClaimIsLocked (ruling f): while another process holds the approval's lock a system send of it answers failed, delivers nothing and writes no claim;
 ///     with the lock free the same approval is sent once;
 ///   - TestToolKeyIsLocked (Story 21.13): the same for a keyed tool send and the lock of its session and key;
+///   - TestToolKeyFailureClasses (Story 21.13, QA): a failed keyed tool send of each class (unreachable, refused, rejected) leaves no claim and the key is sent
+///     on the retry; one that may still have reached the server (a timeout, a connection lost during DATA) keeps its claim marked failed and the key is not sent again;
+///   - TestToolKeyClaimHoldsNothingOfTheSend (Story 21.13, QA): no column of a keyed tool send's claim row, sent or failed, holds the key, the address, the subject or
+///     the text, and the lock of the key is released after a sent, a repeated, a failed and a thrown send;
+///   - TestToolKeyClaimIsCaseExact (Story 21.13, QA): a row of the owner whose DigestKey differs from the key's hash only in case is not the key's claim;
+///   - TestSystemSendWithAKeyIsStillClaimedByItsApproval (Story 21.13, QA): a system send that carries an IdempotencyKey is still claimed by its approval, not by the
+///     key, and the key claims nothing for it;
+///   - TestToolKeyNeverEqualsADigestKey (Story 21.13, QA): a tool key built from a digest's key parts does not find the digest's row, and is sent;
 ///   - TestUnexpectedErrorAnswersFailed: an error thrown inside the send is answered as failed, never as an error status;
 ///   - TestNoPersonalDataInTheLog: after sends and failures whose server words and addresses are known, no Ens.Util.Log row holds an address, a subject, a
 ///     text or the server's words;
@@ -940,6 +948,146 @@ Method TestToolKeyIsLocked()
 	Kill ^OcuTalonTest("EmailOutLock")
 }
 
+/// Story 21.13 (QA), matrix "Failed, then retried": a failed keyed tool send of each class of Sender.Classify that the server did not take leaves no claim row,
+/// and the same key is sent on the retry, once. A send that may still have reached the server (a timeout, a connection lost during DATA) keeps its claim marked failed, and
+/// the same key again answers failed and sends nothing.
+Method TestToolKeyFailureClasses()
+{
+	Do ..Mailbox()
+	For answer = "unreachable", "lost", "refused", "rejected" {
+		Set key = "zzkey-class-"_answer
+		Set hash = ..Hash(key)
+		Set ^||OcuTalonEmailOutProbe("answer") = answer
+		Set calls = ..Delivered()
+		Set bad = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
+		Do $$$AssertEquals(bad.Ok_"|"_bad.Outcome, "0|failed", answer_": the send fails")
+		Do $$$AssertEquals(..Delivered()_"|"_..KeyRows(..#OWNER, hash), (calls + 1)_"|0", answer_": it was tried once and left no claim")
+		Kill ^||OcuTalonEmailOutProbe("answer")
+		Set retried = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
+		Do $$$AssertEquals(retried.Ok_"|"_retried.Outcome_"|"_..Delivered()_"|"_..KeyRows(..#OWNER, hash), "1|sent|"_(calls + 2)_"|1", answer_": the retry of the key is sent once")
+	}
+	For answer = "timeout", "dropped" {
+		Set key = "zzkey-class-"_answer
+		Set hash = ..Hash(key)
+		Set ^||OcuTalonEmailOutProbe("answer") = answer
+		Set calls = ..Delivered()
+		Set bad = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
+		Do $$$AssertEquals(bad.Ok_"|"_bad.Outcome_"|"_bad.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEUNREACHABLE"), answer_": the send fails with the unreachable sentence")
+		Set id = ..KeyRowId(..#OWNER, hash)
+		Do $$$AssertEquals(..KeyRows(..#OWNER, hash)_"|"_$Select(id = "": "", 1: ##class(OcuTalon.Data.Delivery).%OpenId(id).FallbackReason), "1|failed", answer_": the email may have reached the server, so its claim is kept, marked failed")
+		Kill ^||OcuTalonEmailOutProbe("answer")
+		Set again = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
+		Do $$$AssertEquals(again.Ok_"|"_again.Outcome_"|"_again.Message_"|"_..Delivered(), "0|failed|"_$Parameter(..#PROBE, "MESSAGEFAILED")_"|"_(calls + 1), answer_": the same key again answers failed and sends nothing (AD-1)")
+	}
+}
+
+/// Story 21.13 (QA): the claim row of a keyed tool send (sent, and failed after an error) keeps in no column the key, the address, the subject or the text, and
+/// the lock of the key is free after every kind of send.
+Method TestToolKeyClaimHoldsNothingOfTheSend()
+{
+	Do ..Mailbox()
+	Set subject = "zzshapesubject"
+	Set text = "zzshapetext"
+	Set names = ""
+	Set properties = ##class(%Dictionary.CompiledClass).%OpenId("OcuTalon.Data.Delivery").Properties
+	For i = 1:1:properties.Count() {
+		If $Extract(properties.GetAt(i).Name) '= "%" Set names = names_$ListBuild(properties.GetAt(i).Name)
+	}
+	Do $$$AssertTrue($ListLength(names) > 10, "the columns of a Delivery row are known")
+	Set lockName = $Name(^OcuTalon.EmailOut.Key(..#OWNER, ..Hash("zzshapekey-control")))
+	Lock +@lockName
+	Do $$$AssertTrue($Data(^$LOCK(lockName)) > 0, "a lock that is held shows in the lock table (so the checks below can fail)")
+	Lock -@lockName
+	Do $$$AssertEquals($Data(^$LOCK(lockName)), 0, "and a lock that is released does not")
+	For case = "sent", "throw" {
+		Set key = "zzshapekey-"_case
+		Set hash = ..Hash(key)
+		Set ^||OcuTalonEmailOutProbe("answer") = $Select(case = "throw": "throw", 1: "")
+		Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, subject, text, "", key)
+		Do $$$AssertEquals(result.Outcome, $Select(case = "throw": "failed", 1: "sent"), case_": the send is answered")
+		Set row = ##class(OcuTalon.Data.Delivery).%OpenId(..KeyRowId(..#OWNER, hash))
+		Do $$$AssertTrue($IsObject(row), case_": its claim row is there")
+		Set holds = ""
+		If $IsObject(row) {
+			For i = 1:1:$ListLength(names) {
+				Set value = $Property(row, $List(names, i))
+				For needle = key, ..#ADDRESS, subject, text {
+					If value [ needle Set holds = holds_" "_$List(names, i)
+				}
+			}
+		}
+		Do $$$AssertEquals(holds, "", case_": no column of the claim row holds the key, the address, the subject or the text")
+		Do $$$AssertEquals($Data(^$LOCK($Name(^OcuTalon.EmailOut.Key(..#OWNER, hash)))), 0, case_": the lock of the key is free")
+		Kill ^||OcuTalonEmailOutProbe("answer")
+		Set again = ..Send("tool", ..#OWNER, ..#ADDRESS, subject, text, "", key)
+		Do $$$AssertEquals($Data(^$LOCK($Name(^OcuTalon.EmailOut.Key(..#OWNER, hash)))), 0, case_": and after the same key again (answer "_again.Outcome_")")
+	}
+	Set ^||OcuTalonEmailOutProbe("answer") = "unreachable"
+	Do ..Send("tool", ..#OWNER, ..#ADDRESS, subject, text, "", "zzshapekey-failed")
+	Kill ^||OcuTalonEmailOutProbe("answer")
+	Do $$$AssertEquals($Data(^$LOCK($Name(^OcuTalon.EmailOut.Key(..#OWNER, ..Hash("zzshapekey-failed"))))), 0, "and after a failed send")
+}
+
+/// Story 21.13 (QA): the DigestKey comparison of a keyed claim is exact. A row of the owner whose DigestKey differs from the key's hash only in case is found by
+/// the SQL comparison (the column compares without regard to case) but is not the key's claim, so the key is sent.
+Method TestToolKeyClaimIsCaseExact()
+{
+	Do ..Mailbox()
+	Set n = 0
+	Set key = "zzkey-case"
+	Set other = $ZConvert(..Hash(key), "U")
+	While (other = ..Hash(key)) && ($Increment(n) < 20) {
+		Set key = "zzkey-case-"_n
+		Set other = $ZConvert(..Hash(key), "U")
+	}
+	Set hash = ..Hash(key)
+	Do $$$AssertTrue(other '= hash, "the hash of the key has a lower-case letter")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..#OWNER, "email", "zzemailoutcase", "", "", "", "", "", "", , "", other), "the row with the upper-cased hash is made")
+	Set found = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'email' AND DigestKey = ?", ..#OWNER, hash)
+	Do found.%Next()
+	Do $$$AssertEquals(found.%GetData(1)_"|"_..KeyRows(..#OWNER, hash), "1|0", "SQL finds that row by the key's hash without regard to case, an exact comparison does not")
+	Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_..Delivered()_"|"_..KeyRows(..#OWNER, hash), "1|sent|1|1", "the key is sent, as that row is not its claim")
+}
+
+/// Story 21.13 (QA), matrix "System path": a system send that carries an IdempotencyKey is claimed by its approval (already_sent), never by the key, and it
+/// leaves no key claim: the same key then sends as a tool send, and with another approval.
+Method TestSystemSendWithAKeyIsStillClaimedByItsApproval()
+{
+	Do ..Mailbox()
+	Set approval = ..Approval("zzemailoutap0072", ..#ADDRESS)
+	Set other = ..Approval("zzemailoutap0073", ..#ADDRESS)
+	Set hash = ..Hash("zzkey-system")
+	Set first = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", approval, "zzkey-system")
+	Do $$$AssertEquals(first.Ok_"|"_first.Outcome_"|"_first.Message, "1|sent|"_$Parameter(..#PROBE, "MESSAGESENT"), "the system send with a key is sent")
+	Do $$$AssertEquals(..Claims(approval)_"|"_..KeyRows(..#OWNER, hash)_"|"_..Delivered(), "1|0|1", "its claim is the approval's, with no key claim")
+	Set again = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", approval, "zzkey-system")
+	Do $$$AssertEquals(again.Ok_"|"_again.Outcome_"|"_again.Message, "1|already_sent|"_$Parameter(..#PROBE, "MESSAGESENT"), "the same approval and key again is already_sent")
+	Set second = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", other, "zzkey-system")
+	Do $$$AssertEquals(second.Outcome_"|"_..Delivered()_"|"_..Claims(other), "sent|2|1", "another approval with the same key is sent: the key does not claim a system send")
+	Set tool = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-system")
+	Do $$$AssertEquals(tool.Outcome_"|"_..Delivered()_"|"_..KeyRows(..#OWNER, hash), "sent|3|1", "and the same key as a tool send is sent once, with its own claim")
+}
+
+/// Story 21.13 (QA): the key's hash never equals a digest's key. A tool key made of the parts of a digest's key (session, decision, catalog key, slots, the UTC
+/// day) would equal it if the word tool were not part of the hash; with it, the digest's row is not the tool send's claim and the tool send is sent.
+Method TestToolKeyNeverEqualsADigestKey()
+{
+	Do ..Mailbox()
+	Set lf = $Char(10)
+	Set note = ##class(OcuTalon.Msg.Notification).%New()
+	Set note.SessionRef = "zzemailoutdig0001"
+	Set note.DecisionRef = "zzemailoutdec0001"
+	Set note.CatalogKey = "zzcatalog"
+	Set note.Slots = "zzslots"
+	Set digestKey = ##class(OcuTalon.Channel.Email.Out).DigestKeyOf(note)
+	Set key = note.SessionRef_lf_note.DecisionRef_lf_note.CatalogKey_lf_note.Slots_lf_$Extract(##class(OcuTalon.Data.Time).NowUtc(), 1, 10)
+	Do $$$AssertTrue(..Hash(key) '= digestKey, "the tool key made of a digest's parts does not hash to the digest's key")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..#OWNER, "email", "zzemailoutdig", "", "digest", "", note.DecisionRef, "", "", , "", digestKey), "the digest's row is made")
+	Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_..Delivered()_"|"_..KeyRows(..#OWNER, ..Hash(key))_"|"_..KeyRows(..#OWNER, digestKey), "1|sent|1|1|1", "the tool send is sent and the digest's row is not its claim")
+}
+
 /// The other process of TestClaimIsLocked and TestToolKeyIsLocked: holds the lock of the approval, or of the session and the key of a tool send when key is
 /// given, until the test releases it (or 60 seconds pass).
 ClassMethod HoldLock(approval As %String, owner As %String = "", key As %String = "")
@@ -989,15 +1137,18 @@ Method TestNoPersonalDataInTheLog()
 	Do ##class(OcuTalon.Data.Setting).Set("email.address", address)
 	Set subject = "zzlogsubject"_tag
 	Set text = "zzlogtext"_tag
-	Do ..Send("tool", ..#OWNER, address, subject, text)
+	Set keyWord = "zzlogkey"_tag
+	Do ..Send("tool", ..#OWNER, address, subject, text, "", keyWord_"-sent")
+	Do ..Send("tool", ..#OWNER, address, subject, text, "", keyWord_"-sent")
 	For answer = "unreachable", "refused", "rejected", "throw" {
 		Set ^||OcuTalonEmailOutProbe("answer") = answer
-		Do ..Send("tool", ..#OWNER, address, subject, text)
+		Do ..Send("tool", ..#OWNER, address, subject, text, "", keyWord_"-"_answer)
+		Do ..Send("tool", ..#OWNER, address, subject, text, "", keyWord_"-"_answer)
 	}
 	Kill ^||OcuTalonEmailOutProbe("answer")
 	Set approval = ..Approval("zzemailoutap0060", address)
 	Do ..Send("system", ..#OWNER, address, subject, text, approval)
-	For word = address, subject, text, "SERVER-WORDS", "zzrejected@example.com", "zzthrown@example.com", $Piece(address, "@", 1) {
+	For word = address, subject, text, keyWord, "SERVER-WORDS", "zzrejected@example.com", "zzthrown@example.com", $Piece(address, "@", 1) {
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", word), 0, "no Ens.Util.Log row holds '"_word_"'")
 	}
 	Set own = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Text [ ?", start, "EmailOut sent one email")
@@ -1306,14 +1457,15 @@ ClassMethod KeyRows(owner As %String, hash As %String) As %Integer [ Private ]
 	Quit count
 }
 
-/// The id of the first Delivery row of channel email of the owner with exactly this DigestKey.
+/// The id of the first Delivery row of channel email of the owner with exactly this DigestKey, or "" when there is none.
 ClassMethod KeyRowId(owner As %String, hash As %String) As %String [ Private ]
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, DigestKey FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND OwnerRef = ? AND DigestKey = ? ORDER BY ID", owner, hash)
-	While result.%Next() {
-		If result.%Get("DigestKey") = hash Quit
+	Set id = ""
+	While (id = "") && result.%Next() {
+		If result.%Get("DigestKey") = hash Set id = result.%Get("ID")
 	}
-	Quit result.%Get("ID")
+	Quit id
 }
 
 ClassMethod ClaimId(approval As %String) As %String [ Private ]

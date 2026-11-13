@@ -108,7 +108,29 @@ deferred: []
 - **The system path is unchanged.** Given 21.6's approval-keyed tests, when they run unchanged, then they pass: `Test.Channel.EmailOut` `TestNoDoubleSend`, `TestClaimIsLocked`, `TestSystemApproval`, `TestMessageShape`, `TestFailureClasses` and `TestSignInMessage`, and `Test.Channel.EmailLive` `TestSystemSendIsClaimedByItsApproval`, `TestToolSendReachesTheStub` and `TestSendFailuresByStubMode`.
 - **No stored-data change.** Given the change, when `Test.Data.Tables` runs, then it passes unchanged, and `git diff` shows no `Storage`, `Property` or `Index` line changed in any class.
 
+### Review Findings
+
+Code review 2026-11-12 (full, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). Verdicts: high 1, medium 1, low 8, false 1 (11 entries). Patched 4; closed terminal 4 (ledger DW-1257..DW-1260); rejected 3. Unresolved high/medium: 0.
+
+- [x] [Review][Patch] HIGH (Rule 6, AD-1): a keyed tool send whose failure may still have reached the server deleted its claim, so a re-sent turn could send the email twice [Out.cls `Send`; Sender.cls `MayHaveSent`] -- blind+edge+auditor. `Sender.Classify` puts a timeout waiting for the answer to the end of the message (`DATATIMEOUT`) and a connection lost during DATA in class unreachable, and `Send` deleted every failed keyed claim, against AD-1's "its owner ignores a repeat, so a re-sent turn can't act twice". Fix: new `Sender.MayHaveSent(sc)` (1 for `SMTPTimeout`, which names no phase so any, and for `SMTPConnectionFailed` during `DATA`); `Send` deletes a keyed claim only when it is 0 and otherwise keeps it marked failed, so a repeat answers `failed` and sends nothing, as an approval's claim does. A failure the server did not take (connect refused, closed before the greeting, login refused, any server error answer) still deletes the claim and the key can be sent again, so the matrix row "Failed, then retried" holds for every one of those and `EmailLive.TestSendFailuresByStubMode` passes unchanged (AC2). Docs made true: `Out` class description and `Send`, `Delivery.FallbackReason`, the spine's AD-14 sentence. Pins: `TestToolKeyFailureClasses` gains probe answers `timeout`, `dropped` (kept, repeat failed) and `lost` (deleted, retry sent). **For the lead:** the code is now narrower than the Always bullet "deleted after a failed send (one of `Sender.Classify`'s classes)" and the Approach's "A send that fails removes its claim" (AD-1 governs; product default 4); record a Spec Change Log line and the spine memlog for the edited AD-14 sentence (lint: the 10 baseline low placeholders only).
+- [x] [Review][Patch] MEDIUM (Rule 19 hermeticity): the probe's "pending during the send" mark read the newest channel-email row of the whole instance, so another writer's row could pass or fail `TestToolKeySendsOnce` and `TestNoDoubleSend` [EmailOutProbe.cls `Deliver`] -- verification-gap. Fix: the probe reads the row whose `ChannelMessageId` is exactly the mail's `X-OcuTalon-Ref` (the send's own claim).
+- [x] [Review][Patch] LOW: the `SendEmail` doc ("the same key again sends nothing and answers sent") and the spine sentence did not say what a repeat of a failed key does [SendEmail.cls L1; ARCHITECTURE-SPINE.md AD-14] -- blind+edge. Corrected with the HIGH fix.
+- [x] [Review][Patch] LOW: `KeyRowId` read `ID` after `%Next()` had returned 0 when no row matched exactly [Test/Channel/EmailOut.cls `KeyRowId`] -- blind+edge. Now answers the matched id or "".
+- [x] [Review][Closed by-design DW-1257] Residual risk 2: a pending claim (job stopped during a send) or a claim marked failed (error after the claim, or now a send that may have reached the server) answers `failed` for that key for good. The matrix rows "Never finished" and "Error after the claim" require it; it is at-most-once, as AD-1 asks; a new turn has a new `ItemId`, so only that turn's own re-send is blocked; `Data.Purge` retention frees the row.
+- [x] [Review][Closed by-design DW-1258] The key is `ItemId:position` and only the key decides, so a re-run that reorders or rewords its commands is not compared (blind, edge) -- AD-1 as amended (U-215) defines the key and Design Notes decided 2 keeps no text to compare.
+- [x] [Review][Closed wontfix-theoretical DW-1259] An exception after `Send` deleted a keyed claim would re-save it as failed (edge) -- only a log macro and `Result()` run after the delete.
+- [x] [Review][Closed wontfix-theoretical DW-1260] A `%DeleteId` error leaves the keyed claim pending, so the key answers failed (edge) -- a one-row delete by its own id under the lock; the outcome is fail-safe.
+
+Rejected:
+- `false` (blind): "the restart step of `TestToolKeySendsOnce` restarts nothing" -- every `Send` makes a new shadow instance of the operation, which is what the matrix row "After restart" names; the real `Restart` is pinned live by `TestReSentTurnSendsOnce`.
+- `low` (blind, auditor): `EmailLive.ToolSend` without an `itemId` still sets a key, so no live test sends a keyless tool email -- real tool commands always carry a key (`CommandCall.Run`), so the live tests now exercise the real path; the keyless path keeps its unit pins (`TestToolKeySendsOnce` "no key" and the 21.6 tests).
+- `low` (edge): `%OpenId(KeyRowId(...))` on a miss stops with `<INVALID OREF>` instead of an assertion message -- the test still goes red; diagnostics only.
+
+Rule 3: the real-runtime pin is `EmailLive:TestReSentTurnSendsOnce` (real CommandsIn, CommandCall.Run, EmailOut job and the CI SMTP stub, with a `Restart`); it passed in the whole `EmailLive` class after the patches on a stack brought down and up.
+
 ## Spec Change Log
+
+- 2026-11-13 (lead, after code review): the claim is deleted after a failed send only when the server certainly did not take the mail; a send that may have reached it (`Sender.MayHaveSent`: an SMTP timeout, or a connection lost during DATA) keeps the claim marked failed, so a repeat answers `failed` and sends nothing (review HIGH, AD-1's repeat rule). This narrows V1's (U-327) 'deleted after a failed send'; reported to the orchestrator.
 
 - 2026-11-13 (lead, spec gate): V1 ruled KEEP (U-327, Design Notes).
 
@@ -226,6 +248,26 @@ No catalog, route, table shape or count changes. Every test added or changed pas
 - mutation: a `Property` line added to `Data.Delivery` (AC3, no stored-data change) -> the Verification command `git diff -U0 -- src | grep -E '^[+-]\s*(Property|Index|<Value>|<Data|Storage)'` prints it; reverted byte-identical
 - mutation: keyed tool sends skip `Authorised` (AC1's order: the repeat rule after `Check` and `Authorised`) -> `Test.Channel.EmailOut:TestToolRecipients` red (the keyed refused rows); reverted byte-identical
 - mutation: the key lookup removed (warm stack down and up, as the production job runs the code) -> `Test.Channel.EmailLive:TestReSentTurnSendsOnce` red (the stub held more than one mail); reverted byte-identical
+
+**QA stage (gap tests, lane-C throwaways, tag e21s13qw; `(QA)` marks the files and lines this stage added):**
+- `src/ocutalon/cls/OcuTalon/Test/Channel/EmailOut.cls` (QA): new `TestToolKeyFailureClasses`, `TestToolKeyClaimHoldsNothingOfTheSend`, `TestToolKeyClaimIsCaseExact`, `TestSystemSendWithAKeyIsStillClaimedByItsApproval`, `TestToolKeyNeverEqualsADigestKey`; `TestNoPersonalDataInTheLog` now sends keyed commands (twice each) and checks that no log row holds the key. No production file changed.
+- Gaps closed (the implement stage's tests stayed green under each mutation below):
+  - mutation (QA): a failed keyed tool claim is deleted only for the class unreachable (refused and rejected keep it) -> `Test.Channel.EmailOut:TestToolKeyFailureClasses` red (the refused and rejected retry rows); reverted byte-identical
+  - mutation (QA): the claim row stores the IdempotencyKey in `DecisionRef` -> `Test.Channel.EmailOut:TestToolKeyClaimHoldsNothingOfTheSend` red (sent and throw rows; the long keys of `TestToolKeyFailureClasses` and the digest test fail to save as well); reverted byte-identical
+  - mutation (QA): `Lock -@lockName` removed from `SendClaimed` -> `TestToolKeyClaimHoldsNothingOfTheSend` red (the lock of the key is not free; the framework also reports the leaked locks); reverted byte-identical
+  - mutation (QA): the exact-case recheck in `Claimed` removed -> `TestToolKeyClaimIsCaseExact` red; reverted byte-identical
+  - mutation (QA): a send with a key is routed to the keyed path before the system test, whatever its origin -> `TestSystemSendWithAKeyIsStillClaimedByItsApproval` red; reverted byte-identical
+  - mutation (QA): `ToolKeyOf` without the word tool and the line feed -> `TestToolKeyNeverEqualsADigestKey` red; reverted byte-identical
+  - mutation (QA): `SendClaimed` logs the raw IdempotencyKey -> `TestNoPersonalDataInTheLog` red; reverted byte-identical
+- Matrix rows and brief items already pinned with a test that can fail (no gap): Repeat, After restart (live `Restart` and a new shadow instance), Other key, No key, Never finished, Error after the claim, Lock held, Tool command with an ApprovalRef, Online demo (the implement stage's mutations), a key scoped to its session (seeded claim of another session, `TestToolKeySendsOnce`). The system/approval and digest pins pass unchanged: `Test.Channel.EmailOut` whole class (twice, once on a fresh warm stack) and `Test.Channel.EmailLive` whole class (115 s, fresh warm stack) passed. Not pinned (named, not closed): another session's lock does not block this session's key (the tool path allows only the mailbox owner's session, so a second session cannot send).
+- Tear down: `OCUTALON_RUN_TAG=e21s13qw ci/warm.sh down` (no container left).
+- mutations_demonstrated=7
+
+**Code review stage (lane-C throwaways, tag e21s13cw; each mutation observed red and reverted byte-identical, `git status --short` and `git diff --stat` unchanged):**
+- mutation (CR): the `MayHaveSent` test removed from `Out.Send` (every failed keyed claim deleted) -> `Test.Channel.EmailOut:TestToolKeyFailureClasses` red (timeout and dropped rows: claim kept, repeat failed); reverted byte-identical
+- mutation (CR): `MayHaveSent` ignores the phase of `SMTPConnectionFailed` (any lost connection counts) -> `Test.Channel.EmailOut:TestToolKeyFailureClasses` red (lost row: no claim left, retry sent); reverted byte-identical
+- mutation (CR): the keyed claim written with an empty `FallbackReason` instead of `CLAIMPENDING` -> `Test.Channel.EmailOut:TestToolKeySendsOnce` red (the probe's own-Ref claim mark is not pending); reverted byte-identical
+- After the patches: `Test.Channel.EmailOut` passed (warm, twice); the stack brought down and up, then `Test.Channel.EmailLive` (whole class, 116 s, `TestReSentTurnSendsOnce` and the unchanged `TestSendFailuresByStubMode` included), `Test.Data.Tables` and `Test.Channel.EmailIn` passed; `docker/tests/test-class-rules.sh` and `test-boundaries.sh` passed; the Property/Index/Storage diff check printed nothing; the spine lint shows only the 10 baseline low placeholders. Stack torn down.
 
 ## Auto Run Result
 

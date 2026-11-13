@@ -152,4 +152,20 @@ ClassMethod Classify(sc As %Status) As %String
 	Quit ..#UNREACHABLE
 }
 
+/// 1 when a failed send may still have reached the server: a timeout waiting for an answer (SMTPTimeout, which does not say which answer, so any, the
+/// one at the end of the message included), or a connection lost once the message was started (SMTPConnectionFailed during DATA). Any other failure
+/// (the server could not be reached or dropped the connection before the message, refused the login or answered with an error) means the server did
+/// not take the email. An OK status gives 0.
+ClassMethod MayHaveSent(sc As %Status) As %Boolean
+{
+	If $$$ISOK($Get(sc, $$$OK)) Quit 0
+	If $$$StatusEquals(sc, $$$SMTPTimeout) Quit 1
+	Do $SYSTEM.Status.DecomposeStatus(sc, .errors)
+	Set found = 0
+	For i = 1:1:$Get(errors) {
+		If ($Get(errors(i, "code")) = $$$SMTPConnectionFailed) && ($Get(errors(i, "param", 1)) = "DATA") Set found = 1
+	}
+	Quit found
+}
+
 }

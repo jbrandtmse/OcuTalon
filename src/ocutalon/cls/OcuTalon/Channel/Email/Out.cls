@@ -27,8 +27,10 @@
 ///     command names an approval) and, in DigestKey, ToolKeyOf: 22 characters of the hash of the key, never equal to a digest's key. Under a lock on the
 ///     owner and the key, a sent row for the key answers sent (Ok 1, MESSAGESENT), as the first send did, and sends nothing; a row that is pending or
 ///     marked failed, or a lock that cannot be taken in CLAIMWAIT, answers failed (Ok 0, MESSAGEFAILED) and sends nothing; otherwise the claim is written
-///     pending and the send follows. A sent email clears the mark. A failed send (one of Sender.Classify's classes) deletes the claim, so that the key
-///     can be sent again and no failed tool send leaves a row; an error after the claim marks it failed. A tool send with no key is sent every time;
+///     pending and the send follows. A sent email clears the mark. A failed send that the server did not take (one of Sender.Classify's classes) deletes
+///     the claim, so that the key can be sent again and leaves no row; a failed send that may still have reached the server (Sender.MayHaveSent: a timeout
+///     or a connection lost during DATA) and an error after the claim mark it failed, so that the key never sends twice. A tool send with no key is
+///     sent every time;
 ///   - the message is one text/plain part in UTF-8 with no attachment, sent once through Deliver. Success records a Data.Delivery row (owner: the
 ///     command's SessionRef, or instance when it has none; channel email; the Ref of the header as the message id; the approval's Ref for a system send) and
 ///     answers sent (Ok 1, MESSAGESENT). A failure answers failed (Ok 0) with the message of Sender.Classify's class: MESSAGEUNREACHABLE,
@@ -190,8 +192,9 @@ Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, B
 }
 
 /// Builds the message, delivers it once and answers; claim is the claim row of a claimed send, "" for an unclaimed tool send. The Ref of the header is the claim
-/// row's, or a new one that the Delivery row of a sent unclaimed tool email keeps. A failed send keeps the claim of an approval, marked failed, and deletes
-/// the claim of a keyed tool send (it has no ApprovalRef), so that the same key can be sent again.
+/// row's, or a new one that the Delivery row of a sent unclaimed tool email keeps. A failed send keeps the claim of an approval, marked failed. It deletes
+/// the claim of a keyed tool send (it has no ApprovalRef), so that the same key can be sent again, unless the email may still have reached the server
+/// (Sender.MayHaveSent); that claim is kept, marked failed.
 Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, claim As OcuTalon.Data.Delivery) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set ref = $Select($IsObject(claim): claim.ChannelMessageId, 1: ##class(OcuTalon.Bridge.Ids).NewRef())
@@ -210,7 +213,7 @@ Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef re
 	Set class = ##class(OcuTalon.Channel.Email.Sender).Classify(sc)
 	Set errorMessage = $Select(class = ##class(OcuTalon.Channel.Email.Sender).#REFUSED: $Select(..OAuth2Mode(): ..#MESSAGESIGNIN, 1: ..#MESSAGEREFUSEDLOGIN), class = ##class(OcuTalon.Channel.Email.Sender).#REJECTED: ..#MESSAGEREJECTED, 1: ..#MESSAGEUNREACHABLE)
 	If $IsObject(claim) {
-		If claim.ApprovalRef = "" {
+		If (claim.ApprovalRef = "") && '##class(OcuTalon.Channel.Email.Sender).MayHaveSent(sc) {
 			Set deleted = ##class(OcuTalon.Data.Delivery).%DeleteId(claim.%Id())
 			If $$$ISERR(deleted) $$$LOGERROR("EmailOut could not remove the claim of a failed send")
 		} Else {

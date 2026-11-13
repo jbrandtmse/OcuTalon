@@ -7508,3 +7508,24 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner ruling H(ii), 2026-11-13 (22.7 plan, DW-1244) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: EmailOut keys de-duplication on ApprovalRef only (22.7 plan); Channel/Email is Epic 21's
 - 2026-11-13T04:04:48Z status=routed owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=orchestrator note=linked=DW-1244(OCT-epic22);the_orchestrator_reconciles_both_after_merge;22.7_merge_waits_for_this_fix
+- 2026-11-13T05:52:49Z status=resolved-by:21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=adjudication note=694b53a4+QA+review:EmailOut_claims_a_keyed_tool_send_by_session+'tool'-prefixed_hash_in_DigestKey;repeat_answers_sent_and_sends_nothing;MayHaveSent_keeps_the_claim;pins_EmailLive.TestReSentTurnSendsOnce,EmailOut.TestToolKeySendsOnce(mutations_red);linked_DW-1244_on_OCT-epic22_for_the_orchestrator
+
+### DW-1257: EmailOut: a pending or failed keyed tool claim answers failed for that key for good; nothing expires it
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: Out.SendClaimed: Claimed answers CLAIMFAILED for a pending or failed row of the owner and key; spec matrix rows Never finished and Error after the claim require it (at-most-once, AD-1)
+- 2026-11-13T05:49:04Z status=by-design owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=spec matrix rows; a new turn has a new ItemId so a new key; Data.Purge retention frees the row
+
+### DW-1258: EmailOut: a re-sent turn's key is ItemId:position and only the key decides, so a reordered or reworded re-run is not compared
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: CommandCall.Run numbers commands per call; Out.Claimed compares only owner and DigestKey; spec Decided 2 and AD-1 (U-215) define the key
+- 2026-11-13T05:49:04Z status=by-design owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=AD-1 as amended U-215 and spec Decided 2: only the key decides; no stored text to compare
+
+### DW-1259: EmailOut.SendClaimed: an exception after Send deleted a keyed claim would re-save the deleted oref as failed
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: Catch block saves claim.FallbackReason=failed; between %DeleteId and Quit in Send only a log macro and Result() run
+- 2026-11-13T05:49:04Z status=wontfix-theoretical owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=real if code that can throw is added after the %DeleteId in Out.Send
+
+### DW-1260: EmailOut.Send: a %DeleteId error on a failed keyed claim leaves it pending, so the key answers failed
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: Out.Send logs and continues when %DeleteId of its own row fails; the outcome is fail-safe (never a second send)
+- 2026-11-13T05:49:04Z status=wontfix-theoretical owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=real if Delivery deletes start failing under load (LOGERROR 'could not remove the claim' seen in Ens.Util.Log)
