@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-13-2026 19:42
+last_updated: 11-13-2026 19:51
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -461,7 +461,7 @@ development_status:
   epic-36: in-progress
   36-1-record-the-setting-history-of-each-watched-production: done
   36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql: done
-  36-4-set-the-on-call-person-and-backup-in-settings: review
+  36-4-set-the-on-call-person-and-backup-in-settings: done
   36-3-link-the-worked-jira-example-from-the-admin-docs: backlog
   epic-36-retrospective: optional
 

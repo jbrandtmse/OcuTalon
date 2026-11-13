@@ -12,7 +12,8 @@
 ///   - TestCommandHoldsOnlyTheHandoff: an admin's save is 200 with the on-call section, and its SaveSettings command's Changes is exactly {"handoff": uri};
 ///   - TestValuesOnlyInTheAuditLog (V3, DW-1249): the one leak scan. An admin's save of unique addresses and a user name goes through the real production. They are in
 ///     the IRIS audit entries (the positive control) and in no event log row, message header, SaveSettings, CommandResult or Notification row, or ^OcuTalon* global
-///     but the setting rows (and, for the user name, the session row that makes the user). None of them is in a trace global either (Ens.MessageBodyD/S, Ens.MessageHeaderD, Ens.Util.LogD).
+///     but the setting rows (and, for the user name, the session row that makes the user). None of them is in a trace global either (Ens.MessageBodyD/S,
+///     Ens.MessageHeaderD, Ens.Util.LogD).
 Class OcuTalon.Test.Web.OnCallSettingsApi Extends %UnitTest.TestCase
 {
 
@@ -237,7 +238,7 @@ Method TestValuesOnlyInTheAuditLog()
 {
 	If '..Guard() Quit
 	Set tag = $Random(1000000000)
-	Set user = "zzocleak"_tag, primary = "zzleak"_tag_"a@example.com", backup = "zzleak"_tag_"b@example.com"
+	Set user = "zzocleak"_tag_"u", primary = "zzleak"_tag_"a@example.com", backup = "zzleak"_tag_"b@example.com"
 	Do ..Session(user)
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set log = ##class(OcuTalon.Test.Web.WebhookTools).LastLog()
