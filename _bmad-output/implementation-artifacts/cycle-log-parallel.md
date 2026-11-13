@@ -3959,3 +3959,6 @@
 2026-11-13T15:38:54Z	Epic 0	ci_green_verified	sha=81b65a6a runs=43445650699(ci),43445650884(lane-a) checks+web=own_head
 2026-11-13T15:38:54Z	Epic 0	amendments_verified	amendments=epics_0.36_block extensions=README.md:38,docker/tests/test-readme.sh,docker/tests/test-release-notes.sh ok=true
 2026-11-13T15:38:54Z	Epic 0	merge_enqueued	part=0.36 head=81b65a6a feature=7865c322
+2026-11-13T15:39:51Z	Epic 0	epic_merged_to_feature	part=0.36 feature_sha=4aa34ca4 merge_sha=4aa34ca4 code=81b65a6a(identical_tree_outside_bookkeeping) verified_on_origin=yes
+2026-11-13T15:39:51Z	Run	ci_red_classified	head=7865c322 run=43432696788 red=shards-6(GuideApi TestOnlyTheMarkerChanges/TestRunAgain=DW-1094)+shards-4(Telegram park=DW-1083) class=ledgered_flakes evidence=same_code_green_on_81b65a6a(43445650699,43445650884)
+2026-11-13T15:39:51Z	Run	ci_green_by_identity	head=4aa34ca4 code_head=81b65a6a runs=43445650699,43445650884 cancelled=43454728174,43454728180(throughput_rule)
