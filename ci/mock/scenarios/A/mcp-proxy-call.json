@@ -1,0 +1,25 @@
+{
+  "name": "mcp-proxy-call",
+  "match": {
+    "marker": "mcp-proxy-call"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "call_mcp_tool",
+        "input": {
+          "server": "zzmcp",
+          "tool": "zz_lookup",
+          "arguments": {
+            "id": "1"
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The proxy answered."
+    }
+  ]
+}

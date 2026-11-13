@@ -157,3 +157,9 @@ test('Story 19.4: the mock reads the documents tool name from OcuTalon.Tools.Nam
     assert.ok(scenarios.all.some((s) => s.name === name), `the scenario ${name} is there`);
   }
 });
+
+test('Story 22.3: the mock reads call_mcp_tool from OcuTalon.Tools.Names', () => {
+  const { toolNames, scenarios } = readAll();
+  assert.ok(toolNames.includes('call_mcp_tool'), 'call_mcp_tool is among the tool names that the mock reads');
+  assert.ok(scenarios.all.some((s) => s.name === 'mcp-proxy-call' && toolUseNames(s).includes('call_mcp_tool')), 'the scenario mcp-proxy-call calls call_mcp_tool');
+});

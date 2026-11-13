@@ -2079,6 +2079,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870677_iris(production)_live:production_on_ocutalon-ci-15:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_production_row21_WatchOps;rerun_failed_jobs_green(attempt2)
 - 2026-11-12T10:06:56Z occurrence=0-28 by=runner note=run_43159935962_attempt_1_job_130988445819_iris(production)_live:production_on_ocutalon-ci-10:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_eff03a14(README+release_checks_only);one_rerun_of_failed_jobs(attempt_2,started_by_orchestrator_10:02Z)
+- 2026-11-13T03:24:48Z occurrence=22-4-hold-risky-and-unclassified-mcp-calls-for-approval note=af886ee3_ci_43344958166_iris(production)_row21_wanted_CHK|start-fails|1|1_got_empty
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6297,6 +6298,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T22:43:24Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=merge_gate note=Contest Planner decision 2026-11-09 (owner delegation): Story 22.2 adds a bounded MCP attach timeout with a clear error; Epic 35 part merge
 - 2026-11-11T11:20:25Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
 - 2026-11-11T11:35:25Z status=routed owner=22-9-bound-mcp-attach-and-listing-with-a-timeout by=spec_gate note=Story_22.8_split_2026-11-11(runner_ruling_U5_decide):DW-1013_moved_whole_to_22.9;bullet_in_22.9's_block
+- 2026-11-12T17:08:30Z status=resolved-by:22-9-bound-mcp-attach-and-listing-with-a-timeout by=adjudication note=Mcp.Client.Probe_2s_initialize_before_every_AddTool(build+request);60s_rest;no_server_on_own_manager;tests_Test.Mcp.Attach(TestSilentAtBuild,TestSilentInRequest,TestOwnManagerHasNoServer)+Test.Mcp.Client;commit_901d7335+review_patches
 ### DW-1007: flake candidate: live:online-demo row 4 'the HTTP view of the connections was 0 and is 1 after five status GETs and five splash GETs' in CI install-fresh on feature 0ab2eef0 under a saturated queue (a lingering connection; same family as DW-987's visitor count)
 - source: CI run 42574755205 attempt 1 (feature 0ab2eef0) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code
@@ -7306,6 +7308,21 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T11:14:12Z status=routed owner=burndown by=runner note=flake class (first occurrence): one rerun of failed jobs; a second red on the same head is real; likely fix: gotoSettled at L143 as DW-690 did
 - 2026-11-12T12:22:47Z status=routed owner=burndown by=runner note=rerun_attempt_2_of_run_43202138313_green_on_2a6cfc67(flake_confirmed)
 
+### DW-1204: Mcp.Client.Probe may report a server unreachable when it sent a status line and headers and then stalled before the body ends (an event stream)
+- source: spec-22-9-bound-mcp-attach-and-listing-with-a-timeout.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Mcp/Client.cls
+- evidence: Probe answers '' only when Post returns OK with an HttpResponse; a body read timeout after headers is read as unreachable (unverified; a stall-after-headers mock mode would settle it)
+- 2026-11-12T16:21:17Z status=open owner=22-9-bound-mcp-attach-and-listing-with-a-timeout by=harvest note=in-story; fix candidate: count a response with StatusCode>0 as an answer
+- 2026-11-12T17:08:30Z status=resolved-by:22-9-bound-mcp-attach-and-listing-with-a-timeout by=adjudication note=CR_patch_in_Client.Probe(any_HTTP_status_is_an_answer);TestStalledBody_expects_answer;mutation_red_shown
+
+### DW-1210: A server that is down or silent when a runner builds its agent is not recorded, so no request of that runner job offers its tools until the agent is built again (a production restart, or Ops restarting the runners)
+- source: spec-22-9-bound-mcp-attach-and-listing-with-a-timeout.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Agent.cls AttachOne records the spec only after the probe and AddTool pass; OfferServers walks Attached only. Matrix row 'Build, silent: spec not recorded' fixes it; pre-existing since 35.1 (a failed build AddTool was never recorded either)
+- 2026-11-12T17:04:19Z status=by-design owner=22-9-bound-mcp-attach-and-listing-with-a-timeout by=cr note=spec-bound (matrix row Build silent); a retry of unrecorded servers needs a spec amendment, e.g. in 22.10's own listing
+
+### DW-1211: Each runner job reports an MCP server only on its own transitions, but every job writes the one shared Mcp.Server row, so the row can say unavailable while other jobs offer the server's tools, until the reporting job sees the server again
+- source: spec-22-9-bound-mcp-attach-and-listing-with-a-timeout.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: McpReported and McpRest are transient per adapter (per runner job); OfferServers reports attached only when this job last reported unavailable. The Always rule fixes per-job transitions (Design Notes decided 5); the wrong direction is the safe one (ToolsReadOnly 0)
+- 2026-11-12T17:04:25Z status=by-design owner=22-9-bound-mcp-attach-and-listing-with-a-timeout by=cr note=spec-bound (Always: per-job transitions); a shared view needs a spec change, e.g. 22.10's own listing
 ### DW-1199: The allowance notice cards' install link (Allowance.cls INSTALLLINK) still points at README#install-it-yourself, which Story 0.30 moved to GUIDE.md: on the online demo the link opens the README top while the banner of the same state opens GUIDE.md
 - source: spec-0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm.md | severity: med | fix-risk: low | footprint: in-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Core/Allowance.cls:37 INSTALLLINK=https://github.com/jbrandtmse/OcuTalon#install-it-yourself; used at L236,L251 (slots.readmeLink); pinned by Test/Core/{Allowance,AllowanceInProduction,BridgeSink,WebChatMessages,WebChatOut}.cls, web/e2e-online/allowance/{daily-cap,messages}.spec.ts, web/scripts/{allowance-sources,banner-view}.test.mjs; found by 4 build-auto review layers
@@ -7412,6 +7429,69 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Planner data 2026-11-12 ~18:10Z: ci-b 0 load failures today, ci-c install-fresh 3 of 10 and install-upgrade 1 of 3, ci-d install-fresh 1 of 1, install-upgrade 3 of 5, shards-10 3 of 4; ci-b/ci-d 8 vCPU, 15 GB RAM, ~610 MB swap in use, load 7-8 (small samples)
 - 2026-11-12T18:34:21Z status=routed owner=burndown by=orchestrator note=audit family follow-up to Story 0.32 (orchestrator 2026-11-12 continue); a measurement plus a PROPOSAL only: any runner-count or memory-limit change is a server change for the Planner, never applied by a runner
+### DW-1220: An approved native MCP call replayed by Replay.Run is not rewritten into call_mcp_tool, so it runs through AI Hub's client with no deadline, cut, call-time fingerprint check or audit entry
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+- evidence: Gate.Decision reroutes only outside a replay; Test.Bridge.Gate TestMcpRewriteAndItsMark pins the non-rewrite; spec Never list assigns the MCP replay to 22.4
+- 2026-11-12T20:12:17Z status=routed owner=22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=harvest note=22.4 replays through the proxy (S15)
+- 2026-11-13T00:37:12Z status=resolved-by:22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=adjudication note=replay_runs_call_mcp_tool_on_a_proxy-only_manager;Test.Mcp.Approval_TestHeldThenReplayed(no_tools/call_from_AI_Hub_client)+TestReplayResultIsCut
+
+### DW-1221: Mcp.Client has no total deadline per request: Timeout applies per read, so a server that trickles bytes can hold a runner job past CALLSECONDS
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Mcp/Client.cls
+- evidence: Exchange sets OpenTimeout/Timeout only; same property as 22.9 Probe; AD-21 accepts the residual for this release
+- 2026-11-12T20:12:17Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=harvest note=measure a 1-byte/s trickle; bound in 22.10's bounded client
+- 2026-11-12T21:11:47Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy
+
+### DW-1222: Gate rewrite mark ^||OcuTalonBP.McpRewrite is a single slot; two native MCP calls whose first passes interleave would mis-handle the second pass (unverified)
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+- evidence: ExecuteTool runs first pass, tool, second pass sequentially in one process; Task 0 measured one call only
+- 2026-11-12T20:12:17Z status=open owner=22-3-call-mcp-tools-only-through-the-governed-proxy by=harvest note=QA: shadow-runner test with two native MCP calls in one turn
+- 2026-11-12T21:15:11Z status=resolved-by:22-3-call-mcp-tools-only-through-the-governed-proxy by=adjudication note=not_reproduced:Test.Mcp.Attach_TestTwoNativeCalls(three_native_calls_one_turn,each_rewritten_once)+Test.Mcp.ProxyJob_part2(two_calls_one_model_response);mutation_McpRewrittenBefore=0_red
+
+### DW-1223: The proxy's wallet read at call time was measured in a session with the runner job's roles, not inside a runner job (condition (e) rests on an inference)
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Mcp/Proxy.cls
+- evidence: evidence 22-3-task0-proxy.md section 2 labels the in-job result (inference)
+- 2026-11-12T20:12:17Z status=open owner=22-3-call-mcp-tools-only-through-the-governed-proxy by=harvest note=lead smoke: real chat turn through a runner job against the mock with a wallet-backed entry
+- 2026-11-12T21:15:11Z status=resolved-by:22-3-call-mcp-tools-only-through-the-governed-proxy by=adjudication note=verified_in_a_real_runner_job:Test.Mcp.ProxyJob_TestRunnerJob(ChatAgent_job_reads_the_wallet_secret;mock_matched;audit_by_job_user);mutation_Header_no_secret_resolve_red
+
+### DW-1227: Proxy result text [non-text content omitted] (Mcp.Proxy OMITTED) is model-facing text named in the spec's Task but not in its approved Public text table
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Proxy.TextOf puts OMITTED in place of each non-text part of a tools/call result; the text reaches the model and the step summary's Result. The Planner approved Public text 1-10 only; this string is in Task 3 step 7, not the table.
+- 2026-11-12T21:11:47Z status=decision-pending owner=burndown by=cr note=veto window (public text): recommend approve verbatim; alternative drop the marker. Planner decides at the decision sheet
+- 2026-11-13T03:04:39Z status=by-design by=orchestrator note=Planner_F3_text_approved_verbatim([non-text_content_omitted])
+
+### DW-1228: A server tool named call_mcp_tool, added before the proxy toolset in OfferServers, may collide with or shadow the governed proxy (unverified)
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: OfferServers AddTool(spec) runs before OfferProxy RegisterToolSet; AttachServers refuses only names of the agent's own tools, so a server tool named call_mcp_tool is not refused. Either outcome (registration error drops every server; the server's tool shadows the proxy) is unmeasured.
+- 2026-11-12T21:11:47Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=cr note=maybe-false, would be medium: settle with a mock tool named call_mcp_tool; refuse the name at attach or register the proxy first
+
+### DW-1232: The mcp.replayToolChanged notice (R1) renders no text on the web chat and phone cards: Channel.WebChat.Out.ToolCallCard draws only the bridge sink's five toolCall.* keys
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls
+- evidence: the row ends failed, the audit records the refusal and nothing runs, but the owner sees an empty notice; Channel files are Epic 21's (contended); Telegram render unchecked
+- 2026-11-12T23:13:35Z status=escalated owner=burndown by=harvest note=needs a ruling: add the key to Channel/WebChat/Out.cls and the phone card (Epic 21 contended), or route to an Epic 21 story
+- 2026-11-13T03:04:39Z status=routed owner=burndown by=orchestrator note=to_21.10_Planner_F2
+
+### DW-1233: Approval.Raise writes no 'raised' Approval audit entry although 22.4's AC names one for the held MCP request
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Approval.cls
+- evidence: the request has Approval entries answered, started and finished only
+- 2026-11-12T23:13:35Z status=open owner=22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=harvest note=in-story: CR patches it (or closes it against the AC wording)
+- 2026-11-13T00:36:56Z status=resolved-by:22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=adjudication note=AC_wording_amended(Rule5_tier1;audit_trail_is_answered/started/finished;Raise_is_not_an_auditing_state_method;FR-9_asks_approval_answered)
+
+### DW-1239: Planner condition 1 (upgrade) is proven only locally: release/upgrade-harness.sh approves one seeded fix request but never rejects one and never reads ToolFingerprint
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Harness seed_approval/check_approval_upgrade (L1133-1166, L1460-1485): one Break-the-feed fix, approved on phone; no reject, no tool_call, no column check. test-install-upgrade.sh seeds none. Local pin Test.Mcp.ApprovalUpgrade covers the 25-slot storage only.
+- 2026-11-13T00:27:51Z status=escalated owner=burndown by=cr note=release/** is Epic 0's; harness needs a 2nd seeded request rejected after upgrade + SQL check ToolFingerprint empty
+- 2026-11-13T03:12:27Z status=resolved-by:22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=orchestrator note=Planner_F4_hunk_approved;release/upgrade-harness.sh_second_request+reject(channel_web)+ToolFingerprint_empty_x3;pinned_in_docker/tests/test-upgrade-harness.sh_rule_approval-reject;Test.Mcp.ApprovalUpgrade_kept;unexercised_on_a_live_stack_until_the_1.0.9_RC
+
+### DW-1240: Planner condition 4 says an unknown toolref is HELD; the build denies it (UNREGISTERED under OcuTalon's classification, FAILED with no fingerprint) and never runs it
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Mcp.Classification.ClassifyMcp: ServerOf empty -> registered 0 -> gate UNREGISTERED, no row (Test.Bridge.Gate TestMcpBridgeAlone); no map fingerprint -> FAILED (2(e), S16); replay of such a row fails NOSERVERTEXT (TestUnknownToolref).
+- 2026-11-13T00:27:51Z status=decision-pending owner=burndown by=cr note=planner=confirm denial (fail closed, no row that could never run) satisfies condition 4's HELD; code kept
+- 2026-11-13T03:04:39Z status=by-design by=orchestrator note=Planner_F1_stricter_reading_accepted(unknown_toolref_denied_never_held);22.4_spec_AC_amended
+
+### DW-1241: An approved MCP request whose server is removed and re-added under the same name before its replay starts runs on the re-added server
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: CancelPending cancels pending rows only (AD-11); the gate and Proxy.Registered check the Server row by name, and the fingerprint's server id is the name-based toolref, so the re-added server passes. Window: approval to replay start.
+- 2026-11-13T00:27:51Z status=wontfix-accepted owner=22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=cr note=reopen_if=a replay starts for a request approved before its server was removed and re-added
 ### DW-1205: flake candidate: shard:lane-a@Fix Test.Fix TestFailedAgainIsNotRetried red once ('it holds 3/3/0/3/0: the copies failed again'), passed on rerun
 - source: ci 43235350028 OCT-epic23 4444bda0 iris (shards-11) attempt 1 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: logic assertion (not a timeout) under a saturated CI host ~15:00Z; passed on attempt 2; 23.12 changes web live-store only
@@ -7521,3 +7601,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls doc above XData Routes (:318-324) describes steps 1-4; Story 36.2 may edit only the two Routes rows in this contended file (Epic 21 edits ItemRunning). The rows and the spine carry the contract.
 - 2026-11-13T04:03:56Z status=wontfix-accepted owner=36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql by=cr note=reopen_if=a story edits the Routes doc comment of CommandsIn after Epic 21 merges, or a reader misroutes a step 5 verb
+### DW-1244: EmailOut ignores a tool command's IdempotencyKey (AD-1), so a re-sent chat turn could send the own-address email twice
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls
+- evidence: found by the 22.7 plan; EmailOut keys de-duplication on ApprovalRef only; Channel/Email is Epic 21's (contended)
+- 2026-11-13T01:59:09Z status=escalated owner=burndown by=harvest note=for the orchestrator: a Lane C fix (Epic 21) before or with 22.7

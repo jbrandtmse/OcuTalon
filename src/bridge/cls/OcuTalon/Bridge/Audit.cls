@@ -1,7 +1,8 @@
 /// The only writer of the IRIS audit log, for the bridge and for OcuTalon (AD-17). It declares OcuTalon's
 /// user-defined audit events; OcuTalon.Bridge.Installer registers them, and nothing here changes instance-wide auditing.
 ///   - Record(type, data) is the writer of product code. Every entry's data has the common members irisUser, sessionRef and channel (COMMON)
-///     plus the one fixed set of members of its type (Shape), and no other member; Record refuses any other shape before it writes
+///     plus the one fixed set of members of its type (Shape; an MCP entry that records a call of the governed proxy, change called or refused, has the members of
+///     SHAPEMCPCALL instead), and no other member; Record refuses any other shape before it writes
 ///     anything. It builds the description from the shape, never from free text, blanks the from and to of a Settings entry whose setting
 ///     is sensitive, and writes through Write.
 ///   - Write is the raw writer under Record: it takes any dynamic object, passes the data's JSON and the description through
@@ -31,6 +32,10 @@ Parameter SHAPESETTINGS = "setting,from,to";
 
 Parameter SHAPEMCP = "change,server";
 
+/// The members of an MCP entry whose change is called or refused (CALLCHANGES), written by the governed proxy of Story 22.3 once for each run that reached the server's
+/// entry: the server, the tool and a fixed word for the outcome, and never an argument or a result. The shape of every other MCP entry is SHAPEMCP.
+Parameter SHAPEMCPCALL = "change,server,tool,outcome";
+
 Parameter SHAPETOOL = "source,tool,classification,readOnly";
 
 /// The values of an Approval entry's change, a Pairing entry's change, an MCP entry's change and a Tool entry's classification.
@@ -38,7 +43,10 @@ Parameter APPROVALCHANGES = "answered,expired,cancelled,started,finished";
 
 Parameter PAIRINGCHANGES = "linked,unlinked,rejected";
 
-Parameter MCPCHANGES = "added,removed";
+Parameter MCPCHANGES = "added,removed,called,refused";
+
+/// The changes of an MCP entry that have the shape SHAPEMCPCALL.
+Parameter CALLCHANGES = "called,refused";
 
 Parameter CLASSIFICATIONS = "safe,risky,unclassified";
 
@@ -57,11 +65,14 @@ ClassMethod Events() As %List
 	Quit events
 }
 
-/// The members of the type's data: the type's own members followed by the common ones, as a list. "" for a type that is not in TYPES.
-ClassMethod Shape(type As %String) As %List
+/// The members of the type's data: the type's own members followed by the common ones, as a list. "" for a type that is not in TYPES. For the type MCP, a change
+/// of called or refused gives the members of SHAPEMCPCALL (the change is the member that tells the two shapes apart), and any other change, or none, the members of SHAPEMCP.
+ClassMethod Shape(type As %String, change As %String = "") As %List
 {
 	If '$ListFind($ListFromString(..#TYPES), type) Quit ""
-	Quit $ListFromString($Parameter("OcuTalon.Bridge.Audit", "SHAPE" _ $ZConvert(type, "U")) _ "," _ ..#COMMON)
+	Set own = $Parameter("OcuTalon.Bridge.Audit", "SHAPE" _ $ZConvert(type, "U"))
+	If (type = "MCP") && '$IsObject(change) && $ListFind($ListFromString(..#CALLCHANGES), change) Set own = ..#SHAPEMCPCALL
+	Quit $ListFromString(own _ "," _ ..#COMMON)
 }
 
 /// Writes one audit entry of the type, in the one shape of that type, and returns an error status that names the type and the member, and
@@ -70,9 +81,10 @@ ClassMethod Shape(type As %String) As %List
 ///   - irisUser, action, setting, server, source and tool are not empty; channel is one of Msg.Enum CHANNEL;
 ///   - sessionRef and approvalRef are empty or a 22-character Ref, an Approval's ref is a Ref, and its ownerRef is empty, a Ref, instance or eval;
 ///   - an Approval's kind is one of Msg.Enum APPROVALKIND, its from and to are of APPROVALSTATE, and its change is one of APPROVALCHANGES;
-///   - a Pairing's change is one of PAIRINGCHANGES, an MCP's change one of MCPCHANGES, a Tool's classification one of CLASSIFICATIONS.
+///   - a Pairing's change is one of PAIRINGCHANGES, an MCP's change one of MCPCHANGES, a Tool's classification one of CLASSIFICATIONS;
+///   - an MCP call entry's (change called or refused) tool is not empty, and its outcome is one lower-case word of at most 24 letters (ok, cut, or a refusal or reason word), so that no argument or result text can be written in it.
 /// The description is built from the data: "<action>: <result>" (Action), "Approval <ref> <change>: <to>", "Pairing <change>",
-/// "Setting <setting> changed", "MCP server <server> <change>" and "Tool <tool> of <source>: <classification>". A Settings entry whose
+/// "Setting <setting> changed", "MCP server <server> <change>" ("MCP tool <tool> of <server> <change>: <outcome>" for a call) and "Tool <tool> of <source>: <classification>". A Settings entry whose
 /// setting Redact.SensitiveKey flags is written with from and to replaced by Redact REDACTED; the caller's object is not changed.
 /// The status is Write's.
 ClassMethod Record(type As %String, data As %DynamicObject) As %Status
@@ -94,7 +106,7 @@ ClassMethod Problem(type As %String, data As %DynamicObject) As %String [ Privat
 {
 	If '$ListFind($ListFromString(..#TYPES), type) Quit "it is not an OcuTalon audit type"
 	If '$IsObject(data) || ($ClassName(data) '= "%Library.DynamicObject") Quit "the data must be a dynamic object"
-	Set members = ..Shape(type)
+	Set members = ..Shape(type, $Select(data.%GetTypeOf("change") = "string": data.change, 1: ""))
 	Set iterator = data.%GetIterator()
 	While iterator.%GetNext(.key) {
 		If '$ListFind(members, key) Return "the member '" _ $Extract(key, 1, 32) _ "' is not in the shape"
@@ -130,6 +142,7 @@ ClassMethod MemberProblem(type As %String, name As %String, data As %DynamicObje
 		Quit $Select(value = "": "must not be empty", 1: "")
 	}
 	If name = "channel" Quit $Select('$ListFind($ListFromString(channels), value): "must be one of " _ channels, 1: "")
+	If (type = "MCP") && (name = "outcome") Quit $Select('$Match(value, "^[a-z]{1,24}$"): "must be one fixed lower-case word", 1: "")
 	If (name = "sessionRef") || (name = "approvalRef") {
 		Quit $Select((value '= "") && '##class(OcuTalon.Bridge.Approval).IsRef(value): "must be empty or a 22-character Ref", 1: "")
 	}
@@ -163,7 +176,7 @@ ClassMethod Describe(type As %String, data As %DynamicObject) As %String [ Priva
 		"Approval": "Approval " _ data.ref _ " " _ data.change _ ": " _ data.to,
 		"Pairing": "Pairing " _ data.change,
 		"Settings": "Setting " _ data.setting _ " changed",
-		"MCP": "MCP server " _ data.server _ " " _ data.change,
+		"MCP": $Select(data.%GetTypeOf("outcome") = "string": "MCP tool " _ data.tool _ " of " _ data.server _ " " _ data.change _ ": " _ data.outcome, 1: "MCP server " _ data.server _ " " _ data.change),
 		"Tool": "Tool " _ data.tool _ " of " _ data.source _ ": " _ data.classification,
 		: "")
 }

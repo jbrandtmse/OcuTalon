@@ -1,0 +1,21 @@
+{
+  "name": "mcp-held-replay",
+  "match": {
+    "marker": "mcp-held-replay"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_delete_ticket",
+        "input": {
+          "id": "T-1"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The ticket deletion was held for approval."
+    }
+  ]
+}

@@ -7837,6 +7837,7 @@ So that a tool I added can't change anything until I say yes.
 **Given** the mock MCP server's risky tool, with no platform policy covering it
 **When** the automated test asks for it in a user's turn
 **Then** the tool doesn't run without an approved request, runs once after approval, and the audit log holds the request, the answer and the call (FR-49, FR-9, NFR-13, AD-22)
+- DW-1220: An approved native MCP call replayed by Replay.Run is not rewritten into call_mcp_tool, so it runs through AI Hub's client with no deadline, cut, call-time fingerprint check or audit entry (ledger; routed by harvest 2026-11-12)
 
 ### Story 22.5: Poll a read-only MCP tool as a source
 
@@ -7890,6 +7891,7 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **Given** the worked example's guidance on classifying MCP tools, which the README's admin section (the admin guide) repeats
 **When** it describes classifying MCP tools
 **Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.2 (was 24.1) copies that sentence into the README's admin section with the link (FR-10, FR-61)
+- [AMENDED 2026-11-13, Contest Planner ruling F(2) on DW-1232] Until Story 21.10 merges (the web and phone cards for `mcp.replayToolChanged`), no release notes, guide or More to try text describes the changed-tool replay path; if a release carries 22.4 without 21.10, the notes leave that path out.
 
 ### Story 22.7: Send email from the chat, safe to you and approved for anyone else
 
@@ -7982,6 +7984,7 @@ So that a server that stops answering in the middle of a request can never hold 
 **When** the runner lists its tools or the model calls one of them
 **Then** OcuTalon's own Streamable HTTP client (Story 22.3's, with Story 22.9's bounds) does the listing and the call, both give up within a bounded time with a clear error, and the turn goes on without that server's tools; AI Hub's MCP client is no longer used for listing or calling, and the gate, classification by fingerprint, approval and audit apply exactly as before (FR-47, FR-48, FR-49, AD-10, AD-21, AD-31)
 **And** AD-21's "AI Hub lists, OcuTalon calls" rule and its Story 22.9 residual note are amended to match (AD-21)
+- DW-1221: Mcp.Client has no total deadline per request (Timeout is per read), so a server that trickles bytes can hold a runner job past CALLSECONDS (ledger; routed by harvest 2026-11-12)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 

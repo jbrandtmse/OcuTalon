@@ -41,7 +41,8 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Quit $$$OK
 }
 
-/// The rows are the 20 built-in tools (the 19 of Story 19.4 and incident_summary of Story 23.6): the 12 of release 1 (Tools.Names RELEASE1), propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), since Story 17.6, send_digest (Tools.Names DIGESTTOOLS), the four memory tools (Tools.Names MEMORYTOOLS, Story 19.3) and documents (Tools.Names DOCUMENTS, Story 19.4: AI Hub's knowledge base, a row that comes from the product's classification entry and not from a toolset), sorted by name, none of them a fixture or the bridge's example agent, and the
+/// The rows are the 21 built-in tools (the 19 of Story 19.4, incident_summary of Story 23.6 and, since Story 22.3, call_mcp_tool, the governed proxy of the MCP servers, which no agent holds and
+/// which a request offers only when an MCP server is attached to its tool manager): the 12 of release 1 (Tools.Names RELEASE1), propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), since Story 17.6, send_digest (Tools.Names DIGESTTOOLS), the four memory tools (Tools.Names MEMORYTOOLS, Story 19.3) and documents (Tools.Names DOCUMENTS, Story 19.4: AI Hub's knowledge base, a row that comes from the product's classification entry and not from a toolset), sorted by name, none of them a fixture or the bridge's example agent, and the
 /// classification, the read-only flag and the trusted-output flag of each row are those that the gate gives (Gate.ClassificationOf); for a tool that
 /// classifies by its arguments only the two flags are compared, since its classification is decided per call. The test seeds Decide's ToolClassification
 /// row through the install step first, so that the gate reads the product's entry, and puts the row back exactly as it found it.
@@ -62,8 +63,8 @@ Method TestToolRows()
 Method CheckToolRows() [ Private ]
 {
 	Set rows = $ClassMethod(..#GENERATOR, "ToolRows")
-	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "DOCUMENTS")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "INCIDENTSUMMARY"), $Parameter("OcuTalon.Tools.Names", "PROPOSEFIX"))
-	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1, one for propose_persona, one for send_digest, one for each memory tool, one for documents, one for incident_summary and one for propose_fix")
+	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "DOCUMENTS")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "INCIDENTSUMMARY"), $Parameter("OcuTalon.Tools.Names", "PROPOSEFIX"), $Parameter("OcuTalon.Tools.Names", "CALLMCPTOOL"))
+	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1, one for propose_persona, one for send_digest, one for each memory tool, one for documents, one for incident_summary, one for propose_fix and one for call_mcp_tool")
 	Set names = ""
 	Set bad = ""
 	Set iterator = rows.%GetIterator()
@@ -83,6 +84,27 @@ Method CheckToolRows() [ Private ]
 	}
 	Do $$$AssertEquals(bad, "", "every row is a class of OcuTalon.Tools, so no fixture and no bridge example appears")
 	Do $$$AssertEquals($ListToString(names), $ListToString(..Sorted(released)), "the names are those of RELEASE1 and propose_persona, sorted")
+}
+
+/// Story 22.3: call_mcp_tool is a row of the table, held by no agent: its source is the tool class OcuTalon.Tools.McpCall and its toolset OcuTalon.Tools.McpProxy, its step label is the
+/// fallback "Running an MCP tool", it is not read-only and not trusted output, its classification is the per-call rule of CLASSIFYRULECALLMCPTOOL, and it needs no resource. It is
+/// offered only by a request whose tool manager holds an MCP server, so no agent's own manager lists it (TestToolsMatchRunners, which compares each runner with the rows whose agents
+/// hold it), and the table shows it in the generated section (docker/tests/test-security-overview.sh compares the committed file with the generated one).
+Method TestCallMcpToolRow()
+{
+	Set row = ..RowOf("call_mcp_tool")
+	If '$IsObject(row) {
+		Do $$$AssertTrue(0, "the model has a row for call_mcp_tool")
+		Quit
+	}
+	Do $$$AssertEquals(row.source _ "|" _ row.toolset, "OcuTalon.Tools.McpCall|OcuTalon.Tools.McpProxy", "its source class and its toolset")
+	Do $$$AssertEquals(row.agents.%Size(), 0, "no agent holds it")
+	Do $$$AssertEquals(row.label, "Running an MCP tool", "its step label is the fallback of the tool's class")
+	Do $$$AssertEquals(row.classification, "per call: " _ $Parameter("OcuTalon.Tools.McpCall", "CLASSIFYRULECALLMCPTOOL"), "its classification is the per-call rule")
+	Do $$$AssertEquals(row.readOnly _ "|" _ row.trustedOutput _ "|" _ row.resources.%Size(), "0|0|0", "not read-only, not trusted output, no resource")
+	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
+	Set expected = "| `call_mcp_tool` | `OcuTalon.Tools.McpCall` | `OcuTalon.Tools.McpProxy` | none | Running an MCP tool | per call: the admin's classification of the server's tool at its current fingerprint; unclassified counts as risky | no | no | none |"
+	Do $$$AssertTrue(..HasLine(sections("tools"), expected), "the table of the tools section holds this row")
 }
 
 /// DW-521: recent_activity is one of the 13 rows, with its source, toolset, agent, label, classification and flags, in the table as well.
@@ -484,6 +506,8 @@ Method TestAscii()
 /// is compared with the rows whose agents hold the runner's AgentClass. The test names the runner and the tool of a difference. A production that
 /// does not run fails the test. The one tool that reaches a request through TurnToolsClass (Story 19.5), documents, is no tool of the agent's own tool manager,
 /// which the inventory lists: its row is checked against what a local turn of the agent offers (the first model request of a Chat turn through the runner).
+/// The tool call_mcp_tool (Story 22.3) is the other tool that no own manager lists: it is offered only by the manager of a request that holds an MCP server, and no agent holds it, so
+/// its row has no agent and no runner is compared with it (TestCallMcpToolRow pins the row; Test.Mcp.Attach pins the manager of a request, with and without a server).
 Method TestToolsMatchRunners()
 {
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
