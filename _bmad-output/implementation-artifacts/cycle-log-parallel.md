@@ -3826,3 +3826,24 @@
 2026-11-12T22:51:35Z	Epic 25	runner_reported	PLANNER_REPORT story=25.3_plan(ready-for-dev,oversized) rulings_needed=demo(a_OFF_recommended),split_25.6,veto_route/table/columns,gap_until_26.2,GUIDE_line local=bcea7098
 2026-11-12T22:52:32Z	Epic 25	owner_decision	via=contest_planner what=25.3_gate(demo_OFF;split_25.6;veto+4_security_conditions;capability_flag_hide_until_26.2+fixed_reply_no_model_call;GUIDE_line_with_25.6/26.2) file=prompts/story-253-rulings-20261112.md
 2026-11-12T23:42:36Z	Run	owner_decision	via=contest_planner what=CI_HOLD_OFF+RELEASE_DONE_1.0.8 main=fb7a9fca(tag_v1.0.8,CI_green_43320570141/43320570283) merge-back=bc3eea8f push_order=0b(0.31+0.32)+rerun_mergeback,A(ab9bc6f7),C(21.8),reruns(23.12,21.7,22.9),0.35(held_merge) stagger=~10min
+2026-11-12T23:42:49Z	Run	ci_rerun	head=bc3eea8f runs=43320628392,43320628369 reason=merge-back_runs_cancelled_for_rc2(post-release)
+2026-11-12T23:48:07Z	Epic 0	ci_observed	lane=B head=cf91f2ba(0.31+0.32) runs=43331852589,43331852594 registered=yes
+2026-11-12T23:58:04Z	Epic 23	ci_rerun	head=4444bda0 story=23.12 runs=43235350028,43235350476(failed/cancelled_jobs) reason=post-hold_rerun(step4)
+2026-11-12T23:58:04Z	Epic 0	ci_observed	lane=A head=ab9bc6f7(0.33+0.29) runs=43331999232,43331999315 registered=yes
+2026-11-13T00:06:33Z	Epic 21	ci_rerun	head=9e428b94 story=21.7 runs=43268103148,43268103179 reason=post-hold_rerun(step4)
+2026-11-13T00:15:01Z	Epic 22	ci_rerun	head=148f349f story=22.9 runs=43269496267,43269496130 reason=post-hold_rerun(step4)
+2026-11-13T01:01:23Z	Epic 0	runner_reported	CI_WAIT stories=0.31+0.32 head=cf91f2ba local=a3e95871 lane-a=success(MEASURED_ipm-install_1769s,ipm-install-p_1630s) ci=pending(queue_saturated)
+2026-11-13T01:01:54Z	Run	ci_red_classified	sha=bc3eea8f run=43320628392 attempt=2 job=iris(shards-4) test=rail.spec.ts:432_R10 class=flake(DW-1093) action=rerun_failed_once
+2026-11-13T01:02:27Z	Epic 23	ci_green_verified	head=4444bda0 runs=43235350028(att3),43235350476 result=success story=23.12
+2026-11-13T01:02:27Z	Epic 23	merge_gate_blocked	reason=code_conflict file=web/scripts/rail-view.test.mjs(import_block:0.30_GUIDE_URL_vs_23.12) action=resume_runner_23_integrate_forward(U14)
+2026-11-13T01:09:07Z	Epic 22	runner_reported	LOCAL_READY stories=22.3(8352ff2a),22.4(bf91d6d5) local=8454e756 decisions=DW-1240,DW-1232 public_text=DW-1227 release_tool=DW-1239(upgrade-harness_reject+ToolFingerprint) plan=one_combined_push_22.9+22.3+22.4(supersedes_148f349f_rerun)
+2026-11-13T01:15:53Z	Epic 22	owner_decision	via=contest_planner what=lane_D_rulings(DW-1240_stricter;DW-1232_to_21.10+notes_condition;DW-1227_approved;DW-1239_RELEASE_TOOL_approved+conditions) file=prompts/gate-rulings-20261112-1810.md#F relay=runner_22_at_turn_end
+2026-11-13T01:15:53Z	Epic 23	runner_reported	CI_WAIT story=23.12 head=415ea02d(re-integrated_onto_bc3eea8f,rail-view_plain_union) local=97da499e runs=43342524742,43342524753
+2026-11-13T01:22:14Z	Epic 36	runner_reported	LOCAL_READY story=36.1 local=abcf5dcb task0=counter_moves_on_save_not_read ledger=DW-1235(by-design_core_item_props),DW-1236/37/38/42(wontfix)
+2026-11-13T01:32:33Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=bc3eea8f runs=43320628392(att3),43320628369 result=success flake=DW-1093 note=1.0.8_merge-back_green
+2026-11-13T01:40:35Z	Epic 21	runner_reported	LOCAL_READY stories=21.8(code_7dfdc543,DW-1230_fixed),21.12(DW-1207,code_43e14235+41549d46) local=41549d46 questions=DW-1234(switch_name),README_More_link(PUBLIC_TEXT) split=21.12_gap_fill
+2026-11-13T01:48:45Z	Epic 21	owner_decision	via=contest_planner what=DW-1234_shared_switch_ratified(+2_comment_lines)+README_More_link_approved file=prompts/gate-rulings-20261112-1810.md#G relay=runner_C_at_turn_end
+2026-11-13T01:56:53Z	Epic 0	ci_observed	sha=ab9bc6f7 run=43331999232 job=iris(production) test=first_start_not_ready_400s class=flake(DW-1160_family;pre-0.32_budget) action=rerun_at_completion
+2026-11-13T01:58:16Z	Epic 0	ci_green_verified	head=cf91f2ba runs=43331852589,43331852594 result=success stories=0.31+0.32
+2026-11-13T01:58:16Z	Epic 0	amendments_verified	amendments=epics_0.31+0.32_blocks extensions=eval_case+results,Test/Eval/*,ci/units.sh,ci/iris.sh,lib-live.sh,test-ci-config,test-lib-live,first-start_scripts release_tool=4_timeout-minutes(Planner_approved_as_landed) ok=true
+2026-11-13T01:58:16Z	Epic 0	merge_enqueued	part=0.31+0.32 head=a3e95871 code_head=cf91f2ba
