@@ -2,9 +2,9 @@
 title: 'Story 36.4: Set the on-call person and backup in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
-baseline_revision: '71215884b780f03744957830c847882e483c1729'
-baseline_commit: '71215884b780f03744957830c847882e483c1729'
+status: 'done'
+baseline_revision: '1721a2e6331fdc42a904342faa4f2b68f2674087'
+baseline_commit: '1721a2e6331fdc42a904342faa4f2b68f2674087'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -203,7 +203,7 @@ Body members (all JSON strings except the minutes): `primaryPerson`, `primaryUse
 
 ### Review Findings
 
-- [ ] [Orchestrator] Story 21.14's `OcuTalon.Test.Core.SecretHandoff.TraceLeaks(text)` has landed (it scans `^Ens.MessageBodyD/S`, `^Ens.MessageHeaderD` and `^Ens.Util.LogD`). Per the orchestrator's directive, use it in `OcuTalon.Test.Web.OnCallSettingsApi.TestValuesOnlyInTheAuditLog`: assert `TraceLeaks(<primary address>)`, `TraceLeaks(<backup address>)` and `TraceLeaks(<user name>)` are each "" after the saves, the same way `Test/Web/SettingsApi.cls` L683 does for the mailbox, keeping the test's existing checks. Write the `mutation:` line (e.g. put the address into the traced `SaveSettings` body instead of the handoff -> red) and run the class on a lane-B throwaway.
+- [x] [Orchestrator] Story 21.14's `OcuTalon.Test.Core.SecretHandoff.TraceLeaks(text)` has landed (it scans `^Ens.MessageBodyD/S`, `^Ens.MessageHeaderD` and `^Ens.Util.LogD`). Per the orchestrator's directive, use it in `OcuTalon.Test.Web.OnCallSettingsApi.TestValuesOnlyInTheAuditLog`: assert `TraceLeaks(<primary address>)`, `TraceLeaks(<backup address>)` and `TraceLeaks(<user name>)` are each "" after the saves, the same way `Test/Web/SettingsApi.cls` L683 does for the mailbox, keeping the test's existing checks. Write the `mutation:` line (e.g. put the address into the traced `SaveSettings` body instead of the handoff -> red) and run the class on a lane-B throwaway.
 
 - [x] [CI] `web/e2e/settings/settings.spec.ts` S1f ("a failed load shows the load error, and Retry loads the page", L137) still expects `toHaveCount(7)` section links; with On call there are 8 (CI run 43474801972, iris (shards-4) live:sign-in-2, the only failure). Update it to 8 (the S1 case this story already updated to eight), sweep the e2e and node specs once more for any other count or list of the settings sections that now holds a stale 7 or omits On call, and run `live sign-in-2` for the part that holds settings.spec.ts on a fresh lane-B stack (`bash ci/iris.sh classes`-style listing or `--part k/n` until settings.spec.ts is in it). Pin with its mutation (back to 7 -> S1f red).
 
@@ -315,6 +315,20 @@ Checklist (the lead's, all confirmed fixed):
   - `[low]` `[reject]` Edge 2: comment on `SECTIONS` that on-call is POST-only - narrating comment, no named harm.
   - `[low]` `[patch]` VG other 1: S8's doc comment said "nine settings calls"; the loop now makes ten POSTs - patched: comment now says ten and names them.
   - `[low]` `[reject]` VG other 2: `on-call` in `SECTIONS` has no mutation line of its own - S8 pins no AC; the 403 AC's pinning test is `OnCallSettingsApi.TestNonAdmin403`, which has its line.
+
+### 2026-11-13 - Review pass (rework iteration 2, Orchestrator item)
+- verdicts: 9 findings - high 0, medium 0, low 3, false 6, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: the mutation pins only the primary address; backup and user-name assertions have no mutation of their own - Rule 19 asks for one demonstrated mutation per AC, not per assertion; the three assertions share one call shape and `TestTraceLeaksFinds` pins the scanner.
+  - `[false]` `[reject]` Blind: `review_loop_iteration: 0` disagrees with "Rework iteration 2" - that counter counts bad_spec loopbacks (none here), not the orchestrator's rework iterations.
+  - `[low]` `[patch]` Blind: the class-header sentence about trace globals is a run-on; also `$ClassMethod` form differs from the direct calls above it - comment split into its own sentence (patched); the `$ClassMethod` form is kept because it is the pattern the directive names (`Test/Web/SettingsApi.cls` L683).
+  - `[false]` `[reject]` Edge: the scan may run before the save has finished - the route's Submit is synchronous (the 200 carries the CommandResult) and the audit Wait for six entries precedes the scan.
+  - `[false]` `[reject]` Edge: three unbounded scans may be slow on a warm stack - the class ran in 0.3 to 1.3 s on the warm stack and 0.86 s on a fresh one.
+  - `[low]` `[reject]` Edge: the `$Random(1000000000)` tag can be short, so a needle could match residue - the needles carry fixed prefixes (`zzocleak`, `zzleak...@example.com`); a collision needs about a one-in-a-million-scale coincidence and only on a reused warm stack; padding the tag adds code for no reachable failure.
+  - `[false]` `[reject]` Edge: the mutation line does not isolate the backup and user-name assertions - same as the first row.
+  - `[false]` `[reject]` Verification-gap: the red was also seen in older assertions, so the new ones are not shown to catch anything new - the run's failure list names "no trace global holds the on-call person's address" red; the older tables are other surfaces than the Ens trace globals the new assertions cover; Rule 19 is met.
+  - `[false]` `[reject]` Verification-gap (other): `$ClassMethod` string dispatch fails at run time on a rename - same style as `SettingsApi.cls` L683, and the test would go red at once.
+- Intent-alignment auditor: descriptive report only (reading C, the Orchestrator item, implemented; no divergence on its surface); no finding.
 
 ## Design Notes
 
@@ -507,6 +521,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: CR item 8 (by-email user cleared): `OnCallRole` stores the typed name for a person that is not a known user (`1: name`) -> `SettingsOnCall.TestSavedCases` red ("with the user cleared, not stored"); tree restored byte-identical (cmp)
 - mutation: CR item 10 (%All at OnPreDispatch): `Api.OnPreDispatch`'s admin gate let `%All` through (`&& '(..Roles() [ "%All")`) -> `OnCallSettingsApi.TestNonAdmin403` red ("%All: the dispatch stops", "%All: 403 not_admin from OnPreDispatch"); tree restored byte-identical (cmp)
 - mutation: CI item (S1f's section count): `web/e2e/settings/settings.spec.ts` S1f's `toHaveCount(8)` put back to 7 -> `live sign-in-2 --part 11/12` red on S1f (`Expected: 7`, `Received: 8`, 25 other tests passed); reverted, `git status --short` and `git diff` byte-identical to before the mutation; the same assertion at 7 was red in CI run 43474801972; with 8 (and `SECTIONS` holding `on-call` for the non-admin 403 loop) the part passes, 26 passed.
+- mutation: Orchestrator item (TraceLeaks in `OnCallSettingsApi.TestValuesOnlyInTheAuditLog`): `Web/OnCallSettings.cls` `Hand` put `"primaryEmail": (body.primaryEmail)` into the SaveSettings `Changes` beside the handoff -> `OnCallSettingsApi` red, among others "no trace global holds the on-call person's address" (warm lane-B stack); reverted, `git status --short` and `git diff --stat` byte-identical to before. Rework iteration 2: `OnCallSettingsApi` passed on the warm stack (after the revert) and on a fresh lane-B stack; `bash docker/tests/test-boundaries.sh` passed.
 
 ## Auto Run Result
 
@@ -532,3 +547,5 @@ Blocking condition: none
 **Residual risks.** The `settings.spec.ts` S1 browser run is left to CI (Decided in-stage 14). The patch subagent sent two warm class runs in one message once (both passed; a process slip, not a protocol violation of git). `new_units: none`.
 
 **Rework iteration 1 (CI item).** Implemented: `web/e2e/settings/settings.spec.ts` S1f now expects 8 section links, `SECTIONS` holds `on-call` (so S8's non-admin loop covers it) and S8's doc comment counts ten POSTs; the sweep of `web/e2e` and `web/scripts` found no other stale count (O6's seven links are deliberate). Review: 9 findings, one low patched (the S8 comment), 8 rejected with reasons in the triage log. Follow-up review recommended: false (this follow-up pass patched no high). Verification: `live sign-in-2 --part 11/12` on a fresh lane-B stack, 26 passed; `npm --prefix web test` 1991 passed; `bash docker/tests/test-boundaries.sh` passed; mutation line under `## Verification`.
+
+**Rework iteration 2 (Orchestrator item).** Implemented: `OcuTalon.Test.Web.OnCallSettingsApi.TestValuesOnlyInTheAuditLog` now asserts `OcuTalon.Test.Core.SecretHandoff.TraceLeaks` is "" for the primary address, the backup address and the user name after the saves; every existing check is kept. Files changed: `src/ocutalon/cls/OcuTalon/Test/Web/OnCallSettingsApi.cls` (three assertions and a header sentence). Review: 9 findings (low 3, false 6); one low patched (the header sentence), 8 rejected with reasons in the triage log; none deferred. Follow-up review recommended: false (this follow-up pass patched no high). Verification: `OnCallSettingsApi` passed on a warm lane-B stack and on a fresh one; `bash docker/tests/test-boundaries.sh` passed; the mutation line is under `## Verification`. Residual risk: the final header-sentence patch was a comment-only edit made after the last class run. Every stack torn down.

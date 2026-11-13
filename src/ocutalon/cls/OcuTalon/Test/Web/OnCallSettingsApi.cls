@@ -12,7 +12,7 @@
 ///   - TestCommandHoldsOnlyTheHandoff: an admin's save is 200 with the on-call section, and its SaveSettings command's Changes is exactly {"handoff": uri};
 ///   - TestValuesOnlyInTheAuditLog (V3, DW-1249): the one leak scan. An admin's save of unique addresses and a user name goes through the real production. They are in
 ///     the IRIS audit entries (the positive control) and in no event log row, message header, SaveSettings, CommandResult or Notification row, or ^OcuTalon* global
-///     but the setting rows (and, for the user name, the session row that makes the user).
+///     but the setting rows (and, for the user name, the session row that makes the user). None of them is in a trace global either (Ens.MessageBodyD/S, Ens.MessageHeaderD, Ens.Util.LogD).
 Class OcuTalon.Test.Web.OnCallSettingsApi Extends %UnitTest.TestCase
 {
 
@@ -272,6 +272,10 @@ Method TestValuesOnlyInTheAuditLog()
 		If (name '= "OcuTalonP.SessionD") && (name '= "OcuTalonP.SessionI") Set rest = rest_$ListBuild(name)
 	}
 	Do $$$AssertEquals($ListToString(rest), "OcuTalonP.SettingD", "the user name is in no ^OcuTalon* global but the setting rows and the session row of the fixture user")
+	Set handoff = "OcuTalon.Test.Core.SecretHandoff"
+	Do $$$AssertEquals($ClassMethod(handoff, "TraceLeaks", primary), "", "no trace global holds the on-call person's address")
+	Do $$$AssertEquals($ClassMethod(handoff, "TraceLeaks", backup), "", "no trace global holds the backup's address")
+	Do $$$AssertEquals($ClassMethod(handoff, "TraceLeaks", user), "", "no trace global holds the user name")
 }
 
 /// --- helpers ---
