@@ -3,7 +3,7 @@
 /// called.
 ///   - TestAgents: each agent extends %AI.Agent, has MODEL claude-haiku-5-5 and its own MOCKKEY (the template-token check
 ///     on the INSTRUCTIONS is in OcuTalon.Test.Agent.Instructions);
-///   - TestToolNames: the tool names are distinct snake_case values (the twelve release-1 names, propose_persona, send_digest and the four memory names), and
+///   - TestToolNames: the tool names are 22 distinct snake_case values (the twelve release-1 names and ten names of later steps), and
 ///     RELEASE1 lists exactly the twelve;
 ///   - TestCompactionPrompt: the prompt is ASCII, starts with the prefix and names the seven keys of the summary.
 Class OcuTalon.Test.Agent.Constants Extends %UnitTest.TestCase
@@ -25,8 +25,9 @@ Method TestAgents()
 	Do $$$AssertTrue(($List(keys, 1) '= $List(keys, 2)) && ($List(keys, 1) '= $List(keys, 3)) && ($List(keys, 2) '= $List(keys, 3)), "the keys are distinct")
 }
 
-/// OcuTalon.Tools.Names holds 22 distinct snake_case values (12 of release 1, propose_persona, since Story 17.6, DIGESTTOOLS, the four memory names, DOCUMENTS of Story 19.4, INCIDENTSUMMARY of Story 23.6, PROPOSEFIX and CALLMCPTOOL), and RELEASE1 lists exactly the 12 of release 1, comma-separated;
-/// propose_persona, send_digest and the four memory names are parameters and are not in RELEASE1, and MEMORYTOOLS lists the four memory names.
+/// OcuTalon.Tools.Names holds 22 distinct snake_case values: the 12 of release 1, PROPOSEPERSONA, DIGESTTOOLS (Story 17.6), the four memory names,
+/// DOCUMENTS (Story 19.4), INCIDENTSUMMARY (Story 23.6), PROPOSEFIX (Story 23.2) and CALLMCPTOOL (Story 22.3). RELEASE1 lists exactly the 12 of
+/// release 1, comma-separated, and none of the ten later names; MEMORYTOOLS lists the four memory names.
 Method TestToolNames()
 {
 	Set statement = ##class(%SQL.Statement).%New()
@@ -56,6 +57,8 @@ Method TestToolNames()
 	Do $$$AssertEquals($ListFind(release, $Parameter("OcuTalon.Tools.Names", "INCIDENTSUMMARY")), 0, "and it is not in RELEASE1")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "CALLMCPTOOL"), "call_mcp_tool", "the governed MCP proxy tool is call_mcp_tool")
 	Do $$$AssertTrue('$ListFind(release, "call_mcp_tool"), "RELEASE1 does not list call_mcp_tool")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "PROPOSEFIX"), "propose_fix", "the fix tool is propose_fix")
+	Do $$$AssertTrue('$ListFind(release, "propose_fix"), "RELEASE1 does not list propose_fix")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "CHECKSTATUS"), "check_status", "the status tool is check_status")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), "propose_persona", "the persona proposal tool is propose_persona")
 	Do $$$AssertTrue('$ListFind(release, "propose_persona"), "RELEASE1 does not list propose_persona")

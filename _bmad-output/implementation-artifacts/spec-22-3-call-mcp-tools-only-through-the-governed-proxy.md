@@ -268,6 +268,20 @@ Rejected or closed at emission (this re-review):
 - [x] [CI] iris (shards-8): `OcuTalon.Test.Agent.Constants` `TestToolNames` fails on af886ee3 (ci run 43344958166, unit shard:lane-a@Agent): "there are 21 tool names (Story 23.2 adds propose_fix)" -- Story 22.3 added `Tools.Names.#CALLMCPTOOL` (`call_mcp_tool`), so the count is now 22 -- `src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls` L44 -- update the expected count to the real number and the message to name Story 22.3's `call_mcp_tool`; if the test also lists the names, add `call_mcp_tool` there. Verify with `ci/iris.sh class OcuTalon.Test.Agent.Constants` on a lane D warm stack.
   - `mutation:` drop `CALLMCPTOOL` from `Tools.Names` -> `Test.Agent.Constants:TestToolNames` red (the count of 22 and the `call_mcp_tool` value assertion); reverted byte-identical.
 
+Code re-review 2026-11-12 (rework iteration 2, the `[CI]` item for shards-8; epic-cycle code-review stage; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, full-opus; scope: the rework diff `cc3bea77..f745a688`, outside it HIGH only). Fields: severity | fix-risk | footprint | spec-status. No HIGH, no MED. Checklist: the count of 22 equals the parameters of `Tools.Names` less `RELEASE1` and `MEMORYTOOLS`; the assertion stays exact and nothing was removed or loosened; the recorded mutation was re-applied and went red.
+
+- [x] [Review][Patch] LOW: the test's doc comments did not describe the set it pins: the class header still listed only the release-1 names, propose_persona, send_digest and the memory names, and the method doc's second line named only those as absent from RELEASE1, with "propose_persona, since Story 17.6" attaching 17.6 to the wrong name [src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls:6, :28] - low | low (comments only) | in-story | clear. Fixed: both comments state the 22 values, each later name with its story, and that RELEASE1 lists none of the ten later names. Sources: blind-hunter + acceptance-auditor + verification-gap.
+- [x] [Review][Patch] LOW: `PROPOSEFIX` was counted but never pinned, unlike every other later name (value and absence from RELEASE1) [src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls:TestToolNames] - low | low (two assertions in the pattern beside them) | in-story | clear. Fixed: `PROPOSEFIX` = `propose_fix` and RELEASE1 does not list it; class green on the lane D warm stack. Mutation recorded. Source: blind-hunter.
+- [x] [Review][Patch] LOW (Rule 19): the item's mutation sat only under the ticked item, not in `## Verification` [spec ## Verification] - low | low | in-story | clear. Closed: the mutation re-applied, observed red and reverted; the line is written under Verification. Sources: verification-gap + blind-hunter.
+- [x] [Review][Patch] LOW: the new "RELEASE1 does not list call_mcp_tool" check had no demonstrated red [src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls:TestToolNames] - low | low | in-story | clear. Closed: `CALLMCPTOOL` appended to RELEASE1 turned it red (with the 12-name count); recorded under Verification. Source: blind-hunter.
+
+Rejected or closed at emission (this re-review):
+- `[low]` `reject` the iteration-2 triage row rejects value checks for `PROPOSEFIX` and `DOCUMENTS`, but `DOCUMENTS` was already pinned - a fix that edits the self-review's record; the `PROPOSEFIX` gap it names is patched above. (acceptance-auditor)
+- `[low]` `reject` frontmatter `status: 'done'` before CI confirms shards-8 - the lead's push and CI run are the gate (red CI re-opens the story, Rule 15); the Auto Run Result names the risk. (acceptance-auditor, blind-hunter)
+- `[low]` `reject` the triage heading says "follow-up pass false" while the Auto Run Result says "follow-up pass" - a fix that edits the spec's narration; no gate reads either. (blind-hunter)
+- `[low]` `reject` the rewritten Residual risks drops the `overviewdoc` stand-in controls - a fix that edits the spec; Rule 14 scopes a rework's Auto Run Result to that pass, and iteration 1's triage records Story 22.6 as their owner. (blind-hunter)
+- Edge Case Hunter: 0 findings.
+
 ## Spec Change Log
 
 - 2026-11-13 (runner, rework iteration 2, trigger ci): re-opened for the [CI] item above (shards-8 red on af886ee3: tool-name count).
@@ -553,6 +567,10 @@ There are no `(once)` lines. CI runs the full suite (`live:security-overview`, t
 - `mutation:` the can't-connect check of `ovw_doc_problems` made silent (`*) echo "the MCP tools section does not open ..." ;;` to `*) ;;`) -> red in "control: the can't-connect sentence below the first line, with the switch forced off".
 - `mutation:` the rules-sentence check of `ovw_doc_problems` replaced by `:` -> red in "control: the MCP rules sentence dropped, with the switch forced off".
 - `mutation:` the shim of `ovw_doc_problems_no_mcp` made a no-match (`-- src` to `-- srcX`) -> red in both forced-off controls.
+
+**Re-review (2026-11-12, rework iteration 2, `Test.Agent.Constants:TestToolNames`; each mutation applied to `src/ocutalon/cls/OcuTalon/Tools/Names.cls`, observed red with `OCUTALON_WARM=1 ci/iris.sh class OcuTalon.Test.Agent.Constants` on the lane D warm stack, reverted byte for byte, `git status --short` and `git diff --stat` identical to before; green before and after):**
+- `mutation:` `Parameter CALLMCPTOOL` deleted -> `TestToolNames` red ("there are 22 tool names (Story 22.3 adds call_mcp_tool)", "the governed MCP proxy tool is call_mcp_tool").
+- `mutation:` `CALLMCPTOOL` appended to `RELEASE1` and `PROPOSEFIX` set to `propose_fixx` -> `TestToolNames` red ("RELEASE1 lists 12 names", "RELEASE1 does not list call_mcp_tool", "the fix tool is propose_fix").
 
 **Shared surfaces:**
 - `Tools.Names` (the mock's count; `CheckToolRows`);
