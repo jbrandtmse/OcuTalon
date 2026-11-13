@@ -3406,6 +3406,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T12:41:04Z occurrence=feature-merge-back by=orchestrator note=feature 8345cfca (v1.0.1 merge-back) run 42021667697 iris (browser) job 127225676199 live:sign-in page.goto interrupted by chrome-error://chromewebdata/; second sighting today (34.1 de02fc38 shards-3); failed job rerun once
 - 2026-11-07T01:02:46Z occurrence=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged note=local_live:demo-path_on_the_integrated_tree(e03ca809,lane-D,e7s9if):07_sign-in_page.goto_interrupted_by_navigation_to_?signedOut=1(not_chrome-error);08_cascaded(07's_replay_request_missing);unchanged_rerun_8_of_8_steps_floor_15_of_15
 - 2026-11-07T20:58:59Z status=routed owner=burndown by=ci note=occurrence OCT-epic11 882b6d4b run 42406393504 browser live:demo-path 07-failure-paths:60 page.goto interrupted by navigation to ?signedOut=1, then 08 'replay request is pending'; one rerun requested by the orchestrator
+- 2026-11-13T06:13:39Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy note=a758d17a_ci_43370177969_shards-10_live:sign-in_decision.spec_D8_chrome-error_navigation
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
@@ -7447,8 +7448,24 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: found by the 22.7 plan; EmailOut keys de-duplication on ApprovalRef only; Channel/Email is Epic 21's (contended)
 - 2026-11-13T01:59:09Z status=escalated owner=burndown by=harvest note=for the orchestrator: a Lane C fix (Epic 21) before or with 22.7
 - 2026-11-13T05:14:18Z status=routed owner=burndown by=orchestrator note=Planner_H(ii):Lane_C_new_Story_21.13_fixes_it_before_22.7_merges;test=re-sent_turn_same_key_sends_once
+- 2026-11-13T07:03:52Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone note=22.7_safe_path_same-turn-twice_pin_waits_for_21.13
 
 ### DW-1256: The own-address check is copied into Fix.Kind.Email.OwnAddressOnly (22.7) because the originals are private in CommandsIn and EmailOut; unify after the contest
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
 - evidence: Planner H (a) approved the forced copy with a unification entry for after the contest
 - 2026-11-13T05:14:19Z status=routed owner=burndown by=harvest note=post-contest: make CommandsIn and EmailOut call one shared check (Lane C)
+
+### DW-1261: The approval card for an email request shows recipients as an object reference (2@%Library.DynamicArray) and no subject or text, so a user could approve an email the card does not show (Planner H (iii) requires the exact content on the card)
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: high | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Live/Payload/Approval.cls
+- evidence: 22.7 Task 0: the Live approval payload renders dryRun.to as an object reference; the card is Story 21.11's (Lane B/C, contended); the stored dry run is exact
+- 2026-11-13T07:03:52Z status=escalated owner=burndown by=harvest note=for the orchestrator: 22.7's merge must also wait for the card fix (21.11 or a Live payload fix in Lane B), per ruling H (iii)
+
+### DW-1262: A non-owner session's send_email to the mailbox owner's address is raised as an approval and, once approved, sent from the owner's mailbox with that session as SessionRef
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
+- evidence: matrix row says raised; product question whether a non-owner may send through the owner's mailbox at all
+- 2026-11-13T07:03:52Z status=decision-pending owner=burndown by=harvest note=product ruling needed (Planner)
+
+### DW-1263: The MESSAGEFAILED exception and never-submitted paths of an approved email have no test
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
+- evidence: needs a probe seam
+- 2026-11-13T07:03:52Z status=open owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=harvest note=in-story: QA adds a probe-seam test or closes with reopen_if
