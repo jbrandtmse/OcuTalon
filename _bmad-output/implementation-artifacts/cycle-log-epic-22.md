@@ -212,3 +212,4 @@
 2026-11-13T08:32:26Z	Story 22.7	committed	sha=LOCAL(not_pushed:merge_waits_21.13_DW-1244_and_the_card_DW-1261) ci=none_yet
 2026-11-13T08:32:26Z	Epic 22	ci_rerun	run=43370177969 sha=a758d17a jobs=failed(shards-10_DW-555,shards-3_demo-switch) reason=one_rerun_to_classify
 2026-11-13T09:04:32Z	Epic 22	ci_resolved	story=22.9,22.3,22.4 sha=a758d17a runs=43370177969,43370177998 result=success failed=none via=none resolved_at=part_ready note=attempt2_green(shards-10_DW-555_flake;shards-3_demo-switch_flake_DW-1264)
+2026-11-13T09:20:01Z	Story 22.4	harness_live_run	result=pass mode=release candidate=a758d17a previous=v1.0.8(fb7a9fca,built_as_1.0.8-pre.1) tag=e22sharn1 run=2026-11-13T09:06:54Z..09:19:38Z rows=13_pass(approval_6_checks:second_request_raised,fingerprint_empty_before/after_upgrade/after_answers,approve_200_incident_resolved,reject_200_rejected) merge_retries=0 lane=D(throwaway,torn_down) log=<scratchpad>/e22sharn/run/ ruling=Planner_J
