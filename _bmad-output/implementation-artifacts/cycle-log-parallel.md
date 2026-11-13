@@ -3933,3 +3933,5 @@
 2026-11-13T10:00:31Z	Run	hold_saved	WIP_pushed_by_explicit_path refs=hold/OCT-epic22-20261113(46d7407e,17_commits_incl_22.7_code),hold/OCT-epic36-20261113(4e2c246b),hold/OCT-epic37-20261113(694097e0) ci_triggered=no(refs_outside_workflow_patterns) dirty_trees=none
 2026-11-13T10:02:25Z	Epic 21	runner_ended	reason=hold head=9aec7dee origin=4eb46cdd(CI_pending:43399692299,43399692062) backup=hold/OCT-epic21-20261113
 2026-11-13T10:02:25Z	Run	hold_complete	shas=feature:0c481884(CI_pending),OCT-epic21:4eb46cdd(+hold/9aec7dee),OCT-epic22:a758d17a(+hold/46d7407e),OCT-epic36:16499946(+hold/4e2c246b),OCT-epic37:91c837e3(+hold/694097e0),OCT-epic0:e168d257(0.35_held_merge) worktrees=clean runners=all_ended locks=none throwaways=none hold_patches=none lock=kept(no_run-end)
+2026-11-13T10:02:45Z	Run	inbox_hold_item	id=U-328
+2026-11-13T10:02:45Z	Run	all_parked_report_sent	to=Contest_Planner
