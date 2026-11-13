@@ -336,3 +336,5 @@
 2026-11-13T01:08:31Z	Story 23.12	committed	sha=415ea02d note=re-integrated_onto_bc3eea8f(1.0.8_merge-back);supersedes_4444bda0_for_merge ci=pending runs=43342524742,43342524753
 2026-11-13T01:08:31Z	Epic 23	ledger_burndown_skipped	reason=epic_open(23.3,23.4,23.8_wait_on_Epic_36;part_completion_precedent_2026-11-11) epic_owned_open=1(23-3:owned_by_waiting_story) this_dispatch_resolved=DW-1068,DW-1186,DW-1159
 2026-11-13T01:08:31Z	Epic 23	epic_retro_skipped	reason=policy(gates.retrospective:skip)
+2026-11-13T04:12:59Z	Story 23.12	ci_resolved	story=23.12 sha=415ea02d runs=43342524742,43342524753 result=success failed=none via=none resolved_at=part_ready first_ci=success(on_bc3eea8f_merge)
+2026-11-13T04:12:59Z	Story 23.12	part_ready	code_head=415ea02d feature_base=bc3eea8f feature_now=1fb800c2(dry_merge:sprint-status.yaml_only) amendments=epics.md(Story_23.12_block;DW-1159) footprint_extensions=web/**(14_files) new_units=none ci_groups=unchanged resolved=DW-1159 public_text=none
