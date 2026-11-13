@@ -257,6 +257,14 @@ Line numbers are those of this branch after the Epic 22 merge (`3d94a219`: 22.9,
   - **B2, added refusal.** Both McpOps' address check and the route's refuse an address that holds `?` or `#` (a query string or a fragment). It is a 400 `bad_mcp_server` with the field `address`, the McpOps refusal mapped to its field like the others, and nothing written or audited. The new field text is T12, word for word: "An MCP server's address can't hold a query string (the part after ?). Put a key in Secret instead. Nothing was changed." Add one test that refuses such an address at the route and at McpOps, with its mutation: the check skipped -> red. No doc note. If Task 0's measured attach address, or the Jira example's address (`docs/mcp-jira-example.md` and the guide, if present), needs a query string, STOP and report.
   - The address rules stay EXACTLY as ruled. Lane D's 22.6 review checks its claims against them at its merge.
   - Keep new web code in lazily loaded chunks. The initial bundle has about 1.9 kB of headroom.
+- 2026-11-13 ~19:50Z (lead). Pass 3 stopped before changing any code, on a STOP condition the lead had added himself: existing Lane A fixtures use `?`. The ruling's own STOP triggers are not met: Task 0's measured attach has no `?`/`#`, and `docs/mcp-jira-example.md` does not exist yet. Decided within ruling B2:
+  - **Where the check lives:** in McpOps' ADD path, beside the existing address check of `OnAdd`/`Register`, and in the route. It is NOT in `Mcp.Ops.AddressAllowed`, because `Mcp.Proxy:84` calls that at call time (pinned by `Test/Bridge/CodeRules.cls:768`), and putting it there would change 22.x's runtime behaviour for an existing entry. `Mcp.Proxy` and `Mcp.Client` are unchanged.
+  - **Lane A fixtures follow the ruling** (they are inside B2's scope in `Test/Mcp/Ops.cls`):
+    - `TestBadAddress` (:148): `https://example.com:8443/a?b=c` moves from the allowed list to the refused list, refused with T12.
+    - `TestNoAddressOrSecretInAnyText` (:503): the ADDED case uses a query-free address that still carries the secret probe (for example `https://<address>.example.invalid/mcp/<secret>`), so the scan still has a value to look for. The old `?token=<secret>` address becomes a REFUSED case, and it too must leave neither the address nor the secret in any text.
+    - :512 keeps its own refusal reason (plain http to a non-loopback host).
+    - `Test/Mcp/Client.cls` is unchanged.
+  - Reported to the coordinator for veto.
 
 - 2026-11-12 (lead, spec gate): Planner rulings B applied (V1-V12 approved; the plain-HTTP-with-secret condition added as an AC; 21.9 split written into epics.md; T1-T11 verbatim; implement after 22.4 merges).
 - 2026-11-13 (plan, spec refresh): refresh after 22.4 merged. Epic 22 (22.9, 22.3, 22.4) is merged into this branch (`3d94a219`). These changes need no new ruling; every ruled item (V1-V12, T1-T11, condition B, the 21.9 split) is unchanged.
@@ -515,7 +523,7 @@ New, for the Planner (Settings > Tools and MCP servers unless said; online demo:
 
 ## Auto Run Result
 
-Status: blocked (frontmatter `status: 'blocked'`: B1 and B2 are open, and the Contest Planner is ruling them)
+Status: in-progress (B1 and B2 are now ruled; pass 3 applies them with the lead's decisions in the Spec Change Log. Pass 2's record follows.)
 
 **Implement pass 2 (2026-11-13; worktree `epic-21`, branch `wip/21-4-impl1`, HEAD `ea830d21`, everything below is UNCOMMITTED).**
 
