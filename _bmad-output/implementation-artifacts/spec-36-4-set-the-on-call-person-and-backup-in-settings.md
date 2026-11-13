@@ -2,7 +2,7 @@
 title: 'Story 36.4: Set the on-call person and backup in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '71215884b780f03744957830c847882e483c1729'
 baseline_commit: '71215884b780f03744957830c847882e483c1729'
 review_loop_iteration: 0
@@ -203,6 +203,8 @@ Body members (all JSON strings except the minutes): `primaryPerson`, `primaryUse
 
 ### Review Findings
 
+- [ ] [Orchestrator] Story 21.14's `OcuTalon.Test.Core.SecretHandoff.TraceLeaks(text)` has landed (it scans `^Ens.MessageBodyD/S`, `^Ens.MessageHeaderD` and `^Ens.Util.LogD`). Per the orchestrator's directive, use it in `OcuTalon.Test.Web.OnCallSettingsApi.TestValuesOnlyInTheAuditLog`: assert `TraceLeaks(<primary address>)`, `TraceLeaks(<backup address>)` and `TraceLeaks(<user name>)` are each "" after the saves, the same way `Test/Web/SettingsApi.cls` L683 does for the mailbox, keeping the test's existing checks. Write the `mutation:` line (e.g. put the address into the traced `SaveSettings` body instead of the handoff -> red) and run the class on a lane-B throwaway.
+
 - [x] [CI] `web/e2e/settings/settings.spec.ts` S1f ("a failed load shows the load error, and Retry loads the page", L137) still expects `toHaveCount(7)` section links; with On call there are 8 (CI run 43474801972, iris (shards-4) live:sign-in-2, the only failure). Update it to 8 (the S1 case this story already updated to eight), sweep the e2e and node specs once more for any other count or list of the settings sections that now holds a stale 7 or omits On call, and run `live sign-in-2` for the part that holds settings.spec.ts on a fresh lane-B stack (`bash ci/iris.sh classes`-style listing or `--part k/n` until settings.spec.ts is in it). Pin with its mutation (back to 7 -> S1f red).
 
 Code review 2026-11-13 (stage code-review, Tier 1 against `a5a5cc2c`, four layers: blind 10, edge 5, verification-gap 9, acceptance 11 = 35 reported; 14 kept as 13 entries (H2 was found twice), 21 rejected). Every review layer ran on opus with no model override.
@@ -267,6 +269,8 @@ Checklist (the lead's, all confirmed fixed):
 - Acceptance informational (no defect): the baseline moved to `71215884`, an ancestor of HEAD (the write-ahead commit before fix `aedb62fd`); consistent.
 
 ## Spec Change Log
+
+- 2026-11-13, rework iteration 2 of 3 (lead; trigger: orchestrator directive to adopt 21.14's TraceLeaks helper once landed; it landed with feature 62db09e0): work ONLY the unchecked `[Orchestrator]` item.
 
 - 2026-11-13, rework iteration 1 of 3 (lead; trigger: ci, story red on 662c0d83): work ONLY the unchecked `[CI]` item (S1f section count).
 
