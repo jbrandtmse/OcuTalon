@@ -7695,3 +7695,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 22.6 gate ruling M(4), 2026-11-13 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 21.10 V4 removes the cut; 22.6 P2 states it
 - 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=Planner ruling M(4)
+
+### DW-1273: Known regression from Story 0.35: finding-orders-stopped and finding-results-stopped (expected act) went to tellnow in 3 of 5 NEW A/B attempts (4 misses in 10), against 0 of 18 on OLD; the new wording ('switched off or disabled ... a change someone chose to make') pulls a stopped production in with the disabled items
+- source: spec-0-35-routine-attention-decisions-meet-their-target.md | severity: med | fix-risk: low | footprint: in-footprint
+- evidence: release-evidence/ab-035/RESULT.md (Contest Planner A/B, 2026-11-13); not unsafe: Tell now still tells the person at once
+- 2026-11-13T14:41:41Z status=routed owner=0-37-a-production-that-stopped-is-a-fault-to-look-into-not-a-choi by=runner note=Story 0.37 (planning only in this dispatch; Saturday's release, after 1.0.9): separate the two by MEANING (a disabled item is a choice -> tellnow; a production that stopped is a fault -> act), never by copying case text; gate: the same A/B ship rule (a)-(e)

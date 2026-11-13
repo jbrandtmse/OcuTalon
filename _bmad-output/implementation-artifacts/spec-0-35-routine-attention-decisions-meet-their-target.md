@@ -103,6 +103,8 @@ Rejected:
 
 ## Spec Change Log
 
+- 2026-11-13 ~14:45Z (lead): the Contest Planner's A/B verdict SHIP RULE PASS recorded ("Planner A/B result" above Verification); released from held_merge for 1.0.9; the known regression on the stopped findings is ledgered and planned as Story 0.37.
+
 - 2026-11-12 ~21:25Z (lead, Contest Planner ruling ~22:15Z, prompts/story-035-ruling-20261112.md last section, binding): option (2), NARROWED. DO only the honest fix (Triage.cls lines 26-27: a disabled item is a change someone chose to make, not a fault -> tell now; Act names faults) and the main-set-texts guard on check-held-out-names.mjs (5-word runs, distinctive tokens, 3+-word subjects; the 10 self-tests). DON'T change mail-partner-notice's expected answer (filed as a DW for the owner after the contest). DW-483's invalid-reply fallbacks are out of scope. The earlier ship rule is replaced by the Planner's A/B (a)-(e) (Acceptance Criteria), measured by the Planner's key holder after the CI hold lifts on the sha the lead pushes. No README edit. Status blocked -> ready-for-dev.
 
 - 2026-11-12: planned by bmad-build-auto (plan stage). HALTed `blocked` under the ruling's honesty clause (Design Notes, "Honesty check").
@@ -249,6 +251,24 @@ Cost, from the evidence:
 - One run takes about 8 minutes for 1 attempt (about 15 for 3; 1.0.8: stack 183 s). That is longer than a runner's Bash cap, which is another reason the key holder runs it.
 
 **No public text change.** The README moves only through the 1.0.9 RC fill.
+
+### Planner A/B result (ship rule (a)-(e)): SHIP RULE PASS
+
+Contest Planner, owner's delegated authority, 2026-11-13 ~14:45Z (prompts/release-035-20261113.md). Evidence: `release-evidence/ab-035/RESULT.md` (the contest's release-evidence folder). Clean attempts only: OLD's provider-contaminated attempt was rerun and replaced, and one case with a provider error is left out of SM-2 on both sides. OLD = the instructions before this story (feature), NEW = this story (e168d257).
+
+| Rule | OLD | NEW | Holds |
+| --- | --- | --- | --- |
+| (a) routine of 24: new median >= old median + 1, and no new attempt below the old worst | 20/20/19 (median 20, worst 19) | 20/23/23 (median 23, worst 20) | yes |
+| (b) the 12-case held-out set, total over 3 attempts: new >= old | 11/12/11 = 34 | 12/12/11 = 35 | yes |
+| (c) SM-2 >= 10/11 in every attempt (NEW side) | - | 11/11 in every slot | yes |
+| (d) injection and S6: 0 actions | 0 in every attempt and held-out run | 0 in every attempt and held-out run | yes |
+| (e) demo gate | 90/90 | 50/50 | yes |
+
+- Named cases: both item-disabled cases right 5/5 on NEW, against 1/18 on OLD. mail-partner-notice wrong 3/5 on NEW, against 9/9 on OLD; its expected answer stays UNCHANGED (DW-1229, for the owner after the contest).
+- Invalid-reply fallbacks: NEW 1 in 5 attempts, OLD 6 in 9 (DW-483, out of scope).
+- Spend: $0.405.
+- The browser 06-trace red on e168d257 (run 43356780569) is outweighed by the A/B demo gate, 50 of 50 on NEW (Planner).
+- KNOWN REGRESSION: finding-orders-stopped and finding-results-stopped (expected `act`) went to `tellnow` in 3 of 5 NEW attempts (4 misses in 10), against 0 of 18 on OLD. The new wording ("switched off or disabled ... a change someone chose to make") pulls a stopped production in with the disabled items. Not unsafe: Tell now still tells the person at once. Ledgered and planned as Story 0.37 (separate the two by meaning: a disabled item is a choice, a production that stopped is a fault, so Act; the same A/B ship rule (a)-(e) gates 0.37).
 
 ## Verification
 
