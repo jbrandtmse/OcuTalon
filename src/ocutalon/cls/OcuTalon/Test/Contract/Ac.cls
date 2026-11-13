@@ -15,7 +15,7 @@
 ///     of AD-32 and Data.Time.ForMessage from Story 0.9, the Orders partner's Send from Story 0.10, and the Telegram session side that Lane A calls from
 ///     Story 10.3: Pairing.HashCode, RecordChat, TakeReplySlot, StoreCode, Chat and Purge, StatusMark.RecordTelegram and TelegramState, AnswersIn.FromTelegram,
 ///     Ownership.ApprovalKnown and Install.Step.Core.Purge, and from Story 33.1 the nine OcuTalon.Bridge.Settings methods that SettingsOps calls and
-///     OcuTalon.Bridge.Time.Zone, SetZone and Apply, and from Story 33.2 Delivery.FindByRef, Handled.Marked and Ownership.DeliveryByRef, and from Story 34.1 the two DropSession stubs that SessionOps.End will call (OcuTalon.Docs and OcuTalon.Memory), and from Story 35.2 SettingsOps.RestartRunners, SaveMcpEntry and RemoveMcpEntry and Ownership.AdminSessions, 85 signatures in all, which the floor of the count pins);
+///     OcuTalon.Bridge.Time.Zone, SetZone and Apply, and from Story 33.2 Delivery.FindByRef, Handled.Marked and Ownership.DeliveryByRef, and from Story 34.1 the two DropSession stubs that SessionOps.End will call (OcuTalon.Docs and OcuTalon.Memory), and from Story 35.2 SettingsOps.RestartRunners and Ownership.AdminSessions (the two MCP entry stubs of Story 35.2 went in Story 21.4, which moved the write into McpOps), 85 signatures in all, which the floor of the count pins);
 ///   - TestTelegramStubHasAnAdapter: the stub is an inbound service with an adapter class.
 /// The incident fixtures use a per-run Zz reference, and every row is deleted in the test and again in OnAfterAllTests.
 Class OcuTalon.Test.Contract.Ac Extends OcuTalon.Test.Contract
@@ -385,8 +385,6 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Data.DailyNote", "method": "Build", "args": "sessionRef,day", "returns": "%String"},
  {"class": "OcuTalon.Memory", "method": "DropSession", "args": "sessionRef", "returns": "%Status"},
  {"class": "OcuTalon.Core.SettingsOps", "method": "RestartRunners", "args": "", "returns": "%Status"},
- {"class": "OcuTalon.Core.SettingsOps", "method": "SaveMcpEntry", "args": "server,url,secret", "returns": "%Status"},
- {"class": "OcuTalon.Core.SettingsOps", "method": "RemoveMcpEntry", "args": "server", "returns": "%Status"},
  {"class": "OcuTalon.Data.Ownership", "method": "AdminSessions", "args": "*sc", "returns": "%List"}
 ]
 }

@@ -346,14 +346,21 @@ Method TestCommands()
 		Do $$$AssertTrue(0, ..McpOpsReason())
 		Quit
 	}
-	Do ..Entry(, 1)
+	// McpOps writes the wallet secret and the entry itself (Story 21.4): the test starts only the mock, which expects the bearer token, and hands the secret over
+	Do ..Ok(##class(OcuTalon.Test.Mcp.Mock).Start(.port, , "Authorization", "Bearer " _ ..Secret), "the mock starts")
+	Set ..Port = port
+	Set ..UsedPort = port
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set before = ..RunnerJobs()
 	Set command = ##class(OcuTalon.Msg.Command.AddMcpServer).%New()
 	Set command.Server = ..Server
 	Set command.Url = "http://127.0.0.1:" _ ..Port _ "/mcp"
 	Set command.ActingUser = ..#USER
-	Do ..Ok(##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result), "the add reaches CommandsIn")
+	Do ..Ok(##class(OcuTalon.Core.SecretHandoff).Put(..Secret, .uri), "the secret is offered to the hand-off")
+	Set command.Handoff = uri
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+	Do ..Ok(sc, "the add reaches CommandsIn")
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "1|added|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGEADDED, "the add is answered added")
 	Set row = ..Row()
 	Do $$$AssertTrue($IsObject(row), "the row exists")
@@ -401,7 +408,7 @@ Method TestCommands()
 	Set remove.ActingUser = ..#USER
 	Do ..Ok(##class(OcuTalon.Core.Commands).Submit(remove, "web_admin", .result), "the remove reaches CommandsIn")
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "1|removed|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGEREMOVED, "the remove is answered removed")
-	Do $$$AssertEquals(..Leftovers(), "the Config Store entry, the wallet secret, the wallet collection, a mock node or job", "the row, the tool rows, the resource and the grant are gone")
+	Do $$$AssertEquals(..Leftovers(), "a mock node or job", "the row, the tool rows, the resource, the grant, McpOps' entry, wallet secret and collection are gone")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Mcp.Ops).Tools(..Server, .tools), "Tools of the server is an error")
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..Server, , 2)
 	Set changes = ""
@@ -1690,6 +1697,8 @@ Method Remove() [ Private ]
 	If ##class(%ConfigStore.Configuration).Exists(entry) Do ##class(%ConfigStore.Configuration).Delete(entry)
 	If ##class(%Wallet.Secret).Exists(..Collection() _ ".Key") Do ##class(%Wallet.KeyValue).Delete(..Collection() _ ".Key")
 	If ##class(%Wallet.Collection).Exists(..Collection()) Do ##class(%Wallet.Collection).Delete(..Collection())
+	If ##class(%Wallet.Secret).Exists("OcuTalon_MCP_" _ ..Server _ ".Key") Do ##class(%Wallet.KeyValue).Delete("OcuTalon_MCP_" _ ..Server _ ".Key")
+	If ##class(%Wallet.Collection).Exists("OcuTalon_MCP_" _ ..Server) Do ##class(%Wallet.Collection).Delete("OcuTalon_MCP_" _ ..Server)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", ..Server)
 	If ##class(OcuTalon.Mcp.Server).NameIndexExists(..Server, .id) Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
 	Do ##class(OcuTalon.Install.Step.Mcp).Revoke(..Server)
@@ -1708,6 +1717,8 @@ Method Leftovers() As %String [ Private ]
 	If ##class(%ConfigStore.Configuration).Exists("AI.MCP.OcuTalon_" _ ..Server) Set places = places _ $ListBuild("the Config Store entry")
 	If ##class(%Wallet.Secret).Exists(..Collection() _ ".Key") Set places = places _ $ListBuild("the wallet secret")
 	If ##class(%Wallet.Collection).Exists(..Collection()) Set places = places _ $ListBuild("the wallet collection")
+	If ##class(%Wallet.Secret).Exists("OcuTalon_MCP_" _ ..Server _ ".Key") Set places = places _ $ListBuild("McpOps' wallet secret")
+	If ##class(%Wallet.Collection).Exists("OcuTalon_MCP_" _ ..Server) Set places = places _ $ListBuild("McpOps' wallet collection")
 	If ..UsedPort, $Data(^IRIS.Temp.OcuTalonMcpMock(..UsedPort)) || ##class(OcuTalon.Test.Mcp.Mock).Running(..UsedPort) Set places = places _ $ListBuild("a mock node or job")
 	Quit $ListToString(places, ", ")
 }

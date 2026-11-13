@@ -4,14 +4,16 @@
 ///   - AddMcpServer, RemoveMcpServer and ClassifyTool come from CommandsIn with Origin web_admin. Each handler re-checks that the sender is CommandsIn,
 ///     that the Origin is web_admin (a bridge context counts as origin tool), that ActingUser is not empty and that the install is not the online demo,
 ///     before it writes anything; a refusal has the outcome not_allowed, and a wrong sender or origin or a missing acting user is also one warning.
-///   - The order of an add is Validate (name, address), Register (the row, then the resource and its grant through OcuTalon.Install.Step.Mcp.Grant),
-///     Audit (an MCP entry), Restart (SettingsOps.RestartRunners, after the server's lock is released). A remove is Unregister (the tool rows and the
+///   - The order of an add is Validate (name, address), Register (the row, then the resource and its grant through OcuTalon.Install.Step.Mcp.Grant, then the
+///     wallet secret and the Config Store entry), Audit (an MCP entry), Restart (SettingsOps.RestartRunners, after the server's lock is released). A remove is Unregister (the tool rows and the
 ///     row, then Install.Step.Mcp.Revoke), Audit, then, once the removal has committed, the cancel of the pending approval requests of the server's tools (Approval CancelPending,
-///     in the admin's name; a failure is one warning and the removal stands), Restart. A classification is Validate, Save, Audit (a Tool entry; no restart, since the gate reads the rows). An audit that fails undoes
+///     in the admin's name; a failure is one warning and the removal stands), then the drop of the entry and the wallet secret (a failure is one warning and the
+///     removal stands), Restart. A classification is Validate, Save, Audit (a Tool entry; no restart, since the gate reads the rows). An audit that fails undoes
 ///     the change, and the outcome is not_audited. A restart that fails keeps the change (the next start attaches it), and the outcome is failed.
 ///   - The address of a server is https://, or http:// to this computer (127.0.0.1, localhost or [::1]) for development, with no user information and no
-///     @{ in it (AD-19). The address, a credential and AI Hub's error text are never stored, logged, audited or put in a notice by this class; the Config
-///     Store entry and the wallet secret that hold them are not written here.
+///     @{ in it (AD-19). The address and the credential are stored only in the Config Store entry AI.MCP.OcuTalon_<server> and the wallet key
+///     OcuTalon_MCP_<server>.Key that this class writes in its own job (Story 21.4; the credential reaches it only through the command's Handoff, a SecretHandoff
+///     uri, taken once); the address, a credential and the error text of the wallet, the Config Store or AI Hub are never stored elsewhere, logged, audited or put in a notice.
 ///   - Tools: the tools of a server for Settings.
 ///   - RecordAttach: writes what a runner reported about one attach (OcuTalon.Mcp.Attach.OnAttach) to the server's row (AttachStatus, AttachReason,
 ///     AttachedAt, RefusedTools) and, for an attached server, keeps one ToolClassification row for each tool it listed or refused (a new one is
@@ -57,6 +59,12 @@ Parameter MESSAGENOTOOL = "That MCP server has no tool with that name. Nothing w
 Parameter MESSAGECLASSIFICATION = "A tool is Unclassified, Read-only or Risky. Nothing was changed.";
 
 Parameter MESSAGESAVED = "Saved";
+
+/// The description of the entry that SaveEntry writes.
+Parameter ENTRYDESCRIPTION = "Written by McpOps for an MCP server an admin added; do not edit.";
+
+/// The read and edit resource of that entry: the Config Store's default (AD-19).
+Parameter ENTRYRESOURCE = "%Admin_ConfigStore";
 
 XData MessageMap
 {
@@ -153,8 +161,16 @@ Method Register(request As OcuTalon.Msg.Command.AddMcpServer, Output response As
 		Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
 		Quit ..Failed(.response, "the MCP server's resource could not be made", sc)
 	}
+	Set sc = ..SaveEntry(server, request.Url, request.Handoff)
+	If $$$ISERR(sc) {
+		Do ##class(OcuTalon.Install.Step.Mcp).Revoke(server)
+		Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
+		$$$LOGWARNING("OcuTalon.Mcp.Ops: the entry or the wallet secret of the MCP server could not be written, so the addition was undone")
+		Quit ..Answer(.response, 0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
 	Set sc = ..WriteAudit("MCP", ..McpData("added", server, request))
 	If $$$ISERR(sc) {
+		Do ..DropEntry(server)
 		Do ##class(OcuTalon.Install.Step.Mcp).Revoke(server)
 		Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
 		Quit ..Failed(.response, "the addition of the MCP server could not be audited, so it was undone", sc, "not_audited")
@@ -196,6 +212,7 @@ Method Unregister(request As OcuTalon.Msg.Command.RemoveMcpServer, Output respon
 	}
 	If $$$ISERR(sc) Quit ..Failed(.response, "the MCP server could not be removed", sc, $Select($Get(audited) = 0: "not_audited", 1: "failed"))
 	Do ..CancelPending(server, request)
+	If $$$ISERR(..DropEntry(server)) $$$LOGWARNING("OcuTalon.Mcp.Ops: the entry or the wallet secret of the removed MCP server could not all be dropped")
 	Set restart = 1
 	Quit ..Answer(.response, 1, "removed", ..#MESSAGEREMOVED)
 }
@@ -213,6 +230,57 @@ Method CancelPending(server As %String, request As OcuTalon.Msg.Command.RemoveMc
 	} Catch exception {
 		$$$LOGWARNING("OcuTalon.Mcp.Ops: the pending requests of the removed MCP server could not be cancelled: " _ ##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
+}
+
+/// Writes the wallet secret and the Config Store entry of a server that Register has just saved (Story 21.4; AD-19, AD-21), in this job: any leftover entry, key or
+/// collection of that name is dropped first (the row is the truth); then, when handoff is not empty, the secret is taken from it once (SecretHandoff Take; a secret
+/// that holds @{ is refused) and kept as the key OcuTalon_MCP_<server>.Key of the collection OcuTalon_MCP_<server> (Edit %Admin_Wallet:USE, Use the server's resource);
+/// then the entry AI.MCP.OcuTalon_<server> is made with the address and, with a secret, a bearer token that is the secret:// reference of that key. What was made is
+/// dropped again when a later step fails. The local copy of the secret is cleared on every path, nothing is logged here and no error text is kept. It never throws.
+ClassMethod SaveEntry(server As %String, url As %String, handoff As %String) As %Status [ Private ]
+{
+	Set sc = $$$OK
+	Set secret = ""
+	Try {
+		Set collection = ##class(OcuTalon.Install.Step.Mcp).#RESOURCEPREFIX _ server
+		Set sc = ..DropEntry(server)
+		If $$$ISOK(sc) && ($Get(handoff) '= "") {
+			Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(handoff, .secret)
+			If $$$ISOK(sc) && ((secret [ "@{") || (secret = "")) Set sc = $$$ERROR($$$GeneralError, "The credential cannot be stored")
+		}
+		If $$$ISOK(sc) && (secret '= "") {
+			Set sc = ##class(%Wallet.Collection).Create(collection, {"EditResource": "%Admin_Wallet:USE", "UseResource": (collection _ ":USE")})
+			If $$$ISOK(sc) Set sc = ##class(%Wallet.KeyValue).Create(collection _ ".Key", {"Secret": {"token": (secret)}, "RequireTLS": 0, "Usage": "CUSTOM"})
+		}
+		If $$$ISOK(sc) Set sc = ##class(%ConfigStore.DescriptorManager).RebuildRegistry()
+		If $$$ISOK(sc) {
+			Set details = {"transport": "remote", "url": (url)}
+			If secret '= "" Set details.auth = {"type": "bearer", "token": ("secret://" _ collection _ ".Key#token")}
+			Set sc = ##class(%ConfigStore.Configuration).Create("AI", "MCP", "", ##class(OcuTalon.Mcp.Attach).#ENTRYPREFIX _ server, details, "", ..#ENTRYDESCRIPTION, ..#ENTRYRESOURCE, ..#ENTRYRESOURCE, 1, (secret '= ""))
+		}
+	} Catch {
+		Set sc = $$$ERROR($$$GeneralError, "The entry of the MCP server could not be written")
+	}
+	Set secret = ""
+	If $$$ISERR(sc) Do ..DropEntry(server)
+	Quit sc
+}
+
+/// Drops the Config Store entry AI.MCP.OcuTalon_<server>, the wallet key OcuTalon_MCP_<server>.Key and the collection OcuTalon_MCP_<server>, each where it exists
+/// (Story 21.4). The status is an error when any of them could not be dropped, with no error text of the wallet or the Config Store in it. It never throws.
+ClassMethod DropEntry(server As %String) As %Status [ Private ]
+{
+	Set failed = 0
+	Try {
+		Set collection = ##class(OcuTalon.Install.Step.Mcp).#RESOURCEPREFIX _ server
+		Set fqn = "AI.MCP." _ ##class(OcuTalon.Mcp.Attach).#ENTRYPREFIX _ server
+		If ##class(%ConfigStore.Configuration).Exists(fqn) && $$$ISERR(##class(%ConfigStore.Configuration).Delete(fqn)) Set failed = 1
+		If ##class(%Wallet.Secret).Exists(collection _ ".Key") && $$$ISERR(##class(%Wallet.KeyValue).Delete(collection _ ".Key")) Set failed = 1
+		If ##class(%Wallet.Collection).Exists(collection) && $$$ISERR(##class(%Wallet.Collection).Delete(collection)) Set failed = 1
+	} Catch {
+		Set failed = 1
+	}
+	Quit $Select(failed: $$$ERROR($$$GeneralError, "The entry of the MCP server could not be dropped"), 1: $$$OK)
 }
 
 /// The restart of the runners after a saved change: the answer is the outcome and message given, or failed when the restart fails (the change is kept).

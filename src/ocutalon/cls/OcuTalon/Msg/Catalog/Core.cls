@@ -1,6 +1,6 @@
 /// The catalog of the texts that OcuTalon sends or shows and that Lane B produces (AD-29, AD-32): the pairing replies and
 /// press alerts of Telegram, the answered statuses, the conversation and allowance texts, the fallback reasons, tell now and
-/// reminders, the status banners and their actions, the sign-in page's and the splash screen's texts, the audit line and the persona notices (approval.persona, persona.applied, persona.stale). The step 4 settings and request texts (settings.* and answered.canceled, Story 35.2) are shown on the settings page and on every channel; the webhook field texts (settings.webhookBadName, settings.webhookBadSecret, settings.webhookNameTaken, settings.refusedExpansion and settings.webhooksOffOnDemo, Story 35.3) are rendered by SettingsOps for the webhook routes, and no other code sends them yet. The XData block Entries holds
+/// reminders, the status banners and their actions, the sign-in page's and the splash screen's texts, the audit line and the persona notices (approval.persona, persona.applied, persona.stale). The step 4 settings and request texts (settings.* and answered.canceled, Story 35.2) are shown on the settings page and on every channel; the webhook field texts (settings.webhookBadName, settings.webhookBadSecret, settings.webhookNameTaken, settings.refusedExpansion and settings.webhooksOffOnDemo, Story 35.3) are rendered by SettingsOps for the webhook routes, and no other code sends them yet. The MCP settings text settings.mcpOffOnDemo (Story 21.4) is rendered by SettingsOps for the MCP routes, ListMcpServers and the MCP section. The XData block Entries holds
 /// one JSON object whose names are the catalog keys, <prefix>.<name>, and whose values are
 ///   {"text": fixed text with {camelCase} placeholders, "web": the page wording when it differs from text,
 ///    "slots": {"<placeholder>": "<type>"}, "source": the UX section, "gap": the form the UX does not fix,
@@ -732,6 +732,11 @@ XData Entries [ MimeType = application/json ]
   "text": "Webhooks are off on the online demo, so it has no public webhook address. They work on your own install.",
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Webhooks off on the online demo"
+ },
+ "settings.mcpOffOnDemo": {
+  "text": "MCP servers are off on the online demo: nobody can add one, and OcuTalon reaches none. They work on your own install.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / MCP servers off on the online demo"
  },
  "settings.webhookBadName": {
   "text": "Enter a name of 1 to 64 characters. Nothing was changed.",

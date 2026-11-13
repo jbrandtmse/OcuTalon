@@ -560,7 +560,8 @@ Method TestNoAddressOrSecretInAnyText()
 	Do $$$AssertTrue(notices [ server, "the notices name the server, so a scan of them can find a value")
 	Do $$$AssertEquals((texts [ address) + (texts [ secret), 0, "no result holds the address or the credential")
 	Do $$$AssertEquals((notices [ address) + (notices [ secret), 0, "no notice holds the address or the credential")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, , , , address).%Size() + ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, , , , secret).%Size(), 0, "no audit entry holds the address or the credential")
+	// IRIS's own audit entry of the Config Store entry that McpOps now writes (Story 21.4) holds the entry's address, so the scan names OcuTalon's own entries
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", , , address).%Size() + ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", , , secret).%Size(), 0, "no OcuTalon audit entry holds the address or the credential")
 	Do $$$AssertEquals(..LogRowsHolding(logMark, address) + ..LogRowsHolding(logMark, secret), 0, "no event-log row holds the address or the credential")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(secret), "", "no trace global (message body, header or log row) holds the credential")
 	Do $$$AssertTrue(..LogRowsHolding(logMark, "refused AddMcpServer") > 0, "the event log holds the warning of the refused add, so a scan of the log can find a value")
@@ -968,7 +969,7 @@ Method ResourceCount() As %Integer [ Private ]
 	Quit +result.%GetData(1)
 }
 
-/// Removes every fixture this test may have made: the servers' rows and tool rows, their resources and grants, and the fixture sessions. Each removal is attempted
+/// Removes every fixture this test may have made: the servers' rows and tool rows, their resources and grants, the entry, wallet key and collection that McpOps writes for an add, and the fixture sessions. Each removal is attempted
 /// whatever happened before.
 Method Clean() [ Private ]
 {
@@ -978,6 +979,9 @@ Method Clean() [ Private ]
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", name)
 		If ##class(OcuTalon.Mcp.Server).NameIndexExists(name, .id) Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
 		Do ##class(OcuTalon.Install.Step.Mcp).Revoke(name)
+		If ##class(%ConfigStore.Configuration).Exists("AI.MCP.OcuTalon_" _ name) Do ##class(%ConfigStore.Configuration).Delete("AI.MCP.OcuTalon_" _ name)
+		If ##class(%Wallet.Secret).Exists("OcuTalon_MCP_" _ name _ ".Key") Do ##class(%Wallet.KeyValue).Delete("OcuTalon_MCP_" _ name _ ".Key")
+		If ##class(%Wallet.Collection).Exists("OcuTalon_MCP_" _ name) Do ##class(%Wallet.Collection).Delete("OcuTalon_MCP_" _ name)
 	}
 	For i = 1:1:$Length(..Admin, ",") {
 		Set ref = $Piece(..Admin, ",", i)
