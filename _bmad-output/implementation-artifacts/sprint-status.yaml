@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-13-2026 14:35
+last_updated: 11-13-2026 14:41
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -71,7 +71,7 @@ development_status:
   0-33-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne: done
   0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so: done
   0-35-routine-attention-decisions-meet-their-target: in-progress
-  0-36-the-judges-table-names-the-platform-parts-ocutalon-is-built: in-progress
+  0-36-the-judges-table-names-the-platform-parts-ocutalon-is-built: done
   epic-0-retrospective: optional
 
   epic-1: done

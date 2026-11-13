@@ -20,7 +20,7 @@ deferred: []
 **Approach (the Contest Planner's 1.0.9 doc story, owner-approved, 2026-11-13; binding):** replace ONLY the `| Complexity | ... |` row with exactly this line (the approved PUBLIC TEXT, verbatim):
 
 ```
-| Complexity | One Interoperability production of over 40 items runs three AI Hub agents, each an `%AI.Agent`: attention decisions, diagnosis and chat ([Production.cls](src/ocutalon/cls/OcuTalon/Production.cls)). It is built from the platform's own parts. OcuTalon's outbound adapter extends AI Hub's `EnsLib.AI.Agent.OutboundAdapter` ([Agent.cls](src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls)), and the gate that checks every tool call before it runs is an `%AI.Policy.Authorization` ([Gate.cls](src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls)). Each Visual Trace step comes from an `%AI.Policy.Audit` and an `%AI.Shell.StreamRenderer`, documents use AI Hub's RAG knowledge base over IRIS vector search, and the model and its timeouts are AI Hub Config Store entries. On the Interoperability side, approvals are `EnsLib.Workflow` tasks, a fix resends with `Ens.MessageHeader.ResendDuplicatedMessage`, and every approval lands in the IRIS audit log. Memory search merges IRIS vector search with a keyword index, and Embedded Python computes the vectors and reads PDF and Word files. |
+| Complexity | One Interoperability production of over 40 items runs three AI Hub agents, each an `%AI.Agent`: attention decisions, diagnosis and chat ([Production.cls](src/ocutalon/cls/OcuTalon/Production.cls)). It is built from the platform's own parts. OcuTalon's outbound adapter extends AI Hub's `EnsLib.AI.Agent.OutboundAdapter` ([Agent.cls](src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls)), and the gate that checks every tool call before it runs is an `%AI.Policy.Authorization` ([Gate.cls](src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls)). Each Visual Trace step comes from an `%AI.Policy.Audit` and an `%AI.Shell.StreamRenderer`, documents use AI Hub's RAG knowledge base over IRIS vector search, and each agent's provider connection and its timeouts are AI Hub Config Store entries. On the Interoperability side, approvals are `EnsLib.Workflow` tasks, a fix resends with `Ens.MessageHeader.ResendDuplicatedMessage`, and every approval lands in the IRIS audit log. Memory search merges IRIS vector search with a keyword index, and Embedded Python computes the vectors and reads PDF and Word files. |
 ```
 
 Update, in the same commit, every test pin the new row trips. If a pin would force a WORDING change to the approved text, stop and send the exact diff to the Planner as PUBLIC TEXT before committing.
@@ -85,6 +85,7 @@ Rejected:
 ## Spec Change Log
 
 - 2026-11-13: written by the lead from the Contest Planner's 1.0.9 doc-story dispatch.
+- 2026-11-13: code review found claim 7 false at 7865c322 ("the model and its timeouts are AI Hub Config Store entries": the entry never holds the model, AD-7, Provider.cls:7-8, ConfigStore.cls:10-11/:63). The Contest Planner approved the replacement "each agent's provider connection and its timeouts" verbatim (prompts/story-036-ruling-20261113.md); the approved line in the intent block, README line 38 and COMPLEXITY_ROW carry it. The optional %AI.ToolSet clause was not applied (Triage has no tools; the documents tool is a Docs.Store holder).
 
 ## Verification
 
