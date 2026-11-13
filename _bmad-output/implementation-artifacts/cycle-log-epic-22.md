@@ -166,3 +166,4 @@
 2026-11-13T03:24:48Z	Story 22.3	ci_red_classified	run=43344958166 workflow=.github/workflows/ci.yml class=story test=checks:test-release-sequence.sh_overviewdoc(controls_expect_complaints_the_checker_switches_off_once_src_has_call_mcp_tool) first_red=af886ee3 fix_for=22-3
 2026-11-13T03:24:48Z	Story 22.4	ci_red_classified	run=43344958166 workflow=.github/workflows/ci.yml class=flake test=iris(production)_live:production_row21(DW-306) action=occurrence_added;verified_by_the_rework_head_CI
 2026-11-13T03:24:48Z	Story 22.3	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=[CI]checks_overviewdoc_controls scope_baseline=60b5b2d9
+2026-11-13T03:24:55Z	Story 22.3	stage_spawned	stage=implement spawn_at=2026-11-13T03:24:55Z model=sonnet agent_name=22-3-call-mcp-tools-only-through-the-governed-proxy-implement-2 cycle_iteration=2 effort=high note=rework_ci
