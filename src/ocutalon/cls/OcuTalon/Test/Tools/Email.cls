@@ -9,8 +9,8 @@
 ///   - TestClassify: the recipient rule row by row: the own address (case, spaces, duplicates, 20 of it) is safe; another address, the own address plus another, none, 21, a number, a string
 ///     instead of an array, bad values, no mailbox, a mailbox of another session, no context and {} are risky; extra keys such as "classification":"safe" change nothing; the answer follows the
 ///     stored keys at once;
-///   - TestSendTo: the own address once for any number of spellings of it, and the entries otherwise;
-///   - TestSafeSend: a safe call submits one SendEmail (origin tool, the session of the call, the key <ItemId>:1, the stored address once, the subject and the text) and answers exactly
+///   - TestCommandHoldsNoAddress (DW-1255): for any spelling or repeat of the own address the submitted command's Recipients is the marker own and no field of it holds an address;
+///   - TestSafeSend: a safe call submits one SendEmail (origin tool, the session of the call, the key <ItemId>:1, the marker own as its recipients, the subject and the text) and answers exactly
 ///     {ok, outcome, message} of the CommandResult, nothing of its Ref or Data; one Action entry counts the one address sent to and holds no address, subject or text;
 ///   - TestNoSession: no context, an owner that is not a session's Ref or an empty ItemId answer NOSESSION and submit nothing;
 ///   - TestOnlineDemo: with onlineDemo 1 the tool answers not_available with EmailOut's sentence and submits and audits nothing, and the hook sets that sentence as its refusal and raises nothing;
@@ -212,19 +212,39 @@ Method TestClassify()
 	Do $$$AssertEquals($ClassMethod(..#TOOLS, "ClassifySENDEMAIL", {"recipients": ["owner@example.test"], "subject": "s", "text": "t"}), "risky", "no mailbox owner: risky")
 }
 
-/// SendTo: the stored address once when every entry is that address, ignoring case and spaces; otherwise the entries, trimmed, joined by commas.
-Method TestSendTo()
+/// DW-1255 rule 4: the command of a safe call holds no address. Whatever spellings and repeats of the own address the call lists (and 20 of them), the one SendEmail that the tool submits has the
+/// marker OWNADDRESS of SendEmail as its Recipients, which means the mailbox's own address, and no field of it holds the address, the call's spelling of it or any other address.
+Method TestCommandHoldsNoAddress()
 {
+	If '..Prepare() Quit
 	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do ..Mailbox(..#ADDRESS, owner)
-	Set kind = ..#KIND
-	Do $$$AssertEquals($ClassMethod(kind, "SendTo", ["owner@example.test"]), ..#ADDRESS, "one spelling of the own address gives the stored address")
-	Do $$$AssertEquals($ClassMethod(kind, "SendTo", ["me@x.test", "ME@x.test"]), "me@x.test,ME@x.test", "entries that are not the own address are joined")
-	Do $$$AssertEquals($ClassMethod(kind, "SendTo", [" OWNER@example.test", "owner@EXAMPLE.test "]), ..#ADDRESS, "the own address twice gives it once")
-	Do $$$AssertEquals($ClassMethod(kind, "SendTo", ["owner@example.test", "partner@example.test"]), "owner@example.test,partner@example.test", "the own address and another are joined")
+	Do $$$AssertEquals($Parameter("OcuTalon.Msg.Command.SendEmail", "OWNADDRESS"), "own", "the marker of a tool send is own")
+	Set twenty = []
+	For i = 1:1:20 Do twenty.%Push(" Owner@EXAMPLE.test ")
+	Set cases = $ListBuild(
+		$ListBuild("one spelling", ["owner@example.test"]),
+		$ListBuild("two spellings", ["owner@example.test", "OWNER@example.test"]),
+		$ListBuild("the own address twice", [" OWNER@example.test", "owner@EXAMPLE.test "]),
+		$ListBuild("twenty times", twenty))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Kill ^OcuTalonTest("CommandsDouble")
+		Do ##class(OcuTalon.Bridge.Context).End()
+		Do ..Begin(owner, itemId)
+		Set answer = ##class(OcuTalon.Tools.EmailTools).SendEmail($List(case, 2), "A zz subject", "A zz text.")
+		Set calls = ..Calls()
+		Do $$$AssertEquals(calls.%Size(), 1, $List(case, 1)_": one command was submitted")
+		If calls.%Size() = 1 {
+			Set fields = calls.%Get(0).fields
+			Do $$$AssertEquals(fields.Recipients, "own", $List(case, 1)_": its Recipients is the marker, not an address")
+			Do $$$AssertEquals(($ZConvert(fields.%ToJSON(), "L") [ "x.test")_"|"_($ZConvert(fields.%ToJSON(), "L") [ "example.test"), "0|0", $List(case, 1)_": no field of the command holds an address")
+		}
+	}
 }
 
-/// A safe call (the matrix row "Safe send"): one SendEmail is submitted through CommandCall with origin tool and the key <ItemId>:1, to the stored address once, whatever the spellings, with the
+/// A safe call (the matrix row "Safe send"): one SendEmail is submitted through CommandCall with origin tool and the key <ItemId>:1, with the marker of a tool send as Recipients (the mailbox's own address, whatever spellings or repeats the call listed), the
 /// subject and the text. The answer is exactly {ok, outcome, message} of the CommandResult: the double also answers a Ref and a Data that holds the subject, and neither reaches the model. One
 /// Action entry is written, and it holds no address, subject or text.
 Method TestSafeSend()
@@ -243,7 +263,7 @@ Method TestSafeSend()
 	If calls.%Size() = 1 {
 		Set call = calls.%Get(0)
 		Do $$$AssertEquals(call.class_"|"_call.origin_"|"_call.sessionRef_"|"_call.key, "OcuTalon.Msg.Command.SendEmail|tool|"_owner_"|"_itemId_":1", "a SendEmail with origin tool, the session of the call and the key <ItemId>:1")
-		Do $$$AssertEquals(call.fields.Recipients_"|"_call.fields.Subject_"|"_call.fields.Text, ..#ADDRESS_"|A zz subject|A zz text.", "to the stored address once, with the subject and the text")
+		Do $$$AssertEquals(call.fields.Recipients_"|"_call.fields.Subject_"|"_call.fields.Text, "own|A zz subject|A zz text.", "to the mailbox's own address by the marker (no address in the command), with the subject and the text")
 		Do $$$AssertEquals(..Keys(call.fields), "IdempotencyKey,Origin,Recipients,SessionRef,Subject,Text", "and no other field")
 	}
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(since, "OcuTalon", "Action", "", "EmailOut", "", 1, 20)

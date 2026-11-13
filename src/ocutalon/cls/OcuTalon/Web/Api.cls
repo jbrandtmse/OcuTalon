@@ -702,7 +702,7 @@ ClassMethod AnswerApproval(ref As %String) As %Status
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	If '$IsObject(row) || (row.State = "cancelled") Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
 	If '..AnswerBody(.action, .channel) Quit ..Fail(400, "bad_answer", ..#MESSAGEBADANSWER)
-	Set kind = row.Kind
+	Set kind = $Select((row.Kind = "fix") && (row.FixKind = ##class(OcuTalon.Fix.Kind.Email).#NAME): ##class(OcuTalon.Fix.Kind.Email).#NAME, 1: row.Kind)
 	Kill row
 	Set sc = ##class(OcuTalon.Core.AnswersIn).FromPage(ref, action, channel, .result, .answeringRef)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
@@ -733,7 +733,7 @@ ClassMethod AnswerBody(Output action As %String, Output channel As %String) As %
 ///   - already_answered: 409 with the catalog's late-press text of the winner and the request's payload, naming the answerer
 ///     when the install is local and the row's AnsweredBy is not the signed-in user (compared without case);
 ///   - expired: 409 with the catalog's expired text at the row's ExpiresAt and the payload;
-///   - not_found: 404; not_allowed: 403 (the approver text of the request's kind); bad_answer: 400;
+///   - not_found: 404; not_allowed: 403 (the approver text of the request's kind; AnswerApproval hands a fix request of the kind email as the kind email, which has the general one); bad_answer: 400;
 ///   - anything else, and any failed read or render: 500 server_error.
 ClassMethod AnswerResponse(ref As %String, kind As %String, sessionRef As %String, result As OcuTalon.Core.Msg.AnswerResult) As %Status [ Private ]
 {

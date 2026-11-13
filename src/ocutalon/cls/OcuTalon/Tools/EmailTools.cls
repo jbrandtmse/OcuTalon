@@ -7,7 +7,9 @@ Include Ensemble
 ///     not come from the user, every send_email call is denied UNTRUSTED, one to the user's own address included.
 ///   - SendEmail runs only for a safe call. The session comes from the bridge context, never from an argument: a call that is not a session's turn answers NOSESSION and submits nothing. On the
 ///     online demo the answer is not_available with Channel.Email.Out's own sentence, and nothing is submitted. Otherwise it submits SendEmail through OcuTalon.Tools.CommandCall (origin tool,
-///     IdempotencyKey the turn's ItemId, a colon and the command's position) to the one own address, and writes the kind's Action entry when the command was submitted.
+///     IdempotencyKey the turn's ItemId, a colon and the command's position) to the one own address, and writes the kind's Action entry (one recipient) when the command was submitted. The
+///     command carries no address: its Recipients is the marker OWNADDRESS of SendEmail, which means the mailbox's own address (email.address) to CommandsIn and EmailOut, so one mail goes to
+///     that address whatever spellings or repeats of it the call listed (DW-1255).
 ///   - Trusted output (TRUSTEDOUTPUTSENDEMAIL 1): the answer is {ok, outcome, message}, built in code from the CommandResult of the owner (Channel.Email.Out and Core.CommandsIn): a boolean, the
 ///     owner's outcome word and its fixed sentence. It holds no recipient, subject, text or text of the mail server, so no content from outside a user's untainted turn reaches the model through it.
 ///     Test.Tools.Email pins the three members.
@@ -36,12 +38,12 @@ ClassMethod SendEmail(recipients As %DynamicArray(DESCRIPTION = "The email addre
 		Quit ..Return({"ok": false, "outcome": "not_available", "message": ($Parameter("OcuTalon.Channel.Email.Out", "MESSAGEUNAVAILABLE"))})
 	}
 	Set command = ##class(OcuTalon.Msg.Command.SendEmail).%New()
-	Set command.Recipients = ##class(OcuTalon.Fix.Kind.Email).SendTo(recipients)
+	Set command.Recipients = ##class(OcuTalon.Msg.Command.SendEmail).#OWNADDRESS
 	Set command.Subject = subject
 	Set command.Text = text
 	Set refusal = ##class(OcuTalon.Tools.CommandCall).Run(command, .result)
 	If $IsObject(refusal) Quit ..Return(refusal)
-	Set sc = ##class(OcuTalon.Fix.Kind.Email).Audit(result.Outcome, "", context.OwnerRef, context.Channel, $Length(command.Recipients, ","))
+	Set sc = ##class(OcuTalon.Fix.Kind.Email).Audit(result.Outcome, "", context.OwnerRef, context.Channel, 1)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING("A send_email call could not write its audit entry: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 	}
