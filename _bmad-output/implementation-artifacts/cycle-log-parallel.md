@@ -3863,3 +3863,9 @@
 2026-11-13T03:08:36Z	Epic 0	owner_decision	via=contest_planner what=0.35_A/B_after_owner_quota_reset_tonight(or_after_morning_reset_before_1.0.9_cut) note=owner_hold_point_12:30am_PST(~08:30Z);quota_near_95pct
 2026-11-13T03:51:35Z	Epic 25	runner_reported	LOCAL_READY story=25.3 local=625d84aa code=6c2d4979,14699ceb split=25.6_inserted
 2026-11-13T03:51:35Z	Run	deps_hash_rerecorded	reason=split note=epic-25_story_waits_25.6->37.1,26.2(hash_rerecord_at_merge)
+2026-11-13T04:01:39Z	Epic 21	ci_cancelled	head=41549d46 run=43346789014 reason=superseded(41549d46_red_reworked;44908d0d_and_next_head)
+2026-11-13T04:01:39Z	Epic 21	runner_resumed	relay=rulings_G(comment_lines,README_More_link)+DW-1244_fix_story(Planner_H.ii) action=push_once_more_superseding_44908d0d
+2026-11-13T04:13:53Z	Epic 23	runner_reported	PART_READY part=23.12 head=182ff57f code_head=415ea02d ci=success runs=43342524742,43342524753
+2026-11-13T04:13:53Z	Epic 23	ci_green_verified	head=415ea02d runs=43342524742,43342524753 result=success
+2026-11-13T04:13:53Z	Epic 23	amendments_verified	amendments=epics_23.12_block extensions=14_web_files ok=true
+2026-11-13T04:13:53Z	Epic 23	merge_enqueued	part=23.12 head=182ff57f
