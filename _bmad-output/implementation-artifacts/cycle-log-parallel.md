@@ -3874,3 +3874,7 @@
 2026-11-13T04:15:11Z	Epic 23	runner_complete	runner=a577865a7d29a39ad part_completion=23.7,23.10,23.11,23.9,23.12 merged=83ea7bc8 waiting=23.3,23.4,23.8(on_Epic_36) unpushed=none
 2026-11-13T04:19:16Z	Epic 21	ruling	question=21.13_V1_reuse_Delivery.DigestKey_for_tool_IdempotencyKey_hash(tool_prefix) choice=keep rejected=new_column,global,body_match why=no_schema_change;append-only;distinct_prefix category=veto inbox=U-327 policy=5086036
 2026-11-13T04:19:16Z	Epic 21	runner_reported	CI_WAIT head=5d5581eb(21.7+21.8+21.12,rulings_G) runs=43363054369,43363054440 + 21.13_planned(V1) local=c8d849d2
+2026-11-13T04:19:43Z	Epic 21	owner_decision	via=contest_planner what=21.13_approved;U-327_stands;condition=test_pins_digest_key_and_tool_prefix_never_collide file=prompts/gate-rulings-20261112-1810.md#I relay=runner_C_at_turn_end
+2026-11-13T04:48:45Z	Epic 36	ci_cancelled	head=cf2658d8 run=43345196978 reason=superseded_by_4467921f(known_red:DW-1245,DW-1246)
+2026-11-13T04:48:45Z	Epic 36	runner_reported	PLANNER_REPORT head=4467921f(36.1+36.2_implement) runs=43358586991,43358586910 local=f8e3d9c0(36.2_done) gate=36.4(S1_security,S2_spine,P1_text) routed=DW-1251->24.3(post-merge_bullet)
+2026-11-13T04:48:45Z	Run	ruling	question=contended_SettingsOps/settings-page/settings-view(36.4_vs_Epic_21) choice=36.4_implements_after_21.7+21.8+21.12_merge(integrate_forward_first) category=decide policy=5086036
