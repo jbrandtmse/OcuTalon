@@ -254,3 +254,6 @@
 2026-11-13T06:03:49Z	Story 21.13	ruling	question=HIGH_fix_and_U-327_narrowing choice=planner_ruling_K:kept;PUBLIC_TEXT_condition(may-have-sent_sentence) category=veto via=orchestrator
 2026-11-13T06:03:49Z	Story 21.13	rework_opened	cycle_iteration=2 iteration=1 trigger=high items=Review:ruling_K_may-have-sent_text scope_baseline=d903d0ad tracker=done->in-progress
 2026-11-13T06:03:50Z	Story 21.13	stage_spawned	stage=implement spawn_at=2026-11-13T06:03:50Z model=sonnet effort=high agent_name=21-13-implement-2 cycle_iteration=2 rework=1_of_3
+2026-11-13T06:25:43Z	Story 21.13	dev_complete	build_sha=96ea9ebb baseline_revision=4671201c cycle_iteration=2 rework=1 note=MESSAGEMAYHAVESENT(ruling_K_verbatim);claim_marked_maysent(FallbackReason_value);repeat_same_sentence;EXPERIENCE.md_row
+2026-11-13T06:25:43Z	Story 21.13	cr_complete	scope=4671201c..HEAD review=lead_scoped(Out.cls_diff:new_param+branch;Claimed_maps_maysent;certainly-not-received_path_unchanged) high=0 med=0 low=0 final_status=done cycle_iteration=2 note=stage_review_layers_ran_inside_build-auto(2_patched,13_rejected)
+2026-11-13T06:25:43Z	Story 21.13	fresh_check	env=recipe(fresh_warm_e21s13fw2) tests=EmailOut,Data.Delivery,EmailOut result=pass order=forward,reverse cycle_iteration=2
