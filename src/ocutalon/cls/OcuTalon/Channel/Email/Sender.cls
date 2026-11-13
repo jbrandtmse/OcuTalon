@@ -25,6 +25,7 @@ Class OcuTalon.Channel.Email.Sender Extends EnsLib.EMail.OutboundAdapter
 {
 
 /// The CI-only environment variable (ruling c) that lets the adapter use plain SMTP, and EmailIn's adapter plain POP3 in OAuth2 mode (PlainFor), and the one host name they then do.
+/// It also allows plain POP3 in OAuth2 mode, for the CI mock only (host mock; set only in ci/compose.ci.yml).
 Parameter PLAINVARIABLE = "OCUTALON_TEST_PLAIN_SMTP";
 
 Parameter PLAINHOST = "mock";
