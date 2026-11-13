@@ -7695,6 +7695,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T01:59:09Z status=escalated owner=burndown by=harvest note=for the orchestrator: a Lane C fix (Epic 21) before or with 22.7
 - 2026-11-13T05:14:18Z status=routed owner=burndown by=orchestrator note=Planner_H(ii):Lane_C_new_Story_21.13_fixes_it_before_22.7_merges;test=re-sent_turn_same_key_sends_once
 - 2026-11-13T07:03:52Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone note=22.7_safe_path_same-turn-twice_pin_waits_for_21.13
+- 2026-11-13T13:29:45Z status=resolved-by:21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=adjudication note=21.13_merged_into_feature(ce9716c6);EmailOut_claims_a_keyed_tool_send_by_session;integrated_into_OCT-epic22_at_5432678a;DW-1253_resolved_by_the_same_story
 
 ### DW-1256: The own-address check is copied into Fix.Kind.Email.OwnAddressOnly (22.7) because the originals are private in CommandsIn and EmailOut; unify after the contest
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls

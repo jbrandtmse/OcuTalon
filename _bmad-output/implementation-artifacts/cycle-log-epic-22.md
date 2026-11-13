@@ -218,3 +218,7 @@
 2026-11-13T09:24:12Z	Epic 22	integrated_forward	feature=0c481884 head=ee8a049f conflicts_resolved=sprint-status.yaml(bookkeeping),Test/Bridge/CodeRules.cls(plain_union:CALLBACKHELPERS_list+doc_clause) note=local_only(22.7_held,option_a);merged-tree_IRIS_checks_after_the_hold
 2026-11-13T09:31:11Z	Epic 22	merged_tree_checks	env=lane-D_warm_e22sint2(torn_down) tests=10_pass(Bridge.CodeRules,Fix.Email,Tools.Email,Bridge.Gate,Data.Tables,Agent.Constants,Mcp.Approval,Mcp.Proxy,Install.SecurityOverview,Data.Webhook) checks=test-boundaries,test-class-rules_rc0
 2026-11-13T13:22:54Z	Epic 22	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=fresh_runner_after_predecessor_403_auth_error lane=D slot=ocutalon-slot-d port=52804 head=46d7407e tree=clean model=claude-opus-5-5
+2026-11-13T13:29:45Z	Epic 22	integrated_forward	feature=7865c322 head=5432678a conflicts_resolved=sprint-status.yaml(bookkeeping:feature_side,regenerated,22.6_ready-for-dev+22.7_done_re-set,22.12_added) auto_merged=Test/Data/Tables.cls(union:21.13_DigestKey,EchoedAt) note=local_only;feature_ci_pending_at_merge(43432696788,43432696837)
+2026-11-13T13:29:45Z	Epic 22	merged_tree_checks	checks=test-boundaries,test-class-rules,test-ci-config,test-storage_rc0 iris_tests=after_the_22.7_rework(on_its_smoke_stack)
+2026-11-13T13:29:45Z	Epic 22	ledger_reconciled	DW-1244=resolved-by:21-13 DW-1253=resolved-by:21-13(already) by=runner
+2026-11-13T13:29:45Z	Epic 22	epic_context_compiled	reason=planning_artifact_newer(integrate_forward_7865c322) model=opus words=1563
