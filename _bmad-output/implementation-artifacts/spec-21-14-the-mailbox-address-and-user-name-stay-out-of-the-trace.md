@@ -7,7 +7,7 @@ review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-21-context.md'
-warnings: ['oversized']
+warnings: ['oversized', 'retrofit_added_ruling_L']
 deferred: []
 ---
 
@@ -69,6 +69,16 @@ deferred: []
 - `src/ocutalon/cls/OcuTalon/Test/Channel/EmailLive.cls` -- route every channels submit (`Connect`, `Resave`, `ConnectOAuth`, l.837, l.1979) through one private submit that swaps with `Swap` and takes back the references after the submit. Add `TestAddressAndUserOutOfTheTrace`: a real `Connect` with a unique address and user; the save's message holds two references; `TraceLeaks` of both is ""; `AuditLog.Entries(since)` holds neither; `Leaks(user)` is ""; `Leaks(address)` is `OcuTalonP.SettingD` only; the credential's Username is the user and `email.address` is the address; `Values()` shows both; then `Disconnect`. Update the header.
 - `src/ocutalon/cls/OcuTalon/Test/Core/CommandsStep4.cls` -- `SaveMailbox` swaps with `Swap` and takes back what is left.
 - `docs/security-overview.md` -- insert the Public text sentence as a bullet right after the `OcuTalonTraceViewer` bullet.
+- **TraceLeaks retrofit (Planner ruling L, condition).** `TraceLeaks` is a public class method of `Test.Core.SecretHandoff`, so other classes can call it. Add one `TraceLeaks(<same value>) = ""` assertion, or one "the trace" place in the class's own place helper, beside every existing scan that says a secret is never in a trace. Change test code only. The sites are:
+  - `Test/Channel/EmailLive.cls`: the password (l.870, l.1570) and the OAuth2 client secret and tokens (l.1846, l.2322, l.2377). Stories 21.2, 21.3 and 21.8.
+  - `Test/Core/SettingsEmail.cls`: l.476 and l.933 (Story 21.2).
+  - `Test/Web/SettingsApi.cls`: l.626-628, the client secret and the password (Stories 21.2 and 21.3).
+  - `Test/Web/HookSettingsApi.cls`: the per-secret loop (about l.303-318), for both webhook secrets (Story 35.3).
+  - `Test/Mcp/Attach.cls` `Leaks(adapter)`, `Test/Mcp/Proxy.cls` `Places` and `Test/Mcp/JobFixture.cls` `Places`: add "the trace" when `TraceLeaks(value)` is not "".
+  - `Test/Mcp/Ops.cls` l.564: for the credential.
+  - `Test/Mcp/Approval.cls` l.571 and `Test/Mcp/ProxyJob.cls` l.156: for `..Secret`.
+  These are Stories 22.3 and 22.4 (MCP secrets). Story 36.4's on-call scan is not on the branch yet, so it is out of scope.
+- **A red retrofit scan is a REAL LEAK (ruling L).** Run the retrofitted classes BEFORE the 21.14 product change, against the unchanged product code. If any of them is red: change no product code for it, do not weaken, skip or exempt the assertion, and halt `blocked`. Name the test, the value kind (for example password or MCP credential) and the global where `TraceLeaks` found it, never the value. The lead takes it to the Planner before anything is fixed. A red that the retrofit itself causes (a wrong argument or a scan error) is fixed in the test. Show that it is not a real leak by the global the scan named.
 
 **Acceptance Criteria:**
 - Given an admin, when they POST `/v1/settings/channels` with a valid address and user, then the stored `SaveSettings` message holds only handoff references for them, neither value is in any message body, message header or `Ens.Util.Log` row, and no handoff resource is left (DW-1255; pin `SettingsApi:TestChannelsRoute`).
@@ -76,8 +86,11 @@ deferred: []
 - Given a `SaveSettings` with a plain address or user, or a lost reference, when `SettingsOps` handles it, then it is refused naming the field and nothing is written (pin `SettingsEmail:TestAddressAndUserByReference`).
 - Given the other fields, when any save runs, then `incoming`, `outgoing`, `signIn`, `clientId` and `origin` are plain in `Changes`, and every existing test of `SettingsEmail`, `SettingsApi`, `EmailLive`, `EmailOAuth` and `CommandsStep4` passes with only the helper changes above.
 - Given `docs/security-overview.md`, when a reader reads the roles list, then it holds the Public text sentence word for word, after the `OcuTalonTraceViewer` bullet (DW-1255, ruling item 5).
+- Given every existing scan that says a mail password, OAuth2 client secret or token, webhook secret or MCP credential is never in a trace (21.2, 21.3, 21.8, 35.3, 22.3, 22.4), when it runs, then it also asserts that `TraceLeaks` of that value is "" over `^Ens.MessageBodyD`, `^Ens.MessageBodyS`, `^Ens.MessageHeaderD` and `^Ens.Util.LogD`, and it passes against the product code (ruling L). A red is reported as a leak, not fixed in this story (pin `SecretHandoff:TestTraceLeaksFinds` for the helper; the retrofitted classes listed in the tasks).
 
 ## Spec Change Log
+
+- 2026-11-13 (lead, Planner ruling L): the gate is approved as planned, and so are the AD-1, AD-19 and route-row wording (the spine is amended in the bookkeeping commit). The Public text is approved verbatim. Added the condition: the TraceLeaks retrofit into the leak scans of 21.2, 21.3, 21.8, 35.3, 22.3 and 22.4, its AC and its runs. A red retrofit scan is a real leak, so implement halts `blocked` and the lead reports it before any fix.
 
 ## Review Triage Log
 
@@ -130,6 +143,7 @@ Run every command from the worktree root, one per foreground call (`timeout: 600
 - `... class OcuTalon.Test.Core.SecretHandoff` (loop) -- pass. Mutation: `TraceLeaks` skips `^Ens.Util.LogD` -> `TestTraceLeaksFinds` red.
 - `... class OcuTalon.Test.Channel.EmailLive:TestAddressAndUserOutOfTheTrace` (loop) -- pass. Mutation: `SaveEmail` adds `$$$LOGINFO` of `field("address")` -> red (`TraceLeaks`).
 - `... class OcuTalon.Test.Web.SettingsApi` (once) -- pass.
+- Retrofit runs, once each and one per call, BEFORE the product change and again after it: `... class OcuTalon.Test.Web.HookSettingsApi`, `... class OcuTalon.Test.Mcp.Attach`, `... class OcuTalon.Test.Mcp.Proxy`, `... class OcuTalon.Test.Mcp.Ops`, `... class OcuTalon.Test.Mcp.Approval` and `... class OcuTalon.Test.Mcp.ProxyJob`. `SettingsEmail`, `SettingsApi` and `EmailLive` are run above. All pass. A red before the change is a leak, so halt `blocked` (see the tasks). Mutation: `TraceLeaks` returns "" at once -> `TestTraceLeaksFinds` red.
 - `... class OcuTalon.Test.Channel.EmailLive` (once; about 65 to 115 s) -- pass.
 - `... class OcuTalon.Test.Channel.EmailOAuth` (once) and `... class OcuTalon.Test.Core.CommandsStep4` (once), one per call -- pass.
 - `<vars> OCUTALON_RUN_TAG=e21s14iw ci/warm.sh down` (once, also after a failure).

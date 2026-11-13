@@ -278,3 +278,7 @@
 2026-11-13T10:01:59Z	Epic 21	parked	reason=hold(requested_at=2026-11-13T09:59:45Z) boundary=after_push_4eb46cdd ci=pending(ci.yml 43399692299 in_progress; lane-a 43399692062 success) next=resolve_ci_4eb46cdd_then_PART_READY wip=none stacks=none
 2026-11-13T13:22:03Z	Epic 21	resumed	hold_cleared=13:17Z merged=ce9716c6(21.7+21.8+21.12+21.13)
 2026-11-13T13:22:03Z	Epic 21	integrated	feature=7865c322 merge=local conflicts=none lint_10_low boundaries_pass
+2026-11-13T13:28:10Z	Story 21.14	ruling	section=L(gate-rulings-20261112-1810) gate=approved_as_planned U7_wording=approved public_text=approved_verbatim condition=TraceLeaks_retrofit(21.2,21.3,21.8,35.3,22.3,22.4;red=real_leak->Planner_before_fix) placed=in_21.14
+2026-11-13T13:28:10Z	Story 21.14	spine_updated	ad=AD-1,AD-19,route_row(POST_/api/v1/settings/channels) reason=Planner_ruling_L(U7_approved) by=runner marker=[AMENDED_2026-11-13,Story_21.14,Contest_Planner_ruling_L] lint=10_low_baseline memlog=absent_in_worktree
+2026-11-13T13:28:10Z	Story 21.14	spec_amended	by=lead reason=ruling_L(retrofit_tasks+AC6+retrofit_runs;halt_blocked_on_red) change_log=yes
+2026-11-13T13:28:10Z	Story 21.14	stage_spawned	stage=implement spawn_at=2026-11-13T13:28:10Z model=sonnet effort=high agent_name=21-14-implement-1 cycle_iteration=1 story_base=771ea077
