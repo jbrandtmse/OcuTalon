@@ -7760,3 +7760,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace.md (code review) | severity: low | fix-risk: med | footprint: in-story
 - evidence: Holds tests data [ text on the raw node (Test/Core/SecretHandoff.cls Holds); %Stream.GlobalCharacter COMPRESS=1 stores compressed chunks; no OcuTalon message class has a %Stream property today (Data.SettingStream sets COMPRESS=0 for the same reason)
 - 2026-11-13T15:34:27Z status=wontfix-accepted owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=cr note=reopen_if=an OcuTalon message class gains a %Stream property, or a scanned value can share a stored element with a char above $Char(255)
+
+### DW-1282: Initial web bundle has ~1.9 kB of headroom under its 1 MB cap (998.08 kB after 21.4 moved its MCP section to a lazy chunk); move the Settings sections and the History and Usage pages into lazy chunks so the initial bundle regains at least 50 kB of headroom
+- source: orchestrator; Story 21.4 pass 2 finding; Contest Planner ruling 2026-11-13 | severity: med | fix-risk: low | footprint: cross-epic
+- evidence: 21.4 pass 2: initial bundle 1,011,990 bytes with the MCP section (from 992,400), 998.08 kB after lazy-loading it
+- 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
