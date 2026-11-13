@@ -7,7 +7,7 @@
  * - SETTINGS_TEXTS is every fixed string of the page. The strings that EXPERIENCE.md does not write are ruled (U-269 for the unsaved prompt, the
  *   denied view's link, the threshold labels, the Demo mode texts and the landmark names; U-270 for the Demo step's text).
  *   demoSaved, the Demo mode section's own confirmation, is the text of Story 33.3's AC (DW-699): a saved mode reaches an open chat page only after a reload.
- * - SETTINGS_SECTIONS is the seven sections in the UX's order, each with its address slug.
+ * - SETTINGS_SECTIONS is the eight sections in the UX's order, each with its address slug. The page leaves On call out while the server sends no `on-call` values (the online demo).
  * - sectionSlug turns an address part into a section's slug: an unknown or missing one opens Models.
  * - pageOf says which page an address is: the settings page, the Documents page, the Usage page or the chat.
  * - THRESHOLD_FIELDS is the five fields of Check thresholds with their ranges; bodyOf, textsOf and isDirty are the rules of its form.
@@ -21,6 +21,7 @@
  * - The Models section (Story 18.3): modelsView lists the supported providers with their reason when a key is not set, modelOptions and secondOptions give
  *   the choices of the Model and Second model selects, modelsFormOf builds the form from the server's values, modelsBody is the body of a save,
  *   isModelsDirty the rule of its form, and testResultText the line under a Test button. The Budgets section: budgetsBody and isBudgetsDirty.
+ * - The On call section (Story 36.4): its fixed strings are SETTINGS_TEXTS.onCall, and its rules are on-call-view.ts.
  * - refusalKind (DW-948) is the one classifier of a refused or failed save, which every section that saves or sends uses through refusal.ts.
  */
 import type { AgentModels, ModelPrices, ModelsBody, ModelTestAnswer, Prices, ProviderRow } from '../api/api-types';
@@ -37,6 +38,7 @@ export const SETTINGS_TEXTS = {
     dailyDigest: 'Daily digest',
     timeZone: 'Time zone',
     checkThresholds: 'Check thresholds',
+    onCall: 'On call',
     demoMode: 'Demo mode',
   },
   save: 'Save changes',
@@ -85,6 +87,29 @@ export const SETTINGS_TEXTS = {
     secretSet: 'Saved, and never shown again. Type a new value to replace it.',
     offOnDemo: 'Webhooks are off on the online demo, so it has no public webhook address. They work on your own install.',
   },
+  onCall: {
+    help: 'Choose who OcuTalon pages when an incident starts, and who it pages next if nobody presses Got it in time.',
+    notYet: "OcuTalon doesn't send pages yet. It keeps these choices for when it does.",
+    primary: 'On-call person',
+    backup: 'Backup',
+    person: 'Person',
+    nobody: 'Nobody',
+    byEmail: 'Someone else, by email',
+    byEmailHelp: "Someone paged by email can't press Got it, so OcuTalon also pages the backup after the minutes below.",
+    email: 'Email address for pages',
+    channels: 'Page by',
+    telegram: 'Telegram',
+    channelEmail: 'Email',
+    telegramUnpaired: "{user} hasn't paired Telegram, so OcuTalon can't message them there yet. They can pair it on their own OcuTalon page.",
+    telegramEmailOnly: 'Telegram needs an OcuTalon user with a paired chat.',
+    minutes: 'Minutes before paging the backup',
+    minutesHelp: '15 unless you change it.',
+    badEmail: 'Enter an email address such as name@example.com. Nothing was changed.',
+    badMinutes: 'Enter a whole number of minutes from 1 to 1440. Nothing was changed.',
+    noChannel: 'Choose a way to reach this person: Telegram needs a paired chat, email needs an address. Nothing was changed.',
+    unknownUser: "{user} isn't an OcuTalon user any more. Choose again. Nothing was changed.",
+    offOnDemo: "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here.",
+  },
   models: {
     agents: { TriageAgent: 'Triage agent', DiagnosisAgent: 'Diagnosis agent', ChatAgent: 'Chat agent' },
     provider: 'Provider',
@@ -125,7 +150,7 @@ export interface SettingsSection {
   label: string;
 }
 
-/** The seven sections in the UX's order. */
+/** The eight sections in the UX's order (On call after Check thresholds, so that Demo mode stays last). */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'models', label: SETTINGS_TEXTS.sections.models },
   { slug: 'budgets', label: SETTINGS_TEXTS.sections.budgets },
@@ -133,6 +158,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'daily-digest', label: SETTINGS_TEXTS.sections.dailyDigest },
   { slug: 'time-zone', label: SETTINGS_TEXTS.sections.timeZone },
   { slug: 'check-thresholds', label: SETTINGS_TEXTS.sections.checkThresholds },
+  { slug: 'on-call', label: SETTINGS_TEXTS.sections.onCall },
   { slug: 'demo-mode', label: SETTINGS_TEXTS.sections.demoMode },
 ];
 

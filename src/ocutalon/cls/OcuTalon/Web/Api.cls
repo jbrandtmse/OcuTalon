@@ -110,6 +110,8 @@
 ///     by its own map: the CSP session's own decisions, filtered and paged, and the incidents it sees, paged, with the stored summary as text.
 ///   - The webhook routes (Story 35.3; GET and POST /v1/settings/channels/webhooks, POST /v1/settings/channels/webhooks/:ref/secret) are OcuTalon.Web.HookSettings', forwarded
 ///     by its own map: admin only, for the CSP session's own webhooks, with the secret handed to SettingsOps through SecretHandoff and never in a command.
+///   - The on-call route (Story 36.4; POST /v1/settings/on-call) is OcuTalon.Web.OnCallSettings', forwarded by its own map: admin only, with the section's body handed to
+///     SettingsOps through SecretHandoff so that no on-call value is in a command or a trace, and 409 not_available on the online demo before the body is read.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -294,6 +296,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Map Prefix="/v1/usage" Forward="OcuTalon.Web.Usage"/>
 <Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>
 <Map Prefix="/v1/settings/channels/webhooks" Forward="OcuTalon.Web.HookSettings"/>
+<Map Prefix="/v1/settings/on-call" Forward="OcuTalon.Web.OnCallSettings"/>
 </Routes>
 }
 

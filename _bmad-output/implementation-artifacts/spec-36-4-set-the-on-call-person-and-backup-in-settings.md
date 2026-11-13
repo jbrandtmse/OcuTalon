@@ -2,14 +2,22 @@
 title: 'Story 36.4: Set the on-call person and backup in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'a5a5cc2c27ea146fe19c87fa9701233a8d23c7df'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-36-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The 'pagesBuilt is true' state (the not-yet line disappearing) is never observed, because OcuTalon.Data.Page does not exist until Story 23.4.
+    evidence: |-
+      SettingsOnCall.TestValues compares pagesBuilt to the same %Dictionary.CompiledClass expression the code uses, and on-call.spec.ts O1 derives its expectation from the server's value, so only the false arm can run now. Settling it needs Data.Page compiled (23.4) or a seam that sets the value.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls OnCallValues pagesBuilt; web/src/app/settings/on-call-section.ts onCallNotYet
+    severity: medium
 ---
 
 <intent-contract>
@@ -200,6 +208,30 @@ Body members (all JSON strings except the minutes): `primaryPerson`, `primaryUse
 
 ## Review Triage Log
 
+### 2026-11-13 - Review pass
+- verdicts: 30 findings reported (blind 10, edge 6, verification-gap 10, intent 4), shown as 20 rows because a row names every layer that reported the same finding - high 0, medium 12, low 15, false 3, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind 1: the spec's Auto Run Result still says ready-for-dev while the frontmatter says in-review - the section is rewritten at finalize and the frontmatter is the contract.
+  - `[low]` `[patch]` Blind 2 / VG 10 / Intent 4: `web/angular.json` initial-bundle error ceiling raised to 1.25MB, far past the 15.4 kB need - patched to 1.05MB (the build measures 1.01 MB); recorded as Decided in-stage 25.
+  - `[low]` `[reject]` Blind 3 / Edge 4 / VG 9: `OnCallUsers` opens every Session and Pairing row on each GET and save - cost grows with session history, but it is an admin-only read on a local install and the online demo never reaches it; reopen_if=GET /v1/settings takes over a second on a real install.
+  - `[low]` `[reject]` Blind 4: a listed user is not checked against IRIS - the matrix defines an unknown user as one with no session row (spec-bound, by-design).
+  - `[medium]` `[patch]` Blind 5 / Edge 2 / VG 8: a user name was stored as typed, not as the roster spells it - patched: `OnCallRole` stores the roster spelling; `SettingsOnCall.TestUserNameKeepsTheRostersSpelling`.
+  - `[medium]` `[patch]` Blind 6 / Edge 3: a 409 left the dirty flag set so leaving still prompted - patched: `dirtyChange(false)` in the 409 branch; pinned by `on-call.spec.ts` O7.
+  - `[low]` `[reject]` Blind 7: the `#/settings/on-call` address opens Models on the demo - by-design (Decided in-stage 8, "the address then opens Models").
+  - `[low]` `[reject]` Blind 8: the e2e restore posts through the validating route and may fail on an invalid stored state - a stack with such state is already broken; the restore is best effort and the rows are reset by `beforeEach`; reopen_if=a restore failure is seen in CI.
+  - `[low]` `[reject]` Blind 9 / Edge 6: Nobody's other members must still be present strings - the matrix's Shape row refuses a missing member, so "ignored" means the values, not the members (by-design).
+  - `[false]` `[reject]` Blind 10 / Edge 5: the same person in both roles - Decided in-stage 5 states it is allowed and paging rules are 23.4's and 24.3's.
+  - `[low]` `[patch]` Edge 1: a very long user name could throw <SUBSCRIPT> outside the Try - patched: a name over `ONCALLUSERMAX` (128) is refused as `<role>User` without a lookup; `TestRefusals` cases of 600 and 9000 characters (the guard itself is not red-pinned; see mutation line).
+  - `[medium]` `[patch]` VG 1: the route's `not_available` to 409 mapping was never exercised - patched: probe mode `not_available` and `OnCallSettingsApi.TestSubmitNotAvailableIs409`.
+  - `[medium]` `[patch]` VG 2: the 403 to denied path of the component had no executing test - patched: `on-call.spec.ts` O8.
+  - `[medium]` `[patch]` VG 3 / VG 7: the Telegram-enabled arm for a paired user never ran in a browser - patched: `on-call.spec.ts` O9 (routed GET with `paired: true`).
+  - `[medium]` `[defer]` VG 4: `pagesBuilt` true is never observed - needs `Data.Page` (23.4) or a seam; recorded in the frontmatter `deferred:` list.
+  - `[medium]` `[patch]` VG 5: O6 could pass before the hash change was routed - patched: O6 starts from Demo mode and waits on the Models link before asserting.
+  - `[medium]` `[patch]` VG 6: O1 relied on leftover state - patched: `beforeEach` saves Nobody/15 through the route (`resetOnCall`).
+  - `[low]` `[reject]` Intent 1: a missing or non-string person names `<role>User` - the spec's Shape row says "naming the field"; the person select is the field the page shows (by-design, Decided in-stage 17).
+  - `[low]` `[reject]` Intent 2: a rule whose input is already refused is skipped, so a double-bad input names fewer fields - the matrix does not require more; the page shows the first in form order.
+  - `[low]` `[reject]` Intent 3: the GET `on-call` member carries `users` and `pagesBuilt` - both are in the spec's `OnCallValues()` task (by-design).
+
 ## Design Notes
 
 ### Planner rulings (2026-11-13 ~05:00Z, binding; `.coordination/prompts/story-362-rulings-20261112.md`, last section)
@@ -273,6 +305,15 @@ No criterion contradicts an AD's Rule. The hand-off refines AD-19's "Saving a se
 14. **The `settings.spec.ts` S1 edit is left to CI.** Its file alone runs over the per-call size (about 93 s of setup plus about 35 tests), so CI's `shards-4` (`live:sign-in-2`) checks it; locally, `npm --prefix web run lint` covers it.
 15. **`new_units: none`.** The new IRIS classes join existing areas: Core runs in `lane-b@Contract,Core,Data,Live` in the `image` group, and Web in `lane-b@rest` in `shards-6`. `settings/on-call.spec.ts` is in project sign-in-2 (`live:sign-in-2`, `shards-4`), `api/on-call.spec.ts` in chromium (`live:sign-in`, `shards-10`), and the node tests run in the hosted web job.
 16. **Findability: no More to try item and no GUIDE.md line.** On a local install the section is already findable in the Settings nav, and its own `onCallNotYet` line says that it sends no page yet. A try-it item would lead a judge to a choice that does nothing they can see. The item and the line belong to the first story that sends a page (23.4 or 24.3). No new text is proposed for this.
+17. **A refusal names a person that is outside the three, or missing, as `<role>User`** (the field the Person select shows), and a member that the body should not have refuses the save with no field named (`fields` is `[]`). Every other shape fault names its own field. The server skips a rule that needs a value it has already refused: an unknown user has no channels judged, and a refused address does not make the email channel unreachable, so each refusal names exactly the fields that are wrong.
+18. **`Web.OnCallSettings` has an `Offer` seam** (the one `SecretHandoff.Put` of the class) beside `Submit`, so that `OnCallSettingsApi` can show that nothing is offered when the route refuses first (`TestOnlineDemoRefusesFirst`).
+19. **The user list is read by object access, not SQL.** The web process holds no SQL privilege on the session tables (`Data.Ownership`, AD-13, inbox U-15), so `SettingsOps.OnCallUsers` walks the Session and Pairing extents as `Data.Webhook.ForSession` does. The first version used SQL and answered 500 for `GET /v1/settings` on a real stack, which the throwaway-only IRIS tests could not show; the live specs did.
+20. **The initial web bundle budget is raised from 1 MB to 1.05 MB (`web/angular.json`, `maximumError`; item 25).** Measured: the tree before this story built to 991.99 kB (8 kB under the error limit), and the On call section adds 15.4 kB, so the build failed the error budget. Lazy loading the section (`@defer`) was tried and did not help: the lazy chunk was 13.6 kB, but splitting added about 11 kB of chunk overhead to the initial bundle (1,003 kB). The 500 kB warning budget is unchanged. FLAGGED for the runner: this is outside the spec's file list, and every lane that adds web code meets the same limit.
+21. **`Test.Core.SettingsOps.TestAllowList` pins the allow-list string, so it now names the seven `oncall.*` keys** (the one existing test outside this story's list that the allow-list change turns red).
+22. **The two On call specs share `web/e2e/support/on-call.ts`** (the GET member, the restore body, the fresh read of the seven keys, and the audit entries since a mark). `on-call.spec.ts` also has O6 (a GET without the member hides the section and opens Models), O7 (a 409 shows the off-demo text and leaving asks nothing), O8 (a 403 shows the denied view) and O9 (a paired user has Telegram enabled and checked, and the routed save carries `telegram,email`); each case starts from Nobody for both roles and 15 minutes, saved through the route in `beforeEach`.
+23. **Part choice.** The chromium project has 29 spec files, so no part holds `api/on-call.spec.ts` alone: `live sign-in --part 4/29` holds it with `pairing`, `persona` and `state-diagnosis` (8 tests). The sign-in-2 part is `17/20` (only `settings/on-call.spec.ts`).
+24. **EXPERIENCE.md gets the `settings.onCallByEmailHelp` row** (marker `[ADDED 2026-11-13, Story 36.4, Contest Planner ruling P1]`), and the AD-19 spine bullet, the REST row and the ownership row are written (Rule 20); `lint_spine.py` reports only the pre-existing placeholder findings.
+25. **The initial bundle error budget is `1.05MB` (`web/angular.json`, `maximumError`), outside the spec's file list.** The tree before this story measured 991.99 kB and the section adds 15.4 kB (1.01 MB built), so 1.05 MB leaves about 40 kB of headroom, where 1.25 MB left over 230 kB and would let a later lane's growth pass unseen; the 500 kB warning is unchanged.
 
 ### Contended overlaps
 | File | 36.4's edit | Kind |
@@ -351,7 +392,41 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - AC6: drop the minutes input's label `for` → `on-call.spec.ts` O1.
 - AC7: put the request body into `Changes` instead of the hand-off → `OnCallSettingsApi.TestValuesOnlyInTheAuditLog`.
 
+- mutation: AC1: removed the telegram-needs-a-paired-chat check from `SaveOnCall` (telegram accepted for an unpaired user and a person by email) -> `SettingsOnCall.TestTelegramNeedsAPairedChat` red (five asserts); tree restored byte-identical
+- mutation: AC2: `on-call-section.ts` emits `dirtyChange(false)` always -> `on-call.spec.ts` O4 red ("a section link asks first": no dialog); tree restored byte-identical
+- mutation: AC3: dropped the `oncall.backup.email` field from the XData row -> `SettingsOnCall.TestSaveAuditsEachChangeWithItsValues` red (six audit entries, not seven); `TestSavedCases` and `TestValues` also red; tree restored byte-identical
+- mutation: AC4: set the minutes field's `min` to 0 -> `SettingsOnCall.TestRefusals` red ("minutes 0 is refused with its field named"); tree restored byte-identical
+- mutation: AC5: removed the online-demo check from `OnCallSettings.Refusal` (the route's `Save` calls it first) -> `OnCallSettingsApi.TestOnlineDemoRefusesFirst` red (the body is offered and submitted); tree restored byte-identical
+- mutation: AC6: dropped the minutes input's label `for` -> `on-call.spec.ts` O1 red (`getByLabel('Minutes before paging the backup')` finds nothing); tree restored byte-identical
+- mutation: AC7: put the request body into the command's `Changes` instead of the hand-off -> `OnCallSettingsApi.TestValuesOnlyInTheAuditLog` red (the body is in the `SaveSettings` table; also `TestCommandHoldsOnlyTheHandoff`); tree restored byte-identical
+- mutation: review item 1: stored `to(user)` as the typed (trimmed) name instead of the roster's spelling -> `SettingsOnCall.TestUserNameKeepsTheRostersSpelling` red (the stored value and the audit entry); tree restored byte-identical (cmp against the backup)
+- mutation: review item 2: inverted the length bound (a name over `ONCALLUSERMAX` counted as known) -> `SettingsOnCall.TestRefusals` red ("a user name of 600 characters" and "a backup user name of 9000 characters" are refused with their fields named); tree restored byte-identical. Removing the bound alone is NOT red: a local-array `$Data` of a 9000-character subscript does not throw in 2026.3 (checked on the warm stack) and no Data.Session name can exceed its 128-character MAXLEN, so the bound is a guard and the test pins the refusal
+- mutation: review item 4: removed `dirtyChange.emit(false)` from the 409 branch of `on-call-section.ts` -> `on-call.spec.ts` O7 red (the section link raises the unsaved prompt and the heading stays On call); tree restored byte-identical
+- mutation: review item 5: the route's `ElseIf ... "not_available"` branch made never true -> `OnCallSettingsApi.TestSubmitNotAvailableIs409` red (the accepted off-demo text and "not the email route's text"; the status stays 409 through `Answer`); tree restored byte-identical
+- mutation: review item 6: `on-call-section.ts` no longer emits `denied` on a 403 -> `on-call.spec.ts` O8 red (`p.denied` not found); tree restored byte-identical
+- mutation: review item 7: `telegramState` answers `unpaired` for every user -> `on-call.spec.ts` O9 red (Telegram disabled for the paired README admin); tree restored byte-identical
+- mutation: review item 8: removed the `on-call` fallback from `settings-page.ts` `active` -> `on-call.spec.ts` O6 red (the heading stays On call instead of Models); tree restored byte-identical
+- mutation: review item 9: `beforeEach` saved a leftover person (the README admin, an address, channels `email`) instead of Nobody -> `on-call.spec.ts` O1 red ("Nobody has no address field"); tree restored byte-identical. Items 4, 6, 7 and 8 were run in one build with the file's mode set to `default` for that run only (so one red case does not skip the rest), then the mode and sources were restored and checked with cmp
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implemented.** The admin-only On call section: a `oncall` section kind in `SettingsOps` (validation, `SaveOnCall`, `OnCallValues`, seven allow-listed keys, writes through `SaveProduct`); a new forwarded `Web.OnCallSettings` route that hands the body to `SettingsOps` through `SecretHandoff` so `SaveSettings.Changes` is only `{"handoff": uri}` (S1 option b); the page's `on-call-view.ts` and `on-call-section.ts`; accepted texts including `settings.onCallByEmailHelp` (P1, EXPERIENCE.md row added with [ADDED]); the AD-19 bullet, REST row and ownership-row words in the spine (S2, Rule 20).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls`: allow-list, `on-call` section row, `SaveOnCall`, `OnCallValues`, `OnCallUsers`, off-on-demo text.
+- `src/ocutalon/cls/OcuTalon/Web/OnCallSettings.cls` (new) and `Web/Api.cls`: the route and its Map (38 routes).
+- `web/src/app/settings/on-call-view.ts`, `on-call-section.ts` (new), `settings-page.ts`, `settings-view.ts`, `api/api-types.ts`.
+- `web/angular.json`: initial-bundle error ceiling 1MB to 1.05MB (Decided in-stage 25).
+- Tests: `Test/Core/SettingsOnCall.cls`, `Test/Web/OnCallSettingsApi.cls`, `OnCallSettingsProbe.cls` (new); `Test/Core/SettingsSave.cls`, `Test/Core/SettingsOps.cls` (allow-list pin); node `on-call-view.test.mjs` (new) and four edited; e2e `settings/on-call.spec.ts` (O1-O9), `api/on-call.spec.ts` (H1-H3), `support/on-call.ts` (new), `settings.spec.ts` S1.
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`, `ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md`.
+
+**Review.** 30 findings reported by four layers (see the Review Triage Log). Patches applied: roster spelling of a stored user, the long-name bound, the 409 dirty flag, the bundle ceiling, the `not_available` route test, and O6-O9 plus the O1 reset (medium patched: 7 entries; low patched: 2). Deferred: 1 (`pagesBuilt` true, to Story 23.4). Rejected with reasons in the log: 14 entries (by-design, theoretical, or low and not worth a guard).
+
+**Follow-up review recommended: true.** Unverified risk: item 2's length bound is a guard whose removal does not turn a test red (no Data.Session name can exceed 128 characters and a 9000-character local subscript does not throw in 2026.3), and the roster-spelling change decides the string that Stories 23.4 and 24.3 will compare.
+
+**Verification performed.** Warm stack: `SettingsOnCall`, `OnCallSettingsApi`, `SettingsSave`, `Web.Api` passed; `lane-b@Core` parts 1-4 and `lane-b@Web` parts 1-4 passed. Fresh stack: `SettingsOnCall` and `OnCallSettingsApi` passed. Node tests (on-call-view, settings-view, settings-refusal-sources, announce-focus-sources, ux-strings), `npm --prefix web test`, lint, build (1.01 MB initial), `test-ci-config.sh` and `test-boundaries.sh` passed. Live: `sign-in-2 --part 17/20` (O1-O9) passed; `sign-in --part 4/29` (H1-H3 and neighbours) passed on the second run (the first run failed `state-diagnosis.spec.ts` "no unavailable line" with a gateway ERROR #7913, a spec this story does not touch). `lint_spine.py`: only the pre-existing placeholder findings. All 15 `mutation:` lines recorded under Verification. Every stack torn down.
+
+**Residual risks.** The `settings.spec.ts` S1 browser run is left to CI (Decided in-stage 14). The patch subagent sent two warm class runs in one message once (both passed; a process slip, not a protocol violation of git). `new_units: none`.

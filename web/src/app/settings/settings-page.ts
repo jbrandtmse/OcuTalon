@@ -6,7 +6,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map, Observable } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
-import type { AgentModels, EmailValues, Prices, ProviderRow, SettingsBody, SettingsSections } from '../api/api-types';
+import type { AgentModels, EmailValues, OnCallValues, Prices, ProviderRow, SettingsBody, SettingsSections } from '../api/api-types';
 import { LiveState, LOAD_FAILED } from '../live/live-state';
 import { telegramPaused } from '../rail/telegram-card/telegram-card-view';
 import { Announcer } from '../shared/announcer';
@@ -17,6 +17,7 @@ import { CheckThresholdsSection } from './check-thresholds-section';
 import { DailyDigestSection } from './daily-digest-section';
 import { DemoModeSection } from './demo-mode-section';
 import { ModelsSection } from './models-section';
+import { OnCallSection } from './on-call-section';
 import { emailBoxShown, type ModelsForm, modelsValuesOf, sectionLabel, sectionPath, sectionSlug, SETTINGS_SECTIONS, SETTINGS_TEXTS, telegramBoxShown, type ThresholdNumbers } from './settings-view';
 import { TimeZoneSection } from './time-zone-section';
 
@@ -25,12 +26,12 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
 
 /**
  * The settings page (Story 33.2; FR-17; UX: Step 2, settings and the daily digest), for OcuTalonAdmin only. It is titled "Settings \u00B7 OcuTalon" by its
- * route, has the one h1 "Settings", a navigation landmark named "Settings sections" with the seven sections in the UX's order on the left, and the
+ * route, has the one h1 "Settings", a navigation landmark named "Settings sections" with the eight sections in the UX's order on the left (seven on the online demo, which has no On call), and the
  * open section on the right under its own h2. A section has its own address, #/settings/<slug>; #/settings and an unknown slug open Models (the first).
  *
  * The page asks GET /v1/settings once when it opens, and the answer decides what it shows (D10): the sections for an admin; for a 403, the denied
  * view, "Only OcuTalon admins can open settings." with a link back to the chat; for any other failure, the load error with Retry. Models, Budgets, Check
- * thresholds, Demo mode, Daily digest and Time zone have forms (Models and Budgets are Story 18.3's), and Channels shows the state of Telegram and nothing to
+ * thresholds, On call (Story 36.4), Demo mode, Daily digest and Time zone have forms (Models and Budgets are Story 18.3's), and Channels shows the state of Telegram and nothing to
  * save (Story 18.2). Every section is built; an unknown address opens Models.
  *
  * Unsaved changes: the open form tells the page whether it differs from its saved values (`dirty`). While it does, leaving by a link or the browser's
@@ -38,7 +39,7 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
  */
 @Component({
   selector: 'app-settings-page',
-  imports: [BudgetsSection, ChannelsSection, CheckThresholdsSection, DailyDigestSection, DemoModeSection, ModelsSection, RouterLink, ServerButton, TimeZoneSection],
+  imports: [BudgetsSection, ChannelsSection, CheckThresholdsSection, DailyDigestSection, DemoModeSection, ModelsSection, OnCallSection, RouterLink, ServerButton, TimeZoneSection],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="settings" tabindex="-1" [attr.data-settings]="status()" [attr.aria-busy]="status() === 'loading' ? 'true' : null">
@@ -48,7 +49,7 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
           <div class="layout">
             <nav class="sections" [attr.aria-label]="texts.sectionsName">
               <ul class="list">
-                @for (section of sections; track section.slug) {
+                @for (section of sections(); track section.slug) {
                   <li>
                     <a class="section-link" [routerLink]="path(section.slug)" [attr.aria-current]="section.slug === active() ? 'true' : null">{{ section.label }}</a>
                   </li>
@@ -65,6 +66,11 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
                     (dirtyChange)="dirty.set($event)"
                     (denied)="deny()"
                   />
+                }
+                @case ('on-call') {
+                  @if (onCall(); as values) {
+                    <app-on-call-section [values]="values" (saved)="keepOnCall($event)" (dirtyChange)="dirty.set($event)" (denied)="deny()" />
+                  }
                 }
                 @case ('channels') {
                   <app-channels-section [email]="email()" (emailSaved)="keepEmail($event)" (dirtyChange)="dirty.set($event)" />
@@ -210,7 +216,6 @@ export class SettingsPage {
   private readonly live = inject(LiveState);
 
   protected readonly texts = SETTINGS_TEXTS;
-  protected readonly sections = SETTINGS_SECTIONS;
   protected readonly loadErrorTextId = LOAD_ERROR_TEXT_ID;
   protected readonly loadFailed = LOAD_FAILED;
 
@@ -223,10 +228,19 @@ export class SettingsPage {
   /** True while the open section has unsaved changes (the guard and the browser's own prompt read it). */
   readonly dirty = signal(false);
 
-  /** The open section's slug. */
-  protected readonly active = toSignal(this.route.paramMap.pipe(map((params) => sectionSlug(params.get('section')))), {
+  /** The slug that the address names. */
+  private readonly requested = toSignal(this.route.paramMap.pipe(map((params) => sectionSlug(params.get('section')))), {
     initialValue: sectionSlug(this.route.snapshot.paramMap.get('section')),
   });
+
+  /** The On call values: the server sends none on the online demo, so that the section is neither listed nor opened there (Story 36.4). */
+  protected readonly onCall = computed<OnCallValues | undefined>(() => this.data()?.sections['on-call']);
+
+  /** The sections that the navigation lists: On call only while the server sends its values. */
+  protected readonly sections = computed(() => SETTINGS_SECTIONS.filter((section) => section.slug !== 'on-call' || this.onCall() !== undefined));
+
+  /** The open section's slug: the address's, or Models (the first) for On call when the server sends none. */
+  protected readonly active = computed(() => (this.requested() === 'on-call' && this.data() !== undefined && this.onCall() === undefined ? SETTINGS_SECTIONS[0].slug : this.requested()));
 
   protected readonly label = computed(() => sectionLabel(this.active()));
   protected readonly thresholds = computed<ThresholdNumbers>(() => this.data()?.sections['check-thresholds'] ?? { diskFreePercent: 10, journalFreePercent: 10, licenseUsePercent: 90, queueMessages: 100, queueWaitMinutes: 10 });
@@ -295,6 +309,10 @@ export class SettingsPage {
 
   protected keepThresholds(values: SettingsSections['check-thresholds']): void {
     this.data.update((one) => (one === undefined ? one : { ...one, sections: { ...one.sections, 'check-thresholds': values } }));
+  }
+
+  protected keepOnCall(values: OnCallValues): void {
+    this.data.update((one) => (one === undefined ? one : { ...one, sections: { ...one.sections, 'on-call': values } }));
   }
 
   protected keepDailyDigest(values: SettingsSections['daily-digest']): void {
