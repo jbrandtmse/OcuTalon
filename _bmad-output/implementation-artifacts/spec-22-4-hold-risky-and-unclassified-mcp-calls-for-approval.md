@@ -508,6 +508,14 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | Skip `CancelPending` in `Unregister` | `TestRemovedWhilePending`, `Test.Mcp.Ops` `TestRemove` |
 | Grant source taken without the `ServerOf` check | the Gate server-mismatch row |
 
+### Live upgrade-harness run (Contest Planner condition J, 2026-11-13; recorded by the orchestrator at the merge)
+
+- `release/upgrade-harness.sh` in release mode, from v1.0.8 (fb7a9fca, built as 1.0.8-pre.1) to candidate a758d17a, no model key; one lane-D throwaway (tag `e22sharn1`, port 52804, lane-d lock; no slot or demo touched); phases run one by one (build, settings, seed, upgrade, restart, storage, report, down) from a detached checkout of a758d17a; 09:06:54Z to 09:19:38Z; `MERGE-RETRIES 0`; teardown left no containers and no lock.
+- Result: PASS on all 13 rows (previous build, upgrade, conversation, reminder, approval, watch, settings, restart, storage, private globals, pairing, memory, document).
+- Approval rows (6 checks): a second pending request raised on the same incident; `ToolFingerprint` not yet a column on v1.0.8 (accepted); after the upgrade `ToolFingerprint` empty for both requests; approving on the phone channel answered 200 and the incident resolved (`{total 50, completed 50, failedAgain 0}`); rejecting the second request answered 200 and the request is rejected; after the answers `ToolFingerprint` empty for both.
+- Shared-incident risk of the copied request: not seen (the reject comes after the incident resolved and it stayed resolved; the next phase's `PASS watch: a new press gave a new incident ... that awaits approval` shows nothing stuck).
+- Run log: lane D's scratch `e22sharn/run/` (`record.md` + one log per phase), outside git; the runner's cycle-log record is local commit 8435fb9a on OCT-epic22.
+
 ## Auto Run Result
 
 Status: done
