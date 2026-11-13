@@ -94,7 +94,8 @@
 #                  bridge guide's build 154 bullet and of the IPM page's build 154 bullet (U-241 item 7), and the two ruled lines of
 #                  the security overview (U-242): what an approval request shows for a tool call, in the approval section and in the
 #                  MCP rules, which still sit under "This release can't connect to MCP servers." with no heading between; the old
-#                  "exact call" wording is gone
+#                  "exact call" wording is gone; and the sentence on what the trace role reads (Story 21.14, DW-1255), once and as the
+#                  bullet right after the OcuTalonTraceViewer bullet
 #   install-pointer  every guide section that install.sh names ("The Troubleshooting section of GUIDE.md") is an H2 heading of GUIDE.md,
 #                  and install.sh names no section of README.md
 #   commands       every `docker compose` command that install.sh prints after "run:" is in the guide (DW-134), and neither the guide
@@ -1675,6 +1676,7 @@ IPM_BULLET_START='- An InterSystems IRIS for AI Hub instance, build 154, '
 IPM_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, works the same way: the registry install on this page was run on fresh IRIS for Health instances of both builds.'
 L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).'
 L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step."
+L2114="- Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text."
 MCP_FRAME="This release can't connect to MCP servers. When a release adds MCP support, these rules apply:"
 chk_docs() {
   if ! grep -F -- "$BRIDGE_BULLET_START" "$1" | grep -q -F -- "$BRIDGE_SENTENCE"; then
@@ -1685,6 +1687,10 @@ chk_docs() {
   fi
   if [ "$(grep -c -x -F -- "$L111" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line about a tool call's approval request once"; fi
   if [ "$(grep -c -x -F -- "$L187" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line of the MCP rules about the approval request once"; fi
+  if [ "$(grep -c -x -F -- "$L2114" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line about what the trace role reads once"; fi
+  if ! awk -v l="$L2114" 'prev ~ /^- `OcuTalonTraceViewer` is the trace role/ && $0 == l { ok = 1 } { prev = $0 } END { exit !ok }' "$3"; then
+    echo "docs: the trace role's sentence is not the bullet right after the OcuTalonTraceViewer bullet"
+  fi
   if grep -q -F -- 'the exact call' "$3"; then echo "docs: $SECOV_DOC still promises 'the exact call'"; fi
   if ! awk -v f="$MCP_FRAME" -v l="$L187" '$0 == f { a = NR } $0 == l { b = NR } /^#/ && a && !b { h = 1 } END { exit !(a && b && a < b && !h) }' "$3"; then
     echo "docs: the MCP rules line is not under \"$MCP_FRAME\" with no heading between"
@@ -3209,8 +3215,11 @@ rule_docs() {
   st 'the MCP rules line without the full call kept' 3 "$secov_p" '{ sub(/, with the full call kept in the approval record\), an audit entry/, "), an audit entry") } { print }' chk_docs
   st 'the MCP framing sentence removed' 3 "$secov_p" '!/^This release can.t connect to MCP servers\./' chk_docs
   st 'a heading between the framing sentence and the rules line' 3 "$secov_p" '/^- An MCP tool that runs commands must be classified risky\./ { print "## Other"; print "" } { print }' chk_docs
+  st 'the trace role sentence removed' 3 "$secov_p" 'index($0, "- Anyone with the trace role can read the content of every item") != 1' chk_docs
+  st 'the trace role sentence changed' 3 "$secov_p" '{ sub(/an email.s sender, subject and text/, "an email subject") } { print }' chk_docs
+  st 'the trace role sentence moved down one bullet' 3 "$secov_p" 'index($0, "- Anyone with the trace role can read the content of every item") == 1 { held = $0; next } { print } index($0, "- The local (README) account holds all three roles.") == 1 && held != "" { print held; held = "" }' chk_docs
   st 'the exact call promised elsewhere' 3 "$secov_p" '{ print } END { print ""; print "- It shows the exact call." }' chk_docs
-  finish docs 'the build 109 sentences of the bridge guide and the IPM page and the two ruled lines of the security overview are there, word for word' chk_docs
+  finish docs 'the build 109 sentences of the bridge guide and the IPM page and the three ruled lines of the security overview are there, word for word' chk_docs
 }
 
 rule_word_cap() {

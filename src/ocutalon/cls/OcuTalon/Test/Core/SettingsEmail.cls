@@ -23,7 +23,7 @@
 ///   - TestAllOrNothing: a failed audit write at each position or a failed key write changes nothing; a failed credential write, a failed settings row
 ///     write and a failed update put back the keys (with an audit entry of each), the credential and the rows, also over an earlier mailbox;
 ///   - TestValues: the page's channels hold address, incoming, outgoing, user, passwordSet, signIn, clientId, clientSecretSet and signedIn, never a secret;
-///   - TestNoSecretAnywhere: after a save the password is in no audit entry, no ^OcuTalon* global and no Ens.Util.Log row;
+///   - TestNoSecretAnywhere: after a save the password is in no audit entry, no ^OcuTalon* global, no trace global and no Ens.Util.Log row;
 ///   - Story 21.3: TestProviderFirstSave (row 1: keys, credential without a password, the register call, the audits, the mark), TestProviderClearsPassword (an earlier
 ///     password is removed and audited), TestProviderResave (row 2: the secret omitted keeps the client, the client ID changes), TestProviderNeedsSecret (row 2: no client yet,
 ///     or another provider, is refused naming clientSecret), TestProviderChange (row 3), TestRemove (row 4: Password saved removes the client and clears the keys),
@@ -32,6 +32,10 @@
 ///   - Story 21.8: TestProviderRows (the rows OAuth2ApplicationName and OAuth2CallBackHandler on EmailIn and, with a server, EmailOut; none of OAuth2Scope, OAuth2SessionId or
 ///     OAuth2AuthProperties; Password and a cleared outgoing server delete them), TestProviderRowsPutBack (a failed save puts them back like any row), TestSignedInFollowsThePoll
 ///     (the page's signedIn is false after a poll failed on the sign-in after the mark's time, and not for one from before it or from its second, with the marks put back).
+///   - Story 21.14 (DW-1255): Save offers the address and user to the hand-off, as the route does, and sends their references. TestAddressAndUserByReference: a plain address or
+///     user, or a reference that names nothing, is refused naming the field and nothing is written, and a valid save takes both references; TestAddressAndUserNowhereElse:
+///     after a save the address and the user name are in no audit entry, answer, trace global or Ens.Util.Log row, the user name in no ^OcuTalon* global and the address in
+///     the one row email.address of OcuTalonP.SettingD only.
 Class OcuTalon.Test.Core.SettingsEmail Extends %UnitTest.TestCase
 {
 
@@ -230,7 +234,7 @@ Method TestRefusedValues()
 		Do ..SeedEarlier()
 		Set body = ..Body(..#ADDRESS, ..#HOST, ..#USER, "")
 		Do ..Put(body, $List(case, 2), $List(case, 3))
-		Set result = ..SaveText(body.%ToJSON())
+		Set result = ..Save(body)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":["""_$List(case, 4)_"""]}", $List(case, 1)_" is refused, naming "_$List(case, 4))
 		Do ..AssertUntouched($List(case, 1))
 	}
@@ -262,7 +266,7 @@ Method TestRefusedPasswords()
 /// A body that is not an object, an array, or a field that the form does not have is refused and changes nothing.
 Method TestRefusedBodies()
 {
-	Set cases = $ListBuild("[]", "[1]", """text""", "5", "null", "{}", "{""address"": ""zzowner@example.com"", ""incoming"": ""pop.example.com"", ""user"": ""u"", ""extra"": 1}", "not json")
+	Set cases = $ListBuild("[]", "[1]", """text""", "5", "null", "{}", "not json")
 	Set position = 0
 	While $ListNext(cases, position, text) {
 		Do ..Reset()
@@ -271,6 +275,11 @@ Method TestRefusedBodies()
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|refused", text_" is refused")
 		Do ..AssertUntouched(text)
 	}
+	Do ..Reset()
+	Do ..SeedEarlier()
+	Set result = ..Save({"address": "zzowner@example.com", "incoming": "pop.example.com", "user": "u", "extra": 1})
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":[]}", "a body with a field that the form does not have is refused, naming no field")
+	Do ..AssertUntouched("an unknown field")
 }
 
 /// Matrix row 5: the online demo refuses with the accepted sentence, takes nothing and writes nothing.
@@ -287,6 +296,14 @@ Method TestOnlineDemo()
 	Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0)
 	Do $$$AssertEquals($$$ISOK(sc)_"|"_(left = secret), "1|1", "the hand-off was not touched")
 	Kill left
+	Set offered = ..Offered("zzdemo@example.com", "zzdemouser")
+	Set result = ..SaveText(offered.%ToJSON())
+	Do $$$AssertEquals(result.Outcome, "not_available", "a save with the address and user as references is not available either")
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(offered.address, .left, 0)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_left, "1|zzdemo@example.com", "the address reference was not taken")
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(offered.user, .left, 0)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_left, "1|zzdemouser", "nor the user name's")
+	Kill left
 	Set channels = ..Values().sections.%IsDefined("channels")
 	Do $$$AssertEquals(channels, 0, "the page's values have no channels section")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
@@ -298,7 +315,7 @@ Method TestOtherAdminSaves()
 {
 	Do ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("first"))))
 	Do ..Clear()
-	Set result = ..SaveText(..Body(..#ADDRESS, ..#HOST, ..#USER, "").%ToJSON(), ..#OTHERREF)
+	Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ""), ..#OTHERREF)
 	Do $$$AssertEquals(result.Outcome, "done", "the second admin's save is done")
 	Do $$$AssertEquals(..Row("email.owner"), ..#OTHERREF, "email.owner is the second admin's session")
 	Set audits = ..Audits()
@@ -474,6 +491,7 @@ Method TestNoSecretAnywhere()
 	Do $$$AssertEquals(result.Outcome, "done", "the save is done")
 	Do $$$AssertEquals(..AuditText() [ secret, 0, "no audit entry holds the password")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(secret), "", "no ^OcuTalon* global holds it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(secret), "", "no trace global holds it")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", secret), 0, "no Ens.Util.Log row holds it")
 	Do $$$AssertEquals(result.Message_result.Data [ secret, 0, "and the answer does not")
 }
@@ -706,7 +724,7 @@ Method TestRefusedProviderValues()
 		Do ..SeedEarlier()
 		Set body = ..ProviderBody("google", ..Offer(..Secret("refused")))
 		Do ..Put(body, $List(case, 2), $List(case, 3))
-		Set result = ..SaveText(body.%ToJSON())
+		Set result = ..Save(body)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":["""_$List(case, 4)_"""]}", $List(case, 1)_" is refused, naming "_$List(case, 4))
 		Do ..AssertUntouched($List(case, 1))
 	}
@@ -931,9 +949,90 @@ Method TestNoClientSecretAnywhere()
 	Do $$$AssertEquals(..AuditText() [ secret, 0, "no audit entry holds the client secret")
 	Do $$$AssertEquals(..Callz() [ secret, 0, "no recorded call holds it")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(secret), "", "no ^OcuTalon* global holds it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(secret), "", "no trace global holds it")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", secret), 0, "no Ens.Util.Log row holds it")
 	Do $$$AssertEquals(result.Message_result.Data_start.Message_start.Data_check.Message_check.Data [ secret, 0, "and no answer does")
 	Do $$$AssertEquals(..Values().%ToJSON() [ secret, 0, "nor the page's values")
+}
+
+/// Story 21.14: the owner takes the address and the user name like the secrets. A plain value, or a reference that names nothing, is refused naming the field and
+/// nothing is written; a valid save takes both references, so that a second take of each fails.
+Method TestAddressAndUserByReference()
+{
+	Set tag = $Job_$Random(1000000)
+	Set address = "zzby"_tag_"@example.com", user = "zzbyuser"_tag
+	For name = "address", "user" {
+		Do ..Reset()
+		Do ..SeedEarlier()
+		Set copy = ..Offered(address, user)
+		Do copy.%Set(name, $Select(name = "address": address, 1: user), "string")
+		Set result = ..SaveText(copy.%ToJSON())
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":["""_name_"""]}", "a plain "_name_" is refused, naming it")
+		Do ..AssertUntouched("a plain "_name)
+		Do ..Reset()
+		Do ..SeedEarlier()
+		Set copy = ..Offered(address, user)
+		Do ##class(OcuTalon.Core.SecretHandoff).Take(copy.%Get(name), .gone, 0)
+		Kill gone
+		Set result = ..SaveText(copy.%ToJSON())
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":["""_name_"""]}", "a "_name_" reference that names nothing is refused, naming it")
+		Do ..AssertUntouched("a lost "_name_" reference")
+	}
+	Do ..Reset()
+	Do ..SeedEarlier()
+	Set none = "secret://handoff/00000000000000000000000000000000"
+	Set copy = ..Offered(address, user)
+	Do copy.%Set("user", none, "string")
+	Set result = ..SaveText(copy.%ToJSON())
+	Do $$$AssertEquals(result.Data, "{""fields"":[""user""]}", "a reference that was never offered is refused too")
+	Do ..Reset()
+	Do ..SeedEarlier()
+	Set copy = ..Offered(address, user)
+	Set addressUri = copy.address, userUri = copy.user
+	Do $$$AssertEquals((addressUri [ address) + (userUri [ user) + (copy.%ToJSON() [ address) + (copy.%ToJSON() [ user), 0, "the references hold neither value, and nor does the body")
+	Set result = ..SaveText(copy.%ToJSON())
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a save with both references is done")
+	Do $$$AssertEquals(..Row("email.address")_"|"_$List(^||OcuTalonSettingsEmailProbe("cred"), 1), address_"|"_user, "the address is in its key and the user name in the credential")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(addressUri, .again, 0), "a second take of the address reference fails")
+	Do $$$AssertEquals(again, "", "with nothing")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(userUri, .again, 0), "and so does one of the user's")
+	Do $$$AssertEquals(again, "", "with nothing")
+}
+
+/// Story 21.14: after a save the address and the user name are in no audit entry, no answer, no trace global and no Ens.Util.Log row, the user name is in no
+/// ^OcuTalon* global, and the address is only in the row of the key email.address of OcuTalonP.SettingD (the private database).
+Method TestAddressAndUserNowhereElse()
+{
+	Set tag = $Job_$Random(1000000)
+	Set address = "zznowhere"_tag_"@example.com", user = "zznowhereuser"_tag
+	Do $$$AssertTrue(address '= user, "the address and the user name differ")
+	Set secret = ..Secret("nowhereaddress")
+	Set result = ..Save(..Body(address, ..#HOST, user, ..Offer(secret)))
+	Do $$$AssertEquals(result.Outcome, "done", "the save is done")
+	Set handoff = "OcuTalon.Test.Core.SecretHandoff"
+	For what = $ListBuild("the address", address), $ListBuild("the user name", user) {
+		Set text = $List(what, 2), label = $List(what, 1)
+		Do $$$AssertEquals(..AuditText() [ text, 0, "no audit entry holds "_label)
+		Do $$$AssertEquals(result.Message_result.Data [ text, 0, "and the answer does not hold "_label)
+		Do $$$AssertEquals($ClassMethod(handoff, "TableHolds", "Ens_Util.Log", "Text", text), 0, "no Ens.Util.Log row holds "_label)
+		Do $$$AssertEquals($ClassMethod(handoff, "TraceLeaks", text), "", "no trace global holds "_label)
+	}
+	Do $$$AssertEquals($ClassMethod(handoff, "Leaks", user), "", "no ^OcuTalon* global holds the user name")
+	Do $$$AssertEquals($ClassMethod(handoff, "Leaks", address), "OcuTalonP.SettingD", "the address is only in OcuTalonP.SettingD")
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Setting WHERE Value [ ?", address)
+	Do rows.%Next()
+	Do $$$AssertEquals(rows.%GetData(1)_"|"_..Row("email.address"), "1|"_address, "and only the row of email.address holds it")
+	Do $$$AssertEquals($List(^||OcuTalonSettingsEmailProbe("cred"), 1), user, "the credential holds the user name")
+}
+
+/// The body of a valid save with the address and user offered to the hand-off, as a copy that holds their references (kept in Uris for Reset to discard).
+Method Offered(address As %String, user As %String) As %DynamicObject [ Private ]
+{
+	Set copy = ..Body(address, ..#HOST, user, ..Offer(..Secret("offered")))
+	Set uris = ..Uris
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Core.SecretHandoff).Swap(copy, .uris), "the address and user are offered")
+	Set ..Uris = uris
+	Quit copy
 }
 
 /// A MailSignIn command from web_admin for zzadmin, sent to the probe.
@@ -1075,10 +1174,15 @@ ClassMethod Values() As %DynamicObject [ Private ]
 	Quit $ClassMethod(..#PROBE, "Values")
 }
 
-/// A SaveSettings of the channels section from the body (a dynamic object).
-Method Save(body As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+/// A SaveSettings of the channels section from the body (a dynamic object), as the route sends it (Story 21.14): the address and user of a copy are offered to the
+/// hand-off and replaced by their references, kept in Uris for Reset to discard. SaveText sends its text as it is.
+Method Save(body As %DynamicObject, ref As %String = {..#REF}) As OcuTalon.Msg.CommandResult [ Private ]
 {
-	Quit ..SaveText(body.%ToJSON())
+	Set copy = {}.%FromJSON(body.%ToJSON())
+	Set uris = ..Uris
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Core.SecretHandoff).Swap(copy, .uris), "the address and user are offered")
+	Set ..Uris = uris
+	Quit ..SaveText(copy.%ToJSON(), ref)
 }
 
 /// A SaveSettings of the channels section with the text as its changes, from web_admin for zzadmin and the session, sent to the probe.
