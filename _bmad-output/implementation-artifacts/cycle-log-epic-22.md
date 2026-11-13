@@ -273,3 +273,6 @@
 2026-11-13T18:52:26Z	Story 22.6	ruling	source=orchestrator_19:00Z_Step3 question=21.4-dependent_claims choice=verify_at_merge(M(4)) recorded=spec_Design_Notes category=orchestrator_ruling
 2026-11-13T18:52:26Z	Story 22.6	rework_opened	cycle_iteration=3 iteration=1 trigger=med_first_review items=R1_patch_reapply(3way_keep_both_with_21.14),VG1,VG3 scope_baseline=b2829e33
 2026-11-13T18:52:26Z	Story 22.6	stage_spawned	stage=implement spawn_at=2026-11-13T18:52:26Z model=sonnet agent_name=22-6-document-a-worked-jira-example-and-mcp-governance-implement-3 cycle_iteration=3 effort=high branch=wip/22-6
+2026-11-13T20:50:31Z	Story 22.6	dev_complete	spawn_at=2026-11-13T18:53:00Z model=sonnet build_sha=194bd0b6 baseline_revision=e5967024 story_base=c13b1836 cycle_iteration=3 review_loop_iteration=0 followup_review_recommended=false deferred=0 items=R1(plain_union_with_21.14),VG1(TestProxyNoneAdded),VG3(4_overview_pins+24h_from_EXPIRYSECONDS) checks=ci/checks.sh_32_scripts_rc0,no_DRIFT branch=wip/22-6
+2026-11-13T20:50:31Z	Story 22.6	adr_verifications_complete	tool=none acs=none result=none_required mutations=none
+2026-11-13T20:50:31Z	Story 22.6	stage_spawned	stage=qa spawn_at=2026-11-13T20:50:31Z model=sonnet agent_name=22-6-document-a-worked-jira-example-and-mcp-governance-qa-1 cycle_iteration=3 effort=high branch=wip/22-6
