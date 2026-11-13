@@ -7,7 +7,7 @@
 ///     result is not_allowed, Approval.Answer is not called and the request stays as it was. A reject is never refused by this rule, and any other request is not asked;
 ///   - calls Approval.Answer(Ref, Action, Channel, IrisUser, SessionRef) in this production job, so that the answer, its Approval
 ///     audit entry and its live-event fan-out run with the production's privileges: the checked cross-owner reads that fan an
-///     instance request out to its watchers fail in a web request and succeed here (DW-68). The role rule stays with Answer;
+///     instance request out to its watchers fail in a web request and succeed here (DW-68). The RequiredRole rule stays with Answer;
 ///   - answers an AnswerResult with Answer's result and, for already_answered, the winner;
 ///   - when Answer returns done, and only then, sends PrecedentOps one RecordPrecedent {ApprovalRef, Action, Channel, SessionRef}, asynchronously and with
 ///     no answer wanted (AD-21; Story 41.5). PrecedentOps alone decides whether the answer becomes a precedent. A failed send is one warning and the

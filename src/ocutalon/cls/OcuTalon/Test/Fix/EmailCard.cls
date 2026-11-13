@@ -33,8 +33,15 @@ Property Users As %String(MAXLEN = "") [ Private ];
 /// The sessions whose approval rows a test may have made: OnAfterOneTest ends and deletes every row they own.
 Property Owners As %String(MAXLEN = "") [ Private ];
 
+/// The requests that SignIn signed in: OnAfterOneTest signs each one out, on every path of a test.
+Property SignedIn As list Of %Net.HttpRequest [ Private ];
+
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	For i = 1:1:..SignedIn.Count() {
+		Do ..SignOut(..SignedIn.GetAt(i))
+	}
+	Do ..SignedIn.Clear()
 	For i = 1:1:$Length(..Owners, ",") {
 		If $Piece(..Owners, ",", i) '= "" Do ##class(OcuTalon.Test.Bridge.Approval).TrackOwner($Piece(..Owners, ",", i))
 	}
@@ -148,7 +155,7 @@ Method TestUnexpectedDryRunsGiveAPartNotAnError()
 		If thrown Continue
 		Set part = payload.DryRun
 		If '$IsObject(part) {
-			Do $$$AssertTrue(($List(case, 3) = 0) && ($List(case, 4) = "") && ($List(case, 5) = ""), label_": an unreadable dry run leaves no part and has nothing to show")
+			Do $$$AssertTrue(($Extract($List(case, 2)) '= "{") && ($List(case, 3) = 0) && ($List(case, 4) = "") && ($List(case, 5) = ""), label_": only a dry run that is not a JSON object leaves no part, and it has nothing to show")
 			Continue
 		}
 		Do $$$AssertEquals(part.Recipients.Count()_"|"_part.Notice_"|"_part.Before, $List(case, 3)_"|"_$List(case, 4)_"|"_$List(case, 5), label_": the part holds only what is a string")
@@ -205,8 +212,6 @@ Method TestStateShowsTheStoredEmail()
 	Do $$$AssertEquals($IsObject(other) && (other.user = two), 1, "the second user's state is the second user's")
 	Do $$$AssertEquals($IsObject(other) && '$IsObject(..CardOf(other, ref)), 1, "and it shows no such approval")
 	Do $$$AssertEquals((otherBody [ ref)_"|"_(otherBody [ ..#FIRST)_"|"_(otherBody [ "Zz card"), "0|0|0", "nor its Ref, its recipients or its words")
-	Do ..SignOut(requestOne)
-	Do ..SignOut(requestTwo)
 }
 
 /// Makes an IRIS user of the role OcuTalonUser with the password; its name, or "" when it could not be made. OnAfterOneTest deletes it.
@@ -228,8 +233,8 @@ ClassMethod CreateUser(user As %String, password As %String) As %Status [ Privat
 	Quit ##class(Security.Users).Create(user, "OcuTalonUser", password, "OcuTalon test fixture", "OCUTALON", "", "", 0, 1, "Created by a test; the test deletes it.", 1, "", "", , 1, 1)
 }
 
-/// A request to the instance's own web server that is signed in as the user (the sign-in form of the web application, as Test.Install.PasswordGuard.SignInChange posts it); it keeps the session cookie.
-/// "" when the sign-in did not give the session of the user.
+/// A request to the instance's own web server that is signed in as the user (the sign-in form of the web application, as Test.Install.PasswordGuard.SignInChange posts it); it keeps the session cookie,
+/// and OnAfterOneTest signs it out. "" when the sign-in did not give the session of the user.
 Method SignIn(user As %String, password As %String) As %Net.HttpRequest [ Private ]
 {
 	Set request = ##class(%Net.HttpRequest).%New()
@@ -241,6 +246,7 @@ Method SignIn(user As %String, password As %String) As %Net.HttpRequest [ Privat
 	Set sc = request.Post("/ocutalon/")
 	Do $$$AssertStatusOK(sc, "the sign-in of "_user_" is posted")
 	If $$$ISERR(sc) Quit ""
+	Do ..SignedIn.Insert(request)
 	Do $$$AssertEquals(request.HttpResponse.StatusCode, 303, "and answered with the redirect of a sign-in")
 	Quit request
 }

@@ -7707,6 +7707,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 22.7 Task 0: the Live approval payload renders dryRun.to as an object reference; the card is Story 21.11's (Lane B/C, contended); the stored dry run is exact
 - 2026-11-13T07:03:52Z status=escalated owner=burndown by=harvest note=for the orchestrator: 22.7's merge must also wait for the card fix (21.11 or a Live payload fix in Lane B), per ruling H (iii)
 - 2026-11-13T09:22:32Z status=routed owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=orchestrator note=Planner_M(1):fix_inside_22.7(Live_payload_footprint_extension);22.7_waits
+- 2026-11-13T15:19:12Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=079df180:Live.Payload.Approval.EmailPart(recipients_as_addresses,notice=text,before=subject_from_the_stored_row);Test.Fix.EmailCard_unit+real-HTTP_/api/v1/state(two_users,isolation);web_rendering_is_21.10/21.11
 
 ### DW-1262: A non-owner session's send_email to the mailbox owner's address is raised as an approval and, once approved, sent from the owner's mailbox with that session as SessionRef
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
@@ -7714,6 +7715,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T07:03:52Z status=decision-pending owner=burndown by=harvest note=product ruling needed (Planner)
 - 2026-11-13T07:47:28Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=cr note=also_send-time:_mailbox_reconnected_by_another_session_between_raise_and_approval_sends_from_the_new_owner's_mailbox
 - 2026-11-13T09:22:32Z status=routed owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=orchestrator note=Planner_M(2):interim_admin-only_approval_for_email_to_others(test)+guide_sentence;resolved_by_this_interim+25.5
+- 2026-11-13T15:19:12Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=Planner_M(2)_interim:AnswerOps.Carry->Fix.Kind.Email.MayApprove(OcuTalonAdmin_unless_own_address_of_the_row_owner);Test.Fix.EmailRoute+Test.Fix.Email;Story_25.5_completes_it;guide_sentence_PUBLIC_TEXT_to_the_Planner
 
 ### DW-1263: The MESSAGEFAILED exception and never-submitted paths of an approved email have no test
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
@@ -7736,3 +7738,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 22.6 gate ruling M(4), 2026-11-13 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 21.10 V4 removes the cut; 22.6 P2 states it
 - 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=Planner ruling M(4)
+
+### DW-1274: Spine lags 22.7 rework 1: AD-1/AD-14/AD-16 still say SendEmail carries the recipients (tool: every recipient is the own address; system: the row's recipients), AD-11 has no AnswerOps admin-only email rule, AD-16's payload field list has no email row
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Code now sends the marker own (tool) and an empty Recipients (system, EmailOut reads the row), AnswerOps.Carry asks Fix.Kind.Email.MayApprove, and Live FromRow reuses Recipients/Notice/Before for email; spine lines 109-133, 413, 583, 590 describe the old shape
+- 2026-11-13T15:16:08Z status=routed owner=burndown by=cr note=lead: Rule 20 W5 amendment before merge (Planner rulings DW-1255 rule 4, M(1), M(2)); code matches the rulings
+- 2026-11-13T15:19:12Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=spine_AD-10_record_bullet_W5-W7(stored-row_SendEmail,email_card_payload,interim_admin_approver);lint_unchanged
+
+### DW-1275: Test.Fix.EmailRoute depends on the test process's IRIS user: it answers as $Username, asserts that user lacks OcuTalonAdmin and makes its request require that user's first role, so a runner account with OcuTalonAdmin (e.g. ocutalon) turns it red
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: EmailRoute Setup L46-57 and HeldRole L71-75 read $Username's roles; Web.Api only accepts a session of the signed-in user, so a self-made non-admin needs the real-HTTP sign-in of Test.Fix.EmailCard; same pattern in Test.Core.AnswersInProduction:444
+- 2026-11-13T15:16:08Z status=routed owner=burndown by=cr note=fails red not green; fix: drive the answer route over real HTTP as a fixture non-admin (EmailCard SignIn); browser envelope unmeasured
