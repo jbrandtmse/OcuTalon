@@ -7,6 +7,10 @@
 ///   - TestRecordRefuses: an empty owner and a channel that is not one of the eight, with no row;
 ///   - TestFindByApproval: an exact match, the newest of two, another owner, another channel, a case-changed Ref, the owners
 ///     instance and eval, and empty values;
+///   - TestEmailRefs (Story 21.7, DW-1167): SentByEmail is 1 only for the message id of a row of channel email that is not the claim of an unsent send (its
+///     FallbackReason is empty), also for a row of any kind; a row of another channel, an unknown, an empty and a case-changed Ref are 0; TakeEcho gives the one
+///     use of a sent email's Ref once, sets EchoedAt and answers 0 afterwards and for anything that is not a sent email; the digest rows are counted for the
+///     owner since a time, and a digest is sent by its key and the owner only.
 ///   - TestFixtureCleanRemovesTheSessionsDeliveryRows: Fixture.Clean deletes every Delivery row of the fixture sessions it deletes,
 ///     and no other owner's.
 Class OcuTalon.Test.Data.Delivery Extends %UnitTest.TestCase
@@ -133,6 +137,43 @@ Method TestFindByApproval()
 		Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).FindByApproval(approval, "telegram", $ZConvert(owner, "U")), "", "nor in upper case")
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).FindByApproval(approval, "telegram", session), "ZzNew:2", "and the session still finds its newest")
+}
+
+/// SentByEmail, TakeEcho, DigestEmailsSince and DigestEmailSent.
+Method TestEmailRefs()
+{
+	Set session = ..Session("emailrefs")
+	Set other = ..Session("emailrefsother")
+	Set tag = ..Number
+	Set sent = "ZzSent"_tag, tool = "ZzTool"_tag, pending = "ZzPending"_tag, failed = "ZzFailed"_tag, web = "ZzWeb"_tag
+	Set digestsBefore = ##class(OcuTalon.Data.Delivery).DigestEmailsSince("2000-01-01T00:00:00Z")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "email", sent, "", "digest", "", "ZzDec"_tag, , , , , "ZzKey"_tag), "a sent digest row")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "email", tool, ""), "a sent tool row")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "email", pending, "ZzAp1"_tag, , , , , "pending"), "a pending claim")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "email", failed, "ZzAp2"_tag, , , , , "failed"), "a failed claim")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "web", web, "", "digest"), "a web row")
+	For ref = sent, tool {
+		Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).SentByEmail(ref), 1, ref_" is a sent email")
+	}
+	For ref = pending, failed, web, "", "zzsent"_tag, "ZzSent"_tag_" ", "ZzNone"_tag {
+		Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).SentByEmail(ref), 0, "'"_ref_"' is not")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).TakeEcho(sent), 1, "the first use of a sent email's Ref is taken")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).TakeEcho(sent), 0, "the second is not")
+	For ref = pending, failed, web, "", "ZzNone"_tag {
+		Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).TakeEcho(ref), 0, "'"_ref_"' has no use to take")
+	}
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ChannelMessageId, EchoedAt FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? ORDER BY ID", session)
+	Set marked = ""
+	While rs.%Next() {
+		If rs.%Get("EchoedAt") '= "" Set marked = marked_$ListBuild(rs.%Get("ChannelMessageId"))
+	}
+	Do $$$AssertEquals($ListToString(marked), sent, "only the taken row is marked")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).DigestEmailsSince("2000-01-01T00:00:00Z") - digestsBefore, 1, "one more digest email since 2000: the web row, the tool row and the claims are not")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(other, "email", "ZzOther"_tag, "", "digest", "", "ZzDec2"_tag, , , , , "ZzKey2"_tag), "a sent digest row of another owner")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).DigestEmailsSince("2000-01-01T00:00:00Z") - digestsBefore, 2, "the digest emails of another owner of the mailbox count as well")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).DigestEmailsSince("2999-01-01T00:00:00Z"), 0, "none since 2999")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).DigestEmailSent(session, "ZzKey"_tag)_##class(OcuTalon.Data.Delivery).DigestEmailSent(other, "ZzKey"_tag)_##class(OcuTalon.Data.Delivery).DigestEmailSent(session, "ZzKey"_tag_"x")_##class(OcuTalon.Data.Delivery).DigestEmailSent(session, ""), "1000", "the digest is sent for its owner and its key only")
 }
 
 /// Fixture.Clean(refs) deletes the Delivery rows of the fixture sessions it deletes, the rows that a production made (no fixture

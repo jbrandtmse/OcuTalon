@@ -3927,3 +3927,20 @@
 2026-11-13T09:20:36Z	Epic 22	ci_green_verified	head=a758d17a runs=43370177969(att2),43370177998 result=success
 2026-11-13T09:20:36Z	Epic 22	merge_enqueued	part=22.9+22.3+22.4 head=a758d17a condition_J=met
 2026-11-13T09:21:49Z	Epic 22	epic_merged_to_feature	part=22.9+22.3+22.4 merge_sha=3d94a219 code=a758d17a+feature(CodeRules_union) condition_J=met(harness_recorded_in_spec-22-4)
+2026-11-13T09:22:17Z	Run	ci_cancelled	head=ea10d2d4 runs=43397985131(queued),43397984995(in_progress) reason=superseded_by_0c481884(contains_it;cancel-superseded_rule)
+2026-11-13T09:59:45Z	Run	hold_ordered	reason=owner_quota_HOLD_NOW_via_Planner(2am_PST) lock=kept
+2026-11-13T09:59:45Z	Epic 22	stage_api_error	runner=a54c08573d57fa9de error=other(403_Cloudflare_authentication_failed:"Please run /login") note=runner_died_after_merge_relay
+2026-11-13T10:00:31Z	Run	hold_saved	WIP_pushed_by_explicit_path refs=hold/OCT-epic22-20261113(46d7407e,17_commits_incl_22.7_code),hold/OCT-epic36-20261113(4e2c246b),hold/OCT-epic37-20261113(694097e0) ci_triggered=no(refs_outside_workflow_patterns) dirty_trees=none
+2026-11-13T10:02:25Z	Epic 21	runner_ended	reason=hold head=9aec7dee origin=4eb46cdd(CI_pending:43399692299,43399692062) backup=hold/OCT-epic21-20261113
+2026-11-13T10:02:25Z	Run	hold_complete	shas=feature:0c481884(CI_pending),OCT-epic21:4eb46cdd(+hold/9aec7dee),OCT-epic22:a758d17a(+hold/46d7407e),OCT-epic36:16499946(+hold/4e2c246b),OCT-epic37:91c837e3(+hold/694097e0),OCT-epic0:e168d257(0.35_held_merge) worktrees=clean runners=all_ended locks=none throwaways=none hold_patches=none lock=kept(no_run-end)
+2026-11-13T10:02:45Z	Run	inbox_hold_item	id=U-328
+2026-11-13T10:02:45Z	Run	all_parked_report_sent	to=Contest_Planner
+2026-11-13T10:02:58Z	Run	protocol_violation	stage=hold depth=0 agent=orchestrator violation=force-push(git_push_-f)_of_own_backup_ref_hold/feature-records-20261113(668090a4->239bc971) consequence=none(ref_created_minutes_earlier_by_orchestrator_as_backup_only;no_shared_branch,no_CI,no_one_else_reads_it) detected_by=orchestrator outcome=reported_to_owner_and_Planner;no_further_force_pushes(use_a_new_ref_name_instead)
+2026-11-13T10:03:28Z	Run	planner_ack	what=force-push_self-report_acknowledged(no_loss;new_ref_490c0e04) hold=stands resume=Planner_RESUME_after_owner_reset
+2026-11-13T13:17:38Z	Run	unattended_resumed	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec lock_token=1794477728-57457 via=Contest_Planner_RESUME(owner_quota_reset_13:16Z) hold_cleared=yes same_session
+2026-11-13T13:17:38Z	Epic 0	ci_rerun	sha=e168d257 run=43356780569 job=iris(browser)demo-path_06-trace_step5 reason=compare(Planner;0.35_held_merge)
+2026-11-13T13:18:23Z	Run	ci_green_verified	branch=feature/OCT_OcuTalon_MVP head=0c481884 result=success note=newest_fully_green
+2026-11-13T13:18:23Z	Epic 21	ci_green_verified	head=4eb46cdd runs=43399692299,43399692062 result=success
+2026-11-13T13:18:23Z	Epic 21	merge_enqueued	part=21.7+21.8+21.12+21.13 head=9aec7dee code_head=4eb46cdd
+2026-11-13T13:19:18Z	Epic 21	epic_merged_to_feature	part=21.7+21.8+21.12+21.13 merge_sha=ce9716c6 code=4eb46cdd+22.x(no_code_conflict) verified_on_origin=yes
+2026-11-13T13:19:18Z	Epic 21	ledger_routed_planned	story=21-10 entries=2(DW-1232,DW-1266) by=merge_gate

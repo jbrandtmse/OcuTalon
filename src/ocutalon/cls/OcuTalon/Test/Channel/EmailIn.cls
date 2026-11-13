@@ -11,6 +11,14 @@
 ///     10,000 characters; a multipart email gives its plain part;
 ///   - TestFailedPoll (row 12): each failure has the sentence of its kind, the mark holds {at, ok 0, reason, lastOkAt} and nothing else, no server text, address
 ///     or user name is in the mark or the log, a failed poll still returns OK, and the seen rows of emails already handed on stay;
+///   - TestOAuthPollUsesTheToken (Story 21.8, T1): with OAuth2ApplicationName set the adapter asks the handler for the token (application, session and the credential's
+///     user name as the resource), connects with that token and no more, and a poll is ok; the token is in no mark or log row;
+///   - TestOAuthReasons (Story 21.8, DW-1179, T1): in OAuth2 mode a handler that answers an error, one that is not authorized, one that gives no token, one that
+///     says not authorized but leaves a token, and one that throws all give the sign-in sentence with no connection made, and so does a login the server refuses; an unreachable server keeps its sentence; in password
+///     mode a refused login keeps the refused sentence and the handler is never asked;
+///   - TestOAuthTransport (DW-1230): in OAuth2 mode the token is fetched and sent only over TLS: a blank SSLConfig, a foreign one, and SSLCheckServerIdentity 0 are each
+///     refused with the "couldn't reach" sentence before the handler is asked, so no token is fetched and no connection is made; implicit TLS and STARTTLS (OcuTalonClient,
+///     OcuTalonClient*) poll; the plain exception needs the CI-only switch AND the host mock, and then polls with a blank SSLConfig; password mode is unchanged;
 ///   - TestGoneMail: a UIDL that is no longer listed has its row deleted after a successful poll, and so has every row of another mailbox;
 ///   - TestDeleteIsNeverHonoured: the DeleteMessage setting is forced to 0, whatever it was, and no poll deletes;
 ///   - TestNoRepeatAfterFailure: an email whose hand-off failed is not recorded seen and goes on at the next poll;
@@ -24,6 +32,12 @@
 ///     three fields, every other field empty, the SuperSession the owner's TraceRef; the text is cut to the size of the simulated mailbox's body (RULED V-COST);
 ///   - TestServiceRefusals: an input that is no email, an email with no UIDL, no owner or an owner without a session row, and a failed send, are error statuses and
 ///     send nothing (a failed send sends the one).
+///   - TestAdapterCarriesSentRef (DW-1167): the adapter gives the service the value of the header X-OcuTalon-Ref of an email, from the whole read and from the
+///     headers-only read, and an empty value for an email without it;
+///   - TestServiceSkipsOwnMail (DW-1167, ruling V4): the service makes no Item of an email only when its Ref is a sent email Delivery row's, its From is
+///     email.address and the Ref was not taken before; it takes the Ref's one use and logs the Ref and nothing of the email; the first email with the Ref and
+///     a From that is not email.address does not use it up; the claim row of an email that was not sent, a row of another channel, an unknown or forged Ref,
+///     an empty one and a second use each leave an Item as before.
 /// The run's number is n from ^OcuTalonTest("EmailIn","n") (never reset).
 Class OcuTalon.Test.Channel.EmailIn Extends %UnitTest.TestCase
 {
@@ -43,6 +57,11 @@ Parameter REFUSED = "The mail server refused the user name or password.";
 
 Parameter UNREADABLE = "OcuTalon couldn't read the mailbox.";
 
+/// The sentence of a poll in OAuth2 mode whose sign-in cannot be used (Public text T1), and the handler stand-in.
+Parameter SIGNIN = "The mail sign-in is no longer valid. Sign in again in Settings > Channels > Email.";
+
+Parameter HANDLER = "OcuTalon.Test.Channel.EmailInHandler";
+
 /// The run's number.
 Property Number As %Integer;
 
@@ -51,6 +70,12 @@ Property Refs As %String(MAXLEN = "");
 
 /// The mailbox identities that the run made, comma-separated.
 Property Mailboxes As %String(MAXLEN = "");
+
+/// The Refs of the Delivery rows a test made, comma-separated.
+Property Deliveries As %String(MAXLEN = "");
+
+/// The key email.address as found: $ListBuild(row exists, value).
+Property AddressFound As %List;
 
 /// The status mark emailPoll and the key email.owner as found: $ListBuild(mark, owner row exists, owner).
 Property Found As %List;
@@ -61,6 +86,9 @@ Method OnBeforeAllTests() As %Status
 	Set ..Number = $Increment(^OcuTalonTest("EmailIn", "n"))
 	Set ..Refs = ""
 	Set ..Mailboxes = ""
+	Set ..Deliveries = ""
+	Set address = ##class(OcuTalon.Data.Setting).KeyIndexOpen("email.address")
+	Set ..AddressFound = $ListBuild($IsObject(address), $Select($IsObject(address): address.Value, 1: ""))
 	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("email.owner")
 	Set ..Found = $ListBuild(##class(OcuTalon.Data.StatusMark).Get("emailPoll"), $IsObject(row), $Select($IsObject(row): row.Value, 1: ""))
 	Quit $$$OK
@@ -70,6 +98,7 @@ Method OnBeforeOneTest() As %Status
 {
 	Kill ^||OcuTalonEmailInPop3
 	Kill ^||OcuTalonEmailInAdapter
+	Kill ^||OcuTalonEmailInHandler
 	Kill ^OcuTalonTest("EmailInServiceProbe", ..Number)
 	Do ##class(OcuTalon.Data.StatusMark).Record("emailPoll", "")
 	Quit $$$OK
@@ -79,6 +108,7 @@ Method OnAfterAllTests() As %Status
 {
 	Kill ^||OcuTalonEmailInPop3
 	Kill ^||OcuTalonEmailInAdapter
+	Kill ^||OcuTalonEmailInHandler
 	Kill ^OcuTalonTest("EmailInServiceProbe", ..Number)
 	Set position = 0
 	For i = 1:1:$Length(..Mailboxes, ",") {
@@ -91,6 +121,15 @@ Method OnAfterAllTests() As %Status
 		Do ##class(OcuTalon.Data.Setting).KeyIndexDelete("email.owner")
 	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+	For i = 1:1:$Length(..Deliveries, ",") {
+		If $Piece(..Deliveries, ",", i) '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE ChannelMessageId = ?", $Piece(..Deliveries, ",", i))
+	}
+	If $List(..AddressFound, 1) {
+		Do ##class(OcuTalon.Data.Setting).Set("email.address", $List(..AddressFound, 2))
+	} Else {
+		Do ##class(OcuTalon.Data.Setting).KeyIndexDelete("email.address")
+	}
+	Kill ^||OcuTalon.Setting("email.address"), ^||OcuTalon.Setting("email.owner")
 	Quit $$$OK
 }
 
@@ -248,6 +287,122 @@ Method TestFailedPoll()
 	Do $$$AssertEquals(..Mark().lastOkAt = ..Mark().at, 1, "with lastOkAt now")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", "SERVER-WORDS"), 0, "no log row holds the server's words")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", "zzserver@example.com"), 0, "or the address")
+}
+
+/// Story 21.8, T1: the token comes from the handler and goes to the connection for the login.
+Method TestOAuthPollUsesTheToken()
+{
+	Do $$$AssertEquals($Parameter("OcuTalon.Channel.Email.Adapter", "REASONSIGNIN"), ..#SIGNIN, "T1")
+	Set adapter = ..OAuthAdapter("token")
+	Do ..Mail("u1")
+	Do adapter.OnTask()
+	Set mark = ..Mark()
+	Do $$$AssertEquals(mark.ok_"|"_mark.reason, "1|", "the first poll of the signed-in mailbox is ok")
+	Do $$$AssertEquals($Get(^||OcuTalonEmailInHandler("calls")), 1, "the handler was asked once")
+	Do $$$AssertEquals(^||OcuTalonEmailInHandler("call", 1), $ListBuild("OcuTalonMail", "OcuTalonMail", ^||OcuTalonEmailInAdapter("user"), ""), "for the application and the session OcuTalonMail, with the credential's user name as the resource and no scope")
+	Do $$$AssertEquals($Get(^||OcuTalonEmailInPop3("token")), "zz-token-1", "the connection was given the handler's token")
+	Do $$$AssertEquals(^||OcuTalonEmailInPop3("connect"), $ListBuild("pop.example.com", 995, ^||OcuTalonEmailInAdapter("user")), "to the server and port of the settings, as the credential's user")
+	Do ..Mail("u2")
+	Do adapter.OnTask()
+	Do $$$AssertEquals($Get(^||OcuTalonEmailInHandler("calls")) _ "|" _ $Get(^||OcuTalonEmailInPop3("token")), "2|zz-token-2", "each poll asks again and uses the token it was given")
+	Do $$$AssertEquals(..Delivered(), 1, "the second poll handed the new email on")
+	Do $$$AssertEquals(##class(OcuTalon.Data.StatusMark).Get("emailPoll") [ "zz-token", 0, "the mark holds no token")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens_Util.Log", "Text", "zz-token-"), 0, "no log row holds a token")
+}
+
+/// Story 21.8, DW-1179 and T1: the reason of a poll in OAuth2 mode and in password mode.
+Method TestOAuthReasons()
+{
+	Set adapter = ..OAuthAdapter("reasons")
+	Do ..Mail("u1")
+	Do adapter.OnTask()
+	Set okAt = ..Mark().at
+	Set cases = $ListBuild("error||"_..#SIGNIN, "empty||"_..#SIGNIN, "stale||"_..#SIGNIN, "throw||"_..#SIGNIN, "|ConnectPort 6015~-ERR [AUTH] invalid token|"_..#SIGNIN, "|ConnectPort 6012|"_..#UNREACHABLE, "|ConnectPort 6013|"_..#UNREACHABLE, "|GetMessageUIDArray 6015|"_..#UNREADABLE)
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Kill ^||OcuTalonEmailInPop3("answer"), ^||OcuTalonEmailInPop3("calls"), ^||OcuTalonEmailInPop3("token"), ^||OcuTalonEmailInHandler
+		Set ^||OcuTalonEmailInHandler("answer") = $Piece(case, "|", 1)
+		Set step = $Piece(case, "|", 2)
+		If step '= "" Set ^||OcuTalonEmailInPop3("answer", $Piece(step, " ", 1)) = $Piece(step, " ", 2, *)
+		Set label = $Piece(case, "|", 1)_" "_step
+		Set sc = adapter.OnTask()
+		Do $$$AssertStatusOK(sc, label_": a failed poll returns OK")
+		Set mark = ..Mark()
+		Do $$$AssertEquals(mark.ok_"|"_mark.reason, "0|"_$Piece(case, "|", 3), label_": ok 0 and the sentence of its kind")
+		Do $$$AssertEquals(mark.lastOkAt, okAt, label_": lastOkAt stays the last good poll's")
+		If $Piece(case, "|", 1) '= "" Do $$$AssertEquals(..Count("ConnectPort"), 0, label_": no connection is made without a token, so no USER and PASS")
+		Do $$$AssertEquals(##class(OcuTalon.Data.StatusMark).Get("emailPoll") [ "SERVER-WORDS", 0, label_": the mark has no server text")
+		Do $$$AssertEquals(##class(OcuTalon.Data.StatusMark).Get("emailPoll") [ "zzhandler@example.com", 0, label_": and no handler text")
+	}
+	Kill ^||OcuTalonEmailInPop3("answer"), ^||OcuTalonEmailInPop3("calls"), ^||OcuTalonEmailInHandler
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Mark().ok, 1, "a good poll after the failures is ok again")
+	// password mode: a refused login keeps its own sentence, and the handler is never asked
+	Kill ^||OcuTalonEmailInPop3, ^||OcuTalonEmailInAdapter, ^||OcuTalonEmailInHandler
+	Set plain = ..Adapter("plainreasons")
+	Set plain.OAuth2CallBackHandler = ..#HANDLER
+	Do ..Mail("p1")
+	Do plain.OnTask()
+	Set ^||OcuTalonEmailInPop3("answer", "ConnectPort") = "6015~-ERR [AUTH] authentication failed"
+	Do plain.OnTask()
+	Do $$$AssertEquals(..Mark().ok_"|"_..Mark().reason, "0|"_..#REFUSED, "password mode: a refused login is the refused sentence")
+	Do $$$AssertEquals(+$Get(^||OcuTalonEmailInHandler("calls")) _ "|" _ $Get(^||OcuTalonEmailInPop3("token")), "0|", "and the handler is never asked, and no token goes to the connection")
+}
+
+/// DW-1230: the token goes only over TLS; the plain exception is the CI stub's (the switch on AND the host mock).
+Method TestOAuthTransport()
+{
+	// (a) a blank SSLConfig, a foreign one and (b) the server's name not checked are refused before any token is fetched
+	Set cases = $ListBuild("blank||1|pop.example.com", "foreign|SomeOtherConfig|1|pop.example.com", "near miss|OcuTalonClientX|1|pop.example.com", "doubled star|OcuTalonClient**|1|pop.example.com", "unchecked|OcuTalonClient|0|pop.example.com", "unchecked star|OcuTalonClient*|0|pop.example.com", "switch on, host not mock||1|pop.example.com", "switch off, host mock||1|mock")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Kill ^||OcuTalonEmailInPop3, ^||OcuTalonEmailInAdapter, ^||OcuTalonEmailInHandler
+		Set label = $Piece(case, "|", 1)
+		Set adapter = ..OAuthAdapter("transport")
+		Set adapter.SSLConfig = $Piece(case, "|", 2), adapter.SSLCheckServerIdentity = $Piece(case, "|", 3), adapter.POP3Server = $Piece(case, "|", 4)
+		Set ^||OcuTalonEmailInAdapter("plain") = ($Piece(case, "|", 1) '[ "switch off")
+		Do ..Mail("u1")
+		Do adapter.OnTask()
+		Set mark = ..Mark()
+		Do $$$AssertEquals(mark.ok_"|"_mark.reason, "0|"_..#UNREACHABLE, label_": ok 0 and the sentence of a connection that was not made")
+		Do $$$AssertEquals(+$Get(^||OcuTalonEmailInHandler("calls")), 0, label_": the handler is never asked, so no token is fetched")
+		Do $$$AssertEquals(..Count("ConnectPort") _ "|" _ $Get(^||OcuTalonEmailInPop3("token")), "0|", label_": no connection is made and no token is sent")
+	}
+	// the real switch (every test host stands in for it) is the sender's, and the sender's reads the CI-only variable and nothing else
+	For name = "Adapter||SwitchOn", "Sender||SwitchOn" {
+		Set method = ##class(%Dictionary.MethodDefinition).%OpenId("OcuTalon.Channel.Email."_name)
+		Set code(name) = $Select($IsObject(method): $ZConvert($ZStrip(method.Implementation.Read(1000000), "*WC"), "U"), 1: "")
+	}
+	Do $$$AssertEquals(code("Adapter||SwitchOn"), "QUIT##CLASS(OCUTALON.CHANNEL.EMAIL.SENDER).SWITCHON()", "the adapter's switch of the plain exception is Sender.SwitchOn")
+	Do $$$AssertEquals(code("Sender||SwitchOn"), "QUIT..ISON($SYSTEM.UTIL.GETENVIRON(..#PLAINVARIABLE))", "Sender.SwitchOn is IsOn of the CI-only variable's value")
+	// TLS polls: implicit TLS and STARTTLS, the name checked
+	For config = "OcuTalonClient", "OcuTalonClient*", " OcuTalonClient " {
+		Kill ^||OcuTalonEmailInPop3, ^||OcuTalonEmailInAdapter, ^||OcuTalonEmailInHandler
+		Set adapter = ..OAuthAdapter("transporttls")
+		Set adapter.SSLConfig = config
+		Do ..Mail("u1")
+		Do adapter.OnTask()
+		Do $$$AssertEquals(..Mark().ok, 1, config_": a poll over TLS is ok")
+		Do $$$AssertEquals($Get(^||OcuTalonEmailInPop3("token")), "zz-token-1", config_": and sends the token")
+	}
+	// (c) the CI stub: the switch on AND the host mock, with a blank SSLConfig
+	Kill ^||OcuTalonEmailInPop3, ^||OcuTalonEmailInAdapter, ^||OcuTalonEmailInHandler
+	Set adapter = ..OAuthAdapter("transportmock")
+	Set adapter.POP3Server = "mock", adapter.SSLConfig = "", adapter.SSLCheckServerIdentity = 0
+	Set ^||OcuTalonEmailInAdapter("plain") = 1
+	Set mailbox = ##class(OcuTalon.Data.MailSeen).IdentityOf("mock", 995, ^||OcuTalonEmailInAdapter("user"))
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.MailSeen WHERE Mailbox = ?", mailbox)
+	Set ..Mailboxes = ..Mailboxes_","_mailbox
+	Do ..Mail("u1")
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Mark().ok, 1, "the CI stub: a plain poll is ok")
+	Do $$$AssertEquals($Get(^||OcuTalonEmailInPop3("token")), "zz-token-1", "and it logs in with the token")
+	// password mode keeps its plain connection: the transport rule is OAuth2 mode's
+	Kill ^||OcuTalonEmailInPop3, ^||OcuTalonEmailInAdapter, ^||OcuTalonEmailInHandler
+	Set plain = ..Adapter("transportpassword")
+	Do ..Mail("p1")
+	Do plain.OnTask()
+	Do $$$AssertEquals(..Mark().ok, 1, "password mode: a poll with a blank SSLConfig is ok as before")
 }
 
 /// An email whose hand-off failed is not recorded seen and goes on at the next poll; the ones handed on before it stay seen.
@@ -426,6 +581,123 @@ Method TestServiceRefusals()
 	Do $$$AssertEquals($Get(^OcuTalonTest("EmailInServiceProbe", ..Number), 0), 1, "after one send")
 }
 
+/// The adapter reads the header of the email.
+Method TestAdapterCarriesSentRef()
+{
+	Set adapter = ..Adapter("ref")
+	Do ..Mail("u1")
+	Do adapter.OnTask()
+	Do ..Mail("u2", "a@example.com", "zz s2", "zz b2", , , , "zzRefWhole00000000001"), ..Mail("u3", "a@example.com", "zz s3", "zz b3", , 2000000, , "zzRefHeaders0000000002"), ..Mail("u4")
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Delivered(), 3, "three emails are handed on")
+	Do $$$AssertEquals($Get(^||OcuTalonEmailInAdapter("delivered", 1, "ref"))_"|"_$Get(^||OcuTalonEmailInAdapter("delivered", 2, "ref"))_"|"_$Get(^||OcuTalonEmailInAdapter("delivered", 3, "ref")), "zzRefWhole00000000001|zzRefHeaders0000000002|", "the Ref of the whole read, the Ref of the headers-only read, and none for an email without the header")
+	Do $$$AssertEquals(..Count("Fetch")_"|"_..Count("FetchMessageHeaders"), "2|1", "the second was read as headers only")
+}
+
+/// DW-1167, ruling V4: an email that EmailOut sent to the mailbox makes no Item, once.
+Method TestServiceSkipsOwnMail()
+{
+	Set owner = ..Session("echo")
+	Set other = ..Session("echoother")
+	Do ##class(OcuTalon.Data.Setting).Set("email.owner", owner)
+	Do ##class(OcuTalon.Data.Setting).Set("email.address", "zzown@example.com")
+	Set sentRef = ..Row(owner, "email", "digest", "")
+	Set toolRef = ..Row(owner, "email", "", "")
+	Set pendingRef = ..Row(owner, "email", "", "pending")
+	Set failedRef = ..Row(owner, "email", "", "failed")
+	Set webRef = ..Row(owner, "web", "digest", "")
+	Set forged = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set service = ..Service()
+	// A sent Ref but a From that is not the own address: an Item, and the use of the Ref is kept.
+	Do ..Take(service, "u1", "zzother@example.com", sentRef)
+	Do $$$AssertEquals(..Sends(), 1, "a Ref of a sent email from another sender is an Item")
+	Do $$$AssertEquals(..Echoed(sentRef), "", "and does not use up the Ref")
+	Do ..Take(service, "u1b", "zzown@example.com.evil.net", sentRef)
+	Do ..Take(service, "u1c", "Zz Own <zzown@example.org>", sentRef)
+	Do $$$AssertEquals(..Sends(), 3, "a sender that only looks like the address is an Item too")
+	// All three hold: no Item, the use is taken, the Ref is logged.
+	Set before = ..LastLog()
+	Do ..Take(service, "u2", "OcuTalon <ZZOWN@Example.com>", sentRef)
+	Do $$$AssertEquals(..Sends(), 3, "a Ref of a sent email from the own address (a name and brackets, any case) makes no Item")
+	Do $$$AssertTrue(..Echoed(sentRef) ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "and the Ref's use is taken")
+	Set texts = ..InfoTexts(before)
+	Do $$$AssertEquals($ListToString(texts, "|"), "EmailIn made no item from its own email "_sentRef, "one information line, with the Ref and nothing of the email")
+	// The second use.
+	Do ..Take(service, "u3", "zzown@example.com", sentRef)
+	Do $$$AssertEquals(..Sends(), 4, "the same Ref again is an Item")
+	// A tool email's row is a sent email too.
+	Do ..Take(service, "u4", "zzown@example.com", toolRef)
+	Do $$$AssertEquals(..Sends(), 4, "the Ref of a sent tool email is skipped as well")
+	// Everything else is an Item.
+	Do ..Take(service, "u5", "zzown@example.com", forged)
+	Do $$$AssertEquals(..Sends(), 5, "a Ref that no row has (a forged one) is an Item")
+	Do ..Take(service, "u6", "zzown@example.com", "")
+	Do $$$AssertEquals(..Sends(), 6, "an email with no Ref is an Item")
+	Do ..Take(service, "u7", "zzown@example.com", pendingRef)
+	Do ..Take(service, "u8", "zzown@example.com", failedRef)
+	Do $$$AssertEquals(..Sends(), 8, "the Ref of a claim whose send did not finish or failed is an Item")
+	Do ..Take(service, "u9", "zzown@example.com", webRef)
+	Do $$$AssertEquals(..Sends(), 9, "the message id of a row of another channel is an Item")
+	Set padded = ..Row(owner, "email", "", "")
+	Do ..Take(service, "u10", "zzown@example.com", " "_padded)
+	Do $$$AssertEquals(..Sends(), 10, "a Ref with spaces around it is not the Ref")
+	Do $$$AssertEquals(..Echoed(padded), "", "and does not use up the Ref it was made from")
+	Do ##class(OcuTalon.Data.Setting).Set("email.address", "zzmoved@example.com")
+	Do ..Take(service, "u11", "zzown@example.com", ..Row(owner, "email", "digest", ""))
+	Do $$$AssertEquals(..Sends(), 11, "when the mailbox address has moved, the old address is not the own one")
+}
+
+/// A Delivery row for the owner; the Ref of the row (its ChannelMessageId), kept for the clean-up.
+Method Row(owner As %String, channel As %String, kind As %String, fallbackReason As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(owner, channel, ref, "", kind, "", "", "", fallbackReason), "a Delivery row is made")
+	Set ..Deliveries = ..Deliveries_$Select(..Deliveries = "": "", 1: ",")_ref
+	Quit ref
+}
+
+/// The email goes to the service with the Ref in its header.
+Method Take(service As OcuTalon.Test.Channel.EmailInServiceProbe, uidl As %String, from As %String, ref As %String) [ Private ]
+{
+	Set mail = ##class(OcuTalon.Channel.Email.Mail).%New()
+	Set mail.Uidl = uidl
+	Set mail.Sender = from
+	Set mail.Subject = "zz s"
+	Set mail.SentRef = ref
+	Do $$$AssertStatusOK(service.OnProcessInput(mail, .output), "the email "_uidl_" is accepted")
+}
+
+Method Sends() As %Integer [ Private ]
+{
+	Quit +$Get(^OcuTalonTest("EmailInServiceProbe", ..Number))
+}
+
+/// The EchoedAt of the sent email Delivery row of the Ref.
+ClassMethod Echoed(ref As %String) As %String [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT EchoedAt FROM OcuTalon_Data.Delivery WHERE ChannelMessageId = ?", ref)
+	Do result.%Next()
+	Quit result.%Get("EchoedAt")
+}
+
+ClassMethod LastLog() As %Integer [ Private ]
+{
+	Set last = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
+	Do last.%Next()
+	Quit +last.%GetData(1)
+}
+
+/// The texts of the log rows of EmailIn after the row id start, as a list.
+ClassMethod InfoTexts(start As %Integer) As %List [ Private ]
+{
+	Set texts = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Text [ 'EmailIn' ORDER BY ID", start)
+	While result.%Next() {
+		Set texts = texts_$ListBuild(result.%GetData(1))
+	}
+	Quit texts
+}
+
 /// --- helpers ---
 
 /// A new adapter for a mailbox of its own (the user name zzmailuser<tag><run>), made like the production makes one: the settings, then OnInit.
@@ -448,10 +720,21 @@ Method Adapter(tag As %String, first As %Boolean = 1, deleteSetting As %Boolean 
 	Quit adapter
 }
 
-/// Adds an email to the stand-in's mailbox.
-ClassMethod Mail(uidl As %String, from As %String = "a@example.com", subject As %String = "zz subject", text As %String = "zz body", html As %String = "", size As %Integer = 0, parts As %Boolean = 0)
+/// An adapter that signs in with OAuth2: the application OcuTalonMail, the session OcuTalonMail and the handler stand-in, over implicit TLS with the server's name checked.
+Method OAuthAdapter(tag As %String) As OcuTalon.Test.Channel.EmailInAdapter [ Private ]
 {
-	Do ##class(OcuTalon.Test.Channel.EmailInPop3).Add(uidl, from, subject, text, html, size, parts)
+	Set adapter = ..Adapter(tag)
+	Set adapter.OAuth2ApplicationName = "OcuTalonMail"
+	Set adapter.OAuth2SessionId = "OcuTalonMail"
+	Set adapter.OAuth2CallBackHandler = ..#HANDLER
+	Set adapter.SSLConfig = "OcuTalonClient", adapter.SSLCheckServerIdentity = 1
+	Quit adapter
+}
+
+/// Adds an email to the stand-in's mailbox.
+ClassMethod Mail(uidl As %String, from As %String = "a@example.com", subject As %String = "zz subject", text As %String = "zz body", html As %String = "", size As %Integer = 0, parts As %Boolean = 0, ref As %String = "")
+{
+	Do ##class(OcuTalon.Test.Channel.EmailInPop3).Add(uidl, from, subject, text, html, size, parts, ref)
 }
 
 /// The number of emails handed on since the last Kill.

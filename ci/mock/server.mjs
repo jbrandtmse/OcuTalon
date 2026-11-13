@@ -74,9 +74,9 @@ if (opts.logDir !== null) {
 }
 
 const mock = createMock({ scenarios, logDir: opts.logDir, out: process.stdout });
-const mail = createMail();
-const smtp = createSmtp();
 const oauth = createOAuth();
+const mail = createMail({ checkAccessToken: oauth.checkAccessToken });
+const smtp = createSmtp({ checkAccessToken: oauth.checkAccessToken });
 const server = http.createServer((req, res) => {
   const url = req.url || '/';
   if (url.startsWith('/_mock/mail/')) {

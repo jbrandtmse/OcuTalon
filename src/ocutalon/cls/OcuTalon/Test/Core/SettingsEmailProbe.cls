@@ -13,7 +13,8 @@
 /// ^||OcuTalonSettingsEmailProbe("mark") and records "mark|<provider>|<signedIn>". The answers: "register", "remove", "start" and "state" are "" for OK and "error" for an
 /// error status; "owned" is the list that a register or start answers (default: client,server,app for a first register, else the list it was given), "app" is "enabled"
 /// or "disabled" or empty (default: enabled for a first register, disabled for a remove that names app, else empty), "changed" is the register's changed (default 1) and
-/// "signedIn" is the state's (default 0). The product never refers to it.
+/// "signedIn" is the state's (default 0). SignedInMark answers the probe's own mark; DerivedMark is the product's, which also reads the mark emailPoll (Story 21.8).
+/// The product never refers to it.
 Class OcuTalon.Test.Core.SettingsEmailProbe Extends OcuTalon.Test.Core.SettingsOpsProbe
 {
 
@@ -132,8 +133,18 @@ ClassMethod RecordSignIn(provider As %String, signedIn As %Boolean) [ Private ]
 
 ClassMethod SignedInMark(provider As %String) As %Boolean [ Private ]
 {
+	If $Get(^||OcuTalonSettingsEmailProbe("real")) Quit ##super(provider)
 	Set mark = $Get(^||OcuTalonSettingsEmailProbe("mark"))
 	Quit (mark '= "") && ($List(mark, 1) = provider) && ($List(mark, 2) = 1)
+}
+
+/// The product's SignedInMark (the stand-in above hides it), for the tests of the derivation that reads the marks emailSignIn and emailPoll.
+ClassMethod DerivedMark(provider As %String) As %Boolean
+{
+	Set ^||OcuTalonSettingsEmailProbe("real") = 1
+	Set signedIn = ..SignedInMark(provider)
+	Kill ^||OcuTalonSettingsEmailProbe("real")
+	Quit signedIn
 }
 
 /// Seeds the stand-in credential and the rows of EmailIn as an earlier save would have left them; with an outgoing host (and port) the rows of EmailOut too.

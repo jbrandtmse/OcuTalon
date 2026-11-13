@@ -838,6 +838,11 @@ XData Entries [ MimeType = application/json ]
   "text": "Approved. Sending the delay notice to the Simulated mailbox.",
   "slots": {},
   "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
+ },
+ "email.digestSubject": {
+  "text": "Your OcuTalon digest",
+  "slots": {},
+  "source": "Story 21.7 Send the daily digest by email, Public Text E1 approved by the Contest Planner 2026-11-12"
  }
 }
 }

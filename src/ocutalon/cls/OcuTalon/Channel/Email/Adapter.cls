@@ -4,9 +4,16 @@ Include Ensemble
 /// re-reads every message on every poll, logs From, To and Subject, and leaves repeated downloads to the service ("Service code
 /// responsibility"); this poll keeps what it has seen, reads only new mail, logs counts only and never deletes. Its settings are the
 /// parent's: POP3Server, POP3Port, Credentials (the Interoperability credential OcuTalonMail), SSLConfig (OcuTalonClient, or
-/// OcuTalonClient* for STARTTLS on port 110) and the OAuth2 settings that Story 21.3 uses; the product offers no plain connection.
+/// OcuTalonClient* for STARTTLS on port 110) and the OAuth2 settings that Story 21.8 uses; the product offers no plain connection.
+/// In OAuth2 mode the access token goes only over TLS (Transport): SSLConfig is OcuTalonClient (POP3S) or OcuTalonClient* (STLS), surrounding blanks ignored, and
+/// SSLCheckServerIdentity is 1, or else the connection is plain, which is allowed only by the rule of Sender.PlainFor (the CI-only switch is on AND the
+/// server host is exactly mock, the CI stub). Any other state refuses the poll before the handler is asked for a token, with REASONUNREACHABLE, so no token is
+/// fetched and nothing reaches the server. Password mode is unchanged.
 /// DeleteMessage is forced to 0 at OnInit, whatever the setting says; a poll deletes an email from the server only when the property is 1. Each poll, in order:
-///   - reads the credential again (a changed password applies at the next poll), connects, and lists the unique ids (UIDL);
+///   - reads the credential again (a changed password applies at the next poll); with OAuth2ApplicationName set (a Google or Microsoft 365 sign-in) it
+///     asks the handler OAuth2CallBackHandler (Channel.Email.Token) for the access token, which IRIS renews when it has expired, and logs in with
+///     AUTH XOAUTH2 and the credential's user name; the token is held for that login only. Otherwise it logs in with USER and PASS. Then it lists the
+///     unique ids (UIDL);
 ///   - a mailbox that is new to EmailIn (Data.MailSeen holds no baseline marker for its identity, the hash of server, port and user name)
 ///     is baselined: every listed UIDL is recorded seen (Baseline 1) and no Item is made, so only mail that arrives afterwards is read;
 ///   - otherwise every listed UIDL with no row is new; the oldest NEWMAX of them go on (the rest wait for the next poll). A new email
@@ -19,9 +26,11 @@ Include Ensemble
 ///   - after a poll that reached its end the rows of mail that is no longer listed, and every row of another mailbox, are deleted;
 ///   - QUIT: the connection is closed with no DELE ever sent.
 /// Every poll ends with the status mark emailPoll (StatusMark.Record): {at, ok, reason, lastOkAt}. The reason of a failed poll is one of
-/// three plain sentences and never holds server text, an address or a credential: REASONUNREACHABLE when the connection or the TLS
+/// four plain sentences and never holds server text, an address or a credential: REASONUNREACHABLE when the connection or the TLS
 /// handshake failed or the server did not greet as a POP3 server (another protocol, or no greeting in time), REASONREFUSED when it answered
-/// -ERR while connecting (to USER, PASS or STLS), REASONUNREADABLE for any other failure. A poll that handed an email on still waits
+/// -ERR while connecting (to USER, PASS or STLS), REASONUNREADABLE for any other failure. With OAuth2ApplicationName set, a token that cannot be had
+/// (no sign-in yet, a grant withdrawn at the provider, a token that IRIS cannot renew) and a login that the server refuses both give REASONSIGNIN
+/// instead of REASONREFUSED: the sign-in is no longer valid, and the admin signs in again in Settings. A poll that handed an email on still waits
 /// CallInterval for the next one (the framework would otherwise poll again at once), so at most NEWMAX emails go on per interval.
 /// OnTask returns OK for a failed poll too, logging the reason as a warning and nothing else, because the framework would log the
 /// text of an error status, and that text can hold the server's words.
@@ -37,12 +46,19 @@ Parameter MAXBYTES = 1048576;
 /// The status mark of the poll outcome (AD-14).
 Parameter MARK = "emailPoll";
 
+/// The header, in lower case, that EmailOut puts on every email it sends (Channel.Email.Out REFHEADER). The headers of a fetched email are matched
+/// without regard to case.
+Parameter REFHEADER = "x-ocutalon-ref";
+
 /// The reasons of a failed poll (Public text P1a to P1c).
 Parameter REASONUNREACHABLE = "OcuTalon couldn't reach the mail server.";
 
 Parameter REASONREFUSED = "The mail server refused the user name or password.";
 
 Parameter REASONUNREADABLE = "OcuTalon couldn't read the mailbox.";
+
+/// The reason of a failed poll in OAuth2 mode (Public text T1).
+Parameter REASONSIGNIN = "The mail sign-in is no longer valid. Sign in again in Settings > Channels > Email.";
 
 /// The status code of a POP3 server's -ERR answer ($$$POP3Error).
 Parameter POP3ERROR = 6015;
@@ -102,18 +118,23 @@ Method Poll(Output reason As %String, Output handed As %Integer, Output baseline
 		Set reason = ..#REASONUNREADABLE
 		Quit 0
 	}
-	Set token = ""
-	If ..OAuth2ApplicationName '= "" {
-		Set granted = 0
-		Set sc = $ClassMethod(..OAuth2CallBackHandler, "OnGetAccessToken", $This, ..OAuth2GrantType, ..OAuth2ApplicationName, ..OAuth2SessionId, ..%CredentialsObj.Username, ..OAuth2Scope, ..OAuth2AuthProperties, ..OAuth2GrantTypeSpecific, .granted, .token)
-		If $$$ISERR(sc) {
-			Set reason = ..#REASONREFUSED
+	Set token = "", oauth = (..OAuth2ApplicationName '= "")
+	If oauth {
+		If ..Transport() = "" {
+			Set reason = ..#REASONUNREACHABLE
+			Quit 0
+		}
+		Set sc = ..AccessToken(.token)
+		If $$$ISERR(sc) || (token = "") {
+			Set reason = ..#REASONSIGNIN
 			Quit 0
 		}
 	}
 	Set sc = ..MailServer.ConnectPort(..POP3Server, ..POP3Port, ..%CredentialsObj.Username, ..%CredentialsObj.Password, token)
+	Kill token
 	If $$$ISERR(sc) {
 		Set reason = ..ConnectReason(sc)
+		If oauth && (reason = ..#REASONREFUSED) Set reason = ..#REASONSIGNIN
 		Quit 0
 	}
 	Set mailbox = ##class(OcuTalon.Data.MailSeen).IdentityOf(..POP3Server, ..POP3Port, ..%CredentialsObj.Username)
@@ -174,6 +195,39 @@ Method Poll(Output reason As %String, Output handed As %Integer, Output baseline
 	Quit 1
 }
 
+/// 1 when the CI-only switch of the plain exception is on (Sender.SwitchOn). A test subclass overrides it to stand in for a job that does not have the variable.
+ClassMethod SwitchOn() As %Boolean
+{
+	Quit ##class(OcuTalon.Channel.Email.Sender).SwitchOn()
+}
+
+/// How a poll in OAuth2 mode connects, so that the bearer token never goes over a plain or unchecked connection: "plain" only by the rule of Sender.PlainFor,
+/// "tls" when SSLConfig (surrounding blanks ignored) is OcuTalonClient or OcuTalonClient* and SSLCheckServerIdentity is 1, and "" for everything else (a blank or foreign SSLConfig, the
+/// server's name not checked). A poll with no transport fetches no token.
+Method Transport() As %String
+{
+	If ##class(OcuTalon.Channel.Email.Sender).PlainFor(..POP3Server, ..SwitchOn()) Quit "plain"
+	Set config = $ZStrip(..SSLConfig, "<>WC")
+	Set client = ##class(OcuTalon.Channel.Email.Sender).Client()
+	If ((config = client) || (config = (client_"*"))) && ..SSLCheckServerIdentity Quit "tls"
+	Quit ""
+}
+
+/// The access token for one login, from the handler named by OAuth2CallBackHandler; an exception counts as the handler's error status. The token goes
+/// to the caller only.
+Method AccessToken(Output token As %String) As %Status [ Private ]
+{
+	Set token = ""
+	Try {
+		Set granted = 0
+		Set sc = $ClassMethod(..OAuth2CallBackHandler, "OnGetAccessToken", $This, ..OAuth2GrantType, ..OAuth2ApplicationName, ..OAuth2SessionId, ..%CredentialsObj.Username, ..OAuth2Scope, ..OAuth2AuthProperties, ..OAuth2GrantTypeSpecific, .granted, .token)
+		If '$Get(granted) Set token = ""
+	} Catch exception {
+		Set token = "", sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
 /// The plain reason of a failed connection: the server's -ERR answer (to USER, PASS or STLS) is the refusal; a refused or lost connection, a
 /// TLS failure, a greeting that is not POP3's (another protocol on the port, or none in time) and every other failure of the connection is
 /// "couldn't reach". The status text is read here only and never kept.
@@ -193,6 +247,7 @@ Method Read(n As %Integer, uidl As %String, size As %Integer, Output mail As Ocu
 		If $$$ISERR(sc) Quit sc
 		Set mail.Sender = ..Line($Get(headers("from")))
 		Set mail.Subject = ..Line($Get(headers("subject")))
+		Set mail.SentRef = $Extract(..Line($Get(headers(..#REFHEADER))), 1, 128)
 		Quit $$$OK
 	}
 	Set sc = ..MailServer.Fetch(n, .message)
@@ -203,8 +258,21 @@ Method Read(n As %Integer, uidl As %String, size As %Integer, Output mail As Ocu
 	Kill ..ReadFailures(uidl)
 	Set mail.Sender = ..Line(message.From)
 	Set mail.Subject = ..Line(message.Subject)
+	Set mail.SentRef = ..RefOf(message)
 	Set mail.Text = ..TextOf(message)
 	Quit $$$OK
+}
+
+/// The value of the header x-ocutalon-ref of the fetched email (the header name matched without regard to case), one line cut to 128 characters;
+/// "" when there is none.
+ClassMethod RefOf(message As %Net.MailMessagePart) As %String
+{
+	Set name = message.Headers.Next("")
+	While name '= "" {
+		If $ZConvert(name, "L") = ..#REFHEADER Quit
+		Set name = message.Headers.Next(name)
+	}
+	Quit $Select(name = "": "", 1: $Extract(..Line(message.Headers.GetAt(name)), 1, 128))
 }
 
 /// A header value as one line of at most 1000 characters: control characters become spaces.

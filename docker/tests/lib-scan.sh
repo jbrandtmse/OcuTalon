@@ -65,16 +65,18 @@ local_path() {
   } | cut -d: -f1,2
 }
 
-# names_outside_section <heading> <file>...: file:line of each line outside the H2 section whose heading line equals <heading> (for
-# example "## For admins and developers") that holds a ##class( call, an ERROR #<digits> code, an <UPPER> error name or a dotted class
-# name (parts that start with an upper-case letter, a leading % allowed): the README's developer-section rule (CON-5, NFR-24), with the
-# heading as a parameter. A file's lines before its first H2 heading are outside the section.
+# names_outside_section <headings> <file>...: file:line of each line outside the H2 sections whose heading line equals one of <headings>
+# (one heading, for example "## For admins and developers", or several joined by newlines: "$(printf '%s\n%s' "## A" "## B")") that holds
+# a ##class( call, an ERROR #<digits> code, an <UPPER> error name or a dotted class name (parts that start with an upper-case letter, a
+# leading % allowed): the README's developer-section rule (CON-5, NFR-24), with the headings as a parameter. A file's lines before its
+# first H2 heading are outside the sections.
 names_outside_section() {
-  local heading=$1
+  local headings=$1
   shift
-  awk -v heading="$heading" '
+  HEADINGS="$headings" awk '
+    BEGIN { n = split(ENVIRON["HEADINGS"], list, "\n"); for (i = 1; i <= n; i++) exempt[list[i]] = 1 }
     FNR == 1 { stop = 0 }
-    /^## / { stop = ($0 == heading) }
+    /^## / { stop = ($0 in exempt) }
     stop { next }
     /##class\(/ || /ERROR #[0-9]+/ || /<[A-Z][A-Z][A-Z]+>/ || /(^|[^A-Za-z0-9_])%?[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)+/ { print FILENAME ":" FNR }
   ' "$@"

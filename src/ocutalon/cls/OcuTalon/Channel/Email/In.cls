@@ -8,7 +8,12 @@
 ///   - sends Intake an OcuTalon.Msg.Item, asynchronously, with a new ItemId, the owner's SessionRef, channel email, provenance untrusted
 ///     and the Sender, Subject and Text of the Mail, the Text cut to SimMailbox.In BODYMAX characters (the size the simulated mailbox
 ///     takes); every other field is empty or 0.
-/// The service never decides, writes no table of its own and publishes no event. Nothing in an email is read as an instruction: the Item is
+/// An email that EmailOut sent to the polled mailbox comes back through the poll (DW-1167). The service makes no Item of it, and the adapter records it
+/// seen as for any email handed on, only when all three hold: its header X-OcuTalon-Ref (Mail.SentRef) is the Ref of a sent Data.Delivery row of channel
+/// email, its From line is the address of the product key email.address, and the Ref was not taken before (Delivery.TakeEcho marks the one use). The
+/// skip is one information line with the Ref and nothing of the email. Any other email, one with an unknown, forged or used Ref or from another sender
+/// included, is an untrusted Item as above.
+/// The service never decides, writes nothing but the one use of a Ref (Delivery.EchoedAt) and publishes no event. Nothing in an email is read as an instruction: the Item is
 /// untrusted content that Intake and Decide judge.
 Class OcuTalon.Channel.Email.In Extends Ens.BusinessService
 {
@@ -37,6 +42,7 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	Set session = $Select(owner = "": "", 1: ##class(OcuTalon.Data.Session).RefIndexOpen(owner))
 	If '$IsObject(session) Quit $SYSTEM.Status.Error(5001, ..#ERROROWNER)
 	Set ..%SuperSession = session.TraceRef
+	If ..IsOwnMail(pInput) Quit $$$OK
 	Set sc = $$$OK
 	Try {
 		Set item = ##class(OcuTalon.Msg.Item).%New()
@@ -52,6 +58,33 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 		Set sc = exception.AsStatus()
 	}
 	Quit sc
+}
+
+/// 1 when the email is one that EmailOut sent to this mailbox and it is taken for the first time (see the class description); the one use of its Ref is
+/// taken here. Any error is 0.
+Method IsOwnMail(mail As OcuTalon.Channel.Email.Mail) As %Boolean [ Private ]
+{
+	Set own = 0
+	Try {
+		Set ref = mail.SentRef
+		If (ref '= "") && ##class(OcuTalon.Data.Delivery).SentByEmail(ref) && ..FromIsOwnAddress(mail.Sender) && ##class(OcuTalon.Data.Delivery).TakeEcho(ref) {
+			Set own = 1
+			$$$LOGINFO("EmailIn made no item from its own email "_ref)
+		}
+	} Catch exception {
+		Set own = 0
+	}
+	Quit own
+}
+
+/// 1 when the From line is the product key email.address: the address of the line (the part in angle brackets, else the whole line) equals it ignoring case.
+ClassMethod FromIsOwnAddress(sender As %String) As %Boolean [ Private ]
+{
+	Set own = $ZConvert($ZStrip(##class(OcuTalon.Data.Setting).Fresh("email.address"), "<>W"), "L")
+	If own = "" Quit 0
+	Set from = $ZStrip(sender, "<>W")
+	If from [ "<" Set from = $Piece($Piece(from, "<", $Length(from, "<")), ">", 1)
+	Quit $ZConvert($ZStrip(from, "<>W"), "L") = own
 }
 
 /// The Ref of the session that owns the mailbox, read from the product key's row and never from the per-process cache; "" when there is none.

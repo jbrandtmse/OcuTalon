@@ -451,7 +451,9 @@ XData Contracts [ MimeType = application/json ]
    "DecisionRef": "%String(MAXLEN=22)",
    "DueAt": "%String(MAXLEN=20)",
    "FallbackReason": "%String(MAXLEN=32)",
-   "CheckRows": "%String(MAXLEN=)"
+   "CheckRows": "%String(MAXLEN=)",
+   "DigestKey": "%String(MAXLEN=22)",
+   "EchoedAt": "%String(MAXLEN=20)"
   },
   "indexes": {
    "ApprovalRefChannelOwnerRefIndex": "ApprovalRef,Channel,OwnerRef",

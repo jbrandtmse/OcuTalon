@@ -4894,6 +4894,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T10:51:48Z status=routed owner=burndown by=adjudication note=Notify_half_resolved_by_18.2(a4770526:Core/Rule/Notify_digest_branch+Functions.DigestNamed;Test.Core.Routing_TestNotifyDigestTargets,SettingsRunTime);residual_Lane_A:remove_Digest.Process.Own,SendDigest_direct_sends,ROUTEREASON,Test.Digest.Compose_NotifyChannels/TestOwnMatchesNotify_and_route_Resent_through_Notify;for_a_Lane_A_story
 - 2026-11-09T00:38:50Z by=burndown note=Epic_18_burn-down:Lane_A_residual(U-177),no_Lane_B_story_can_close_it;kept_owner=burndown_for_the_orchestrator's_routing_to_a_Lane_A_story(no_next-epic_Lane_A_key_in_this_branch's_tracker)
 - 2026-11-12T01:29:02Z status=routed owner=21-7-send-the-daily-digest-by-email by=orchestrator note=O1 ruling (prompts/epic-21-rulings-217-o1.md, 2026-11-12, one-time AD-33 Lane A exception): 21.7 makes Digest.Process.Deliver hand every composed digest to Notify, Notify alone routes kind digest by digest.channels, and deletes Digest.Process.Own, the SendDigest direct sends and ROUTEREASON with the Lane A tests that pin them
+- 2026-11-12T17:07:28Z status=resolved-by:21-7-send-the-daily-digest-by-email by=adjudication note=6c277ab0:Digest.Process.Deliver_hands_every_digest_to_Notify;Own_and_the_direct_sends_deleted;Notify_alone_routes_kind_digest_by_digest.channels;pinned_by_Test.Digest.Compose(*DigestUnchanged,route_tests,mutation_red)+Test.Core.Routing
 ### DW-748: Story 11.22's docs read stale beside 34.2's BodyBounds: Test.Web.BodyLimit says Test.Web.ApiProbe has no declaration (it now inherits Web.Api's POST /v1/documents entry), POSTROUTES is called every POST route but omits /v1/documents, and Web.BodyLimit's header example names /v1/documents at 14680064 bytes (the real bound is 13,985,112)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 11.22's assertions still hold (POSTROUTES omits /v1/documents; the declared-bound case uses /v1/messages); only the comments mislead; the files are Story 11.22's and outside 34.2's lane (34.2 re-review, Blind and Acceptance Auditor)
@@ -7113,6 +7114,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Out.cls Send sets no header OcuTalon could recognise; Channel/Email/In.cls has no sender or header filter; the To of a tool send is the polled mailbox
 - 2026-11-12T00:31:01Z status=routed owner=21-7-send-the-daily-digest-by-email by=cr note=21.7 sends the daily digest to that mailbox; mark EmailOut's mail and have EmailIn skip it, or rule it harmless
+- 2026-11-12T17:07:28Z status=resolved-by:21-7-send-the-daily-digest-by-email by=adjudication note=6c277ab0+review:EmailIn_skips_only_when_Ref_names_a_sent_email_Delivery_row,From_is_email.address,first_use(EchoedAt,V4/V8);traced_with_the_Ref_only;pinned_by_EmailIn/EmailLive_TestOwnMailPolledBackMakesNoItem(mutations_red)
 
 ### DW-1168: A send to a server slow at every command can outlast CommandsIn's 120 s wait: the caller gets failed while EmailOut still finishes the send
 - source: spec-21-6-send-email-over-smtp.md | severity: low | fix-risk: med | footprint: in-story
@@ -7201,6 +7203,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: SaveEmail writes OcuTalonMail with an empty password in provider mode; adapters have no OAuth2 rows, handler or XOAUTH2 yet
 - 2026-11-12T05:15:24Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8's token use makes the poll and the send work in provider mode
 - 2026-11-12T06:03:18Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2
+- 2026-11-12T21:47:05Z status=resolved-by:21-8-read-and-send-mail-with-the-oauth2-sign-in by=adjudication note=d5440a3d+review:SettingsOps_writes_OAuth2ApplicationName/OAuth2CallBackHandler_rows;Channel.Email.Token;before_consent_the_poll_gives_REASONSIGNIN(T1)_not_the_refused-login_sentence;pinned_by_EmailIn.TestOAuthReasons,EmailLive.TestOAuthPollAndSendWithTheToken(mutations_red)
 
 ### DW-1180: The privileges that registering the mail OAuth2 client needs are measured only for the throwaway's production user (_Ensemble with %All)
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-story
@@ -7208,6 +7211,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=measure or state the least set, or accept _Ensemble as the documented production user
 - 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=privileges are a veto item; rec: name _Ensemble the measured user, measure AD-24 roles in 21.8 live run
 - 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=orchestrator note=Contest Planner ruling (prompts/epic-21-rulings-213.md, last section): accepted with conditions; 21.3's spec names _Ensemble as the measured production user, which held %All on the throwaway (the run proves the path, not least privilege); Story 21.8's live run lists each privilege that registration needs with a refused-without-it check (AC added to 21.8's block); no public text may claim least privilege
+- 2026-11-12T21:47:05Z status=resolved-by:21-8-read-and-send-mail-with-the-oauth2-sign-in by=adjudication note=EmailOAuthPrivileges_measured_with_fixture_user_zzOcuTalonOAuthPriv:registration_needs_%Admin_OAuth2_Client:USE,%DB_IRISSYS:R(+floor_%DB_OCUTALON_CODE:R),each_refused-without_check;TestNothingIsGrantedToOcuTalonRoles;_Ensemble(%All)_named;no_least-privilege_text(gmail_section_rule,grep);AD-24_S2_lists_the_measurement
 
 ### DW-1181: A SaveEmail that fails after IRIS's OAuth2 client was replaced, changed or removed puts OcuTalon's own stores back but cannot restore the client, its secret or its tokens
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: med | footprint: in-story
@@ -7356,6 +7360,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T19:07:54Z status=resolved-by:0-31-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne by=adjudication note=FirstChanged_helper+fixed-x-salt_xHash_pass;mutation_red_on_lane-A_throwaway;class_green
 - 2026-11-12T19:09:46Z status=resolved-by:0-33-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne by=orchestrator note=renumbered_from_0-31
 
+### DW-1201: Digest.Data.Sent's doc comments (class description, Failed, Attempts) still describe the digest resend that O1 removed (V9 known limit)
+- source: spec-21-7-send-the-daily-digest-by-email.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Digest/Data/Sent.cls:5,53-58 describe a resend no code performs after O1; Lane A file outside O1's permission
+- 2026-11-12T15:53:27Z status=wontfix-accepted owner=21-7-send-the-daily-digest-by-email by=harvest note=reopen_if=a Lane A story edits Digest/Data/Sent.cls (fix the three comments then) or the columns are reused
+- 2026-11-12T17:02:25Z occurrence=21-7-send-the-daily-digest-by-email
+
+### DW-1206: flake (local host): ci/mock/test/*.test.mjs stubs listen on a wildcard address with an OS-picked port but the tests connect to 127.0.0.1:<port>, so on a developer machine with other loopback listeners a request can reach a foreign server (e.g. smtp.test.mjs 'refuse closes with no greeting ... DATA 554', a hang in oauth.test.mjs)
+- source: spec-21-7-send-the-daily-digest-by-email.md (QA) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 21.7 QA 2026-11-12: baseline 90ab0f80 4/240 and this tree 3/160 smtp.test.mjs runs red under load; foreign bodies '<!doctype', 'not found', 'WebSockets'; serial 1/60; CI containers not expected to share a loopback (inference)
+- 2026-11-12T16:32:46Z status=routed owner=burndown by=ci note=fix: ci/mock/server.mjs --host 127.0.0.1 for the stubs, or a spawn helper that checks the control route answers with the mock's own JSON
+- 2026-11-12T21:57:15Z occurrence=21-8-read-and-send-mail-with-the-oauth2-sign-in note=local_node_--test_ci/mock/test_1/182_red_after_21.8_commit,green_on_one_unchanged_rerun_(182/182)
+
+### DW-1208: The spine's record of Story 21.7's O1 is incomplete: AD-33 lists no exception for 21.7's Lane A edit (Digest/Process.cls and Test/Digest/{Compose,Due,ProcessProbe,Thresholds}.cls), the AD-14 'As built in Story 18.2' bullet still says Digest narrows and sends directly until DW-820 with no superseded marker, and no contract row names Lane A Digest.Process.Reachable calling Lane B Functions.DigestChannels
+- source: spec-21-7-send-the-daily-digest-by-email.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-33 Rule bullets (17.10, 41.14 only, ~:1174-1175); AD-14 :499 vs :501; Process.cls Reachable -> Functions.DigestChannels (diff 4897-4903); spine is lead-written (Rule 20)
+- 2026-11-12T17:02:25Z status=routed owner=burndown by=cr note=lead: add an AD-33 bullet for the 21.7 O1 exception, mark the 18.2 bullet superseded, add the DigestChannels contract; memlog+lint
+- 2026-11-12T17:07:28Z status=resolved-by:21-7-send-the-daily-digest-by-email by=adjudication note=lead_wrote_the_spine:AD-33_21.7_exception_bullet,AD-14_18.2_bullet_marked_SUPERSEDED,contract_row_Functions.DigestChannels_read_by_Lane_A_Digest.Process.Reachable;lint_10_low_baseline
+
+### DW-1209: EmailOut's digest path records its Delivery row (DigestKey) after the send, not claim-first as 21.6 (f) does for system sends, so a digest Notification handled again after a crash or a failed Record between Transmit and Record would be emailed twice
+- source: spec-21-7-send-the-daily-digest-by-email.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Out.cls SendDigestLocked: DigestEmailSent -> Transmit -> Delivery.Record(...key); TestDigestNoDoubleSend covers a resend after a recorded success; Digest hands a digest to Notify once, nothing re-handles it
+- 2026-11-12T17:02:25Z status=wontfix-theoretical owner=21-7-send-the-daily-digest-by-email by=cr note=real if a digest Notification is ever handled twice by EmailOut (an Ens resend or redelivery after a job crash); then claim-first
 ### DW-1195: flake/infra: live:sign-in chromium suite hit its 757 s suite timeout under host load (256 passed, 0 failed, 24 did not run)
 - source: ci 43227065531 feature 150b49c5 iris (shards-10) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Timed out waiting 757s for the test suite to run; 24 did not run; no test failed
@@ -7381,6 +7407,26 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/tests/test-eval-set.sh check_rules_flow: awk line-order pins only; rcf_rules runs the --rules-only forms, never the push run; lane-a evaluation job is the runtime proof
 - 2026-11-12T13:46:59Z status=by-design owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=spec Verification: Integration and CI ACs are proven by the lead's CI evidence (lane A evaluation job log and summary); a stubbed push run would emulate set, mock-wrong, demo gate and attempt runs
 
+### DW-1226: A real provider may answer a rejected XOAUTH2 token with a continuation challenge (POP3 '+ <base64 JSON>', SMTP '334 <json>') instead of the -ERR/535 the CI mock sends, so the poll reason could read 'couldn't reach' instead of the sign-in sentence
+- source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Adapter.ConnectReason gives REASONREFUSED/REASONSIGNIN only for ': -ERR'; stubs use -ERR; real Gmail/M365 reply after a rejected token not measured (inference)
+- 2026-11-12T20:33:04Z status=decision-pending owner=burndown by=harvest note=human=one sign-in with a real Gmail or Microsoft 365 test mailbox and a revoked grant (owner's own install), or the providers' protocol docs; fix is a small ConnectReason branch if the challenge form is confirmed
+- 2026-11-12T21:41:46Z occurrence=21-8-read-and-send-mail-with-the-oauth2-sign-in
+- 2026-11-12T22:25:58Z by=merge_gate note=Planner_ruling_E:post-contest,_the_owner%27s_optional_check_with_a_test_mailbox;stays_decision-pending_for_the_owner
+
+### DW-1230: In OAuth2 mode EmailIn sends the XOAUTH2 bearer token over whatever POP3 transport the item's settings give: a blank SSLConfig row (plain POP3) or SSLCheckServerIdentity 0 is honoured with no test-only switch, unlike Sender's PlainAllowed
+- source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Adapter.Poll passes the token to ConnectPort whatever SSLConfig holds; InboundAdapter.OnInit sets TLS only for a non-empty SSLConfig and copies SSLCheckServerIdentity; EmailLive and E6 reach the plain stub by blanking the row; the product never writes it (admin edit only)
+- 2026-11-12T21:41:47Z status=escalated owner=burndown by=cr note=security posture (veto window): rec gate the token on SSLConfig OcuTalonClient(*) + identity check, plain only with OCUTALON_TEST_OAUTH_MOCK=1 and host mock
+- 2026-11-12T22:25:58Z status=open owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=merge_gate note=Planner_ruling_E(security):fix_in_21.8_before_the_push:bearer_token_only_over_TLS;plain_POP3_only_with_OCUTALON_TEST_OAUTH_MOCK=1_and_host_mock;otherwise_refuse_with_no_token_and_a_plain_reason;tests_pin_refusal_and_mock_exception
+- 2026-11-12T23:15:50Z status=resolved-by:21-8-read-and-send-mail-with-the-oauth2-sign-in by=cr note=token only over TLS (Adapter.Transport, refusal before any token; TestOAuthTransport); switch name: DW-1234
+
+### DW-1234: EmailIn's plain-POP3 OAuth2 exception is gated on OCUTALON_TEST_PLAIN_SMTP (shared Sender.PlainFor), not the OCUTALON_TEST_OAUTH_MOCK=1 that Planner ruling E names; spine AD-22/AD-19 as-built text not yet updated
+- source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md (code-review 2) | severity: med | fix-risk: med | footprint: in-story
+- evidence: Adapter.Transport plain only by Sender.PlainFor(host, Sender.SwitchOn()) = OCUTALON_TEST_PLAIN_SMTP=1 and host mock; naming OCUTALON_TEST_OAUTH_MOCK or Channel.Email.OAuth in Adapter trips 21.3's TestOnlyOneCallerOfTheClass. Both switches are set only in ci/compose.ci.yml and now both have the git-wide no-shipped-file sweep (test-compose-file.sh). Spine AD-22 (mock SMTP side) still says the switch reaches only the sender; AD-19 'Mail token use' lacks the TLS-only rule.
+- 2026-11-12T23:15:50Z status=decision-pending owner=burndown by=cr note=human=Planner ratifies the switch substitution (or amends 21.3's pin); lead then writes AD-22/AD-19 as-built lines (Rule 20)
+- 2026-11-12T23:27:37Z by=lead note=spine_as-built_lines_written(AD-19_Token_transport,AD-22_mock_SMTP_side_amended);remaining=Planner_ratification_of_the_switch_name
+- 2026-11-13T04:03:54Z status=by-design by=merge_gate note=Planner_ruling_G:shared_switch_ratified;comment_lines_added_at_Sender.PLAINVARIABLE_and_AD-19
 ### DW-1196: memory-documents-remember: the widened first key-phrase group is a weak source signal, since runbook also appears in the user's request and the cited document name
 - source: spec-0-31-dw-1123-the-memory-documents-remember-eval-accepts-document.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: case.json keyPhrases[0] = document|runbook|file; the turn text and citation both say Results runbook, so a reply that echoes its source meets the group (blind-hunter, edge-case-hunter)
@@ -7473,6 +7519,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the row ends failed, the audit records the refusal and nothing runs, but the owner sees an empty notice; Channel files are Epic 21's (contended); Telegram render unchecked
 - 2026-11-12T23:13:35Z status=escalated owner=burndown by=harvest note=needs a ruling: add the key to Channel/WebChat/Out.cls and the phone card (Epic 21 contended), or route to an Epic 21 story
 - 2026-11-13T03:04:39Z status=routed owner=burndown by=orchestrator note=to_21.10_Planner_F2
+- 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=re-owned_after_Epics_21_and_22_merged(Planner_F2)
 
 ### DW-1233: Approval.Raise writes no 'raised' Approval audit entry although 22.4's AC names one for the held MCP request
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Approval.cls
@@ -7505,6 +7552,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 0.30 DW-1199 sweep, 2026-11-12 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Planner swept 05e29461: no live link to a moved README anchor; test-readme product-links covers page links; docs/*.md has no generic dead-anchor check
 - 2026-11-12T16:44:12Z status=routed owner=burndown by=orchestrator note=1.0.9; does not hold 1.0.8
+- 2026-11-12T23:42:58Z status=routed owner=21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do by=burndown note=Planner_ruling_E:Lane_C_takes_DW-1207_as_burndown;Story_21.12_inserted(test-only)
+- 2026-11-13T01:33:34Z status=resolved-by:21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do by=adjudication note=43e14235+QA+review:rule_readme-anchors_in_docker/tests/test-readme.sh(every_tracked_Markdown_file_but_README.md,_bmad*,.claude,release/records;relative,root,blob_main/HEAD,repo_page;GitHub_slugs);self-tests_plant_dead_and_live_links;lead_smoke:README_heading_rename_flags_GUIDE.md:77
 
 ### DW-1218: No test fails while the README comparison's agent column still reads 'measured at release 1.0.9' (the feature placeholder), so a merge to main would carry it unless the RC fork fills it
 - source: spec-0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil.md | severity: med | fix-risk: low | footprint: in-footprint
@@ -7550,6 +7599,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T20:19:09Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=pins beyond the ruled (a),(b1),(b2) exceed the 1.0.8 ruling; reopen_if=a diff edits the pathspec or regex line of oauth_install_paths_clean
 - 2026-11-12T20:19:32Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=reopen_if=a diff edits oauth_install_paths_clean's pathspec or regex line; more pins exceed the 1.0.8 ruling
 
+### DW-1243: readme-anchors md_links models no block context: links in HTML comments or indented code are read, and a 4+-space backtick line outside a list toggles the fence
+- source: spec-21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do.md (cr) | severity: low | fix-risk: med | footprint: in-story
+- evidence: md_links strips all leading spaces before the fence test and has no HTML-comment state (edge and blind probes): false reds for comments and indented code, a false green only after a 4+-space backtick line outside a list. The doc set has none today.
+- 2026-11-13T01:28:20Z status=wontfix-accepted owner=21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do by=cr note=reopen_if=a doc-set file links README.md#x inside <!-- --> or indented code, or holds a 4+-space backtick line outside a list
+
+### DW-1247: The release-notes static check's exempt headings (static_names) repeat dev_names' list instead of one source
+- source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md (code review, rework 2 re-review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: docker/tests/test-release-notes.sh static_names and docker/tests/test-readme.sh dev_names (:1290) each spell '## For admins and developers' and '## Gmail and Microsoft 365'. Drift is loud (both scan the same README.md/GUIDE.md) but costs a CI round trip: the 21.8 CI red was this drift. Rule 2 copy with a weak reason.
+- 2026-11-13T03:04:07Z status=wontfix-accepted owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=cr note=reopen_if=a heading is added to or removed from dev_names (test-readme.sh) or static_names (test-release-notes.sh)
 ### DW-1248: OPTIONS on /api/v1/files is answered by %CSP.REST's OnHandleOptionsRequest (an Allow list, no body), not the 404 not_found that AC 9 says for every method but POST
 - source: spec-25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: irislib/%CSP/REST.cls :272-275 and :392-393 answer OPTIONS before Http405, both before sign-in (Page) and after (DispatchRequest); no byte of a file is sent, so ruling 3 (ii) holds; FilesApi and api/files.spec.ts (ii) never try OPTIONS
@@ -7563,6 +7621,31 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: eval/mail-partner-notice/case.json expected digest; _bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/mockups/states.html:982 'the partner notice comes back as Digest or Tell now'; release-evidence/<v>-gates/rc-eval/set-*.json 15/15 misses
 - 2026-11-12T21:22:06Z status=routed owner=burndown by=harvest note=for the owner after the contest: decide the case's expected answer against the UX; the Planner ruled not to widen it during the contest (moving the goalposts after seeing the model's output)
 
+### DW-1253: EmailOut ignores a tool command's IdempotencyKey (AD-1), so a re-sent chat turn could send the own-address email twice (linked to DW-1244 on OCT-epic22's ledger)
+- source: Contest Planner ruling H(ii), 2026-11-13 (22.7 plan, DW-1244) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: EmailOut keys de-duplication on ApprovalRef only (22.7 plan); Channel/Email is Epic 21's
+- 2026-11-13T04:04:48Z status=routed owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=orchestrator note=linked=DW-1244(OCT-epic22);the_orchestrator_reconciles_both_after_merge;22.7_merge_waits_for_this_fix
+- 2026-11-13T05:52:49Z status=resolved-by:21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=adjudication note=694b53a4+QA+review:EmailOut_claims_a_keyed_tool_send_by_session+'tool'-prefixed_hash_in_DigestKey;repeat_answers_sent_and_sends_nothing;MayHaveSent_keeps_the_claim;pins_EmailLive.TestReSentTurnSendsOnce,EmailOut.TestToolKeySendsOnce(mutations_red);linked_DW-1244_on_OCT-epic22_for_the_orchestrator
+
+### DW-1257: EmailOut: a pending or failed keyed tool claim answers failed for that key for good; nothing expires it
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: Out.SendClaimed: Claimed answers CLAIMFAILED for a pending or failed row of the owner and key; spec matrix rows Never finished and Error after the claim require it (at-most-once, AD-1)
+- 2026-11-13T05:49:04Z status=by-design owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=spec matrix rows; a new turn has a new ItemId so a new key; Data.Purge retention frees the row
+
+### DW-1258: EmailOut: a re-sent turn's key is ItemId:position and only the key decides, so a reordered or reworded re-run is not compared
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: CommandCall.Run numbers commands per call; Out.Claimed compares only owner and DigestKey; spec Decided 2 and AD-1 (U-215) define the key
+- 2026-11-13T05:49:04Z status=by-design owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=AD-1 as amended U-215 and spec Decided 2: only the key decides; no stored text to compare
+
+### DW-1259: EmailOut.SendClaimed: an exception after Send deleted a keyed claim would re-save the deleted oref as failed
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: Catch block saves claim.FallbackReason=failed; between %DeleteId and Quit in Send only a log macro and Result() run
+- 2026-11-13T05:49:04Z status=wontfix-theoretical owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=real if code that can throw is added after the %DeleteId in Out.Send
+
+### DW-1260: EmailOut.Send: a %DeleteId error on a failed keyed claim leaves it pending, so the key answers failed
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: Out.Send logs and continues when %DeleteId of its own row fails; the outcome is fail-safe (never a second send)
+- 2026-11-13T05:49:04Z status=wontfix-theoretical owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=real if Delivery deletes start failing under load (LOGERROR 'could not remove the claim' seen in Ens.Util.Log)
 ### DW-1254: 24.2: partner contacts' names and addresses go through the SecretHandoff (in memory only), never in a traced SaveSettings.Changes; the traced message holds only the handoff uri; values reach only the IRIS audit entry; one leak-scan test
 - source: Contest Planner 36.4 gate ruling S1 extension, 2026-11-13 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 36.4 S1: SaveSettings.Changes is visible in Visual Trace to OcuTalonTraceViewer (non-admin)
@@ -7573,6 +7656,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 36.4 gate ruling, 2026-11-13 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: SaveSettings.Changes is visible to OcuTalonTraceViewer, which non-admin accounts hold
 - 2026-11-13T04:50:39Z status=routed owner=burndown by=orchestrator note=Planner ruling; one audit story
+- 2026-11-13T08:12:38Z status=routed owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=orchestrator note=Planner_DW-1255_audit_ruling_items_1,5:email_address+user_via_handoff;security-overview_trace-role_sentence;after_21.8_merges
 - 2026-11-13T07:23:37Z note=Planner_ruled_2026-11-13:fix_story_in_lane_C_after_21.8(email_address+user_handoff;security-overview_trace-role_sentence);SendEmail_ref_rule_on_22.7;Item.Sender_stays;see_prompts/rulings-371-dw1255-20261113.md
 ### DW-1245: Story 36.1 breaks Test.Core.SettingsOps TestOnlyRunTimeWriter: its writer pattern matches the new globals ^OcuTalonP.SettingChange and ^OcuTalonP.SettingSnap
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: high | fix-risk: low | footprint: in-epic
@@ -7646,3 +7730,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-6-document-a-worked-jira-example-and-mcp-governance.md | severity: low | fix-risk: low | footprint: docs/mcp-jira-example.md
 - evidence: Planner ruling M (4)(c)
 - 2026-11-13T09:22:33Z status=routed owner=burndown by=harvest note=orchestrator: DW bullet on Story 21.10 (another epic's block)
+
+### DW-1266: 22.6's guide text P2 ('cut to 200 characters') and its worked example must match the code: when 21.10 removes the 200-character inputs cut, update P2 and the worked example in the same commit
+- source: Contest Planner 22.6 gate ruling M(4), 2026-11-13 | severity: low | fix-risk: low | footprint: in-epic
+- evidence: 21.10 V4 removes the cut; 22.6 P2 states it
+- 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=Planner ruling M(4)
