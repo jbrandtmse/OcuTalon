@@ -2167,6 +2167,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: same 8 findings on the spine at HEAD and after 9.1's Tables-line edit; they are prose format examples ({time}, {day}, {what happened}, {reason}, {entry}, {finding}, {n}), not template tokens
 - 2026-10-28T15:22:57Z status=by-design owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=harvest note=known baseline (Epic 9 start: lint=baseline 8 low placeholder, no AD findings; line 923's HostData row, U-120); the gate for a spine write is no new finding and no ad_id/ad_fields finding
+- 2026-11-12T22:55:31Z occurrence=36-1-record-the-setting-history-of-each-watched-production by=harvest note=same_placeholder_findings(10_low_on_baseline_9ca1d94a;none_added_by_36.1;no_ad_id/ad_fields)
+- 2026-11-12T23:28:28Z occurrence=36-1-record-the-setting-history-of-each-watched-production by=cr note=code_review_confirms_same_10_low_placeholder_findings_after_review_patches;none_new
 
 ### DW-352: 9.1's task 11 memlog entry (AD-33: OcuTalon.Eval.Data.CaseResult is Lane A's) was not appended: the spine's .memlog.md is gitignored and exists only in the main checkout
 - source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7478,6 +7480,30 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: docker/tests/test-readme.sh st(): every self-test in the script has this shape; a harness-wide change
 - 2026-11-12T19:37:14Z status=wontfix-accepted owner=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil by=harvest note=reopen_if=a_review_finds_a_self-test_that_passes_on_the_wrong_clause_and_masks_a_real_regression
+### DW-1235: Setting history records only host and adapter settings: an item's core properties (Enabled, PoolSize, Schedule, ClassName) are not snapshotted, so turning an item off or changing its pool size gives no SettingChange
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Reader.Current builds entries from PopulateVirtualSettings (Host/Adapter only, irislib Ens/Config/Item.cls) plus stored Settings; GetStaticSettings (Core) is never read
+- 2026-11-12T23:28:28Z status=by-design owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=spec_bound: Decided 2 and ruling V2 fix Target Host|Adapter; reopen only by a spec amendment (Story 23.3 or a Planner call)
+
+### DW-1236: Reader.Settings turns a fault inside Reader.Current into a throw, but no test makes Current fault during a settings read, so dropping that throw would go unnoticed
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TestReadFailure throws from SettingHistory.Salts after the marks read; no test faults Current itself (needs a fault seam inside the namespace switch)
+- 2026-11-12T23:28:28Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=reopen_if=a production whose settings read faults inside Reader.Current logs no SettingHistory warning
+
+### DW-1237: Install.Step.Watch.Purge running the history purge after the incident purge returned an error is not pinned by a test
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TestPurgeFirstError fails both purges with day count 0; TestPurgeTriesBoth fails only the history side; pinning needs an old closed incident whose delete fails
+- 2026-11-12T23:28:28Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=reopen_if=a purge run whose IncidentManager.Purge returns an error leaves SettingSnapshot or SettingChange rows older than daysToKeep
+
+### DW-1238: Reader.Current's evidence read takes the first item of a name whatever its Enabled, so with same-name items it can describe the disabled copy
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Reader.Current evidence block: first name match then Quit; pre-existing (Epic 23 evidence path); 36.1's settings block now picks the first enabled item
+- 2026-11-13T00:21:26Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=reopen_if=an incident's evidence pack or notice names a disabled same-name item's queue, errors or settings (probe: a production with a disabled copy listed before the enabled item, then a failure on the enabled one)
+
+### DW-1242: Reader.Current's same-name pick in the settings snapshot honours a System Default Setting Enabled, but no test switches same-name items through one, so dropping that half would go unnoticed
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Reader.cls settings block: stEnabled = %GetSetting(..., "Enabled") else stItem.Enabled; TestSameNameItems sets only the stored Enabled; replacing the $Select by stItem.Enabled keeps every test green (verification-gap, acceptance-auditor)
+- 2026-11-13T00:43:25Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=reopen_if=a production switches same-name items with a System Default Setting Enabled and its setting history follows the disabled copy
 ### DW-1225: AC moved from 36.1 (Planner V1(b)): 23.3 declares Fix.Kind.RollbackSetting with RESOURCES, grants %Ens_ProductionConfig:W to OcuTalonServiceRole (demo install leaves it out), adds exactly one forbidden-list test exception, the ONLINESTATEMENT change and the overview sentence, and ships incident.settingChangeCause; result.settingRestored keeps its undo sentence only if 23.3 builds and tests the undo path
 - source: Contest Planner 36.1 spec gate ruling 2026-11-12, prompts/story-361-rulings-20261112.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 36.1 option (b): no unused write grant ships
@@ -7539,9 +7565,42 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 36.4 gate ruling S1 extension, 2026-11-13 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 36.4 S1: SaveSettings.Changes is visible in Visual Trace to OcuTalonTraceViewer (non-admin)
 - 2026-11-13T04:50:39Z status=routed owner=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=orchestrator note=AC bullet added to 24.2's epics.md block (Planner ruling)
+- 2026-11-13T07:23:37Z note=EXTENDED_by_Planner_2026-11-13:ProposeFix/DryRun/DryRunResult/PartnerNotice_carry_contact_ids_not_addresses_once_24.2_makes_contacts_real
 
 ### DW-1255: audit: every other settings section for personal data in traced SaveSettings.Changes; anything personal moves to the SecretHandoff (mail-server host names and webhook names are not personal and can stay)
 - source: Contest Planner 36.4 gate ruling, 2026-11-13 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: SaveSettings.Changes is visible to OcuTalonTraceViewer, which non-admin accounts hold
 - 2026-11-13T04:50:39Z status=routed owner=burndown by=orchestrator note=Planner ruling; one audit story
 - 2026-11-13T08:12:38Z status=routed owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=orchestrator note=Planner_DW-1255_audit_ruling_items_1,5:email_address+user_via_handoff;security-overview_trace-role_sentence;after_21.8_merges
+- 2026-11-13T07:23:37Z note=Planner_ruled_2026-11-13:fix_story_in_lane_C_after_21.8(email_address+user_handoff;security-overview_trace-role_sentence);SendEmail_ref_rule_on_22.7;Item.Sender_stays;see_prompts/rulings-371-dw1255-20261113.md
+### DW-1245: Story 36.1 breaks Test.Core.SettingsOps TestOnlyRunTimeWriter: its writer pattern matches the new globals ^OcuTalonP.SettingChange and ^OcuTalonP.SettingSnap
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: high | fix-risk: low | footprint: in-epic
+- evidence: 36.2 regression run, lane-b@Contract,Core,Data,Live part 4 red; file untouched by 36.2; pre-existing on cf2658d8 (36.1 head)
+- 2026-11-13T02:29:01Z status=open owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=36.1 rework iteration 2 ([CI]); shared surface 36.1 missed
+- 2026-11-13T03:16:58Z status=resolved-by:36-1-record-the-setting-history-of-each-watched-production by=adjudication note=9aa5a61a: TestOnlyRunTimeWriter global/SQL/ClassMethod branches end at a word boundary; mutations red; passed on fresh e36s1c3
+
+### DW-1246: Story 36.1 breaks Test.Data.Tables TestEveryTableIsRegistered: its XData Registry lacks rows for OcuTalon.Data.SettingChange and OcuTalon.Data.SettingSnapshot
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: high | fix-risk: low | footprint: in-epic
+- evidence: 36.2 regression run, lane-b part 6 red on warm and fresh; file untouched by 36.2; pre-existing on cf2658d8 (36.1 head)
+- 2026-11-13T02:29:01Z status=open owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=36.1 rework iteration 2 ([CI]); one-name appends to a contended list (Test/Data/Tables.cls is in Epic 21's diff)
+- 2026-11-13T03:16:58Z status=resolved-by:36-1-record-the-setting-history-of-each-watched-production by=adjudication note=9aa5a61a: Test.Data.Tables XData Registry rows for SettingChange and SettingSnapshot appended; mutations red; passed on fresh e36s1c3
+
+### DW-1249: V3 says the on-call (and partner-contact) from/to values appear in no trace, but a settings save is a production message whose body (SaveSettings Changes) Visual Trace shows
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Spine AD-19 on-call keys bullet (V3, ruled 2026-11-12) vs AD-1/AD-19 Saving a settings section: every save is one SaveSettings submitted through Commands.Submit, so the new address is stored in an Ens message body shown in Visual Trace; a leak-scan test as worded cannot pass.
+- 2026-11-13T04:03:56Z status=routed owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=36.4 plan keeps the values out of the message body (e.g. a SecretHandoff-style ref) or escalates V3's trace clause; 24.2 has the same
+
+### DW-1250: An on-call person or backup given only as an email address can never acknowledge a page, so the backup is always paged after oncall.escalationMinutes, and the accepted On call texts don't tell the admin
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 36.1 rules that email carries no acknowledgement; AckPage comes only from web_user, web_admin and telegram (CommandsIn Routes), which an address-only person has none of; settings.onCallByEmail and settings.onCallHelp say nothing about it.
+- 2026-11-13T04:03:56Z status=routed owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=36.4 plan proposes a help line for 'Someone else, by email' for acceptance, or records that this is intended
+
+### DW-1251: AD-14's page route contradicts itself: a page goes to the user's web chat, yet 'a person with no paired chat gets email only'; the web chat is called a chosen channel though oncall.*.channels offers only telegram,email; EmailOut can't update a copy to handled.marked
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Spine AD-14 'The page kind (step 5)' bullets (Story 36.2, ruled V6 text); 36.1 gives the page card a web Got it, so the likely reading is web chat always for a user plus the chosen channels, Telegram falling back to email.
+- 2026-11-13T04:03:56Z status=routed owner=24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on by=cr note=24.3 plan fixes the reading (recommended: web chat always; email-only means no Telegram copy) and amends the bullet (Rule 5/20)
+
+### DW-1252: CommandsIn's Routes doc comment lists each step's verbs but not step 5's AckPage and SaveSqlWatch
+- source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls doc above XData Routes (:318-324) describes steps 1-4; Story 36.2 may edit only the two Routes rows in this contended file (Epic 21 edits ItemRunning). The rows and the spine carry the contract.
+- 2026-11-13T04:03:56Z status=wontfix-accepted owner=36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql by=cr note=reopen_if=a story edits the Routes doc comment of CommandsIn after Epic 21 merges, or a reader misroutes a step 5 verb

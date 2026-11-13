@@ -51,6 +51,11 @@ Include (Ensemble, EnsConstants, EnsErrors)
 ///     copy, whoever resends it); without the flag the failures have no such member.
 ///   - Items reads the production's items for the item fix kinds (Story 23.2) inside the same switching method and under the same two checks: one {"id", "name",
 ///     "className", "businessType", "enabled"} per item, enabled as IRIS runs it.
+///   - Settings reads the setting history marks of a production (Story 36.1): the namespace's production-change counter and the production's start mark, and
+///     with full every item's effective settings (its stored settings with the class defaults and the System Default Settings that apply), inside the same switching
+///     method and under the same two checks. Items that share a name are one: the first of them in the definition's item list that is enabled as IRIS runs it, else the first. A setting that
+///     references an Ens.Config.Credentials entry keeps the ID it holds; any other setting whose name CredentialName matches loses its value and is given a
+///     salted hash, which only tells a later read that the value changed. It writes nothing.
 ///   - Good reads, for each failed header given as a reference (Story 7.9), the newest good messages from the same source: at most limit headers of Status 9 (Completed),
 ///     IsError 0 and Type 1 (Request) whose SourceConfigName, TargetConfigName, MessageBodyClassName and SuperSession all equal the reference's (an empty SuperSession
 ///     matches only an empty one), highest header id first, no id twice. It reads them inside Current, under the same two checks as Evidence, through the same
@@ -522,6 +527,60 @@ ClassMethod Items(namespace As %String, production As %String, Output items As %
 	Quit outcome
 }
 
+/// The setting history marks of the production in the namespace and, with full, its settings (see the class description), for SettingHistory: marks is
+/// {"counter" (the namespace's production-change counter, "" when it has none), "started" (the production's start time and check sum, joined by "|")}, read
+/// before the settings; settings is a sorted array of {"item", "target", "setting", "value", "source" (production, default or class), "credential" (1 for a
+/// secret value), "hash"}. A setting that references an Ens.Config.Credentials entry keeps its value, the ID, with credential 0. Any other setting whose name
+/// CredentialName matches is a secret: its value is "" and credential 1, and hash is the salt.hash of Data.Webhook.HashSecret, kept from salts (a dynamic object
+/// of "item|target|setting" to the earlier hash) when it still matches the value, so that a change of the secret is told and nothing else is. The outcome is
+/// read (marks, and settings with full, hold what was found), unreadable (the service user cannot read the namespace: nothing was entered) or not_current (the
+/// production is not the namespace's own, or a name is empty: nothing was read), as for Failures; marks are empty and settings [] with the others. A namespace that
+/// cannot be read for another reason is an error. Items that share a name are one: the settings of the first of them in the definition's item list that is enabled as IRIS
+/// runs it (the stored Enabled unless a System Default Setting Enabled overrides it), else of the first. It writes nothing and switches namespace in Current only.
+ClassMethod Settings(namespace As %String, production As %String, full As %Boolean = 0, salts As %DynamicObject = "", Output marks As %DynamicObject, Output settings As %DynamicArray) As %String
+{
+	Set marks = {"counter": "", "started": ""}
+	Set settings = []
+	If ($Get(namespace) = "") || ($Get(production) = "") Quit "not_current"
+	Set user = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ServiceUser", , , .sc)
+	If $$$ISERR(sc) $$$ThrowStatus(sc)
+	If '..Readable(user, namespace) Quit "unreadable"
+	Do ..Current(namespace, .description, production, , 0, .rows, .outcome, .fault, , , , , , , , , , 0, , 1, +$Get(full), .readMarks, .readList)
+	If fault '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The settings of "_production_" in "_namespace_" could not be read: "_fault))
+	If outcome '= "read" Quit outcome
+	Set marks = readMarks
+	Set iterator = readList.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Do settings.%Push(..SettingEntry(entry, salts))
+	}
+	Quit outcome
+}
+
+/// One entry of Settings' settings from an entry of Current's list ({"item", "target", "setting", "value", "source", "reference"}): a Credentials reference (reference
+/// 1, or a setting named Credentials in any case) keeps its value with credential 0 and no hash; any other setting whose name CredentialName matches is a secret, with
+/// value "" and credential 1, and its hash is the earlier one in salts (see Settings) while it still matches the value, else a new one; the rest keep their value (pure).
+ClassMethod SettingEntry(entry As %DynamicObject, salts As %DynamicObject = "") As %DynamicObject
+{
+	Set credential = 0
+	Set hash = ""
+	Set value = entry.value
+	If '(entry.reference || ($ZConvert(entry.setting, "L") = "credentials")) && ..CredentialName(entry.setting) {
+		Set credential = 1
+		If value '= "" {
+			Set earlier = $Select($IsObject(salts): salts.%Get(..SaltKey(entry.item, entry.target, entry.setting)), 1: "")
+			Set hash = $Select((earlier '= "") && ##class(OcuTalon.Data.Webhook).Matches(earlier, value): earlier, 1: ##class(OcuTalon.Data.Webhook).HashSecret(value))
+		}
+		Set value = ""
+	}
+	Quit {"item": (entry.item), "target": (entry.target), "setting": (entry.setting), "value": (value), "source": (entry.source), "credential": (credential), "hash": (hash)}
+}
+
+/// The key of a setting in salts (see Settings): the item, the target and the setting's name, joined by "|" (pure).
+ClassMethod SaltKey(item As %String, target As %String, setting As %String) As %String
+{
+	Quit $Get(item)_"|"_$Get(target)_"|"_$Get(setting)
+}
+
 /// 1 when the name of a setting is one whose value must never leave the reader: it holds one of CREDENTIALPARTS, in any case (pure).
 ClassMethod CredentialName(name As %String) As %Boolean
 {
@@ -553,9 +612,12 @@ ClassMethod CredentialName(name As %String) As %Boolean
 /// of which another item is enabled is not disabled), in ID order, each name once, and stoppedAt the stop time that Ens.Director wrote for the production
 /// (^Ens.Configuration("csp","Activity",production,"stopped"), IRIS UTC as stored; killed at a start), "" when there is none; with every other outcome,
 /// and when the read threw, they are [] and "". resent 1 (Evidence only) adds resentBy to each failure: the ids of the headers of its session whose Description names it as resent.
-ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0, Output disabled As %DynamicArray, Output stoppedAt As %String, Output errored As %DynamicArray, Output queues As %DynamicArray, listItems As %Boolean = 0, Output items As %DynamicArray) As %String [ Private ]
+/// With readSettings 1 and the outcome read, settingMarks is {"counter", "started"} (the namespace's production-change counter and the production's start time and check sum, read first) and, with fullSettings 1, settingList is a sorted array of {"item", "target", "setting", "value", "source", "reference"} for every item (PopulateVirtualSettings and the item's stored settings, "reference" 1 for a Credentials reference). The values are raw: Settings is the one caller, and it hashes and drops the secret ones. Otherwise they are {"counter": "", "started": ""} and [].
+ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0, Output disabled As %DynamicArray, Output stoppedAt As %String, Output errored As %DynamicArray, Output queues As %DynamicArray, listItems As %Boolean = 0, Output items As %DynamicArray, readSettings As %Boolean = 0, fullSettings As %Boolean = 0, Output settingMarks As %DynamicObject, Output settingList As %DynamicArray) As %String [ Private ]
 {
 	Set items = []
+	Set settingMarks = {"counter": "", "started": ""}
+	Set settingList = []
 	Set description = ""
 	Set name = ""
 	Set rows = []
@@ -851,6 +913,64 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 						}
 					}
 				}
+				If readSettings {
+					Set settingMarks = {"counter": ($$$EnsProdModCounterGet), "started": ($Get($$$EnsRuntime("StartTime"))_"|"_$Get($$$EnsRuntime("CheckSum")))}
+					If fullSettings && $IsObject($Get(definition)) {
+						For stI = 1:1:definition.Items.Count() {
+							Set stItem = definition.Items.GetAt(stI)
+							Set stEnabled = $Select(##class(Ens.Config.DefaultSettings).%GetSetting(name, stItem.Name, stItem.ClassName, "", "Enabled", .stSetting): stSetting, 1: stItem.Enabled)
+							If '$Data(stPick(stItem.Name)) || ('stPick(stItem.Name, "on") && stEnabled) {
+								Set stPick(stItem.Name) = stI
+								Set stPick(stItem.Name, "on") = ''stEnabled
+							}
+						}
+						For stI = 1:1:definition.Items.Count() {
+							Set stItem = definition.Items.GetAt(stI)
+							If stPick(stItem.Name) '= stI Continue
+							Kill stRow
+							Try {
+								$$$ThrowOnError(stItem.PopulateVirtualSettings())
+								For stJ = 1:1:stItem.VirtualSettings.Count() {
+									Set stData = stItem.VirtualSettings.GetAt(stJ)
+									Set stRow($List(stData, 1), $List(stData, 2)) = $ListBuild($List(stData, 3), $Case($List(stData, 4), $$$eConfigSettingValueTypeProduction: "production", $$$eConfigSettingValueTypeRegistry: "production", $$$eConfigSettingValueTypeSystem: "default", : "class"), ($Extract($List(stData, 18), 1, 19) = "credentialsSelector"))
+								}
+							} Catch stSkipped {
+								Kill stRow
+							}
+							For stJ = 1:1:stItem.Settings.Count() {
+								Set stStored = stItem.Settings.GetAt(stJ)
+								If '$Data(stRow(stStored.Target, stStored.Name)) Set stRow(stStored.Target, stStored.Name) = $ListBuild(stStored.Value, "production", 0)
+							}
+							Set stTarget = ""
+							For {
+								Set stTarget = $Order(stRow(stTarget))
+								Quit:stTarget=""
+								Set stName = ""
+								For {
+									Set stName = $Order(stRow(stTarget, stName), 1, stCell)
+									Quit:stName=""
+									Set stAll(stItem.Name, stTarget, stName) = stCell
+								}
+							}
+						}
+						Set stItemName = ""
+						For {
+							Set stItemName = $Order(stAll(stItemName))
+							Quit:stItemName=""
+							Set stTarget = ""
+							For {
+								Set stTarget = $Order(stAll(stItemName, stTarget))
+								Quit:stTarget=""
+								Set stName = ""
+								For {
+									Set stName = $Order(stAll(stItemName, stTarget, stName), 1, stCell)
+									Quit:stName=""
+									Do settingList.%Push({"item": (stItemName), "target": (stTarget), "setting": (stName), "value": ($List(stCell, 1)), "source": ($List(stCell, 2)), "reference": (+$List(stCell, 3))})
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	} Catch exception {
@@ -864,6 +984,8 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 		Set errored = []
 		Set queues = []
 		Set items = []
+		Set settingMarks = {"counter": "", "started": ""}
+		Set settingList = []
 		Set fault = exception.DisplayString()
 	}
 	Quit name

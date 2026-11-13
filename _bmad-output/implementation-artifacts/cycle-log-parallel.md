@@ -3896,3 +3896,17 @@
 2026-11-13T06:49:23Z	Epic 25	merge_enqueued	part=25.3 head=eb99dc1f
 2026-11-13T06:49:58Z	Epic 37	ledger_routed_planned	story=37-1 entries=1(DW-1231) excess=0 by=merge_gate(after_25.3_merge)
 2026-11-13T06:49:58Z	Run	deps_hash_rerecorded	reason=ledger_routed note=DW-1231_bullet_on_37.1
+2026-11-13T06:50:01Z	Epic 25	epic_merged_to_feature	part=25.3 feature_sha=0898ebfb merge_sha=197c069d code=4832dea7+23.12(no_code_overlap) verified_on_origin=yes
+2026-11-13T06:50:11Z	Run	ci_cancelled	head=83ea7bc8 run=43364200347(queued) reason=superseded_by_0898ebfb(contains_it)
+2026-11-13T06:50:40Z	Epic 25	runner_complete	runner=aa000b22fa7fb6f0c story=25.3 merged=197c069d unpushed=none waiting=25.4,25.5(37.1),25.6(37.1+26.2)
+2026-11-13T06:51:12Z	Epic 37	owner_decision	via=contest_planner what=lane_A_next(DW-1255_read-only_audit;then_plan_37.1;then_idle) 
+2026-11-13T06:51:12Z	Epic 37	runner_dispatched	model=opus runner=epic-runner-37 lane=A slot=ocutalon-slot-a prompt=prompts/dispatch-epic-37-371-20261113.md base=91c837e3 tasks=DW-1255_audit,37.1_plan push=none
+2026-11-13T07:22:09Z	Epic 37	runner_ended	reason=waiting waiting_on=epic-36+Planner_rulings head=694097e0(local_only) reports=DW-1255_audit,37.1_plan(veto1-8,AD_amendments_7)
+2026-11-13T07:23:37Z	Run	owner_decision	via=contest_planner what=DW-1255_audit_rulings+37.1_plan_rulings(V1-V8,AD_amendments,V6_alternative) file=prompts/rulings-371-dw1255-20261113.md relay=runners_C,D,37_at_turn_end
+2026-11-13T07:54:34Z	Run	owner_decision	via=contest_planner what=HOLD_at_10:00Z_tonight(quota_84pct_at_07:50Z,~4pct/h) rule="from 09:30Z start no stage that cannot reach its boundary by ~10:15Z; prefer short items, reviews, records, pushes" note=0.35_A/B_after_morning_reset
+2026-11-13T08:11:54Z	Epic 21	runner_reported	CI_WAIT head=f17e2566(21.7+21.8+21.12+21.13;fixes_for_5d5581eb_reds:Watch.Summary_one-word_lane_A,email.spec_E7_strict-mode) runs=43391202522,43391202509 local=63684923
+2026-11-13T08:11:54Z	Epic 21	runner_resumed	tasks=plan_DW-1255_fix_story(implement_after_21.8),hold_notice_10:00Z
+2026-11-13T09:00:44Z	Epic 36	runner_reported	PART_READY part=36.1+36.2 head=16499946 code_head=20e3655a ci=success runs=43378472985(att2,DW-1094),43378472843
+2026-11-13T09:00:44Z	Epic 36	ci_cancelled	head=16499946 runs=43397122469,43397122429 reason=records-only(code_identical_to_green_20e3655a)
+2026-11-13T09:00:44Z	Epic 36	amendments_verified	amendments=epics_36.1/36.2/36.3/36.4 extensions=Install/Step/Watch.cls,short-names.tsv,Test/Bridge/CodeRules.cls,Test/Data/Tables.cls ok=true
+2026-11-13T09:00:44Z	Epic 36	merge_enqueued	part=36.1+36.2 head=16499946

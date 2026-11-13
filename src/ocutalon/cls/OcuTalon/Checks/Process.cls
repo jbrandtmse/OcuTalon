@@ -253,6 +253,7 @@ Method Tick(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 	} Catch exception {
 		$$$LOGWARNING(..#LOGDUE_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
+	Do ##class(OcuTalon.Watch.SettingHistory).Watch(tickAt)
 	Set items = ""
 	Kill views
 	Try {
