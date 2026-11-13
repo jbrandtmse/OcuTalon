@@ -177,3 +177,5 @@
 2026-11-13T04:38:39Z	Story 22.4	cr_complete	spawn_at=2026-11-13T04:05:00Z model=opus resolved=0 high=0 med=0 low=4 rows=6 unresolved_high_med=0 final=done note=rework_re-review_clean
 2026-11-13T04:38:39Z	Story 22.3	ci_red_classified	run=43344958166 workflow=.github/workflows/ci.yml class=story test=iris(shards-8):Test.Agent.Constants_TestToolNames(21_tool_names_expected;call_mcp_tool_makes_22) first_red=af886ee3 fix_for=22-3
 2026-11-13T04:38:39Z	Epic 22	ci_local_sweep	env=lane-D_warm_e22ssw(torn_down) classes=100(lane-a@Agent,Tools,Install;lane-b@Schedule,Web,Msg,Demo) failed=1(Test.Agent.Constants) note=pre-push_sweep_to_catch_count_and_contract_tests_the_queued_CI_groups_would_hit
+2026-11-13T04:38:39Z	Story 22.3	rework_opened	cycle_iteration=3 iteration=2 trigger=ci items=[CI]Agent.Constants_tool_count scope_baseline=7380a168
+2026-11-13T04:38:39Z	Story 22.3	stage_spawned	stage=implement spawn_at=2026-11-13T04:38:39Z model=sonnet agent_name=22-3-call-mcp-tools-only-through-the-governed-proxy-implement-3 cycle_iteration=3 effort=high note=rework_ci
