@@ -251,3 +251,6 @@
 2026-11-13T05:57:23Z	Story 21.13	ledger_adjudicated	owned=1(DW-1253) resolved=1 slice_after=empty
 2026-11-13T05:57:23Z	Story 21.13	smoke_complete	method=other(live_EmailLive.TestReSentTurnSendsOnce:real_CommandCall.Run->EmailOut->SMTP_stub,re-sent_turn_and_restart_send_once;fresh_lane-C_warm_e21s13fw) result=pass iterations=1 defects_caught=0 torn_down
 2026-11-13T05:57:23Z	Story 21.13	fresh_check	env=recipe(fresh_warm_e21s13fw) tests=3(EmailOut,Data.Tables,EmailLive) result=pass order=forward,reverse(EmailLive_once)
+2026-11-13T06:03:49Z	Story 21.13	ruling	question=HIGH_fix_and_U-327_narrowing choice=planner_ruling_K:kept;PUBLIC_TEXT_condition(may-have-sent_sentence) category=veto via=orchestrator
+2026-11-13T06:03:49Z	Story 21.13	rework_opened	cycle_iteration=2 iteration=1 trigger=high items=Review:ruling_K_may-have-sent_text scope_baseline=d903d0ad tracker=done->in-progress
+2026-11-13T06:03:50Z	Story 21.13	stage_spawned	stage=implement spawn_at=2026-11-13T06:03:50Z model=sonnet effort=high agent_name=21-13-implement-2 cycle_iteration=2 rework=1_of_3

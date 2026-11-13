@@ -2,7 +2,7 @@
 title: "Story 21.13: A re-sent turn sends its email once (EmailOut honours the command's idempotency key)"
 type: 'bugfix'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'f76320db76eb675214aded797e63ca40e511a332'
 baseline_commit: 'f76320db76eb675214aded797e63ca40e511a332'
 review_loop_iteration: 0
@@ -108,6 +108,8 @@ deferred: []
 - **The system path is unchanged.** Given 21.6's approval-keyed tests, when they run unchanged, then they pass: `Test.Channel.EmailOut` `TestNoDoubleSend`, `TestClaimIsLocked`, `TestSystemApproval`, `TestMessageShape`, `TestFailureClasses` and `TestSignInMessage`, and `Test.Channel.EmailLive` `TestSystemSendIsClaimedByItsApproval`, `TestToolSendReachesTheStub` and `TestSendFailuresByStubMode`.
 - **No stored-data change.** Given the change, when `Test.Data.Tables` runs, then it passes unchanged, and `git diff` shows no `Storage`, `Property` or `Index` line changed in any class.
 
+- [ ] [Review] Planner ruling K (PUBLIC TEXT, `prompts/gate-rulings-20261112-1810.md` K): the "may have sent" case (`Sender.MayHaveSent`: an SMTP timeout, or a connection lost during DATA) must NOT say the email wasn't sent. For that case only, the answer text is exactly: "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again." A repeat with the same key gives the same sentence. Certainly-not-received failures keep their existing texts (`MESSAGEFAILED` and the 21.6 Q2-Q4 texts) and free the key. Author the sentence once as a new message parameter beside the existing ones (Rule 14: ASCII, escapes if needed), route it through the same answer path, and pin: the timeout case, the dropped-during-DATA case, a repeat of each (same sentence, nothing sent), and a certainly-not-received failure (old text, key freed, retry sent); `mutation:` lines. Add the sentence to the ux-strings/catalog registry the project keeps for public text, if `EmailOut`'s other answers are listed there.
+
 ### Review Findings
 
 Code review 2026-11-12 (full, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). Verdicts: high 1, medium 1, low 8, false 1 (11 entries). Patched 4; closed terminal 4 (ledger DW-1257..DW-1260); rejected 3. Unresolved high/medium: 0.
@@ -129,6 +131,8 @@ Rejected:
 Rule 3: the real-runtime pin is `EmailLive:TestReSentTurnSendsOnce` (real CommandsIn, CommandCall.Run, EmailOut job and the CI SMTP stub, with a `Restart`); it passed in the whole `EmailLive` class after the patches on a stack brought down and up.
 
 ## Spec Change Log
+
+- 2026-11-13 (lead, rework iteration 1, trigger review-ruling): Planner ruling K: the HIGH fix and U-327's narrowed wording are kept; the may-have-sent case gets its own approved sentence (the [Review] item).
 
 - 2026-11-13 (lead, after code review): the claim is deleted after a failed send only when the server certainly did not take the mail; a send that may have reached it (`Sender.MayHaveSent`: an SMTP timeout, or a connection lost during DATA) keeps the claim marked failed, so a repeat answers `failed` and sends nothing (review HIGH, AD-1's repeat rule). This narrows V1's (U-327) 'deleted after a failed send'; reported to the orchestrator.
 
