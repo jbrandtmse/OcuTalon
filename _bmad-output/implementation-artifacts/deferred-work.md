@@ -7616,6 +7616,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator ruling on 25.3's split, 2026-11-12 (veto U-326) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 25.3 plan: 25.6 needs a reply contract no story fixes
 - 2026-11-12T22:51:35Z status=routed owner=37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption by=orchestrator note=DW bullet added to 37.1's epics.md block at 25.3's merge
+- 2026-11-13T15:48:29Z status=resolved-by:37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption by=adjudication note=read-result_contract(fileRef,kind,read,reason,text,chars,cut,addable)+HostData_caption(memoryRef,text)_in_spine_AD-21_S4+Conventions_S6;Agent.Input.ReadFile_stub_pinned_in_Test.Contract.Ac+TestReadFileStub(commit_101b85e2);25.6_obligations_routed_DW-1269
 ### DW-1229: eval case mail-partner-notice expects digest alone, but the UX says the partner notice comes back as Digest or Tell now (mockups/states.html:982, EXPERIENCE Key Flows Coda), and the held-out-flagged mail-date-format-monday of the same shape expects tellnow; the attention agent chose tellnow in 14 of 15 RC attempts (1.0.4-1.0.8)
 - source: spec-0-35-routine-attention-decisions-meet-their-target.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: eval/mail-partner-notice/case.json expected digest; _bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/mockups/states.html:982 'the partner notice comes back as Digest or Tell now'; release-evidence/<v>-gates/rc-eval/set-*.json 15/15 misses
@@ -7656,6 +7657,32 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 36.4 gate ruling, 2026-11-13 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: SaveSettings.Changes is visible to OcuTalonTraceViewer, which non-admin accounts hold
 - 2026-11-13T04:50:39Z status=routed owner=burndown by=orchestrator note=Planner ruling; one audit story
+- 2026-11-13T15:48:08Z status=routed owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=lead note=restates_the_orchestrator's_2026-11-13T08:12:38Z_trailer,which_a_union_merge_placed_under_DW-1271's_heading(integrate-forward_29259a7c);Planner_DW-1255_audit_ruling_items_1,5
+
+### DW-1267: 25.4 obligation from 37.1: the Roles section hands the target user name and role to SettingsOps through SecretHandoff (Changes holds only {handoff}) and Holders' list returns through a handoff uri; a leak-scan test of the change's message bodies for the target user name; routes admin-only, 409 not_available on the online demo before the body, a test per refusal
+- source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 37.1 spine AD-24 S2 personal-data clause; Planner V3/V4/V8
+- 2026-11-13T13:24:13Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+
+### DW-1268: 25.5 obligation from 37.1: AnswersIn calls Approval.MayAnswer before Answer; the not_allowed slot kind carries the row's ApproverKind; one 'Only an approver for ...' sentence per approver kind (seven: resend, reroute, suspend, rollback, partner, email, tool; setting rows keep today's rule) proposed as PUBLIC TEXT (only 'resends' is in EXPERIENCE.md)
+- source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 37.1 spine AD-11 S1; Planner V6/V8
+- 2026-11-13T13:24:13Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+
+### DW-1269: 25.6 obligation from 37.1: Conversation calls Agent.Input.ReadFile before a file turn's requests and ends the turn with result.text when read is 0; renders the read result (fileRef, kind, read, reason, text, chars, cut, addable) and the HostData member caption (memoryRef, text), naming the carriers; Add to documents by fileRef. 'No file content in a production message body' = no bytes and no image (extracted text may reach the turn)
+- source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 37.1 spine AD-21 S4 + Conventions S6 (DW-1231); Planner V8 + escalation ruling
+- 2026-11-13T13:24:14Z status=routed owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+
+### DW-1270: 26.2 obligation from 37.1: build Agent.Input.ReadFile for PDF and Word and set READSFILES; read the file once for ReadFile and Render in the same job, or re-read; extracted text may reach the turn's Input like chat text (Planner: 26.2 does not move into the runner); mind Docs.Extract's up-to-45 s run in Conversation's job (pool size)
+- source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 37.1 spine AD-21 S4; Planner V8 + escalation ruling
+- 2026-11-13T13:24:14Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+
+### DW-1271: 26.4 obligation from 37.1 rulings: Roles.Assign admin-only with an allowlist of exactly OcuTalonApprover and OcuTalonViewer, refusing every % role, every other OcuTalon role (per-kind roles included) and the installer-managed accounts, an IRIS audit entry per assignment and removal, a test per refusal; pin the demo account's and the README account's OcuTalonApprover in tests; setting rows (persona proposals) keep RequiredRole OcuTalonUser and no ApproverKind (no OcuTalonApprover_setting)
+- source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 37.1 spine AD-24 S2, AD-11 S1; Planner V2/V3/V6
+- 2026-11-13T13:24:14Z status=routed owner=26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
 - 2026-11-13T08:12:38Z status=routed owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=orchestrator note=Planner_DW-1255_audit_ruling_items_1,5:email_address+user_via_handoff;security-overview_trace-role_sentence;after_21.8_merges
 - 2026-11-13T07:23:37Z note=Planner_ruled_2026-11-13:fix_story_in_lane_C_after_21.8(email_address+user_handoff;security-overview_trace-role_sentence);SendEmail_ref_rule_on_22.7;Item.Sender_stays;see_prompts/rulings-371-dw1255-20261113.md
 ### DW-1245: Story 36.1 breaks Test.Core.SettingsOps TestOnlyRunTimeWriter: its writer pattern matches the new globals ^OcuTalonP.SettingChange and ^OcuTalonP.SettingSnap
