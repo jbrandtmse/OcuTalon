@@ -14,7 +14,7 @@ Property SessionRef As %String(MAXLEN = 22);
 /// The channel: one of Msg.Enum CHANNEL.
 Property Channel As %String(MAXLEN = 32);
 
-/// user for text the user writes on any channel, untrusted for everything else: one of Msg.Enum PROVENANCE (AD-14).
+/// user for text the user writes on any channel, untrusted for everything else, an Item that carries a file included: one of Msg.Enum PROVENANCE (AD-14).
 Property Provenance As %String(MAXLEN = 32);
 
 /// The content of the item.
@@ -37,6 +37,18 @@ Property Slots As %String(MAXLEN = "");
 
 /// The page's own id for the message; set only by WebChatIn (AD-30), empty otherwise.
 Property ClientId As %String(MAXLEN = 128);
+
+/// The Ref of the file that the Item carries (Data.SentFile, Story 25.3), empty for an Item with no file. Never the file's bytes (AD-21).
+Property FileRef As %String(MAXLEN = 22);
+
+/// The file's name, made safe by Core.Files.SafeName; display only.
+Property FileName As %String(MAXLEN = 255);
+
+/// The file's media type, read from its bytes.
+Property FileMediaType As %String(MAXLEN = 128);
+
+/// The file's size in bytes.
+Property FileSize As %Integer;
 
 Storage Default
 {
@@ -77,6 +89,18 @@ Storage Default
 </Value>
 <Value name="12">
 <Value>ClientId</Value>
+</Value>
+<Value name="13">
+<Value>FileRef</Value>
+</Value>
+<Value name="14">
+<Value>FileName</Value>
+</Value>
+<Value name="15">
+<Value>FileMediaType</Value>
+</Value>
+<Value name="16">
+<Value>FileSize</Value>
 </Value>
 </Data>
 <DefaultData>ItemDefaultData</DefaultData>

@@ -39,19 +39,16 @@ Include Ensemble
 /// of Kind turn, provenance untrusted and SessionMode fresh, with no SeedText, sent to Decide asynchronously with an answer wanted and finished in
 /// OnResponse (the process never blocks on another item). The reply text, already filtered by the guard, is cut to SUMMARYMAX characters. A fallback,
 /// an error, an empty text or no answer gives digest.savedNoSummary, and the fallback is logged as one information line.
-/// The routing, until Notify routes by digest.channels: a digest goes only to the session's own channels (Own: web, phone when demo mode is on, telegram
-/// when the session is paired, the channels that Notify's generic route reaches) that digest.channels names, and the default web,phone,telegram, read
-/// when no value is saved, names all of them. A name in digest.channels that is not one of the session's own channels adds no destination. When every
-/// own channel is named, the Notification goes to Notify; when only some are, it goes to the item of each of them (WebChatOut, SimPhoneOut, TelegramOut),
-/// each on its own: a channel that fails does not stop the others, each send writes one Ens.Rule.Log row as Notify's rule does (AD-26), and each failure
-/// is part of the error status of the Compose. When no channel is left, nothing is sent, the Compose ends with an error status carrying MESSAGENOCHANNEL,
-/// and the failure shows as that of any other failed Compose.
-/// Last, Digest writes one OcuTalon.Digest.Data.Sent row once the digest was handed to at least one channel's item (the only writer; handed over means queued,
-/// the item's own delivery is recorded by the item), with Channels the channels it was handed to, Failed those it was not, AllClear 1 only when the CatalogKey is checks.allPassed, the five vital signs passed and nothing needs the user. When
-/// no channel took it, or a channel failed, the handling of the Compose returns an error status, so that Ensemble records it on the header of the
-/// Compose and in its trace session; no Sent row follows a digest that no channel took. A later tick sends the stored Slots of a row with Failed to
-/// the channels of Failed that are still reachable and named, at most MAXATTEMPTS times, and never to a channel in Channels.
-/// The private seams Rows, Saved, SendSummary, Cost, NeedsYou, Own, SendNotice, SendCompose and SendResult are the calls that a test overrides.
+/// The routing: Digest hands every composed digest to Notify, once, whatever digest.channels names, and Notify alone routes kind digest, to the channels
+/// that digest.channels names and that are available to the session (web, phone when demo mode is on, telegram when the session is paired, and email
+/// when its rule says so). Digest knows no channel by name: Channels asks Functions.DigestChannels for the channels Notify's rule will use, only to
+/// record them on the Sent row and to find that none is available. When none is, nothing is sent, the Compose ends with an error status carrying
+/// MESSAGENOCHANNEL, and the failure shows as that of any other failed Compose.
+/// Last, Digest writes one OcuTalon.Digest.Data.Sent row once the digest was handed to Notify (the only writer; handed over means queued, the delivery
+/// of each channel is recorded by its item), with Channels the channels Notify routes it to and Failed empty, AllClear 1 only when the CatalogKey is
+/// checks.allPassed, the five vital signs passed and nothing needs the user. When Notify did not take it, the handling of the Compose returns an error
+/// status, so that Ensemble records it on the header of the Compose and in its trace session; no Sent row follows a digest that Notify did not take.
+/// The private seams Rows, Saved, SendSummary, Cost, NeedsYou, Reachable, SendNotice, SendCompose and SendResult are the calls that a test overrides.
 Class OcuTalon.Digest.Process Extends Ens.BusinessProcess
 {
 
@@ -82,26 +79,11 @@ Parameter TIMESETTING = "digest.time";
 
 Parameter TIMEDEFAULT = "08:00";
 
-/// The setting of the digest channels, and its value when no value is saved: every channel. It is not seeded.
+/// The setting of the digest channels (SettingsOps writes it; Notify's rule and Functions.DigestChannels read it). It is not seeded.
 Parameter CHANNELSSETTING = "digest.channels";
-
-Parameter CHANNELSDEFAULT = "web,phone,telegram";
-
-/// The channels, in the order of Notify's rule, and the item that delivers to each of them.
-Parameter CHANNELS = "web,phone,telegram";
-
-Parameter ITEMS = "WebChatOut,SimPhoneOut,TelegramOut";
 
 /// The operator diagnostic of a digest that no channel is reachable for: the Message of the error status of its Compose.
 Parameter MESSAGENOCHANNEL = "No digest channel is reachable: none of the saved digest channels is one of this session's channels.";
-
-/// The rule name, the reason and the activity of the Ens.Rule.Log row of each send to a channel's item, and the most times a later tick tries the channels a
-/// digest missed.
-Parameter ROUTERULE = "OcuTalon.Digest.Process";
-
-Parameter ROUTEREASON = "Until Notify routes by digest.channels, Digest sends the digest to the item of each channel that digest.channels names.";
-
-Parameter MAXATTEMPTS = 3;
 
 /// The longest summary, in characters.
 Parameter SUMMARYMAX = 240;
@@ -127,12 +109,6 @@ Parameter LOGSKIP = "Digest skipped a session's digest: ";
 Parameter LOGNOLOCK = "Digest could not take the lock of a session's digest, so it tries again at the next tick.";
 
 Parameter LOGFELLBACK = "The saved-for-later summary of a digest fell back: ";
-
-Parameter MESSAGECHANNEL = "The digest did not reach the channel ";
-
-Parameter LOGROUTE = "Digest could not write the routing row of a digest: ";
-
-Parameter LOGRESEND = "Digest could not send a digest again to the channels it missed: ";
 
 /// The seed values of the digest's settings, as {"<setting key>": "<value>"}: the time of the scheduled digest. The digest channels are not seeded.
 ClassMethod Seeds() As %DynamicObject
@@ -195,8 +171,7 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 }
 
 /// A Tick: on a local install the sessions that are due get one Compose each (see the class description); on the online demo (Data.Public.Settings
-/// onlineDemo on) no session is due, so none gets a scheduled Compose, and only the resends below run (AD-18, amended 2026-11-07). A session that fails is one
-/// warning and the rest go on.
+/// onlineDemo on) no session is due, so none gets a scheduled Compose (AD-18, amended 2026-11-07). A session that fails is one warning and the rest go on.
 Method Ticked(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 {
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
@@ -204,7 +179,7 @@ Method Ticked(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 	Set due = ..DueFor(tickAt)
 	If due = "" Quit $SYSTEM.Status.Error(5001, "Digest cannot work out the due time of the tick '"_$Extract(tick.TickAt, 1, 40)_"'")
 	Set online = +##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
-	If online Quit ..Resends()
+	If online Quit $$$OK
 	Set sessions = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, CreatedAt FROM OcuTalon_Data.Session")
 	If sessions.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "Digest could not read the sessions: "_sessions.%Message)
 	While sessions.%Next() {
@@ -217,85 +192,7 @@ Method Ticked(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 		}
 		If $$$ISERR(sc) $$$LOGWARNING(..#LOGSKIP_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 	}
-	Quit ..Resends()
-}
-
-/// The digests that missed a channel get their stored Slots again, to the missed channels alone. A session that fails is one warning and the rest go on.
-Method Resends() As %Status [ Private ]
-{
-	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SessionRef FROM OcuTalon_Digest_Data.Sent WHERE Failed IS NOT NULL AND Failed <> '' AND Attempts < ?", ..#MAXATTEMPTS)
-	If rows.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "Digest could not read the digests that missed a channel: "_rows.%Message)
-	While rows.%Next() {
-		Set pending(rows.%Get("ID")) = rows.%Get("SessionRef")
-	}
-	Set id = ""
-	For {
-		Set id = $Order(pending(id), 1, sessionRef)
-		Quit:id=""
-		Try {
-			Set sc = ..Resend(id, sessionRef)
-		} Catch exception {
-			Set sc = exception.AsStatus()
-		}
-		If $$$ISERR(sc) $$$LOGWARNING(..#LOGRESEND_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
-	}
 	Quit $$$OK
-}
-
-/// One digest that missed a channel, under the lock of its session.
-Method Resend(id As %String, sessionRef As %String) As %Status [ Private ]
-{
-	Lock +^OcuTalon.Digest.Due(sessionRef):..#LOCKSECONDS
-	If '$Test {
-		$$$LOGWARNING(..#LOGNOLOCK)
-		Quit $$$OK
-	}
-	Set sc = $$$OK
-	Try {
-		Set sc = ..Resent(id)
-	} Catch exception {
-		Set sc = exception.AsStatus()
-	}
-	Lock -^OcuTalon.Digest.Due(sessionRef)
-	Quit sc
-}
-
-/// Sends the stored digest of the Sent row to the channels it missed that are still reachable and named, and records the outcome on the row: the attempt is
-/// counted and saved before anything else, the channels handed the digest join Channels, the channels still missed stay in Failed, and a channel that is no
-/// longer reachable or named is dropped from Failed. The sends carry the session's TraceRef as their SuperSession (AD-26), the process's own being put back
-/// after them.
-Method Resent(id As %String) As %Status [ Private ]
-{
-	Set row = ##class(OcuTalon.Digest.Data.Sent).%OpenId(id)
-	If '$IsObject(row) || (row.Failed = "") || (row.Attempts >= ..#MAXATTEMPTS) Quit $$$OK
-	Set row.Attempts = row.Attempts + 1
-	Set saved = row.%Save()
-	If $$$ISERR(saved) Quit saved
-	Set missed = $ListFromString(row.Failed)
-	Set retry = ""
-	If $$$ISOK(..Channels(row.SessionRef, .channels, .own)) {
-		Set position = 0
-		While $ListNext(channels, position, channel) {
-			If $ListFind(missed, channel) Set retry = retry_$ListBuild(channel)
-		}
-	}
-	Set sc = $$$OK
-	Set delivered = "", failed = ""
-	If retry '= "" {
-		Set superSession = ..%SuperSession
-		Try {
-			Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(row.SessionRef)
-			If $IsObject(session) Set ..%SuperSession = session.TraceRef
-			Set sc = ..SendDirect(..DigestNotification(row.SessionRef, row.CatalogKey, row.DecisionRef, row.Slots), retry, .delivered, .failed)
-		} Catch exception {
-			Set sc = exception.AsStatus()
-		}
-		Set ..%SuperSession = superSession
-	}
-	Set row.Channels = $ListToString($ListFromString(row.Channels)_delivered)
-	Set row.Failed = $ListToString(failed)
-	Set saved = row.%Save()
-	Quit $Select($$$ISERR(saved): $SYSTEM.Status.AppendStatus(saved, sc), 1: sc)
 }
 
 /// The latest instant at or before tickAt whose clock in the instance zone reads digest.time, UTC; "" when tickAt cannot be read.
@@ -427,7 +324,7 @@ Method Composed(compose As OcuTalon.Digest.Msg.Compose) As %Status [ Private ]
 		If '$IsObject(session) $$$ThrowStatus($SYSTEM.Status.Error(5001, "Digest has no session for the digest"))
 		If ..%SuperSession = "" Set ..%SuperSession = session.TraceRef
 		If ..Sent(compose) Quit
-		Set sc = ..Channels(compose.SessionRef, .channels, .own)
+		Set sc = ..Channels(compose.SessionRef, .channels)
 		If $$$ISERR(sc) Quit
 		Set sc = ..Saved(compose.SessionRef, compose.WindowStart, compose.WindowEnd, .items)
 		If $$$ISERR(sc) Quit
@@ -592,7 +489,7 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 {
 	Set sessionRef = compose.SessionRef
 	Set at = compose.WindowEnd
-	Set sc = ..Channels(sessionRef, .channels, .own)
+	Set sc = ..Channels(sessionRef, .channels)
 	If $$$ISERR(sc) Quit sc
 	Set sc = ..Rows(sessionRef, compose.WindowStart, at, .rows, .lines, .vitals)
 	If $$$ISERR(sc) Quit sc
@@ -642,7 +539,7 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 	Do costSlots.%Set("cost", cost, "number")
 	Do parts.%Push({"key": "digest.cost", "slots": (costSlots)})
 	Set slots = {"parts": (parts), "lines": (lines), "rows": (rows)}.%ToJSON()
-	Set sc = ..Deliver(..DigestNotification(sessionRef, checkKey, decisionRef, slots), channels, own, .delivered, .failed)
+	Set sc = ..Deliver(..DigestNotification(sessionRef, checkKey, decisionRef, slots), channels, .delivered, .failed)
 	If $ListLength(delivered) = 0 Quit sc
 	Set row = ##class(OcuTalon.Digest.Data.Sent).%New()
 	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -723,87 +620,24 @@ ClassMethod DigestNotification(sessionRef As %String, checkKey As %String, decis
 	Quit notification
 }
 
-/// The channels a digest of the session goes to, in the order of Notify's rule, and the session's own channels (both as lists). An error status with
-/// MESSAGENOCHANNEL when no channel is left.
-Method Channels(sessionRef As %String, Output channels As %List, Output own As %List) As %Status [ Private ]
+/// The channels a digest of the session goes to, as a list: the ones that Notify's rule for kind digest sends it to (Reachable). An error status with
+/// MESSAGENOCHANNEL when there is none.
+Method Channels(sessionRef As %String, Output channels As %List) As %Status [ Private ]
 {
-	Set own = ..Own(sessionRef)
-	Set named = ..Named()
-	Set channels = ""
-	Set position = 0
-	While $ListNext(own, position, channel) {
-		If $ListFind(named, channel) Set channels = channels_$ListBuild(channel)
-	}
+	Set channels = ..Reachable(sessionRef)
 	If $ListLength(channels) = 0 Quit $SYSTEM.Status.Error(5001, ..#MESSAGENOCHANNEL)
 	Quit $$$OK
 }
 
-/// The channels that digest.channels names, as a list: only the known channels, in the order of the setting, and none twice. A name that is not a known
-/// channel names nothing.
-ClassMethod Named() As %List
+/// Sends the Notification to Notify, once, whatever digest.channels names: Notify alone routes kind digest to the channels that digest.channels names and
+/// that are available. delivered and failed are the channels that the send reached and missed (lists): all of them when the Notification went to Notify,
+/// none when the send failed; the status is the send's.
+Method Deliver(notification As OcuTalon.Msg.Notification, channels As %List, Output delivered As %List, Output failed As %List) As %Status [ Private ]
 {
-	Set value = ##class(OcuTalon.Data.Setting).Get(..#CHANNELSSETTING, ..#CHANNELSDEFAULT)
-	Set known = $ListFromString(..#CHANNELS)
-	Set named = ""
-	For i = 1:1:$Length(value, ",") {
-		Set name = $ZConvert($ZStrip($Piece(value, ",", i), "<>W"), "L")
-		If $ListFind(known, name) && '$ListFind(named, name) Set named = named_$ListBuild(name)
-	}
-	Quit named
-}
-
-/// Sends the Notification to Notify when the channels are all of the session's own, else to the item of each channel. delivered and failed are the channels
-/// that the send reached and missed (lists); the status is OK when none was missed.
-Method Deliver(notification As OcuTalon.Msg.Notification, channels As %List, own As %List, Output delivered As %List, Output failed As %List) As %Status [ Private ]
-{
-	If channels = own {
-		Set sc = ..SendNotice(notification, ..#NOTIFY)
-		Set delivered = $Select($$$ISERR(sc): "", 1: channels)
-		Set failed = $Select($$$ISERR(sc): channels, 1: "")
-		Quit sc
-	}
-	Quit ..SendDirect(notification, channels, .delivered, .failed)
-}
-
-/// Sends the Notification to the item of each channel, one after the other: a channel that fails does not stop the rest. Each send writes its routing row
-/// (LogRoute). The status holds the error of every channel that failed, each naming its channel and item.
-Method SendDirect(notification As OcuTalon.Msg.Notification, channels As %List, Output delivered As %List, Output failed As %List) As %Status [ Private ]
-{
-	Set delivered = "", failed = ""
-	Set items = $ListFromString(..#ITEMS)
-	Set known = $ListFromString(..#CHANNELS)
-	Set sc = $$$OK
-	Set position = 0
-	While $ListNext(channels, position, channel) {
-		Set item = $List(items, $ListFind(known, channel))
-		Try {
-			Set one = ..SendNotice(notification, item)
-		} Catch exception {
-			Set one = exception.AsStatus()
-		}
-		Do ..LogRoute(item, one)
-		If $$$ISERR(one) {
-			Set failed = failed_$ListBuild(channel)
-			Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, ..#MESSAGECHANNEL_channel_" ("_item_"): "_$SYSTEM.Status.GetErrorText(one)))
-		} Else {
-			Set delivered = delivered_$ListBuild(channel)
-		}
-	}
+	Set sc = ..SendNotice(notification, ..#NOTIFY)
+	Set delivered = $Select($$$ISERR(sc): "", 1: channels)
+	Set failed = $Select($$$ISERR(sc): channels, 1: "")
 	Quit sc
-}
-
-/// The Ens.Rule.Log row of a send to a channel's item: the row that Notify's rule writes for a message it routes (AD-26), with the targets as the router's
-/// action list. A row that cannot be written is one warning.
-Method LogRoute(item As %String, sc As %Status) [ Private ]
-{
-	Try {
-		Set failed = $$$ISERR(sc)
-		Set error = $Select(failed: ##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)), 1: "")
-		Set logged = ##class(Ens.Rule.Log).Log(..%SessionId, ..#ROUTERULE, "", "", "", $ClassName(), ..#ROUTEREASON, "send:"_item_":", error, failed)
-		If $$$ISERR(logged) $$$ThrowStatus(logged)
-	} Catch exception {
-		$$$LOGWARNING(..#LOGROUTE_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(exception.AsStatus())))
-	}
 }
 
 /// The greeting part's key for the compose hour in the instance zone.
@@ -879,17 +713,14 @@ Method NeedsYou(sessionRef As %String, failedRows As %DynamicArray, Output sc As
 	Quit ##class(OcuTalon.Digest.NeedsYou).List(sessionRef, failedRows, .sc, windowStart)
 }
 
-/// The session's own channels, the ones Notify's generic route reaches for a digest: web, phone when demo mode is on, telegram when the session is paired
-/// (a seam for the tests).
-Method Own(sessionRef As %String) As %List [ Private ]
+/// The channels that Notify's rule sends a digest of the session to, in its order (Functions.DigestChannels): the channels that digest.channels names and
+/// that are available to the session (a seam for the tests).
+Method Reachable(sessionRef As %String) As %List [ Private ]
 {
-	Set own = $ListBuild("web")
-	If ##class(OcuTalon.Core.Rule.Functions).DemoOn() Set own = own_$ListBuild("phone")
-	If ##class(OcuTalon.Core.Rule.Functions).TelegramPaired(sessionRef) Set own = own_$ListBuild("telegram")
-	Quit own
+	Quit ##class(OcuTalon.Core.Rule.Functions).DigestChannels(sessionRef)
 }
 
-/// The digest's Notification to the item, asynchronously, with no answer wanted (a seam for the tests).
+/// The digest's Notification to Notify, asynchronously, with no answer wanted (a seam for the tests).
 Method SendNotice(notification As OcuTalon.Msg.Notification, item As %String) As %Status [ Private ]
 {
 	Quit ..SendRequestAsync(item, notification, 0)

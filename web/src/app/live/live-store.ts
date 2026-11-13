@@ -10,6 +10,9 @@
  *   store's, means the page missed something: the store comes back unchanged with reload set, and the caller fetches the
  *   snapshot again. A result with epochChanged set says which of the two it was (Story 16.4): on the online demo another epoch means
  *   that another OcuTalon session began in this browser, and the page leaves instead of loading it.
+ * - withAnswer(store, approval) puts the reply of an answer press into the store at once (Story 23.12): it replaces the request
+ *   with the same Ref only while the store holds it as `pending` and the reply is answered; it moves no cursor, so the request's
+ *   own `approval` event still replaces it by Ref later. In every other case it returns the store it was given.
  * - The `heartbeat` event (Story 39.5) replaces the store's single heartbeat payload; the snapshot carries none.
  * - COLLECTIONS says where each event type lives and by which key.
  */
@@ -218,6 +221,21 @@ function applyEvent(store: LiveStore, event: LiveEnvelope): LiveStore {
     default:
       return store;
   }
+}
+
+/**
+ * The store with the reply of an answer press taken in. The reply is the request's full public view; it replaces the stored
+ * request only while the store holds that Ref as `pending` and the reply's state is set and is not `pending`. A Ref the store
+ * does not hold, a request that has left `pending` already and a reply that is still `pending` give the same store back. No
+ * cursor moves.
+ */
+export function withAnswer(store: LiveStore, approval: ApprovalPayload): LiveStore {
+  const ref = approval.ref;
+  const held = ref === undefined ? undefined : store.approvals[ref];
+  if (ref === undefined || held === undefined || held.state !== 'pending' || !approval.state || approval.state === 'pending') {
+    return store;
+  }
+  return { ...store, approvals: put(store.approvals, ref, approval) };
 }
 
 /**

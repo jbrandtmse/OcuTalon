@@ -21,6 +21,7 @@ const app = join(here, '..', 'src', 'app');
 const files = sourceFiles(join(app, 'approvals'), ['.ts']);
 const incidents = sourceFiles(join(app, 'incidents'), ['.ts']);
 const api = sourceFiles(join(app, 'api'), ['.ts']);
+const live = sourceFiles(join(app, 'live'), ['.ts']);
 
 const file = (list, name) => {
   const found = list.find((one) => one.name === name);
@@ -145,6 +146,20 @@ describe('the call', () => {
     assert.match(card.code, /this\.answer\.press\(this\.view\(\)\.ref, action, this\.approval\(\)\.fixKind \?\? ''\)/);
     assert.match(press.code, /\.answer\(ref, action, this\.options\.channel\)/, 'the press posts the channel it was given');
     assert.doesNotMatch(press.code, /session|user/i);
+  });
+
+  it('hands every reply that carries a payload to the host at once, right after it becomes local, and the card passes it to the live store', () => {
+    assert.match(press.code, /if \(approval !== undefined\) \{\s*this\.local\.set\(approval\);\s*this\.options\.answered\(approval\);\s*\}/);
+    assert.match(press.code, /answered: \(approval: ApprovalPayload\) => void;/);
+    assert.match(card.code, /channel: 'web',\s*answered: \(approval\) => this\.live\.applyAnswer\(approval\),/);
+    assert.match(card.code, /private readonly live = inject\(LiveState\);/);
+  });
+
+  it('takes the reply into the live store only while the page runs and holds a store, and sets it only when withAnswer gave another store', () => {
+    const state = file(live, 'live-state.ts').code;
+    const method = /applyAnswer\(approval: ApprovalPayload\): void \{[\s\S]*?\n  \}/.exec(state)?.[0] ?? '';
+    assert.match(method, /const current = this\.store\(\);\s*if \(this\.stopped \|\| !current\) \{\s*return;\s*\}/);
+    assert.match(method, /const next = withAnswer\(current, approval\);\s*if \(next !== current\) \{\s*this\.store\.set\(next\);\s*\}/);
   });
 
   it('keeps the notices of a reply in one place: a late press, a missing request, a refusal or failure and no connection', () => {

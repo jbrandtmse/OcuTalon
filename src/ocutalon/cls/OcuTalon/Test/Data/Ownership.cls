@@ -504,6 +504,10 @@ Method TestIsolationEveryRowKind()
 		Do $$$AssertEquals(crossA(read), "", "A reads nothing of B's decision through "_read)
 	}
 	Do $$$AssertEquals(crossB("decisionofitem")_"|"_crossA("decisionofitem"), "|", "neither finds the other's decision by its ItemId")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SentFile(ra("sentfile"), b), "", "B does not find A's sent file")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SentFile(rb("sentfile"), a), "", "A does not find B's sent file")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SentFile(ra("sentfile"), a).Ref, ra("sentfile"), "A finds its own sent file")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SentFile(rb("sentfile"), b).Ref, rb("sentfile"), "B finds its own sent file")
 	Do $$$AssertEquals(crossB("turnofitem"), "", "B finds nothing of A's turn by A's ItemId")
 	Do $$$AssertEquals(crossA("turnofitem"), "", "A finds nothing of B's turn by B's ItemId")
 	Do $$$AssertEquals(crossB("delivery"), "", "B finds nothing of A's delivery by A's approval Ref")
@@ -1240,6 +1244,7 @@ ClassMethod Seed(sessionRef As %String, Output ref) [ Private ]
 	Set ref("phone") = ##class(OcuTalon.Test.Data.Fixture).SimMessage(sessionRef)
 	Set ref("mail") = ##class(OcuTalon.Test.Data.Fixture).SimMessage(sessionRef, {"Kind": "mailbox", "Direction": "in"})
 	Set ref("decisionitem") = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(ref("decision")).ItemId
+	Set ref("sentfile") = ##class(OcuTalon.Test.Data.Fixture).SentFile(sessionRef)
 }
 
 /// Every read of the session: seen(read) = the Refs it returned, comma-separated (a usage row stands for its DecisionRef).

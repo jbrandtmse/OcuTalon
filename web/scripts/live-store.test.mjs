@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const live = join(here, '..', 'src', 'app', 'live');
-const { COLLECTIONS, applyEvents, chatKey, fromSnapshot } = await import(pathToFileURL(join(live, 'live-store.ts')).href);
+const { COLLECTIONS, applyEvents, chatKey, fromSnapshot, withAnswer } = await import(pathToFileURL(join(live, 'live-store.ts')).href);
 
 /** A snapshot with a little of everything. */
 function snapshot(overrides = {}) {
@@ -350,5 +350,77 @@ describe('COLLECTIONS', () => {
     ]);
     assert.deepEqual(second.store.documents['doc-1'], { ref: 'doc-1', removed: true }, 'the last event of a ref replaces the earlier ones');
     assert.equal(second.reload, false);
+  });
+});
+
+describe('an answer\'s reply (withAnswer)', () => {
+  /** A store that holds app-1 and app-2 as pending requests. */
+  const held = (states = {}) =>
+    fromSnapshot(
+      snapshot({
+        rail: {
+          approvals: [
+            { ref: 'app-1', state: states['app-1'] ?? 'pending', title: 'one' },
+            { ref: 'app-2', state: states['app-2'] ?? 'pending', title: 'two' },
+          ],
+          checks: [],
+          reminders: [],
+          decisions: [],
+        },
+      }),
+    );
+
+  it('replaces a pending request with the reply\'s view, whatever answered state it shows (rejected, approved, executing or expired), and keeps the other pending request', () => {
+    const store = held();
+    for (const state of ['rejected', 'approved', 'executing', 'expired']) {
+      const next = withAnswer(store, { ref: 'app-1', state, title: 'one' });
+      assert.notEqual(next, store);
+      assert.equal(next.approvals['app-1'].state, state);
+      assert.equal(next.approvals['app-2'].state, 'pending', 'the other pending request is kept');
+      assert.deepEqual(Object.keys(next.approvals), ['app-1', 'app-2']);
+    }
+  });
+
+  it('moves no cursor and changes nothing it was given', () => {
+    const store = held();
+    const before = JSON.stringify(store);
+    const next = withAnswer(store, { ref: 'app-1', state: 'rejected' });
+    assert.deepEqual(next.cursors, store.cursors);
+    assert.equal(next.epoch, store.epoch);
+    assert.equal(JSON.stringify(store), before, 'the input store is unchanged');
+    assert.equal(store.approvals['app-1'].state, 'pending');
+  });
+
+  it('gives the same store back for a request that has left pending (an executing request keeps its view)', () => {
+    for (const state of ['executing', 'rejected']) {
+      const store = held({ 'app-1': state });
+      assert.equal(withAnswer(store, { ref: 'app-1', state: 'approved' }), store, state);
+    }
+  });
+
+  it('gives the same store back for a Ref the store does not hold', () => {
+    const store = held();
+    assert.equal(withAnswer(store, { ref: 'app-9', state: 'rejected' }), store);
+    assert.equal(Object.keys(store.approvals).includes('app-9'), false);
+  });
+
+  it('gives the same store back for a reply that is still pending or has no state', () => {
+    const store = held();
+    assert.equal(withAnswer(store, { ref: 'app-1', state: 'pending' }), store);
+    assert.equal(withAnswer(store, { ref: 'app-1' }), store);
+  });
+
+  it('is followed by the request\'s own event: it leaves the request answered, and a later event replaces it with no step back', () => {
+    const base = held();
+    const answered = withAnswer(base, { ref: 'app-1', state: 'rejected', title: 'one' });
+    assert.notEqual(answered, base);
+    assert.equal(answered.approvals['app-1'].state, 'rejected', 'the reply answered it before any event');
+    assert.deepEqual(answered.cursors, base.cursors, 'and moved no cursor');
+    const same = apply(answered, [event('session', 6, 'approval', { ref: 'app-1', state: 'rejected', title: 'one' })]);
+    assert.equal(same.reload, false);
+    assert.equal(same.store.approvals['app-1'].state, 'rejected');
+    assert.equal(same.store.cursors.session, 6);
+    const later = apply(same.store, [event('session', 7, 'approval', { ref: 'app-1', state: 'executing', title: 'one' })]);
+    assert.equal(later.store.approvals['app-1'].state, 'executing');
   });
 });

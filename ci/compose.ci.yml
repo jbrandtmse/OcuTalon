@@ -8,7 +8,8 @@
 # OCUTALON_MOCK_KEY_HEADER is the CI-only switch (AD-19, owner decision 5) that makes the Provider step send the agent's
 # MOCKKEY in x-ocutalon-mockkey: this file is the only place that sets it, so no other start carries that header.
 # OCUTALON_TEST_PLAIN_SMTP is the CI-only switch (Story 21.6, ruling c) that lets the SMTP sender talk plain SMTP to the mock's stub and to nothing
-# else (it also requires the server host to be exactly mock): this file is the only place that sets it, so no other start can send over plain SMTP.
+# else (it also requires the server host to be exactly mock), and lets EmailIn in OAuth2 mode log in to that stub over plain POP3 (Story 21.8):
+# this file is the only place that sets it, so no other start can send mail or a mail token over a plain connection.
 # OCUTALON_TEST_OAUTH_MOCK is the CI-only switch (Story 21.3, ruling 4) that lets the mail OAuth2 client use the mock's fake authorization server over
 # plain HTTP instead of the provider's https:// endpoints: this file is the only place that sets it, and the product logs a warning whenever it is on.
 # The mock also serves the Telegram Bot API (Story 10.3; AD-19, AD-22): OCUTALON_TELEGRAM_API_BASE is the base that the Telegram service

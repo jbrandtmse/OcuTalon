@@ -285,7 +285,7 @@ ClassMethod IsNotRegistered(sc As %Status) As %Boolean [ Private ]
 }
 
 /// 1 when the production item has an alive job that is not in error.
-ClassMethod ItemRunning(item As %String) As %Boolean [ Private ]
+ClassMethod ItemRunning(item As %String) As %Boolean
 {
 	Set result = ##class(%ResultSet).%New("Ens.Job:Enumerate")
 	If $$$ISERR(result.Execute()) Quit 0

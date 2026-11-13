@@ -205,6 +205,11 @@ LIVE_FORBIDDEN_PORTS="52773 1979 52779 8089 1990 1991 52790 52791 8090 8091"
 
 # The knobs of the port wait and of the retries in live_port_guard, in seconds.
 LIVE_PORT_WAIT=${LIVE_PORT_WAIT:-90}
+# The one budget, in poll seconds, of the first start's wait (wait_started_ready "$LIVE_FIRST_START_WAIT" in the 23 CI live unit
+# scripts that wait for a first start; test-demo-path.sh's live_first_start keeps its own). It is 1.4 times the largest per-unit median of the audit in
+# _bmad-output/implementation-artifacts/evidence/0-32-task0-ci-time-budgets.md, rounded up to 30 s, and stays under the 720 s of
+# AD-23's first-start WARN.
+LIVE_FIRST_START_WAIT=${LIVE_FIRST_START_WAIT:-510}
 LIVE_PORT_RETRY_PAUSE=${LIVE_PORT_RETRY_PAUSE:-10}
 # Set to 1 by live_port_wait_free when it found the port in use and waited for it; its callers reset it to 0 first.
 LIVE_PORT_BUSY_SEEN=0
@@ -534,17 +539,34 @@ start_log_complete() { # start_log_complete <container start stamp, UTC to the s
 
 container_start_stamp() { started_at | cut -c1-19; }
 
-# wait_started_log <max seconds>: waits for this start's log to end. Prints nothing; returns 1 on timeout.
+# wait_started_log <max seconds>: waits for this start's log to end; returns 1 on timeout. On every return it prints one line to stderr
+# (so that no $(...) caller captures it): "MEASURED wait <script>:<line> <s> s of <max> s", the wall-clock seconds of the wait and the
+# nearest calling frame outside this file. The budget counts the poll seconds of wait_until, so a wait can print more seconds than its
+# budget.
 wait_started_log() {
-  local stamp
+  local stamp t=$SECONDS rc=0 i site="lib-live.sh:0"
+  for ((i = 1; i < ${#BASH_SOURCE[@]}; i++)); do
+    case ${BASH_SOURCE[$i]} in
+      lib-live.sh | */lib-live.sh) ;;
+      *)
+        site="$(basename "${BASH_SOURCE[$i]}"):${BASH_LINENO[$((i - 1))]}"
+        break
+        ;;
+    esac
+  done
   stamp=$(container_start_stamp)
-  [ -n "$stamp" ] || return 1
-  wait_until "$1" start_log_complete "$stamp"
+  if [ -n "$stamp" ]; then
+    wait_until "$1" start_log_complete "$stamp" || rc=1
+  else
+    rc=1
+  fi
+  echo "MEASURED wait $site $((SECONDS - t)) s of $1 s" >&2
+  return "$rc"
 }
 
 # wait_started_ready <max seconds>: waits for this start's log to end with `ready`, then for Docker to report
-# `healthy`. Returns 1 when either does not happen in time, when the start ended `not ready`, or when the
-# container started again in between. After a ready start it parks the Telegram items (live_park_telegram) unless the caller sets
+# `healthy`. The MEASURED line of wait_started_log covers the first part. Returns 1 when either does not happen in time, when the
+# start ended `not ready`, or when the container started again in between. After a ready start it parks the Telegram items (live_park_telegram) unless the caller sets
 # LIVE_TELEGRAM=started, which a check of a running Telegram sets for its start; a failed park fails the wait.
 wait_started_ready() {
   local before after

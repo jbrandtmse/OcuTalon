@@ -581,6 +581,45 @@ t_outward_rows() {
   has "the hosts line in docker/test-readme.sh" "$out" "docker/test-readme.sh:2"
 }
 
+# The no-outward row's exemption for the hosts line of docker/tests/test-readme.sh is the one approved line and nothing wider: the real
+# line passes, the exemption's text is that line with its dots escaped, and the changed lines below (a loose dot, a leading blank, a host
+# removed, swapped or added) are flagged.
+t_outward_exemption() {
+  local line before hits body
+  line=$(grep -x "ALLOWED_HOSTS='.*'" "$root/docker/tests/test-readme.sh")
+  has "the README script's hosts line names the Gmail host" "$line" " mail.google.com"
+  # Missing: the real checklist reports nothing for the real README script, so an exemption without the Gmail host (or any other host of
+  # the line) turns this red.
+  hits=$(cd "$root" && . release/checklist.sh && outward_hits docker/tests/test-readme.sh)
+  eq "the real checklist exempts the real hosts line" "$hits" ""
+  # Not widened: the exemption is the two approved lines and the Gmail host is spelled once, with its dots escaped.
+  body=$(awk '/^outward_hits\(\) \{/ { on = 1 } on { print } on && /^\}/ { exit }' "$root/release/checklist.sh")
+  eq "the exemption names the Gmail host once" "$(printf '%s\n' "$body" | grep -oF 'mail[.]google[.]com' | wc -l | tr -d ' ')" 1
+  # The exemption is the real hosts line with every dot escaped, whole: no loose dot, wildcard or extra host anywhere in it.
+  eq "the exemption is the escaped hosts line" "$(printf '%s\n' "$body" | grep -cxF "      -e \"docker/tests/test-readme[.]sh:[0-9]*:$(printf '%s' "$line" | sed 's/[.]/[.]/g')\" | cut -d: -f1,2")" 1
+  eq "the exemption holds the two approved lines only" "$(printf '%s\n' "$body" | grep -oE 'docker/tests/[a-z-]+\[\.\]sh:\[0-9\]\*:' | tr '\n' ' ')" "docker/tests/check-readme-video[.]sh:[0-9]*: docker/tests/test-readme[.]sh:[0-9]*: "
+  eq "the exemption is anchored to the whole line" "$(printf '%s\n' "$body" | grep -c 'grep -vx')" 1
+  # Widened: each of these is a different line, so each is flagged in the copy of the README script and none is exempt.
+  newcase
+  before=$(wc -l < "$W/docker/tests/test-readme.sh" | tr -d ' ')
+  printf '%s\n' "$line" >> "$W/docker/tests/test-readme.sh"
+  printf '%s\n' "${line/ mail.google.com/ mailXgoogle.com}" >> "$W/docker/tests/test-readme.sh"
+  printf '%s\n' "${line/ docs.docker.com/ docs.example.org}" >> "$W/docker/tests/test-readme.sh"
+  printf '%s\n' "${line/ learn.microsoft.com/ learn.microsoft.com mail.example.org}" >> "$W/docker/tests/test-readme.sh"
+  printf '%s\n' "${line/ mail.google.com/}" >> "$W/docker/tests/test-readme.sh"
+  printf '%s\n' "${line/ mail.google.com/ mail.google.org}" >> "$W/docker/tests/test-readme.sh"
+  printf ' %s\n' "$line" >> "$W/docker/tests/test-readme.sh"
+  commit_all
+  expect_fail "the hosts line widened or changed" "no-outward "
+  lacks "the approved line: not listed" "$out" "docker/tests/test-readme.sh:$((before + 1))"
+  has "a loose dot in the Gmail host" "$out" "docker/tests/test-readme.sh:$((before + 2))"
+  has "a host swapped in the middle" "$out" "docker/tests/test-readme.sh:$((before + 3))"
+  has "a host added in the middle" "$out" "docker/tests/test-readme.sh:$((before + 4))"
+  has "the Gmail host removed" "$out" "docker/tests/test-readme.sh:$((before + 5))"
+  has "the Gmail host swapped for another" "$out" "docker/tests/test-readme.sh:$((before + 6))"
+  has "a leading blank" "$out" "docker/tests/test-readme.sh:$((before + 7))"
+}
+
 t_checkout_rows() {
   newcase
   printf 'x\n' > "$W/docs/new.txt"
@@ -1092,6 +1131,7 @@ rule licence-rows t_licence_rows
 rule script-rows t_script_rows
 rule source-rows t_source_rows
 rule outward-rows t_outward_rows
+rule outward-exemption t_outward_exemption
 rule checkout-rows t_checkout_rows
 rule author t_author
 rule refusals t_refusals

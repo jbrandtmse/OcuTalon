@@ -2079,6 +2079,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T05:11:03Z occurrence=0-25-the-web-port-guard-waits-long-enough-for-a-stack-that-is-sti by=runner note=run_42960883262_job_130326870677_iris(production)_live:production_on_ocutalon-ci-15:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_a179b616(docker/tests_only);one_rerun_of_failed_jobs
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_production_row21_WatchOps;rerun_failed_jobs_green(attempt2)
 - 2026-11-12T10:06:56Z occurrence=0-28 by=runner note=run_43159935962_attempt_1_job_130988445819_iris(production)_live:production_on_ocutalon-ci-10:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_eff03a14(README+release_checks_only);one_rerun_of_failed_jobs(attempt_2,started_by_orchestrator_10:02Z)
+- 2026-11-13T03:24:48Z occurrence=22-4-hold-risky-and-unclassified-mcp-calls-for-approval note=af886ee3_ci_43344958166_iris(production)_row21_wanted_CHK|start-fails|1|1_got_empty
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4892,6 +4893,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T10:51:48Z status=routed owner=burndown by=adjudication note=Notify_half_resolved_by_18.2(a4770526:Core/Rule/Notify_digest_branch+Functions.DigestNamed;Test.Core.Routing_TestNotifyDigestTargets,SettingsRunTime);residual_Lane_A:remove_Digest.Process.Own,SendDigest_direct_sends,ROUTEREASON,Test.Digest.Compose_NotifyChannels/TestOwnMatchesNotify_and_route_Resent_through_Notify;for_a_Lane_A_story
 - 2026-11-09T00:38:50Z by=burndown note=Epic_18_burn-down:Lane_A_residual(U-177),no_Lane_B_story_can_close_it;kept_owner=burndown_for_the_orchestrator's_routing_to_a_Lane_A_story(no_next-epic_Lane_A_key_in_this_branch's_tracker)
 - 2026-11-12T01:29:02Z status=routed owner=21-7-send-the-daily-digest-by-email by=orchestrator note=O1 ruling (prompts/epic-21-rulings-217-o1.md, 2026-11-12, one-time AD-33 Lane A exception): 21.7 makes Digest.Process.Deliver hand every composed digest to Notify, Notify alone routes kind digest by digest.channels, and deletes Digest.Process.Own, the SendDigest direct sends and ROUTEREASON with the Lane A tests that pin them
+- 2026-11-12T17:07:28Z status=resolved-by:21-7-send-the-daily-digest-by-email by=adjudication note=6c277ab0:Digest.Process.Deliver_hands_every_digest_to_Notify;Own_and_the_direct_sends_deleted;Notify_alone_routes_kind_digest_by_digest.channels;pinned_by_Test.Digest.Compose(*DigestUnchanged,route_tests,mutation_red)+Test.Core.Routing
 ### DW-748: Story 11.22's docs read stale beside 34.2's BodyBounds: Test.Web.BodyLimit says Test.Web.ApiProbe has no declaration (it now inherits Web.Api's POST /v1/documents entry), POSTROUTES is called every POST route but omits /v1/documents, and Web.BodyLimit's header example names /v1/documents at 14680064 bytes (the real bound is 13,985,112)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 11.22's assertions still hold (POSTROUTES omits /v1/documents; the declared-bound case uses /v1/messages); only the comments mislead; the files are Story 11.22's and outside 34.2's lane (34.2 re-review, Blind and Acceptance Auditor)
@@ -6297,6 +6299,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T22:43:24Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=merge_gate note=Contest Planner decision 2026-11-09 (owner delegation): Story 22.2 adds a bounded MCP attach timeout with a clear error; Epic 35 part merge
 - 2026-11-11T11:20:25Z status=routed owner=22-8-classify-mcp-calls-by-fingerprint-in-the-gate by=spec_gate note=Story_22.2_split_2026-11-11(runner_ruling_U5_decide):the_gate_half_moved_to_22.8;bullet_in_22.8's_block
 - 2026-11-11T11:35:25Z status=routed owner=22-9-bound-mcp-attach-and-listing-with-a-timeout by=spec_gate note=Story_22.8_split_2026-11-11(runner_ruling_U5_decide):DW-1013_moved_whole_to_22.9;bullet_in_22.9's_block
+- 2026-11-12T17:08:30Z status=resolved-by:22-9-bound-mcp-attach-and-listing-with-a-timeout by=adjudication note=Mcp.Client.Probe_2s_initialize_before_every_AddTool(build+request);60s_rest;no_server_on_own_manager;tests_Test.Mcp.Attach(TestSilentAtBuild,TestSilentInRequest,TestOwnManagerHasNoServer)+Test.Mcp.Client;commit_901d7335+review_patches
 ### DW-1007: flake candidate: live:online-demo row 4 'the HTTP view of the connections was 0 and is 1 after five status GETs and five splash GETs' in CI install-fresh on feature 0ab2eef0 under a saturated queue (a lingering connection; same family as DW-987's visitor count)
 - source: CI run 42574755205 attempt 1 (feature 0ab2eef0) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code
@@ -6682,6 +6685,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T10:33:24Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_109d59c8_run_43172863798_install-upgrade_row7_start_with_failing_step_not_ended_200s;superseded_head
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_install-upgrade_row6_upgrade_not_ready_200s;rerun_failed_jobs_green(attempt2)
 - 2026-11-12T10:09:42Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 note=CI_run_43172123661_job_131027662764_iris(install-upgrade)_live:install-upgrade_row_6_'the_upgrade_did_not_end_ready_within_200_s'_on_OCT-epic21_ad2255ac(first_start_took_6_min:host_load;21.3_changes_no_install_or_startup_path);judged_again_on_the_integrated_head
+- 2026-11-12T15:47:10Z status=routed owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=lane_order note=Contest Planner standing burndown ruling 2026-11-12 (CI time-budget audit); inserted Story 0.32 with a DW-1082 acceptance bullet
+- 2026-11-12T18:09:13Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=adjudication note=fbe3deb0+review: install-upgrade row 6 ready budget 300 s with the ruled 'MEASURED row 6: the upgrade took N s to ready' line printed pass or fail (row 7 waits 300/330 s with MEASURED lines); still fails at the budget; install-upgrade unit deadline floor 1440 s; pinned by test-ci-config.sh budgets; CI proof on the next push (CI HOLD)
 - 2026-11-12T17:26:24Z occurrence=0-30 by=runner note=run_43260265319_job_131329319104_iris(install-upgrade)_on_ocutalon-ci-13_row_6_'the_upgrade_did_not_end_ready_within_200_s';OCT-epic0_05e29461;one_rerun_of_failed_jobs(lane_B_owns_the_fix)
 - 2026-11-12T18:16:53Z occurrence=0-30 by=runner note=run_43260265319_attempt_2_job_131370762952_iris(install-upgrade)_on_ocutalon-ci-9_row_7_'the_next_good_image_did_not_end_ready_within_200_s'(attempt_1_was_row_6_on_ci-13);second_red_of_the_unit_on_05e29461
 
@@ -6751,6 +6756,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: main run 42863516417 attempt 1 (v1.0.6 tag 96947f4d), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (shards-4) live:sign-in-2 R10 red at :470; green on one rerun; main badge green 19:45Z
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); no fix work now (Planner); rerun once per occurrence
+- 2026-11-13T01:01:54Z occurrence=feature-bc3eea8f note=ci_43320628392_att2_shards-4_R10
 
 ### DW-1094: flake: lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges ('trace_opened/run_again changes none of the session's data rows') and TestRunAgain ('steps 3 to 5 reset; the watch still counts')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7063,6 +7069,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner, 1.0.7 RC eval wording ruling, 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 1.0.7 RC eval, 3 real-model attempts: the model refused to save runbook text, cited 'Results runbook / Clearing the queue' and quoted it, but said 'runbook', failing only the phrase check
 - 2026-11-11T11:02:31Z status=routed owner=burndown by=owner note=ruled by the Contest Planner: widen eval/memory-documents-remember's phrase check to document|runbook|file; report-only; Epic 41's eval files; next free lane, ~30 min, after RELEASE DONE
+- 2026-11-12T14:17:29Z status=routed owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=lane_order note=orchestrator 2026-11-12: lane B's next item, inserted as Story 0.31 (DW-1123 acceptance bullet in epics.md)
+- 2026-11-12T15:05:57Z status=resolved-by:0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=adjudication note=38c3f267: eval/memory-documents-remember first keyPhrases group is [document, runbook, file]; pinned by Test.Eval.Report TestShippedTaintedCase and TestMemoryTurnTainted (runbook right, names-none wrong), Cases.TestMemoryCases; report-only unchanged; eval/results/rules-only.json re-run (3 entries of this case only)
 
 ### DW-1133: A classified MCP tool that its server stops listing loses its ToolClassification row at the next attach with no Tool audit entry and no admin notice
 - source: spec-22-2-classify-mcp-tools-by-server-and-name.md | severity: low | fix-risk: low | footprint: in-story
@@ -7093,6 +7101,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: rail lists pendingApprovals(store) (web/src/app/rail/rail-view.ts:340); store approvals change only via approval events (live/live-store.ts:188-189); the press reply updates only the card's AnswerPress.local (approvals/answer-press.ts replied); event published async by Core.BridgeSink.Approved, read by the next poll (live-state.ts:19 POLL_DELAY_MS 1000)
 - 2026-11-11T20:10:49Z status=routed owner=burndown by=owner note=Contest Planner ruling 2026-11-11T20:09:53Z (owner delegation; reverses orchestrator veto U-318): judge-visible (Reject a fix is a featured More to try step). Follow-up story in approvals/phone/rail, dispatched by the orchestrator AFTER 21.2 merges, on any free lane, after 0.26 and DW-1123. Acceptance: a browser test presses Reject and the request is gone from the rail within 5 s, on the web and on the phone view. Ships in 1.0.8 only if merged before the cut, else 1.0.9. Not a 23.10 rework.
+- 2026-11-12T12:22:24Z owner=23-12-take-a-rejected-request-off-the-status-rail-at-once by=burndown note=chartered_as_Story_23.12_per_Planner_ruling_2026-11-11T20:09:53Z(follow-up_story,lane_D_after_23.9;orchestrator_continue_2026-11-12)
+- 2026-11-12T13:52:56Z status=resolved-by:23-12-take-a-rejected-request-off-the-status-rail-at-once by=adjudication note=f6a03be3:withAnswer(live-store)+LiveState.applyAnswer+AnswerPress.answered(card+phone);RA1(web)+RA2(phone)_reply-only_removal_polls_held;PA2(web)+PA3(phone)_gone_within_5s_of_press_on_real_request(85-105ms);unit:answer-press.test.mjs,live-store,rail-view
 ### DW-1164: EmailOut's system path (Story 21.6) needs Story 22.7 to fill SendEmail.ApprovalRef, the approval row's FixKind 'email' and FixParameters.recipients, and to replay with a context of Kind tool and provenance user; only seeded rows test it today
 - source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Channel/Email/Out.cls system path reads Bridge.Data.ApprovalRequest; tests seed the row; S1 spine sub-bullet records the contract
@@ -7103,6 +7113,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Out.cls Send sets no header OcuTalon could recognise; Channel/Email/In.cls has no sender or header filter; the To of a tool send is the polled mailbox
 - 2026-11-12T00:31:01Z status=routed owner=21-7-send-the-daily-digest-by-email by=cr note=21.7 sends the daily digest to that mailbox; mark EmailOut's mail and have EmailIn skip it, or rule it harmless
+- 2026-11-12T17:07:28Z status=resolved-by:21-7-send-the-daily-digest-by-email by=adjudication note=6c277ab0+review:EmailIn_skips_only_when_Ref_names_a_sent_email_Delivery_row,From_is_email.address,first_use(EchoedAt,V4/V8);traced_with_the_Ref_only;pinned_by_EmailIn/EmailLive_TestOwnMailPolledBackMakesNoItem(mutations_red)
 
 ### DW-1168: A send to a server slow at every command can outlast CommandsIn's 120 s wait: the caller gets failed while EmailOut still finishes the send
 - source: spec-21-6-send-email-over-smtp.md | severity: low | fix-risk: med | footprint: in-story
@@ -7159,6 +7170,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T21:32:07Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence): one rerun of the failed job when the run completes
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749161 attempt 2)
 - 2026-11-12T10:33:23Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_e7c97dda_run_43170639261_install-fresh_live:install-start_row3_dev_start_not_ready_200s;superseded_head
+- 2026-11-12T16:31:16Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_job_131294447085_iris(install-fresh)_live:install-start_row_4_'the_restart_did_not_end_ready_within_200_s'(AFTER-START_ready_logged_just_before);one_rerun_of_failed_jobs_when_the_run_completes;Story_0.32_audits_this_wait
+- 2026-11-12T18:09:13Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_attempt2_install-fresh_job_131344108157_live:install-start_row_3_dev_start_200s;Story_0.32_raises_row_3_to_300s_and_row_4_to_270s
 - 2026-11-12T17:09:34Z occurrence=0-30 by=runner note=run_43260265319_job_131329318850_iris(install-fresh)_on_ocutalon-ci-13_live:install-start_row_4_'the_restart_did_not_end_ready_within_200_s'(after_STEP_merge_OK_3s;no_quiesce_error;rows_1-3_passed);OCT-epic0_05e29461;one_rerun_of_failed_jobs
 - 2026-11-12T18:07:04Z occurrence=0-30 by=runner note=run_43260265319_attempt_2_job_131370762866_iris(install-fresh)_on_ocutalon-ci-17_live:install-start_row_3_'the_dev_start_did_not_end_ready_within_200_s'(after_STEP_merge_OK_5s;rows_1-2_passed);attempt_1_was_row_4_on_ci-13;second_red_of_the_unit_on_05e29461
 
@@ -7168,6 +7181,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T21:39:35Z status=routed owner=burndown by=orchestrator note=infra (host load): one rerun per occurrence; a recurrence on a clean queue means the group needs a split (standing CI rule), never a longer timeout
 - 2026-11-11T22:10:09Z note=green on one rerun (43099749306 attempt 2)
 - 2026-11-12T11:30:04Z occurrence=0-28 by=runner note=lane-a_run_43202138310_job_131127975712_ipm-install_on_ocutalon-ci-19_all_steps_success_then_cancelled_at_35m0s(10:52:33-11:27:33Z);host_load;OCT-epic0_2a6cfc67;rerun_failed_jobs_11:30Z
+- 2026-11-12T17:27:03Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_lane-a_43250436407_attempt1_ipm-install_cancelled_at_35m_job_timeout(job_131293987013?),attempt2_cancelled_again(job_131330870015);no_test_failed;infra_headroom;workflow_timeout_is_a_RELEASE_TOOL_item
+- 2026-11-12T17:27:26Z occurrence=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and note=0.32_Task0:ipm-install_1859s_median,2098s_largest_vs_2100s(1.13,1.00);ipm-install-p_1741s/1893s(1.21,1.11);REL-4_35min_is_a_Never-raise_bound_of_0.32;Planner:RELEASE_TOOL_and_REL-4
+- 2026-11-12T19:37:39Z by=cr note=0.32 rework 1 (Planner-approved, relayed as DW-1214): ipm-install/-p timeout 35->45, REL-4 35 min kept as target via MEASURED lines
+- 2026-11-12T19:41:25Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved (relayed as DW-1214): lane-a.yml ipm-install and ipm-install-p timeout-minutes 35 -> 45 as a hang backstop; REL-4's 35 min stays the target: ci/iris.sh teardown prints 'MEASURED <job> N s' and flags 'over REL-4' (log + step summary) over 2100 s (b24d2c64 + review patches)
 - 2026-11-12T17:18:12Z occurrence=0-30 by=runner note=lane-a_run_43260265609_job_131329321244_ipm-install_on_ocutalon-ci-19_cancelled_at_35m(16:35:09-17:10:37Z);host_load;OCT-epic0_05e29461;rerun_failed_jobs_17:18Z
 
 ### DW-1163: CI ops: GitHub Actions outage left zombie runs (queued at attempt 1; cancel says completed, rerun says running, force-cancel says not queued); recovery = a fresh push of a bookkeeping-only head, its result read by identity
@@ -7185,6 +7202,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: SaveEmail writes OcuTalonMail with an empty password in provider mode; adapters have no OAuth2 rows, handler or XOAUTH2 yet
 - 2026-11-12T05:15:24Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=harvest note=21.8's token use makes the poll and the send work in provider mode
 - 2026-11-12T06:03:18Z occurrence=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2
+- 2026-11-12T21:47:05Z status=resolved-by:21-8-read-and-send-mail-with-the-oauth2-sign-in by=adjudication note=d5440a3d+review:SettingsOps_writes_OAuth2ApplicationName/OAuth2CallBackHandler_rows;Channel.Email.Token;before_consent_the_poll_gives_REASONSIGNIN(T1)_not_the_refused-login_sentence;pinned_by_EmailIn.TestOAuthReasons,EmailLive.TestOAuthPollAndSendWithTheToken(mutations_red)
 
 ### DW-1180: The privileges that registering the mail OAuth2 client needs are measured only for the throwaway's production user (_Ensemble with %All)
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: low | footprint: in-story
@@ -7192,6 +7210,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T05:15:24Z status=open owner=21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2 by=harvest note=measure or state the least set, or accept _Ensemble as the documented production user
 - 2026-11-12T06:03:18Z status=escalated owner=burndown by=cr note=privileges are a veto item; rec: name _Ensemble the measured user, measure AD-24 roles in 21.8 live run
 - 2026-11-12T06:23:54Z status=routed owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=orchestrator note=Contest Planner ruling (prompts/epic-21-rulings-213.md, last section): accepted with conditions; 21.3's spec names _Ensemble as the measured production user, which held %All on the throwaway (the run proves the path, not least privilege); Story 21.8's live run lists each privilege that registration needs with a refused-without-it check (AC added to 21.8's block); no public text may claim least privilege
+- 2026-11-12T21:47:05Z status=resolved-by:21-8-read-and-send-mail-with-the-oauth2-sign-in by=adjudication note=EmailOAuthPrivileges_measured_with_fixture_user_zzOcuTalonOAuthPriv:registration_needs_%Admin_OAuth2_Client:USE,%DB_IRISSYS:R(+floor_%DB_OCUTALON_CODE:R),each_refused-without_check;TestNothingIsGrantedToOcuTalonRoles;_Ensemble(%All)_named;no_least-privilege_text(gmail_section_rule,grep);AD-24_S2_lists_the_measurement
 
 ### DW-1181: A SaveEmail that fails after IRIS's OAuth2 client was replaced, changed or removed puts OcuTalon's own stores back but cannot restore the client, its secret or its tokens
 - source: spec-21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2.md | severity: med | fix-risk: med | footprint: in-story
@@ -7294,6 +7313,21 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T11:14:12Z status=routed owner=burndown by=runner note=flake class (first occurrence): one rerun of failed jobs; a second red on the same head is real; likely fix: gotoSettled at L143 as DW-690 did
 - 2026-11-12T12:22:47Z status=routed owner=burndown by=runner note=rerun_attempt_2_of_run_43202138313_green_on_2a6cfc67(flake_confirmed)
 
+### DW-1204: Mcp.Client.Probe may report a server unreachable when it sent a status line and headers and then stalled before the body ends (an event stream)
+- source: spec-22-9-bound-mcp-attach-and-listing-with-a-timeout.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Mcp/Client.cls
+- evidence: Probe answers '' only when Post returns OK with an HttpResponse; a body read timeout after headers is read as unreachable (unverified; a stall-after-headers mock mode would settle it)
+- 2026-11-12T16:21:17Z status=open owner=22-9-bound-mcp-attach-and-listing-with-a-timeout by=harvest note=in-story; fix candidate: count a response with StatusCode>0 as an answer
+- 2026-11-12T17:08:30Z status=resolved-by:22-9-bound-mcp-attach-and-listing-with-a-timeout by=adjudication note=CR_patch_in_Client.Probe(any_HTTP_status_is_an_answer);TestStalledBody_expects_answer;mutation_red_shown
+
+### DW-1210: A server that is down or silent when a runner builds its agent is not recorded, so no request of that runner job offers its tools until the agent is built again (a production restart, or Ops restarting the runners)
+- source: spec-22-9-bound-mcp-attach-and-listing-with-a-timeout.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Agent.cls AttachOne records the spec only after the probe and AddTool pass; OfferServers walks Attached only. Matrix row 'Build, silent: spec not recorded' fixes it; pre-existing since 35.1 (a failed build AddTool was never recorded either)
+- 2026-11-12T17:04:19Z status=by-design owner=22-9-bound-mcp-attach-and-listing-with-a-timeout by=cr note=spec-bound (matrix row Build silent); a retry of unrecorded servers needs a spec amendment, e.g. in 22.10's own listing
+
+### DW-1211: Each runner job reports an MCP server only on its own transitions, but every job writes the one shared Mcp.Server row, so the row can say unavailable while other jobs offer the server's tools, until the reporting job sees the server again
+- source: spec-22-9-bound-mcp-attach-and-listing-with-a-timeout.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: McpReported and McpRest are transient per adapter (per runner job); OfferServers reports attached only when this job last reported unavailable. The Always rule fixes per-job transitions (Design Notes decided 5); the wrong direction is the safe one (ToolsReadOnly 0)
+- 2026-11-12T17:04:25Z status=by-design owner=22-9-bound-mcp-attach-and-listing-with-a-timeout by=cr note=spec-bound (Always: per-job transitions); a shared view needs a spec change, e.g. 22.10's own listing
 ### DW-1199: The allowance notice cards' install link (Allowance.cls INSTALLLINK) still points at README#install-it-yourself, which Story 0.30 moved to GUIDE.md: on the online demo the link opens the README top while the banner of the same state opens GUIDE.md
 - source: spec-0-30-a-shorter-readme-for-judges-with-the-install-feature-and-adm.md | severity: med | fix-risk: low | footprint: in-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Core/Allowance.cls:37 INSTALLLINK=https://github.com/jbrandtmse/OcuTalon#install-it-yourself; used at L236,L251 (slots.readmeLink); pinned by Test/Core/{Allowance,AllowanceInProduction,BridgeSink,WebChatMessages,WebChatOut}.cls, web/e2e-online/allowance/{daily-cap,messages}.spec.ts, web/scripts/{allowance-sources,banner-view}.test.mjs; found by 4 build-auto review layers
@@ -7321,11 +7355,40 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 43206845957 (OCT-epic21 368c7a09) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 131144052048 iris (image) shard:lane-b@Contract,Core,Data,Live: printed stored value 'xrvjRiPqHbxlagA8SDES' starts with x; salt = base64url(GenCryptRand(16)); the 21.3 merge changes no line of Data/Webhook, Test/Data/Webhook, SecretHandoff or Data/Setting vs green eb289caf (git diff empty); 6 local passes on lane-C warm e21s3cw
 - 2026-11-12T12:25:40Z status=routed owner=burndown by=ci note=fix (Epic 35's test, one line): pick the replacement first character as lastChanged does, e.g. $Select($Extract(salt) = "x": "y", 1: "x"); one rerun meanwhile
+- 2026-11-12T18:46:14Z status=routed owner=0-31-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne by=runner note=Planner_standing_ruling:test-only_burndown_on_lane_A_after_0.30;chartered_as_Story_0.31
+- 2026-11-12T19:07:54Z status=resolved-by:0-31-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne by=adjudication note=FirstChanged_helper+fixed-x-salt_xHash_pass;mutation_red_on_lane-A_throwaway;class_green
+- 2026-11-12T19:09:46Z status=resolved-by:0-33-dw-1191-the-webhook-secret-test-s-malformed-salt-case-can-ne by=orchestrator note=renumbered_from_0-31
 
+### DW-1201: Digest.Data.Sent's doc comments (class description, Failed, Attempts) still describe the digest resend that O1 removed (V9 known limit)
+- source: spec-21-7-send-the-daily-digest-by-email.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Digest/Data/Sent.cls:5,53-58 describe a resend no code performs after O1; Lane A file outside O1's permission
+- 2026-11-12T15:53:27Z status=wontfix-accepted owner=21-7-send-the-daily-digest-by-email by=harvest note=reopen_if=a Lane A story edits Digest/Data/Sent.cls (fix the three comments then) or the columns are reused
+- 2026-11-12T17:02:25Z occurrence=21-7-send-the-daily-digest-by-email
+
+### DW-1206: flake (local host): ci/mock/test/*.test.mjs stubs listen on a wildcard address with an OS-picked port but the tests connect to 127.0.0.1:<port>, so on a developer machine with other loopback listeners a request can reach a foreign server (e.g. smtp.test.mjs 'refuse closes with no greeting ... DATA 554', a hang in oauth.test.mjs)
+- source: spec-21-7-send-the-daily-digest-by-email.md (QA) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 21.7 QA 2026-11-12: baseline 90ab0f80 4/240 and this tree 3/160 smtp.test.mjs runs red under load; foreign bodies '<!doctype', 'not found', 'WebSockets'; serial 1/60; CI containers not expected to share a loopback (inference)
+- 2026-11-12T16:32:46Z status=routed owner=burndown by=ci note=fix: ci/mock/server.mjs --host 127.0.0.1 for the stubs, or a spawn helper that checks the control route answers with the mock's own JSON
+- 2026-11-12T21:57:15Z occurrence=21-8-read-and-send-mail-with-the-oauth2-sign-in note=local_node_--test_ci/mock/test_1/182_red_after_21.8_commit,green_on_one_unchanged_rerun_(182/182)
+
+### DW-1208: The spine's record of Story 21.7's O1 is incomplete: AD-33 lists no exception for 21.7's Lane A edit (Digest/Process.cls and Test/Digest/{Compose,Due,ProcessProbe,Thresholds}.cls), the AD-14 'As built in Story 18.2' bullet still says Digest narrows and sends directly until DW-820 with no superseded marker, and no contract row names Lane A Digest.Process.Reachable calling Lane B Functions.DigestChannels
+- source: spec-21-7-send-the-daily-digest-by-email.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-33 Rule bullets (17.10, 41.14 only, ~:1174-1175); AD-14 :499 vs :501; Process.cls Reachable -> Functions.DigestChannels (diff 4897-4903); spine is lead-written (Rule 20)
+- 2026-11-12T17:02:25Z status=routed owner=burndown by=cr note=lead: add an AD-33 bullet for the 21.7 O1 exception, mark the 18.2 bullet superseded, add the DigestChannels contract; memlog+lint
+- 2026-11-12T17:07:28Z status=resolved-by:21-7-send-the-daily-digest-by-email by=adjudication note=lead_wrote_the_spine:AD-33_21.7_exception_bullet,AD-14_18.2_bullet_marked_SUPERSEDED,contract_row_Functions.DigestChannels_read_by_Lane_A_Digest.Process.Reachable;lint_10_low_baseline
+
+### DW-1209: EmailOut's digest path records its Delivery row (DigestKey) after the send, not claim-first as 21.6 (f) does for system sends, so a digest Notification handled again after a crash or a failed Record between Transmit and Record would be emailed twice
+- source: spec-21-7-send-the-daily-digest-by-email.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Out.cls SendDigestLocked: DigestEmailSent -> Transmit -> Delivery.Record(...key); TestDigestNoDoubleSend covers a resend after a recorded success; Digest hands a digest to Notify once, nothing re-handles it
+- 2026-11-12T17:02:25Z status=wontfix-theoretical owner=21-7-send-the-daily-digest-by-email by=cr note=real if a digest Notification is ever handled twice by EmailOut (an Ens resend or redelivery after a job crash); then claim-first
 ### DW-1195: flake/infra: live:sign-in chromium suite hit its 757 s suite timeout under host load (256 passed, 0 failed, 24 did not run)
 - source: ci 43227065531 feature 150b49c5 iris (shards-10) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Timed out waiting 757s for the test suite to run; 24 did not run; no test failed
 - 2026-11-12T14:15:46Z status=routed owner=burndown by=orchestrator note=one rerun per occurrence; if recurrent, size the shard's suite budget or split the shard
+- 2026-11-12T15:47:10Z status=routed owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=lane_order note=Contest Planner standing burndown ruling 2026-11-12 (CI time-budget audit); inserted Story 0.32 with a DW-1195 acceptance bullet
+- 2026-11-12T17:27:03Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_attempt1_iris(shards-10)_live:sign-in_suite_timeout_777s(264_passed,0_failed,16_did_not_run);rerun_failed_jobs
+- 2026-11-12T18:09:13Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=adjudication note=fbe3deb0+review: 'MEASURED live:<unit> suite N s' and suite-budget lines in test-sign-in.sh; deadline floors sign-in 1560 s, sign-in-2 and sign-in-3 1500 s give browser-suite budgets 1132-1178 s (>= 950 s and >= 1.4x medians over 27 runs); finite; pinned by test-ci-config.sh budgets; CI proof on the next push (CI HOLD)
+- 2026-11-12T18:09:13Z occurrence=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document note=OCT-epic0b_34428e24_ci_43250436386_attempt2_shards-10_job_131344110360_live:sign-in_suite_775s(259_passed,0_failed,21_not_run);fixed_forward_by_0.32
 
 ### DW-1192: Held-out incident snapshots are never compared with a fresh recording in CI; HeldOutCases errorHas markers are read nowhere
 - source: spec-0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla.md | severity: med | fix-risk: low | footprint: in-story
@@ -7343,6 +7406,140 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/tests/test-eval-set.sh check_rules_flow: awk line-order pins only; rcf_rules runs the --rules-only forms, never the push run; lane-a evaluation job is the runtime proof
 - 2026-11-12T13:46:59Z status=by-design owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=spec Verification: Integration and CI ACs are proven by the lead's CI evidence (lane A evaluation job log and summary); a stubbed push run would emulate set, mock-wrong, demo gate and attempt runs
 
+### DW-1226: A real provider may answer a rejected XOAUTH2 token with a continuation challenge (POP3 '+ <base64 JSON>', SMTP '334 <json>') instead of the -ERR/535 the CI mock sends, so the poll reason could read 'couldn't reach' instead of the sign-in sentence
+- source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Adapter.ConnectReason gives REASONREFUSED/REASONSIGNIN only for ': -ERR'; stubs use -ERR; real Gmail/M365 reply after a rejected token not measured (inference)
+- 2026-11-12T20:33:04Z status=decision-pending owner=burndown by=harvest note=human=one sign-in with a real Gmail or Microsoft 365 test mailbox and a revoked grant (owner's own install), or the providers' protocol docs; fix is a small ConnectReason branch if the challenge form is confirmed
+- 2026-11-12T21:41:46Z occurrence=21-8-read-and-send-mail-with-the-oauth2-sign-in
+- 2026-11-12T22:25:58Z by=merge_gate note=Planner_ruling_E:post-contest,_the_owner%27s_optional_check_with_a_test_mailbox;stays_decision-pending_for_the_owner
+
+### DW-1230: In OAuth2 mode EmailIn sends the XOAUTH2 bearer token over whatever POP3 transport the item's settings give: a blank SSLConfig row (plain POP3) or SSLCheckServerIdentity 0 is honoured with no test-only switch, unlike Sender's PlainAllowed
+- source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Adapter.Poll passes the token to ConnectPort whatever SSLConfig holds; InboundAdapter.OnInit sets TLS only for a non-empty SSLConfig and copies SSLCheckServerIdentity; EmailLive and E6 reach the plain stub by blanking the row; the product never writes it (admin edit only)
+- 2026-11-12T21:41:47Z status=escalated owner=burndown by=cr note=security posture (veto window): rec gate the token on SSLConfig OcuTalonClient(*) + identity check, plain only with OCUTALON_TEST_OAUTH_MOCK=1 and host mock
+- 2026-11-12T22:25:58Z status=open owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=merge_gate note=Planner_ruling_E(security):fix_in_21.8_before_the_push:bearer_token_only_over_TLS;plain_POP3_only_with_OCUTALON_TEST_OAUTH_MOCK=1_and_host_mock;otherwise_refuse_with_no_token_and_a_plain_reason;tests_pin_refusal_and_mock_exception
+- 2026-11-12T23:15:50Z status=resolved-by:21-8-read-and-send-mail-with-the-oauth2-sign-in by=cr note=token only over TLS (Adapter.Transport, refusal before any token; TestOAuthTransport); switch name: DW-1234
+
+### DW-1234: EmailIn's plain-POP3 OAuth2 exception is gated on OCUTALON_TEST_PLAIN_SMTP (shared Sender.PlainFor), not the OCUTALON_TEST_OAUTH_MOCK=1 that Planner ruling E names; spine AD-22/AD-19 as-built text not yet updated
+- source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md (code-review 2) | severity: med | fix-risk: med | footprint: in-story
+- evidence: Adapter.Transport plain only by Sender.PlainFor(host, Sender.SwitchOn()) = OCUTALON_TEST_PLAIN_SMTP=1 and host mock; naming OCUTALON_TEST_OAUTH_MOCK or Channel.Email.OAuth in Adapter trips 21.3's TestOnlyOneCallerOfTheClass. Both switches are set only in ci/compose.ci.yml and now both have the git-wide no-shipped-file sweep (test-compose-file.sh). Spine AD-22 (mock SMTP side) still says the switch reaches only the sender; AD-19 'Mail token use' lacks the TLS-only rule.
+- 2026-11-12T23:15:50Z status=decision-pending owner=burndown by=cr note=human=Planner ratifies the switch substitution (or amends 21.3's pin); lead then writes AD-22/AD-19 as-built lines (Rule 20)
+- 2026-11-12T23:27:37Z by=lead note=spine_as-built_lines_written(AD-19_Token_transport,AD-22_mock_SMTP_side_amended);remaining=Planner_ratification_of_the_switch_name
+- 2026-11-13T04:03:54Z status=by-design by=merge_gate note=Planner_ruling_G:shared_switch_ratified;comment_lines_added_at_Sender.PLAINVARIABLE_and_AD-19
+### DW-1196: memory-documents-remember: the widened first key-phrase group is a weak source signal, since runbook also appears in the user's request and the cited document name
+- source: spec-0-31-dw-1123-the-memory-documents-remember-eval-accepts-document.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: case.json keyPhrases[0] = document|runbook|file; the turn text and citation both say Results runbook, so a reply that echoes its source meets the group (blind-hunter, edge-case-hunter)
+- 2026-11-12T15:03:40Z status=by-design owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=cr note=Contest Planner ruling 2026-11-11 (DW-1123) fixes the group; spec forbids changing description; report-only case
+
+### DW-1197: memory-documents-remember: file in the first key-phrase group is a lower-case substring match, so profile, filed or filename also meet it
+- source: spec-0-31-dw-1123-the-memory-documents-remember-eval-accepts-document.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Eval.Report Holds/Normalize is a plain substring test (unchanged); no test pins the substring behaviour for file (blind-hunter, edge-case-hunter)
+- 2026-11-12T15:03:40Z status=by-design owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=cr note=spec Design Notes keep the matcher unchanged and accept substring hits; report-only case, outside SM-1
+
+### DW-1198: No committed check ties eval/results/rules-only.json's embedded expectations to the current eval/<case>/case.json; a case edit without a rules-only re-run leaves stale text
+- source: spec-0-31-dw-1123-the-memory-documents-remember-eval-accepts-document.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: test-eval-set.sh committed-run checks (structure only) and compare.mjs --column (counts, date) never compare cases[].expected or turnChecks[].keyPhrases with case.json; AC 3 rests on the spec's one-off node diff (verification-gap)
+- 2026-11-12T15:03:40Z status=wontfix-accepted owner=0-31-dw-1123-the-memory-documents-remember-eval-accepts-document by=cr note=reopen_if=a committed eval/results report is found whose expected or keyPhrases differ from its case.json at the same commit
+
+### DW-1212: CI iris group jobs: six groups' green median sits under 1.4x of the 40-minute job cap (shards-10 1.33 ... shards-2 1.39); the 0.32 unit floors raise their worst case toward it
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: 0.32 Task 0: ten newest green jobs, 2400 s / median: shards-10 1.33, shards-5 1.34, shards-11 1.35, shards 1.36, production 1.39, shards-2 1.39; largest job 1.17
+- 2026-11-12T17:27:25Z status=escalated owner=burndown by=harvest note=for the Planner: a job cap is a RELEASE TOOL hunk; rebalancing is a Story 0.20 kind of change
+- 2026-11-12T18:06:01Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs, no-op jobs out): shards-10 1.29, shards/11 1.35, shards-6 1.37, production/shards-2 1.39
+- 2026-11-12T19:41:24Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved (2026-11-12 ~18:30Z, relayed): ci.yml iris timeout-minutes 40 -> 50 (b24d2c64); no group rebalancing until after Sunday
+
+### DW-1213: CI checks job timeout (20 min) is 1.25x its green median (962 s; largest 1015 s)
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: 0.32 Task 0: ten newest green ci checks jobs
+- 2026-11-12T17:27:25Z status=escalated owner=burndown by=harvest note=for the Planner: workflow timeout-minutes is a RELEASE TOOL hunk
+- 2026-11-12T18:06:13Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs incl. red/cancelled): checks median 950 s, 1.26; largest 1015 s, 1.18
+- 2026-11-12T19:41:24Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved: ci.yml checks timeout-minutes 20 -> 25 (b24d2c64)
+
+### DW-1214: CI iris job timeout (40 min) is 1.33-1.66x the group medians; it is the last bound of a hang
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: 0.32 Task 0; see the group entry
+- 2026-11-12T17:27:26Z status=escalated owner=burndown by=harvest note=for the Planner: RELEASE TOOL hunk; 0.32's Never list forbids raising the 40-minute cap
+- 2026-11-12T18:06:13Z status=escalated owner=burndown by=cr note=cr re-measure (27 runs, no-op jobs out): iris job cap 1.29-1.70x the group job medians; 1.17x the largest
+- 2026-11-12T19:41:25Z status=resolved-by:0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=orchestrator note=Planner approved: ci.yml iris timeout-minutes 40 -> 50 (b24d2c64); the Planner's 'DW-1214' (lane-a ipm-install) is ledger DW-1161
+
+### DW-1215: Playwright's 45 s per-test timeout is 1.27x the slowest online-allowance test and 1.38x online-demo's (medians of each run's slowest test)
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: 0.32 Task 0: online-allowance 35.5 s, online-demo 32.7 s, sign-in-3 31.6 s
+- 2026-11-12T17:27:26Z status=wontfix-accepted owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=harvest note=reopen_if=a CI red names a Playwright 45000ms test timeout on an otherwise passing suite
+
+### DW-1216: live:install-upgrade row 6 stays at the ruled 300 s, 1.37x its median gap (219 s upper bound), below the 1.4 rule
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 0.32 Task 0; DW-1082 rules exactly 300 s
+- 2026-11-12T17:27:26Z status=by-design owner=0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and by=harvest note=Planner ruling DW-1082 fixes 300 s; the next audit reads the MEASURED row 6 lines
+
+### DW-1217: CI hosts: measure peak memory per job type (6 IRIS stacks per 15 GB host swap at peak) and propose 5 runners per host or per-stack memory limits to the Planner as a server change
+- source: spec-0-32-ci-time-budgets-get-a-40-margin-over-their-green-medians-and.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Planner data 2026-11-12 ~18:10Z: ci-b 0 load failures today, ci-c install-fresh 3 of 10 and install-upgrade 1 of 3, ci-d install-fresh 1 of 1, install-upgrade 3 of 5, shards-10 3 of 4; ci-b/ci-d 8 vCPU, 15 GB RAM, ~610 MB swap in use, load 7-8 (small samples)
+- 2026-11-12T18:34:21Z status=routed owner=burndown by=orchestrator note=audit family follow-up to Story 0.32 (orchestrator 2026-11-12 continue); a measurement plus a PROPOSAL only: any runner-count or memory-limit change is a server change for the Planner, never applied by a runner
+### DW-1220: An approved native MCP call replayed by Replay.Run is not rewritten into call_mcp_tool, so it runs through AI Hub's client with no deadline, cut, call-time fingerprint check or audit entry
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+- evidence: Gate.Decision reroutes only outside a replay; Test.Bridge.Gate TestMcpRewriteAndItsMark pins the non-rewrite; spec Never list assigns the MCP replay to 22.4
+- 2026-11-12T20:12:17Z status=routed owner=22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=harvest note=22.4 replays through the proxy (S15)
+- 2026-11-13T00:37:12Z status=resolved-by:22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=adjudication note=replay_runs_call_mcp_tool_on_a_proxy-only_manager;Test.Mcp.Approval_TestHeldThenReplayed(no_tools/call_from_AI_Hub_client)+TestReplayResultIsCut
+
+### DW-1221: Mcp.Client has no total deadline per request: Timeout applies per read, so a server that trickles bytes can hold a runner job past CALLSECONDS
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Mcp/Client.cls
+- evidence: Exchange sets OpenTimeout/Timeout only; same property as 22.9 Probe; AD-21 accepts the residual for this release
+- 2026-11-12T20:12:17Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=harvest note=measure a 1-byte/s trickle; bound in 22.10's bounded client
+- 2026-11-12T21:11:47Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy
+
+### DW-1222: Gate rewrite mark ^||OcuTalonBP.McpRewrite is a single slot; two native MCP calls whose first passes interleave would mis-handle the second pass (unverified)
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+- evidence: ExecuteTool runs first pass, tool, second pass sequentially in one process; Task 0 measured one call only
+- 2026-11-12T20:12:17Z status=open owner=22-3-call-mcp-tools-only-through-the-governed-proxy by=harvest note=QA: shadow-runner test with two native MCP calls in one turn
+- 2026-11-12T21:15:11Z status=resolved-by:22-3-call-mcp-tools-only-through-the-governed-proxy by=adjudication note=not_reproduced:Test.Mcp.Attach_TestTwoNativeCalls(three_native_calls_one_turn,each_rewritten_once)+Test.Mcp.ProxyJob_part2(two_calls_one_model_response);mutation_McpRewrittenBefore=0_red
+
+### DW-1223: The proxy's wallet read at call time was measured in a session with the runner job's roles, not inside a runner job (condition (e) rests on an inference)
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Mcp/Proxy.cls
+- evidence: evidence 22-3-task0-proxy.md section 2 labels the in-job result (inference)
+- 2026-11-12T20:12:17Z status=open owner=22-3-call-mcp-tools-only-through-the-governed-proxy by=harvest note=lead smoke: real chat turn through a runner job against the mock with a wallet-backed entry
+- 2026-11-12T21:15:11Z status=resolved-by:22-3-call-mcp-tools-only-through-the-governed-proxy by=adjudication note=verified_in_a_real_runner_job:Test.Mcp.ProxyJob_TestRunnerJob(ChatAgent_job_reads_the_wallet_secret;mock_matched;audit_by_job_user);mutation_Header_no_secret_resolve_red
+
+### DW-1227: Proxy result text [non-text content omitted] (Mcp.Proxy OMITTED) is model-facing text named in the spec's Task but not in its approved Public text table
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Proxy.TextOf puts OMITTED in place of each non-text part of a tools/call result; the text reaches the model and the step summary's Result. The Planner approved Public text 1-10 only; this string is in Task 3 step 7, not the table.
+- 2026-11-12T21:11:47Z status=decision-pending owner=burndown by=cr note=veto window (public text): recommend approve verbatim; alternative drop the marker. Planner decides at the decision sheet
+- 2026-11-13T03:04:39Z status=by-design by=orchestrator note=Planner_F3_text_approved_verbatim([non-text_content_omitted])
+
+### DW-1228: A server tool named call_mcp_tool, added before the proxy toolset in OfferServers, may collide with or shadow the governed proxy (unverified)
+- source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: OfferServers AddTool(spec) runs before OfferProxy RegisterToolSet; AttachServers refuses only names of the agent's own tools, so a server tool named call_mcp_tool is not refused. Either outcome (registration error drops every server; the server's tool shadows the proxy) is unmeasured.
+- 2026-11-12T21:11:47Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=cr note=maybe-false, would be medium: settle with a mock tool named call_mcp_tool; refuse the name at attach or register the proxy first
+
+### DW-1232: The mcp.replayToolChanged notice (R1) renders no text on the web chat and phone cards: Channel.WebChat.Out.ToolCallCard draws only the bridge sink's five toolCall.* keys
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls
+- evidence: the row ends failed, the audit records the refusal and nothing runs, but the owner sees an empty notice; Channel files are Epic 21's (contended); Telegram render unchecked
+- 2026-11-12T23:13:35Z status=escalated owner=burndown by=harvest note=needs a ruling: add the key to Channel/WebChat/Out.cls and the phone card (Epic 21 contended), or route to an Epic 21 story
+- 2026-11-13T03:04:39Z status=routed owner=burndown by=orchestrator note=to_21.10_Planner_F2
+- 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=re-owned_after_Epics_21_and_22_merged(Planner_F2)
+
+### DW-1233: Approval.Raise writes no 'raised' Approval audit entry although 22.4's AC names one for the held MCP request
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Approval.cls
+- evidence: the request has Approval entries answered, started and finished only
+- 2026-11-12T23:13:35Z status=open owner=22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=harvest note=in-story: CR patches it (or closes it against the AC wording)
+- 2026-11-13T00:36:56Z status=resolved-by:22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=adjudication note=AC_wording_amended(Rule5_tier1;audit_trail_is_answered/started/finished;Raise_is_not_an_auditing_state_method;FR-9_asks_approval_answered)
+
+### DW-1239: Planner condition 1 (upgrade) is proven only locally: release/upgrade-harness.sh approves one seeded fix request but never rejects one and never reads ToolFingerprint
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Harness seed_approval/check_approval_upgrade (L1133-1166, L1460-1485): one Break-the-feed fix, approved on phone; no reject, no tool_call, no column check. test-install-upgrade.sh seeds none. Local pin Test.Mcp.ApprovalUpgrade covers the 25-slot storage only.
+- 2026-11-13T00:27:51Z status=escalated owner=burndown by=cr note=release/** is Epic 0's; harness needs a 2nd seeded request rejected after upgrade + SQL check ToolFingerprint empty
+- 2026-11-13T03:12:27Z status=resolved-by:22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=orchestrator note=Planner_F4_hunk_approved;release/upgrade-harness.sh_second_request+reject(channel_web)+ToolFingerprint_empty_x3;pinned_in_docker/tests/test-upgrade-harness.sh_rule_approval-reject;Test.Mcp.ApprovalUpgrade_kept;unexercised_on_a_live_stack_until_the_1.0.9_RC
+
+### DW-1240: Planner condition 4 says an unknown toolref is HELD; the build denies it (UNREGISTERED under OcuTalon's classification, FAILED with no fingerprint) and never runs it
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Mcp.Classification.ClassifyMcp: ServerOf empty -> registered 0 -> gate UNREGISTERED, no row (Test.Bridge.Gate TestMcpBridgeAlone); no map fingerprint -> FAILED (2(e), S16); replay of such a row fails NOSERVERTEXT (TestUnknownToolref).
+- 2026-11-13T00:27:51Z status=decision-pending owner=burndown by=cr note=planner=confirm denial (fail closed, no row that could never run) satisfies condition 4's HELD; code kept
+- 2026-11-13T03:04:39Z status=by-design by=orchestrator note=Planner_F1_stricter_reading_accepted(unknown_toolref_denied_never_held);22.4_spec_AC_amended
+
+### DW-1241: An approved MCP request whose server is removed and re-added under the same name before its replay starts runs on the re-added server
+- source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: CancelPending cancels pending rows only (AD-11); the gate and Proxy.Registered check the Server row by name, and the fingerprint's server id is the name-based toolref, so the re-added server passes. Window: approval to replay start.
+- 2026-11-13T00:27:51Z status=wontfix-accepted owner=22-4-hold-risky-and-unclassified-mcp-calls-for-approval by=cr note=reopen_if=a replay starts for a request approved before its server was removed and re-added
 ### DW-1205: flake candidate: shard:lane-a@Fix Test.Fix TestFailedAgainIsNotRetried red once ('it holds 3/3/0/3/0: the copies failed again'), passed on rerun
 - source: ci 43235350028 OCT-epic23 4444bda0 iris (shards-11) attempt 1 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: logic assertion (not a timeout) under a saturated CI host ~15:00Z; passed on attempt 2; 23.12 changes web live-store only
@@ -7352,7 +7549,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 0.30 DW-1199 sweep, 2026-11-12 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Planner swept 05e29461: no live link to a moved README anchor; test-readme product-links covers page links; docs/*.md has no generic dead-anchor check
 - 2026-11-12T16:44:12Z status=routed owner=burndown by=orchestrator note=1.0.9; does not hold 1.0.8
+- 2026-11-12T23:42:58Z status=routed owner=21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do by=burndown note=Planner_ruling_E:Lane_C_takes_DW-1207_as_burndown;Story_21.12_inserted(test-only)
+- 2026-11-13T01:33:34Z status=resolved-by:21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do by=adjudication note=43e14235+QA+review:rule_readme-anchors_in_docker/tests/test-readme.sh(every_tracked_Markdown_file_but_README.md,_bmad*,.claude,release/records;relative,root,blob_main/HEAD,repo_page;GitHub_slugs);self-tests_plant_dead_and_live_links;lead_smoke:README_heading_rename_flags_GUIDE.md:77
 
+### DW-1218: No test fails while the README comparison's agent column still reads 'measured at release 1.0.9' (the feature placeholder), so a merge to main would carry it unless the RC fork fills it
+- source: spec-0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil.md | severity: med | fix-risk: low | footprint: in-footprint
+- evidence: README.md agent column; the spec leaves it unpinned by ruling (variant F fills it in the RC fork); the Planner's RC checklist greps for the phrase (story-029-rulings 2026-11-12 item 1)
+- 2026-11-12T19:37:14Z status=by-design owner=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil by=harvest note=ruled:the_1.0.9_RC_fork_replaces_it_and_the_Planner's_RC_grep_requires_the_phrase_never_reaches_main
+- 2026-11-12T19:52:11Z occurrence=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil
+
+### DW-1219: test-readme.sh st() self-test harness passes whenever the checker prints anything, so a mutation that trips two clauses does not pin each clause alone
+- source: spec-0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: docker/tests/test-readme.sh st(): every self-test in the script has this shape; a harness-wide change
+- 2026-11-12T19:37:14Z status=wontfix-accepted owner=0-29-the-readme-s-comparison-of-the-agent-and-the-fixed-rules-fil by=harvest note=reopen_if=a_review_finds_a_self-test_that_passes_on_the_wrong_clause_and_masks_a_real_regression
 ### DW-1235: Setting history records only host and adapter settings: an item's core properties (Enabled, PoolSize, Schedule, ClassName) are not snapshotted, so turning an item off or changing its pool size gives no SettingChange
 - source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Reader.Current builds entries from PopulateVirtualSettings (Host/Adapter only, irislib Ens/Config/Item.cls) plus stored Settings; GetStaticSettings (Core) is never read
@@ -7387,6 +7596,65 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T20:19:09Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=pins beyond the ruled (a),(b1),(b2) exceed the 1.0.8 ruling; reopen_if=a diff edits the pathspec or regex line of oauth_install_paths_clean
 - 2026-11-12T20:19:32Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=reopen_if=a diff edits oauth_install_paths_clean's pathspec or regex line; more pins exceed the 1.0.8 ruling
 
+### DW-1243: readme-anchors md_links models no block context: links in HTML comments or indented code are read, and a 4+-space backtick line outside a list toggles the fence
+- source: spec-21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do.md (cr) | severity: low | fix-risk: med | footprint: in-story
+- evidence: md_links strips all leading spaces before the fence test and has no HTML-comment state (edge and blind probes): false reds for comments and indented code, a false green only after a 4+-space backtick line outside a list. The doc set has none today.
+- 2026-11-13T01:28:20Z status=wontfix-accepted owner=21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do by=cr note=reopen_if=a doc-set file links README.md#x inside <!-- --> or indented code, or holds a 4+-space backtick line outside a list
+
+### DW-1247: The release-notes static check's exempt headings (static_names) repeat dev_names' list instead of one source
+- source: spec-21-8-read-and-send-mail-with-the-oauth2-sign-in.md (code review, rework 2 re-review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: docker/tests/test-release-notes.sh static_names and docker/tests/test-readme.sh dev_names (:1290) each spell '## For admins and developers' and '## Gmail and Microsoft 365'. Drift is loud (both scan the same README.md/GUIDE.md) but costs a CI round trip: the 21.8 CI red was this drift. Rule 2 copy with a weak reason.
+- 2026-11-13T03:04:07Z status=wontfix-accepted owner=21-8-read-and-send-mail-with-the-oauth2-sign-in by=cr note=reopen_if=a heading is added to or removed from dev_names (test-readme.sh) or static_names (test-release-notes.sh)
+### DW-1248: OPTIONS on /api/v1/files is answered by %CSP.REST's OnHandleOptionsRequest (an Allow list, no body), not the 404 not_found that AC 9 says for every method but POST
+- source: spec-25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: irislib/%CSP/REST.cls :272-275 and :392-393 answer OPTIONS before Http405, both before sign-in (Page) and after (DispatchRequest); no byte of a file is sent, so ruling 3 (ii) holds; FilesApi and api/files.spec.ts (ii) never try OPTIONS
+- 2026-11-13T03:34:16Z status=wontfix-accepted owner=25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram by=cr note=fix needs a public-package OPTIONS answer (Web.Hook precedent); reopen_if=OPTIONS under /ocutalon/api/v1/files sends any stored file byte or a spec asks 404 for it
+### DW-1231: AC for 37.1: fix the read-result reply contract (extracted-text summary ref, Add to documents offer, photo memory caption, read-failure reason) that Story 25.6 consumes
+- source: orchestrator ruling on 25.3's split, 2026-11-12 (veto U-326) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 25.3 plan: 25.6 needs a reply contract no story fixes
+- 2026-11-12T22:51:35Z status=routed owner=37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption by=orchestrator note=DW bullet added to 37.1's epics.md block at 25.3's merge
+### DW-1229: eval case mail-partner-notice expects digest alone, but the UX says the partner notice comes back as Digest or Tell now (mockups/states.html:982, EXPERIENCE Key Flows Coda), and the held-out-flagged mail-date-format-monday of the same shape expects tellnow; the attention agent chose tellnow in 14 of 15 RC attempts (1.0.4-1.0.8)
+- source: spec-0-35-routine-attention-decisions-meet-their-target.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: eval/mail-partner-notice/case.json expected digest; _bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/mockups/states.html:982 'the partner notice comes back as Digest or Tell now'; release-evidence/<v>-gates/rc-eval/set-*.json 15/15 misses
+- 2026-11-12T21:22:06Z status=routed owner=burndown by=harvest note=for the owner after the contest: decide the case's expected answer against the UX; the Planner ruled not to widen it during the contest (moving the goalposts after seeing the model's output)
+
+### DW-1253: EmailOut ignores a tool command's IdempotencyKey (AD-1), so a re-sent chat turn could send the own-address email twice (linked to DW-1244 on OCT-epic22's ledger)
+- source: Contest Planner ruling H(ii), 2026-11-13 (22.7 plan, DW-1244) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: EmailOut keys de-duplication on ApprovalRef only (22.7 plan); Channel/Email is Epic 21's
+- 2026-11-13T04:04:48Z status=routed owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=orchestrator note=linked=DW-1244(OCT-epic22);the_orchestrator_reconciles_both_after_merge;22.7_merge_waits_for_this_fix
+- 2026-11-13T05:52:49Z status=resolved-by:21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=adjudication note=694b53a4+QA+review:EmailOut_claims_a_keyed_tool_send_by_session+'tool'-prefixed_hash_in_DigestKey;repeat_answers_sent_and_sends_nothing;MayHaveSent_keeps_the_claim;pins_EmailLive.TestReSentTurnSendsOnce,EmailOut.TestToolKeySendsOnce(mutations_red);linked_DW-1244_on_OCT-epic22_for_the_orchestrator
+
+### DW-1257: EmailOut: a pending or failed keyed tool claim answers failed for that key for good; nothing expires it
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: Out.SendClaimed: Claimed answers CLAIMFAILED for a pending or failed row of the owner and key; spec matrix rows Never finished and Error after the claim require it (at-most-once, AD-1)
+- 2026-11-13T05:49:04Z status=by-design owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=spec matrix rows; a new turn has a new ItemId so a new key; Data.Purge retention frees the row
+
+### DW-1258: EmailOut: a re-sent turn's key is ItemId:position and only the key decides, so a reordered or reworded re-run is not compared
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: CommandCall.Run numbers commands per call; Out.Claimed compares only owner and DigestKey; spec Decided 2 and AD-1 (U-215) define the key
+- 2026-11-13T05:49:04Z status=by-design owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=AD-1 as amended U-215 and spec Decided 2: only the key decides; no stored text to compare
+
+### DW-1259: EmailOut.SendClaimed: an exception after Send deleted a keyed claim would re-save the deleted oref as failed
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: Catch block saves claim.FallbackReason=failed; between %DeleteId and Quit in Send only a log macro and Result() run
+- 2026-11-13T05:49:04Z status=wontfix-theoretical owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=real if code that can throw is added after the %DeleteId in Out.Send
+
+### DW-1260: EmailOut.Send: a %DeleteId error on a failed keyed claim leaves it pending, so the key answers failed
+- source: spec-21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: Out.Send logs and continues when %DeleteId of its own row fails; the outcome is fail-safe (never a second send)
+- 2026-11-13T05:49:04Z status=wontfix-theoretical owner=21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=cr note=real if Delivery deletes start failing under load (LOGERROR 'could not remove the claim' seen in Ens.Util.Log)
+### DW-1254: 24.2: partner contacts' names and addresses go through the SecretHandoff (in memory only), never in a traced SaveSettings.Changes; the traced message holds only the handoff uri; values reach only the IRIS audit entry; one leak-scan test
+- source: Contest Planner 36.4 gate ruling S1 extension, 2026-11-13 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 36.4 S1: SaveSettings.Changes is visible in Visual Trace to OcuTalonTraceViewer (non-admin)
+- 2026-11-13T04:50:39Z status=routed owner=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=orchestrator note=AC bullet added to 24.2's epics.md block (Planner ruling)
+- 2026-11-13T07:23:37Z note=EXTENDED_by_Planner_2026-11-13:ProposeFix/DryRun/DryRunResult/PartnerNotice_carry_contact_ids_not_addresses_once_24.2_makes_contacts_real
+
+### DW-1255: audit: every other settings section for personal data in traced SaveSettings.Changes; anything personal moves to the SecretHandoff (mail-server host names and webhook names are not personal and can stay)
+- source: Contest Planner 36.4 gate ruling, 2026-11-13 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: SaveSettings.Changes is visible to OcuTalonTraceViewer, which non-admin accounts hold
+- 2026-11-13T04:50:39Z status=routed owner=burndown by=orchestrator note=Planner ruling; one audit story
+- 2026-11-13T08:12:38Z status=routed owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=orchestrator note=Planner_DW-1255_audit_ruling_items_1,5:email_address+user_via_handoff;security-overview_trace-role_sentence;after_21.8_merges
+- 2026-11-13T07:23:37Z note=Planner_ruled_2026-11-13:fix_story_in_lane_C_after_21.8(email_address+user_handoff;security-overview_trace-role_sentence);SendEmail_ref_rule_on_22.7;Item.Sender_stays;see_prompts/rulings-371-dw1255-20261113.md
 ### DW-1245: Story 36.1 breaks Test.Core.SettingsOps TestOnlyRunTimeWriter: its writer pattern matches the new globals ^OcuTalonP.SettingChange and ^OcuTalonP.SettingSnap
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: high | fix-risk: low | footprint: in-epic
 - evidence: 36.2 regression run, lane-b@Contract,Core,Data,Live part 4 red; file untouched by 36.2; pre-existing on cf2658d8 (36.1 head)
@@ -7418,3 +7686,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls doc above XData Routes (:318-324) describes steps 1-4; Story 36.2 may edit only the two Routes rows in this contended file (Epic 21 edits ItemRunning). The rows and the spine carry the contract.
 - 2026-11-13T04:03:56Z status=wontfix-accepted owner=36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql by=cr note=reopen_if=a story edits the Routes doc comment of CommandsIn after Epic 21 merges, or a reader misroutes a step 5 verb
+### DW-1244: EmailOut ignores a tool command's IdempotencyKey (AD-1), so a re-sent chat turn could send the own-address email twice
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls
+- evidence: found by the 22.7 plan; EmailOut keys de-duplication on ApprovalRef only; Channel/Email is Epic 21's (contended)
+- 2026-11-13T01:59:09Z status=escalated owner=burndown by=harvest note=for the orchestrator: a Lane C fix (Epic 21) before or with 22.7
+
+### DW-1266: 22.6's guide text P2 ('cut to 200 characters') and its worked example must match the code: when 21.10 removes the 200-character inputs cut, update P2 and the worked example in the same commit
+- source: Contest Planner 22.6 gate ruling M(4), 2026-11-13 | severity: low | fix-risk: low | footprint: in-epic
+- evidence: 21.10 V4 removes the cut; 22.6 P2 states it
+- 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=Planner ruling M(4)

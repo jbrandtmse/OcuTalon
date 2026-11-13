@@ -16,12 +16,18 @@ Include Ensemble
 ///      classification, permissions and provenance rules, then the grant in place of the hold, then the step audit. The result is done when
 ///      ExecuteTool returns a result with a value (or a void result), and failed otherwise or when it raises. A call that failed is never retried.
 ///      The returned value is discarded: it reaches no column, no reply and no event, and appears only in the step record of the trace.
+///      A row whose ToolSource is an MCP toolref (Story 22.4) is not run by name: the agent's own manager holds no MCP server (Story 22.9). The replay asks the
+///      host's ServerOf for the row's server (an empty one, and a row that holds no ToolFingerprint, fail the run with no call), swaps in a manager that holds only the host's
+///      proxy toolset (Adapter.Agent ProxyManager; when it cannot be built the run fails with no call) and runs call_mcp_tool {server, tool: ToolName, arguments: ToolArguments}. The gate takes the grant on the native triple (tool,
+///      arguments, toolref), the proxy compares the live listing with the row's ToolFingerprint and refuses a change unrun, and the run is done only when the call
+///      returned a value and the proxy noted no refusal (Context ReplayRefusal). A refusal ends the run failed, with the proxy's refusal sentence as FailureText, and a
+///      refusal for a changed tool ends it with the result changed. The agent's own manager is put back on every path (RestoreTools).
 ///   3. One Action entry through Audit.Record (action the ToolName, target the ToolSource, the result, no counts, the approvalRef, the approver of
 ///      the row, the session of the owner when it is a Ref, the channel of the answer), and then FinishExecution of the Ref with the result, which
 ///      fires approval.result. A write or a finish that fails is a warning that names the Ref. The result interrupted is the one of a row that
-///      CloseInterrupted or the refused start of step 1 closes; CloseInterrupted also answers the hold that waits on the replay (Approval.AnswerHold).
+///      CloseInterrupted or the refused start of step 1 closes, and the result changed the one of an MCP call refused because its tool changed; CloseInterrupted also answers the hold that waits on the replay (Approval.AnswerHold).
 ///   4. The reply holds no text and no host data, Tainted 0, ToolsRun 1 (0 when the failure came before ExecuteTool was called), the step records and, for a call that failed, its redacted and cut error
-///      text as FailureText.
+///      text as FailureText; for an MCP row, the proxy's refusal sentence, or the internal NOSERVERTEXT, NOFINGERPRINTTEXT or NORESULTTEXT.
 ///   5. The context and the step buffer end, and the throwaway session is released, on every path.
 /// A replay holds LOCK ^OcuTalon.Bridge.Replay(<Ref>) from before StartExecution until after Record, and releases it on every path, so the lock
 /// says whether a replay of the Ref is alive. CloseInterrupted, which Approval.Reconcile runs after an instance start, closes an executing tool_call
@@ -33,6 +39,15 @@ Class OcuTalon.Bridge.Replay
 
 /// The FailureText of the Reply for a replay that an instance stop interrupted. It is internal: it reaches no Reasons line and no person.
 Parameter INTERRUPTEDTEXT = "the replay was interrupted";
+
+/// The FailureText of the replay of an MCP row whose server the host does not know (ServerOf): no call was made. Internal, like INTERRUPTEDTEXT.
+Parameter NOSERVERTEXT = "the MCP server of the call is not known, so nothing was run";
+
+/// The FailureText of the replay of an MCP row that holds no ToolFingerprint: nothing is run, as the request was not made at a tool to compare with. Internal, like INTERRUPTEDTEXT.
+Parameter NOFINGERPRINTTEXT = "the MCP request holds no fingerprint of the tool, so nothing was run";
+
+/// The FailureText of an MCP replay whose refusal sentence cannot be read. Internal, like INTERRUPTEDTEXT.
+Parameter NORESULTTEXT = "the MCP call was refused or got no answer";
 
 /// Replays the approved call of the request (kind tool, ItemId the Ref of the approval request) in the job of adapter, which is the runner
 /// that holds the call. reply is the Reply described above; the status is an error only when the ItemId of the request is not the Ref of an
@@ -94,14 +109,24 @@ ClassMethod Execute(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalo
 			Set failure = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Part($SYSTEM.Status.GetErrorText(sc), ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE)
 		} Else {
 			Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).Start(0)
-			Set executed = 1
-			Set answer = adapter.Agent.ToolManager.ExecuteTool(row.ToolName, {}.%FromJSON(row.ToolArguments))
-			If $IsObject(answer) && (answer.%IsDefined("value") || (answer.%Get("is_void") = 1)) {
-				Set result = "done"
-			} Else {
-				Set failure = "the tool returned no result"
+			Set name = row.ToolName
+			Set arguments = {}.%FromJSON(row.ToolArguments)
+			Set mcp = ##class(OcuTalon.Bridge.Approval).IsMcpSource(row.ToolSource)
+			Set ready = 'mcp || ..ProxyCall(adapter, row, .name, .arguments, .failure)
+			If ready {
+				Set executed = 1
+				Set answer = adapter.Agent.ToolManager.ExecuteTool(name, arguments)
+				Set refusal = $Select(mcp: ##class(OcuTalon.Bridge.Context).ReplayRefusal(), 1: "")
+				If refusal '= "" {
+					Set result = $Select(refusal = "changed": "changed", 1: "failed")
+					Set failure = ..Sentence(answer)
+				} ElseIf $IsObject(answer) && (answer.%IsDefined("value") || (answer.%Get("is_void") = 1)) {
+					Set result = "done"
+				} Else {
+					Set failure = "the tool returned no result"
+				}
+				Set answer = ""
 			}
-			Set answer = ""
 		}
 	} Catch exception {
 		Set result = "failed"
@@ -115,6 +140,7 @@ ClassMethod Execute(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalo
 	} Catch {
 	}
 	Set session = ""
+	Do adapter.RestoreTools()
 	Do adapter.ReleaseThrowaway()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).End()
@@ -127,6 +153,43 @@ ClassMethod Execute(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalo
 	Set reply.DurationMs = $Number(($ZHorolog - started) * 1000, 0)
 	Set reply.FailureText = failure
 	Quit $$$OK
+}
+
+/// The call of an approved MCP row (Story 22.4; AD-10, AD-21), prepared for Execute's one ExecuteTool: the governed proxy's call_mcp_tool {server, tool: ToolName, arguments:
+/// ToolArguments} on a manager that holds only the proxy toolset (Adapter.Agent ProxyManager, swapped in as the agent's tool manager), for the server that the host's ServerOf names
+/// for the row's ToolSource. name and arguments are the call to make. The gate takes the grant on the native triple and the proxy runs the tool only if its live fingerprint is the
+/// row's ToolFingerprint, so a change since the hold is refused unrun and noted (Context ReplayRefusal). 1 when the call is ready; otherwise 0, with failure the internal text
+/// (the server is not known, the row holds no fingerprint, or the proxy manager could not be made) and no call to make.
+ClassMethod ProxyCall(adapter As OcuTalon.Bridge.Adapter.Agent, row As OcuTalon.Bridge.Data.ApprovalRequest, ByRef name As %String, ByRef arguments As %DynamicObject, ByRef failure As %String) As %Boolean [ Private ]
+{
+	Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("McpServersClass", "", "Decide", .sc)
+	Set server = $Select($$$ISOK(sc): $ClassMethod(class, "ServerOf", row.ToolSource), 1: "")
+	If server = "" {
+		Set failure = ..#NOSERVERTEXT
+		Quit 0
+	}
+	If row.ToolFingerprint = "" {
+		Set failure = ..#NOFINGERPRINTTEXT
+		Quit 0
+	}
+	Set sc = adapter.ProxyManager()
+	If $$$ISERR(sc) {
+		Set failure = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Part($SYSTEM.Status.GetErrorText(sc), ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE)
+		Quit 0
+	}
+	Set arguments = {"server": (server), "tool": (row.ToolName), "arguments": (arguments)}
+	Set name = ##class(OcuTalon.Bridge.Policy.Gate).#MCPPROXY
+	Quit 1
+}
+
+/// The sentence that a refused proxy call answered (the value of the tool's answer, redacted and cut), or NORESULTTEXT when it answered none. It is called only for a call
+/// whose refusal the proxy noted, so the value is one of the proxy's fixed sentences and never the text of a result.
+ClassMethod Sentence(answer As %DynamicObject) As %String [ Private ]
+{
+	Set text = ""
+	If $IsObject(answer) && (answer.%GetTypeOf("value") = "string") Set text = answer.value
+	If text = "" Quit ..#NORESULTTEXT
+	Quit ##class(OcuTalon.Bridge.Adapter.StepBuffer).Part(text, ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE)
 }
 
 /// 1 when the Ref names a tool_call row that is executing. A replay that holds the replay lock and finds its row executing has no live replay behind

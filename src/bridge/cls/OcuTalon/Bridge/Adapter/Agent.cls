@@ -24,9 +24,8 @@ Include Ensemble
 /// each request of kind turn, decide or diagnose, for the tools of the request's OwnerRef. SessionConfigFor does that in the runner's job, outside every
 /// callback, before the AI session is created or opened. When the class gives no tool and no MCP server is attached, the request keeps the agent's own tool
 /// manager, which no request ever adds a tool to. Otherwise the adapter composes a new tool manager for the request: the tools of the agent's toolsets, the
-/// tools that OnAfterAgentInit attached through Attach (an MCP server's last, and only when it answers, so that a server that went down after the build
-/// never fails the request: AI Hub's listing of a manager that holds it throws), the tools of the class (each answers AddToManager), the gate and the step
-/// audit policy (Govern), assigns it to the agent, and
+/// tools that OnAfterAgentInit attached through Attach, the tools of the class (each answers AddToManager), then the MCP servers, each only when it answers
+/// (OfferServers), the gate and the step audit policy (Govern), assigns it to the agent, and
 /// keeps the agent's own manager and the tools referenced; Answer puts the agent's own manager back and lets go of the rest on every path when the request
 /// ends. When an MCP server is attached, the composed request also gets the turn's MCP map (MapMcpTools, AD-10): right after the manager that serves the request
 /// is settled, which is the agent's own manager when the agent declares skills, the adapter lists that manager (%Discover) and keeps, in the context, the
@@ -35,7 +34,25 @@ Include Ensemble
 /// turn and clears it there; the answers are ignored. Each failure is one redacted warning that holds no text of AI Hub, and the request goes on: a tool that is
 /// not in the map counts as unclassified. A request is composed at most once, however many session configs it makes (a compaction makes two or three). An agent that declares skills
 /// cannot take tools of its own, because UseSkill keeps its catalog on the agent and not on a manager: such a request fails with an error that names the
-/// agent, and keeps the agent's own manager when the class gives it none. A named class that is missing, or does not extend the base, fails the request with that error. A request of kind tool composes nothing.
+/// agent, and keeps the agent's own manager when the class gives it none, so that it is offered no MCP tool (one warning for each build). A named class that is missing, or does not extend the base, fails the request with that error. A request of kind tool composes nothing.
+/// Bounded MCP (Story 22.9; AD-6, AD-21, AD-31): AI Hub's MCP client has no deadline, and a native call into it cannot be interrupted, so a server that accepts a
+/// connection and never answers would hold the job for minutes at the next listing or tool call of any manager that holds it. The agent's own manager therefore
+/// never holds an MCP server: a replay, a ToolInventory request and every request that composes nothing run on it and never touch a server. Before every AddTool
+/// of a server, at the build and in each request that composes a manager, the adapter asks the McpServersClass Probe (Answers), which is bounded. The build adds the
+/// servers, in order, to one manager that only serves the attach reports (AttachOne, ReportOf), and records a server that answered and was added (Record). A request
+/// adds a recorded server to its manager only when its probe answers and its AddTool succeeds; otherwise the request goes on without that server, with one warning
+/// that holds the server's name and a reason word, the server rests for RESTSECONDS in this job (no probe, no AddTool, no report), and the job reports the server
+/// unavailable once (the build's report, or a later one for a server that was attached). The first request after the rest that finds the server again reports it
+/// attached, with the build's report builder. A server that stops answering after its probe passed, within the same request, still holds the job until it closes the
+/// connection (accepted for this release, AD-21).
+/// The governed proxy (Story 22.3; AD-10, AD-21, AD-31): right after the first MCP server was added to a request's manager, the adapter registers the host's proxy toolset
+/// on it (the McpServersClass ProxyToolSet, OfferProxy), so that a request that offers no MCP tool offers no proxy, and no agent has it in its own tools. The gate then
+/// runs every allowed native MCP call through the proxy and not AI Hub's client. A proxy toolset that cannot be registered is one warning, and the request goes on with a
+/// manager composed again that holds no MCP server (ComposeManager), because a manager cannot give a tool up. The map of the request also names each recorded server
+/// (Context SetMcpTools), so that the gate can name the server in a proxy call and classify a direct call of the proxy as the native call of the same tool.
+/// The replay of an approved MCP call (Story 22.4; AD-10, AD-21): the agent's own manager holds no MCP server, so the replay runs the call as the proxy's call on a manager
+/// that holds only the host's proxy toolset (ProxyManager, which asks the McpServersClass setting itself, as the agent may have been built before any server existed: governed like every manager of a request, swapped in as the agent's tool manager and put back by RestoreTools,
+/// which EndTurnTools shares), never the native tool and never the proxy in an agent's own tools.
 /// The skipped request (AD-6, AD-8, AD-20): a request of kind decide, diagnose or turn whose DecisionRef already has a Decision row (Concluded) is
 /// skipped, whatever its provenance and whether it is a first attempt, a rate-limit re-send or a second-model retry. Decide records that row when it
 /// concludes, and its timer starts when it sends, so a request taken once the row exists (it waited in the runner's queue past its timer, or its retry
@@ -84,7 +101,7 @@ Include Ensemble
 /// count (model requests plus tool calls) and the wall time of Chat in milliseconds. A stats, price or save problem is logged as a
 /// warning and never changes the answer or its status. Every reply, a failure reply included, also says whether a tool ran (ToolsRan:
 /// AI Hub's tool-call counter went up between the two readings, a step record is of kind tool, or a reading could not be read), because
-/// Decide sends a rate-limited attempt again only when no tool ran. Inventory lists the tools of the live ToolManager.
+/// Decide sends a rate-limited attempt again only when no tool ran. Inventory lists the tools of the live ToolManager, which holds no MCP server.
 /// Converse also records the agent steps of the call (AD-9): it starts the step buffer right before Chat, with the size of what the
 /// first request carries (BaseChars: the system prompt, the tool catalog, the input and, for an opened session, its stored history), and
 /// passes the step renderer to Chat; the renderer records one step for every model response and the step
@@ -104,6 +121,9 @@ Parameter SETTINGS = "Effort:Basic,AgentAllowList:Basic";
 
 /// The settings of AI Hub's adapter that must be empty, comma-separated. SessionConfigString may also hold {}.
 Parameter REFUSED = "AuthPolicy,AuditPolicy,DiscoveryPolicy,IrisTools,AdditionalTools,IrisSkills,AdditionalSkills,SystemPrompt,SessionConfigString";
+
+/// The seconds that a server that failed its probe, or its AddTool, in a request rests in this job before a request asks again.
+Parameter RESTSECONDS = 60;
 
 /// The output cap of a request, in tokens (AD-7).
 Parameter CAP = 8000;
@@ -126,6 +146,19 @@ Property Building As %Boolean [ InitialExpression = 0, Internal, Private, Transi
 
 /// The tools that OnAfterAgentInit attached to the agent (Attach), as specs, so that every composed manager adds them again. Not stored.
 Property Attached As %List [ Internal, Private, Transient ];
+
+/// The McpServersClass that AttachServers resolved, the server and config of each recorded MCP spec (McpOf, from the spec: $ListBuild(server, config)),
+/// the status of the last report this job made for the spec (McpReported: attached or unavailable) and the $ZHorolog second until which the spec rests (McpRest).
+/// SkillsWarned is 1 once the build has warned that the agent's MCP tools are not offered. BuildAgent resets them. Not stored.
+Property McpClass As %String(MAXLEN = 255) [ Internal, Private, Transient ];
+
+Property McpOf As %String [ Internal, MultiDimensional, Private, Transient ];
+
+Property McpReported As %String [ Internal, MultiDimensional, Private, Transient ];
+
+Property McpRest As %String [ Internal, MultiDimensional, Private, Transient ];
+
+Property SkillsWarned As %Boolean [ InitialExpression = 0, Internal, Private, Transient ];
 
 /// 1 while Answer serves a request that may take tools of its own (every kind but tool), with its OwnerRef and kind (TurnOwner, TurnKind). Not stored.
 Property TurnOpen As %Boolean [ InitialExpression = 0, Internal, Private, Transient ];
@@ -249,6 +282,9 @@ Method BuildAgent() As %Status
 		Set ..Model = model
 	}
 	Set ..Attached = ""
+	Set ..McpClass = ""
+	Set ..SkillsWarned = 0
+	Kill ..McpOf, ..McpReported, ..McpRest
 	Set ..Building = 1
 	Try {
 		Set sc = ..OnInit()
@@ -276,10 +312,10 @@ Method OnAfterAgentInit(ByRef agent As %AI.Agent) As %Status [ Private ]
 	Quit ..AttachServers(agent)
 }
 
-/// Attaches the MCP servers of the McpServersClass setting of Decide (AD-6, AD-21, AD-31) to the agent's tool manager, after the gate is set and the
-/// agent's own tools are on it, and reports each attach to the class. A class that is missing or does not extend OcuTalon.Bridge.Ext.McpServers fails
-/// the build with that error. Each server then goes through Attach as mcp:remote:@{config:<config>}, in the order Servers gave, and gets one report
-/// (Report, OnAttach); a server that cannot be attached, and an error from Servers or OnAttach, are logged or reported and never fail the build.
+/// Attaches the MCP servers of the McpServersClass setting of Decide (AD-6, AD-21, AD-31) to a manager that serves the reports only, never to the agent's
+/// tool manager (Story 22.9), after the gate is set and the agent's own tools are on it, and reports each attach to the class. A class that is missing or does not extend OcuTalon.Bridge.Ext.McpServers fails
+/// the build with that error. Each server then goes through AttachOne as mcp:remote:@{config:<config>}, in the order Servers gave, and gets one report
+/// (ReportAttach, OnAttach); a server that cannot be attached, and an error from Servers or OnAttach, are logged or reported and never fail the build.
 /// A config name that is not AI.MCP. followed by letters, digits and underscores is reported invalid and never attached. A tool of a server that has
 /// the name of a tool already on the manager (the agent's own tools) is shadowed by AI Hub, so it never runs: it is listed as refused and not as attached.
 /// AI Hub's status text for an unreachable server names the URL and, for an entry with a credential, can hold the credential's value, so the text is
@@ -298,13 +334,15 @@ Method AttachServers(agent As %AI.Agent) As %Status [ Private ]
 		Quit $$$OK
 	}
 	If servers.%Size() = 0 Quit $$$OK
+	Set ..McpClass = class
 	Set builtin = ..ToolNames(agent.ToolManager)
+	Set reporter = ##class(%AI.ToolMgr).%New()
 	Set iterator = servers.%GetIterator()
 	While iterator.%GetNext(, .entry) {
 		Set server = $Select($IsObject(entry): entry.%Get("server"), 1: "")
 		Set config = $Select($IsObject(entry): entry.%Get("config"), 1: "")
 		Try {
-			Set report = ..AttachOne(agent, config, builtin)
+			Set report = ..AttachOne(server, config, builtin, reporter)
 		} Catch exception {
 			Set report = {"status": "unavailable", "reason": "failed", "tools": [], "refused": []}
 		}
@@ -314,42 +352,83 @@ Method AttachServers(agent As %AI.Agent) As %Status [ Private ]
 }
 
 /// The report of attaching one server: {"status", "reason", "tools", "refused"} and, for an attached server, "fingerprints" (OcuTalon.Bridge.Ext.McpServers).
-/// builtin is the list of the names of the tools on the manager before the first server was attached. A tool's fingerprint is Context ToolFingerprint of
-/// the spec (the toolref under which AI Hub lists the tool, which the turn's map uses as the server too), the tool's name, and the description and the input
-/// schema that AI Hub lists for it.
-Method AttachOne(agent As %AI.Agent, config As %String, builtin As %List) As %DynamicObject [ Private ]
+/// builtin is the list of the names of the tools on the agent's manager. A config that does not match is invalid. Otherwise the server is probed (Answers): a
+/// server that does not answer is unavailable with the reason of the probe, one warning that names the server, and no AddTool. The server that answers is added
+/// to reporter, the manager that serves the reports only (a failure gives ReasonOf), recorded (Record) and reported by ReportOf.
+Method AttachOne(server As %String, config As %String, builtin As %List, reporter As %AI.ToolMgr) As %DynamicObject [ Private ]
 {
 	Set report = {"status": "unavailable", "reason": "", "tools": [], "refused": []}
-	Set fingerprints = {}
 	If '$Match(config, "^AI\.MCP\.[A-Za-z0-9_]+$") {
 		Set report.reason = "invalid"
 		Quit report
 	}
 	Set spec = "mcp:remote:@{config:"_config_"}"
-	Set sc = ..Attach(agent, spec)
+	Set reason = ..Answers(server, config)
+	If reason '= "" {
+		$$$LOGWARNING("The MCP server "_$Extract(server, 1, 64)_" is not available ("_reason_"), so its tools are not attached to the agent")
+		Set report.reason = reason
+		Quit report
+	}
+	Set sc = reporter.AddTool(spec)
 	If $$$ISERR(sc) {
 		Set report.reason = ..ReasonOf(sc, config)
 		Quit report
 	}
+	Do ..Record(spec, server, config)
+	Set report = ..ReportOf(reporter, spec, builtin)
+	Set ..McpReported(spec) = report.status
+	Quit report
+}
+
+/// The report of the server whose spec the manager holds: the manager's tools whose tool_ref is the spec. A name in builtin goes to refused (AI Hub shadows an MCP
+/// tool with the name of a tool already on a manager, so that it never runs); otherwise a tool whose status is available (or empty) goes to tools, with its
+/// fingerprint: Context ToolFingerprint of the spec (the toolref under which AI Hub lists the tool, which the turn's map uses as the server too), the tool's name,
+/// and the description and the input schema that AI Hub lists for it. A listing that fails gives unavailable with the reason failed. Used by the build and by the
+/// request that finds a server again.
+Method ReportOf(manager As %AI.ToolMgr, spec As %String, builtin As %List) As %DynamicObject [ Private ]
+{
+	Set report = {"status": "unavailable", "reason": "", "tools": [], "refused": []}
+	Set fingerprints = {}
 	Try {
-		Set iterator = agent.ToolManager.GetToolStatuses().%GetIterator()
+		Set iterator = manager.GetToolStatuses().%GetIterator()
 		While iterator.%GetNext(, .tool) {
 			If tool.%Get("tool_ref") '= spec Continue
 			Set name = tool.%Get("name")
 			Set state = tool.%Get("status")
-			If (state = "") || (state = "available") {
+			If $ListFind(builtin, name) {
+				Do report.refused.%Push(name)
+			} ElseIf (state = "") || (state = "available") {
 				Do report.tools.%Push(name)
 				Do fingerprints.%Set(name, ##class(OcuTalon.Bridge.Context).ToolFingerprint(spec, name, tool.%Get("description"), tool.%Get("parameters")), "string")
-			} ElseIf $ListFind(builtin, name) {
-				Do report.refused.%Push(name)
 			}
 		}
 		Set report.fingerprints = fingerprints
 		Set report.status = "attached"
 	} Catch {
-		Set report.reason = "failed"
+		Set report = {"status": "unavailable", "reason": "failed", "tools": [], "refused": []}
 	}
 	Quit report
+}
+
+/// What the McpServersClass Probe says about the server: "" when it answers, else one word of McpServers REASONS. An exception, and an answer that is neither "" nor
+/// such a word, give failed. The class is the one AttachServers resolved.
+Method Answers(server As %String, config As %String) As %String [ Private ]
+{
+	Set answer = "failed"
+	Try {
+		Set result = $ClassMethod(..McpClass, "Probe", server, config)
+		If (result = "") || $ListFind($ListFromString(##class(OcuTalon.Bridge.Ext.McpServers).#REASONS), result) Set answer = result
+	} Catch {
+		Set answer = "failed"
+	}
+	Quit answer
+}
+
+/// Records the spec of an MCP server that answered and was added, with its server and config, so that every composed manager adds it again (OfferServers).
+Method Record(spec As %String, server As %String, config As %String) [ Private ]
+{
+	Set ..Attached = ..Attached _ $ListBuild(spec)
+	Set ..McpOf(spec) = $ListBuild(server, config)
 }
 
 /// The reason word for the failed attach of status sc: unreachable when AI Hub could not connect or complete the handshake, failed for anything else
@@ -391,7 +470,8 @@ Method ReportAttach(class As %String, server As %String, report As %DynamicObjec
 }
 
 /// Adds the tool of the spec (an AI Hub tool URI or JSON configuration) to the tool manager of the agent and records the spec, so that the manager of a
-/// request that takes tools of its own adds the tool again. It is the one way OnAfterAgentInit adds a tool.
+/// request that takes tools of its own adds the tool again. It is the one way OnAfterAgentInit adds a tool of its own to the agent's manager, and never for an
+/// MCP server: the agent's own manager holds none (AttachOne, Record).
 Method Attach(agent As %AI.Agent, spec As %String) As %Status
 {
 	Set sc = agent.ToolManager.AddTool(spec)
@@ -510,7 +590,14 @@ Method MapMcpTools() [ Private ]
 		$$$LOGWARNING("The tools of the MCP servers could not be listed for this request, so every MCP tool counts as unclassified in it")
 		Return
 	}
-	Set sc = ##class(OcuTalon.Bridge.Context).SetMcpTools(catalog)
+	Set servers = {}
+	Set position = 0
+	While $ListNext(..Attached, position, spec) {
+		If $Extract(spec, 1, 4) '= "mcp:" Continue
+		Set host = $ListGet($Get(..McpOf(spec)), 1)
+		If host '= "" Do servers.%Set(host, spec, "string")
+	}
+	Set sc = ##class(OcuTalon.Bridge.Context).SetMcpTools(catalog, servers)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING("The MCP map of this request could not be kept, so every MCP tool counts as unclassified in it: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 		Return
@@ -545,9 +632,35 @@ Method BuildTurnManager() As %Status [ Private ]
 	Set mcp = ..HasMcp()
 	If (count = 0) && 'mcp Quit $$$OK
 	If $IsObject(..Agent.AvailableSkills) && (..Agent.AvailableSkills.%Size() > 0) {
+		If mcp && '..SkillsWarned {
+			Set ..SkillsWarned = 1
+			$$$LOGWARNING("The agent "_$ClassName(..Agent)_" declares skills, so the tools of its MCP servers are not offered to its requests")
+		}
 		If count = 0 Quit $$$OK
 		Quit $$$ERROR($$$GeneralError, "The agent "_$ClassName(..Agent)_" declares skills, so a request cannot take tools of its own from "_class_": a skill keeps its tools on the agent's tool manager")
 	}
+	Set sc = ..ComposeManager(tools, count, mcp, .manager, .proxied)
+	If $$$ISERR(sc) Quit sc
+	If mcp && 'proxied {
+		Set sc = ..ComposeManager(tools, count, 0, .manager, .proxied)
+		If $$$ISERR(sc) Quit sc
+	}
+	Set sc = ..Govern(manager)
+	If $$$ISERR(sc) Quit sc
+	Set ..OwnTools = ..Agent.ToolManager
+	Set ..TurnManager = manager
+	Set ..TurnToolList = $Select(count: tools, 1: "")
+	Set ..Agent.ToolManager = manager
+	Quit $$$OK
+}
+
+/// A new tool manager with the tools of the request: the agent's toolsets, the tools attached when the agent was built (not the MCP servers), the tools of the class
+/// and, when offer is 1, the MCP servers that answer (OfferServers). proxied is 0 when offer is 1 and a server was added but the host's proxy toolset could not be
+/// registered on the manager (OfferServers), which BuildTurnManager answers with a manager that offers no MCP server; otherwise 1.
+Method ComposeManager(tools As %ListOfObjects = "", count As %Integer, offer As %Boolean, Output manager As %AI.ToolMgr, Output proxied As %Boolean) As %Status [ Private ]
+{
+	Set proxied = 1
+	Set sc = $$$OK
 	Set manager = ##class(%AI.ToolMgr).%New()
 	Set toolsets = ..Agent.ToolSets
 	If toolsets = "" Set toolsets = $Parameter(..Agent, "TOOLSETS")
@@ -570,31 +683,124 @@ Method BuildTurnManager() As %Status [ Private ]
 		If $$$ISERR(sc) Quit
 	}
 	If $$$ISERR(sc) Quit sc
-	Set position = 0
-	While $ListNext(..Attached, position, spec) {
-		If $Extract(spec, 1, 4) '= "mcp:" Continue
-		If $$$ISERR(manager.AddTool(spec)) {
-			$$$LOGWARNING("An attached MCP server did not answer, so its tools are not offered to this request")
-		}
-	}
-	Set sc = ..Govern(manager)
-	If $$$ISERR(sc) Quit sc
-	Set ..OwnTools = ..Agent.ToolManager
-	Set ..TurnManager = manager
-	Set ..TurnToolList = $Select(count: tools, 1: "")
-	Set ..Agent.ToolManager = manager
+	If offer Set proxied = ..OfferServers(manager)
 	Quit $$$OK
 }
 
-/// Ends the tools of the request on every path: puts the agent's own tool manager back, lets go of the manager of the request and of its tools, and
-/// forgets the request's OwnerRef and kind.
-Method EndTurnTools() [ Private ]
+/// Adds the recorded MCP servers to the manager of the request, in the order they were recorded (Story 22.9). A server that is resting is skipped. For the others the
+/// McpServersClass Probe is asked (Answers) and then AddTool; a server that fails either is left off with one warning that holds its name and the reason word (never the
+/// url or AI Hub's text), rests for RESTSECONDS, and is reported unavailable unless this job's last report for it already says so. A server that is offered again and
+/// whose last report here said unavailable is reported attached (ReportOf). Right after the first server was added to the manager, the host's governed proxy toolset (the
+/// McpServersClass ProxyToolSet, Story 22.3; none for the bridge alone) is registered on it, once, so that the manager offers the proxy only when it holds a server.
+/// It gives 0 when that registration fails (one warning that holds a reason word and no AI Hub text), which BuildTurnManager answers with a manager that holds no MCP
+/// server, because the manager cannot give a tool up; otherwise 1. It never throws and never fails the request.
+Method OfferServers(manager As %AI.ToolMgr) As %Boolean [ Private ]
+{
+	Set builtin = ..ToolNames(manager)
+	Set proxied = 1
+	Set added = 0
+	Set position = 0
+	While $ListNext(..Attached, position, spec) {
+		If $Extract(spec, 1, 4) '= "mcp:" Continue
+		If $ZHorolog < +$Get(..McpRest(spec)) Continue
+		Set server = $ListGet($Get(..McpOf(spec)), 1)
+		Set config = $ListGet($Get(..McpOf(spec)), 2)
+		Set reason = ""
+		Try {
+			Set reason = ..Answers(server, config)
+			If reason = "" {
+				Set sc = manager.AddTool(spec)
+				If $$$ISERR(sc) Set reason = ..ReasonOf(sc, config)
+			}
+		} Catch {
+			Set reason = "failed"
+		}
+		If reason '= "" {
+			$$$LOGWARNING("The MCP server "_$Extract(server, 1, 64)_" is not available ("_reason_"), so its tools are not offered to this request")
+			Set ..McpRest(spec) = $ZHorolog + ..#RESTSECONDS
+			If $Get(..McpReported(spec)) '= "unavailable" {
+				Set ..McpReported(spec) = "unavailable"
+				Do ..ReportAttach(..McpClass, server, {"status": "unavailable", "reason": (reason), "tools": [], "refused": []})
+			}
+			Continue
+		}
+		Set added = added + 1
+		If added = 1 {
+			Set proxied = ..OfferProxy(manager)
+			If 'proxied Quit
+		}
+		If $Get(..McpReported(spec)) = "unavailable" {
+			Set report = ..ReportOf(manager, spec, builtin)
+			Set ..McpReported(spec) = report.status
+			Do ..ReportAttach(..McpClass, server, report)
+		}
+	}
+	Quit proxied
+}
+
+/// Registers the host's governed proxy toolset (McpServersClass ProxyToolSet) on the manager of a request that holds an MCP server. 1 when it is registered and when the
+/// host has none (the bridge alone); 0 when the host's class cannot be asked or the toolset cannot be registered. A failure is one warning that holds the class name and no
+/// AI Hub text.
+Method OfferProxy(manager As %AI.ToolMgr) As %Boolean [ Private ]
+{
+	Set ok = 1
+	Try {
+		Set proxy = $ClassMethod(..McpClass, "ProxyToolSet")
+		If proxy '= "" {
+			Set sc = manager.RegisterToolSet(proxy)
+			If $$$ISERR(sc) {
+				Set ok = 0
+				$$$LOGWARNING("The proxy toolset "_$Extract(proxy, 1, 128)_" of the MCP servers could not be registered on the tools of this request")
+			}
+		}
+	} Catch {
+		Set ok = 0
+		$$$LOGWARNING("The MCP servers class could not name its proxy toolset, so the tools of its MCP servers are not offered to this request")
+	}
+	Quit ok
+}
+
+/// Swaps in, as the tool manager of the agent, a new manager that holds only the host's proxy toolset (McpServersClass ProxyToolSet), governed as every manager of a request
+/// is (Govern), for the replay of an approved MCP call (Story 22.4); the agent's own manager is kept in OwnTools until RestoreTools. manager is the new manager. The status is an
+/// error, and nothing is swapped, when the host has no proxy toolset (the bridge alone, and the online demo), the agent is not built or the toolset cannot be registered.
+Method ProxyManager(Output manager As %AI.ToolMgr) As %Status
+{
+	Set manager = ""
+	Set proxy = ""
+	Try {
+		Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("McpServersClass", "", "Decide", .sc)
+		If $$$ISOK(sc) Set proxy = $ClassMethod(class, "ProxyToolSet")
+	} Catch {
+		Set proxy = ""
+	}
+	If proxy = "" Quit $$$ERROR($$$GeneralError, "The MCP servers class names no proxy toolset, so an MCP call cannot be replayed")
+	If '$IsObject(..Agent) Quit $$$ERROR($$$GeneralError, "The agent is not built, so an MCP call cannot be replayed")
+	Set new = ##class(%AI.ToolMgr).%New()
+	Set sc = new.RegisterToolSet(proxy)
+	If $$$ISOK(sc) Set sc = ..Govern(new)
+	If $$$ISERR(sc) Quit sc
+	If '$IsObject(..OwnTools) Set ..OwnTools = ..Agent.ToolManager
+	Set ..Agent.ToolManager = new
+	Set manager = new
+	Quit $$$OK
+}
+
+/// Puts the agent's own tool manager back after ProxyManager or BuildTurnManager swapped another in, and lets go of the own manager held for it. It does nothing when none was
+/// swapped in, and it never throws.
+Method RestoreTools()
 {
 	Try {
 		If $IsObject(..OwnTools) && $IsObject(..Agent) Set ..Agent.ToolManager = ..OwnTools
 	} Catch {
 	}
 	Set ..OwnTools = ""
+}
+
+/// Ends the tools of the request on every path: puts the agent's own tool manager back (RestoreTools), lets go of the manager of the request and of its tools, and
+/// forgets the request's OwnerRef and kind.
+Method EndTurnTools() [ Private ]
+{
+	Do ..RestoreTools()
 	Set ..TurnManager = ""
 	Set ..TurnToolList = ""
 	Set ..TurnOpen = 0

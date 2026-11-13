@@ -847,6 +847,8 @@ The digest is one message to a session. Its parts come in this order: a greeting
 | Items were saved and the summary request fell back | "Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). The most recent are under Recent decisions on your OcuTalon page." |
 | No item saved in the window | "Nothing was saved for later." |
 | Every digest (the cost) | "Yesterday's cost: {cost}." (two decimals, as the Formats rule says) |
+| The subject of the digest email (step 4, a mailbox and an outgoing mail server saved; [ADDED 2026-11-12, Story 21.7, Contest Planner ruling E1]) | "Your OcuTalon digest" (the same for every day, with no all-clear in it) |
+| The Email box of Settings › Daily digest (shows only once the address and the outgoing mail server are saved; [ADDED 2026-11-12, Story 21.7, Contest Planner ruling E2]) | "Email" |
 
 ### Incident notice with approval request (FR-24, FR-25, FR-8)
 
@@ -1021,6 +1023,7 @@ Banners stack in this table's order.
 | Email refused (the `CommandResult.Message` of `EmailOut` when a recipient, the subject or the text is not allowed, or the recipients are not the ones the send may go to) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling, edited] | "The email wasn't sent because a recipient, the subject or the text wasn't allowed." |
 | Email, no outgoing server (the `CommandResult.Message` of `EmailOut` and of `CommandsIn` when `EmailOut` is not running or the mailbox has no address) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "No outgoing mail server is connected, so the email wasn't sent." |
 | Email rejected by the server (the `CommandResult.Message` of `EmailOut` when the mail server answers the sender, a recipient or the message with an error) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "The mail server didn't accept the email, so it wasn't sent." |
+| Email may have gone out (the `CommandResult.Message` of `EmailOut` for a tool send with an `IdempotencyKey` when the mail server stopped answering while the email was being sent, and for the same key again) [ADDED 2026-11-13, Story 21.13, Contest Planner ruling K] | "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again." |
 
 ### Settings (step 5)
 

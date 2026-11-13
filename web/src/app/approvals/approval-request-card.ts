@@ -20,6 +20,7 @@ import { Icon } from '../icon/icon';
 import { EvidencePanel } from '../incidents/evidence-panel';
 import { IncidentDismiss, type DismissTarget } from '../incidents/incident-dismiss';
 import { INCIDENT_TEXTS, type PanelView } from '../incidents/incident-view';
+import { LiveState } from '../live/live-state';
 import type { ApprovalPayload, IncidentRequest, ItemNoun } from '../live/payloads';
 import { renderPageText } from '../msg/catalog';
 import { approvalTitle } from '../rail/rail-view';
@@ -84,7 +85,8 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
  *
  * A press sends {action, channel: 'web'} through AnswerPress (answer-press.ts, which the simulated phone's request message uses too
  * with channel 'phone'; the server takes the session from the CSP session). Both buttons go busy together: a spinner, aria-busy and
- * aria-disabled, never `disabled`, and a repeat press sends nothing. With no answer in 10 s both are restored and the notice
+ * aria-disabled, never `disabled`, and a repeat press sends nothing. The reply's request also goes to the page's live store at once
+ * (LiveState.applyAnswer), so the status rail drops an answered request at the reply. With no answer in 10 s both are restored and the notice
  * "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting." is shown and announced; a later answer
  * still shows and clears it. An answered, late or expired reply carries the request's payload, which the card shows (and keeps
  * while the store's own payload is still pending); a late press also shows the page's "Already answered" notice, and the other
@@ -478,6 +480,7 @@ export class ApprovalRequestCard {
   protected readonly noticeId = `approval-notice-${this.id}`;
 
   private readonly api = inject(ApiClient);
+  private readonly live = inject(LiveState);
   private readonly announcer = inject(Announcer);
   private readonly popovers = inject(Popovers);
   private readonly injector = inject(Injector);
@@ -488,6 +491,7 @@ export class ApprovalRequestCard {
   private readonly answer = new AnswerPress({
     answer: (ref, action, channel) => this.api.answerApproval(ref, action, channel),
     channel: 'web',
+    answered: (approval) => this.live.applyAnswer(approval),
     context: () => this.ctx(),
     announcer: this.announcer,
     destroyRef: this.destroyRef,

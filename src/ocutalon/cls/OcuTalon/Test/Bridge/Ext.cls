@@ -178,7 +178,7 @@ ClassMethod AccessorProbe(number As %Integer, production As %String)
 
 /// Row 6: HostSink accepts each of its eight event types and lists exactly those in EVENTS, builds the three payloads
 /// with exactly their keys, and BridgeSink extends it, does nothing and writes no live event; the reply filter and
-/// ReplyGuard removes a reserved sentence (Story 5.7), Classify returns "", TurnTools gives no tool and McpServers lists no server (Story 35.1).
+/// ReplyGuard removes a reserved sentence (Story 5.7), Classify returns "", TurnTools gives no tool and McpServers lists no server (Story 35.1) and probes none (Story 22.9).
 Method TestExtensionBases()
 {
 	Set expected = $ListBuild("turn.step", "decision.recorded", "approval.raised", "approval.answered", "approval.expired", "approval.cancelled", "approval.result", "budget.capped")
@@ -213,7 +213,78 @@ Method TestExtensionBases()
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.McpServers).Servers(.servers), "McpServers answers OK")
 	Do $$$AssertTrue($IsObject(servers) && servers.%IsA("%Library.DynamicArray") && (servers.%Size() = 0), "and names no server (Story 35.1)")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.McpServers).OnAttach("zz", {"status": "attached", "reason": "", "tools": [], "refused": []}), "and takes any report without doing anything")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.McpServers).Probe("zz", "AI.MCP.OcuTalon_zz"), "", "and probes nothing: Probe gives an empty string, which is no probe (Story 22.9)")
 	Do $$$AssertTrue($ClassMethod("OcuTalon.Mcp.Attach", "%Extends", "OcuTalon.Bridge.Ext.McpServers"), "OcuTalon.Mcp.Attach extends McpServers")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.McpServers).ProxyToolSet(), "", "and offers no proxy: ProxyToolSet gives an empty string (Story 22.3)")
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.Attach).ProxyToolSet(), "OcuTalon.Tools.McpProxy", "OcuTalon's class offers the governed proxy toolset")
+}
+
+/// Story 22.4 (AD-10, AD-31; condition 4): ServerOf(toolref) of the McpServersClass extension. The bridge's base names no server for any toolref, so the bridge alone holds and replays
+/// no MCP call. OcuTalon's class (Mcp.Attach) names the server only for exactly mcp:remote:@{config:AI.MCP.OcuTalon_<name>} with a name that matches the pattern of a server name,
+/// and Toolref is its inverse (and gives nothing for a name that does not match). A toolref that the class does not know gets "": the call it classifies is unclassified.
+Method TestServerOf()
+{
+	Set base = "OcuTalon.Bridge.Ext.McpServers"
+	Set attach = "OcuTalon.Mcp.Attach"
+	Set known = "mcp:remote:@{config:AI.MCP.OcuTalon_zzdocs}"
+	Do $$$AssertEquals($ClassMethod(base, "ServerOf", known), "", "the base names no server for a toolref of OcuTalon's form")
+	Do $$$AssertEquals($ClassMethod(base, "ServerOf", "") _ $ClassMethod(base, "ServerOf", "mcp:zzserver"), "", "nor for any other")
+	Do $$$AssertEquals($ClassMethod(attach, "ServerOf", known), "zzdocs", "OcuTalon's class names the server for the form that it attaches")
+	Do $$$AssertEquals($ClassMethod(attach, "Toolref", "zzdocs"), known, "Toolref is the inverse")
+	Do $$$AssertEquals($ClassMethod(attach, "ServerOf", $ClassMethod(attach, "Toolref", "Zz_9")), "Zz_9", "also for a name with capitals, digits and an underscore")
+	Set unknown = $ListBuild("", "mcp:zzserver", "mcp:remote:@{config:AI.MCP.OcuTalon_}", "mcp:remote:@{config:AI.MCP.OcuTalon_1bad}", "mcp:remote:@{config:AI.MCP.OcuTalon_zz-docs}", "mcp:remote:@{config:AI.MCP.OcuTalon_zzdocs} ", "MCP:remote:@{config:AI.MCP.OcuTalon_zzdocs}", "mcp:remote:@{config:AI.MCP.Other_zzdocs}", "mcp:remote:@{config:AI.MCP.OcuTalon_zzdocs", "iris:Zz.Toolset", "mcp:remote:@{config:AI.MCP.OcuTalon_" _ $Justify("", 41) _ "}")
+	Set position = 0
+	While $ListNext(unknown, position, text) {
+		Do $$$AssertEquals($ClassMethod(attach, "ServerOf", $Translate(text, " ", "a")) _ $ClassMethod(attach, "ServerOf", text), "", "'" _ $Extract(text, 1, 50) _ "' is no toolref of a server")
+	}
+	Do $$$AssertEquals($ClassMethod(attach, "Toolref", "") _ $ClassMethod(attach, "Toolref", "1x") _ $ClassMethod(attach, "Toolref", "a b") _ $ClassMethod(attach, "Toolref", "zz}"), "", "Toolref gives nothing for a name that does not match")
+}
+
+/// Story 22.3: the proxy's pieces in the bridge. The base ClassifyMcp gives no resource (so the bridge alone checks no privilege for an MCP call), and OcuTalon's names the server's
+/// resource. SetMcpTools takes the host's names for the servers (a dynamic object of name to toolref) and McpToolref and McpServerOf read them both ways; a member that is not an
+/// MCP toolref, or whose name is empty or too long, is left out; a second SetMcpTools replaces them, one without servers clears them, Begin and End end them, and they are not a
+/// field. NoteRerouted keeps the server of each rewritten call by tool name, in order (ReroutedServer), and Begin ends the notes. Gate MCPPROXY is Tools.Names CALLMCPTOOL.
+Method TestProxyBases()
+{
+	Set base = "OcuTalon.Bridge.Ext.Classification"
+	Do $$$AssertEquals($ClassMethod(base, "ClassifyMcp", "mcp:docs", "x", "fp").%IsDefined("resource"), 0, "the base ClassifyMcp names no resource")
+	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Policy.Gate", "MCPPROXY"), $Parameter("OcuTalon.Tools.Names", "CALLMCPTOOL"), "the gate's name for the proxy is the one of Tools.Names")
+	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Policy.Gate", "MCPLABEL"), "Running {tool} on {server}", "the step label of an MCP call (text 1)")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set context = "OcuTalon.Bridge.Context"
+	Do $$$AssertEquals($ClassMethod(context, "McpToolref", "zzs") _ "|" _ $ClassMethod(context, "McpServerOf", "mcp:zzs"), "|", "with no context there is no name and no toolref")
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "turn"
+	Try {
+		Do $$$AssertStatusOK($ClassMethod(context, "Begin", request), "Begin")
+		Set catalog = [{"tool_ref": "mcp:zzs", "name": "a", "description": "A.", "parameters": {}}]
+		Do $$$AssertStatusOK($ClassMethod(context, "SetMcpTools", catalog, {"zzs": "mcp:zzs", "Zzt": "MCP:zzt", "zzu": "iris:Zz.Toolset", "zzv": 5, "": "mcp:zzw", "zzx": ("mcp:" _ $Justify("", 401))}), "SetMcpTools takes the servers' names")
+		Do $$$AssertEquals($ClassMethod(context, "McpToolref", "zzs") _ "|" _ $ClassMethod(context, "McpToolref", "Zzt"), "mcp:zzs|MCP:zzt", "McpToolref gives the toolref of a name, in any case of its prefix")
+		Do $$$AssertEquals($ClassMethod(context, "McpServerOf", "mcp:zzs") _ "|" _ $ClassMethod(context, "McpServerOf", "MCP:zzt"), "zzs|Zzt", "and McpServerOf the name of a toolref")
+		Do $$$AssertEquals($ClassMethod(context, "McpToolref", "zzu") _ $ClassMethod(context, "McpToolref", "zzv") _ $ClassMethod(context, "McpToolref", "zzx") _ $ClassMethod(context, "McpToolref", ""), "", "a member that is no MCP toolref, no text, too long or with an empty name is left out")
+		Do $$$AssertEquals($ClassMethod(context, "McpServerOf", "iris:Zz.Toolset") _ $ClassMethod(context, "McpServerOf", "mcp:zzw") _ $ClassMethod(context, "McpServerOf", ""), "", "also on the read side: the toolref of the member with an empty name has no server")
+		Do $$$AssertEquals($Length($ClassMethod(context, "McpFingerprint", "mcp:zzs", "a")), 64, "the map of the tools is made alongside")
+		Do $$$AssertTrue($Parameter(context, "FIELDS") '[ $Parameter(context, "MCPSERVERS"), "the names are not a field")
+		Do $$$AssertStatusNotOK($ClassMethod(context, "Put", $Parameter(context, "MCPSERVERS"), "x"), "and Put refuses them")
+		Do $$$AssertStatusOK($ClassMethod(context, "SetMcpTools", catalog, {"zzy": "mcp:zzy"}), "a second call")
+		Do $$$AssertEquals($ClassMethod(context, "McpToolref", "zzs") _ "|" _ $ClassMethod(context, "McpToolref", "zzy"), "|mcp:zzy", "replaces the names")
+		Do $$$AssertStatusOK($ClassMethod(context, "SetMcpTools", catalog), "and one without names")
+		Do $$$AssertEquals($ClassMethod(context, "McpToolref", "zzy"), "", "clears them")
+		Do $ClassMethod(context, "NoteRerouted", "a", "zzs")
+		Do $ClassMethod(context, "NoteRerouted", "a", "zzt")
+		Do $ClassMethod(context, "NoteRerouted", "b", "zzs")
+		Do $ClassMethod(context, "NoteRerouted", "", "zzs")
+		Do $ClassMethod(context, "NoteRerouted", "c", "")
+		Do $$$AssertEquals($ClassMethod(context, "ReroutedServer", "a", 1) _ "," _ $ClassMethod(context, "ReroutedServer", "a", 2) _ "," _ $ClassMethod(context, "ReroutedServer", "b", 1), "zzs,zzt,zzs", "the notes of a tool name are kept in order")
+		Do $$$AssertEquals($ClassMethod(context, "ReroutedServer", "a", 3) _ $ClassMethod(context, "ReroutedServer", "a", 0) _ $ClassMethod(context, "ReroutedServer", "c", 1) _ $ClassMethod(context, "ReroutedServer", "", 1), "", "a third note, a note 0, an empty server and an empty name give none")
+		Do $$$AssertTrue($Parameter(context, "FIELDS") '[ $Parameter(context, "REROUTED"), "the notes are not a field")
+		Do $$$AssertStatusOK($ClassMethod(context, "Begin", request), "Begin again")
+		Do $$$AssertEquals($ClassMethod(context, "ReroutedServer", "a", 1), "", "ends the notes")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the proxy bases test threw: " _ exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do $$$AssertEquals($ClassMethod(context, "McpServerOf", "mcp:zzs") _ $ClassMethod(context, "ReroutedServer", "a", 1), "", "End removes them with the context")
 }
 
 /// Story 22.8: the base ClassifyMcp answers {"classification": Classify(source, name), "readOnly": 0, "registered": 1} for any source, name and fingerprint,

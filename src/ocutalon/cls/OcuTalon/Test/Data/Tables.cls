@@ -202,7 +202,8 @@ XData Contracts [ MimeType = application/json ]
    "FixParameters": "%String(MAXLEN=)",
    "FixTargets": "%String(MAXLEN=)",
    "ToolSource": "%String(MAXLEN=512)",
-   "Runner": "%String(MAXLEN=128)"
+   "Runner": "%String(MAXLEN=128)",
+   "ToolFingerprint": "%String(MAXLEN=64)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -405,7 +406,8 @@ XData Contracts [ MimeType = application/json ]
    "CheckRows": "%String(MAXLEN=)",
    "Citations": "%String(MAXLEN=)",
    "Memories": "%String(MAXLEN=)",
-   "Learned": "%String(MAXLEN=)"
+   "Learned": "%String(MAXLEN=)",
+   "SentFile": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -449,7 +451,9 @@ XData Contracts [ MimeType = application/json ]
    "DecisionRef": "%String(MAXLEN=22)",
    "DueAt": "%String(MAXLEN=20)",
    "FallbackReason": "%String(MAXLEN=32)",
-   "CheckRows": "%String(MAXLEN=)"
+   "CheckRows": "%String(MAXLEN=)",
+   "DigestKey": "%String(MAXLEN=22)",
+   "EchoedAt": "%String(MAXLEN=20)"
   },
   "indexes": {
    "ApprovalRefChannelOwnerRefIndex": "ApprovalRef,Channel,OwnerRef",
@@ -800,6 +804,11 @@ XData Registry [ MimeType = application/json ]
   "short": "Upload",
   "global": "^OcuTalonP.Upload",
   "class": "OcuTalon.Data.Upload"
+ },
+ {
+  "short": "SentFile",
+  "global": "^OcuTalonP.SentFile",
+  "class": "OcuTalon.Data.SentFile"
  },
  {
   "short": "Precedent",

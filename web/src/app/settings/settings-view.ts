@@ -14,7 +14,7 @@
  * - stepFailedText is the Demo step's text for the value that was written.
  * - The Time zone section (Story 18.2): zoneOptions lists the zones to choose from, and zoneBody is the body of a save.
  * - The Daily digest section (Story 18.2): digestChannelBoxes says which channel boxes show, digestChannelsBody builds the channels of a save from the
- *   boxes and the stored value (a hidden channel keeps its stored state, and the order is always web, phone, telegram), digestBody is the body of a save
+ *   boxes and the stored value (a hidden channel keeps its stored state, and the order is always web, phone, telegram, email), digestBody is the body of a save
  *   and isDigestDirty the rule of its form. The Telegram box shows only while Telegram is included and on or paused (telegramBoxShown).
  * - The Channels section (Story 18.2) shows the state of Telegram: channelsView says which of its views shows for the Telegram block and the Telegram card's view kind.
  *   Its Webhooks group (Story 35.3) is webhooks-view.ts, with its fixed strings in SETTINGS_TEXTS.webhooks.
@@ -67,6 +67,7 @@ export const SETTINGS_TEXTS = {
     web: 'The web chat',
     phone: 'The simulated phone',
     telegram: 'Telegram',
+    email: 'Email',
     sendNow: 'Send my digest now',
     sendNowDone: 'Sending your digest now.',
     sendNowFailed: "Couldn't send your digest. Try again.",
@@ -271,7 +272,7 @@ export function zoneBody(zone: string): { InstanceZone: string } {
 }
 
 /** The digest channels in the order that a save stores them. */
-export const DIGEST_CHANNELS = ['web', 'phone', 'telegram'] as const;
+export const DIGEST_CHANNELS = ['web', 'phone', 'telegram', 'email'] as const;
 
 /** A digest channel. */
 export type DigestChannel = (typeof DIGEST_CHANNELS)[number];
@@ -281,9 +282,14 @@ export function telegramBoxShown(telegram: { included: boolean; state: string } 
   return telegram !== undefined && telegram.included && (telegram.state === 'on' || paused);
 }
 
-/** The channel boxes that show: the web chat always, the simulated phone only while demo mode is on, Telegram only when telegramShown. */
-export function digestChannelBoxes(demoMode: boolean, telegramShown: boolean): DigestChannel[] {
-  return DIGEST_CHANNELS.filter((channel) => channel === 'web' || (channel === 'phone' && demoMode) || (channel === 'telegram' && telegramShown));
+/** True while the Email box shows: the mailbox has a saved address and a saved outgoing mail server (sending needs both). The online demo has no mailbox values. */
+export function emailBoxShown(email: { address: string; outgoing: string } | undefined): boolean {
+  return email !== undefined && email.address.trim() !== '' && email.outgoing.trim() !== '';
+}
+
+/** The channel boxes that show: the web chat always, the simulated phone only while demo mode is on, Telegram only when telegramShown, Email only when emailShown. */
+export function digestChannelBoxes(demoMode: boolean, telegramShown: boolean, emailShown: boolean): DigestChannel[] {
+  return DIGEST_CHANNELS.filter((channel) => channel === 'web' || (channel === 'phone' && demoMode) || (channel === 'telegram' && telegramShown) || (channel === 'email' && emailShown));
 }
 
 /** The channels that a stored value names, each trimmed and lowercased; a name that is not a digest channel is dropped. */
@@ -293,7 +299,7 @@ export function storedChannels(stored: string): DigestChannel[] {
 }
 
 /**
- * The channels of a save, in the order web, phone, telegram: a shown box keeps what is checked, and a hidden channel keeps its stored state. With no shown box
+ * The channels of a save, in the order web, phone, telegram, email: a shown box keeps what is checked, and a hidden channel keeps its stored state. With no shown box
  * checked the body names no channel, which the server refuses with the field error, so that a digest is never saved for hidden channels alone.
  */
 export function digestChannelsBody(stored: string, shown: readonly DigestChannel[], checked: readonly DigestChannel[]): string {

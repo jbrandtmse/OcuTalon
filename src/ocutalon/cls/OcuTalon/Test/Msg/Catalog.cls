@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 143 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 144 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 20 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -79,7 +79,8 @@ Method TestEntries()
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
 	// Story 41.15 (Contest Planner ruling 2026-11-10): memory.learnedSaved adds one key to Story 23.2's 138 here; with Story 23.5's press.approvedPartner (plain union at the integrate-forward), 140 in all.
 	// Story 35.3 (Contest Planner ruling 2026-11-11, PUBLIC TEXT T1-T3): settings.webhooksOffOnDemo, webhookBadName and webhookBadSecret take the Core count to 143.
-	Do $$$AssertEquals(keys.core.%Size(), 143, "the expected Core list has 143 keys")
+	// Story 21.7 (Contest Planner ruling 2026-11-12, PUBLIC TEXT E1): email.digestSubject takes the Core count to 144.
+	Do $$$AssertEquals(keys.core.%Size(), 144, "the expected Core list has 144 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
@@ -87,7 +88,7 @@ Method TestEntries()
 	// Story 23.5 (Contest Planner ruling 2026-11-09): the 11 keys of the partner delay notice (incident.partnerRequest; result.partnerSent, partnerSentSome, partnerNotSent, partnerKept, partnerNotDrafted; summary.requestedPartner, partnerSent, partnerKept, partnerNotSent; partner.subject) take the Watch count to 116, and press.approvedPartner takes the Core count to 139 (140 with Story 41.15's memory.learnedSaved).
 	// Story 23.7 (Contest Planner Public Text ruling 2026-11-11): the key watch.queueBacklog takes the Watch count to 117.
 	Do $$$AssertEquals(keys.watch.%Size(), 117, "the expected Watch list has 117 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 143 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 144 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 117 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -126,17 +127,20 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 223 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 224 keys of the catalog")
 	Set refused = ..RefusedChannels()
-	Do $$$AssertEquals(refused, "email,webhook,slack,system,heartbeat", "five Msg.Enum channels are refused")
+	Do $$$AssertEquals(refused, "webhook,slack,system,heartbeat", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
 	While iterator.%GetNext(.key, .fixture) {
 		Set expectedWeb = $Select(fixture.%IsDefined("web"): fixture.web, 1: fixture.text)
-		For channel = "phone", "mailbox", "telegram", "web" {
+		For channel = "phone", "mailbox", "telegram", "email", "web" {
 			Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots, channel, ..#NOW, 1, .sc)
 			Do $$$AssertStatusOK(sc, key_" renders on "_channel)
 			Do $$$AssertEquals(text, $Select(channel = "web": expectedWeb, 1: fixture.text), key_" on "_channel_" is the fixture's text")
 		}
+		Set email = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots, "email", ..#NOW, 1, .sc)
+		Set phone = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots, "phone", ..#NOW, 1, .sc)
+		Do $$$AssertEquals(email, phone, key_" on email is the text on phone")
 		Set json = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots.%ToJSON(), "telegram", ..#NOW, 1, .sc)
 		Do $$$AssertEquals(json, fixture.text, key_" renders the same from JSON text slots")
 		For i = 1:1:$Length(refused, ",") + 1 {
@@ -238,7 +242,7 @@ Method TestStringSlots()
 Method TestPersonaReasonSurvives()
 {
 	Set reason = "Ahoy, shipmate! The hold is flooding "_$Char(55357, 57250)_$Char(9875, 65039)
-	For channel = "web", "phone", "mailbox", "telegram" {
+	For channel = "web", "phone", "mailbox", "telegram", "email" {
 		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("notice.tellNow", {"whatHappened": "Mail from Dana", "reason": (reason)}, channel, ..#NOW, 1, .sc)
 		Do $$$AssertStatusOK(sc, channel_": the notice renders")
 		Do $$$AssertEquals(text, "Mail from Dana"_$Char(10)_"Why now: "_reason, channel_": the reason comes out unchanged in its frame")
@@ -331,7 +335,7 @@ Method TestErrors()
 	Set key = "incident.withFix"
 	Do ..AssertRefused("an unknown key", "incident.nope", good, "telegram", "incident.nope")
 	Do ..AssertRefused("an empty key", "", good, "telegram", "key")
-	For channel = "email", "webhook", "slack", "system", "" {
+	For channel = "webhook", "slack", "system", "" {
 		Do ..AssertRefused("the channel '"_channel_"'", key, good, channel, "channel '"_channel_"'", key)
 	}
 	For slots = "[1,2]", """text""", "5", "{", "null", "true" {
@@ -603,7 +607,7 @@ Method TestCountOfOneForms()
 	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 20, "20 entries carry a one form")
 	Set iterator = forms.%GetIterator()
 	While iterator.%GetNext(.key, .form) {
-		For channel = "phone", "mailbox", "telegram", "web" {
+		For channel = "phone", "mailbox", "telegram", "email", "web" {
 			Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, form.slots, channel, ..#NOW, 1, .sc)
 			Do $$$AssertStatusOK(sc, key_" renders with "_form.slot_" at 1 on "_channel)
 			Do $$$AssertEquals(text, $Select((channel = "web") && form.%IsDefined("web"): form.web, 1: form.text), key_" on "_channel_" is the form's text")
@@ -664,14 +668,14 @@ Method AssertOneProblem(entries As %DynamicObject, key As %String, label As %Str
 	Do $$$AssertTrue(problems [ fragment, label_" is a problem that Problems names: "_problems)
 }
 
-/// Row 10's channels: only the exact names web, phone, mailbox and telegram render; any other spelling is refused with an error
+/// Row 10's channels: only the exact names web, phone, mailbox, telegram and email render; any other spelling is refused with an error
 /// that names it, even when the key and the slots are good.
 Method TestChannelNames()
 {
-	For channel = "WEB", "Web", "web ", " web", "web,phone", "telegram,", "w", "phone"_$Char(10), "Telegram", "MAILBOX", "web phone", "phone/telegram" {
+	For channel = "WEB", "Web", "web ", " web", "web,phone", "telegram,", "w", "phone"_$Char(10), "Telegram", "MAILBOX", "web phone", "phone/telegram", "Email", "EMAIL", "email " {
 		Do ..AssertRefused("the channel '"_channel_"'", "press.rejected", {}, channel, "channel '"_channel_"'", "press.rejected")
 	}
-	For channel = "web", "phone", "mailbox", "telegram" {
+	For channel = "web", "phone", "mailbox", "telegram", "email" {
 		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("press.rejected", {}, channel, ..#NOW, 1, .sc)
 		Do $$$AssertEquals(text, "Rejected. Nothing was changed.", "the channel "_channel_" renders")
 	}
@@ -1042,6 +1046,7 @@ XData Keys [ MimeType = application/json ]
   "press.approvedResume",
   "press.approvedReroute",
   "press.approvedPartner",
+  "email.digestSubject",
   "answered.approved",
   "answered.approvedBy",
   "answered.rejected",
@@ -1511,6 +1516,7 @@ XData Fixtures [ MimeType = application/json ]
  "press.approvedResume": {"slots": {"item": "OrdersToWarehouse"}, "text": "Approved. Resuming OrdersToWarehouse."},
  "press.approvedReroute": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "to": "OrdersForReview"}, "text": "Approved. Rerouting 50 orders to OrdersForReview."},
  "press.approvedPartner": {"slots": {}, "text": "Approved. Sending the delay notice to the Simulated mailbox."},
+ "email.digestSubject": {"slots": {}, "text": "Your OcuTalon digest"},
  "answered.approved": {"slots": {"channel": "telegram", "time": "2026-10-16T18:15:00Z"}, "text": "Approved from Telegram at 14:15 ET.", "web": "Approved from Telegram at 14:15 ET"},
  "answered.approvedBy": {"slots": {"user": "sam", "channel": "web", "time": "2026-10-16T18:15:00Z"}, "text": "Approved by sam from the web chat at 14:15 ET.", "web": "Approved by sam from the web chat at 14:15 ET"},
  "answered.rejected": {"slots": {"channel": "phone", "time": "2026-10-16T18:15:00Z"}, "text": "Rejected from the simulated phone at 14:15 ET. Nothing was changed."},
