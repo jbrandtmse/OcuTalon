@@ -3982,3 +3982,14 @@
 2026-11-13T18:10:44Z	Epic 37	ci_red_classified	sha=f2fc3d3a run=43459664457 att2: production=success(DW-28_cleared) install-macos=cancelled(hosted_macOS_not_acquired;GitHub_capacity;att1_also_cancelled) class=infra
 2026-11-13T18:10:44Z	Epic 37	ci_green_verified	sha=f2fc3d3a groups: lane-a 43459664265 success; ci 43459664457 all_jobs_success_across_att1/att2 except install-macos=green_by_identity(inputs install.sh+test-install-script.sh untouched; 0d3b0c18 run 43458370984 green) rule=throughput_precision
 2026-11-13T18:10:44Z	Epic 37	merge_enqueued	part=37.1 head=f2fc3d3a(runner_records_2f48133c_unpushed) feature=9a946ea3 for=1.0.10
+2026-11-13T18:11:54Z	Epic 37	epic_merged_to_feature	part=37.1 feature_sha=f29de0e7 code=f2fc3d3a(identical) epics_bullets=DW-1267..1271(25.4,25.5,25.6,26.2,26.4) verified_on_origin=yes ci=green_by_identity(feature_runs_cancelled) release=1.0.10
+2026-11-13T18:15:17Z	Epic 37	runner_complete	epic=37 done head=4b608523(records,runs_cancelled:43480592914,43480592922) runner=aebff9f910ec80c8d drain=0.70
+2026-11-13T18:15:25Z	Epic 25	runner_dispatched	model=opus runner=a17cb142e7d5522c5 lane=A slot=ocutalon-slot-a stories=25.4,25.5(plan) prompt=prompts/redispatch-epic-25-20261113.md worktree=.worktrees/epic-25 base=eb99dc1f reason=no_idle_lanes(37.1_merged_unblocks_25.4/25.5)
+2026-11-13T18:40:14Z	Epic 25	runner_reported	PUBLIC_TEXT story=25.4 spec_gate=passed planner_gate=spec-25-4:488-563 local=18817e57(records_unpushed) items=15_text+security+Q1-Q8 footprint_ext=Install/Step/Roles.cls(Lane_A)
+2026-11-13T18:42:10Z	Epic 25	owner_decision	via=contest_planner story=25.4 planner_gate=APPROVED(row2_changed,new_user_system_text) conditions=C1_system_accounts,C2_GET_writes_STOP,C3_report+DW,C4_TTL_or_DW,Task0_session_>24h_STOP Q1-Q8=approved footprint_ext=Install/Step/Roles.cls(granted) file=prompts/story-254-rulings-20261113.md
+2026-11-13T18:44:34Z	Epic 22	runner_reported	PART_READY story=22.7 head=25c2e4da runs=43473495462,43473495076 gates_open=P1(GUIDE),P2(DW_25.5),P4(TraceLeaks) R3=admin_cannot_see_or_answer(Ownership.cls:97,1270-1276;Api.cls:699-703) 22.6=STOPPED(5_claims_on_21.4_surface)
+2026-11-13T18:44:34Z	Epic 22	orchestrator_ruling	story=22.6 five_21.4_claims=verify_at_merge(M4) order=22.6_after_21.4 22.7=hold_merge_until_P1+P2+P4 split=wip/22-6_local
+2026-11-13T18:45:00Z	Epic 22	owner_decision	via=contest_planner 22.6_verify_at_merge=confirmed(+address_rules_B2:query/fragment,userinfo,http_non-loopback) 22.7_LOCAL_READY_after_hold=ok P1_text_stands
+2026-11-13T18:49:45Z	Epic 21	ci_green_verified	sha=4af1db03 runs=43457520830(ci,att2_after_DW-1280),43457520899(lane-a)
+2026-11-13T18:49:45Z	Epic 21	amendments_verified	amendments=spine_AD-1,AD-19,channels_route_row([AMENDED_21.14_ruling_L]) TraceLeaks_retrofit ok=true
+2026-11-13T18:49:45Z	Epic 21	merge_enqueued	part=21.14 head=4af1db03 feature=f29de0e7 for=1.0.10
