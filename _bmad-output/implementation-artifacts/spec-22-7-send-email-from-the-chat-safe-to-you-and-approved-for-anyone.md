@@ -2,8 +2,8 @@
 title: 'Story 22.7: Send email from the chat, safe to you and approved for anyone else'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
-baseline_revision: 'b602e292fd1b9de3492d8dc982b1137ce1e46013'
+status: 'done'
+baseline_revision: 'cf9b6d2aa0d2e4e856d42fcdaa8ddb64a455b26f'
 baseline_commit: 'b602e292fd1b9de3492d8dc982b1137ce1e46013'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -348,7 +348,7 @@ Rejected:
 - `low` `CreateUser` is repeated in `Test.Fix.Email` and `Test.Fix.EmailCard` (Rule 2, own check): a three-line wrapper of one `Security.Users.Create` call with different roles, not a near-copy of logic.
 - `reject` (fix edits the spec under review) The spec's frontmatter `status`, the stale Auto Run Result and Tasks lines, the triage-log counts, the edited-methods list (no `Handle`), the `(loop)` list without `Test.Fix.EmailRoute`/`Test.Fix.EmailCard` (CI's shards run them by folder) and the proposed GUIDE sentences (blind 4-8, edge 6, verification-gap 7).
 
-- [ ] [CI] iris (shards-9) `shard:lane-a@Bridge`: `OcuTalon.Test.Bridge.Decide` `TestEstimateTokens` fails on f0cc2010 — "Chat: the system prompt of the live agent, 9577, and the JSON of the Reminders, Watching, Persona and Memory toolsets' tools, 20513" (https://github.com/jbrandtmse/OcuTalon/actions/runs/43454578653/job/131985214716). Cause: this story added `OcuTalon.Tools.Email` to `Agent.Chat` `TOOLSETS`, so `AgentChars` of Chat now also counts the `send_email` tool's JSON, while the pin sums only four toolsets (a shared surface the story's `Shared surfaces:` line missed). Fix (test only, `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls`): measure the Email toolset's tool JSON the way the others are measured, add it to the Chat sum and name it in the assertion message (and in any doc comment that lists Chat's toolsets); keep the catalog-within-a-tenth check; write its `mutation:` line (drop the Email term -> red). Then grep the other pins of Chat's toolsets or request size (`Test/Bridge/{ZzToolsets,Compaction,Conversation}.cls`, `Test/Agent/RequestSize.cls`) and confirm each still holds on a warm throwaway (one class per call); change one only if it fails. Add `Agent.Chat TOOLSETS (Test.Bridge.Decide TestEstimateTokens)` to the `Shared surfaces:` line.
+- [x] [CI] iris (shards-9) `shard:lane-a@Bridge`: `OcuTalon.Test.Bridge.Decide` `TestEstimateTokens` fails on f0cc2010 — "Chat: the system prompt of the live agent, 9577, and the JSON of the Reminders, Watching, Persona and Memory toolsets' tools, 20513" (https://github.com/jbrandtmse/OcuTalon/actions/runs/43454578653/job/131985214716). Cause: this story added `OcuTalon.Tools.Email` to `Agent.Chat` `TOOLSETS`, so `AgentChars` of Chat now also counts the `send_email` tool's JSON, while the pin sums only four toolsets (a shared surface the story's `Shared surfaces:` line missed). Fix (test only, `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls`): measure the Email toolset's tool JSON the way the others are measured, add it to the Chat sum and name it in the assertion message (and in any doc comment that lists Chat's toolsets); keep the catalog-within-a-tenth check; write its `mutation:` line (drop the Email term -> red). Then grep the other pins of Chat's toolsets or request size (`Test/Bridge/{ZzToolsets,Compaction,Conversation}.cls`, `Test/Agent/RequestSize.cls`) and confirm each still holds on a warm throwaway (one class per call); change one only if it fails. Add `Agent.Chat TOOLSETS (Test.Bridge.Decide TestEstimateTokens)` to the `Shared surfaces:` line.
 
 ## Spec Change Log
 
@@ -416,6 +416,17 @@ Rejected:
   - `[low]` `[reject]` Edge 5: the spec's Tasks still describe `SendTo` and an empty tool-path Recipients - a fix would edit this spec; Rework 1 records the marker decision
   - `[low]` `[reject]` Edge 6: DW-1255 task (b) and (d) say empty Recipients for the tool path - same: Rework 1 records why the tool path uses the marker
   - `[low]` `[reject]` Verification-gap other 4: the `Fix.Kind.Email.DryRun` comment names Execute's joined recipients - patched with Blind 7
+
+### 2026-11-13 - Review pass (CI rework 2: Chat's Email toolset in TestEstimateTokens)
+- verdicts: 7 findings - high 0, medium 0, low 4, false 3, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1: the `email > 200` floor is weak - it matches the Persona line the item asked to copy, and `AgentChars` of Chat is computed independently, so a toolset that stops producing JSON makes the equality red; not worth more than the copy of the sibling line.
+  - `[false]` `[reject]` Blind 2: the mutation line records the wrong figure and skips `ZzToolsets` and `Instructions` - 20513 is the four-toolset sum the mutated run itself prints (the same value as the CI failure, since the mutation restores the old sum); `Test/Bridge/ZzToolsets.cls` is a fixture that never names Chat, and a search found no other test summing Chat's tool JSON.
+  - `[false]` `[reject]` Blind 3: `review_loop_iteration` and the stale frontmatter and sections of the spec - a fix that edits the spec under review is rejected; the lead owns `status`, `baseline_revision` and the loop counter.
+  - `[low]` `[reject]` Edge 1: the five toolsets are hand-listed instead of read from `Chat` `TOOLSETS` - the item says to measure the Email toolset "the way the others are measured"; a new toolset fails this equality loudly with both sums in the message.
+  - `[low]` `[reject]` Verification-gap 1 (other): the same hand-listed sum - same root cause as Edge 1; the `Shared surfaces:` line now names the pin.
+  - `[low]` `[reject]` Verification-gap 2 (other): the recorded mutation edits the test's sum, not `TOOLSETS` in product code - the item names "drop the Email term -> red" as the mutation; a product-side variant is outside this test-only pass.
+  - `[false]` `[reject]` Intent alignment: descriptive only; the diff implements the pin plus spec bookkeeping and exercises the test surface the item names, with no divergence.
 
 ## Design Notes
 
@@ -655,6 +666,7 @@ There are no `(once)` lines. CI runs the full suite (the shards, `live:security-
 - (rework 1, review patch, DW-1262) mutation: `Web.Api` `AnswerApproval` hands `row.Kind` as the kind again -> `Test.Fix.EmailRoute` `TestNonAdminApproveIsRefusedWithTheGeneralSentence` went red (the 403 carried the resend approver's sentence).
 - Each review-patch mutation above was applied on the same warm stack, observed red, reverted (`cmp` against the saved copy, byte-identical), and the class was green again.
 - (rework 1, code review) mutation: `Core.AnswerOps` `Carry` asks `MayApprove` for every action (`If 1 {` for `If request.Action = "approve" {`; AnswerOps restarted after the reload) -> `Test.Fix.EmailRoute` `TestRejectIsAnswered` went red (the reject of an email to another address was not 200, not done, the request not rejected).
+- (CI rework 2) mutation: `Test.Bridge.Decide` `TestEstimateTokens` sums Chat's tool JSON without the Email toolset's term (`chatTools = reminders + watching + persona + memory`) -> the same test went red ("Chat: the system prompt of the live agent, 9577, and the JSON of the Reminders, Watching, Persona, Memory and Email toolsets' tools, 20513"); applied on lane D's warm throwaway `e22s7r2w`, reverted (`cmp` against the saved copy, byte-identical), and the class was green again. `Test.Bridge.Compaction`, `Test.Bridge.Conversation`, `Test.Agent.RequestSize`, `Test.Agent.Constants` and `Test.Agent.Runners` held unchanged, and `test-class-rules.sh` and `test-boundaries.sh` passed.
 - (rework 1, code review) mutation: `Live.Payload.Approval` `FromRow` sets the email part only when the dry run has `to` -> `Test.Fix.EmailCard` `TestUnexpectedDryRunsGiveAPartNotAnError` went red ("an empty object": only a dry run that is not a JSON object leaves no part). Both code-review mutations ran on lane D's warm throwaway `e22s7cr2w`, were reverted (`cmp` against the saved copy, byte-identical), and the class was green again on the same stack.
 - Each rework mutation was applied on lane D's warm stack `e22s7r1w` (the item that runs the class restarted after the reload), observed red, reverted (`cmp` against the saved copy, byte-identical), and the class was green again on the same stack.
 - Each code-review mutation was applied on lane D's warm stack `e22s7cw` (the production restarted after each reload), observed red, reverted byte-identical (`cmp` against the saved copy), and the class was green again on the same stack.
@@ -662,6 +674,7 @@ There are no `(once)` lines. CI runs the full suite (the shards, `live:security-
 
 **Shared surfaces:**
 - the Chat toolset and tool inventory (`Constants`, `Runners`, `Instructions`);
+- `Agent.Chat` `TOOLSETS` (`Test.Bridge.Decide` `TestEstimateTokens`);
 - the gate's `TRUSTEDTOOLS`/`READONLYTOOLS` and every-tool rows;
 - the overview's tool and fix-kind rows and `docs/security-overview.md`;
 - `Fix.Kind` `KINDS` and `ApprovalRequest` `DRYRUNKEYS`;
@@ -713,3 +726,9 @@ Blocking condition: none
 - Verification: every `(loop)` command and the extra classes ran green on the warm throwaway `e22s7r1w` (torn down afterwards); `test-boundaries`, `test-class-rules`, `test-ci-config`, `test-mock` and the node constants test exit 0.
 - Residual risks: the web card has no view for an email request yet (Story 21.11 renders the part's recipients, notice and before); an email request raised for an own address that the mailbox has since left needs an admin; `Test.Fix.EmailRoute` assumes the test process's user lacks `OcuTalonAdmin`; the reverse-order and fresh-environment runs are the lead's Rule 19 check.
 - Footprint extensions reported: `Channel/Email/Out`, `Core/CommandsIn`, `Msg/Command/SendEmail`, `Live/Payload/Approval` (as ruled), and beyond them `Core/AnswerOps` and one line of `Web/Api`.
+
+**CI rework 2 (this pass only).** The open `[CI]` item is done: `Test.Bridge.Decide` `TestEstimateTokens` measures the Email toolset's tool JSON like the other four, adds it to Chat's sum, names it in the assertion message and the method's doc comment, and keeps the catalog-within-a-tenth check. Test-only; `Agent.Chat TOOLSETS (Test.Bridge.Decide TestEstimateTokens)` is added to `Shared surfaces:`.
+- Files changed: `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls`; this spec (the `[CI]` tick, one `mutation:` line, one shared-surfaces line).
+- Review: 7 findings, 0 high, 0 patched, 0 deferred; 7 rejected with the reasons in the log. Follow-up review recommended: false (no high patched).
+- Verification: on lane D's warm throwaway `e22s7r2w`, `OcuTalon.Test.Bridge.Decide` (twice, the second run by the lead), `Test.Bridge.Compaction`, `Test.Bridge.Conversation`, `Test.Agent.RequestSize`, `Test.Agent.Constants` and `Test.Agent.Runners` passed, one per call; `test-class-rules.sh` and `test-boundaries.sh` exit 0. The mutation (drop the Email term) went red and was reverted byte-identical.
+- Residual risks: none beyond the hand-listed toolsets of the pin, which fails loudly when Chat gains a toolset.
