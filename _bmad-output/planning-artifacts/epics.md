@@ -1948,6 +1948,33 @@ So that the README shows a target that is met, not missed.
 **When** it finishes
 **Then** every workflow is green
 
+### Story 0.36: The judges' table names the platform parts OcuTalon is built from
+
+[ADDED 2026-11-13, Contest Planner 1.0.9 doc story, owner-approved] (owner's delegation; a one-story lever for Epic 0 on OCT-epic0d, on the lean path like 0.34; merged and green before the 19:45Z CI hold). The README's "For judges: where to look" Complexity row says what OcuTalon does but not which InterSystems platform parts it is built from. The row is replaced with the Planner's approved public text, verbatim. Footprint: README.md line 38 (the Complexity row) and the test-readme.sh pins only; no product change.
+
+As a judge scoring complexity and use of the platform,
+I want the Complexity row to name the AI Hub and Interoperability parts OcuTalon extends and uses, each with a link to the code,
+So that I can see at a glance that it is built from the platform's own parts.
+
+**Acceptance Criteria:**
+
+**Given** the README's "### For judges: where to look" table
+**When** its `| Complexity | ... |` row is read
+**Then** it is exactly the Contest Planner's approved text of 2026-11-13, word for word, and no other README line changes
+
+**Given** every claim the row makes
+**When** each is checked against the code at the merge base
+**Then** each is true (three `%AI.Agent` agents, the adapter extending `EnsLib.AI.Agent.OutboundAdapter`, the gate as an `%AI.Policy.Authorization`, Visual Trace steps from an `%AI.Policy.Audit` and an `%AI.Shell.StreamRenderer`, documents on AI Hub's RAG knowledge base over IRIS vector search, the model and its timeouts as Config Store entries, approvals as `EnsLib.Workflow` tasks, resends with `Ens.MessageHeader.ResendDuplicatedMessage`, approvals in the IRIS audit log, memory search merging vector search with a keyword index, Embedded Python computing the vectors and reading PDF and Word files, and over 40 production items)
+**And** a claim that is not true stops the story; the code is never changed to fit the text
+
+**Given** the README after the change
+**When** `bash docker/tests/test-readme.sh` runs
+**Then** it passes: the README has at most 2,300 words by `wc -w`, every link resolves, and every test pin the new row trips is updated in the same commit without changing the approved wording
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
