@@ -177,7 +177,7 @@ Body members (all JSON strings except the minutes): `primaryPerson`, `primaryUse
   - REST table: one row for `POST /api/v1/settings/on-call`;
   - L1510 gets "and `Web.OnCallSettings` (Story 36.4)";
   - then `memlog.py append`, `lint_spine.py` (`"ok": true` or only the pre-existing DW-351 placeholders), and refresh `updated:`.
-- Only if the runner reports `settings.onCallByEmailHelp` accepted: show it under the on-call person's Person select while "Someone else, by email" is chosen, add its SOURCES entry, and append its row to EXPERIENCE.md "Settings (step 5)" with an [ADDED] marker. Otherwise ship nothing, and DW-1250 stays with the runner.
+- `settings.onCallByEmailHelp` is ACCEPTED verbatim (Planner P1, 2026-11-13): show it under the on-call person's Person select while "Someone else, by email" is chosen, add its SOURCES entry, and append its row to EXPERIENCE.md "Settings (step 5)" with an [ADDED] marker. Otherwise ship nothing, and DW-1250 stays with the runner.
 
 **Acceptance Criteria:**
 - AC1. Given an admin opens On call, when they choose the on-call person and the backup, then:
@@ -194,9 +194,19 @@ Body members (all JSON strings except the minutes): `primaryPerson`, `primaryUse
 
 ## Spec Change Log
 
+- 2026-11-13, Contest Planner rulings S1(b), S2, P1 applied by the runner (Design Notes, veto section, P1 task); no re-plan (the planned option is the ruled one). Implement waits for lane C's 21.7+21.8+21.12 merge and an integrate-forward.
+
 ## Review Triage Log
 
 ## Design Notes
+
+### Planner rulings (2026-11-13 ~05:00Z, binding; `.coordination/prompts/story-362-rulings-20261112.md`, last section)
+- **S1 (DW-1249): option (b) APPROVED.** A new `Web.OnCallSettings` hands the section body to `SettingsOps` through `SecretHandoff` (in memory only); the traced message holds only `{"handoff": uri}`; the on-call values reach only the IRIS audit entry; the ONE leak scan is `Test.Web.OnCallSettingsApi.TestValuesOnlyInTheAuditLog`. Online demo: 409 `not_available` before the body is read (nothing handed off, submitted, written or audited). (Extended by the orchestrator to Story 24.2 as DW-1254; an audit of the other settings sections is DW-1255, burndown — neither is this story's work.)
+- **S2: APPROVED.** The AD-19 spine bullet recording that `SecretHandoff` also carries this non-secret contact data.
+- **P1: APPROVED verbatim.** `settings.onCallByEmailHelp` = "Someone paged by email can't press Got it, so OcuTalon also pages the backup after the minutes below." DW-1250 closes with it (resolved-by this story once shipped).
+- **Findability:** no More to try item and no GUIDE.md line (acknowledged).
+- **Route:** forwarded as a Map in `Web/Api.cls` (still 38 routes), with real-HTTP tests (LIVE `OcuTalonUser` 403, the README admin OK, online demo 409): APPROVED.
+- **Order (orchestrator):** implement only after lane C's 21.7+21.8+21.12 head merges to feature; integrate forward onto it FIRST (contended `Core/SettingsOps.cls`, `settings-page.ts` / `settings-view.ts` / `settings-view.test.mjs`, `Test/Core/SettingsSave.cls` L431), then re-check this spec's line anchors against the merged tree before the implement spawn.
 
 **Ledger inbox (Rule 17):** `owned_ledger=2`.
 - DW-1249 is addressed by the hand-off task, `TestValuesOnlyInTheAuditLog`, AC7 and veto item S1.
@@ -274,7 +284,7 @@ No criterion contradicts an AD's Rule. The hand-off refines AD-19's "Saving a se
 | Spine, EXPERIENCE.md (36.1, Epic 21) | AD-19 bullet, REST row, L1510 words; an EXPERIENCE row only if P1 is accepted | Appended |
 | `README.md`, `GUIDE.md`, `Msg/Catalog/Core.cls`, `Test/Core/Routing.cls`, `Test/Web/SettingsApi.cls`, `Data/BackgroundCheck.cls` (Epics 21, 22) | Nothing | — |
 
-### Veto and security items (pending the Planner's ruling; the runner sends them before any implement spawn)
+### Veto and security items (RULED by the Contest Planner, 2026-11-13 ~05:00Z; see Planner rulings above)
 - **S1 (DW-1249): on-call values in a traced message.**
   - Today every settings save carries its values in `SaveSettings.Changes`. Visual Trace's Contents tab shows that to `OcuTalonTraceViewer`, which the online demo's read-only and visitor accounts hold (spine L952-956, L972). So the trace is not admin-only, and V3's "no trace" fails as built.
   - (a) Blank the values in the stored message after the save. This rewrites a persisted message body, and there is still a window when the values are visible.
