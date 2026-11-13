@@ -101,3 +101,5 @@
 2026-11-13T03:50:10Z	Story 25.3	committed	sha=14699ceb submodules= ci=hold(not_pushed;CI_HOLD) runs=none amendments=epics.md:8356,8358,8362,8366,8370(25.3_ACs),epics.md:8433(story_25.6) note=local_only
 2026-11-13T03:50:10Z	Story 25.3	story_cycle	plan_to_commit_min=318 implement_passes=1 reviews=1 rework=0 first_ci=pending(hold) models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=plan_twice(planner_rulings)
 2026-11-13T03:56:34Z	Epic 25	integrated_forward	feature=1fb800c2(1.0.8_released) head=c541f093 conflicts_resolved=sprint-status.yaml(feature_side,regenerated,25.3=done_re-set) slot_a=reloaded(bridge_62,ocutalon_971,compile_ok) merged_tree_tests=iris_10_classes(warm_e25s3mw)+node_2086+payloads_check boundaries=pass
+2026-11-13T06:48:15Z	Story 25.3	ci_resolved	story=25.3 sha=4832dea7 runs=43362271090,43362271172 result=success failed=none via=none resolved_at=part_ready note=pushed_03:56Z_once;missing=none;pool_busy(~52min_to_green)
+2026-11-13T06:48:15Z	Epic 25	part_ready	story=25.3 head=4832dea7 ci=success(43362271090,43362271172) epic_25=in-progress open=25.4,25.5(wait_37.1),25.6(waits_37.1_reply_contract_U-326/DW-1231) burndown_gate=not_run
