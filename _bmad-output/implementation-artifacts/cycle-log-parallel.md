@@ -3880,3 +3880,11 @@
 2026-11-13T04:48:45Z	Run	ruling	question=contended_SettingsOps/settings-page/settings-view(36.4_vs_Epic_21) choice=36.4_implements_after_21.7+21.8+21.12_merge(integrate_forward_first) category=decide policy=5086036
 2026-11-13T04:49:11Z	Epic 36	ci_observed	head=cf2658d8 run=43345196978 result=failure(completed_before_cancel;expected_DW-1245/1246) correction_of=ci_cancelled superseded_by=4467921f
 2026-11-13T04:51:06Z	Epic 36	owner_decision	via=contest_planner what=36.4_gate(S1_b_SecretHandoff;S2;P1_text;order_after_lane_C) extension=24.2_AC_DW-1254(added_to_epics.md);audit_DW-1255_burndown file=prompts/story-362-rulings-20261112.md
+2026-11-13T05:13:26Z	Epic 22	runner_reported	CI_WAIT head=a758d17a(22.9+22.3+22.4,reworks_for_af886ee3_reds) runs=43370177969,43370177998 release_tool=DW-1239_harness_applied(2_deviations_to_Planner)
+2026-11-13T05:13:26Z	Epic 22	runner_resumed	relay=rulings_H
+2026-11-13T05:14:02Z	Epic 22	owner_decision	via=contest_planner what=harness_deviations_accepted+MERGE_CONDITION_live_upgrade-harness_run_before_merge(lane-D_throwaway,v1.0.8->a758d17a) file=prompts/gate-rulings-20261112-1810.md#J relay=runner_22_at_turn_end
+2026-11-13T06:00:51Z	Epic 21	runner_reported	CI_WAIT head=5d5581eb + LOCAL_READY story=21.13 local=d903d0ad review_HIGH_fixed(MayHaveSent_keeps_claim) note=U-327_wording_narrowed(reported_to_Planner)
+2026-11-13T06:00:51Z	Run	ci_observed	runners=18/18_online_busy queue=serial(~1h_per_ci_run) in_progress=OCT-epic36_4467921f,OCT-epic22_a758d17a(lane-a) queued=OCT-epic21,OCT-epic22,OCT-epic0,OCT-epic25,feature
+2026-11-13T06:02:09Z	Run	owner_decision	via=contest_planner what=CI_throughput_rule(green_by_identity;cancel_feature_runs_when_code==green_head) file=prompts/standing-rulings-20261112.md
+2026-11-13T06:02:09Z	Epic 21	owner_decision	via=contest_planner what=21.13_HIGH_fix_kept;U-327_narrowed_stands;PUBLIC_TEXT_may-have-sent_sentence file=prompts/gate-rulings-20261112-1810.md#K
+2026-11-13T06:02:09Z	Run	ci_observed	head=83ea7bc8 identity=none(combines_415ea02d+1fb800c2_code) action=keep_feature_runs
