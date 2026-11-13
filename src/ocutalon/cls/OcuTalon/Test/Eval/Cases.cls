@@ -821,7 +821,7 @@ Method TestMemoryCases()
 	Do $$$AssertEquals(documents.name_"|"_documents.kind_"|"_documents.heldOut, "memory-documents-remember|documents|0", "the documents case is named for its folder and is not held out")
 	Do $$$AssertEquals(documents.turn.%ToJSON(), {"text": "Find the section Clearing the queue in my Results runbook and remember what it says."}.%ToJSON(), "it asks for the section and to remember it")
 	Do $$$AssertEquals(documents.documents.%ToJSON(), [{"name": "Results runbook.md", "file": "../documents-runbook-rotate/results-runbook.md"}].%ToJSON(), "with the Results runbook of the documents-runbook-rotate case")
-	Set expected = {"citations": [{"document": "Results runbook", "section": "Clearing the queue"}], "keyPhrases": [["document"], ["can't save", "cannot save", "couldn't save", "could not save", "didn't save", "did not save", "won't save", "will not save", "not saved", "unable to save", "can't remember", "cannot remember"]], "absentPhrases": (absent), "save": "denied"}
+	Set expected = {"citations": [{"document": "Results runbook", "section": "Clearing the queue"}], "keyPhrases": [["document", "runbook", "file"], ["can't save", "cannot save", "couldn't save", "could not save", "didn't save", "did not save", "won't save", "will not save", "not saved", "unable to save", "can't remember", "cannot remember"]], "absentPhrases": (absent), "save": "denied"}
 	Do $$$AssertEquals(documents.expectation.%ToJSON(), expected.%ToJSON(), "it expects the citation, a reason why, no claim of a save and a denied save")
 	Do $$$AssertEquals(..Keys(documents), "description,documents,expectation,heldOut,kind,name,recordedBy,turn", "it holds the fields of a documents case and nothing else")
 	Set section = ##class(%Stream.FileCharacter).%New()
