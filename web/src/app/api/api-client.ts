@@ -15,6 +15,8 @@ import type {
   DocumentText,
   DocumentsList,
   EventsResponse,
+  FileAccepted,
+  FilePost,
   GuideMarker,
   MailSignInChecked,
   MailSignInStarted,
@@ -134,6 +136,23 @@ export class ApiClient {
       map((response) => {
         if (response.status !== 202 || response.body === null) {
           throw new HttpErrorResponse({ status: response.status, statusText: response.statusText, url: response.url ?? `${BASE}/messages` });
+        }
+        return response.body;
+      }),
+    );
+  }
+
+  /**
+   * Sends one file of the chat: a POST of {clientId, name, content}, the file's bytes in base64 (the session is the caller's, never in the body). Only the
+   * answer 202 is a success; a 400 `bad_file` (with its `reason`), a 409 `not_available`, a 413 and a 500 fail as an HttpErrorResponse whose `error` is the body
+   * (FileRefusal).
+   */
+  sendFile(clientId: string, name: string, content: string): Observable<FileAccepted> {
+    const body: FilePost = { clientId, name, content };
+    return this.http.post<FileAccepted>(`${BASE}/files`, body, { observe: 'response' }).pipe(
+      map((response) => {
+        if (response.status !== 202 || response.body === null) {
+          throw new HttpErrorResponse({ status: response.status, statusText: response.statusText, url: response.url ?? `${BASE}/files` });
         }
         return response.body;
       }),

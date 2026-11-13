@@ -2,11 +2,11 @@
 title: 'Story 25.3: Send a PDF, Word file or photo from the web app or Telegram'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
-baseline_revision: 'acb9c0459fc30bb6adf44f07cee69e5be18013ef'
+status: 'done'
+baseline_revision: 'a1b6eebcbe0edc5db62be70a01235a49af17eb57'
 planned_against: 'feature b8780de6094a8e8186718832d926e1dc721bfc68 (integrated into OCT-epic25)'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-25-context.md'
   - '{project-root}/_bmad/custom/skill-rules.md'
@@ -250,8 +250,38 @@ Line numbers are on `acb9c045` (OCT-epic25, feature `b8780de6` integrated); `38f
 
 - 2026-11-12 (lead, spec gate): the Contest Planner's rulings (`story-253-rulings-20261112.md`) written into the intent contract and Design Notes; status reset to `draft` for a re-plan on this spec path. Rulings: demo OFF (a); split to Story 25.6 approved (inserted into epics.md); veto items approved with four security conditions, each with a test; the gap closed by a `/v1/state` capability flag (true only once 26.2's read path is merged) plus a fixed no-model reply; PUBLIC TEXT rows 1-9 approved verbatim, plus the fixed reply; rows 11-13 go with 25.6/26.2. Decided 6, 10 and 11 and For the Planner 8 are superseded where they differ.
 - 2026-11-12 (plan, re-plan, cycle iteration 2): everything outside the intent contract re-derived to the rulings. Added: the untrusted marking through Lane B only (WebChatIn, `Conversation.Untrusted`/`ItemOf`; the existing gate rule does the rest), the no-reader branch in `Begin`, `Core.Files.Readable`/`NoReaderText`/`SafeName`/`Describe`, `filesReadable` in `/v1/state`, `Web.Files`' 404 for every other method, the byte-only Word check, the hygiene and no-read-back tests, the page's `fileControls`, AC 5 and AC 8-11. Dropped: Task 0's `Agent.Input.Render` measurement (no model call now), the e2e Tab-walk and locator edits and the `live floor` run (the paperclip is hidden on every real state; For Story 26.2). KEEP: the approved route-test list, the demo OFF pins, the mock design, the Upload-shape table.
+- 2026-11-12 (implement, Task 0, slot A `ocutalon-slot-a`, build 154, namespace `OCUTALON`, read-only): `$Parameter("OcuTalon.Agent.Input", "READSFILES")` returns `""` with no error for the parameter the class does not define, and `##class(%Dictionary.CompiledParameter).%ExistsId("OcuTalon.Agent.Input||READSFILES")` is 0; `Readable` still wraps the `$Parameter` call in a Try (a class that does not exist throws). `Data.SentFile` and the columns `Ref`, `SessionRef`, `Channel`, `Name`, `MediaType`, `Size`, `Content`, `CreatedAt` compiled on build 154 with no SQL reserved word to rename, and the `sentFile` statement prepared (Test.Data.SentFile passes). `lint_spine.py` baseline: `ok` false with 10 low `placeholder` findings (lines 496, 1067, 1140, 1153 and others); after the SPINE ROWS the findings are the same 10, none new. No `.memlog.md` exists (25.2): none was created.
 
 ## Review Triage Log
+
+### 2026-11-12 - Review pass
+- verdicts: 25 findings - high 0, medium 2, low 23, false 0, maybe-false 0; routes: patch 6, reject 19, defer 0, intent_gap 0, bad_spec 0. A row may stand for the same defect reported by several layers.
+- findings:
+  - `[low]` `[reject]` Allowance refusal answered as 500 `server_error` instead of 429 `allowance` (Blind, Edge x2, Verification Gap) - real in the code, but the allowance is a no-op off the online demo and the route is 409 there, so it is unreachable; the spec's step 7 says a failure is 500; the fix adds a branch and an error body.
+  - `[low]` `[reject]` A file Item dropped by `Conversation` (duplicate, session ended, purged) leaves its stored bytes until sign-out or the age purge (Edge) - the duplicate case is dropped by `Web.Files`; the others are races of the same kind as an Upload nobody takes; the age purge bounds it.
+  - `[low]` `[reject]` A late error after `WebChatIn` queued the Item deletes the row and `Take` then drops the Item (Edge) - `Accept` has no error path after `Send` that was shown to be reachable.
+  - `[low]` `[reject]` `Purge(0)` deletes every file (Edge) - spec-bound (`daysToKeep` days, boundary pinned by `Test.Data.SentFile` `TestPurgeBoundary`); the standard purge never passes 0.
+  - `[low]` `[reject]` `HasEntry` accepts any `PK 03 04` zip holding the text `word/document.xml` anywhere (Edge, Blind) - spec-bound (Decided 20: the entry name in the bytes); Story 26.2 reads the text through `Docs.Extract`, which parses the zip, so a non-Word zip fails there with a read failure.
+  - `[low]` `[reject]` With several files only the last refusal stays on screen, and a refusal stays until the next pick (Edge, Blind) - the Announcer speaks each one; the spec asks for one refusal line above the composer and plans no dismiss control.
+  - `[low]` `[reject]` The page's pre-check does not test the name's length or control characters (Edge, Blind) - spec-bound: `checkFile` is size, empty and extension only (Tasks); the server answers 400 `bad_file` and the page shows "File not sent".
+  - `[low]` `[reject]` No in-progress indicator while a file is encoded and posted (Blind) - nothing in the spec or PUBLIC TEXT plans one, and no unsourced text may be added.
+  - `[low]` `[reject]` `Store` writes a row for a `sessionRef` with no Session row (Edge) - the web route takes the ref from the CSP session; the Telegram caller (26.2) owns the ref, and `Conversation` drops the Item of an unknown session.
+  - `[low]` `[reject]` No cap on stored files per session, and `Store` runs before the duplicate check (Blind) - the same exposure as `POST /v1/documents` for an authenticated local user, bounded by the age purge; the spec plans no quota.
+  - `[low]` `[reject]` `Conversation.Take` quits silently when `Describe` finds no row (Blind) - a purge race right after `Untrusted` found the row.
+  - `[low]` `[reject]` `role="status"` is not on the refusal paragraph (Edge claim) - Decided 28: `announce-focus-sources.test.mjs` forbids a live role in the page; the Announcer speaks the refusal, which is the observable the AC asks for (announced).
+  - `[low]` `[reject]` `Web.Files.Send`'s own 413 branch is unreachable through the real dispatch (Verification Gap) - defence in depth behind `OnPreDispatch`, pinned by `TestBodyBound`; the message differs, the status does not.
+  - `[low]` `[reject]` `ConversationFiles.TestMarkerReachesNothing` has no positive control (Verification Gap) - `api/files.spec.ts` (iv) has the control (the file's ref is found by `TraceHits`); the class test pins that the Conversation path adds nothing.
+  - `[low]` `[reject]` Source-text node tests do not run code (Verification Gap, note) - they pin the docs rows and the route list (AC 12 and AC 9's source half); runtime pins carry the rest.
+  - `[low]` `[reject]` Five tests assert the flag is false and will fail at Story 26.2 (Verification Gap, note) - intended tripwires, listed under For Story 26.2; the same reason covers a `StateBody` check with a stand-in reader.
+  - `[low]` `[reject]` Intent alignment: Telegram is a seam (store call, mock) and the paperclip is hidden on every real state - the Planner's rulings 2 and 4; a description, not a defect.
+  - `[low]` `[reject]` The spec's `Auto Run Result` still read ready-for-dev (Blind) - rewritten at finalize.
+  - `[low]` `[reject]` The mock's `registerFile` has no body-size bound (Blind) - a CI-only control route on a loopback fixture; no large fixture is registered.
+  - `[medium]` `[patch]` The Web area's purge calling `SentFile.Purge` was pinned by no test (Verification Gap) - added `Test.Web.Install` `TestPurgeSentFiles`; mutation: the `Purge` call removed from `Install.Step.Web.Purge` -> red.
+  - `[medium]` `[patch]` `ChatFiles.textOf` (400 with reason and size, 413, 409, other) had no test host (Verification Gap) - added the `a refusal from the server shows its sentence` case to `web/e2e/files/files.spec.ts` with route stubs; mutation: the 413 branch removed -> red.
+  - `[low]` `[patch]` `HasEntry`'s chunk and carry logic was never run (Verification Gap, proposed defer) - added `Test.Core.Files` `TestWordEntryAfterFirstChunk` (entry after 31,925 and 70,000 bytes, a large zip with no entry); mutation: the loop stops after one chunk -> red.
+  - `[low]` `[patch]` `READERCLASS` could name a class that does not exist and keep `filesReadable` false after 26.2 (Verification Gap) - `TestNoReaderYet` asserts the class exists; mutation: `READERCLASS` set to `OcuTalon.Agent.Inputs` -> red.
+  - `[low]` `[patch]` The AC 10 mutation was not credible: `TestSetItem` built its Items with no `SessionRef`, so a mutant reading the bytes through `Open(file.ref, item.SessionRef)` wrote nothing (Verification Gap) - both Items now carry the session; mutation: `SetItem` also writing the first 200 bytes into `Subject` through `Open` -> `TestSetItem` red.
+  - `[low]` `[patch]` A comment in `ci/mock/mock.mjs` stood above the wrong constants (Blind) - moved above `FILE_PATH`; the mock node tests pass.
 
 ## Design Notes
 
@@ -327,6 +357,21 @@ Line numbers are on `acb9c045` (OCT-epic25, feature `b8780de6` integrated); `38f
 20. Word is `PK\x03\x04` plus the entry name `word/document.xml` in the bytes plus a `.docx` name, so the bytes decide (ruling 3 (iii)) and a renamed zip is `wrong_type`.
 21. The hygiene scan reuses `KeyProof.TraceHits` with a positive control (the file's ref is found), reads `Ens_Util.Log` after a mark by SQL, and the mock log through `LogSince`. The console log is not scanned (no file code writes to it; a 500 writes only a status).
 22. The Tab walks and composer locators are unchanged in this story (the paperclip is not rendered on any real state); their update is 26.2's (For Story 26.2, 4). `live floor` is therefore not in Verification.
+
+22 (continued, implement stage; Rule 2 copies and small decisions):
+23. `Core.Files` (`FILEMAX`) and `Web.Files` (`BODYMAX`) read `Web.Documents`' constants by expression, which the class compiler evaluates at compile time, so both carry `[ DependsOn = OcuTalon.Web.Documents ]`. Without it the package load of the image (a compile in the order of the file system) failed with `<CLASS DOES NOT EXIST> ... Core.Files.G1 *OcuTalon.Web.Documents` and the warm stack never became healthy.
+24. A wrong verb is answered by the class that is dispatched first, not by the class a Map forwards to, so `Web.Files`' `Http405` override alone never runs behind `Web.Api`. `Web.Api` gets its own `Http405` that answers 404 `not_found` (no `Allow` header) for a path that is `/v1/files` or below it and keeps the 405 `method_not_allowed` elsewhere; `Web.Files` keeps its override too (the spec's design), so a dispatch of the class itself is 404 as well. Pinned by `FilesApi` `TestDispatch` and `api/files.spec.ts` (ii).
+25. WebChatIn reports whether it queued the Item through its existing JSON output (`accepted`, `duplicate`) and not through a new output: `Web.Files` reads `duplicate`. A duplicate answers 202 `{"clientId"}` with no `file` (the stored row of the repeat is dropped, so its Ref would name nothing).
+26. `Core.Files.SizeText` delegates to `OcuTalon.Docs.Extract.SizeText` (a call of Lane A's public class method, not a copy); the test still pins the two equal.
+27. `Web.Documents.ParseBody` gets an optional fourth output `body` (the parsed object, "" when the answer is 0) so that `Web.Files` reads `clientId` without parsing a 14 MB body twice; its behaviour is otherwise unchanged.
+28. The refusal paragraph above the composer has no `role="status"`: `announce-focus-sources.test.mjs` forbids any element with a live role (the page has one live region, the Announcer), and the refusal is announced through the Announcer as the spec asks. The test's list of speakers gains `chat/chat-files.ts`. Intent gap, small: the spec's `role="status"` conflicts with that standing ratchet; the Announcer carries the announcement.
+29. The drag-and-drop ratchet of `floor-sources.test.mjs` compares an exact list: after the extraction `documents-page.ts` no longer names `dataTransfer` or a drag event, so the list names `shared/file-drop.ts` instead of `documents-page.ts` (the reason text is kept in spirit). `FileDrop.active` is a `model()` so that `ChatPanel` can use the directive as a host directive (the `app-chat-panel > .list` locators of `chat.spec.ts` rule out a wrapper element), and the outline is `:host(.dragging)`.
+30. `files-view.ts` imports `formatSize` with a `.ts` extension (Node runs the module as it is), so `web/tsconfig.json` sets `rewriteRelativeImportExtensions`.
+31. `Core.Files.Store` checks the extension on the cleaned name before the cut to 255 characters, so a long name that ends in `.pdf` is not refused for losing it; the stored and returned name is the cut one.
+32. `Data.SentFile.Drop` is owner-scoped through `Core.Files.Describe` and then deletes by `RefIndexExists`, so `Core.Files` stays the only caller of `Ownership.SentFile`; `Core.Files.Discard(ref, sessionRef)` is the call `Web.Files` uses.
+33. The e2e list (ii) keeps the documents route's own 405 for the verbs it does not serve on `/v1/documents/<ref>` (PUT, PATCH, POST); GET and DELETE there are 404. The spec's "every method ... on /v1/documents/<ref> answers 404" cannot hold for a route that has other verbs; no byte of the file is in any answer.
+34. A file turn that ends in the no-reader reply has no TurnDecisionRef, so it is not the session's "last replied turn" and does not taint the next turn (`Ownership` `lastReplied` needs a TurnDecisionRef); `ConversationFiles` therefore does not assert it.
+35. New test seams and fixtures: `Test.Core.FilesReaderProbe{,Absent,Zero,Spaced}`, `Fixture.SentFile`, `Test.Web.FilesProbe`, the `Reader()` override of `ConversationProbe`, `DropSentFiles` on `SessionOpsDropProbe`; the shared pins `Test.Data.Tables` (Turn `SentFile`), `Test.Live.Payloads` (36 classes, `SentFile` part and `ChatMessage.sentFile`) and `web/scripts/payloads.test.mjs` follow the new property.
 
 ### Planner rulings (2026-11-12, Contest Planner under the owner's delegation; binding)
 
@@ -459,9 +504,43 @@ No More to try item, README or GUIDE count changes. Standing criterion: every te
 - AC 11: the no-reader branch removed from `Begin` -> `ConversationFiles` `TestNoReaderReply` red (a Decide call is recorded).
 - AC 12: the REST row deleted -> `files-docs.test.mjs` red.
 
+**Mutations observed (implement stage, warm throwaway `e25s3iw` for the classes, node for the scripts; each applied, observed red, reverted; `cmp` against the backup was identical every time):**
+- AC 1: `Core.Files.SetItem` without `item.FileRef = file.ref` -> `Test.Core.ConversationFiles` red (`TestFileItemBecomesTurn`: no Turn, `TestFileItemDrops`, `TestMarkerReachesNothing`). Class level only: the chip case of `files.spec.ts` was not run against the mutant.
+- AC 2: `Store` passing `"web"` instead of `channel` -> `Test.Core.Files` `TestTelegramChannel` red and `Test.Core.ConversationFiles` `TestFileItemBecomesTurn` red (telegram: the stored row has the channel of the file).
+- AC 3: the download served `Buffer.from(bytes.toString('base64'))` -> `telegram.test.mjs` red (the download test and the replace test).
+- AC 4: the size check removed from `checkFile` -> `files-view.test.mjs` red (`checkFile`). Class level only: the 14 MB case of `files.spec.ts` was not run against the mutant.
+- AC 5: `Store` reading the type from the name's extension instead of the bytes -> `Test.Core.Files` (`TestWrongType`) red and `Test.Web.FilesApi` (`TestRefused`: `x.png` with PDF bytes is 400) red. Class level only for `files.spec.ts`.
+- AC 6: `If ..OnlineDemo()` replaced by `If 0` in `Send` -> `Test.Web.FilesApi` `TestOnlineDemo` red.
+- AC 7: the `sentFile` kind's `f.SessionRef = ?` made `(f.SessionRef = ? OR 1 = 1)` -> `Test.Data.SentFile` red (`TestOwnerScoped` and `TestDropSession`). Class level only for `api/files.spec.ts` (3).
+- AC 8: `ItemOf` giving provenance `user` -> `Test.Core.ConversationFiles` `TestReaderTurnIsUntrusted` red (both requests' provenance, the rebuilt Item, the request built from it).
+- AC 9: a `<Route Url="/:ref" Method="GET" Call="Send"/>` added to `Web.Files` -> `Test.Web.FilesApi` `TestDispatch` red and `files-sources.test.mjs` red. Class level only for `api/files.spec.ts` (ii).
+- AC 10: `SetItem` also writing the first 200 bytes of the file (read through `Open(file.ref, item.SessionRef)`) into `Subject` -> `Test.Core.Files` `TestSetItem` red (the marker is in no property of the Item; its Items now carry the session). Class level only for `api/files.spec.ts` (iv).
+- AC 11: the no-reader branch of `Begin` replaced by `If 0` -> `Test.Core.ConversationFiles` `TestNoReaderReply` red (the Turn is not done with the fixed reply; a Decide call is recorded).
+- AC 12: the `POST /api/v1/files` REST row deleted -> `files-docs.test.mjs` red.
+
+**Run evidence (implement stage):** every class of the (loop) list passed on the warm throwaway; `ci/mock` node tests (130), the web scripts named in the list (213), `payloads.mjs --check`, `npm --prefix web test` (1956) and `npm --prefix web run lint` pass; `docker/tests/test-boundaries.sh`, `test-storage.sh`, `test-class-rules.sh` and `test-ci-config.sh` pass; `live sign-in` parts 1, 2, 6, 13, 14 and 15 of 24 pass (`api/api.spec.ts`; `api/files.spec.ts` with `body-limit.spec.ts`; `chat/chat.spec.ts`; `documents/documents.spec.ts`; `files/files.spec.ts` with `documents/sample.spec.ts`; `frame/frame.spec.ts`). `live demo-path`, `test-mock.sh`, `npm run build` as its own call and `ci/checks.sh` were left to the spawning agent.
+
+**Mutations observed (review pass; warm throwaway `e25s3iw`, web bundle rebuilt for the page one; each applied, observed red, reverted, `cmp` against the backup identical):**
+- Web area purge (AC 7, AD-27): the `SentFile.Purge` call removed from `Install.Step.Web.Purge` -> `Test.Web.Install` `TestPurgeSentFiles` red.
+- Word check (AC 5): `HasEntry` stopping after the first 32,000-byte chunk -> `Test.Core.Files` `TestWordEntryAfterFirstChunk` red.
+- Capability probe (AC 11): `READERCLASS` set to `OcuTalon.Agent.Inputs` -> `Test.Core.Files` `TestNoReaderYet` red.
+- Page refusals (AC 4): the 413 branch removed from `ChatFiles.textOf` -> `web/e2e/files/files.spec.ts` `a refusal from the server shows its sentence` red (live sign-in part 14/24).
+
+**Run evidence (review pass, after the patches):** every class of the (loop) list passed again on the warm throwaway, with `Test.Web.Install` and `Test.Core.Files`; the mock tests (166, the whole `ci/mock/test` folder), the web scripts (213) and `payloads.mjs --check` pass; `live sign-in` parts 1, 2, 6, 13, 14 and 15 of 24 pass; the `(once)` lines pass: `live demo-path` (8 of 8 steps, floor 15 of 15), `npm --prefix web test` (1956), `npm --prefix web run lint`, `npm --prefix web run build` (one existing budget warning, `approval-request-card.ts`), `bash docker/tests/test-mock.sh` and every script of `CHECK_SCRIPTS` (the whole `ci/checks.sh` timed out at 590 s on its first call after `readme` had passed, so the scripts after it ran one by one and each passed; eval-set 249 s and release-sequence 222 s were the long ones). `lint_spine.py` shows the baseline's 10 low `placeholder` findings and nothing new.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Re-planned (cycle iteration 2) to the Planner's 2026-11-12 rulings, with the intent contract kept verbatim. Each ruling has its ACs, tasks, tests and mutation lines; the capability-flag probe and what Story 26.2 must provide are under Design Notes → For Story 26.2. No new public text beyond rows 1-9 and 14, no new veto item, no new contended overlap. Nothing was implemented, committed or pushed.
+**Summary.** Story 25.3 is implemented on Lane B: `Data.SentFile`, `Core.Files` (store with the byte-signature checks, owner-scoped `Open` and `Describe`, `SetItem`, `RefusalText`, `Readable`, `NoReaderText`), `Web.Files` (`POST /api/v1/files`, 404 for everything else, 409 on the online demo), four file fields on `Msg.Item` and `Post`, `Turn.SentFile`, `chat.message` `sentFile`, the `/v1/state` flag `filesReadable` (false on this branch), the untrusted marking through `WebChatIn` and `Conversation`, the fixed no-reader reply with no model call, the session-end and purge drops, the CI mock's `getFile` and download path, the paperclip, the chat drop and the chip, and the SPINE ROWS. No Lane A, Bridge or contended class was edited beyond what the spec plans.
+
+**Files changed** (about 68, the spec and the spine included): backend `Core/Files.cls`, `Web/Files.cls`, `Data/SentFile.cls`, `Live/Payload/Part/SentFile.cls` (new) and edits to `Core/Conversation.cls`, `Core/SessionOps.cls`, `Channel/WebChat/In.cls` and `Post.cls`, `Data/Ownership.cls`, `Data/Turn.cls`, `Install/Step/Web.cls`, `Live/Payload/ChatMessage.cls`, `Msg/Item.cls`, `Web/Api.cls`, `Web/Documents.cls` and `src/short-names.tsv`; the mock (`ci/mock/mock.mjs`, `scenarios.mjs` and their tests); the page (`chat/chat-files.ts`, `file-chip.ts`, `files-view.ts`, `shared/file-drop.ts`, `file-encode.ts`, the composer, the chat panel, the Documents page's extraction, `api-client.ts`, `api-types.ts`, `payloads.ts`); the tests (`Test.Core.Files`, `ConversationFiles`, `Test.Data.SentFile`, `Test.Web.FilesApi`, `Test.Web.Install`, the shared pins, node scripts, two e2e specs); and the spine's rows.
+
+**Review.** Four layers reported; the Review Triage Log holds 25 rows: 0 high, 2 medium (both patched), 23 low (4 patched, 19 rejected with their reasons). Patches: `TestPurgeSentFiles` (the purge call was unpinned), the page's server-refusal cases, `TestWordEntryAfterFirstChunk`, the reader-class assertion, the session on `TestSetItem`'s Items (the AC 10 mutation now holds), and a misplaced mock comment. Deferred: none.
+
+**Follow-up review recommended: true.** Two medium findings were patched. The unverified risk: the e2e halves of AC 1, 4, 5, 7, 9 and 10 were proven red at class level only, never against a mutant of the page or the route.
+
+**Task 0 and decisions.** Recorded in the Spec Change Log and Design Notes (Decided in-stage 23-35): `$Parameter` on a missing parameter returns an empty string with no error, `Data.SentFile` prepared on build 154, and the `lint_spine.py` baseline is 10 low findings. Two spec items could not hold as written and are recorded as decided: `role="status"` on the refusal paragraph (the existing live-role ratchet forbids it; the Announcer speaks it) and "every method answers 404" on `/v1/documents/<ref>` (its PUT, PATCH and POST keep the existing 405).
+
+**Residual risks.** The paperclip and the chat drop are hidden on every real state until Story 26.2 adds `READSFILES`; Story 26.2 flips five "false on this branch" tripwires and adds the paperclip to the Tab walks (Design Notes, For Story 26.2).

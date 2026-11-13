@@ -175,7 +175,11 @@ XData Contracts [ MimeType = application/json ]
    "FromGuide": "%Boolean",
    "CatalogKey": "%String(MAXLEN=128)",
    "Slots": "%String(MAXLEN=)",
-   "ClientId": "%String(MAXLEN=128)"
+   "ClientId": "%String(MAXLEN=128)",
+   "FileRef": "%String(MAXLEN=22)",
+   "FileName": "%String(MAXLEN=255)",
+   "FileMediaType": "%String(MAXLEN=128)",
+   "FileSize": "%Integer"
   }
  },
  "OcuTalon.Msg.ItemDecision": {

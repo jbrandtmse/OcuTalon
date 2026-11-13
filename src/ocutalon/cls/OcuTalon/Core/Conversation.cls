@@ -4,6 +4,12 @@
 ///   - Item: dropped, with a warning, when it is not user provenance or has no ItemId, no text or no Session row (NFR-14), and
 ///     dropped silently when its ItemId or its ClientId already has a turn of the session. Otherwise it is saved as a queued
 ///     Turn, chat.message is published, and the session's next turn starts;
+///   - an Item that carries a file (FileRef, Story 25.3; Core.Files) is the one exception to the user-provenance rule: it is taken only with provenance
+///     untrusted, only when its FileRef is a file of the Item's own session (Core.Files.Describe), and it may have no text; every other drop stands.
+///     The Turn keeps the file as SentFile, {ref, name, mediaType, size} from the stored row and never from the Item, which marks the turn untrusted:
+///     ItemOf rebuilds the Item with provenance untrusted and the file fields, so that every decide and turn request of the Turn carries provenance
+///     untrusted, in which the gate lets only safe read-only tools run (AD-10, AD-14). When nothing reads a sent file (Reader, Core.Files.Readable),
+///     Begin concludes the turn with the fixed reply Core.Files.NoReaderText and sends neither request, so no model is called and no Decision is made;
 ///   - Core.Msg.RunTurns with a SessionRef starts that session's next turn; with an empty SessionRef (the sweep) it puts every
 ///     running turn back in its queue and sends itself one RunTurns for each session that has queued turns;
 ///   - starting a turn: under the session's queue lock, when no turn of the session is running, the head of the queue becomes
@@ -146,6 +152,10 @@ Parameter DROPNOTEXT = "it has no text";
 
 Parameter DROPNOSESSION = "it has no session";
 
+Parameter DROPFILEPROVENANCE = "its file is not marked untrusted";
+
+Parameter DROPNOFILE = "its file is not one of the session's files";
+
 /// The Ref of the Turn this instance runs.
 Property TurnRef As %String(MAXLEN = 22);
 
@@ -216,6 +226,12 @@ Method Take(item As OcuTalon.Msg.Item) As %Status [ Private ]
 	Set turn.ItemId = item.ItemId
 	Set turn.ClientId = item.ClientId
 	Set turn.Text = item.Text
+	If item.FileRef '= "" {
+		Set file = ##class(OcuTalon.Core.Files).Describe(item.FileRef, item.SessionRef, .sc)
+		If $$$ISERR(sc) Quit sc
+		If '$IsObject(file) Quit $$$OK
+		Set turn.SentFile = file.%ToJSON()
+	}
 	Set turn.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	If $IsObject(..%PrimaryRequestHeader) {
 		Set turn.TraceHeaderId = ..%PrimaryRequestHeader.%Id()
@@ -240,13 +256,26 @@ Method Locate(turn As OcuTalon.Data.Turn) [ Private ]
 	Set turn.TraceItemIndexNoEvents = withoutEvents
 }
 
-/// Why the Item is not taken, "" when it is: untrusted provenance, no ItemId, no text or no Session row.
+/// Why the Item is not taken, "" when it is: untrusted provenance, no ItemId, no text or no Session row. An Item that carries a file is the one exception:
+/// it needs provenance untrusted and a file of its own session, and may have no text.
 Method Untrusted(item As OcuTalon.Msg.Item) As %String [ Private ]
 {
+	If item.FileRef '= "" Quit ..UntrustedFile(item)
 	If item.Provenance '= "user" Quit $Replace(..#DROPPROVENANCE, "{provenance}", item.Provenance)
 	If item.ItemId = "" Quit ..#DROPNOITEMID
 	If $ZStrip(item.Text, "<>WC") = "" Quit ..#DROPNOTEXT
 	If (item.SessionRef = "") || '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(item.SessionRef)) Quit ..#DROPNOSESSION
+	Quit ""
+}
+
+/// Why an Item that carries a file is not taken, "" when it is: provenance other than untrusted, no ItemId, no Session row, or a FileRef that is not a
+/// file of the Item's session. No text is needed, and the reason names no file.
+Method UntrustedFile(item As OcuTalon.Msg.Item) As %String [ Private ]
+{
+	If item.Provenance '= "untrusted" Quit ..#DROPFILEPROVENANCE
+	If item.ItemId = "" Quit ..#DROPNOITEMID
+	If (item.SessionRef = "") || '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(item.SessionRef)) Quit ..#DROPNOSESSION
+	If '$IsObject(##class(OcuTalon.Core.Files).Describe(item.FileRef, item.SessionRef)) Quit ..#DROPNOFILE
 	Quit ""
 }
 
@@ -357,11 +386,15 @@ Method Begin(turn As OcuTalon.Data.Turn) As %Status [ Private ]
 	Set sc = $$$OK
 	Try {
 		Do ..Join(turn)
-		Set sc = ..Send(..#DECIDE, ..Request(turn, "decide"), 1, "decide")
-		If $$$ISERR(sc) {
-			$$$LOGSTATUS(sc)
-			Set ..CallError = sc
-			Set sc = ..Decided("")
+		If (turn.SentFile '= "") && '..Reader() {
+			Set sc = ..Conclude(turn, ##class(OcuTalon.Core.Files).NoReaderText(##class(%DynamicAbstractObject).%FromJSON(turn.SentFile).name), "")
+		} Else {
+			Set sc = ..Send(..#DECIDE, ..Request(turn, "decide"), 1, "decide")
+			If $$$ISERR(sc) {
+				$$$LOGSTATUS(sc)
+				Set ..CallError = sc
+				Set sc = ..Decided("")
+			}
 		}
 	} Catch exception {
 		$$$LOGERROR(exception.DisplayString())
@@ -396,10 +429,11 @@ ClassMethod ItemOf(turn As OcuTalon.Data.Turn) As OcuTalon.Msg.Item [ Private ]
 	Set item.ItemId = turn.ItemId
 	Set item.SessionRef = turn.SessionRef
 	Set item.Channel = turn.Channel
-	Set item.Provenance = "user"
+	Set item.Provenance = $Select(turn.SentFile '= "": "untrusted", 1: "user")
 	Set item.Text = turn.Text
 	Set item.FromGuide = turn.FromGuide
 	Set item.ClientId = turn.ClientId
+	If turn.SentFile '= "" Do ##class(OcuTalon.Core.Files).SetItem(item, ##class(%DynamicAbstractObject).%FromJSON(turn.SentFile))
 	Quit item
 }
 
@@ -498,6 +532,13 @@ ClassMethod StartsSession(turn As OcuTalon.Data.Turn, fresh As %Boolean) As %Boo
 		Quit 1
 	}
 	Quit $IsObject(last) && last.SessionRotated
+}
+
+/// 1 when something reads a sent file (Core.Files.Readable): a file turn runs through Decide; without a reader it is answered with a fixed reply and no model
+/// request. A seam for the tests.
+Method Reader() As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Files).Readable()
 }
 
 /// 1 when the decision has a usage row of the session (Ownership.DecisionServed): the turn's request reached a model; sc is the status of the read. A seam for the tests.

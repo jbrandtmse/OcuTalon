@@ -131,7 +131,7 @@ ClassMethod OnlineDemo() As %Boolean [ Private ]
 
 /// The live events older than 24 hours are deleted, whatever daysToKeep is (AD-27), and no stream's counter is
 /// touched; then the address counter's rows older than one hour are deleted, whatever daysToKeep is (AddressCounter.Purge), and
-/// so are the uploads that nobody took and that are more than one hour old (Upload.Purge; the documents routes run it too). The webhook counters' purge (Webhook.PurgeCounters, Story 35.3) writes the rejection counts that are still pending and deletes the accepted-event windows older than two hours.
+/// so are the uploads that nobody took and that are more than one hour old (Upload.Purge; the documents routes run it too), and the sent files (Story 25.3) older than daysToKeep days (SentFile.Purge). The webhook counters' purge (Webhook.PurgeCounters, Story 35.3) writes the rejection counts that are still pending and deletes the accepted-event windows older than two hours.
 /// This is Lane B's retention, declared in the Web area, which the purge task calls (Story 30.2). The result is the first
 /// error, and every purge runs after a failed one too.
 ClassMethod Purge(daysToKeep As %Integer) As %Status
@@ -139,10 +139,12 @@ ClassMethod Purge(daysToKeep As %Integer) As %Status
 	Set sc = ##class(OcuTalon.Live.Event).Purge(daysToKeep)
 	Set counter = ##class(OcuTalon.Data.AddressCounter).Purge(daysToKeep)
 	Set uploads = ##class(OcuTalon.Data.Upload).Purge(daysToKeep)
+	Set files = ##class(OcuTalon.Data.SentFile).Purge(daysToKeep)
 	Set webhooks = ##class(OcuTalon.Data.Webhook).PurgeCounters()
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	If $SYSTEM.Status.IsError(counter) Quit counter
 	If $SYSTEM.Status.IsError(uploads) Quit uploads
+	If $SYSTEM.Status.IsError(files) Quit files
 	Quit webhooks
 }
 

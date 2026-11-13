@@ -36,6 +36,17 @@ const method = (source, name) => {
 const client = file('api/api-client.ts');
 const types = file('api/api-types.ts');
 
+describe('sendFile (Story 25.3)', () => {
+  it('is a POST of {clientId, name, content} to /files that is a success only for a 202, and names no session', () => {
+    const code = method(client, 'sendFile');
+    assert.match(code, /^const body: FilePost = \{ clientId, name, content \};/, 'the body is exactly the three fields');
+    assert.match(code, /return this\.http\.post<FileAccepted>\(`\$\{BASE\}\/files`, body, \{ observe: 'response' \}\)/, 'to the files route, observing the response');
+    assert.match(code, /response\.status !== 202/, 'and only a 202 is a success');
+    assert.doesNotMatch(code, /sessionRef|headers|X-OcuTalon|Content-Type/i, 'the interceptor adds the envelope');
+    assert.match(types.code, /export interface FilePost \{\n  clientId: string;\n  name: string;\n  content: string;\n\}/, 'and FilePost has no other field');
+  });
+});
+
 describe('the three methods', () => {
   it('pairingCode() is a POST of {} to /pairing/code that answers the PairingCode', () => {
     assert.equal(method(client, 'pairingCode'), 'return this.http.post<PairingCode>(`${BASE}/pairing/code`, {});');
