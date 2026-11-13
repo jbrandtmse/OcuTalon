@@ -7366,3 +7366,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: TestPurgeFirstError fails both purges with day count 0; TestPurgeTriesBoth fails only the history side; pinning needs an old closed incident whose delete fails
 - 2026-11-12T23:28:28Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=cr note=reopen_if=a purge run whose IncidentManager.Purge returns an error leaves SettingSnapshot or SettingChange rows older than daysToKeep
+
+### DW-1238: Reader.Current's evidence read takes the first item of a name whatever its Enabled, so with same-name items it can describe the disabled copy
+- source: spec-36-1-record-the-setting-history-of-each-watched-production.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Reader.Current evidence block: first name match then Quit; pre-existing (Epic 23 evidence path); 36.1's settings block now picks the first enabled item
+- 2026-11-13T00:21:26Z status=wontfix-accepted owner=36-1-record-the-setting-history-of-each-watched-production by=harvest note=reopen_if=an incident's evidence pack or notice names a disabled same-name item's queue, errors or settings (probe: a production with a disabled copy listed before the enabled item, then a failure on the enabled one)
