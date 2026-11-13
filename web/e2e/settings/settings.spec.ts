@@ -75,7 +75,7 @@ test('S1: an admin sees Chat and Settings in the header, and Settings opens the 
     if (request.method() === 'GET' && new URL(request.url()).pathname === SETTINGS) loads += 1;
   });
   await nav.getByRole('link', { name: 'Settings', exact: true }).click();
-  expect(new URL(page.url()).hash, 'at the address #/settings').toBe('#/settings');
+  await expect(page, 'at the address #/settings').toHaveURL(/#\/settings$/);
   await expect(nav.getByRole('link', { name: 'Settings', exact: true }), 'Settings is now the current page').toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('link', { name: 'Chat', exact: true })).not.toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { level: 1 }), 'one h1').toHaveText('Settings');

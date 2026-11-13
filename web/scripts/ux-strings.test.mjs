@@ -74,6 +74,7 @@ const IMPORTED = [
   ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS', 'ANSWER_WORDS']],
   ['usage/usage-view.ts', ['USAGE_TEXTS']],
   ['history/history-view.ts', ['HISTORY_TEXTS']],
+  ['shared/page-shell-view.ts', ['SHELL_TEXTS']],
 ];
 const modules = {};
 const imported = [];

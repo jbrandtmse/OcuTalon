@@ -2,7 +2,8 @@
 title: 'Story 36.5: Epic 36 burn-down: load the Settings, History and Usage pages lazily'
 type: 'refactor'
 created: '2026-11-13'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'c9ca6544ce3ea4999f32868c7a628118857139f7'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -84,7 +85,27 @@ deferred:
 
 ## Spec Change Log
 
+- 2026-11-13, implement stage: two existing e2e reads, `settings.spec.ts` S1 and `usage.spec.ts` U1, read `page.url()` right after the header-link click. A lazy route commits the hash only after its chunk loads, so both read `#/` (red). Decided in-stage (small, test-only): each read became the web-first `await expect(page, ...).toHaveURL(/#\/settings$/)` and `/#\/usage$/` (same expected address, now retried; the form `more-to-try.spec.ts` and S6 already use). AC3's "no assertion changed" holds for every other assertion; the app behaviour (the address ends at the page) is unchanged.
+
 ## Review Triage Log
+
+### 2026-11-13 - Review pass
+- verdicts: 24 findings (rows group members that share a root cause) - high 0, medium 0, low 17, false 7, maybe-false 0
+- findings:
+  - `[low]` `patch` BH7 doc drift: app.config.ts comment said the shell imports nothing else from settings/ "(but the guard)" while the dialog is also eager -- patched to "(but the guard and its dialog)"; the current-page.ts doc claim is not wrong (it lists the pages, not the module) -- not changed.
+  - `[low]` `reject` BH1/EC1 no handler for a lazy chunk that fails after an upgrade -- Design Notes: FileCopy adds and never deletes in the live folder, so an open tab finds its own chunks; a handler would change behaviour.
+  - `[false]` `reject` BH2/EC7 the env prefix is POSIX-only and works around STALEFILES -- the repo's scripts are bash, and widening STALEFILES is a server change the spec rules out (recorded under `deferred:`).
+  - `[low]` `reject` BH3/VG1 test (c) pins source text, not built names, and AC4's mutation names (c) not live:bundle-folder -- the spec names (c) as AC4's pinning test and its mutation was run; AC1 asserts the built names and live:bundle-folder ran green; negligible.
+  - `[low]` `reject` BH4/VG2 nothing locks the size win -- the unchanged 1MB `maximumError` fails the build on regrowth and (a)/(b) pin the graph; a tighter budget is an angular.json change the spec forbids.
+  - `[low]` `reject` BH5/EC2/EC3/VG4 the regex import walker misses trailing comments, aliases, import-equals and has no export-from control -- no such form exists in the reached files; fixing means a parser, more than a direct correction.
+  - `[low]` `reject` BH6/EC4/EC6/VG-other dangling waitForResponse and an unclosed page when a case fails first -- only noise after a failure already reported; negligible.
+  - `[false]` `reject` BH6 the unsaved guard and Back are untested on a lazily loaded page -- S6, S6b and S6c ran green on the lazily loaded page (part 19/21).
+  - `[false]` `reject` EC5 the new page may not carry the session -- D1-D3 passed with the session in the shared context.
+  - `[low]` `reject` EC8 the claim that no assertion changed -- true except S1 and U1 (logged in the Spec Change Log); the code is right, a lazy route commits the hash after its chunk loads.
+  - `[low]` `reject` VG3 header-marking (D1/D2) has no mutation of its own -- Rule 19 asks one mutation per AC and AC2's is recorded.
+  - `[false]` `reject` VG-other banners.spec.ts:322 reads the hash right after a click -- the banner link is a plain href, so the hash is set synchronously; green in part 6/29.
+  - `[low]` `reject` VG-other the route-text pin in settings-view.test.mjs now allows `\s*` between properties and overlaps (b); D1 hard-codes the eight section names (valid on sign-in-2's stack); lazy-routes.test.mjs reads Web.cls from outside web/ -- all accurate, none a defect (same pin text, the spec names the file, the node tests run from the repo checkout in CI).
+  - `[false]` `reject` Intent-alignment: the diff implements the mechanism and tests the source graph, not the built size -- the build's Initial total (878.98 kB, at most 921) is a Verification command and the cap itself fails the build; descriptive only.
 
 ## Design Notes
 
@@ -130,9 +151,22 @@ deferred:
 - AC3: drop `canDeactivate: [unsavedGuard]` from the settings row -> `settings.spec.ts` S6 red (its part).
 - AC4: remove `NG_BUILD_OPTIMIZE_CHUNKS=0` from the build script -> `lazy-routes.test.mjs` (c) red (and the build emits `_`/`-` chunk names).
 
+mutation: AC1, History made eager again (`import { HistoryPage }` + `component: HistoryPage` in app.config.ts) -> `lazy-routes.test.mjs` "no static import from the entry point reaches the History or Usage code" (a) and both `the routes` tests (b) red; the build's Initial total rose from 878.98 kB to 899.79 kB
+mutation: AC2, the usage row's `loadComponent` pointed at `HistoryPage` -> `deep-link.spec.ts` D3 red (settings/deep-link part 12/15 of sign-in-2; D1 and D2 stay green)
+mutation: AC3, `canDeactivate: [unsavedGuard]` dropped from the settings row -> `settings.spec.ts` S6 red (also S5b, S6b and S6c; part 19/21 of sign-in-2)
+mutation: AC4, `NG_BUILD_OPTIMIZE_CHUNKS=0` removed from the build script -> `lazy-routes.test.mjs` (c) "stay inside the installer pattern while the optimizer is the only thing that keeps them there" red; the build emitted chunk-DxAZbMhD.js, chunk-K_0tuUr6.js and others with `_`/`-` names (Initial total 889.90 kB)
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). Measured in a scratch copy of this branch's `web/` (no tracked file changed): the design's initial bundle is 878.95 kB (today 1,007.44 kB), under the Planner's 921 kB with the 1MB cap unchanged; DW-1282 addressed in full. new_units: none.
+Summary: the Settings, History and Usage routes load with `loadComponent`; the facts the eager shell needs (three titles, the unsaved prompt's strings, `pageOf`, `settingsMatch`) moved into `shared/page-shell-view.ts`, which the view modules reference; the build runs with `NG_BUILD_OPTIMIZE_CHUNKS=0` so every chunk name matches the installer's STALEFILES. Measured Initial total 878.98 kB (was 1,007.44 kB; `maximumError` still 1MB; lazy: settings-page 90.25, history-page 18.12, usage-page 12.82 kB).
+
+Files changed: `web/src/app/shared/page-shell-view.ts` (new eager module); `web/src/app/app.config.ts` (lazy rows); `web/src/app/settings/{settings-view,unsaved-dialog}.ts`, `history/history-view.ts`, `usage/usage-view.ts`, `header/current-page.ts` (reference the module); `web/package.json` (build flag); `web/scripts/lazy-routes.test.mjs` (new graph/route/flag pin); `web/scripts/{settings-view,ux-strings,history-view,usage-view}.test.mjs` (route-text pin, IMPORTED, headers); `web/e2e/settings/deep-link.spec.ts` (new D1-D3); `web/e2e/settings/settings.spec.ts` S1 and `web/e2e/usage/usage.spec.ts` U1 (address read made web-first, see the Spec Change Log).
+
+Review: 24 findings from four layers; 1 patched (a doc comment), 23 rejected with recorded reasons (see the Review Triage Log); 0 deferred beyond the STALEFILES item already in `deferred:`. Follow-up review recommended: false (no high, one low patched).
+
+Verification: `npm --prefix web run build` Initial total 878.98 kB; lazy-routes, settings-view, ux-strings, history-view, usage-view node tests, lint and `npm --prefix web test` (1998) pass; built names match STALEFILES and the not-affiliated note sits in `main-*.js`; test-ci-config, test-boundaries and test-web-build pass; lane-B throwaways (tag e36s5i, torn down): live sign-in-2 (deep-link with email, on-call, webhooks, settings 19/21 after the S1 fix), live sign-in (history, banners, frame, usage 28/29 after the U1 fix), sign-in-3 more-to-try, bundle-folder, floor (three engines), demo-switch all pass. Four mutations recorded under `## Verification`.
+
+Residual risks: a hash read straight after a click on a link that becomes a `routerLink` to a lazy page races the chunk load (S1 and U1 were two such reads). The STALEFILES gap stays deferred. new_units: none.
