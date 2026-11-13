@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 37 is step 6's contract epic. It holds the step's first Lane A story and first Lane B story so that the feature epics, 25 (Lane B) and 26 (Lane A), can build in parallel against fixed names. Story 37.2, the Usage page, is done and merged. The remaining story, 37.1, is Lane A's contract-naming story. It fixes step 6's names in the spine and puts them in code as stubs: the approver and viewer roles and the resources they hold, the role-check and role-assignment methods, the photo-caption request, and the read-result reply contract that Story 25.6 uses. Once these names exist, Stories 25.4, 25.5, 25.6, 26.2, 26.3 and 26.4 can build and test without waiting for each other.
+Epic 37 is step 6's contract epic. It groups the step's first Lane A and first Lane B stories so that the feature epics, 25 (Lane B) and 26 (Lane A), can build in parallel against fixed names. Story 37.2 (the Usage page) is done. The only open story, 37.1, is Lane A's contract story. It writes step 6's names into the spine as additive text and lands the cross-lane APIs in code as compiling signatures with stub or interim bodies. The names cover the approver kinds and roles, the role check and role assignment, the photo-caption request, and the file read result that Story 25.6 renders (DW-1231). Nothing behaves differently until Stories 26.2, 26.3 and 26.4 build them.
 
 ## Stories
 
@@ -13,103 +13,81 @@ Epic 37 is step 6's contract epic. It holds the step's first Lane A story and fi
 
 ## Requirements & Constraints
 
-- **Roles (step 6):**
-  - An admin assigns approver roles, either for all risky actions or for one kind, and a viewer role.
-  - A user without the right approver role still sees the request but cannot answer it, and is told why.
-  - The audit entry for an approval records the approver's role.
-  - The online demo account also holds the approver role. On the demo, only the session that owns a request can answer it, so both checks apply.
-- **Approval kinds the roles cover:** at least resend, reroute, suspend and resume, roll back, partner warnings and tool calls. These come from step 5.
-- **Files and photos (step 6):**
-  - A file sent from the chat or Telegram becomes an item and can be added as a document.
-  - A photo gets a model caption, which is kept as a memory.
-  - When reading fails, the user is told why.
-  - Files over 10 MB are refused.
-- **The read-result reply contract (DW-1231):** Story 37.1 must fix the shape of the result that Story 25.6 turns into the reply. It has four parts:
-  - the extracted-text summary reference;
-  - the **Add to documents** offer;
-  - the photo's memory caption: the caption plus the memory's reference, which drives the "Saved to memory" chip;
-  - the read-failure reason, which reaches the user as "I couldn't read that file: {reason}."
-
-  Story 25.6 uses fixtures until 37.1, 26.2 and 26.3 merge, so the names must be final. The contract must also work for Telegram, where **Add to documents** goes through the documents route using the stored file's `Ref`.
-- **No PDF or Word extraction work here.** It moved to step 3 and is built (Stories 19.6, 19.7, 34.1 and 34.2).
-- **Release:** the story ships in the first daily release after the epic merges.
+- **Contracts only, no behaviour.** 37.1 creates no role, resource, grant, column, enum value, REST route, production item, user-visible text or new AD id. It does not change `Approval.Answer`/`Raise`/`HoldsRole`, `Decide`'s `ApprovalRole` default, `Bridge.Audit`, `Agent.Input.Render`, `READSFILES`, any fix kind or `Install.Step.Users`. A demo or local install behaves exactly as before.
+- **Spine edits are unions.** New bullets and rows only, each marked `[ADDED <date>, Story 37.1]`. Existing sentences stay word for word. The one exception is the Deferred row "Approver kinds and per-kind checks", which is removed with an `[AMENDED ...]` marker. Refresh `updated:`. `lint_spine.py` may report nothing beyond the baseline low `placeholder` findings.
+- **Binding Contest Planner rulings (2026-11-13, owner's delegation)** on the spec's spine text:
+  - **Seven approver kinds:** `resend`, `reroute`, `suspend`, `rollback`, `partner`, `email`, `tool`, plus one per later fix kind's `APPROVERKIND`. There is no `OcuTalonApprover_setting`.
+  - **`setting` rows keep today's rule.** A persona proposal gets no `ApproverKind`, and its `RequiredRole` stays `OcuTalonUser` across the take-over. A user never needs an approver role to accept their own assistant's persona. The owning-session rule still applies.
+  - **`Roles.Assign` is admin-only and uses an allowlist of exactly `OcuTalonApprover` and `OcuTalonViewer`** (never a denylist). It refuses every other role: the per-kind roles, `OcuTalonAdmin`, `OcuTalonUser`, `OcuTalonTraceViewer` and every `%` role, `%All` included. It also refuses the installer-managed accounts (the demo and read-only accounts, `OcuTalonService`, `OcuTalonWorkflow`). Each refusal is an error naming what was refused, and nothing changes. Every assignment and removal writes an IRIS audit entry. On the online demo the Roles routes answer 409 `not_available` before the body is read. Story 26.4 adds a test per refusal. Administrators grant per-kind roles in IRIS.
+  - **Both `OcuTalonApprover` grants** (the online demo account's and the README account's) are pinned by tests in Story 26.4.
+  - **The audit rule is narrowed by exactly this sentence**, added as its own bullet: "The IRIS audit entry of a role change, and of a settings change, may hold the IRIS user names involved, plus the on-call contact values (36.2 V3); OcuTalon's own Action audit holds no identities."
+  - **"No file content in a production message body"** (Story 25.6) means no file bytes and no image. Extracted document text may reach a turn's input like chat text. Story 26.2's rendering stays in `Conversation`'s job and does not move into the runner.
+  - The obligations these rulings put on Stories 25.4, 25.5, 25.6, 26.2 and 26.4 are ledger entries DW-1267 to DW-1271. The orchestrator adds their epics.md bullets after the merge, not 37.1.
+- **Quality bars:** ASCII only, no local machine path. Every new signature is pinned in `OcuTalon.Test.Contract.Ac`, whose floor goes from 89 to 93, with its class-doc count corrected. Mutation checks (Rule 19) prove each pin goes red.
 
 ## Technical Decisions
 
-- **The story's shape:** fix the names in the spine and add stubs in code, in the same change. Follow the pattern of Story 33.1.
-  - Cross-lane APIs are signatures with stub bodies. Callers test against the stubs with fixtures until Story 26.4 builds them.
-  - `OcuTalon.Test.Contract.Ac`'s signature oracle pins the cross-lane signatures, and the owning lane keeps it green.
-  - An unbuilt production item answers "not implemented" and carries `Parameter STUB = 1`.
-  - Mark spine changes `[ADDED <date>, Story 37.1]` or `[AMENDED …]`, keeping the old text.
-- **The stubs Story 37.1 must create:**
-  - `Approval.MayAnswer(Ref, IrisUser)`, which Story 26.4 builds. It answers whether the user may answer the request, or else the kind of role they would need.
-  - A role-assignment method in the installer's role area. It grants or removes only the approver and viewer roles, and Story 26.4 makes it refuse every other role, `OcuTalonAdmin` and `%All` included.
-  - Lane B calls both: `AnswersIn` (Story 25.5) and `SettingsOps` for the Roles section (Story 25.4).
-- **How approvals work now:**
-  - `OcuTalon.Bridge.Approval.Raise` creates the `ApprovalRequest` row, and the row is the truth.
-  - Only the API changes its state (`Answer`, `Expire`, `Cancel`, `StartExecution`, `FinishExecution`), each under `LOCK ^OcuTalon.Bridge.Approval(Ref)`.
-  - `Answer` already checks the row's `RequiredRole` against the user's recursed role set and returns `not_allowed`.
-  - Every channel answers through `AnswersIn`, one handler that applies the owning-session rule and then calls `AnswerOps` → `Approval.Answer`.
-  - `AnswersIn`'s Telegram result codes already include `not_allowed` (the approver-role refusal) with the request's kind as its slot.
-  - Step 6 adds the role check in that one handler.
-  - Story 26.4 makes `Raise` record which roles may answer: `OcuTalonApprover` or the kind's role.
-- **The approval-role setting:**
-  - It is `Decide`'s host setting `ApprovalRole`, in category Bridge, read through `Ext.Accessor.ValueFor`. It is seeded with `OcuTalonUser` until step 6, and an empty value refuses `Raise`.
-  - The spine must state how the approver roles take over from it. Story 26.4's upgrade then moves the setting.
-  - A `setting` request (a proposed persona) also uses this setting as its required role.
-  - `ApprovalKind` is `fix, tool_call, setting`, while the per-kind roles are finer (resend, reroute, and so on). The spine update must say how a row maps to `OcuTalonApprover_<kind>`.
-- **The bridge stays separable:**
-  - No `OcuTalon.Bridge` class may reference another `OcuTalon` package, and a CI check enforces this.
-  - The bridge reaches its host only through the extension classes named in `Decide`'s settings, so a standalone bridge still works with whatever role its developer sets.
-  - OcuTalon's role names therefore reach the bridge through settings or extension classes. They are never hard-coded in bridge code.
-- **Roles and their limits:**
-  - Step 6 roles: `OcuTalonApprover` (every kind), one `OcuTalonApprover_<kind>` per approval kind, and `OcuTalonViewer`.
-  - The installer composes their grants from each area's `Grants()`.
-  - No OcuTalon role may hold `%All`, `%Development`, `%Ens_MessageEditResend`, `%Ens_MessageDiscard`, `%Ens_ProductionRun`, `%Ens_ProductionConfig` or the Workflow inbox.
-  - No person is a Workflow user: `OcuTalonApprovals` has exactly one member, `OcuTalonWorkflow`.
-  - Story 26.4 checks roles with `$SYSTEM.Security.CheckUserPermission` on a resource each approver role holds. The spine must name those resources.
-  - `OcuTalonViewer` must hold what the post-sign-in check needs to admit a viewer who has no `OcuTalonUser`.
-  - The security overview lists the new roles.
-- **The AD-24 amendment:** from step 6 the online demo account holds `OcuTalonApprover` beside `OcuTalonUser` and `OcuTalonTraceViewer`. It is never an admin, and the owning-session rule still applies. The README account gains `OcuTalonApprover` on upgrade.
-- **Settings and audit:**
-  - At run time, `SettingsOps` is the only writer of settings, and installer steps write only seeds. The Roles section therefore changes roles through `SettingsOps`, which calls Lane A's role-assignment method. Each change is audited as a settings change.
-  - From step 6, audit entries name the acting user's role, along with the user, the `SessionRef` and the channel.
-- **The photo-caption request (built by 26.3):**
-  - It goes through `Decide` in a fresh AI session that is never linked to the conversation, and its usage and cost are recorded.
-  - It uses `%AI.Agent`'s `ChatWithContent` with `ImageData`, under the model-use rules: no sampling parameters and an output cap of at least 4,000 tokens.
-  - The image never appears in a production message body, an agent step or a log.
-  - A usable caption is saved through the save-memory command, with the photo as its source, marked untrusted.
-  - An unusable reply takes the fallback route and saves no memory.
-  - Any new value in an enumeration (such as `RequestKind`) must go into both `OcuTalon.Msg.Enum` and `OcuTalon.Bridge.Msg.Enum`, which a contract test keeps equal.
-- **Files as they stand (Story 25.3, Lane B):**
-  - `OcuTalon.Core.Files` provides `Store`, `Open`, `Describe`, `SetItem` and `RefusalText`.
-  - An `OcuTalon.Msg.Item` with provenance `untrusted` carries `FileRef`, `FileName`, `FileMediaType` and `FileSize`, never the bytes.
-  - `Core.Files.Readable()` is 1 only once `Agent.Input`'s parameter `READSFILES` is 1, which Story 26.2 adds. Until then a file turn gets `Core.Files.NoReaderText` and no model request.
-  - `Docs.Extract.Read` answers `{ok:0, reason}` with fixed codes: `too_large`, `contents_too_large`, `wrong_type`, `encrypted`, `damaged`, `no_text`, `legacy_doc`, `timed_out` and `failed`. `Failure(code)` fits each code into the "couldn't read" sentence.
-- **Precedent for data attached to a reply:** code-built `HostData` members on the bridge `Reply` (`citations`, `memories`, `learned`). `Conversation` (Lane B) carries them onto the `Turn`, the `Outbound` and `chat.message`. They are built from tool results, never from model text, and absent when empty.
-- **Ownership:** 37.1 changes only Lane A files: `OcuTalon.Bridge.*`, Lane A's installer areas and tests (`OcuTalon.Test.Bridge`), and Lane A's catalog class `Catalog.Watch`. A Lane B contract addition (for example on `AnswersIn`, `Core.Files`, the Roles routes or `chat.message`) gets its spine row from the story that builds it. When 37.1 needs a property on a Lane B contract, it asks Lane B for it.
+- **APIs 37.1 lands** (Lane A; signatures exactly as the spine names them):
+  - `OcuTalon.Bridge.Approval.MayAnswer(ref, irisUser, Output kind) As %Boolean`, placed after `HoldsRole`. Its interim body is today's rule: the row's `RequiredRole` in the user's recursed role set, via `IsRef` + `RefIndexOpen` + `HoldsRole`. `kind` is "". It writes and fires nothing, ignores state and expiry, and answers 0 for an unknown or malformed Ref or an empty user. The body is interim, not 5003, so that Story 25.5 can wire it in before 26.4 without breaking the demo.
+  - `OcuTalon.Install.Step.Roles.Assign(userName, role, grant, Output changed) As %Status` and `Roles.Holders(Output users As %DynamicArray) As %Status`. Both are stubs: `$$$ERROR($$$NotImplemented)` (5003), with `changed` 0 and `users` `[]`. When built they run in `%SYS` in `SettingsOps`' job, which needs `%Admin_Secure:USE`. Follow `Install.Step.Mcp.Grant`/`Revoke`.
+  - `OcuTalon.Agent.Input.ReadFile(item, Output result As %DynamicObject) As %Status` is a stub: 5003 with `{}`, and it opens no file.
+  - Stub pattern as in Story 33.1. Tests go in `OcuTalon.Test.Bridge.Api` (Lane A's cross-lane stub test); there is no new test class.
+- **Approver kinds and the role rule (spine, built by 26.4):**
+  - `ApprovalRequest` gains an appended `ApproverKind`. It is the caller's value, else `tool` for a `tool_call`, else the fix kind's `APPROVERKIND` (default its `NAME`). The mapping is `repair_resend` to `resend`, `reroute` to `reroute`, `suspend_item`/`resume_item` to `suspend`, `rollback_setting` (Epic 36's AD-16 name) to `rollback`, `partner_warning` to `partner`, and `email` to `email`. A page raises no request.
+  - The kind's role is `<RequiredRole>_<ApproverKind>`, so the bridge derives every name from its one approval-role setting and hard-codes none. A standalone bridge keeps working, and an unknown kind fails safe.
+  - Each approver role holds Use on a resource with its own name. A row with an `ApproverKind` whose `RequiredRole` names an existing resource is answerable when `CheckUserPermission(user, RequiredRole, "U")` or the kind role's check succeeds. Every other row keeps the recursed-role-set rule, which covers pre-upgrade rows and standalone bridges.
+  - **Take-over:** Story 26.4 changes `Decide`'s `ApprovalRole` default from `OcuTalonUser` to `OcuTalonApprover` in the change that creates the roles. An explicitly set value stays. Earlier rows keep `OcuTalonUser` until they expire (24 h).
+  - `not_allowed`'s slot `kind` carries the `ApproverKind`. The approval audit entry gains `role`: the approver role that allowed the answer.
+- **Roles:** `OcuTalonApprover` (every kind), `OcuTalonApprover_<kind>` and `OcuTalonViewer`. `OcuTalonViewer` holds the R grants the areas declare for `OcuTalonUser` and no W or U grant, and the post-sign-in check admits it by name. The demo account gains `OcuTalonApprover` (`DEMOROLES`, owning-session rule kept, never admin), and the README account gains it at the step 6 upgrade. The read-only, service, Workflow and SQL-watch users never hold an approver or viewer role. The forbidden-privilege list is unchanged. Its one step-5 exception, `%Ens_ProductionConfig:W` for `rollback_setting`, is Story 23.3's grant and is left out of the demo install; the step 6 text must not contradict it.
+- **Personal data:** no IRIS user name other than the actor's goes into a traced message. The Roles section hands the user name and role to `SettingsOps` through `Core.SecretHandoff`, so `Changes` holds only `{handoff}`, and `Holders`' list returns through a handoff uri. This follows the on-call keys' rule: values reach only the IRIS audit log, and a leak-scan test pins it.
+- **Read result (DW-1231):** built by code, never from model text, with no bytes and no extracted text. The fields are:
+  - `fileRef`: the `SentFile` `Ref`.
+  - `kind`: `document` or `photo`.
+  - `read`: 1 or 0.
+  - When `read` is 0: `reason` (a `Docs.Extract` code; a photo that can't be sent is `failed`) and `text` (`Docs.Extract.Failure`).
+  - For a document that was read: `chars`, `cut` and `addable` 1.
+  - For a photo: `addable` 0.
+
+  `Conversation` (Story 25.6) calls `ReadFile` once `Core.Files.Readable()` is 1. When `read` is 0 the turn ends with `text` and makes no model request. Add to documents re-extracts from the stored file by `fileRef` through `DocumentOps`.
+- **Photo caption:**
+  - It is a plain `turn` request of provenance `untrusted`, with no new request kind and no `Msg.Enum` edit. It runs in a throwaway, never-linked AI session with read-only tools at most, and usage and cost are recorded as usual.
+  - The image reaches the model only in the runner's job, through the new extension `ContentClass`: base `OcuTalon.Bridge.Ext.Content`, a setting on `Decide` read through `Ext.Accessor.ClassFor`, `Part` for one `ImageData` via `ChatWithContent`, and `Accepted`. OcuTalon's class for it is `OcuTalon.Agent.Content`.
+  - After a usable reply, `Accepted` saves the caption (at most 2,000 characters) as a memory: origin `system`, `Source` `learned`, and the photo Item's `ItemId`. It returns HostData `caption` `{memoryRef, text}`, following the `citations`/`memories`/`learned` precedent. An unusable reply saves nothing.
+- **Spine anchors (S1 to S9):**
+  - AD-11: a new bullet after the approval-role setting bullet.
+  - AD-24: a new bullet after the online demo account bullet.
+  - AD-17: a new bullet after the "Production jobs run as..." bullet, plus the ruling sentence.
+  - AD-21: a new final Rule bullet.
+  - AD-31: a `ContentClass` sub-bullet before "The bridge reads the three settings".
+  - AD-6: a clause allowing a runner's `ChatWithContent`.
+  - Conventions: a "File read results" row after "Citations and memories on the page".
+  - Ownership: four rows after Story 25.3's rows.
+  - AD-29: an "Epic 37's names" bullet after the now-merged "Epic 36's names" bullet.
+  - Deferred: the row removal described above.
+- **Bridge separability:** no `OcuTalon.Bridge` class names another OcuTalon package or a new role literal. `test-class-rules.sh` (bridge-refs) enforces this.
 
 ## UX & Interaction Patterns
 
-- **Can't answer:**
-  - The Approve and Reject buttons are absent, and the status reads the sentence for the request's kind. Fixture: "Only an approver for resends can answer this request."
-  - On the phone and in Telegram, a press gets the same sentence, as an alert that stays until dismissed.
-  - Texts are rendered from the catalog. A new text is proposed for approval before it ships.
-- **Answered:** "Approved from {channel} at {time}" on every copy within 5 seconds, as before.
-- **File replies:**
-  - On failure: "I couldn't read that file: {reason}."
-  - A file that was read: a reply offering **Add to documents**.
-  - A photo: a "Saved to memory" chip.
-  - The guide's "New since 1.0.0" file line gains each clause only once its story has merged.
-- **Roles and viewers:**
-  - Settings gains a Roles section, for admins only.
-  - A viewer sees everything read-only, with no composer and no Approve, Reject, Dismiss or Break the feed.
+- 37.1 adds no text. The texts the contracts point at already exist:
+  - "I couldn't read that file: {reason}."
+  - **Add to documents**
+  - "Saved to memory"
+  - the fixture "Only an approver for resends can answer this request."
+- The per-kind "Only an approver for ..." sentences for the other six kinds are Story 25.5's to propose as public text.
+- Settings > Roles is admin-only and is absent on the online demo (Story 25.4).
 
 ## Cross-Story Dependencies
 
-- **Upstream:** the epic's real edge is Epic 36, for step 5's approval kinds. The sprint file still shows Epic 36 in backlog. Of step 5's kinds, Stories 23.2 (suspend, resume and reroute) and 23.5 (partner notices) are done; Story 23.3 (roll back) is still in backlog.
+- **Upstream:**
+  - Epic 36's contracts (36.1, 36.2) are merged into this branch, so S-text must match their spine wording: `rollback_setting`, the `%Ens_ProductionConfig:W` ruling, the dry-run fields and the on-call audit rule.
+  - Story 25.3 (`Core.Files`, `SentFile`, `Readable`) is done.
+  - Story 23.3 (rollback) is still in backlog.
+  - Epic 22 also edits `Bridge/Approval.cls` (`ToolFingerprint` at storage slot 26). Keep `MayAnswer` away from its methods, and Story 26.4 must append `ApproverKind` after `ToolFingerprint`.
 - **Downstream (wait on 37.1):**
-  - Stories 25.4 and 25.5 call the `MayAnswer` and role-assignment stubs, and their tests create fixture roles with the names 37.1 fixes.
-  - Story 25.6 uses the read-result reply contract.
-  - Stories 26.2, 26.3 and 26.4 build on 37.1's names and replace its stubs.
-- **Inside Epic 37:** Story 37.2 no longer depends on 37.1, because each story now adds its own step-6 spine rows.
+  - 25.4 calls `Assign`/`Holders` through the handoff.
+  - 25.5 calls `MayAnswer` before `Answer`.
+  - 25.6 calls `ReadFile` and renders `caption`.
+  - 26.2 builds `ReadFile` for documents and sets `READSFILES`.
+  - 26.3 builds `ContentClass`, `Agent.Content`, the photo branch and `caption`.
+  - 26.4 builds the real `MayAnswer` rule, `ApproverKind`, the roles, resources and grants, `Assign`/`Holders`, the `ApprovalRole` default and the audit `role`.
+- **Inside Epic 37:** none. 37.2 no longer depends on 37.1.
