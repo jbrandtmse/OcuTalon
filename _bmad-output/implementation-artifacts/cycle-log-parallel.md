@@ -3918,3 +3918,11 @@
 2026-11-13T09:04:49Z	Epic 21	ci_green_verified	head=f17e2566 runs=43391202522,43391202509 result=success
 2026-11-13T09:04:49Z	Epic 21	amendments_verified	amendments=spine(21.7_S1-S5,21.8_S1-S4,AD-19,AD-22,AD-14),epics(21.9-21.14_splits/inserts),EXPERIENCE(E1,E2,K) release_tool=release/checklist.sh_one_line(approved) ok=true
 2026-11-13T09:04:49Z	Epic 21	merge_enqueued	part=21.7+21.8+21.12+21.13 head=1dd5a240
+2026-11-13T09:05:09Z	Epic 21	merge_gate_blocked	reason=spine_AD-14_both_sides_amended(36.2_page_kind_"third_allowed_send"_vs_21.7_digest_"third_path"+21.8_OAuth2_bullet) action=merge_aborted;resume_runner_C_integrate_forward(U14)
+2026-11-13T09:06:01Z	Epic 22	runner_reported	PART_READY part=22.9+22.3+22.4 head=a758d17a ci=success runs=43370177969(att2:DW-555,DW-1264_new),43370177998 merge=HELD(Planner_J_live_harness_run) 22.7=local_done(push_held:21.13+DW-1261) gate=22.6
+2026-11-13T09:06:10Z	Epic 21	owner_decision	via=contest_planner what=21.14_approved+TraceLeaks_retrofit_condition(21.2/21.3/21.8,35.3,22.3/22.4,36.4)+security-overview_text file=prompts/gate-rulings-20261112-1810.md#L relay=runner_C_at_turn_end;runners_D,B_notice_for_retrofit
+2026-11-13T09:07:06Z	Epic 22	owner_decision	via=contest_planner what=DW-1261_fix_before_22.7(Live_payload_from_stored_row)+DW-1262_interim(admin_only_for_others)+DW-1264_flake+22.6_gate_approved(conditions_P1/P2/M1/expiry) file=prompts/gate-rulings-20261112-1810.md#M relay=runner_22_at_turn_end note=DW-1261_done_inside_22.7_by_lane_D
+2026-11-13T09:17:08Z	Run	hold_prep	live_runners=C(a782ad9fd103aa691,integrate_forward),D(a54c08573d57fa9de,harness_run_if_fits) both_told_hold_rules_in_their_resume_messages idle=B(36),A(37),0,23,25 action=no_mid-stage_message_needed
+2026-11-13T09:20:36Z	Epic 22	runner_reported	HARNESS=pass rows=13/13 approval_checks=6 run=09:06:54Z-09:19:38Z tag=e22sharn1 log=scratchpad/e22sharn/run/ shared_incident_risk=not_seen
+2026-11-13T09:20:36Z	Epic 22	ci_green_verified	head=a758d17a runs=43370177969(att2),43370177998 result=success
+2026-11-13T09:20:36Z	Epic 22	merge_enqueued	part=22.9+22.3+22.4 head=a758d17a condition_J=met
