@@ -495,7 +495,7 @@ test('E7: the Email digest box shows once outgoing is saved, stores email, and S
     await expect(box, 'and is not checked before it is chosen').not.toBeChecked();
     await box.check();
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
-    await expect(page.getByText(SAVED, { exact: true }), 'the saved text shows').toBeVisible();
+    await expect(page.locator('p.saved', { hasText: SAVED }), 'the saved text shows').toBeVisible();
     const saved = (await digestValues(page)).channels.split(',');
     expect(saved[saved.length - 1], 'the stored channels end with email').toBe('email');
     expect(saved.filter((name) => name === 'email'), 'and name it once').toHaveLength(1);
