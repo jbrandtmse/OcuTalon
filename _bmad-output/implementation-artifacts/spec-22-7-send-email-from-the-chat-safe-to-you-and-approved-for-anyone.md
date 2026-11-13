@@ -254,7 +254,13 @@ deferred: []
 - Given the tool inventory and the security overview, when they are generated, then `send_email` is listed for the Chat agent with "per call: " and its rule, not read-only, trusted output, and the fix kind `email` is listed as risky with no resources.
 - **DW-1164:** Given a request raised by the gate's hook (no seeded row), when the real `FixExecutor` runs its approval, then the row holds `FixKind` `email` and `FixParameters.recipients` as an array, the `SendEmail` carries that row's `ApprovalRef` with origin `system`, and the real `EmailOut`'s system path accepts it (the stub holds one mail). The replay part is declined under Design Notes.
 
+- [ ] **[RULED 2026-11-13, Planner H (i)] `send_email` is NOT read-only for AD-10 rule 4.** In any turn that holds untrusted content (a failed message, an email, a webhook event, a document, a tool result), every `send_email` call is refused `UNTRUSTED`, self-addressed included: no send, no approval request, no `CommandsIn` call. Pin it with an injection case (`send-email-injected`): an email whose text asks OcuTalon to email someone yields no send and no approval request, both for the user's own address and for another address; a mutation that lets a self-addressed call through in a tainted turn goes red.
+- [ ] **[RULED 2026-11-13, Planner H (iii)]** Audit entries hold no address, subject or text (veto item 5, as planned); the approval request's dry run carries the exact recipients, subject and text so the card shows them before the user approves (pinned on the stored dry run; the card rendering is Story 21.11's).
+- [ ] **[RULED 2026-11-13, Planner H (ii)]** DW-1244 (EmailOut ignores the command's idempotency key) is fixed by Lane C's new Story 21.13 before 22.7 merges; 22.7 itself does not edit `Channel/Email/**`. This story's merge waits for 21.13.
+
 ## Spec Change Log
+
+- 2026-11-13 (runner, Planner rulings H for 22.7 applied): veto 1-7 APPROVED with conditions (i) send_email not read-only: refused UNTRUSTED in any turn with untrusted content, self-addressed included, injection case pinned; (ii) DW-1244 fixed by Lane C's Story 21.13, 22.7's merge waits for it; (iii) audit holds no address/subject/text, the card shows exact recipients/subject/text. (a) the forced copy of the own-address check is approved, with a unification ledger entry for after the contest; (c) the AC citation 21.5 -> 21.11 is approved (epics.md amended). PUBLIC TEXT: the four new strings, the instruction line and the tool/argument descriptions approved verbatim.
 
 ## Review Triage Log
 

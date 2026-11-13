@@ -7791,6 +7791,8 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **When** it describes classifying MCP tools
 **Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.2 (was 24.1) copies that sentence into the README's admin section with the link (FR-10, FR-61)
 - [AMENDED 2026-11-13, Contest Planner ruling F(2) on DW-1232] Until Story 21.10 merges (the web and phone cards for `mcp.replayToolChanged`), no release notes, guide or More to try text describes the changed-tool replay path; if a release carries 22.4 without 21.10, the notes leave that path out.
+- DW-1228: a test confirms that a server tool named `call_mcp_tool` (or any built-in tool name) is refused under the current design ("Refused: a built-in tool has this name"); fix narrowly if it is not (ledger; routed by orchestrator 2026-11-13, Contest Planner ruling H)
+- DW-1221: the guide's MCP section states the measured known limit (a slow server can hold a request about 31 s past the 2 s bound; AD-21 S11), and no text claims a hard MCP deadline (ledger; routed by orchestrator 2026-11-13, Contest Planner ruling H)
 
 ### Story 22.7: Send email from the chat, safe to you and approved for anyone else
 
@@ -7813,7 +7815,7 @@ So that email to me just goes and email to anyone else waits for my approval.
 **Given** a risky call in a user's turn
 **When** the gate decides
 **Then** nothing is sent: an approval request for the email fix kind under `OcuTalon.Fix.Kind` is raised, whose dry run shows the exact text and every recipient, and after approval `FixExecutor` sends exactly that email once through `EmailOut`, trusting only the approved row, and reports the result (FR-44, FR-8, NFR-13, AD-16)
-**And** the request has no incident, so its `approval`, `answered` and `result` notifications come from Lane B's `OcuTalon.Core.BridgeSink` (Story 21.5), as a tool call's do, not from `IncidentManager`; until Story 21.5 merges, the tests check only that the request has no `IncidentRef` and that `IncidentManager` sends nothing for it (FR-8, AD-31)
+**And** the request has no incident, so its `approval`, `answered` and `result` notifications come from Lane B's `OcuTalon.Core.BridgeSink` (Story 21.11) [AMENDED 2026-11-13, Contest Planner ruling H (c): the criterion moved from Story 21.5 to Story 21.11 when Epic 21 split it; it read "Story 21.5"], as a tool call's do, not from `IncidentManager`; until Story 21.11 merges, the tests check only that the request has no `IncidentRef` and that `IncidentManager` sends nothing for it (FR-8, AD-31)
 
 **Given** an untrusted or tainted turn
 **When** it asks to send email to anyone
