@@ -22,6 +22,8 @@
 ///     getUpdates, a sendMessage is listed by the mock's calls, and the mock's log holds the path as /bot[redacted]/<method> with the
 ///     token's length and never the token. Where the base is anything but the mock's or the token is empty, the test fails with that
 ///     reason and sends nothing. It never writes the token to a log, an assertion text or a status.
+///   - TestTelegramFileDownload (Story 25.3; AD-22): a fixture file registered on the mock is fetched through getFile and the download path, with the file's bytes and
+///     content type exact, and the mock's log holds the paths with the token's length and never the token.
 /// The helpers are class methods that either lane's tests may call (read, do not copy):
 ///   - Provider(mockKey, httpConfig): the Anthropic provider for the mock. It throws unless the environment variable is the mock's
 ///     base URL. httpConfig defaults to request_timeout_secs 10 and the retry block {max_retries 1, attempt_timeout_secs 10,
@@ -385,6 +387,65 @@ Method TestTelegramBotApi()
 		Do $$$AssertEquals(..LogHolds(text), 0, "nor the text of the message")
 	} Catch ex {
 		Do $$$AssertTrue(0, "a Bot API call failed: "_$Piece($Translate(ex.DisplayString(), $Char(13, 10), "  "), token, 1))
+	}
+	Do ..Control("reset")
+}
+
+/// Story 25.3: a fixture file registered on the mock (POST /_mock/telegram/files) is fetched as Story 26.2's TelegramIn will fetch one: getFile answers its
+/// file_path and size, and a GET of /file/bot<token>/<file_path> returns exactly its bytes (every byte value) with its content type. The mock's log holds
+/// the call as /bot[redacted]/getFile and the download as /file/bot[redacted]/<file_path>, each with the token's length, and never the token. The mock's Bot
+/// API state is reset before and after. Where the base is anything but the mock's or the token is empty, the test fails with that reason and sends nothing.
+Method TestTelegramFileDownload()
+{
+	If '..Guard() Quit
+	Set token = $SYSTEM.Util.GetEnviron(..#TELEGRAMTOKENVAR)
+	Set reason = ..TelegramMissingReason($SYSTEM.Util.GetEnviron(..#TELEGRAMBASEVAR), token)
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
+		Quit
+	}
+	Set mark = ..LogMark()
+	Do $$$AssertTrue(..Control("reset"), "the mock's Bot API state is reset")
+	Try {
+		Set bytes = ""
+		For i = 0:1:255 {
+			Set bytes = bytes_$Char(i)
+		}
+		Set fileId = "zzFile"_##class(OcuTalon.Bridge.Ids).NewRef()
+		Set path = "documents/"_$ZConvert(fileId, "L")_".pdf"
+		Set register = {"fileId": (fileId), "filePath": (path), "contentType": "application/pdf", "base64": ($SYSTEM.Encryption.Base64Encode(bytes, 1))}
+		Do $$$AssertTrue(..Control("files", register), "the fixture file is registered")
+		Set answer = ..BotCall(token, "getFile", {"file_id": (fileId)}.%ToJSON())
+		Do $$$AssertEquals(answer.ok_"|"_answer.result."file_id"_"|"_answer.result."file_path"_"|"_answer.result."file_size", "1|"_fileId_"|"_path_"|256", "getFile answers the file's id, path and size")
+		Do $$$AssertTrue(answer.result."file_unique_id" '= "", "and a file_unique_id")
+		Set request = ..NewRequest()
+		Set status = request.Get("/file/bot"_token_"/"_path)
+		Do $$$AssertStatusOK(status, "the download reaches the mock")
+		Do $$$AssertEquals(request.HttpResponse.StatusCode_"|"_request.HttpResponse.ContentType, "200|application/pdf", "it is 200 with the registered content type")
+		Set got = ""
+		While 'request.HttpResponse.Data.AtEnd {
+			Set got = got_request.HttpResponse.Data.Read(32000)
+		}
+		Do $$$AssertEquals(got = bytes, 1, "and the bytes are exactly the file's: "_$Length(got)_" bytes")
+		Set request = ..NewRequest()
+		Do request.Get("/file/bot"_token_"/documents/other.pdf")
+		Do $$$AssertEquals(request.HttpResponse.StatusCode, 404, "an unknown path is 404")
+		Hang 0.2
+		Do ..LogSince(mark, .entries)
+		Set paths = ""
+		Set iterator = entries.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			If ($Extract(entry.path, 1, 5) = "/bot[") || ($Extract(entry.path, 1, 10) = "/file/bot[") {
+				Set paths = paths_$ListBuild(entry.path_"|"_entry.tokenLength)
+			}
+		}
+		Do $$$AssertEquals($ListToString(paths, ","), "/bot[redacted]/getFile|"_$Length(token)_",/file/bot[redacted]/"_path_"|"_$Length(token)_",/file/bot[redacted]/documents/other.pdf|"_$Length(token), "the log holds the three calls with the masked path and the token's length")
+		Do $$$AssertEquals(..LogHolds(token), 0, "and the token is nowhere in the mock's log")
+		Set calls = ..Calls()
+		Do $$$AssertEquals(calls.%Size(), 3, "the mock lists the three calls")
+		If calls.%Size() = 3 Do $$$AssertEquals(calls.%Get(0).method_"|"_calls.%Get(1).method_"|"_calls.%Get(1).params."file_path", "getFile|download|"_path, "the download is listed as a download with its file_path")
+	} Catch ex {
+		Do $$$AssertTrue(0, "a file call failed: "_$Piece($Translate(ex.DisplayString(), $Char(13, 10), "  "), token, 1))
 	}
 	Do ..Control("reset")
 }

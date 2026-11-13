@@ -7440,6 +7440,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T20:19:09Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=pins beyond the ruled (a),(b1),(b2) exceed the 1.0.8 ruling; reopen_if=a diff edits the pathspec or regex line of oauth_install_paths_clean
 - 2026-11-12T20:19:32Z status=wontfix-accepted owner=0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so by=cr note=reopen_if=a diff edits oauth_install_paths_clean's pathspec or regex line; more pins exceed the 1.0.8 ruling
 
+### DW-1248: OPTIONS on /api/v1/files is answered by %CSP.REST's OnHandleOptionsRequest (an Allow list, no body), not the 404 not_found that AC 9 says for every method but POST
+- source: spec-25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: irislib/%CSP/REST.cls :272-275 and :392-393 answer OPTIONS before Http405, both before sign-in (Page) and after (DispatchRequest); no byte of a file is sent, so ruling 3 (ii) holds; FilesApi and api/files.spec.ts (ii) never try OPTIONS
+- 2026-11-13T03:34:16Z status=wontfix-accepted owner=25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram by=cr note=fix needs a public-package OPTIONS answer (Web.Hook precedent); reopen_if=OPTIONS under /ocutalon/api/v1/files sends any stored file byte or a spec asks 404 for it
 ### DW-1231: AC for 37.1: fix the read-result reply contract (extracted-text summary ref, Add to documents offer, photo memory caption, read-failure reason) that Story 25.6 consumes
 - source: orchestrator ruling on 25.3's split, 2026-11-12 (veto U-326) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 25.3 plan: 25.6 needs a reply contract no story fixes

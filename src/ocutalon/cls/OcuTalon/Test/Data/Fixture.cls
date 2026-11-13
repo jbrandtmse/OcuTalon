@@ -536,6 +536,18 @@ ClassMethod Between(headers As %DynamicArray, type As %Integer, source As %Strin
 	Quit found
 }
 
+/// Saves a Data.SentFile row of the session (a small PDF named name, channel web) and records it for Clean; returns its Ref.
+ClassMethod SentFile(sessionRef As %String, name As %String = "zz.pdf") As %String
+{
+	Set bytes = ##class(%Stream.TmpBinary).%New()
+	Do bytes.Write("%PDF-1.4 zz")
+	Do bytes.Rewind()
+	Set ref = ##class(OcuTalon.Data.SentFile).Put(sessionRef, "web", name, "application/pdf", bytes, .sc)
+	If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+	Do ..Record(##class(OcuTalon.Data.SentFile).RefIndexOpen(ref))
+	Quit ref
+}
+
 /// Saves the row and records it under ref, which is the row's Ref by default, and returns ref.
 ClassMethod Keep(row As %Persistent, ref As %String = "") As %String [ Private ]
 {

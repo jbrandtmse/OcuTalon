@@ -4,7 +4,9 @@
 ///     (the output says so and nothing is sent); Core.Allowance.TryConsume must allow the message (AD-20); then the service
 ///     joins the session's trace thread (AD-26): Core.Trace.Join gives the thread of the day, which becomes the service's
 ///     %SessionId, and the session's TraceRef becomes its SuperSession. It sends Conversation an Item with a new ItemId, the
-///     session's SessionRef, channel web, provenance user, the text, FromGuide and ClientId. When the day had no thread, the
+///     session's SessionRef, channel web, provenance user, the text, FromGuide and ClientId. A Post that carries a file (FileRef, Story 25.3) may have no
+///     text; its Item has provenance untrusted, as every Item that carries a file has (AD-14), and the file's Ref, name, media type and size, never its
+///     bytes; the output says whether the Item was sent (duplicate 0) or not (a duplicate, or a refusal), so that the route can drop the file's row. When the day had no thread, the
 ///     Item starts one: Core.Trace.Started records the session the send gave, or nothing when the send failed, in every path. A
 ///     Join that fails (no session row, a lock that stays busy) logs one warning and the message is sent in a session of its
 ///     own, so a message is never refused or lost for the thread. A send that fails gives the message's entry back to the
@@ -16,7 +18,7 @@
 /// window the service also sends Notify the one allowance Notification (Allowance.Notice), in a session of its own under the
 /// session's TraceRef, and a notice that fails to send is logged as a warning and the refusal stands. Or it refuses with no retryAt
 /// (the row's lock was busy, or it threw), which is an error status. Any other input, and a Post with an empty session, clientId or
-/// text or a session with no Session row, answers an error status, sends nothing and asks the allowance nothing. The service
+/// text (and no file) or a session with no Session row, answers an error status, sends nothing and asks the allowance nothing. The service
 /// sends to Conversation (the Item and RunTurns) and to Notify (the allowance notice), asynchronously.
 Class OcuTalon.Channel.WebChat.In Extends Ens.BusinessService
 {
@@ -58,7 +60,7 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 Method Accept(post As OcuTalon.Channel.WebChat.Post, Output output As %String) As %Status [ Private ]
 {
 	Set output = ""
-	If (post.SessionRef = "") || (post.ClientId = "") || ($ZStrip(post.Text, "<>WC") = "") Quit $SYSTEM.Status.Error(5001, ..#ERRORPOST)
+	If (post.SessionRef = "") || (post.ClientId = "") || (($ZStrip(post.Text, "<>WC") = "") && (post.FileRef = "")) Quit $SYSTEM.Status.Error(5001, ..#ERRORPOST)
 	Set found = ##class(OcuTalon.Data.Ownership).TurnByClient(post.SessionRef, post.ClientId, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	If $IsObject(found) {
@@ -84,8 +86,12 @@ Method Accept(post As OcuTalon.Channel.WebChat.Post, Output output As %String) A
 		Set item.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
 		Set item.SessionRef = post.SessionRef
 		Set item.Channel = ..#CHANNEL
-		Set item.Provenance = "user"
+		Set item.Provenance = $Select(post.FileRef '= "": "untrusted", 1: "user")
 		Set item.Text = post.Text
+		Set item.FileRef = post.FileRef
+		Set item.FileName = post.FileName
+		Set item.FileMediaType = post.FileMediaType
+		Set item.FileSize = post.FileSize
 		Set item.FromGuide = post.FromGuide
 		Set item.ClientId = post.ClientId
 		Set sc = ..Send(..#TARGET, item)

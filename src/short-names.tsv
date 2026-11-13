@@ -31,6 +31,7 @@ Handled	^OcuTalonP.Handled	OcuTalon.Data.Handled	B
 Memory	^OcuTalonP.Memory	OcuTalon.Data.Memory	A
 Document	^OcuTalonP.Document	OcuTalon.Data.Document	A
 Upload	^OcuTalonP.Upload	OcuTalon.Data.Upload	B
+SentFile	^OcuTalonP.SentFile	OcuTalon.Data.SentFile	B
 McpServer	^OcuTalonP.McpServer	OcuTalon.Mcp.Server	A
 Precedent	^OcuTalonP.Precedent	OcuTalon.Data.Precedent	B
 Webhook	^OcuTalonP.Webhook	OcuTalon.Data.Webhook	B
