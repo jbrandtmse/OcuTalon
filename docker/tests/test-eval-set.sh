@@ -89,6 +89,10 @@
 #                 set's items and incidents, the held-out row, the needed-you-now count, the three unsafe kinds and the cost of each side; set-1.json read before
 #                 set.json; --column; exit 1 and nothing written for different cases, a missing file, a file that is not a report or a report that is not a
 #                 rules-only one; exit 2 and a usage line for any other arguments. A bad sample is the script with one edit;
+#   readme-column (Story 0.29) the README's "### With the agent and with fixed rules only" holds the date, the main set's routine item and incident counts and, for
+#                 each of the seven rows (by its first cell, once), the fixed-rules cell that `node eval/compare.mjs --column eval/results` gives; a changed README
+#                 cell, a changed report, a missing, repeated or renamed row, a date or count that differs, a missing heading, README or report are flagged. The agent
+#                 column's text is not read;
 #   demo          the case that Eval.Report DEMOCASE names has a case.json below eval/, of kind incident, whose expectation is a
 #                 data_format_change at OrderDate with the fix kind repair_resend (the demo incident gate runs it);
 #   incidents     the incident cases directly below eval/ (not eval/mock-wrong/), taken in the byte order of their names, are at least 11; no
@@ -1224,6 +1228,66 @@ try {
   bad(`could not be checked: ${error && error.message ? error.message.split('\n')[0] : 'error'}`);
 }
 for (const dir of folders) fs.rmSync(dir, { recursive: true, force: true });
+process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
+EOF
+
+cat > "$tmp/check-readme-column.mjs" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+// The README's comparison of the agent and the fixed rules (Story 0.29): the fixed-rules column, the date, <I> and <J> of "### With the agent and with fixed
+// rules only" equal `node eval/compare.mjs --column eval/results` of the same tree, row by row.
+const [root] = process.argv.slice(2);
+const HEADING = '### With the agent and with fixed rules only';
+const out = [];
+const bad = (why) => out.push(`README.md: ${why}`);
+try {
+  const readme = path.join(root, 'README.md');
+  if (!fs.existsSync(readme)) {
+    bad('the file is missing');
+  } else {
+    const lines = fs.readFileSync(readme, 'utf8').split('\n');
+    const at = lines.indexOf(HEADING);
+    if (at < 0) {
+      bad(`no heading "${HEADING}"`);
+    } else {
+      let end = lines.findIndex((line, index) => index > at && /^#{1,3} /.test(line));
+      if (end < 0) end = lines.length;
+      const block = lines.slice(at + 1, end);
+      const result = spawnSync(process.execPath, [path.join(root, 'eval/compare.mjs'), '--column', path.join(root, 'eval/results')], { encoding: 'utf8' });
+      if (result.status !== 0) {
+        bad(`node eval/compare.mjs --column eval/results does not end with exit 0 (exit ${result.status})`);
+      } else {
+        const column = [];
+        for (const line of result.stdout.split('\n')) {
+          const bar = line.indexOf('|');
+          if (bar > 0) column.push([line.slice(0, bar), line.slice(bar + 1)]);
+        }
+        const value = (key) => (column.find(([name]) => name === key) || [])[1];
+        const said = /It ran with no model and no key on ([A-Z][a-z]+ [0-9]{1,2}) on the recorded evaluation set \(\[eval\]\(eval\)\): ([0-9]+) routine items and ([0-9]+) incidents in the main set/.exec(block.join('\n'));
+        if (!said) {
+          bad('the paragraph under the heading has no date, routine item count and incident count to read');
+        } else {
+          if (said[1] !== value('date')) bad(`the date is "${said[1]}", compare.mjs --column gives "${value('date')}"`);
+          if (said[2] !== value('main-items')) bad(`the routine item count is "${said[2]}", compare.mjs --column gives "${value('main-items')}"`);
+          if (said[3] !== value('main-incidents')) bad(`the incident count is "${said[3]}", compare.mjs --column gives "${value('main-incidents')}"`);
+        }
+        const rows = block.filter((line) => line.startsWith('| ')).map((line) => line.replace(/^\| /, '').replace(/ \|$/, '').split(' | '));
+        const labels = column.filter(([name]) => name !== 'date' && name !== 'main-items' && name !== 'main-incidents');
+        if (labels.length === 0) bad('compare.mjs --column gives no row');
+        for (const [label, cell] of labels) {
+          const found = rows.filter((row) => row[0] === label);
+          if (found.length !== 1) bad(`row "${label}": the table has ${found.length} rows with this first cell, not 1`);
+          else if (found[0].length !== 3) bad(`row "${label}": the row has ${found[0].length} cells, not 3`);
+          else if (found[0][2] !== cell) bad(`row "${label}": the fixed-rules cell is "${found[0][2]}", compare.mjs --column gives "${cell}"`);
+        }
+      }
+    }
+  }
+} catch (error) {
+  bad(`could not be checked: ${error && error.message ? error.message.split('\n')[0] : 'error'}`);
+}
 process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
 EOF
 
@@ -2407,6 +2471,55 @@ variant('compare', 'bad-usage-exit-1', 'do not print a usage line with exit 2', 
 variant('compare', 'bad-column-priced', '--column gives a cell for a rules-only report with a priced decision', (f) => { f['eval/compare.mjs'] = compared([['if (side.cost.priced > 0 || side.cost.largestTokens !== null) {', 'if (false) {']]); });
 variant('compare', 'bad-agent-cost-none', 'an agent with no priced decision is shown as having asked no model', (f) => { f['eval/compare.mjs'] = compared([["return fixedRules ? NONE_CELL : 'not known';", 'return NONE_CELL;']]); });
 variant('compare', 'bad-column-none-cell', '--column does not print the date', (f) => { f['eval/compare.mjs'] = compared([["export const NONE_CELL = 'none: no model request';", "export const NONE_CELL = 'n/a';"]]); });
+// readme-column: the good sample is the repository's eval/compare.mjs over two synthetic rules-only reports and a README whose comparison equals the column
+// they give; each bad sample is it with one edit.
+const COLUMNREPORT = (items, incidents, builtAt = '2026-11-12T10:00:00Z') => ({
+  run: 'zz-run', folder: '/opt/ocutalon/eval/', builtAt, rulesOnly: true,
+  scores: { items: { right: items[0], total: items[1] }, incidents: { right: incidents[0], total: incidents[1] } },
+  cases: [], fallbacks: [], notComplete: [], unscored: [], skipped: [], tellNowMissed: [],
+  cost: { priced: 0, meanUSD: null, unpriced: [] }, size: { largestTokens: null, unknown: [] }, actions: { approvals: 0, commands: 0, settingChanges: 0, fixRuns: 0 },
+});
+const COLUMNHEAD = '### With the agent and with fixed rules only';
+const COLUMNROWS = [
+  ['Routine attention decisions right (main set)', '3 of 4'],
+  ['Incidents with the right cause and the right field or item at fault (main set)', '1 of 2'],
+  ['Held-out cases right (8 items, 4 incidents)', '1 of 3'],
+  ["Items that needed you now but weren't told now", '0'],
+  ['Unsafe outcomes', '0'],
+  ['Cost of one attention decision', 'none: no model request'],
+  ['Largest model request', 'none: no model request'],
+];
+const columnReadme = (date = 'November 12', items = '4', incidents = '2', rows = COLUMNROWS) => [
+  '# Zz', '', '## Measured', '', '| What was measured | Result |', '| --- | --- |', '| Routine attention decisions right | 21 of 24 |', '', COLUMNHEAD, '',
+  `Fixed rules only is a fallback. It ran with no model and no key on ${date} on the recorded evaluation set ([eval](eval)): ${items} routine items and ${incidents} incidents in the main set, plus 12 held-out cases.`, '',
+  '| What was measured | With the agent (Claude Haiku 5.5) | Fixed rules only |', '| --- | --- | --- |',
+  ...rows.map(([label, cell]) => `| ${label} | measured at release 1.0.9 | ${cell} |`), '', 'An unsafe outcome is a change made without approval.', '', '## More', '',
+].join('\n');
+const columnGood = (f) => {
+  f['eval/compare.mjs'] = compared();
+  f['eval/results/rules-only.json'] = COLUMNREPORT([3, 4], [1, 2]);
+  f['eval/results/rules-only-held-out.json'] = COLUMNREPORT([1, 2], [0, 1]);
+  f['README.md'] = columnReadme();
+};
+variant('readme-column', 'good', '', columnGood);
+variant('readme-column', 'good-agent-text-free', '', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace(/measured at release 1\.0\.9/g, '21 of 24 on a live model'); });
+variant('readme-column', 'bad-cell-changed', 'row "Routine attention decisions right (main set)": the fixed-rules cell is "5 of 4"', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('| 3 of 4 |', '| 5 of 4 |'); });
+variant('readme-column', 'bad-cell-text-changed', 'row "Largest model request": the fixed-rules cell is "none"', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace(/\| Largest model request \| measured at release 1\.0\.9 \| none: no model request \|/, '| Largest model request | measured at release 1.0.9 | none |'); });
+variant('readme-column', 'bad-report-changed', 'row "Routine attention decisions right (main set)": the fixed-rules cell is "3 of 4", compare.mjs --column gives "2 of 4"', (f) => { columnGood(f); f['eval/results/rules-only.json'].scores.items.right = 2; });
+variant('readme-column', 'bad-held-out-report-changed', 'row "Held-out cases right (8 items, 4 incidents)": the fixed-rules cell is "1 of 3", compare.mjs --column gives "2 of 3"', (f) => { columnGood(f); f['eval/results/rules-only-held-out.json'].scores.items.right = 2; });
+variant('readme-column', 'bad-row-missing', 'row "Unsafe outcomes": the table has 0 rows', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '4', '2', COLUMNROWS.filter(([label]) => label !== 'Unsafe outcomes')); });
+variant('readme-column', 'bad-row-twice', 'row "Unsafe outcomes": the table has 2 rows', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '4', '2', [...COLUMNROWS, COLUMNROWS[4]]); });
+variant('readme-column', 'bad-row-renamed', 'row "Largest model request": the table has 0 rows', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('| Largest model request |', '| Largest request |'); });
+variant('readme-column', 'bad-date', 'the date is "November 11", compare.mjs --column gives "November 12"', (f) => { columnGood(f); f['README.md'] = columnReadme('November 11'); });
+variant('readme-column', 'bad-date-report', 'the date is "November 12", compare.mjs --column gives "November 13"', (f) => { columnGood(f); f['eval/results/rules-only.json'].builtAt = '2026-11-13T09:00:00Z'; });
+variant('readme-column', 'bad-main-items', 'the routine item count is "5", compare.mjs --column gives "4"', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '5'); });
+variant('readme-column', 'bad-main-incidents', 'the incident count is "3", compare.mjs --column gives "2"', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '4', '3'); });
+variant('readme-column', 'bad-no-heading', 'no heading "### With the agent and with fixed rules only"', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace(COLUMNHEAD, '### With and without'); });
+variant('readme-column', 'bad-no-report', 'does not end with exit 0', (f) => { columnGood(f); delete f['eval/results/rules-only.json']; });
+variant('readme-column', 'bad-no-held-out-report', 'does not end with exit 0', (f) => { columnGood(f); delete f['eval/results/rules-only-held-out.json']; });
+variant('readme-column', 'bad-row-four-cells', 'row "Unsafe outcomes": the row has 4 cells, not 3', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('| Unsafe outcomes | measured at release 1.0.9 | 0 |', '| Unsafe outcomes | measured at release 1.0.9 | 0 | x |'); });
+variant('readme-column', 'bad-paragraph-unreadable', 'the paragraph under the heading has no date, routine item count and incident count to read', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('on the recorded evaluation set', 'on the evaluation set'); });
+variant('readme-column', 'bad-no-readme', 'README.md: the file is missing', (f) => { columnGood(f); delete f['README.md']; });
 EOF
 
 # --- the rules ---
@@ -2475,6 +2588,11 @@ check_held_out_names() {
 # check_compare <root>: the violations of eval/compare.mjs of the tree on synthetic report folders (see check-compare.mjs).
 check_compare() {
   node "$tmp/check-compare.mjs" "$1" 2>&1 || echo "eval/compare.mjs: the check failed"
+}
+
+# check_readme_column <root>: the violations of the README's comparison against `eval/compare.mjs --column eval/results` of the tree (see check-readme-column.mjs).
+check_readme_column() {
+  node "$tmp/check-readme-column.mjs" "$1" 2>&1 || echo "README.md: the check failed"
 }
 
 # feed_files <root>: the files of the tree, relative to the root, one per line. The real tree lists what git tracks or has not ignored; a synthetic tree
@@ -4072,6 +4190,7 @@ rule held-out "eval/held-out/ holds exactly 12 case folders, 8 items (2 for each
 rule held-out-frozen "the SHA-256 of each of the 12 eval/held-out/*/case.json files is one of the 12 pinned values (the commit 6af31dab), and every pinned value is the value of a file" check_held_out_frozen
 rule held-out-names "no tracked or not-ignored file outside eval/held-out/, eval/results/, the specs and the feed's fixture (the four incident names only) names a held-out case, subject line or item text, which are read from eval/held-out/*/case.json" check_held_out_names
 rule compare "eval/compare.mjs writes the comparison of an agent folder and a rules-only folder with the per-case and total figures, the three unsafe kinds and the needed-you-now count, prints the column, reads set-1.json first, refuses a mismatch, a missing file and a file that is not a report with exit 1 and nothing written, and a wrong usage with exit 2" check_compare
+rule readme-column "the README comparison of the agent and the fixed rules has the date, the main set's routine item and incident counts and every fixed-rules cell that node eval/compare.mjs --column eval/results gives, row by row" check_readme_column
 rule feed "no file that ships or installs the product names the test feed or its namespace (CON-3): only the test classes, eval/, the specs and the two scripts of the feed may" check_feed
 rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle, runs bash eval/run.sh and then bash eval/key-proof.sh before its teardown, and no workflow file names OCUTALON_EVAL" check_job
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts
