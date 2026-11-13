@@ -128,3 +128,4 @@
 2026-11-13T20:00:38Z	Story 36.4	smoke_complete	method=other(fresh_lane-B_e36s4s3:Web.OnCallSettingsApi_incl_TraceLeaks_leak_scan) result=pass iterations=3 defects_caught=0 evidence=CLASS_line scope=rework2 model=claude-opus-5-5
 2026-11-13T20:00:38Z	Story 36.4	fresh_check	env=fresh_stack(e36s4s3) tests=Web.OnCallSettingsApi result=pass order=forward note=one_class_changed;reviewer_also_ran_fresh(e36s4c3) scope=rework2
 2026-11-13T20:01:11Z	Epic 36	integrated_forward	feature=848ae83c head=846cb711 conflicts_resolved=sprint-status.yaml(feature_side,regenerated,re-set_36-4=done) note=records-only_feature_commit
+2026-11-13T20:02:03Z	Story 36.4	committed	sha=f0239dc8 submodules= ci=pending runs=43497681249,43497681267 pushed=yes missing=none note=rework1(S1f)+rework2(TraceLeaks)+integrated_forward_62db09e0,848ae83c footprint_extensions=web/angular.json(DW-185_escalated)
