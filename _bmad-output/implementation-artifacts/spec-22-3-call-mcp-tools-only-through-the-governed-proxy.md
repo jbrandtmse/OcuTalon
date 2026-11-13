@@ -2,7 +2,7 @@
 title: 'Story 22.3: Call MCP tools only through the governed proxy'
 type: 'feature'
 created: '2026-11-11'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '804300dd0e74edb68ca7f6345537c1b76691b4dd'
 baseline_commit: '804300dd0e74edb68ca7f6345537c1b76691b4dd'
 review_loop_iteration: 0
@@ -250,7 +250,26 @@ Rejected or closed at emission:
 
 - [x] [CI] checks: `docker/tests/test-release-sequence.sh` rule `overviewdoc` fails on af886ee3 (ci run 43344958166, job checks): its two controls "the can't-connect sentence below the first line" and "the MCP rules sentence dropped" expect a complaint, but the checker deliberately switches those two checks off once `src` holds `call_mcp_tool` ("while src has no MCP client"), which Story 22.3 added -- `docker/tests/test-release-sequence.sh` `t_overviewdoc` L2307/L2325 and `ovw_doc_problems` L2221/L2256 -- the fix must keep both controls meaningful (never skip or delete them): when `git -C "$root" grep -q call_mcp_tool -- src` holds, each control asserts the checker now gives NO complaint for that mutation (the switch is pinned); otherwise the controls stay as they are. Touch nothing else (the doc's MCP section is Story 22.6's). Verify with `bash docker/tests/test-release-sequence.sh` (about 130 s, foreground) and `bash docker/tests/test-boundaries.sh`.
 
+Code re-review 2026-11-12 (rework iteration 1, the `[CI]` item; epic-cycle code-review stage; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, full-opus; scope: the rework diff `804300dd..218d6e6b`, outside it HIGH only). Fields: severity | fix-risk | footprint | spec-status. No HIGH.
+
+- [x] [Review][Patch] MED: the two checks the MCP-client switch turns off were executed by no test: while `src` holds `call_mcp_tool` the controls' `else` branches never run, so deleting the can't-connect `case` or the rules-sentence `grep` in `ovw_doc_problems` left `overviewdoc` green; "pinned both ways" held only one way (Rule 19, no executed test host) [docker/tests/test-release-sequence.sh:t_overviewdoc] - med | low (test script only; the checker, the doc and the existing controls unchanged) | in-story | clear. Fixed: new helper `ovw_doc_problems_no_mcp` runs the checker with its `git grep` for `call_mcp_tool` answering no (a `git` function in a subshell; every other git call passes through); three new assertions run in every tree: the committed overview with the switch forced off gives no complaint, and the can't-connect and rules-sentence faults each give their own complaint. Mutations recorded under Verification. Sources: blind-hunter + verification-gap + acceptance-auditor.
+- [x] [Review][Patch] LOW: the rule header (L32-38) listed the MCP rules sentence as checked unconditionally and said nothing of the pin [docker/tests/test-release-sequence.sh:36] - low | low | in-story | clear. Fixed: the header states the switch, the no-complaint pin and the forced-off controls. Sources: blind-hunter + verification-gap.
+
+Rejected or closed at emission (this re-review):
+- `[med]` `reject` (planned) `docs/security-overview.md` still opens its MCP section with "This release can't connect to MCP servers." although src now holds the proxy, and the pinned controls accept that silence - outside the rework range and not HIGH: Story 22.6's acceptance criterion (epics.md, Story 22.6) drops exactly that sentence and adds `call_mcp_tool` to the generated list, and no step release ships before 22.6 and the step's hands-on pass; the forced-off controls now go red the moment the sentence is removed, so 22.6 must replace them. (blind-hunter, verification-gap)
+- `[low]` `reject` `cmp` exit 2 or 127 prints `changed` - a missing or unreadable fixture also turns the paired empty-complaint assertion red (the checker then reports the frame faults), so neither pair passes vacuously; the fix adds a branch for a case not shown reachable. (edge-case-hunter)
+- `[false]` `baseline_revision` changed but `baseline_commit` not - at HEAD both read `804300dd` (the lead's bookkeeping commit). (blind-hunter)
+- `[low]` `reject` the rework dates mix 2026-11-12 and 2026-11-13, the Auto Run Result's layer count names three layers while rows credit four, and the Auto Run Result does not say CI has to confirm - fixes that edit the spec; the confirming CI run follows the lead's push. (blind-hunter, verification-gap, acceptance-auditor)
+- `[low]` `by-design` the rework's Auto Run Result replaced the story-level one - Rule 14: a rework pass's Auto Run Result covers only that pass; the round-1 items stay in the frontmatter `deferred:` list, the triage log and the Spec Change Log. (verification-gap, acceptance-auditor)
+- `[low]` `reject` the controls' branch reads the tracked `src`, state the test did not create - the same predicate as the checker's by design; the new forced-off assertions set their own switch and run in every tree. (verification-gap)
+- `[low]` `wontfix-theoretical` the switch's `git grep` also matches comments and test classes - the checker's predicate predates this story; real if `call_mcp_tool` left the code but stayed in a comment, and Story 22.6 replaces these controls. (verification-gap)
+- `[low]` `reject` older ACs (the label's web escape and Telegram parse mode, the 40,000-character total, condition (e)) have no `mutation:` line - outside the rework range and not HIGH; round 1 closed them. (verification-gap)
+
+- [ ] [CI] iris (shards-8): `OcuTalon.Test.Agent.Constants` `TestToolNames` fails on af886ee3 (ci run 43344958166, unit shard:lane-a@Agent): "there are 21 tool names (Story 23.2 adds propose_fix)" -- Story 22.3 added `Tools.Names.#CALLMCPTOOL` (`call_mcp_tool`), so the count is now 22 -- `src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls` L44 -- update the expected count to the real number and the message to name Story 22.3's `call_mcp_tool`; if the test also lists the names, add `call_mcp_tool` there. Verify with `ci/iris.sh class OcuTalon.Test.Agent.Constants` on a lane D warm stack.
+
 ## Spec Change Log
+
+- 2026-11-13 (runner, rework iteration 2, trigger ci): re-opened for the [CI] item above (shards-8 red on af886ee3: tool-name count).
 
 - 2026-11-13 (runner, rework iteration 1, trigger ci): re-opened for the [CI] item above (checks job red on af886ee3: test-release-sequence overviewdoc controls).
 
@@ -516,6 +535,11 @@ There are no `(once)` lines. CI runs the full suite (`live:security-overview`, t
 - `mutation:` the guard of `ovw_doc_problems` flipped (`if ! git -C "$root" grep -q call_mcp_tool -- src` to `if git ...`, both occurrences, so the MCP checks run although `src` holds `call_mcp_tool`) -> rule `overviewdoc` red in "control: the can't-connect sentence below the first line, with an MCP client in src, is not checked" and "control: the MCP rules sentence dropped, with an MCP client in src, is not checked"; the controls keep their own inline guard, so flipping the checker's alone turns them red.
 
 - `mutation:` the fixture of the can't-connect control made a no-op (the awk anchor `## MCP tools` changed to `## MCP toolz`) and the rules fixture's sed pattern made a no-match -> rule `overviewdoc` red in "the can't-connect fault changed the file" and "the MCP rules sentence fault changed the file" (got 'same', wanted 'changed'); reverted byte for byte.
+
+**Re-review (2026-11-12, the forced-off controls; each mutation applied, observed red with `bash docker/tests/test-release-sequence.sh overviewdoc`, reverted byte for byte, `git status --short` and `git diff --stat` identical to before):**
+- `mutation:` the can't-connect check of `ovw_doc_problems` made silent (`*) echo "the MCP tools section does not open ..." ;;` to `*) ;;`) -> red in "control: the can't-connect sentence below the first line, with the switch forced off".
+- `mutation:` the rules-sentence check of `ovw_doc_problems` replaced by `:` -> red in "control: the MCP rules sentence dropped, with the switch forced off".
+- `mutation:` the shim of `ovw_doc_problems_no_mcp` made a no-match (`-- src` to `-- srcX`) -> red in both forced-off controls.
 
 **Shared surfaces:**
 - `Tools.Names` (the mock's count; `CheckToolRows`);

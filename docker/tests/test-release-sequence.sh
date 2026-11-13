@@ -33,8 +33,9 @@
 #             ASCII only, no machine path, no URL or address; no hand-written placeholder; the privilege-limits paragraph word for word under its
 #             heading; EXPERIENCE.md's kept-OCUORDERS sentence word for word; while src has no call_mcp_tool, the MCP section opening with the
 #             can't-connect sentence; the numbers and the audit types of the code in their sections; the five headings once each and in order, the
-#             no-scheduled-purge sentence, the MCP rules sentence and the demo section's closing sentence (QA); and the CI claims of the file and of the live
-#             unit in ci/units.sh (every group runs on the file, shards-5 holds the unit)
+#             no-scheduled-purge sentence, while src has no call_mcp_tool the MCP rules sentence, and the demo section's closing sentence (QA); with
+#             call_mcp_tool in src, the two MCP checks give no complaint, and with that switch forced off they still find their faults; and the
+#             CI claims of the file and of the live unit in ci/units.sh (every group runs on the file, shards-5 holds the unit)
 #   ipmcheck  (Story 15.4) the ipmcheck step runs release/ipm-install.sh of the candidate (a stub in the seed repository, so no container is needed)
 #             on an export of the candidate's tree with the ipm step's artifact, the lane lock folder, a run tag and the job's deadline, and
 #             tears down after it: a pass records "## FR-57 job" and names push; a failure (exit 1 or any code but 0 and 75) stops the release before
@@ -2274,6 +2275,15 @@ ovw_ci_claims() {
   )
 }
 
+# ovw_doc_problems_no_mcp <file>: ovw_doc_problems with the MCP-client switch forced off (its git grep for call_mcp_tool in src answers no;
+# every other git call runs as usual), in a subshell, so the checks the switch turns off still run on a fixture.
+ovw_doc_problems_no_mcp() {
+  (
+    git() { [ "$*" = "-C $root grep -q call_mcp_tool -- src" ] && return 1; command git "$@"; }
+    ovw_doc_problems "$1"
+  )
+}
+
 t_overviewdoc() {
   local doc=$root/docs/security-overview.md d=$tmp/ovwdoc grp want
   rm -rf "$d"
@@ -2311,6 +2321,9 @@ t_overviewdoc() {
   else
     eq "control: the can't-connect sentence below the first line" "$(ovw_doc_problems "$d/mcp.md")" "the MCP tools section does not open with the can't-connect sentence"
   fi
+  # the other way: with the switch forced off, the committed file still passes and each of the two faults gives its own complaint
+  eq "the committed overview, with the MCP-client switch forced off, has a good frame" "$(ovw_doc_problems_no_mcp "$doc")" ""
+  eq "control: the can't-connect sentence below the first line, with the switch forced off" "$(ovw_doc_problems_no_mcp "$d/mcp.md")" "the MCP tools section does not open with the can't-connect sentence"
   sed 's/^- It expires after 24 hours\./- It expires after 48 hours./' "$doc" > "$d/hours.md"
   eq "control: another expiry" "$(ovw_doc_problems "$d/hours.md")" "the Approval and audit section lacks '24 hours'"
   sed 's/^- `Tool`: /- Tool: /' "$doc" > "$d/type.md"
@@ -2334,6 +2347,7 @@ t_overviewdoc() {
   else
     eq "control: the MCP rules sentence dropped" "$(ovw_doc_problems "$d/rules.md")" "the MCP tools section lacks the rules sentence"
   fi
+  eq "control: the MCP rules sentence dropped, with the switch forced off" "$(ovw_doc_problems_no_mcp "$d/rules.md")" "the MCP tools section lacks the rules sentence"
   sed 's/^Each protection listed here is checked against the running demo before every release\.$/Each protection listed here is checked against the running demo./' "$doc" > "$d/close.md"
   eq "control: the closing demo sentence changed" "$(ovw_doc_problems "$d/close.md")" "the Online demo section lacks the checked-before-every-release sentence"
   { cat "$doc"; printf '\n## Data\n'; } > "$d/heading.md"
